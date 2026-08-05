@@ -10,7 +10,7 @@ WORKFLOW = ROOT / ".github/workflows/hourly-product-development.yml"
 
 
 class SecurityReviewContractTests(unittest.TestCase):
-    """Keep the hourly agent credential and egress boundaries fail closed."""
+    """Keep the hourly agent credential, filesystem, and egress boundaries fail closed."""
 
     def test_hourly_runner_allows_rust_registry_endpoints(self) -> None:
         """Future locked Rust dependencies must be installable under blocked egress."""
@@ -41,6 +41,35 @@ class SecurityReviewContractTests(unittest.TestCase):
         self.assertIn("release-blocker", publication)
         self.assertIn("EXPECTED_BASE_SHA", publication)
         self.assertIn("publication cancelled", publication)
+
+    def test_unprivileged_agent_has_loopback_only_network_egress(self) -> None:
+        """Bash access must not turn runner allow-listed domains into exfiltration channels."""
+
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        agent_step = workflow[
+            workflow.index("Run OpenCode in an unprivileged no-Git workspace") :
+            workflow.index("Stop credential broker")
+        ]
+        self.assertIn("iptables", agent_step)
+        self.assertIn("ip6tables", agent_step)
+        self.assertIn("--uid-owner 65532", agent_step)
+        self.assertIn("127.0.0.0/8", agent_step)
+        self.assertIn("::1", agent_step)
+        self.assertIn("trap", agent_step)
+
+    def test_agent_build_outputs_and_python_bytecode_live_outside_workspace(self) -> None:
+        """Required verification must not be misclassified as an agent source edit."""
+
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        agent_step = workflow[
+            workflow.index("Run OpenCode in an unprivileged no-Git workspace") :
+            workflow.index("Stop credential broker")
+        ]
+        self.assertIn('CARGO_TARGET_DIR="$AGENT_HOME/target"', agent_step)
+        self.assertIn('PYTHONPYCACHEPREFIX="$AGENT_HOME/pycache"', agent_step)
+        self.assertIn("PYTHONDONTWRITEBYTECODE=1", agent_step)
+        self.assertIn("CARGO_NET_OFFLINE=true", agent_step)
+        self.assertIn("cargo +1.97.1 fetch --locked", workflow)
 
 
 if __name__ == "__main__":
