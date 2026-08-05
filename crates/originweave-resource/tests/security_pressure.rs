@@ -1,5 +1,6 @@
 #![allow(clippy::expect_used)]
 
+// Red-first contracts: hard pressure must reduce the active consumer, not only future admission.
 use originweave_resource::{ResourceBudget, ResourceGovernor, ResourceSnapshot};
 
 fn governor() -> ResourceGovernor {
