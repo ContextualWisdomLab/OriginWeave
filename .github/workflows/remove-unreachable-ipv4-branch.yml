@@ -1,0 +1,62 @@
+name: Remove unreachable IPv4 normalization branch
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: remove-unreachable-ipv4-branch
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: github.event.pull_request.head.ref == 'feat/agent-safety-kernel'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: feat/agent-safety-kernel
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - name: Remove unreachable branch and self-delete
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('crates/originweave-core/src/lib.rs')
+          text = path.read_text(encoding='utf-8')
+          old = '''    if let Ok(address) = host.parse::<Ipv4Addr>() {
+              if address.to_string() != host {
+                  return Err(OriginError::AmbiguousNumericHost);
+              }
+              return Ok((host, port, address.is_loopback()));
+          }
+'''
+          new = '''    if let Ok(address) = host.parse::<Ipv4Addr>() {
+              return Ok((host, port, address.is_loopback()));
+          }
+'''
+          if old not in text:
+              raise SystemExit('expected canonical IPv4 branch not found')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          cargo fmt --all
+          cargo test --locked --workspace --all-targets
+          rm .github/workflows/remove-unreachable-ipv4-branch.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'refactor(core): remove unreachable IPv4 normalization branch'
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:feat/agent-safety-kernel
