@@ -3,9 +3,9 @@
 use std::collections::BTreeSet;
 
 use originweave_core::{
-    ActionKind, ActionRequest, ApprovalEvidence, ApprovalScope, Capability,
-    ExecutionPurpose, InstructionSource, Origin, PolicyContext, RiskClass, RobotsDecision,
-    SecretDelivery, SessionMode,
+    ActionKind, ActionRequest, ApprovalEvidence, ApprovalScope, Capability, ExecutionPurpose,
+    InstructionSource, Origin, PolicyContext, RiskClass, RobotsDecision, SecretDelivery,
+    SessionMode,
 };
 use originweave_policy::{Decision, DenialReason, evaluate};
 
@@ -53,7 +53,10 @@ fn policy_allows_low_risk_read_and_draft_work() {
             &site,
             &site,
         );
-        assert_eq!(evaluate(&request(action, &site, &site), &ctx), Decision::Allow);
+        assert_eq!(
+            evaluate(&request(action, &site, &site), &ctx),
+            Decision::Allow
+        );
     }
 }
 
@@ -130,7 +133,10 @@ fn policy_enforces_capabilities_and_origin_grants() {
         &target,
     );
     assert_eq!(
-        evaluate(&request(ActionKind::Submit, &source, &target), &cross_origin),
+        evaluate(
+            &request(ActionKind::Submit, &source, &target),
+            &cross_origin
+        ),
         Decision::Deny(DenialReason::CrossOriginMutation)
     );
 
