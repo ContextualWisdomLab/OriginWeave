@@ -64,11 +64,21 @@ jobs:
           --json
           --summary-only
           --output-path coverage.json
-      - name: Print uncovered production lines
+      - name: Record uncovered production lines
         run: >-
           cargo +nightly-2026-08-01 llvm-cov report
           --branch
           --text
           --show-missing-lines
+          > missing-lines.txt
+      - name: Upload exact coverage diagnostics
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: exact-coverage-${{ github.sha }}
+          path: |
+            coverage.json
+            missing-lines.txt
+          if-no-files-found: error
+          retention-days: 3
       - name: Enforce exact production coverage
         run: python3 scripts/ci/verify_coverage.py coverage.json
