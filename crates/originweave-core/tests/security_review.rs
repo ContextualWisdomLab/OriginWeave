@@ -43,6 +43,12 @@ fn origin_rejects_browser_special_numeric_hosts() {
             .as_str(),
         "https://1.2.3.0x"
     );
+    assert_eq!(
+        Origin::parse("https://0xg")
+            .expect("a non-hexadecimal suffix is a DNS label, not an IPv4 number")
+            .as_str(),
+        "https://0xg"
+    );
 }
 
 #[test]
