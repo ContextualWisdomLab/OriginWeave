@@ -15,7 +15,7 @@ fn origin() -> Origin {
 }
 
 #[test]
-fn network_evidence_preserves_only_allowlisted_metadata_values() {
+fn network_evidence_discards_every_metadata_value() {
     let headers = BTreeMap::from([
         ("Authorization".to_owned(), "Bearer secret".to_owned()),
         ("Cookie".to_owned(), "session=secret".to_owned()),
@@ -33,17 +33,17 @@ fn network_evidence_preserves_only_allowlisted_metadata_values() {
     assert_eq!(evidence.method(), HttpMethod::Get);
     assert_eq!(evidence.origin().as_str(), "https://example.com");
     assert_eq!(evidence.path(), "/search");
-    assert_eq!(evidence.headers()["Authorization"], "[REDACTED]");
-    assert_eq!(evidence.headers()["Cookie"], "[REDACTED]");
-    assert_eq!(evidence.headers()["Content-Type"], "application/json");
-    assert_eq!(evidence.headers()["Accept"], "application/json");
-    assert_eq!(evidence.headers()["X-Custom-Session"], "[REDACTED]");
-    assert_eq!(evidence.query()["access_token"], "[REDACTED]");
-    assert_eq!(evidence.query()["q"], "[REDACTED]");
+    assert!(
+        evidence
+            .headers()
+            .values()
+            .all(|value| value == "[REDACTED]")
+    );
+    assert!(evidence.query().values().all(|value| value == "[REDACTED]"));
 }
 
 #[test]
-fn every_non_allowlisted_header_and_query_value_is_redacted_case_insensitively() {
+fn metadata_redaction_is_independent_of_field_name_case() {
     let headers = BTreeMap::from([
         ("PROXY-AUTHORIZATION".to_owned(), "x".to_owned()),
         ("Set-Cookie".to_owned(), "x".to_owned()),
@@ -61,12 +61,12 @@ fn every_non_allowlisted_header_and_query_value_is_redacted_case_insensitively()
     let evidence = NetworkEvidence::capture(HttpMethod::Post, origin(), "/submit", headers, query)
         .expect("evidence");
 
-    assert_eq!(evidence.headers()["ETAG"], "safe-etag");
-    for (name, value) in evidence.headers() {
-        if !name.eq_ignore_ascii_case("etag") {
-            assert_eq!(value, "[REDACTED]");
-        }
-    }
+    assert!(
+        evidence
+            .headers()
+            .values()
+            .all(|value| value == "[REDACTED]")
+    );
     assert!(evidence.query().values().all(|value| value == "[REDACTED]"));
 }
 
@@ -78,6 +78,7 @@ fn network_evidence_rejects_non_path_inputs() {
         "/path?secret=x",
         "/path#fragment",
         "/bad\npath",
+        "/bad path",
         "/windows\\path",
     ] {
         assert_eq!(
@@ -126,6 +127,7 @@ fn provenance_rejects_credential_bearing_or_ambiguous_source_urls() {
         "https://example.com/path#fragment",
         "https://example.com/bad\\path",
         "https://example.com/\n",
+        "https://example.com/a/%2f/b",
     ] {
         assert_eq!(
             ProvenanceRecord::new(
