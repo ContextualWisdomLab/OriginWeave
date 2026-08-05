@@ -26,7 +26,9 @@ Mind2Web reports that raw real-world HTML is often too large for direct LLM use 
 
 ### Learned test-time orchestration
 
-Sakana Fugu is a commercial multi-agent orchestration system exposed through an OpenAI-compatible API. Sakana AI states that Fugu is grounded in the TRINITY and Conductor research programs. TRINITY uses a compact learned coordinator to select models and assign Thinker, Worker, and Verifier roles over multiple turns. Conductor learns communication topologies and focused natural-language instructions and can form recursive coordination structures.
+Sakana AI announced the Fugu early beta on 24 April 2026 and the broader Fugu and Fugu Ultra commercial release on 22 June 2026. The released service exposes a multi-agent orchestration system through one OpenAI-compatible model API. Fugu dynamically decides whether to solve directly or coordinate a deeper pool of expert models. Sakana AI identifies the ICLR 2026 TRINITY and Conductor papers as the methodological foundation and publishes a separate Fugu technical report. Product-page benchmark claims remain first-party commercial evidence; they are not treated as independent scientific replication.
+
+TRINITY uses a compact learned coordinator to select models and assign Thinker, Worker, and Verifier roles over multiple turns. Conductor learns communication topologies and focused natural-language instructions and can form recursive coordination structures.
 
 These results motivate explicit OriginWeave configuration for model routing, workflow stage, decomposition, recursion depth, permitted access, role assignment, and role-specific reasoning effort. They do not justify always using multiple agents. OriginWeave must compare bounded single-model, routed-model, and deeper multi-agent configurations through task-success, safety, variance, token, and compute ablations. No learned coordinator may expand browser capabilities, origins, approvals, secrets, or deterministic policy.
 
@@ -38,6 +40,8 @@ Deng, X., Gu, Y., Zheng, B., Chen, S., Stevens, S., Wang, B., Sun, H., & Su, Y. 
 
 Evtimov, I., Zharmagambetov, A., Grattafiori, A., Guo, C., & Chaudhuri, K. (2025). *WASP: Benchmarking web agent security against prompt injection attacks*. arXiv. https://doi.org/10.48550/arXiv.2504.18575
 
+Fugu Team, Sakana AI. (2026). *Sakana Fugu technical report* [Technical report]. arXiv. https://doi.org/10.48550/arXiv.2606.21228
+
 International Organization for Standardization. (2017). *Information and documentation—WARC file format* (ISO Standard No. 28500:2017). https://www.iso.org/standard/68004.html
 
 Koster, M., Illyes, G., Zeller, H., & Sassman, L. (2022). *Robots Exclusion Protocol* (RFC 9309). Internet Engineering Task Force. https://doi.org/10.17487/RFC9309
@@ -45,6 +49,8 @@ Koster, M., Illyes, G., Zeller, H., & Sassman, L. (2022). *Robots Exclusion Prot
 Nielsen, S., Cetin, E., Schwendeman, P., Sun, Q., Xu, J., & Tang, Y. (2025). *Learning to orchestrate agents in natural language with the Conductor* [Preprint]. arXiv. https://doi.org/10.48550/arXiv.2512.04388
 
 Sakana AI. (2026, April 24). *Sakana Fugu: A multi-agent orchestration system as a foundation model*. https://sakana.ai/fugu-beta/
+
+Sakana AI. (2026, June 22). *Sakana Fugu: One model to command them all*. https://sakana.ai/fugu-release/
 
 World Wide Web Consortium. (2013). *PROV-O: The PROV ontology*. https://www.w3.org/TR/prov-o/
 
