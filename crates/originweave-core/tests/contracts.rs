@@ -3,10 +3,17 @@
 use std::collections::BTreeSet;
 
 use originweave_core::{
-    ActionKind, ActionRequest, ApprovalEvidence, ApprovalScope, Capability, ExecutionPurpose,
-    InstructionSource, Origin, OriginError, PolicyContext, RiskClass, RobotsDecision,
-    SecretDelivery, SessionMode,
+    ActionIntentDigest, ActionKind, ActionRequest, ApprovalEvidence, ApprovalScope, Capability,
+    ExecutionPurpose, InstructionSource, Origin, OriginError, PolicyContext, RiskClass,
+    RobotsDecision, SecretDelivery, SessionMode,
 };
+
+const VALID_INTENT: &str =
+    "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+fn intent() -> ActionIntentDigest {
+    ActionIntentDigest::parse(VALID_INTENT).expect("valid intent digest")
+}
 
 #[test]
 fn origin_accepts_secure_and_loopback_origins() {
@@ -188,15 +195,17 @@ fn action_contracts_cover_every_risk_and_capability() {
 }
 
 #[test]
-fn approval_evidence_is_bound_to_the_exact_action_and_origin() {
+fn approval_evidence_is_bound_to_the_exact_action_origin_and_intent() {
     let source = Origin::parse("https://shop.example").expect("source");
     let target = Origin::parse("https://pay.example").expect("target");
-    let scope = ApprovalScope::new(ActionKind::Purchase, target.clone());
-    let same = ApprovalScope::new(ActionKind::Purchase, target);
-    let wrong_action = ApprovalScope::new(ActionKind::Delete, source.clone());
+    let digest = intent();
+    let scope = ApprovalScope::new(ActionKind::Purchase, target.clone(), digest.clone());
+    let same = ApprovalScope::new(ActionKind::Purchase, target, digest.clone());
+    let wrong_action = ApprovalScope::new(ActionKind::Delete, source.clone(), digest);
 
     assert_eq!(scope.action(), ActionKind::Purchase);
     assert_eq!(scope.target_origin().as_str(), "https://pay.example");
+    assert_eq!(scope.intent_digest().as_str(), VALID_INTENT);
     assert!(ApprovalEvidence::UserConfirmed(scope.clone()).authorizes(&same));
     assert!(ApprovalEvidence::EnterprisePolicy(scope).authorizes(&same));
     assert!(!ApprovalEvidence::None.authorizes(&same));
@@ -207,12 +216,14 @@ fn approval_evidence_is_bound_to_the_exact_action_and_origin() {
 fn request_and_context_accessors_preserve_explicit_authority() {
     let source = Origin::parse("https://app.example").expect("source");
     let target = Origin::parse("https://api.example").expect("target");
+    let digest = intent();
     let request = ActionRequest::new(
         ActionKind::Submit,
         source.clone(),
         target.clone(),
         InstructionSource::EnterprisePolicy,
         SecretDelivery::None,
+        digest.clone(),
     );
     assert_eq!(request.action(), ActionKind::Submit);
     assert_eq!(request.source_origin(), &source);
@@ -222,6 +233,7 @@ fn request_and_context_accessors_preserve_explicit_authority() {
         InstructionSource::EnterprisePolicy
     );
     assert_eq!(request.secret_delivery(), SecretDelivery::None);
+    assert_eq!(request.intent_digest(), &digest);
 
     let mut context = PolicyContext::new(
         SessionMode::AgentTask,
@@ -247,6 +259,7 @@ fn request_and_context_accessors_preserve_explicit_authority() {
     context.set_approval(ApprovalEvidence::UserConfirmed(ApprovalScope::new(
         ActionKind::Submit,
         target,
+        digest,
     )));
     assert_eq!(context.robots_decision(), RobotsDecision::Allowed);
     assert!(matches!(
