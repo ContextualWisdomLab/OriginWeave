@@ -54,7 +54,7 @@ pub enum DenialReason {
     UnexpectedSecretMaterial,
     /// The action belongs to a non-delegable risk class.
     ForbiddenRisk,
-    /// Approval evidence exists but covers a different action or origin.
+    /// Approval evidence covers a different action, origin, or intent digest.
     ApprovalScopeMismatch,
 }
 
@@ -124,7 +124,11 @@ pub fn evaluate(request: &ActionRequest, context: &PolicyContext) -> Decision {
         return Decision::Allow;
     }
 
-    let required_scope = ApprovalScope::new(request.action(), request.target_origin().clone());
+    let required_scope = ApprovalScope::new(
+        request.action(),
+        request.target_origin().clone(),
+        request.intent_digest().clone(),
+    );
     match context.approval() {
         ApprovalEvidence::None => Decision::RequireApproval(risk),
         evidence if evidence.authorizes(&required_scope) => Decision::Allow,
