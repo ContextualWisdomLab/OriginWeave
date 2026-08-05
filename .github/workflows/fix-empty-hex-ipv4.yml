@@ -3,6 +3,11 @@ name: Fix empty hexadecimal IPv4 spellings
 on:
   pull_request:
     types: [opened, reopened, synchronize]
+  push:
+    branches:
+      - feat/agent-safety-kernel
+    paths:
+      - .github/workflows/fix-empty-hex-ipv4.yml
 
 permissions:
   contents: write
@@ -13,7 +18,7 @@ concurrency:
 
 jobs:
   repair:
-    if: github.event.pull_request.head.ref == 'feat/agent-safety-kernel'
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.ref == 'feat/agent-safety-kernel'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
