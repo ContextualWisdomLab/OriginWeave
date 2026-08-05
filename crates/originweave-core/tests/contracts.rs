@@ -1,22 +1,35 @@
 #![allow(clippy::expect_used)]
 
+use std::collections::BTreeSet;
+
 use originweave_core::{
-    ActionKind, ApprovalEvidence, ApprovalScope, Capability, ExecutionPurpose, InstructionSource,
-    Origin, OriginError, RiskClass, RobotsDecision, SecretDelivery, SessionMode,
+    ActionKind, ActionRequest, ApprovalEvidence, ApprovalScope, Capability, ExecutionPurpose,
+    InstructionSource, Origin, OriginError, PolicyContext, RiskClass, RobotsDecision,
+    SecretDelivery, SessionMode,
 };
 
 #[test]
 fn origin_accepts_secure_and_loopback_origins() {
-    let secure = Origin::parse("https://Example.COM:443").expect("secure origin");
-    let localhost = Origin::parse("http://localhost:8080").expect("loopback origin");
+    let secure = Origin::parse("HTTPS://Example.COM:443").expect("secure origin");
+    let secure_custom = Origin::parse("https://Example.COM:8443").expect("custom port");
+    let localhost = Origin::parse("HTTP://LOCALHOST:80").expect("loopback origin");
+    let localhost_custom = Origin::parse("http://localhost:8080").expect("custom loopback");
     let ipv4 = Origin::parse("http://127.0.0.1").expect("IPv4 loopback origin");
     let ipv6 = Origin::parse("http://[::1]:9222").expect("IPv6 loopback origin");
+    let secure_ipv6 = Origin::parse("https://[2001:db8::1]").expect("secure IPv6 origin");
 
-    assert_eq!(secure.as_str(), "https://example.com:443");
-    assert_eq!(localhost.as_str(), "http://localhost:8080");
+    assert_eq!(secure.as_str(), "https://example.com");
+    assert_eq!(secure_custom.as_str(), "https://example.com:8443");
+    assert_eq!(localhost.as_str(), "http://localhost");
+    assert_eq!(localhost_custom.as_str(), "http://localhost:8080");
     assert_eq!(ipv4.as_str(), "http://127.0.0.1");
     assert_eq!(ipv6.as_str(), "http://[::1]:9222");
+    assert_eq!(secure_ipv6.as_str(), "https://[2001:db8::1]");
     assert_eq!(secure.to_string(), secure.as_str());
+    assert_eq!(
+        secure,
+        Origin::parse("https://example.com").expect("canonical equivalent")
+    );
 }
 
 #[test]
@@ -37,10 +50,36 @@ fn origin_rejects_ambiguous_or_insecure_remote_inputs() {
         ("https://example.com:0", OriginError::InvalidPort),
         ("https://example.com:65536", OriginError::InvalidPort),
         ("https://example.com:not-a-port", OriginError::InvalidPort),
+        ("https://example.com:", OriginError::InvalidPort),
     ];
 
     for (input, expected) in cases {
         assert_eq!(Origin::parse(input), Err(expected), "input={input}");
+    }
+}
+
+#[test]
+fn origin_rejects_malformed_dns_and_ipv6_authorities() {
+    let long_label = "a".repeat(64);
+    let cases = [
+        "https://:443".to_owned(),
+        "https://example..com".to_owned(),
+        "https://-example.com".to_owned(),
+        "https://example-.com".to_owned(),
+        "https://exa_mple.com".to_owned(),
+        "https://example.com.".to_owned(),
+        format!("https://{long_label}.example"),
+        "https://[not-ipv6]".to_owned(),
+        "https://[::1]junk".to_owned(),
+        "https://münich.example".to_owned(),
+    ];
+
+    for input in cases {
+        assert_eq!(
+            Origin::parse(&input),
+            Err(OriginError::InvalidAuthority),
+            "input={input}"
+        );
     }
 }
 
@@ -156,10 +195,64 @@ fn approval_evidence_is_bound_to_the_exact_action_and_origin() {
     let same = ApprovalScope::new(ActionKind::Purchase, target);
     let wrong_action = ApprovalScope::new(ActionKind::Delete, source.clone());
 
+    assert_eq!(scope.action(), ActionKind::Purchase);
+    assert_eq!(scope.target_origin().as_str(), "https://pay.example");
     assert!(ApprovalEvidence::UserConfirmed(scope.clone()).authorizes(&same));
     assert!(ApprovalEvidence::EnterprisePolicy(scope).authorizes(&same));
     assert!(!ApprovalEvidence::None.authorizes(&same));
     assert!(!ApprovalEvidence::UserConfirmed(wrong_action).authorizes(&same));
+}
+
+#[test]
+fn request_and_context_accessors_preserve_explicit_authority() {
+    let source = Origin::parse("https://app.example").expect("source");
+    let target = Origin::parse("https://api.example").expect("target");
+    let request = ActionRequest::new(
+        ActionKind::Submit,
+        source.clone(),
+        target.clone(),
+        InstructionSource::EnterprisePolicy,
+        SecretDelivery::None,
+    );
+    assert_eq!(request.action(), ActionKind::Submit);
+    assert_eq!(request.source_origin(), &source);
+    assert_eq!(request.target_origin(), &target);
+    assert_eq!(
+        request.instruction_source(),
+        InstructionSource::EnterprisePolicy
+    );
+    assert_eq!(request.secret_delivery(), SecretDelivery::None);
+
+    let mut context = PolicyContext::new(
+        SessionMode::AgentTask,
+        ExecutionPurpose::EnterpriseAuthorizedTask,
+        BTreeSet::from([Capability::Submit]),
+        BTreeSet::from([source.clone(), target.clone()]),
+        BTreeSet::from([target.clone()]),
+        RobotsDecision::NotApplicable,
+        ApprovalEvidence::None,
+    );
+    assert_eq!(context.mode(), SessionMode::AgentTask);
+    assert_eq!(
+        context.purpose(),
+        ExecutionPurpose::EnterpriseAuthorizedTask
+    );
+    assert!(context.capabilities().contains(&Capability::Submit));
+    assert!(context.read_origins().contains(&source));
+    assert!(context.write_origins().contains(&target));
+    assert_eq!(context.robots_decision(), RobotsDecision::NotApplicable);
+    assert_eq!(context.approval(), &ApprovalEvidence::None);
+
+    context.set_robots_decision(RobotsDecision::Allowed);
+    context.set_approval(ApprovalEvidence::UserConfirmed(ApprovalScope::new(
+        ActionKind::Submit,
+        target,
+    )));
+    assert_eq!(context.robots_decision(), RobotsDecision::Allowed);
+    assert!(matches!(
+        context.approval(),
+        ApprovalEvidence::UserConfirmed(_)
+    ));
 }
 
 #[test]

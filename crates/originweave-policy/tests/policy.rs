@@ -96,6 +96,40 @@ fn policy_rejects_non_agent_and_untrusted_instruction_sources() {
 }
 
 #[test]
+fn mode_and_purpose_must_agree_for_public_crawling() {
+    let site = origin("https://catalog.example");
+    let agent_public_crawl = context(
+        SessionMode::AgentTask,
+        ExecutionPurpose::PublicCrawl,
+        Capability::Extract,
+        &site,
+        &site,
+    );
+    assert_eq!(
+        evaluate(
+            &request(ActionKind::Extract, &site, &site),
+            &agent_public_crawl
+        ),
+        Decision::Deny(DenialReason::ModePurposeMismatch)
+    );
+
+    let crawler_user_task = context(
+        SessionMode::Crawler,
+        ExecutionPurpose::UserDelegatedTask,
+        Capability::Extract,
+        &site,
+        &site,
+    );
+    assert_eq!(
+        evaluate(
+            &request(ActionKind::Extract, &site, &site),
+            &crawler_user_task
+        ),
+        Decision::Deny(DenialReason::ModePurposeMismatch)
+    );
+}
+
+#[test]
 fn policy_enforces_capabilities_and_origin_grants() {
     let source = origin("https://app.example");
     let target = origin("https://api.example");

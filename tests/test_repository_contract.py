@@ -83,7 +83,7 @@ class RepositoryContractTests(unittest.TestCase):
         """Persistent naming policy must include the mandated canonical form."""
 
         policy = (ROOT / "docs/database-naming.md").read_text(encoding="utf-8")
-        self.assertIn("two-or-more-word", policy)
+        self.assertIn("at least two semantic words", policy)
         self.assertIn("snake_case", policy)
         self.assertIn("agent_session", policy)
 

@@ -64,5 +64,11 @@ jobs:
           --json
           --summary-only
           --output-path coverage.json
+      - name: Print uncovered production lines
+        run: >-
+          cargo +nightly-2026-08-01 llvm-cov report
+          --branch
+          --text
+          --show-missing-lines
       - name: Enforce exact production coverage
         run: python3 scripts/ci/verify_coverage.py coverage.json

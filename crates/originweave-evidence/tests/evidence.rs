@@ -8,6 +8,9 @@ use originweave_evidence::{
     VerificationResult,
 };
 
+const VALID_HASH: &str =
+    "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
 fn origin() -> Origin {
     Origin::parse("https://example.com").expect("origin")
 }
@@ -71,6 +74,7 @@ fn network_evidence_rejects_non_path_inputs() {
         "/path?secret=x",
         "/path#fragment",
         "/bad\npath",
+        "/windows\\path",
     ] {
         assert_eq!(
             NetworkEvidence::capture(
@@ -87,21 +91,65 @@ fn network_evidence_rejects_non_path_inputs() {
 }
 
 #[test]
+fn provenance_accepts_safe_root_path_and_loopback_sources() {
+    for source_url in [
+        "https://example.com",
+        "https://example.com/item/42",
+        "http://localhost:9222/json/version",
+        "http://[::1]:9222/json/version",
+    ] {
+        let record = ProvenanceRecord::new(
+            source_url,
+            "body",
+            VALID_HASH,
+            EvidenceSourceKind::StructuredData,
+            VerificationResult::Verified,
+        )
+        .expect("safe provenance source");
+        assert_eq!(record.source_url(), source_url);
+    }
+}
+
+#[test]
+fn provenance_rejects_credential_bearing_or_ambiguous_source_urls() {
+    for source_url in [
+        "",
+        "example.com/path",
+        "ftp://example.com/path",
+        "http://example.com/path",
+        "https://user:password@example.com/path",
+        "https://example.com/path?access_token=secret",
+        "https://example.com/path#fragment",
+        "https://example.com/bad\\path",
+        "https://example.com/\n",
+    ] {
+        assert_eq!(
+            ProvenanceRecord::new(
+                source_url,
+                "body",
+                VALID_HASH,
+                EvidenceSourceKind::VisualCapture,
+                VerificationResult::Verified,
+            ),
+            Err(EvidenceError::InvalidSourceUrl),
+            "source_url={source_url:?}"
+        );
+    }
+}
+
+#[test]
 fn provenance_requires_locator_and_sha256_evidence() {
     let record = ProvenanceRecord::new(
         "https://example.com/item/42",
         "$.product.sale_price",
-        "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        VALID_HASH,
         EvidenceSourceKind::NetworkResponse,
         VerificationResult::Verified,
     )
     .expect("provenance");
     assert_eq!(record.source_url(), "https://example.com/item/42");
     assert_eq!(record.source_locator(), "$.product.sale_price");
-    assert_eq!(
-        record.source_hash(),
-        "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-    );
+    assert_eq!(record.source_hash(), VALID_HASH);
     assert_eq!(record.source_kind(), EvidenceSourceKind::NetworkResponse);
     assert_eq!(record.verification_result(), VerificationResult::Verified);
 
@@ -115,36 +163,25 @@ fn provenance_requires_locator_and_sha256_evidence() {
         ),
         Err(EvidenceError::EmptyLocator)
     );
-    assert_eq!(
-        ProvenanceRecord::new(
-            "https://example.com",
-            "body",
-            "sha256:not-a-hash",
-            EvidenceSourceKind::AccessibilityTree,
-            VerificationResult::Rejected,
-        ),
-        Err(EvidenceError::InvalidHash)
-    );
-    assert_eq!(
-        ProvenanceRecord::new(
-            "",
-            "body",
-            record.source_hash(),
-            EvidenceSourceKind::VisualCapture,
-            VerificationResult::Verified,
-        ),
-        Err(EvidenceError::InvalidSourceUrl)
-    );
-    assert_eq!(
-        ProvenanceRecord::new(
-            "https://example.com/\n",
-            "body",
-            record.source_hash(),
-            EvidenceSourceKind::StructuredData,
-            VerificationResult::Verified,
-        ),
-        Err(EvidenceError::InvalidSourceUrl)
-    );
+
+    for invalid_hash in [
+        "not-prefixed",
+        "sha256:not-a-hash",
+        "sha256:0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF",
+        "sha256:gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg",
+    ] {
+        assert_eq!(
+            ProvenanceRecord::new(
+                "https://example.com",
+                "body",
+                invalid_hash,
+                EvidenceSourceKind::AccessibilityTree,
+                VerificationResult::Rejected,
+            ),
+            Err(EvidenceError::InvalidHash),
+            "invalid_hash={invalid_hash}"
+        );
+    }
 }
 
 #[test]
