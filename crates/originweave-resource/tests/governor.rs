@@ -17,7 +17,10 @@ fn assert_plan(
     assert_eq!(plan.offload_inference_to_cpu(), offload);
     assert_eq!(plan.pause_current_agent(), pause);
     assert_eq!(plan.reject_new_agent_work(), reject);
-    assert_eq!(plan.is_noop(), !(spill || next_batch_size.is_some() || offload || pause || reject));
+    assert_eq!(
+        plan.is_noop(),
+        !(spill || next_batch_size.is_some() || offload || pause || reject)
+    );
 }
 
 #[test]
