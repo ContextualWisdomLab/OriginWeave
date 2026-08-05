@@ -1,8 +1,8 @@
 //! Credential-safe evidence and provenance value objects for OriginWeave.
 //!
-//! Network capture is represented without bodies or secret-bearing metadata.
-//! Higher layers may persist approved bodies separately under bounded retention
-//! policy while retaining these redacted records for audit and replay.
+//! Network capture is represented without bodies or metadata values. Higher
+//! layers may persist explicitly approved bodies separately under bounded
+//! retention policy while retaining these redacted records for audit and replay.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -12,14 +12,19 @@ use std::collections::BTreeMap;
 use originweave_core::Origin;
 
 const REDACTED: &str = "[REDACTED]";
-const ALLOWED_HEADER_VALUES: [&str; 6] = [
-    "accept",
-    "cache-control",
-    "content-length",
-    "content-type",
-    "etag",
-    "last-modified",
-];
+
+/// Maximum encoded request-path size retained in one network evidence record.
+pub const MAX_PATH_BYTES: usize = 4_096;
+/// Maximum number of header fields accepted in one network evidence record.
+pub const MAX_HEADER_COUNT: usize = 128;
+/// Maximum number of query fields accepted in one network evidence record.
+pub const MAX_QUERY_FIELD_COUNT: usize = 128;
+/// Maximum encoded field-name size accepted for headers or query parameters.
+pub const MAX_METADATA_NAME_BYTES: usize = 256;
+/// Maximum field-value size inspected before the value is discarded.
+pub const MAX_METADATA_VALUE_BYTES: usize = 8_192;
+/// Maximum source URL or source-locator size retained in provenance metadata.
+pub const MAX_PROVENANCE_TEXT_BYTES: usize = 8_192;
 
 /// An HTTP method recorded for network evidence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -71,6 +76,8 @@ pub enum VerificationResult {
 pub enum EvidenceError {
     /// A network path was empty, ambiguous, or contained unsafe delimiters.
     InvalidPath,
+    /// A bounded collection, path, name, value, URL, or locator exceeded its limit.
+    LimitExceeded,
     /// A source locator was empty.
     EmptyLocator,
     /// A source digest was not a lowercase SHA-256 identifier.
@@ -90,8 +97,7 @@ pub struct NetworkEvidence {
 }
 
 impl NetworkEvidence {
-    /// Capture one network request while preserving only allowlisted header
-    /// values and redacting every query value by default.
+    /// Capture one bounded network request while discarding every metadata value.
     pub fn capture(
         method: HttpMethod,
         origin: Origin,
@@ -99,14 +105,14 @@ impl NetworkEvidence {
         headers: BTreeMap<String, String>,
         query: BTreeMap<String, String>,
     ) -> Result<Self, EvidenceError> {
-        if !valid_path(path) {
-            return Err(EvidenceError::InvalidPath);
-        }
+        validate_path(path)?;
+        validate_metadata(&headers, MAX_HEADER_COUNT)?;
+        validate_metadata(&query, MAX_QUERY_FIELD_COUNT)?;
         Ok(Self {
             method,
             origin,
             path: path.to_owned(),
-            headers: redact_headers(headers),
+            headers: redact_all_values(headers),
             query: redact_all_values(query),
         })
     }
@@ -129,42 +135,103 @@ impl NetworkEvidence {
         &self.path
     }
 
-    /// Return captured headers with non-allowlisted values redacted.
+    /// Return bounded header names with every value redacted.
     #[must_use]
     pub const fn headers(&self) -> &BTreeMap<String, String> {
         &self.headers
     }
 
-    /// Return query field names with every value redacted.
+    /// Return bounded query field names with every value redacted.
     #[must_use]
     pub const fn query(&self) -> &BTreeMap<String, String> {
         &self.query
     }
 }
 
-fn valid_path(path: &str) -> bool {
-    !path.is_empty()
-        && path.starts_with('/')
-        && !path
-            .chars()
-            .any(|character| character.is_control() || matches!(character, '?' | '#' | '\\'))
+fn validate_metadata(
+    values: &BTreeMap<String, String>,
+    maximum_count: usize,
+) -> Result<(), EvidenceError> {
+    if values.len() > maximum_count
+        || values.iter().any(|(name, value)| {
+            name.is_empty()
+                || name.len() > MAX_METADATA_NAME_BYTES
+                || value.len() > MAX_METADATA_VALUE_BYTES
+                || name
+                    .chars()
+                    .any(|character| character.is_control() || character.is_whitespace())
+        })
+    {
+        return Err(EvidenceError::LimitExceeded);
+    }
+    Ok(())
 }
 
-fn redact_headers(values: BTreeMap<String, String>) -> BTreeMap<String, String> {
-    values
-        .into_iter()
-        .map(|(name, value)| {
-            let safe_value = if ALLOWED_HEADER_VALUES
-                .iter()
-                .any(|allowed| name.eq_ignore_ascii_case(allowed))
-            {
-                value
-            } else {
-                REDACTED.to_owned()
-            };
-            (name, safe_value)
+fn validate_path(path: &str) -> Result<(), EvidenceError> {
+    if path.len() > MAX_PATH_BYTES {
+        return Err(EvidenceError::LimitExceeded);
+    }
+    if path.is_empty()
+        || !path.starts_with('/')
+        || path.chars().any(|character| {
+            character.is_control()
+                || character.is_whitespace()
+                || matches!(character, '?' | '#' | '\\')
         })
-        .collect()
+    {
+        return Err(EvidenceError::InvalidPath);
+    }
+
+    let bytes = path.as_bytes();
+    let mut segment = Vec::new();
+    let mut index = 0;
+    while index < bytes.len() {
+        let byte = bytes[index];
+        if byte == b'/' {
+            if segment == b"." || segment == b".." {
+                return Err(EvidenceError::InvalidPath);
+            }
+            segment.clear();
+            index += 1;
+            continue;
+        }
+        if byte == b'%' {
+            if index + 2 >= bytes.len() {
+                return Err(EvidenceError::InvalidPath);
+            }
+            let Some(high) = hexadecimal_value(bytes[index + 1]) else {
+                return Err(EvidenceError::InvalidPath);
+            };
+            let Some(low) = hexadecimal_value(bytes[index + 2]) else {
+                return Err(EvidenceError::InvalidPath);
+            };
+            let decoded = high * 16 + low;
+            if decoded.is_ascii_control()
+                || decoded.is_ascii_whitespace()
+                || matches!(decoded, b'/' | b'\\' | b'?' | b'#')
+            {
+                return Err(EvidenceError::InvalidPath);
+            }
+            segment.push(decoded);
+            index += 3;
+            continue;
+        }
+        segment.push(byte);
+        index += 1;
+    }
+    if segment == b"." || segment == b".." {
+        return Err(EvidenceError::InvalidPath);
+    }
+    Ok(())
+}
+
+const fn hexadecimal_value(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
 }
 
 fn redact_all_values(values: BTreeMap<String, String>) -> BTreeMap<String, String> {
@@ -193,6 +260,11 @@ impl ProvenanceRecord {
         source_kind: EvidenceSourceKind,
         verification_result: VerificationResult,
     ) -> Result<Self, EvidenceError> {
+        if source_url.len() > MAX_PROVENANCE_TEXT_BYTES
+            || source_locator.len() > MAX_PROVENANCE_TEXT_BYTES
+        {
+            return Err(EvidenceError::LimitExceeded);
+        }
         if !valid_source_url(source_url) {
             return Err(EvidenceError::InvalidSourceUrl);
         }
@@ -257,7 +329,11 @@ fn valid_source_url(source_url: &str) -> bool {
     let authority_end = remainder.find('/').unwrap_or(remainder.len());
     let authority = &remainder[..authority_end];
     let origin_text = format!("{scheme}://{authority}");
-    Origin::parse(&origin_text).is_ok()
+    if Origin::parse(&origin_text).is_err() {
+        return false;
+    }
+    let path = &remainder[authority_end..];
+    path.is_empty() || validate_path(path).is_ok()
 }
 
 fn valid_sha256(source_hash: &str) -> bool {
