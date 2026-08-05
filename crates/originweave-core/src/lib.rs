@@ -119,8 +119,7 @@ fn looks_like_browser_ipv4_number(label: &str) -> bool {
     }
     let lowercase = label.to_ascii_lowercase();
     if let Some(hexadecimal) = lowercase.strip_prefix("0x") {
-        return !hexadecimal.is_empty()
-            && hexadecimal.bytes().all(|byte| byte.is_ascii_hexdigit());
+        return !hexadecimal.is_empty() && hexadecimal.bytes().all(|byte| byte.is_ascii_hexdigit());
     }
     label.bytes().all(|byte| byte.is_ascii_digit())
 }

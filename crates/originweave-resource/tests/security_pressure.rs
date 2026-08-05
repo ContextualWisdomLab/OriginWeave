@@ -3,9 +3,7 @@
 use originweave_resource::{ResourceBudget, ResourceGovernor, ResourceSnapshot};
 
 fn governor() -> ResourceGovernor {
-    ResourceGovernor::new(
-        ResourceBudget::new(4_096, 8_192, 2_048, 4_096, 8, 16).expect("budget"),
-    )
+    ResourceGovernor::new(ResourceBudget::new(4_096, 8_192, 2_048, 4_096, 8, 16).expect("budget"))
 }
 
 #[test]

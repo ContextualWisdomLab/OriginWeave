@@ -9,10 +9,8 @@ use originweave_core::{
 };
 use originweave_policy::{Decision, DenialReason, evaluate};
 
-const INTENT_A: &str =
-    "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-const INTENT_B: &str =
-    "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+const INTENT_A: &str = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const INTENT_B: &str = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
 #[test]
 fn approval_for_one_purchase_payload_cannot_authorize_another() {
@@ -34,11 +32,7 @@ fn approval_for_one_purchase_payload_cannot_authorize_another() {
         BTreeSet::from([origin.clone()]),
         BTreeSet::from([origin.clone()]),
         RobotsDecision::NotApplicable,
-        ApprovalEvidence::UserConfirmed(ApprovalScope::new(
-            ActionKind::Purchase,
-            origin,
-            digest_a,
-        )),
+        ApprovalEvidence::UserConfirmed(ApprovalScope::new(ActionKind::Purchase, origin, digest_a)),
     );
 
     assert_eq!(

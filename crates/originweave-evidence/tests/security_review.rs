@@ -21,8 +21,14 @@ fn adversarial_header_and_query_variants_are_redacted_by_default() {
         ("X-Auth-Token".to_owned(), "secret".to_owned()),
         ("X-Amz-Security-Token".to_owned(), "secret".to_owned()),
         ("X-Amz-Signature".to_owned(), "secret".to_owned()),
-        ("Location".to_owned(), "https://example.com/private".to_owned()),
-        ("Referer".to_owned(), "https://example.com/private".to_owned()),
+        (
+            "Location".to_owned(),
+            "https://example.com/private".to_owned(),
+        ),
+        (
+            "Referer".to_owned(),
+            "https://example.com/private".to_owned(),
+        ),
         ("ETag".to_owned(), "Bearer secret".to_owned()),
         ("Content-Type".to_owned(), "client_secret=secret".to_owned()),
     ]);
@@ -32,8 +38,8 @@ fn adversarial_header_and_query_variants_are_redacted_by_default() {
         ("X-Amz-Credential".to_owned(), "credential".to_owned()),
         ("X-Amz-Signature".to_owned(), "signature".to_owned()),
     ]);
-    let evidence = NetworkEvidence::capture(HttpMethod::Get, origin(), "/", headers, query)
-        .expect("evidence");
+    let evidence =
+        NetworkEvidence::capture(HttpMethod::Get, origin(), "/", headers, query).expect("evidence");
 
     assert!(
         evidence
@@ -196,7 +202,10 @@ fn capture_rejects_malformed_percent_escapes_and_ambiguous_segments() {
 
 #[test]
 fn provenance_text_fields_are_bounded_before_retention() {
-    let oversized_url = format!("https://example.com/{}", "a".repeat(MAX_PROVENANCE_TEXT_BYTES));
+    let oversized_url = format!(
+        "https://example.com/{}",
+        "a".repeat(MAX_PROVENANCE_TEXT_BYTES)
+    );
     assert_eq!(
         ProvenanceRecord::new(
             &oversized_url,
