@@ -95,9 +95,6 @@ fn parse_authority(authority: &str) -> Result<(String, Option<u16>, bool), Origi
     };
     let host = host_text.to_ascii_lowercase();
     if let Ok(address) = host.parse::<Ipv4Addr>() {
-        if address.to_string() != host {
-            return Err(OriginError::AmbiguousNumericHost);
-        }
         return Ok((host, port, address.is_loopback()));
     }
     if looks_like_browser_ipv4_host(&host) {
