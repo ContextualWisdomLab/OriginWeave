@@ -17,6 +17,8 @@ fn origin_rejects_browser_special_numeric_hosts() {
         "https://0177.0.0.1",
         "https://1.2.3.04",
         "https://example.127",
+        "https://0x",
+        "https://1.2.3.0x",
     ] {
         assert_eq!(
             Origin::parse(input),
