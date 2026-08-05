@@ -1,12 +1,12 @@
 # Research and Standards Doctoring
 
-This document records external evidence that changes OriginWeave architecture, test design, or release criteria. References use APA 7th style. Draft specifications are explicitly identified as work in progress.
+This document records external evidence that changes OriginWeave architecture, test design, or release criteria. References use APA 7th style. Draft specifications and preprints are explicitly identified as work in progress.
 
 ## Decision trace
 
 ### Browser automation and interoperability
 
-WebDriver BiDi defines a bidirectional remote-control protocol and user contexts. Because the current document is a W3C Working Draft, OriginWeave will place BiDi behind a versioned adapter and contract tests rather than make it the internal authority model.
+The 1 June 2026 WebDriver BiDi Working Draft defines a bidirectional remote-control protocol, events, commands, and user contexts. Because it remains a W3C Working Draft, OriginWeave places BiDi behind a versioned adapter and Web Platform Tests-derived contract tests rather than make it the internal authority model.
 
 ### Crawling policy
 
@@ -14,19 +14,21 @@ RFC 9309 standardizes robots parsing, matching, error handling, and caching. It 
 
 ### Provenance and capture
 
-W3C PROV-O supplies interoperable Entity, Activity, Agent, derivation, attribution, and responsibility concepts. ISO 28500:2017 defines WARC storage for protocol payloads, control information, metadata, transformations, duplicate detection, integrity, and segmentation. OriginWeave uses source hashes and locators in the safety kernel, then plans separate WARC and PROV adapters.
+W3C PROV-O supplies interoperable Entity, Activity, Agent, derivation, attribution, and responsibility concepts. ISO 28500:2017, confirmed in 2023, defines WARC storage for protocol payloads, control information, metadata, transformations, duplicate detection, integrity, and segmentation. OriginWeave uses source hashes and locators in the safety kernel, then adds WARC and PROV adapters as separately testable modules.
 
 ### AI risk and prompt injection
 
-NIST AI 600-1 provides generative-AI lifecycle risk guidance. WASP demonstrates that web-navigation agents can begin following low-effort indirect prompt injections even when end-to-end attacker success remains lower. OriginWeave therefore separates trusted instructions, untrusted observations, and protected secrets at the type and process boundaries rather than rely on prompting alone.
+NIST AI 600-1 provides generative-AI lifecycle risk guidance. WASP demonstrates that web-navigation agents can follow low-effort indirect prompt injections. OriginWeave therefore separates trusted instructions, untrusted observations, and protected secrets at type and process boundaries rather than rely on prompting alone.
 
 ### Web-agent observation and evaluation
 
-Mind2Web reports that raw real-world HTML is often too large for direct LLM use and that filtering improves effectiveness and efficiency. OriginWeave prioritizes typed tools, structured data, network responses, accessibility/DOM/layout semantics, and only then visual fallback. WebArena and related environments motivate repeatable task-success and failure-recovery benchmarks instead of anecdotal demos.
+Mind2Web reports that raw real-world HTML is often too large for direct LLM use and that filtering improves effectiveness and efficiency. OriginWeave prioritizes typed tools, structured data, redacted network responses, accessibility/DOM/layout semantics, and only then visual fallback. WebArena motivates repeatable task-success and failure-recovery benchmarks instead of anecdotal demonstrations.
 
-### Test-time compute orchestration
+### Learned test-time orchestration
 
-FUGU studies routing and optimization of test-time compute. Conductor studies cognitive orchestration for multi-agent collaboration. TRINITY studies reasoning while acting. OriginWeave will treat model routing, workflow stage, recursion depth, decomposition, access lists, and role-specific reasoning effort as explicit configuration and will require ablations before deeper orchestration is declared superior. These preprints guide experimentation; they do not override the deterministic browser policy engine.
+Sakana Fugu is a commercial multi-agent orchestration system exposed through an OpenAI-compatible API. Sakana AI states that Fugu is grounded in the TRINITY and Conductor research programs. TRINITY uses a compact learned coordinator to select models and assign Thinker, Worker, and Verifier roles over multiple turns. Conductor learns communication topologies and focused natural-language instructions and can form recursive coordination structures.
+
+These results motivate explicit OriginWeave configuration for model routing, workflow stage, decomposition, recursion depth, permitted access, role assignment, and role-specific reasoning effort. They do not justify always using multiple agents. OriginWeave must compare bounded single-model, routed-model, and deeper multi-agent configurations through task-success, safety, variance, token, and compute ablations. No learned coordinator may expand browser capabilities, origins, approvals, secrets, or deterministic policy.
 
 ## References
 
@@ -40,16 +42,14 @@ International Organization for Standardization. (2017). *Information and documen
 
 Koster, M., Illyes, G., Zeller, H., & Sassman, L. (2022). *Robots Exclusion Protocol* (RFC 9309). Internet Engineering Task Force. https://doi.org/10.17487/RFC9309
 
+Nielsen, S., Cetin, E., Schwendeman, P., Sun, Q., Xu, J., & Tang, Y. (2025). *Learning to orchestrate agents in natural language with the Conductor* [Preprint]. arXiv. https://doi.org/10.48550/arXiv.2512.04388
+
+Sakana AI. (2026, April 24). *Sakana Fugu: A multi-agent orchestration system as a foundation model*. https://sakana.ai/fugu-beta/
+
 World Wide Web Consortium. (2013). *PROV-O: The PROV ontology*. https://www.w3.org/TR/prov-o/
 
 World Wide Web Consortium. (2026, June 1). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260601/
 
+Xu, J., Sun, Q., Schwendeman, P., Nielsen, S., Cetin, E., & Tang, Y. (2025). *TRINITY: An evolved LLM coordinator* [Preprint]. arXiv. https://doi.org/10.48550/arXiv.2512.04695
+
 Zhou, S., Xu, F. F., Zhu, H., Zhou, X., Lo, R., Sridhar, A., Cheng, X., Ou, T., Bisk, Y., Fried, D., Alon, U., & Neubig, G. (2023). *WebArena: A realistic web environment for building autonomous agents*. arXiv. https://doi.org/10.48550/arXiv.2307.13854
-
-## Provisional orchestration references
-
-The following recent preprints require bibliographic metadata revalidation before a release makes claims based on them:
-
-- *FUGU: A framework for intelligent routing and optimization in test-time compute* (arXiv:2510.12841).
-- *Conductor: Cognitive orchestration for multi-agent collaboration* (arXiv:2512.04388).
-- *TRINITY: Teaching language models to reason while acting* (arXiv:2511.22611).
