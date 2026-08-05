@@ -14,6 +14,7 @@ concurrency:
 
 jobs:
   rust:
+    name: Rust contracts
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -23,15 +24,51 @@ jobs:
         with:
           toolchain: 1.97.1
           components: clippy,rustfmt
+      - name: Check Python repository contracts
+        run: |
+          python3 -m compileall -q scripts tests
+          python3 -m unittest discover -s tests -p 'test_*.py'
       - name: Check formatting
         run: cargo fmt --all --check
       - name: Check workspace
-        run: cargo check --workspace --all-targets
+        run: cargo check --locked --workspace --all-targets
       - name: Run tests
-        run: cargo test --workspace --all-targets
+        run: cargo test --locked --workspace --all-targets
       - name: Run Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - name: Build API documentation
         env:
           RUSTDOCFLAGS: -D warnings
-        run: cargo doc --workspace --no-deps
+        run: cargo doc --locked --workspace --no-deps
+
+  coverage:
+    name: Production coverage
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        with:
+          toolchain: nightly-2026-08-01
+          components: llvm-tools-preview
+      - name: Install pinned cargo-llvm-cov
+        run: cargo install cargo-llvm-cov --version 0.8.6 --locked
+      - name: Measure production functions, lines, regions, and branches
+        run: >-
+          cargo llvm-cov
+          --locked
+          --workspace
+          --all-features
+          --branch
+          --json
+          --summary-only
+          --output-path coverage.json
+          --fail-under-functions 100
+          --fail-under-lines 100
+          --fail-under-regions 100
+          --fail-uncovered-functions 0
+          --fail-uncovered-lines 0
+          --fail-uncovered-regions 0
+      - name: Enforce exact branch coverage
+        run: python3 scripts/ci/verify_coverage.py coverage.json
