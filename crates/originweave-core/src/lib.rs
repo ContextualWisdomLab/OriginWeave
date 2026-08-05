@@ -110,11 +110,7 @@ fn parse_bracketed_ipv6(authority: &str) -> Result<(String, Option<u16>, bool), 
     } else {
         return Err(OriginError::InvalidAuthority);
     };
-    Ok((
-        format!("[{address}]"),
-        port,
-        address.is_loopback(),
-    ))
+    Ok((format!("[{address}]"), port, address.is_loopback()))
 }
 
 fn parse_port(port_text: &str) -> Result<u16, OriginError> {
