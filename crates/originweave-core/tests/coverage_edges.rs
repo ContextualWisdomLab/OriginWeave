@@ -32,3 +32,11 @@ fn origin_rejects_a_leading_empty_dns_label() {
         Err(OriginError::InvalidAuthority)
     );
 }
+
+#[test]
+fn origin_rejects_an_invalid_port_after_ipv6() {
+    assert_eq!(
+        Origin::parse("https://[::1]:0"),
+        Err(OriginError::InvalidPort)
+    );
+}
