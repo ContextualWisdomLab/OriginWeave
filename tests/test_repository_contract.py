@@ -55,8 +55,8 @@ class RepositoryContractTests(unittest.TestCase):
         missing = sorted(path for path in required_paths if not (ROOT / path).is_file())
         self.assertEqual(missing, [])
 
-    def test_hourly_loop_uses_nvidia_nim_and_never_copilot_token(self) -> None:
-        """The product loop must use OpenCode and the approved NIM credential."""
+    def test_hourly_loop_uses_nvidia_nim_and_dedicated_publication_authority(self) -> None:
+        """The product loop must use OpenCode/NIM without review or merge credentials."""
 
         workflow = (ROOT / ".github/workflows/hourly-product-development.yml").read_text(
             encoding="utf-8"
@@ -65,10 +65,14 @@ class RepositoryContractTests(unittest.TestCase):
         self.assertIn("NVIDIA_NIM_API_KEY", workflow)
         self.assertIn("OPENCODE_VERSION", workflow)
         self.assertIn("open_pull_request", workflow)
-        self.assertIn("PR_REVIEW_MERGE_TOKEN", workflow)
+        self.assertIn("OPENCODE_PR_TOKEN", workflow)
         self.assertNotIn("COPILOT_GITHUB_TOKEN", workflow)
+        self.assertNotIn("PR_REVIEW_MERGE_TOKEN", workflow)
+        self.assertNotIn("OPENCODE_APPROVE_TOKEN", workflow)
         self.assertNotIn("pull-requests: write", workflow)
         self.assertNotIn("contents: write", workflow)
+        self.assertNotIn("gh pr merge", workflow)
+        self.assertNotIn("gh pr review", workflow)
 
     def test_product_name_is_consistent_in_binding_documents(self) -> None:
         """Binding documents must not retain an earlier internal product name."""
