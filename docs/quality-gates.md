@@ -11,6 +11,7 @@ A PR is mergeable only when all apply:
 - all public Rust APIs documented and rustdoc warnings denied;
 - format, check, test, Clippy, and documentation jobs pass;
 - dependency and GitHub Action references are locked or commit-pinned;
+- generated build outputs are ignored and absent from `git ls-files`;
 - review threads are resolved with code or evidence;
 - required independent approval and repository security checks pass;
 - README, architecture, ADR, doctoring, and changelog are updated when affected.
