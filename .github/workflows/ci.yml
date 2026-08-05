@@ -64,11 +64,5 @@ jobs:
           --json
           --summary-only
           --output-path coverage.json
-          --fail-under-functions 100
-          --fail-under-lines 100
-          --fail-under-regions 100
-          --fail-uncovered-functions 0
-          --fail-uncovered-lines 0
-          --fail-uncovered-regions 0
-      - name: Enforce exact branch coverage
+      - name: Enforce exact production coverage
         run: python3 scripts/ci/verify_coverage.py coverage.json
