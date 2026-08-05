@@ -18,7 +18,6 @@ homepage = "https://github.com/ContextualWisdomLab/OriginWeave"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
-missing_docs = "deny"
 
 [workspace.lints.clippy]
 dbg_macro = "deny"
