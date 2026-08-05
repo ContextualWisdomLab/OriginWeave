@@ -46,9 +46,7 @@ impl ResourceBudget {
         {
             return Err(BudgetError::ZeroLimit);
         }
-        if soft_ram_mebibytes > hard_ram_mebibytes
-            || soft_vram_mebibytes > hard_vram_mebibytes
-        {
+        if soft_ram_mebibytes > hard_ram_mebibytes || soft_vram_mebibytes > hard_vram_mebibytes {
             return Err(BudgetError::SoftExceedsHard);
         }
         Ok(Self {
