@@ -10,7 +10,7 @@ The 1 June 2026 WebDriver BiDi Working Draft defines a bidirectional remote-cont
 
 ### Browser origin equivalence
 
-Chromium's canonicalizer classifies shortened decimal, integer, hexadecimal, legacy octal-looking, and mixed-component numeric hosts as IPv4 or broken IPv4 candidates rather than ordinary DNS names. Its regression suite includes values such as `192`, `0xC0a80001`, `030052000001`, mixed hexadecimal components, and an empty `0x` component that contributes zero. Chromium also warns that broken IP-like hosts must not be connected because another resolver could accept them. OriginWeave therefore admits only canonical dotted-decimal IPv4 into its policy origin type and rejects browser-special numeric spellings before DNS validation. Origin normalization is still not an SSRF boundary; resolved-address, rebinding, redirect, proxy, and metadata-endpoint policy remains a separate Chromium-adapter requirement.
+The WHATWG URL host parser and Chromium canonicalizer classify shortened decimal, integer, hexadecimal, legacy octal-looking, and mixed-component numeric hosts as IPv4 or broken IPv4 candidates rather than ordinary DNS names. Chromium's regression suite includes values such as `192`, `0xC0a80001`, `030052000001`, and mixed hexadecimal components. A non-final empty `0x` component can participate in Chromium's multi-part IPv4 truncation behavior, but a final `0x` label does not produce an IPv4 number because stripping its prefix leaves no digits; it remains a domain label. Chromium also warns that broken IP-like hosts must not be connected because another resolver could accept them. OriginWeave therefore admits only canonical dotted-decimal IPv4 into its policy origin type, rejects browser-special numeric spellings before DNS validation, and preserves final non-numeric DNS labels such as `0x`. Origin normalization is still not an SSRF boundary; resolved-address, rebinding, redirect, proxy, and metadata-endpoint policy remains a separate Chromium-adapter requirement.
 
 ### Crawling policy
 
@@ -57,6 +57,8 @@ Nielsen, S., Cetin, E., Schwendeman, P., Sun, Q., Xu, J., & Tang, Y. (2025). *Le
 Sakana AI. (2026, April 24). *Sakana Fugu: A multi-agent orchestration system as a foundation model*. https://sakana.ai/fugu-beta/
 
 Sakana AI. (2026, June 22). *Sakana Fugu: One model to command them all*. https://sakana.ai/fugu-release/
+
+Web Hypertext Application Technology Working Group. (2026). *URL standard*. https://url.spec.whatwg.org/
 
 World Wide Web Consortium. (2013). *PROV-O: The PROV ontology*. https://www.w3.org/TR/prov-o/
 
