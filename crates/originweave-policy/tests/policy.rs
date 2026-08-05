@@ -3,14 +3,21 @@
 use std::collections::BTreeSet;
 
 use originweave_core::{
-    ActionKind, ActionRequest, ApprovalEvidence, ApprovalScope, Capability, ExecutionPurpose,
-    InstructionSource, Origin, PolicyContext, RiskClass, RobotsDecision, SecretDelivery,
-    SessionMode,
+    ActionIntentDigest, ActionKind, ActionRequest, ApprovalEvidence, ApprovalScope, Capability,
+    ExecutionPurpose, InstructionSource, Origin, PolicyContext, RiskClass, RobotsDecision,
+    SecretDelivery, SessionMode,
 };
 use originweave_policy::{Decision, DenialReason, evaluate};
 
+const VALID_INTENT: &str =
+    "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
 fn origin(value: &str) -> Origin {
     Origin::parse(value).expect("valid test origin")
+}
+
+fn intent() -> ActionIntentDigest {
+    ActionIntentDigest::parse(VALID_INTENT).expect("valid intent digest")
 }
 
 fn context(
@@ -38,6 +45,7 @@ fn request(action: ActionKind, source: &Origin, target: &Origin) -> ActionReques
         target.clone(),
         InstructionSource::User,
         SecretDelivery::None,
+        intent(),
     )
 }
 
@@ -88,6 +96,7 @@ fn policy_rejects_non_agent_and_untrusted_instruction_sources() {
         site.clone(),
         InstructionSource::WebContent,
         SecretDelivery::None,
+        intent(),
     );
     assert_eq!(
         evaluate(&injected, &agent),
@@ -254,6 +263,7 @@ fn secret_fill_requires_a_broker_and_other_actions_reject_secret_material() {
         site.clone(),
         InstructionSource::User,
         SecretDelivery::RawValue,
+        intent(),
     );
     assert_eq!(
         evaluate(&raw, &ctx),
@@ -266,6 +276,7 @@ fn secret_fill_requires_a_broker_and_other_actions_reject_secret_material() {
         site.clone(),
         InstructionSource::User,
         SecretDelivery::BrokerHandle,
+        intent(),
     );
     assert_eq!(
         evaluate(&brokered, &ctx),
@@ -285,6 +296,7 @@ fn secret_fill_requires_a_broker_and_other_actions_reject_secret_material() {
         site.clone(),
         InstructionSource::User,
         SecretDelivery::BrokerHandle,
+        intent(),
     );
     assert_eq!(
         evaluate(&secret_on_read, &observe_ctx),
@@ -308,14 +320,14 @@ fn high_risk_actions_require_exact_approval_and_legal_consent_is_forbidden() {
         Decision::RequireApproval(RiskClass::R4)
     );
 
-    let wrong_scope = ApprovalScope::new(ActionKind::Delete, site.clone());
+    let wrong_scope = ApprovalScope::new(ActionKind::Delete, site.clone(), intent());
     ctx.set_approval(ApprovalEvidence::UserConfirmed(wrong_scope));
     assert_eq!(
         evaluate(&purchase_request, &ctx),
         Decision::Deny(DenialReason::ApprovalScopeMismatch)
     );
 
-    let exact_scope = ApprovalScope::new(ActionKind::Purchase, site.clone());
+    let exact_scope = ApprovalScope::new(ActionKind::Purchase, site.clone(), intent());
     ctx.set_approval(ApprovalEvidence::UserConfirmed(exact_scope.clone()));
     assert_eq!(evaluate(&purchase_request, &ctx), Decision::Allow);
     ctx.set_approval(ApprovalEvidence::EnterprisePolicy(exact_scope));
@@ -350,6 +362,7 @@ fn enterprise_policy_instruction_is_trusted_but_still_governed() {
         site,
         InstructionSource::EnterprisePolicy,
         SecretDelivery::None,
+        intent(),
     );
     assert_eq!(evaluate(&req, &ctx), Decision::Allow);
 }
