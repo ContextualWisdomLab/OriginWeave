@@ -11,9 +11,9 @@ OriginWeave is a Chromium-compatible, Rust-first control plane for governed AI a
 Existing browser automation commonly exposes raw selectors, unrestricted script evaluation, ambient cookies, and screenshots with weak provenance. OriginWeave instead establishes four product contracts:
 
 1. **Compatibility** — preserve Chromium web and Manifest V3 extension compatibility rather than rewriting Blink or V8.
-2. **Governance** — evaluate typed actions against session mode, purpose, capability, origin, robots policy, approval, and secret-delivery evidence.
-3. **Resource control** — protect interactive rendering before agent inference and background collection under RAM, VRAM, CPU, and frame-time pressure.
-4. **Evidence** — retain redacted, verifiable provenance for every extracted value and state-changing action.
+2. **Governance** — evaluate typed actions against session mode, purpose, capability, browser-equivalent origin, robots policy, secret-delivery evidence, and approval bound to the complete action intent.
+3. **Resource control** — protect interactive rendering before agent inference and background collection with cumulative RAM, VRAM, admission, model-offload, batch, and frame-pressure mitigations.
+4. **Evidence** — retain bounded, universally value-redacted network metadata and verifiable provenance for extracted values and state-changing actions.
 
 ## Architecture
 
@@ -29,10 +29,10 @@ Adapters: WebDriver BiDi, CDP, WebMCP, MCP, WARC, PROV-O
 
 The repository is organized as independently consumable Rust crates:
 
-- `originweave-core`: normalized origins, session modes, typed actions, capabilities, approvals, and policy contexts.
+- `originweave-core`: normalized origins, immutable action-intent digests, session modes, typed actions, capabilities, approvals, and policy contexts.
 - `originweave-policy`: deterministic fail-closed action evaluation.
-- `originweave-resource`: task-level RAM, VRAM, thread, and frame-time directives.
-- `originweave-evidence`: credential-redacted network evidence and provenance records.
+- `originweave-resource`: task-level RAM, VRAM, thread, and frame-time budgets with cumulative mitigation plans.
+- `originweave-evidence`: universally value-redacted network evidence and source-bound provenance records.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) and the [architecture decision records](docs/adr/) for binding design decisions.
 
@@ -46,7 +46,11 @@ Untrusted observation: pages, documents, comments, advertisements, tool output
 Protected secret: cookies, passwords, API keys, session tokens, personal data
 ```
 
-Web content can provide evidence but cannot grant a capability, approve an action, change policy, or request secret disclosure. Public crawler work is read-only and requires an explicit robots-policy result. R3 and R4 actions require approval bound to the exact action and target origin; R5 legal consent is non-delegable.
+Web content can provide evidence but cannot grant a capability, approve an action, change policy, or request secret disclosure. Public crawler work is read-only and requires an explicit robots-policy result. R3 and R4 actions require approval bound to the exact action kind, target origin, and immutable lowercase SHA-256 digest of the complete canonical action intent; R5 legal consent is non-delegable.
+
+The current origin type rejects shortened, integer, hexadecimal, and legacy octal-looking IPv4 spellings that a browser could reinterpret differently from a DNS validator. This protects origin identity, but it is not by itself an SSRF defense: the first Chromium slice must additionally enforce DNS, resolved-address, redirect, proxy, metadata-endpoint, and download policy.
+
+Generic network evidence retains bounded field names but no header or query values. Every value is replaced before the record leaves the trusted boundary, and malformed, ambiguous, or excessive paths and metadata fail closed. Any future typed response value or body requires a separate schema-specific capture policy.
 
 ## Development
 
@@ -68,6 +72,7 @@ The first commercial vertical slice is:
 
 ```text
 isolated Chromium session
+→ destination and origin policy
 → semantic observation
 → typed policy decision
 → browser action
@@ -76,6 +81,10 @@ isolated Chromium session
 ```
 
 Subsequent work adds WARC/PROV persistence, MCP and Browser Agent Protocol adapters, extension compatibility testing, GPU/RAM telemetry, prompt-injection benchmarks, and an accessible approval interface. See [docs/product-roadmap.md](docs/product-roadmap.md).
+
+## Hourly product-development loop
+
+The repository defines an hourly bounded OpenCode workflow. It runs only when no PR or release blocker is open, calls models through a loopback-only broker backed by `NVIDIA_NIM_API_KEY`, gives the agent no Git or GitHub authority, validates the exact patch independently, and uses a dedicated `OPENCODE_PR_TOKEN` only to publish one verified PR. It never uses `COPILOT_GITHUB_TOKEN`, review credentials, merge credentials, or self-approval. Organization-level PR maintenance remains the independent review and merge authority.
 
 ## Contributing and security
 
