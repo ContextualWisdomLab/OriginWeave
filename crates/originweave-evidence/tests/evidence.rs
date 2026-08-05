@@ -23,14 +23,8 @@ fn network_evidence_redacts_credentials_but_preserves_safe_context() {
         ("access_token".to_owned(), "secret".to_owned()),
         ("q".to_owned(), "browser".to_owned()),
     ]);
-    let evidence = NetworkEvidence::capture(
-        HttpMethod::Get,
-        origin(),
-        "/search",
-        headers,
-        query,
-    )
-    .expect("evidence");
+    let evidence = NetworkEvidence::capture(HttpMethod::Get, origin(), "/search", headers, query)
+        .expect("evidence");
 
     assert_eq!(evidence.method(), HttpMethod::Get);
     assert_eq!(evidence.origin().as_str(), "https://example.com");
@@ -57,22 +51,27 @@ fn every_sensitive_header_and_query_name_is_case_insensitively_redacted() {
         ("secret".to_owned(), "x".to_owned()),
         ("Password".to_owned(), "x".to_owned()),
     ]);
-    let evidence = NetworkEvidence::capture(
-        HttpMethod::Post,
-        origin(),
-        "/submit",
-        headers,
-        query,
-    )
-    .expect("evidence");
+    let evidence = NetworkEvidence::capture(HttpMethod::Post, origin(), "/submit", headers, query)
+        .expect("evidence");
 
-    assert!(evidence.headers().values().all(|value| value == "[REDACTED]"));
+    assert!(
+        evidence
+            .headers()
+            .values()
+            .all(|value| value == "[REDACTED]")
+    );
     assert!(evidence.query().values().all(|value| value == "[REDACTED]"));
 }
 
 #[test]
 fn network_evidence_rejects_non_path_inputs() {
-    for path in ["", "relative", "/path?secret=x", "/path#fragment", "/bad\npath"] {
+    for path in [
+        "",
+        "relative",
+        "/path?secret=x",
+        "/path#fragment",
+        "/bad\npath",
+    ] {
         assert_eq!(
             NetworkEvidence::capture(
                 HttpMethod::Get,
