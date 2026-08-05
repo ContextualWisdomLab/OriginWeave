@@ -15,15 +15,17 @@ fn origin() -> Origin {
 }
 
 #[test]
-fn network_evidence_redacts_credentials_but_preserves_safe_context() {
+fn network_evidence_preserves_only_allowlisted_metadata_values() {
     let headers = BTreeMap::from([
         ("Authorization".to_owned(), "Bearer secret".to_owned()),
         ("Cookie".to_owned(), "session=secret".to_owned()),
         ("Content-Type".to_owned(), "application/json".to_owned()),
+        ("Accept".to_owned(), "application/json".to_owned()),
+        ("X-Custom-Session".to_owned(), "secret".to_owned()),
     ]);
     let query = BTreeMap::from([
         ("access_token".to_owned(), "secret".to_owned()),
-        ("q".to_owned(), "browser".to_owned()),
+        ("q".to_owned(), "private search text".to_owned()),
     ]);
     let evidence = NetworkEvidence::capture(HttpMethod::Get, origin(), "/search", headers, query)
         .expect("evidence");
@@ -34,17 +36,20 @@ fn network_evidence_redacts_credentials_but_preserves_safe_context() {
     assert_eq!(evidence.headers()["Authorization"], "[REDACTED]");
     assert_eq!(evidence.headers()["Cookie"], "[REDACTED]");
     assert_eq!(evidence.headers()["Content-Type"], "application/json");
+    assert_eq!(evidence.headers()["Accept"], "application/json");
+    assert_eq!(evidence.headers()["X-Custom-Session"], "[REDACTED]");
     assert_eq!(evidence.query()["access_token"], "[REDACTED]");
-    assert_eq!(evidence.query()["q"], "browser");
+    assert_eq!(evidence.query()["q"], "[REDACTED]");
 }
 
 #[test]
-fn every_sensitive_header_and_query_name_is_case_insensitively_redacted() {
+fn every_non_allowlisted_header_and_query_value_is_redacted_case_insensitively() {
     let headers = BTreeMap::from([
         ("PROXY-AUTHORIZATION".to_owned(), "x".to_owned()),
         ("Set-Cookie".to_owned(), "x".to_owned()),
         ("X-API-Key".to_owned(), "x".to_owned()),
         ("X-CSRF-Token".to_owned(), "x".to_owned()),
+        ("ETAG".to_owned(), "safe-etag".to_owned()),
     ]);
     let query = BTreeMap::from([
         ("API_KEY".to_owned(), "x".to_owned()),
@@ -56,12 +61,12 @@ fn every_sensitive_header_and_query_name_is_case_insensitively_redacted() {
     let evidence = NetworkEvidence::capture(HttpMethod::Post, origin(), "/submit", headers, query)
         .expect("evidence");
 
-    assert!(
-        evidence
-            .headers()
-            .values()
-            .all(|value| value == "[REDACTED]")
-    );
+    assert_eq!(evidence.headers()["ETAG"], "safe-etag");
+    for (name, value) in evidence.headers() {
+        if !name.eq_ignore_ascii_case("etag") {
+            assert_eq!(value, "[REDACTED]");
+        }
+    }
     assert!(evidence.query().values().all(|value| value == "[REDACTED]"));
 }
 
