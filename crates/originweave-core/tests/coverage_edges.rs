@@ -11,7 +11,13 @@ fn origin_rejects_embedded_control_characters() {
 #[test]
 fn origin_rejects_authorities_longer_than_the_dns_limit() {
     let label = "a".repeat(63);
-    let host = [label.as_str(), label.as_str(), label.as_str(), label.as_str()].join(".");
+    let host = [
+        label.as_str(),
+        label.as_str(),
+        label.as_str(),
+        label.as_str(),
+    ]
+    .join(".");
     assert_eq!(host.len(), 255);
     assert_eq!(
         Origin::parse(&format!("https://{host}")),
