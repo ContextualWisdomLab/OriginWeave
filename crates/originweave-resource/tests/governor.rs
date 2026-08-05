@@ -1,8 +1,24 @@
 #![allow(clippy::expect_used)]
 
 use originweave_resource::{
-    BudgetError, ResourceBudget, ResourceDirective, ResourceGovernor, ResourceSnapshot,
+    BudgetError, ResourceBudget, ResourceGovernor, ResourceMitigationPlan, ResourceSnapshot,
 };
+
+fn assert_plan(
+    plan: ResourceMitigationPlan,
+    spill: bool,
+    next_batch_size: Option<u32>,
+    offload: bool,
+    pause: bool,
+    reject: bool,
+) {
+    assert_eq!(plan.spill_observation_cache(), spill);
+    assert_eq!(plan.next_batch_size(), next_batch_size);
+    assert_eq!(plan.offload_inference_to_cpu(), offload);
+    assert_eq!(plan.pause_current_agent(), pause);
+    assert_eq!(plan.reject_new_agent_work(), reject);
+    assert_eq!(plan.is_noop(), !(spill || next_batch_size.is_some() || offload || pause || reject));
+}
 
 #[test]
 fn budget_rejects_invalid_limits() {
@@ -32,45 +48,85 @@ fn governor_preserves_interactivity_before_agent_throughput() {
         ResourceBudget::new(4_096, 8_192, 2_048, 4_096, 8, 16).expect("budget"),
     );
 
-    assert_eq!(
+    assert_plan(
         governor.decide(ResourceSnapshot::new(2_000, 1_000, 8, false, 10)),
-        ResourceDirective::Continue
+        false,
+        None,
+        false,
+        false,
+        false,
     );
-    assert_eq!(
+    assert_plan(
         governor.decide(ResourceSnapshot::new(5_000, 1_000, 8, false, 10)),
-        ResourceDirective::SpillObservationCache
+        true,
+        None,
+        false,
+        false,
+        false,
     );
-    assert_eq!(
+    assert_plan(
         governor.decide(ResourceSnapshot::new(2_000, 2_500, 8, false, 10)),
-        ResourceDirective::ReduceAgentBatch { next_batch_size: 4 }
+        false,
+        Some(4),
+        false,
+        false,
+        false,
     );
-    assert_eq!(
+    assert_plan(
         governor.decide(ResourceSnapshot::new(2_000, 2_500, 1, true, 10)),
-        ResourceDirective::OffloadInferenceToCpu
+        false,
+        None,
+        true,
+        false,
+        false,
     );
-    assert_eq!(
+    assert_plan(
         governor.decide(ResourceSnapshot::new(2_000, 2_500, 1, false, 10)),
-        ResourceDirective::PauseAgent
+        false,
+        None,
+        false,
+        true,
+        false,
     );
-    assert_eq!(
+    assert_plan(
         governor.decide(ResourceSnapshot::new(2_000, 1_000, 8, true, 20)),
-        ResourceDirective::OffloadInferenceToCpu
+        false,
+        None,
+        true,
+        false,
+        false,
     );
-    assert_eq!(
+    assert_plan(
         governor.decide(ResourceSnapshot::new(2_000, 1_000, 8, false, 20)),
-        ResourceDirective::PauseAgent
+        false,
+        None,
+        false,
+        true,
+        false,
     );
-    assert_eq!(
+    assert_plan(
         governor.decide(ResourceSnapshot::new(8_500, 1_000, 8, false, 10)),
-        ResourceDirective::PauseAgent
+        true,
+        None,
+        false,
+        true,
+        true,
     );
-    assert_eq!(
+    assert_plan(
         governor.decide(ResourceSnapshot::new(2_000, 4_500, 8, false, 10)),
-        ResourceDirective::RejectNewAgentWork
+        false,
+        None,
+        false,
+        true,
+        true,
     );
-    assert_eq!(
+    assert_plan(
         governor.decide(ResourceSnapshot::new(8_500, 4_500, 8, true, 30)),
-        ResourceDirective::RejectNewAgentWork
+        true,
+        None,
+        true,
+        true,
+        true,
     );
 }
 
@@ -80,25 +136,45 @@ fn governor_treats_budget_boundaries_as_pressure() {
         ResourceBudget::new(4_096, 8_192, 2_048, 4_096, 8, 16).expect("budget"),
     );
 
-    assert_eq!(
-        governor.decide(ResourceSnapshot::new(2_000, 4_096, 8, false, 10)),
-        ResourceDirective::RejectNewAgentWork
+    assert_plan(
+        governor.decide(ResourceSnapshot::new(2_000, 4_096, 8, true, 10)),
+        false,
+        None,
+        true,
+        true,
+        true,
     );
-    assert_eq!(
+    assert_plan(
         governor.decide(ResourceSnapshot::new(8_192, 1_000, 8, false, 10)),
-        ResourceDirective::PauseAgent
+        true,
+        None,
+        false,
+        true,
+        true,
     );
-    assert_eq!(
+    assert_plan(
         governor.decide(ResourceSnapshot::new(2_000, 1_000, 8, true, 16)),
-        ResourceDirective::OffloadInferenceToCpu
+        false,
+        None,
+        true,
+        false,
+        false,
     );
-    assert_eq!(
+    assert_plan(
         governor.decide(ResourceSnapshot::new(4_096, 1_000, 8, false, 10)),
-        ResourceDirective::SpillObservationCache
+        true,
+        None,
+        false,
+        false,
+        false,
     );
-    assert_eq!(
+    assert_plan(
         governor.decide(ResourceSnapshot::new(2_000, 2_048, 8, false, 10)),
-        ResourceDirective::ReduceAgentBatch { next_batch_size: 4 }
+        false,
+        Some(4),
+        false,
+        false,
+        false,
     );
 }
 
