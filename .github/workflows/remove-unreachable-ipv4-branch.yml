@@ -36,17 +36,21 @@ jobs:
           from pathlib import Path
           path = Path('crates/originweave-core/src/lib.rs')
           text = path.read_text(encoding='utf-8')
-          old = '''    if let Ok(address) = host.parse::<Ipv4Addr>() {
-              if address.to_string() != host {
-                  return Err(OriginError::AmbiguousNumericHost);
-              }
-              return Ok((host, port, address.is_loopback()));
-          }
-'''
-          new = '''    if let Ok(address) = host.parse::<Ipv4Addr>() {
-              return Ok((host, port, address.is_loopback()));
-          }
-'''
+          old = "\n".join([
+              "    if let Ok(address) = host.parse::<Ipv4Addr>() {",
+              "        if address.to_string() != host {",
+              "            return Err(OriginError::AmbiguousNumericHost);",
+              "        }",
+              "        return Ok((host, port, address.is_loopback()));",
+              "    }",
+              "",
+          ])
+          new = "\n".join([
+              "    if let Ok(address) = host.parse::<Ipv4Addr>() {",
+              "        return Ok((host, port, address.is_loopback()));",
+              "    }",
+              "",
+          ])
           if old not in text:
               raise SystemExit('expected canonical IPv4 branch not found')
           path.write_text(text.replace(old, new, 1), encoding='utf-8')
