@@ -84,7 +84,7 @@ Subsequent work adds WARC/PROV persistence, MCP and Browser Agent Protocol adapt
 
 ## Hourly product-development loop
 
-The repository defines an hourly bounded OpenCode workflow. It runs only when no PR or release blocker is open, calls models through a loopback-only broker backed by `NVIDIA_NIM_API_KEY`, gives the agent no Git or GitHub authority, validates the exact patch independently, and uses a dedicated `OPENCODE_PR_TOKEN` only to publish one verified PR. It never uses `COPILOT_GITHUB_TOKEN`, review credentials, merge credentials, or self-approval. Organization-level PR maintenance remains the independent review and merge authority.
+The repository defines an hourly bounded OpenCode workflow. It runs only when no PR or release blocker is open, calls models through a loopback-only broker backed by `NVIDIA_NIM_API_KEY`, gives the agent no Git or GitHub authority, restricts the unprivileged agent user to loopback network egress, and keeps generated build outputs outside the proposed source tree. It seals the permitted source edits in a deterministic change bundle, independently reapplies and verifies that exact bundle, and uses a dedicated `OPENCODE_PR_TOKEN` only to publish one verified PR. It never uses `COPILOT_GITHUB_TOKEN`, review credentials, merge credentials, or self-approval. Organization-level PR maintenance remains the independent review and merge authority.
 
 ## Contributing and security
 
