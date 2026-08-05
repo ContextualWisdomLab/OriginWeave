@@ -22,9 +22,19 @@ Status: in development.
 - document epoch and stale-node invalidation;
 - typed `navigate`, `observe`, `query`, and `click` actions;
 - post-condition verification and audit events;
-- crash recovery and task checkpoint.
+- crash recovery and task checkpoint;
+- resolve every navigation target through a fail-closed browser-network policy before connection;
+- reject or explicitly authorize loopback, private, link-local, multicast, unspecified, and cloud-metadata address ranges after DNS resolution;
+- pin the approved address set for the connection attempt and detect DNS rebinding between policy evaluation and use;
+- re-evaluate origin, resolved addresses, capabilities, and action risk on every redirect rather than trusting the initial URL;
+- define proxy and PAC behavior explicitly so a proxy cannot silently bypass destination policy;
+- bound connection count, response headers, body bytes, redirects, download bytes, and elapsed time;
+- validate download MIME type and declared versus observed content before persistence;
+- retain connection, address, redirect, proxy, and policy-decision evidence without exposing credentials.
 
-Commercial proof: one controlled workflow completes repeatedly without selector scripts, raw secrets, or unverified success.
+A syntactically canonical origin is an identity input, not an SSRF boundary. Phase 1 cannot claim safe real navigation until both canonical origin parsing and the resolved-address/redirect/proxy policy above are implemented and tested together.
+
+Commercial proof: one controlled workflow completes repeatedly without selector scripts, raw secrets, unverified success, destination-policy bypass, or unbounded download behavior.
 
 ## Phase 2 — Agent-native scraping
 
@@ -79,6 +89,7 @@ Each phase expands a stable benchmark suite:
 - WebArena/VisualWebArena-style repeatability;
 - WASP prompt-injection scenarios;
 - stale nodes, hidden instructions, cross-origin transitions, CAPTCHA handoff, renderer crash, network failure, and memory pressure;
+- DNS rebinding, alternate numeric hosts, redirect-to-private-address, proxy bypass, metadata endpoints, oversized downloads, MIME confusion, and partial connection failures;
 - task success, safety, provenance completeness, latency, memory, VRAM, and cost.
 
 ## Explicit non-goals
