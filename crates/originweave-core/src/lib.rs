@@ -29,9 +29,10 @@ impl Origin {
             return Err(OriginError::InvalidAuthority);
         }
 
-        let Some((scheme, authority)) = input.split_once("://") else {
+        let Some((raw_scheme, authority)) = input.split_once("://") else {
             return Err(OriginError::MissingScheme);
         };
+        let scheme = raw_scheme.to_ascii_lowercase();
         if scheme != "https" && scheme != "http" {
             return Err(OriginError::UnsupportedScheme);
         }
@@ -52,8 +53,8 @@ impl Origin {
         if scheme == "http" && !is_loopback {
             return Err(OriginError::InsecureRemoteOrigin);
         }
-
-        let canonical = match port {
+        let normalized_port = normalize_default_port(&scheme, port);
+        let canonical = match normalized_port {
             Some(port_number) => format!("{scheme}://{host}:{port_number}"),
             None => format!("{scheme}://{host}"),
         };
@@ -70,6 +71,13 @@ impl Origin {
 impl fmt::Display for Origin {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(self.as_str())
+    }
+}
+
+fn normalize_default_port(scheme: &str, port: Option<u16>) -> Option<u16> {
+    match (scheme, port) {
+        ("https", Some(443)) | ("http", Some(80)) => None,
+        (_, other) => other,
     }
 }
 
@@ -124,29 +132,36 @@ fn parse_port(port_text: &str) -> Result<u16, OriginError> {
 }
 
 fn validate_dns_host(host: &str) -> Result<(), OriginError> {
-    if host.is_empty()
-        || host.len() > 253
-        || !host.is_ascii()
-        || host.starts_with('.')
-        || host.ends_with('.')
-    {
+    if host.is_empty() {
+        return Err(OriginError::InvalidAuthority);
+    }
+    if host.len() > 253 {
+        return Err(OriginError::InvalidAuthority);
+    }
+    if !host.is_ascii() {
+        return Err(OriginError::InvalidAuthority);
+    }
+    if host.starts_with('.') || host.ends_with('.') {
         return Err(OriginError::InvalidAuthority);
     }
     for label in host.split('.') {
-        let valid = !label.is_empty()
-            && label.len() <= 63
-            && label
-                .as_bytes()
-                .first()
-                .is_some_and(u8::is_ascii_alphanumeric)
-            && label
-                .as_bytes()
-                .last()
-                .is_some_and(u8::is_ascii_alphanumeric)
-            && label
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-');
-        if !valid {
+        if label.is_empty() {
+            return Err(OriginError::InvalidAuthority);
+        }
+        if label.len() > 63 {
+            return Err(OriginError::InvalidAuthority);
+        }
+        let bytes = label.as_bytes();
+        if !bytes[0].is_ascii_alphanumeric() {
+            return Err(OriginError::InvalidAuthority);
+        }
+        if !bytes[bytes.len() - 1].is_ascii_alphanumeric() {
+            return Err(OriginError::InvalidAuthority);
+        }
+        if !bytes
+            .iter()
+            .all(|byte| byte.is_ascii_alphanumeric() || *byte == b'-')
+        {
             return Err(OriginError::InvalidAuthority);
         }
     }

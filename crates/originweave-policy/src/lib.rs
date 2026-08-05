@@ -28,6 +28,8 @@ pub enum Decision {
 pub enum DenialReason {
     /// Human mode does not grant autonomous agent control.
     HumanModeNotAgentControlled,
+    /// The crawler execution mode and public-crawl purpose were not paired.
+    ModePurposeMismatch,
     /// Page or document content attempted to become a trusted instruction.
     UntrustedInstructionSource,
     /// The session lacks the exact capability required by the action.
@@ -62,6 +64,11 @@ pub fn evaluate(request: &ActionRequest, context: &PolicyContext) -> Decision {
     if context.mode() == SessionMode::Human {
         return Decision::Deny(DenialReason::HumanModeNotAgentControlled);
     }
+    let crawler_mode = context.mode() == SessionMode::Crawler;
+    let public_crawl = context.purpose() == ExecutionPurpose::PublicCrawl;
+    if crawler_mode != public_crawl {
+        return Decision::Deny(DenialReason::ModePurposeMismatch);
+    }
     if request.instruction_source() == InstructionSource::WebContent {
         return Decision::Deny(DenialReason::UntrustedInstructionSource);
     }
@@ -75,7 +82,7 @@ pub fn evaluate(request: &ActionRequest, context: &PolicyContext) -> Decision {
     }
 
     if request.action().mutates_state() {
-        if context.mode() == SessionMode::Crawler {
+        if crawler_mode {
             return Decision::Deny(DenialReason::CrawlerMutation);
         }
         if request.source_origin() != request.target_origin() {
@@ -86,7 +93,7 @@ pub fn evaluate(request: &ActionRequest, context: &PolicyContext) -> Decision {
         }
     }
 
-    if context.purpose() == ExecutionPurpose::PublicCrawl {
+    if public_crawl {
         match context.robots_decision() {
             RobotsDecision::Allowed => {}
             RobotsDecision::Disallowed => {

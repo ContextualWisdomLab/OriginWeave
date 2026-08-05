@@ -162,23 +162,23 @@ impl ResourceGovernor {
     /// Select the highest-priority mitigation for one resource snapshot.
     #[must_use]
     pub const fn decide(self, snapshot: ResourceSnapshot) -> ResourceDirective {
-        if snapshot.vram_mebibytes > self.budget.hard_vram_mebibytes {
+        if snapshot.vram_mebibytes >= self.budget.hard_vram_mebibytes {
             return ResourceDirective::RejectNewAgentWork;
         }
-        if snapshot.ram_mebibytes > self.budget.hard_ram_mebibytes {
+        if snapshot.ram_mebibytes >= self.budget.hard_ram_mebibytes {
             return ResourceDirective::PauseAgent;
         }
-        if snapshot.frame_time_milliseconds > self.budget.frame_budget_milliseconds {
+        if snapshot.frame_time_milliseconds >= self.budget.frame_budget_milliseconds {
             return if snapshot.local_model_loaded {
                 ResourceDirective::OffloadInferenceToCpu
             } else {
                 ResourceDirective::PauseAgent
             };
         }
-        if snapshot.ram_mebibytes > self.budget.soft_ram_mebibytes {
+        if snapshot.ram_mebibytes >= self.budget.soft_ram_mebibytes {
             return ResourceDirective::SpillObservationCache;
         }
-        if snapshot.vram_mebibytes > self.budget.soft_vram_mebibytes {
+        if snapshot.vram_mebibytes >= self.budget.soft_vram_mebibytes {
             if snapshot.agent_batch_size > 1 {
                 return ResourceDirective::ReduceAgentBatch {
                     next_batch_size: snapshot.agent_batch_size / 2,

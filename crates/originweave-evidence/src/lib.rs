@@ -154,7 +154,7 @@ fn valid_path(path: &str) -> bool {
         && path.starts_with('/')
         && !path
             .chars()
-            .any(|character| character.is_control() || matches!(character, '?' | '#'))
+            .any(|character| character.is_control() || matches!(character, '?' | '#' | '\\'))
 }
 
 fn redact_map(
@@ -246,11 +246,21 @@ impl ProvenanceRecord {
 }
 
 fn valid_source_url(source_url: &str) -> bool {
-    !source_url.is_empty()
-        && (source_url.starts_with("https://") || source_url.starts_with("http://"))
-        && !source_url
+    if source_url.is_empty()
+        || source_url
             .chars()
             .any(|character| character.is_control() || character.is_whitespace())
+        || source_url.contains(['?', '#', '\\'])
+    {
+        return false;
+    }
+    let Some((scheme, remainder)) = source_url.split_once("://") else {
+        return false;
+    };
+    let authority_end = remainder.find('/').unwrap_or(remainder.len());
+    let authority = &remainder[..authority_end];
+    let origin_text = format!("{scheme}://{authority}");
+    Origin::parse(&origin_text).is_ok()
 }
 
 fn valid_sha256(source_hash: &str) -> bool {
