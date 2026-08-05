@@ -2,7 +2,7 @@
 //!
 //! The governor protects human-visible rendering before agent throughput. It
 //! does not allocate memory or schedule threads itself; platform adapters apply
-//! the returned directive to Chromium, model, and observation processes.
+//! the returned mitigation plan to Chromium, model, and observation processes.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -126,24 +126,75 @@ impl ResourceSnapshot {
     }
 }
 
-/// A fail-closed action for the platform resource scheduler.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ResourceDirective {
-    /// Continue the current browser and agent workload.
-    Continue,
-    /// Move old semantic observations from RAM to bounded persistent storage.
-    SpillObservationCache,
-    /// Re-run the next agent step with a smaller batch.
-    ReduceAgentBatch {
-        /// The bounded batch size to use for the next step.
-        next_batch_size: u32,
-    },
-    /// Remove the local model from GPU memory and continue on CPU.
-    OffloadInferenceToCpu,
-    /// Suspend the current agent while preserving human browser interaction.
-    PauseAgent,
-    /// Reject new agent work until hard GPU pressure has cleared.
-    RejectNewAgentWork,
+/// Independent mitigations that a platform adapter applies to one workload.
+///
+/// A plan can carry several actions at once. This prevents simultaneous RAM,
+/// VRAM, and frame pressure from being collapsed into a single enum variant.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ResourceMitigationPlan {
+    spill_observation_cache: bool,
+    next_batch_size: Option<u32>,
+    offload_inference_to_cpu: bool,
+    pause_current_agent: bool,
+    reject_new_agent_work: bool,
+}
+
+impl ResourceMitigationPlan {
+    const fn new(
+        spill_observation_cache: bool,
+        next_batch_size: Option<u32>,
+        offload_inference_to_cpu: bool,
+        pause_current_agent: bool,
+        reject_new_agent_work: bool,
+    ) -> Self {
+        Self {
+            spill_observation_cache,
+            next_batch_size,
+            offload_inference_to_cpu,
+            pause_current_agent,
+            reject_new_agent_work,
+        }
+    }
+
+    /// Return whether old semantic observations must leave process RAM.
+    #[must_use]
+    pub const fn spill_observation_cache(self) -> bool {
+        self.spill_observation_cache
+    }
+
+    /// Return the reduced batch size for the next agent step, when required.
+    #[must_use]
+    pub const fn next_batch_size(self) -> Option<u32> {
+        self.next_batch_size
+    }
+
+    /// Return whether local inference must release GPU memory and use CPU.
+    #[must_use]
+    pub const fn offload_inference_to_cpu(self) -> bool {
+        self.offload_inference_to_cpu
+    }
+
+    /// Return whether the currently running agent must stop making progress.
+    #[must_use]
+    pub const fn pause_current_agent(self) -> bool {
+        self.pause_current_agent
+    }
+
+    /// Return whether admission of additional agent work must be rejected.
+    #[must_use]
+    pub const fn reject_new_agent_work(self) -> bool {
+        self.reject_new_agent_work
+    }
+
+    /// Return whether the workload may continue without any mitigation.
+    #[must_use]
+    pub const fn is_noop(self) -> bool {
+        !self.spill_observation_cache
+            && self.next_batch_size.is_none()
+            && !self.offload_inference_to_cpu
+            && !self.pause_current_agent
+            && !self.reject_new_agent_work
+    }
 }
 
 /// A pure resource-governance policy bound to one validated budget.
@@ -159,37 +210,50 @@ impl ResourceGovernor {
         Self { budget }
     }
 
-    /// Select the highest-priority mitigation for one resource snapshot.
+    /// Build the complete mitigation plan for one resource snapshot.
+    ///
+    /// Hard memory pressure always pauses the active agent and rejects new
+    /// admission. Hard VRAM pressure also unloads a resident local model so the
+    /// plan reduces the consumer that crossed the configured limit.
     #[must_use]
-    pub const fn decide(self, snapshot: ResourceSnapshot) -> ResourceDirective {
-        if snapshot.vram_mebibytes >= self.budget.hard_vram_mebibytes {
-            return ResourceDirective::RejectNewAgentWork;
-        }
-        if snapshot.ram_mebibytes >= self.budget.hard_ram_mebibytes {
-            return ResourceDirective::PauseAgent;
-        }
-        if snapshot.frame_time_milliseconds >= self.budget.frame_budget_milliseconds {
-            return if snapshot.local_model_loaded {
-                ResourceDirective::OffloadInferenceToCpu
+    pub const fn decide(self, snapshot: ResourceSnapshot) -> ResourceMitigationPlan {
+        let hard_ram = snapshot.ram_mebibytes >= self.budget.hard_ram_mebibytes;
+        let hard_vram = snapshot.vram_mebibytes >= self.budget.hard_vram_mebibytes;
+        let frame_pressure =
+            snapshot.frame_time_milliseconds >= self.budget.frame_budget_milliseconds;
+        let soft_ram = snapshot.ram_mebibytes >= self.budget.soft_ram_mebibytes;
+        let soft_vram = snapshot.vram_mebibytes >= self.budget.soft_vram_mebibytes;
+
+        let spill_observation_cache = soft_ram;
+        let reject_new_agent_work = hard_ram || hard_vram;
+        let mut pause_current_agent = hard_ram || hard_vram;
+        let mut offload_inference_to_cpu = hard_vram && snapshot.local_model_loaded;
+        let mut next_batch_size = None;
+
+        if frame_pressure {
+            if snapshot.local_model_loaded {
+                offload_inference_to_cpu = true;
             } else {
-                ResourceDirective::PauseAgent
-            };
-        }
-        if snapshot.ram_mebibytes >= self.budget.soft_ram_mebibytes {
-            return ResourceDirective::SpillObservationCache;
-        }
-        if snapshot.vram_mebibytes >= self.budget.soft_vram_mebibytes {
-            if snapshot.agent_batch_size > 1 {
-                return ResourceDirective::ReduceAgentBatch {
-                    next_batch_size: snapshot.agent_batch_size / 2,
-                };
+                pause_current_agent = true;
             }
-            return if snapshot.local_model_loaded {
-                ResourceDirective::OffloadInferenceToCpu
-            } else {
-                ResourceDirective::PauseAgent
-            };
         }
-        ResourceDirective::Continue
+
+        if soft_vram && !hard_vram {
+            if snapshot.agent_batch_size > 1 {
+                next_batch_size = Some(snapshot.agent_batch_size / 2);
+            } else if snapshot.local_model_loaded {
+                offload_inference_to_cpu = true;
+            } else {
+                pause_current_agent = true;
+            }
+        }
+
+        ResourceMitigationPlan::new(
+            spill_observation_cache,
+            next_batch_size,
+            offload_inference_to_cpu,
+            pause_current_agent,
+            reject_new_agent_work,
+        )
     }
 }
