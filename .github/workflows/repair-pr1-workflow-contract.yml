@@ -1,0 +1,145 @@
+name: Repair PR 1 workflow security contract
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/agent-safety-kernel
+    paths:
+      - .github/workflows/repair-pr1-workflow-contract.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repair-pr1-workflow-contract
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - name: Check out repair branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: feat/agent-safety-kernel
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Apply deterministic workflow repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('.github/workflows/hourly-product-development.yml')
+          text = path.read_text(encoding='utf-8')
+
+          old_endpoints = '''            github.com:443
+            integrate.api.nvidia.com:443
+'''
+          new_endpoints = '''            github.com:443
+            crates.io:443
+            index.crates.io:443
+            static.crates.io:443
+            integrate.api.nvidia.com:443
+'''
+          if old_endpoints not in text:
+              raise SystemExit('expected endpoint anchor not found')
+          text = text.replace(old_endpoints, new_endpoints, 1)
+
+          old_gate_env = '''          NIM_UPSTREAM_API_KEY: ${{ secrets.NVIDIA_NIM_API_KEY }}
+          AUTOMATION_TOKEN: ${{ secrets.PR_REVIEW_MERGE_TOKEN || secrets.OPENCODE_APPROVE_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run || false }}
+'''
+          new_gate_env = '''          NIM_UPSTREAM_API_KEY: ${{ secrets.NVIDIA_NIM_API_KEY }}
+          DRY_RUN: ${{ inputs.dry_run || false }}
+'''
+          if old_gate_env not in text:
+              raise SystemExit('expected gate environment anchor not found')
+          text = text.replace(old_gate_env, new_gate_env, 1)
+
+          old_gate = '''          if [ -z "${NIM_UPSTREAM_API_KEY:-}" ]; then
+            develop=false
+            reason=nim_api_key_unavailable
+          elif [ -z "${AUTOMATION_TOKEN:-}" ]; then
+            develop=false
+            reason=automation_token_unavailable
+          elif [ "$(gh api "repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=1" --jq 'length')" -ne 0 ]; then
+'''
+          new_gate = '''          if [ -z "${NIM_UPSTREAM_API_KEY:-}" ]; then
+            develop=false
+            reason=nim_api_key_unavailable
+          elif [ "$(gh api "repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=1" --jq 'length')" -ne 0 ]; then
+'''
+          if old_gate not in text:
+              raise SystemExit('expected gate condition anchor not found')
+          text = text.replace(old_gate, new_gate, 1)
+
+          old_publish_env = '''          AUTOMATION_TOKEN: ${{ secrets.PR_REVIEW_MERGE_TOKEN || secrets.OPENCODE_APPROVE_TOKEN }}
+          EXPECTED_BASE_SHA: ${{ steps.patch.outputs.base_sha }}
+'''
+          new_publish_env = '''          AUTOMATION_TOKEN: ${{ secrets.OPENCODE_PR_TOKEN }}
+          EXPECTED_BASE_SHA: ${{ steps.patch.outputs.base_sha }}
+'''
+          if old_publish_env not in text:
+              raise SystemExit('expected publication token anchor not found')
+          text = text.replace(old_publish_env, new_publish_env, 1)
+
+          old_recheck = '''          current_sha="$(git rev-parse HEAD)"
+          open_prs="$(GH_TOKEN="$AUTOMATION_TOKEN" gh api "repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=1" --jq 'length')"
+          if [ "$open_prs" -ne 0 ] || [ "$current_sha" != "$EXPECTED_BASE_SHA" ]; then
+            echo "Repository state changed; publication cancelled." >>"$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+'''
+          new_recheck = '''          if [ -z "${AUTOMATION_TOKEN:-}" ]; then
+            echo "Dedicated OpenCode PR publication token unavailable; publication cancelled." >>"$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          current_sha="$(git rev-parse HEAD)"
+          live_default_sha="$(GH_TOKEN="$AUTOMATION_TOKEN" gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/${DEFAULT_BRANCH}" --jq '.object.sha')"
+          open_prs="$(GH_TOKEN="$AUTOMATION_TOKEN" gh api "repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=1" --jq 'length')"
+          release_blockers="$(GH_TOKEN="$AUTOMATION_TOKEN" gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=release-blocker&per_page=1" --jq '[.[] | select(.pull_request == null)] | length')"
+          if [ "$open_prs" -ne 0 ] || [ "$release_blockers" -ne 0 ] || [ "$current_sha" != "$EXPECTED_BASE_SHA" ] || [ "$live_default_sha" != "$EXPECTED_BASE_SHA" ]; then
+            echo "Repository state changed; publication cancelled." >>"$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+'''
+          if old_recheck not in text:
+              raise SystemExit('expected publication recheck anchor not found')
+          text = text.replace(old_recheck, new_recheck, 1)
+
+          forbidden = ('PR_REVIEW_MERGE_TOKEN', 'OPENCODE_APPROVE_TOKEN')
+          if any(value in text for value in forbidden):
+              raise SystemExit('review or merge credential remained in local publisher')
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Verify red workflow contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m compileall -q scripts tests
+          python3 -m unittest discover -s tests -p 'test_*.py'
+          git diff --check
+
+      - name: Remove one-shot repair and publish
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          rm .github/workflows/repair-pr1-workflow-contract.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/hourly-product-development.yml .github/workflows/repair-pr1-workflow-contract.yml
+          git commit -m 'fix(ci): isolate hourly publisher authority'
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:feat/agent-safety-kernel
