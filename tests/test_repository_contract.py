@@ -74,6 +74,14 @@ class RepositoryContractTests(unittest.TestCase):
         self.assertNotIn("gh pr merge", workflow)
         self.assertNotIn("gh pr review", workflow)
 
+    def test_generated_build_outputs_are_ignored(self) -> None:
+        """Verification artifacts must never be staged as product source."""
+
+        ignore = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
+        self.assertIn("/target/", ignore)
+        self.assertIn("__pycache__/", ignore)
+        self.assertIn("*.py[cod]", ignore)
+
     def test_product_name_is_consistent_in_binding_documents(self) -> None:
         """Binding documents must not retain an earlier internal product name."""
 
