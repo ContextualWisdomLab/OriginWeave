@@ -1,9 +1,8 @@
 #![allow(clippy::expect_used)]
 
 use originweave_core::{
-    ActionKind, ApprovalEvidence, ApprovalScope, Capability, ExecutionPurpose,
-    InstructionSource, Origin, OriginError, RiskClass, RobotsDecision, SecretDelivery,
-    SessionMode,
+    ActionKind, ApprovalEvidence, ApprovalScope, Capability, ExecutionPurpose, InstructionSource,
+    Origin, OriginError, RiskClass, RobotsDecision, SecretDelivery, SessionMode,
 };
 
 #[test]
@@ -48,16 +47,76 @@ fn origin_rejects_ambiguous_or_insecure_remote_inputs() {
 #[test]
 fn action_contracts_cover_every_risk_and_capability() {
     let cases = [
-        (ActionKind::Observe, RiskClass::R0, Capability::Observe, false, false),
-        (ActionKind::Extract, RiskClass::R0, Capability::Extract, false, false),
-        (ActionKind::Navigate, RiskClass::R1, Capability::Navigate, false, false),
-        (ActionKind::Download, RiskClass::R1, Capability::Download, false, false),
-        (ActionKind::Draft, RiskClass::R2, Capability::Draft, true, false),
-        (ActionKind::Submit, RiskClass::R3, Capability::Submit, true, false),
-        (ActionKind::Upload, RiskClass::R3, Capability::Upload, true, false),
-        (ActionKind::FillSecret, RiskClass::R3, Capability::FillSecret, true, true),
-        (ActionKind::Purchase, RiskClass::R4, Capability::Purchase, true, false),
-        (ActionKind::Delete, RiskClass::R4, Capability::Delete, true, false),
+        (
+            ActionKind::Observe,
+            RiskClass::R0,
+            Capability::Observe,
+            false,
+            false,
+        ),
+        (
+            ActionKind::Extract,
+            RiskClass::R0,
+            Capability::Extract,
+            false,
+            false,
+        ),
+        (
+            ActionKind::Navigate,
+            RiskClass::R1,
+            Capability::Navigate,
+            false,
+            false,
+        ),
+        (
+            ActionKind::Download,
+            RiskClass::R1,
+            Capability::Download,
+            false,
+            false,
+        ),
+        (
+            ActionKind::Draft,
+            RiskClass::R2,
+            Capability::Draft,
+            true,
+            false,
+        ),
+        (
+            ActionKind::Submit,
+            RiskClass::R3,
+            Capability::Submit,
+            true,
+            false,
+        ),
+        (
+            ActionKind::Upload,
+            RiskClass::R3,
+            Capability::Upload,
+            true,
+            false,
+        ),
+        (
+            ActionKind::FillSecret,
+            RiskClass::R3,
+            Capability::FillSecret,
+            true,
+            true,
+        ),
+        (
+            ActionKind::Purchase,
+            RiskClass::R4,
+            Capability::Purchase,
+            true,
+            false,
+        ),
+        (
+            ActionKind::Delete,
+            RiskClass::R4,
+            Capability::Delete,
+            true,
+            false,
+        ),
         (
             ActionKind::ManagePermission,
             RiskClass::R4,
