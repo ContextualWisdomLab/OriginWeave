@@ -1,0 +1,142 @@
+#![allow(clippy::expect_used)]
+
+use originweave_core::{
+    ActionKind, ApprovalEvidence, ApprovalScope, Capability, ExecutionPurpose,
+    InstructionSource, Origin, OriginError, RiskClass, RobotsDecision, SecretDelivery,
+    SessionMode,
+};
+
+#[test]
+fn origin_accepts_secure_and_loopback_origins() {
+    let secure = Origin::parse("https://Example.COM:443").expect("secure origin");
+    let localhost = Origin::parse("http://localhost:8080").expect("loopback origin");
+    let ipv4 = Origin::parse("http://127.0.0.1").expect("IPv4 loopback origin");
+    let ipv6 = Origin::parse("http://[::1]:9222").expect("IPv6 loopback origin");
+
+    assert_eq!(secure.as_str(), "https://example.com:443");
+    assert_eq!(localhost.as_str(), "http://localhost:8080");
+    assert_eq!(ipv4.as_str(), "http://127.0.0.1");
+    assert_eq!(ipv6.as_str(), "http://[::1]:9222");
+    assert_eq!(secure.to_string(), secure.as_str());
+}
+
+#[test]
+fn origin_rejects_ambiguous_or_insecure_remote_inputs() {
+    let cases = [
+        ("example.com", OriginError::MissingScheme),
+        ("ftp://example.com", OriginError::UnsupportedScheme),
+        ("http://example.com", OriginError::InsecureRemoteOrigin),
+        ("https://", OriginError::MissingAuthority),
+        ("https://user@example.com", OriginError::UserInfoNotAllowed),
+        ("https://example.com/path", OriginError::PathNotAllowed),
+        ("https://example.com?x=1", OriginError::PathNotAllowed),
+        ("https://example.com#fragment", OriginError::PathNotAllowed),
+        (" https://example.com", OriginError::InvalidAuthority),
+        ("https://exa mple.com", OriginError::InvalidAuthority),
+        ("https://[::1", OriginError::InvalidAuthority),
+        ("https://2001:db8::1", OriginError::InvalidAuthority),
+        ("https://example.com:0", OriginError::InvalidPort),
+        ("https://example.com:65536", OriginError::InvalidPort),
+        ("https://example.com:not-a-port", OriginError::InvalidPort),
+    ];
+
+    for (input, expected) in cases {
+        assert_eq!(Origin::parse(input), Err(expected), "input={input}");
+    }
+}
+
+#[test]
+fn action_contracts_cover_every_risk_and_capability() {
+    let cases = [
+        (ActionKind::Observe, RiskClass::R0, Capability::Observe, false, false),
+        (ActionKind::Extract, RiskClass::R0, Capability::Extract, false, false),
+        (ActionKind::Navigate, RiskClass::R1, Capability::Navigate, false, false),
+        (ActionKind::Download, RiskClass::R1, Capability::Download, false, false),
+        (ActionKind::Draft, RiskClass::R2, Capability::Draft, true, false),
+        (ActionKind::Submit, RiskClass::R3, Capability::Submit, true, false),
+        (ActionKind::Upload, RiskClass::R3, Capability::Upload, true, false),
+        (ActionKind::FillSecret, RiskClass::R3, Capability::FillSecret, true, true),
+        (ActionKind::Purchase, RiskClass::R4, Capability::Purchase, true, false),
+        (ActionKind::Delete, RiskClass::R4, Capability::Delete, true, false),
+        (
+            ActionKind::ManagePermission,
+            RiskClass::R4,
+            Capability::ManagePermission,
+            true,
+            false,
+        ),
+        (
+            ActionKind::LegalConsent,
+            RiskClass::R5,
+            Capability::LegalConsent,
+            true,
+            false,
+        ),
+    ];
+
+    for (action, risk, capability, mutates_state, uses_secret) in cases {
+        assert_eq!(action.risk_class(), risk);
+        assert_eq!(action.required_capability(), capability);
+        assert_eq!(action.mutates_state(), mutates_state);
+        assert_eq!(action.uses_secret(), uses_secret);
+    }
+
+    assert!(!RiskClass::R0.requires_approval());
+    assert!(!RiskClass::R1.requires_approval());
+    assert!(!RiskClass::R2.requires_approval());
+    assert!(RiskClass::R3.requires_approval());
+    assert!(RiskClass::R4.requires_approval());
+    assert!(RiskClass::R5.requires_approval());
+}
+
+#[test]
+fn approval_evidence_is_bound_to_the_exact_action_and_origin() {
+    let source = Origin::parse("https://shop.example").expect("source");
+    let target = Origin::parse("https://pay.example").expect("target");
+    let scope = ApprovalScope::new(ActionKind::Purchase, target.clone());
+    let same = ApprovalScope::new(ActionKind::Purchase, target);
+    let wrong_action = ApprovalScope::new(ActionKind::Delete, source.clone());
+
+    assert!(ApprovalEvidence::UserConfirmed(scope.clone()).authorizes(&same));
+    assert!(ApprovalEvidence::EnterprisePolicy(scope).authorizes(&same));
+    assert!(!ApprovalEvidence::None.authorizes(&same));
+    assert!(!ApprovalEvidence::UserConfirmed(wrong_action).authorizes(&same));
+}
+
+#[test]
+fn governance_enums_are_distinct_and_copyable() {
+    let modes = [
+        SessionMode::Human,
+        SessionMode::Assist,
+        SessionMode::AgentTask,
+        SessionMode::Crawler,
+    ];
+    let purposes = [
+        ExecutionPurpose::PublicCrawl,
+        ExecutionPurpose::UserDelegatedTask,
+        ExecutionPurpose::EnterpriseAuthorizedTask,
+        ExecutionPurpose::TestingEnvironment,
+    ];
+    let sources = [
+        InstructionSource::User,
+        InstructionSource::EnterprisePolicy,
+        InstructionSource::WebContent,
+    ];
+    let robots = [
+        RobotsDecision::Allowed,
+        RobotsDecision::Disallowed,
+        RobotsDecision::Unknown,
+        RobotsDecision::NotApplicable,
+    ];
+    let secrets = [
+        SecretDelivery::None,
+        SecretDelivery::BrokerHandle,
+        SecretDelivery::RawValue,
+    ];
+
+    assert_eq!(modes.len(), 4);
+    assert_eq!(purposes.len(), 4);
+    assert_eq!(sources.len(), 3);
+    assert_eq!(robots.len(), 4);
+    assert_eq!(secrets.len(), 3);
+}
