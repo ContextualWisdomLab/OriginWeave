@@ -18,8 +18,8 @@ pub struct Origin {
 }
 
 impl Origin {
-    /// Parse one origin and reject paths, credentials, fragments, and insecure
-    /// remote HTTP endpoints.
+    /// Parse one origin and reject paths, credentials, fragments, insecure
+    /// remote HTTP endpoints, and browser-special numeric host spellings.
     pub fn parse(input: &str) -> Result<Self, OriginError> {
         if input.trim() != input
             || input
@@ -93,13 +93,36 @@ fn parse_authority(authority: &str) -> Result<(String, Option<u16>, bool), Origi
         Some((host, port_text)) => (host, Some(parse_port(port_text)?)),
         None => (authority, None),
     };
-    validate_dns_host(host_text)?;
     let host = host_text.to_ascii_lowercase();
-    let is_loopback = host == "localhost"
-        || host
-            .parse::<Ipv4Addr>()
-            .is_ok_and(|address| address.is_loopback());
-    Ok((host, port, is_loopback))
+    if let Ok(address) = host.parse::<Ipv4Addr>() {
+        if address.to_string() != host {
+            return Err(OriginError::AmbiguousNumericHost);
+        }
+        return Ok((host, port, address.is_loopback()));
+    }
+    if looks_like_browser_ipv4_host(&host) {
+        return Err(OriginError::AmbiguousNumericHost);
+    }
+    validate_dns_host(&host)?;
+    Ok((host.clone(), port, host == "localhost"))
+}
+
+fn looks_like_browser_ipv4_host(host: &str) -> bool {
+    host.rsplit('.')
+        .next()
+        .is_some_and(looks_like_browser_ipv4_number)
+}
+
+fn looks_like_browser_ipv4_number(label: &str) -> bool {
+    if label.is_empty() {
+        return false;
+    }
+    let lowercase = label.to_ascii_lowercase();
+    if let Some(hexadecimal) = lowercase.strip_prefix("0x") {
+        return !hexadecimal.is_empty()
+            && hexadecimal.bytes().all(|byte| byte.is_ascii_hexdigit());
+    }
+    label.bytes().all(|byte| byte.is_ascii_digit())
 }
 
 fn parse_bracketed_ipv6(authority: &str) -> Result<(String, Option<u16>, bool), OriginError> {
@@ -185,8 +208,48 @@ pub enum OriginError {
     PathNotAllowed,
     /// The host or authority syntax was ambiguous or malformed.
     InvalidAuthority,
+    /// A browser could reinterpret the host as a non-canonical IPv4 address.
+    AmbiguousNumericHost,
     /// The explicit port was outside `1..=65535` or was not numeric.
     InvalidPort,
+}
+
+/// An immutable digest of the complete canonical action intent.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ActionIntentDigest {
+    canonical: String,
+}
+
+impl ActionIntentDigest {
+    /// Parse a lowercase `sha256:` digest of the complete canonical intent.
+    pub fn parse(input: &str) -> Result<Self, ActionIntentDigestError> {
+        let Some(hexadecimal) = input.strip_prefix("sha256:") else {
+            return Err(ActionIntentDigestError::InvalidFormat);
+        };
+        if hexadecimal.len() != 64
+            || !hexadecimal
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        {
+            return Err(ActionIntentDigestError::InvalidFormat);
+        }
+        Ok(Self {
+            canonical: input.to_owned(),
+        })
+    }
+
+    /// Return the canonical lowercase digest.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.canonical
+    }
+}
+
+/// A validation error for an action-intent digest.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActionIntentDigestError {
+    /// The value was not `sha256:` followed by 64 lowercase hexadecimal digits.
+    InvalidFormat,
 }
 
 /// The browser execution mode that owns an action.
@@ -382,20 +445,26 @@ impl ActionKind {
     }
 }
 
-/// The exact action and target origin covered by one approval.
+/// The exact action, target origin, and complete intent covered by an approval.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ApprovalScope {
     action: ActionKind,
     target_origin: Origin,
+    intent_digest: ActionIntentDigest,
 }
 
 impl ApprovalScope {
     /// Create one exact approval scope.
     #[must_use]
-    pub const fn new(action: ActionKind, target_origin: Origin) -> Self {
+    pub const fn new(
+        action: ActionKind,
+        target_origin: Origin,
+        intent_digest: ActionIntentDigest,
+    ) -> Self {
         Self {
             action,
             target_origin,
+            intent_digest,
         }
     }
 
@@ -410,6 +479,12 @@ impl ApprovalScope {
     pub const fn target_origin(&self) -> &Origin {
         &self.target_origin
     }
+
+    /// Return the approved complete-intent digest.
+    #[must_use]
+    pub const fn intent_digest(&self) -> &ActionIntentDigest {
+        &self.intent_digest
+    }
 }
 
 /// Evidence that a high-risk action was approved for an exact scope.
@@ -417,9 +492,9 @@ impl ApprovalScope {
 pub enum ApprovalEvidence {
     /// No approval was supplied.
     None,
-    /// A person confirmed the exact action and target.
+    /// A person confirmed the exact action, target, and complete intent.
     UserConfirmed(ApprovalScope),
-    /// A managed enterprise policy approved the exact action and target.
+    /// A managed policy approved the exact action, target, and complete intent.
     EnterprisePolicy(ApprovalScope),
 }
 
@@ -442,6 +517,7 @@ pub struct ActionRequest {
     target_origin: Origin,
     instruction_source: InstructionSource,
     secret_delivery: SecretDelivery,
+    intent_digest: ActionIntentDigest,
 }
 
 impl ActionRequest {
@@ -453,6 +529,7 @@ impl ActionRequest {
         target_origin: Origin,
         instruction_source: InstructionSource,
         secret_delivery: SecretDelivery,
+        intent_digest: ActionIntentDigest,
     ) -> Self {
         Self {
             action,
@@ -460,6 +537,7 @@ impl ActionRequest {
             target_origin,
             instruction_source,
             secret_delivery,
+            intent_digest,
         }
     }
 
@@ -491,6 +569,12 @@ impl ActionRequest {
     #[must_use]
     pub const fn secret_delivery(&self) -> SecretDelivery {
         self.secret_delivery
+    }
+
+    /// Return the digest of the complete canonical action intent.
+    #[must_use]
+    pub const fn intent_digest(&self) -> &ActionIntentDigest {
+        &self.intent_digest
     }
 }
 
