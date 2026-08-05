@@ -8,8 +8,7 @@ use originweave_evidence::{
     VerificationResult,
 };
 
-const VALID_HASH: &str =
-    "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+const VALID_HASH: &str = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
 fn origin() -> Origin {
     Origin::parse("https://example.com").expect("origin")
