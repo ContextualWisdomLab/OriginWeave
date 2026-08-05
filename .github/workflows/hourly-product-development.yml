@@ -71,7 +71,6 @@ jobs:
           set -euo pipefail
           develop=true
           reason=ready
-
           if [ -z "${NIM_UPSTREAM_API_KEY:-}" ]; then
             develop=false
             reason=nim_api_key_unavailable
@@ -85,7 +84,6 @@ jobs:
             develop=false
             reason=dry_run
           fi
-
           {
             echo "develop=$develop"
             echo "reason=$reason"
@@ -109,8 +107,7 @@ jobs:
           rustup toolchain install nightly-2026-08-01 --profile minimal --component llvm-tools-preview
           cargo +1.97.1 install cargo-llvm-cov --version 0.8.6 --locked
           archive="${RUNNER_TEMP}/opencode-linux-x64.tar.gz"
-          curl -fsSL \
-            -o "$archive" \
+          curl -fsSL -o "$archive" \
             "https://github.com/anomalyco/opencode/releases/download/v${OPENCODE_VERSION}/opencode-linux-x64.tar.gz"
           printf '%s  %s\n' "$OPENCODE_SHA256" "$archive" | sha256sum -c -
           tar -xzf "$archive" -C "$RUNNER_TEMP"
@@ -127,10 +124,13 @@ jobs:
           workspace="${RUNNER_TEMP}/originweave-agent"
           agent_home="${RUNNER_TEMP}/originweave-agent-home"
           rm -rf "$baseline" "$workspace" "$agent_home"
-          install -d -m 0750 "$baseline" "$workspace" "$agent_home" "$agent_home/tmp"
+          install -d -m 0750 \
+            "$baseline" "$workspace" "$agent_home" "$agent_home/tmp" \
+            "$agent_home/target" "$agent_home/pycache" "$agent_home/cargo"
           git archive HEAD | tar -x -C "$baseline"
           git archive HEAD | tar -x -C "$workspace"
           git rev-parse HEAD >"${RUNNER_TEMP}/originweave-base-sha"
+          CARGO_HOME="$agent_home/cargo" cargo +1.97.1 fetch --locked
           sudo chown -R root:root "$baseline" "${RUNNER_TEMP}/originweave-base-sha"
           sudo chmod -R a-w "$baseline"
           sudo chmod 0444 "${RUNNER_TEMP}/originweave-base-sha"
@@ -170,7 +170,6 @@ jobs:
           title. The remaining Markdown states the product gap, changes, test evidence,
           standards or primary sources, compatibility, and residual risk.
           PROMPT
-
           {
             echo "workspace=$workspace"
             echo "baseline=$baseline"
@@ -317,7 +316,14 @@ jobs:
           AGENT_HOME: ${{ steps.prepare.outputs.agent_home }}
         run: |
           set -euo pipefail
-          trap 'sudo pkill -KILL -u 65532 >/dev/null 2>&1 || true' EXIT
+          cleanup_agent() {
+            sudo pkill -KILL -u 65532 >/dev/null 2>&1 || true
+            sudo iptables -D OUTPUT -m owner --uid-owner 65532 ! -d 127.0.0.0/8 -j REJECT >/dev/null 2>&1 || true
+            sudo ip6tables -D OUTPUT -m owner --uid-owner 65532 ! -d ::1/128 -j REJECT >/dev/null 2>&1 || true
+          }
+          trap cleanup_agent EXIT
+          sudo iptables -I OUTPUT 1 -m owner --uid-owner 65532 ! -d 127.0.0.0/8 -j REJECT
+          sudo ip6tables -I OUTPUT 1 -m owner --uid-owner 65532 ! -d ::1/128 -j REJECT
           prompt="$(cat "${RUNNER_TEMP}/originweave-agent-prompt.md")"
           success=false
           cat >"${AGENT_WORKSPACE}/opencode.json" <<'CONFIG'
@@ -366,9 +372,17 @@ jobs:
                 HOME="$AGENT_HOME" \
                 TMPDIR="$AGENT_HOME/tmp" \
                 CARGO_HOME="$AGENT_HOME/cargo" \
+                CARGO_TARGET_DIR="$AGENT_HOME/target" \
+                CARGO_NET_OFFLINE=true \
                 RUSTUP_HOME="/home/runner/.rustup" \
+                PYTHONPYCACHEPREFIX="$AGENT_HOME/pycache" \
+                PYTHONDONTWRITEBYTECODE=1 \
                 LANG=C.UTF-8 \
                 LC_ALL=C.UTF-8 \
+                NO_PROXY=127.0.0.1,localhost \
+                HTTP_PROXY= \
+                HTTPS_PROXY= \
+                ALL_PROXY= \
                 NVIDIA_API_KEY=originweave-local-broker \
                 OPENCODE_DISABLE_AUTOUPDATE=1 \
                 /bin/bash -c 'cd "$1"; exec opencode run "$2" --model "$3"' \
@@ -396,9 +410,9 @@ jobs:
             wait "$pid" >/dev/null 2>&1 || true
           fi
 
-      - name: Validate and seal the credential-free patch
+      - name: Validate and seal the credential-free change bundle
         if: steps.gate.outputs.develop == 'true'
-        id: patch
+        id: bundle
         shell: bash
         env:
           BASELINE: ${{ steps.prepare.outputs.baseline }}
@@ -407,18 +421,20 @@ jobs:
         run: |
           set -euo pipefail
           sudo chown -R "$(id -u):$(id -g)" "$AGENT_WORKSPACE"
-          python3 - "$BASELINE" "$AGENT_WORKSPACE" "${RUNNER_TEMP}/originweave.patch" "${RUNNER_TEMP}/proposal.json" <<'PY'
+          python3 - "$BASELINE" "$AGENT_WORKSPACE" "${RUNNER_TEMP}/originweave-change.tar" "${RUNNER_TEMP}/proposal.json" <<'PY'
           import difflib
           import hashlib
+          import io
           import json
           import os
           import pathlib
           import re
           import sys
+          import tarfile
 
           baseline = pathlib.Path(sys.argv[1])
           workspace = pathlib.Path(sys.argv[2])
-          patch_path = pathlib.Path(sys.argv[3])
+          bundle_path = pathlib.Path(sys.argv[3])
           proposal_path = pathlib.Path(sys.argv[4])
           forbidden = os.environ.get("FORBIDDEN_SECRET", "").encode()
           allowed = re.compile(r"^(crates/|tests/|docs/|README\.md$|ARCHITECTURE\.md$|CHANGELOG\.md$)")
@@ -452,8 +468,8 @@ jobs:
           if len(changed) > 12 or any(allowed.match(name) is None for name in changed):
               raise SystemExit(f"bounded path or file-count contract rejected: {changed}")
 
-          patch_parts = []
           changed_lines = 0
+          payloads = {}
           for name in changed:
               old_bytes = old_files[name].read_bytes() if name in old_files else b""
               new_bytes = new_files[name].read_bytes()
@@ -464,12 +480,12 @@ jobs:
                   new_text = new_bytes.decode("utf-8").splitlines(keepends=True)
               except UnicodeDecodeError as error:
                   raise SystemExit(f"binary change rejected: {name}") from error
-              diff = list(difflib.unified_diff(old_text, new_text, f"a/{name}", f"b/{name}"))
+              diff = difflib.unified_diff(old_text, new_text, f"a/{name}", f"b/{name}")
               changed_lines += sum(
                   1 for line in diff
                   if line.startswith(("+", "-")) and not line.startswith(("+++", "---"))
               )
-              patch_parts.extend(diff)
+              payloads[name] = new_bytes
           if changed_lines > 1500:
               raise SystemExit("more than 1,500 changed lines")
 
@@ -485,31 +501,64 @@ jobs:
           if not separator or not 8 <= len(title) <= 120 or not body or len(body) > 10_000:
               raise SystemExit("PR_MESSAGE.md has an invalid title or body")
 
-          patch_text = "".join(patch_parts)
-          patch_path.write_text(patch_text, encoding="utf-8")
-          proposal_path.write_text(json.dumps({"title": title, "body": body}), encoding="utf-8")
+          with tarfile.open(bundle_path, "w") as archive:
+              for name in changed:
+                  payload = payloads[name]
+                  info = tarfile.TarInfo(name)
+                  info.size = len(payload)
+                  info.mode = 0o644
+                  info.mtime = 0
+                  info.uid = 0
+                  info.gid = 0
+                  info.uname = ""
+                  info.gname = ""
+                  archive.addfile(info, io.BytesIO(payload))
+          proposal_path.write_text(
+              json.dumps({"title": title, "body": body, "changed_files": changed}),
+              encoding="utf-8",
+          )
           output.write_text(
               "changed=true\n"
               f"base_sha={pathlib.Path(os.environ['RUNNER_TEMP'], 'originweave-base-sha').read_text().strip()}\n"
-              f"patch_sha256={hashlib.sha256(patch_text.encode()).hexdigest()}\n",
+              f"bundle_sha256={hashlib.sha256(bundle_path.read_bytes()).hexdigest()}\n",
               encoding="utf-8",
           )
           PY
 
-      - name: Apply and independently verify the exact patch
-        if: steps.patch.outputs.changed == 'true'
+      - name: Apply and independently verify the exact change bundle
+        if: steps.bundle.outputs.changed == 'true'
         shell: bash
         env:
-          EXPECTED_BASE_SHA: ${{ steps.patch.outputs.base_sha }}
-          EXPECTED_PATCH_SHA: ${{ steps.patch.outputs.patch_sha256 }}
+          EXPECTED_BASE_SHA: ${{ steps.bundle.outputs.base_sha }}
+          EXPECTED_BUNDLE_SHA: ${{ steps.bundle.outputs.bundle_sha256 }}
         run: |
           set -euo pipefail
           [ "$(git rev-parse HEAD)" = "$EXPECTED_BASE_SHA" ]
-          [ "$(sha256sum "${RUNNER_TEMP}/originweave.patch" | awk '{print $1}')" = "$EXPECTED_PATCH_SHA" ]
-          git apply --check "${RUNNER_TEMP}/originweave.patch"
-          git apply "${RUNNER_TEMP}/originweave.patch"
-          git diff --check
+          [ "$(sha256sum "${RUNNER_TEMP}/originweave-change.tar" | awk '{print $1}')" = "$EXPECTED_BUNDLE_SHA" ]
+          python3 - "${RUNNER_TEMP}/originweave-change.tar" "${RUNNER_TEMP}/proposal.json" <<'PY'
+          import json
+          import pathlib
+          import sys
+          import tarfile
 
+          bundle = pathlib.Path(sys.argv[1])
+          proposal = json.loads(pathlib.Path(sys.argv[2]).read_text(encoding="utf-8"))
+          expected = proposal["changed_files"]
+          with tarfile.open(bundle, "r") as archive:
+              members = archive.getmembers()
+              if [member.name for member in members] != expected:
+                  raise SystemExit("bundle manifest mismatch")
+              for member in members:
+                  if not member.isfile() or member.name.startswith("/") or ".." in pathlib.PurePosixPath(member.name).parts:
+                      raise SystemExit(f"unsafe bundle member: {member.name}")
+                  source = archive.extractfile(member)
+                  if source is None:
+                      raise SystemExit(f"missing bundle payload: {member.name}")
+                  target = pathlib.Path(member.name)
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  target.write_bytes(source.read())
+          PY
+          git diff --check
           python3 -m compileall -q scripts tests
           python3 -m unittest discover -s tests -p 'test_*.py'
           cargo +1.97.1 fmt --all --check
@@ -523,11 +572,11 @@ jobs:
           python3 scripts/ci/verify_coverage.py "${RUNNER_TEMP}/coverage.json"
 
       - name: Recheck repository state and publish the verified PR
-        if: steps.patch.outputs.changed == 'true'
+        if: steps.bundle.outputs.changed == 'true'
         shell: bash
         env:
           AUTOMATION_TOKEN: ${{ secrets.OPENCODE_PR_TOKEN }}
-          EXPECTED_BASE_SHA: ${{ steps.patch.outputs.base_sha }}
+          EXPECTED_BASE_SHA: ${{ steps.bundle.outputs.base_sha }}
         run: |
           set -euo pipefail
           if [ -z "${AUTOMATION_TOKEN:-}" ]; then
