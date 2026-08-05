@@ -53,10 +53,10 @@ jobs:
           toolchain: nightly-2026-08-01
           components: llvm-tools-preview
       - name: Install pinned cargo-llvm-cov
-        run: cargo install cargo-llvm-cov --version 0.8.6 --locked
+        run: cargo +1.97.1 install cargo-llvm-cov --version 0.8.6 --locked
       - name: Measure production functions, lines, regions, and branches
         run: >-
-          cargo llvm-cov
+          cargo +nightly-2026-08-01 llvm-cov
           --locked
           --workspace
           --all-features
