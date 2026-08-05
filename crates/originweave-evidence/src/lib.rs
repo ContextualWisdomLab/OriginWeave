@@ -12,21 +12,13 @@ use std::collections::BTreeMap;
 use originweave_core::Origin;
 
 const REDACTED: &str = "[REDACTED]";
-const SENSITIVE_HEADERS: [&str; 6] = [
-    "authorization",
-    "proxy-authorization",
-    "cookie",
-    "set-cookie",
-    "x-api-key",
-    "x-csrf-token",
-];
-const SENSITIVE_QUERY_FIELDS: [&str; 6] = [
-    "access_token",
-    "api_key",
-    "key",
-    "token",
-    "secret",
-    "password",
+const ALLOWED_HEADER_VALUES: [&str; 6] = [
+    "accept",
+    "cache-control",
+    "content-length",
+    "content-type",
+    "etag",
+    "last-modified",
 ];
 
 /// An HTTP method recorded for network evidence.
@@ -98,7 +90,8 @@ pub struct NetworkEvidence {
 }
 
 impl NetworkEvidence {
-    /// Capture one network request after redacting known credential fields.
+    /// Capture one network request while preserving only allowlisted header
+    /// values and redacting every query value by default.
     pub fn capture(
         method: HttpMethod,
         origin: Origin,
@@ -113,8 +106,8 @@ impl NetworkEvidence {
             method,
             origin,
             path: path.to_owned(),
-            headers: redact_map(headers, &SENSITIVE_HEADERS),
-            query: redact_map(query, &SENSITIVE_QUERY_FIELDS),
+            headers: redact_headers(headers),
+            query: redact_all_values(query),
         })
     }
 
@@ -136,13 +129,13 @@ impl NetworkEvidence {
         &self.path
     }
 
-    /// Return the captured headers with sensitive values redacted.
+    /// Return captured headers with non-allowlisted values redacted.
     #[must_use]
     pub const fn headers(&self) -> &BTreeMap<String, String> {
         &self.headers
     }
 
-    /// Return the captured query fields with sensitive values redacted.
+    /// Return query field names with every value redacted.
     #[must_use]
     pub const fn query(&self) -> &BTreeMap<String, String> {
         &self.query
@@ -157,23 +150,27 @@ fn valid_path(path: &str) -> bool {
             .any(|character| character.is_control() || matches!(character, '?' | '#' | '\\'))
 }
 
-fn redact_map(
-    values: BTreeMap<String, String>,
-    sensitive_names: &[&str],
-) -> BTreeMap<String, String> {
+fn redact_headers(values: BTreeMap<String, String>) -> BTreeMap<String, String> {
     values
         .into_iter()
         .map(|(name, value)| {
-            let replacement = if sensitive_names
+            let safe_value = if ALLOWED_HEADER_VALUES
                 .iter()
-                .any(|sensitive| name.eq_ignore_ascii_case(sensitive))
+                .any(|allowed| name.eq_ignore_ascii_case(allowed))
             {
-                REDACTED.to_owned()
-            } else {
                 value
+            } else {
+                REDACTED.to_owned()
             };
-            (name, replacement)
+            (name, safe_value)
         })
+        .collect()
+}
+
+fn redact_all_values(values: BTreeMap<String, String>) -> BTreeMap<String, String> {
+    values
+        .into_keys()
+        .map(|name| (name, REDACTED.to_owned()))
         .collect()
 }
 
