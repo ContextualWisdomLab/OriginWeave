@@ -11,7 +11,7 @@
 
 A syntactically public hostname can resolve to a loopback, private, link-local, shared, metadata, documentation, benchmarking, multicast, unspecified, transition, or protocol-reserved destination. A resolver can return a safe set during policy evaluation and a different set before connection. A public first request can also redirect to a prohibited origin or address.
 
-The IANA IPv4 and IPv6 special-purpose registries are the authoritative classification inputs. RFC 9110 treats a redirect `Location` as a new target URI; automatic redirect handling must therefore re-evaluate authority and representation-specific state instead of inheriting the initial request's approval.
+The IANA IPv4 and IPv6 special-purpose registries are the authoritative classification inputs. Authoritative cloud-platform documentation supplements those registries for credential and control endpoints that occupy otherwise public, shared, link-local, or unique-local space. RFC 9110 treats a redirect `Location` as a new target URI; automatic redirect handling must therefore re-evaluate authority and representation-specific state instead of inheriting the initial request's approval.
 
 ## Decision
 
@@ -39,21 +39,24 @@ The crate classifies canonical addresses into:
 
 IPv4-mapped IPv6 values are converted to canonical IPv4 before classification and comparison. The default web policy permits only the public class. Managed deployments may construct an explicit class allow-list, but no implicit local-network exception exists.
 
-Specific metadata endpoints are classified before their containing generic range so denial evidence retains the highest-risk interpretation.
+Specific metadata and platform endpoints are classified before their containing generic range so denial evidence retains the highest-risk interpretation. The initial reviewed supplement includes established instance and container metadata endpoints, Azure platform IP `168.63.129.16`, and Amazon EKS Pod Identity endpoints `169.254.170.23` and `fd00:ec2::23`.
 
 ### Resolution approval and pinning
 
 A resolution snapshot is valid only when:
 
 1. at least one address is present;
-2. every address is permitted by the supplied destination policy;
-3. every address is canonicalized;
-4. the canonical address set is non-empty;
-5. the set is bound to exactly one logical origin.
+2. no more than 256 resolver addresses are supplied;
+3. every address is permitted by the supplied destination policy;
+4. every address is canonicalized;
+5. the canonical address set is non-empty;
+6. the set is bound to exactly one logical origin.
 
-A concrete connection attempt is authorized only when its canonical address appears in the pinned snapshot.
+The resolver-answer bound is applied before the complete iterator is collected, so an adversarial or malfunctioning resolver cannot force unbounded policy-state allocation.
 
-A refreshed DNS result may contract to a non-empty subset of the pinned set. It may not introduce a new canonical address. Expansion is treated as a possible DNS-rebinding event and fails closed.
+`localhost` can approve only loopback destinations. A literal IPv4 or IPv6 origin can approve only the exact canonical address represented in the origin. A concrete connection attempt is authorized only when its canonical address appears in the pinned snapshot.
+
+A refreshed DNS result may contract to a non-empty subset of the pinned set. It may not introduce a new canonical address. Expansion is treated as a possible DNS-rebinding event and fails closed. The same 256-address bound applies to refreshes.
 
 ### Redirect authorization
 
@@ -82,6 +85,8 @@ Neither evidence type stores cookies, authorization values, request headers, que
 - A canonical origin can no longer be mistaken for an SSRF decision.
 - IPv4-mapped IPv6 cannot bypass IPv4 policy or pin comparisons.
 - DNS rebinding becomes a deterministic typed denial rather than an adapter convention.
+- Cloud credential and platform endpoints can be denied even when their enclosing address range would otherwise appear public or managed.
+- Resolver response cardinality is bounded before policy-state allocation.
 - Redirects cannot inherit ambient origin or destination authority.
 - Desktop, headless, MCP, BiDi, CDP, naruon, and enterprise adapters can reuse the same policy kernel.
 - Security decisions remain deterministic and independently testable without network access.
@@ -90,7 +95,8 @@ Neither evidence type stores cookies, authorization values, request headers, que
 
 - Browser adapters must preserve and present the exact resolution snapshot used for connection.
 - Managed local-network access requires explicit policy construction.
-- IANA registry changes require reviewed classifier updates and regression tests.
+- IANA registry and cloud-platform endpoint changes require reviewed classifier updates and regression tests.
+- The finite platform-endpoint supplement cannot replace egress policy, proxy enforcement, or tenant-specific deny rules.
 - This decision alone does not secure proxy/PAC routing, TLS, response bodies, MIME validation, downloads, or socket races.
 
 ## Rejected alternatives
@@ -102,6 +108,10 @@ Rejected because stable Rust predicates do not provide the complete, versioned s
 ### Permit every address accepted by the operating-system resolver
 
 Rejected because resolver success is not authorization and would permit SSRF into local or special-purpose networks.
+
+### Collect an unbounded resolver answer
+
+Rejected because a malicious or malfunctioning adapter could consume unbounded memory before policy evaluation. A 256-address input cap is generous for browser resolution while preserving deterministic resource use.
 
 ### Approve only the hostname and resolve again immediately before connect
 
