@@ -12,6 +12,8 @@ The 1 June 2026 WebDriver BiDi Working Draft defines a bidirectional remote-cont
 
 The WHATWG URL host parser and Chromium canonicalizer classify shortened decimal, integer, hexadecimal, legacy octal-looking, and mixed-component numeric hosts as IPv4 or broken IPv4 candidates rather than ordinary DNS names. Chromium's regression suite includes values such as `192`, `0xC0a80001`, `030052000001`, and mixed hexadecimal components. A non-final empty `0x` component can participate in Chromium's multi-part IPv4 truncation behavior, but a final `0x` label does not produce an IPv4 number because stripping its prefix leaves no digits; it remains a domain label. Chromium also warns that broken IP-like hosts must not be connected because another resolver could accept them. OriginWeave therefore admits only canonical dotted-decimal IPv4 into its policy origin type, rejects browser-special numeric spellings before DNS validation, and preserves final non-numeric DNS labels such as `0x`.
 
+The exact Chromium regression evidence is pinned to revision `446d05d21720f0b3505ec21057b3e9f909784262`. A mutable `HEAD` reference is not sufficient for a reproducible security contract.
+
 ### Resolved destination and redirect safety
 
 Canonical origin identity is not a network-destination authorization. The IANA IPv4 and IPv6 Special-Purpose Address Space registries enumerate blocks whose source, destination, forwardability, globally reachable, and protocol-reserved properties differ. Both registries were last updated on 9 October 2025 and explicitly warn that registry presence does not guarantee routability in a particular local or global context. RFC 6890 established the common special-purpose registry fields, and RFC 8190 replaced the ambiguous `global` field with `globally reachable`.
@@ -28,7 +30,17 @@ Rust 1.97.1 exposes stable address parsing and `Ipv6Addr::to_ipv4_mapped`, but t
 
 RFC 9110 models a redirect `Location` as a new target URI and describes reconstructing the request for that target, including removal or reconsideration of resource-specific fields such as `Authorization` and `Cookie`. OriginWeave accordingly treats every redirect as a new authorization boundary: target origin, target-bound resolution snapshot, secure-scheme downgrade, complete-target digest, and hop capacity are re-evaluated before state changes. A digest of the complete canonical target permits path- and query-sensitive cycle detection without retaining credential-bearing URIs in policy evidence.
 
-The pure destination kernel performs no DNS lookup and opens no socket. It approves non-empty origin-bound address sets, authorizes only addresses in the pinned set, permits a refreshed DNS answer to contract to a non-empty subset, and rejects any newly introduced address as a possible rebinding event. Proxy/PAC enforcement, TLS and socket use, response budgets, MIME verification, download policy, and Chromium/BiDi/CDP integration remain separate merge-gated adapters.
+The pure destination kernel performs no DNS lookup and opens no socket. It approves non-empty origin-bound address sets, authorizes only addresses in the pinned set, permits a refreshed DNS answer to contract to a non-empty subset, and rejects any newly introduced address as a possible rebinding event.
+
+### Direct TCP peer binding
+
+RFC 9293 consolidates the current Standards Track Transmission Control Protocol and identifies a connection through its endpoint sockets. This does not make a TCP connection equivalent to a web origin or a TLS identity, but it establishes the concrete remote IP address and port that must be compared with destination authority.
+
+Rust 1.97.1 documents `TcpStream::connect_timeout` as attempting a connection to one supplied `SocketAddr`, with a timeout applied to that individual address. Unlike hostname-based connection APIs, this call does not give the adapter another collection of addresses to resolve or select. `TcpStream::peer_addr` reports the remote socket address of an established stream.
+
+OriginWeave therefore creates a separate direct-only network kernel. A non-cloneable plan accepts one canonical `SocketAddr` already authorized by a `ResolutionSnapshot`, rejects port zero and unbounded timeouts or attempts, calls `connect_timeout` with that exact address, and checks `peer_addr` before exposing the stream. Requested and observed peers must match in both IP and port. IPv4-mapped IPv6 is rejected at this layer when the snapshot authorized its canonical IPv4 form.
+
+This proof is deliberately narrower than safe browser navigation. It does not validate TLS server names, certificates, certificate chains, or ALPN; it does not authorize a proxy or PAC route; it does not parse HTTP or bound response resources; and it does not prove that Chromium's Network Service consumed the verified stream. Those remain separate merge-gated adapters. TCP peer equality is transport evidence, not application identity.
 
 ### Crawling policy
 
@@ -62,11 +74,13 @@ Autio, C., Schwartz, R., Dunietz, J., Jain, S., Stanley, M., Tabassi, E., Hall, 
 
 Bonica, R., Cotton, M., Haberman, B., & Vegoda, L. (2017). *Updates to the special-purpose IP address registries* (RFC 8190). Internet Engineering Task Force. https://doi.org/10.17487/RFC8190
 
-Chromium Authors. (2026). *URL canonicalizer unit tests* [Source code]. Chromium. https://chromium.googlesource.com/chromium/src/+/HEAD/url/url_canon_unittest.cc
+Chromium Authors. (2026). *URL canonicalizer unit tests* [Source code]. Chromium. https://chromium.googlesource.com/chromium/src/+/446d05d21720f0b3505ec21057b3e9f909784262/url/url_canon_unittest.cc
 
 Cotton, M., Vegoda, L., Bonica, R., & Haberman, B. (2013). *Special-purpose IP address registries* (RFC 6890). Internet Engineering Task Force. https://doi.org/10.17487/RFC6890
 
 Deng, X., Gu, Y., Zheng, B., Chen, S., Stevens, S., Wang, B., Sun, H., & Su, Y. (2023). *Mind2Web: Towards a generalist agent for the web*. arXiv. https://doi.org/10.48550/arXiv.2306.06070
+
+Eddy, W. M. (Ed.). (2022). *Transmission Control Protocol (TCP)* (RFC 9293). Internet Engineering Task Force. https://doi.org/10.17487/RFC9293
 
 Evtimov, I., Zharmagambetov, A., Grattafiori, A., Guo, C., & Chaudhuri, K. (2025). *WASP: Benchmarking web agent security against prompt injection attacks*. arXiv. https://doi.org/10.48550/arXiv.2504.18575
 
@@ -97,6 +111,8 @@ Sakana AI. (2026, June 22). *Sakana Fugu: One model to command them all*. https:
 The Rust Project Developers. (2026). *Ipv4Addr in std::net* (Rust 1.97.1) [Software documentation]. https://doc.rust-lang.org/stable/std/net/struct.Ipv4Addr.html
 
 The Rust Project Developers. (2026). *Ipv6Addr in std::net* (Rust 1.97.1) [Software documentation]. https://doc.rust-lang.org/stable/std/net/struct.Ipv6Addr.html
+
+The Rust Project Developers. (2026). *TcpStream in std::net* (Rust 1.97.1) [Software documentation]. https://doc.rust-lang.org/stable/std/net/struct.TcpStream.html
 
 Web Hypertext Application Technology Working Group. (2026). *URL standard*. https://url.spec.whatwg.org/
 
