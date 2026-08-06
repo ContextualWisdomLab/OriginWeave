@@ -1,0 +1,81 @@
+name: Refresh TLS lock and warning-free imports
+
+on:
+  push:
+    branches:
+      - feat/tls-server-identity
+    paths:
+      - .github/workflows/refresh-tls-lock.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-tls-lock
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feat/tls-server-identity
+          fetch-depth: 0
+
+      - name: Install supported Rust toolchain
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        with:
+          toolchain: 1.97.1
+          components: clippy,rustfmt
+
+      - name: Apply deterministic maintenance patch
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          handshake = Path("crates/originweave-tls/src/handshake.rs")
+          text = handshake.read_text(encoding="utf-8")
+          replacements = {
+              "use std::net::{SocketAddr, TcpStream};": "use std::net::TcpStream;",
+              "use rustls::pki_types::{CertificateDer, ServerName, UnixTime};": "use rustls::pki_types::{CertificateDer, UnixTime};",
+          }
+          for before, after in replacements.items():
+              if text.count(before) != 1:
+                  raise SystemExit(f"expected one import marker: {before}")
+              text = text.replace(before, after, 1)
+          handshake.write_text(text, encoding="utf-8")
+
+          adr = Path("docs/adr/0006-tls-server-identity.md")
+          text = adr.read_text(encoding="utf-8")
+          before = "RFC 5280 defines the Internet PKIX certificate and CRL profile. RFC 8446 defines TLS 1.3. RFC 9525 defines service identity for TLS, requires applicable subjectAltName identifiers, and supersedes the older RFC 6125 guidance."
+          after = "RFC 5280 defines the Internet PKIX certificate and CRL profile. RFC 9846 defines TLS 1.3 and obsoletes RFC 8446. RFC 9525 defines service identity for TLS, requires applicable subjectAltName identifiers, and supersedes the older RFC 6125 guidance."
+          if text.count(before) != 1:
+              raise SystemExit("expected one stale TLS standards sentence")
+          adr.write_text(text.replace(before, after, 1), encoding="utf-8")
+          PY
+          cargo generate-lockfile
+          cargo fmt --all
+
+      - name: Verify exact maintained branch
+        shell: bash
+        run: |
+          python3 -m compileall -q scripts tests
+          python3 -m unittest discover -s tests -p 'test_*.py'
+          cargo fmt --all --check
+          cargo check --locked --workspace --all-targets
+          cargo test --locked --workspace --all-targets
+          cargo clippy --locked --workspace --all-targets -- -D warnings
+          RUSTDOCFLAGS='-D warnings' cargo doc --locked --workspace --no-deps
+
+      - name: Commit verified maintenance and remove one-shot workflow
+        shell: bash
+        run: |
+          rm .github/workflows/refresh-tls-lock.yml
+          git config user.name "OpenCode Repair Agent"
+          git config user.email "opencode-repair@users.noreply.github.com"
+          git add Cargo.lock crates/originweave-tls/src/handshake.rs docs/adr/0006-tls-server-identity.md .github/workflows/refresh-tls-lock.yml
+          git commit -m "fix: refresh TLS dependency and documentation contracts"
+          git push origin HEAD:feat/tls-server-identity
