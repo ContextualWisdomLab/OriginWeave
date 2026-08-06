@@ -109,8 +109,9 @@ fn classify_ipv6(address: Ipv6Addr) -> AddressClass {
     match address.segments() {
         [0, 0, 0, 0, 0, 0, 0, 0] => AddressClass::Unspecified,
         [0, 0, 0, 0, 0, 0, 0, 1] => AddressClass::Loopback,
-        [0xfd00, 0x0ec2, 0, 0, 0, 0, 0, 0x0023]
-        | [0xfd00, 0x0ec2, 0, 0, 0, 0, 0, 0x0254] => AddressClass::MetadataService,
+        [0xfd00, 0x0ec2, 0, 0, 0, 0, 0, 0x0023] | [0xfd00, 0x0ec2, 0, 0, 0, 0, 0, 0x0254] => {
+            AddressClass::MetadataService
+        }
         [0, 0, 0, 0, 0, 0, _, _]
         | [0x0064, 0xff9b, 0, 0, 0, 0, _, _]
         | [0x0064, 0xff9b, 1, _, _, _, _, _]
