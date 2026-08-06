@@ -1,0 +1,298 @@
+name: Refactor network connector coverage path
+
+on:
+  push:
+    branches:
+      - feat/direct-socket-binding
+    paths:
+      - .github/workflows/refactor-network-connector-coverage.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refactor-network-connector-coverage
+  cancel-in-progress: false
+
+jobs:
+  refactor:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feat/direct-socket-binding
+          fetch-depth: 0
+
+      - name: Install supported Rust toolchain
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        with:
+          toolchain: 1.97.1
+          components: clippy,rustfmt
+
+      - name: Replace generic connector with object-safe exact-stream adapter
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("crates/originweave-network/src/connection.rs")
+          text = path.read_text(encoding="utf-8")
+          replacements = [
+              (
+                  '''    fn connect_with<C: SocketConnector>(
+                      self,
+                      connector: &C,
+                  ) -> Result<(C::Stream, SocketConnectionEvidence), NetworkError> {
+          ''',
+                  '''    fn connect_with(
+                      self,
+                      connector: &dyn SocketConnector,
+                  ) -> Result<(TcpStream, SocketConnectionEvidence), NetworkError> {
+          ''',
+              ),
+              (
+                  '''trait SocketConnector {
+              type Stream;
+
+              fn connect_timeout(
+                  &self,
+                  socket_address: &SocketAddr,
+                  timeout: Duration,
+              ) -> io::Result<Self::Stream>;
+
+              fn peer_addr(&self, stream: &Self::Stream) -> io::Result<SocketAddr>;
+          }
+          ''',
+                  '''trait SocketConnector {
+              fn connect_timeout(
+                  &self,
+                  socket_address: &SocketAddr,
+                  timeout: Duration,
+              ) -> io::Result<TcpStream>;
+
+              fn peer_addr(&self, stream: &TcpStream) -> io::Result<SocketAddr>;
+          }
+          ''',
+              ),
+              (
+                  '''impl SocketConnector for SystemConnector {
+              type Stream = TcpStream;
+
+              fn connect_timeout(
+                  &self,
+                  socket_address: &SocketAddr,
+                  timeout: Duration,
+              ) -> io::Result<Self::Stream> {
+                  TcpStream::connect_timeout(socket_address, timeout)
+              }
+
+              fn peer_addr(&self, stream: &Self::Stream) -> io::Result<SocketAddr> {
+                  stream.peer_addr()
+              }
+          }
+          ''',
+                  '''impl SocketConnector for SystemConnector {
+              fn connect_timeout(
+                  &self,
+                  socket_address: &SocketAddr,
+                  timeout: Duration,
+              ) -> io::Result<TcpStream> {
+                  TcpStream::connect_timeout(socket_address, timeout)
+              }
+
+              fn peer_addr(&self, stream: &TcpStream) -> io::Result<SocketAddr> {
+                  stream.peer_addr()
+              }
+          }
+          ''',
+              ),
+              (
+                  '''    use std::net::{IpAddr, Ipv4Addr};
+          ''',
+                  '''    use std::net::{IpAddr, Ipv4Addr, TcpListener};
+          ''',
+              ),
+              (
+                  '''    enum ConnectOutcome {
+                  Success(u8),
+                  Error(io::ErrorKind),
+              }
+          ''',
+                  '''    enum ConnectOutcome {
+                  Success(TcpStream),
+                  Error(io::ErrorKind),
+              }
+          ''',
+              ),
+              (
+                  '''    impl SocketConnector for FakeConnector {
+                  type Stream = u8;
+
+                  fn connect_timeout(
+                      &self,
+                      _socket_address: &SocketAddr,
+                      _timeout: Duration,
+                  ) -> io::Result<Self::Stream> {
+                      self.connect_calls.set(self.connect_calls.get() + 1);
+                      match self
+                          .connect_outcomes
+                          .borrow_mut()
+                          .pop_front()
+                          .expect("test must provide a connection outcome")
+                      {
+                          ConnectOutcome::Success(stream) => Ok(stream),
+                          ConnectOutcome::Error(kind) => Err(io::Error::from(kind)),
+                      }
+                  }
+
+                  fn peer_addr(&self, _stream: &Self::Stream) -> io::Result<SocketAddr> {
+                      self.peer_calls.set(self.peer_calls.get() + 1);
+                      match self
+                          .peer_outcomes
+                          .borrow_mut()
+                          .pop_front()
+                          .expect("test must provide a peer outcome")
+                      {
+                          PeerOutcome::Address(address) => Ok(address),
+                          PeerOutcome::Error(kind) => Err(io::Error::from(kind)),
+                      }
+                  }
+              }
+          ''',
+                  '''    impl SocketConnector for FakeConnector {
+                  fn connect_timeout(
+                      &self,
+                      _socket_address: &SocketAddr,
+                      _timeout: Duration,
+                  ) -> io::Result<TcpStream> {
+                      self.connect_calls.set(self.connect_calls.get() + 1);
+                      match self
+                          .connect_outcomes
+                          .borrow_mut()
+                          .pop_front()
+                          .expect("test must provide a connection outcome")
+                      {
+                          ConnectOutcome::Success(stream) => Ok(stream),
+                          ConnectOutcome::Error(kind) => Err(io::Error::from(kind)),
+                      }
+                  }
+
+                  fn peer_addr(&self, _stream: &TcpStream) -> io::Result<SocketAddr> {
+                      self.peer_calls.set(self.peer_calls.get() + 1);
+                      match self
+                          .peer_outcomes
+                          .borrow_mut()
+                          .pop_front()
+                          .expect("test must provide a peer outcome")
+                      {
+                          PeerOutcome::Address(address) => Ok(address),
+                          PeerOutcome::Error(kind) => Err(io::Error::from(kind)),
+                      }
+                  }
+              }
+          ''',
+              ),
+              (
+                  '''    fn requested_socket() -> SocketAddr {
+                  SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8080)
+              }
+
+          ''',
+                  '''    fn requested_socket() -> SocketAddr {
+                  SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8080)
+              }
+
+              fn connected_stream() -> TcpStream {
+                  let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+                      .expect("test listener must bind");
+                  let socket_address = listener.local_addr().expect("listener address");
+                  let client = TcpStream::connect_timeout(&socket_address, Duration::from_secs(1))
+                      .expect("test client must connect");
+                  let (_server, _peer) = listener.accept().expect("listener must accept");
+                  client
+              }
+
+          ''',
+              ),
+              (
+                  '''                ConnectOutcome::Success(7),
+          ''',
+                  '''                ConnectOutcome::Success(connected_stream()),
+          ''',
+              ),
+              (
+                  '''        let (stream, evidence) = plan(2)
+                  .connect_with(&connector)
+                  .expect("second attempt succeeds");
+
+              assert_eq!(stream, 7);
+          ''',
+                  '''        let (_stream, evidence) = plan(2)
+                  .connect_with(&connector)
+                  .expect("second attempt succeeds");
+
+          ''',
+              ),
+              (
+                  '''            vec![ConnectOutcome::Success(1)],
+          ''',
+                  '''            vec![ConnectOutcome::Success(connected_stream())],
+          ''',
+              ),
+          ]
+          for old, new in replacements:
+              if old not in text:
+                  raise SystemExit(f"expected source block not found: {old.splitlines()[0]!r}")
+              text = text.replace(old, new, 1)
+          if 'ConnectOutcome::Success(1)' not in text:
+              raise SystemExit("second fake-success block not found")
+          text = text.replace(
+              '            vec![ConnectOutcome::Success(1)],\n',
+              '            vec![ConnectOutcome::Success(connected_stream())],\n',
+              1,
+          )
+          path.write_text(text, encoding="utf-8")
+          PY
+          cargo fmt --all
+
+      - name: Verify supported-toolchain contracts
+        shell: bash
+        run: |
+          python3 -m compileall -q scripts tests
+          python3 -m unittest discover -s tests -p 'test_*.py'
+          cargo fmt --all --check
+          cargo check --locked --workspace --all-targets
+          cargo test --locked --workspace --all-targets
+          cargo clippy --locked --workspace --all-targets -- -D warnings
+          RUSTDOCFLAGS='-D warnings' cargo doc --locked --workspace --no-deps
+
+      - name: Install pinned branch-coverage toolchain
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        with:
+          toolchain: nightly-2026-08-01
+          components: llvm-tools-preview
+
+      - name: Verify exact production coverage
+        shell: bash
+        run: |
+          cargo +1.97.1 install cargo-llvm-cov --version 0.8.6 --locked
+          cargo +nightly-2026-08-01 llvm-cov \
+            --locked \
+            --workspace \
+            --all-features \
+            --branch \
+            --json \
+            --summary-only \
+            --output-path coverage.json
+          python3 scripts/ci/verify_coverage.py coverage.json
+
+      - name: Commit verified refactor and remove one-shot workflow
+        shell: bash
+        run: |
+          rm .github/workflows/refactor-network-connector-coverage.yml
+          git config user.name "OpenCode Repair Agent"
+          git config user.email "opencode-repair@users.noreply.github.com"
+          git add crates/originweave-network/src/connection.rs .github/workflows/refactor-network-connector-coverage.yml
+          git commit -m "refactor: remove generic connector coverage gaps"
+          git push origin HEAD:feat/direct-socket-binding
