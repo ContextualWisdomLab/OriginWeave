@@ -24,10 +24,10 @@ pub use evidence::{
 pub use handshake::TlsHandshakePlan;
 pub use identity::TlsReferenceIdentity;
 pub use policy::{
-    AlpnRequirement, TlsClientPolicy, MAX_ALPN_PROTOCOL_COUNT, MAX_ALPN_PROTOCOL_LENGTH,
-    MAX_ALPN_TOTAL_BYTES, MAX_SERVER_CERTIFICATE_BYTES, MAX_SERVER_CERTIFICATE_COUNT,
-    MAX_TLS_HANDSHAKE_TIMEOUT,
+    AlpnRequirement, MAX_ALPN_PROTOCOL_COUNT, MAX_ALPN_PROTOCOL_LENGTH, MAX_ALPN_TOTAL_BYTES,
+    MAX_SERVER_CERTIFICATE_BYTES, MAX_SERVER_CERTIFICATE_COUNT, MAX_TLS_HANDSHAKE_TIMEOUT,
+    TlsClientPolicy,
 };
 pub use trust::{
-    TrustBundleIdentifier, TrustRootBundle, MAX_TRUST_ROOT_BYTES, MAX_TRUST_ROOT_COUNT,
+    MAX_TRUST_ROOT_BYTES, MAX_TRUST_ROOT_COUNT, TrustBundleIdentifier, TrustRootBundle,
 };

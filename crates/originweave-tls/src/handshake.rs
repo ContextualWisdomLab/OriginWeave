@@ -96,8 +96,8 @@ impl TlsHandshakePlan {
         config.cert_compressors.clear();
         config.cert_decompressors.clear();
 
-        let mut client = ClientConnection::new(Arc::new(config), server_name)
-            .map_err(classify_rustls_error)?;
+        let mut client =
+            ClientConnection::new(Arc::new(config), server_name).map_err(classify_rustls_error)?;
         let original_read_timeout = stream
             .read_timeout()
             .map_err(|source| TlsError::HandshakeIoFailed { source })?;
@@ -105,12 +105,13 @@ impl TlsHandshakePlan {
             .write_timeout()
             .map_err(|source| TlsError::HandshakeIoFailed { source })?;
         let started_at = Instant::now();
-        let deadline = started_at
-            .checked_add(handshake_timeout)
-            .ok_or(TlsError::InvalidHandshakeTimeout {
-                timeout: handshake_timeout,
-                maximum_timeout: crate::MAX_TLS_HANDSHAKE_TIMEOUT,
-            })?;
+        let deadline =
+            started_at
+                .checked_add(handshake_timeout)
+                .ok_or(TlsError::InvalidHandshakeTimeout {
+                    timeout: handshake_timeout,
+                    maximum_timeout: crate::MAX_TLS_HANDSHAKE_TIMEOUT,
+                })?;
 
         let handshake_result = drive_handshake(
             &mut client,
@@ -125,11 +126,7 @@ impl TlsHandshakePlan {
             return Err(error);
         }
 
-        restore_timeouts(
-            &stream,
-            original_read_timeout,
-            original_write_timeout,
-        )?;
+        restore_timeouts(&stream, original_read_timeout, original_write_timeout)?;
         verify_peer_evidence(&stream, &network_evidence)?;
         let handshake_duration = started_at.elapsed();
         let evidence = build_evidence(
@@ -345,7 +342,10 @@ fn build_evidence(
         .iter()
         .map(|certificate| hash_bytes(certificate.as_ref()))
         .collect();
-    let presented_certificate_bytes = certificates.iter().map(|certificate| certificate.len()).sum();
+    let presented_certificate_bytes = certificates
+        .iter()
+        .map(|certificate| certificate.len())
+        .sum();
     let leaf_certificate_hash = hash_bytes(leaf.as_ref());
     let leaf_spki_hash = hash_bytes(parsed_leaf.tbs_certificate.subject_pki.raw);
     let leaf_not_before_unix_seconds = parsed_leaf.validity().not_before.timestamp();
@@ -430,8 +430,9 @@ fn classify_rustls_error(source: rustls::Error) -> TlsError {
             CertificateError::NotValidYet | CertificateError::NotValidYetContext { .. } => {
                 Classification::NotYetValid
             }
-            CertificateError::NotValidForName
-            | CertificateError::NotValidForNameContext { .. } => Classification::NameMismatch,
+            CertificateError::NotValidForName | CertificateError::NotValidForNameContext { .. } => {
+                Classification::NameMismatch
+            }
             _other => Classification::InvalidCertificate,
         },
         _other => Classification::Protocol,
@@ -467,19 +468,14 @@ mod tests {
     #[test]
     fn rustls_certificate_errors_are_typed() {
         let cases = [
-            (
-                CertificateError::UnknownIssuer,
-                "configured trusted issuer",
-            ),
+            (CertificateError::UnknownIssuer, "configured trusted issuer"),
             (CertificateError::Expired, "expired"),
             (CertificateError::NotValidYet, "not yet valid"),
             (CertificateError::NotValidForName, "subjectAltName"),
             (CertificateError::BadEncoding, "invalid"),
         ];
         for (certificate_error, expected) in cases {
-            let error = classify_rustls_error(rustls::Error::InvalidCertificate(
-                certificate_error,
-            ));
+            let error = classify_rustls_error(rustls::Error::InvalidCertificate(certificate_error));
             assert!(error.to_string().contains(expected));
         }
         let protocol = classify_rustls_error(rustls::Error::General("test".to_owned()));
@@ -492,7 +488,8 @@ mod tests {
             validate_certificate_bounds(&[]),
             Err(TlsError::MissingPeerCertificates)
         ));
-        let excessive_count = vec![CertificateDer::from(vec![1_u8]); MAX_SERVER_CERTIFICATE_COUNT + 1];
+        let excessive_count =
+            vec![CertificateDer::from(vec![1_u8]); MAX_SERVER_CERTIFICATE_COUNT + 1];
         assert!(matches!(
             validate_certificate_bounds(&excessive_count),
             Err(TlsError::ExcessivePeerCertificateCount { .. })

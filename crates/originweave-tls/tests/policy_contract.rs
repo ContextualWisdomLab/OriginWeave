@@ -5,9 +5,9 @@ use std::time::Duration;
 
 use originweave_core::Origin;
 use originweave_tls::{
-    AlpnRequirement, TlsClientPolicy, TlsError, TlsReferenceIdentity, TrustBundleIdentifier,
-    TrustRootBundle, MAX_ALPN_PROTOCOL_COUNT, MAX_ALPN_PROTOCOL_LENGTH, MAX_ALPN_TOTAL_BYTES,
-    MAX_TLS_HANDSHAKE_TIMEOUT, MAX_TRUST_ROOT_BYTES, MAX_TRUST_ROOT_COUNT,
+    AlpnRequirement, MAX_ALPN_PROTOCOL_COUNT, MAX_ALPN_PROTOCOL_LENGTH, MAX_ALPN_TOTAL_BYTES,
+    MAX_TLS_HANDSHAKE_TIMEOUT, MAX_TRUST_ROOT_BYTES, MAX_TRUST_ROOT_COUNT, TlsClientPolicy,
+    TlsError, TlsReferenceIdentity, TrustBundleIdentifier, TrustRootBundle,
 };
 use rustls::pki_types::UnixTime;
 
@@ -21,8 +21,8 @@ fn root_der() -> Vec<u8> {
 
 #[test]
 fn trust_bundle_identifier_is_bounded_and_ascii() {
-    let identifier = TrustBundleIdentifier::parse("enterprise_roots:v1")
-        .expect("valid trust bundle identifier");
+    let identifier =
+        TrustBundleIdentifier::parse("enterprise_roots:v1").expect("valid trust bundle identifier");
     assert_eq!(identifier.as_str(), "enterprise_roots:v1");
 
     for invalid in ["", "contains space", "한글", "slash/value"] {
@@ -95,7 +95,10 @@ fn tls_policy_bounds_timeouts_and_alpn() {
 
     assert_eq!(policy.trusted_time(), trusted_time);
     assert_eq!(policy.handshake_timeout(), Duration::from_secs(3));
-    assert_eq!(policy.alpn_protocols(), [b"h2".as_slice(), b"http/1.1".as_slice()]);
+    assert_eq!(
+        policy.alpn_protocols(),
+        [b"h2".as_slice(), b"http/1.1".as_slice()]
+    );
     assert_eq!(policy.alpn_requirement(), AlpnRequirement::Required);
 
     for timeout in [
@@ -123,13 +126,15 @@ fn tls_policy_bounds_timeouts_and_alpn() {
         vec![vec![b'a'; MAX_ALPN_TOTAL_BYTES + 1]],
     ];
     for alpn in invalid_alpn_sets {
-        assert!(TlsClientPolicy::new(
-            trusted_time,
-            Duration::from_secs(1),
-            alpn,
-            AlpnRequirement::Optional,
-        )
-        .is_err());
+        assert!(
+            TlsClientPolicy::new(
+                trusted_time,
+                Duration::from_secs(1),
+                alpn,
+                AlpnRequirement::Optional,
+            )
+            .is_err()
+        );
     }
 }
 

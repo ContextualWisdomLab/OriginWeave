@@ -76,6 +76,13 @@ pub enum TlsError {
         /// The rejected canonical origin.
         origin: Origin,
     },
+    /// The TLS origin differed from the origin that authorized the TCP stream.
+    TransportOriginMismatch {
+        /// The canonical HTTPS origin requested for TLS authentication.
+        tls_origin: Origin,
+        /// The origin recorded by the direct TCP evidence.
+        transport_origin: Origin,
+    },
     /// The inherited direct TCP evidence or live peer was inconsistent.
     InheritedPeerMismatch {
         /// The socket submitted to the operating system.
@@ -235,6 +242,13 @@ impl fmt::Display for TlsError {
                 formatter,
                 "origin host is not a valid DNS or IP TLS reference identity: {origin}",
             ),
+            Self::TransportOriginMismatch {
+                tls_origin,
+                transport_origin,
+            } => write!(
+                formatter,
+                "TLS origin {tls_origin} does not match TCP authority origin {transport_origin}",
+            ),
             Self::InheritedPeerMismatch {
                 requested_peer,
                 observed_peer,
@@ -334,6 +348,7 @@ impl std::error::Error for TlsError {
             | Self::InvalidAlpnBytes { .. }
             | Self::OriginRequiresHttps { .. }
             | Self::InvalidReferenceIdentity { .. }
+            | Self::TransportOriginMismatch { .. }
             | Self::InheritedPeerMismatch { .. }
             | Self::HandshakeTimedOut { .. }
             | Self::MissingProtocolVersion

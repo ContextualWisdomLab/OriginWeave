@@ -82,10 +82,8 @@ impl TrustRootBundle {
         canonical.dedup();
         let encoded_byte_count = canonical.iter().map(Vec::len).sum();
         let bundle_hash = bundle_hash(&canonical);
-        let certificates: Vec<CertificateDer<'static>> = canonical
-            .into_iter()
-            .map(CertificateDer::from)
-            .collect();
+        let certificates: Vec<CertificateDer<'static>> =
+            canonical.into_iter().map(CertificateDer::from).collect();
         let mut root_store = RootCertStore::empty();
         for (root_index, certificate) in certificates.iter().cloned().enumerate() {
             root_store
@@ -126,15 +124,7 @@ impl TrustRootBundle {
         self.encoded_byte_count
     }
 
-    pub(crate) fn into_parts(
-        self,
-    ) -> (
-        TrustBundleIdentifier,
-        RootCertStore,
-        String,
-        usize,
-        usize,
-    ) {
+    pub(crate) fn into_parts(self) -> (TrustBundleIdentifier, RootCertStore, String, usize, usize) {
         (
             self.identifier,
             self.root_store,
