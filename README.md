@@ -12,7 +12,7 @@ Existing browser automation commonly exposes raw selectors, unrestricted script 
 
 1. **Compatibility** — preserve Chromium web and Manifest V3 extension compatibility rather than rewriting Blink or V8.
 2. **Governance** — evaluate typed actions against session mode, purpose, capability, browser-equivalent origin, robots policy, secret-delivery evidence, and approval bound to the complete action intent.
-3. **Destination safety** — classify resolved addresses, bind a non-empty approved address set to each origin, preserve `localhost` and literal-IP host semantics, reject DNS-rebinding through set expansion, and reauthorize every redirect target.
+3. **Destination safety** — classify resolved addresses, bind a non-empty and bounded approved address set to each origin, preserve `localhost` and literal-IP host semantics, reject DNS-rebinding through set expansion, and reauthorize every redirect target.
 4. **Resource control** — protect interactive rendering before agent inference and background collection with cumulative RAM, VRAM, admission, model-offload, batch, and frame-pressure mitigations.
 5. **Evidence** — retain bounded, universally value-redacted network metadata and verifiable provenance for extracted values and state-changing actions.
 
@@ -50,7 +50,7 @@ Protected secret: cookies, passwords, API keys, session tokens, personal data
 
 Web content can provide evidence but cannot grant a capability, approve an action, change policy, or request secret disclosure. Public crawler work is read-only and requires an explicit robots-policy result. R3 and R4 actions require approval bound to the exact action kind, target origin, and immutable lowercase SHA-256 digest of the complete canonical action intent; R5 legal consent is non-delegable.
 
-The origin type rejects shortened, integer, hexadecimal, and legacy octal-looking IPv4 spellings that a browser could reinterpret differently from a DNS validator. This protects logical origin identity. The destination kernel separately canonicalizes IPv4-mapped IPv6, classifies IPv4 and IPv6 special-purpose ranges, permits only public destinations by default, pins approved DNS address sets, rejects set expansion, and re-evaluates origin, resolution, downgrade, cycle, and hop authority for each redirect. The special `localhost` name may resolve only to loopback, and a literal IPv4 or IPv6 origin may approve only its exact canonical address.
+The origin type rejects shortened, integer, hexadecimal, and legacy octal-looking IPv4 spellings that a browser could reinterpret differently from a DNS validator. This protects logical origin identity. The destination kernel separately canonicalizes IPv4-mapped IPv6, classifies IPv4 and IPv6 special-purpose ranges and reviewed cloud platform endpoints, permits only public destinations by default, accepts at most 256 resolver addresses per snapshot, pins approved DNS address sets, rejects set expansion, and re-evaluates origin, resolution, downgrade, cycle, and hop authority for each redirect. The special `localhost` name may resolve only to loopback, and a literal IPv4 or IPv6 origin may approve only its exact canonical address.
 
 These pure kernels do not yet open browser connections. Safe real navigation still requires a Chromium/BiDi/CDP adapter that uses the approved snapshot for the actual socket path, defines proxy and PAC behavior, applies connection and response budgets, validates downloads and observed MIME, and records complete connection evidence. A syntactically valid origin is never treated as an SSRF decision.
 
