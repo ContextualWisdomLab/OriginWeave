@@ -21,6 +21,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "originweave-network"
+version = "0.1.0"
+dependencies = [
+ "originweave-core",
+ "originweave-destination",
+]
+
+[[package]]
 name = "originweave-policy"
 version = "0.1.0"
 dependencies = [
