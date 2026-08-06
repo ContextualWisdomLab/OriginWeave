@@ -18,6 +18,7 @@ sha2 = "=0.10.9"
 x509-parser = { version = "=0.18.1", default-features = false }
 
 [dev-dependencies]
+originweave-destination = { path = "../originweave-destination" }
 rcgen = "=0.14.8"
 
 [lints]
