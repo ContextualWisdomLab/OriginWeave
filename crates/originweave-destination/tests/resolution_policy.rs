@@ -4,7 +4,8 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 use originweave_core::Origin;
 use originweave_destination::{
-    AddressClass, DestinationError, DestinationPolicy, ResolutionSnapshot,
+    AddressClass, DestinationError, DestinationPolicy, MAX_RESOLUTION_ADDRESS_COUNT,
+    ResolutionSnapshot,
 };
 
 fn origin(value: &str) -> Origin {
@@ -146,31 +147,37 @@ fn origin_host_semantics_are_bound_to_the_approved_address_set() {
 }
 
 #[test]
-fn resolution_approval_rejects_empty_and_denied_answers() {
+fn resolution_approval_rejects_empty_denied_and_oversized_answers() {
     let target = origin("https://example.com");
+    let policy = DestinationPolicy::public_web();
     assert_eq!(
-        ResolutionSnapshot::approve(
-            target.clone(),
-            std::iter::empty::<IpAddr>(),
-            &DestinationPolicy::public_web(),
-        ),
+        ResolutionSnapshot::approve(target.clone(), std::iter::empty::<IpAddr>(), &policy,),
         Err(DestinationError::EmptyResolution)
     );
     assert_eq!(
-        ResolutionSnapshot::approve(
-            target,
-            [ipv4(169, 254, 169, 254)],
-            &DestinationPolicy::public_web(),
-        ),
+        ResolutionSnapshot::approve(target.clone(), [ipv4(169, 254, 169, 254)], &policy,),
         Err(DestinationError::AddressClassDenied {
             address: ipv4(169, 254, 169, 254),
             address_class: AddressClass::MetadataService,
         })
     );
+
+    let exact_limit = vec![ipv4(8, 8, 8, 8); MAX_RESOLUTION_ADDRESS_COUNT];
+    let bounded = ResolutionSnapshot::approve(target.clone(), exact_limit, &policy)
+        .expect("the documented address bound is accepted");
+    assert_eq!(bounded.addresses().len(), 1);
+
+    let oversized = vec![ipv4(8, 8, 8, 8); MAX_RESOLUTION_ADDRESS_COUNT + 1];
+    assert_eq!(
+        ResolutionSnapshot::approve(target, oversized, &policy),
+        Err(DestinationError::ResolutionAddressLimitExceeded {
+            maximum_count: MAX_RESOLUTION_ADDRESS_COUNT,
+        })
+    );
 }
 
 #[test]
-fn dns_revalidation_allows_only_non_empty_subsets_of_the_pinned_set() {
+fn dns_revalidation_allows_only_non_empty_bounded_subsets_of_the_pinned_set() {
     let target = origin("https://example.com");
     let first = ipv4(8, 8, 8, 8);
     let second = ipv4(1, 1, 1, 1);
@@ -204,5 +211,13 @@ fn dns_revalidation_allows_only_non_empty_subsets_of_the_pinned_set() {
     assert_eq!(
         snapshot.revalidate(std::iter::empty::<IpAddr>(), &policy),
         Err(DestinationError::EmptyResolution)
+    );
+
+    let oversized = vec![first; MAX_RESOLUTION_ADDRESS_COUNT + 1];
+    assert_eq!(
+        snapshot.revalidate(oversized, &policy),
+        Err(DestinationError::ResolutionAddressLimitExceeded {
+            maximum_count: MAX_RESOLUTION_ADDRESS_COUNT,
+        })
     );
 }
