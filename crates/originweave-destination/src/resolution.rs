@@ -20,9 +20,7 @@ impl DestinationPolicy {
 
     /// Create a policy from explicitly permitted address classes.
     #[must_use]
-    pub fn from_allowed_classes(
-        allowed_classes: impl IntoIterator<Item = AddressClass>,
-    ) -> Self {
+    pub fn from_allowed_classes(allowed_classes: impl IntoIterator<Item = AddressClass>) -> Self {
         Self {
             allowed_classes: allowed_classes.into_iter().collect(),
         }
@@ -41,10 +39,7 @@ impl DestinationPolicy {
     }
 
     /// Classify and validate one resolved address.
-    pub fn validate_address(
-        &self,
-        address: IpAddr,
-    ) -> Result<ClassifiedAddress, DestinationError> {
+    pub fn validate_address(&self, address: IpAddr) -> Result<ClassifiedAddress, DestinationError> {
         let classified = classify_address(address);
         if self.allows(classified.address_class()) {
             Ok(classified)
@@ -214,17 +209,13 @@ fn validate_origin_binding(
 ) -> Result<(), DestinationError> {
     match origin_constraint {
         OriginHostConstraint::Domain => Ok(()),
-        OriginHostConstraint::Localhost
-            if classified.address_class() == AddressClass::Loopback =>
-        {
+        OriginHostConstraint::Localhost if classified.address_class() == AddressClass::Loopback => {
             Ok(())
         }
-        OriginHostConstraint::Localhost => {
-            Err(DestinationError::LocalhostResolutionNotLoopback {
-                address: classified.original_address(),
-                address_class: classified.address_class(),
-            })
-        }
+        OriginHostConstraint::Localhost => Err(DestinationError::LocalhostResolutionNotLoopback {
+            address: classified.original_address(),
+            address_class: classified.address_class(),
+        }),
         OriginHostConstraint::Literal(origin_address)
             if origin_address == classified.canonical_address() =>
         {
