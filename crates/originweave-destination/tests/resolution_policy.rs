@@ -48,8 +48,7 @@ fn policy_requires_explicit_address_class_authority() {
     assert!(managed.allows(AddressClass::Loopback));
     assert!(managed.allows(AddressClass::PrivateNetwork));
 
-    let deny_all =
-        DestinationPolicy::from_allowed_classes(std::iter::empty::<AddressClass>());
+    let deny_all = DestinationPolicy::from_allowed_classes(std::iter::empty::<AddressClass>());
     assert_eq!(
         deny_all.validate_address(ipv4(8, 8, 8, 8)),
         Err(DestinationError::AddressClassDenied {
@@ -96,25 +95,16 @@ fn approved_resolution_deduplicates_canonical_addresses_and_emits_evidence() {
 #[test]
 fn origin_host_semantics_are_bound_to_the_approved_address_set() {
     let public_policy = DestinationPolicy::public_web();
-    let managed_policy = DestinationPolicy::from_allowed_classes([
-        AddressClass::Public,
-        AddressClass::Loopback,
-    ]);
+    let managed_policy =
+        DestinationPolicy::from_allowed_classes([AddressClass::Public, AddressClass::Loopback]);
 
     let localhost = origin("http://localhost:8080");
-    let localhost_snapshot = ResolutionSnapshot::approve(
-        localhost.clone(),
-        [ipv4(127, 0, 0, 1)],
-        &managed_policy,
-    )
-    .expect("localhost may resolve only to loopback");
+    let localhost_snapshot =
+        ResolutionSnapshot::approve(localhost.clone(), [ipv4(127, 0, 0, 1)], &managed_policy)
+            .expect("localhost may resolve only to loopback");
     assert_eq!(localhost_snapshot.origin(), &localhost);
     assert_eq!(
-        ResolutionSnapshot::approve(
-            localhost,
-            [ipv4(8, 8, 8, 8)],
-            &managed_policy,
-        ),
+        ResolutionSnapshot::approve(localhost, [ipv4(8, 8, 8, 8)], &managed_policy,),
         Err(DestinationError::LocalhostResolutionNotLoopback {
             address: ipv4(8, 8, 8, 8),
             address_class: AddressClass::Public,
@@ -122,18 +112,10 @@ fn origin_host_semantics_are_bound_to_the_approved_address_set() {
     );
 
     let literal_ipv4 = origin("https://8.8.8.8:8443");
-    ResolutionSnapshot::approve(
-        literal_ipv4.clone(),
-        [ipv4(8, 8, 8, 8)],
-        &public_policy,
-    )
-    .expect("literal IPv4 must match exactly");
+    ResolutionSnapshot::approve(literal_ipv4.clone(), [ipv4(8, 8, 8, 8)], &public_policy)
+        .expect("literal IPv4 must match exactly");
     assert_eq!(
-        ResolutionSnapshot::approve(
-            literal_ipv4,
-            [ipv4(8, 8, 4, 4)],
-            &public_policy,
-        ),
+        ResolutionSnapshot::approve(literal_ipv4, [ipv4(8, 8, 4, 4)], &public_policy,),
         Err(DestinationError::LiteralOriginAddressMismatch {
             origin_address: ipv4(8, 8, 8, 8),
             resolved_address: ipv4(8, 8, 4, 4),
