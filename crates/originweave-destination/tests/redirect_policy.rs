@@ -12,6 +12,8 @@ use originweave_destination::{
 const DIGEST_A: &str = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const DIGEST_B: &str = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const DIGEST_C: &str = "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+const DIGEST_NUMERIC: &str =
+    "sha256:0123456789012345678901234567890123456789012345678901234567890123";
 
 fn origin(value: &str) -> Origin {
     Origin::parse(value).expect("test origin must parse")
@@ -34,6 +36,7 @@ fn public_resolution(target: &Origin, address: [u8; 4]) -> ResolutionSnapshot {
 fn redirect_target_digest_is_strict_and_canonical() {
     let valid = digest(DIGEST_A);
     assert_eq!(valid.as_str(), DIGEST_A);
+    assert_eq!(digest(DIGEST_NUMERIC).as_str(), DIGEST_NUMERIC);
 
     for invalid in [
         "",
