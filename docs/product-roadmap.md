@@ -41,6 +41,19 @@ Delivered direct TCP foundation:
 - credential-free origin, requested-peer, observed-peer, class, attempt, and timeout evidence;
 - real loopback integration and deterministic transport-failure tests.
 
+Delivered TLS service-identity foundation:
+
+- an independently reusable `originweave-tls` crate;
+- one single-use handshake over an existing `DirectTcpConnection`, with no reconnect, DNS, or proxy inheritance;
+- exact equality between the canonical HTTPS origin and the origin that authorized the TCP stream;
+- RFC 9525 DNS and literal-IP reference identities, DNS-only SNI, no Common Name fallback, and exact IPv4/IPv6 SAN handling;
+- explicit immutable trust roots and fixed trusted verification time;
+- TLS 1.2 and TLS 1.3 only, with resumption, 0-RTT, secret extraction, key logging, client certificates, certificate compression, and dangerous verifier hooks disabled;
+- bounded total handshake time, ALPN, root input, and server-presented certificate evidence;
+- operating-system peer revalidation before, during, and after the handshake;
+- credential-free protocol, cipher, ALPN, certificate, SPKI, trust-bundle, validity, revocation-configuration, and timing evidence;
+- real loopback rustls integration for trusted identity, wrong name, Common Name non-fallback, untrusted root, fixed-time validity, IPv4/IPv6 SAN, TLS versions, ALPN, and transport-origin binding.
+
 Remaining vertical-slice work:
 
 - launch and terminate ephemeral Chromium user contexts;
@@ -50,17 +63,17 @@ Remaining vertical-slice work:
 - typed `navigate`, `observe`, `query`, and `click` actions;
 - post-condition verification and audit events;
 - crash recovery and task checkpoint;
-- perform DNS resolution in a trusted browser-network adapter and prove that Chromium's actual connection consumes the approved snapshot and direct socket authority;
+- perform DNS resolution in a trusted browser-network adapter and prove that Chromium's actual connection consumes the approved snapshot, direct socket authority, and authenticated TLS stream;
 - define the exact interval between resolution approval and socket use and close remaining time-of-check/time-of-use races;
-- validate TLS server name, certificate chain, validity period, revocation policy, and negotiated ALPN against the logical origin and verified peer;
+- define revocation material acquisition and freshness without overstating the current `NotConfigured` evidence;
 - define proxy and PAC behavior explicitly so a proxy cannot silently bypass destination policy;
 - separately authorize every intermediate proxy and final target;
-- re-evaluate the implemented origin, resolved-address, capability, transport, and action-risk gates on every redirect in the live adapter;
+- re-evaluate the implemented origin, resolved-address, capability, transport, TLS, and action-risk gates on every redirect in the live adapter;
 - bound connection count, response headers, body bytes, redirects, download bytes, and elapsed time;
 - validate download MIME type and declared versus observed content before persistence;
-- retain complete DNS, connection, address, TLS, redirect, proxy, and policy-decision evidence without exposing credentials.
+- retain complete DNS, connection, address, TLS, redirect, proxy, HTTP, and policy-decision evidence without exposing credentials.
 
-A syntactically canonical origin is an identity input, not an SSRF boundary. An approved resolver address is a policy decision, and an exact TCP peer is transport evidence; neither substitutes for TLS identity or proof that Chromium used the governed path. Phase 1 cannot claim safe real navigation until the trusted browser adapter composes all of these boundaries.
+A syntactically canonical origin is an identity input, not an SSRF boundary. An approved resolver address is a policy decision, an exact TCP peer is transport evidence, and an authenticated TLS stream is service-identity evidence; none substitutes for proof that Chromium used the governed path or for bounded HTTP semantics. Phase 1 cannot claim safe real navigation until the trusted browser adapter composes all of these boundaries.
 
 Commercial proof: one controlled workflow completes repeatedly without selector scripts, raw secrets, unverified success, destination-policy bypass, DNS rebinding, peer substitution, TLS identity confusion, unsafe downgrade, redirect cycles, proxy bypass, or unbounded download behavior.
 
@@ -100,7 +113,7 @@ Commercial proof: declared performance and extension compatibility are reproduci
 
 ## Phase 5 — Enterprise product
 
-- accessible task, approval, secret, destination, connection, and evidence UI designed in Figma;
+- accessible task, approval, secret, destination, connection, TLS identity, and evidence UI designed in Figma;
 - SSO, SCIM, tenant isolation, managed policies, data residency, and immutable audit;
 - encrypted profiles and regional object storage;
 - observability, SLOs, incident response, upgrade, and rollback;
@@ -118,7 +131,8 @@ Each phase expands a stable benchmark suite:
 - WASP prompt-injection scenarios;
 - stale nodes, hidden instructions, cross-origin transitions, CAPTCHA handoff, renderer crash, network failure, and memory pressure;
 - DNS rebinding, IPv4-mapped IPv6, alternate numeric hosts, redirect-to-private-address, unsafe downgrade, exact-target redirect cycles, proxy bypass, metadata endpoints, oversized downloads, MIME confusion, connection refusal, timeout, peer-inspection failure, peer mismatch, and partial connection failures;
-- task success, safety, provenance completeness, latency, memory, VRAM, and cost.
+- trusted and untrusted TLS roots, DNS and IP SANs, Common Name fallback attempts, expiry and future validity, TLS version negotiation, ALPN absence and mismatch, peer mutation, and handshake deadlines;
+- task success, safety, provenance completeness, latency, memory, VRAM, connection time, handshake time, and cost.
 
 ## Explicit non-goals
 
@@ -127,4 +141,4 @@ Each phase expands a stable benchmark suite:
 - CAPTCHA bypass or fingerprint-evasion features;
 - arbitrary script execution as a default agent action;
 - sharing the user's unrestricted default profile with autonomous tasks;
-- describing a pure policy or direct TCP kernel as a supported production browser.
+- describing a pure policy, direct TCP, or TLS identity kernel as a supported production browser.
