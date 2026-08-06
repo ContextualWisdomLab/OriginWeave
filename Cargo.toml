@@ -4,6 +4,7 @@ members = [
     "crates/originweave-policy",
     "crates/originweave-resource",
     "crates/originweave-evidence",
+    "crates/originweave-destination",
 ]
 resolver = "3"
 
