@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use std::fmt;
 use std::net::IpAddr;
 
 use originweave_core::Origin;
@@ -103,6 +104,49 @@ pub enum DestinationError {
         address: IpAddr,
     },
 }
+
+impl fmt::Display for DestinationError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::EmptyResolution => formatter.write_str("resolver answer is empty"),
+            Self::ResolutionAddressLimitExceeded { maximum_count } => write!(
+                formatter,
+                "resolver answer exceeds the maximum of {maximum_count} addresses",
+            ),
+            Self::AddressClassDenied {
+                address,
+                address_class,
+            } => write!(
+                formatter,
+                "destination address {address} is denied as {address_class:?}",
+            ),
+            Self::LocalhostResolutionNotLoopback {
+                address,
+                address_class,
+            } => write!(
+                formatter,
+                "localhost resolved to non-loopback address {address} classified as {address_class:?}",
+            ),
+            Self::LiteralOriginAddressMismatch {
+                origin_address,
+                resolved_address,
+            } => write!(
+                formatter,
+                "literal origin address {origin_address} does not match resolved address {resolved_address}",
+            ),
+            Self::UnapprovedConnectionAddress { address } => write!(
+                formatter,
+                "connection address {address} is not in the approved resolution snapshot",
+            ),
+            Self::ResolutionSetExpanded { address } => write!(
+                formatter,
+                "refreshed DNS answer introduced unapproved address {address}",
+            ),
+        }
+    }
+}
+
+impl std::error::Error for DestinationError {}
 
 /// An approved, origin-bound, canonical DNS resolution snapshot.
 #[derive(Debug, Clone, PartialEq, Eq)]
