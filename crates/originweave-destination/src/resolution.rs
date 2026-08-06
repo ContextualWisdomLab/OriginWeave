@@ -180,12 +180,10 @@ enum OriginHostConstraint {
 }
 
 fn classify_origin_host(origin: &Origin) -> OriginHostConstraint {
-    let serialized = origin.as_str();
-    let authority = if serialized.starts_with("https://") {
-        &serialized[8..]
-    } else {
-        &serialized[7..]
-    };
+    let authority = origin
+        .as_str()
+        .trim_start_matches("https://")
+        .trim_start_matches("http://");
     let host = if let Some(bracketed) = authority.strip_prefix('[') {
         bracketed.split(']').next().unwrap_or(bracketed)
     } else if let Some((host, _port)) = authority.rsplit_once(':') {
