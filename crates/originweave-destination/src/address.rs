@@ -15,7 +15,7 @@ pub enum AddressClass {
     SharedNetwork,
     /// Link-local address space.
     LinkLocal,
-    /// A well-known cloud or container metadata-service destination.
+    /// A well-known cloud, container, or workload credential endpoint.
     MetadataService,
     /// Address space reserved for documentation and examples.
     Documentation,
@@ -85,9 +85,11 @@ pub fn classify_address(address: IpAddr) -> ClassifiedAddress {
 fn classify_ipv4(address: Ipv4Addr) -> AddressClass {
     match address.octets() {
         [0, 0, 0, 0] => AddressClass::Unspecified,
-        [169, 254, 169, 254] | [169, 254, 170, 2] | [100, 100, 100, 200] => {
-            AddressClass::MetadataService
-        }
+        [100, 100, 100, 200]
+        | [168, 63, 129, 16]
+        | [169, 254, 169, 254]
+        | [169, 254, 170, 2]
+        | [169, 254, 170, 23] => AddressClass::MetadataService,
         [127, _, _, _] => AddressClass::Loopback,
         [10, _, _, _] | [172, 16..=31, _, _] | [192, 168, _, _] => AddressClass::PrivateNetwork,
         [100, 64..=127, _, _] => AddressClass::SharedNetwork,
@@ -107,7 +109,8 @@ fn classify_ipv6(address: Ipv6Addr) -> AddressClass {
     match address.segments() {
         [0, 0, 0, 0, 0, 0, 0, 0] => AddressClass::Unspecified,
         [0, 0, 0, 0, 0, 0, 0, 1] => AddressClass::Loopback,
-        [0xfd00, 0x0ec2, 0, 0, 0, 0, 0, 0x0254] => AddressClass::MetadataService,
+        [0xfd00, 0x0ec2, 0, 0, 0, 0, 0, 0x0023]
+        | [0xfd00, 0x0ec2, 0, 0, 0, 0, 0, 0x0254] => AddressClass::MetadataService,
         [0, 0, 0, 0, 0, 0, _, _]
         | [0x0064, 0xff9b, 0, 0, 0, 0, _, _]
         | [0x0064, 0xff9b, 1, _, _, _, _, _]
