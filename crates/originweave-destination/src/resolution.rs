@@ -75,6 +75,20 @@ pub enum DestinationError {
         /// The denied security class.
         address_class: AddressClass,
     },
+    /// The special `localhost` name resolved outside loopback address space.
+    LocalhostResolutionNotLoopback {
+        /// The address supplied by the resolver or adapter.
+        address: IpAddr,
+        /// The security class assigned to the address.
+        address_class: AddressClass,
+    },
+    /// A literal-IP origin resolved to a different canonical address.
+    LiteralOriginAddressMismatch {
+        /// The canonical address encoded directly in the logical origin.
+        origin_address: IpAddr,
+        /// The canonical address supplied by the resolver or adapter.
+        resolved_address: IpAddr,
+    },
     /// The connection candidate was absent from the pinned address set.
     UnapprovedConnectionAddress {
         /// The candidate address supplied for connection.
@@ -101,9 +115,11 @@ impl ResolutionSnapshot {
         addresses: impl IntoIterator<Item = IpAddr>,
         policy: &DestinationPolicy,
     ) -> Result<Self, DestinationError> {
+        let origin_constraint = classify_origin_host(&origin);
         let mut approved_addresses = BTreeSet::new();
         for address in addresses {
             let classified = policy.validate_address(address)?;
+            validate_origin_binding(origin_constraint, classified)?;
             approved_addresses.insert(classified.canonical_address());
         }
         if approved_addresses.is_empty() {
@@ -158,6 +174,68 @@ impl ResolutionSnapshot {
             return Err(DestinationError::ResolutionSetExpanded { address: *address });
         }
         Ok(refreshed)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OriginHostConstraint {
+    Domain,
+    Localhost,
+    Literal(IpAddr),
+}
+
+fn classify_origin_host(origin: &Origin) -> OriginHostConstraint {
+    let serialized = origin.as_str();
+    let authority = if serialized.starts_with("https://") {
+        &serialized[8..]
+    } else {
+        &serialized[7..]
+    };
+    let host = if let Some(bracketed) = authority.strip_prefix('[') {
+        bracketed.split(']').next().unwrap_or(bracketed)
+    } else if let Some((host, _port)) = authority.rsplit_once(':') {
+        host
+    } else {
+        authority
+    };
+
+    if host == "localhost" {
+        OriginHostConstraint::Localhost
+    } else if let Ok(address) = host.parse::<IpAddr>() {
+        OriginHostConstraint::Literal(classify_address(address).canonical_address())
+    } else {
+        OriginHostConstraint::Domain
+    }
+}
+
+fn validate_origin_binding(
+    origin_constraint: OriginHostConstraint,
+    classified: ClassifiedAddress,
+) -> Result<(), DestinationError> {
+    match origin_constraint {
+        OriginHostConstraint::Domain => Ok(()),
+        OriginHostConstraint::Localhost
+            if classified.address_class() == AddressClass::Loopback =>
+        {
+            Ok(())
+        }
+        OriginHostConstraint::Localhost => {
+            Err(DestinationError::LocalhostResolutionNotLoopback {
+                address: classified.original_address(),
+                address_class: classified.address_class(),
+            })
+        }
+        OriginHostConstraint::Literal(origin_address)
+            if origin_address == classified.canonical_address() =>
+        {
+            Ok(())
+        }
+        OriginHostConstraint::Literal(origin_address) => {
+            Err(DestinationError::LiteralOriginAddressMismatch {
+                origin_address,
+                resolved_address: classified.canonical_address(),
+            })
+        }
     }
 }
 
