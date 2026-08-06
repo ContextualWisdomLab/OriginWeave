@@ -1,9 +1,46 @@
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
+const ALLOCATED_IPV6_GLOBAL_UNICAST_PREFIXES: &[(u128, u32)] = &[
+    (0x2001_0200_0000_0000_0000_0000_0000_0000, 23),
+    (0x2001_0400_0000_0000_0000_0000_0000_0000, 23),
+    (0x2001_0600_0000_0000_0000_0000_0000_0000, 23),
+    (0x2001_0800_0000_0000_0000_0000_0000_0000, 22),
+    (0x2001_0c00_0000_0000_0000_0000_0000_0000, 23),
+    (0x2001_0e00_0000_0000_0000_0000_0000_0000, 23),
+    (0x2001_1200_0000_0000_0000_0000_0000_0000, 23),
+    (0x2001_1400_0000_0000_0000_0000_0000_0000, 22),
+    (0x2001_1800_0000_0000_0000_0000_0000_0000, 23),
+    (0x2001_1a00_0000_0000_0000_0000_0000_0000, 23),
+    (0x2001_1c00_0000_0000_0000_0000_0000_0000, 22),
+    (0x2001_2000_0000_0000_0000_0000_0000_0000, 19),
+    (0x2001_4000_0000_0000_0000_0000_0000_0000, 23),
+    (0x2001_4200_0000_0000_0000_0000_0000_0000, 23),
+    (0x2001_4400_0000_0000_0000_0000_0000_0000, 23),
+    (0x2001_4600_0000_0000_0000_0000_0000_0000, 23),
+    (0x2001_4800_0000_0000_0000_0000_0000_0000, 23),
+    (0x2001_4a00_0000_0000_0000_0000_0000_0000, 23),
+    (0x2001_4c00_0000_0000_0000_0000_0000_0000, 23),
+    (0x2001_5000_0000_0000_0000_0000_0000_0000, 20),
+    (0x2001_8000_0000_0000_0000_0000_0000_0000, 19),
+    (0x2001_a000_0000_0000_0000_0000_0000_0000, 20),
+    (0x2001_b000_0000_0000_0000_0000_0000_0000, 20),
+    (0x2003_0000_0000_0000_0000_0000_0000_0000, 18),
+    (0x2400_0000_0000_0000_0000_0000_0000_0000, 12),
+    (0x2410_0000_0000_0000_0000_0000_0000_0000, 12),
+    (0x2600_0000_0000_0000_0000_0000_0000_0000, 12),
+    (0x2610_0000_0000_0000_0000_0000_0000_0000, 23),
+    (0x2620_0000_0000_0000_0000_0000_0000_0000, 23),
+    (0x2630_0000_0000_0000_0000_0000_0000_0000, 12),
+    (0x2800_0000_0000_0000_0000_0000_0000_0000, 12),
+    (0x2a00_0000_0000_0000_0000_0000_0000_0000, 12),
+    (0x2a10_0000_0000_0000_0000_0000_0000_0000, 12),
+    (0x2c00_0000_0000_0000_0000_0000_0000_0000, 12),
+];
+
 /// The security-relevant class of one resolved network destination.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AddressClass {
-    /// A globally reachable unicast destination not covered by a denied class.
+    /// A globally reachable, currently allocated unicast destination.
     Public,
     /// The protocol's unspecified address.
     Unspecified,
@@ -129,7 +166,18 @@ fn classify_ipv6(address: Ipv6Addr) -> AddressClass {
         | [0x2001, 0x0020..=0x002f, _, _, _, _, _, _]
         | [0x2001, 0x0030..=0x003f, _, _, _, _, _, _] => AddressClass::Public,
         [0x2001, second, _, _, _, _, _, _] if second <= 0x01ff => AddressClass::ProtocolReserved,
-        [first, _, _, _, _, _, _, _] if first & 0xe000 == 0x2000 => AddressClass::Public,
+        _ if is_allocated_ipv6_global_unicast(address) => AddressClass::Public,
         _ => AddressClass::ProtocolReserved,
     }
+}
+
+fn is_allocated_ipv6_global_unicast(address: Ipv6Addr) -> bool {
+    let address_value = u128::from_be_bytes(address.octets());
+    for &(network, prefix_length) in ALLOCATED_IPV6_GLOBAL_UNICAST_PREFIXES {
+        let mask = u128::MAX << (128 - prefix_length);
+        if address_value & mask == network & mask {
+            return true;
+        }
+    }
+    false
 }
