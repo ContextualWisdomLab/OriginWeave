@@ -67,13 +67,13 @@ impl TlsReferenceIdentity {
         Ok(Self::Dns(host.to_owned()))
     }
 
-    pub(crate) fn server_name(&self) -> Result<ServerName<'static>, TlsError> {
+    pub(crate) fn server_name(&self, origin: &Origin) -> Result<ServerName<'static>, TlsError> {
         match self {
-            Self::Dns(name) => ServerName::try_from(name.clone())
-                .map_err(|_error| TlsError::InvalidReferenceIdentity {
-                    origin: Origin::parse("https://invalid.example")
-                        .unwrap_or_else(|_error| unreachable!()),
-                }),
+            Self::Dns(name) => ServerName::try_from(name.clone()).map_err(|_error| {
+                TlsError::InvalidReferenceIdentity {
+                    origin: origin.clone(),
+                }
+            }),
             Self::Ip(address) => Ok(ServerName::IpAddress((*address).into())),
         }
     }
