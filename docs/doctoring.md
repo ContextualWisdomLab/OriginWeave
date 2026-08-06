@@ -42,6 +42,24 @@ OriginWeave therefore creates a separate direct-only network kernel. A non-clone
 
 This proof is deliberately narrower than safe browser navigation. It does not validate TLS server names, certificates, certificate chains, or ALPN; it does not authorize a proxy or PAC route; it does not parse HTTP or bound response resources; and it does not prove that Chromium's Network Service consumed the verified stream. Those remain separate merge-gated adapters. TCP peer equality is transport evidence, not application identity.
 
+### TLS service identity
+
+RFC 9846 is the current Standards Track TLS 1.3 specification and obsoletes RFC 8446. It defines a secure channel over a reliable, ordered byte stream and explicitly leaves application service-identity interpretation to the integrating protocol. It points application protocols to RFC 9525. RFC 9846 also reiterates that 0-RTT has weaker forward-secrecy and replay properties than ordinary 1-RTT application data. OriginWeave therefore cites RFC 9846 as the current TLS 1.3 authority, permits TLS 1.2 only for application interoperability, prefers TLS 1.3 through rustls ordering, and disables 0-RTT in the first slice.
+
+RFC 9325 is the current Best Current Practice for secure TLS use. It requires implementations not to fall back from TLS 1.2 to older versions, recommends TLS 1.3 support and preference, and retains TLS 1.2 for application interoperability under its additional requirements. OriginWeave consequently configures only TLS 1.3 and TLS 1.2 and exposes no SSL, TLS 1.0, or TLS 1.1 path.
+
+RFC 5280 defines the Internet PKIX certificate and CRL profile, including certificate validity, certification-path requirements, subject alternative names, key usages, and name constraints. A successful TCP connection or syntactically valid certificate is not sufficient; the entire certification path must validate against a configured trust anchor and trusted time. The first OriginWeave slice uses rustls WebPKI validation with an explicit immutable trust-root bundle and fixed `TimeProvider`. It does not acquire ambient operating-system roots or claim revocation validation when no OCSP or CRL evidence was configured.
+
+RFC 9525 specifies service identity in TLS and obsoletes RFC 6125. DNS identity is checked only through `dNSName` subjectAltName; Common Name fallback is no longer valid. Literal IP identities use `iPAddress` subjectAltName. OriginWeave derives the reference identity only from the canonical HTTPS `Origin`, sends SNI only for DNS identity, and requires an exact IP SAN for IPv4 or IPv6 literals. A real loopback integration test includes a certificate whose Common Name says `localhost` but whose SAN names another host and proves that the connection is rejected.
+
+The implementation pins rustls 0.23.42, the latest stable 0.23 release reviewed for this slice. Its default features are disabled and the explicit `ring`, `std`, and `tls12` features are enabled. Rustls supplies TLS 1.2 and TLS 1.3, WebPKI verification, explicit cryptographic providers, client/server connection state machines, ALPN, fixed-time providers, and safe defaults without obsolete protocol versions. OriginWeave still configures the policy explicitly: only TLS 1.3 and TLS 1.2, no session resumption, no early data, no secret extraction, `NoKeyLog`, no client certificate, no certificate compression, explicit roots, and a bounded ALPN allow-list.
+
+The same `DirectTcpConnection` is consumed rather than replaced by a hostname-based convenience client. Its operating-system peer is checked before plan construction, before the handshake, during each handshake iteration, and after completion. Socket read and write timeouts are set to the remaining monotonic deadline and restored before the authenticated stream is exposed. This binds the service identity, exact peer, and elapsed-time evidence to one stream.
+
+Credential-free TLS evidence records the canonical origin, TCP peers, reference identity, TLS version, cipher-suite identifier, explicit ALPN result, leaf certificate and SubjectPublicKeyInfo hashes, hashes and bounds for the server-presented certificates, explicit trust-bundle identity and hash, trusted verification time, leaf validity interval, revocation configuration, and handshake duration. Rustls exposes the peer-presented certificates but not a reconstructed internal certification path, so OriginWeave does not mislabel the hashes as a complete validated-path export.
+
+The test-only rcgen 0.14.8 dependency creates a local CA and deterministic certificate-policy scenarios. It is not part of production arithmetic or trust. Tests cover trusted DNS identity, Common Name non-fallback, wrong name, untrusted root, expired and not-yet-valid validity, exact IPv4 and IPv6 SAN identity, TLS 1.2 and TLS 1.3, required and optional ALPN, and equality between TLS origin and TCP authority.
+
 ### Crawling policy
 
 RFC 9309 standardizes robots parsing, matching, error handling, and caching. It also states that robots rules are not access authorization. OriginWeave therefore requires robots evidence for public crawler mode while maintaining authentication, terms, rate, privacy, and retention policy as separate controls.
@@ -76,6 +94,8 @@ Bonica, R., Cotton, M., Haberman, B., & Vegoda, L. (2017). *Updates to the speci
 
 Chromium Authors. (2026). *URL canonicalizer unit tests* [Source code]. Chromium. https://chromium.googlesource.com/chromium/src/+/446d05d21720f0b3505ec21057b3e9f909784262/url/url_canon_unittest.cc
 
+Cooper, D., Santesson, S., Farrell, S., Boeyen, S., Housley, R., & Polk, W. (2008). *Internet X.509 public key infrastructure certificate and certificate revocation list (CRL) profile* (RFC 5280). Internet Engineering Task Force. https://doi.org/10.17487/RFC5280
+
 Cotton, M., Vegoda, L., Bonica, R., & Haberman, B. (2013). *Special-purpose IP address registries* (RFC 6890). Internet Engineering Task Force. https://doi.org/10.17487/RFC6890
 
 Deng, X., Gu, Y., Zheng, B., Chen, S., Stevens, S., Wang, B., Sun, H., & Su, Y. (2023). *Mind2Web: Towards a generalist agent for the web*. arXiv. https://doi.org/10.48550/arXiv.2306.06070
@@ -104,9 +124,17 @@ Microsoft. (2025, July 25). *Azure IP address 168.63.129.16 overview*. Microsoft
 
 Nielsen, S., Cetin, E., Schwendeman, P., Sun, Q., Xu, J., & Tang, Y. (2025). *Learning to orchestrate agents in natural language with the Conductor* [Preprint]. arXiv. https://doi.org/10.48550/arXiv.2512.04388
 
+Rescorla, E. (2026). *The Transport Layer Security (TLS) protocol version 1.3* (RFC 9846). Internet Engineering Task Force. https://doi.org/10.17487/RFC9846
+
+Rustls Project Developers. (2026). *rustls 0.23.42* [Computer software]. https://docs.rs/rustls/0.23.42/rustls/
+
+Saint-Andre, P., & Salz, R. (2023). *Service identity in TLS* (RFC 9525). Internet Engineering Task Force. https://doi.org/10.17487/RFC9525
+
 Sakana AI. (2026, April 24). *Sakana Fugu: A multi-agent orchestration system as a foundation model*. https://sakana.ai/fugu-beta/
 
 Sakana AI. (2026, June 22). *Sakana Fugu: One model to command them all*. https://sakana.ai/fugu-release/
+
+Sheffer, Y., Saint-Andre, P., & Fossati, T. (2022). *Recommendations for secure use of Transport Layer Security (TLS) and Datagram Transport Layer Security (DTLS)* (RFC 9325). Internet Engineering Task Force. https://doi.org/10.17487/RFC9325
 
 The Rust Project Developers. (2026). *Ipv4Addr in std::net* (Rust 1.97.1) [Software documentation]. https://doc.rust-lang.org/stable/std/net/struct.Ipv4Addr.html
 
