@@ -158,9 +158,7 @@ fn classify_ipv6(address: Ipv6Addr) -> AddressClass {
         [first, _, _, _, _, _, _, _] if first & 0xfe00 == 0xfc00 => AddressClass::PrivateNetwork,
         [first, _, _, _, _, _, _, _] if first & 0xffc0 == 0xfe80 => AddressClass::LinkLocal,
         [0x2001, 0x0db8, _, _, _, _, _, _] => AddressClass::Documentation,
-        [0x3fff, second, _, _, _, _, _, _] if second & 0xf000 == 0 => {
-            AddressClass::Documentation
-        }
+        [0x3fff, second, _, _, _, _, _, _] if second & 0xf000 == 0 => AddressClass::Documentation,
         [0x2001, 2, 0, _, _, _, _, _] => AddressClass::Benchmarking,
         [0x2001, 1, 0, 0, 0, 0, 0, 1..=3]
         | [0x2001, 3, _, _, _, _, _, _]
