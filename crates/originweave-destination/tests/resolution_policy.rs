@@ -48,9 +48,8 @@ fn policy_requires_explicit_address_class_authority() {
     assert!(managed.allows(AddressClass::Loopback));
     assert!(managed.allows(AddressClass::PrivateNetwork));
 
-    let deny_all = DestinationPolicy::from_allowed_classes(
-        std::iter::empty::<AddressClass>(),
-    );
+    let deny_all =
+        DestinationPolicy::from_allowed_classes(std::iter::empty::<AddressClass>());
     assert_eq!(
         deny_all.validate_address(ipv4(8, 8, 8, 8)),
         Err(DestinationError::AddressClassDenied {
@@ -95,6 +94,76 @@ fn approved_resolution_deduplicates_canonical_addresses_and_emits_evidence() {
 }
 
 #[test]
+fn origin_host_semantics_are_bound_to_the_approved_address_set() {
+    let public_policy = DestinationPolicy::public_web();
+    let managed_policy = DestinationPolicy::from_allowed_classes([
+        AddressClass::Public,
+        AddressClass::Loopback,
+    ]);
+
+    let localhost = origin("http://localhost:8080");
+    let localhost_snapshot = ResolutionSnapshot::approve(
+        localhost.clone(),
+        [ipv4(127, 0, 0, 1)],
+        &managed_policy,
+    )
+    .expect("localhost may resolve only to loopback");
+    assert_eq!(localhost_snapshot.origin(), &localhost);
+    assert_eq!(
+        ResolutionSnapshot::approve(
+            localhost,
+            [ipv4(8, 8, 8, 8)],
+            &managed_policy,
+        ),
+        Err(DestinationError::LocalhostResolutionNotLoopback {
+            address: ipv4(8, 8, 8, 8),
+            address_class: AddressClass::Public,
+        })
+    );
+
+    let literal_ipv4 = origin("https://8.8.8.8:8443");
+    ResolutionSnapshot::approve(
+        literal_ipv4.clone(),
+        [ipv4(8, 8, 8, 8)],
+        &public_policy,
+    )
+    .expect("literal IPv4 must match exactly");
+    assert_eq!(
+        ResolutionSnapshot::approve(
+            literal_ipv4,
+            [ipv4(8, 8, 4, 4)],
+            &public_policy,
+        ),
+        Err(DestinationError::LiteralOriginAddressMismatch {
+            origin_address: ipv4(8, 8, 8, 8),
+            resolved_address: ipv4(8, 8, 4, 4),
+        })
+    );
+
+    let public_ipv6 = "2606:4700:4700::1111".parse::<IpAddr>().expect("IPv6");
+    ResolutionSnapshot::approve(
+        origin("https://[2606:4700:4700::1111]"),
+        [public_ipv6],
+        &public_policy,
+    )
+    .expect("literal IPv6 must match exactly");
+
+    ResolutionSnapshot::approve(
+        origin("https://[::ffff:808:808]"),
+        [ipv4(8, 8, 8, 8)],
+        &public_policy,
+    )
+    .expect("mapped literal and canonical IPv4 describe one destination");
+
+    ResolutionSnapshot::approve(
+        origin("https://example.com:8443"),
+        [ipv4(1, 1, 1, 1)],
+        &public_policy,
+    )
+    .expect("a DNS host can approve its policy-valid answer");
+}
+
+#[test]
 fn resolution_approval_rejects_empty_and_denied_answers() {
     let target = origin("https://example.com");
     assert_eq!(
@@ -131,7 +200,10 @@ fn dns_revalidation_allows_only_non_empty_subsets_of_the_pinned_set() {
         .revalidate([second], &policy)
         .expect("non-empty subset remains pinned");
     assert_eq!(contracted.origin(), &target);
-    assert_eq!(contracted.addresses(), &std::collections::BTreeSet::from([second]));
+    assert_eq!(
+        contracted.addresses(),
+        &std::collections::BTreeSet::from([second])
+    );
 
     let introduced = ipv4(9, 9, 9, 9);
     assert_eq!(
