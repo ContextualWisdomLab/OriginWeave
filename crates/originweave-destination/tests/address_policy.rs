@@ -17,9 +17,11 @@ fn assert_class(input: &str, expected: AddressClass) {
 fn ipv4_special_purpose_ranges_are_classified_fail_closed() {
     let cases = [
         ("0.0.0.0", AddressClass::Unspecified),
+        ("100.100.100.200", AddressClass::MetadataService),
+        ("168.63.129.16", AddressClass::MetadataService),
         ("169.254.169.254", AddressClass::MetadataService),
         ("169.254.170.2", AddressClass::MetadataService),
-        ("100.100.100.200", AddressClass::MetadataService),
+        ("169.254.170.23", AddressClass::MetadataService),
         ("127.0.0.1", AddressClass::Loopback),
         ("127.255.255.255", AddressClass::Loopback),
         ("10.0.0.1", AddressClass::PrivateNetwork),
@@ -63,6 +65,7 @@ fn ipv6_special_purpose_ranges_are_classified_fail_closed() {
     let cases = [
         ("::", AddressClass::Unspecified),
         ("::1", AddressClass::Loopback),
+        ("fd00:ec2::23", AddressClass::MetadataService),
         ("fd00:ec2::254", AddressClass::MetadataService),
         ("::2", AddressClass::Transition),
         ("64:ff9b::808:808", AddressClass::Transition),
