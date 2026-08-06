@@ -121,25 +121,26 @@ jobs:
               "protocol classifier test",
           )
           marker = "    #[test]\n    fn certificate_bounds_are_fail_closed() {"
-          alpn_test = '''    #[test]
-    fn no_application_protocol_is_typed_by_policy() {
-        for source in [
-            rustls::Error::NoApplicationProtocol,
-            rustls::Error::AlertReceived(AlertDescription::NoApplicationProtocol),
-        ] {
-            let required = classify_rustls_error(source, AlpnRequirement::Required);
-            assert!(matches!(required, TlsError::AlpnRequired));
-        }
-        for source in [
-            rustls::Error::NoApplicationProtocol,
-            rustls::Error::AlertReceived(AlertDescription::NoApplicationProtocol),
-        ] {
-            let optional = classify_rustls_error(source, AlpnRequirement::Optional);
-            assert!(matches!(optional, TlsError::UnexpectedAlpn));
-        }
-    }
-
-'''
+          alpn_test = "\n".join([
+              "    #[test]",
+              "    fn no_application_protocol_is_typed_by_policy() {",
+              "        for source in [",
+              "            rustls::Error::NoApplicationProtocol,",
+              "            rustls::Error::AlertReceived(AlertDescription::NoApplicationProtocol),",
+              "        ] {",
+              "            let required = classify_rustls_error(source, AlpnRequirement::Required);",
+              "            assert!(matches!(required, TlsError::AlpnRequired));",
+              "        }",
+              "        for source in [",
+              "            rustls::Error::NoApplicationProtocol,",
+              "            rustls::Error::AlertReceived(AlertDescription::NoApplicationProtocol),",
+              "        ] {",
+              "            let optional = classify_rustls_error(source, AlpnRequirement::Optional);",
+              "            assert!(matches!(optional, TlsError::UnexpectedAlpn));",
+              "        }",
+              "    }",
+              "",
+          ])
           text = replace_once(text, marker, alpn_test + marker, "certificate-bound test marker")
           handshake.write_text(text, encoding="utf-8")
 
