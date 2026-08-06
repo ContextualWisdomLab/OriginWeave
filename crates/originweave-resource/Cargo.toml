@@ -1,0 +1,16 @@
+[package]
+name = "originweave-resource"
+description = "OriginWeave resource-governance contracts."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish = false
+
+[dependencies]
+
+[lints]
+workspace = true

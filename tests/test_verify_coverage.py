@@ -1,0 +1,119 @@
+"""Tests for the exact LLVM coverage gate."""
+
+from __future__ import annotations
+
+import contextlib
+import io
+import json
+import pathlib
+import sys
+import tempfile
+import unittest
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts" / "ci"))
+
+import verify_coverage  # noqa: E402
+
+
+def payload(count: int = 3, covered: int = 3) -> dict[str, object]:
+    """Create a minimal LLVM summary payload for tests."""
+
+    return {
+        "data": [
+            {
+                "totals": {
+                    metric: {"count": count, "covered": covered}
+                    for metric in verify_coverage.REQUIRED_METRICS
+                }
+            }
+        ]
+    }
+
+
+class CoverageVerifierTests(unittest.TestCase):
+    """Exercise every fail-closed coverage-verification path."""
+
+    def test_exact_coverage_has_no_uncovered_metrics(self) -> None:
+        """Equal covered and total counts satisfy the contract."""
+
+        self.assertEqual(verify_coverage.uncovered_metrics(payload()), {})
+
+    def test_partial_coverage_reports_each_incomplete_metric(self) -> None:
+        """Every incomplete metric must retain its covered and total counts."""
+
+        self.assertEqual(
+            verify_coverage.uncovered_metrics(payload(3, 2)),
+            {metric: (2, 3) for metric in verify_coverage.REQUIRED_METRICS},
+        )
+
+    def test_malformed_payloads_fail_closed(self) -> None:
+        """Missing, ambiguous, and impossible summaries are rejected."""
+
+        malformed = [
+            {},
+            {"data": "not-a-list"},
+            {"data": []},
+            {"data": [{}, {}]},
+            {"data": ["not-an-object"]},
+            {"data": [{}]},
+            {"data": [{"totals": "not-an-object"}]},
+            {"data": [{"totals": {}}]},
+        ]
+        for candidate in malformed:
+            with self.subTest(candidate=candidate), self.assertRaises(ValueError):
+                verify_coverage.uncovered_metrics(candidate)
+
+    def test_non_integer_and_impossible_counts_fail_closed(self) -> None:
+        """Boolean, negative, and over-covered counters are invalid."""
+
+        for count, covered in [(True, 1), (1, False), (-1, 0), (1, -1), (1, 2)]:
+            candidate = payload()
+            totals = candidate["data"][0]["totals"]  # type: ignore[index]
+            totals["branches"] = {"count": count, "covered": covered}  # type: ignore[index]
+            with self.subTest(count=count, covered=covered), self.assertRaises(ValueError):
+                verify_coverage.uncovered_metrics(candidate)
+
+    def test_verify_file_accepts_exact_and_rejects_partial_coverage(self) -> None:
+        """File verification distinguishes complete and partial reports."""
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "coverage.json"
+            path.write_text(json.dumps(payload()), encoding="utf-8")
+            verify_coverage.verify_file(path)
+
+            path.write_text(json.dumps(payload(3, 2)), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "below 100%"):
+                verify_coverage.verify_file(path)
+
+    def test_main_reports_usage_success_and_input_failures(self) -> None:
+        """The command-line interface returns stable process statuses."""
+
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            self.assertEqual(verify_coverage.main([]), 2)
+        self.assertIn("usage", stderr.getvalue())
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "coverage.json"
+            path.write_text(json.dumps(payload()), encoding="utf-8")
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                self.assertEqual(verify_coverage.main([str(path)]), 0)
+            self.assertIn("100% covered", stdout.getvalue())
+
+            path.write_text("not-json", encoding="utf-8")
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                self.assertEqual(verify_coverage.main([str(path)]), 1)
+            self.assertTrue(stderr.getvalue())
+
+            missing = pathlib.Path(directory) / "missing.json"
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                self.assertEqual(verify_coverage.main([str(missing)]), 1)
+            self.assertTrue(stderr.getvalue())
+
+
+if __name__ == "__main__":
+    unittest.main()
