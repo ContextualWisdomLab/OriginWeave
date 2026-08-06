@@ -1,0 +1,234 @@
+name: Harden IPv6 socket authority v3
+
+on:
+  push:
+    branches:
+      - feat/direct-socket-binding
+    paths:
+      - .github/workflows/harden-ipv6-socket-metadata-v3.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: harden-ipv6-socket-authority-v3
+  cancel-in-progress: false
+
+jobs:
+  harden:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feat/direct-socket-binding
+          fetch-depth: 0
+
+      - name: Install supported Rust toolchain
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        with:
+          toolchain: 1.97.1
+          components: clippy,rustfmt
+
+      - name: Reject unapproved IPv6 flow and scope metadata
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("crates/originweave-network/src/connection.rs")
+          lines = path.read_text(encoding="utf-8").splitlines()
+
+          def unique_index(predicate, description: str) -> int:
+              matches = [index for index, line in enumerate(lines) if predicate(line)]
+              if len(matches) != 1:
+                  raise SystemExit(
+                      f"expected one {description}, found {len(matches)} at {matches}"
+                  )
+              return matches[0]
+
+          evidence_index = unique_index(
+              lambda line: line.strip() == "let connection_evidence = resolution",
+              "connection evidence declaration",
+          )
+          indent = lines[evidence_index][:-len(lines[evidence_index].lstrip())]
+          metadata_lines = [
+              f"{indent}let has_unapproved_ipv6_metadata = match socket_address {{",
+              f"{indent}    SocketAddr::V4(_) => false,",
+              f"{indent}    SocketAddr::V6(ipv6_socket) => {{",
+              f"{indent}        ipv6_socket.flowinfo() != 0 || ipv6_socket.scope_id() != 0",
+              f"{indent}    }}",
+              f"{indent}}};",
+          ]
+          lines[evidence_index:evidence_index] = metadata_lines
+
+          condition_index = unique_index(
+              lambda line: line.strip()
+              == "if connection_evidence.canonical_address() != socket_address.ip() {",
+              "canonical socket condition",
+          )
+          condition_indent = lines[condition_index][
+              :-len(lines[condition_index].lstrip())
+          ]
+          lines[condition_index : condition_index + 1] = [
+              f"{condition_indent}if connection_evidence.canonical_address() != socket_address.ip()",
+              f"{condition_indent}    || has_unapproved_ipv6_metadata",
+              f"{condition_indent}{{",
+          ]
+
+          comment_index = unique_index(
+              lambda line: line.strip()
+              == "/// The requested IP was authorized only after canonicalization.",
+              "noncanonical variant documentation",
+          )
+          comment_indent = lines[comment_index][
+              :-len(lines[comment_index].lstrip())
+          ]
+          lines[comment_index] = (
+              f"{comment_indent}/// The socket used a non-canonical IP or unapproved IPv6 transport metadata."
+          )
+
+          message_index = unique_index(
+              lambda line: "socket {socket_address} is not canonical; use IP address {canonical_address}" in line,
+              "noncanonical display message",
+          )
+          lines[message_index] = lines[message_index].replace(
+              'socket {socket_address} is not canonical; use IP address {canonical_address}',
+              'socket {socket_address} is not canonical; use IP address {canonical_address} with zero IPv6 flow and scope metadata',
+          )
+
+          import_index = unique_index(
+              lambda line: line.strip()
+              == "use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, TcpListener};",
+              "test network import",
+          )
+          import_indent = lines[import_index][:-len(lines[import_index].lstrip())]
+          lines[import_index] = (
+              f"{import_indent}use std::net::{{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddrV6, TcpListener}};"
+          )
+
+          plan_index = unique_index(
+              lambda line: line.strip()
+              == "fn plan(maximum_attempts: u8) -> ConnectionPlan {",
+              "plan helper",
+          )
+          helper_indent = lines[plan_index][:-len(lines[plan_index].lstrip())]
+          ipv6_helper = [
+              f"{helper_indent}fn ipv6_loopback_snapshot() -> ResolutionSnapshot {{",
+              f"{helper_indent}    ResolutionSnapshot::approve(",
+              f'{helper_indent}        Origin::parse("http://[::1]").expect("IPv6 loopback origin"),',
+              f"{helper_indent}        [IpAddr::V6(Ipv6Addr::LOCALHOST)],",
+              f"{helper_indent}        &DestinationPolicy::from_allowed_classes([AddressClass::Loopback]),",
+              f"{helper_indent}    )",
+              f'{helper_indent}    .expect("managed IPv6 loopback snapshot")',
+              f"{helper_indent}}}",
+              "",
+          ]
+          lines[plan_index:plan_index] = ipv6_helper
+
+          first_marker = unique_index(
+              lambda line: line.strip()
+              == 'assert!(noncanonical.to_string().contains("canonical"));',
+              "noncanonical assertion marker",
+          )
+          expected_followers = [
+              "assert!(noncanonical.source().is_none());",
+              "assert_eq!(noncanonical.attempt_count(), None);",
+          ]
+          actual_followers = [
+              lines[first_marker + 1].strip(),
+              lines[first_marker + 2].strip(),
+          ]
+          if actual_followers != expected_followers:
+              raise SystemExit(
+                  f"unexpected noncanonical assertion followers: {actual_followers}"
+              )
+          assertion_indent = lines[first_marker][
+              :-len(lines[first_marker].lstrip())
+          ]
+          insertion_index = first_marker + 3
+          metadata_tests = [
+              "",
+              f"{assertion_indent}let ipv6_snapshot = ipv6_loopback_snapshot();",
+              f"{assertion_indent}let canonical_ipv6_socket = SocketAddr::V6(SocketAddrV6::new(",
+              f"{assertion_indent}    Ipv6Addr::LOCALHOST,",
+              f"{assertion_indent}    443,",
+              f"{assertion_indent}    0,",
+              f"{assertion_indent}    0,",
+              f"{assertion_indent}));",
+              f"{assertion_indent}assert!(",
+              f"{assertion_indent}    ConnectionPlan::new(",
+              f"{assertion_indent}        &ipv6_snapshot,",
+              f"{assertion_indent}        canonical_ipv6_socket,",
+              f"{assertion_indent}        Duration::from_secs(1),",
+              f"{assertion_indent}        1,",
+              f"{assertion_indent}    )",
+              f"{assertion_indent}    .is_ok()",
+              f"{assertion_indent});",
+              f"{assertion_indent}for (flowinfo, scope_id) in [(1, 0), (0, 1)] {{",
+              f"{assertion_indent}    let socket_with_metadata = SocketAddr::V6(SocketAddrV6::new(",
+              f"{assertion_indent}        Ipv6Addr::LOCALHOST,",
+              f"{assertion_indent}        443,",
+              f"{assertion_indent}        flowinfo,",
+              f"{assertion_indent}        scope_id,",
+              f"{assertion_indent}    ));",
+              f"{assertion_indent}    let metadata_error = ConnectionPlan::new(",
+              f"{assertion_indent}        &ipv6_snapshot,",
+              f"{assertion_indent}        socket_with_metadata,",
+              f"{assertion_indent}        Duration::from_secs(1),",
+              f"{assertion_indent}        1,",
+              f"{assertion_indent}    )",
+              f'{assertion_indent}    .expect_err("IPv6 transport metadata requires separate authority");',
+              f'{assertion_indent}    assert!(metadata_error.to_string().contains("zero IPv6 flow and scope"));',
+              f"{assertion_indent}    assert!(metadata_error.source().is_none());",
+              f"{assertion_indent}    assert_eq!(metadata_error.attempt_count(), None);",
+              f"{assertion_indent}}}",
+          ]
+          lines[insertion_index:insertion_index] = metadata_tests
+
+          path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+          PY
+          cargo fmt --all
+
+      - name: Verify supported-toolchain contracts
+        shell: bash
+        run: |
+          python3 -m compileall -q scripts tests
+          python3 -m unittest discover -s tests -p 'test_*.py'
+          cargo fmt --all --check
+          cargo check --locked --workspace --all-targets
+          cargo test --locked --workspace --all-targets
+          cargo clippy --locked --workspace --all-targets -- -D warnings
+          RUSTDOCFLAGS='-D warnings' cargo doc --locked --workspace --no-deps
+
+      - name: Install pinned branch-coverage toolchain
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        with:
+          toolchain: nightly-2026-08-01
+          components: llvm-tools-preview
+
+      - name: Verify exact production coverage
+        shell: bash
+        run: |
+          cargo +1.97.1 install cargo-llvm-cov --version 0.8.6 --locked
+          cargo +nightly-2026-08-01 llvm-cov \
+            --locked \
+            --workspace \
+            --all-features \
+            --branch \
+            --json \
+            --summary-only \
+            --output-path coverage.json
+          python3 scripts/ci/verify_coverage.py coverage.json
+
+      - name: Commit verified hardening and remove one-shot workflows
+        shell: bash
+        run: |
+          rm .github/workflows/harden-ipv6-socket-metadata.yml
+          rm .github/workflows/harden-ipv6-socket-metadata-v2.yml
+          rm .github/workflows/harden-ipv6-socket-metadata-v3.yml
+          git config user.name "OpenCode Repair Agent"
+          git config user.email "opencode-repair@users.noreply.github.com"
+          git add crates/originweave-network/src/connection.rs .github/workflows/harden-ipv6-socket-metadata.yml .github/workflows/harden-ipv6-socket-metadata-v2.yml .github/workflows/harden-ipv6-socket-metadata-v3.yml
+          git commit -m "fix: reject unapproved IPv6 socket metadata"
+          git push origin HEAD:feat/direct-socket-binding
