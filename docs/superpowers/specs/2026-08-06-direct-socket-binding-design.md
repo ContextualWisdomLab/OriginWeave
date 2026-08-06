@@ -38,10 +38,11 @@ These remain separate merge-gated adapters.
 
 `originweave-network` depends only on `originweave-core`, `originweave-destination`, and the Rust standard library.
 
-- `connection.rs` owns validation, the single-use connection plan, exact socket connection, peer verification, evidence, and errors.
+- `connection.rs` owns validation, the single-use connection plan, exact socket connection, peer verification, evidence, errors, and one consolidated `#[cfg(test)]` verification module.
 - `lib.rs` exposes the minimal public API and denies missing documentation and unsafe code.
-- integration tests exercise real loopback TCP behavior and policy boundaries.
-- internal tests inject a private connector implementation only for operating-system outcomes that cannot be reproduced deterministically, such as a peer-address inspection failure or a successful connection whose reported peer differs from the requested socket.
+- real loopback tests exercise the public operating-system path and policy boundaries.
+- deterministic tests inject a private connector implementation only for operating-system outcomes that cannot be reproduced reliably, such as peer-address inspection failure or a successful connection whose reported peer differs from the requested socket.
+- all crate tests live in the single instrumented source test module so source-based line and region coverage do not count separate library copies from integration-test binaries. The compile-fail replay contract remains a rustdoc test.
 
 ## Public API
 
@@ -148,7 +149,7 @@ Messages are deterministic and credential-free. `DestinationError` receives `Dis
 
 ## Testing
 
-### Real integration tests
+### Real operating-system tests
 
 - bind an ephemeral loopback `TcpListener`;
 - approve loopback through an explicit managed destination policy;
@@ -158,9 +159,9 @@ Messages are deterministic and credential-free. `DestinationError` receives `Dis
 - prove a public-only destination policy rejects loopback and IPv4-mapped loopback before I/O;
 - prove a dropped ephemeral listener yields a bounded connection-failure result.
 
-### Deterministic internal tests
+### Deterministic connector tests
 
-A private connector trait simulates:
+A private object-safe connector trait simulates:
 
 - timeout on every attempt;
 - ordinary failure followed by success;
@@ -168,7 +169,7 @@ A private connector trait simulates:
 - mismatched observed peer;
 - exact attempt-number evidence.
 
-The public production path always uses the standard-library system connector.
+The public production path always uses the standard-library system connector. The fake connector returns real loopback `TcpStream` values so the private seam does not create a second generic production instantiation.
 
 ### Static governance tests
 
