@@ -110,10 +110,19 @@ impl ResolutionSnapshot {
         addresses: impl IntoIterator<Item = IpAddr>,
         policy: &DestinationPolicy,
     ) -> Result<Self, DestinationError> {
+        let addresses: Vec<IpAddr> = addresses.into_iter().collect();
+        Self::approve_slice(origin, &addresses, policy)
+    }
+
+    fn approve_slice(
+        origin: Origin,
+        addresses: &[IpAddr],
+        policy: &DestinationPolicy,
+    ) -> Result<Self, DestinationError> {
         let origin_constraint = classify_origin_host(&origin);
         let mut approved_addresses = BTreeSet::new();
         for address in addresses {
-            let classified = policy.validate_address(address)?;
+            let classified = policy.validate_address(*address)?;
             validate_origin_binding(origin_constraint, classified)?;
             approved_addresses.insert(classified.canonical_address());
         }
@@ -164,7 +173,16 @@ impl ResolutionSnapshot {
         addresses: impl IntoIterator<Item = IpAddr>,
         policy: &DestinationPolicy,
     ) -> Result<Self, DestinationError> {
-        let refreshed = Self::approve(self.origin.clone(), addresses, policy)?;
+        let addresses: Vec<IpAddr> = addresses.into_iter().collect();
+        self.revalidate_slice(&addresses, policy)
+    }
+
+    fn revalidate_slice(
+        &self,
+        addresses: &[IpAddr],
+        policy: &DestinationPolicy,
+    ) -> Result<Self, DestinationError> {
+        let refreshed = Self::approve_slice(self.origin.clone(), addresses, policy)?;
         if let Some(address) = refreshed.addresses.difference(&self.addresses).next() {
             return Err(DestinationError::ResolutionSetExpanded { address: *address });
         }
