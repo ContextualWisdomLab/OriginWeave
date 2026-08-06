@@ -5,6 +5,9 @@ use originweave_core::Origin;
 
 use crate::{AddressClass, ClassifiedAddress, classify_address};
 
+/// The largest resolver answer accepted by one resolution snapshot.
+pub const MAX_RESOLUTION_ADDRESS_COUNT: usize = 256;
+
 /// A fail-closed allow-list of destination address classes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DestinationPolicy {
@@ -63,6 +66,11 @@ impl Default for DestinationPolicy {
 pub enum DestinationError {
     /// DNS or the adapter supplied no resolved address.
     EmptyResolution,
+    /// The resolver answer exceeded [`MAX_RESOLUTION_ADDRESS_COUNT`].
+    ResolutionAddressLimitExceeded {
+        /// The largest accepted address count.
+        maximum_count: usize,
+    },
     /// A resolved address belongs to a class not permitted by policy.
     AddressClassDenied {
         /// The address supplied by the resolver or adapter.
@@ -104,13 +112,16 @@ pub struct ResolutionSnapshot {
 }
 
 impl ResolutionSnapshot {
-    /// Validate and pin one non-empty set of resolved addresses.
+    /// Validate and pin one non-empty, bounded set of resolved addresses.
     pub fn approve(
         origin: Origin,
         addresses: impl IntoIterator<Item = IpAddr>,
         policy: &DestinationPolicy,
     ) -> Result<Self, DestinationError> {
-        let addresses: Vec<IpAddr> = addresses.into_iter().collect();
+        let addresses: Vec<IpAddr> = addresses
+            .into_iter()
+            .take(MAX_RESOLUTION_ADDRESS_COUNT + 1)
+            .collect();
         Self::approve_slice(origin, &addresses, policy)
     }
 
@@ -119,15 +130,21 @@ impl ResolutionSnapshot {
         addresses: &[IpAddr],
         policy: &DestinationPolicy,
     ) -> Result<Self, DestinationError> {
+        if addresses.is_empty() {
+            return Err(DestinationError::EmptyResolution);
+        }
+        if addresses.len() > MAX_RESOLUTION_ADDRESS_COUNT {
+            return Err(DestinationError::ResolutionAddressLimitExceeded {
+                maximum_count: MAX_RESOLUTION_ADDRESS_COUNT,
+            });
+        }
+
         let origin_constraint = classify_origin_host(&origin);
         let mut approved_addresses = BTreeSet::new();
         for address in addresses {
             let classified = policy.validate_address(*address)?;
             validate_origin_binding(origin_constraint, classified)?;
             approved_addresses.insert(classified.canonical_address());
-        }
-        if approved_addresses.is_empty() {
-            return Err(DestinationError::EmptyResolution);
         }
         Ok(Self {
             origin,
@@ -173,7 +190,10 @@ impl ResolutionSnapshot {
         addresses: impl IntoIterator<Item = IpAddr>,
         policy: &DestinationPolicy,
     ) -> Result<Self, DestinationError> {
-        let addresses: Vec<IpAddr> = addresses.into_iter().collect();
+        let addresses: Vec<IpAddr> = addresses
+            .into_iter()
+            .take(MAX_RESOLUTION_ADDRESS_COUNT + 1)
+            .collect();
         self.revalidate_slice(&addresses, policy)
     }
 
