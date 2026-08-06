@@ -6,7 +6,11 @@ use originweave_destination::{AddressClass, classify_address};
 
 fn assert_class(input: &str, expected: AddressClass) {
     let address = input.parse::<IpAddr>().expect("test address must parse");
-    assert_eq!(classify_address(address).address_class(), expected, "{input}");
+    assert_eq!(
+        classify_address(address).address_class(),
+        expected,
+        "{input}"
+    );
 }
 
 #[test]
