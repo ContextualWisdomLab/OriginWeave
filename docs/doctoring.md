@@ -18,6 +18,8 @@ Canonical origin identity is not a network-destination authorization. The IANA I
 
 OriginWeave therefore uses a conservative, security-oriented taxonomy rather than treating resolver success or syntactic global scope as permission. Public web policy admits only addresses classified as public. Loopback, private or unique-local, shared, link-local, metadata, documentation, benchmarking, multicast, broadcast, unspecified, transition, and protocol-reserved destinations require explicit managed authority or fail closed.
 
+IANA registries alone do not enumerate every cloud- or workload-local credential and control endpoint that can appear inside otherwise public, shared, link-local, or unique-local address space. Microsoft documents `168.63.129.16` as an Azure platform virtual IP used for VM agent communication, filtered DNS, load-balancer health probes, DHCP, and platform heartbeat traffic. Amazon EKS documents `169.254.170.23` and `fd00:ec2::23` as the Pod Identity Agent endpoints through which workloads request credentials. OriginWeave classifies these endpoints, together with established instance and container metadata endpoints, as `MetadataService` before broader address-range rules. This list is a reviewed security supplement to the IANA taxonomy and must expand only from authoritative platform documentation and regression tests.
+
 Rust 1.97.1 exposes stable address parsing and `Ipv6Addr::to_ipv4_mapped`, but the standard library's `Ipv4Addr::is_global` and `Ipv6Addr::is_global` remain nightly-only. The Rust documentation also notes that `::ffff:127.0.0.1` is not itself the IPv6 loopback address and must first be converted to canonical IPv4 before loopback classification. OriginWeave therefore maintains reviewed registry-bound classification tables in production Rust and canonicalizes IPv4-mapped IPv6 before policy or pin comparison rather than relying on unstable convenience predicates.
 
 RFC 9110 models a redirect `Location` as a new target URI and describes reconstructing the request for that target, including removal or reconsideration of resource-specific fields such as `Authorization` and `Cookie`. OriginWeave accordingly treats every redirect as a new authorization boundary: target origin, target-bound resolution snapshot, secure-scheme downgrade, complete-target digest, and hop capacity are re-evaluated before state changes. A digest of the complete canonical target permits path- and query-sensitive cycle detection without retaining credential-bearing URIs in policy evidence.
@@ -50,6 +52,8 @@ These results motivate explicit OriginWeave configuration for model routing, wor
 
 ## References
 
+Amazon Web Services. (n.d.). *Set up the Amazon EKS Pod Identity Agent*. Retrieved August 6, 2026, from https://docs.aws.amazon.com/eks/latest/userguide/pod-id-agent-setup.html
+
 Autio, C., Schwartz, R., Dunietz, J., Jain, S., Stanley, M., Tabassi, E., Hall, P., & Roberts, K. (2024). *Artificial intelligence risk management framework: Generative artificial intelligence profile* (NIST AI 600-1). National Institute of Standards and Technology. https://doi.org/10.6028/NIST.AI.600-1
 
 Bonica, R., Cotton, M., Haberman, B., & Vegoda, L. (2017). *Updates to the special-purpose IP address registries* (RFC 8190). Internet Engineering Task Force. https://doi.org/10.17487/RFC8190
@@ -73,6 +77,8 @@ Internet Assigned Numbers Authority. (2025, October 9). *IPv6 special-purpose ad
 International Organization for Standardization. (2017). *Information and documentation—WARC file format* (ISO Standard No. 28500:2017). https://www.iso.org/standard/68004.html
 
 Koster, M., Illyes, G., Zeller, H., & Sassman, L. (2022). *Robots Exclusion Protocol* (RFC 9309). Internet Engineering Task Force. https://doi.org/10.17487/RFC9309
+
+Microsoft. (2025, July 25). *Azure IP address 168.63.129.16 overview*. Microsoft Learn. https://learn.microsoft.com/azure/virtual-network/what-is-ip-address-168-63-129-16
 
 Nielsen, S., Cetin, E., Schwendeman, P., Sun, Q., Xu, J., & Tang, Y. (2025). *Learning to orchestrate agents in natural language with the Conductor* [Preprint]. arXiv. https://doi.org/10.48550/arXiv.2512.04388
 
