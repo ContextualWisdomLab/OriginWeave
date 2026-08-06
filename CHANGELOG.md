@@ -6,12 +6,16 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Added
 
-- Rust workspace for independently reusable core, policy, destination, resource, and evidence modules.
+- Rust workspace for independently reusable core, policy, destination, network, resource, and evidence modules.
 - Canonical HTTPS and loopback-origin boundary with case-normalized schemes and hosts, default-port normalization, IPv4/IPv6 handling, browser-special numeric-host rejection, and explicit malformed-input errors.
 - Typed browser actions, capabilities, risk classes, execution modes, robots decisions, secret-delivery contracts, immutable canonical action-intent digests, and intent-bound approval scopes.
 - Deterministic fail-closed policy evaluation for untrusted instructions, origin grants, crawler restrictions, execution-mode and purpose consistency, approvals, and brokered secrets.
 - Fail-closed resolved-destination policy with IPv4/IPv6 special-purpose and reviewed cloud-platform endpoint classification, IPv4-mapped canonicalization, explicit class grants, non-empty origin-bound DNS snapshots capped at 256 resolver addresses, concrete connection pinning, DNS-set expansion detection, and per-hop redirect reauthorization.
+- Direct-only `originweave-network` TCP boundary with explicit canonical `SocketAddr` authority, a non-cloneable single-use plan, a 30-second per-attempt timeout ceiling, at most four attempts, exact `peer_addr` verification before stream exposure, and no hostname re-resolution or ambient proxy inheritance.
 - Credential-free connection and redirect evidence containing canonical addresses, destination classes, target digests, hop numbers, and approved-address counts.
+- Credential-free verified TCP evidence containing the logical origin, requested socket, observed peer, destination class, successful attempt number, and per-attempt timeout.
+- Standard `Display` and `std::error::Error` contracts for destination, redirect, digest, and direct-network failures, including preserved destination-policy and operating-system sources where applicable.
+- Real loopback TCP integration proof plus deterministic timeout, refusal, retry, peer-inspection, peer-mismatch, canonicalization, and single-use replay tests.
 - Cumulative interactive-first RAM, VRAM, batch, local-model, admission, pause, and compositor-pressure mitigation plans, including active-consumer reduction at exact hard limits.
 - Universally value-redacted network evidence with explicit path, metadata, and provenance bounds; ambiguous path rejection; validated source URLs; lowercase SHA-256 identifiers; and verification state.
 - Rust 1.97.1 build contract, strict Clippy and rustdoc gates, and exact production function, line, region, and branch coverage enforcement.
@@ -21,12 +25,13 @@ All notable changes to OriginWeave are documented in this file. The format follo
 ### Changed
 
 - Separated logical origin authority from resolved network destination authority; an origin grant no longer implies permission to connect to every resolver result.
+- Separated resolved-address authorization from direct transport evidence; an approved IP now becomes a usable stream only after the operating system reports the exact requested IP and port.
 - Replaced single resource-pressure directives with a cumulative mitigation plan so simultaneous RAM, VRAM, frame, model, and admission pressure cannot discard required actions.
 - Changed generic network capture from finite deny-lists or safe-name allow-lists to unconditional value redaction. Typed metadata values and bodies now require a separate schema-specific capture contract.
-- Updated the first Chromium slice to distinguish the implemented pure destination kernel from the remaining DNS/socket, proxy/PAC, response-budget, MIME, download, and browser-adapter work required before safe navigation can be claimed.
+- Updated the first Chromium slice to distinguish the implemented destination and direct TCP kernels from the remaining DNS adapter, TLS identity, proxy/PAC, HTTP budget, MIME, download, and Chromium integration required before safe navigation can be claimed.
 - Separated hourly product PR publication authority from the organization review and merge system, and added live default-branch and release-blocker rechecks immediately before publication.
 - Moved autonomous-agent Cargo targets and Python bytecode caches outside the proposed source tree and prefetched locked Cargo dependencies for offline verification.
-- Updated research doctoring to distinguish the April 2026 Fugu beta from the June 2026 release and to treat vendor benchmark claims as first-party evidence rather than independent validation.
+- Updated research doctoring to pin Chromium canonicalizer evidence to an immutable revision, add RFC 9293 and Rust `TcpStream` transport evidence, distinguish the April 2026 Fugu beta from the June 2026 release, and treat vendor benchmark claims as first-party evidence rather than independent validation.
 
 ### Security
 
@@ -43,6 +48,9 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - `localhost` may approve only loopback addresses, while literal IPv4 and IPv6 origins may approve only the exact canonical address encoded in the origin.
 - Resolver answers must remain a non-empty subset of the origin-bound approved address set; any newly introduced address fails closed as a possible DNS-rebinding event.
 - Every redirect rechecks target-origin authority, target-bound resolution, HTTPS downgrade, complete-target cycle state, and hop capacity before policy state changes.
+- Direct TCP plans reject port zero, zero or excessive timeouts, excessive attempts, unapproved IPs, and non-canonical IPv4-mapped IPv6 sockets before connection I/O.
+- Direct connection code accepts only an explicit `SocketAddr`, never a hostname, and does not read proxy environment variables.
+- Established streams are discarded when peer inspection fails or the observed remote IP or port differs from the approved socket.
 - Every generic network header and query value is redacted before evidence leaves the trusted boundary, including conventionally benign field names containing attacker-controlled bytes.
 - Evidence capture enforces count and byte bounds and rejects credential-bearing source URLs, query strings, fragments, controls, whitespace, malformed percent escapes, encoded separators, dot segments, and backslash paths.
 - Hard RAM and VRAM pressure pauses the active agent and rejects new admission; hard VRAM pressure also offloads a resident local model.
