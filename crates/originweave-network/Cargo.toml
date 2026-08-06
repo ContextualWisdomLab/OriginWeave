@@ -1,0 +1,18 @@
+[package]
+name = "originweave-network"
+description = "Direct-only policy-bound TCP connection authority for OriginWeave."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish = false
+
+[dependencies]
+originweave-core = { path = "../originweave-core" }
+originweave-destination = { path = "../originweave-destination" }
+
+[lints]
+workspace = true
