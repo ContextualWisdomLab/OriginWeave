@@ -141,7 +141,7 @@ jobs:
           toolchain: nightly-2026-08-01
           components: llvm-tools-preview
 
-      - name: Verify exact production coverage
+      - name: Measure exact production coverage
         shell: bash
         run: |
           cargo +1.97.1 install cargo-llvm-cov --version 0.8.6 --locked
@@ -153,7 +153,27 @@ jobs:
             --json \
             --summary-only \
             --output-path coverage.json
-          python3 scripts/ci/verify_coverage.py coverage.json
+          cargo +nightly-2026-08-01 llvm-cov report \
+            --branch \
+            --text \
+            --show-missing-lines \
+            > missing-lines.txt
+          cp crates/originweave-network/src/connection.rs transformed-connection.rs
+
+      - name: Upload transformed coverage diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: transformed-network-coverage-${{ github.sha }}
+          path: |
+            coverage.json
+            missing-lines.txt
+            transformed-connection.rs
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Enforce exact production coverage
+        run: python3 scripts/ci/verify_coverage.py coverage.json
 
       - name: Commit verified refactor and remove one-shot workflow
         shell: bash
