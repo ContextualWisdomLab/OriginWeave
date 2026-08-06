@@ -1,0 +1,105 @@
+name: Bootstrap TLS identity kernel
+
+on:
+  push:
+    branches:
+      - feat/tls-server-identity
+    paths:
+      - .github/workflows/bootstrap-tls-compile.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bootstrap-tls-compile
+  cancel-in-progress: false
+
+jobs:
+  compile:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feat/tls-server-identity
+          fetch-depth: 0
+
+      - name: Install supported Rust toolchain
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        with:
+          toolchain: 1.97.1
+          components: clippy,rustfmt
+
+      - name: Add transport-origin error contract
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("crates/originweave-tls/src/error.rs")
+          text = path.read_text(encoding="utf-8")
+
+          variant_marker = '''    /// The inherited direct TCP evidence or live peer was inconsistent.
+              InheritedPeerMismatch {
+          '''
+          variant = '''    /// The TLS origin differed from the origin that authorized the TCP stream.
+              TransportOriginMismatch {
+                  /// The canonical HTTPS origin requested for TLS authentication.
+                  tls_origin: Origin,
+                  /// The origin recorded by the direct TCP evidence.
+                  transport_origin: Origin,
+              },
+          '''
+          if text.count(variant_marker) != 1:
+              raise SystemExit("inherited peer variant marker not found exactly once")
+          text = text.replace(variant_marker, variant + variant_marker, 1)
+
+          display_marker = '''            Self::InheritedPeerMismatch {
+                  requested_peer,
+          '''
+          display = '''            Self::TransportOriginMismatch {
+                  tls_origin,
+                  transport_origin,
+              } => write!(
+                  formatter,
+                  "TLS origin {tls_origin} does not match TCP authority origin {transport_origin}",
+              ),
+          '''
+          if text.count(display_marker) != 1:
+              raise SystemExit("display marker not found exactly once")
+          text = text.replace(display_marker, display + display_marker, 1)
+
+          source_marker = '''            | Self::InheritedPeerMismatch { .. }
+          '''
+          if text.count(source_marker) != 1:
+              raise SystemExit("source marker not found exactly once")
+          text = text.replace(
+              source_marker,
+              '''            | Self::TransportOriginMismatch { .. }
+                          | Self::InheritedPeerMismatch { .. }
+              ''',
+              1,
+          )
+          path.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Generate lockfile and compile
+        shell: bash
+        run: |
+          cargo generate-lockfile
+          cargo fmt --all
+          cargo fmt --all --check
+          cargo check --locked --workspace --all-targets
+          cargo test --locked -p originweave-tls --all-targets
+          cargo clippy --locked -p originweave-tls --all-targets -- -D warnings
+          RUSTDOCFLAGS='-D warnings' cargo doc --locked -p originweave-tls --no-deps
+
+      - name: Commit compiled bootstrap and remove one-shot workflow
+        shell: bash
+        run: |
+          rm .github/workflows/bootstrap-tls-compile.yml
+          git config user.name "OpenCode Repair Agent"
+          git config user.email "opencode-repair@users.noreply.github.com"
+          git add Cargo.lock crates/originweave-tls .github/workflows/bootstrap-tls-compile.yml
+          git commit -m "feat: establish TLS identity kernel contracts"
+          git push origin HEAD:feat/tls-server-identity
