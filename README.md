@@ -12,7 +12,7 @@ Existing browser automation commonly exposes raw selectors, unrestricted script 
 
 1. **Compatibility** — preserve Chromium web and Manifest V3 extension compatibility rather than rewriting Blink or V8.
 2. **Governance** — evaluate typed actions against session mode, purpose, capability, browser-equivalent origin, robots policy, secret-delivery evidence, and approval bound to the complete action intent.
-3. **Destination safety** — classify resolved addresses, bind a non-empty approved address set to each origin, preserve `localhost` and literal-IP host semantics, reject DNS-set expansion, and reauthorize every redirect target.
+3. **Destination safety** — classify resolved addresses, bind a non-empty approved address set to each origin, preserve `localhost` and literal-IP host semantics, reject DNS-rebinding through set expansion, and reauthorize every redirect target.
 4. **Resource control** — protect interactive rendering before agent inference and background collection with cumulative RAM, VRAM, admission, model-offload, batch, and frame-pressure mitigations.
 5. **Evidence** — retain bounded, universally value-redacted network metadata and verifiable provenance for extracted values and state-changing actions.
 
