@@ -10,6 +10,6 @@
 mod connection;
 
 pub use connection::{
-    ConnectionPlan, DirectTcpConnection, MAX_CONNECTION_ATTEMPTS, MAX_CONNECT_TIMEOUT,
+    ConnectionPlan, DirectTcpConnection, MAX_CONNECT_TIMEOUT, MAX_CONNECTION_ATTEMPTS,
     NetworkError, SocketConnectionEvidence,
 };
