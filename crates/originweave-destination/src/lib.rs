@@ -13,9 +13,7 @@ mod resolution;
 
 pub use address::{AddressClass, ClassifiedAddress, classify_address};
 pub use redirect::{
-    MAX_REDIRECT_HOPS, RedirectEvidence, RedirectError, RedirectGuard,
-    RedirectTargetDigest, RedirectTargetDigestError,
+    MAX_REDIRECT_HOPS, RedirectError, RedirectEvidence, RedirectGuard, RedirectTargetDigest,
+    RedirectTargetDigestError,
 };
-pub use resolution::{
-    ConnectionEvidence, DestinationError, DestinationPolicy, ResolutionSnapshot,
-};
+pub use resolution::{ConnectionEvidence, DestinationError, DestinationPolicy, ResolutionSnapshot};
