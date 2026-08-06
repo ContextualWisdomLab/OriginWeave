@@ -22,6 +22,7 @@ class RepositoryContractTests(unittest.TestCase):
                 "crates/originweave-core",
                 "crates/originweave-policy",
                 "crates/originweave-destination",
+                "crates/originweave-network",
                 "crates/originweave-resource",
                 "crates/originweave-evidence",
             },
@@ -49,12 +50,16 @@ class RepositoryContractTests(unittest.TestCase):
             "docs/product-roadmap.md",
             "docs/quality-gates.md",
             "docs/database-naming.md",
+            "docs/registry-maintenance.md",
             "docs/adr/0001-chromium-compatibility-kernel.md",
             "docs/adr/0002-agent-safety-kernel.md",
             "docs/adr/0003-provenance-native-observation.md",
             "docs/adr/0004-resolved-destination-policy.md",
+            "docs/adr/0005-direct-socket-binding.md",
             "docs/superpowers/specs/2026-08-06-resolved-destination-policy-design.md",
+            "docs/superpowers/specs/2026-08-06-direct-socket-binding-design.md",
             "docs/superpowers/plans/2026-08-06-resolved-destination-policy.md",
+            "docs/superpowers/plans/2026-08-06-direct-socket-binding.md",
         }
         missing = sorted(path for path in required_paths if not (ROOT / path).is_file())
         self.assertEqual(missing, [])
@@ -77,6 +82,16 @@ class RepositoryContractTests(unittest.TestCase):
         self.assertIn("originweave-destination", architecture)
         self.assertIn("DNS-rebinding", readme)
         self.assertIn("DNS answer expansion", architecture)
+
+    def test_socket_authority_is_documented_as_a_separate_boundary(self) -> None:
+        """Destination approval and operating-system peer proof must stay distinct."""
+
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        architecture = (ROOT / "ARCHITECTURE.md").read_text(encoding="utf-8")
+        self.assertIn("originweave-network", readme)
+        self.assertIn("originweave-network", architecture)
+        self.assertIn("exact operating-system peer", readme)
+        self.assertIn("direct-only", architecture)
 
     def test_hourly_loop_uses_nvidia_nim_and_dedicated_publication_authority(self) -> None:
         """The product loop must use OpenCode/NIM without review or merge credentials."""
