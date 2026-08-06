@@ -115,6 +115,14 @@ fn ipv4_mapped_ipv6_is_canonicalized_before_policy_classification() {
     );
     assert_eq!(classified.address_class(), AddressClass::Loopback);
 
+    let mapped_metadata = Ipv6Addr::new(0, 0, 0, 0, 0, 0xffff, 0xa9fe, 0xa9fe);
+    let metadata = classify_address(IpAddr::V6(mapped_metadata));
+    assert_eq!(
+        metadata.canonical_address(),
+        IpAddr::V4(Ipv4Addr::new(169, 254, 169, 254))
+    );
+    assert_eq!(metadata.address_class(), AddressClass::MetadataService);
+
     let public = Ipv4Addr::new(8, 8, 4, 4);
     let direct = classify_address(IpAddr::V4(public));
     assert_eq!(direct.original_address(), IpAddr::V4(public));
