@@ -62,7 +62,7 @@ fn trust_root_bundle_is_nonempty_bounded_deduplicated_and_hashed() {
     assert!(matches!(
         TrustRootBundle::new(
             TrustBundleIdentifier::parse("many:v1").expect("identifier"),
-            std::iter::repeat(root.clone()).take(MAX_TRUST_ROOT_COUNT + 1),
+            std::iter::repeat_n(root.clone(), MAX_TRUST_ROOT_COUNT + 1),
         ),
         Err(TlsError::InvalidTrustRootCount { .. })
     ));
@@ -119,9 +119,7 @@ fn tls_policy_bounds_timeouts_and_alpn() {
     let invalid_alpn_sets = [
         vec![Vec::new()],
         vec![b"h2".to_vec(), b"h2".to_vec()],
-        std::iter::repeat(b"h2".to_vec())
-            .take(MAX_ALPN_PROTOCOL_COUNT + 1)
-            .collect(),
+        std::iter::repeat_n(b"h2".to_vec(), MAX_ALPN_PROTOCOL_COUNT + 1).collect(),
         vec![vec![b'a'; MAX_ALPN_PROTOCOL_LENGTH + 1]],
         vec![vec![b'a'; MAX_ALPN_TOTAL_BYTES + 1]],
     ];
