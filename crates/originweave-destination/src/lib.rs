@@ -16,4 +16,7 @@ pub use redirect::{
     MAX_REDIRECT_HOPS, RedirectError, RedirectEvidence, RedirectGuard, RedirectTargetDigest,
     RedirectTargetDigestError,
 };
-pub use resolution::{ConnectionEvidence, DestinationError, DestinationPolicy, ResolutionSnapshot};
+pub use resolution::{
+    ConnectionEvidence, DestinationError, DestinationPolicy, MAX_RESOLUTION_ADDRESS_COUNT,
+    ResolutionSnapshot,
+};
