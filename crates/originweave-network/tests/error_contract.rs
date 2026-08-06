@@ -51,18 +51,10 @@ fn validation_errors_are_deterministic_and_have_no_source() {
 #[test]
 fn destination_denial_is_preserved_as_the_error_source() {
     let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), 443);
-    let error = ConnectionPlan::new(
-        &loopback_snapshot(),
-        socket,
-        Duration::from_secs(1),
-        1,
-    )
-    .expect_err("address absent from snapshot");
+    let error = ConnectionPlan::new(&loopback_snapshot(), socket, Duration::from_secs(1), 1)
+        .expect_err("address absent from snapshot");
 
-    assert!(matches!(
-        error,
-        NetworkError::DestinationNotApproved { .. }
-    ));
+    assert!(matches!(error, NetworkError::DestinationNotApproved { .. }));
     assert!(error.source().is_some());
     assert!(error.to_string().contains("not approved"));
 }
