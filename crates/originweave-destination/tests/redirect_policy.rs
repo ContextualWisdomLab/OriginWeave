@@ -9,12 +9,9 @@ use originweave_destination::{
     RedirectTargetDigest, RedirectTargetDigestError, ResolutionSnapshot,
 };
 
-const DIGEST_A: &str =
-    "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-const DIGEST_B: &str =
-    "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
-const DIGEST_C: &str =
-    "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+const DIGEST_A: &str = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const DIGEST_B: &str = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+const DIGEST_C: &str = "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
 
 fn origin(value: &str) -> Origin {
     Origin::parse(value).expect("test origin must parse")
@@ -62,18 +59,14 @@ fn redirect_guard_validates_bounds_and_reports_state() {
         Err(RedirectError::InvalidMaximumHops { maximum_hops: 0 })
     );
     assert_eq!(
-        RedirectGuard::new(
-            initial.clone(),
-            digest(DIGEST_A),
-            MAX_REDIRECT_HOPS + 1,
-        ),
+        RedirectGuard::new(initial.clone(), digest(DIGEST_A), MAX_REDIRECT_HOPS + 1,),
         Err(RedirectError::InvalidMaximumHops {
             maximum_hops: MAX_REDIRECT_HOPS + 1,
         })
     );
 
-    let guard = RedirectGuard::new(initial.clone(), digest(DIGEST_A), 2)
-        .expect("valid redirect bound");
+    let guard =
+        RedirectGuard::new(initial.clone(), digest(DIGEST_A), 2).expect("valid redirect bound");
     assert_eq!(guard.current_origin(), &initial);
     assert_eq!(guard.hop_count(), 0);
     assert_eq!(guard.maximum_hops(), 2);
@@ -85,8 +78,8 @@ fn every_redirect_hop_reauthorizes_origin_resolution_and_evidence() {
     let target = origin("https://target.example");
     let resolution = public_resolution(&target, [8, 8, 8, 8]);
     let grants = BTreeSet::from([target.clone()]);
-    let mut guard = RedirectGuard::new(initial.clone(), digest(DIGEST_A), 3)
-        .expect("redirect guard");
+    let mut guard =
+        RedirectGuard::new(initial.clone(), digest(DIGEST_A), 3).expect("redirect guard");
 
     let first = guard
         .authorize_redirect(target.clone(), digest(DIGEST_B), &resolution, &grants)
@@ -116,8 +109,8 @@ fn redirect_guard_fails_closed_for_missing_authority_and_mismatched_resolution()
     let target_resolution = public_resolution(&target, [8, 8, 8, 8]);
     let other_resolution = public_resolution(&other, [1, 1, 1, 1]);
 
-    let mut ungranted = RedirectGuard::new(initial.clone(), digest(DIGEST_A), 2)
-        .expect("redirect guard");
+    let mut ungranted =
+        RedirectGuard::new(initial.clone(), digest(DIGEST_A), 2).expect("redirect guard");
     assert_eq!(
         ungranted.authorize_redirect(
             target.clone(),
@@ -130,8 +123,7 @@ fn redirect_guard_fails_closed_for_missing_authority_and_mismatched_resolution()
         })
     );
 
-    let mut mismatched = RedirectGuard::new(initial, digest(DIGEST_A), 2)
-        .expect("redirect guard");
+    let mut mismatched = RedirectGuard::new(initial, digest(DIGEST_A), 2).expect("redirect guard");
     assert_eq!(
         mismatched.authorize_redirect(
             target.clone(),
@@ -157,8 +149,8 @@ fn redirect_guard_rejects_https_downgrade_cycles_and_excess_hops() {
         &loopback_policy,
     )
     .expect("managed loopback resolution");
-    let mut downgrade = RedirectGuard::new(secure.clone(), digest(DIGEST_A), 2)
-        .expect("redirect guard");
+    let mut downgrade =
+        RedirectGuard::new(secure.clone(), digest(DIGEST_A), 2).expect("redirect guard");
     assert_eq!(
         downgrade.authorize_redirect(
             loopback.clone(),
@@ -200,15 +192,11 @@ fn explicitly_managed_http_loopback_redirects_do_not_trigger_downgrade_logic() {
     let initial = origin("http://localhost");
     let target = origin("http://localhost:8080");
     let policy = DestinationPolicy::from_allowed_classes([AddressClass::Loopback]);
-    let resolution = ResolutionSnapshot::approve(
-        target.clone(),
-        [IpAddr::V4(Ipv4Addr::LOCALHOST)],
-        &policy,
-    )
-    .expect("loopback resolution");
+    let resolution =
+        ResolutionSnapshot::approve(target.clone(), [IpAddr::V4(Ipv4Addr::LOCALHOST)], &policy)
+            .expect("loopback resolution");
     let grants = BTreeSet::from([target.clone()]);
-    let mut guard = RedirectGuard::new(initial, digest(DIGEST_A), 1)
-        .expect("redirect guard");
+    let mut guard = RedirectGuard::new(initial, digest(DIGEST_A), 1).expect("redirect guard");
 
     let evidence = guard
         .authorize_redirect(target.clone(), digest(DIGEST_B), &resolution, &grants)
