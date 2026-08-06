@@ -1,4 +1,4 @@
-name: Refresh TLS lock and warning-free imports
+name: Refresh TLS lock and typed integration contracts
 
 on:
   push:
@@ -36,25 +36,156 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
+          def replace_once(text: str, before: str, after: str, description: str) -> str:
+              count = text.count(before)
+              if count != 1:
+                  raise SystemExit(f"expected one {description}, found {count}")
+              return text.replace(before, after, 1)
+
           handshake = Path("crates/originweave-tls/src/handshake.rs")
           text = handshake.read_text(encoding="utf-8")
-          replacements = {
-              "use std::net::{SocketAddr, TcpStream};": "use std::net::TcpStream;",
-              "use rustls::pki_types::{CertificateDer, ServerName, UnixTime};": "use rustls::pki_types::{CertificateDer, UnixTime};",
-          }
-          for before, after in replacements.items():
-              if text.count(before) != 1:
-                  raise SystemExit(f"expected one import marker: {before}")
-              text = text.replace(before, after, 1)
+          text = replace_once(
+              text,
+              "use std::net::{SocketAddr, TcpStream};",
+              "use std::net::TcpStream;",
+              "unused SocketAddr import",
+          )
+          text = replace_once(
+              text,
+              "use rustls::pki_types::{CertificateDer, ServerName, UnixTime};",
+              "use rustls::pki_types::{CertificateDer, UnixTime};",
+              "unused ServerName import",
+          )
+          text = replace_once(
+              text,
+              "use rustls::{CertificateError, ClientConfig, ClientConnection, ProtocolVersion, StreamOwned};",
+              "use rustls::{\n    AlertDescription, CertificateError, ClientConfig, ClientConnection, ProtocolVersion,\n    StreamOwned,\n};",
+              "rustls import list",
+          )
+          text = replace_once(
+              text,
+              "ClientConnection::new(Arc::new(config), server_name).map_err(classify_rustls_error)?;",
+              "ClientConnection::new(Arc::new(config), server_name)\n                .map_err(|source| classify_rustls_error(source, alpn_requirement))?;",
+              "client construction error mapping",
+          )
+          text = replace_once(
+              text,
+              "            handshake_timeout,\n        );",
+              "            handshake_timeout,\n            alpn_requirement,\n        );",
+              "handshake call argument list",
+          )
+          text = replace_once(
+              text,
+              "    handshake_timeout: Duration,\n) -> Result<(), TlsError> {",
+              "    handshake_timeout: Duration,\n    alpn_requirement: AlpnRequirement,\n) -> Result<(), TlsError> {",
+              "handshake function signature",
+          )
+          text = replace_once(
+              text,
+              "            client\n                .process_new_packets()\n                .map_err(classify_rustls_error)?;",
+              "            client\n                .process_new_packets()\n                .map_err(|source| classify_rustls_error(source, alpn_requirement))?;",
+              "packet-processing error mapping",
+          )
+          text = replace_once(
+              text,
+              "fn classify_rustls_error(source: rustls::Error) -> TlsError {",
+              "fn classify_rustls_error(\n    source: rustls::Error,\n    alpn_requirement: AlpnRequirement,\n) -> TlsError {",
+              "rustls error classifier signature",
+          )
+          text = replace_once(
+              text,
+              "        InvalidCertificate,\n        Protocol,",
+              "        InvalidCertificate,\n        AlpnRequired,\n        UnexpectedAlpn,\n        Protocol,",
+              "classifier variants",
+          )
+          text = replace_once(
+              text,
+              "    let classification = match &source {\n        rustls::Error::InvalidCertificate(certificate_error) => match certificate_error {",
+              "    let classification = match &source {\n        rustls::Error::NoApplicationProtocol\n        | rustls::Error::AlertReceived(AlertDescription::NoApplicationProtocol) => {\n            if alpn_requirement == AlpnRequirement::Required {\n                Classification::AlpnRequired\n            } else {\n                Classification::UnexpectedAlpn\n            }\n        }\n        rustls::Error::InvalidCertificate(certificate_error) => match certificate_error {",
+              "ALPN alert classification",
+          )
+          text = replace_once(
+              text,
+              "        Classification::InvalidCertificate => TlsError::InvalidCertificate { source },\n        Classification::Protocol => TlsError::TlsProtocolFailed { source },",
+              "        Classification::InvalidCertificate => TlsError::InvalidCertificate { source },\n        Classification::AlpnRequired => TlsError::AlpnRequired,\n        Classification::UnexpectedAlpn => TlsError::UnexpectedAlpn,\n        Classification::Protocol => TlsError::TlsProtocolFailed { source },",
+              "typed ALPN classifier output",
+          )
+          text = text.replace(
+              "classify_rustls_error(rustls::Error::InvalidCertificate(certificate_error))",
+              "classify_rustls_error(\n                rustls::Error::InvalidCertificate(certificate_error),\n                AlpnRequirement::Optional,\n            )",
+          )
+          text = replace_once(
+              text,
+              'let protocol = classify_rustls_error(rustls::Error::General("test".to_owned()));',
+              'let protocol = classify_rustls_error(\n            rustls::Error::General("test".to_owned()),\n            AlpnRequirement::Optional,\n        );',
+              "protocol classifier test",
+          )
+          marker = "    #[test]\n    fn certificate_bounds_are_fail_closed() {"
+          alpn_test = '''    #[test]
+    fn no_application_protocol_is_typed_by_policy() {
+        for source in [
+            rustls::Error::NoApplicationProtocol,
+            rustls::Error::AlertReceived(AlertDescription::NoApplicationProtocol),
+        ] {
+            let required = classify_rustls_error(source, AlpnRequirement::Required);
+            assert!(matches!(required, TlsError::AlpnRequired));
+        }
+        for source in [
+            rustls::Error::NoApplicationProtocol,
+            rustls::Error::AlertReceived(AlertDescription::NoApplicationProtocol),
+        ] {
+            let optional = classify_rustls_error(source, AlpnRequirement::Optional);
+            assert!(matches!(optional, TlsError::UnexpectedAlpn));
+        }
+    }
+
+'''
+          text = replace_once(text, marker, alpn_test + marker, "certificate-bound test marker")
           handshake.write_text(text, encoding="utf-8")
+
+          integration = Path("crates/originweave-tls/tests/handshake_integration.rs")
+          text = integration.read_text(encoding="utf-8")
+          text = replace_once(
+              text,
+              "fn certificate_authority() -> (Vec<u8>, Issuer<'static, KeyPair>) {",
+              "fn certificate_authority(common_name: &str) -> (Vec<u8>, Issuer<'static, KeyPair>) {",
+              "certificate authority helper signature",
+          )
+          text = replace_once(
+              text,
+              '.push(DnType::CommonName, "OriginWeave test root");',
+              ".push(DnType::CommonName, common_name);",
+              "certificate authority common name",
+          )
+          text = replace_once(
+              text,
+              "let (root_der, issuer) = certificate_authority();",
+              'let (root_der, issuer) = certificate_authority("OriginWeave test root");',
+              "leaf issuer creation",
+          )
+          text = replace_once(
+              text,
+              "let (untrusted_root, _issuer) = certificate_authority();",
+              'let (untrusted_root, _issuer) = certificate_authority("Unrelated test root");',
+              "untrusted root creation",
+          )
+          text = replace_once(
+              text,
+              '    assert!(matches!(error, TlsError::AlpnRequired));\n    assert_eq!(server.join().expect("server thread"), Ok(None));',
+              '    assert!(matches!(error, TlsError::AlpnRequired));\n    let _server_result = server.join().expect("server thread");',
+              "required ALPN server result",
+          )
+          integration.write_text(text, encoding="utf-8")
 
           adr = Path("docs/adr/0006-tls-server-identity.md")
           text = adr.read_text(encoding="utf-8")
-          before = "RFC 5280 defines the Internet PKIX certificate and CRL profile. RFC 8446 defines TLS 1.3. RFC 9525 defines service identity for TLS, requires applicable subjectAltName identifiers, and supersedes the older RFC 6125 guidance."
-          after = "RFC 5280 defines the Internet PKIX certificate and CRL profile. RFC 9846 defines TLS 1.3 and obsoletes RFC 8446. RFC 9525 defines service identity for TLS, requires applicable subjectAltName identifiers, and supersedes the older RFC 6125 guidance."
-          if text.count(before) != 1:
-              raise SystemExit("expected one stale TLS standards sentence")
-          adr.write_text(text.replace(before, after, 1), encoding="utf-8")
+          text = replace_once(
+              text,
+              "RFC 5280 defines the Internet PKIX certificate and CRL profile. RFC 8446 defines TLS 1.3. RFC 9525 defines service identity for TLS, requires applicable subjectAltName identifiers, and supersedes the older RFC 6125 guidance.",
+              "RFC 5280 defines the Internet PKIX certificate and CRL profile. RFC 9846 defines TLS 1.3 and obsoletes RFC 8446. RFC 9525 defines service identity for TLS, requires applicable subjectAltName identifiers, and supersedes the older RFC 6125 guidance.",
+              "stale TLS standards sentence",
+          )
+          adr.write_text(text, encoding="utf-8")
           PY
           cargo generate-lockfile
           cargo fmt --all
@@ -70,12 +201,13 @@ jobs:
           cargo clippy --locked --workspace --all-targets -- -D warnings
           RUSTDOCFLAGS='-D warnings' cargo doc --locked --workspace --no-deps
 
-      - name: Commit verified maintenance and remove one-shot workflow
+      - name: Commit verified maintenance and remove diagnostic workflows
         shell: bash
         run: |
           rm .github/workflows/refresh-tls-lock.yml
+          rm -f .github/workflows/diagnose-tls-errors.yml
           git config user.name "OpenCode Repair Agent"
           git config user.email "opencode-repair@users.noreply.github.com"
-          git add Cargo.lock crates/originweave-tls/src/handshake.rs docs/adr/0006-tls-server-identity.md .github/workflows/refresh-tls-lock.yml
-          git commit -m "fix: refresh TLS dependency and documentation contracts"
+          git add -A Cargo.lock crates/originweave-tls docs/adr/0006-tls-server-identity.md .github/workflows/refresh-tls-lock.yml .github/workflows/diagnose-tls-errors.yml
+          git commit -m "fix: type TLS identity and ALPN failures"
           git push origin HEAD:feat/tls-server-identity
