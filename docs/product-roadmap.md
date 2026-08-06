@@ -6,15 +6,31 @@ A buyer can delegate a bounded web task and receive the result, the exact eviden
 
 ## Phase 0 — Safety kernel
 
-Status: in development.
+Status: complete as a reusable pre-alpha foundation.
 
 - typed session, purpose, origin, capability, action, risk, secret, robots, and approval contracts;
-- fail-closed deterministic policy;
-- interactive-first resource directives;
-- redacted evidence and provenance pointers;
-- 100% production coverage and public documentation.
+- fail-closed deterministic action policy;
+- cumulative interactive-first resource mitigation;
+- universally value-redacted evidence and provenance pointers;
+- 100% production function, line, region, and branch coverage plus public documentation;
+- an hourly bounded OpenCode product-development workflow separated from review and merge authority.
 
 ## Phase 1 — Isolated Chromium vertical slice
+
+Status: in progress.
+
+Delivered destination-policy foundation:
+
+- IPv4 and IPv6 special-purpose classification;
+- IPv4-mapped IPv6 canonicalization;
+- public-only default and explicit managed class policies;
+- non-empty, origin-bound approved resolution snapshots;
+- concrete connection-address pinning;
+- DNS answer contraction with expansion treated as possible rebinding;
+- per-hop redirect origin, resolution, HTTPS downgrade, exact-target cycle, and hop-limit reauthorization;
+- credential-free connection and redirect evidence.
+
+Remaining vertical-slice work:
 
 - launch and terminate ephemeral Chromium user contexts;
 - WebDriver BiDi adapter behind a versioned interface;
@@ -23,18 +39,17 @@ Status: in development.
 - typed `navigate`, `observe`, `query`, and `click` actions;
 - post-condition verification and audit events;
 - crash recovery and task checkpoint;
-- resolve every navigation target through a fail-closed browser-network policy before connection;
-- reject or explicitly authorize loopback, private, link-local, multicast, unspecified, and cloud-metadata address ranges after DNS resolution;
-- pin the approved address set for the connection attempt and detect DNS rebinding between policy evaluation and use;
-- re-evaluate origin, resolved addresses, capabilities, and action risk on every redirect rather than trusting the initial URL;
+- perform DNS resolution in a trusted browser-network adapter and prove that the actual connection consumes the approved pinned snapshot;
+- define the exact interval between resolution approval and socket use and close remaining time-of-check/time-of-use races;
 - define proxy and PAC behavior explicitly so a proxy cannot silently bypass destination policy;
+- re-evaluate the implemented origin, resolved-address, capability, and action-risk gates on every redirect in the live adapter;
 - bound connection count, response headers, body bytes, redirects, download bytes, and elapsed time;
 - validate download MIME type and declared versus observed content before persistence;
-- retain connection, address, redirect, proxy, and policy-decision evidence without exposing credentials.
+- retain complete connection, address, redirect, proxy, and policy-decision evidence without exposing credentials.
 
-A syntactically canonical origin is an identity input, not an SSRF boundary. Phase 1 cannot claim safe real navigation until both canonical origin parsing and the resolved-address/redirect/proxy policy above are implemented and tested together.
+A syntactically canonical origin is an identity input, not an SSRF boundary. The pure destination kernel is now implemented, but Phase 1 cannot claim safe real navigation until the trusted browser adapter proves that socket, redirect, proxy, response, and download behavior cannot bypass that kernel.
 
-Commercial proof: one controlled workflow completes repeatedly without selector scripts, raw secrets, unverified success, destination-policy bypass, or unbounded download behavior.
+Commercial proof: one controlled workflow completes repeatedly without selector scripts, raw secrets, unverified success, destination-policy bypass, DNS rebinding, unsafe downgrade, redirect cycles, or unbounded download behavior.
 
 ## Phase 2 — Agent-native scraping
 
@@ -72,7 +87,7 @@ Commercial proof: declared performance and extension compatibility are reproduci
 
 ## Phase 5 — Enterprise product
 
-- accessible task, approval, secret, and evidence UI designed in Figma;
+- accessible task, approval, secret, destination, and evidence UI designed in Figma;
 - SSO, SCIM, tenant isolation, managed policies, data residency, and immutable audit;
 - encrypted profiles and regional object storage;
 - observability, SLOs, incident response, upgrade, and rollback;
@@ -89,7 +104,7 @@ Each phase expands a stable benchmark suite:
 - WebArena/VisualWebArena-style repeatability;
 - WASP prompt-injection scenarios;
 - stale nodes, hidden instructions, cross-origin transitions, CAPTCHA handoff, renderer crash, network failure, and memory pressure;
-- DNS rebinding, alternate numeric hosts, redirect-to-private-address, proxy bypass, metadata endpoints, oversized downloads, MIME confusion, and partial connection failures;
+- DNS rebinding, IPv4-mapped IPv6, alternate numeric hosts, redirect-to-private-address, unsafe downgrade, exact-target redirect cycles, proxy bypass, metadata endpoints, oversized downloads, MIME confusion, and partial connection failures;
 - task success, safety, provenance completeness, latency, memory, VRAM, and cost.
 
 ## Explicit non-goals
@@ -99,4 +114,4 @@ Each phase expands a stable benchmark suite:
 - CAPTCHA bypass or fingerprint-evasion features;
 - arbitrary script execution as a default agent action;
 - sharing the user's unrestricted default profile with autonomous tasks;
-- describing a prototype as a supported production browser.
+- describing a pure policy kernel as a supported production browser.
