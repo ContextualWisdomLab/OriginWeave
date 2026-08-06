@@ -89,22 +89,16 @@ fn classify_ipv4(address: Ipv4Addr) -> AddressClass {
             AddressClass::MetadataService
         }
         [127, _, _, _] => AddressClass::Loopback,
-        [10, _, _, _] | [172, 16..=31, _, _] | [192, 168, _, _] => {
-            AddressClass::PrivateNetwork
-        }
+        [10, _, _, _] | [172, 16..=31, _, _] | [192, 168, _, _] => AddressClass::PrivateNetwork,
         [100, 64..=127, _, _] => AddressClass::SharedNetwork,
         [169, 254, _, _] => AddressClass::LinkLocal,
-        [192, 0, 2, _] | [198, 51, 100, _] | [203, 0, 113, _] => {
-            AddressClass::Documentation
-        }
+        [192, 0, 2, _] | [198, 51, 100, _] | [203, 0, 113, _] => AddressClass::Documentation,
         [198, 18..=19, _, _] => AddressClass::Benchmarking,
         [192, 88, 99, _] => AddressClass::Transition,
         [224..=239, _, _, _] => AddressClass::Multicast,
         [255, 255, 255, 255] => AddressClass::Broadcast,
         [192, 0, 0, 9..=10] => AddressClass::Public,
-        [0, _, _, _] | [192, 0, 0, _] | [240..=255, _, _, _] => {
-            AddressClass::ProtocolReserved
-        }
+        [0, _, _, _] | [192, 0, 0, _] | [240..=255, _, _, _] => AddressClass::ProtocolReserved,
         _ => AddressClass::Public,
     }
 }
@@ -119,31 +113,19 @@ fn classify_ipv6(address: Ipv6Addr) -> AddressClass {
         | [0x0064, 0xff9b, 1, _, _, _, _, _]
         | [0x2001, 0, _, _, _, _, _, _]
         | [0x2002, _, _, _, _, _, _, _] => AddressClass::Transition,
-        [first, _, _, _, _, _, _, _] if first & 0xff00 == 0xff00 => {
-            AddressClass::Multicast
-        }
-        [first, _, _, _, _, _, _, _] if first & 0xfe00 == 0xfc00 => {
-            AddressClass::PrivateNetwork
-        }
-        [first, _, _, _, _, _, _, _] if first & 0xffc0 == 0xfe80 => {
-            AddressClass::LinkLocal
-        }
+        [first, _, _, _, _, _, _, _] if first & 0xff00 == 0xff00 => AddressClass::Multicast,
+        [first, _, _, _, _, _, _, _] if first & 0xfe00 == 0xfc00 => AddressClass::PrivateNetwork,
+        [first, _, _, _, _, _, _, _] if first & 0xffc0 == 0xfe80 => AddressClass::LinkLocal,
         [0x2001, 0x0db8, _, _, _, _, _, _] => AddressClass::Documentation,
-        [first, _, _, _, _, _, _, _] if first & 0xfff0 == 0x3ff0 => {
-            AddressClass::Documentation
-        }
+        [first, _, _, _, _, _, _, _] if first & 0xfff0 == 0x3ff0 => AddressClass::Documentation,
         [0x2001, 2, 0, _, _, _, _, _] => AddressClass::Benchmarking,
         [0x2001, 1, 0, 0, 0, 0, 0, 1..=3]
         | [0x2001, 3, _, _, _, _, _, _]
         | [0x2001, 4, 0x0112, _, _, _, _, _]
         | [0x2001, 0x0020..=0x002f, _, _, _, _, _, _]
         | [0x2001, 0x0030..=0x003f, _, _, _, _, _, _] => AddressClass::Public,
-        [0x2001, second, _, _, _, _, _, _] if second <= 0x01ff => {
-            AddressClass::ProtocolReserved
-        }
-        [first, _, _, _, _, _, _, _] if first & 0xe000 == 0x2000 => {
-            AddressClass::Public
-        }
+        [0x2001, second, _, _, _, _, _, _] if second <= 0x01ff => AddressClass::ProtocolReserved,
+        [first, _, _, _, _, _, _, _] if first & 0xe000 == 0x2000 => AddressClass::Public,
         _ => AddressClass::ProtocolReserved,
     }
 }
