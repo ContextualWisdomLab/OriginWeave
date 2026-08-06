@@ -3,7 +3,7 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 /// The security-relevant class of one resolved network destination.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AddressClass {
-    /// A globally routable unicast destination not covered by a denied class.
+    /// A globally reachable unicast destination not covered by a denied class.
     Public,
     /// The protocol's unspecified address.
     Unspecified,
@@ -101,6 +101,7 @@ fn classify_ipv4(address: Ipv4Addr) -> AddressClass {
         [192, 88, 99, _] => AddressClass::Transition,
         [224..=239, _, _, _] => AddressClass::Multicast,
         [255, 255, 255, 255] => AddressClass::Broadcast,
+        [192, 0, 0, 9..=10] => AddressClass::Public,
         [0, _, _, _] | [192, 0, 0, _] | [240..=255, _, _, _] => {
             AddressClass::ProtocolReserved
         }
@@ -132,6 +133,11 @@ fn classify_ipv6(address: Ipv6Addr) -> AddressClass {
             AddressClass::Documentation
         }
         [0x2001, 2, 0, _, _, _, _, _] => AddressClass::Benchmarking,
+        [0x2001, 1, 0, 0, 0, 0, 0, 1..=3]
+        | [0x2001, 3, _, _, _, _, _, _]
+        | [0x2001, 4, 0x0112, _, _, _, _, _]
+        | [0x2001, 0x0020..=0x002f, _, _, _, _, _, _]
+        | [0x2001, 0x0030..=0x003f, _, _, _, _, _, _] => AddressClass::Public,
         [0x2001, second, _, _, _, _, _, _] if second <= 0x01ff => {
             AddressClass::ProtocolReserved
         }
