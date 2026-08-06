@@ -2,18 +2,19 @@
 
 **Browse. Act. Prove.**
 
-OriginWeave is a Chromium-compatible, Rust-first control plane for governed AI agents on the web. It is designed to let an agent observe, extract, and act without turning untrusted page content into authority, exposing secrets to a model, or losing the evidence required to explain what happened.
+OriginWeave is a Chromium-compatible, Rust-first control plane for governed AI agents on the web. It is designed to let an agent observe, extract, and act without turning untrusted page content into authority, exposing secrets to a model, connecting to an unapproved network destination, or losing the evidence required to explain what happened.
 
-> Project status: pre-alpha. The current repository contains the independently reusable safety kernel. Chromium, WebDriver BiDi, CDP, MCP, WARC, and persistent provenance adapters are planned but not yet shipped.
+> Project status: pre-alpha. The current repository contains independently reusable safety and resolved-destination kernels. Chromium, WebDriver BiDi, CDP, MCP, WARC, and persistent provenance adapters are planned but not yet shipped.
 
 ## Why OriginWeave
 
-Existing browser automation commonly exposes raw selectors, unrestricted script evaluation, ambient cookies, and screenshots with weak provenance. OriginWeave instead establishes four product contracts:
+Existing browser automation commonly exposes raw selectors, unrestricted script evaluation, ambient cookies, implicit resolver authority, and screenshots with weak provenance. OriginWeave instead establishes five product contracts:
 
 1. **Compatibility** — preserve Chromium web and Manifest V3 extension compatibility rather than rewriting Blink or V8.
 2. **Governance** — evaluate typed actions against session mode, purpose, capability, browser-equivalent origin, robots policy, secret-delivery evidence, and approval bound to the complete action intent.
-3. **Resource control** — protect interactive rendering before agent inference and background collection with cumulative RAM, VRAM, admission, model-offload, batch, and frame-pressure mitigations.
-4. **Evidence** — retain bounded, universally value-redacted network metadata and verifiable provenance for extracted values and state-changing actions.
+3. **Destination safety** — classify resolved addresses, bind a non-empty and bounded approved address set to each origin, preserve `localhost` and literal-IP host semantics, reject DNS-rebinding through set expansion, and reauthorize every redirect target.
+4. **Resource control** — protect interactive rendering before agent inference and background collection with cumulative RAM, VRAM, admission, model-offload, batch, and frame-pressure mitigations.
+5. **Evidence** — retain bounded, universally value-redacted network metadata and verifiable provenance for extracted values and state-changing actions.
 
 ## Architecture
 
@@ -22,7 +23,7 @@ User experience and enterprise administration
                     |
 Chromium compatibility kernel: Blink, V8, Skia, Viz, Dawn, MV3
                     |
-Rust control plane: policy, observation, action, resource, evidence
+Rust control plane: policy, destination, observation, action, resource, evidence
                     |
 Adapters: WebDriver BiDi, CDP, WebMCP, MCP, WARC, PROV-O
 ```
@@ -31,6 +32,7 @@ The repository is organized as independently consumable Rust crates:
 
 - `originweave-core`: normalized origins, immutable action-intent digests, session modes, typed actions, capabilities, approvals, and policy contexts.
 - `originweave-policy`: deterministic fail-closed action evaluation.
+- `originweave-destination`: address classification, explicit destination policy, origin-bound DNS snapshots, connection pinning, rebinding detection, and redirect reauthorization.
 - `originweave-resource`: task-level RAM, VRAM, thread, and frame-time budgets with cumulative mitigation plans.
 - `originweave-evidence`: universally value-redacted network evidence and source-bound provenance records.
 
@@ -48,7 +50,9 @@ Protected secret: cookies, passwords, API keys, session tokens, personal data
 
 Web content can provide evidence but cannot grant a capability, approve an action, change policy, or request secret disclosure. Public crawler work is read-only and requires an explicit robots-policy result. R3 and R4 actions require approval bound to the exact action kind, target origin, and immutable lowercase SHA-256 digest of the complete canonical action intent; R5 legal consent is non-delegable.
 
-The current origin type rejects shortened, integer, hexadecimal, and legacy octal-looking IPv4 spellings that a browser could reinterpret differently from a DNS validator. This protects origin identity, but it is not by itself an SSRF defense: the first Chromium slice must additionally enforce DNS, resolved-address, redirect, proxy, metadata-endpoint, and download policy.
+The origin type rejects shortened, integer, hexadecimal, and legacy octal-looking IPv4 spellings that a browser could reinterpret differently from a DNS validator. This protects logical origin identity. The destination kernel separately canonicalizes IPv4-mapped IPv6, classifies IPv4 and IPv6 special-purpose ranges and reviewed cloud platform endpoints, permits only public destinations by default, accepts at most 256 resolver addresses per snapshot, pins approved DNS address sets, rejects set expansion, and re-evaluates origin, resolution, downgrade, cycle, and hop authority for each redirect. The special `localhost` name may resolve only to loopback, and a literal IPv4 or IPv6 origin may approve only its exact canonical address.
+
+These pure kernels do not yet open browser connections. Safe real navigation still requires a Chromium/BiDi/CDP adapter that uses the approved snapshot for the actual socket path, defines proxy and PAC behavior, applies connection and response budgets, validates downloads and observed MIME, and records complete connection evidence. A syntactically valid origin is never treated as an SSRF decision.
 
 Generic network evidence retains bounded field names but no header or query values. Every value is replaced before the record leaves the trusted boundary, and malformed, ambiguous, or excessive paths and metadata fail closed. Any future typed response value or body requires a separate schema-specific capture policy.
 
@@ -72,7 +76,7 @@ The first commercial vertical slice is:
 
 ```text
 isolated Chromium session
-→ destination and origin policy
+→ origin grant and resolved-destination authorization
 → semantic observation
 → typed policy decision
 → browser action
@@ -80,7 +84,7 @@ isolated Chromium session
 → redacted provenance bundle
 ```
 
-Subsequent work adds WARC/PROV persistence, MCP and Browser Agent Protocol adapters, extension compatibility testing, GPU/RAM telemetry, prompt-injection benchmarks, and an accessible approval interface. See [docs/product-roadmap.md](docs/product-roadmap.md).
+Subsequent work adds the live browser-network adapter, proxy and download policy, WARC/PROV persistence, MCP and Browser Agent Protocol adapters, extension compatibility testing, GPU/RAM telemetry, prompt-injection benchmarks, and an accessible approval interface. See [docs/product-roadmap.md](docs/product-roadmap.md).
 
 ## Hourly product-development loop
 

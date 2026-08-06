@@ -12,8 +12,8 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 class RepositoryContractTests(unittest.TestCase):
     """Validate the non-generated repository and governance contract."""
 
-    def test_workspace_declares_all_safety_kernel_crates(self) -> None:
-        """The root workspace must expose every independently reusable module."""
+    def test_workspace_declares_all_independently_reusable_crates(self) -> None:
+        """The root workspace must expose every reusable policy kernel."""
 
         data = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))
         self.assertEqual(
@@ -21,6 +21,7 @@ class RepositoryContractTests(unittest.TestCase):
             {
                 "crates/originweave-core",
                 "crates/originweave-policy",
+                "crates/originweave-destination",
                 "crates/originweave-resource",
                 "crates/originweave-evidence",
             },
@@ -51,9 +52,31 @@ class RepositoryContractTests(unittest.TestCase):
             "docs/adr/0001-chromium-compatibility-kernel.md",
             "docs/adr/0002-agent-safety-kernel.md",
             "docs/adr/0003-provenance-native-observation.md",
+            "docs/adr/0004-resolved-destination-policy.md",
+            "docs/superpowers/specs/2026-08-06-resolved-destination-policy-design.md",
+            "docs/superpowers/plans/2026-08-06-resolved-destination-policy.md",
         }
         missing = sorted(path for path in required_paths if not (ROOT / path).is_file())
         self.assertEqual(missing, [])
+
+    def test_origin_identity_and_destination_safety_remain_distinct(self) -> None:
+        """Documentation must never present origin parsing as an SSRF decision."""
+
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        architecture = (ROOT / "ARCHITECTURE.md").read_text(encoding="utf-8")
+        roadmap = (ROOT / "docs/product-roadmap.md").read_text(encoding="utf-8")
+        for relative, text in [
+            ("README.md", readme),
+            ("ARCHITECTURE.md", architecture),
+            ("docs/product-roadmap.md", roadmap),
+        ]:
+            self.assertIn("origin", text.lower(), relative)
+            self.assertIn("destination", text.lower(), relative)
+            self.assertIn("SSRF", text, relative)
+        self.assertIn("originweave-destination", readme)
+        self.assertIn("originweave-destination", architecture)
+        self.assertIn("DNS-rebinding", readme)
+        self.assertIn("DNS answer expansion", architecture)
 
     def test_hourly_loop_uses_nvidia_nim_and_dedicated_publication_authority(self) -> None:
         """The product loop must use OpenCode/NIM without review or merge credentials."""
