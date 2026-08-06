@@ -96,10 +96,102 @@ fn ipv6_special_purpose_ranges_are_classified_fail_closed() {
         ("2001:2f::1", AddressClass::Public),
         ("2001:30::1", AddressClass::Public),
         ("2001:3f::1", AddressClass::Public),
-        ("2001:200::1", AddressClass::Public),
     ];
     for (input, expected) in cases {
         assert_class(input, expected);
+    }
+}
+
+#[test]
+fn ipv6_public_class_is_limited_to_current_iana_allocations() {
+    for allocated in [
+        "2001:200::1",
+        "2001:400::1",
+        "2001:600::1",
+        "2001:800::1",
+        "2001:c00::1",
+        "2001:e00::1",
+        "2001:1200::1",
+        "2001:1400::1",
+        "2001:1800::1",
+        "2001:1a00::1",
+        "2001:1c00::1",
+        "2001:2000::1",
+        "2001:4000::1",
+        "2001:4200::1",
+        "2001:4400::1",
+        "2001:4600::1",
+        "2001:4800::1",
+        "2001:4a00::1",
+        "2001:4c00::1",
+        "2001:5000::1",
+        "2001:8000::1",
+        "2001:a000::1",
+        "2001:b000::1",
+        "2003::1",
+        "2400::1",
+        "2410::1",
+        "2600::1",
+        "2610::1",
+        "2620::1",
+        "2630::1",
+        "2800::1",
+        "2a00::1",
+        "2a10::1",
+        "2c00::1",
+    ] {
+        assert_class(allocated, AddressClass::Public);
+    }
+
+    for allocated_boundary in [
+        "2001:3ff:ffff::1",
+        "2001:bff:ffff::1",
+        "2001:13ff:ffff::1",
+        "2001:1fff:ffff::1",
+        "2001:3fff:ffff::1",
+        "2001:4dff:ffff::1",
+        "2001:5fff:ffff::1",
+        "2001:9fff:ffff::1",
+        "2001:afff:ffff::1",
+        "2001:bfff:ffff::1",
+        "2003:3fff::1",
+        "240f:ffff::1",
+        "241f:ffff::1",
+        "260f:ffff::1",
+        "2610:1ff::1",
+        "2620:1ff::1",
+        "263f:ffff::1",
+        "280f:ffff::1",
+        "2a0f:ffff::1",
+        "2a1f:ffff::1",
+        "2c0f:ffff::1",
+    ] {
+        assert_class(allocated_boundary, AddressClass::Public);
+    }
+
+    for reserved in [
+        "2001:1000::1",
+        "2001:4e00::1",
+        "2001:6000::1",
+        "2001:c000::1",
+        "2003:4000::1",
+        "2004::1",
+        "2200::1",
+        "2420::1",
+        "2500::1",
+        "2610:200::1",
+        "2620:200::1",
+        "2640::1",
+        "2700::1",
+        "2810::1",
+        "2a20::1",
+        "2b00::1",
+        "2c10::1",
+        "2d00::1",
+        "3000::1",
+        "3ffe::1",
+    ] {
+        assert_class(reserved, AddressClass::ProtocolReserved);
     }
 }
 
