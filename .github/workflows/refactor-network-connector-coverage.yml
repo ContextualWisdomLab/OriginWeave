@@ -38,171 +38,39 @@ jobs:
 
           path = Path("crates/originweave-network/src/connection.rs")
           text = path.read_text(encoding="utf-8")
-          replacements = [
-              (
-                  '''    fn connect_with<C: SocketConnector>(
-                      self,
-                      connector: &C,
-                  ) -> Result<(C::Stream, SocketConnectionEvidence), NetworkError> {
-          ''',
-                  '''    fn connect_with(
-                      self,
-                      connector: &dyn SocketConnector,
-                  ) -> Result<(TcpStream, SocketConnectionEvidence), NetworkError> {
-          ''',
-              ),
-              (
-                  '''trait SocketConnector {
-              type Stream;
 
-              fn connect_timeout(
-                  &self,
-                  socket_address: &SocketAddr,
-                  timeout: Duration,
-              ) -> io::Result<Self::Stream>;
+          def replace_once(old: str, new: str) -> None:
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"expected exactly one occurrence of {old!r}, found {count}")
+              text = text.replace(old, new, 1)
 
-              fn peer_addr(&self, stream: &Self::Stream) -> io::Result<SocketAddr>;
+          replace_once(
+              "fn connect_with<C: SocketConnector>(",
+              "fn connect_with(",
+          )
+          replace_once("connector: &C,", "connector: &dyn SocketConnector,")
+          replace_once(
+              "Result<(C::Stream, SocketConnectionEvidence), NetworkError>",
+              "Result<(TcpStream, SocketConnectionEvidence), NetworkError>",
+          )
+          replace_once("    type Stream;\n\n", "")
+          replace_once("    type Stream = TcpStream;\n\n", "")
+          replace_once("        type Stream = u8;\n\n", "")
+          text = text.replace("io::Result<Self::Stream>", "io::Result<TcpStream>")
+          text = text.replace("&Self::Stream", "&TcpStream")
+          replace_once(
+              "use std::net::{IpAddr, Ipv4Addr};",
+              "use std::net::{IpAddr, Ipv4Addr, TcpListener};",
+          )
+          replace_once("Success(u8),", "Success(TcpStream),")
+
+          requested_socket = '''    fn requested_socket() -> SocketAddr {
+              SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8080)
           }
-          ''',
-                  '''trait SocketConnector {
-              fn connect_timeout(
-                  &self,
-                  socket_address: &SocketAddr,
-                  timeout: Duration,
-              ) -> io::Result<TcpStream>;
-
-              fn peer_addr(&self, stream: &TcpStream) -> io::Result<SocketAddr>;
-          }
-          ''',
-              ),
-              (
-                  '''impl SocketConnector for SystemConnector {
-              type Stream = TcpStream;
-
-              fn connect_timeout(
-                  &self,
-                  socket_address: &SocketAddr,
-                  timeout: Duration,
-              ) -> io::Result<Self::Stream> {
-                  TcpStream::connect_timeout(socket_address, timeout)
-              }
-
-              fn peer_addr(&self, stream: &Self::Stream) -> io::Result<SocketAddr> {
-                  stream.peer_addr()
-              }
-          }
-          ''',
-                  '''impl SocketConnector for SystemConnector {
-              fn connect_timeout(
-                  &self,
-                  socket_address: &SocketAddr,
-                  timeout: Duration,
-              ) -> io::Result<TcpStream> {
-                  TcpStream::connect_timeout(socket_address, timeout)
-              }
-
-              fn peer_addr(&self, stream: &TcpStream) -> io::Result<SocketAddr> {
-                  stream.peer_addr()
-              }
-          }
-          ''',
-              ),
-              (
-                  '''    use std::net::{IpAddr, Ipv4Addr};
-          ''',
-                  '''    use std::net::{IpAddr, Ipv4Addr, TcpListener};
-          ''',
-              ),
-              (
-                  '''    enum ConnectOutcome {
-                  Success(u8),
-                  Error(io::ErrorKind),
-              }
-          ''',
-                  '''    enum ConnectOutcome {
-                  Success(TcpStream),
-                  Error(io::ErrorKind),
-              }
-          ''',
-              ),
-              (
-                  '''    impl SocketConnector for FakeConnector {
-                  type Stream = u8;
-
-                  fn connect_timeout(
-                      &self,
-                      _socket_address: &SocketAddr,
-                      _timeout: Duration,
-                  ) -> io::Result<Self::Stream> {
-                      self.connect_calls.set(self.connect_calls.get() + 1);
-                      match self
-                          .connect_outcomes
-                          .borrow_mut()
-                          .pop_front()
-                          .expect("test must provide a connection outcome")
-                      {
-                          ConnectOutcome::Success(stream) => Ok(stream),
-                          ConnectOutcome::Error(kind) => Err(io::Error::from(kind)),
-                      }
-                  }
-
-                  fn peer_addr(&self, _stream: &Self::Stream) -> io::Result<SocketAddr> {
-                      self.peer_calls.set(self.peer_calls.get() + 1);
-                      match self
-                          .peer_outcomes
-                          .borrow_mut()
-                          .pop_front()
-                          .expect("test must provide a peer outcome")
-                      {
-                          PeerOutcome::Address(address) => Ok(address),
-                          PeerOutcome::Error(kind) => Err(io::Error::from(kind)),
-                      }
-                  }
-              }
-          ''',
-                  '''    impl SocketConnector for FakeConnector {
-                  fn connect_timeout(
-                      &self,
-                      _socket_address: &SocketAddr,
-                      _timeout: Duration,
-                  ) -> io::Result<TcpStream> {
-                      self.connect_calls.set(self.connect_calls.get() + 1);
-                      match self
-                          .connect_outcomes
-                          .borrow_mut()
-                          .pop_front()
-                          .expect("test must provide a connection outcome")
-                      {
-                          ConnectOutcome::Success(stream) => Ok(stream),
-                          ConnectOutcome::Error(kind) => Err(io::Error::from(kind)),
-                      }
-                  }
-
-                  fn peer_addr(&self, _stream: &TcpStream) -> io::Result<SocketAddr> {
-                      self.peer_calls.set(self.peer_calls.get() + 1);
-                      match self
-                          .peer_outcomes
-                          .borrow_mut()
-                          .pop_front()
-                          .expect("test must provide a peer outcome")
-                      {
-                          PeerOutcome::Address(address) => Ok(address),
-                          PeerOutcome::Error(kind) => Err(io::Error::from(kind)),
-                      }
-                  }
-              }
-          ''',
-              ),
-              (
-                  '''    fn requested_socket() -> SocketAddr {
-                  SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8080)
-              }
-
-          ''',
-                  '''    fn requested_socket() -> SocketAddr {
-                  SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8080)
-              }
-
+          '''
+          connected_socket = requested_socket + '''
               fn connected_stream() -> TcpStream {
                   let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
                       .expect("test listener must bind");
@@ -212,46 +80,28 @@ jobs:
                   let (_server, _peer) = listener.accept().expect("listener must accept");
                   client
               }
+          '''
+          replace_once(requested_socket, connected_socket)
 
-          ''',
-              ),
-              (
-                  '''                ConnectOutcome::Success(7),
-          ''',
-                  '''                ConnectOutcome::Success(connected_stream()),
-          ''',
-              ),
-              (
-                  '''        let (stream, evidence) = plan(2)
-                  .connect_with(&connector)
-                  .expect("second attempt succeeds");
-
-              assert_eq!(stream, 7);
-          ''',
-                  '''        let (_stream, evidence) = plan(2)
-                  .connect_with(&connector)
-                  .expect("second attempt succeeds");
-
-          ''',
-              ),
-              (
-                  '''            vec![ConnectOutcome::Success(1)],
-          ''',
-                  '''            vec![ConnectOutcome::Success(connected_stream())],
-          ''',
-              ),
-          ]
-          for old, new in replacements:
-              if old not in text:
-                  raise SystemExit(f"expected source block not found: {old.splitlines()[0]!r}")
-              text = text.replace(old, new, 1)
-          if 'ConnectOutcome::Success(1)' not in text:
-              raise SystemExit("second fake-success block not found")
-          text = text.replace(
-              '            vec![ConnectOutcome::Success(1)],\n',
-              '            vec![ConnectOutcome::Success(connected_stream())],\n',
-              1,
+          replace_once(
+              "ConnectOutcome::Success(7)",
+              "ConnectOutcome::Success(connected_stream())",
           )
+          success_one_count = text.count("ConnectOutcome::Success(1)")
+          if success_one_count != 2:
+              raise SystemExit(
+                  f"expected two remaining fake success values, found {success_one_count}"
+              )
+          text = text.replace(
+              "ConnectOutcome::Success(1)",
+              "ConnectOutcome::Success(connected_stream())",
+          )
+          replace_once("let (stream, evidence)", "let (_stream, evidence)")
+          replace_once("        assert_eq!(stream, 7);\n", "")
+
+          if "C::Stream" in text or "Self::Stream" in text or "type Stream" in text:
+              raise SystemExit("generic connector stream type remains")
+
           path.write_text(text, encoding="utf-8")
           PY
           cargo fmt --all
