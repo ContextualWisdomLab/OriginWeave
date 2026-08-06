@@ -77,6 +77,7 @@ TLS identity, proxy routing, HTTP resource budgets, and the Chromium socket adap
 - Direct-only routing does not satisfy deployments that require an enterprise proxy.
 - Exact TCP peer proof does not prove TLS server identity or HTTP safety.
 - Retrying immediately is intentionally simple; backoff and total elapsed-time budgets belong to a higher-level transport policy.
+- Callers must not interpret the attempt count as a backoff, circuit-breaker, or end-to-end deadline contract.
 
 ## Alternatives rejected
 
