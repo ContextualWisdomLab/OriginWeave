@@ -37,50 +37,57 @@ jobs:
           from pathlib import Path
 
           path = Path("crates/originweave-tls/src/error.rs")
-          text = path.read_text(encoding="utf-8")
+          lines = path.read_text(encoding="utf-8").splitlines()
 
-          variant_marker = '''    /// The inherited direct TCP evidence or live peer was inconsistent.
-              InheritedPeerMismatch {
-          '''
-          variant = '''    /// The TLS origin differed from the origin that authorized the TCP stream.
-              TransportOriginMismatch {
-                  /// The canonical HTTPS origin requested for TLS authentication.
-                  tls_origin: Origin,
-                  /// The origin recorded by the direct TCP evidence.
-                  transport_origin: Origin,
-              },
-          '''
-          if text.count(variant_marker) != 1:
-              raise SystemExit("inherited peer variant marker not found exactly once")
-          text = text.replace(variant_marker, variant + variant_marker, 1)
+          def unique_index(predicate, description: str) -> int:
+              matches = [index for index, line in enumerate(lines) if predicate(line)]
+              if len(matches) != 1:
+                  raise SystemExit(f"expected one {description}, found {matches}")
+              return matches[0]
 
-          display_marker = '''            Self::InheritedPeerMismatch {
-                  requested_peer,
-          '''
-          display = '''            Self::TransportOriginMismatch {
-                  tls_origin,
-                  transport_origin,
-              } => write!(
-                  formatter,
-                  "TLS origin {tls_origin} does not match TCP authority origin {transport_origin}",
-              ),
-          '''
-          if text.count(display_marker) != 1:
-              raise SystemExit("display marker not found exactly once")
-          text = text.replace(display_marker, display + display_marker, 1)
-
-          source_marker = '''            | Self::InheritedPeerMismatch { .. }
-          '''
-          if text.count(source_marker) != 1:
-              raise SystemExit("source marker not found exactly once")
-          text = text.replace(
-              source_marker,
-              '''            | Self::TransportOriginMismatch { .. }
-                          | Self::InheritedPeerMismatch { .. }
-              ''',
-              1,
+          variant_index = unique_index(
+              lambda line: line.strip()
+              == "/// The inherited direct TCP evidence or live peer was inconsistent.",
+              "inherited peer variant marker",
           )
-          path.write_text(text, encoding="utf-8")
+          indent = lines[variant_index][:-len(lines[variant_index].lstrip())]
+          variant = [
+              f"{indent}/// The TLS origin differed from the origin that authorized the TCP stream.",
+              f"{indent}TransportOriginMismatch {{",
+              f"{indent}    /// The canonical HTTPS origin requested for TLS authentication.",
+              f"{indent}    tls_origin: Origin,",
+              f"{indent}    /// The origin recorded by the direct TCP evidence.",
+              f"{indent}    transport_origin: Origin,",
+              f"{indent}}},",
+          ]
+          lines[variant_index:variant_index] = variant
+
+          display_index = unique_index(
+              lambda line: line.strip() == "Self::InheritedPeerMismatch {",
+              "inherited peer display arm",
+          )
+          display_indent = lines[display_index][:-len(lines[display_index].lstrip())]
+          display = [
+              f"{display_indent}Self::TransportOriginMismatch {{",
+              f"{display_indent}    tls_origin,",
+              f"{display_indent}    transport_origin,",
+              f"{display_indent}}} => write!(",
+              f"{display_indent}    formatter,",
+              f'{display_indent}    "TLS origin {{tls_origin}} does not match TCP authority origin {{transport_origin}}",',
+              f"{display_indent}),",
+          ]
+          lines[display_index:display_index] = display
+
+          source_index = unique_index(
+              lambda line: line.strip() == "| Self::InheritedPeerMismatch { .. }",
+              "inherited peer source arm",
+          )
+          source_indent = lines[source_index][:-len(lines[source_index].lstrip())]
+          lines[source_index:source_index] = [
+              f"{source_indent}| Self::TransportOriginMismatch {{ .. }}"
+          ]
+
+          path.write_text("\n".join(lines) + "\n", encoding="utf-8")
           PY
 
       - name: Generate lockfile and compile
