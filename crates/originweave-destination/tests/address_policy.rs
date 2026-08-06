@@ -78,7 +78,9 @@ fn ipv6_special_purpose_ranges_are_classified_fail_closed() {
         ("fe80::1", AddressClass::LinkLocal),
         ("febf::1", AddressClass::LinkLocal),
         ("2001:db8::1", AddressClass::Documentation),
-        ("3fff::1", AddressClass::Documentation),
+        ("3ff0::1", AddressClass::Documentation),
+        ("3ffe::1", AddressClass::Documentation),
+        ("3fff:ffff::1", AddressClass::Documentation),
         ("2001:2::1", AddressClass::Benchmarking),
         ("2001:1::4", AddressClass::ProtocolReserved),
         ("2001:1ff::1", AddressClass::ProtocolReserved),
@@ -189,7 +191,6 @@ fn ipv6_public_class_is_limited_to_current_iana_allocations() {
         "2c10::1",
         "2d00::1",
         "3000::1",
-        "3ffe::1",
     ] {
         assert_class(reserved, AddressClass::ProtocolReserved);
     }
