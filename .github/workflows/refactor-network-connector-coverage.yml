@@ -35,6 +35,7 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           path = Path("crates/originweave-network/src/connection.rs")
           text = path.read_text(encoding="utf-8")
@@ -46,10 +47,7 @@ jobs:
                   raise SystemExit(f"expected exactly one occurrence of {old!r}, found {count}")
               text = text.replace(old, new, 1)
 
-          replace_once(
-              "fn connect_with<C: SocketConnector>(",
-              "fn connect_with(",
-          )
+          replace_once("fn connect_with<C: SocketConnector>(", "fn connect_with(")
           replace_once("connector: &C,", "connector: &dyn SocketConnector,")
           replace_once(
               "Result<(C::Stream, SocketConnectionEvidence), NetworkError>",
@@ -66,22 +64,39 @@ jobs:
           )
           replace_once("Success(u8),", "Success(TcpStream),")
 
-          requested_socket = '''    fn requested_socket() -> SocketAddr {
-              SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8080)
-          }
-          '''
-          connected_socket = requested_socket + '''
-              fn connected_stream() -> TcpStream {
-                  let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
-                      .expect("test listener must bind");
-                  let socket_address = listener.local_addr().expect("listener address");
-                  let client = TcpStream::connect_timeout(&socket_address, Duration::from_secs(1))
-                      .expect("test client must connect");
-                  let (_server, _peer) = listener.accept().expect("listener must accept");
-                  client
-              }
-          '''
-          replace_once(requested_socket, connected_socket)
+          pattern = re.compile(
+              r"(?P<indent>\s*)fn requested_socket\(\) -> SocketAddr \{\n"
+              r"(?P=indent)    SocketAddr::new\(IpAddr::V4\(Ipv4Addr::LOCALHOST\), 8080\)\n"
+              r"(?P=indent)\}\n"
+          )
+          match = pattern.search(text)
+          if match is None:
+              raise SystemExit("requested_socket helper was not found")
+          indent = match.group("indent")
+          requested_socket = match.group(0)
+          connected_stream = (
+              requested_socket
+              + "\n"
+              + indent
+              + "fn connected_stream() -> TcpStream {\n"
+              + indent
+              + "    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))\n"
+              + indent
+              + '        .expect("test listener must bind");\n'
+              + indent
+              + '    let socket_address = listener.local_addr().expect("listener address");\n'
+              + indent
+              + "    let client = TcpStream::connect_timeout(&socket_address, Duration::from_secs(1))\n"
+              + indent
+              + '        .expect("test client must connect");\n'
+              + indent
+              + '    let (_server, _peer) = listener.accept().expect("listener must accept");\n'
+              + indent
+              + "    client\n"
+              + indent
+              + "}\n"
+          )
+          text = text[: match.start()] + connected_stream + text[match.end() :]
 
           replace_once(
               "ConnectOutcome::Success(7)",
@@ -96,7 +111,10 @@ jobs:
               "ConnectOutcome::Success(1)",
               "ConnectOutcome::Success(connected_stream())",
           )
-          replace_once("let (stream, evidence)", "let (_stream, evidence)")
+          replace_once(
+              "let (stream, evidence) = plan(2)",
+              "let (_stream, evidence) = plan(2)",
+          )
           replace_once("        assert_eq!(stream, 7);\n", "")
 
           if "C::Stream" in text or "Self::Stream" in text or "type Stream" in text:
