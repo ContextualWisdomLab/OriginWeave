@@ -9,8 +9,8 @@ use originweave_core::Origin;
 use originweave_destination::{AddressClass, DestinationPolicy, ResolutionSnapshot};
 use originweave_network::{ConnectionPlan, DirectTcpConnection};
 use originweave_tls::{
-    AlpnRequirement, NegotiatedAlpn, RevocationStatus, TlsClientPolicy, TlsError,
-    TlsHandshakePlan, TlsProtocolVersion, TrustBundleIdentifier, TrustRootBundle,
+    AlpnRequirement, NegotiatedAlpn, RevocationStatus, TlsClientPolicy, TlsError, TlsHandshakePlan,
+    TlsProtocolVersion, TrustBundleIdentifier, TrustRootBundle,
 };
 use rcgen::{
     BasicConstraints, Certificate, CertificateParams, DnType, ExtendedKeyUsagePurpose, IsCa,
@@ -46,7 +46,10 @@ fn certificate_authority() -> (Vec<u8>, Issuer<'static, KeyPair>) {
     let certificate = parameters
         .self_signed(&key_pair)
         .expect("test CA certificate generation");
-    (certificate.der().to_vec(), Issuer::new(parameters, key_pair))
+    (
+        certificate.der().to_vec(),
+        Issuer::new(parameters, key_pair),
+    )
 }
 
 fn certificate_material(
@@ -64,9 +67,7 @@ fn certificate_material(
     parameters.extended_key_usages = vec![ExtendedKeyUsagePurpose::ServerAuth];
     parameters.use_authority_key_identifier_extension = true;
     if let Some(name) = common_name {
-        parameters
-            .distinguished_name
-            .push(DnType::CommonName, name);
+        parameters.distinguished_name.push(DnType::CommonName, name);
     }
     let key_pair = KeyPair::generate().expect("test leaf key generation");
     let certificate: Certificate = parameters
@@ -117,8 +118,7 @@ fn spawn_server(
         stream
             .set_write_timeout(Some(TEST_TIMEOUT))
             .map_err(|error| error.to_string())?;
-        let mut connection =
-            ServerConnection::new(config).map_err(|error| error.to_string())?;
+        let mut connection = ServerConnection::new(config).map_err(|error| error.to_string())?;
         connection
             .complete_io(&mut stream)
             .map_err(|error| error.to_string())?;
@@ -153,10 +153,7 @@ fn trust_bundle(root_der: Vec<u8>, identifier: &str) -> TrustRootBundle {
     .expect("test root bundle")
 }
 
-fn client_policy(
-    alpn_protocols: &[&[u8]],
-    requirement: AlpnRequirement,
-) -> TlsClientPolicy {
+fn client_policy(alpn_protocols: &[&[u8]], requirement: AlpnRequirement) -> TlsClientPolicy {
     TlsClientPolicy::new(
         UnixTime::since_unix_epoch(Duration::from_secs(TRUSTED_TIME_SECONDS)),
         TEST_TIMEOUT,
@@ -169,13 +166,11 @@ fn client_policy(
     .expect("test client policy")
 }
 
-fn valid_material(subject_alt_names: Vec<String>, common_name: Option<&str>) -> CertificateMaterial {
-    certificate_material(
-        subject_alt_names,
-        common_name,
-        (2025, 1, 1),
-        (2030, 1, 1),
-    )
+fn valid_material(
+    subject_alt_names: Vec<String>,
+    common_name: Option<&str>,
+) -> CertificateMaterial {
+    certificate_material(subject_alt_names, common_name, (2025, 1, 1), (2030, 1, 1))
 }
 
 #[test]
@@ -211,7 +206,10 @@ fn dns_identity_authenticates_the_exact_verified_tcp_stream() {
         evidence.protocol_version(),
         TlsProtocolVersion::Tls12 | TlsProtocolVersion::Tls13
     ));
-    assert_eq!(evidence.revocation_status(), RevocationStatus::NotConfigured);
+    assert_eq!(
+        evidence.revocation_status(),
+        RevocationStatus::NotConfigured
+    );
     assert_eq!(evidence.presented_certificate_count(), 1);
     assert!(evidence.presented_certificate_bytes() > 0);
     assert_eq!(evidence.trust_root_count(), 1);
@@ -353,12 +351,8 @@ fn fixed_trusted_time_rejects_expired_and_future_certificates() {
         ((2020, 1, 1), (2025, 1, 1), true),
         ((2027, 1, 1), (2030, 1, 1), false),
     ] {
-        let material = certificate_material(
-            vec!["localhost".to_owned()],
-            None,
-            not_before,
-            not_after,
-        );
+        let material =
+            certificate_material(vec!["localhost".to_owned()], None, not_before, not_after);
         let (root_der, config) = server_config(
             material,
             &[],
@@ -409,11 +403,7 @@ fn authenticate_ip_literal(bind_address: IpAddr, origin_host: &str, san: &str) {
 
 #[test]
 fn literal_ipv4_origin_requires_an_exact_ip_san() {
-    authenticate_ip_literal(
-        IpAddr::V4(Ipv4Addr::LOCALHOST),
-        "127.0.0.1",
-        "127.0.0.1",
-    );
+    authenticate_ip_literal(IpAddr::V4(Ipv4Addr::LOCALHOST), "127.0.0.1", "127.0.0.1");
 }
 
 #[test]
@@ -424,14 +414,8 @@ fn literal_ipv6_origin_requires_an_exact_ip_san() {
 #[test]
 fn tls12_and_tls13_are_independently_supported() {
     for (version, expected) in [
-        (
-            &rustls::version::TLS12,
-            TlsProtocolVersion::Tls12,
-        ),
-        (
-            &rustls::version::TLS13,
-            TlsProtocolVersion::Tls13,
-        ),
+        (&rustls::version::TLS12, TlsProtocolVersion::Tls12),
+        (&rustls::version::TLS13, TlsProtocolVersion::Tls13),
     ] {
         let material = valid_material(vec!["localhost".to_owned()], None);
         let (root_der, config) = server_config(material, &[], &[version]);
