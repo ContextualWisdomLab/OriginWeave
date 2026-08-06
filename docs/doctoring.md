@@ -16,7 +16,9 @@ The WHATWG URL host parser and Chromium canonicalizer classify shortened decimal
 
 Canonical origin identity is not a network-destination authorization. The IANA IPv4 and IPv6 Special-Purpose Address Space registries enumerate blocks whose source, destination, forwardability, globally reachable, and protocol-reserved properties differ. Both registries were last updated on 9 October 2025 and explicitly warn that registry presence does not guarantee routability in a particular local or global context. RFC 6890 established the common special-purpose registry fields, and RFC 8190 replaced the ambiguous `global` field with `globally reachable`.
 
-OriginWeave therefore uses a conservative, security-oriented taxonomy rather than treating resolver success or syntactic global scope as permission. Public web policy admits only addresses classified as public. Loopback, private or unique-local, shared, link-local, metadata, documentation, benchmarking, multicast, broadcast, unspecified, transition, and protocol-reserved destinations require explicit managed authority or fail closed.
+The separate IANA IPv6 Global Unicast Address Space registry was updated on 10 October 2025. It states that `2000::/3` is the assignable global-unicast block, but every part not listed in the allocation table remains reserved by IANA for future allocation. OriginWeave therefore does not equate membership in `2000::/3` with current public reachability. After special-purpose rules are applied, only the current IANA/RIR allocation prefixes are admitted as `Public`; gaps and the explicitly reserved `2d00::/8` through `3ffe::/16` ranges remain `ProtocolReserved`.
+
+OriginWeave uses a conservative, security-oriented taxonomy rather than treating resolver success or syntactic global scope as permission. Public web policy admits only addresses classified as public. Loopback, private or unique-local, shared, link-local, metadata, documentation, benchmarking, multicast, broadcast, unspecified, transition, unallocated, and protocol-reserved destinations require explicit managed authority or fail closed.
 
 IANA registries alone do not enumerate every cloud- or workload-local credential and control endpoint that can appear inside otherwise public, shared, link-local, or unique-local address space. Microsoft documents `168.63.129.16` as an Azure platform virtual IP used for VM agent communication, filtered DNS, load-balancer health probes, DHCP, and platform heartbeat traffic. Amazon EKS documents `169.254.170.23` and `fd00:ec2::23` as the Pod Identity Agent endpoints through which workloads request credentials. OriginWeave classifies these endpoints, together with established instance and container metadata endpoints, as `MetadataService` before broader address-range rules. This list is a reviewed security supplement to the IANA taxonomy and must expand only from authoritative platform documentation and regression tests.
 
@@ -73,6 +75,8 @@ Fugu Team, Sakana AI. (2026). *Sakana Fugu technical report* [Technical report].
 Internet Assigned Numbers Authority. (2025, October 9). *IPv4 special-purpose address space*. https://www.iana.org/assignments/iana-ipv4-special-registry/iana-ipv4-special-registry.xhtml
 
 Internet Assigned Numbers Authority. (2025, October 9). *IPv6 special-purpose address space*. https://www.iana.org/assignments/iana-ipv6-special-registry/iana-ipv6-special-registry.xhtml
+
+Internet Assigned Numbers Authority. (2025, October 10). *IPv6 global unicast address space*. https://www.iana.org/assignments/ipv6-unicast-address-assignments/ipv6-unicast-address-assignments.xhtml
 
 International Organization for Standardization. (2017). *Information and documentation—WARC file format* (ISO Standard No. 28500:2017). https://www.iso.org/standard/68004.html
 
