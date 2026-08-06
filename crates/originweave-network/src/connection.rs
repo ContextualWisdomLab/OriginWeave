@@ -89,10 +89,10 @@ impl ConnectionPlan {
         Ok(DirectTcpConnection { stream, evidence })
     }
 
-    fn connect_with<C: SocketConnector>(
+    fn connect_with(
         self,
-        connector: &C,
-    ) -> Result<(C::Stream, SocketConnectionEvidence), NetworkError> {
+        connector: &dyn SocketConnector,
+    ) -> Result<(TcpStream, SocketConnectionEvidence), NetworkError> {
         let mut attempt_number = 1;
         loop {
             match connector.connect_timeout(&self.requested_socket, self.connect_timeout) {
@@ -145,31 +145,27 @@ impl ConnectionPlan {
 }
 
 trait SocketConnector {
-    type Stream;
-
     fn connect_timeout(
         &self,
         socket_address: &SocketAddr,
         timeout: Duration,
-    ) -> io::Result<Self::Stream>;
+    ) -> io::Result<TcpStream>;
 
-    fn peer_addr(&self, stream: &Self::Stream) -> io::Result<SocketAddr>;
+    fn peer_addr(&self, stream: &TcpStream) -> io::Result<SocketAddr>;
 }
 
 struct SystemConnector;
 
 impl SocketConnector for SystemConnector {
-    type Stream = TcpStream;
-
     fn connect_timeout(
         &self,
         socket_address: &SocketAddr,
         timeout: Duration,
-    ) -> io::Result<Self::Stream> {
+    ) -> io::Result<TcpStream> {
         TcpStream::connect_timeout(socket_address, timeout)
     }
 
-    fn peer_addr(&self, stream: &Self::Stream) -> io::Result<SocketAddr> {
+    fn peer_addr(&self, stream: &TcpStream) -> io::Result<SocketAddr> {
         stream.peer_addr()
     }
 }
@@ -433,14 +429,16 @@ mod tests {
     use std::cell::{Cell, RefCell};
     use std::collections::VecDeque;
     use std::error::Error;
-    use std::net::{IpAddr, Ipv4Addr};
+    use std::io::{Read, Write};
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, TcpListener};
+    use std::thread;
 
     use originweave_destination::{DestinationPolicy, ResolutionSnapshot};
 
     use super::*;
 
     enum ConnectOutcome {
-        Success(u8),
+        Success(TcpStream),
         Error(io::ErrorKind),
     }
 
@@ -468,13 +466,11 @@ mod tests {
     }
 
     impl SocketConnector for FakeConnector {
-        type Stream = u8;
-
         fn connect_timeout(
             &self,
             _socket_address: &SocketAddr,
             _timeout: Duration,
-        ) -> io::Result<Self::Stream> {
+        ) -> io::Result<TcpStream> {
             self.connect_calls.set(self.connect_calls.get() + 1);
             match self
                 .connect_outcomes
@@ -487,7 +483,7 @@ mod tests {
             }
         }
 
-        fn peer_addr(&self, _stream: &Self::Stream) -> io::Result<SocketAddr> {
+        fn peer_addr(&self, _stream: &TcpStream) -> io::Result<SocketAddr> {
             self.peer_calls.set(self.peer_calls.get() + 1);
             match self
                 .peer_outcomes
@@ -505,15 +501,28 @@ mod tests {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8080)
     }
 
-    fn plan(maximum_attempts: u8) -> ConnectionPlan {
-        let snapshot = ResolutionSnapshot::approve(
+    fn connected_stream() -> TcpStream {
+        let listener =
+            TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("test listener must bind");
+        let socket_address = listener.local_addr().expect("listener address");
+        let client = TcpStream::connect_timeout(&socket_address, Duration::from_secs(1))
+            .expect("test client must connect");
+        let (_server, _peer) = listener.accept().expect("listener must accept");
+        client
+    }
+
+    fn loopback_snapshot() -> ResolutionSnapshot {
+        ResolutionSnapshot::approve(
             Origin::parse("http://localhost").expect("loopback origin"),
             [IpAddr::V4(Ipv4Addr::LOCALHOST)],
             &DestinationPolicy::from_allowed_classes([AddressClass::Loopback]),
         )
-        .expect("managed loopback snapshot");
+        .expect("managed loopback snapshot")
+    }
+
+    fn plan(maximum_attempts: u8) -> ConnectionPlan {
         ConnectionPlan::new(
-            &snapshot,
+            &loopback_snapshot(),
             requested_socket(),
             Duration::from_secs(2),
             maximum_attempts,
@@ -567,15 +576,14 @@ mod tests {
         let connector = FakeConnector::new(
             vec![
                 ConnectOutcome::Error(io::ErrorKind::ConnectionRefused),
-                ConnectOutcome::Success(7),
+                ConnectOutcome::Success(connected_stream()),
             ],
             vec![PeerOutcome::Address(socket)],
         );
-        let (stream, evidence) = plan(2)
+        let (_stream, evidence) = plan(2)
             .connect_with(&connector)
             .expect("second attempt succeeds");
 
-        assert_eq!(stream, 7);
         assert_eq!(connector.connect_calls.get(), 2);
         assert_eq!(connector.peer_calls.get(), 1);
         assert_eq!(evidence.requested_socket(), socket);
@@ -586,7 +594,7 @@ mod tests {
     #[test]
     fn peer_inspection_failure_is_not_retried() {
         let connector = FakeConnector::new(
-            vec![ConnectOutcome::Success(1)],
+            vec![ConnectOutcome::Success(connected_stream())],
             vec![PeerOutcome::Error(io::ErrorKind::AddrNotAvailable)],
         );
         let error = plan(4)
@@ -604,7 +612,7 @@ mod tests {
     fn mismatched_peer_is_not_exposed_or_retried() {
         let observed_peer = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8081);
         let connector = FakeConnector::new(
-            vec![ConnectOutcome::Success(1)],
+            vec![ConnectOutcome::Success(connected_stream())],
             vec![PeerOutcome::Address(observed_peer)],
         );
         let error = plan(4)
@@ -617,5 +625,130 @@ mod tests {
         assert_eq!(error.attempt_count(), Some(1));
         assert!(error.source().is_none());
         assert!(error.to_string().contains("peer mismatch"));
+    }
+
+    #[test]
+    fn validation_errors_cover_every_public_contract() {
+        let snapshot = loopback_snapshot();
+        let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 80);
+        let validation_errors = [
+            ConnectionPlan::new(
+                &snapshot,
+                SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0),
+                Duration::from_secs(1),
+                1,
+            )
+            .expect_err("port zero must fail"),
+            ConnectionPlan::new(&snapshot, socket, Duration::ZERO, 1)
+                .expect_err("zero timeout must fail"),
+            ConnectionPlan::new(
+                &snapshot,
+                socket,
+                MAX_CONNECT_TIMEOUT + Duration::from_nanos(1),
+                1,
+            )
+            .expect_err("excessive timeout must fail"),
+            ConnectionPlan::new(&snapshot, socket, Duration::from_secs(1), 0)
+                .expect_err("zero attempts must fail"),
+            ConnectionPlan::new(
+                &snapshot,
+                socket,
+                Duration::from_secs(1),
+                MAX_CONNECTION_ATTEMPTS + 1,
+            )
+            .expect_err("excessive attempts must fail"),
+        ];
+        for error in validation_errors {
+            assert!(!error.to_string().is_empty());
+            assert!(error.source().is_none());
+            assert_eq!(error.attempt_count(), None);
+        }
+
+        let denied_socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(1, 1, 1, 1)), 443);
+        let denied = ConnectionPlan::new(&snapshot, denied_socket, Duration::from_secs(1), 1)
+            .expect_err("address absent from snapshot must fail");
+        assert!(denied.to_string().contains("not approved"));
+        assert!(denied.source().is_some());
+        assert_eq!(denied.attempt_count(), None);
+
+        let mapped = Ipv6Addr::new(0, 0, 0, 0, 0, 0xffff, 0x7f00, 1);
+        let noncanonical = ConnectionPlan::new(
+            &snapshot,
+            SocketAddr::new(IpAddr::V6(mapped), 443),
+            Duration::from_secs(1),
+            1,
+        )
+        .expect_err("mapped address must fail canonical authority");
+        assert!(noncanonical.to_string().contains("canonical"));
+        assert!(noncanonical.source().is_none());
+        assert_eq!(noncanonical.attempt_count(), None);
+    }
+
+    #[test]
+    fn public_destination_policy_denies_loopback_before_network_authority() {
+        let error = ResolutionSnapshot::approve(
+            Origin::parse("https://example.com").expect("public origin"),
+            [IpAddr::V4(Ipv4Addr::LOCALHOST)],
+            &DestinationPolicy::public_web(),
+        )
+        .expect_err("public policy must deny loopback");
+        assert!(error.to_string().contains("denied as Loopback"));
+    }
+
+    #[test]
+    fn approved_loopback_socket_becomes_the_exact_operating_system_peer() {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("listener must bind");
+        let socket = listener.local_addr().expect("listener address");
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("listener must accept");
+            stream.write_all(b"ok").expect("server response must write");
+        });
+
+        let origin = Origin::parse("http://localhost").expect("loopback origin");
+        let snapshot = loopback_snapshot();
+        let connection = ConnectionPlan::new(&snapshot, socket, Duration::from_secs(1), 1)
+            .expect("plan must validate")
+            .connect()
+            .expect("exact loopback peer must connect");
+
+        assert_eq!(
+            connection.stream().peer_addr().expect("peer address"),
+            socket
+        );
+        assert_eq!(connection.evidence().origin(), &origin);
+        assert_eq!(connection.evidence().requested_socket(), socket);
+        assert_eq!(connection.evidence().observed_peer(), socket);
+        assert_eq!(
+            connection.evidence().address_class(),
+            AddressClass::Loopback
+        );
+        assert_eq!(connection.evidence().attempt_number(), 1);
+        assert_eq!(
+            connection.evidence().connect_timeout(),
+            Duration::from_secs(1)
+        );
+
+        let (mut stream, evidence) = connection.into_parts();
+        let mut body = [0_u8; 2];
+        stream.read_exact(&mut body).expect("response must read");
+        assert_eq!(&body, b"ok");
+        assert_eq!(evidence.observed_peer(), socket);
+        server.join().expect("server thread must finish");
+    }
+
+    #[test]
+    fn refused_loopback_connection_stops_at_the_exact_attempt_bound() {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("port must reserve");
+        let socket = listener.local_addr().expect("reserved address");
+        drop(listener);
+
+        let error = ConnectionPlan::new(&loopback_snapshot(), socket, Duration::from_secs(1), 3)
+            .expect("plan must validate")
+            .connect()
+            .expect_err("closed loopback port must fail");
+
+        assert_eq!(error.attempt_count(), Some(3));
+        assert!(error.source().is_some());
+        assert!(error.to_string().contains("failed after 3 attempts"));
     }
 }
