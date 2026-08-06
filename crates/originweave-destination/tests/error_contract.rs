@@ -5,12 +5,11 @@ use std::net::{IpAddr, Ipv4Addr};
 
 use originweave_core::Origin;
 use originweave_destination::{
-    AddressClass, DestinationError, MAX_REDIRECT_HOPS, MAX_RESOLUTION_ADDRESS_COUNT,
-    RedirectError, RedirectTargetDigest, RedirectTargetDigestError,
+    AddressClass, DestinationError, MAX_REDIRECT_HOPS, MAX_RESOLUTION_ADDRESS_COUNT, RedirectError,
+    RedirectTargetDigest, RedirectTargetDigestError,
 };
 
-const DIGEST: &str =
-    "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const DIGEST: &str = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
 fn origin(value: &str) -> Origin {
     Origin::parse(value).expect("test origin must parse")
@@ -119,15 +118,11 @@ fn destination_errors_implement_display_and_error() {
                 origin_address: public,
                 resolved_address: other,
             },
-            format!(
-                "literal origin address {public} does not match resolved address {other}"
-            ),
+            format!("literal origin address {public} does not match resolved address {other}"),
         ),
         (
             DestinationError::UnapprovedConnectionAddress { address: other },
-            format!(
-                "connection address {other} is not in the approved resolution snapshot"
-            ),
+            format!("connection address {other} is not in the approved resolution snapshot"),
         ),
         (
             DestinationError::ResolutionSetExpanded { address: other },
