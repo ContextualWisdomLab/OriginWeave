@@ -35,21 +35,17 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-
           path = Path("crates/originweave-tls/src/error.rs")
           lines = path.read_text(encoding="utf-8").splitlines()
           if any(line.strip() == "TransportOriginMismatch {" for line in lines):
               raise SystemExit(0)
-
           def unique_index(predicate, description: str) -> int:
               matches = [index for index, line in enumerate(lines) if predicate(line)]
               if len(matches) != 1:
                   raise SystemExit(f"expected one {description}, found {matches}")
               return matches[0]
-
           variant_index = unique_index(
-              lambda line: line.strip()
-              == "/// The inherited direct TCP evidence or live peer was inconsistent.",
+              lambda line: line.strip() == "/// The inherited direct TCP evidence or live peer was inconsistent.",
               "inherited peer variant marker",
           )
           indent = lines[variant_index][:-len(lines[variant_index].lstrip())]
@@ -62,7 +58,6 @@ jobs:
               f"{indent}    transport_origin: Origin,",
               f"{indent}}},",
           ]
-
           display_index = unique_index(
               lambda line: line.strip() == "Self::InheritedPeerMismatch {",
               "inherited peer display arm",
@@ -77,15 +72,12 @@ jobs:
               f'{display_indent}    "TLS origin {{tls_origin}} does not match TCP authority origin {{transport_origin}}",',
               f"{display_indent}),",
           ]
-
           source_index = unique_index(
               lambda line: line.strip() == "| Self::InheritedPeerMismatch { .. }",
               "inherited peer source arm",
           )
           source_indent = lines[source_index][:-len(lines[source_index].lstrip())]
-          lines[source_index:source_index] = [
-              f"{source_indent}| Self::TransportOriginMismatch {{ .. }}"
-          ]
+          lines[source_index:source_index] = [f"{source_indent}| Self::TransportOriginMismatch {{ .. }}"]
           path.write_text("\n".join(lines) + "\n", encoding="utf-8")
           PY
 
@@ -100,11 +92,12 @@ jobs:
           status=$?
           set -e
           echo "status=${status}" >> "$GITHUB_OUTPUT"
+          mkdir -p docs/validation
           if [ "$status" -ne 0 ]; then
-            mkdir -p docs/validation
             mv tls-compile-errors.txt docs/validation/tls-compile-errors.txt
           else
             rm tls-compile-errors.txt
+            rm -f docs/validation/tls-compile-errors.txt
           fi
 
       - name: Persist failed compile diagnostics
@@ -113,26 +106,51 @@ jobs:
         run: |
           git config user.name "OpenCode Repair Agent"
           git config user.email "opencode-repair@users.noreply.github.com"
-          git add Cargo.lock crates/originweave-tls docs/validation/tls-compile-errors.txt
+          git add -A Cargo.lock crates/originweave-tls docs/validation
           git commit -m "test: capture TLS compile blockers"
           git push origin HEAD:feat/tls-server-identity
           exit 1
 
-      - name: Verify compiled bootstrap
+      - name: Capture test, Clippy, and rustdoc diagnostics
         if: steps.compile.outputs.status == '0'
+        id: verify
         shell: bash
         run: |
-          cargo fmt --all --check
-          cargo test --locked -p originweave-tls --all-targets
-          cargo clippy --locked -p originweave-tls --all-targets -- -D warnings
-          RUSTDOCFLAGS='-D warnings' cargo doc --locked -p originweave-tls --no-deps
+          set +e
+          {
+            cargo fmt --all --check
+            cargo test --locked -p originweave-tls --all-targets
+            cargo clippy --locked -p originweave-tls --all-targets -- -D warnings
+            RUSTDOCFLAGS='-D warnings' cargo doc --locked -p originweave-tls --no-deps
+          } > tls-verification-errors.txt 2>&1
+          status=$?
+          set -e
+          echo "status=${status}" >> "$GITHUB_OUTPUT"
+          mkdir -p docs/validation
+          if [ "$status" -ne 0 ]; then
+            mv tls-verification-errors.txt docs/validation/tls-verification-errors.txt
+          else
+            rm tls-verification-errors.txt
+            rm -f docs/validation/tls-verification-errors.txt
+          fi
+
+      - name: Persist failed verification diagnostics
+        if: steps.compile.outputs.status == '0' && steps.verify.outputs.status != '0'
+        shell: bash
+        run: |
+          git config user.name "OpenCode Repair Agent"
+          git config user.email "opencode-repair@users.noreply.github.com"
+          git add -A Cargo.lock crates/originweave-tls docs/validation
+          git commit -m "test: capture TLS verification blockers"
+          git push origin HEAD:feat/tls-server-identity
+          exit 1
 
       - name: Commit compiled bootstrap and remove one-shot workflow
-        if: steps.compile.outputs.status == '0'
+        if: steps.compile.outputs.status == '0' && steps.verify.outputs.status == '0'
         shell: bash
         run: |
           rm .github/workflows/bootstrap-tls-compile.yml
-          rm -f docs/validation/tls-compile-errors.txt
+          rm -f docs/validation/tls-compile-errors.txt docs/validation/tls-verification-errors.txt
           git config user.name "OpenCode Repair Agent"
           git config user.email "opencode-repair@users.noreply.github.com"
           git add -A Cargo.lock crates/originweave-tls docs/validation .github/workflows/bootstrap-tls-compile.yml
