@@ -6,7 +6,7 @@ use std::time::Duration;
 use originweave_core::Origin;
 use originweave_destination::{AddressClass, DestinationPolicy, ResolutionSnapshot};
 use originweave_network::{
-    ConnectionPlan, MAX_CONNECTION_ATTEMPTS, MAX_CONNECT_TIMEOUT, NetworkError,
+    ConnectionPlan, MAX_CONNECT_TIMEOUT, MAX_CONNECTION_ATTEMPTS, NetworkError,
 };
 
 fn loopback_snapshot() -> ResolutionSnapshot {
