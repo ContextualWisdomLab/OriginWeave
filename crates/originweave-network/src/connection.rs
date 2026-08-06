@@ -54,13 +54,21 @@ impl ConnectionPlan {
             });
         }
 
+        let has_unapproved_ipv6_metadata = match socket_address {
+            SocketAddr::V4(_) => false,
+            SocketAddr::V6(ipv6_socket) => {
+                ipv6_socket.flowinfo() != 0 || ipv6_socket.scope_id() != 0
+            }
+        };
         let connection_evidence = resolution
             .authorize_connection(socket_address.ip())
             .map_err(|source| NetworkError::DestinationNotApproved {
                 socket_address,
                 source,
             })?;
-        if connection_evidence.canonical_address() != socket_address.ip() {
+        if connection_evidence.canonical_address() != socket_address.ip()
+            || has_unapproved_ipv6_metadata
+        {
             return Err(NetworkError::NonCanonicalSocketAddress {
                 socket_address,
                 canonical_address: connection_evidence.canonical_address(),
@@ -272,7 +280,7 @@ pub enum NetworkError {
         /// The underlying destination-policy decision.
         source: DestinationError,
     },
-    /// The requested IP was authorized only after canonicalization.
+    /// The socket used a non-canonical IP or unapproved IPv6 transport metadata.
     NonCanonicalSocketAddress {
         /// The rejected non-canonical socket address.
         socket_address: SocketAddr,
@@ -367,7 +375,7 @@ impl fmt::Display for NetworkError {
                 canonical_address,
             } => write!(
                 formatter,
-                "socket {socket_address} is not canonical; use IP address {canonical_address}",
+                "socket {socket_address} is not canonical; use IP address {canonical_address} with zero IPv6 flow and scope metadata",
             ),
             Self::ConnectionTimedOut {
                 socket_address,
@@ -430,7 +438,7 @@ mod tests {
     use std::collections::VecDeque;
     use std::error::Error;
     use std::io::{Read, Write};
-    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, TcpListener};
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddrV6, TcpListener};
     use std::thread;
 
     use originweave_destination::{DestinationPolicy, ResolutionSnapshot};
@@ -518,6 +526,15 @@ mod tests {
             &DestinationPolicy::from_allowed_classes([AddressClass::Loopback]),
         )
         .expect("managed loopback snapshot")
+    }
+
+    fn ipv6_loopback_snapshot() -> ResolutionSnapshot {
+        ResolutionSnapshot::approve(
+            Origin::parse("http://[::1]").expect("IPv6 loopback origin"),
+            [IpAddr::V6(Ipv6Addr::LOCALHOST)],
+            &DestinationPolicy::from_allowed_classes([AddressClass::Loopback]),
+        )
+        .expect("managed IPv6 loopback snapshot")
     }
 
     fn plan(maximum_attempts: u8) -> ConnectionPlan {
@@ -682,6 +699,41 @@ mod tests {
         assert!(noncanonical.to_string().contains("canonical"));
         assert!(noncanonical.source().is_none());
         assert_eq!(noncanonical.attempt_count(), None);
+
+        let ipv6_snapshot = ipv6_loopback_snapshot();
+        let canonical_ipv6_socket =
+            SocketAddr::V6(SocketAddrV6::new(Ipv6Addr::LOCALHOST, 443, 0, 0));
+        assert!(
+            ConnectionPlan::new(
+                &ipv6_snapshot,
+                canonical_ipv6_socket,
+                Duration::from_secs(1),
+                1,
+            )
+            .is_ok()
+        );
+        for (flowinfo, scope_id) in [(1, 0), (0, 1)] {
+            let socket_with_metadata = SocketAddr::V6(SocketAddrV6::new(
+                Ipv6Addr::LOCALHOST,
+                443,
+                flowinfo,
+                scope_id,
+            ));
+            let metadata_error = ConnectionPlan::new(
+                &ipv6_snapshot,
+                socket_with_metadata,
+                Duration::from_secs(1),
+                1,
+            )
+            .expect_err("IPv6 transport metadata requires separate authority");
+            assert!(
+                metadata_error
+                    .to_string()
+                    .contains("zero IPv6 flow and scope")
+            );
+            assert!(metadata_error.source().is_none());
+            assert_eq!(metadata_error.attempt_count(), None);
+        }
     }
 
     #[test]
