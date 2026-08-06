@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use std::fmt;
 
 use originweave_core::Origin;
 
@@ -45,6 +46,18 @@ pub enum RedirectTargetDigestError {
     InvalidFormat,
 }
 
+impl fmt::Display for RedirectTargetDigestError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidFormat => formatter.write_str(
+                "redirect target digest must be sha256: followed by 64 lowercase hexadecimal digits",
+            ),
+        }
+    }
+}
+
+impl std::error::Error for RedirectTargetDigestError {}
+
 /// A deterministic reason that redirect authorization failed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RedirectError {
@@ -80,6 +93,42 @@ pub enum RedirectError {
         target_digest: RedirectTargetDigest,
     },
 }
+
+impl fmt::Display for RedirectError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidMaximumHops { maximum_hops } => write!(
+                formatter,
+                "redirect maximum {maximum_hops} is outside 1..={MAX_REDIRECT_HOPS}",
+            ),
+            Self::RedirectLimitExceeded => formatter.write_str("redirect limit exceeded"),
+            Self::OriginNotGranted { origin } => {
+                write!(formatter, "redirect target origin is not granted: {origin}")
+            }
+            Self::ResolutionOriginMismatch {
+                target_origin,
+                resolution_origin,
+            } => write!(
+                formatter,
+                "redirect resolution origin {resolution_origin} does not match target {target_origin}",
+            ),
+            Self::InsecureSchemeDowngrade {
+                source_origin,
+                target_origin,
+            } => write!(
+                formatter,
+                "insecure redirect downgrade from {source_origin} to {target_origin}",
+            ),
+            Self::RedirectCycle { target_digest } => write!(
+                formatter,
+                "redirect target was already visited: {}",
+                target_digest.as_str(),
+            ),
+        }
+    }
+}
+
+impl std::error::Error for RedirectError {}
 
 /// Stateful redirect authorization for one bounded navigation chain.
 #[derive(Debug, Clone, PartialEq, Eq)]
