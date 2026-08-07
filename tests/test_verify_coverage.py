@@ -48,7 +48,7 @@ class CoverageVerifierTests(unittest.TestCase):
         )
 
     def test_uncovered_region_locations_report_only_real_zero_count_region_entries(self) -> None:
-        """LLVM region diagnostics identify uncovered production coordinates precisely."""
+        """LLVM segment diagnostics identify uncovered production coordinates precisely."""
 
         candidate = payload(3, 2)
         candidate["data"][0]["files"] = [  # type: ignore[index]
@@ -71,6 +71,29 @@ class CoverageVerifierTests(unittest.TestCase):
         self.assertEqual(
             verify_coverage.uncovered_region_locations(candidate),
             ["src/example.rs:10:2", "src/second.rs:3:7"],
+        )
+
+    def test_uncovered_region_locations_fall_back_to_function_regions(self) -> None:
+        """LLVM function-region detail locates misses absent from segment entries."""
+
+        candidate = payload(3, 2)
+        candidate["data"][0]["files"] = [  # type: ignore[index]
+            {"filename": "src/example.rs", "segments": []}
+        ]
+        candidate["data"][0]["functions"] = [  # type: ignore[index]
+            {
+                "name": "example",
+                "filenames": ["src/example.rs"],
+                "regions": [
+                    [42, 9, 42, 15, 0, 0, 0, 0],
+                    [43, 1, 43, 8, 2, 0, 0, 0],
+                    [44, 3, 44, 7, 0, 0, 0, 3],
+                ],
+            }
+        ]
+        self.assertEqual(
+            verify_coverage.uncovered_region_locations(candidate),
+            ["src/example.rs:42:9"],
         )
 
     def test_uncovered_region_locations_are_best_effort_for_missing_file_detail(self) -> None:
