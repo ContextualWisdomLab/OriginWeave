@@ -42,7 +42,10 @@ impl TlsReferenceIdentity {
     }
 
     pub(crate) const fn uses_sni(&self) -> bool {
-        matches!(self, Self::Dns(_))
+        match self {
+            Self::Dns(_name) => true,
+            Self::Ip(_address) => false,
+        }
     }
 }
 
@@ -50,24 +53,40 @@ impl TlsReferenceIdentity {
 mod tests {
     #![allow(clippy::expect_used)]
 
+    use std::mem::discriminant;
+
     use super::*;
+
+    fn require(condition: bool, message: &'static str) {
+        condition.then_some(()).expect(message);
+    }
 
     #[test]
     fn explicit_dns_variants_validate_before_becoming_server_names() {
         let origin = Origin::parse("https://example.com").expect("HTTPS origin");
         let valid = TlsReferenceIdentity::Dns("example.com".to_owned());
-        assert!(matches!(valid.server_name(&origin), Ok(ServerName::DnsName(_))));
+        let expected = ServerName::try_from("example.com".to_owned()).expect("valid DNS name");
+        assert_eq!(valid.server_name(&origin).expect("server name"), expected);
 
         let invalid = TlsReferenceIdentity::Dns("contains space".to_owned());
-        assert!(matches!(
-            invalid.server_name(&origin),
-            Err(TlsError::InvalidReferenceIdentity { .. })
-        ));
+        let error = invalid
+            .server_name(&origin)
+            .expect_err("invalid DNS identity");
+        assert_eq!(
+            discriminant(&error),
+            discriminant(&TlsError::InvalidReferenceIdentity { origin })
+        );
     }
 
     #[test]
     fn sni_is_used_only_for_dns_identity() {
-        assert!(TlsReferenceIdentity::Dns("example.com".to_owned()).uses_sni());
-        assert!(!TlsReferenceIdentity::Ip(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)).uses_sni());
+        require(
+            TlsReferenceIdentity::Dns("example.com".to_owned()).uses_sni(),
+            "DNS identity must enable SNI",
+        );
+        require(
+            !TlsReferenceIdentity::Ip(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)).uses_sni(),
+            "IP identity must disable SNI",
+        );
     }
 }
