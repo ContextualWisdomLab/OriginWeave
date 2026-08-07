@@ -8,8 +8,8 @@ use crate::{HttpError, HttpMethod};
 pub enum BodyFraming {
     /// Response semantics expose no message content.
     NoContent,
-    /// The message content has one validated decimal length.
-    ContentLength(u64),
+    /// The message content has one validated platform-sized decimal length.
+    ContentLength(usize),
     /// The message content uses the strict chunked transfer-coding profile.
     Chunked,
     /// Message content ends only when the authenticated stream closes cleanly.
@@ -68,19 +68,18 @@ fn parse_transfer_encoding(values: &[&[u8]]) -> Result<bool, HttpError> {
 fn parse_content_length(
     values: &[&[u8]],
     maximum_encoded_bytes: usize,
-) -> Result<Option<u64>, HttpError> {
+) -> Result<Option<usize>, HttpError> {
     if values.is_empty() {
         return Ok(None);
     }
-    let maximum = u64::try_from(maximum_encoded_bytes).unwrap_or(u64::MAX);
     let mut canonical_length = None;
     for value in values {
         for member in value.split(|byte| *byte == b',') {
             let member = trim_optional_whitespace(member);
-            let parsed = parse_decimal_u64(member)?;
-            if parsed > maximum {
+            let parsed = parse_decimal_usize(member)?;
+            if parsed > maximum_encoded_bytes {
                 return Err(HttpError::EncodedContentTooLarge {
-                    byte_count: parsed,
+                    byte_count: u64::try_from(parsed).unwrap_or(u64::MAX),
                     maximum_bytes: maximum_encoded_bytes,
                 });
             }
@@ -98,14 +97,14 @@ fn parse_content_length(
         .map(Some)
 }
 
-fn parse_decimal_u64(input: &[u8]) -> Result<u64, HttpError> {
+fn parse_decimal_usize(input: &[u8]) -> Result<usize, HttpError> {
     if input.is_empty() || !input.iter().all(u8::is_ascii_digit) {
         return Err(HttpError::InvalidContentLength);
     }
-    input.iter().try_fold(0_u64, |value, byte| {
+    input.iter().try_fold(0_usize, |value, byte| {
         value
             .checked_mul(10)
-            .and_then(|scaled| scaled.checked_add(u64::from(*byte - b'0')))
+            .and_then(|scaled| scaled.checked_add(usize::from(*byte - b'0')))
             .ok_or(HttpError::InvalidContentLength)
     })
 }
