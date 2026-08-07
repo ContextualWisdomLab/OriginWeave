@@ -78,26 +78,14 @@ jobs:
 
           source_path = Path("crates/originweave-http/src/disposition.rs")
           source = source_path.read_text(encoding="utf-8")
-          source_replacements = [
-              (
-                  "byte.is_ascii_control() || byte.is_ascii_whitespace() || byte == 0x7f || byte == b'#'",
-                  "byte.is_ascii_control() || byte.is_ascii_whitespace() || byte == b'#'",
-              ),
-              (
-                  "if byte.is_ascii_control() || byte == 0x7f {",
-                  "if byte.is_ascii_control() {",
-              ),
-              (
-                  "} else if byte == b'\\\"' || byte.is_ascii_control() || byte == 0x7f {",
-                  "} else if byte == b'\\\"' || byte.is_ascii_control() {",
-              ),
-          ]
-          for before, after in source_replacements:
-              count = source.count(before)
-              if count != 1:
-                  raise SystemExit(f"expected one source marker {before!r}, found {count}")
-              source = source.replace(before, after, 1)
-          source_path.write_text(source, encoding="utf-8")
+          redundant_del_check = " || byte == 0x7f"
+          count = source.count(redundant_del_check)
+          if count != 3:
+              raise SystemExit(f"expected three redundant DEL checks, found {count}")
+          source_path.write_text(
+              source.replace(redundant_del_check, ""),
+              encoding="utf-8",
+          )
           PY
           cargo fmt --all
 
