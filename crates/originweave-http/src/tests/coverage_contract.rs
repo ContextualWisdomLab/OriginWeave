@@ -4,7 +4,7 @@ use crate::chunked::{ChunkParseResult, parse_chunked_body};
 use crate::disposition::{parse_content_disposition, parse_redirect_metadata};
 use crate::field::{FieldBlock, FieldLine};
 use crate::integrity::{validate_content_digest, validate_representation_digest};
-use crate::mime::{MimeType, no_sniff_status, observe_mime_type, supplied_mime_type};
+use crate::mime::{MimeType, classify_observed_mime, no_sniff_status, supplied_mime_type};
 use crate::response_head::{FinalHeadParseResult, parse_final_response_head, parse_response_head};
 use crate::{HttpClientPolicy, HttpError, IntegrityRequirement};
 
@@ -20,7 +20,7 @@ fn fields(entries: &[(&str, &[u8])]) -> FieldBlock {
 }
 
 fn observed(content: &[u8]) -> crate::ObservedMimeClassification {
-    observe_mime_type(content, None).expect("observed MIME")
+    classify_observed_mime(content, None)
 }
 
 #[test]
@@ -153,7 +153,7 @@ fn mime_parser_rejects_every_ambiguous_syntax_class_and_classifies_signatures() 
         (b"\x00\xff\x10", None),
     ];
     for (content, supplied) in signatures {
-        observe_mime_type(content, *supplied).expect("bounded MIME observation");
+        let _observed = classify_observed_mime(content, *supplied);
     }
 }
 
