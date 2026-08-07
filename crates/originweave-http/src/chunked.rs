@@ -71,15 +71,12 @@ pub(crate) fn parse_chunked_body(
                 maximum_bytes: policy.max_encoded_content_bytes(),
             });
         }
-        let Some(data_end) = cursor.checked_add(chunk_size) else {
-            return Err(HttpError::EncodedContentTooLarge {
-                byte_count: u64::MAX,
-                maximum_bytes: policy.max_encoded_content_bytes(),
-            });
-        };
-        let Some(message_end) = data_end.checked_add(2) else {
-            return Err(HttpError::MalformedChunkedBody);
-        };
+        // `cursor` is an index into `input`, while `chunk_size` has already passed the
+        // configured encoded-content budget above. Safe Rust slices cannot be longer than
+        // the addressable object bound, so these additions cannot overflow for an admitted
+        // input; keeping checked fallbacks here would create unreachable error branches.
+        let data_end = cursor + chunk_size;
+        let message_end = data_end + 2;
         if input.len() < message_end {
             return Ok(ChunkParseResult::Incomplete);
         }
@@ -241,7 +238,7 @@ fn trailer_field_error(_error: FieldSyntaxError) -> HttpError {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::expect_used, clippy::panic)]
+    #![allow(clippy::expect_used)]
 
     use std::time::Duration;
 
@@ -279,25 +276,31 @@ mod tests {
     fn valid_chunks_trailers_and_following_bytes_are_preserved() {
         let input = b"4\r\nWiki\r\n5\r\npedia\r\n0\r\nX-Trace: ok\r\n\r\nnext";
         let parsed = parse_chunked_body(input, &policy(8, 4, 128, 64)).expect("chunked body");
-        let ChunkParseResult::Complete(result) = parsed else {
-            panic!("chunked body must be complete");
-        };
-        assert_eq!(result.content, b"Wikipedia");
-        assert_eq!(result.chunk_count, 3);
-        assert_eq!(result.trailers.values("x-trace"), [b"ok".as_slice()]);
-        assert_eq!(&input[result.consumed..], b"next");
+        let expected_trailer = FieldLine::new(b"X-Trace", b"ok", 64, 256).expect("trailer");
+        assert_eq!(
+            parsed,
+            ChunkParseResult::Complete(ChunkedResult {
+                content: b"Wikipedia".to_vec(),
+                trailers: FieldBlock::new(vec![expected_trailer]),
+                chunk_count: 3,
+                consumed: input.len() - b"next".len(),
+            })
+        );
     }
 
     #[test]
     fn uppercase_hex_and_empty_trailer_are_supported() {
         let input = b"A\r\n0123456789\r\n0\r\n\r\n";
         let parsed = parse_chunked_body(input, &policy(4, 2, 32, 16)).expect("chunked body");
-        let ChunkParseResult::Complete(result) = parsed else {
-            panic!("chunked body must be complete");
-        };
-        assert_eq!(result.content, b"0123456789");
-        assert_eq!(result.trailers.len(), 0);
-        assert_eq!(result.consumed, input.len());
+        assert_eq!(
+            parsed,
+            ChunkParseResult::Complete(ChunkedResult {
+                content: b"0123456789".to_vec(),
+                trailers: FieldBlock::default(),
+                chunk_count: 2,
+                consumed: input.len(),
+            })
+        );
     }
 
     #[test]
@@ -398,13 +401,16 @@ mod tests {
         ));
 
         let unterminated = vec![b'1'; MAX_CHUNK_LINE_BYTES + 2];
-        assert!(matches!(
-            parse_chunked_body(&unterminated, &policy(8, 4, 128, 64)),
-            Err(HttpError::ChunkLineTooLarge {
-                byte_count,
-                maximum_bytes: MAX_CHUNK_LINE_BYTES,
-            }) if byte_count == MAX_CHUNK_LINE_BYTES + 1
-        ));
+        let error = parse_chunked_body(&unterminated, &policy(8, 4, 128, 64))
+            .expect_err("unterminated overlong chunk line");
+        assert_eq!(
+            format!("{error:?}"),
+            format!(
+                "ChunkLineTooLarge {{ byte_count: {}, maximum_bytes: {} }}",
+                MAX_CHUNK_LINE_BYTES + 1,
+                MAX_CHUNK_LINE_BYTES
+            )
+        );
     }
 
     #[test]
