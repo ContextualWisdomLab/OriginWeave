@@ -48,9 +48,10 @@ fn certificate_authority() -> (Vec<u8>, Issuer<'static, KeyPair>) {
         KeyUsagePurpose::KeyCertSign,
         KeyUsagePurpose::CrlSign,
     ];
-    parameters
-        .distinguished_name
-        .push(DnType::CommonName, "OriginWeave HTTP transport-failure test root");
+    parameters.distinguished_name.push(
+        DnType::CommonName,
+        "OriginWeave HTTP transport-failure test root",
+    );
     let key_pair = KeyPair::generate().expect("test CA key generation");
     let certificate = parameters
         .self_signed(&key_pair)
