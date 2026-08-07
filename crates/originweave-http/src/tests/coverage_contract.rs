@@ -160,9 +160,12 @@ fn mime_parser_rejects_every_ambiguous_syntax_class_and_classifies_signatures() 
 #[test]
 fn response_head_rejects_status_line_line_ending_and_budget_edge_cases() {
     let policy = HttpClientPolicy::strict_defaults();
+    assert!(matches!(
+        parse_response_head(b"HTTP/1.1 200", &policy),
+        Ok(crate::response_head::HeadParseResult::Incomplete)
+    ));
     for response in [
-        b"HTTP/1.1 200".as_slice(),
-        b"HTTX/1.1 200 OK\r\n\r\n",
+        b"HTTX/1.1 200 OK\r\n\r\n".as_slice(),
         b"HTTP/1.0 200 OK\r\n\r\n",
         b"HTTP/1.1X200 OK\r\n\r\n",
         b"HTTP/1.1 2A0 OK\r\n\r\n",
