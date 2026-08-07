@@ -68,12 +68,12 @@ fn request_target_rejects_invalid_second_hex_digit_and_delete() {
 }
 
 #[test]
-fn disposition_rejects_quoted_and_extended_filename_edge_classes() {
+fn disposition_rejects_quoted_control_and_extended_filename_edge_classes() {
     let observed = observed_text();
     for value in [
         b"attachment; filename=\"a\"x".as_slice(),
-        b"attachment; filename=\"a\\\x7fb\"",
-        b"attachment; filename=\"a\x7fb\"",
+        b"attachment; filename=\"a\\\tb\"",
+        b"attachment; filename=\"a\tb\"",
         b"attachment; filename=\"safe.\"",
         b"attachment; filename=\"a:b\"",
         b"attachment; filename*=UTF-8''%0G",
@@ -103,8 +103,8 @@ fn disposition_rejects_quoted_and_extended_filename_edge_classes() {
 }
 
 #[test]
-fn redirect_metadata_rejects_delete_and_fragment_bytes() {
-    for value in [b"/next\x7f".as_slice(), b"/next#fragment"] {
+fn redirect_metadata_rejects_internal_whitespace_and_fragment_bytes() {
+    for value in [b"/ne\txt".as_slice(), b"/next#fragment"] {
         assert!(matches!(
             parse_redirect_metadata(302, &fields(&[("location", value)])),
             Err(HttpError::InvalidRedirectMetadata)
