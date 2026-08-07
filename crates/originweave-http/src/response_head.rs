@@ -25,28 +25,25 @@ pub(crate) enum FinalHeadParseResult {
     },
 }
 
+struct HeaderScan {
+    consumed: usize,
+    lines: Vec<(usize, usize)>,
+}
+
 pub(crate) fn parse_response_head(
     input: &[u8],
     policy: &HttpClientPolicy,
 ) -> Result<HeadParseResult, HttpError> {
-    let Some(header_end) = scan_header_end(input, policy)? else {
+    let Some(scan) = scan_header_lines(input, policy)? else {
         return Ok(HeadParseResult::Incomplete);
     };
-    let status_end = input[..header_end]
-        .windows(2)
-        .position(|window| window == b"\r\n")
-        .ok_or(HttpError::InvalidResponseStatusLine)?;
-    let status_code = parse_status_line(&input[..status_end])?;
+    let Some((&(status_start, status_end), field_ranges)) = scan.lines.split_first() else {
+        return Err(HttpError::InvalidResponseStatusLine);
+    };
+    let status_code = parse_status_line(&input[status_start..status_end])?;
     let mut fields = Vec::new();
-    let mut offset = status_end + 2;
-    let terminal_empty_line = header_end - 2;
-    while offset < terminal_empty_line {
-        let relative_end = input[offset..terminal_empty_line]
-            .windows(2)
-            .position(|window| window == b"\r\n")
-            .ok_or(HttpError::InvalidResponseLineEnding)?;
-        let line_end = offset + relative_end;
-        let line = &input[offset..line_end];
+    for &(line_start, line_end) in field_ranges {
+        let line = &input[line_start..line_end];
         if line
             .first()
             .is_some_and(|byte| matches!(byte, b' ' | b'\t'))
@@ -74,14 +71,13 @@ pub(crate) fn parse_response_head(
             });
         }
         fields.push(field);
-        offset = line_end + 2;
     }
     Ok(HeadParseResult::Complete {
         head: ResponseHead {
             status_code,
             fields: FieldBlock::new(fields),
         },
-        consumed: header_end,
+        consumed: scan.consumed,
     })
 }
 
@@ -95,12 +91,9 @@ pub(crate) fn parse_final_response_head(
         match parse_response_head(&input[offset..], policy)? {
             HeadParseResult::Incomplete => return Ok(FinalHeadParseResult::Incomplete),
             HeadParseResult::Complete { head, consumed } => {
-                offset = offset
-                    .checked_add(consumed)
-                    .ok_or(HttpError::HeaderSectionTooLarge {
-                        byte_count: usize::MAX,
-                        maximum_bytes: policy.max_header_section_bytes(),
-                    })?;
+                // `consumed` is an index inside `input[offset..]`, so a successful parse proves
+                // `offset + consumed <= input.len()` and makes arithmetic overflow impossible.
+                offset += consumed;
                 if head.status_code == 101 {
                     return Err(HttpError::SwitchingProtocolsUnsupported);
                 }
@@ -124,9 +117,13 @@ pub(crate) fn parse_final_response_head(
     }
 }
 
-fn scan_header_end(input: &[u8], policy: &HttpClientPolicy) -> Result<Option<usize>, HttpError> {
+fn scan_header_lines(
+    input: &[u8],
+    policy: &HttpClientPolicy,
+) -> Result<Option<HeaderScan>, HttpError> {
     let mut line_start = 0_usize;
     let mut index = 0_usize;
+    let mut lines = Vec::new();
     while index < input.len() {
         if index >= policy.max_header_section_bytes() {
             return Err(HttpError::HeaderSectionTooLarge {
@@ -157,8 +154,9 @@ fn scan_header_end(input: &[u8], policy: &HttpClientPolicy) -> Result<Option<usi
                     });
                 }
                 if line_length == 0 {
-                    return Ok(Some(consumed));
+                    return Ok(Some(HeaderScan { consumed, lines }));
                 }
+                lines.push((line_start, index));
                 line_start = consumed;
                 index = consumed;
             }
