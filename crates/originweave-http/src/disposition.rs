@@ -122,7 +122,8 @@ pub(crate) fn parse_content_disposition(
         if name.is_empty() || !name.iter().copied().all(is_token_byte) || value.is_empty() {
             return Err(HttpError::InvalidContentDisposition);
         }
-        let name = ascii_lowercase(name)?;
+        // `is_token_byte` above guarantees ASCII, so lowercase normalization is infallible.
+        let name = ascii_lowercase(name);
         if !matches!(name.as_str(), "filename" | "filename*")
             || parameters.insert(name, value.to_vec()).is_some()
         {
@@ -272,7 +273,8 @@ fn validate_safe_filename(filename: &str) -> Result<(), HttpError> {
     if filename.is_empty()
         || filename.len() > MAX_SAFE_FILENAME_BYTES
         || filename.trim() != filename
-        || (filename.ends_with('.') || filename.ends_with(' '))
+        // A trailing ASCII space is already rejected by the trim equality above.
+        || filename.ends_with('.')
         || matches!(filename, "." | "..")
         || filename.chars().any(is_forbidden_filename_character)
     {
@@ -323,9 +325,7 @@ fn extension_mime_relation(filename: Option<&str>, observed: &MimeType) -> Exten
     else {
         return ExtensionMimeRelation::Absent;
     };
-    if extension.is_empty() {
-        return ExtensionMimeRelation::Absent;
-    }
+    // Safe filenames cannot end in '.', so a present extension is necessarily non-empty.
     let expected = match extension.to_ascii_lowercase().as_str() {
         "html" | "htm" => Some("text/html"),
         "xml" => Some("application/xml"),
@@ -385,22 +385,20 @@ fn absolute_location_origin(location: &str) -> Result<&str, HttpError> {
     Ok(&location[..authority_end])
 }
 
-fn ascii_lowercase(value: &[u8]) -> Result<String, HttpError> {
-    if !value.is_ascii() {
-        return Err(HttpError::InvalidContentDisposition);
-    }
-    Ok(value
+fn ascii_lowercase(value: &[u8]) -> String {
+    value
         .iter()
         .map(|byte| char::from(byte.to_ascii_lowercase()))
-        .collect())
+        .collect()
 }
 
 fn hex_value(byte: u8) -> u8 {
-    match byte {
-        b'0'..=b'9' => byte - b'0',
-        b'a'..=b'f' => byte - b'a' + 10,
-        b'A'..=b'F' => byte - b'A' + 10,
-        _other => 0,
+    let lower = byte.to_ascii_lowercase();
+    if lower.is_ascii_digit() {
+        lower - b'0'
+    } else {
+        // `percent_decode` validates ASCII hex before calling this helper.
+        lower - b'a' + 10
     }
 }
 
@@ -499,6 +497,17 @@ mod tests {
             disposition.extension_mime_relation(),
             ExtensionMimeRelation::Match
         );
+
+        let lowercase_hex = parse_content_disposition(
+            &fields(&[(
+                "content-disposition",
+                b"attachment; filename*=UTF-8''report%2etxt",
+            )]),
+            &observed(b"plain text"),
+        )
+        .expect("lowercase percent hex")
+        .expect("present");
+        assert_eq!(lowercase_hex.filename(), Some("report.txt"));
     }
 
     #[test]
@@ -513,6 +522,14 @@ mod tests {
         .expect("quoted filename")
         .expect("present");
         assert_eq!(disposition.filename(), Some("quarter\"one.txt"));
+
+        assert!(matches!(
+            parse_content_disposition(
+                &fields(&[("content-disposition", b"attachment; filename=\"a\\\"")]),
+                &observed(b"plain"),
+            ),
+            Err(HttpError::InvalidContentDisposition)
+        ));
     }
 
     #[test]
