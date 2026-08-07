@@ -11,6 +11,7 @@
 mod chunked;
 mod content;
 #[cfg(test)]
+#[path = "tests/coverage_contract.rs"]
 mod coverage_contract;
 mod disposition;
 mod error;
