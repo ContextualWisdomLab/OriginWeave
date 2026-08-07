@@ -48,7 +48,8 @@ impl MimeType {
             if name.is_empty() || !name.iter().copied().all(is_token_byte) || value.is_empty() {
                 return Err(HttpError::InvalidMimeType);
             }
-            let name = ascii_lowercase(name)?;
+            // `is_token_byte` guarantees ASCII, so lowercase normalization cannot fail.
+            let name = ascii_lowercase(name);
             if !seen.insert(name.clone()) {
                 return Err(HttpError::InvalidMimeType);
             }
@@ -56,8 +57,8 @@ impl MimeType {
             parameters.push((name, value));
         }
         Ok(Self {
-            type_name: ascii_lowercase(type_name)?,
-            subtype_name: ascii_lowercase(subtype_name)?,
+            type_name: ascii_lowercase(type_name),
+            subtype_name: ascii_lowercase(subtype_name),
             parameters,
         })
     }
@@ -267,10 +268,9 @@ fn split_semicolon_segments(input: &[u8]) -> Result<Vec<&[u8]>, HttpError> {
     if in_quote || escaped {
         return Err(HttpError::InvalidMimeType);
     }
+    // This final segment exists even for empty input, so callers can reject an empty essence
+    // without maintaining an unreachable `segments.is_empty()` branch here.
     segments.push(&input[segment_start..]);
-    if segments.is_empty() {
-        return Err(HttpError::InvalidMimeType);
-    }
     Ok(segments)
 }
 
@@ -310,14 +310,11 @@ fn parse_parameter_value(value: &[u8]) -> Result<String, HttpError> {
     }
 }
 
-fn ascii_lowercase(value: &[u8]) -> Result<String, HttpError> {
-    if !value.is_ascii() {
-        return Err(HttpError::InvalidMimeType);
-    }
-    Ok(value
+fn ascii_lowercase(value: &[u8]) -> String {
+    value
         .iter()
         .map(|byte| char::from(byte.to_ascii_lowercase()))
-        .collect())
+        .collect()
 }
 
 fn mime(type_name: &str, subtype_name: &str) -> Result<MimeType, HttpError> {
@@ -468,6 +465,11 @@ mod tests {
         let parsed = MimeType::parse(b"application/example; note=\"a\\\"b\\\\c\"")
             .expect("quoted parameter");
         assert_eq!(parsed.parameters()[0].1, "a\"b\\c");
+
+        assert!(matches!(
+            MimeType::parse(b"application/example; note=\"a\\\""),
+            Err(HttpError::InvalidMimeType)
+        ));
     }
 
     #[test]
