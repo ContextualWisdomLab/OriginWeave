@@ -5,6 +5,7 @@ use crate::disposition::parse_content_disposition;
 use crate::field::{FieldBlock, FieldLine};
 use crate::integrity::validate_content_digest;
 use crate::mime::{MimeType, observe_mime_type};
+use crate::response_head::parse_response_head;
 use crate::{HttpClientPolicy, HttpError, IntegrityRequirement, IntegrityStatus};
 
 fn fields(entries: &[(&str, &[u8])]) -> FieldBlock {
@@ -116,6 +117,14 @@ fn malformed_digest_trailers_fail_through_the_public_validation_path() {
             IntegrityRequirement::Optional,
         ),
         Err(HttpError::InvalidDigestField)
+    ));
+}
+
+#[test]
+fn response_head_rejects_a_missing_status_line_before_fields() {
+    assert!(matches!(
+        parse_response_head(b"\r\n\r\n", &HttpClientPolicy::strict_defaults()),
+        Err(HttpError::InvalidResponseStatusLine)
     ));
 }
 
