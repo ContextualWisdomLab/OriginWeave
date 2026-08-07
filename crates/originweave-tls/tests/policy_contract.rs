@@ -116,12 +116,16 @@ fn tls_policy_bounds_timeouts_and_alpn() {
         ));
     }
 
+    let cumulative_overflow: Vec<Vec<u8>> = (0_u8..5)
+        .map(|index| vec![b'a' + index; MAX_ALPN_PROTOCOL_LENGTH])
+        .collect();
     let invalid_alpn_sets = [
         vec![Vec::new()],
         vec![b"h2".to_vec(), b"h2".to_vec()],
         std::iter::repeat_n(b"h2".to_vec(), MAX_ALPN_PROTOCOL_COUNT + 1).collect(),
         vec![vec![b'a'; MAX_ALPN_PROTOCOL_LENGTH + 1]],
         vec![vec![b'a'; MAX_ALPN_TOTAL_BYTES + 1]],
+        cumulative_overflow,
     ];
     for alpn in invalid_alpn_sets {
         assert!(
