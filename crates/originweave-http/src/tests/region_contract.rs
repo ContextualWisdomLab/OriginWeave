@@ -4,8 +4,8 @@ use crate::chunked::parse_chunked_body;
 use crate::disposition::parse_content_disposition;
 use crate::field::{FieldBlock, FieldLine};
 use crate::integrity::validate_content_digest;
-use crate::mime::observe_mime_type;
-use crate::{HttpClientPolicy, IntegrityRequirement, IntegrityStatus};
+use crate::mime::{MimeType, observe_mime_type};
+use crate::{HttpClientPolicy, HttpError, IntegrityRequirement, IntegrityStatus};
 
 fn fields(entries: &[(&str, &[u8])]) -> FieldBlock {
     FieldBlock::new(
@@ -75,6 +75,19 @@ fn mime_classifier_exercises_every_html_signature_and_plain_text_byte_class() {
     for text in ["\ttext", "\ntext", "\u{000c}text", "\rtext", " text", "é"] {
         let observed = observe_mime_type(text.as_bytes(), None).expect("plain text byte class");
         assert_eq!(observed.mime_type().essence(), "text/plain");
+    }
+}
+
+#[test]
+fn mime_quoted_values_reject_escaped_controls_and_invalid_utf8() {
+    for invalid in [
+        b"text/plain; note=\"a\\\nb\"".as_slice(),
+        b"text/plain; note=\"\xff\"".as_slice(),
+    ] {
+        assert!(matches!(
+            MimeType::parse(invalid),
+            Err(HttpError::InvalidMimeType)
+        ));
     }
 }
 
