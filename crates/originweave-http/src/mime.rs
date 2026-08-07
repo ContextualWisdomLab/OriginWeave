@@ -194,6 +194,13 @@ pub(crate) fn observe_mime_type(
     content: &[u8],
     supplied: Option<&MimeType>,
 ) -> Result<ObservedMimeClassification, HttpError> {
+    Ok(classify_observed_mime(content, supplied))
+}
+
+pub(crate) fn classify_observed_mime(
+    content: &[u8],
+    supplied: Option<&MimeType>,
+) -> ObservedMimeClassification {
     let prefix = &content[..content.len().min(MAX_MIME_SNIFF_BYTES)];
     let trimmed = trim_text_prefix(prefix);
     // Every classifier result below is an internal reviewed ASCII token pair. Constructing those
@@ -225,11 +232,11 @@ pub(crate) fn observe_mime_type(
         internal_mime("application", "octet-stream")
     };
     let risk_class = risk_class(&mime_type);
-    Ok(ObservedMimeClassification {
+    ObservedMimeClassification {
         mime_type,
         risk_class,
         classifier_version: MIME_CLASSIFIER_VERSION,
-    })
+    }
 }
 
 pub(crate) fn classify_mismatch(
