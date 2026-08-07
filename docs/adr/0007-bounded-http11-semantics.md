@@ -129,11 +129,11 @@ An unsigned digest is evidence against accidental corruption. It is not authenti
 
 The crate parses supplied `Content-Type` metadata and observes at most 1,445 decoded bytes through a versioned conservative signature table. It distinguishes supplied and observed types, `nosniff`, match/mismatch, active or scriptable classes, archives, and binary fallback. It does not execute or render content and does not claim to implement every branch of the WHATWG MIME algorithm.
 
-`Content-Disposition` can produce safe `inline` or `attachment` metadata with a bounded filename. Controls, path separators, absolute paths, drive and UNC paths, dot segments, bidi controls, trailing dot/space, Windows device basenames, excessive bytes, and ambiguous percent decoding are rejected. No file is created.
+`Content-Disposition` can produce safe `inline` or `attachment` metadata with a bounded filename. Validation happens after quoted-string or extended-value decoding and rejects controls, path separators, absolute paths, drive and UNC paths, dot segments, bidi controls, trailing dot/space, Windows device basenames, excessive bytes, ambiguous percent decoding, and the Win32 reserved filename characters `<`, `>`, `:`, `"`, `/`, `\`, `|`, `?`, and `*`. No file is created. The policy is intentionally portable and fail-closed before a future download adapter chooses a filesystem-specific persistence rule.
 
 ## Redirects
 
-Redirect status and `Location` are returned as hashed, bounded metadata. The raw location and query values are not copied into evidence. The HTTP crate never follows a redirect. A caller must send the target through canonical origin parsing, destination approval, exact TCP peer proof, TLS authentication, capability and risk policy, and a new HTTP exchange.
+Redirect status and `Location` are returned as hashed, bounded metadata. The raw location and query values are not copied into evidence. A single-leading-slash absolute-path reference can remain same-origin metadata. A `//authority/path` value is an RFC 3986 network-path reference, not a same-origin path; because this crate deliberately does not own base-URI resolution, it rejects network-path references instead of erasing their authority. The HTTP crate never follows a redirect. A caller must send an admitted target through canonical origin parsing, destination approval, exact TCP peer proof, TLS authentication, capability and risk policy, and a new HTTP exchange.
 
 ## Evidence
 
@@ -190,6 +190,10 @@ Rejected because declared lengths and compressed data are attacker controlled. E
 
 Rejected because each target is a new origin, destination, peer, TLS, capability, and policy decision.
 
+### Treat every slash-prefixed Location as same-origin
+
+Rejected because RFC 3986 distinguishes `//authority/path` network-path references from `/path` absolute-path references. Erasing the authority would undermine redirect reauthorization evidence.
+
 ### Infer file type from URL extension
 
 Rejected because extensions are attacker-controlled metadata and do not establish content type.
@@ -214,8 +218,8 @@ Rejected because extensions are attacker-controlled metadata and do not establis
 
 ## Verification
 
-The merge gate requires pure parser and property-style boundary tests, byte-truncation tests, deterministic error tests, real loopback HTTPS success and adversary scenarios, proof of exactly one connection, hard deadline tests, digest known-answer vectors, MIME/disposition cases, static forbidden-source scans, complete public rustdoc, and exact 100% production function, line, region, and branch coverage on the pull-request head.
+The merge gate requires pure parser and property-style boundary tests, byte-truncation tests, deterministic error tests, real loopback HTTPS success and adversary scenarios, proof of exactly one connection, hard deadline tests, digest known-answer vectors, MIME/disposition cases, network-path redirect rejection, Win32-reserved filename rejection after decoding, static forbidden-source scans, complete public rustdoc, and exact 100% production function, line, region, and branch coverage on the pull-request head.
 
 ## Standards
 
-RFC 9110 defines current HTTP semantics. RFC 9112 defines HTTP/1.1 syntax and framing. RFC 8941 defines Structured Fields used by RFC 9530 digest dictionaries. RFC 9530 defines `Content-Digest` and `Repr-Digest` and obsoletes RFC 3230. RFC 6266 defines HTTP `Content-Disposition`. The WHATWG MIME Sniffing Living Standard informs the versioned conservative observation table. Full APA 7th references and the evidence-to-decision trace are recorded in `docs/doctoring.md`.
+RFC 9110 defines current HTTP semantics. RFC 9112 defines HTTP/1.1 syntax and framing. RFC 3986 defines URI-reference forms and distinguishes network-path references from absolute-path references. RFC 8941 defines Structured Fields used by RFC 9530 digest dictionaries. RFC 9530 defines `Content-Digest` and `Repr-Digest` and obsoletes RFC 3230. RFC 6266 defines HTTP `Content-Disposition`. Microsoft documents the Win32 reserved filename characters and device names enforced by the portable handoff policy. The WHATWG MIME Sniffing Living Standard informs the versioned conservative observation table. Full APA 7th references and the evidence-to-decision trace are recorded in `docs/doctoring.md`.
