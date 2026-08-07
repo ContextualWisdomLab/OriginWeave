@@ -95,12 +95,10 @@ fn redirect_metadata_rejects_oversized_non_utf8_and_invalid_authorities() {
         Err(HttpError::InvalidRedirectMetadata)
     ));
 
-    let query_only = parse_redirect_metadata(
-        305,
-        &fields(&[("location", b"https://example.com?next=1")]),
-    )
-    .expect("valid absolute redirect")
-    .expect("metadata");
+    let query_only =
+        parse_redirect_metadata(305, &fields(&[("location", b"https://example.com?next=1")]))
+            .expect("valid absolute redirect")
+            .expect("metadata");
     assert!(!query_only.is_relative());
 }
 
@@ -120,7 +118,10 @@ fn mime_parser_rejects_every_ambiguous_syntax_class_and_classifies_signatures() 
         b"text/plain; charset=\"a\\\x01b\"",
         b"text/plain; charset=\xff",
     ] {
-        assert!(matches!(MimeType::parse(value), Err(HttpError::InvalidMimeType)));
+        assert!(matches!(
+            MimeType::parse(value),
+            Err(HttpError::InvalidMimeType)
+        ));
     }
 
     assert!(matches!(
@@ -178,7 +179,10 @@ fn response_head_rejects_status_line_line_ending_and_budget_edge_cases() {
     }
 
     let mut oversized_status = b"HTTP/1.1 200 ".to_vec();
-    oversized_status.extend(std::iter::repeat_n(b'a', policy.max_status_line_bytes() + 1));
+    oversized_status.extend(std::iter::repeat_n(
+        b'a',
+        policy.max_status_line_bytes() + 1,
+    ));
     assert!(matches!(
         parse_response_head(&oversized_status, &policy),
         Err(HttpError::StatusLineTooLarge { .. })
@@ -283,7 +287,10 @@ fn digest_parser_rejects_invalid_structured_fields_and_context_conflicts() {
         IntegrityRequirement::Optional,
     )
     .expect("syntactically valid unsupported digest");
-    assert!(matches!(unsupported, crate::IntegrityStatus::UnsupportedAlgorithm));
+    assert!(matches!(
+        unsupported,
+        crate::IntegrityStatus::UnsupportedAlgorithm
+    ));
 
     assert!(matches!(
         validate_content_digest(
@@ -304,7 +311,10 @@ fn digest_parser_rejects_invalid_structured_fields_and_context_conflicts() {
         IntegrityRequirement::Optional,
     )
     .expect("unsupported representation context");
-    assert!(matches!(representation, crate::IntegrityStatus::UnsupportedContext));
+    assert!(matches!(
+        representation,
+        crate::IntegrityStatus::UnsupportedContext
+    ));
 
     assert!(matches!(
         validate_content_digest(
