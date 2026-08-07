@@ -45,7 +45,6 @@ impl HttpRequestTarget {
                 || byte == b'\\'
                 || byte.is_ascii_control()
                 || byte.is_ascii_whitespace()
-                || byte == 0x7f
             {
                 return Err(HttpError::InvalidRequestTarget);
             }
