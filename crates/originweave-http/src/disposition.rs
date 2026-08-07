@@ -376,7 +376,7 @@ fn absolute_location_origin(location: &str) -> Result<&str, HttpError> {
         .ok_or(HttpError::InvalidRedirectMetadata)?;
     let authority_start = scheme_end + 3;
     let authority_end = location[authority_start..]
-        .find(|character| matches!(character, '/' | '?'))
+        .find(['/', '?'])
         .map_or(location.len(), |offset| authority_start + offset);
     if authority_end == authority_start {
         return Err(HttpError::InvalidRedirectMetadata);
