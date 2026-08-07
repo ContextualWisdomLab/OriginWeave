@@ -301,7 +301,10 @@ fn segmented_content_length_body_is_read_after_the_response_head() {
     );
     let response = result.expect("segmented content-length response");
     assert_eq!(response.content(), b"hello");
-    assert_eq!(response.evidence().body_framing(), BodyFraming::ContentLength(5));
+    assert_eq!(
+        response.evidence().body_framing(),
+        BodyFraming::ContentLength(5)
+    );
     server
         .join()
         .expect("server thread")
