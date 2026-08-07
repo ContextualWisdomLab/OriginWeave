@@ -35,10 +35,7 @@ fn content_disposition_absence_duplicates_and_dot_names_are_explicit() {
         Err(HttpError::InvalidContentDisposition)
     ));
     assert!(matches!(
-        parse_content_disposition(
-            &fields(&[("content-disposition", b"form-data")]),
-            &observed,
-        ),
+        parse_content_disposition(&fields(&[("content-disposition", b"form-data")]), &observed,),
         Err(HttpError::InvalidContentDisposition)
     ));
     for filename in [".", ".."] {
