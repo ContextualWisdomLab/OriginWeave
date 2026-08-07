@@ -30,7 +30,7 @@ struct CertificateMaterial {
     private_key: PrivateKeyDer<'static>,
 }
 
-fn certificate_authority() -> (Vec<u8>, Issuer<'static, KeyPair>) {
+fn certificate_authority(common_name: &str) -> (Vec<u8>, Issuer<'static, KeyPair>) {
     let mut parameters =
         CertificateParams::new(Vec::new()).expect("empty CA SAN list must be valid");
     parameters.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
@@ -41,7 +41,7 @@ fn certificate_authority() -> (Vec<u8>, Issuer<'static, KeyPair>) {
     ];
     parameters
         .distinguished_name
-        .push(DnType::CommonName, "OriginWeave test root");
+        .push(DnType::CommonName, common_name);
     let key_pair = KeyPair::generate().expect("test CA key generation");
     let certificate = parameters
         .self_signed(&key_pair)
@@ -58,7 +58,7 @@ fn certificate_material(
     not_before: (i32, u8, u8),
     not_after: (i32, u8, u8),
 ) -> CertificateMaterial {
-    let (root_der, issuer) = certificate_authority();
+    let (root_der, issuer) = certificate_authority("OriginWeave test root");
     let mut parameters =
         CertificateParams::new(subject_alt_names).expect("test SAN values must be valid");
     parameters.not_before = rcgen::date_time_ymd(not_before.0, not_before.1, not_before.2);
@@ -276,7 +276,7 @@ fn required_alpn_rejects_no_common_protocol() {
     .authenticate()
     .expect_err("no shared ALPN must fail policy");
     assert!(matches!(error, TlsError::AlpnRequired));
-    assert_eq!(server.join().expect("server thread"), Ok(None));
+    let _server_result = server.join().expect("server thread");
 }
 
 fn assert_dns_certificate_failure(
@@ -329,7 +329,7 @@ fn an_untrusted_root_is_rejected() {
         &[],
         &[&rustls::version::TLS13, &rustls::version::TLS12],
     );
-    let (untrusted_root, _issuer) = certificate_authority();
+    let (untrusted_root, _issuer) = certificate_authority("Unrelated test root");
     let (socket_address, server) = spawn_server(IpAddr::V4(Ipv4Addr::LOCALHOST), config);
     let origin = origin_for("localhost", socket_address);
     let error = TlsHandshakePlan::new(

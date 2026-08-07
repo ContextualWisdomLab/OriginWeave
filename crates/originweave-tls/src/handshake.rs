@@ -1,14 +1,17 @@
 use std::io;
-use std::net::{SocketAddr, TcpStream};
+use std::net::TcpStream;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use originweave_core::Origin;
 use originweave_network::{DirectTcpConnection, SocketConnectionEvidence};
 use rustls::client::Resumption;
-use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
+use rustls::pki_types::{CertificateDer, UnixTime};
 use rustls::time_provider::TimeProvider;
-use rustls::{CertificateError, ClientConfig, ClientConnection, ProtocolVersion, StreamOwned};
+use rustls::{
+    AlertDescription, CertificateError, ClientConfig, ClientConnection, ProtocolVersion,
+    StreamOwned,
+};
 use sha2::{Digest, Sha256};
 use x509_parser::parse_x509_certificate;
 
@@ -96,8 +99,8 @@ impl TlsHandshakePlan {
         config.cert_compressors.clear();
         config.cert_decompressors.clear();
 
-        let mut client =
-            ClientConnection::new(Arc::new(config), server_name).map_err(classify_rustls_error)?;
+        let mut client = ClientConnection::new(Arc::new(config), server_name)
+            .map_err(|source| classify_rustls_error(source, alpn_requirement))?;
         let original_read_timeout = stream
             .read_timeout()
             .map_err(|source| TlsError::HandshakeIoFailed { source })?;
@@ -119,6 +122,7 @@ impl TlsHandshakePlan {
             &network_evidence,
             deadline,
             handshake_timeout,
+            alpn_requirement,
         );
         if let Err(error) = handshake_result {
             let _read_restore = stream.set_read_timeout(original_read_timeout);
@@ -169,6 +173,7 @@ fn drive_handshake(
     network_evidence: &SocketConnectionEvidence,
     deadline: Instant,
     handshake_timeout: Duration,
+    alpn_requirement: AlpnRequirement,
 ) -> Result<(), TlsError> {
     while client.is_handshaking() {
         verify_peer_evidence(stream, network_evidence)?;
@@ -209,7 +214,7 @@ fn drive_handshake(
             }
             client
                 .process_new_packets()
-                .map_err(classify_rustls_error)?;
+                .map_err(|source| classify_rustls_error(source, alpn_requirement))?;
             progressed = true;
         }
         if !progressed {
@@ -411,17 +416,27 @@ fn hash_bytes(bytes: &[u8]) -> String {
     sha256_identifier(digest.as_ref())
 }
 
-fn classify_rustls_error(source: rustls::Error) -> TlsError {
+fn classify_rustls_error(source: rustls::Error, alpn_requirement: AlpnRequirement) -> TlsError {
     enum Classification {
         UnknownIssuer,
         Expired,
         NotYetValid,
         NameMismatch,
         InvalidCertificate,
+        AlpnRequired,
+        UnexpectedAlpn,
         Protocol,
     }
 
     let classification = match &source {
+        rustls::Error::NoApplicationProtocol
+        | rustls::Error::AlertReceived(AlertDescription::NoApplicationProtocol) => {
+            if alpn_requirement == AlpnRequirement::Required {
+                Classification::AlpnRequired
+            } else {
+                Classification::UnexpectedAlpn
+            }
+        }
         rustls::Error::InvalidCertificate(certificate_error) => match certificate_error {
             CertificateError::UnknownIssuer => Classification::UnknownIssuer,
             CertificateError::Expired | CertificateError::ExpiredContext { .. } => {
@@ -444,6 +459,8 @@ fn classify_rustls_error(source: rustls::Error) -> TlsError {
         Classification::NotYetValid => TlsError::CertificateNotYetValid { source },
         Classification::NameMismatch => TlsError::ServiceIdentityMismatch { source },
         Classification::InvalidCertificate => TlsError::InvalidCertificate { source },
+        Classification::AlpnRequired => TlsError::AlpnRequired,
+        Classification::UnexpectedAlpn => TlsError::UnexpectedAlpn,
         Classification::Protocol => TlsError::TlsProtocolFailed { source },
     }
 }
@@ -475,13 +492,36 @@ mod tests {
             (CertificateError::BadEncoding, "invalid"),
         ];
         for (certificate_error, expected) in cases {
-            let error = classify_rustls_error(rustls::Error::InvalidCertificate(certificate_error));
+            let error = classify_rustls_error(
+                rustls::Error::InvalidCertificate(certificate_error),
+                AlpnRequirement::Optional,
+            );
             assert!(error.to_string().contains(expected));
         }
-        let protocol = classify_rustls_error(rustls::Error::General("test".to_owned()));
+        let protocol = classify_rustls_error(
+            rustls::Error::General("test".to_owned()),
+            AlpnRequirement::Optional,
+        );
         assert!(matches!(protocol, TlsError::TlsProtocolFailed { .. }));
     }
 
+    #[test]
+    fn no_application_protocol_is_typed_by_policy() {
+        for source in [
+            rustls::Error::NoApplicationProtocol,
+            rustls::Error::AlertReceived(AlertDescription::NoApplicationProtocol),
+        ] {
+            let required = classify_rustls_error(source, AlpnRequirement::Required);
+            assert!(matches!(required, TlsError::AlpnRequired));
+        }
+        for source in [
+            rustls::Error::NoApplicationProtocol,
+            rustls::Error::AlertReceived(AlertDescription::NoApplicationProtocol),
+        ] {
+            let optional = classify_rustls_error(source, AlpnRequirement::Optional);
+            assert!(matches!(optional, TlsError::UnexpectedAlpn));
+        }
+    }
     #[test]
     fn certificate_bounds_are_fail_closed() {
         assert!(matches!(

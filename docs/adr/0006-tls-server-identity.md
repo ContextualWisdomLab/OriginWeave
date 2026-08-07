@@ -231,4 +231,4 @@ The merge gate requires:
 
 ## Standards
 
-RFC 5280 defines the Internet PKIX certificate and CRL profile. RFC 8446 defines TLS 1.3. RFC 9525 defines service identity for TLS, requires applicable subjectAltName identifiers, and supersedes the older RFC 6125 guidance. The implementation uses the pinned rustls 0.23.42 API and rcgen 0.14.8 only for deterministic test certificates. Full APA 7th references and the evidence-to-decision trace are recorded in `docs/doctoring.md`.
+RFC 5280 defines the Internet PKIX certificate and CRL profile. RFC 9846 defines TLS 1.3 and obsoletes RFC 8446. RFC 9525 defines service identity for TLS, requires applicable subjectAltName identifiers, and supersedes the older RFC 6125 guidance. The implementation uses the pinned rustls 0.23.42 API and rcgen 0.14.8 only for deterministic test certificates. Full APA 7th references and the evidence-to-decision trace are recorded in `docs/doctoring.md`.
