@@ -96,6 +96,39 @@ class CoverageVerifierTests(unittest.TestCase):
             ["src/example.rs:42:9"],
         )
 
+    def test_function_region_fallback_is_scoped_to_deficient_files(self) -> None:
+        """Noisy zero-count instantiations from fully covered files are excluded."""
+
+        candidate = payload(3, 2)
+        candidate["data"][0]["files"] = [  # type: ignore[index]
+            {
+                "filename": "src/complete.rs",
+                "segments": [],
+                "summary": {"regions": {"count": 4, "covered": 4}},
+            },
+            {
+                "filename": "src/partial.rs",
+                "segments": [],
+                "summary": {"regions": {"count": 7, "covered": 6}},
+            },
+        ]
+        candidate["data"][0]["functions"] = [  # type: ignore[index]
+            {
+                "name": "complete_instantiation",
+                "filenames": ["src/complete.rs"],
+                "regions": [[10, 2, 10, 8, 0, 0, 0, 0]],
+            },
+            {
+                "name": "partial_instantiation",
+                "filenames": ["src/partial.rs"],
+                "regions": [[42, 9, 42, 15, 0, 0, 0, 0]],
+            },
+        ]
+        self.assertEqual(
+            verify_coverage.uncovered_region_locations(candidate),
+            ["src/partial.rs:42:9"],
+        )
+
     def test_uncovered_file_region_summaries_report_only_deficient_files(self) -> None:
         """File summaries identify which source contributes aggregate region debt."""
 
