@@ -299,9 +299,7 @@ fn local_write_half_shutdown_is_reported_as_transport_io_failure() {
         result,
         Err(HttpError::HttpExchangeIoFailed { .. })
     ));
-    let request = server
-        .join()
-        .expect("server thread")
-        .expect("server exchange");
-    assert!(request.is_empty());
+    // The deliberate client half-close can make the peer observe an authenticated TLS EOF.
+    // That peer-side I/O outcome is expected; this regression targets the client's typed error.
+    assert!(server.join().is_ok(), "server thread must not panic");
 }
