@@ -178,6 +178,68 @@ def _function_region_locations(
     }
 
 
+def uncovered_raw_region_diagnostics(payload: Mapping[str, Any]) -> list[str]:
+    """Return raw zero-count LLVM function regions for deficient source files.
+
+    Aggregate LLVM region debt can occasionally be carried by a special region
+    kind that is intentionally excluded from the normal code-region locator.
+    Keeping the raw kind and expansion identifiers visible makes the exact gate
+    debuggable without changing what counts as covered or excluding production
+    behavior from measurement.
+    """
+
+    try:
+        summary = _single_data_summary(payload)
+    except ValueError:
+        return []
+    deficient = _deficient_region_filenames(summary)
+    if not deficient:
+        return []
+    functions = summary.get("functions")
+    if not isinstance(functions, list):
+        return []
+
+    diagnostics: set[str] = set()
+    for function in functions:
+        if not isinstance(function, Mapping):
+            continue
+        function_name = function.get("name")
+        filenames = function.get("filenames")
+        regions = function.get("regions")
+        if (
+            not isinstance(function_name, str)
+            or not isinstance(filenames, list)
+            or not isinstance(regions, list)
+        ):
+            continue
+        for region in regions:
+            if not isinstance(region, list) or len(region) < 8:
+                continue
+            line, column, end_line, end_column, count, file_id, expanded_file_id, kind = region[:8]
+            integer_fields = (
+                line,
+                column,
+                end_line,
+                end_column,
+                count,
+                file_id,
+                expanded_file_id,
+                kind,
+            )
+            if any(not isinstance(value, int) or isinstance(value, bool) for value in integer_fields):
+                continue
+            if count != 0 or not 0 <= file_id < len(filenames):
+                continue
+            filename = filenames[file_id]
+            if not isinstance(filename, str) or filename not in deficient:
+                continue
+            diagnostics.add(
+                f"{filename}:{line}:{column}-{end_line}:{end_column} count={count} "
+                f"kind={kind} expanded_file_id={expanded_file_id} function={function_name}"
+            )
+    return sorted(diagnostics)[:MAX_REGION_DIAGNOSTICS]
+
+
 def uncovered_expansion_locations(payload: Mapping[str, Any]) -> list[str]:
     """Return zero-count LLVM macro-expansion source coordinates.
 
@@ -303,6 +365,10 @@ def verify_file(path: pathlib.Path) -> None:
         expansion_locations = uncovered_expansion_locations(payload)
         if expansion_locations:
             details = f"{details}; uncovered expansions: {', '.join(expansion_locations)}"
+        if file_summaries and not region_locations and not expansion_locations:
+            raw_regions = uncovered_raw_region_diagnostics(payload)
+            if raw_regions:
+                details = f"{details}; raw zero-count regions: {', '.join(raw_regions)}"
         raise RuntimeError(f"production coverage is below 100%: {details}")
 
 
