@@ -1,1 +1,564 @@
 //! Single-use deadline-bound HTTP exchange orchestration over authenticated TLS.
+
+use std::io::{self, Read, Write};
+use std::time::{Duration, Instant};
+
+use originweave_tls::{AuthenticatedTlsConnection, NegotiatedAlpn};
+
+use crate::chunked::{ChunkParseResult, MAX_CHUNK_LINE_BYTES, parse_chunked_body};
+use crate::content::{ContentCoding, decode_content};
+use crate::disposition::{parse_content_disposition, parse_redirect_metadata};
+use crate::evidence::{
+    AuthenticatedHttpResponse, EvidenceInput, HttpExchangeEvidence, HttpResourceBudgets,
+    ResponseFieldEvidence,
+};
+use crate::field::FieldBlock;
+use crate::framing::{BodyFraming, determine_body_framing};
+use crate::integrity::{validate_content_digest, validate_representation_digest};
+use crate::mime::{classify_mismatch, no_sniff_status, observe_mime_type, supplied_mime_type};
+use crate::request::serialize_request;
+use crate::response_head::{FinalHeadParseResult, ResponseHead, parse_final_response_head};
+use crate::{
+    AlpnHttp11Policy, HttpClientPolicy, HttpError, HttpMethod, HttpRequestTarget, RequestField,
+};
+
+const IO_BUFFER_BYTES: usize = 8 * 1_024;
+
+/// A single-use HTTP/1.1 exchange bound to one already-authenticated TLS connection.
+///
+/// Construction validates the exact authority chain and serializes the complete request before
+/// any HTTP bytes are emitted. Executing the plan consumes the authenticated stream, applies the
+/// configured monotonic deadline and byte/count budgets, and returns only a complete validated
+/// response. The plan never resolves DNS, opens or reconnects a socket, follows redirects, or
+/// persists response content.
+#[derive(Debug)]
+pub struct HttpExchangePlan {
+    connection: AuthenticatedTlsConnection,
+    method: HttpMethod,
+    target: HttpRequestTarget,
+    request_bytes: Vec<u8>,
+    policy: HttpClientPolicy,
+}
+
+impl HttpExchangePlan {
+    /// Bind one read-only HTTP request to an authenticated TLS stream.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`HttpError`] when the target origin, current socket peer, inherited TLS evidence,
+    /// ALPN evidence, caller fields, or serialized request violates the reviewed HTTP authority.
+    pub fn new(
+        connection: AuthenticatedTlsConnection,
+        method: HttpMethod,
+        target: HttpRequestTarget,
+        fields: &[RequestField],
+        policy: HttpClientPolicy,
+    ) -> Result<Self, HttpError> {
+        validate_transport_authority(&connection, &target, &policy)?;
+        let request_bytes = serialize_request(method, &target, fields, &policy)?;
+        Ok(Self {
+            connection,
+            method,
+            target,
+            request_bytes,
+            policy,
+        })
+    }
+
+    /// Execute the bounded exchange on the exact authenticated stream.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`HttpError`] for deadline expiry, I/O failure, incomplete or ambiguous framing,
+    /// budget exhaustion, integrity failure, unsafe metadata, or failure to restore the socket's
+    /// original timeout configuration. No partial response is returned on failure.
+    pub fn execute(mut self) -> Result<AuthenticatedHttpResponse, HttpError> {
+        let original_read_timeout = self
+            .connection
+            .stream()
+            .sock
+            .read_timeout()
+            .map_err(http_io_error)?;
+        let original_write_timeout = self
+            .connection
+            .stream()
+            .sock
+            .write_timeout()
+            .map_err(http_io_error)?;
+        let started = Instant::now();
+        let deadline = started
+            .checked_add(self.policy.exchange_timeout())
+            .ok_or(HttpError::HttpExchangeTimedOut {
+                timeout: self.policy.exchange_timeout(),
+            })?;
+
+        let result = self.execute_inner(started, deadline);
+        let restored = restore_timeouts(
+            &mut self.connection,
+            original_read_timeout,
+            original_write_timeout,
+        );
+        match restored {
+            Ok(()) => result,
+            Err(error) => Err(HttpError::TimeoutRestorationFailed { source: error }),
+        }
+    }
+
+    fn execute_inner(
+        &mut self,
+        started: Instant,
+        deadline: Instant,
+    ) -> Result<AuthenticatedHttpResponse, HttpError> {
+        write_request(
+            &mut self.connection,
+            &self.request_bytes,
+            deadline,
+            self.policy.exchange_timeout(),
+        )?;
+        let network = read_network_response(
+            &mut self.connection,
+            self.method,
+            &self.policy,
+            deadline,
+            self.policy.exchange_timeout(),
+        )?;
+        ensure_before_deadline(deadline, self.policy.exchange_timeout())?;
+
+        let content_digest_status = validate_content_digest(
+            &network.head.fields,
+            &network.trailers,
+            &network.encoded_content,
+            self.policy.integrity_requirement(),
+        )?;
+        let has_content_range = !network.head.fields.values("content-range").is_empty();
+        let representation_digest_status = validate_representation_digest(
+            &network.head.fields,
+            &network.trailers,
+            &network.encoded_content,
+            network.head.status_code,
+            has_content_range,
+            self.policy.integrity_requirement(),
+        )?;
+        let decoded = if matches!(network.framing, BodyFraming::NoContent) {
+            crate::content::DecodedContent {
+                bytes: Vec::new(),
+                coding: ContentCoding::Identity,
+            }
+        } else {
+            decode_content(&network.encoded_content, &network.head.fields, &self.policy)?
+        };
+        let supplied_mime = supplied_mime_type(&network.head.fields)?;
+        let no_sniff_status = no_sniff_status(&network.head.fields)?;
+        let observed_mime = observe_mime_type(&decoded.bytes, supplied_mime.as_ref())?;
+        let mime_mismatch = classify_mismatch(supplied_mime.as_ref(), &observed_mime);
+        let content_disposition =
+            parse_content_disposition(&network.head.fields, &observed_mime)?;
+        let redirect = parse_redirect_metadata(network.head.status_code, &network.head.fields)?;
+        ensure_before_deadline(deadline, self.policy.exchange_timeout())?;
+
+        let tls_evidence = self.connection.evidence();
+        let evidence: HttpExchangeEvidence = EvidenceInput {
+            origin: tls_evidence.origin().clone(),
+            requested_peer: tls_evidence.requested_peer(),
+            observed_peer: tls_evidence.observed_peer(),
+            tls_protocol_version: tls_evidence.protocol_version(),
+            negotiated_alpn: tls_evidence.negotiated_alpn().clone(),
+            method: self.method,
+            target_hash: self.target.target_hash().to_owned(),
+            query_present: self.target.query_present(),
+            path_prefix: self.target.path_prefix().to_owned(),
+            status_code: network.head.status_code,
+            interim_response_count: network.interim_response_count,
+            response_fields: field_evidence(&network.head.fields),
+            body_framing: network.framing,
+            encoded_content_bytes: network.encoded_content.len(),
+            decoded_content_bytes: decoded.bytes.len(),
+            content_coding: decoded.coding,
+            chunk_count: network.chunk_count,
+            trailer_fields: field_evidence(&network.trailers),
+            content_digest_status,
+            representation_digest_status,
+            supplied_mime,
+            observed_mime,
+            no_sniff_status,
+            mime_mismatch,
+            content_disposition,
+            redirect,
+            exchange_duration: started.elapsed(),
+            resource_budgets: HttpResourceBudgets::from_policy(&self.policy),
+        }
+        .into();
+        Ok(AuthenticatedHttpResponse {
+            content: decoded.bytes,
+            evidence,
+        })
+    }
+}
+
+#[derive(Debug)]
+struct NetworkResult {
+    head: ResponseHead,
+    encoded_content: Vec<u8>,
+    trailers: FieldBlock,
+    framing: BodyFraming,
+    chunk_count: usize,
+    interim_response_count: usize,
+}
+
+fn validate_transport_authority(
+    connection: &AuthenticatedTlsConnection,
+    target: &HttpRequestTarget,
+    policy: &HttpClientPolicy,
+) -> Result<(), HttpError> {
+    let evidence = connection.evidence();
+    if target.origin() != evidence.origin() {
+        return Err(HttpError::OriginAuthorityMismatch {
+            http_origin: target.origin().clone(),
+            tls_origin: evidence.origin().clone(),
+        });
+    }
+    let current_peer = connection
+        .stream()
+        .sock
+        .peer_addr()
+        .map_err(|_error| HttpError::InvalidTransportEvidence)?;
+    if current_peer != evidence.observed_peer() || evidence.requested_peer() != evidence.observed_peer()
+    {
+        return Err(HttpError::InvalidTransportEvidence);
+    }
+    match (policy.alpn_policy(), evidence.negotiated_alpn()) {
+        (_, NegotiatedAlpn::Protocol(protocol)) if protocol.as_slice() == b"http/1.1" => Ok(()),
+        (AlpnHttp11Policy::PermitAbsentForManagedLoopback, NegotiatedAlpn::Absent)
+            if evidence.requested_peer().ip().is_loopback()
+                && evidence.observed_peer().ip().is_loopback() =>
+        {
+            Ok(())
+        }
+        _other => Err(HttpError::UnexpectedAlpn),
+    }
+}
+
+fn write_request(
+    connection: &mut AuthenticatedTlsConnection,
+    request: &[u8],
+    deadline: Instant,
+    timeout: Duration,
+) -> Result<(), HttpError> {
+    let mut written = 0_usize;
+    while written < request.len() {
+        set_write_deadline(connection, deadline, timeout)?;
+        let byte_count = match connection.stream_mut().write(&request[written..]) {
+            Ok(0) => {
+                return Err(http_io_error(io::Error::new(
+                    io::ErrorKind::WriteZero,
+                    "TLS stream wrote zero request bytes",
+                )));
+            }
+            Ok(byte_count) => byte_count,
+            Err(error) => return Err(classify_io_error(error, timeout)),
+        };
+        written = written.saturating_add(byte_count);
+        ensure_before_deadline(deadline, timeout)?;
+    }
+    set_write_deadline(connection, deadline, timeout)?;
+    connection
+        .stream_mut()
+        .flush()
+        .map_err(|error| classify_io_error(error, timeout))?;
+    ensure_before_deadline(deadline, timeout)
+}
+
+fn read_network_response(
+    connection: &mut AuthenticatedTlsConnection,
+    method: HttpMethod,
+    policy: &HttpClientPolicy,
+    deadline: Instant,
+    timeout: Duration,
+) -> Result<NetworkResult, HttpError> {
+    let (head, interim_response_count, body_prefix) =
+        read_final_head(connection, policy, deadline, timeout)?;
+    let framing = determine_body_framing(method, head.status_code, &head.fields, policy.max_encoded_content_bytes())?;
+    match framing {
+        BodyFraming::NoContent => {
+            if !body_prefix.is_empty() {
+                return Err(HttpError::UnexpectedResponseBytes {
+                    byte_count: body_prefix.len(),
+                });
+            }
+            Ok(NetworkResult {
+                head,
+                encoded_content: Vec::new(),
+                trailers: FieldBlock::default(),
+                framing,
+                chunk_count: 0,
+                interim_response_count,
+            })
+        }
+        BodyFraming::ContentLength(length) => {
+            let expected = usize::try_from(length).map_err(|_error| HttpError::EncodedContentTooLarge {
+                byte_count: length,
+                maximum_bytes: policy.max_encoded_content_bytes(),
+            })?;
+            let encoded_content = read_exact_content(
+                connection,
+                body_prefix,
+                expected,
+                deadline,
+                timeout,
+            )?;
+            Ok(NetworkResult {
+                head,
+                encoded_content,
+                trailers: FieldBlock::default(),
+                framing,
+                chunk_count: 0,
+                interim_response_count,
+            })
+        }
+        BodyFraming::Chunked => {
+            let wire = read_to_clean_eof_bounded(
+                connection,
+                body_prefix,
+                maximum_chunked_wire_bytes(policy),
+                deadline,
+                timeout,
+            )?;
+            let result = match parse_chunked_body(&wire, policy)? {
+                ChunkParseResult::Complete(result) => result,
+                ChunkParseResult::Incomplete => return Err(HttpError::IncompleteResponse),
+            };
+            if result.consumed != wire.len() {
+                return Err(HttpError::UnexpectedResponseBytes {
+                    byte_count: wire.len() - result.consumed,
+                });
+            }
+            Ok(NetworkResult {
+                head,
+                encoded_content: result.content,
+                trailers: result.trailers,
+                framing,
+                chunk_count: result.chunk_count,
+                interim_response_count,
+            })
+        }
+        BodyFraming::CloseDelimited => {
+            let encoded_content = read_to_clean_eof_bounded(
+                connection,
+                body_prefix,
+                policy.max_encoded_content_bytes(),
+                deadline,
+                timeout,
+            )?;
+            Ok(NetworkResult {
+                head,
+                encoded_content,
+                trailers: FieldBlock::default(),
+                framing,
+                chunk_count: 0,
+                interim_response_count,
+            })
+        }
+    }
+}
+
+fn read_final_head(
+    connection: &mut AuthenticatedTlsConnection,
+    policy: &HttpClientPolicy,
+    deadline: Instant,
+    timeout: Duration,
+) -> Result<(ResponseHead, usize, Vec<u8>), HttpError> {
+    let mut buffer = Vec::new();
+    loop {
+        match parse_final_response_head(&buffer, policy)? {
+            FinalHeadParseResult::Complete {
+                head,
+                consumed,
+                interim_response_count,
+            } => {
+                let body_prefix = buffer.split_off(consumed);
+                return Ok((head, interim_response_count, body_prefix));
+            }
+            FinalHeadParseResult::Incomplete => {}
+        }
+        let mut scratch = [0_u8; IO_BUFFER_BYTES];
+        let byte_count = read_with_deadline(connection, &mut scratch, deadline, timeout)?;
+        if byte_count == 0 {
+            return Err(HttpError::IncompleteResponse);
+        }
+        buffer.extend_from_slice(&scratch[..byte_count]);
+    }
+}
+
+fn read_exact_content(
+    connection: &mut AuthenticatedTlsConnection,
+    mut output: Vec<u8>,
+    expected: usize,
+    deadline: Instant,
+    timeout: Duration,
+) -> Result<Vec<u8>, HttpError> {
+    if output.len() > expected {
+        return Err(HttpError::UnexpectedResponseBytes {
+            byte_count: output.len() - expected,
+        });
+    }
+    while output.len() < expected {
+        let remaining = expected - output.len();
+        let mut scratch = [0_u8; IO_BUFFER_BYTES];
+        let read_limit = remaining.min(scratch.len());
+        let byte_count = read_with_deadline(
+            connection,
+            &mut scratch[..read_limit],
+            deadline,
+            timeout,
+        )?;
+        if byte_count == 0 {
+            return Err(HttpError::IncompleteResponse);
+        }
+        output.extend_from_slice(&scratch[..byte_count]);
+    }
+    Ok(output)
+}
+
+fn read_to_clean_eof_bounded(
+    connection: &mut AuthenticatedTlsConnection,
+    mut output: Vec<u8>,
+    maximum: usize,
+    deadline: Instant,
+    timeout: Duration,
+) -> Result<Vec<u8>, HttpError> {
+    if output.len() > maximum {
+        return Err(HttpError::EncodedContentTooLarge {
+            byte_count: u64::try_from(output.len()).unwrap_or(u64::MAX),
+            maximum_bytes: maximum,
+        });
+    }
+    loop {
+        let remaining_capacity = maximum.saturating_sub(output.len());
+        let mut scratch = [0_u8; IO_BUFFER_BYTES];
+        let read_limit = if remaining_capacity == 0 {
+            1
+        } else {
+            remaining_capacity.min(scratch.len())
+        };
+        let byte_count = read_with_deadline(
+            connection,
+            &mut scratch[..read_limit],
+            deadline,
+            timeout,
+        )?;
+        if byte_count == 0 {
+            return Ok(output);
+        }
+        if remaining_capacity == 0 {
+            return Err(HttpError::EncodedContentTooLarge {
+                byte_count: u64::try_from(maximum.saturating_add(byte_count)).unwrap_or(u64::MAX),
+                maximum_bytes: maximum,
+            });
+        }
+        output.extend_from_slice(&scratch[..byte_count]);
+    }
+}
+
+fn maximum_chunked_wire_bytes(policy: &HttpClientPolicy) -> usize {
+    let per_chunk_overhead = MAX_CHUNK_LINE_BYTES.saturating_add(4);
+    policy
+        .max_encoded_content_bytes()
+        .saturating_add(policy.max_chunk_count().saturating_mul(per_chunk_overhead))
+        .saturating_add(policy.max_trailer_section_bytes())
+        .saturating_add(MAX_CHUNK_LINE_BYTES)
+        .saturating_add(4)
+}
+
+fn read_with_deadline(
+    connection: &mut AuthenticatedTlsConnection,
+    output: &mut [u8],
+    deadline: Instant,
+    timeout: Duration,
+) -> Result<usize, HttpError> {
+    set_read_deadline(connection, deadline, timeout)?;
+    let result = connection
+        .stream_mut()
+        .read(output)
+        .map_err(|error| classify_read_error(error, timeout));
+    ensure_before_deadline(deadline, timeout)?;
+    result
+}
+
+fn set_read_deadline(
+    connection: &mut AuthenticatedTlsConnection,
+    deadline: Instant,
+    timeout: Duration,
+) -> Result<(), HttpError> {
+    let remaining = remaining_duration(deadline, timeout)?;
+    connection
+        .stream_mut()
+        .sock
+        .set_read_timeout(Some(remaining))
+        .map_err(http_io_error)
+}
+
+fn set_write_deadline(
+    connection: &mut AuthenticatedTlsConnection,
+    deadline: Instant,
+    timeout: Duration,
+) -> Result<(), HttpError> {
+    let remaining = remaining_duration(deadline, timeout)?;
+    connection
+        .stream_mut()
+        .sock
+        .set_write_timeout(Some(remaining))
+        .map_err(http_io_error)
+}
+
+fn remaining_duration(deadline: Instant, timeout: Duration) -> Result<Duration, HttpError> {
+    deadline
+        .checked_duration_since(Instant::now())
+        .filter(|remaining| !remaining.is_zero())
+        .ok_or(HttpError::HttpExchangeTimedOut { timeout })
+}
+
+fn ensure_before_deadline(deadline: Instant, timeout: Duration) -> Result<(), HttpError> {
+    if Instant::now() >= deadline {
+        Err(HttpError::HttpExchangeTimedOut { timeout })
+    } else {
+        Ok(())
+    }
+}
+
+fn classify_read_error(error: io::Error, timeout: Duration) -> HttpError {
+    if matches!(error.kind(), io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock) {
+        HttpError::HttpExchangeTimedOut { timeout }
+    } else if error.kind() == io::ErrorKind::UnexpectedEof {
+        HttpError::IncompleteResponse
+    } else {
+        http_io_error(error)
+    }
+}
+
+fn classify_io_error(error: io::Error, timeout: Duration) -> HttpError {
+    if matches!(error.kind(), io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock) {
+        HttpError::HttpExchangeTimedOut { timeout }
+    } else {
+        http_io_error(error)
+    }
+}
+
+fn http_io_error(source: io::Error) -> HttpError {
+    HttpError::HttpExchangeIoFailed { source }
+}
+
+fn restore_timeouts(
+    connection: &mut AuthenticatedTlsConnection,
+    read_timeout: Option<Duration>,
+    write_timeout: Option<Duration>,
+) -> io::Result<()> {
+    connection.stream_mut().sock.set_read_timeout(read_timeout)?;
+    connection.stream_mut().sock.set_write_timeout(write_timeout)
+}
+
+fn field_evidence(fields: &FieldBlock) -> Vec<ResponseFieldEvidence> {
+    fields
+        .iter()
+        .map(|field| ResponseFieldEvidence::new(field.name().to_owned(), field.value().len()))
+        .collect()
+}
