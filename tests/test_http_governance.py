@@ -149,13 +149,8 @@ class HttpGovernanceTests(unittest.TestCase):
         self.assertNotIn(marker, mime_source)
         self.assertIn('#[path = "tests/mime_contract.rs"]', crate_root)
         self.assertIn('#[path = "tests/region_contract.rs"]', crate_root)
-
-        legacy_wrapper_marker = (
-            "#[cfg(test)]\n"
-            "#[cfg_attr(coverage_nightly, coverage(off))]\n"
-            "pub(crate) fn observe_mime_type"
-        )
-        self.assertNotIn(legacy_wrapper_marker, mime_source)
+        self.assertNotIn("mime_test_support", crate_root)
+        self.assertNotIn("observe_mime_type", mime_source)
         self.assertIn("pub(crate) fn classify_observed_mime", mime_source)
 
     def test_http_design_is_approved_and_standards_traced(self) -> None:
