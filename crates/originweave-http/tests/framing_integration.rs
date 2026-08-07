@@ -88,6 +88,25 @@ fn server_config(material: CertificateMaterial) -> (Vec<u8>, Arc<ServerConfig>) 
     (material.root_der, Arc::new(config))
 }
 
+fn read_request(tls: &mut StreamOwned<ServerConnection, std::net::TcpStream>) -> ServerResult {
+    let mut request = Vec::new();
+    let mut scratch = [0_u8; 512];
+    while !request.windows(4).any(|window| window == b"\r\n\r\n") {
+        match tls.read(&mut scratch) {
+            Ok(0) => break,
+            Ok(count) => request.extend_from_slice(&scratch[..count]),
+            Err(error) if error.kind() == std::io::ErrorKind::UnexpectedEof => {
+                if request.is_empty() {
+                    break;
+                }
+                return Err(error.to_string());
+            }
+            Err(error) => return Err(error.to_string()),
+        }
+    }
+    Ok(request)
+}
+
 fn spawn_http_server(
     config: Arc<ServerConfig>,
     response: &'static [u8],
@@ -104,25 +123,43 @@ fn spawn_http_server(
             .map_err(|error| error.to_string())?;
         let connection = ServerConnection::new(config).map_err(|error| error.to_string())?;
         let mut tls = StreamOwned::new(connection, stream);
-        let mut request = Vec::new();
-        let mut scratch = [0_u8; 512];
-        while !request.windows(4).any(|window| window == b"\r\n\r\n") {
-            match tls.read(&mut scratch) {
-                Ok(0) => break,
-                Ok(count) => request.extend_from_slice(&scratch[..count]),
-                Err(error) if error.kind() == std::io::ErrorKind::UnexpectedEof => {
-                    if request.is_empty() {
-                        break;
-                    }
-                    return Err(error.to_string());
-                }
-                Err(error) => return Err(error.to_string()),
-            }
-        }
+        let request = read_request(&mut tls)?;
         if !response.is_empty() {
             tls.write_all(response).map_err(|error| error.to_string())?;
             tls.flush().map_err(|error| error.to_string())?;
         }
+        tls.conn.send_close_notify();
+        let _ = tls.flush();
+        Ok(request)
+    });
+    (socket_address, handle)
+}
+
+fn spawn_segmented_http_server(
+    config: Arc<ServerConfig>,
+    response_head: &'static [u8],
+    response_body: &'static [u8],
+) -> (SocketAddr, JoinHandle<ServerResult>) {
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("loopback listener");
+    let socket_address = listener.local_addr().expect("listener address");
+    let handle = thread::spawn(move || {
+        let (stream, _peer) = listener.accept().map_err(|error| error.to_string())?;
+        stream
+            .set_read_timeout(Some(TEST_TIMEOUT))
+            .map_err(|error| error.to_string())?;
+        stream
+            .set_write_timeout(Some(TEST_TIMEOUT))
+            .map_err(|error| error.to_string())?;
+        let connection = ServerConnection::new(config).map_err(|error| error.to_string())?;
+        let mut tls = StreamOwned::new(connection, stream);
+        let request = read_request(&mut tls)?;
+        tls.write_all(response_head)
+            .map_err(|error| error.to_string())?;
+        tls.flush().map_err(|error| error.to_string())?;
+        thread::sleep(Duration::from_millis(25));
+        tls.write_all(response_body)
+            .map_err(|error| error.to_string())?;
+        tls.flush().map_err(|error| error.to_string())?;
         tls.conn.send_close_notify();
         let _ = tls.flush();
         Ok(request)
@@ -218,6 +255,27 @@ fn execute(
     (result, server)
 }
 
+fn execute_segmented(
+    response_head: &'static [u8],
+    response_body: &'static [u8],
+    policy: HttpClientPolicy,
+) -> (
+    Result<originweave_http::AuthenticatedHttpResponse, HttpError>,
+    JoinHandle<ServerResult>,
+) {
+    let material = certificate_material();
+    let (root_der, config) = server_config(material);
+    let (socket_address, server) =
+        spawn_segmented_http_server(config, response_head, response_body);
+    let origin = origin_for(socket_address);
+    let connection = authenticated_connection(&origin, socket_address, root_der);
+    let target = HttpRequestTarget::parse(origin, "/segmented").expect("target");
+    let result = HttpExchangePlan::new(connection, HttpMethod::Get, target, &[], policy)
+        .expect("HTTP exchange plan")
+        .execute();
+    (result, server)
+}
+
 #[test]
 fn head_response_with_declared_length_exposes_no_content() {
     let (result, server) = execute(
@@ -228,6 +286,22 @@ fn head_response_with_declared_length_exposes_no_content() {
     let response = result.expect("complete HEAD response");
     assert!(response.content().is_empty());
     assert_eq!(response.evidence().body_framing(), BodyFraming::NoContent);
+    server
+        .join()
+        .expect("server thread")
+        .expect("server exchange");
+}
+
+#[test]
+fn segmented_content_length_body_is_read_after_the_response_head() {
+    let (result, server) = execute_segmented(
+        b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\n",
+        b"hello",
+        HttpClientPolicy::strict_defaults(),
+    );
+    let response = result.expect("segmented content-length response");
+    assert_eq!(response.content(), b"hello");
+    assert_eq!(response.evidence().body_framing(), BodyFraming::ContentLength(5));
     server
         .join()
         .expect("server thread")
@@ -291,6 +365,26 @@ fn close_delimited_response_exceeding_encoded_budget_fails_closed() {
     let (result, server) = execute(
         HttpMethod::Get,
         b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\nhello",
+        policy_with_max_encoded(4),
+    );
+    assert!(matches!(
+        result,
+        Err(HttpError::EncodedContentTooLarge {
+            byte_count: 5,
+            maximum_bytes: 4,
+        })
+    ));
+    server
+        .join()
+        .expect("server thread")
+        .expect("server exchange");
+}
+
+#[test]
+fn streamed_close_delimited_overflow_is_detected_after_filling_the_exact_budget() {
+    let (result, server) = execute_segmented(
+        b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n",
+        b"hello",
         policy_with_max_encoded(4),
     );
     assert!(matches!(
