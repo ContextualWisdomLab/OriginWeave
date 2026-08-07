@@ -84,14 +84,10 @@ fn decode_reader<R: Read>(
         if byte_count == 0 {
             break;
         }
-        let next_length =
-            decoded
-                .len()
-                .checked_add(byte_count)
-                .ok_or(HttpError::DecodedContentTooLarge {
-                    byte_count: usize::MAX,
-                    maximum_bytes: policy.max_decoded_content_bytes(),
-                })?;
+        // The decoder scratch buffer is fixed at 8 KiB and the configured decoded-content
+        // budget is bounded far below `usize::MAX`, so saturation preserves the fail-closed
+        // result without carrying an unreachable arithmetic-error branch.
+        let next_length = decoded.len().saturating_add(byte_count);
         enforce_decoded_limits(next_length, encoded_bytes, policy)?;
         decoded.extend_from_slice(&buffer[..byte_count]);
     }
