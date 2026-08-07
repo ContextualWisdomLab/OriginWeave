@@ -146,6 +146,14 @@ class HttpGovernanceTests(unittest.TestCase):
             source = (SOURCE / relative_path).read_text(encoding="utf-8")
             self.assertIn(marker, source, relative_path)
 
+        mime_source = (SOURCE / "mime.rs").read_text(encoding="utf-8")
+        legacy_wrapper_marker = (
+            "#[cfg(test)]\n"
+            "#[cfg_attr(coverage_nightly, coverage(off))]\n"
+            "pub(crate) fn observe_mime_type"
+        )
+        self.assertIn(legacy_wrapper_marker, mime_source)
+
     def test_http_design_is_approved_and_standards_traced(self) -> None:
         """Implementation authority must remain bound to the accepted spec and ADR."""
 
