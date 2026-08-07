@@ -156,12 +156,14 @@ fn structured_field_extension_keys_cover_the_complete_allowed_punctuation() {
 
 #[test]
 fn trailer_only_digest_dictionary_is_supported() {
-    let value = b"sha-256=:I59Z7VXnN8dxR89VrQwbAwttfudRjD+ArJpAuUJqctg=:";
+    // Reuse the independently verified SHA-256 vector from the integrity contract so this test
+    // isolates trailer-only field selection rather than depending on a hand-copied digest.
+    let value = b"sha-256=:Y39Vfsc6JaKuw7be30VwWgoMK//ZDxApEd+FUBoaVH8=:";
     assert_eq!(
         validate_content_digest(
             &FieldBlock::default(),
             &fields(&[("content-digest", value)]),
-            b"payload",
+            b"deterministic content",
             IntegrityRequirement::Optional,
         )
         .expect("trailer-only digest"),
