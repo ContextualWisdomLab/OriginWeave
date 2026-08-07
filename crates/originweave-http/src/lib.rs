@@ -29,6 +29,9 @@ mod policy;
 #[cfg(test)]
 #[path = "tests/reachability_contract.rs"]
 mod reachability_contract;
+#[cfg(test)]
+#[path = "tests/region_contract.rs"]
+mod region_contract;
 mod request;
 mod response_head;
 #[cfg(test)]
