@@ -320,6 +320,18 @@ fn digest_parser_rejects_invalid_structured_fields_and_context_conflicts() {
     ));
 
     assert!(matches!(
+        validate_representation_digest(
+            &fields(&[("repr-digest", b"sha-256")]),
+            &empty,
+            b"payload",
+            200,
+            false,
+            IntegrityRequirement::Optional,
+        ),
+        Err(HttpError::InvalidDigestField)
+    ));
+
+    assert!(matches!(
         validate_content_digest(
             &fields(&[("content-digest", b"md5=:AQ==:")]),
             &fields(&[("content-digest", b"other=:Ag==:")]),
