@@ -9,7 +9,9 @@ use std::time::Duration;
 use originweave_core::Origin;
 use originweave_destination::{AddressClass, DestinationPolicy, ResolutionSnapshot};
 use originweave_http::{
-    HttpClientPolicy, HttpError, HttpExchangePlan, HttpMethod, HttpRequestTarget,
+    BodyFraming, ContentCoding, ContentRiskClass, HttpClientPolicy, HttpError, HttpExchangePlan,
+    HttpMethod, HttpRequestTarget, IntegrityStatus, MimeMismatch, NoSniffStatus,
+    MIME_CLASSIFIER_VERSION,
 };
 use originweave_network::{ConnectionPlan, DirectTcpConnection};
 use originweave_tls::{
@@ -179,33 +181,131 @@ fn authenticated_connection(
 fn authenticated_http11_get_uses_the_exact_tls_stream_and_returns_complete_evidence() {
     let material = certificate_material();
     let (root_der, config) = server_config(material, b"http/1.1");
-    let response = b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\nhello";
-    let (socket_address, server) = spawn_http_server(config, response);
+    let wire_response = b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\nhello";
+    let (socket_address, server) = spawn_http_server(config, wire_response);
     let origin = origin_for(socket_address);
     let connection = authenticated_connection(&origin, socket_address, root_der, b"http/1.1");
     let target = HttpRequestTarget::parse(origin.clone(), "/hello?q=secret").expect("target");
+    let policy = HttpClientPolicy::strict_defaults();
+    let expected_policy = policy.clone();
 
-    let response = HttpExchangePlan::new(
-        connection,
-        HttpMethod::Get,
-        target,
-        &[],
-        HttpClientPolicy::strict_defaults(),
-    )
-    .expect("HTTP plan")
-    .execute()
-    .expect("bounded HTTP exchange");
+    let response = HttpExchangePlan::new(connection, HttpMethod::Get, target, &[], policy)
+        .expect("HTTP plan")
+        .execute()
+        .expect("bounded HTTP exchange");
 
     assert_eq!(response.content(), b"hello");
-    assert_eq!(response.evidence().origin(), &origin);
-    assert_eq!(response.evidence().requested_peer(), socket_address);
-    assert_eq!(response.evidence().observed_peer(), socket_address);
-    assert_eq!(response.evidence().method(), HttpMethod::Get);
-    assert_eq!(response.evidence().status_code(), 200);
-    assert!(response.evidence().query_present());
-    assert_eq!(response.evidence().path_prefix(), "/hello");
-    assert!(response.evidence().response_complete());
     assert!(response.redirect().is_none());
+    assert_eq!(
+        response
+            .supplied_mime()
+            .expect("content type")
+            .essence(),
+        "text/plain"
+    );
+    assert_eq!(
+        response.observed_mime().mime_type().essence(),
+        "text/plain"
+    );
+    assert!(response.disposition().is_none());
+
+    let evidence = response.evidence();
+    assert_eq!(evidence.origin(), &origin);
+    assert_eq!(evidence.requested_peer(), socket_address);
+    assert_eq!(evidence.observed_peer(), socket_address);
+    assert_eq!(evidence.method(), HttpMethod::Get);
+    assert_eq!(evidence.status_code(), 200);
+    assert!(evidence.query_present());
+    assert_eq!(evidence.path_prefix(), "/hello");
+    assert!(evidence.target_hash().starts_with("sha256:"));
+    assert_eq!(evidence.target_hash().len(), 71);
+    assert_eq!(evidence.interim_response_count(), 0);
+    assert_eq!(evidence.body_framing(), BodyFraming::ContentLength(5));
+    assert_eq!(evidence.encoded_content_bytes(), 5);
+    assert_eq!(evidence.decoded_content_bytes(), 5);
+    assert_eq!(evidence.content_coding(), ContentCoding::Identity);
+    assert_eq!(evidence.chunk_count(), 0);
+    assert!(evidence.trailer_fields().is_empty());
+    assert_eq!(evidence.content_digest_status(), &IntegrityStatus::Absent);
+    assert_eq!(
+        evidence.representation_digest_status(),
+        &IntegrityStatus::Absent
+    );
+    let supplied = evidence.supplied_mime().expect("supplied MIME");
+    assert_eq!(supplied.type_name(), "text");
+    assert_eq!(supplied.subtype_name(), "plain");
+    assert!(supplied.parameters().is_empty());
+    let observed = evidence.observed_mime();
+    assert_eq!(observed.mime_type().essence(), "text/plain");
+    assert_eq!(observed.risk_class(), ContentRiskClass::Passive);
+    assert_eq!(observed.classifier_version(), MIME_CLASSIFIER_VERSION);
+    assert_eq!(evidence.no_sniff_status(), NoSniffStatus::Absent);
+    assert_eq!(evidence.mime_mismatch(), MimeMismatch::Match);
+    assert!(evidence.content_disposition().is_none());
+    assert!(evidence.redirect().is_none());
+    assert!(evidence.response_complete());
+    assert!(evidence.exchange_duration() <= expected_policy.exchange_timeout());
+    assert_eq!(evidence.response_fields().len(), 3);
+    assert_eq!(evidence.response_fields()[0].name(), "content-length");
+    assert_eq!(evidence.response_fields()[0].value_byte_count(), 1);
+    assert_eq!(evidence.response_fields()[1].name(), "content-type");
+    assert_eq!(evidence.response_fields()[1].value_byte_count(), 10);
+    assert_eq!(evidence.response_fields()[2].name(), "connection");
+    assert_eq!(evidence.response_fields()[2].value_byte_count(), 5);
+    let budgets = evidence.resource_budgets();
+    assert_eq!(budgets.exchange_timeout(), expected_policy.exchange_timeout());
+    assert_eq!(budgets.max_request_bytes(), expected_policy.max_request_bytes());
+    assert_eq!(
+        budgets.max_status_line_bytes(),
+        expected_policy.max_status_line_bytes()
+    );
+    assert_eq!(
+        budgets.max_header_field_count(),
+        expected_policy.max_header_field_count()
+    );
+    assert_eq!(
+        budgets.max_header_name_bytes(),
+        expected_policy.max_header_name_bytes()
+    );
+    assert_eq!(
+        budgets.max_header_value_bytes(),
+        expected_policy.max_header_value_bytes()
+    );
+    assert_eq!(
+        budgets.max_header_section_bytes(),
+        expected_policy.max_header_section_bytes()
+    );
+    assert_eq!(
+        budgets.max_interim_response_count(),
+        expected_policy.max_interim_response_count()
+    );
+    assert_eq!(budgets.max_chunk_count(), expected_policy.max_chunk_count());
+    assert_eq!(
+        budgets.max_trailer_field_count(),
+        expected_policy.max_trailer_field_count()
+    );
+    assert_eq!(
+        budgets.max_trailer_section_bytes(),
+        expected_policy.max_trailer_section_bytes()
+    );
+    assert_eq!(
+        budgets.max_encoded_content_bytes(),
+        expected_policy.max_encoded_content_bytes()
+    );
+    assert_eq!(
+        budgets.max_decoded_content_bytes(),
+        expected_policy.max_decoded_content_bytes()
+    );
+    assert_eq!(
+        budgets.max_content_expansion_ratio(),
+        expected_policy.max_content_expansion_ratio()
+    );
+    let _tls_protocol_version = evidence.tls_protocol_version();
+    let _negotiated_alpn = evidence.negotiated_alpn();
+
+    let (content, parts_evidence) = response.into_parts();
+    assert_eq!(content, b"hello");
+    assert_eq!(parts_evidence.status_code(), 200);
 
     let request = server
         .join()
