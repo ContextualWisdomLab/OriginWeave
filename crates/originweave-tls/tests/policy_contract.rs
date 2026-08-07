@@ -188,3 +188,20 @@ fn canonical_https_origins_produce_dns_or_ip_reference_identities() {
         Err(TlsError::OriginRequiresHttps { .. })
     ));
 }
+
+#[test]
+fn explicitly_constructed_reference_identities_validate_fail_closed() {
+    let origin = Origin::parse("https://example.com").expect("canonical HTTPS origin");
+
+    TlsReferenceIdentity::Dns("example.com".to_owned())
+        .validate_syntax(&origin)
+        .expect("valid DNS identity");
+    TlsReferenceIdentity::Ip(IpAddr::V4(Ipv4Addr::LOCALHOST))
+        .validate_syntax(&origin)
+        .expect("valid IP identity");
+
+    assert!(matches!(
+        TlsReferenceIdentity::Dns("contains space".to_owned()).validate_syntax(&origin),
+        Err(TlsError::InvalidReferenceIdentity { .. })
+    ));
+}
