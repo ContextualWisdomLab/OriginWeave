@@ -10,8 +10,8 @@ use originweave_core::Origin;
 use originweave_destination::{AddressClass, DestinationPolicy, ResolutionSnapshot};
 use originweave_http::{
     BodyFraming, ContentCoding, ContentRiskClass, HttpClientPolicy, HttpError, HttpExchangePlan,
-    HttpMethod, HttpRequestTarget, IntegrityStatus, MimeMismatch, NoSniffStatus,
-    MIME_CLASSIFIER_VERSION,
+    HttpMethod, HttpRequestTarget, IntegrityStatus, MIME_CLASSIFIER_VERSION, MimeMismatch,
+    NoSniffStatus,
 };
 use originweave_network::{ConnectionPlan, DirectTcpConnection};
 use originweave_tls::{
@@ -197,16 +197,10 @@ fn authenticated_http11_get_uses_the_exact_tls_stream_and_returns_complete_evide
     assert_eq!(response.content(), b"hello");
     assert!(response.redirect().is_none());
     assert_eq!(
-        response
-            .supplied_mime()
-            .expect("content type")
-            .essence(),
+        response.supplied_mime().expect("content type").essence(),
         "text/plain"
     );
-    assert_eq!(
-        response.observed_mime().mime_type().essence(),
-        "text/plain"
-    );
+    assert_eq!(response.observed_mime().mime_type().essence(), "text/plain");
     assert!(response.disposition().is_none());
 
     let evidence = response.evidence();
@@ -253,8 +247,14 @@ fn authenticated_http11_get_uses_the_exact_tls_stream_and_returns_complete_evide
     assert_eq!(evidence.response_fields()[2].name(), "connection");
     assert_eq!(evidence.response_fields()[2].value_byte_count(), 5);
     let budgets = evidence.resource_budgets();
-    assert_eq!(budgets.exchange_timeout(), expected_policy.exchange_timeout());
-    assert_eq!(budgets.max_request_bytes(), expected_policy.max_request_bytes());
+    assert_eq!(
+        budgets.exchange_timeout(),
+        expected_policy.exchange_timeout()
+    );
+    assert_eq!(
+        budgets.max_request_bytes(),
+        expected_policy.max_request_bytes()
+    );
     assert_eq!(
         budgets.max_status_line_bytes(),
         expected_policy.max_status_line_bytes()
