@@ -99,9 +99,12 @@ impl FieldLine {
         if !value.iter().copied().all(is_field_value_byte) {
             return Err(FieldSyntaxError::InvalidValue);
         }
-        let lowercase_name: Vec<u8> = name.iter().map(u8::to_ascii_lowercase).collect();
-        let name =
-            String::from_utf8(lowercase_name).map_err(|_error| FieldSyntaxError::InvalidName)?;
+        // `is_token_byte` admits ASCII only, so lowercase normalization can construct the
+        // canonical field name directly without a fallible UTF-8 conversion branch.
+        let name = name
+            .iter()
+            .map(|byte| char::from(byte.to_ascii_lowercase()))
+            .collect();
         Ok(Self {
             name,
             value: value.to_vec(),
