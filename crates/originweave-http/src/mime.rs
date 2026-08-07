@@ -342,7 +342,7 @@ fn internal_mime(type_name: &str, subtype_name: &str) -> MimeType {
     }
 }
 
-fn risk_class(mime_type: &MimeType) -> ContentRiskClass {
+pub(crate) fn risk_class(mime_type: &MimeType) -> ContentRiskClass {
     let essence = mime_type.essence();
     if matches!(
         essence.as_str(),
