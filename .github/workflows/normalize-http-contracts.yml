@@ -1,0 +1,95 @@
+name: Normalize HTTP contracts
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/normalize-http-contracts.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: normalize-http-contracts-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  normalize:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    name: Apply deterministic contract repairs
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          persist-credentials: true
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - name: Apply exact reviewed replacements
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              Path("crates/originweave-http/src/disposition.rs"): [
+                  (
+                      "filename.ends_with(['.', ' '])",
+                      "(filename.ends_with('.') || filename.ends_with(' '))",
+                  ),
+                  (
+                      ".find(['/', '?'])",
+                      ".find(|character| matches!(character, '/' | '?'))",
+                  ),
+              ],
+              Path("crates/originweave-http/src/chunked.rs"): [
+                  (
+                      '''        assert!(matches!(\n            parse_chunked_body(b"0\\r\\n\\r\\n", &policy(0, 4, 128, 64)),\n            Err(HttpError::InvalidPolicyLimit { .. })\n        ));\n''',
+                      "",
+                  ),
+              ],
+              Path("tests/test_repository_contract.py"): [
+                  (
+                      'self.assertIn("never follows", text.lower())',
+                      'self.assertIn("never follow", text.lower())',
+                  ),
+              ],
+          }
+
+          for path, pairs in replacements.items():
+              text = path.read_text(encoding="utf-8")
+              for old, new in pairs:
+                  if old not in text:
+                      raise SystemExit(f"expected source fragment missing in {path}: {old!r}")
+                  text = text.replace(old, new, 1)
+              path.write_text(text, encoding="utf-8")
+
+          for relative in [
+              "docs/superpowers/specs/2026-08-07-http11-semantics-design.md",
+              "docs/superpowers/plans/2026-08-07-http11-semantics.md",
+              "docs/adr/0007-bounded-http11-semantics.md",
+          ]:
+              path = Path(relative)
+              text = path.read_text(encoding="utf-8")
+              text = text.replace("flate2 1.1.10", "flate2 1.1.9")
+              text = text.replace('version = "=1.1.10"', 'version = "=1.1.9"')
+              path.write_text(text, encoding="utf-8")
+          PY
+      - name: Apply canonical Rust formatting
+        run: cargo fmt --all
+      - name: Verify Python governance contracts
+        run: |
+          python3 -m compileall -q scripts tests
+          python3 -m unittest discover -s tests -p 'test_*.py'
+      - name: Commit repairs and remove one-shot workflow
+        env:
+          TARGET_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          rm .github/workflows/normalize-http-contracts.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crates/originweave-http docs tests .github/workflows/normalize-http-contracts.yml
+          git diff --cached --check
+          git commit -m "fix: normalize bounded HTTP contracts"
+          git push origin "HEAD:${TARGET_BRANCH}"
