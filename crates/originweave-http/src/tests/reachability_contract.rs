@@ -12,6 +12,7 @@ use crate::mime::{MimeType, observe_mime_type};
 use crate::response_head::{HeadParseResult, parse_response_head};
 use crate::{
     AlpnHttp11Policy, HttpClientPolicy, HttpError, HttpRequestTarget, IntegrityRequirement,
+    IntegrityStatus,
 };
 
 fn fields(entries: &[(&str, &[u8])]) -> FieldBlock {
@@ -72,6 +73,7 @@ fn disposition_rejects_quoted_control_and_extended_filename_edge_classes() {
     let observed = observed_text();
     for value in [
         b"attachment; filename=\"a\"x".as_slice(),
+        b"attachment; filename=\"a\"\"b\"",
         b"attachment; filename=\"a\\\tb\"",
         b"attachment; filename=\"a\tb\"",
         b"attachment; filename=\"safe.\"",
@@ -83,6 +85,15 @@ fn disposition_rejects_quoted_control_and_extended_filename_edge_classes() {
             Err(HttpError::InvalidContentDisposition)
         ));
     }
+
+    let raw_utf8_extended = "attachment; filename*=UTF-8''é.txt";
+    assert!(matches!(
+        parse_content_disposition(
+            &fields(&[("content-disposition", raw_utf8_extended.as_bytes())]),
+            &observed,
+        ),
+        Err(HttpError::InvalidContentDisposition)
+    ));
 
     let unicode_control = "attachment; filename=\"a\u{0080}b\"";
     assert!(matches!(
@@ -119,7 +130,9 @@ fn mime_parameters_and_remaining_zip_signatures_are_bounded() {
     assert_eq!(quoted_semicolon.parameters()[0].1, "a;b");
 
     for invalid in [
-        b"text/plain; title=\"a\"x".as_slice(),
+        b"text/plain/extra".as_slice(),
+        b"text/plain; title=\"a\"x",
+        b"text/plain; title=\"a\"\"b\"",
         b"text/plain; title=\"a\x01b\"",
     ] {
         assert!(matches!(
@@ -127,6 +140,15 @@ fn mime_parameters_and_remaining_zip_signatures_are_bounded() {
             Err(HttpError::InvalidMimeType)
         ));
     }
+
+    let javascript = MimeType::parse(b"text/javascript").expect("JavaScript MIME");
+    assert_eq!(
+        observe_mime_type(b"\x00\x01", Some(&javascript))
+            .expect("binary JavaScript-labeled bytes are classifiable")
+            .mime_type()
+            .essence(),
+        "application/octet-stream"
+    );
 
     assert_eq!(
         observe_mime_type(b"PK\x05\x06rest", None)
@@ -157,6 +179,17 @@ fn digest_dictionary_rejects_short_value_and_digit_started_key() {
             Err(HttpError::InvalidDigestField)
         ));
     }
+
+    assert_eq!(
+        validate_content_digest(
+            &fields(&[("content-digest", b"*extension=:AQ==:")]),
+            &FieldBlock::default(),
+            b"payload",
+            IntegrityRequirement::Optional,
+        )
+        .expect("extension dictionary key is syntactically valid"),
+        IntegrityStatus::UnsupportedAlgorithm
+    );
 }
 
 #[test]
