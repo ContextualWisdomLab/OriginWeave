@@ -56,12 +56,14 @@ fn response_policy(
 }
 
 #[test]
-fn request_target_rejects_invalid_second_hex_digit_and_delete() {
+fn request_target_rejects_invalid_percent_digits_and_delete() {
     let origin = Origin::parse("https://example.com").expect("origin");
-    assert!(matches!(
-        HttpRequestTarget::parse(origin.clone(), "/%0G"),
-        Err(HttpError::InvalidPercentEncoding { byte_index: 1 })
-    ));
+    for target in ["/%G0", "/%0G"] {
+        assert!(matches!(
+            HttpRequestTarget::parse(origin.clone(), target),
+            Err(HttpError::InvalidPercentEncoding { byte_index: 1 })
+        ));
+    }
     assert!(matches!(
         HttpRequestTarget::parse(origin, "/\x7f"),
         Err(HttpError::InvalidRequestTarget)
