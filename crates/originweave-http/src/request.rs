@@ -220,15 +220,19 @@ mod tests {
             })
         ));
 
-        assert!(matches!(
-            serialize_request(
-                HttpMethod::Get,
-                &target,
-                &[first.clone(), first],
-                &constrained_policy(16_384, 128, 256, 8_192),
-            ),
-            Err(HttpError::DuplicateRequestField { field_name }) if field_name == "x-a"
-        ));
+        let duplicate_error = serialize_request(
+            HttpMethod::Get,
+            &target,
+            &[first.clone(), first],
+            &constrained_policy(16_384, 128, 256, 8_192),
+        )
+        .expect_err("duplicate request field");
+        assert_eq!(
+            duplicate_error,
+            HttpError::DuplicateRequestField {
+                field_name: "x-a".to_owned(),
+            }
+        );
 
         assert!(matches!(
             serialize_request(
