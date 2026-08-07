@@ -81,6 +81,10 @@ fn content_type_and_nosniff_fields_are_single_and_strict() {
         "text/plain"
     );
     assert_eq!(
+        supplied_mime_type(&FieldBlock::default()).expect("absent supplied MIME"),
+        None
+    );
+    assert_eq!(
         no_sniff_status(&field_block).expect("nosniff"),
         NoSniffStatus::Enabled
     );
