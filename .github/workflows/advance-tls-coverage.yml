@@ -55,6 +55,26 @@ jobs:
               )
           text = text.replace(accessor_before, accessor_after, 1)
 
+          output_before = """        '''    pub fn as_str(&self) -> &str {
+                  &self.canonical
+              }
+
+              /// Return the validated lowercase origin scheme.
+          """
+          output_after = """        '''    /// Return the normalized origin string.
+              #[must_use]
+              pub fn as_str(&self) -> &str {
+                  &self.canonical
+              }
+
+              /// Return the validated lowercase origin scheme.
+          """
+          if text.count(output_before) != 1:
+              raise SystemExit(
+                  f"expected one staged accessor output, found {text.count(output_before)}"
+              )
+          text = text.replace(output_before, output_after, 1)
+
           import_before = """    text = replace_once(
                   text,
                   '''    TlsHandshakePlan, TlsProtocolVersion, TrustBundleIdentifier, TrustRootBundle,
