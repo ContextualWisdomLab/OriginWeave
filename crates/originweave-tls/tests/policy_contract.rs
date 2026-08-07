@@ -101,6 +101,19 @@ fn tls_policy_bounds_timeouts_and_alpn() {
     );
     assert_eq!(policy.alpn_requirement(), AlpnRequirement::Required);
 
+    assert!(matches!(
+        TlsClientPolicy::new(
+            trusted_time,
+            Duration::from_secs(1),
+            Vec::new(),
+            AlpnRequirement::Required,
+        ),
+        Err(TlsError::InvalidAlpnCount {
+            protocol_count: 0,
+            ..
+        })
+    ));
+
     for timeout in [
         Duration::ZERO,
         MAX_TLS_HANDSHAKE_TIMEOUT + Duration::from_nanos(1),
