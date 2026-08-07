@@ -106,11 +106,17 @@ fn spawn_http_server(
         let mut request = Vec::new();
         let mut scratch = [0_u8; 512];
         while !request.windows(4).any(|window| window == b"\r\n\r\n") {
-            let count = tls.read(&mut scratch).map_err(|error| error.to_string())?;
-            if count == 0 {
-                break;
+            match tls.read(&mut scratch) {
+                Ok(0) => break,
+                Ok(count) => request.extend_from_slice(&scratch[..count]),
+                Err(error) if error.kind() == std::io::ErrorKind::UnexpectedEof => {
+                    if request.is_empty() {
+                        break;
+                    }
+                    return Err(error.to_string());
+                }
+                Err(error) => return Err(error.to_string()),
             }
-            request.extend_from_slice(&scratch[..count]);
         }
         if !response.is_empty() {
             tls.write_all(response).map_err(|error| error.to_string())?;
