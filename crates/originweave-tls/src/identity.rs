@@ -1,7 +1,7 @@
 use std::net::IpAddr;
 
 use originweave_core::Origin;
-use rustls::pki_types::ServerName;
+use rustls::pki_types::{DnsName, ServerName};
 
 use crate::TlsError;
 
@@ -41,8 +41,8 @@ impl TlsReferenceIdentity {
     #[inline(never)]
     pub(crate) fn server_name(&self, origin: &Origin) -> Result<ServerName<'static>, TlsError> {
         match self {
-            Self::Dns(name) => match ServerName::try_from(name.clone()) {
-                Ok(server_name) => Ok(server_name),
+            Self::Dns(name) => match DnsName::try_from(name.clone()) {
+                Ok(dns_name) => Ok(ServerName::DnsName(dns_name)),
                 Err(_error) => Err(TlsError::InvalidReferenceIdentity {
                     origin: origin.clone(),
                 }),
@@ -120,14 +120,18 @@ mod tests {
             .validate_syntax(&origin)
             .expect("valid DNS identity");
 
-        let invalid = TlsReferenceIdentity::Dns("contains space".to_owned());
-        let error = invalid
-            .validate_syntax(&origin)
-            .expect_err("invalid DNS identity");
-        require(
-            discriminant(&error) == discriminant(&TlsError::InvalidReferenceIdentity { origin }),
-            "invalid DNS identity must retain its typed error",
-        );
+        for invalid_name in ["contains space", "127.0.0.1", "::1"] {
+            let error = TlsReferenceIdentity::Dns(invalid_name.to_owned())
+                .validate_syntax(&origin)
+                .expect_err("invalid DNS identity");
+            require(
+                discriminant(&error)
+                    == discriminant(&TlsError::InvalidReferenceIdentity {
+                        origin: origin.clone(),
+                    }),
+                "invalid DNS identity must retain its typed error",
+            );
+        }
     }
 
     #[test]
