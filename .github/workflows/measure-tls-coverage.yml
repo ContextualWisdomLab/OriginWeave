@@ -90,7 +90,11 @@ jobs:
 
           text = Path("all-missing-lines.txt").read_text(encoding="utf-8")
           sections = re.split(r"(?=^/.*:$)", text, flags=re.MULTILINE)
-          selected = [section.rstrip() for section in sections if marker in section.splitlines()[0]]
+          selected = []
+          for section in sections:
+              section_lines = section.splitlines()
+              if section_lines and marker in section_lines[0]:
+                  selected.append(section.rstrip())
           if not selected:
               raise SystemExit("no TLS source sections found in llvm-cov text report")
           Path("tls-missing-lines.txt").write_text(
