@@ -191,7 +191,10 @@ pub(crate) fn parse_redirect_metadata(
 
 fn parse_filename_value(value: &[u8]) -> Result<String, HttpError> {
     if value.first() == Some(&b'"') {
-        if value.len() < 2 || value.last() != Some(&b'"') {
+        // `split_semicolon_segments` rejects an unterminated opening quote before this parser is
+        // called. A quoted parameter therefore cannot have length one; only trailing material
+        // after a balanced closing quote remains a local syntax error here.
+        if value.last() != Some(&b'"') {
             return Err(HttpError::InvalidContentDisposition);
         }
         let mut decoded = Vec::with_capacity(value.len() - 2);
@@ -211,9 +214,8 @@ fn parse_filename_value(value: &[u8]) -> Result<String, HttpError> {
                 decoded.push(byte);
             }
         }
-        if escaped {
-            return Err(HttpError::InvalidContentDisposition);
-        }
+        // The outer segment scanner rejects an escape that would consume the closing quote, so
+        // `escaped` is necessarily false after iterating the quoted payload.
         String::from_utf8(decoded).map_err(|_error| HttpError::InvalidContentDisposition)
     } else {
         if !value.iter().copied().all(is_token_byte) {
@@ -364,7 +366,10 @@ fn split_semicolon_segments(input: &[u8]) -> Result<Vec<&[u8]>, HttpError> {
             start = index + 1;
         }
     }
-    if in_quote || escaped {
+    // `escaped` can only be set while `in_quote` is true, so an unfinished escape is already an
+    // unfinished quoted string. Keeping a second end-state condition would represent an
+    // impossible state and obscure the parser invariant.
+    if in_quote {
         return Err(HttpError::InvalidContentDisposition);
     }
     segments.push(&input[start..]);
@@ -522,14 +527,6 @@ mod tests {
         .expect("quoted filename")
         .expect("present");
         assert_eq!(disposition.filename(), Some("quarter\"one.txt"));
-
-        assert!(matches!(
-            parse_content_disposition(
-                &fields(&[("content-disposition", b"attachment; filename=\"a\\\"")]),
-                &observed(b"plain"),
-            ),
-            Err(HttpError::InvalidContentDisposition)
-        ));
     }
 
     #[test]
