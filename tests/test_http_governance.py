@@ -155,7 +155,8 @@ class HttpGovernanceTests(unittest.TestCase):
             "#[cfg_attr(coverage_nightly, coverage(off))]\n"
             "pub(crate) fn observe_mime_type"
         )
-        self.assertIn(legacy_wrapper_marker, mime_source)
+        self.assertNotIn(legacy_wrapper_marker, mime_source)
+        self.assertIn("pub(crate) fn classify_observed_mime", mime_source)
 
     def test_http_design_is_approved_and_standards_traced(self) -> None:
         """Implementation authority must remain bound to the accepted spec and ADR."""
