@@ -14,6 +14,11 @@ mod policy;
 mod request;
 mod target;
 
+#[cfg(test)]
+mod framing;
+#[cfg(test)]
+mod response_head;
+
 pub use error::HttpError;
 pub use field::RequestField;
 pub use policy::{
