@@ -22,57 +22,41 @@ const FORBIDDEN_REQUEST_FIELDS: &[&str] = &[
 /// One validated non-authoritative HTTP request field.
 #[derive(Clone, PartialEq, Eq)]
 pub struct RequestField {
-    name: String,
-    value: Vec<u8>,
+    inner: FieldLine,
 }
 
 impl RequestField {
     /// Validate one caller field without retaining it in logs or evidence.
     pub fn new(name: &str, value: &[u8]) -> Result<Self, HttpError> {
-        if name.is_empty() || !name.as_bytes().iter().copied().all(is_token_byte) {
-            return Err(HttpError::InvalidRequestFieldName);
-        }
-        if name.len() > DEFAULT_MAX_HEADER_NAME_BYTES {
-            return Err(HttpError::RequestFieldNameTooLarge {
-                byte_count: name.len(),
-                maximum_bytes: DEFAULT_MAX_HEADER_NAME_BYTES,
-            });
-        }
-        if value.len() > DEFAULT_MAX_HEADER_VALUE_BYTES {
-            return Err(HttpError::RequestFieldValueTooLarge {
-                byte_count: value.len(),
-                maximum_bytes: DEFAULT_MAX_HEADER_VALUE_BYTES,
-            });
-        }
-        if !value.iter().copied().all(is_field_value_byte) {
-            return Err(HttpError::InvalidRequestFieldValue);
-        }
-        let normalized_name = name.to_ascii_lowercase();
-        if FORBIDDEN_REQUEST_FIELDS.contains(&normalized_name.as_str()) {
+        let inner = FieldLine::new(
+            name.as_bytes(),
+            value,
+            DEFAULT_MAX_HEADER_NAME_BYTES,
+            DEFAULT_MAX_HEADER_VALUE_BYTES,
+        )
+        .map_err(request_field_error)?;
+        if FORBIDDEN_REQUEST_FIELDS.contains(&inner.name()) {
             return Err(HttpError::ForbiddenRequestField {
-                field_name: normalized_name,
+                field_name: inner.name().to_owned(),
             });
         }
-        Ok(Self {
-            name: normalized_name,
-            value: value.to_vec(),
-        })
+        Ok(Self { inner })
     }
 
     /// Return the normalized lowercase field name.
     #[must_use]
     pub const fn name(&self) -> &str {
-        self.name.as_str()
+        self.inner.name()
     }
 
     /// Return the field-value byte count without exposing its bytes.
     #[must_use]
     pub const fn value_byte_count(&self) -> usize {
-        self.value.len()
+        self.inner.value().len()
     }
 
     pub(crate) const fn value(&self) -> &[u8] {
-        self.value.as_slice()
+        self.inner.value()
     }
 }
 
@@ -80,9 +64,135 @@ impl fmt::Debug for RequestField {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("RequestField")
+            .field("name", &self.name())
+            .field("value_byte_count", &self.value_byte_count())
+            .finish()
+    }
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub(crate) struct FieldLine {
+    name: String,
+    value: Vec<u8>,
+}
+
+impl FieldLine {
+    pub(crate) fn new(
+        name: &[u8],
+        value: &[u8],
+        maximum_name_bytes: usize,
+        maximum_value_bytes: usize,
+    ) -> Result<Self, FieldSyntaxError> {
+        if name.is_empty() || !name.iter().copied().all(is_token_byte) {
+            return Err(FieldSyntaxError::InvalidName);
+        }
+        if name.len() > maximum_name_bytes {
+            return Err(FieldSyntaxError::NameTooLarge {
+                byte_count: name.len(),
+                maximum_bytes: maximum_name_bytes,
+            });
+        }
+        if value.len() > maximum_value_bytes {
+            return Err(FieldSyntaxError::ValueTooLarge {
+                byte_count: value.len(),
+                maximum_bytes: maximum_value_bytes,
+            });
+        }
+        if !value.iter().copied().all(is_field_value_byte) {
+            return Err(FieldSyntaxError::InvalidValue);
+        }
+        let lowercase_name: Vec<u8> = name.iter().map(u8::to_ascii_lowercase).collect();
+        let name = String::from_utf8(lowercase_name).map_err(|_error| FieldSyntaxError::InvalidName)?;
+        Ok(Self {
+            name,
+            value: value.to_vec(),
+        })
+    }
+
+    pub(crate) const fn name(&self) -> &str {
+        self.name.as_str()
+    }
+
+    pub(crate) const fn value(&self) -> &[u8] {
+        self.value.as_slice()
+    }
+}
+
+impl fmt::Debug for FieldLine {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("FieldLine")
             .field("name", &self.name)
             .field("value_byte_count", &self.value.len())
             .finish()
+    }
+}
+
+#[derive(Clone, Default, PartialEq, Eq)]
+pub(crate) struct FieldBlock {
+    fields: Vec<FieldLine>,
+}
+
+impl FieldBlock {
+    pub(crate) fn new(fields: Vec<FieldLine>) -> Self {
+        Self { fields }
+    }
+
+    pub(crate) const fn len(&self) -> usize {
+        self.fields.len()
+    }
+
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &FieldLine> {
+        self.fields.iter()
+    }
+
+    pub(crate) fn values(&self, name: &str) -> Vec<&[u8]> {
+        self.fields
+            .iter()
+            .filter(|field| field.name() == name)
+            .map(FieldLine::value)
+            .collect()
+    }
+}
+
+impl fmt::Debug for FieldBlock {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.debug_list().entries(&self.fields).finish()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum FieldSyntaxError {
+    InvalidName,
+    InvalidValue,
+    NameTooLarge {
+        byte_count: usize,
+        maximum_bytes: usize,
+    },
+    ValueTooLarge {
+        byte_count: usize,
+        maximum_bytes: usize,
+    },
+}
+
+fn request_field_error(error: FieldSyntaxError) -> HttpError {
+    match error {
+        FieldSyntaxError::InvalidName => HttpError::InvalidRequestFieldName,
+        FieldSyntaxError::InvalidValue => HttpError::InvalidRequestFieldValue,
+        FieldSyntaxError::NameTooLarge {
+            byte_count,
+            maximum_bytes,
+        } => HttpError::RequestFieldNameTooLarge {
+            byte_count,
+            maximum_bytes,
+        },
+        FieldSyntaxError::ValueTooLarge {
+            byte_count,
+            maximum_bytes,
+        } => HttpError::RequestFieldValueTooLarge {
+            byte_count,
+            maximum_bytes,
+        },
     }
 }
 
