@@ -1,3 +1,5 @@
+#![allow(clippy::expect_used)]
+
 use std::error::Error as _;
 use std::io;
 use std::time::Duration;
