@@ -260,6 +260,21 @@ fn stalled_content_length_body_expires_the_total_exchange_deadline() {
 }
 
 #[test]
+fn stalled_chunked_body_expires_the_total_exchange_deadline() {
+    let response = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n5\r\nhe";
+    let (result, server) = execute(
+        ServerBehavior::WriteThenStall(response, Duration::from_millis(300)),
+        policy_with_exchange_timeout(EXCHANGE_TIMEOUT),
+    );
+
+    assert!(matches!(
+        result,
+        Err(HttpError::HttpExchangeTimedOut { timeout }) if timeout == EXCHANGE_TIMEOUT
+    ));
+    assert_server_received_request(server);
+}
+
+#[test]
 fn close_delimited_body_requires_authenticated_tls_close_notify() {
     let response = b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\npartial";
     let (result, server) = execute(
