@@ -44,7 +44,7 @@ fn disposition_rejects_ambiguous_and_malformed_metadata_boundaries() {
         b"attachment; filename=\"\"",
         b"attachment; filename=\".\"",
         b"attachment; filename=\"..\"",
-        b"attachment; filename=\"trailing \\"",
+        br#"attachment; filename="trailing ""#,
         b"attachment; filename=AUX.txt",
         b"attachment; filename=COM1.txt",
         b"attachment; filename*=UTF-8",
