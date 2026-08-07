@@ -5,7 +5,7 @@ use crate::disposition::parse_content_disposition;
 use crate::field::{FieldBlock, FieldLine};
 use crate::integrity::validate_content_digest;
 use crate::mime::{MimeType, observe_mime_type};
-use crate::response_head::parse_response_head;
+use crate::response_head::{FinalHeadParseResult, parse_final_response_head, parse_response_head};
 use crate::{HttpClientPolicy, HttpError, IntegrityRequirement, IntegrityStatus};
 
 fn fields(entries: &[(&str, &[u8])]) -> FieldBlock {
@@ -96,6 +96,16 @@ fn every_filename_extension_mapping_is_exercised_before_download_handoff() {
 }
 
 #[test]
+fn public_mime_constructor_normalizes_and_rejects_invalid_essences() {
+    let mime = MimeType::from_essence("Text", "Plain").expect("reviewed MIME essence");
+    assert_eq!(mime.essence(), "text/plain");
+    assert!(matches!(
+        MimeType::from_essence("text", "not/one-token"),
+        Err(HttpError::InvalidMimeType)
+    ));
+}
+
+#[test]
 fn mime_classifier_exercises_every_html_signature_and_plain_text_byte_class() {
     for signature in [
         "<!doctype html",
@@ -131,6 +141,7 @@ fn mime_quoted_values_reject_escaped_controls_and_invalid_utf8() {
     for invalid in [
         b"text/plain; note=\"a\\\nb\"".as_slice(),
         b"text/plain; note=\"\xff\"".as_slice(),
+        b"text/plain; note=\"a\\\xff\"".as_slice(),
     ] {
         assert!(matches!(
             MimeType::parse(invalid),
@@ -141,7 +152,7 @@ fn mime_quoted_values_reject_escaped_controls_and_invalid_utf8() {
 
 #[test]
 fn structured_field_extension_keys_cover_the_complete_allowed_punctuation() {
-    let value = b"a_b=:AQ==:, a-b=:AQ==:, a.b=:AQ==:, a*b=:AQ==:, a/b=:AQ==:";
+    let value = b"*root=:AQ==:, a_b=:AQ==:, a-b=:AQ==:, a.b=:AQ==:, a*b=:AQ==:, a/b=:AQ==:";
     assert_eq!(
         validate_content_digest(
             &fields(&[("content-digest", value)]),
@@ -182,6 +193,15 @@ fn malformed_digest_trailers_fail_through_the_public_validation_path() {
         ),
         Err(HttpError::InvalidDigestField)
     ));
+}
+
+#[test]
+fn final_response_head_reports_incomplete_input_before_network_reads() {
+    assert_eq!(
+        parse_final_response_head(b"", &HttpClientPolicy::strict_defaults())
+            .expect("empty prefix is incomplete"),
+        FinalHeadParseResult::Incomplete
+    );
 }
 
 #[test]
