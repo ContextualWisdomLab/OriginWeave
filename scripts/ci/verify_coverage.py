@@ -47,6 +47,52 @@ def uncovered_metrics(payload: Mapping[str, Any]) -> dict[str, tuple[int, int]]:
     return uncovered
 
 
+def uncovered_file_region_summaries(payload: Mapping[str, Any]) -> list[str]:
+    """Return source files whose aggregate LLVM region coverage is incomplete.
+
+    This diagnostic uses the per-file aggregate summary rather than individual
+    function instantiations. The latter can contain zero-count template or
+    monomorphization regions even when the source file is fully covered after
+    LLVM merges all instantiations. Malformed detail is ignored because the
+    aggregate fail-closed coverage decision is enforced separately.
+    """
+
+    try:
+        summary = _single_data_summary(payload)
+    except ValueError:
+        return []
+    files = summary.get("files")
+    if not isinstance(files, list):
+        return []
+
+    deficits: list[str] = []
+    for file_entry in files:
+        if not isinstance(file_entry, Mapping):
+            continue
+        filename = file_entry.get("filename")
+        file_summary = file_entry.get("summary")
+        if not isinstance(filename, str) or not isinstance(file_summary, Mapping):
+            continue
+        regions = file_summary.get("regions")
+        if not isinstance(regions, Mapping):
+            continue
+        count = regions.get("count")
+        covered = regions.get("covered")
+        if (
+            not isinstance(count, int)
+            or isinstance(count, bool)
+            or not isinstance(covered, int)
+            or isinstance(covered, bool)
+            or count < 0
+            or covered < 0
+            or covered > count
+        ):
+            continue
+        if covered != count:
+            deficits.append(f"{filename}={covered}/{count}")
+    return sorted(deficits)[:MAX_REGION_DIAGNOSTICS]
+
+
 def _function_region_locations(summary: Mapping[str, Any]) -> set[str]:
     """Return zero-count LLVM code regions from per-function export detail."""
 
@@ -146,6 +192,9 @@ def verify_file(path: pathlib.Path) -> None:
             f"{metric}={covered}/{count}"
             for metric, (covered, count) in sorted(uncovered.items())
         )
+        file_summaries = uncovered_file_region_summaries(payload)
+        if file_summaries:
+            details = f"{details}; uncovered files: {', '.join(file_summaries)}"
         region_locations = uncovered_region_locations(payload)
         if region_locations:
             details = f"{details}; uncovered regions: {', '.join(region_locations)}"
