@@ -25,8 +25,8 @@ mod mime;
 #[cfg(test)]
 #[cfg_attr(coverage_nightly, coverage(off))]
 mod mime_test_support {
-    use crate::mime::{MimeType, ObservedMimeClassification, classify_observed_mime};
     use crate::HttpError;
+    use crate::mime::{MimeType, ObservedMimeClassification, classify_observed_mime};
 
     pub(crate) fn observe_mime_type(
         content: &[u8],
