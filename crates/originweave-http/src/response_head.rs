@@ -441,8 +441,7 @@ mod tests {
     fn informational_responses_are_bounded_and_upgrade_is_rejected() {
         let input = b"HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 103 Early Hints\r\nLink: x\r\n\r\nHTTP/1.1 200 OK\r\n\r\nbody";
         assert_eq!(
-            parse_final_response_head(input, &policy(64, 4, 16, 16, 128, 2))
-                .expect("final head"),
+            parse_final_response_head(input, &policy(64, 4, 16, 16, 128, 2)).expect("final head"),
             FinalHeadParseResult::Complete {
                 head: ResponseHead {
                     status_code: 200,
