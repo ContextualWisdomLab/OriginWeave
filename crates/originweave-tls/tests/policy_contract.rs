@@ -42,7 +42,7 @@ fn trust_root_bundle_is_nonempty_bounded_deduplicated_and_hashed() {
     let root = root_der();
     let bundle = TrustRootBundle::new(
         TrustBundleIdentifier::parse("test_roots:v1").expect("identifier"),
-        [root.clone(), root.clone()],
+        vec![root.clone(), root.clone()],
     )
     .expect("valid roots");
 
@@ -62,21 +62,21 @@ fn trust_root_bundle_is_nonempty_bounded_deduplicated_and_hashed() {
     assert!(matches!(
         TrustRootBundle::new(
             TrustBundleIdentifier::parse("many:v1").expect("identifier"),
-            std::iter::repeat_n(root.clone(), MAX_TRUST_ROOT_COUNT + 1),
+            std::iter::repeat_n(root.clone(), MAX_TRUST_ROOT_COUNT + 1).collect(),
         ),
         Err(TlsError::InvalidTrustRootCount { .. })
     ));
     assert!(matches!(
         TrustRootBundle::new(
             TrustBundleIdentifier::parse("large:v1").expect("identifier"),
-            [vec![0_u8; MAX_TRUST_ROOT_BYTES + 1]],
+            vec![vec![0_u8; MAX_TRUST_ROOT_BYTES + 1]],
         ),
         Err(TlsError::InvalidTrustRootBytes { .. })
     ));
     assert!(matches!(
         TrustRootBundle::new(
             TrustBundleIdentifier::parse("malformed:v1").expect("identifier"),
-            [vec![1_u8, 2, 3]],
+            vec![vec![1_u8, 2, 3]],
         ),
         Err(TlsError::InvalidTrustRoot { .. })
     ));
@@ -88,7 +88,7 @@ fn tls_policy_bounds_timeouts_and_alpn() {
     let policy = TlsClientPolicy::new(
         trusted_time,
         Duration::from_secs(3),
-        [b"h2".to_vec(), b"http/1.1".to_vec()],
+        vec![b"h2".to_vec(), b"http/1.1".to_vec()],
         AlpnRequirement::Required,
     )
     .expect("valid TLS policy");
@@ -109,7 +109,7 @@ fn tls_policy_bounds_timeouts_and_alpn() {
             TlsClientPolicy::new(
                 trusted_time,
                 timeout,
-                [b"h2".to_vec()],
+                vec![b"h2".to_vec()],
                 AlpnRequirement::Optional,
             ),
             Err(TlsError::InvalidHandshakeTimeout { .. })
