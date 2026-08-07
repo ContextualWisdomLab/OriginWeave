@@ -4,7 +4,7 @@ use crate::chunked::parse_chunked_body;
 use crate::disposition::parse_content_disposition;
 use crate::field::{FieldBlock, FieldLine};
 use crate::integrity::validate_content_digest;
-use crate::mime::{MimeType, observe_mime_type};
+use crate::mime::{MimeType, classify_observed_mime};
 use crate::response_head::{FinalHeadParseResult, parse_final_response_head, parse_response_head};
 use crate::{HttpClientPolicy, HttpError, IntegrityRequirement, IntegrityStatus};
 
@@ -19,7 +19,7 @@ fn fields(entries: &[(&str, &[u8])]) -> FieldBlock {
 
 #[test]
 fn content_disposition_absence_duplicates_and_dot_names_are_explicit() {
-    let observed = observe_mime_type(b"plain text", None).expect("observed MIME");
+    let observed = classify_observed_mime(b"plain text", None);
     assert_eq!(
         parse_content_disposition(&FieldBlock::default(), &observed).expect("absent disposition"),
         None
@@ -52,7 +52,7 @@ fn content_disposition_absence_duplicates_and_dot_names_are_explicit() {
 
 #[test]
 fn extended_filename_requires_both_rfc5987_separators() {
-    let observed = observe_mime_type(b"plain text", None).expect("observed MIME");
+    let observed = classify_observed_mime(b"plain text", None);
     for value in [
         b"attachment; filename*=UTF-8".as_slice(),
         b"attachment; filename*=UTF-8'en",
@@ -66,7 +66,7 @@ fn extended_filename_requires_both_rfc5987_separators() {
 
 #[test]
 fn every_filename_extension_mapping_is_exercised_before_download_handoff() {
-    let observed = observe_mime_type(b"plain text", None).expect("observed MIME");
+    let observed = classify_observed_mime(b"plain text", None);
     for filename in [
         "page.html",
         "page.htm",
@@ -126,12 +126,12 @@ fn mime_classifier_exercises_every_html_signature_and_plain_text_byte_class() {
         "<p",
         "<!--",
     ] {
-        let observed = observe_mime_type(signature.as_bytes(), None).expect("HTML signature");
+        let observed = classify_observed_mime(signature.as_bytes(), None);
         assert_eq!(observed.mime_type().essence(), "text/html");
     }
 
     for text in ["\ttext", "\ntext", "\u{000c}text", "\rtext", " text", "é"] {
-        let observed = observe_mime_type(text.as_bytes(), None).expect("plain text byte class");
+        let observed = classify_observed_mime(text.as_bytes(), None);
         assert_eq!(observed.mime_type().essence(), "text/plain");
     }
 }
