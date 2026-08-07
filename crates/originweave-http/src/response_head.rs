@@ -76,9 +76,6 @@ pub(crate) fn parse_response_head(
         fields.push(field);
         offset = line_end + 2;
     }
-    if offset != terminal_empty_line {
-        return Err(HttpError::InvalidResponseLineEnding);
-    }
     Ok(HeadParseResult::Complete {
         head: ResponseHead {
             status_code,
@@ -249,7 +246,7 @@ fn response_field_error(error: FieldSyntaxError) -> HttpError {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::expect_used, clippy::panic)]
+    #![allow(clippy::expect_used)]
 
     use std::time::Duration;
 
@@ -290,27 +287,36 @@ mod tests {
         let input = b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nX-Bytes: \tvalue\t \r\n\r\nhello";
         let parsed =
             parse_response_head(input, &HttpClientPolicy::strict_defaults()).expect("valid head");
-        let HeadParseResult::Complete { head, consumed } = parsed else {
-            panic!("head must be complete");
-        };
-        assert_eq!(head.status_code, 200);
-        assert_eq!(head.fields.len(), 2);
-        assert_eq!(head.fields.values("content-length"), [b"5".as_slice()]);
-        assert_eq!(head.fields.values("x-bytes"), [b"value".as_slice()]);
-        assert_eq!(&input[consumed..], b"hello");
+        let expected_fields = FieldBlock::new(vec![
+            FieldLine::new(b"Content-Length", b"5", 256, 8_192).expect("content-length"),
+            FieldLine::new(b"X-Bytes", b"value", 256, 8_192).expect("x-bytes"),
+        ]);
+        assert_eq!(
+            parsed,
+            HeadParseResult::Complete {
+                head: ResponseHead {
+                    status_code: 200,
+                    fields: expected_fields,
+                },
+                consumed: input.len() - b"hello".len(),
+            }
+        );
     }
 
     #[test]
     fn status_line_requires_separator_before_optional_reason_phrase() {
-        let parsed = parse_response_head(
-            b"HTTP/1.1 200 \r\n\r\n",
-            &HttpClientPolicy::strict_defaults(),
-        )
-        .expect("empty reason phrase with mandatory separator is valid");
-        let HeadParseResult::Complete { head, .. } = parsed else {
-            panic!("head must be complete");
-        };
-        assert_eq!(head.status_code, 200);
+        let complete = b"HTTP/1.1 200 \r\n\r\n";
+        assert_eq!(
+            parse_response_head(complete, &HttpClientPolicy::strict_defaults())
+                .expect("empty reason phrase with mandatory separator is valid"),
+            HeadParseResult::Complete {
+                head: ResponseHead {
+                    status_code: 200,
+                    fields: FieldBlock::default(),
+                },
+                consumed: complete.len(),
+            }
+        );
 
         assert!(matches!(
             parse_response_head(
@@ -434,19 +440,18 @@ mod tests {
     #[test]
     fn informational_responses_are_bounded_and_upgrade_is_rejected() {
         let input = b"HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 103 Early Hints\r\nLink: x\r\n\r\nHTTP/1.1 200 OK\r\n\r\nbody";
-        let result =
-            parse_final_response_head(input, &policy(64, 4, 16, 16, 128, 2)).expect("final head");
-        let FinalHeadParseResult::Complete {
-            head,
-            consumed,
-            interim_response_count,
-        } = result
-        else {
-            panic!("final head must be complete");
-        };
-        assert_eq!(head.status_code, 200);
-        assert_eq!(interim_response_count, 2);
-        assert_eq!(&input[consumed..], b"body");
+        assert_eq!(
+            parse_final_response_head(input, &policy(64, 4, 16, 16, 128, 2))
+                .expect("final head"),
+            FinalHeadParseResult::Complete {
+                head: ResponseHead {
+                    status_code: 200,
+                    fields: FieldBlock::default(),
+                },
+                consumed: input.len() - b"body".len(),
+                interim_response_count: 2,
+            }
+        );
 
         assert!(matches!(
             parse_final_response_head(input, &policy(64, 4, 16, 16, 128, 1)),
