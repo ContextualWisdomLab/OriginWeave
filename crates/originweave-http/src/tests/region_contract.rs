@@ -178,12 +178,12 @@ fn structured_field_extension_keys_cover_the_complete_allowed_punctuation() {
 
 #[test]
 fn digest_dictionary_accepts_http_ows_around_member_delimiters() {
-    let value = b"sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:\t,\tsha-512=:z4PhNX7vuL3xVChQ1m2AB9Yg5AULVxXcgSpIdNs6c5H0NE8XYXysP+DGNKHfuwY7kxvUdBeoGlODJ6+SfaPgQ==:";
+    let value = b"sha-256=:LPJNul+wow4m6DsqxbninhsWHlwfp0JecwQzYpOLmCQ=:\t,\tsha-512=:m3HSJL1i83hdltRq0+o9czGb+8KJDKra4t/3JRlnPKcjI8PZm6XBHXx6zG4UuMXaDEZjR1wuXDre9G9zvN7AQw==:";
     assert_eq!(
         validate_content_digest(
             &fields(&[("content-digest", value)]),
             &FieldBlock::default(),
-            b"",
+            b"hello",
             IntegrityRequirement::RequireSupportedDigest,
         )
         .expect("OWS around dictionary commas is valid"),
