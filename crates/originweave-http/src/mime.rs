@@ -21,10 +21,14 @@ impl MimeType {
     pub fn parse(input: &[u8]) -> Result<Self, HttpError> {
         let segments = split_semicolon_segments(input)?;
         let essence = trim_optional_whitespace(segments[0]);
-        let slash = essence
-            .iter()
-            .position(|byte| *byte == b'/')
-            .ok_or(HttpError::InvalidMimeType)?;
+        let mut slash = None;
+        for (index, byte) in essence.iter().copied().enumerate() {
+            if byte == b'/' {
+                slash = Some(index);
+                break;
+            }
+        }
+        let slash = slash.ok_or(HttpError::InvalidMimeType)?;
         let type_name = &essence[..slash];
         let subtype_name = &essence[slash + 1..];
         // A second slash is already rejected by `is_token_byte`, because `/` is not a MIME
