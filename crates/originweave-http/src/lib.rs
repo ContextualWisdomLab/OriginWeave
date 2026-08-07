@@ -17,7 +17,11 @@ mod target;
 #[cfg(test)]
 mod chunked;
 #[cfg(test)]
+mod content;
+#[cfg(test)]
 mod framing;
+#[cfg(test)]
+mod integrity;
 #[cfg(test)]
 mod response_head;
 
