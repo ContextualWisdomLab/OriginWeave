@@ -1,0 +1,75 @@
+name: Linearize HTTP body reads
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/linearize-http-body-read.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: linearize-http-body-read-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  patch:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    name: Enforce linear bounded body reads
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          persist-credentials: true
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - name: Replace quadratic chunk parsing and exact-limit rejection
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("crates/originweave-http/src/exchange.rs")
+          text = path.read_text(encoding="utf-8")
+
+          old_chunked = '''        BodyFraming::Chunked => {\n            let maximum_wire_bytes = maximum_chunked_wire_bytes(policy);\n            let mut buffer = body_prefix;\n            loop {\n                match parse_chunked_body(&buffer, policy)? {\n                    ChunkParseResult::Complete(result) => {\n                        if result.consumed != buffer.len() {\n                            return Err(HttpError::UnexpectedResponseBytes {\n                                byte_count: buffer.len() - result.consumed,\n                            });\n                        }\n                        return Ok(NetworkResult {\n                            head,\n                            encoded_content: result.content,\n                            trailers: result.trailers,\n                            framing,\n                            chunk_count: result.chunk_count,\n                            interim_response_count,\n                        });\n                    }\n                    ChunkParseResult::Incomplete => {}\n                }\n                if buffer.len() >= maximum_wire_bytes {\n                    return Err(HttpError::EncodedContentTooLarge {\n                        byte_count: u64::try_from(buffer.len().saturating_add(1))\n                            .unwrap_or(u64::MAX),\n                        maximum_bytes: maximum_wire_bytes,\n                    });\n                }\n                read_append_bounded(\n                    connection,\n                    &mut buffer,\n                    maximum_wire_bytes,\n                    deadline,\n                    timeout,\n                )?;\n            }\n        }\n'''
+          new_chunked = '''        BodyFraming::Chunked => {\n            let maximum_wire_bytes = maximum_chunked_wire_bytes(policy);\n            let buffer = read_to_clean_eof_bounded(\n                connection,\n                body_prefix,\n                maximum_wire_bytes,\n                deadline,\n                timeout,\n            )?;\n            let result = match parse_chunked_body(&buffer, policy)? {\n                ChunkParseResult::Complete(result) => result,\n                ChunkParseResult::Incomplete => return Err(HttpError::IncompleteResponse),\n            };\n            if result.consumed != buffer.len() {\n                return Err(HttpError::UnexpectedResponseBytes {\n                    byte_count: buffer.len() - result.consumed,\n                });\n            }\n            Ok(NetworkResult {\n                head,\n                encoded_content: result.content,\n                trailers: result.trailers,\n                framing,\n                chunk_count: result.chunk_count,\n                interim_response_count,\n            })\n        }\n'''
+          if old_chunked not in text:
+              raise SystemExit("chunked exchange block changed unexpectedly")
+          text = text.replace(old_chunked, new_chunked, 1)
+
+          old_close = '''        BodyFraming::CloseDelimited => {\n            let mut encoded_content = body_prefix;\n            if encoded_content.len() > policy.max_encoded_content_bytes() {\n                return Err(HttpError::EncodedContentTooLarge {\n                    byte_count: u64::try_from(encoded_content.len()).unwrap_or(u64::MAX),\n                    maximum_bytes: policy.max_encoded_content_bytes(),\n                });\n            }\n            loop {\n                let byte_count = read_append_bounded(\n                    connection,\n                    &mut encoded_content,\n                    policy.max_encoded_content_bytes(),\n                    deadline,\n                    timeout,\n                )?;\n                if byte_count == 0 {\n                    break;\n                }\n            }\n            Ok(NetworkResult {\n                head,\n                encoded_content,\n'''
+          new_close = '''        BodyFraming::CloseDelimited => {\n            let encoded_content = read_to_clean_eof_bounded(\n                connection,\n                body_prefix,\n                policy.max_encoded_content_bytes(),\n                deadline,\n                timeout,\n            )?;\n            Ok(NetworkResult {\n                head,\n                encoded_content,\n'''
+          if old_close not in text:
+              raise SystemExit("close-delimited exchange block changed unexpectedly")
+          text = text.replace(old_close, new_close, 1)
+
+          old_append = '''fn read_append_bounded(\n    connection: &mut AuthenticatedTlsConnection,\n    output: &mut Vec<u8>,\n    maximum: usize,\n    deadline: Instant,\n    timeout: Duration,\n) -> Result<usize, HttpError> {\n    if output.len() >= maximum {\n        return Err(HttpError::EncodedContentTooLarge {\n            byte_count: u64::try_from(output.len().saturating_add(1)).unwrap_or(u64::MAX),\n            maximum_bytes: maximum,\n        });\n    }\n    let mut scratch = [0_u8; IO_BUFFER_BYTES];\n    let read_limit = (maximum - output.len()).min(scratch.len());\n    let byte_count = read_with_deadline(\n        connection,\n        &mut scratch[..read_limit],\n        deadline,\n        timeout,\n    )?;\n    output.extend_from_slice(&scratch[..byte_count]);\n    Ok(byte_count)\n}\n'''
+          new_append = '''fn read_to_clean_eof_bounded(\n    connection: &mut AuthenticatedTlsConnection,\n    mut output: Vec<u8>,\n    maximum: usize,\n    deadline: Instant,\n    timeout: Duration,\n) -> Result<Vec<u8>, HttpError> {\n    if output.len() > maximum {\n        return Err(HttpError::EncodedContentTooLarge {\n            byte_count: u64::try_from(output.len()).unwrap_or(u64::MAX),\n            maximum_bytes: maximum,\n        });\n    }\n    loop {\n        let remaining_capacity = maximum.saturating_sub(output.len());\n        let mut scratch = [0_u8; IO_BUFFER_BYTES];\n        let read_limit = if remaining_capacity == 0 {\n            1\n        } else {\n            remaining_capacity.min(scratch.len())\n        };\n        let byte_count = read_with_deadline(\n            connection,\n            &mut scratch[..read_limit],\n            deadline,\n            timeout,\n        )?;\n        if byte_count == 0 {\n            return Ok(output);\n        }\n        if remaining_capacity == 0 {\n            return Err(HttpError::EncodedContentTooLarge {\n                byte_count: u64::try_from(maximum.saturating_add(byte_count))\n                    .unwrap_or(u64::MAX),\n                maximum_bytes: maximum,\n            });\n        }\n        output.extend_from_slice(&scratch[..byte_count]);\n    }\n}\n'''
+          if old_append not in text:
+              raise SystemExit("bounded append helper changed unexpectedly")
+          text = text.replace(old_append, new_append, 1)
+
+          old_borrow = '''        let byte_count = read_with_deadline(\n            connection,\n            &mut scratch[..remaining.min(scratch.len())],\n            deadline,\n            timeout,\n        )?;\n'''
+          new_borrow = '''        let read_limit = remaining.min(scratch.len());\n        let byte_count = read_with_deadline(\n            connection,\n            &mut scratch[..read_limit],\n            deadline,\n            timeout,\n        )?;\n'''
+          if old_borrow not in text:
+              raise SystemExit("exact-body borrow block changed unexpectedly")
+          text = text.replace(old_borrow, new_borrow, 1)
+          path.write_text(text, encoding="utf-8")
+          PY
+      - name: Apply canonical Rust formatting
+        run: cargo fmt --all
+      - name: Commit linear reader and remove one-shot workflow
+        env:
+          TARGET_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          rm .github/workflows/linearize-http-body-read.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crates/originweave-http/src/exchange.rs .github/workflows/linearize-http-body-read.yml
+          git diff --cached --check
+          git commit -m "fix: linearize bounded HTTP body reads"
+          git push origin "HEAD:${TARGET_BRANCH}"
