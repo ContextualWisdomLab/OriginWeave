@@ -137,16 +137,23 @@ impl FieldBlock {
         Self { fields }
     }
 
+    pub(crate) const fn len(&self) -> usize {
+        self.fields.len()
+    }
+
     pub(crate) fn iter(&self) -> impl Iterator<Item = &FieldLine> {
         self.fields.iter()
     }
 
     pub(crate) fn values(&self, name: &str) -> Vec<&[u8]> {
-        self.fields
-            .iter()
-            .filter(|field| field.name() == name)
-            .map(FieldLine::value)
-            .collect()
+        let mut values = Vec::with_capacity(self.len());
+        values.extend(
+            self.fields
+                .iter()
+                .filter(|field| field.name() == name)
+                .map(FieldLine::value),
+        );
+        values
     }
 }
 
