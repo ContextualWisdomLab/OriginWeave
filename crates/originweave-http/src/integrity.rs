@@ -156,9 +156,6 @@ fn parse_digest_dictionary(
             }
         }
     }
-    if dictionary.is_empty() {
-        return Err(HttpError::InvalidDigestField);
-    }
     Ok(Some(dictionary))
 }
 
