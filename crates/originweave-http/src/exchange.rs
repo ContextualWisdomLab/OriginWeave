@@ -86,11 +86,11 @@ impl HttpExchangePlan {
             .write_timeout()
             .map_err(http_io_error)?;
         let started = Instant::now();
-        let deadline = started
-            .checked_add(self.policy.exchange_timeout())
-            .ok_or(HttpError::HttpExchangeTimedOut {
+        let deadline = started.checked_add(self.policy.exchange_timeout()).ok_or(
+            HttpError::HttpExchangeTimedOut {
                 timeout: self.policy.exchange_timeout(),
-            })?;
+            },
+        )?;
 
         let result = self.execute_inner(started, deadline);
         let restored = restore_timeouts(
@@ -151,8 +151,7 @@ impl HttpExchangePlan {
         let no_sniff_status = no_sniff_status(&network.head.fields)?;
         let observed_mime = observe_mime_type(&decoded.bytes, supplied_mime.as_ref())?;
         let mime_mismatch = classify_mismatch(supplied_mime.as_ref(), &observed_mime);
-        let content_disposition =
-            parse_content_disposition(&network.head.fields, &observed_mime)?;
+        let content_disposition = parse_content_disposition(&network.head.fields, &observed_mime)?;
         let redirect = parse_redirect_metadata(network.head.status_code, &network.head.fields)?;
         ensure_before_deadline(deadline, self.policy.exchange_timeout())?;
 
@@ -222,7 +221,8 @@ fn validate_transport_authority(
         .sock
         .peer_addr()
         .map_err(|_error| HttpError::InvalidTransportEvidence)?;
-    if current_peer != evidence.observed_peer() || evidence.requested_peer() != evidence.observed_peer()
+    if current_peer != evidence.observed_peer()
+        || evidence.requested_peer() != evidence.observed_peer()
     {
         return Err(HttpError::InvalidTransportEvidence);
     }
@@ -277,7 +277,12 @@ fn read_network_response(
 ) -> Result<NetworkResult, HttpError> {
     let (head, interim_response_count, body_prefix) =
         read_final_head(connection, policy, deadline, timeout)?;
-    let framing = determine_body_framing(method, head.status_code, &head.fields, policy.max_encoded_content_bytes())?;
+    let framing = determine_body_framing(
+        method,
+        head.status_code,
+        &head.fields,
+        policy.max_encoded_content_bytes(),
+    )?;
     match framing {
         BodyFraming::NoContent => {
             if !body_prefix.is_empty() {
@@ -295,17 +300,13 @@ fn read_network_response(
             })
         }
         BodyFraming::ContentLength(length) => {
-            let expected = usize::try_from(length).map_err(|_error| HttpError::EncodedContentTooLarge {
-                byte_count: length,
-                maximum_bytes: policy.max_encoded_content_bytes(),
-            })?;
-            let encoded_content = read_exact_content(
-                connection,
-                body_prefix,
-                expected,
-                deadline,
-                timeout,
-            )?;
+            let expected =
+                usize::try_from(length).map_err(|_error| HttpError::EncodedContentTooLarge {
+                    byte_count: length,
+                    maximum_bytes: policy.max_encoded_content_bytes(),
+                })?;
+            let encoded_content =
+                read_exact_content(connection, body_prefix, expected, deadline, timeout)?;
             Ok(NetworkResult {
                 head,
                 encoded_content,
@@ -405,12 +406,8 @@ fn read_exact_content(
         let remaining = expected - output.len();
         let mut scratch = [0_u8; IO_BUFFER_BYTES];
         let read_limit = remaining.min(scratch.len());
-        let byte_count = read_with_deadline(
-            connection,
-            &mut scratch[..read_limit],
-            deadline,
-            timeout,
-        )?;
+        let byte_count =
+            read_with_deadline(connection, &mut scratch[..read_limit], deadline, timeout)?;
         if byte_count == 0 {
             return Err(HttpError::IncompleteResponse);
         }
@@ -440,12 +437,8 @@ fn read_to_clean_eof_bounded(
         } else {
             remaining_capacity.min(scratch.len())
         };
-        let byte_count = read_with_deadline(
-            connection,
-            &mut scratch[..read_limit],
-            deadline,
-            timeout,
-        )?;
+        let byte_count =
+            read_with_deadline(connection, &mut scratch[..read_limit], deadline, timeout)?;
         if byte_count == 0 {
             return Ok(output);
         }
@@ -526,7 +519,10 @@ fn ensure_before_deadline(deadline: Instant, timeout: Duration) -> Result<(), Ht
 }
 
 fn classify_read_error(error: io::Error, timeout: Duration) -> HttpError {
-    if matches!(error.kind(), io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock) {
+    if matches!(
+        error.kind(),
+        io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock
+    ) {
         HttpError::HttpExchangeTimedOut { timeout }
     } else if error.kind() == io::ErrorKind::UnexpectedEof {
         HttpError::IncompleteResponse
@@ -536,7 +532,10 @@ fn classify_read_error(error: io::Error, timeout: Duration) -> HttpError {
 }
 
 fn classify_io_error(error: io::Error, timeout: Duration) -> HttpError {
-    if matches!(error.kind(), io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock) {
+    if matches!(
+        error.kind(),
+        io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock
+    ) {
         HttpError::HttpExchangeTimedOut { timeout }
     } else {
         http_io_error(error)
@@ -552,8 +551,14 @@ fn restore_timeouts(
     read_timeout: Option<Duration>,
     write_timeout: Option<Duration>,
 ) -> io::Result<()> {
-    connection.stream_mut().sock.set_read_timeout(read_timeout)?;
-    connection.stream_mut().sock.set_write_timeout(write_timeout)
+    connection
+        .stream_mut()
+        .sock
+        .set_read_timeout(read_timeout)?;
+    connection
+        .stream_mut()
+        .sock
+        .set_write_timeout(write_timeout)
 }
 
 fn field_evidence(fields: &FieldBlock) -> Vec<ResponseFieldEvidence> {
