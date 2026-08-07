@@ -93,6 +93,13 @@ pub enum HttpError {
         /// Origin authenticated by TLS.
         tls_origin: Origin,
     },
+    /// Inherited TLS peer evidence or the current socket peer is inconsistent.
+    InvalidTransportEvidence,
+    /// Bytes appeared beyond the complete response message boundary.
+    UnexpectedResponseBytes {
+        /// Number of bytes beyond the selected message boundary.
+        byte_count: usize,
+    },
     /// TLS ALPN evidence does not authorize HTTP/1.1 semantics.
     UnexpectedAlpn,
     /// The response contains a malformed or unsupported status line.
@@ -341,6 +348,12 @@ impl fmt::Display for HttpError {
             } => write!(
                 formatter,
                 "HTTP origin {http_origin} does not match authenticated TLS origin {tls_origin}"
+            ),
+            Self::InvalidTransportEvidence => formatter
+                .write_str("HTTP transport evidence does not match the authenticated TLS stream"),
+            Self::UnexpectedResponseBytes { byte_count } => write!(
+                formatter,
+                "HTTP peer sent {byte_count} bytes beyond the complete response boundary"
             ),
             Self::UnexpectedAlpn => {
                 formatter.write_str("TLS ALPN evidence does not authorize HTTP/1.1")
