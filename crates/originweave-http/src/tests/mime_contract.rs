@@ -3,7 +3,7 @@
 use crate::field::{FieldBlock, FieldLine};
 use crate::mime::{
     ContentRiskClass, MIME_CLASSIFIER_VERSION, MimeMismatch, MimeType, NoSniffStatus,
-    classify_mismatch, no_sniff_status, observe_mime_type, supplied_mime_type,
+    classify_mismatch, classify_observed_mime, no_sniff_status, supplied_mime_type,
 };
 use crate::{HttpError, MAX_MIME_SNIFF_BYTES};
 
@@ -149,7 +149,7 @@ fn signature_table_classifies_active_archival_image_text_and_binary_content() {
         ),
     ];
     for (content, essence, risk) in cases {
-        let observed = observe_mime_type(content, None).expect("classification");
+        let observed = classify_observed_mime(content, None);
         assert_eq!(observed.mime_type().essence(), essence);
         assert_eq!(observed.risk_class(), risk);
         assert_eq!(observed.classifier_version(), MIME_CLASSIFIER_VERSION);
@@ -159,13 +159,11 @@ fn signature_table_classifies_active_archival_image_text_and_binary_content() {
 #[test]
 fn javascript_observation_requires_supplied_javascript_metadata() {
     let supplied = MimeType::parse(b"application/javascript").expect("JavaScript MIME");
-    let observed =
-        observe_mime_type(b"const answer = 42;", Some(&supplied)).expect("JavaScript observation");
+    let observed = classify_observed_mime(b"const answer = 42;", Some(&supplied));
     assert_eq!(observed.mime_type().essence(), "text/javascript");
     assert_eq!(observed.risk_class(), ContentRiskClass::ActiveOrScriptable);
     assert_eq!(
-        observe_mime_type(b"const answer = 42;", None)
-            .expect("plain observation")
+        classify_observed_mime(b"const answer = 42;", None)
             .mime_type()
             .essence(),
         "text/plain"
@@ -177,18 +175,15 @@ fn observation_reads_only_the_bounded_prefix() {
     let mut content = vec![b'a'; MAX_MIME_SNIFF_BYTES];
     content.extend_from_slice(b"\0after-boundary");
     assert_eq!(
-        observe_mime_type(&content, None)
-            .expect("bounded observation")
-            .mime_type()
-            .essence(),
+        classify_observed_mime(&content, None).mime_type().essence(),
         "text/plain"
     );
 }
 
 #[test]
 fn supplied_and_observed_mismatch_states_are_explicit() {
-    let html = observe_mime_type(b"<html>", None).expect("HTML observation");
-    let binary = observe_mime_type(b"\0", None).expect("binary observation");
+    let html = classify_observed_mime(b"<html>", None);
+    let binary = classify_observed_mime(b"\0", None);
     let supplied_html = MimeType::parse(b"text/html").expect("HTML MIME");
     let supplied_text = MimeType::parse(b"text/plain").expect("text MIME");
     assert_eq!(
