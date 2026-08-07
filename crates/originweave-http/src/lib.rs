@@ -13,6 +13,9 @@ mod content;
 #[cfg(test)]
 #[path = "tests/coverage_contract.rs"]
 mod coverage_contract;
+#[cfg(test)]
+#[path = "tests/reachability_contract.rs"]
+mod reachability_contract;
 mod disposition;
 mod error;
 mod evidence;
