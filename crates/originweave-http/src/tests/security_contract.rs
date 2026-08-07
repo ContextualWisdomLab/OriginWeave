@@ -1,9 +1,9 @@
 #![allow(clippy::expect_used)]
 
+use crate::HttpError;
 use crate::disposition::{parse_content_disposition, parse_redirect_metadata};
 use crate::field::{FieldBlock, FieldLine};
 use crate::mime::observe_mime_type;
-use crate::HttpError;
 
 fn fields(entries: &[(&str, &[u8])]) -> FieldBlock {
     FieldBlock::new(
@@ -16,11 +16,10 @@ fn fields(entries: &[(&str, &[u8])]) -> FieldBlock {
 
 #[test]
 fn network_path_redirects_do_not_lose_their_authority() {
-    let error = parse_redirect_metadata(
-        302,
-        &fields(&[("location", b"//evil.example/path")]),
-    )
-    .expect_err("network-path reference must not be represented as same-origin relative metadata");
+    let error = parse_redirect_metadata(302, &fields(&[("location", b"//evil.example/path")]))
+        .expect_err(
+            "network-path reference must not be represented as same-origin relative metadata",
+        );
     assert!(matches!(error, HttpError::InvalidRedirectMetadata));
 }
 
