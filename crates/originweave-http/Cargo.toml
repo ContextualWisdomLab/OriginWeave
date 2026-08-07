@@ -9,16 +9,15 @@ repository.workspace = true
 homepage.workspace = true
 
 [dependencies]
-base64 = "=0.22.1"
 originweave-core = { path = "../originweave-core" }
 originweave-tls = { path = "../originweave-tls" }
+rustls = { version = "=0.23.42", default-features = false, features = ["ring", "std", "tls12"] }
 sha2 = "=0.10.9"
 
 [dev-dependencies]
 originweave-destination = { path = "../originweave-destination" }
 originweave-network = { path = "../originweave-network" }
 rcgen = "=0.14.8"
-rustls = { version = "=0.23.42", default-features = false, features = ["ring", "std", "tls12"] }
 
 [lints]
 workspace = true
