@@ -127,8 +127,8 @@ fn parse_digest_dictionary_into(
 ) -> Result<(), HttpError> {
     for value in values {
         let mut cursor = 0_usize;
+        skip_spaces(value, &mut cursor);
         loop {
-            skip_spaces(value, &mut cursor);
             let key = parse_key(value, &mut cursor)?;
             if value.get(cursor) != Some(&b'=') {
                 return Err(HttpError::InvalidDigestField);
@@ -136,9 +136,9 @@ fn parse_digest_dictionary_into(
             cursor += 1;
             let bytes = parse_byte_sequence(value, &mut cursor)?;
             parse_parameters(value, &mut cursor)?;
-            skip_spaces(value, &mut cursor);
+            skip_ows(value, &mut cursor);
 
-            // RFC 9651 dictionary parsing is last-occurrence-wins, including across repeated
+            // RFC 8941 dictionary parsing is last-occurrence-wins, including across repeated
             // field lines. RFC 9530 explicitly permits digest trailers to be merged into the
             // corresponding header field, so trailer members are parsed after header members.
             let key: String = key.iter().map(|byte| char::from(*byte)).collect();
@@ -151,6 +151,7 @@ fn parse_digest_dictionary_into(
                 return Err(HttpError::InvalidDigestField);
             }
             cursor += 1;
+            skip_ows(value, &mut cursor);
             if cursor == value.len() {
                 return Err(HttpError::InvalidDigestField);
             }
@@ -212,21 +213,16 @@ fn parse_parameters(input: &[u8], cursor: &mut usize) -> Result<(), HttpError> {
 
 fn parse_bare_item(input: &[u8], cursor: &mut usize) -> Result<(), HttpError> {
     match input.get(*cursor).copied() {
-        Some(b'-' | b'0'..=b'9') => parse_number(input, cursor, true),
+        Some(b'-' | b'0'..=b'9') => parse_number(input, cursor),
         Some(b'"') => parse_string(input, cursor),
         Some(byte) if byte.is_ascii_alphabetic() || byte == b'*' => parse_token(input, cursor),
         Some(b':') => parse_byte_sequence(input, cursor).map(|_bytes| ()),
         Some(b'?') => parse_boolean(input, cursor),
-        Some(b'@') => {
-            *cursor += 1;
-            parse_number(input, cursor, false)
-        }
-        Some(b'%') => parse_display_string(input, cursor),
         _other => Err(HttpError::InvalidDigestField),
     }
 }
 
-fn parse_number(input: &[u8], cursor: &mut usize, decimal_allowed: bool) -> Result<(), HttpError> {
+fn parse_number(input: &[u8], cursor: &mut usize) -> Result<(), HttpError> {
     if input.get(*cursor) == Some(&b'-') {
         *cursor += 1;
     }
@@ -238,7 +234,7 @@ fn parse_number(input: &[u8], cursor: &mut usize, decimal_allowed: bool) -> Resu
     if integer_digits == 0 {
         return Err(HttpError::InvalidDigestField);
     }
-    if decimal_allowed && input.get(*cursor) == Some(&b'.') {
+    if input.get(*cursor) == Some(&b'.') {
         if integer_digits > 12 {
             return Err(HttpError::InvalidDigestField);
         }
@@ -323,56 +319,17 @@ fn parse_boolean(input: &[u8], cursor: &mut usize) -> Result<(), HttpError> {
     }
 }
 
-fn parse_display_string(input: &[u8], cursor: &mut usize) -> Result<(), HttpError> {
-    if input.get(*cursor..*cursor + 2) != Some(b"%\"".as_slice()) {
-        return Err(HttpError::InvalidDigestField);
-    }
-    *cursor += 2;
-    let mut decoded = Vec::new();
-    loop {
-        let Some(byte) = input.get(*cursor).copied() else {
-            return Err(HttpError::InvalidDigestField);
-        };
-        *cursor += 1;
-        match byte {
-            b'"' => {
-                return std::str::from_utf8(&decoded)
-                    .map(|_text| ())
-                    .map_err(|_error| HttpError::InvalidDigestField);
-            }
-            b'%' => {
-                let Some(high) = input.get(*cursor).copied() else {
-                    return Err(HttpError::InvalidDigestField);
-                };
-                let Some(low) = input.get(*cursor + 1).copied() else {
-                    return Err(HttpError::InvalidDigestField);
-                };
-                if !is_lower_hex(high) || !is_lower_hex(low) {
-                    return Err(HttpError::InvalidDigestField);
-                }
-                decoded.push((hex_value(high) << 4) | hex_value(low));
-                *cursor += 2;
-            }
-            0x20..=0x7e => decoded.push(byte),
-            _other => return Err(HttpError::InvalidDigestField),
-        }
-    }
-}
-
-fn is_lower_hex(byte: u8) -> bool {
-    byte.is_ascii_digit() || matches!(byte, b'a'..=b'f')
-}
-
-fn hex_value(byte: u8) -> u8 {
-    if byte.is_ascii_digit() {
-        byte - b'0'
-    } else {
-        byte - b'a' + 10
-    }
-}
-
 fn skip_spaces(input: &[u8], cursor: &mut usize) {
     while input.get(*cursor) == Some(&b' ') {
+        *cursor += 1;
+    }
+}
+
+fn skip_ows(input: &[u8], cursor: &mut usize) {
+    while input
+        .get(*cursor)
+        .is_some_and(|byte| matches!(byte, b' ' | b'\t'))
+    {
         *cursor += 1;
     }
 }
@@ -430,11 +387,11 @@ mod tests {
     }
 
     #[test]
-    fn structured_field_parameters_and_duplicate_keys_follow_rfc9651() {
+    fn structured_field_parameters_and_duplicate_keys_follow_rfc8941() {
         let correct = digest_member(IntegrityAlgorithm::Sha256, b"");
         let wrong = digest_member(IntegrityAlgorithm::Sha256, b"wrong");
         let parameterized = format!(
-            "{correct};flag;integer=-7;decimal=1.25;text=\"a\\\"b\";token=Abc/def;binary=:AQ==:;bool=?0;date=@42;display=%\"caf%c3%a9\";source=7;source=9"
+            "{correct};flag;integer=-7;decimal=1.25;text=\"a\\\"b\";token=Abc/def;binary=:AQ==:;bool=?0;source=7;source=9"
         );
         assert_eq!(
             validate_content_digest(
@@ -554,11 +511,8 @@ mod tests {
             b"sha-256=:AQ==:;s=\"bad\\x\"",
             b"sha-256=:AQ==:;s=\"unterminated",
             b"sha-256=:AQ==:;b=?2",
-            b"sha-256=:AQ==:;d=@-",
-            b"sha-256=:AQ==:;x=%bad",
-            b"sha-256=:AQ==:;x=%\"bad%AF\"",
-            b"sha-256=:AQ==:;x=%\"bad%a\"",
-            b"sha-256=:AQ==:;x=%\"bad%ff\"",
+            b"sha-256=:AQ==:;date=@42",
+            b"sha-256=:AQ==:;display=%\"ok\"",
             b"sha-256=:AQ==: ,",
         ] {
             assert!(matches!(
