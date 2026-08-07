@@ -1,5 +1,6 @@
 name: Measure TLS production coverage
 
+# Exact-head retry after the verified TLS integration repair.
 on:
   push:
     branches:
