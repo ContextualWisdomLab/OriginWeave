@@ -16,7 +16,7 @@ use crate::evidence::{
 use crate::field::FieldBlock;
 use crate::framing::{BodyFraming, determine_body_framing};
 use crate::integrity::{validate_content_digest, validate_representation_digest};
-use crate::mime::{classify_mismatch, no_sniff_status, observe_mime_type, supplied_mime_type};
+use crate::mime::{classify_mismatch, classify_observed_mime, no_sniff_status, supplied_mime_type};
 use crate::request::serialize_request;
 use crate::response_head::{FinalHeadParseResult, ResponseHead, parse_final_response_head};
 use crate::{
@@ -106,74 +106,77 @@ impl HttpExchangePlan {
             deadline,
             self.policy.exchange_timeout(),
         )?;
-        ensure_before_deadline(deadline, self.policy.exchange_timeout())?;
+        let timeout = self.policy.exchange_timeout();
+        ensure_before_deadline(deadline, timeout).and_then(|()| {
+            let content_digest_status = validate_content_digest(
+                &network.head.fields,
+                &network.trailers,
+                &network.encoded_content,
+                self.policy.integrity_requirement(),
+            )?;
+            let has_content_range = !network.head.fields.values("content-range").is_empty();
+            let representation_digest_status = validate_representation_digest(
+                &network.head.fields,
+                &network.trailers,
+                &network.encoded_content,
+                network.head.status_code,
+                has_content_range,
+                self.policy.integrity_requirement(),
+            )?;
+            let decoded = if matches!(network.framing, BodyFraming::NoContent) {
+                crate::content::DecodedContent {
+                    bytes: Vec::new(),
+                    coding: ContentCoding::Identity,
+                }
+            } else {
+                decode_content(&network.encoded_content, &network.head.fields, &self.policy)?
+            };
+            let supplied_mime = supplied_mime_type(&network.head.fields)?;
+            let no_sniff_status = no_sniff_status(&network.head.fields)?;
+            let observed_mime = classify_observed_mime(&decoded.bytes, supplied_mime.as_ref());
+            let mime_mismatch = classify_mismatch(supplied_mime.as_ref(), &observed_mime);
+            let content_disposition =
+                parse_content_disposition(&network.head.fields, &observed_mime)?;
+            let redirect = parse_redirect_metadata(network.head.status_code, &network.head.fields)?;
 
-        let content_digest_status = validate_content_digest(
-            &network.head.fields,
-            &network.trailers,
-            &network.encoded_content,
-            self.policy.integrity_requirement(),
-        )?;
-        let has_content_range = !network.head.fields.values("content-range").is_empty();
-        let representation_digest_status = validate_representation_digest(
-            &network.head.fields,
-            &network.trailers,
-            &network.encoded_content,
-            network.head.status_code,
-            has_content_range,
-            self.policy.integrity_requirement(),
-        )?;
-        let decoded = if matches!(network.framing, BodyFraming::NoContent) {
-            crate::content::DecodedContent {
-                bytes: Vec::new(),
-                coding: ContentCoding::Identity,
-            }
-        } else {
-            decode_content(&network.encoded_content, &network.head.fields, &self.policy)?
-        };
-        let supplied_mime = supplied_mime_type(&network.head.fields)?;
-        let no_sniff_status = no_sniff_status(&network.head.fields)?;
-        let observed_mime = observe_mime_type(&decoded.bytes, supplied_mime.as_ref())?;
-        let mime_mismatch = classify_mismatch(supplied_mime.as_ref(), &observed_mime);
-        let content_disposition = parse_content_disposition(&network.head.fields, &observed_mime)?;
-        let redirect = parse_redirect_metadata(network.head.status_code, &network.head.fields)?;
-        ensure_before_deadline(deadline, self.policy.exchange_timeout())?;
-
-        let tls_evidence = self.connection.evidence();
-        let evidence: HttpExchangeEvidence = EvidenceInput {
-            origin: tls_evidence.origin().clone(),
-            requested_peer: tls_evidence.requested_peer(),
-            observed_peer: tls_evidence.observed_peer(),
-            tls_protocol_version: tls_evidence.protocol_version(),
-            negotiated_alpn: tls_evidence.negotiated_alpn().clone(),
-            method: self.method,
-            target_hash: self.target.target_hash().to_owned(),
-            query_present: self.target.query_present(),
-            path_prefix: self.target.path_prefix().to_owned(),
-            status_code: network.head.status_code,
-            interim_response_count: network.interim_response_count,
-            response_fields: field_evidence(&network.head.fields),
-            body_framing: network.framing,
-            encoded_content_bytes: network.encoded_content.len(),
-            decoded_content_bytes: decoded.bytes.len(),
-            content_coding: decoded.coding,
-            chunk_count: network.chunk_count,
-            trailer_fields: field_evidence(&network.trailers),
-            content_digest_status,
-            representation_digest_status,
-            supplied_mime,
-            observed_mime,
-            no_sniff_status,
-            mime_mismatch,
-            content_disposition,
-            redirect,
-            exchange_duration: started.elapsed(),
-            resource_budgets: HttpResourceBudgets::from_policy(&self.policy),
-        }
-        .into();
-        Ok(AuthenticatedHttpResponse {
-            content: decoded.bytes,
-            evidence,
+            ensure_before_deadline(deadline, timeout).map(|()| {
+                let tls_evidence = self.connection.evidence();
+                let evidence: HttpExchangeEvidence = EvidenceInput {
+                    origin: tls_evidence.origin().clone(),
+                    requested_peer: tls_evidence.requested_peer(),
+                    observed_peer: tls_evidence.observed_peer(),
+                    tls_protocol_version: tls_evidence.protocol_version(),
+                    negotiated_alpn: tls_evidence.negotiated_alpn().clone(),
+                    method: self.method,
+                    target_hash: self.target.target_hash().to_owned(),
+                    query_present: self.target.query_present(),
+                    path_prefix: self.target.path_prefix().to_owned(),
+                    status_code: network.head.status_code,
+                    interim_response_count: network.interim_response_count,
+                    response_fields: field_evidence(&network.head.fields),
+                    body_framing: network.framing,
+                    encoded_content_bytes: network.encoded_content.len(),
+                    decoded_content_bytes: decoded.bytes.len(),
+                    content_coding: decoded.coding,
+                    chunk_count: network.chunk_count,
+                    trailer_fields: field_evidence(&network.trailers),
+                    content_digest_status,
+                    representation_digest_status,
+                    supplied_mime,
+                    observed_mime,
+                    no_sniff_status,
+                    mime_mismatch,
+                    content_disposition,
+                    redirect,
+                    exchange_duration: started.elapsed(),
+                    resource_budgets: HttpResourceBudgets::from_policy(&self.policy),
+                }
+                .into();
+                AuthenticatedHttpResponse {
+                    content: decoded.bytes,
+                    evidence,
+                }
+            })
         })
     }
 }
