@@ -76,8 +76,7 @@ mod tests {
             .server_name(&origin)
             .expect_err("invalid DNS identity");
         require(
-            discriminant(&error)
-                == discriminant(&TlsError::InvalidReferenceIdentity { origin }),
+            discriminant(&error) == discriminant(&TlsError::InvalidReferenceIdentity { origin }),
             "invalid DNS identity must retain its typed error",
         );
     }
