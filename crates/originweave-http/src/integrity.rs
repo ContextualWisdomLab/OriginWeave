@@ -213,6 +213,11 @@ mod tests {
         )
     }
 
+    fn digest_member(algorithm: IntegrityAlgorithm, bytes: &[u8]) -> String {
+        let encoded = STANDARD.encode(digest_bytes(algorithm, bytes));
+        format!("{}=:{encoded}:", algorithm.key())
+    }
+
     #[test]
     fn supported_content_digests_match_known_answer_vectors() {
         let field_block = fields(&[(
@@ -234,30 +239,62 @@ mod tests {
     }
 
     #[test]
-    fn header_and_trailer_dictionaries_must_be_identical() {
-        let value = b"sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:";
+    fn structured_field_parameters_and_duplicate_keys_follow_rfc9651() {
+        let correct = digest_member(IntegrityAlgorithm::Sha256, b"");
+        let wrong = digest_member(IntegrityAlgorithm::Sha256, b"wrong");
+        let parameterized = format!("{correct};source=7;source=9");
         assert_eq!(
             validate_content_digest(
-                &fields(&[("content-digest", value)]),
-                &fields(&[("content-digest", value)]),
+                &fields(&[("content-digest", parameterized.as_bytes())]),
+                &FieldBlock::default(),
+                b"",
+                IntegrityRequirement::RequireSupportedDigest,
+            )
+            .expect("byte sequence item parameters are extensible metadata"),
+            IntegrityStatus::Verified(vec![IntegrityAlgorithm::Sha256])
+        );
+
+        assert_eq!(
+            validate_content_digest(
+                &fields(&[
+                    ("content-digest", wrong.as_bytes()),
+                    ("content-digest", parameterized.as_bytes()),
+                ]),
+                &FieldBlock::default(),
+                b"",
+                IntegrityRequirement::RequireSupportedDigest,
+            )
+            .expect("the last duplicate dictionary key wins"),
+            IntegrityStatus::Verified(vec![IntegrityAlgorithm::Sha256])
+        );
+    }
+
+    #[test]
+    fn header_and_trailer_digest_members_merge_in_message_order() {
+        let sha256 = digest_member(IntegrityAlgorithm::Sha256, b"");
+        let sha512 = digest_member(IntegrityAlgorithm::Sha512, b"");
+        assert_eq!(
+            validate_content_digest(
+                &fields(&[("content-digest", sha256.as_bytes())]),
+                &fields(&[("content-digest", sha512.as_bytes())]),
                 b"",
                 IntegrityRequirement::Optional,
             )
-            .expect("matching dictionaries"),
-            IntegrityStatus::Verified(vec![IntegrityAlgorithm::Sha256])
+            .expect("RFC 9530 permits a digest trailer to merge into the header field"),
+            IntegrityStatus::Verified(vec![IntegrityAlgorithm::Sha256, IntegrityAlgorithm::Sha512])
         );
-        assert!(matches!(
+
+        let wrong = digest_member(IntegrityAlgorithm::Sha256, b"wrong");
+        assert_eq!(
             validate_content_digest(
-                &fields(&[("content-digest", value)]),
-                &fields(&[(
-                    "content-digest",
-                    b"sha-256=:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=:"
-                )]),
+                &fields(&[("content-digest", wrong.as_bytes())]),
+                &fields(&[("content-digest", sha256.as_bytes())]),
                 b"",
                 IntegrityRequirement::Optional,
-            ),
-            Err(HttpError::InvalidDigestField)
-        ));
+            )
+            .expect("later trailer dictionary members replace duplicate header members"),
+            IntegrityStatus::Verified(vec![IntegrityAlgorithm::Sha256])
+        );
     }
 
     #[test]
@@ -313,9 +350,10 @@ mod tests {
             b"sha-256=\"AQ==\"",
             b"sha-256=::",
             b"sha-256=:not base64:",
-            b"sha-256=:AQ==:;foo=1",
+            b"sha-256=:AQ==:;=1",
+            b"sha-256=:AQ==:;foo=",
+            b"sha-256=:AQ==:;Foo=1",
             b"sha-256=:AQ==: ,",
-            b"sha-256=:AQ==:, sha-256=:AQ==:",
         ] {
             assert!(matches!(
                 validate_content_digest(
