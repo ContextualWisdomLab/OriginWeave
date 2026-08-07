@@ -222,3 +222,33 @@ pub(crate) const fn is_token_byte(byte: u8) -> bool {
 pub(crate) const fn is_field_value_byte(byte: u8) -> bool {
     byte == b'\t' || (byte >= 0x20 && byte != 0x7f)
 }
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::expect_used)]
+
+    use super::*;
+
+    #[test]
+    fn private_field_debug_is_structural_and_never_exposes_values() {
+        let field = FieldLine::new(
+            b"X-Trace",
+            b"secret-value",
+            DEFAULT_MAX_HEADER_NAME_BYTES,
+            DEFAULT_MAX_HEADER_VALUE_BYTES,
+        )
+        .expect("valid internal field");
+
+        let field_debug = format!("{field:?}");
+        assert!(field_debug.contains("FieldLine"));
+        assert!(field_debug.contains("x-trace"));
+        assert!(field_debug.contains("value_byte_count"));
+        assert!(!field_debug.contains("secret-value"));
+
+        let block = FieldBlock::new(vec![field]);
+        let block_debug = format!("{block:?}");
+        assert!(block_debug.contains("x-trace"));
+        assert!(block_debug.contains("value_byte_count"));
+        assert!(!block_debug.contains("secret-value"));
+    }
+}
