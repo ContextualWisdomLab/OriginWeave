@@ -73,6 +73,75 @@ impl PolicyInput {
     }
 }
 
+#[derive(Clone, Copy)]
+enum PolicyLimit {
+    RequestBytes,
+    StatusLineBytes,
+    HeaderFieldCount,
+    HeaderNameBytes,
+    HeaderValueBytes,
+    HeaderSectionBytes,
+    InterimResponseCount,
+    ChunkCount,
+    TrailerFieldCount,
+    TrailerSectionBytes,
+    EncodedContentBytes,
+    DecodedContentBytes,
+}
+
+impl PolicyLimit {
+    const fn name(self) -> &'static str {
+        match self {
+            Self::RequestBytes => "max_request_bytes",
+            Self::StatusLineBytes => "max_status_line_bytes",
+            Self::HeaderFieldCount => "max_header_field_count",
+            Self::HeaderNameBytes => "max_header_name_bytes",
+            Self::HeaderValueBytes => "max_header_value_bytes",
+            Self::HeaderSectionBytes => "max_header_section_bytes",
+            Self::InterimResponseCount => "max_interim_response_count",
+            Self::ChunkCount => "max_chunk_count",
+            Self::TrailerFieldCount => "max_trailer_field_count",
+            Self::TrailerSectionBytes => "max_trailer_section_bytes",
+            Self::EncodedContentBytes => "max_encoded_content_bytes",
+            Self::DecodedContentBytes => "max_decoded_content_bytes",
+        }
+    }
+
+    const fn maximum(self) -> usize {
+        match self {
+            Self::RequestBytes => DEFAULT_MAX_REQUEST_BYTES,
+            Self::StatusLineBytes => DEFAULT_MAX_STATUS_LINE_BYTES,
+            Self::HeaderFieldCount => DEFAULT_MAX_HEADER_FIELD_COUNT,
+            Self::HeaderNameBytes => DEFAULT_MAX_HEADER_NAME_BYTES,
+            Self::HeaderValueBytes => DEFAULT_MAX_HEADER_VALUE_BYTES,
+            Self::HeaderSectionBytes => DEFAULT_MAX_HEADER_SECTION_BYTES,
+            Self::InterimResponseCount => DEFAULT_MAX_INTERIM_RESPONSE_COUNT,
+            Self::ChunkCount => DEFAULT_MAX_CHUNK_COUNT,
+            Self::TrailerFieldCount => DEFAULT_MAX_TRAILER_FIELD_COUNT,
+            Self::TrailerSectionBytes => DEFAULT_MAX_TRAILER_SECTION_BYTES,
+            Self::EncodedContentBytes => DEFAULT_MAX_ENCODED_CONTENT_BYTES,
+            Self::DecodedContentBytes => DEFAULT_MAX_DECODED_CONTENT_BYTES,
+        }
+    }
+
+    fn assign(self, input: &mut PolicyInput, value: usize) {
+        match self {
+            Self::RequestBytes => input.max_request_bytes = value,
+            Self::StatusLineBytes => input.max_status_line_bytes = value,
+            Self::HeaderFieldCount => input.max_header_field_count = value,
+            Self::HeaderNameBytes => input.max_header_name_bytes = value,
+            Self::HeaderValueBytes => input.max_header_value_bytes = value,
+            Self::HeaderSectionBytes => input.max_header_section_bytes = value,
+            Self::InterimResponseCount => input.max_interim_response_count = value,
+            Self::ChunkCount => input.max_chunk_count = value,
+            Self::TrailerFieldCount => input.max_trailer_field_count = value,
+            Self::TrailerSectionBytes => input.max_trailer_section_bytes = value,
+            Self::EncodedContentBytes => input.max_encoded_content_bytes = value,
+            Self::DecodedContentBytes => input.max_decoded_content_bytes = value,
+        }
+    }
+}
+
 #[test]
 fn strict_defaults_expose_the_complete_reviewed_policy() {
     let policy = HttpClientPolicy::strict_defaults();
@@ -190,61 +259,33 @@ fn timeout_and_expansion_ratio_fail_outside_the_reviewed_range() {
 
 #[test]
 fn each_count_and_byte_limit_rejects_zero_and_maximum_plus_one() {
-    let invalid_pairs = [
-        ("max_request_bytes", DEFAULT_MAX_REQUEST_BYTES),
-        ("max_status_line_bytes", DEFAULT_MAX_STATUS_LINE_BYTES),
-        ("max_header_field_count", DEFAULT_MAX_HEADER_FIELD_COUNT),
-        ("max_header_name_bytes", DEFAULT_MAX_HEADER_NAME_BYTES),
-        ("max_header_value_bytes", DEFAULT_MAX_HEADER_VALUE_BYTES),
-        ("max_header_section_bytes", DEFAULT_MAX_HEADER_SECTION_BYTES),
-        (
-            "max_interim_response_count",
-            DEFAULT_MAX_INTERIM_RESPONSE_COUNT,
-        ),
-        ("max_chunk_count", DEFAULT_MAX_CHUNK_COUNT),
-        (
-            "max_trailer_field_count",
-            DEFAULT_MAX_TRAILER_FIELD_COUNT,
-        ),
-        (
-            "max_trailer_section_bytes",
-            DEFAULT_MAX_TRAILER_SECTION_BYTES,
-        ),
-        (
-            "max_encoded_content_bytes",
-            DEFAULT_MAX_ENCODED_CONTENT_BYTES,
-        ),
-        (
-            "max_decoded_content_bytes",
-            DEFAULT_MAX_DECODED_CONTENT_BYTES,
-        ),
+    let limits = [
+        PolicyLimit::RequestBytes,
+        PolicyLimit::StatusLineBytes,
+        PolicyLimit::HeaderFieldCount,
+        PolicyLimit::HeaderNameBytes,
+        PolicyLimit::HeaderValueBytes,
+        PolicyLimit::HeaderSectionBytes,
+        PolicyLimit::InterimResponseCount,
+        PolicyLimit::ChunkCount,
+        PolicyLimit::TrailerFieldCount,
+        PolicyLimit::TrailerSectionBytes,
+        PolicyLimit::EncodedContentBytes,
+        PolicyLimit::DecodedContentBytes,
     ];
 
-    for (limit_name, maximum) in invalid_pairs {
+    for limit in limits {
+        let maximum = limit.maximum();
         for value in [0, maximum + 1] {
             let mut input = PolicyInput::defaults();
-            match limit_name {
-                "max_request_bytes" => input.max_request_bytes = value,
-                "max_status_line_bytes" => input.max_status_line_bytes = value,
-                "max_header_field_count" => input.max_header_field_count = value,
-                "max_header_name_bytes" => input.max_header_name_bytes = value,
-                "max_header_value_bytes" => input.max_header_value_bytes = value,
-                "max_header_section_bytes" => input.max_header_section_bytes = value,
-                "max_interim_response_count" => input.max_interim_response_count = value,
-                "max_chunk_count" => input.max_chunk_count = value,
-                "max_trailer_field_count" => input.max_trailer_field_count = value,
-                "max_trailer_section_bytes" => input.max_trailer_section_bytes = value,
-                "max_encoded_content_bytes" => input.max_encoded_content_bytes = value,
-                "max_decoded_content_bytes" => input.max_decoded_content_bytes = value,
-                _ => unreachable!("test table contains only known policy fields"),
-            }
+            limit.assign(&mut input, value);
             assert!(matches!(
                 input.build(),
                 Err(HttpError::InvalidPolicyLimit {
                     limit_name: observed,
                     value: observed_value,
                     maximum: observed_maximum,
-                }) if observed == limit_name
+                }) if observed == limit.name()
                     && observed_value == value
                     && observed_maximum == maximum
             ));
