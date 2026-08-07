@@ -28,6 +28,16 @@ impl TlsReferenceIdentity {
         Ok(Self::Dns(origin.host().to_owned()))
     }
 
+    /// Validate the syntax of an explicitly constructed reference identity.
+    ///
+    /// This performs no network I/O and does not replace the authority binding
+    /// performed by [`Self::from_origin`]. The supplied origin is retained only
+    /// so a malformed DNS identity can return deterministic typed evidence.
+    pub fn validate_syntax(&self, origin: &Origin) -> Result<(), TlsError> {
+        self.server_name(origin)?;
+        Ok(())
+    }
+
     #[inline(never)]
     pub(crate) fn server_name(&self, origin: &Origin) -> Result<ServerName<'static>, TlsError> {
         match self {
