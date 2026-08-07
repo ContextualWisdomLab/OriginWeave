@@ -18,6 +18,56 @@ fn fields(entries: &[(&str, &[u8])]) -> FieldBlock {
 }
 
 #[test]
+fn content_disposition_absence_duplicates_and_dot_names_are_explicit() {
+    let observed = observe_mime_type(b"plain text", None).expect("observed MIME");
+    assert_eq!(
+        parse_content_disposition(&FieldBlock::default(), &observed).expect("absent disposition"),
+        None
+    );
+    assert!(matches!(
+        parse_content_disposition(
+            &fields(&[
+                ("content-disposition", b"inline"),
+                ("content-disposition", b"attachment"),
+            ]),
+            &observed,
+        ),
+        Err(HttpError::InvalidContentDisposition)
+    ));
+    assert!(matches!(
+        parse_content_disposition(
+            &fields(&[("content-disposition", b"form-data")]),
+            &observed,
+        ),
+        Err(HttpError::InvalidContentDisposition)
+    ));
+    for filename in [".", ".."] {
+        let value = format!("attachment; filename=\"{filename}\"");
+        assert!(matches!(
+            parse_content_disposition(
+                &fields(&[("content-disposition", value.as_bytes())]),
+                &observed,
+            ),
+            Err(HttpError::InvalidContentDisposition)
+        ));
+    }
+}
+
+#[test]
+fn extended_filename_requires_both_rfc5987_separators() {
+    let observed = observe_mime_type(b"plain text", None).expect("observed MIME");
+    for value in [
+        b"attachment; filename*=UTF-8".as_slice(),
+        b"attachment; filename*=UTF-8'en",
+    ] {
+        assert!(matches!(
+            parse_content_disposition(&fields(&[("content-disposition", value)]), &observed),
+            Err(HttpError::InvalidContentDisposition)
+        ));
+    }
+}
+
+#[test]
 fn every_filename_extension_mapping_is_exercised_before_download_handoff() {
     let observed = observe_mime_type(b"plain text", None).expect("observed MIME");
     for filename in [
@@ -104,6 +154,21 @@ fn structured_field_extension_keys_cover_the_complete_allowed_punctuation() {
         )
         .expect("syntactically valid extension keys"),
         IntegrityStatus::UnsupportedAlgorithm
+    );
+}
+
+#[test]
+fn trailer_only_digest_dictionary_is_supported() {
+    let value = b"sha-256=:I59Z7VXnN8dxR89VrQwbAwttfudRjD+ArJpAuUJqctg=:";
+    assert_eq!(
+        validate_content_digest(
+            &FieldBlock::default(),
+            &fields(&[("content-digest", value)]),
+            b"payload",
+            IntegrityRequirement::Optional,
+        )
+        .expect("trailer-only digest"),
+        IntegrityStatus::Verified(vec![crate::IntegrityAlgorithm::Sha256])
     );
 }
 
