@@ -7,7 +7,7 @@ use originweave_core::Origin;
 use crate::chunked::{ChunkParseResult, MAX_CHUNK_LINE_BYTES, parse_chunked_body};
 use crate::disposition::{parse_content_disposition, parse_redirect_metadata};
 use crate::field::{FieldBlock, FieldLine};
-use crate::integrity::validate_content_digest;
+use crate::integrity::{validate_content_digest, validate_representation_digest};
 use crate::mime::{MimeType, observe_mime_type};
 use crate::response_head::{HeadParseResult, parse_response_head};
 use crate::{
@@ -169,7 +169,7 @@ fn mime_parameters_and_remaining_zip_signatures_are_bounded() {
 }
 
 #[test]
-fn digest_dictionary_rejects_short_value_and_digit_started_key() {
+fn digest_dictionary_rejects_short_value_digit_started_key_and_absent_repr_digest() {
     for value in [b"sha-256=:".as_slice(), b"1sha=:AQ==:"] {
         assert!(matches!(
             validate_content_digest(
@@ -191,6 +191,19 @@ fn digest_dictionary_rejects_short_value_and_digit_started_key() {
         )
         .expect("extension dictionary key is syntactically valid"),
         IntegrityStatus::UnsupportedAlgorithm
+    );
+
+    assert_eq!(
+        validate_representation_digest(
+            &FieldBlock::default(),
+            &FieldBlock::default(),
+            b"payload",
+            206,
+            false,
+            IntegrityRequirement::Optional,
+        )
+        .expect("absent representation digest remains optional"),
+        IntegrityStatus::Absent
     );
 }
 
