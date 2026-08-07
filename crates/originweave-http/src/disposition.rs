@@ -164,9 +164,10 @@ pub(crate) fn parse_redirect_metadata(
     };
     if location.is_empty()
         || location.len() > MAX_REDIRECT_LOCATION_BYTES
-        || location.iter().copied().any(|byte| {
-            byte.is_ascii_control() || byte.is_ascii_whitespace() || byte == 0x7f || byte == b'#'
-        })
+        || location
+            .iter()
+            .copied()
+            .any(|byte| byte.is_ascii_control() || byte.is_ascii_whitespace() || byte == b'#')
     {
         return Err(HttpError::InvalidRedirectMetadata);
     }
@@ -196,14 +197,14 @@ fn parse_filename_value(value: &[u8]) -> Result<String, HttpError> {
         let mut escaped = false;
         for byte in value[1..value.len() - 1].iter().copied() {
             if escaped {
-                if byte.is_ascii_control() || byte == 0x7f {
+                if byte.is_ascii_control() {
                     return Err(HttpError::InvalidContentDisposition);
                 }
                 decoded.push(byte);
                 escaped = false;
             } else if byte == b'\\' {
                 escaped = true;
-            } else if byte == b'"' || byte.is_ascii_control() || byte == 0x7f {
+            } else if byte == b'"' || byte.is_ascii_control() {
                 return Err(HttpError::InvalidContentDisposition);
             } else {
                 decoded.push(byte);
