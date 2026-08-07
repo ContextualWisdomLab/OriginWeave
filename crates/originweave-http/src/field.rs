@@ -137,10 +137,6 @@ impl FieldBlock {
         Self { fields }
     }
 
-    pub(crate) const fn len(&self) -> usize {
-        self.fields.len()
-    }
-
     pub(crate) fn iter(&self) -> impl Iterator<Item = &FieldLine> {
         self.fields.iter()
     }
