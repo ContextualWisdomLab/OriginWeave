@@ -137,6 +137,7 @@ fn content_decoding_error(source: io::Error) -> HttpError {
 }
 
 #[cfg(test)]
+#[cfg_attr(coverage_nightly, coverage(off))]
 mod tests {
     #![allow(clippy::expect_used)]
 
