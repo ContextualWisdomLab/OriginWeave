@@ -49,8 +49,7 @@ impl TlsHandshakePlan {
                 transport_origin: evidence.origin().clone(),
             });
         }
-        verify_peer_evidence(connection.stream(), evidence)?;
-        Ok(Self {
+        verify_peer_evidence(connection.stream(), evidence).map(|()| Self {
             origin,
             connection,
             trust_roots,
@@ -69,80 +68,102 @@ impl TlsHandshakePlan {
             reference_identity,
         } = self;
         let (mut stream, network_evidence) = connection.into_parts();
-        verify_peer_evidence(&stream, &network_evidence)?;
 
-        let (trusted_time, handshake_timeout, alpn_protocols, alpn_requirement) =
-            policy.into_parts();
-        let (
-            trust_bundle_identifier,
-            root_store,
-            trust_bundle_hash,
-            trust_root_count,
-            trust_root_bytes,
-        ) = trust_roots.into_parts();
-        let server_name = reference_identity.server_name(&origin)?;
-        let provider = Arc::new(rustls::crypto::ring::default_provider());
-        let time_provider = Arc::new(FixedTimeProvider { trusted_time });
-        let builder = ClientConfig::builder_with_details(provider, time_provider)
-            .with_protocol_versions(&[&rustls::version::TLS13, &rustls::version::TLS12])
-            .map_err(tls_configuration_error)?;
-        let mut config = builder
-            .with_root_certificates(root_store)
-            .with_no_client_auth();
-        config.resumption = Resumption::disabled();
-        config.enable_early_data = false;
-        config.enable_secret_extraction = false;
-        config.key_log = Arc::new(rustls::NoKeyLog {});
-        config.alpn_protocols = alpn_protocols.clone();
-        config.enable_sni = reference_identity.uses_sni();
-        config.check_selected_alpn = true;
-        config.cert_compressors.clear();
-        config.cert_decompressors.clear();
+        verify_peer_evidence(&stream, &network_evidence).and_then(|()| {
+            let (trusted_time, handshake_timeout, alpn_protocols, alpn_requirement) =
+                policy.into_parts();
+            let (
+                trust_bundle_identifier,
+                root_store,
+                trust_bundle_hash,
+                trust_root_count,
+                trust_root_bytes,
+            ) = trust_roots.into_parts();
+            reference_identity.server_name(&origin).and_then(|server_name| {
+                let provider = Arc::new(rustls::crypto::ring::default_provider());
+                let time_provider = Arc::new(FixedTimeProvider { trusted_time });
+                ClientConfig::builder_with_details(provider, time_provider)
+                    .with_protocol_versions(&[
+                        &rustls::version::TLS13,
+                        &rustls::version::TLS12,
+                    ])
+                    .map_err(tls_configuration_error)
+                    .and_then(|builder| {
+                        let mut config = builder
+                            .with_root_certificates(root_store)
+                            .with_no_client_auth();
+                        config.resumption = Resumption::disabled();
+                        config.enable_early_data = false;
+                        config.enable_secret_extraction = false;
+                        config.key_log = Arc::new(rustls::NoKeyLog {});
+                        config.alpn_protocols = alpn_protocols.clone();
+                        config.enable_sni = reference_identity.uses_sni();
+                        config.check_selected_alpn = true;
+                        config.cert_compressors.clear();
+                        config.cert_decompressors.clear();
 
-        let error_mapper = rustls_error_mapper(alpn_requirement);
-        let mut client = ClientConnection::new(Arc::new(config), server_name)
-            .map_err(error_mapper)?;
-        let original_read_timeout = handshake_timeout_query(stream.read_timeout())?;
-        let original_write_timeout = handshake_timeout_query(stream.write_timeout())?;
-        let started_at = Instant::now();
-        let deadline = started_at + handshake_timeout;
-
-        let handshake_result = drive_handshake(
-            &mut client,
-            &mut stream,
-            &network_evidence,
-            deadline,
-            handshake_timeout,
-            error_mapper,
-        );
-        if let Err(error) = handshake_result {
-            let _read_restore = stream.set_read_timeout(original_read_timeout);
-            let _write_restore = stream.set_write_timeout(original_write_timeout);
-            return Err(error);
-        }
-
-        restore_timeouts(&stream, original_read_timeout, original_write_timeout)?;
-        verify_peer_evidence(&stream, &network_evidence)?;
-        let handshake_duration = started_at.elapsed();
-        let evidence = build_evidence(
-            &origin,
-            &network_evidence,
-            &reference_identity,
-            &client,
-            &alpn_protocols,
-            alpn_requirement,
-            trust_bundle_identifier,
-            trust_bundle_hash,
-            trust_root_count,
-            trust_root_bytes,
-            trusted_time,
-            handshake_duration,
-            handshake_timeout,
-        )?;
-
-        Ok(AuthenticatedTlsConnection {
-            stream: StreamOwned::new(client, stream),
-            evidence,
+                        let error_mapper = rustls_error_mapper(alpn_requirement);
+                        ClientConnection::new(Arc::new(config), server_name)
+                            .map_err(error_mapper)
+                            .and_then(|mut client| {
+                                capture_timeouts(&stream).and_then(
+                                    |(original_read_timeout, original_write_timeout)| {
+                                        let started_at = Instant::now();
+                                        let deadline = started_at + handshake_timeout;
+                                        match drive_handshake(
+                                            &mut client,
+                                            &mut stream,
+                                            &network_evidence,
+                                            deadline,
+                                            handshake_timeout,
+                                            error_mapper,
+                                        ) {
+                                            Err(error) => {
+                                                let _read_restore =
+                                                    stream.set_read_timeout(original_read_timeout);
+                                                let _write_restore =
+                                                    stream.set_write_timeout(original_write_timeout);
+                                                Err(error)
+                                            }
+                                            Ok(()) => restore_timeouts(
+                                                &stream,
+                                                original_read_timeout,
+                                                original_write_timeout,
+                                            )
+                                            .and_then(|()| {
+                                                verify_peer_evidence(
+                                                    &stream,
+                                                    &network_evidence,
+                                                )
+                                            })
+                                            .and_then(|()| {
+                                                let handshake_duration = started_at.elapsed();
+                                                build_evidence(
+                                                    &origin,
+                                                    &network_evidence,
+                                                    &reference_identity,
+                                                    &client,
+                                                    &alpn_protocols,
+                                                    alpn_requirement,
+                                                    trust_bundle_identifier,
+                                                    trust_bundle_hash,
+                                                    trust_root_count,
+                                                    trust_root_bytes,
+                                                    trusted_time,
+                                                    handshake_duration,
+                                                    handshake_timeout,
+                                                )
+                                            })
+                                            .map(|evidence| AuthenticatedTlsConnection {
+                                                stream: StreamOwned::new(client, stream),
+                                                evidence,
+                                            }),
+                                        }
+                                    },
+                                )
+                            })
+                    })
+            })
         })
     }
 }
@@ -182,26 +203,24 @@ fn drive_handshake(
     error_mapper: RustlsErrorMapper,
 ) -> Result<(), TlsError> {
     while client.is_handshaking() {
-        verify_peer_evidence(stream, network_evidence)?;
-        for action in handshake_actions(client.wants_write(), client.wants_read())?
-            .into_iter()
-            .flatten()
-        {
-            perform_handshake_io(
-                action,
-                client,
-                stream,
-                deadline,
-                handshake_timeout,
-                error_mapper,
-            )?;
+        let iteration_result = verify_peer_evidence(stream, network_evidence)
+            .and_then(|()| handshake_actions(client.wants_write(), client.wants_read()))
+            .and_then(|actions| {
+                actions.into_iter().flatten().try_for_each(|action| {
+                    perform_handshake_io(
+                        action,
+                        client,
+                        stream,
+                        deadline,
+                        handshake_timeout,
+                        error_mapper,
+                    )
+                })
+            });
+        match iteration_result {
+            Ok(()) => {}
+            Err(error) => return Err(error),
         }
-        enforce_handshake_deadline(
-            Instant::now(),
-            deadline,
-            client.is_handshaking(),
-            handshake_timeout,
-        )?;
     }
     Ok(())
 }
@@ -232,28 +251,22 @@ fn perform_handshake_io(
     handshake_timeout: Duration,
     error_mapper: RustlsErrorMapper,
 ) -> Result<(), TlsError> {
-    let remaining = remaining_time(deadline, handshake_timeout)?;
+    let remaining = remaining_time(deadline);
     match action {
-        HandshakeIo::Write => {
-            handshake_timeout_update(stream.set_write_timeout(Some(remaining)))?;
-            let written = handshake_transfer(client.write_tls(stream), handshake_timeout)?;
-            ensure_handshake_progress(action, written)
-        }
-        HandshakeIo::Read => {
-            handshake_timeout_update(stream.set_read_timeout(Some(remaining)))?;
-            let read = handshake_transfer(client.read_tls(stream), handshake_timeout)?;
-            ensure_handshake_progress(action, read)?;
-            client.process_new_packets().map_err(error_mapper)?;
-            Ok(())
-        }
+        HandshakeIo::Write => handshake_timeout_update(
+            stream.set_write_timeout(Some(remaining)),
+        )
+        .and_then(|()| handshake_transfer(client.write_tls(stream), handshake_timeout))
+        .and_then(|written| ensure_handshake_progress(action, written)),
+        HandshakeIo::Read => handshake_timeout_update(stream.set_read_timeout(Some(remaining)))
+            .and_then(|()| handshake_transfer(client.read_tls(stream), handshake_timeout))
+            .and_then(|read| ensure_handshake_progress(action, read))
+            .and_then(|()| client.process_new_packets().map_err(error_mapper).map(|_state| ())),
     }
 }
 
 #[inline(never)]
 fn ensure_handshake_progress(action: HandshakeIo, byte_count: usize) -> Result<(), TlsError> {
-    if byte_count > 0 {
-        return Ok(());
-    }
     let (kind, message) = match action {
         HandshakeIo::Write => (
             io::ErrorKind::WriteZero,
@@ -264,31 +277,17 @@ fn ensure_handshake_progress(action: HandshakeIo, byte_count: usize) -> Result<(
             "TLS peer closed during handshake",
         ),
     };
-    Err(TlsError::HandshakeIoFailed {
+    (byte_count > 0).then_some(()).ok_or(TlsError::HandshakeIoFailed {
         source: io::Error::new(kind, message),
     })
 }
 
 #[inline(never)]
-fn enforce_handshake_deadline(
-    now: Instant,
-    deadline: Instant,
-    still_handshaking: bool,
-    timeout: Duration,
-) -> Result<(), TlsError> {
-    if still_handshaking && now >= deadline {
-        return Err(TlsError::HandshakeTimedOut { timeout });
-    }
-    Ok(())
-}
-
-#[inline(never)]
-fn remaining_time(deadline: Instant, timeout: Duration) -> Result<Duration, TlsError> {
-    let now = Instant::now();
-    if now >= deadline {
-        return Err(TlsError::HandshakeTimedOut { timeout });
-    }
-    Ok(deadline.duration_since(now))
+fn remaining_time(deadline: Instant) -> Duration {
+    std::cmp::max(
+        deadline.saturating_duration_since(Instant::now()),
+        Duration::from_nanos(1),
+    )
 }
 
 #[inline(never)]
@@ -329,13 +328,22 @@ fn handshake_timeout_update(result: io::Result<()>) -> Result<(), TlsError> {
     }
 }
 
+fn capture_timeouts(
+    stream: &TcpStream,
+) -> Result<(Option<Duration>, Option<Duration>), TlsError> {
+    handshake_timeout_query(stream.read_timeout()).and_then(|read_timeout| {
+        handshake_timeout_query(stream.write_timeout())
+            .map(|write_timeout| (read_timeout, write_timeout))
+    })
+}
+
 fn restore_timeouts(
     stream: &TcpStream,
     read_timeout: Option<Duration>,
     write_timeout: Option<Duration>,
 ) -> Result<(), TlsError> {
-    timeout_restoration(stream.set_read_timeout(read_timeout))?;
-    timeout_restoration(stream.set_write_timeout(write_timeout))
+    timeout_restoration(stream.set_read_timeout(read_timeout))
+        .and_then(|()| timeout_restoration(stream.set_write_timeout(write_timeout)))
 }
 
 #[inline(never)]
@@ -351,12 +359,13 @@ fn verify_peer_evidence(
     evidence: &SocketConnectionEvidence,
 ) -> Result<(), TlsError> {
     let expected_peer = evidence.observed_peer();
-    let current_peer = peer_inspection(stream.peer_addr(), expected_peer)?;
-    validate_peer_addresses(
-        evidence.requested_socket(),
-        expected_peer,
-        current_peer,
-    )
+    peer_inspection(stream.peer_addr(), expected_peer).and_then(|current_peer| {
+        validate_peer_addresses(
+            evidence.requested_socket(),
+            expected_peer,
+            current_peer,
+        )
+    })
 }
 
 #[inline(never)]
@@ -379,21 +388,13 @@ fn validate_peer_addresses(
     observed_peer: SocketAddr,
     current_peer: SocketAddr,
 ) -> Result<(), TlsError> {
-    if requested_peer != observed_peer {
-        return Err(TlsError::InheritedPeerMismatch {
-            requested_peer,
-            observed_peer,
-            current_peer,
-        });
-    }
-    if current_peer != observed_peer {
-        return Err(TlsError::InheritedPeerMismatch {
-            requested_peer,
-            observed_peer,
-            current_peer,
-        });
-    }
-    Ok(())
+    let evidence_is_consistent =
+        (requested_peer == observed_peer) & (current_peer == observed_peer);
+    evidence_is_consistent.then_some(()).ok_or(TlsError::InheritedPeerMismatch {
+        requested_peer,
+        observed_peer,
+        current_peer,
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -412,54 +413,64 @@ fn build_evidence(
     handshake_duration: Duration,
     handshake_timeout: Duration,
 ) -> Result<crate::TlsConnectionEvidence, TlsError> {
-    let protocol_version = protocol_version_evidence(client.protocol_version())?;
-    let (cipher_suite_identifier, cipher_suite_label) =
-        cipher_suite_evidence(client.negotiated_cipher_suite())?;
-    let negotiated_alpn = negotiated_alpn_evidence(
-        client.alpn_protocol(),
-        offered_alpn,
-        alpn_requirement,
-    )?;
+    protocol_version_evidence(client.protocol_version()).and_then(|protocol_version| {
+        cipher_suite_evidence(client.negotiated_cipher_suite()).and_then(
+            |(cipher_suite_identifier, cipher_suite_label)| {
+                negotiated_alpn_evidence(
+                    client.alpn_protocol(),
+                    offered_alpn,
+                    alpn_requirement,
+                )
+                .and_then(|negotiated_alpn| {
+                    peer_certificates(client.peer_certificates()).and_then(|certificates| {
+                        validate_certificate_bounds(certificates).and_then(|()| {
+                            first_certificate(certificates).and_then(|leaf| {
+                                parse_leaf_evidence(leaf).map(|parsed_leaf| {
+                                    let presented_certificate_hashes = certificates
+                                        .iter()
+                                        .map(|certificate| hash_bytes(certificate.as_ref()))
+                                        .collect();
+                                    let presented_certificate_bytes = certificates
+                                        .iter()
+                                        .map(|certificate| certificate.len())
+                                        .sum();
+                                    let leaf_certificate_hash = hash_bytes(leaf.as_ref());
 
-    let certificates = peer_certificates(client.peer_certificates())?;
-    validate_certificate_bounds(certificates)?;
-    let leaf = first_certificate(certificates)?;
-    let parsed_leaf = parse_leaf_evidence(leaf)?;
-    let presented_certificate_hashes = certificates
-        .iter()
-        .map(|certificate| hash_bytes(certificate.as_ref()))
-        .collect();
-    let presented_certificate_bytes = certificates
-        .iter()
-        .map(|certificate| certificate.len())
-        .sum();
-    let leaf_certificate_hash = hash_bytes(leaf.as_ref());
-
-    Ok(EvidenceInput {
-        origin: origin.clone(),
-        requested_peer: network_evidence.requested_socket(),
-        observed_peer: network_evidence.observed_peer(),
-        reference_identity: reference_identity.clone(),
-        protocol_version,
-        cipher_suite_identifier,
-        cipher_suite_label,
-        negotiated_alpn,
-        leaf_certificate_hash,
-        leaf_spki_hash: parsed_leaf.spki_hash,
-        presented_certificate_hashes,
-        presented_certificate_count: certificates.len(),
-        presented_certificate_bytes,
-        leaf_not_before_unix_seconds: parsed_leaf.not_before_unix_seconds,
-        leaf_not_after_unix_seconds: parsed_leaf.not_after_unix_seconds,
-        trust_bundle_identifier,
-        trust_bundle_hash,
-        trust_root_count,
-        trust_root_bytes,
-        trusted_time_unix_seconds: trusted_time.as_secs(),
-        handshake_duration,
-        handshake_timeout,
-    }
-    .into())
+                                    EvidenceInput {
+                                        origin: origin.clone(),
+                                        requested_peer: network_evidence.requested_socket(),
+                                        observed_peer: network_evidence.observed_peer(),
+                                        reference_identity: reference_identity.clone(),
+                                        protocol_version,
+                                        cipher_suite_identifier,
+                                        cipher_suite_label,
+                                        negotiated_alpn,
+                                        leaf_certificate_hash,
+                                        leaf_spki_hash: parsed_leaf.spki_hash,
+                                        presented_certificate_hashes,
+                                        presented_certificate_count: certificates.len(),
+                                        presented_certificate_bytes,
+                                        leaf_not_before_unix_seconds: parsed_leaf
+                                            .not_before_unix_seconds,
+                                        leaf_not_after_unix_seconds: parsed_leaf
+                                            .not_after_unix_seconds,
+                                        trust_bundle_identifier,
+                                        trust_bundle_hash,
+                                        trust_root_count,
+                                        trust_root_bytes,
+                                        trusted_time_unix_seconds: trusted_time.as_secs(),
+                                        handshake_duration,
+                                        handshake_timeout,
+                                    }
+                                    .into()
+                                })
+                            })
+                        })
+                    })
+                })
+            },
+        )
+    })
 }
 
 #[inline(never)]
@@ -490,13 +501,14 @@ fn negotiated_alpn_evidence(
     offered_protocols: &[Vec<u8>],
     requirement: AlpnRequirement,
 ) -> Result<NegotiatedAlpn, TlsError> {
-    match negotiated_protocol {
-        Some(protocol) if offered_protocols.iter().any(|offered| offered == protocol) => {
-            Ok(NegotiatedAlpn::Protocol(protocol.to_vec()))
-        }
-        Some(_protocol) => Err(TlsError::UnexpectedAlpn),
-        None if requirement == AlpnRequirement::Required => Err(TlsError::AlpnRequired),
-        None => Ok(NegotiatedAlpn::Absent),
+    match (negotiated_protocol, requirement) {
+        (Some(protocol), _requirement) => offered_protocols
+            .iter()
+            .any(|offered| offered == protocol)
+            .then_some(NegotiatedAlpn::Protocol(protocol.to_vec()))
+            .ok_or(TlsError::UnexpectedAlpn),
+        (None, AlpnRequirement::Required) => Err(TlsError::AlpnRequired),
+        (None, AlpnRequirement::Optional) => Ok(NegotiatedAlpn::Absent),
     }
 }
 
@@ -521,44 +533,44 @@ fn first_certificate<'a>(
 }
 
 #[inline(never)]
-fn parse_leaf_evidence(
-    leaf: &CertificateDer<'_>,
-) -> Result<LeafCertificateEvidence, TlsError> {
-    let (remaining, parsed_leaf) = match parse_x509_certificate(leaf.as_ref()) {
-        Ok(parsed) => parsed,
-        Err(_error) => return Err(TlsError::InvalidLeafCertificate),
-    };
-    if !remaining.is_empty() {
-        return Err(TlsError::InvalidLeafCertificate);
+fn parse_leaf_evidence(leaf: &CertificateDer<'_>) -> Result<LeafCertificateEvidence, TlsError> {
+    match parse_x509_certificate(leaf.as_ref()) {
+        Ok((remaining, parsed_leaf)) => remaining
+            .is_empty()
+            .then_some(LeafCertificateEvidence {
+                spki_hash: hash_bytes(parsed_leaf.tbs_certificate.subject_pki.raw),
+                not_before_unix_seconds: parsed_leaf.validity().not_before.timestamp(),
+                not_after_unix_seconds: parsed_leaf.validity().not_after.timestamp(),
+            })
+            .ok_or(TlsError::InvalidLeafCertificate),
+        Err(_error) => Err(TlsError::InvalidLeafCertificate),
     }
-    Ok(LeafCertificateEvidence {
-        spki_hash: hash_bytes(parsed_leaf.tbs_certificate.subject_pki.raw),
-        not_before_unix_seconds: parsed_leaf.validity().not_before.timestamp(),
-        not_after_unix_seconds: parsed_leaf.validity().not_after.timestamp(),
-    })
 }
 
 #[inline(never)]
 fn validate_certificate_bounds(certificates: &[CertificateDer<'_>]) -> Result<(), TlsError> {
-    if certificates.is_empty() {
-        return Err(TlsError::MissingPeerCertificates);
-    }
-    if certificates.len() > MAX_SERVER_CERTIFICATE_COUNT {
-        return Err(TlsError::ExcessivePeerCertificateCount {
-            certificate_count: certificates.len(),
-            maximum_count: MAX_SERVER_CERTIFICATE_COUNT,
-        });
-    }
-    let byte_count = certificates.iter().fold(0_usize, |total, certificate| {
-        total.saturating_add(certificate.len())
-    });
-    if byte_count > MAX_SERVER_CERTIFICATE_BYTES {
-        return Err(TlsError::ExcessivePeerCertificateBytes {
-            byte_count,
-            maximum_bytes: MAX_SERVER_CERTIFICATE_BYTES,
-        });
-    }
-    Ok(())
+    (!certificates.is_empty())
+        .then_some(())
+        .ok_or(TlsError::MissingPeerCertificates)
+        .and_then(|()| {
+            (certificates.len() <= MAX_SERVER_CERTIFICATE_COUNT)
+                .then_some(())
+                .ok_or(TlsError::ExcessivePeerCertificateCount {
+                    certificate_count: certificates.len(),
+                    maximum_count: MAX_SERVER_CERTIFICATE_COUNT,
+                })
+        })
+        .and_then(|()| {
+            let byte_count = certificates.iter().fold(0_usize, |total, certificate| {
+                total.saturating_add(certificate.len())
+            });
+            (byte_count <= MAX_SERVER_CERTIFICATE_BYTES)
+                .then_some(())
+                .ok_or(TlsError::ExcessivePeerCertificateBytes {
+                    byte_count,
+                    maximum_bytes: MAX_SERVER_CERTIFICATE_BYTES,
+                })
+        })
 }
 
 fn hash_bytes(bytes: &[u8]) -> String {
@@ -573,12 +585,12 @@ fn tls_configuration_error(source: rustls::Error) -> TlsError {
 
 #[inline(never)]
 fn required_rustls_error(source: rustls::Error) -> TlsError {
-    classify_rustls_error(source, AlpnRequirement::Required)
+    classify_rustls_error(source, TlsError::AlpnRequired)
 }
 
 #[inline(never)]
 fn optional_rustls_error(source: rustls::Error) -> TlsError {
-    classify_rustls_error(source, AlpnRequirement::Optional)
+    classify_rustls_error(source, TlsError::UnexpectedAlpn)
 }
 
 #[inline(never)]
@@ -590,26 +602,21 @@ fn rustls_error_mapper(requirement: AlpnRequirement) -> RustlsErrorMapper {
 }
 
 #[inline(never)]
-fn classify_rustls_error(source: rustls::Error, alpn_requirement: AlpnRequirement) -> TlsError {
+fn classify_rustls_error(source: rustls::Error, alpn_error: TlsError) -> TlsError {
     enum Classification {
         UnknownIssuer,
         Expired,
         NotYetValid,
         NameMismatch,
         InvalidCertificate,
-        AlpnRequired,
-        UnexpectedAlpn,
+        Alpn,
         Protocol,
     }
 
     let classification = match &source {
         rustls::Error::NoApplicationProtocol
         | rustls::Error::AlertReceived(AlertDescription::NoApplicationProtocol) => {
-            if alpn_requirement == AlpnRequirement::Required {
-                Classification::AlpnRequired
-            } else {
-                Classification::UnexpectedAlpn
-            }
+            Classification::Alpn
         }
         rustls::Error::InvalidCertificate(certificate_error) => match certificate_error {
             CertificateError::UnknownIssuer => Classification::UnknownIssuer,
@@ -633,8 +640,7 @@ fn classify_rustls_error(source: rustls::Error, alpn_requirement: AlpnRequiremen
         Classification::NotYetValid => TlsError::CertificateNotYetValid { source },
         Classification::NameMismatch => TlsError::ServiceIdentityMismatch { source },
         Classification::InvalidCertificate => TlsError::InvalidCertificate { source },
-        Classification::AlpnRequired => TlsError::AlpnRequired,
-        Classification::UnexpectedAlpn => TlsError::UnexpectedAlpn,
+        Classification::Alpn => alpn_error,
         Classification::Protocol => TlsError::TlsProtocolFailed { source },
     }
 }
@@ -643,11 +649,32 @@ fn classify_rustls_error(source: rustls::Error, alpn_requirement: AlpnRequiremen
 mod tests {
     #![allow(clippy::expect_used)]
 
+    use std::mem::discriminant;
+
     use super::*;
-    use std::net::{IpAddr, Ipv4Addr};
 
     fn socket(port: u16) -> SocketAddr {
-        SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port)
+        SocketAddr::from(([127, 0, 0, 1], port))
+    }
+
+    fn assert_error_variant(actual: &TlsError, expected: &TlsError) {
+        assert_eq!(discriminant(actual), discriminant(expected));
+    }
+
+    fn require(condition: bool, message: &'static str) {
+        condition.then_some(()).expect(message);
+    }
+
+    fn handshake_io_error() -> TlsError {
+        TlsError::HandshakeIoFailed {
+            source: io::Error::other("expected handshake I/O error"),
+        }
+    }
+
+    fn timeout_restoration_error() -> TlsError {
+        TlsError::TimeoutRestorationFailed {
+            source: io::Error::other("expected timeout restoration error"),
+        }
     }
 
     #[test]
@@ -665,7 +692,7 @@ mod tests {
             [Some(HandshakeIo::Read), None]
         );
         let error = handshake_actions(false, false).expect_err("no I/O must fail");
-        assert!(matches!(error, TlsError::HandshakeIoFailed { .. }));
+        assert_error_variant(&error, &handshake_io_error());
     }
 
     #[test]
@@ -675,43 +702,36 @@ mod tests {
 
         let write = ensure_handshake_progress(HandshakeIo::Write, 0)
             .expect_err("zero-byte write must fail");
-        assert!(matches!(
-            write,
-            TlsError::HandshakeIoFailed { ref source }
-                if source.kind() == io::ErrorKind::WriteZero
-        ));
+        assert_error_variant(&write, &handshake_io_error());
+        assert_eq!(
+            std::error::Error::source(&write)
+                .and_then(|source| source.downcast_ref::<io::Error>())
+                .map(io::Error::kind),
+            Some(io::ErrorKind::WriteZero)
+        );
 
         let read = ensure_handshake_progress(HandshakeIo::Read, 0)
             .expect_err("zero-byte read must fail");
-        assert!(matches!(
-            read,
-            TlsError::HandshakeIoFailed { ref source }
-                if source.kind() == io::ErrorKind::UnexpectedEof
-        ));
+        assert_error_variant(&read, &handshake_io_error());
+        assert_eq!(
+            std::error::Error::source(&read)
+                .and_then(|source| source.downcast_ref::<io::Error>())
+                .map(io::Error::kind),
+            Some(io::ErrorKind::UnexpectedEof)
+        );
     }
 
     #[test]
-    fn handshake_deadline_checks_both_state_and_time() {
-        let timeout = Duration::from_secs(1);
-        let now = Instant::now();
-        let future = now + timeout;
-        enforce_handshake_deadline(now, future, true, timeout).expect("time remains");
-        enforce_handshake_deadline(future, now, false, timeout)
-            .expect("completed handshake ignores elapsed deadline");
-        assert!(matches!(
-            enforce_handshake_deadline(future, now, true, timeout),
-            Err(TlsError::HandshakeTimedOut { timeout: observed }) if observed == timeout
-        ));
-    }
-
-    #[test]
-    fn an_elapsed_deadline_is_typed_as_timeout() {
-        let timeout = Duration::from_secs(1);
-        assert!(matches!(
-            remaining_time(Instant::now(), timeout),
-            Err(TlsError::HandshakeTimedOut { timeout: observed }) if observed == timeout
-        ));
-        assert!(remaining_time(Instant::now() + timeout, timeout).is_ok());
+    fn remaining_time_never_returns_a_zero_socket_timeout() {
+        let future = Instant::now() + Duration::from_secs(1);
+        require(
+            remaining_time(future) > Duration::ZERO,
+            "future deadline must retain time",
+        );
+        require(
+            remaining_time(Instant::now()) > Duration::ZERO,
+            "elapsed deadline must use a nonzero socket timeout",
+        );
     }
 
     #[test]
@@ -724,14 +744,14 @@ mod tests {
         for kind in [io::ErrorKind::TimedOut, io::ErrorKind::WouldBlock] {
             let error = handshake_transfer(Err(io::Error::from(kind)), timeout)
                 .expect_err("timeout transfer");
-            assert!(matches!(error, TlsError::HandshakeTimedOut { .. }));
+            assert_error_variant(&error, &TlsError::HandshakeTimedOut { timeout });
         }
         let error = handshake_transfer(
             Err(io::Error::from(io::ErrorKind::ConnectionReset)),
             timeout,
         )
         .expect_err("transport failure");
-        assert!(matches!(error, TlsError::HandshakeIoFailed { .. }));
+        assert_error_variant(&error, &handshake_io_error());
     }
 
     #[test]
@@ -741,20 +761,19 @@ mod tests {
             handshake_timeout_query(Ok(timeout)).expect("timeout query"),
             timeout
         );
-        assert!(matches!(
-            handshake_timeout_query(Err(io::Error::from(io::ErrorKind::Other))),
-            Err(TlsError::HandshakeIoFailed { .. })
-        ));
+        let query_error = handshake_timeout_query(Err(io::Error::other("query")))
+            .expect_err("query failure");
+        assert_error_variant(&query_error, &handshake_io_error());
+
         handshake_timeout_update(Ok(())).expect("timeout update");
-        assert!(matches!(
-            handshake_timeout_update(Err(io::Error::from(io::ErrorKind::Other))),
-            Err(TlsError::HandshakeIoFailed { .. })
-        ));
+        let update_error = handshake_timeout_update(Err(io::Error::other("update")))
+            .expect_err("update failure");
+        assert_error_variant(&update_error, &handshake_io_error());
+
         timeout_restoration(Ok(())).expect("timeout restoration");
-        assert!(matches!(
-            timeout_restoration(Err(io::Error::from(io::ErrorKind::Other))),
-            Err(TlsError::TimeoutRestorationFailed { .. })
-        ));
+        let restoration_error = timeout_restoration(Err(io::Error::other("restore")))
+            .expect_err("restoration failure");
+        assert_error_variant(&restoration_error, &timeout_restoration_error());
     }
 
     #[test]
@@ -764,22 +783,40 @@ mod tests {
             peer_inspection(Ok(expected), expected).expect("peer inspection"),
             expected
         );
-        assert!(matches!(
-            peer_inspection(
-                Err(io::Error::from(io::ErrorKind::NotConnected)),
-                expected,
-            ),
-            Err(TlsError::PeerInspectionFailed { .. })
-        ));
+        let inspection_error = peer_inspection(
+            Err(io::Error::from(io::ErrorKind::NotConnected)),
+            expected,
+        )
+        .expect_err("peer inspection failure");
+        assert_error_variant(
+            &inspection_error,
+            &TlsError::PeerInspectionFailed {
+                expected_peer: expected,
+                source: io::Error::other("expected"),
+            },
+        );
+
         validate_peer_addresses(expected, expected, expected).expect("consistent peer evidence");
-        assert!(matches!(
-            validate_peer_addresses(socket(444), expected, expected),
-            Err(TlsError::InheritedPeerMismatch { .. })
-        ));
-        assert!(matches!(
-            validate_peer_addresses(expected, expected, socket(444)),
-            Err(TlsError::InheritedPeerMismatch { .. })
-        ));
+        let requested_error = validate_peer_addresses(socket(444), expected, expected)
+            .expect_err("requested peer mismatch");
+        assert_error_variant(
+            &requested_error,
+            &TlsError::InheritedPeerMismatch {
+                requested_peer: socket(444),
+                observed_peer: expected,
+                current_peer: expected,
+            },
+        );
+        let current_error = validate_peer_addresses(expected, expected, socket(444))
+            .expect_err("current peer mismatch");
+        assert_error_variant(
+            &current_error,
+            &TlsError::InheritedPeerMismatch {
+                requested_peer: expected,
+                observed_peer: expected,
+                current_peer: socket(444),
+            },
+        );
     }
 
     #[test]
@@ -794,14 +831,11 @@ mod tests {
                 .expect("TLS 1.3 evidence"),
             TlsProtocolVersion::Tls13
         );
-        assert!(matches!(
-            protocol_version_evidence(Some(ProtocolVersion::SSLv3)),
-            Err(TlsError::UnsupportedProtocolVersion)
-        ));
-        assert!(matches!(
-            protocol_version_evidence(None),
-            Err(TlsError::MissingProtocolVersion)
-        ));
+        let unsupported = protocol_version_evidence(Some(ProtocolVersion::SSLv3))
+            .expect_err("unsupported protocol");
+        assert_error_variant(&unsupported, &TlsError::UnsupportedProtocolVersion);
+        let missing = protocol_version_evidence(None).expect_err("missing protocol");
+        assert_error_variant(&missing, &TlsError::MissingProtocolVersion);
 
         let suite = rustls::crypto::ring::default_provider()
             .cipher_suites
@@ -811,11 +845,9 @@ mod tests {
         let (identifier, label) =
             cipher_suite_evidence(Some(suite)).expect("cipher suite evidence");
         assert_ne!(identifier, [0_u8; 2]);
-        assert!(!label.is_empty());
-        assert!(matches!(
-            cipher_suite_evidence(None),
-            Err(TlsError::MissingCipherSuite)
-        ));
+        require(!label.is_empty(), "cipher suite label must be present");
+        let missing_suite = cipher_suite_evidence(None).expect_err("missing cipher suite");
+        assert_error_variant(&missing_suite, &TlsError::MissingCipherSuite);
     }
 
     #[test]
@@ -826,14 +858,13 @@ mod tests {
                 .expect("offered ALPN"),
             NegotiatedAlpn::Protocol(b"h2".to_vec())
         );
-        assert!(matches!(
-            negotiated_alpn_evidence(Some(b"h3"), &offered, AlpnRequirement::Optional),
-            Err(TlsError::UnexpectedAlpn)
-        ));
-        assert!(matches!(
-            negotiated_alpn_evidence(None, &offered, AlpnRequirement::Required),
-            Err(TlsError::AlpnRequired)
-        ));
+        let unexpected =
+            negotiated_alpn_evidence(Some(b"h3"), &offered, AlpnRequirement::Optional)
+                .expect_err("unexpected ALPN");
+        assert_error_variant(&unexpected, &TlsError::UnexpectedAlpn);
+        let required = negotiated_alpn_evidence(None, &offered, AlpnRequirement::Required)
+            .expect_err("required ALPN");
+        assert_error_variant(&required, &TlsError::AlpnRequired);
         assert_eq!(
             negotiated_alpn_evidence(None, &offered, AlpnRequirement::Optional)
                 .expect("optional absence"),
@@ -850,20 +881,16 @@ mod tests {
             .clone();
         let certificates = vec![certificate.clone()];
 
-        assert!(matches!(
-            peer_certificates(None),
-            Err(TlsError::MissingPeerCertificates)
-        ));
+        let missing_peer = peer_certificates(None).expect_err("missing peer certificates");
+        assert_error_variant(&missing_peer, &TlsError::MissingPeerCertificates);
         assert_eq!(
             peer_certificates(Some(&certificates))
                 .expect("presented certificates")
                 .len(),
             1
         );
-        assert!(matches!(
-            first_certificate(&[]),
-            Err(TlsError::MissingPeerCertificates)
-        ));
+        let missing_leaf = first_certificate(&[]).expect_err("missing leaf certificate");
+        assert_error_variant(&missing_leaf, &TlsError::MissingPeerCertificates);
         assert_eq!(
             first_certificate(&certificates)
                 .expect("leaf certificate")
@@ -872,64 +899,76 @@ mod tests {
         );
 
         let parsed = parse_leaf_evidence(&certificate).expect("valid X.509 certificate");
-        assert!(parsed.spki_hash.starts_with("sha256:"));
-        assert!(parsed.not_before_unix_seconds < parsed.not_after_unix_seconds);
+        require(
+            parsed.spki_hash.starts_with("sha256:"),
+            "SPKI evidence must use the SHA-256 identifier",
+        );
+        require(
+            parsed.not_before_unix_seconds < parsed.not_after_unix_seconds,
+            "certificate validity must be ordered",
+        );
 
         let invalid = CertificateDer::from(vec![0_u8]);
-        assert!(matches!(
-            parse_leaf_evidence(&invalid),
-            Err(TlsError::InvalidLeafCertificate)
-        ));
+        let invalid_error = parse_leaf_evidence(&invalid).expect_err("invalid certificate");
+        assert_error_variant(&invalid_error, &TlsError::InvalidLeafCertificate);
         let mut trailing = certificate.to_vec();
         trailing.push(0);
         let trailing = CertificateDer::from(trailing);
-        assert!(matches!(
-            parse_leaf_evidence(&trailing),
-            Err(TlsError::InvalidLeafCertificate)
-        ));
+        let trailing_error =
+            parse_leaf_evidence(&trailing).expect_err("trailing certificate bytes");
+        assert_error_variant(&trailing_error, &TlsError::InvalidLeafCertificate);
     }
 
     #[test]
     fn certificate_bounds_are_fail_closed() {
         let valid = vec![CertificateDer::from(vec![1_u8])];
         validate_certificate_bounds(&valid).expect("bounded certificate");
-        assert!(matches!(
-            validate_certificate_bounds(&[]),
-            Err(TlsError::MissingPeerCertificates)
-        ));
+        let missing = validate_certificate_bounds(&[]).expect_err("missing certificate");
+        assert_error_variant(&missing, &TlsError::MissingPeerCertificates);
+
         let excessive_count =
             vec![CertificateDer::from(vec![1_u8]); MAX_SERVER_CERTIFICATE_COUNT + 1];
-        assert!(matches!(
-            validate_certificate_bounds(&excessive_count),
-            Err(TlsError::ExcessivePeerCertificateCount { .. })
-        ));
+        let count_error = validate_certificate_bounds(&excessive_count)
+            .expect_err("excessive certificate count");
+        assert_error_variant(
+            &count_error,
+            &TlsError::ExcessivePeerCertificateCount {
+                certificate_count: excessive_count.len(),
+                maximum_count: MAX_SERVER_CERTIFICATE_COUNT,
+            },
+        );
+
         let excessive_bytes = vec![CertificateDer::from(vec![
             1_u8;
             MAX_SERVER_CERTIFICATE_BYTES + 1
         ])];
-        assert!(matches!(
-            validate_certificate_bounds(&excessive_bytes),
-            Err(TlsError::ExcessivePeerCertificateBytes { .. })
-        ));
+        let bytes_error = validate_certificate_bounds(&excessive_bytes)
+            .expect_err("excessive certificate bytes");
+        assert_error_variant(
+            &bytes_error,
+            &TlsError::ExcessivePeerCertificateBytes {
+                byte_count: MAX_SERVER_CERTIFICATE_BYTES + 1,
+                maximum_bytes: MAX_SERVER_CERTIFICATE_BYTES,
+            },
+        );
     }
 
     #[test]
     fn configuration_and_rustls_error_mappers_preserve_policy() {
-        assert!(matches!(
-            tls_configuration_error(rustls::Error::General("config".to_owned())),
-            TlsError::TlsConfigurationFailed { .. }
-        ));
+        let configuration = tls_configuration_error(rustls::Error::General("config".to_owned()));
+        assert_error_variant(
+            &configuration,
+            &TlsError::TlsConfigurationFailed {
+                source: rustls::Error::General("expected".to_owned()),
+            },
+        );
 
         let required = rustls_error_mapper(AlpnRequirement::Required);
         let optional = rustls_error_mapper(AlpnRequirement::Optional);
-        assert!(matches!(
-            required(rustls::Error::NoApplicationProtocol),
-            TlsError::AlpnRequired
-        ));
-        assert!(matches!(
-            optional(rustls::Error::NoApplicationProtocol),
-            TlsError::UnexpectedAlpn
-        ));
+        let required_error = required(rustls::Error::NoApplicationProtocol);
+        assert_error_variant(&required_error, &TlsError::AlpnRequired);
+        let optional_error = optional(rustls::Error::NoApplicationProtocol);
+        assert_error_variant(&optional_error, &TlsError::UnexpectedAlpn);
     }
 
     #[test]
@@ -944,32 +983,40 @@ mod tests {
         for (certificate_error, expected) in cases {
             let error = classify_rustls_error(
                 rustls::Error::InvalidCertificate(certificate_error),
-                AlpnRequirement::Optional,
+                TlsError::UnexpectedAlpn,
             );
-            assert!(error.to_string().contains(expected));
+            require(
+                error.to_string().contains(expected),
+                "typed certificate error must retain its public meaning",
+            );
         }
         let protocol = classify_rustls_error(
             rustls::Error::General("test".to_owned()),
-            AlpnRequirement::Optional,
+            TlsError::UnexpectedAlpn,
         );
-        assert!(matches!(protocol, TlsError::TlsProtocolFailed { .. }));
+        assert_error_variant(
+            &protocol,
+            &TlsError::TlsProtocolFailed {
+                source: rustls::Error::General("expected".to_owned()),
+            },
+        );
     }
 
     #[test]
-    fn no_application_protocol_is_typed_by_policy() {
+    fn no_application_protocol_preserves_the_selected_policy_error() {
         for source in [
             rustls::Error::NoApplicationProtocol,
             rustls::Error::AlertReceived(AlertDescription::NoApplicationProtocol),
         ] {
-            let required = classify_rustls_error(source, AlpnRequirement::Required);
-            assert!(matches!(required, TlsError::AlpnRequired));
+            let required = classify_rustls_error(source, TlsError::AlpnRequired);
+            assert_error_variant(&required, &TlsError::AlpnRequired);
         }
         for source in [
             rustls::Error::NoApplicationProtocol,
             rustls::Error::AlertReceived(AlertDescription::NoApplicationProtocol),
         ] {
-            let optional = classify_rustls_error(source, AlpnRequirement::Optional);
-            assert!(matches!(optional, TlsError::UnexpectedAlpn));
+            let optional = classify_rustls_error(source, TlsError::UnexpectedAlpn);
+            assert_error_variant(&optional, &TlsError::UnexpectedAlpn);
         }
     }
 }
