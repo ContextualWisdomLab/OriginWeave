@@ -43,6 +43,7 @@ pub struct TlsClientPolicy {
 
 impl TlsClientPolicy {
     /// Validate a fixed-time, deadline-bound, explicit-ALPN TLS client policy.
+    #[inline(never)]
     pub fn new(
         trusted_time: UnixTime,
         handshake_timeout: Duration,
@@ -126,5 +127,31 @@ impl TlsClientPolicy {
             self.alpn_protocols,
             self.alpn_requirement,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::expect_used)]
+
+    use super::*;
+
+    #[test]
+    fn required_alpn_rejects_an_empty_allow_list() {
+        let trusted_time = UnixTime::since_unix_epoch(Duration::from_secs(1_800_000_000));
+        let error = TlsClientPolicy::new(
+            trusted_time,
+            Duration::from_secs(1),
+            Vec::new(),
+            AlpnRequirement::Required,
+        )
+        .expect_err("required ALPN must name at least one protocol");
+        assert!(matches!(
+            error,
+            TlsError::InvalidAlpnCount {
+                protocol_count: 0,
+                ..
+            }
+        ));
     }
 }
