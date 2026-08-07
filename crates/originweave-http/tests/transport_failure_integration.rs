@@ -36,6 +36,7 @@ struct CertificateMaterial {
 }
 
 enum ServerBehavior {
+    ObserveRequest,
     WriteThenStall(&'static [u8], Duration),
     WriteThenUncleanClose(&'static [u8]),
 }
@@ -128,6 +129,7 @@ fn spawn_http_server(
         }
 
         match behavior {
+            ServerBehavior::ObserveRequest => {}
             ServerBehavior::WriteThenStall(response, delay) => {
                 tls.write_all(response).map_err(|error| error.to_string())?;
                 tls.flush().map_err(|error| error.to_string())?;
@@ -273,10 +275,7 @@ fn close_delimited_body_requires_authenticated_tls_close_notify() {
 fn local_write_half_shutdown_is_reported_as_transport_io_failure() {
     let material = certificate_material();
     let (root_der, config) = server_config(material);
-    let (socket_address, server) = spawn_http_server(
-        config,
-        ServerBehavior::WriteThenStall(b"", Duration::from_millis(25)),
-    );
+    let (socket_address, server) = spawn_http_server(config, ServerBehavior::ObserveRequest);
     let origin = origin_for(socket_address);
     let mut connection = authenticated_connection(&origin, socket_address, root_der);
     connection
