@@ -63,38 +63,46 @@ pub(crate) fn serialize_request(
 
     let canonical_origin = target.origin().as_str();
     let authority = &canonical_origin[target.origin().scheme().len() + 3..];
-    let maximum = policy.max_request_bytes();
-    let mut output = Vec::with_capacity(maximum.min(1_024));
-    append_bounded(&mut output, method.as_str().as_bytes(), maximum)?;
-    append_bounded(&mut output, b" ", maximum)?;
-    append_bounded(&mut output, target.path_and_query().as_bytes(), maximum)?;
-    append_bounded(&mut output, b" HTTP/1.1\r\nHost: ", maximum)?;
-    append_bounded(&mut output, authority.as_bytes(), maximum)?;
-    append_bounded(
-        &mut output,
-        b"\r\nConnection: close\r\nAccept-Encoding: gzip, deflate\r\n",
-        maximum,
-    )?;
+    let fixed_request_fields = b"\r\nConnection: close\r\nAccept-Encoding: gzip, deflate\r\n";
+    let mut byte_count = method
+        .as_str()
+        .len()
+        .saturating_add(1)
+        .saturating_add(target.path_and_query().len())
+        .saturating_add(b" HTTP/1.1\r\nHost: ".len())
+        .saturating_add(authority.len())
+        .saturating_add(fixed_request_fields.len());
     for field in fields {
-        append_bounded(&mut output, field.name().as_bytes(), maximum)?;
-        append_bounded(&mut output, b": ", maximum)?;
-        append_bounded(&mut output, field.value(), maximum)?;
-        append_bounded(&mut output, b"\r\n", maximum)?;
+        byte_count = byte_count
+            .saturating_add(field.name().len())
+            .saturating_add(b": ".len())
+            .saturating_add(field.value_byte_count())
+            .saturating_add(b"\r\n".len());
     }
-    append_bounded(&mut output, b"\r\n", maximum)?;
-    Ok(output)
-}
-
-fn append_bounded(output: &mut Vec<u8>, bytes: &[u8], maximum: usize) -> Result<(), HttpError> {
-    let next_length = output.len().saturating_add(bytes.len());
-    if next_length > maximum {
+    byte_count = byte_count.saturating_add(b"\r\n".len());
+    let maximum = policy.max_request_bytes();
+    if byte_count > maximum {
         return Err(HttpError::RequestTooLarge {
-            byte_count: next_length,
+            byte_count,
             maximum_bytes: maximum,
         });
     }
-    output.extend_from_slice(bytes);
-    Ok(())
+
+    let mut output = Vec::with_capacity(byte_count);
+    output.extend_from_slice(method.as_str().as_bytes());
+    output.extend_from_slice(b" ");
+    output.extend_from_slice(target.path_and_query().as_bytes());
+    output.extend_from_slice(b" HTTP/1.1\r\nHost: ");
+    output.extend_from_slice(authority.as_bytes());
+    output.extend_from_slice(fixed_request_fields);
+    for field in fields {
+        output.extend_from_slice(field.name().as_bytes());
+        output.extend_from_slice(b": ");
+        output.extend_from_slice(field.value());
+        output.extend_from_slice(b"\r\n");
+    }
+    output.extend_from_slice(b"\r\n");
+    Ok(output)
 }
 
 #[cfg(test)]
@@ -230,7 +238,7 @@ mod tests {
                 &constrained_policy(1, 128, 256, 8_192),
             ),
             Err(HttpError::RequestTooLarge {
-                byte_count: 3,
+                byte_count: 88,
                 maximum_bytes: 1,
             })
         ));
