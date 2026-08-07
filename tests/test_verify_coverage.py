@@ -222,6 +222,42 @@ class CoverageVerifierTests(unittest.TestCase):
             ["src/partial.rs:42:9"],
         )
 
+    def test_raw_zero_count_regions_expose_special_llvm_region_kinds(self) -> None:
+        """Unexplained aggregate debt must retain raw LLVM kind metadata for diagnosis."""
+
+        candidate = payload(3, 2)
+        candidate["data"][0]["files"] = [  # type: ignore[index]
+            {
+                "filename": "src/complete.rs",
+                "segments": [],
+                "summary": {"regions": {"count": 4, "covered": 4}},
+            },
+            {
+                "filename": "src/partial.rs",
+                "segments": [],
+                "summary": {"regions": {"count": 7, "covered": 6}},
+            },
+        ]
+        candidate["data"][0]["functions"] = [  # type: ignore[index]
+            {
+                "name": "covered_file_special",
+                "filenames": ["src/complete.rs"],
+                "regions": [[10, 2, 10, 8, 0, 0, 1, 2]],
+            },
+            {
+                "name": "partial_file_special",
+                "filenames": ["src/partial.rs"],
+                "regions": [[42, 9, 42, 15, 0, 0, 1, 2]],
+            },
+        ]
+        self.assertEqual(
+            verify_coverage.uncovered_raw_region_diagnostics(candidate),
+            [
+                "src/partial.rs:42:9-42:15 count=0 kind=2 expanded_file_id=1 "
+                "function=partial_file_special"
+            ],
+        )
+
     def test_uncovered_region_locations_are_best_effort_for_missing_file_detail(self) -> None:
         """Summary-only or malformed file detail never weakens aggregate enforcement."""
 
