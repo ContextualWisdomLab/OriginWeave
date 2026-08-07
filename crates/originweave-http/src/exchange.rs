@@ -266,9 +266,7 @@ fn write_request(
             .and_then(|()| {
                 classify_write_result(connection.stream_mut().write(&request[written..]), timeout)
             })
-            .and_then(|byte_count| {
-                ensure_before_deadline(deadline, timeout).map(|()| byte_count)
-            });
+            .and_then(|byte_count| ensure_before_deadline(deadline, timeout).map(|()| byte_count));
         match step {
             Ok(byte_count) => written = written.saturating_add(byte_count),
             Err(error) => return Err(error),
@@ -603,9 +601,7 @@ fn capture_timeouts(
     })
 }
 
-fn map_timeout_query(
-    result: io::Result<Option<Duration>>,
-) -> Result<Option<Duration>, HttpError> {
+fn map_timeout_query(result: io::Result<Option<Duration>>) -> Result<Option<Duration>, HttpError> {
     match result {
         Ok(timeout) => Ok(timeout),
         Err(source) => Err(http_io_error(source)),
@@ -676,7 +672,10 @@ mod tests {
     #[test]
     fn timeout_result_mappers_are_total_and_fail_closed() {
         let timeout = Some(Duration::from_secs(1));
-        assert_eq!(map_timeout_query(Ok(timeout)).expect("timeout query"), timeout);
+        assert_eq!(
+            map_timeout_query(Ok(timeout)).expect("timeout query"),
+            timeout
+        );
         let query_error =
             map_timeout_query(Err(io::Error::other("query"))).expect_err("query failure");
         assert_variant(&query_error, &io_failure());
@@ -758,13 +757,8 @@ mod tests {
                 public,
             ),
         ] {
-            let error = validate_http11_alpn(
-                policy,
-                &NegotiatedAlpn::Absent,
-                requested,
-                observed,
-            )
-            .expect_err("unauthorized ALPN absence");
+            let error = validate_http11_alpn(policy, &NegotiatedAlpn::Absent, requested, observed)
+                .expect_err("unauthorized ALPN absence");
             assert_variant(&error, &HttpError::UnexpectedAlpn);
         }
     }
@@ -791,20 +785,13 @@ mod tests {
         assert_variant(&write_failure, &io_failure());
 
         classify_unit_io_result(Ok(()), timeout).expect("unit I/O success");
-        let unit_timeout = classify_unit_io_result(
-            Err(io::Error::from(io::ErrorKind::TimedOut)),
-            timeout,
-        )
-        .expect_err("unit I/O timeout");
-        assert_variant(
-            &unit_timeout,
-            &HttpError::HttpExchangeTimedOut { timeout },
-        );
-        let unit_failure = classify_unit_io_result(
-            Err(io::Error::from(io::ErrorKind::BrokenPipe)),
-            timeout,
-        )
-        .expect_err("unit I/O failure");
+        let unit_timeout =
+            classify_unit_io_result(Err(io::Error::from(io::ErrorKind::TimedOut)), timeout)
+                .expect_err("unit I/O timeout");
+        assert_variant(&unit_timeout, &HttpError::HttpExchangeTimedOut { timeout });
+        let unit_failure =
+            classify_unit_io_result(Err(io::Error::from(io::ErrorKind::BrokenPipe)), timeout)
+                .expect_err("unit I/O failure");
         assert_variant(&unit_failure, &io_failure());
     }
 
@@ -850,11 +837,8 @@ mod tests {
                 &HttpError::HttpExchangeTimedOut { timeout },
             );
         }
-        let eof = classify_read_result(
-            Err(io::Error::from(io::ErrorKind::UnexpectedEof)),
-            timeout,
-        )
-        .expect_err("read EOF");
+        let eof = classify_read_result(Err(io::Error::from(io::ErrorKind::UnexpectedEof)), timeout)
+            .expect_err("read EOF");
         assert_variant(&eof, &HttpError::IncompleteResponse);
         let ordinary = classify_read_result(
             Err(io::Error::from(io::ErrorKind::ConnectionReset)),
