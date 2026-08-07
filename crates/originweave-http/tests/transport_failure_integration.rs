@@ -296,7 +296,10 @@ fn local_write_half_shutdown_is_reported_as_transport_io_failure() {
     .expect("HTTP exchange plan")
     .execute();
 
-    assert!(matches!(result, Err(HttpError::HttpExchangeIoFailed { .. })));
+    assert!(matches!(
+        result,
+        Err(HttpError::HttpExchangeIoFailed { .. })
+    ));
     let request = server
         .join()
         .expect("server thread")
