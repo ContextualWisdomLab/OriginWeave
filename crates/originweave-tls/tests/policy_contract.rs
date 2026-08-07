@@ -200,8 +200,10 @@ fn explicitly_constructed_reference_identities_validate_fail_closed() {
         .validate_syntax(&origin)
         .expect("valid IP identity");
 
-    assert!(matches!(
-        TlsReferenceIdentity::Dns("contains space".to_owned()).validate_syntax(&origin),
-        Err(TlsError::InvalidReferenceIdentity { .. })
-    ));
+    for invalid_dns_identity in ["contains space", "127.0.0.1", "::1"] {
+        assert!(matches!(
+            TlsReferenceIdentity::Dns(invalid_dns_identity.to_owned()).validate_syntax(&origin),
+            Err(TlsError::InvalidReferenceIdentity { .. })
+        ));
+    }
 }
