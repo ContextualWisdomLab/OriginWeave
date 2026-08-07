@@ -179,7 +179,7 @@ fn scan_header_end(input: &[u8], policy: &HttpClientPolicy) -> Result<Option<usi
 }
 
 fn parse_status_line(line: &[u8]) -> Result<u16, HttpError> {
-    if line.len() < 12 {
+    if line.len() < 13 {
         return Err(HttpError::InvalidResponseStatusLine);
     }
     if !line.starts_with(b"HTTP/") {
@@ -195,17 +195,15 @@ fn parse_status_line(line: &[u8]) -> Result<u16, HttpError> {
     if !digits.iter().all(u8::is_ascii_digit) {
         return Err(HttpError::InvalidResponseStatusLine);
     }
-    if line.len() > 12 {
-        if line[12] != b' ' || line.len() == 13 {
-            return Err(HttpError::InvalidResponseStatusLine);
-        }
-        if !line[13..]
-            .iter()
-            .copied()
-            .all(crate::field::is_field_value_byte)
-        {
-            return Err(HttpError::InvalidResponseStatusLine);
-        }
+    if line[12] != b' ' {
+        return Err(HttpError::InvalidResponseStatusLine);
+    }
+    if !line[13..]
+        .iter()
+        .copied()
+        .all(crate::field::is_field_value_byte)
+    {
+        return Err(HttpError::InvalidResponseStatusLine);
     }
     let status_code = u16::from(digits[0] - b'0') * 100
         + u16::from(digits[1] - b'0') * 10
