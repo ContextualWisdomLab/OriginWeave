@@ -107,6 +107,19 @@ fn structured_field_extension_keys_cover_the_complete_allowed_punctuation() {
 }
 
 #[test]
+fn malformed_digest_trailers_fail_through_the_public_validation_path() {
+    assert!(matches!(
+        validate_content_digest(
+            &FieldBlock::default(),
+            &fields(&[("content-digest", b"sha-256=not-a-byte-sequence")]),
+            b"payload",
+            IntegrityRequirement::Optional,
+        ),
+        Err(HttpError::InvalidDigestField)
+    ));
+}
+
+#[test]
 fn overlong_trailer_line_is_rejected_through_the_trailer_parser() {
     let policy = HttpClientPolicy::strict_defaults();
     let mut body = b"0\r\nX-Long: ".to_vec();
