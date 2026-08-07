@@ -1,6 +1,7 @@
 //! Single-use deadline-bound HTTP exchange orchestration over authenticated TLS.
 
 use std::io::{self, Read, Write};
+use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
 use originweave_tls::{AuthenticatedTlsConnection, NegotiatedAlpn};
@@ -54,14 +55,14 @@ impl HttpExchangePlan {
         fields: &[RequestField],
         policy: HttpClientPolicy,
     ) -> Result<Self, HttpError> {
-        validate_transport_authority(&connection, &target, &policy)?;
-        let request_bytes = serialize_request(method, &target, fields, &policy)?;
-        Ok(Self {
-            connection,
-            method,
-            target,
-            request_bytes,
-            policy,
+        validate_transport_authority(&connection, &target, &policy).and_then(|()| {
+            serialize_request(method, &target, fields, &policy).map(|request_bytes| Self {
+                connection,
+                method,
+                target,
+                request_bytes,
+                policy,
+            })
         })
     }
 
@@ -73,35 +74,18 @@ impl HttpExchangePlan {
     /// budget exhaustion, integrity failure, unsafe metadata, or failure to restore the socket's
     /// original timeout configuration. No partial response is returned on failure.
     pub fn execute(mut self) -> Result<AuthenticatedHttpResponse, HttpError> {
-        let original_read_timeout = self
-            .connection
-            .stream()
-            .sock
-            .read_timeout()
-            .map_err(http_io_error)?;
-        let original_write_timeout = self
-            .connection
-            .stream()
-            .sock
-            .write_timeout()
-            .map_err(http_io_error)?;
-        let started = Instant::now();
-        let deadline = started.checked_add(self.policy.exchange_timeout()).ok_or(
-            HttpError::HttpExchangeTimedOut {
-                timeout: self.policy.exchange_timeout(),
-            },
-        )?;
-
-        let result = self.execute_inner(started, deadline);
-        let restored = restore_timeouts(
-            &mut self.connection,
-            original_read_timeout,
-            original_write_timeout,
-        );
-        match restored {
-            Ok(()) => result,
-            Err(error) => Err(HttpError::TimeoutRestorationFailed { source: error }),
-        }
+        let timeout = self.policy.exchange_timeout();
+        capture_timeouts(&self.connection).and_then(|(read_timeout, write_timeout)| {
+            let started = Instant::now();
+            let deadline = started + timeout;
+            let result = self.execute_inner(started, deadline);
+            map_timeout_restoration(restore_timeouts(
+                &mut self.connection,
+                read_timeout,
+                write_timeout,
+            ))
+            .and(result)
+        })
     }
 
     fn execute_inner(
@@ -216,21 +200,53 @@ fn validate_transport_authority(
             tls_origin: evidence.origin().clone(),
         });
     }
-    let current_peer = connection
-        .stream()
-        .sock
-        .peer_addr()
-        .map_err(|_error| HttpError::InvalidTransportEvidence)?;
-    if current_peer != evidence.observed_peer()
-        || evidence.requested_peer() != evidence.observed_peer()
-    {
-        return Err(HttpError::InvalidTransportEvidence);
+    peer_inspection(connection.stream().sock.peer_addr())
+        .and_then(|current_peer| {
+            validate_peer_evidence(
+                evidence.requested_peer(),
+                evidence.observed_peer(),
+                current_peer,
+            )
+        })
+        .and_then(|()| {
+            validate_http11_alpn(
+                policy.alpn_policy(),
+                evidence.negotiated_alpn(),
+                evidence.requested_peer(),
+                evidence.observed_peer(),
+            )
+        })
+}
+
+fn peer_inspection(result: io::Result<SocketAddr>) -> Result<SocketAddr, HttpError> {
+    match result {
+        Ok(current_peer) => Ok(current_peer),
+        Err(_error) => Err(HttpError::InvalidTransportEvidence),
     }
-    match (policy.alpn_policy(), evidence.negotiated_alpn()) {
+}
+
+fn validate_peer_evidence(
+    requested_peer: SocketAddr,
+    observed_peer: SocketAddr,
+    current_peer: SocketAddr,
+) -> Result<(), HttpError> {
+    if current_peer != observed_peer || requested_peer != observed_peer {
+        Err(HttpError::InvalidTransportEvidence)
+    } else {
+        Ok(())
+    }
+}
+
+fn validate_http11_alpn(
+    policy: AlpnHttp11Policy,
+    negotiated_alpn: &NegotiatedAlpn,
+    requested_peer: SocketAddr,
+    observed_peer: SocketAddr,
+) -> Result<(), HttpError> {
+    match (policy, negotiated_alpn) {
         (_, NegotiatedAlpn::Protocol(protocol)) if protocol.as_slice() == b"http/1.1" => Ok(()),
         (AlpnHttp11Policy::PermitAbsentForManagedLoopback, NegotiatedAlpn::Absent)
-            if evidence.requested_peer().ip().is_loopback()
-                && evidence.observed_peer().ip().is_loopback() =>
+            if requested_peer.ip().is_loopback() && observed_peer.ip().is_loopback() =>
         {
             Ok(())
         }
@@ -246,26 +262,39 @@ fn write_request(
 ) -> Result<(), HttpError> {
     let mut written = 0_usize;
     while written < request.len() {
-        set_write_deadline(connection, deadline, timeout)?;
-        let byte_count = match connection.stream_mut().write(&request[written..]) {
-            Ok(0) => {
-                return Err(http_io_error(io::Error::new(
-                    io::ErrorKind::WriteZero,
-                    "TLS stream wrote zero request bytes",
-                )));
-            }
-            Ok(byte_count) => byte_count,
-            Err(error) => return Err(classify_io_error(error, timeout)),
-        };
-        written = written.saturating_add(byte_count);
-        ensure_before_deadline(deadline, timeout)?;
+        let step = set_write_deadline(connection, deadline, timeout)
+            .and_then(|()| {
+                classify_write_result(connection.stream_mut().write(&request[written..]), timeout)
+            })
+            .and_then(|byte_count| {
+                ensure_before_deadline(deadline, timeout).map(|()| byte_count)
+            });
+        match step {
+            Ok(byte_count) => written = written.saturating_add(byte_count),
+            Err(error) => return Err(error),
+        }
     }
-    set_write_deadline(connection, deadline, timeout)?;
-    connection
-        .stream_mut()
-        .flush()
-        .map_err(|error| classify_io_error(error, timeout))?;
-    ensure_before_deadline(deadline, timeout)
+    set_write_deadline(connection, deadline, timeout)
+        .and_then(|()| classify_unit_io_result(connection.stream_mut().flush(), timeout))
+        .and_then(|()| ensure_before_deadline(deadline, timeout))
+}
+
+fn classify_write_result(result: io::Result<usize>, timeout: Duration) -> Result<usize, HttpError> {
+    match result {
+        Ok(0) => Err(http_io_error(io::Error::new(
+            io::ErrorKind::WriteZero,
+            "TLS stream wrote zero request bytes",
+        ))),
+        Ok(byte_count) => Ok(byte_count),
+        Err(error) => Err(classify_io_error(error, timeout)),
+    }
+}
+
+fn classify_unit_io_result(result: io::Result<()>, timeout: Duration) -> Result<(), HttpError> {
+    match result {
+        Ok(()) => Ok(()),
+        Err(error) => Err(classify_io_error(error, timeout)),
+    }
 }
 
 fn read_network_response(
@@ -299,12 +328,7 @@ fn read_network_response(
                 interim_response_count,
             })
         }
-        BodyFraming::ContentLength(length) => {
-            let expected =
-                usize::try_from(length).map_err(|_error| HttpError::EncodedContentTooLarge {
-                    byte_count: length,
-                    maximum_bytes: policy.max_encoded_content_bytes(),
-                })?;
+        BodyFraming::ContentLength(expected) => {
             let encoded_content =
                 read_exact_content(connection, body_prefix, expected, deadline, timeout)?;
             Ok(NetworkResult {
@@ -468,13 +492,17 @@ fn read_with_deadline(
     deadline: Instant,
     timeout: Duration,
 ) -> Result<usize, HttpError> {
-    set_read_deadline(connection, deadline, timeout)?;
-    let result = connection
-        .stream_mut()
-        .read(output)
-        .map_err(|error| classify_read_error(error, timeout));
-    ensure_before_deadline(deadline, timeout)?;
-    result
+    set_read_deadline(connection, deadline, timeout).and_then(|()| {
+        let result = classify_read_result(connection.stream_mut().read(output), timeout);
+        ensure_before_deadline(deadline, timeout).and(result)
+    })
+}
+
+fn classify_read_result(result: io::Result<usize>, timeout: Duration) -> Result<usize, HttpError> {
+    match result {
+        Ok(byte_count) => Ok(byte_count),
+        Err(error) => Err(classify_read_error(error, timeout)),
+    }
 }
 
 fn set_read_deadline(
@@ -482,12 +510,14 @@ fn set_read_deadline(
     deadline: Instant,
     timeout: Duration,
 ) -> Result<(), HttpError> {
-    let remaining = remaining_duration(deadline, timeout)?;
-    connection
-        .stream_mut()
-        .sock
-        .set_read_timeout(Some(remaining))
-        .map_err(http_io_error)
+    remaining_duration(deadline, timeout).and_then(|remaining| {
+        map_timeout_update(
+            connection
+                .stream_mut()
+                .sock
+                .set_read_timeout(Some(remaining)),
+        )
+    })
 }
 
 fn set_write_deadline(
@@ -495,23 +525,41 @@ fn set_write_deadline(
     deadline: Instant,
     timeout: Duration,
 ) -> Result<(), HttpError> {
-    let remaining = remaining_duration(deadline, timeout)?;
-    connection
-        .stream_mut()
-        .sock
-        .set_write_timeout(Some(remaining))
-        .map_err(http_io_error)
+    remaining_duration(deadline, timeout).and_then(|remaining| {
+        map_timeout_update(
+            connection
+                .stream_mut()
+                .sock
+                .set_write_timeout(Some(remaining)),
+        )
+    })
 }
 
 fn remaining_duration(deadline: Instant, timeout: Duration) -> Result<Duration, HttpError> {
+    remaining_duration_at(deadline, Instant::now(), timeout)
+}
+
+fn remaining_duration_at(
+    deadline: Instant,
+    now: Instant,
+    timeout: Duration,
+) -> Result<Duration, HttpError> {
     deadline
-        .checked_duration_since(Instant::now())
+        .checked_duration_since(now)
         .filter(|remaining| !remaining.is_zero())
         .ok_or(HttpError::HttpExchangeTimedOut { timeout })
 }
 
 fn ensure_before_deadline(deadline: Instant, timeout: Duration) -> Result<(), HttpError> {
-    if Instant::now() >= deadline {
+    ensure_before_deadline_at(deadline, Instant::now(), timeout)
+}
+
+fn ensure_before_deadline_at(
+    deadline: Instant,
+    now: Instant,
+    timeout: Duration,
+) -> Result<(), HttpError> {
+    if now >= deadline {
         Err(HttpError::HttpExchangeTimedOut { timeout })
     } else {
         Ok(())
@@ -546,6 +594,38 @@ fn http_io_error(source: io::Error) -> HttpError {
     HttpError::HttpExchangeIoFailed { source }
 }
 
+fn capture_timeouts(
+    connection: &AuthenticatedTlsConnection,
+) -> Result<(Option<Duration>, Option<Duration>), HttpError> {
+    map_timeout_query(connection.stream().sock.read_timeout()).and_then(|read_timeout| {
+        map_timeout_query(connection.stream().sock.write_timeout())
+            .map(|write_timeout| (read_timeout, write_timeout))
+    })
+}
+
+fn map_timeout_query(
+    result: io::Result<Option<Duration>>,
+) -> Result<Option<Duration>, HttpError> {
+    match result {
+        Ok(timeout) => Ok(timeout),
+        Err(source) => Err(http_io_error(source)),
+    }
+}
+
+fn map_timeout_update(result: io::Result<()>) -> Result<(), HttpError> {
+    match result {
+        Ok(()) => Ok(()),
+        Err(source) => Err(http_io_error(source)),
+    }
+}
+
+fn map_timeout_restoration(result: io::Result<()>) -> Result<(), HttpError> {
+    match result {
+        Ok(()) => Ok(()),
+        Err(source) => Err(HttpError::TimeoutRestorationFailed { source }),
+    }
+}
+
 fn restore_timeouts(
     connection: &mut AuthenticatedTlsConnection,
     read_timeout: Option<Duration>,
@@ -554,11 +634,13 @@ fn restore_timeouts(
     connection
         .stream_mut()
         .sock
-        .set_read_timeout(read_timeout)?;
-    connection
-        .stream_mut()
-        .sock
-        .set_write_timeout(write_timeout)
+        .set_read_timeout(read_timeout)
+        .and_then(|()| {
+            connection
+                .stream_mut()
+                .sock
+                .set_write_timeout(write_timeout)
+        })
 }
 
 fn field_evidence(fields: &FieldBlock) -> Vec<ResponseFieldEvidence> {
@@ -566,4 +648,223 @@ fn field_evidence(fields: &FieldBlock) -> Vec<ResponseFieldEvidence> {
         .iter()
         .map(|field| ResponseFieldEvidence::new(field.name().to_owned(), field.value().len()))
         .collect()
+}
+
+#[cfg(test)]
+#[cfg_attr(coverage_nightly, coverage(off))]
+mod tests {
+    #![allow(clippy::expect_used)]
+
+    use std::mem::discriminant;
+
+    use super::*;
+
+    fn socket(octets: [u8; 4]) -> SocketAddr {
+        SocketAddr::from((octets, 443))
+    }
+
+    fn assert_variant(actual: &HttpError, expected: &HttpError) {
+        assert_eq!(discriminant(actual), discriminant(expected));
+    }
+
+    fn io_failure() -> HttpError {
+        HttpError::HttpExchangeIoFailed {
+            source: io::Error::other("expected HTTP I/O failure"),
+        }
+    }
+
+    #[test]
+    fn timeout_result_mappers_are_total_and_fail_closed() {
+        let timeout = Some(Duration::from_secs(1));
+        assert_eq!(map_timeout_query(Ok(timeout)).expect("timeout query"), timeout);
+        let query_error =
+            map_timeout_query(Err(io::Error::other("query"))).expect_err("query failure");
+        assert_variant(&query_error, &io_failure());
+
+        map_timeout_update(Ok(())).expect("timeout update");
+        let update_error =
+            map_timeout_update(Err(io::Error::other("update"))).expect_err("update failure");
+        assert_variant(&update_error, &io_failure());
+
+        map_timeout_restoration(Ok(())).expect("timeout restoration");
+        let restoration_error = map_timeout_restoration(Err(io::Error::other("restore")))
+            .expect_err("restoration failure");
+        assert_variant(
+            &restoration_error,
+            &HttpError::TimeoutRestorationFailed {
+                source: io::Error::other("expected"),
+            },
+        );
+    }
+
+    #[test]
+    fn peer_evidence_and_inspection_are_exact() {
+        let loopback = socket([127, 0, 0, 1]);
+        let other = socket([127, 0, 0, 2]);
+        assert_eq!(peer_inspection(Ok(loopback)).expect("peer"), loopback);
+        let inspection_error =
+            peer_inspection(Err(io::Error::other("peer"))).expect_err("peer failure");
+        assert_variant(&inspection_error, &HttpError::InvalidTransportEvidence);
+
+        validate_peer_evidence(loopback, loopback, loopback).expect("consistent peer evidence");
+        for (requested, observed, current) in [
+            (loopback, loopback, other),
+            (other, loopback, loopback),
+            (other, loopback, other),
+        ] {
+            let error = validate_peer_evidence(requested, observed, current)
+                .expect_err("peer mismatch must fail");
+            assert_variant(&error, &HttpError::InvalidTransportEvidence);
+        }
+    }
+
+    #[test]
+    fn http11_alpn_policy_covers_protocol_and_managed_loopback_paths() {
+        let loopback = socket([127, 0, 0, 1]);
+        let public = socket([203, 0, 113, 1]);
+        validate_http11_alpn(
+            AlpnHttp11Policy::RequireHttp11,
+            &NegotiatedAlpn::Protocol(b"http/1.1".to_vec()),
+            public,
+            public,
+        )
+        .expect("HTTP/1.1 ALPN");
+        let wrong_protocol = validate_http11_alpn(
+            AlpnHttp11Policy::RequireHttp11,
+            &NegotiatedAlpn::Protocol(b"h2".to_vec()),
+            public,
+            public,
+        )
+        .expect_err("wrong protocol");
+        assert_variant(&wrong_protocol, &HttpError::UnexpectedAlpn);
+
+        validate_http11_alpn(
+            AlpnHttp11Policy::PermitAbsentForManagedLoopback,
+            &NegotiatedAlpn::Absent,
+            loopback,
+            loopback,
+        )
+        .expect("managed loopback absence");
+        for (policy, requested, observed) in [
+            (AlpnHttp11Policy::RequireHttp11, loopback, loopback),
+            (
+                AlpnHttp11Policy::PermitAbsentForManagedLoopback,
+                public,
+                loopback,
+            ),
+            (
+                AlpnHttp11Policy::PermitAbsentForManagedLoopback,
+                loopback,
+                public,
+            ),
+        ] {
+            let error = validate_http11_alpn(
+                policy,
+                &NegotiatedAlpn::Absent,
+                requested,
+                observed,
+            )
+            .expect_err("unauthorized ALPN absence");
+            assert_variant(&error, &HttpError::UnexpectedAlpn);
+        }
+    }
+
+    #[test]
+    fn write_and_unit_io_results_preserve_progress_and_classify_failures() {
+        let timeout = Duration::from_secs(1);
+        assert_eq!(
+            classify_write_result(Ok(7), timeout).expect("write progress"),
+            7
+        );
+        let zero = classify_write_result(Ok(0), timeout).expect_err("zero write");
+        assert_variant(&zero, &io_failure());
+        for kind in [io::ErrorKind::TimedOut, io::ErrorKind::WouldBlock] {
+            let error = classify_write_result(Err(io::Error::from(kind)), timeout)
+                .expect_err("write timeout");
+            assert_variant(&error, &HttpError::HttpExchangeTimedOut { timeout });
+        }
+        let write_failure = classify_write_result(
+            Err(io::Error::from(io::ErrorKind::ConnectionReset)),
+            timeout,
+        )
+        .expect_err("write failure");
+        assert_variant(&write_failure, &io_failure());
+
+        classify_unit_io_result(Ok(()), timeout).expect("unit I/O success");
+        let unit_timeout = classify_unit_io_result(
+            Err(io::Error::from(io::ErrorKind::TimedOut)),
+            timeout,
+        )
+        .expect_err("unit I/O timeout");
+        assert_variant(
+            &unit_timeout,
+            &HttpError::HttpExchangeTimedOut { timeout },
+        );
+        let unit_failure = classify_unit_io_result(
+            Err(io::Error::from(io::ErrorKind::BrokenPipe)),
+            timeout,
+        )
+        .expect_err("unit I/O failure");
+        assert_variant(&unit_failure, &io_failure());
+    }
+
+    #[test]
+    fn deadline_helpers_cover_future_equal_and_elapsed_instants() {
+        let timeout = Duration::from_secs(1);
+        let now = Instant::now();
+        let deadline = now + timeout;
+        assert_eq!(
+            remaining_duration_at(deadline, now, timeout).expect("remaining time"),
+            timeout
+        );
+        ensure_before_deadline_at(deadline, now, timeout).expect("future deadline");
+        for observed in [deadline, deadline + Duration::from_nanos(1)] {
+            let remaining_error = remaining_duration_at(deadline, observed, timeout)
+                .expect_err("elapsed remaining time");
+            assert_variant(
+                &remaining_error,
+                &HttpError::HttpExchangeTimedOut { timeout },
+            );
+            let deadline_error = ensure_before_deadline_at(deadline, observed, timeout)
+                .expect_err("elapsed deadline");
+            assert_variant(
+                &deadline_error,
+                &HttpError::HttpExchangeTimedOut { timeout },
+            );
+        }
+    }
+
+    #[test]
+    fn read_and_general_io_classification_is_complete() {
+        let timeout = Duration::from_secs(1);
+        assert_eq!(
+            classify_read_result(Ok(3), timeout).expect("read success"),
+            3
+        );
+        for kind in [io::ErrorKind::TimedOut, io::ErrorKind::WouldBlock] {
+            let error = classify_read_result(Err(io::Error::from(kind)), timeout)
+                .expect_err("read timeout");
+            assert_variant(&error, &HttpError::HttpExchangeTimedOut { timeout });
+            assert_variant(
+                &classify_io_error(io::Error::from(kind), timeout),
+                &HttpError::HttpExchangeTimedOut { timeout },
+            );
+        }
+        let eof = classify_read_result(
+            Err(io::Error::from(io::ErrorKind::UnexpectedEof)),
+            timeout,
+        )
+        .expect_err("read EOF");
+        assert_variant(&eof, &HttpError::IncompleteResponse);
+        let ordinary = classify_read_result(
+            Err(io::Error::from(io::ErrorKind::ConnectionReset)),
+            timeout,
+        )
+        .expect_err("read failure");
+        assert_variant(&ordinary, &io_failure());
+        assert_variant(
+            &classify_io_error(io::Error::from(io::ErrorKind::BrokenPipe), timeout),
+            &io_failure(),
+        );
+    }
 }
