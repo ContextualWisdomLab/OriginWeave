@@ -7,6 +7,7 @@ A PR is mergeable only when all apply:
 - one coherent scope and current architecture alignment;
 - realistic failing test observed before implementation;
 - complete focused and full verification on the exact head;
+- required PR checks explicitly check out the pull request head SHA; GitHub synthetic merge-ref evidence is supplemental and cannot substitute for exact-head evidence;
 - production function, line, region, and branch coverage each at 100%;
 - all public Rust APIs documented and rustdoc warnings denied;
 - format, check, test, Clippy, and documentation jobs pass;
