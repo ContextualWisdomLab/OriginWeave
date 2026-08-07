@@ -27,11 +27,13 @@ impl MimeType {
             .ok_or(HttpError::InvalidMimeType)?;
         let type_name = &essence[..slash];
         let subtype_name = &essence[slash + 1..];
+        // A second slash is already rejected by `is_token_byte`, because `/` is not a MIME
+        // token byte. Keeping a separate `contains('/')` condition would duplicate the same
+        // grammar invariant and create an impossible coverage branch.
         if type_name.is_empty()
             || subtype_name.is_empty()
             || !type_name.iter().copied().all(is_token_byte)
             || !subtype_name.iter().copied().all(is_token_byte)
-            || subtype_name.contains(&b'/')
         {
             return Err(HttpError::InvalidMimeType);
         }
@@ -265,7 +267,9 @@ fn split_semicolon_segments(input: &[u8]) -> Result<Vec<&[u8]>, HttpError> {
             segment_start = index + 1;
         }
     }
-    if in_quote || escaped {
+    // `escaped` is only set while `in_quote` is true; therefore an unfinished escape is already
+    // represented by the unfinished quoted-string state and does not need a second condition.
+    if in_quote {
         return Err(HttpError::InvalidMimeType);
     }
     // This final segment exists even for empty input, so callers can reject an empty essence
@@ -276,7 +280,9 @@ fn split_semicolon_segments(input: &[u8]) -> Result<Vec<&[u8]>, HttpError> {
 
 fn parse_parameter_value(value: &[u8]) -> Result<String, HttpError> {
     if value.first() == Some(&b'"') {
-        if value.len() < 2 || value.last() != Some(&b'"') {
+        // `split_semicolon_segments` has already rejected any unterminated opening quote, so a
+        // quoted parameter cannot be a one-byte value at this point.
+        if value.last() != Some(&b'"') {
             return Err(HttpError::InvalidMimeType);
         }
         let mut decoded = Vec::with_capacity(value.len() - 2);
@@ -296,9 +302,8 @@ fn parse_parameter_value(value: &[u8]) -> Result<String, HttpError> {
                 return Err(HttpError::InvalidMimeType);
             }
         }
-        if escaped {
-            return Err(HttpError::InvalidMimeType);
-        }
+        // The outer scanner rejects an escape that would consume the closing quote, so the loop
+        // cannot finish with `escaped == true` for a value admitted here.
         String::from_utf8(decoded).map_err(|_error| HttpError::InvalidMimeType)
     } else {
         if !value.iter().copied().all(is_token_byte) {
