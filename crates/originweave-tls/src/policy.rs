@@ -49,8 +49,8 @@ impl TlsClientPolicy {
         alpn_protocols: Vec<Vec<u8>>,
         alpn_requirement: AlpnRequirement,
     ) -> Result<Self, TlsError> {
-        let invalid_timeout = handshake_timeout.is_zero()
-            | (handshake_timeout > MAX_TLS_HANDSHAKE_TIMEOUT);
+        let invalid_timeout =
+            handshake_timeout.is_zero() | (handshake_timeout > MAX_TLS_HANDSHAKE_TIMEOUT);
         if invalid_timeout {
             return Err(TlsError::InvalidHandshakeTimeout {
                 timeout: handshake_timeout,
@@ -59,8 +59,7 @@ impl TlsClientPolicy {
         }
         let protocol_count = alpn_protocols.len();
         let invalid_protocol_count = (protocol_count > MAX_ALPN_PROTOCOL_COUNT)
-            | (alpn_protocols.is_empty()
-                & (alpn_requirement == AlpnRequirement::Required));
+            | (alpn_protocols.is_empty() & (alpn_requirement == AlpnRequirement::Required));
         if invalid_protocol_count {
             return Err(TlsError::InvalidAlpnCount {
                 protocol_count,
@@ -71,8 +70,8 @@ impl TlsClientPolicy {
         let mut seen = BTreeSet::new();
         let mut total_bytes = 0_usize;
         for (protocol_index, protocol) in alpn_protocols.iter().enumerate() {
-            let invalid_identifier = protocol.is_empty()
-                | (protocol.len() > MAX_ALPN_PROTOCOL_LENGTH);
+            let invalid_identifier =
+                protocol.is_empty() | (protocol.len() > MAX_ALPN_PROTOCOL_LENGTH);
             if invalid_identifier {
                 return Err(TlsError::InvalidAlpnIdentifier {
                     protocol_index,
