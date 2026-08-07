@@ -49,21 +49,19 @@ impl TrustRootBundle {
     /// Validate, canonicalize, hash, and load explicit trust-root certificates.
     pub fn new(
         identifier: TrustBundleIdentifier,
-        certificate_der: impl IntoIterator<Item = Vec<u8>>,
+        certificate_der: Vec<Vec<u8>>,
     ) -> Result<Self, TlsError> {
-        let input: Vec<Vec<u8>> = certificate_der
-            .into_iter()
-            .take(MAX_TRUST_ROOT_COUNT + 1)
-            .collect();
-        if input.is_empty() || input.len() > MAX_TRUST_ROOT_COUNT {
+        if certificate_der.is_empty() || certificate_der.len() > MAX_TRUST_ROOT_COUNT {
             return Err(TlsError::InvalidTrustRootCount {
-                root_count: input.len(),
+                root_count: certificate_der.len(),
                 maximum_count: MAX_TRUST_ROOT_COUNT,
             });
         }
-        let input_byte_count = input.iter().fold(0_usize, |total, certificate| {
-            total.saturating_add(certificate.len())
-        });
+        let input_byte_count = certificate_der
+            .iter()
+            .fold(0_usize, |total, certificate| {
+                total.saturating_add(certificate.len())
+            });
         if input_byte_count > MAX_TRUST_ROOT_BYTES {
             return Err(TlsError::InvalidTrustRootBytes {
                 byte_count: input_byte_count,
@@ -71,7 +69,7 @@ impl TrustRootBundle {
             });
         }
 
-        let mut canonical = input;
+        let mut canonical = certificate_der;
         canonical.sort();
         canonical.dedup();
         let encoded_byte_count = canonical.iter().map(Vec::len).sum();
