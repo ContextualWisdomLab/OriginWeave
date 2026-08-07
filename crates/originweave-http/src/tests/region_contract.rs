@@ -248,12 +248,12 @@ fn digest_dictionary_covers_leading_space_and_fail_closed_string_edges() {
         Err(HttpError::InvalidDigestField)
     ));
 
-    let mut raw_control = b"sha-256=:AQ==:;s=\"bad".to_vec();
-    raw_control.push(0x01);
-    raw_control.push(b'"');
+    let mut raw_obs_text = b"sha-256=:AQ==:;s=\"bad".to_vec();
+    raw_obs_text.push(0x80);
+    raw_obs_text.push(b'"');
     assert!(matches!(
         validate_content_digest(
-            &fields(&[("content-digest", raw_control.as_slice())]),
+            &fields(&[("content-digest", raw_obs_text.as_slice())]),
             &FieldBlock::default(),
             b"payload",
             IntegrityRequirement::Optional,
