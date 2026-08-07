@@ -61,12 +61,8 @@ pub(crate) fn serialize_request(
         }
     }
 
-    let authority = target
-        .origin()
-        .as_str()
-        .strip_prefix("https://")
-        .or_else(|| target.origin().as_str().strip_prefix("http://"))
-        .ok_or(HttpError::InvalidRequestTarget)?;
+    let canonical_origin = target.origin().as_str();
+    let authority = &canonical_origin[target.origin().scheme().len() + 3..];
     let maximum = policy.max_request_bytes();
     let mut output = Vec::with_capacity(maximum.min(1_024));
     append_bounded(&mut output, method.as_str().as_bytes(), maximum)?;
@@ -105,9 +101,39 @@ fn append_bounded(output: &mut Vec<u8>, bytes: &[u8], maximum: usize) -> Result<
 mod tests {
     #![allow(clippy::expect_used)]
 
+    use std::time::Duration;
+
     use originweave_core::Origin;
 
     use super::*;
+
+    fn constrained_policy(
+        max_request_bytes: usize,
+        max_header_field_count: usize,
+        max_header_name_bytes: usize,
+        max_header_value_bytes: usize,
+    ) -> HttpClientPolicy {
+        let defaults = HttpClientPolicy::strict_defaults();
+        HttpClientPolicy::new(
+            Duration::from_secs(1),
+            max_request_bytes,
+            defaults.max_status_line_bytes(),
+            max_header_field_count,
+            max_header_name_bytes,
+            max_header_value_bytes,
+            defaults.max_header_section_bytes(),
+            defaults.max_interim_response_count(),
+            defaults.max_chunk_count(),
+            defaults.max_trailer_field_count(),
+            defaults.max_trailer_section_bytes(),
+            defaults.max_encoded_content_bytes(),
+            defaults.max_decoded_content_bytes(),
+            defaults.max_content_expansion_ratio(),
+            crate::AlpnHttp11Policy::RequireHttp11,
+            crate::IntegrityRequirement::Optional,
+        )
+        .expect("constrained request policy")
+    }
 
     #[test]
     fn methods_expose_exact_tokens_and_content_semantics() {
@@ -136,5 +162,79 @@ mod tests {
             request,
             b"GET /items?q=one HTTP/1.1\r\nHost: example.com:8443\r\nConnection: close\r\nAccept-Encoding: gzip, deflate\r\naccept: application/json\r\n\r\n"
         );
+    }
+
+    #[test]
+    fn request_serialization_rejects_every_narrower_per_exchange_limit() {
+        let target = HttpRequestTarget::parse(
+            Origin::parse("https://example.com").expect("origin"),
+            "/",
+        )
+        .expect("target");
+        let first = RequestField::new("x-a", b"a").expect("first field");
+        let second = RequestField::new("x-b", b"b").expect("second field");
+        assert!(matches!(
+            serialize_request(
+                HttpMethod::Get,
+                &target,
+                &[first.clone(), second],
+                &constrained_policy(16_384, 1, 256, 8_192),
+            ),
+            Err(HttpError::ExcessiveRequestFieldCount {
+                field_count: 2,
+                maximum_count: 1,
+            })
+        ));
+
+        let long_name = RequestField::new("xx", b"a").expect("two-byte name");
+        assert!(matches!(
+            serialize_request(
+                HttpMethod::Get,
+                &target,
+                &[long_name],
+                &constrained_policy(16_384, 128, 1, 8_192),
+            ),
+            Err(HttpError::RequestFieldNameTooLarge {
+                byte_count: 2,
+                maximum_bytes: 1,
+            })
+        ));
+
+        let long_value = RequestField::new("x", b"ab").expect("two-byte value");
+        assert!(matches!(
+            serialize_request(
+                HttpMethod::Get,
+                &target,
+                &[long_value],
+                &constrained_policy(16_384, 128, 256, 1),
+            ),
+            Err(HttpError::RequestFieldValueTooLarge {
+                byte_count: 2,
+                maximum_bytes: 1,
+            })
+        ));
+
+        assert!(matches!(
+            serialize_request(
+                HttpMethod::Get,
+                &target,
+                &[first.clone(), first],
+                &constrained_policy(16_384, 128, 256, 8_192),
+            ),
+            Err(HttpError::DuplicateRequestField { field_name }) if field_name == "x-a"
+        ));
+
+        assert!(matches!(
+            serialize_request(
+                HttpMethod::Get,
+                &target,
+                &[],
+                &constrained_policy(1, 128, 256, 8_192),
+            ),
+            Err(HttpError::RequestTooLarge {
+                byte_count: 3,
+                maximum_bytes: 1,
+            })
+        ));
     }
 }
