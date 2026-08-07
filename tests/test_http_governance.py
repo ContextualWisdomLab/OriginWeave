@@ -1,0 +1,120 @@
+"""Static safety and dependency contracts for the bounded HTTP authority."""
+
+from __future__ import annotations
+
+import pathlib
+import tomllib
+import unittest
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+CRATE = ROOT / "crates/originweave-http"
+SOURCE = CRATE / "src"
+
+
+class HttpGovernanceTests(unittest.TestCase):
+    """Keep HTTP parsing independent from transport, browser, and persistence authority."""
+
+    def test_http_crate_contains_every_approved_module(self) -> None:
+        """The reviewed design must remain visible as focused source modules."""
+
+        required = {
+            "lib.rs",
+            "error.rs",
+            "policy.rs",
+            "target.rs",
+            "field.rs",
+            "request.rs",
+            "response_head.rs",
+            "framing.rs",
+            "chunked.rs",
+            "content.rs",
+            "integrity.rs",
+            "mime.rs",
+            "disposition.rs",
+            "evidence.rs",
+            "exchange.rs",
+        }
+        self.assertEqual({path.name for path in SOURCE.glob("*.rs")}, required)
+
+    def test_http_manifest_has_only_reviewed_current_dependencies(self) -> None:
+        """The first compile slice must not inherit a general HTTP client stack."""
+
+        manifest = tomllib.loads((CRATE / "Cargo.toml").read_text(encoding="utf-8"))
+        self.assertEqual(
+            set(manifest["dependencies"]),
+            {"base64", "originweave-core", "originweave-tls", "sha2"},
+        )
+        self.assertEqual(
+            set(manifest["dev-dependencies"]),
+            {
+                "originweave-destination",
+                "originweave-network",
+                "rcgen",
+                "rustls",
+            },
+        )
+        serialized = (CRATE / "Cargo.toml").read_text(encoding="utf-8")
+        self.assertNotIn("reqwest", serialized)
+        self.assertNotIn("hyper", serialized)
+
+    def test_production_http_source_forbids_alternate_authority_paths(self) -> None:
+        """HTTP semantics must consume authenticated TLS rather than create authority."""
+
+        forbidden = {
+            "TcpStream::connect": "socket connection",
+            "connect_timeout": "socket connection",
+            "ToSocketAddrs": "DNS or address selection",
+            "lookup_host": "DNS lookup",
+            "HTTP_PROXY": "ambient proxy",
+            "HTTPS_PROXY": "ambient proxy",
+            "ALL_PROXY": "ambient proxy",
+            "reqwest": "general HTTP client",
+            "hyper::client": "general HTTP connector",
+            "File::create": "file persistence",
+            "std::fs::write": "file persistence",
+            "Command::new": "process execution",
+            "COPILOT_GITHUB_TOKEN": "forbidden model credential",
+        }
+        combined = "\n".join(
+            path.read_text(encoding="utf-8") for path in sorted(SOURCE.glob("*.rs"))
+        )
+        for token, authority in forbidden.items():
+            self.assertNotIn(token, combined, authority)
+
+    def test_http_crate_forbids_unsafe_and_requires_public_docs(self) -> None:
+        """The parsing boundary must remain safe Rust with mandatory rustdoc."""
+
+        lib = (SOURCE / "lib.rs").read_text(encoding="utf-8")
+        self.assertIn("#![forbid(unsafe_code)]", lib)
+        self.assertIn("#![deny(missing_docs)]", lib)
+        combined = "\n".join(
+            path.read_text(encoding="utf-8") for path in sorted(SOURCE.glob("*.rs"))
+        )
+        self.assertNotIn("unsafe {", combined)
+        self.assertNotIn("unsafe fn", combined)
+
+    def test_http_design_is_approved_and_standards_traced(self) -> None:
+        """Implementation authority must remain bound to the accepted spec and ADR."""
+
+        design = (
+            ROOT / "docs/superpowers/specs/2026-08-07-http11-semantics-design.md"
+        ).read_text(encoding="utf-8")
+        plan = (
+            ROOT / "docs/superpowers/plans/2026-08-07-http11-semantics.md"
+        ).read_text(encoding="utf-8")
+        adr = (ROOT / "docs/adr/0007-bounded-http11-semantics.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("**Status:** Approved", design)
+        self.assertIn("**Status:** Accepted", adr)
+        self.assertIn("RFC 9110", design)
+        self.assertIn("RFC 9112", design)
+        self.assertIn("RFC 9530", design)
+        self.assertIn("WHATWG", design)
+        self.assertIn("exactly 100%", plan)
+        self.assertNotIn("TBD", design + plan + adr)
+        self.assertNotIn("TODO", design + plan + adr)
+
+
+if __name__ == "__main__":
+    unittest.main()
