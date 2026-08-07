@@ -10,6 +10,8 @@
 
 mod chunked;
 mod content;
+#[cfg(test)]
+mod coverage_contract;
 mod disposition;
 mod error;
 mod evidence;
