@@ -66,15 +66,19 @@ mod tests {
         let origin = Origin::parse("https://example.com").expect("HTTPS origin");
         let valid = TlsReferenceIdentity::Dns("example.com".to_owned());
         let expected = ServerName::try_from("example.com".to_owned()).expect("valid DNS name");
-        assert_eq!(valid.server_name(&origin).expect("server name"), expected);
+        require(
+            valid.server_name(&origin).expect("server name") == expected,
+            "valid DNS identity must become the expected server name",
+        );
 
         let invalid = TlsReferenceIdentity::Dns("contains space".to_owned());
         let error = invalid
             .server_name(&origin)
             .expect_err("invalid DNS identity");
-        assert_eq!(
-            discriminant(&error),
-            discriminant(&TlsError::InvalidReferenceIdentity { origin })
+        require(
+            discriminant(&error)
+                == discriminant(&TlsError::InvalidReferenceIdentity { origin }),
+            "invalid DNS identity must retain its typed error",
         );
     }
 
