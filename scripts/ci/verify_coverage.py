@@ -47,13 +47,52 @@ def uncovered_metrics(payload: Mapping[str, Any]) -> dict[str, tuple[int, int]]:
     return uncovered
 
 
+def _function_region_locations(summary: Mapping[str, Any]) -> set[str]:
+    """Return zero-count LLVM code regions from per-function export detail."""
+
+    functions = summary.get("functions")
+    if not isinstance(functions, list):
+        return set()
+    locations: set[str] = set()
+    for function in functions:
+        if not isinstance(function, Mapping):
+            continue
+        filenames = function.get("filenames")
+        regions = function.get("regions")
+        if not isinstance(filenames, list) or not isinstance(regions, list):
+            continue
+        for region in regions:
+            if not isinstance(region, list) or len(region) < 8:
+                continue
+            line, column, _end_line, _end_column, count, file_id, _expanded_file_id, kind = region[:8]
+            if (
+                isinstance(line, int)
+                and not isinstance(line, bool)
+                and isinstance(column, int)
+                and not isinstance(column, bool)
+                and isinstance(count, int)
+                and not isinstance(count, bool)
+                and isinstance(file_id, int)
+                and not isinstance(file_id, bool)
+                and kind == 0
+                and count == 0
+                and 0 <= file_id < len(filenames)
+                and isinstance(filenames[file_id], str)
+            ):
+                locations.add(f"{filenames[file_id]}:{line}:{column}")
+    return locations
+
+
 def uncovered_region_locations(payload: Mapping[str, Any]) -> list[str]:
-    """Return best-effort source coordinates for uncovered LLVM region entries.
+    """Return best-effort source coordinates for uncovered LLVM code regions.
 
     LLVM coverage JSON segments use ``line, column, count, has_count,
-    is_region_entry, is_gap_region`` as their first six fields. Diagnostics are
-    intentionally best-effort: malformed or summary-only file detail never
-    replaces the aggregate fail-closed coverage decision.
+    is_region_entry, is_gap_region`` as their first six fields. Some valid LLVM
+    exports can retain an uncovered code region only in the per-function
+    ``regions`` array, so diagnostics fall back to that authoritative detail
+    when segment entries do not identify the miss. Diagnostics are best-effort:
+    malformed or summary-only detail never replaces aggregate fail-closed
+    coverage enforcement.
     """
 
     try:
@@ -89,6 +128,8 @@ def uncovered_region_locations(payload: Mapping[str, Any]) -> list[str]:
                 and count == 0
             ):
                 locations.add(f"{filename}:{line}:{column}")
+    if not locations:
+        locations.update(_function_region_locations(summary))
     return sorted(locations)[:MAX_REGION_DIAGNOSTICS]
 
 
