@@ -11,9 +11,7 @@ fn fields(entries: &[(&str, &[u8])]) -> FieldBlock {
     FieldBlock::new(
         entries
             .iter()
-            .map(|(name, value)| {
-                FieldLine::new(name.as_bytes(), value, 256, 8_192).expect("field")
-            })
+            .map(|(name, value)| FieldLine::new(name.as_bytes(), value, 256, 8_192).expect("field"))
             .collect(),
     )
 }
@@ -37,8 +35,8 @@ fn supplied_mime_parsing_normalizes_essence_and_parameters() {
 
 #[test]
 fn quoted_parameter_escapes_are_bounded_and_deterministic() {
-    let parsed = MimeType::parse(b"application/example; note=\"a\\\"b\\\\c\"")
-        .expect("quoted parameter");
+    let parsed =
+        MimeType::parse(b"application/example; note=\"a\\\"b\\\\c\"").expect("quoted parameter");
     assert_eq!(parsed.parameters()[0].1, "a\"b\\c");
 
     assert!(matches!(
