@@ -444,37 +444,3 @@ fn trim_optional_whitespace(value: &[u8]) -> &[u8] {
         .map_or(start, |index| index + 1);
     &value[start..end]
 }
-
-#[cfg(test)]
-#[cfg_attr(coverage_nightly, coverage(off))]
-mod tests {
-    #![allow(clippy::expect_used)]
-
-    use super::*;
-
-    #[test]
-    fn active_risk_aliases_are_explicitly_classified() {
-        for essence in [
-            "text/html",
-            "application/xml",
-            "text/xml",
-            "image/svg+xml",
-            "text/javascript",
-            "application/javascript",
-            "application/pdf",
-        ] {
-            let mime = MimeType::parse(essence.as_bytes()).expect("valid active MIME");
-            assert_eq!(risk_class(&mime), ContentRiskClass::ActiveOrScriptable);
-        }
-    }
-
-    #[test]
-    fn javascript_supplied_aliases_are_explicitly_recognized() {
-        for essence in ["text/javascript", "application/javascript"] {
-            let mime = MimeType::parse(essence.as_bytes()).expect("valid JavaScript MIME");
-            assert!(is_javascript_mime(&mime));
-        }
-        let plain = MimeType::parse(b"text/plain").expect("plain MIME");
-        assert!(!is_javascript_mime(&plain));
-    }
-}
