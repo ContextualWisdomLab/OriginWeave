@@ -19,6 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
         with:
@@ -47,7 +48,7 @@ jobs:
         if: failure() && steps.formatting.outcome == 'failure'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: rustfmt-${{ github.sha }}
+          name: rustfmt-${{ github.event.pull_request.head.sha || github.sha }}
           path: rustfmt-output
           if-no-files-found: error
           retention-days: 3
@@ -68,6 +69,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
         with:
@@ -94,7 +96,7 @@ jobs:
       - name: Upload exact coverage diagnostics
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: exact-coverage-${{ github.sha }}
+          name: exact-coverage-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
             coverage.json
             missing-lines.txt
