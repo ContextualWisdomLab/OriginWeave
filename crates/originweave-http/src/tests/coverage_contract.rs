@@ -158,6 +158,15 @@ fn mime_parser_rejects_every_ambiguous_syntax_class_and_classifies_signatures() 
 }
 
 #[test]
+fn request_target_rejects_invalid_second_percent_nibble() {
+    let origin = originweave_core::Origin::parse("https://example.com").expect("origin");
+    assert!(matches!(
+        crate::HttpRequestTarget::parse(origin, "/%0G"),
+        Err(HttpError::InvalidPercentEncoding { byte_index: 1 })
+    ));
+}
+
+#[test]
 fn response_head_rejects_status_line_line_ending_and_budget_edge_cases() {
     let policy = HttpClientPolicy::strict_defaults();
     assert!(matches!(
