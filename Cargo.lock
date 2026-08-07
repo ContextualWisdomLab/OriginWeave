@@ -282,6 +282,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "originweave-http"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "originweave-core",
+ "originweave-destination",
+ "originweave-network",
+ "originweave-tls",
+ "rcgen",
+ "rustls",
+ "sha2",
+]
+
+[[package]]
 name = "originweave-network"
 version = "0.1.0"
 dependencies = [
