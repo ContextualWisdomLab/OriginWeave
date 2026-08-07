@@ -81,10 +81,16 @@ mod tests {
         );
 
         let ip_origin = Origin::parse("https://127.0.0.1").expect("HTTPS IP origin");
+        let ip_identity =
+            TlsReferenceIdentity::from_origin(&ip_origin).expect("IP reference identity");
         require(
-            TlsReferenceIdentity::from_origin(&ip_origin).expect("IP reference identity")
-                == TlsReferenceIdentity::Ip(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
+            ip_identity == TlsReferenceIdentity::Ip(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
             "literal IP origin must remain an IP reference identity",
+        );
+        let expected_ip_name = ServerName::IpAddress(std::net::Ipv4Addr::LOCALHOST.into());
+        require(
+            ip_identity.server_name(&ip_origin).expect("IP server name") == expected_ip_name,
+            "literal IP identity must remain an IP server name",
         );
 
         let dns_origin = Origin::parse("https://example.com").expect("HTTPS DNS origin");
