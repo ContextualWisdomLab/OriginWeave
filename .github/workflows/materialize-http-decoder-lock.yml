@@ -1,0 +1,91 @@
+name: Materialize HTTP decoder lockfile
+
+on:
+  pull_request:
+    paths:
+      - Cargo.lock
+      - crates/originweave-http/Cargo.toml
+      - .github/workflows/materialize-http-decoder-lock.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: materialize-http-decoder-lock-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  lockfile:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    name: Generate and commit reviewed decoder lockfile
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          persist-credentials: true
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        with:
+          toolchain: 1.97.1
+      - name: Preserve previous lock and regenerate deterministically
+        run: |
+          cp Cargo.lock Cargo.lock.before
+          cargo generate-lockfile
+      - name: Require only the reviewed flate2 dependency family
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          import tomllib
+
+          before = tomllib.loads(pathlib.Path("Cargo.lock.before").read_text(encoding="utf-8"))
+          after = tomllib.loads(pathlib.Path("Cargo.lock").read_text(encoding="utf-8"))
+
+          def registry_map(document):
+              return {
+                  package["name"]: (package["version"], package.get("checksum"))
+                  for package in document["package"]
+                  if package.get("source", "").startswith("registry+")
+              }
+
+          before_registry = registry_map(before)
+          after_registry = registry_map(after)
+          changed_existing = {
+              name
+              for name in before_registry.keys() & after_registry.keys()
+              if before_registry[name] != after_registry[name]
+          }
+          if changed_existing:
+              raise SystemExit(f"existing registry packages changed: {sorted(changed_existing)}")
+
+          allowed_additions = {
+              "adler2",
+              "crc32fast",
+              "flate2",
+              "miniz_oxide",
+              "simd-adler32",
+          }
+          additions = after_registry.keys() - before_registry.keys()
+          if "flate2" not in additions:
+              raise SystemExit(f"flate2 was not added: {sorted(additions)}")
+          unexpected = additions - allowed_additions
+          if unexpected:
+              raise SystemExit(f"unexpected registry packages added: {sorted(unexpected)}")
+          if before_registry.keys() - after_registry.keys():
+              raise SystemExit("registry packages were removed")
+
+          flate2 = after_registry["flate2"]
+          if flate2[0] != "1.1.9" or not flate2[1]:
+              raise SystemExit(f"unexpected flate2 lock entry: {flate2}")
+          PY
+      - name: Commit reviewed lockfile and remove one-shot workflow
+        env:
+          TARGET_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          rm .github/workflows/materialize-http-decoder-lock.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Cargo.lock .github/workflows/materialize-http-decoder-lock.yml
+          git diff --cached --check
+          git commit -m "build: materialize HTTP decoder lockfile"
+          git push origin "HEAD:${TARGET_BRANCH}"
