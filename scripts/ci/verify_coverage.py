@@ -10,15 +10,22 @@ from collections.abc import Mapping
 from typing import Any
 
 REQUIRED_METRICS = ("functions", "lines", "regions", "branches")
+MAX_REGION_DIAGNOSTICS = 100
+
+
+def _single_data_summary(payload: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Return the single LLVM data summary or reject an ambiguous payload."""
+
+    data = payload.get("data")
+    if not isinstance(data, list) or len(data) != 1 or not isinstance(data[0], Mapping):
+        raise ValueError("coverage JSON must contain exactly one data summary")
+    return data[0]
 
 
 def uncovered_metrics(payload: Mapping[str, Any]) -> dict[str, tuple[int, int]]:
     """Return metrics whose covered count differs from their total count."""
 
-    data = payload.get("data")
-    if not isinstance(data, list) or len(data) != 1 or not isinstance(data[0], Mapping):
-        raise ValueError("coverage JSON must contain exactly one data summary")
-    totals = data[0].get("totals")
+    totals = _single_data_summary(payload).get("totals")
     if not isinstance(totals, Mapping):
         raise ValueError("coverage JSON is missing totals")
 
@@ -40,6 +47,51 @@ def uncovered_metrics(payload: Mapping[str, Any]) -> dict[str, tuple[int, int]]:
     return uncovered
 
 
+def uncovered_region_locations(payload: Mapping[str, Any]) -> list[str]:
+    """Return best-effort source coordinates for uncovered LLVM region entries.
+
+    LLVM coverage JSON segments use ``line, column, count, has_count,
+    is_region_entry, is_gap_region`` as their first six fields. Diagnostics are
+    intentionally best-effort: malformed or summary-only file detail never
+    replaces the aggregate fail-closed coverage decision.
+    """
+
+    try:
+        summary = _single_data_summary(payload)
+    except ValueError:
+        return []
+    files = summary.get("files")
+    if not isinstance(files, list):
+        return []
+
+    locations: set[str] = set()
+    for file_entry in files:
+        if not isinstance(file_entry, Mapping):
+            continue
+        filename = file_entry.get("filename")
+        segments = file_entry.get("segments")
+        if not isinstance(filename, str) or not isinstance(segments, list):
+            continue
+        for segment in segments:
+            if not isinstance(segment, list) or len(segment) < 6:
+                continue
+            line, column, count, has_count, is_region_entry, is_gap_region = segment[:6]
+            if (
+                isinstance(line, int)
+                and not isinstance(line, bool)
+                and isinstance(column, int)
+                and not isinstance(column, bool)
+                and isinstance(count, int)
+                and not isinstance(count, bool)
+                and has_count is True
+                and is_region_entry is True
+                and is_gap_region is False
+                and count == 0
+            ):
+                locations.add(f"{filename}:{line}:{column}")
+    return sorted(locations)[:MAX_REGION_DIAGNOSTICS]
+
+
 def verify_file(path: pathlib.Path) -> None:
     """Load one coverage JSON artifact and enforce exact coverage."""
 
@@ -53,6 +105,9 @@ def verify_file(path: pathlib.Path) -> None:
             f"{metric}={covered}/{count}"
             for metric, (covered, count) in sorted(uncovered.items())
         )
+        region_locations = uncovered_region_locations(payload)
+        if region_locations:
+            details = f"{details}; uncovered regions: {', '.join(region_locations)}"
         raise RuntimeError(f"production coverage is below 100%: {details}")
 
 
