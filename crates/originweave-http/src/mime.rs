@@ -343,32 +343,25 @@ fn internal_mime(type_name: &str, subtype_name: &str) -> MimeType {
 }
 
 pub(crate) fn risk_class(mime_type: &MimeType) -> ContentRiskClass {
-    let essence = mime_type.essence();
-    if matches!(
-        essence.as_str(),
+    match mime_type.essence().as_str() {
         "text/html"
-            | "application/xml"
-            | "text/xml"
-            | "image/svg+xml"
-            | "text/javascript"
-            | "application/javascript"
-            | "application/pdf"
-    ) {
-        ContentRiskClass::ActiveOrScriptable
-    } else if essence == "application/zip" {
-        ContentRiskClass::ArchiveOrContainer
-    } else if essence == "application/octet-stream" {
-        ContentRiskClass::UnknownBinary
-    } else {
-        ContentRiskClass::Passive
+        | "application/xml"
+        | "text/xml"
+        | "image/svg+xml"
+        | "text/javascript"
+        | "application/javascript"
+        | "application/pdf" => ContentRiskClass::ActiveOrScriptable,
+        "application/zip" => ContentRiskClass::ArchiveOrContainer,
+        "application/octet-stream" => ContentRiskClass::UnknownBinary,
+        _other => ContentRiskClass::Passive,
     }
 }
 
 fn is_javascript_mime(mime_type: &MimeType) -> bool {
-    matches!(
-        mime_type.essence().as_str(),
-        "text/javascript" | "application/javascript"
-    )
+    match mime_type.essence().as_str() {
+        "text/javascript" | "application/javascript" => true,
+        _other => false,
+    }
 }
 
 fn is_png(input: &[u8]) -> bool {
