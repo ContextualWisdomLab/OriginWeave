@@ -108,6 +108,16 @@ class RepositoryContractTests(unittest.TestCase):
         self.assertIn("TCP peer", architecture)
         self.assertIn("RFC 9525", architecture)
 
+    def test_ci_validates_the_exact_pull_request_head(self) -> None:
+        """Required PR evidence must validate the head commit, not only a merge ref."""
+
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        exact_head = "${{ github.event.pull_request.head.sha || github.sha }}"
+        self.assertGreaterEqual(workflow.count(f"ref: {exact_head}"), 2)
+        self.assertIn(f"exact-coverage-{exact_head}", workflow)
+        self.assertIn("permissions:\n  contents: read", workflow)
+        self.assertNotIn("contents: write", workflow)
+
     def test_hourly_loop_uses_nvidia_nim_and_dedicated_publication_authority(self) -> None:
         """The product loop must use OpenCode/NIM without review or merge credentials."""
 
