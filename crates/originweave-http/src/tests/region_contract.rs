@@ -214,8 +214,7 @@ fn rfc9530_remains_bound_to_rfc8941_parameter_item_types() {
 
 #[test]
 fn digest_dictionary_covers_leading_space_and_fail_closed_string_edges() {
-    let leading_spaces =
-        b"   sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:";
+    let leading_spaces = b"   sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:";
     assert_eq!(
         validate_content_digest(
             &fields(&[("content-digest", leading_spaces)]),
