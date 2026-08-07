@@ -178,6 +178,56 @@ def _function_region_locations(
     }
 
 
+def uncovered_expansion_locations(payload: Mapping[str, Any]) -> list[str]:
+    """Return zero-count LLVM macro-expansion source coordinates.
+
+    ``llvm-cov export`` records macro expansion mappings separately from normal
+    segments and function code regions. These diagnostics are scoped to files
+    whose aggregate region summary is actually deficient so expansions from a
+    fully covered file cannot create false leads. The result remains diagnostic
+    only: aggregate exact coverage is still the authoritative gate.
+    """
+
+    try:
+        summary = _single_data_summary(payload)
+    except ValueError:
+        return []
+    files = summary.get("files")
+    if not isinstance(files, list):
+        return []
+    deficient = _deficient_region_filenames(summary)
+    locations: set[str] = set()
+    for file_entry in files:
+        if not isinstance(file_entry, Mapping):
+            continue
+        filename = file_entry.get("filename")
+        expansions = file_entry.get("expansions")
+        if not isinstance(filename, str) or not isinstance(expansions, list):
+            continue
+        if deficient and filename not in deficient:
+            continue
+        for expansion in expansions:
+            if not isinstance(expansion, Mapping):
+                continue
+            source_region = expansion.get("source_region")
+            if not isinstance(source_region, list) or len(source_region) < 8:
+                continue
+            line, column, _end_line, _end_column, count, _file_id, _expanded_file_id, _kind = (
+                source_region[:8]
+            )
+            if (
+                isinstance(line, int)
+                and not isinstance(line, bool)
+                and isinstance(column, int)
+                and not isinstance(column, bool)
+                and isinstance(count, int)
+                and not isinstance(count, bool)
+                and count == 0
+            ):
+                locations.add(f"{filename}:{line}:{column}")
+    return sorted(locations)[:MAX_REGION_DIAGNOSTICS]
+
+
 def uncovered_region_locations(payload: Mapping[str, Any]) -> list[str]:
     """Return best-effort source coordinates for uncovered LLVM code regions.
 
@@ -250,6 +300,9 @@ def verify_file(path: pathlib.Path) -> None:
         region_locations = uncovered_region_locations(payload)
         if region_locations:
             details = f"{details}; uncovered regions: {', '.join(region_locations)}"
+        expansion_locations = uncovered_expansion_locations(payload)
+        if expansion_locations:
+            details = f"{details}; uncovered expansions: {', '.join(expansion_locations)}"
         raise RuntimeError(f"production coverage is below 100%: {details}")
 
 
