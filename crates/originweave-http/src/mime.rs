@@ -196,30 +196,33 @@ pub(crate) fn observe_mime_type(
 ) -> Result<ObservedMimeClassification, HttpError> {
     let prefix = &content[..content.len().min(MAX_MIME_SNIFF_BYTES)];
     let trimmed = trim_text_prefix(prefix);
+    // Every classifier result below is an internal reviewed ASCII token pair. Constructing those
+    // literals through the public fallible parser would add impossible error regions without
+    // increasing validation: untrusted supplied metadata still uses `MimeType::parse` above.
     let mime_type = if prefix.starts_with(b"%PDF-") {
-        mime("application", "pdf")?
+        internal_mime("application", "pdf")
     } else if is_png(prefix) {
-        mime("image", "png")?
+        internal_mime("image", "png")
     } else if prefix.starts_with(&[0xff, 0xd8, 0xff]) {
-        mime("image", "jpeg")?
+        internal_mime("image", "jpeg")
     } else if prefix.starts_with(b"GIF87a") || prefix.starts_with(b"GIF89a") {
-        mime("image", "gif")?
+        internal_mime("image", "gif")
     } else if is_webp(prefix) {
-        mime("image", "webp")?
+        internal_mime("image", "webp")
     } else if is_zip(prefix) {
-        mime("application", "zip")?
+        internal_mime("application", "zip")
     } else if starts_ascii_case_insensitive(trimmed, b"<svg") {
-        mime("image", "svg+xml")?
+        internal_mime("image", "svg+xml")
     } else if starts_ascii_case_insensitive(trimmed, b"<?xml") {
-        mime("application", "xml")?
+        internal_mime("application", "xml")
     } else if looks_like_html(trimmed) {
-        mime("text", "html")?
+        internal_mime("text", "html")
     } else if supplied.is_some_and(is_javascript_mime) && is_plain_text(prefix) {
-        mime("text", "javascript")?
+        internal_mime("text", "javascript")
     } else if is_plain_text(prefix) {
-        mime("text", "plain")?
+        internal_mime("text", "plain")
     } else {
-        mime("application", "octet-stream")?
+        internal_mime("application", "octet-stream")
     };
     let risk_class = risk_class(&mime_type);
     Ok(ObservedMimeClassification {
@@ -309,9 +312,9 @@ fn parse_parameter_value(value: &[u8]) -> Result<String, HttpError> {
         if !value.iter().copied().all(is_token_byte) {
             return Err(HttpError::InvalidMimeType);
         }
-        std::str::from_utf8(value)
-            .map(str::to_owned)
-            .map_err(|_error| HttpError::InvalidMimeType)
+        // An admitted token is ASCII by construction, so direct character collection avoids an
+        // impossible UTF-8 conversion error branch while preserving the exact bytes.
+        Ok(value.iter().map(|byte| char::from(*byte)).collect())
     }
 }
 
@@ -322,8 +325,12 @@ fn ascii_lowercase(value: &[u8]) -> String {
         .collect()
 }
 
-fn mime(type_name: &str, subtype_name: &str) -> Result<MimeType, HttpError> {
-    MimeType::from_essence(type_name, subtype_name)
+fn internal_mime(type_name: &str, subtype_name: &str) -> MimeType {
+    MimeType {
+        type_name: type_name.to_owned(),
+        subtype_name: subtype_name.to_owned(),
+        parameters: Vec::new(),
+    }
 }
 
 fn risk_class(mime_type: &MimeType) -> ContentRiskClass {
