@@ -1,6 +1,6 @@
 name: Measure TLS production coverage
 
-# Exact-head retry after public contract and identity coverage closure.
+# Exact-head retry after concrete bounded TLS input normalization.
 on:
   push:
     branches:
