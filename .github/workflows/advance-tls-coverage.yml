@@ -30,6 +30,29 @@ jobs:
           toolchain: 1.97.1
           components: clippy,rustfmt
 
+      - name: Disambiguate the staged Origin accessor marker
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("scripts/ci/advance_tls_coverage.py")
+          text = path.read_text(encoding="utf-8")
+          before = """        '''    pub fn as_str(&self) -> &str {
+                  &self.canonical
+              }
+          ''',"""
+          after = """        '''    /// Return the normalized origin string.
+              #[must_use]
+              pub fn as_str(&self) -> &str {
+                  &self.canonical
+              }
+          ''',"""
+          if text.count(before) != 1:
+              raise SystemExit(f"expected one staged accessor marker, found {text.count(before)}")
+          path.write_text(text.replace(before, after, 1), encoding="utf-8")
+          PY
+
       - name: Apply deterministic coverage closure
         run: |
           python3 scripts/ci/advance_tls_coverage.py
