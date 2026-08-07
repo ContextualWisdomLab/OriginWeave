@@ -378,4 +378,49 @@ mod tests {
             Err(HttpError::TrailerSectionTooLarge { .. })
         ));
     }
+
+    #[test]
+    fn adversarial_numeric_and_unterminated_chunk_lines_fail_closed() {
+        let maximum_size_line = format!("{:x}", usize::MAX);
+        let accumulated = format!("1\r\na\r\n{maximum_size_line}\r\n");
+        assert!(matches!(
+            parse_chunked_body(accumulated.as_bytes(), &policy(8, 4, 128, 64)),
+            Err(HttpError::EncodedContentTooLarge {
+                byte_count: u64::MAX,
+                maximum_bytes: 64,
+            })
+        ));
+
+        let overflowing_size = "f".repeat((usize::BITS as usize / 4) + 1);
+        assert!(matches!(
+            parse_chunk_size(overflowing_size.as_bytes()),
+            Err(HttpError::MalformedChunkedBody)
+        ));
+
+        let unterminated = vec![b'1'; MAX_CHUNK_LINE_BYTES + 2];
+        assert!(matches!(
+            parse_chunked_body(&unterminated, &policy(8, 4, 128, 64)),
+            Err(HttpError::ChunkLineTooLarge {
+                byte_count,
+                maximum_bytes: MAX_CHUNK_LINE_BYTES,
+            }) if byte_count == MAX_CHUNK_LINE_BYTES + 1
+        ));
+    }
+
+    #[test]
+    fn exact_trailer_budget_requires_room_for_the_terminal_empty_line() {
+        assert!(matches!(
+            parse_chunked_body(b"0\r\nX: 1\r\n", &policy(4, 4, 6, 64)),
+            Err(HttpError::TrailerSectionTooLarge {
+                byte_count: 7,
+                maximum_bytes: 6,
+            })
+        ));
+    }
+
+    #[test]
+    fn parser_helpers_handle_boundary_only_inputs() {
+        assert_eq!(hex_value(b'g'), 0);
+        assert_eq!(trim_optional_whitespace(b" \t "), b"");
+    }
 }
