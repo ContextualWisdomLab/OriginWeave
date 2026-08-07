@@ -1,0 +1,72 @@
+name: Materialize HTTP lockfile
+
+on:
+  pull_request:
+    paths:
+      - Cargo.toml
+      - Cargo.lock
+      - crates/originweave-http/Cargo.toml
+      - .github/workflows/materialize-http-lock.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: materialize-http-lock-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  lockfile:
+    name: Generate reviewed Cargo.lock
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        with:
+          toolchain: 1.97.1
+      - name: Preserve previous lock and regenerate deterministically
+        run: |
+          cp Cargo.lock Cargo.lock.before
+          cargo generate-lockfile
+      - name: Require only the local HTTP package addition
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          import tomllib
+
+          before = tomllib.loads(pathlib.Path("Cargo.lock.before").read_text(encoding="utf-8"))
+          after = tomllib.loads(pathlib.Path("Cargo.lock").read_text(encoding="utf-8"))
+
+          def registry(package):
+              return package.get("source", "").startswith("registry+")
+
+          before_registry = {
+              (package["name"], package["version"], package.get("checksum"))
+              for package in before["package"]
+              if registry(package)
+          }
+          after_registry = {
+              (package["name"], package["version"], package.get("checksum"))
+              for package in after["package"]
+              if registry(package)
+          }
+          if before_registry != after_registry:
+              raise SystemExit("registry dependency graph changed unexpectedly")
+
+          before_local = {(package["name"], package["version"]) for package in before["package"] if not registry(package)}
+          after_local = {(package["name"], package["version"]) for package in after["package"] if not registry(package)}
+          if after_local - before_local != {("originweave-http", "0.1.0")}:
+              raise SystemExit(f"unexpected local package delta: {after_local - before_local}")
+          if before_local - after_local:
+              raise SystemExit(f"local packages removed: {before_local - after_local}")
+          PY
+      - name: Upload reviewed lockfile
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: originweave-http-lock-${{ github.event.pull_request.head.sha }}
+          path: Cargo.lock
+          if-no-files-found: error
+          retention-days: 3
