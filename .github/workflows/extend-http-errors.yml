@@ -1,0 +1,61 @@
+name: Extend HTTP errors
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/extend-http-errors.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: extend-http-errors-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  patch:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    name: Add transport and extra-byte failures
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          persist-credentials: true
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        with:
+          toolchain: 1.97.1
+          components: rustfmt
+      - name: Insert exact typed failures and display contracts
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("crates/originweave-http/src/error.rs")
+          text = path.read_text(encoding="utf-8")
+          enum_anchor = '''    /// TLS ALPN evidence does not authorize HTTP/1.1 semantics.\n    UnexpectedAlpn,\n'''
+          enum_insert = '''    /// Inherited TLS peer evidence or the current socket peer is inconsistent.\n    InvalidTransportEvidence,\n    /// Bytes appeared beyond the complete response message boundary.\n    UnexpectedResponseBytes {\n        /// Number of bytes beyond the selected message boundary.\n        byte_count: usize,\n    },\n    /// TLS ALPN evidence does not authorize HTTP/1.1 semantics.\n    UnexpectedAlpn,\n'''
+          if enum_anchor not in text:
+              raise SystemExit("HTTP error enum insertion anchor missing")
+          text = text.replace(enum_anchor, enum_insert, 1)
+
+          display_anchor = '''            Self::UnexpectedAlpn => {\n                formatter.write_str("TLS ALPN evidence does not authorize HTTP/1.1")\n            }\n'''
+          display_insert = '''            Self::InvalidTransportEvidence => formatter.write_str(\n                "HTTP transport evidence does not match the authenticated TLS stream",\n            ),\n            Self::UnexpectedResponseBytes { byte_count } => write!(\n                formatter,\n                "HTTP peer sent {byte_count} bytes beyond the complete response boundary"\n            ),\n            Self::UnexpectedAlpn => {\n                formatter.write_str("TLS ALPN evidence does not authorize HTTP/1.1")\n            }\n'''
+          if display_anchor not in text:
+              raise SystemExit("HTTP error Display insertion anchor missing")
+          path.write_text(text.replace(display_anchor, display_insert, 1), encoding="utf-8")
+          PY
+      - name: Apply canonical Rust formatting
+        run: cargo fmt --all
+      - name: Commit typed failures and remove one-shot workflow
+        env:
+          TARGET_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          rm .github/workflows/extend-http-errors.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crates/originweave-http .github/workflows/extend-http-errors.yml
+          git diff --cached --check
+          git commit -m "fix: type HTTP transport boundary failures"
+          git push origin "HEAD:${TARGET_BRANCH}"
