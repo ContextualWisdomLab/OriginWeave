@@ -178,7 +178,7 @@ fn structured_field_extension_keys_cover_the_complete_allowed_punctuation() {
 
 #[test]
 fn digest_dictionary_accepts_http_ows_around_member_delimiters() {
-    let value = b"sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:\t,\tsha-512=:z4PhNX7vuL3xVChQ1m2AB9Yg5AULVxXcgSpIdNs6c5H0NE8XYXysP+DGNKHfuwvY7kxvUdBeoGlODJ6+SfaPgQ==:";
+    let value = b"sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:\t,\tsha-512=:z4PhNX7vuL3xVChQ1m2AB9Yg5AULVxXcgSpIdNs6c5H0NE8XYXysP+DGNKHfuwY7kxvUdBeoGlODJ6+SfaPgQ==:";
     assert_eq!(
         validate_content_digest(
             &fields(&[("content-digest", value)]),
