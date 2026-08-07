@@ -3,7 +3,7 @@
 use crate::field::{FieldBlock, FieldLine};
 use crate::mime::{
     ContentRiskClass, MIME_CLASSIFIER_VERSION, MimeMismatch, MimeType, NoSniffStatus,
-    classify_mismatch, classify_observed_mime, no_sniff_status, supplied_mime_type,
+    classify_mismatch, classify_observed_mime, no_sniff_status, risk_class, supplied_mime_type,
 };
 use crate::{HttpError, MAX_MIME_SNIFF_BYTES};
 
@@ -157,11 +157,35 @@ fn signature_table_classifies_active_archival_image_text_and_binary_content() {
 }
 
 #[test]
+fn active_mime_aliases_share_the_same_downstream_risk_class() {
+    for essence in [
+        "text/html",
+        "application/xml",
+        "text/xml",
+        "image/svg+xml",
+        "text/javascript",
+        "application/javascript",
+        "application/pdf",
+    ] {
+        let mime = MimeType::parse(essence.as_bytes()).expect("active MIME essence");
+        assert_eq!(risk_class(&mime), ContentRiskClass::ActiveOrScriptable);
+    }
+    let archive = MimeType::parse(b"application/zip").expect("archive MIME");
+    assert_eq!(risk_class(&archive), ContentRiskClass::ArchiveOrContainer);
+    let binary = MimeType::parse(b"application/octet-stream").expect("binary MIME");
+    assert_eq!(risk_class(&binary), ContentRiskClass::UnknownBinary);
+    let passive = MimeType::parse(b"text/plain").expect("passive MIME");
+    assert_eq!(risk_class(&passive), ContentRiskClass::Passive);
+}
+
+#[test]
 fn javascript_observation_requires_supplied_javascript_metadata() {
-    let supplied = MimeType::parse(b"application/javascript").expect("JavaScript MIME");
-    let observed = classify_observed_mime(b"const answer = 42;", Some(&supplied));
-    assert_eq!(observed.mime_type().essence(), "text/javascript");
-    assert_eq!(observed.risk_class(), ContentRiskClass::ActiveOrScriptable);
+    for essence in ["application/javascript", "text/javascript"] {
+        let supplied = MimeType::parse(essence.as_bytes()).expect("JavaScript MIME");
+        let observed = classify_observed_mime(b"const answer = 42;", Some(&supplied));
+        assert_eq!(observed.mime_type().essence(), "text/javascript");
+        assert_eq!(observed.risk_class(), ContentRiskClass::ActiveOrScriptable);
+    }
     assert_eq!(
         classify_observed_mime(b"const answer = 42;", None)
             .mime_type()
