@@ -39,43 +39,39 @@ jobs:
           path = Path("scripts/ci/advance_tls_coverage.py")
           text = path.read_text(encoding="utf-8")
 
-          accessor_before = """        '''    pub fn as_str(&self) -> &str {
+          replacements = [
+              (
+                  """        '''    pub fn as_str(&self) -> &str {
                   &self.canonical
               }
-          ''',"""
-          accessor_after = """        '''    /// Return the normalized origin string.
+          ''',""",
+                  """        '''    /// Return the normalized origin string.
               #[must_use]
               pub fn as_str(&self) -> &str {
                   &self.canonical
               }
-          ''',"""
-          if text.count(accessor_before) != 1:
-              raise SystemExit(
-                  f"expected one staged accessor marker, found {text.count(accessor_before)}"
-              )
-          text = text.replace(accessor_before, accessor_after, 1)
-
-          output_before = """        '''    pub fn as_str(&self) -> &str {
+          ''',""",
+                  "staged accessor marker",
+              ),
+              (
+                  """        '''    pub fn as_str(&self) -> &str {
                   &self.canonical
               }
 
               /// Return the validated lowercase origin scheme.
-          """
-          output_after = """        '''    /// Return the normalized origin string.
+          """,
+                  """        '''    /// Return the normalized origin string.
               #[must_use]
               pub fn as_str(&self) -> &str {
                   &self.canonical
               }
 
               /// Return the validated lowercase origin scheme.
-          """
-          if text.count(output_before) != 1:
-              raise SystemExit(
-                  f"expected one staged accessor output, found {text.count(output_before)}"
-              )
-          text = text.replace(output_before, output_after, 1)
-
-          import_before = """    text = replace_once(
+          """,
+                  "staged accessor output",
+              ),
+              (
+                  """    text = replace_once(
                   text,
                   '''    TlsHandshakePlan, TlsProtocolVersion, TrustBundleIdentifier, TrustRootBundle,
           ''',
@@ -84,42 +80,67 @@ jobs:
           ''',
                   "TLS integration imports",
               )
-          """
-          import_after = """    text = replace_once(
+          """,
+                  """    text = replace_once(
                   text,
                   "use rcgen::{",
                   "use originweave_tls::TlsReferenceIdentity;\\nuse rcgen::{",
                   "TLS reference identity import",
               )
-          """
-          if text.count(import_before) != 1:
-              raise SystemExit(
-                  f"expected one staged integration import patch, found {text.count(import_before)}"
-              )
-          text = text.replace(import_before, import_after, 1)
-
-          binding_before = """        '''    let authenticated = TlsHandshakePlan::new(
+          """,
+                  "staged integration import patch",
+              ),
+              (
+                  """        '''    let authenticated = TlsHandshakePlan::new(
           ''',
                   '''    let mut authenticated = TlsHandshakePlan::new(
-          ''',"""
-          binding_after = """        '''    let connection = direct_connection(&origin, socket_address);
+          ''',""",
+                  """        '''    let connection = direct_connection(&origin, socket_address);
               let authenticated = TlsHandshakePlan::new(
           ''',
                   '''    let connection = direct_connection(&origin, socket_address);
               let mut authenticated = TlsHandshakePlan::new(
-          ''',"""
-          if text.count(binding_before) != 1:
-              raise SystemExit(
-                  f"expected one staged authenticated binding patch, found {text.count(binding_before)}"
-              )
-          text = text.replace(binding_before, binding_after, 1)
+          ''',""",
+                  "staged authenticated binding patch",
+              ),
+          ]
+          for before, after, description in replacements:
+              if text.count(before) != 1:
+                  raise SystemExit(
+                      f"expected one {description}, found {text.count(before)}"
+                  )
+              text = text.replace(before, after, 1)
 
           path.write_text(text, encoding="utf-8")
           PY
 
       - name: Apply deterministic coverage closure
+        shell: bash
         run: |
           python3 scripts/ci/advance_tls_coverage.py
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("crates/originweave-tls/tests/handshake_integration.rs")
+          text = path.read_text(encoding="utf-8")
+          before = '''    assert_eq!(server.join().expect("server thread"), Ok(None));
+          }
+
+          #[test]
+          fn required_alpn_rejects_no_common_protocol() {
+          '''
+          after = '''    let _server_result = server.join().expect("server thread");
+          }
+
+          #[test]
+          fn required_alpn_rejects_no_common_protocol() {
+          '''
+          if text.count(before) != 1:
+              raise SystemExit(
+                  f"expected one required-absence server assertion, found {text.count(before)}"
+              )
+          path.write_text(text.replace(before, after, 1), encoding="utf-8")
+          PY
           cargo fmt --all
 
       - name: Verify exact maintained branch
