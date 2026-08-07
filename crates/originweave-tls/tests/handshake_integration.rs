@@ -149,7 +149,7 @@ fn direct_connection(origin: &Origin, socket_address: SocketAddr) -> DirectTcpCo
 fn trust_bundle(root_der: Vec<u8>, identifier: &str) -> TrustRootBundle {
     TrustRootBundle::new(
         TrustBundleIdentifier::parse(identifier).expect("test trust identifier"),
-        [root_der],
+        vec![root_der],
     )
     .expect("test root bundle")
 }

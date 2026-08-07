@@ -57,11 +57,9 @@ impl TrustRootBundle {
                 maximum_count: MAX_TRUST_ROOT_COUNT,
             });
         }
-        let input_byte_count = certificate_der
-            .iter()
-            .fold(0_usize, |total, certificate| {
-                total.saturating_add(certificate.len())
-            });
+        let input_byte_count = certificate_der.iter().fold(0_usize, |total, certificate| {
+            total.saturating_add(certificate.len())
+        });
         if input_byte_count > MAX_TRUST_ROOT_BYTES {
             return Err(TlsError::InvalidTrustRootBytes {
                 byte_count: input_byte_count,
