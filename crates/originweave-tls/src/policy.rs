@@ -46,7 +46,7 @@ impl TlsClientPolicy {
     pub fn new(
         trusted_time: UnixTime,
         handshake_timeout: Duration,
-        alpn_protocols: impl IntoIterator<Item = Vec<u8>>,
+        alpn_protocols: Vec<Vec<u8>>,
         alpn_requirement: AlpnRequirement,
     ) -> Result<Self, TlsError> {
         if handshake_timeout.is_zero() || handshake_timeout > MAX_TLS_HANDSHAKE_TIMEOUT {
@@ -55,22 +55,19 @@ impl TlsClientPolicy {
                 maximum_timeout: MAX_TLS_HANDSHAKE_TIMEOUT,
             });
         }
-        let protocols: Vec<Vec<u8>> = alpn_protocols
-            .into_iter()
-            .take(MAX_ALPN_PROTOCOL_COUNT + 1)
-            .collect();
-        if protocols.len() > MAX_ALPN_PROTOCOL_COUNT
-            || (protocols.is_empty() && alpn_requirement == AlpnRequirement::Required)
+        let protocol_count = alpn_protocols.len();
+        if protocol_count > MAX_ALPN_PROTOCOL_COUNT
+            || (alpn_protocols.is_empty() && alpn_requirement == AlpnRequirement::Required)
         {
             return Err(TlsError::InvalidAlpnCount {
-                protocol_count: protocols.len(),
+                protocol_count,
                 maximum_count: MAX_ALPN_PROTOCOL_COUNT,
             });
         }
 
         let mut seen = BTreeSet::new();
         let mut total_bytes = 0_usize;
-        for (protocol_index, protocol) in protocols.iter().enumerate() {
+        for (protocol_index, protocol) in alpn_protocols.iter().enumerate() {
             if protocol.is_empty() || protocol.len() > MAX_ALPN_PROTOCOL_LENGTH {
                 return Err(TlsError::InvalidAlpnIdentifier {
                     protocol_index,
@@ -93,7 +90,7 @@ impl TlsClientPolicy {
         Ok(Self {
             trusted_time,
             handshake_timeout,
-            alpn_protocols: protocols,
+            alpn_protocols,
             alpn_requirement,
         })
     }
