@@ -78,13 +78,7 @@ impl TlsClientPolicy {
                     maximum_length: MAX_ALPN_PROTOCOL_LENGTH,
                 });
             }
-            total_bytes =
-                total_bytes
-                    .checked_add(protocol.len())
-                    .ok_or(TlsError::InvalidAlpnBytes {
-                        byte_count: usize::MAX,
-                        maximum_bytes: MAX_ALPN_TOTAL_BYTES,
-                    })?;
+            total_bytes += protocol.len();
             if total_bytes > MAX_ALPN_TOTAL_BYTES {
                 return Err(TlsError::InvalidAlpnBytes {
                     byte_count: total_bytes,
