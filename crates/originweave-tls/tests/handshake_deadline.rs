@@ -34,22 +34,16 @@ fn direct_connection(
 
 #[test]
 fn an_elapsed_total_deadline_rejects_tls_before_further_network_io() {
-    let listener = TcpListener::bind(SocketAddr::new(
-        IpAddr::V4(Ipv4Addr::LOCALHOST),
-        0,
-    ))
-    .expect("loopback listener must bind");
+    let listener = TcpListener::bind(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0))
+        .expect("loopback listener must bind");
     let socket_address = listener.local_addr().expect("listener address");
     let server = thread::spawn(move || {
         let (_stream, _peer) = listener.accept().expect("client connection");
         thread::sleep(Duration::from_millis(20));
     });
 
-    let origin = Origin::parse(&format!(
-        "https://localhost:{}",
-        socket_address.port()
-    ))
-    .expect("canonical HTTPS origin");
+    let origin = Origin::parse(&format!("https://localhost:{}", socket_address.port()))
+        .expect("canonical HTTPS origin");
     let root_der = rcgen::generate_simple_self_signed(vec!["root.example".to_owned()])
         .expect("test trust root")
         .cert
