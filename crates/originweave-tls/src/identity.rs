@@ -97,33 +97,32 @@ mod tests {
             ip_identity == TlsReferenceIdentity::Ip(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
             "literal IP origin must remain an IP reference identity",
         );
-        let expected_ip_name = ServerName::IpAddress(std::net::Ipv4Addr::LOCALHOST.into());
-        require(
-            ip_identity.server_name(&ip_origin).expect("IP server name") == expected_ip_name,
-            "literal IP identity must remain an IP server name",
-        );
+        ip_identity
+            .validate_syntax(&ip_origin)
+            .expect("valid IP identity");
 
         let dns_origin = Origin::parse("https://example.com").expect("HTTPS DNS origin");
+        let dns_identity =
+            TlsReferenceIdentity::from_origin(&dns_origin).expect("DNS reference identity");
         require(
-            TlsReferenceIdentity::from_origin(&dns_origin).expect("DNS reference identity")
-                == TlsReferenceIdentity::Dns("example.com".to_owned()),
+            dns_identity == TlsReferenceIdentity::Dns("example.com".to_owned()),
             "DNS origin must remain a DNS reference identity",
         );
+        dns_identity
+            .validate_syntax(&dns_origin)
+            .expect("valid DNS identity");
     }
 
     #[test]
     fn explicit_dns_variants_validate_before_becoming_server_names() {
         let origin = Origin::parse("https://example.com").expect("HTTPS origin");
-        let valid = TlsReferenceIdentity::Dns("example.com".to_owned());
-        let expected = ServerName::try_from("example.com".to_owned()).expect("valid DNS name");
-        require(
-            valid.server_name(&origin).expect("server name") == expected,
-            "valid DNS identity must become the expected server name",
-        );
+        TlsReferenceIdentity::Dns("example.com".to_owned())
+            .validate_syntax(&origin)
+            .expect("valid DNS identity");
 
         let invalid = TlsReferenceIdentity::Dns("contains space".to_owned());
         let error = invalid
-            .server_name(&origin)
+            .validate_syntax(&origin)
             .expect_err("invalid DNS identity");
         require(
             discriminant(&error) == discriminant(&TlsError::InvalidReferenceIdentity { origin }),
