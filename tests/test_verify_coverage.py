@@ -129,6 +129,39 @@ class CoverageVerifierTests(unittest.TestCase):
             ["src/partial.rs:42:9"],
         )
 
+    def test_function_region_fallback_merges_identical_instantiations(self) -> None:
+        """A covered monomorphization satisfies the same aggregate source region."""
+
+        candidate = payload(3, 2)
+        candidate["data"][0]["files"] = [  # type: ignore[index]
+            {
+                "filename": "src/partial.rs",
+                "segments": [],
+                "summary": {"regions": {"count": 2, "covered": 1}},
+            }
+        ]
+        candidate["data"][0]["functions"] = [  # type: ignore[index]
+            {
+                "name": "generic_zero",
+                "filenames": ["src/partial.rs"],
+                "regions": [[42, 9, 42, 15, 0, 0, 0, 0]],
+            },
+            {
+                "name": "generic_covered",
+                "filenames": ["src/partial.rs"],
+                "regions": [[42, 9, 42, 15, 3, 0, 0, 0]],
+            },
+            {
+                "name": "actually_uncovered",
+                "filenames": ["src/partial.rs"],
+                "regions": [[50, 2, 50, 8, 0, 0, 0, 0]],
+            },
+        ]
+        self.assertEqual(
+            verify_coverage.uncovered_region_locations(candidate),
+            ["src/partial.rs:50:2"],
+        )
+
     def test_uncovered_file_region_summaries_report_only_deficient_files(self) -> None:
         """File summaries identify which source contributes aggregate region debt."""
 
