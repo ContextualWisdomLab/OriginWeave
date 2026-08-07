@@ -123,12 +123,18 @@ def _function_region_locations(
     summary: Mapping[str, Any],
     allowed_filenames: set[str] | None = None,
 ) -> set[str]:
-    """Return zero-count LLVM code regions from per-function export detail."""
+    """Return uncovered source regions after merging LLVM function instantiations.
+
+    LLVM can export the same source region once per monomorphization or other
+    function instantiation. Aggregate file coverage treats that source region as
+    covered when any equivalent instantiation executes, so diagnostics must sum
+    execution counts by exact source coordinates before deciding it is missed.
+    """
 
     functions = summary.get("functions")
     if not isinstance(functions, list):
         return set()
-    locations: set[str] = set()
+    region_counts: dict[tuple[str, int, int, int, int, int], int] = {}
     for function in functions:
         if not isinstance(function, Mapping):
             continue
@@ -139,27 +145,37 @@ def _function_region_locations(
         for region in regions:
             if not isinstance(region, list) or len(region) < 8:
                 continue
-            line, column, _end_line, _end_column, count, file_id, _expanded_file_id, kind = region[:8]
+            line, column, end_line, end_column, count, file_id, _expanded_file_id, kind = region[:8]
             if (
-                isinstance(line, int)
-                and not isinstance(line, bool)
-                and isinstance(column, int)
-                and not isinstance(column, bool)
-                and isinstance(count, int)
-                and not isinstance(count, bool)
-                and isinstance(file_id, int)
-                and not isinstance(file_id, bool)
-                and kind == 0
-                and count == 0
-                and 0 <= file_id < len(filenames)
-                and isinstance(filenames[file_id], str)
-                and (
-                    allowed_filenames is None
-                    or filenames[file_id] in allowed_filenames
-                )
+                not isinstance(line, int)
+                or isinstance(line, bool)
+                or not isinstance(column, int)
+                or isinstance(column, bool)
+                or not isinstance(end_line, int)
+                or isinstance(end_line, bool)
+                or not isinstance(end_column, int)
+                or isinstance(end_column, bool)
+                or not isinstance(count, int)
+                or isinstance(count, bool)
+                or not isinstance(file_id, int)
+                or isinstance(file_id, bool)
+                or not isinstance(kind, int)
+                or isinstance(kind, bool)
+                or kind != 0
+                or not 0 <= file_id < len(filenames)
+                or not isinstance(filenames[file_id], str)
             ):
-                locations.add(f"{filenames[file_id]}:{line}:{column}")
-    return locations
+                continue
+            filename = filenames[file_id]
+            if allowed_filenames is not None and filename not in allowed_filenames:
+                continue
+            key = (filename, line, column, end_line, end_column, kind)
+            region_counts[key] = region_counts.get(key, 0) + count
+    return {
+        f"{filename}:{line}:{column}"
+        for (filename, line, column, _end_line, _end_column, _kind), count in region_counts.items()
+        if count == 0
+    }
 
 
 def uncovered_region_locations(payload: Mapping[str, Any]) -> list[str]:
@@ -211,9 +227,7 @@ def uncovered_region_locations(payload: Mapping[str, Any]) -> list[str]:
             ):
                 locations.add(f"{filename}:{line}:{column}")
     if not locations:
-        locations.update(
-            _function_region_locations(summary, deficient or None)
-        )
+        locations.update(_function_region_locations(summary, deficient or None))
     return sorted(locations)[:MAX_REGION_DIAGNOSTICS]
 
 
