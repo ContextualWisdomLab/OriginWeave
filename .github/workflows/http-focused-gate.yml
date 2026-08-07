@@ -1,0 +1,50 @@
+name: HTTP focused gate
+
+on:
+  pull_request:
+    paths:
+      - crates/originweave-http/**
+      - crates/originweave-tls/**
+      - Cargo.toml
+      - Cargo.lock
+      - tests/test_http_governance.py
+      - tests/test_repository_contract.py
+      - .github/workflows/http-focused-gate.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: http-focused-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    name: Exact-head HTTP contracts
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        with:
+          toolchain: 1.97.1
+          components: clippy,rustfmt
+      - name: Python governance
+        run: |
+          python3 -m compileall -q scripts tests
+          python3 -m unittest discover -s tests -p 'test_*.py'
+      - name: Canonical formatting
+        run: cargo fmt --all --check
+      - name: Locked compile
+        run: cargo check --locked -p originweave-http --all-targets
+      - name: Focused tests
+        run: cargo test --locked -p originweave-http --all-targets
+      - name: Focused Clippy
+        run: cargo clippy --locked -p originweave-http --all-targets -- -D warnings
+      - name: Public API documentation
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --locked -p originweave-http --no-deps
