@@ -96,6 +96,26 @@ class CoverageVerifierTests(unittest.TestCase):
             ["src/example.rs:42:9"],
         )
 
+    def test_uncovered_file_region_summaries_report_only_deficient_files(self) -> None:
+        """File summaries identify which source contributes aggregate region debt."""
+
+        candidate = payload(3, 2)
+        candidate["data"][0]["files"] = [  # type: ignore[index]
+            {
+                "filename": "src/complete.rs",
+                "summary": {"regions": {"count": 4, "covered": 4}},
+            },
+            {
+                "filename": "src/partial.rs",
+                "summary": {"regions": {"count": 7, "covered": 6}},
+            },
+            {"filename": "src/no-summary.rs"},
+        ]
+        self.assertEqual(
+            verify_coverage.uncovered_file_region_summaries(candidate),
+            ["src/partial.rs=6/7"],
+        )
+
     def test_uncovered_region_locations_are_best_effort_for_missing_file_detail(self) -> None:
         """Summary-only or malformed file detail never weakens aggregate enforcement."""
 
