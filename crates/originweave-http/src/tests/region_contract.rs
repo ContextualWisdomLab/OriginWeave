@@ -152,7 +152,7 @@ fn mime_quoted_values_reject_escaped_controls_and_invalid_utf8() {
 
 #[test]
 fn structured_field_extension_keys_cover_the_complete_allowed_punctuation() {
-    let value = b"*root=:AQ==:, a_b=:AQ==:, a-b=:AQ==:, a.b=:AQ==:, a*b=:AQ==:, a/b=:AQ==:";
+    let value = b"*root=:AQ==:, a_b=:AQ==:, a-b=:AQ==:, a.b=:AQ==:, a*b=:AQ==:";
     assert_eq!(
         validate_content_digest(
             &fields(&[("content-digest", value)]),
@@ -160,18 +160,20 @@ fn structured_field_extension_keys_cover_the_complete_allowed_punctuation() {
             b"payload",
             IntegrityRequirement::Optional,
         )
-        .expect("syntactically valid extension keys"),
+        .expect("syntactically valid RFC 9651 extension keys"),
         IntegrityStatus::UnsupportedAlgorithm
     );
-    assert!(matches!(
-        validate_content_digest(
-            &fields(&[("content-digest", b"a!=:AQ==:")]),
-            &FieldBlock::default(),
-            b"payload",
-            IntegrityRequirement::Optional,
-        ),
-        Err(HttpError::InvalidDigestField)
-    ));
+    for invalid in [b"a!=:AQ==:".as_slice(), b"a/b=:AQ==:"] {
+        assert!(matches!(
+            validate_content_digest(
+                &fields(&[("content-digest", invalid)]),
+                &FieldBlock::default(),
+                b"payload",
+                IntegrityRequirement::Optional,
+            ),
+            Err(HttpError::InvalidDigestField)
+        ));
+    }
 }
 
 #[test]
