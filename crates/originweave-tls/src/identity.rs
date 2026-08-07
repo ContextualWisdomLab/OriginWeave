@@ -68,6 +68,34 @@ mod tests {
     }
 
     #[test]
+    fn unit_crate_copy_derives_every_reference_identity_variant() {
+        let http_origin = Origin::parse("http://localhost").expect("managed HTTP origin");
+        let http_error = TlsReferenceIdentity::from_origin(&http_origin)
+            .expect_err("HTTP cannot become a TLS reference identity");
+        require(
+            discriminant(&http_error)
+                == discriminant(&TlsError::OriginRequiresHttps {
+                    origin: http_origin,
+                }),
+            "HTTP origin must retain its typed TLS error",
+        );
+
+        let ip_origin = Origin::parse("https://127.0.0.1").expect("HTTPS IP origin");
+        require(
+            TlsReferenceIdentity::from_origin(&ip_origin).expect("IP reference identity")
+                == TlsReferenceIdentity::Ip(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)),
+            "literal IP origin must remain an IP reference identity",
+        );
+
+        let dns_origin = Origin::parse("https://example.com").expect("HTTPS DNS origin");
+        require(
+            TlsReferenceIdentity::from_origin(&dns_origin).expect("DNS reference identity")
+                == TlsReferenceIdentity::Dns("example.com".to_owned()),
+            "DNS origin must remain a DNS reference identity",
+        );
+    }
+
+    #[test]
     fn explicit_dns_variants_validate_before_becoming_server_names() {
         let origin = Origin::parse("https://example.com").expect("HTTPS origin");
         let valid = TlsReferenceIdentity::Dns("example.com".to_owned());
