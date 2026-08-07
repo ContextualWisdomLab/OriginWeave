@@ -2,35 +2,43 @@
 //!
 //! The crate owns no resolver, connector, proxy, pool, cookie jar, filesystem,
 //! browser, or model authority. It consumes one authenticated TLS stream,
-//! applies strict request and response contracts, and will expose content only
+//! applies strict request and response contracts, and exposes content only
 //! after every configured resource and evidence check succeeds.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+mod chunked;
+mod content;
+mod disposition;
 mod error;
+mod evidence;
+mod exchange;
 mod field;
+mod framing;
+mod integrity;
+mod mime;
 mod policy;
 mod request;
+mod response_head;
 mod target;
 
-#[cfg(test)]
-mod chunked;
-#[cfg(test)]
-mod content;
-#[cfg(test)]
-mod disposition;
-#[cfg(test)]
-mod framing;
-#[cfg(test)]
-mod integrity;
-#[cfg(test)]
-mod mime;
-#[cfg(test)]
-mod response_head;
-
+pub use content::ContentCoding;
+pub use disposition::{
+    DispositionKind, ExtensionMimeRelation, RedirectMetadata, SafeContentDisposition,
+};
 pub use error::HttpError;
+pub use evidence::{
+    AuthenticatedHttpResponse, HttpExchangeEvidence, HttpResourceBudgets, ResponseFieldEvidence,
+};
+pub use exchange::HttpExchangePlan;
 pub use field::RequestField;
+pub use framing::BodyFraming;
+pub use integrity::{IntegrityAlgorithm, IntegrityStatus};
+pub use mime::{
+    ContentRiskClass, MIME_CLASSIFIER_VERSION, MimeMismatch, MimeType, NoSniffStatus,
+    ObservedMimeClassification,
+};
 pub use policy::{
     AlpnHttp11Policy, DEFAULT_MAX_CHUNK_COUNT, DEFAULT_MAX_CONTENT_EXPANSION_RATIO,
     DEFAULT_MAX_DECODED_CONTENT_BYTES, DEFAULT_MAX_ENCODED_CONTENT_BYTES,
