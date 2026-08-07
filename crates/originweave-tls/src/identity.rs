@@ -17,54 +17,15 @@ pub enum TlsReferenceIdentity {
 impl TlsReferenceIdentity {
     /// Derive a TLS reference identity from a canonical OriginWeave origin.
     pub fn from_origin(origin: &Origin) -> Result<Self, TlsError> {
-        let Some(authority) = origin.as_str().strip_prefix("https://") else {
+        if origin.scheme() != "https" {
             return Err(TlsError::OriginRequiresHttps {
                 origin: origin.clone(),
             });
-        };
-
-        let host = if let Some(bracketed) = authority.strip_prefix('[') {
-            let Some((host, suffix)) = bracketed.split_once(']') else {
-                return Err(TlsError::InvalidReferenceIdentity {
-                    origin: origin.clone(),
-                });
-            };
-            if !suffix.is_empty()
-                && (!suffix.starts_with(':')
-                    || suffix.len() == 1
-                    || !suffix[1..].bytes().all(|byte| byte.is_ascii_digit()))
-            {
-                return Err(TlsError::InvalidReferenceIdentity {
-                    origin: origin.clone(),
-                });
-            }
-            host
-        } else if let Some((candidate_host, candidate_port)) = authority.rsplit_once(':') {
-            if candidate_port.is_empty()
-                || !candidate_port.bytes().all(|byte| byte.is_ascii_digit())
-            {
-                authority
-            } else {
-                candidate_host
-            }
-        } else {
-            authority
-        };
-
-        if host.is_empty() {
-            return Err(TlsError::InvalidReferenceIdentity {
-                origin: origin.clone(),
-            });
         }
-        if let Ok(address) = host.parse::<IpAddr>() {
+        if let Ok(address) = origin.host().parse::<IpAddr>() {
             return Ok(Self::Ip(address));
         }
-        ServerName::try_from(host.to_owned()).map_err(|_error| {
-            TlsError::InvalidReferenceIdentity {
-                origin: origin.clone(),
-            }
-        })?;
-        Ok(Self::Dns(host.to_owned()))
+        Ok(Self::Dns(origin.host().to_owned()))
     }
 
     pub(crate) fn server_name(&self, origin: &Origin) -> Result<ServerName<'static>, TlsError> {
@@ -80,5 +41,28 @@ impl TlsReferenceIdentity {
 
     pub(crate) const fn uses_sni(&self) -> bool {
         matches!(self, Self::Dns(_))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::expect_used)]
+
+    use super::*;
+
+    #[test]
+    fn explicit_invalid_dns_variant_fails_closed() {
+        let origin = Origin::parse("https://example.com").expect("HTTPS origin");
+        let identity = TlsReferenceIdentity::Dns("contains space".to_owned());
+        assert!(matches!(
+            identity.server_name(&origin),
+            Err(TlsError::InvalidReferenceIdentity { .. })
+        ));
+    }
+
+    #[test]
+    fn sni_is_used_only_for_dns_identity() {
+        assert!(TlsReferenceIdentity::Dns("example.com".to_owned()).uses_sni());
+        assert!(!TlsReferenceIdentity::Ip(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST)).uses_sni());
     }
 }

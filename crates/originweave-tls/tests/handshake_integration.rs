@@ -8,6 +8,7 @@ use std::time::Duration;
 use originweave_core::Origin;
 use originweave_destination::{AddressClass, DestinationPolicy, ResolutionSnapshot};
 use originweave_network::{ConnectionPlan, DirectTcpConnection};
+use originweave_tls::TlsReferenceIdentity;
 use originweave_tls::{
     AlpnRequirement, NegotiatedAlpn, RevocationStatus, TlsClientPolicy, TlsError, TlsHandshakePlan,
     TlsProtocolVersion, TrustBundleIdentifier, TrustRootBundle,
@@ -184,7 +185,7 @@ fn dns_identity_authenticates_the_exact_verified_tcp_stream() {
     let (socket_address, server) = spawn_server(IpAddr::V4(Ipv4Addr::LOCALHOST), config);
     let origin = origin_for("localhost", socket_address);
     let connection = direct_connection(&origin, socket_address);
-    let authenticated = TlsHandshakePlan::new(
+    let mut authenticated = TlsHandshakePlan::new(
         origin.clone(),
         connection,
         trust_bundle(root_der, "local_test_roots:v1"),
@@ -194,7 +195,7 @@ fn dns_identity_authenticates_the_exact_verified_tcp_stream() {
     .authenticate()
     .expect("trusted DNS identity must authenticate");
 
-    let evidence = authenticated.evidence();
+    let evidence = authenticated.evidence().clone();
     assert_eq!(evidence.origin(), &origin);
     assert_eq!(evidence.requested_peer(), socket_address);
     assert_eq!(evidence.observed_peer(), socket_address);
@@ -216,6 +217,24 @@ fn dns_identity_authenticates_the_exact_verified_tcp_stream() {
     assert!(evidence.trust_root_bytes() > 0);
     assert_eq!(evidence.trusted_time_unix_seconds(), TRUSTED_TIME_SECONDS);
     assert!(evidence.handshake_duration() <= evidence.handshake_timeout());
+    assert_eq!(
+        evidence.reference_identity(),
+        &TlsReferenceIdentity::Dns("localhost".to_owned())
+    );
+    assert_ne!(evidence.cipher_suite_identifier(), [0_u8; 2]);
+    assert!(!evidence.cipher_suite_label().is_empty());
+    assert_eq!(evidence.presented_certificate_hashes().len(), 1);
+    assert!(
+        evidence
+            .presented_certificate_hashes()
+            .iter()
+            .all(|identifier| identifier.starts_with("sha256:"))
+    );
+    assert!(evidence.leaf_not_before_unix_seconds() < evidence.leaf_not_after_unix_seconds());
+    assert_eq!(
+        evidence.trust_bundle_identifier().as_str(),
+        "local_test_roots:v1"
+    );
     for identifier in [
         evidence.leaf_certificate_hash(),
         evidence.leaf_spki_hash(),
@@ -224,6 +243,17 @@ fn dns_identity_authenticates_the_exact_verified_tcp_stream() {
         assert!(identifier.starts_with("sha256:"));
         assert_eq!(identifier.len(), 71);
     }
+    assert_eq!(
+        authenticated
+            .stream()
+            .sock
+            .peer_addr()
+            .expect("authenticated peer"),
+        socket_address
+    );
+    let _mutable_stream = authenticated.stream_mut();
+    let (_stream, consumed_evidence) = authenticated.into_parts();
+    assert_eq!(consumed_evidence, evidence);
     assert_eq!(
         server.join().expect("server thread"),
         Ok(Some(b"h2".to_vec()))
@@ -254,6 +284,29 @@ fn optional_alpn_records_explicit_absence() {
         &NegotiatedAlpn::Absent
     );
     assert_eq!(server.join().expect("server thread"), Ok(None));
+}
+
+#[test]
+fn required_alpn_rejects_explicit_server_absence() {
+    let material = valid_material(vec!["localhost".to_owned()], None);
+    let (root_der, config) = server_config(
+        material,
+        &[],
+        &[&rustls::version::TLS13, &rustls::version::TLS12],
+    );
+    let (socket_address, server) = spawn_server(IpAddr::V4(Ipv4Addr::LOCALHOST), config);
+    let origin = origin_for("localhost", socket_address);
+    let error = TlsHandshakePlan::new(
+        origin.clone(),
+        direct_connection(&origin, socket_address),
+        trust_bundle(root_der, "required_absence:v1"),
+        client_policy(&[b"h2"], AlpnRequirement::Required),
+    )
+    .expect("required ALPN plan")
+    .authenticate()
+    .expect_err("explicit ALPN absence must fail policy");
+    assert!(matches!(error, TlsError::AlpnRequired));
+    let _server_result = server.join().expect("server thread");
 }
 
 #[test]

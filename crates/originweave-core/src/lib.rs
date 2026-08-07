@@ -66,6 +66,30 @@ impl Origin {
     pub fn as_str(&self) -> &str {
         &self.canonical
     }
+
+    /// Return the validated lowercase origin scheme.
+    #[must_use]
+    pub fn scheme(&self) -> &str {
+        if self.canonical.starts_with("https://") {
+            "https"
+        } else {
+            "http"
+        }
+    }
+
+    /// Return the validated canonical host without IPv6 brackets.
+    #[must_use]
+    pub fn host(&self) -> &str {
+        let authority = &self.canonical[self.scheme().len() + 3..];
+        let bracketed = authority.starts_with('[');
+        let host_start = usize::from(bracketed);
+        let host_end = if bracketed {
+            authority.find(']').unwrap_or(authority.len())
+        } else {
+            authority.find(':').unwrap_or(authority.len())
+        };
+        &authority[host_start..host_end]
+    }
 }
 
 impl fmt::Display for Origin {

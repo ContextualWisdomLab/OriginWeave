@@ -108,13 +108,7 @@ impl TlsHandshakePlan {
             .write_timeout()
             .map_err(|source| TlsError::HandshakeIoFailed { source })?;
         let started_at = Instant::now();
-        let deadline =
-            started_at
-                .checked_add(handshake_timeout)
-                .ok_or(TlsError::InvalidHandshakeTimeout {
-                    timeout: handshake_timeout,
-                    maximum_timeout: crate::MAX_TLS_HANDSHAKE_TIMEOUT,
-                })?;
+        let deadline = started_at + handshake_timeout;
 
         let handshake_result = drive_handshake(
             &mut client,
@@ -393,15 +387,9 @@ fn validate_certificate_bounds(certificates: &[CertificateDer<'_>]) -> Result<()
             maximum_count: MAX_SERVER_CERTIFICATE_COUNT,
         });
     }
-    let byte_count = certificates.iter().try_fold(0_usize, |total, certificate| {
-        total.checked_add(certificate.len())
+    let byte_count = certificates.iter().fold(0_usize, |total, certificate| {
+        total.saturating_add(certificate.len())
     });
-    let Some(byte_count) = byte_count else {
-        return Err(TlsError::ExcessivePeerCertificateBytes {
-            byte_count: usize::MAX,
-            maximum_bytes: MAX_SERVER_CERTIFICATE_BYTES,
-        });
-    };
     if byte_count > MAX_SERVER_CERTIFICATE_BYTES {
         return Err(TlsError::ExcessivePeerCertificateBytes {
             byte_count,
@@ -468,6 +456,15 @@ fn classify_rustls_error(source: rustls::Error, alpn_requirement: AlpnRequiremen
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_elapsed_deadline_is_typed_as_timeout() {
+        let timeout = Duration::from_secs(1);
+        assert!(matches!(
+            remaining_time(Instant::now(), timeout),
+            Err(TlsError::HandshakeTimedOut { timeout: observed }) if observed == timeout
+        ));
+    }
 
     #[test]
     fn timeout_io_classification_is_explicit() {
