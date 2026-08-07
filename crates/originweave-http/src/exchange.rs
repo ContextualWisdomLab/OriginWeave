@@ -267,10 +267,8 @@ fn write_request(
                 classify_write_result(connection.stream_mut().write(&request[written..]), timeout)
             })
             .and_then(|byte_count| ensure_before_deadline(deadline, timeout).map(|()| byte_count));
-        match step {
-            Ok(byte_count) => written = written.saturating_add(byte_count),
-            Err(error) => return Err(error),
-        }
+        let byte_count = step?;
+        written = written.saturating_add(byte_count);
     }
     set_write_deadline(connection, deadline, timeout)
         .and_then(|()| classify_unit_io_result(connection.stream_mut().flush(), timeout))
