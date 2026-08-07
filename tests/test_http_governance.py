@@ -138,7 +138,6 @@ class HttpGovernanceTests(unittest.TestCase):
             "field.rs",
             "framing.rs",
             "integrity.rs",
-            "mime.rs",
             "request.rs",
             "response_head.rs",
         }
@@ -147,6 +146,10 @@ class HttpGovernanceTests(unittest.TestCase):
             self.assertIn(marker, source, relative_path)
 
         mime_source = (SOURCE / "mime.rs").read_text(encoding="utf-8")
+        self.assertNotIn(marker, mime_source)
+        self.assertIn('#[path = "tests/mime_contract.rs"]', crate_root)
+        self.assertIn('#[path = "tests/region_contract.rs"]', crate_root)
+
         legacy_wrapper_marker = (
             "#[cfg(test)]\n"
             "#[cfg_attr(coverage_nightly, coverage(off))]\n"
