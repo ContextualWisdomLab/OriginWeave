@@ -145,9 +145,10 @@ fn parse_digest_dictionary(
             {
                 return Err(HttpError::InvalidDigestField);
             }
-            let key = std::str::from_utf8(key)
-                .map_err(|_error| HttpError::InvalidDigestField)?
-                .to_owned();
+            // `valid_dictionary_key` admits lowercase ASCII, digits, and RFC 8941 key
+            // punctuation only, so direct character collection preserves the exact key without
+            // an impossible UTF-8 conversion failure branch.
+            let key: String = key.iter().map(|byte| char::from(*byte)).collect();
             let bytes = STANDARD
                 .decode(&encoded[1..encoded.len() - 1])
                 .map_err(|_error| HttpError::InvalidDigestField)?;
@@ -313,7 +314,7 @@ mod tests {
             b"sha-256=::",
             b"sha-256=:not base64:",
             b"sha-256=:AQ==:;foo=1",
-            b"sha-256=:AQ==:,",
+            b"sha-256=:AQ==: ,",
             b"sha-256=:AQ==:, sha-256=:AQ==:",
         ] {
             assert!(matches!(
