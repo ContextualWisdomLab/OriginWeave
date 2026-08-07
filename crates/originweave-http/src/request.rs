@@ -228,10 +228,8 @@ mod tests {
         )
         .expect_err("duplicate request field");
         assert_eq!(
-            duplicate_error,
-            HttpError::DuplicateRequestField {
-                field_name: "x-a".to_owned(),
-            }
+            format!("{duplicate_error:?}"),
+            "DuplicateRequestField { field_name: \"x-a\" }"
         );
 
         assert!(matches!(
