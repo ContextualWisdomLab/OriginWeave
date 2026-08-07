@@ -277,23 +277,26 @@ fn local_write_half_shutdown_is_reported_as_transport_io_failure() {
     let (root_der, config) = server_config(material);
     let (socket_address, server) = spawn_http_server(config, ServerBehavior::ObserveRequest);
     let origin = origin_for(socket_address);
-    let mut connection = authenticated_connection(&origin, socket_address, root_der);
-    connection
-        .stream_mut()
+    let connection = authenticated_connection(&origin, socket_address, root_der);
+    let shutdown_handle = connection
+        .stream()
         .sock
-        .shutdown(Shutdown::Write)
-        .expect("locally shut down write half");
+        .try_clone()
+        .expect("clone socket handle for deterministic half-close");
     let target = HttpRequestTarget::parse(origin, "/write-failure").expect("target");
-
-    let result = HttpExchangePlan::new(
+    let plan = HttpExchangePlan::new(
         connection,
         HttpMethod::Get,
         target,
         &[],
         HttpClientPolicy::strict_defaults(),
     )
-    .expect("HTTP exchange plan")
-    .execute();
+    .expect("HTTP exchange plan");
+
+    shutdown_handle
+        .shutdown(Shutdown::Write)
+        .expect("locally shut down write half after authority validation");
+    let result = plan.execute();
 
     assert!(matches!(
         result,
