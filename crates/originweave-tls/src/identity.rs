@@ -28,13 +28,15 @@ impl TlsReferenceIdentity {
         Ok(Self::Dns(origin.host().to_owned()))
     }
 
+    #[inline(never)]
     pub(crate) fn server_name(&self, origin: &Origin) -> Result<ServerName<'static>, TlsError> {
         match self {
-            Self::Dns(name) => ServerName::try_from(name.clone()).map_err(|_error| {
-                TlsError::InvalidReferenceIdentity {
+            Self::Dns(name) => match ServerName::try_from(name.clone()) {
+                Ok(server_name) => Ok(server_name),
+                Err(_error) => Err(TlsError::InvalidReferenceIdentity {
                     origin: origin.clone(),
-                }
-            }),
+                }),
+            },
             Self::Ip(address) => Ok(ServerName::IpAddress((*address).into())),
         }
     }
@@ -51,11 +53,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn explicit_invalid_dns_variant_fails_closed() {
+    fn explicit_dns_variants_validate_before_becoming_server_names() {
         let origin = Origin::parse("https://example.com").expect("HTTPS origin");
-        let identity = TlsReferenceIdentity::Dns("contains space".to_owned());
+        let valid = TlsReferenceIdentity::Dns("example.com".to_owned());
+        assert!(matches!(valid.server_name(&origin), Ok(ServerName::DnsName(_))));
+
+        let invalid = TlsReferenceIdentity::Dns("contains space".to_owned());
         assert!(matches!(
-            identity.server_name(&origin),
+            invalid.server_name(&origin),
             Err(TlsError::InvalidReferenceIdentity { .. })
         ));
     }
