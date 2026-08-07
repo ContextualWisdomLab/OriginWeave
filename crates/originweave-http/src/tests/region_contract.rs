@@ -213,6 +213,57 @@ fn rfc9530_remains_bound_to_rfc8941_parameter_item_types() {
 }
 
 #[test]
+fn digest_dictionary_covers_leading_space_and_fail_closed_string_edges() {
+    let leading_spaces =
+        b"   sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:";
+    assert_eq!(
+        validate_content_digest(
+            &fields(&[("content-digest", leading_spaces)]),
+            &FieldBlock::default(),
+            b"",
+            IntegrityRequirement::RequireSupportedDigest,
+        )
+        .expect("RFC 8941 permits leading SP before a dictionary"),
+        IntegrityStatus::Verified(vec![crate::IntegrityAlgorithm::Sha256])
+    );
+
+    assert!(matches!(
+        validate_content_digest(
+            &fields(&[("content-digest", b"sha-256=:AQ==:x")]),
+            &FieldBlock::default(),
+            b"payload",
+            IntegrityRequirement::Optional,
+        ),
+        Err(HttpError::InvalidDigestField)
+    ));
+
+    let mut terminal_escape = b"sha-256=:AQ==:;s=\"bad".to_vec();
+    terminal_escape.push(b'\\');
+    assert!(matches!(
+        validate_content_digest(
+            &fields(&[("content-digest", terminal_escape.as_slice())]),
+            &FieldBlock::default(),
+            b"payload",
+            IntegrityRequirement::Optional,
+        ),
+        Err(HttpError::InvalidDigestField)
+    ));
+
+    let mut raw_control = b"sha-256=:AQ==:;s=\"bad".to_vec();
+    raw_control.push(0x01);
+    raw_control.push(b'"');
+    assert!(matches!(
+        validate_content_digest(
+            &fields(&[("content-digest", raw_control.as_slice())]),
+            &FieldBlock::default(),
+            b"payload",
+            IntegrityRequirement::Optional,
+        ),
+        Err(HttpError::InvalidDigestField)
+    ));
+}
+
+#[test]
 fn trailer_only_digest_dictionary_is_supported() {
     // Reuse the independently verified SHA-256 vector from the integrity contract so this test
     // isolates trailer-only field selection rather than depending on a hand-copied digest.
