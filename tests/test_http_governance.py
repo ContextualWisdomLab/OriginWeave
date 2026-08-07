@@ -113,6 +113,39 @@ class HttpGovernanceTests(unittest.TestCase):
         self.assertNotIn("unsafe {", combined)
         self.assertNotIn("unsafe fn", combined)
 
+    def test_inline_test_scaffolding_is_excluded_from_production_coverage(self) -> None:
+        """Exact production coverage must not count assertion-only test branches."""
+
+        crate_root = (SOURCE / "lib.rs").read_text(encoding="utf-8")
+        self.assertIn(
+            "#![cfg_attr(coverage_nightly, feature(coverage_attribute))]",
+            crate_root,
+        )
+        workspace = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))
+        unexpected_cfgs = workspace["workspace"]["lints"]["rust"]["unexpected_cfgs"]
+        self.assertEqual(unexpected_cfgs["level"], "warn")
+        self.assertIn("cfg(coverage_nightly)", unexpected_cfgs["check-cfg"])
+
+        marker = (
+            "#[cfg(test)]\n"
+            "#[cfg_attr(coverage_nightly, coverage(off))]\n"
+            "mod tests"
+        )
+        inline_test_modules = {
+            "chunked.rs",
+            "content.rs",
+            "disposition.rs",
+            "field.rs",
+            "framing.rs",
+            "integrity.rs",
+            "mime.rs",
+            "request.rs",
+            "response_head.rs",
+        }
+        for relative_path in sorted(inline_test_modules):
+            source = (SOURCE / relative_path).read_text(encoding="utf-8")
+            self.assertIn(marker, source, relative_path)
+
     def test_http_design_is_approved_and_standards_traced(self) -> None:
         """Implementation authority must remain bound to the accepted spec and ADR."""
 
