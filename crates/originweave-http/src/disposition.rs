@@ -442,7 +442,7 @@ mod tests {
     #![allow(clippy::expect_used)]
 
     use crate::field::FieldLine;
-    use crate::mime::observe_mime_type;
+    use crate::mime::classify_observed_mime;
 
     use super::*;
 
@@ -458,7 +458,7 @@ mod tests {
     }
 
     fn observed(content: &[u8]) -> ObservedMimeClassification {
-        observe_mime_type(content, None).expect("observed MIME")
+        classify_observed_mime(content, None)
     }
 
     #[test]
