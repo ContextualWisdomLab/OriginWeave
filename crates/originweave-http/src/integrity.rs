@@ -112,66 +112,269 @@ fn resolve_digest_dictionary(
     header_values: &[&[u8]],
     trailer_values: &[&[u8]],
 ) -> Result<Option<BTreeMap<String, Vec<u8>>>, HttpError> {
-    let headers = parse_digest_dictionary(header_values)?;
-    let trailers = parse_digest_dictionary(trailer_values)?;
-    match (headers, trailers) {
-        (None, None) => Ok(None),
-        (Some(dictionary), None) | (None, Some(dictionary)) => Ok(Some(dictionary)),
-        (Some(headers), Some(trailers)) if headers == trailers => Ok(Some(headers)),
-        (Some(_headers), Some(_trailers)) => Err(HttpError::InvalidDigestField),
-    }
-}
-
-fn parse_digest_dictionary(
-    values: &[&[u8]],
-) -> Result<Option<BTreeMap<String, Vec<u8>>>, HttpError> {
-    if values.is_empty() {
+    if header_values.is_empty() && trailer_values.is_empty() {
         return Ok(None);
     }
     let mut dictionary = BTreeMap::new();
+    parse_digest_dictionary_into(header_values, &mut dictionary)?;
+    parse_digest_dictionary_into(trailer_values, &mut dictionary)?;
+    Ok(Some(dictionary))
+}
+
+fn parse_digest_dictionary_into(
+    values: &[&[u8]],
+    dictionary: &mut BTreeMap<String, Vec<u8>>,
+) -> Result<(), HttpError> {
     for value in values {
-        for raw_member in value.split(|byte| *byte == b',') {
-            let member = trim_optional_whitespace(raw_member);
-            let equals = member
-                .iter()
-                .position(|byte| *byte == b'=')
-                .ok_or(HttpError::InvalidDigestField)?;
-            let key = trim_optional_whitespace(&member[..equals]);
-            let encoded = trim_optional_whitespace(&member[equals + 1..]);
-            if !valid_dictionary_key(key)
-                || encoded.len() < 2
-                || encoded.first() != Some(&b':')
-                || encoded.last() != Some(&b':')
-            {
+        let mut cursor = 0_usize;
+        loop {
+            skip_spaces(value, &mut cursor);
+            let key = parse_key(value, &mut cursor)?;
+            if value.get(cursor) != Some(&b'=') {
                 return Err(HttpError::InvalidDigestField);
             }
-            // `valid_dictionary_key` admits lowercase ASCII, digits, and RFC 8941 key
-            // punctuation only, so direct character collection preserves the exact key without
-            // an impossible UTF-8 conversion failure branch.
+            cursor += 1;
+            let bytes = parse_byte_sequence(value, &mut cursor)?;
+            parse_parameters(value, &mut cursor)?;
+            skip_spaces(value, &mut cursor);
+
+            // RFC 9651 dictionary parsing is last-occurrence-wins, including across repeated
+            // field lines. RFC 9530 explicitly permits digest trailers to be merged into the
+            // corresponding header field, so trailer members are parsed after header members.
             let key: String = key.iter().map(|byte| char::from(*byte)).collect();
-            let bytes = STANDARD
-                .decode(&encoded[1..encoded.len() - 1])
-                .map_err(|_error| HttpError::InvalidDigestField)?;
-            if bytes.is_empty() || dictionary.insert(key, bytes).is_some() {
+            dictionary.insert(key, bytes);
+
+            if cursor == value.len() {
+                break;
+            }
+            if value[cursor] != b',' {
+                return Err(HttpError::InvalidDigestField);
+            }
+            cursor += 1;
+            if cursor == value.len() {
                 return Err(HttpError::InvalidDigestField);
             }
         }
     }
-    Ok(Some(dictionary))
+    Ok(())
 }
 
-fn valid_dictionary_key(key: &[u8]) -> bool {
-    let Some(first) = key.first() else {
-        return false;
+fn parse_key<'a>(input: &'a [u8], cursor: &mut usize) -> Result<&'a [u8], HttpError> {
+    let start = *cursor;
+    let Some(first) = input.get(*cursor) else {
+        return Err(HttpError::InvalidDigestField);
     };
     if !(first.is_ascii_lowercase() || *first == b'*') {
-        return false;
+        return Err(HttpError::InvalidDigestField);
     }
-    key[1..].iter().all(|byte| {
+    *cursor += 1;
+    while input.get(*cursor).is_some_and(|byte| {
         byte.is_ascii_lowercase()
             || byte.is_ascii_digit()
-            || matches!(byte, b'_' | b'-' | b'.' | b'*' | b'/')
-    })
+            || matches!(byte, b'_' | b'-' | b'.' | b'*')
+    }) {
+        *cursor += 1;
+    }
+    Ok(&input[start..*cursor])
+}
+
+fn parse_byte_sequence(input: &[u8], cursor: &mut usize) -> Result<Vec<u8>, HttpError> {
+    if input.get(*cursor) != Some(&b':') {
+        return Err(HttpError::InvalidDigestField);
+    }
+    *cursor += 1;
+    let start = *cursor;
+    while input.get(*cursor).is_some_and(|byte| *byte != b':') {
+        *cursor += 1;
+    }
+    if input.get(*cursor) != Some(&b':') {
+        return Err(HttpError::InvalidDigestField);
+    }
+    let decoded = STANDARD
+        .decode(&input[start..*cursor])
+        .map_err(|_error| HttpError::InvalidDigestField)?;
+    *cursor += 1;
+    Ok(decoded)
+}
+
+fn parse_parameters(input: &[u8], cursor: &mut usize) -> Result<(), HttpError> {
+    while input.get(*cursor) == Some(&b';') {
+        *cursor += 1;
+        skip_spaces(input, cursor);
+        let _parameter_key = parse_key(input, cursor)?;
+        if input.get(*cursor) == Some(&b'=') {
+            *cursor += 1;
+            parse_bare_item(input, cursor)?;
+        }
+    }
+    Ok(())
+}
+
+fn parse_bare_item(input: &[u8], cursor: &mut usize) -> Result<(), HttpError> {
+    match input.get(*cursor).copied() {
+        Some(b'-' | b'0'..=b'9') => parse_number(input, cursor, true),
+        Some(b'"') => parse_string(input, cursor),
+        Some(byte) if byte.is_ascii_alphabetic() || byte == b'*' => parse_token(input, cursor),
+        Some(b':') => parse_byte_sequence(input, cursor).map(|_bytes| ()),
+        Some(b'?') => parse_boolean(input, cursor),
+        Some(b'@') => {
+            *cursor += 1;
+            parse_number(input, cursor, false)
+        }
+        Some(b'%') => parse_display_string(input, cursor),
+        _other => Err(HttpError::InvalidDigestField),
+    }
+}
+
+fn parse_number(input: &[u8], cursor: &mut usize, decimal_allowed: bool) -> Result<(), HttpError> {
+    if input.get(*cursor) == Some(&b'-') {
+        *cursor += 1;
+    }
+    let integer_start = *cursor;
+    while input.get(*cursor).is_some_and(u8::is_ascii_digit) {
+        *cursor += 1;
+    }
+    let integer_digits = *cursor - integer_start;
+    if integer_digits == 0 {
+        return Err(HttpError::InvalidDigestField);
+    }
+    if decimal_allowed && input.get(*cursor) == Some(&b'.') {
+        if integer_digits > 12 {
+            return Err(HttpError::InvalidDigestField);
+        }
+        *cursor += 1;
+        let fraction_start = *cursor;
+        while input.get(*cursor).is_some_and(u8::is_ascii_digit) {
+            *cursor += 1;
+        }
+        let fraction_digits = *cursor - fraction_start;
+        if !(1..=3).contains(&fraction_digits) {
+            return Err(HttpError::InvalidDigestField);
+        }
+    } else if integer_digits > 15 {
+        return Err(HttpError::InvalidDigestField);
+    }
+    Ok(())
+}
+
+fn parse_string(input: &[u8], cursor: &mut usize) -> Result<(), HttpError> {
+    *cursor += 1;
+    loop {
+        let Some(byte) = input.get(*cursor).copied() else {
+            return Err(HttpError::InvalidDigestField);
+        };
+        *cursor += 1;
+        match byte {
+            b'"' => return Ok(()),
+            b'\\' => {
+                let Some(escaped) = input.get(*cursor).copied() else {
+                    return Err(HttpError::InvalidDigestField);
+                };
+                if !matches!(escaped, b'"' | b'\\') {
+                    return Err(HttpError::InvalidDigestField);
+                }
+                *cursor += 1;
+            }
+            0x20..=0x21 | 0x23..=0x5b | 0x5d..=0x7e => {}
+            _other => return Err(HttpError::InvalidDigestField),
+        }
+    }
+}
+
+fn parse_token(input: &[u8], cursor: &mut usize) -> Result<(), HttpError> {
+    *cursor += 1;
+    while input
+        .get(*cursor)
+        .is_some_and(|byte| is_token_byte(*byte) || matches!(byte, b':' | b'/'))
+    {
+        *cursor += 1;
+    }
+    Ok(())
+}
+
+fn is_token_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric()
+        || matches!(
+            byte,
+            b'!' | b'#'
+                | b'$'
+                | b'%'
+                | b'&'
+                | b'\''
+                | b'*'
+                | b'+'
+                | b'-'
+                | b'.'
+                | b'^'
+                | b'_'
+                | b'`'
+                | b'|'
+                | b'~'
+        )
+}
+
+fn parse_boolean(input: &[u8], cursor: &mut usize) -> Result<(), HttpError> {
+    match input.get(*cursor + 1) {
+        Some(b'0' | b'1') => {
+            *cursor += 2;
+            Ok(())
+        }
+        _other => Err(HttpError::InvalidDigestField),
+    }
+}
+
+fn parse_display_string(input: &[u8], cursor: &mut usize) -> Result<(), HttpError> {
+    if input.get(*cursor..*cursor + 2) != Some(b"%\"".as_slice()) {
+        return Err(HttpError::InvalidDigestField);
+    }
+    *cursor += 2;
+    let mut decoded = Vec::new();
+    loop {
+        let Some(byte) = input.get(*cursor).copied() else {
+            return Err(HttpError::InvalidDigestField);
+        };
+        *cursor += 1;
+        match byte {
+            b'"' => {
+                return std::str::from_utf8(&decoded)
+                    .map(|_text| ())
+                    .map_err(|_error| HttpError::InvalidDigestField);
+            }
+            b'%' => {
+                let Some(high) = input.get(*cursor).copied() else {
+                    return Err(HttpError::InvalidDigestField);
+                };
+                let Some(low) = input.get(*cursor + 1).copied() else {
+                    return Err(HttpError::InvalidDigestField);
+                };
+                if !is_lower_hex(high) || !is_lower_hex(low) {
+                    return Err(HttpError::InvalidDigestField);
+                }
+                decoded.push((hex_value(high) << 4) | hex_value(low));
+                *cursor += 2;
+            }
+            0x20..=0x7e => decoded.push(byte),
+            _other => return Err(HttpError::InvalidDigestField),
+        }
+    }
+}
+
+fn is_lower_hex(byte: u8) -> bool {
+    byte.is_ascii_digit() || matches!(byte, b'a'..=b'f')
+}
+
+fn hex_value(byte: u8) -> u8 {
+    if byte.is_ascii_digit() {
+        byte - b'0'
+    } else {
+        byte - b'a' + 10
+    }
+}
+
+fn skip_spaces(input: &[u8], cursor: &mut usize) {
+    while input.get(*cursor) == Some(&b' ') {
+        *cursor += 1;
+    }
 }
 
 fn digest_bytes(algorithm: IntegrityAlgorithm, bytes: &[u8]) -> Vec<u8> {
@@ -179,18 +382,6 @@ fn digest_bytes(algorithm: IntegrityAlgorithm, bytes: &[u8]) -> Vec<u8> {
         IntegrityAlgorithm::Sha256 => Sha256::digest(bytes).to_vec(),
         IntegrityAlgorithm::Sha512 => Sha512::digest(bytes).to_vec(),
     }
-}
-
-fn trim_optional_whitespace(value: &[u8]) -> &[u8] {
-    let start = value
-        .iter()
-        .position(|byte| !matches!(byte, b' ' | b'\t'))
-        .unwrap_or(value.len());
-    let end = value
-        .iter()
-        .rposition(|byte| !matches!(byte, b' ' | b'\t'))
-        .map_or(start, |index| index + 1);
-    &value[start..end]
 }
 
 #[cfg(test)]
@@ -242,7 +433,9 @@ mod tests {
     fn structured_field_parameters_and_duplicate_keys_follow_rfc9651() {
         let correct = digest_member(IntegrityAlgorithm::Sha256, b"");
         let wrong = digest_member(IntegrityAlgorithm::Sha256, b"wrong");
-        let parameterized = format!("{correct};source=7;source=9");
+        let parameterized = format!(
+            "{correct};flag;integer=-7;decimal=1.25;text=\"a\\\"b\";token=Abc/def;binary=:AQ==:;bool=?0;date=@42;display=%\"caf%c3%a9\";source=7;source=9"
+        );
         assert_eq!(
             validate_content_digest(
                 &fields(&[("content-digest", parameterized.as_bytes())]),
@@ -345,14 +538,27 @@ mod tests {
         for invalid in [
             b"".as_slice(),
             b"SHA-256=:AQ==:",
+            b"sha/256=:AQ==:",
             b"sha-256",
             b"sha-256=AQ==",
             b"sha-256=\"AQ==\"",
-            b"sha-256=::",
             b"sha-256=:not base64:",
             b"sha-256=:AQ==:;=1",
             b"sha-256=:AQ==:;foo=",
             b"sha-256=:AQ==:;Foo=1",
+            b"sha-256=:AQ==:;n=-",
+            b"sha-256=:AQ==:;n=1234567890123456",
+            b"sha-256=:AQ==:;n=1234567890123.1",
+            b"sha-256=:AQ==:;n=1.",
+            b"sha-256=:AQ==:;n=1.2345",
+            b"sha-256=:AQ==:;s=\"bad\\x\"",
+            b"sha-256=:AQ==:;s=\"unterminated",
+            b"sha-256=:AQ==:;b=?2",
+            b"sha-256=:AQ==:;d=@-",
+            b"sha-256=:AQ==:;x=%bad",
+            b"sha-256=:AQ==:;x=%\"bad%AF\"",
+            b"sha-256=:AQ==:;x=%\"bad%a\"",
+            b"sha-256=:AQ==:;x=%\"bad%ff\"",
             b"sha-256=:AQ==: ,",
         ] {
             assert!(matches!(
@@ -365,6 +571,21 @@ mod tests {
                 Err(HttpError::InvalidDigestField)
             ));
         }
+    }
+
+    #[test]
+    fn empty_structured_byte_sequence_is_syntactically_valid_but_cannot_match_sha256() {
+        assert!(matches!(
+            validate_content_digest(
+                &fields(&[("content-digest", b"sha-256=::")]),
+                &FieldBlock::default(),
+                b"content",
+                IntegrityRequirement::Optional,
+            ),
+            Err(HttpError::DigestMismatch {
+                algorithm: "sha-256"
+            })
+        ));
     }
 
     #[test]
