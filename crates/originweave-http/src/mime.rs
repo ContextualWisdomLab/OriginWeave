@@ -190,6 +190,9 @@ pub(crate) fn no_sniff_status(fields: &FieldBlock) -> Result<NoSniffStatus, Http
     }
 }
 
+#[cfg(test)]
+pub(crate) use crate::mime_test_support::observe_mime_type;
+
 pub(crate) fn classify_observed_mime(
     content: &[u8],
     supplied: Option<&MimeType>,
