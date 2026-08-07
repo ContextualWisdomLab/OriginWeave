@@ -160,7 +160,7 @@ fn structured_field_extension_keys_cover_the_complete_allowed_punctuation() {
             b"payload",
             IntegrityRequirement::Optional,
         )
-        .expect("syntactically valid RFC 9651 extension keys"),
+        .expect("syntactically valid RFC 8941 extension keys"),
         IntegrityStatus::UnsupportedAlgorithm
     );
     for invalid in [b"a!=:AQ==:".as_slice(), b"a/b=:AQ==:"] {
@@ -169,6 +169,42 @@ fn structured_field_extension_keys_cover_the_complete_allowed_punctuation() {
                 &fields(&[("content-digest", invalid)]),
                 &FieldBlock::default(),
                 b"payload",
+                IntegrityRequirement::Optional,
+            ),
+            Err(HttpError::InvalidDigestField)
+        ));
+    }
+}
+
+#[test]
+fn digest_dictionary_accepts_http_ows_around_member_delimiters() {
+    let value = b"sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:\t,\tsha-512=:z4PhNX7vuL3xVChQ1m2AB9Yg5AULVxXcgSpIdNs6c5H0NE8XYXysP+DGNKHfuwvY7kxvUdBeoGlODJ6+SfaPgQ==:";
+    assert_eq!(
+        validate_content_digest(
+            &fields(&[("content-digest", value)]),
+            &FieldBlock::default(),
+            b"",
+            IntegrityRequirement::RequireSupportedDigest,
+        )
+        .expect("OWS around dictionary commas is valid"),
+        IntegrityStatus::Verified(vec![
+            crate::IntegrityAlgorithm::Sha256,
+            crate::IntegrityAlgorithm::Sha512,
+        ])
+    );
+}
+
+#[test]
+fn rfc9530_remains_bound_to_rfc8941_parameter_item_types() {
+    for value in [
+        b"sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:;date=@42".as_slice(),
+        b"sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:;display=%\"ok\"",
+    ] {
+        assert!(matches!(
+            validate_content_digest(
+                &fields(&[("content-digest", value)]),
+                &FieldBlock::default(),
+                b"",
                 IntegrityRequirement::Optional,
             ),
             Err(HttpError::InvalidDigestField)
