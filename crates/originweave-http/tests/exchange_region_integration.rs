@@ -8,7 +8,9 @@ use std::time::Duration;
 
 use originweave_core::Origin;
 use originweave_destination::{AddressClass, DestinationPolicy, ResolutionSnapshot};
-use originweave_http::{HttpClientPolicy, HttpError, HttpExchangePlan, HttpMethod, HttpRequestTarget};
+use originweave_http::{
+    HttpClientPolicy, HttpError, HttpExchangePlan, HttpMethod, HttpRequestTarget,
+};
 use originweave_network::{ConnectionPlan, DirectTcpConnection};
 use originweave_tls::{
     AlpnRequirement, TlsClientPolicy, TlsHandshakePlan, TrustBundleIdentifier, TrustRootBundle,
@@ -155,8 +157,7 @@ fn authenticated_connection(
     root_der: Vec<u8>,
 ) -> originweave_tls::AuthenticatedTlsConnection {
     let roots = TrustRootBundle::new(
-        TrustBundleIdentifier::parse("http_exchange_region_loopback:v1")
-            .expect("trust identifier"),
+        TrustBundleIdentifier::parse("http_exchange_region_loopback:v1").expect("trust identifier"),
         vec![root_der],
     )
     .expect("test root bundle");
@@ -204,7 +205,10 @@ fn policy_with_timeout(exchange_timeout: Duration) -> HttpClientPolicy {
 fn execute(
     behavior: ServerBehavior,
     policy: HttpClientPolicy,
-) -> (Result<originweave_http::AuthenticatedHttpResponse, HttpError>, JoinHandle<ServerResult>) {
+) -> (
+    Result<originweave_http::AuthenticatedHttpResponse, HttpError>,
+    JoinHandle<ServerResult>,
+) {
     let material = certificate_material();
     let (root_der, config) = server_config(material);
     let (socket_address, server) = spawn_http_server(config, behavior);
@@ -238,7 +242,8 @@ fn malformed_response_head_propagates_through_the_authenticated_exchange() {
 
 #[test]
 fn malformed_chunked_body_propagates_through_the_authenticated_exchange() {
-    let response = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\ng\r\n";
+    let response =
+        b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\ng\r\n";
     let (result, server) = execute(
         ServerBehavior::WriteAndCloseCleanly(response),
         HttpClientPolicy::strict_defaults(),
