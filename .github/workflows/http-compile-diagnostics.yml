@@ -1,0 +1,75 @@
+name: HTTP compile diagnostics
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/http-compile-diagnostics.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: http-compile-diagnostics-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    name: Format and capture bounded diagnostics
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          persist-credentials: true
+      - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        with:
+          toolchain: 1.97.1
+          components: clippy,rustfmt
+      - name: Format and collect exact diagnostics
+        shell: bash
+        run: |
+          set +e
+          cargo fmt --all > /tmp/http-fmt.log 2>&1
+          fmt_status=$?
+          python3 -m compileall -q scripts tests > /tmp/http-python.log 2>&1
+          python_compile_status=$?
+          python3 -m unittest discover -s tests -p 'test_*.py' >> /tmp/http-python.log 2>&1
+          python_test_status=$?
+          cargo check --locked -p originweave-http --all-targets > /tmp/http-check.log 2>&1
+          check_status=$?
+          cargo test --locked -p originweave-http --all-targets > /tmp/http-test.log 2>&1
+          test_status=$?
+          cargo clippy --locked -p originweave-http --all-targets -- -D warnings > /tmp/http-clippy.log 2>&1
+          clippy_status=$?
+          mkdir -p docs/validation
+          {
+            printf 'source_head=%s\n' "$(git rev-parse HEAD)"
+            printf 'fmt_status=%s\n' "$fmt_status"
+            printf 'python_compile_status=%s\n' "$python_compile_status"
+            printf 'python_test_status=%s\n' "$python_test_status"
+            printf 'check_status=%s\n' "$check_status"
+            printf 'test_status=%s\n' "$test_status"
+            printf 'clippy_status=%s\n' "$clippy_status"
+            printf '\n=== python ===\n'
+            tail -n 240 /tmp/http-python.log
+            printf '\n=== cargo check ===\n'
+            tail -n 400 /tmp/http-check.log
+            printf '\n=== cargo test ===\n'
+            tail -n 400 /tmp/http-test.log
+            printf '\n=== cargo clippy ===\n'
+            tail -n 400 /tmp/http-clippy.log
+          } > docs/validation/http-current-diagnostics.txt
+          exit 0
+      - name: Commit canonical formatting and diagnostics
+        env:
+          TARGET_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          rm .github/workflows/http-compile-diagnostics.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "test: capture bounded HTTP compile diagnostics"
+          git push origin "HEAD:${TARGET_BRANCH}"
