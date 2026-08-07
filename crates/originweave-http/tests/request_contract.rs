@@ -66,7 +66,7 @@ fn invalid_origin_form_targets_fail_closed() {
 #[test]
 fn invalid_percent_escapes_report_the_exact_percent_offset() {
     let origin = Origin::parse("https://example.com").expect("origin");
-    for (input, byte_index) in [("/%", 1), ("/%2", 1), ("/a%XZ", 2)] {
+    for (input, byte_index) in [("/%", 1), ("/%2", 1), ("/a%XZ", 2), ("/%0G", 1)] {
         assert!(matches!(
             HttpRequestTarget::parse(origin.clone(), input),
             Err(HttpError::InvalidPercentEncoding {
