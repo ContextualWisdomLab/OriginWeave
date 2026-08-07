@@ -47,6 +47,40 @@ class CoverageVerifierTests(unittest.TestCase):
             {metric: (2, 3) for metric in verify_coverage.REQUIRED_METRICS},
         )
 
+    def test_uncovered_region_locations_report_only_real_zero_count_region_entries(self) -> None:
+        """LLVM region diagnostics identify uncovered production coordinates precisely."""
+
+        candidate = payload(3, 2)
+        candidate["data"][0]["files"] = [  # type: ignore[index]
+            {
+                "filename": "src/example.rs",
+                "segments": [
+                    [10, 2, 0, True, True, False],
+                    [10, 8, 0, True, False, False],
+                    [11, 1, 0, True, True, True],
+                    [12, 3, 4, True, True, False],
+                    [13, 5, 0, False, True, False],
+                    [10, 2, 0, True, True, False],
+                ],
+            },
+            {
+                "filename": "src/second.rs",
+                "segments": [[3, 7, 0, True, True, False]],
+            },
+        ]
+        self.assertEqual(
+            verify_coverage.uncovered_region_locations(candidate),
+            ["src/example.rs:10:2", "src/second.rs:3:7"],
+        )
+
+    def test_uncovered_region_locations_are_best_effort_for_missing_file_detail(self) -> None:
+        """Summary-only or malformed file detail never weakens aggregate enforcement."""
+
+        self.assertEqual(verify_coverage.uncovered_region_locations(payload(3, 2)), [])
+        candidate = payload(3, 2)
+        candidate["data"][0]["files"] = "not-a-list"  # type: ignore[index]
+        self.assertEqual(verify_coverage.uncovered_region_locations(candidate), [])
+
     def test_malformed_payloads_fail_closed(self) -> None:
         """Missing, ambiguous, and impossible summaries are rejected."""
 
@@ -84,6 +118,27 @@ class CoverageVerifierTests(unittest.TestCase):
 
             path.write_text(json.dumps(payload(3, 2)), encoding="utf-8")
             with self.assertRaisesRegex(RuntimeError, "below 100%"):
+                verify_coverage.verify_file(path)
+
+    def test_verify_file_includes_precise_uncovered_region_coordinates(self) -> None:
+        """A region-only failure points directly at uncovered source coordinates."""
+
+        candidate = payload()
+        totals = candidate["data"][0]["totals"]  # type: ignore[index]
+        totals["regions"] = {"count": 2, "covered": 1}  # type: ignore[index]
+        candidate["data"][0]["files"] = [  # type: ignore[index]
+            {
+                "filename": "src/example.rs",
+                "segments": [[42, 9, 0, True, True, False]],
+            }
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "coverage.json"
+            path.write_text(json.dumps(candidate), encoding="utf-8")
+            with self.assertRaisesRegex(
+                RuntimeError,
+                r"regions=1/2; uncovered regions: src/example\.rs:42:9",
+            ):
                 verify_coverage.verify_file(path)
 
     def test_main_reports_usage_success_and_input_failures(self) -> None:
