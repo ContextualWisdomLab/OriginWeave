@@ -275,10 +275,9 @@ fn digest_parser_rejects_invalid_structured_fields_and_context_conflicts() {
     for value in [
         b"sha-256".as_slice(),
         b"Sha-256=:AQ==:",
+        b"sha/256=:AQ==:",
         b"sha-256=AQ==",
-        b"sha-256=::",
         b"sha-256=:***:",
-        b"sha-256=:AQ==:, sha-256=:AQ==:",
         b"=:AQ==:",
     ] {
         assert!(matches!(
@@ -291,6 +290,18 @@ fn digest_parser_rejects_invalid_structured_fields_and_context_conflicts() {
             Err(HttpError::InvalidDigestField)
         ));
     }
+
+    assert!(matches!(
+        validate_content_digest(
+            &fields(&[("content-digest", b"sha-256=::")]),
+            &empty,
+            b"payload",
+            IntegrityRequirement::Optional,
+        ),
+        Err(HttpError::DigestMismatch {
+            algorithm: "sha-256"
+        })
+    ));
 
     let unsupported = validate_content_digest(
         &fields(&[("content-digest", b"md5=:AQ==:")]),
@@ -340,13 +351,15 @@ fn digest_parser_rejects_invalid_structured_fields_and_context_conflicts() {
         Err(HttpError::InvalidDigestField)
     ));
 
-    assert!(matches!(
-        validate_content_digest(
-            &fields(&[("content-digest", b"md5=:AQ==:")]),
-            &fields(&[("content-digest", b"other=:Ag==:")]),
-            b"payload",
-            IntegrityRequirement::Optional,
-        ),
-        Err(HttpError::InvalidDigestField)
-    ));
+    let merged_unsupported = validate_content_digest(
+        &fields(&[("content-digest", b"md5=:AQ==:")]),
+        &fields(&[("content-digest", b"other=:Ag==:")]),
+        b"payload",
+        IntegrityRequirement::Optional,
+    )
+    .expect("RFC 9530 permits merging digest trailer members into the header dictionary");
+    assert_eq!(
+        merged_unsupported,
+        crate::IntegrityStatus::UnsupportedAlgorithm
+    );
 }
