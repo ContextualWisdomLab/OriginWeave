@@ -23,19 +23,6 @@ mod framing;
 mod integrity;
 mod mime;
 #[cfg(test)]
-#[cfg_attr(coverage_nightly, coverage(off))]
-mod mime_test_support {
-    use crate::HttpError;
-    use crate::mime::{MimeType, ObservedMimeClassification, classify_observed_mime};
-
-    pub(crate) fn observe_mime_type(
-        content: &[u8],
-        supplied: Option<&MimeType>,
-    ) -> Result<ObservedMimeClassification, HttpError> {
-        Ok(classify_observed_mime(content, supplied))
-    }
-}
-#[cfg(test)]
 #[path = "tests/mime_contract.rs"]
 mod mime_contract;
 mod policy;
