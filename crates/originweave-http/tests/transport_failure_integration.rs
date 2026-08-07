@@ -268,3 +268,38 @@ fn close_delimited_body_requires_authenticated_tls_close_notify() {
         .expect("server exchange");
     assert!(request.starts_with(b"GET /transport-failure HTTP/1.1\r\n"));
 }
+
+#[test]
+fn local_write_half_shutdown_is_reported_as_transport_io_failure() {
+    let material = certificate_material();
+    let (root_der, config) = server_config(material);
+    let (socket_address, server) = spawn_http_server(
+        config,
+        ServerBehavior::WriteThenStall(b"", Duration::from_millis(25)),
+    );
+    let origin = origin_for(socket_address);
+    let mut connection = authenticated_connection(&origin, socket_address, root_der);
+    connection
+        .stream_mut()
+        .sock
+        .shutdown(Shutdown::Write)
+        .expect("locally shut down write half");
+    let target = HttpRequestTarget::parse(origin, "/write-failure").expect("target");
+
+    let result = HttpExchangePlan::new(
+        connection,
+        HttpMethod::Get,
+        target,
+        &[],
+        HttpClientPolicy::strict_defaults(),
+    )
+    .expect("HTTP exchange plan")
+    .execute();
+
+    assert!(matches!(result, Err(HttpError::HttpExchangeIoFailed { .. })));
+    let request = server
+        .join()
+        .expect("server thread")
+        .expect("server exchange");
+    assert!(request.is_empty());
+}
