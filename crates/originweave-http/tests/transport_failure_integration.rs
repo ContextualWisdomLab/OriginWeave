@@ -317,7 +317,9 @@ fn mismatched_content_digest_fails_after_complete_authenticated_body() {
 
     assert!(matches!(
         result,
-        Err(HttpError::DigestMismatch { algorithm: "sha-256" })
+        Err(HttpError::DigestMismatch {
+            algorithm: "sha-256"
+        })
     ));
     assert_server_received_request(server);
 }
@@ -332,7 +334,9 @@ fn mismatched_representation_digest_fails_after_complete_authenticated_body() {
 
     assert!(matches!(
         result,
-        Err(HttpError::DigestMismatch { algorithm: "sha-256" })
+        Err(HttpError::DigestMismatch {
+            algorithm: "sha-256"
+        })
     ));
     assert_server_received_request(server);
 }
