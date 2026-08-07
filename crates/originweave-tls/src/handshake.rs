@@ -211,6 +211,7 @@ fn drive_handshake(
                         handshake_timeout,
                         error_mapper,
                     )
+                    .and_then(|()| enforce_handshake_deadline(deadline, handshake_timeout))
                 })
             });
         match iteration_result {
@@ -247,7 +248,7 @@ fn perform_handshake_io(
     handshake_timeout: Duration,
     error_mapper: RustlsErrorMapper,
 ) -> Result<(), TlsError> {
-    let remaining = remaining_time(deadline);
+    let remaining = remaining_time(deadline, handshake_timeout)?;
     match action {
         HandshakeIo::Write => handshake_timeout_update(stream.set_write_timeout(Some(remaining)))
             .and_then(|()| handshake_transfer(client.write_tls(stream), handshake_timeout))
@@ -284,11 +285,16 @@ fn ensure_handshake_progress(action: HandshakeIo, byte_count: usize) -> Result<(
 }
 
 #[inline(never)]
-fn remaining_time(deadline: Instant) -> Duration {
-    std::cmp::max(
-        deadline.saturating_duration_since(Instant::now()),
-        Duration::from_nanos(1),
-    )
+fn remaining_time(deadline: Instant, timeout: Duration) -> Result<Duration, TlsError> {
+    let remaining = deadline.saturating_duration_since(Instant::now());
+    (!remaining.is_zero())
+        .then_some(remaining)
+        .ok_or(TlsError::HandshakeTimedOut { timeout })
+}
+
+#[inline(never)]
+fn enforce_handshake_deadline(deadline: Instant, timeout: Duration) -> Result<(), TlsError> {
+    remaining_time(deadline, timeout).map(|_remaining| ())
 }
 
 #[inline(never)]
@@ -715,16 +721,23 @@ mod tests {
     }
 
     #[test]
-    fn remaining_time_never_returns_a_zero_socket_timeout() {
-        let future = Instant::now() + Duration::from_secs(1);
+    fn handshake_deadline_is_hard_and_never_emits_a_zero_timeout() {
+        let timeout = Duration::from_secs(1);
+        let future = Instant::now() + timeout;
+        let remaining = remaining_time(future, timeout).expect("future deadline must retain time");
         require(
-            remaining_time(future) > Duration::ZERO,
-            "future deadline must retain time",
+            remaining > Duration::ZERO,
+            "future deadline must produce a positive socket timeout",
         );
-        require(
-            remaining_time(Instant::now()) > Duration::ZERO,
-            "elapsed deadline must use a nonzero socket timeout",
-        );
+        enforce_handshake_deadline(future, timeout).expect("future deadline must remain valid");
+
+        for error in [
+            remaining_time(Instant::now(), timeout).expect_err("elapsed deadline must fail"),
+            enforce_handshake_deadline(Instant::now(), timeout)
+                .expect_err("post-I/O deadline must fail"),
+        ] {
+            assert_error_variant(&error, &TlsError::HandshakeTimedOut { timeout });
+        }
     }
 
     #[test]
