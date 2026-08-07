@@ -1,6 +1,6 @@
 name: Measure TLS production coverage
 
-# Exact-head retry after the verified TLS integration repair.
+# Exact-head retry with crate-scoped diagnostics.
 on:
   push:
     branches:
@@ -45,13 +45,12 @@ jobs:
             --all-features \
             --branch \
             --json \
-            --summary-only \
             --output-path coverage.json
           cargo +nightly-2026-08-01 llvm-cov report \
             --branch \
             --text \
             --show-missing-lines \
-            > missing-lines.txt
+            > all-missing-lines.txt
           set +e
           python3 scripts/ci/verify_coverage.py coverage.json
           status=$?
@@ -59,11 +58,14 @@ jobs:
           echo "status=${status}" >> "$GITHUB_OUTPUT"
           python3 - <<'PY'
           import json
+          import re
           from pathlib import Path
 
+          marker = "/crates/originweave-tls/src/"
           payload = json.loads(Path("coverage.json").read_text(encoding="utf-8"))
-          totals = payload["data"][0]["totals"]
-          lines = [
+          export = payload["data"][0]
+          totals = export["totals"]
+          summary = [
               "# Exact coverage summary",
               "",
               *[
@@ -71,8 +73,30 @@ jobs:
                   for name in ("functions", "lines", "regions", "branches")
               ],
               "",
+              "## Uncovered TLS production functions",
+              "",
           ]
-          Path("coverage-summary.md").write_text("\n".join(lines), encoding="utf-8")
+          uncovered_functions = []
+          for function in export.get("functions", []):
+              filenames = function.get("filenames", [])
+              if function.get("count") == 0 and any(marker in name for name in filenames):
+                  uncovered_functions.append(function.get("name", "<unnamed>"))
+          if uncovered_functions:
+              summary.extend(f"- `{name}`" for name in sorted(set(uncovered_functions)))
+          else:
+              summary.append("- None")
+          summary.append("")
+          Path("coverage-summary.md").write_text("\n".join(summary), encoding="utf-8")
+
+          text = Path("all-missing-lines.txt").read_text(encoding="utf-8")
+          sections = re.split(r"(?=^/.*:$)", text, flags=re.MULTILINE)
+          selected = [section.rstrip() for section in sections if marker in section.splitlines()[0]]
+          if not selected:
+              raise SystemExit("no TLS source sections found in llvm-cov text report")
+          Path("tls-missing-lines.txt").write_text(
+              "\n\n".join(selected) + "\n",
+              encoding="utf-8",
+          )
           PY
 
       - name: Persist uncovered diagnostics
@@ -81,11 +105,11 @@ jobs:
         run: |
           mkdir -p docs/validation
           mv coverage-summary.md docs/validation/tls-coverage-summary.md
-          mv missing-lines.txt docs/validation/tls-missing-lines.txt
+          mv tls-missing-lines.txt docs/validation/tls-missing-lines.txt
           git config user.name "OpenCode Repair Agent"
           git config user.email "opencode-repair@users.noreply.github.com"
           git add docs/validation/tls-coverage-summary.md docs/validation/tls-missing-lines.txt
-          git commit -m "test: capture uncovered TLS contracts"
+          git commit -m "test: compact uncovered TLS contracts"
           git push origin HEAD:feat/tls-server-identity
           exit 1
 
