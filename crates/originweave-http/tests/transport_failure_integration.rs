@@ -236,6 +236,14 @@ fn execute(
     (result, server)
 }
 
+fn assert_server_received_request(server: JoinHandle<ServerResult>) {
+    let request = server
+        .join()
+        .expect("server thread")
+        .expect("server exchange");
+    assert!(request.starts_with(b"GET /transport-failure HTTP/1.1\r\n"));
+}
+
 #[test]
 fn stalled_content_length_body_expires_the_total_exchange_deadline() {
     let response = b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\nhe";
@@ -248,11 +256,7 @@ fn stalled_content_length_body_expires_the_total_exchange_deadline() {
         result,
         Err(HttpError::HttpExchangeTimedOut { timeout }) if timeout == EXCHANGE_TIMEOUT
     ));
-    let request = server
-        .join()
-        .expect("server thread")
-        .expect("server exchange");
-    assert!(request.starts_with(b"GET /transport-failure HTTP/1.1\r\n"));
+    assert_server_received_request(server);
 }
 
 #[test]
@@ -264,11 +268,7 @@ fn close_delimited_body_requires_authenticated_tls_close_notify() {
     );
 
     assert!(matches!(result, Err(HttpError::IncompleteResponse)));
-    let request = server
-        .join()
-        .expect("server thread")
-        .expect("server exchange");
-    assert!(request.starts_with(b"GET /transport-failure HTTP/1.1\r\n"));
+    assert_server_received_request(server);
 }
 
 #[test]
@@ -305,4 +305,49 @@ fn local_write_half_shutdown_is_reported_as_transport_io_failure() {
     // The deliberate client half-close can make the peer observe an authenticated TLS EOF.
     // That peer-side I/O outcome is expected; this regression targets the client's typed error.
     assert!(server.join().is_ok(), "server thread must not panic");
+}
+
+#[test]
+fn mismatched_content_digest_fails_after_complete_authenticated_body() {
+    let response = b"HTTP/1.1 200 OK\r\nContent-Length: 7\r\nContent-Digest: sha-256=:AQ==:\r\nConnection: close\r\n\r\npayload";
+    let (result, server) = execute(
+        ServerBehavior::WriteThenStall(response, Duration::from_millis(20)),
+        HttpClientPolicy::strict_defaults(),
+    );
+
+    assert!(matches!(
+        result,
+        Err(HttpError::DigestMismatch { algorithm: "sha-256" })
+    ));
+    assert_server_received_request(server);
+}
+
+#[test]
+fn mismatched_representation_digest_fails_after_complete_authenticated_body() {
+    let response = b"HTTP/1.1 200 OK\r\nContent-Length: 7\r\nRepr-Digest: sha-256=:AQ==:\r\nConnection: close\r\n\r\npayload";
+    let (result, server) = execute(
+        ServerBehavior::WriteThenStall(response, Duration::from_millis(20)),
+        HttpClientPolicy::strict_defaults(),
+    );
+
+    assert!(matches!(
+        result,
+        Err(HttpError::DigestMismatch { algorithm: "sha-256" })
+    ));
+    assert_server_received_request(server);
+}
+
+#[test]
+fn conflicting_transfer_encoding_and_content_length_fail_before_body_read() {
+    let response = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nContent-Length: 1\r\nConnection: close\r\n\r\n0\r\n\r\n";
+    let (result, server) = execute(
+        ServerBehavior::WriteThenStall(response, Duration::from_millis(20)),
+        HttpClientPolicy::strict_defaults(),
+    );
+
+    assert!(matches!(
+        result,
+        Err(HttpError::TransferEncodingWithContentLength)
+    ));
+    assert_server_received_request(server);
 }
