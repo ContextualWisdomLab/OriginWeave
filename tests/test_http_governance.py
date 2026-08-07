@@ -42,8 +42,18 @@ class HttpGovernanceTests(unittest.TestCase):
         manifest = tomllib.loads((CRATE / "Cargo.toml").read_text(encoding="utf-8"))
         self.assertEqual(
             set(manifest["dependencies"]),
-            {"base64", "originweave-core", "originweave-tls", "sha2"},
+            {
+                "base64",
+                "flate2",
+                "originweave-core",
+                "originweave-tls",
+                "sha2",
+            },
         )
+        flate2 = manifest["dependencies"]["flate2"]
+        self.assertEqual(flate2["version"], "=1.1.9")
+        self.assertFalse(flate2["default-features"])
+        self.assertEqual(flate2["features"], ["rust_backend"])
         self.assertEqual(
             set(manifest["dev-dependencies"]),
             {
@@ -80,6 +90,16 @@ class HttpGovernanceTests(unittest.TestCase):
         )
         for token, authority in forbidden.items():
             self.assertNotIn(token, combined, authority)
+
+    def test_production_dependency_lock_contains_reviewed_decoder_family(self) -> None:
+        """The lockfile must pin the exact published flate2 dependency graph."""
+
+        lock = tomllib.loads((ROOT / "Cargo.lock").read_text(encoding="utf-8"))
+        packages = {(item["name"], item["version"]): item for item in lock["package"]}
+        self.assertIn(("originweave-http", "0.1.0"), packages)
+        self.assertIn(("flate2", "1.1.9"), packages)
+        self.assertIn("flate2", packages[("originweave-http", "0.1.0")]["dependencies"])
+        self.assertTrue(packages[("flate2", "1.1.9")].get("checksum"))
 
     def test_http_crate_forbids_unsafe_and_requires_public_docs(self) -> None:
         """The parsing boundary must remain safe Rust with mandatory rustdoc."""
