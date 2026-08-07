@@ -29,7 +29,28 @@ jobs:
           python3 -m compileall -q scripts tests
           python3 -m unittest discover -s tests -p 'test_*.py'
       - name: Check formatting
+        id: formatting
         run: cargo fmt --all --check
+      - name: Materialize canonical Rust formatting diagnostics
+        if: failure() && steps.formatting.outcome == 'failure'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo fmt --all
+          mkdir -p rustfmt-output
+          git diff --output=rustfmt-output/rustfmt.patch -- '*.rs'
+          while IFS= read -r source_file; do
+            [ -n "$source_file" ] || continue
+            install -D -m 0644 "$source_file" "rustfmt-output/$source_file"
+          done < <(git diff --name-only -- '*.rs')
+      - name: Upload canonical Rust formatting diagnostics
+        if: failure() && steps.formatting.outcome == 'failure'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: rustfmt-${{ github.sha }}
+          path: rustfmt-output
+          if-no-files-found: error
+          retention-days: 3
       - name: Check workspace
         run: cargo check --locked --workspace --all-targets
       - name: Run tests
