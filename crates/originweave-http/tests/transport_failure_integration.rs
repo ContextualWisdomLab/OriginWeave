@@ -244,6 +244,18 @@ fn assert_server_received_request(server: JoinHandle<ServerResult>) {
     assert!(request.starts_with(b"GET /transport-failure HTTP/1.1\r\n"));
 }
 
+fn execute_static_response(
+    response: &'static [u8],
+) -> (
+    Result<originweave_http::AuthenticatedHttpResponse, HttpError>,
+    JoinHandle<ServerResult>,
+) {
+    execute(
+        ServerBehavior::WriteThenStall(response, Duration::from_millis(20)),
+        HttpClientPolicy::strict_defaults(),
+    )
+}
+
 #[test]
 fn stalled_content_length_body_expires_the_total_exchange_deadline() {
     let response = b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\nhe";
@@ -326,10 +338,7 @@ fn local_write_half_shutdown_is_reported_as_transport_io_failure() {
 #[test]
 fn mismatched_content_digest_fails_after_complete_authenticated_body() {
     let response = b"HTTP/1.1 200 OK\r\nContent-Length: 7\r\nContent-Digest: sha-256=:AQ==:\r\nConnection: close\r\n\r\npayload";
-    let (result, server) = execute(
-        ServerBehavior::WriteThenStall(response, Duration::from_millis(20)),
-        HttpClientPolicy::strict_defaults(),
-    );
+    let (result, server) = execute_static_response(response);
 
     assert!(matches!(
         result,
@@ -343,10 +352,7 @@ fn mismatched_content_digest_fails_after_complete_authenticated_body() {
 #[test]
 fn mismatched_representation_digest_fails_after_complete_authenticated_body() {
     let response = b"HTTP/1.1 200 OK\r\nContent-Length: 7\r\nRepr-Digest: sha-256=:AQ==:\r\nConnection: close\r\n\r\npayload";
-    let (result, server) = execute(
-        ServerBehavior::WriteThenStall(response, Duration::from_millis(20)),
-        HttpClientPolicy::strict_defaults(),
-    );
+    let (result, server) = execute_static_response(response);
 
     assert!(matches!(
         result,
@@ -358,12 +364,57 @@ fn mismatched_representation_digest_fails_after_complete_authenticated_body() {
 }
 
 #[test]
+fn malformed_digest_fields_fail_after_complete_authenticated_body() {
+    for response in [
+        b"HTTP/1.1 200 OK\r\nContent-Length: 7\r\nContent-Digest: sha-256=broken\r\nConnection: close\r\n\r\npayload".as_slice(),
+        b"HTTP/1.1 200 OK\r\nContent-Length: 7\r\nRepr-Digest: sha-256=broken\r\nConnection: close\r\n\r\npayload".as_slice(),
+    ] {
+        let (result, server) = execute_static_response(response);
+        assert!(matches!(result, Err(HttpError::InvalidDigestField)));
+        assert_server_received_request(server);
+    }
+}
+
+#[test]
+fn unsupported_content_coding_fails_after_exact_framing() {
+    let response = b"HTTP/1.1 200 OK\r\nContent-Length: 7\r\nContent-Encoding: br\r\nConnection: close\r\n\r\npayload";
+    let (result, server) = execute_static_response(response);
+    assert!(matches!(result, Err(HttpError::UnsupportedContentCoding)));
+    assert_server_received_request(server);
+}
+
+#[test]
+fn malformed_mime_and_nosniff_metadata_fail_after_exact_framing() {
+    for response in [
+        b"HTTP/1.1 200 OK\r\nContent-Length: 7\r\nContent-Type: text\r\nConnection: close\r\n\r\npayload".as_slice(),
+        b"HTTP/1.1 200 OK\r\nContent-Length: 7\r\nX-Content-Type-Options: other\r\nConnection: close\r\n\r\npayload".as_slice(),
+    ] {
+        let (result, server) = execute_static_response(response);
+        assert!(matches!(result, Err(HttpError::InvalidMimeType)));
+        assert_server_received_request(server);
+    }
+}
+
+#[test]
+fn unsafe_disposition_metadata_fails_after_exact_framing() {
+    let response = b"HTTP/1.1 200 OK\r\nContent-Length: 7\r\nContent-Disposition: attachment; filename=..\r\nConnection: close\r\n\r\npayload";
+    let (result, server) = execute_static_response(response);
+    assert!(matches!(result, Err(HttpError::InvalidContentDisposition)));
+    assert_server_received_request(server);
+}
+
+#[test]
+fn network_path_redirect_metadata_fails_before_any_followup_network_authority() {
+    let response = b"HTTP/1.1 302 Found\r\nContent-Length: 0\r\nLocation: //evil.example/path\r\nConnection: close\r\n\r\n";
+    let (result, server) = execute_static_response(response);
+    assert!(matches!(result, Err(HttpError::InvalidRedirectMetadata)));
+    assert_server_received_request(server);
+}
+
+#[test]
 fn conflicting_transfer_encoding_and_content_length_fail_before_body_read() {
     let response = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nContent-Length: 1\r\nConnection: close\r\n\r\n0\r\n\r\n";
-    let (result, server) = execute(
-        ServerBehavior::WriteThenStall(response, Duration::from_millis(20)),
-        HttpClientPolicy::strict_defaults(),
-    );
+    let (result, server) = execute_static_response(response);
 
     assert!(matches!(
         result,
