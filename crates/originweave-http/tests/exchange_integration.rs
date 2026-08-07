@@ -8,7 +8,9 @@ use std::time::Duration;
 
 use originweave_core::Origin;
 use originweave_destination::{AddressClass, DestinationPolicy, ResolutionSnapshot};
-use originweave_http::{HttpClientPolicy, HttpError, HttpExchangePlan, HttpMethod, HttpRequestTarget};
+use originweave_http::{
+    HttpClientPolicy, HttpError, HttpExchangePlan, HttpMethod, HttpRequestTarget,
+};
 use originweave_network::{ConnectionPlan, DirectTcpConnection};
 use originweave_tls::{
     AlpnRequirement, TlsClientPolicy, TlsHandshakePlan, TrustBundleIdentifier, TrustRootBundle,
@@ -122,8 +124,7 @@ fn spawn_http_server(
 }
 
 fn origin_for(socket_address: SocketAddr) -> Origin {
-    Origin::parse(&format!("https://localhost:{}", socket_address.port()))
-        .expect("test origin")
+    Origin::parse(&format!("https://localhost:{}", socket_address.port())).expect("test origin")
 }
 
 fn direct_connection(origin: &Origin, socket_address: SocketAddr) -> DirectTcpConnection {
