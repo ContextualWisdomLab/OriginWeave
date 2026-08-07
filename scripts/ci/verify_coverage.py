@@ -47,6 +47,37 @@ def uncovered_metrics(payload: Mapping[str, Any]) -> dict[str, tuple[int, int]]:
     return uncovered
 
 
+def _deficient_region_filenames(summary: Mapping[str, Any]) -> set[str]:
+    """Return filenames whose aggregate LLVM region summary is incomplete."""
+
+    files = summary.get("files")
+    if not isinstance(files, list):
+        return set()
+    deficits: set[str] = set()
+    for file_entry in files:
+        if not isinstance(file_entry, Mapping):
+            continue
+        filename = file_entry.get("filename")
+        file_summary = file_entry.get("summary")
+        if not isinstance(filename, str) or not isinstance(file_summary, Mapping):
+            continue
+        regions = file_summary.get("regions")
+        if not isinstance(regions, Mapping):
+            continue
+        count = regions.get("count")
+        covered = regions.get("covered")
+        if (
+            isinstance(count, int)
+            and not isinstance(count, bool)
+            and isinstance(covered, int)
+            and not isinstance(covered, bool)
+            and 0 <= covered <= count
+            and covered != count
+        ):
+            deficits.add(filename)
+    return deficits
+
+
 def uncovered_file_region_summaries(payload: Mapping[str, Any]) -> list[str]:
     """Return source files whose aggregate LLVM region coverage is incomplete.
 
@@ -61,39 +92,37 @@ def uncovered_file_region_summaries(payload: Mapping[str, Any]) -> list[str]:
         summary = _single_data_summary(payload)
     except ValueError:
         return []
+    deficient = _deficient_region_filenames(summary)
+    if not deficient:
+        return []
+
     files = summary.get("files")
     if not isinstance(files, list):
         return []
-
     deficits: list[str] = []
     for file_entry in files:
         if not isinstance(file_entry, Mapping):
             continue
         filename = file_entry.get("filename")
+        if not isinstance(filename, str) or filename not in deficient:
+            continue
         file_summary = file_entry.get("summary")
-        if not isinstance(filename, str) or not isinstance(file_summary, Mapping):
+        if not isinstance(file_summary, Mapping):
             continue
         regions = file_summary.get("regions")
         if not isinstance(regions, Mapping):
             continue
         count = regions.get("count")
         covered = regions.get("covered")
-        if (
-            not isinstance(count, int)
-            or isinstance(count, bool)
-            or not isinstance(covered, int)
-            or isinstance(covered, bool)
-            or count < 0
-            or covered < 0
-            or covered > count
-        ):
-            continue
-        if covered != count:
+        if isinstance(count, int) and isinstance(covered, int):
             deficits.append(f"{filename}={covered}/{count}")
     return sorted(deficits)[:MAX_REGION_DIAGNOSTICS]
 
 
-def _function_region_locations(summary: Mapping[str, Any]) -> set[str]:
+def _function_region_locations(
+    summary: Mapping[str, Any],
+    allowed_filenames: set[str] | None = None,
+) -> set[str]:
     """Return zero-count LLVM code regions from per-function export detail."""
 
     functions = summary.get("functions")
@@ -124,6 +153,10 @@ def _function_region_locations(summary: Mapping[str, Any]) -> set[str]:
                 and count == 0
                 and 0 <= file_id < len(filenames)
                 and isinstance(filenames[file_id], str)
+                and (
+                    allowed_filenames is None
+                    or filenames[file_id] in allowed_filenames
+                )
             ):
                 locations.add(f"{filenames[file_id]}:{line}:{column}")
     return locations
@@ -136,9 +169,9 @@ def uncovered_region_locations(payload: Mapping[str, Any]) -> list[str]:
     is_region_entry, is_gap_region`` as their first six fields. Some valid LLVM
     exports can retain an uncovered code region only in the per-function
     ``regions`` array, so diagnostics fall back to that authoritative detail
-    when segment entries do not identify the miss. Diagnostics are best-effort:
-    malformed or summary-only detail never replaces aggregate fail-closed
-    coverage enforcement.
+    when segment entries do not identify the miss. When per-file aggregate
+    summaries identify deficient files, the function fallback is scoped to
+    those files so fully covered monomorphizations do not flood diagnostics.
     """
 
     try:
@@ -149,6 +182,7 @@ def uncovered_region_locations(payload: Mapping[str, Any]) -> list[str]:
     if not isinstance(files, list):
         return []
 
+    deficient = _deficient_region_filenames(summary)
     locations: set[str] = set()
     for file_entry in files:
         if not isinstance(file_entry, Mapping):
@@ -156,6 +190,8 @@ def uncovered_region_locations(payload: Mapping[str, Any]) -> list[str]:
         filename = file_entry.get("filename")
         segments = file_entry.get("segments")
         if not isinstance(filename, str) or not isinstance(segments, list):
+            continue
+        if deficient and filename not in deficient:
             continue
         for segment in segments:
             if not isinstance(segment, list) or len(segment) < 6:
@@ -175,7 +211,9 @@ def uncovered_region_locations(payload: Mapping[str, Any]) -> list[str]:
             ):
                 locations.add(f"{filename}:{line}:{column}")
     if not locations:
-        locations.update(_function_region_locations(summary))
+        locations.update(
+            _function_region_locations(summary, deficient or None)
+        )
     return sorted(locations)[:MAX_REGION_DIAGNOSTICS]
 
 
