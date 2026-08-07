@@ -41,12 +41,8 @@ pub(crate) fn decode_content(
             enforce_decoded_limits(encoded.len(), encoded.len(), policy)?;
             encoded.to_vec()
         }
-        ContentCoding::Gzip => {
-            decode_reader(GzDecoder::new(encoded), encoded.len(), policy)?
-        }
-        ContentCoding::Deflate => {
-            decode_reader(ZlibDecoder::new(encoded), encoded.len(), policy)?
-        }
+        ContentCoding::Gzip => decode_reader(GzDecoder::new(encoded), encoded.len(), policy)?,
+        ContentCoding::Deflate => decode_reader(ZlibDecoder::new(encoded), encoded.len(), policy)?,
     };
     Ok(DecodedContent { bytes, coding })
 }
@@ -84,19 +80,18 @@ fn decode_reader<R: Read>(
     let mut decoded = Vec::new();
     let mut buffer = [0_u8; 8_192];
     loop {
-        let byte_count = reader
-            .read(&mut buffer)
-            .map_err(content_decoding_error)?;
+        let byte_count = reader.read(&mut buffer).map_err(content_decoding_error)?;
         if byte_count == 0 {
             break;
         }
-        let next_length = decoded
-            .len()
-            .checked_add(byte_count)
-            .ok_or(HttpError::DecodedContentTooLarge {
-                byte_count: usize::MAX,
-                maximum_bytes: policy.max_decoded_content_bytes(),
-            })?;
+        let next_length =
+            decoded
+                .len()
+                .checked_add(byte_count)
+                .ok_or(HttpError::DecodedContentTooLarge {
+                    byte_count: usize::MAX,
+                    maximum_bytes: policy.max_decoded_content_bytes(),
+                })?;
         enforce_decoded_limits(next_length, encoded_bytes, policy)?;
         decoded.extend_from_slice(&buffer[..byte_count]);
     }
@@ -214,8 +209,8 @@ mod tests {
             FieldBlock::default(),
             fields(&[("content-encoding", b" identity \t")]),
         ] {
-            let decoded = decode_content(input, &field_block, &policy(64, 64, 2))
-                .expect("identity content");
+            let decoded =
+                decode_content(input, &field_block, &policy(64, 64, 2)).expect("identity content");
             assert_eq!(decoded.bytes, input);
             assert_eq!(decoded.coding, ContentCoding::Identity);
         }
@@ -278,22 +273,14 @@ mod tests {
     #[test]
     fn encoded_decoded_and_expansion_budgets_fail_closed() {
         assert!(matches!(
-            decode_content(
-                b"12345",
-                &FieldBlock::default(),
-                &policy(4, 8, 2),
-            ),
+            decode_content(b"12345", &FieldBlock::default(), &policy(4, 8, 2),),
             Err(HttpError::EncodedContentTooLarge {
                 byte_count: 5,
                 maximum_bytes: 4,
             })
         ));
         assert!(matches!(
-            decode_content(
-                b"12345",
-                &FieldBlock::default(),
-                &policy(8, 4, 2),
-            ),
+            decode_content(b"12345", &FieldBlock::default(), &policy(8, 4, 2),),
             Err(HttpError::DecodedContentTooLarge {
                 byte_count: 5,
                 maximum_bytes: 4,

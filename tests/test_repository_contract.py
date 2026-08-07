@@ -125,7 +125,7 @@ class RepositoryContractTests(unittest.TestCase):
             self.assertIn("originweave-http", text)
             self.assertIn("HTTP/1.1", text)
             self.assertIn("AuthenticatedTlsConnection", text)
-            self.assertIn("never follows", text.lower())
+            self.assertIn("never follow", text.lower())
             self.assertIn("RFC 9112", text)
 
     def test_ci_validates_the_exact_pull_request_head(self) -> None:

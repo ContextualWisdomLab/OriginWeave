@@ -93,7 +93,9 @@ fn parse_content_length(
             }
         }
     }
-    canonical_length.ok_or(HttpError::InvalidContentLength).map(Some)
+    canonical_length
+        .ok_or(HttpError::InvalidContentLength)
+        .map(Some)
 }
 
 fn parse_decimal_u64(input: &[u8]) -> Result<u64, HttpError> {
@@ -176,10 +178,7 @@ mod tests {
             determine_body_framing(
                 HttpMethod::Head,
                 200,
-                &fields(&[
-                    ("transfer-encoding", b"chunked"),
-                    ("content-length", b"0"),
-                ]),
+                &fields(&[("transfer-encoding", b"chunked"), ("content-length", b"0"),]),
                 1_000,
             ),
             Err(HttpError::TransferEncodingWithContentLength)
@@ -209,12 +208,7 @@ mod tests {
             ],
         ] {
             assert!(matches!(
-                determine_body_framing(
-                    HttpMethod::Get,
-                    200,
-                    &fields(&values),
-                    1_000,
-                ),
+                determine_body_framing(HttpMethod::Get, 200, &fields(&values), 1_000,),
                 Err(HttpError::UnsupportedTransferCoding)
             ));
         }
@@ -231,13 +225,8 @@ mod tests {
             ],
         ] {
             assert_eq!(
-                determine_body_framing(
-                    HttpMethod::Get,
-                    200,
-                    &fields(&entries),
-                    100,
-                )
-                .expect("content length"),
+                determine_body_framing(HttpMethod::Get, 200, &fields(&entries), 100,)
+                    .expect("content length"),
                 BodyFraming::ContentLength(42)
             );
         }

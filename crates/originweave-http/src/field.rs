@@ -1,8 +1,6 @@
 use std::fmt;
 
-use crate::{
-    DEFAULT_MAX_HEADER_NAME_BYTES, DEFAULT_MAX_HEADER_VALUE_BYTES, HttpError,
-};
+use crate::{DEFAULT_MAX_HEADER_NAME_BYTES, DEFAULT_MAX_HEADER_VALUE_BYTES, HttpError};
 
 const FORBIDDEN_REQUEST_FIELDS: &[&str] = &[
     "host",
@@ -102,7 +100,8 @@ impl FieldLine {
             return Err(FieldSyntaxError::InvalidValue);
         }
         let lowercase_name: Vec<u8> = name.iter().map(u8::to_ascii_lowercase).collect();
-        let name = String::from_utf8(lowercase_name).map_err(|_error| FieldSyntaxError::InvalidName)?;
+        let name =
+            String::from_utf8(lowercase_name).map_err(|_error| FieldSyntaxError::InvalidName)?;
         Ok(Self {
             name,
             value: value.to_vec(),

@@ -136,11 +136,7 @@ impl HttpClientPolicy {
             max_interim_response_count,
             DEFAULT_MAX_INTERIM_RESPONSE_COUNT,
         )?;
-        validate_limit(
-            "max_chunk_count",
-            max_chunk_count,
-            DEFAULT_MAX_CHUNK_COUNT,
-        )?;
+        validate_limit("max_chunk_count", max_chunk_count, DEFAULT_MAX_CHUNK_COUNT)?;
         validate_limit(
             "max_trailer_field_count",
             max_trailer_field_count,
@@ -309,11 +305,7 @@ impl HttpClientPolicy {
     }
 }
 
-fn validate_limit(
-    limit_name: &'static str,
-    value: usize,
-    maximum: usize,
-) -> Result<(), HttpError> {
+fn validate_limit(limit_name: &'static str, value: usize, maximum: usize) -> Result<(), HttpError> {
     if value == 0 || value > maximum {
         return Err(HttpError::InvalidPolicyLimit {
             limit_name,

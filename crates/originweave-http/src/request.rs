@@ -89,11 +89,7 @@ pub(crate) fn serialize_request(
     Ok(output)
 }
 
-fn append_bounded(
-    output: &mut Vec<u8>,
-    bytes: &[u8],
-    maximum: usize,
-) -> Result<(), HttpError> {
+fn append_bounded(output: &mut Vec<u8>, bytes: &[u8], maximum: usize) -> Result<(), HttpError> {
     let next_length = output.len().checked_add(bytes.len()).unwrap_or(usize::MAX);
     if next_length > maximum {
         return Err(HttpError::RequestTooLarge {

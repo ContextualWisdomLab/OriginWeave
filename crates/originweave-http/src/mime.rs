@@ -314,7 +314,10 @@ fn ascii_lowercase(value: &[u8]) -> Result<String, HttpError> {
     if !value.is_ascii() {
         return Err(HttpError::InvalidMimeType);
     }
-    Ok(value.iter().map(|byte| char::from(byte.to_ascii_lowercase())).collect())
+    Ok(value
+        .iter()
+        .map(|byte| char::from(byte.to_ascii_lowercase()))
+        .collect())
 }
 
 fn mime(type_name: &str, subtype_name: &str) -> Result<MimeType, HttpError> {
@@ -445,8 +448,8 @@ mod tests {
 
     #[test]
     fn supplied_mime_parsing_normalizes_essence_and_parameters() {
-        let parsed = MimeType::parse(b" Text/HTML ; Charset=\"utf-8\"; boundary=abc ")
-            .expect("valid MIME");
+        let parsed =
+            MimeType::parse(b" Text/HTML ; Charset=\"utf-8\"; boundary=abc ").expect("valid MIME");
         assert_eq!(parsed.type_name(), "text");
         assert_eq!(parsed.subtype_name(), "html");
         assert_eq!(parsed.essence(), "text/html");
@@ -482,7 +485,10 @@ mod tests {
             b"text/plain; charset=utf-8; CHARSET=ascii",
             b"text/plain; note=\"a\0b\"",
         ] {
-            assert!(matches!(MimeType::parse(invalid), Err(HttpError::InvalidMimeType)));
+            assert!(matches!(
+                MimeType::parse(invalid),
+                Err(HttpError::InvalidMimeType)
+            ));
         }
     }
 
@@ -523,17 +529,49 @@ mod tests {
     #[test]
     fn signature_table_classifies_active_archival_image_text_and_binary_content() {
         let cases = [
-            (b"%PDF-1.7\n".as_slice(), "application/pdf", ContentRiskClass::ActiveOrScriptable),
-            (b"\x89PNG\r\n\x1a\nrest", "image/png", ContentRiskClass::Passive),
+            (
+                b"%PDF-1.7\n".as_slice(),
+                "application/pdf",
+                ContentRiskClass::ActiveOrScriptable,
+            ),
+            (
+                b"\x89PNG\r\n\x1a\nrest",
+                "image/png",
+                ContentRiskClass::Passive,
+            ),
             (b"\xff\xd8\xffrest", "image/jpeg", ContentRiskClass::Passive),
             (b"GIF89arest", "image/gif", ContentRiskClass::Passive),
-            (b"RIFF\x04\x00\x00\x00WEBPrest", "image/webp", ContentRiskClass::Passive),
-            (b"PK\x03\x04rest", "application/zip", ContentRiskClass::ArchiveOrContainer),
-            (b"\xef\xbb\xbf  <SVG></SVG>", "image/svg+xml", ContentRiskClass::ActiveOrScriptable),
-            (b"\n<?xml version=\"1.0\"?>", "application/xml", ContentRiskClass::ActiveOrScriptable),
-            (b"  <!DOCTYPE HTML><html>", "text/html", ContentRiskClass::ActiveOrScriptable),
+            (
+                b"RIFF\x04\x00\x00\x00WEBPrest",
+                "image/webp",
+                ContentRiskClass::Passive,
+            ),
+            (
+                b"PK\x03\x04rest",
+                "application/zip",
+                ContentRiskClass::ArchiveOrContainer,
+            ),
+            (
+                b"\xef\xbb\xbf  <SVG></SVG>",
+                "image/svg+xml",
+                ContentRiskClass::ActiveOrScriptable,
+            ),
+            (
+                b"\n<?xml version=\"1.0\"?>",
+                "application/xml",
+                ContentRiskClass::ActiveOrScriptable,
+            ),
+            (
+                b"  <!DOCTYPE HTML><html>",
+                "text/html",
+                ContentRiskClass::ActiveOrScriptable,
+            ),
             (b"plain UTF-8 text", "text/plain", ContentRiskClass::Passive),
-            (b"binary\0content", "application/octet-stream", ContentRiskClass::UnknownBinary),
+            (
+                b"binary\0content",
+                "application/octet-stream",
+                ContentRiskClass::UnknownBinary,
+            ),
         ];
         for (content, essence, risk) in cases {
             let observed = observe_mime_type(content, None).expect("classification");
@@ -578,7 +616,10 @@ mod tests {
         let binary = observe_mime_type(b"\0", None).expect("binary observation");
         let supplied_html = MimeType::parse(b"text/html").expect("HTML MIME");
         let supplied_text = MimeType::parse(b"text/plain").expect("text MIME");
-        assert_eq!(classify_mismatch(Some(&supplied_html), &html), MimeMismatch::Match);
+        assert_eq!(
+            classify_mismatch(Some(&supplied_html), &html),
+            MimeMismatch::Match
+        );
         assert_eq!(
             classify_mismatch(Some(&supplied_text), &html),
             MimeMismatch::Mismatch

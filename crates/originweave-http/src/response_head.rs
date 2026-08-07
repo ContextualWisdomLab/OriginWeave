@@ -12,10 +12,7 @@ pub(crate) struct ResponseHead {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum HeadParseResult {
     Incomplete,
-    Complete {
-        head: ResponseHead,
-        consumed: usize,
-    },
+    Complete { head: ResponseHead, consumed: usize },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -50,7 +47,10 @@ pub(crate) fn parse_response_head(
             .ok_or(HttpError::InvalidResponseLineEnding)?;
         let line_end = offset + relative_end;
         let line = &input[offset..line_end];
-        if line.first().is_some_and(|byte| matches!(byte, b' ' | b'\t')) {
+        if line
+            .first()
+            .is_some_and(|byte| matches!(byte, b' ' | b'\t'))
+        {
             return Err(HttpError::ObsoleteFieldFolding);
         }
         let colon = line
@@ -127,10 +127,7 @@ pub(crate) fn parse_final_response_head(
     }
 }
 
-fn scan_header_end(
-    input: &[u8],
-    policy: &HttpClientPolicy,
-) -> Result<Option<usize>, HttpError> {
+fn scan_header_end(input: &[u8], policy: &HttpClientPolicy) -> Result<Option<usize>, HttpError> {
     let mut line_start = 0_usize;
     let mut index = 0_usize;
     while index < input.len() {
@@ -293,8 +290,8 @@ mod tests {
     #[test]
     fn complete_head_preserves_status_fields_and_body_offset() {
         let input = b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nX-Bytes: \tvalue\t \r\n\r\nhello";
-        let parsed = parse_response_head(input, &HttpClientPolicy::strict_defaults())
-            .expect("valid head");
+        let parsed =
+            parse_response_head(input, &HttpClientPolicy::strict_defaults()).expect("valid head");
         let HeadParseResult::Complete { head, consumed } = parsed else {
             panic!("head must be complete");
         };
@@ -418,8 +415,8 @@ mod tests {
     #[test]
     fn informational_responses_are_bounded_and_upgrade_is_rejected() {
         let input = b"HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 103 Early Hints\r\nLink: x\r\n\r\nHTTP/1.1 200 OK\r\n\r\nbody";
-        let result = parse_final_response_head(input, &policy(64, 4, 16, 16, 128, 2))
-            .expect("final head");
+        let result =
+            parse_final_response_head(input, &policy(64, 4, 16, 16, 128, 2)).expect("final head");
         let FinalHeadParseResult::Complete {
             head,
             consumed,

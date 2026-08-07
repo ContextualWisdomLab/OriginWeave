@@ -8,10 +8,7 @@ fn request_targets_preserve_authority_and_encode_non_ascii_bytes() {
     let origin = Origin::parse("https://example.com:8443").expect("origin");
     let target = HttpRequestTarget::parse(origin.clone(), "/한글?q=값").expect("target");
     assert_eq!(target.origin(), &origin);
-    assert_eq!(
-        target.path_and_query(),
-        "/%ED%95%9C%EA%B8%80?q=%EA%B0%92"
-    );
+    assert_eq!(target.path_and_query(), "/%ED%95%9C%EA%B8%80?q=%EA%B0%92");
     assert!(target.query_present());
     assert_eq!(target.path_prefix(), "/%ED%95%9C%EA%B8%80");
     assert!(target.target_hash().starts_with("sha256:"));
@@ -98,8 +95,8 @@ fn request_target_size_is_bounded_after_encoding() {
 #[test]
 fn request_field_names_use_the_complete_token_alphabet() {
     let punctuation = "!#$%&'*+-.^_`|~";
-    let field = RequestField::new(&format!("AZaz09{punctuation}"), b"value")
-        .expect("valid token field");
+    let field =
+        RequestField::new(&format!("AZaz09{punctuation}"), b"value").expect("valid token field");
     assert_eq!(field.name(), "azaz09!#$%&'*+-.^_`|~");
     assert_eq!(field.value_byte_count(), 5);
 }

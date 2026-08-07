@@ -408,9 +408,8 @@ impl fmt::Display for HttpError {
             Self::SwitchingProtocolsUnsupported => {
                 formatter.write_str("HTTP protocol upgrade is outside this authority")
             }
-            Self::TransferEncodingWithContentLength => formatter.write_str(
-                "HTTP response contains both Transfer-Encoding and Content-Length",
-            ),
+            Self::TransferEncodingWithContentLength => formatter
+                .write_str("HTTP response contains both Transfer-Encoding and Content-Length"),
             Self::UnsupportedTransferCoding => {
                 formatter.write_str("HTTP response transfer coding is unsupported")
             }
@@ -427,9 +426,7 @@ impl fmt::Display for HttpError {
                 formatter,
                 "HTTP encoded content has {byte_count} bytes; maximum is {maximum_bytes}"
             ),
-            Self::MalformedChunkedBody => {
-                formatter.write_str("HTTP chunked content is malformed")
-            }
+            Self::MalformedChunkedBody => formatter.write_str("HTTP chunked content is malformed"),
             Self::ChunkLineTooLarge {
                 byte_count,
                 maximum_bytes,
@@ -444,9 +441,7 @@ impl fmt::Display for HttpError {
                 formatter,
                 "HTTP response has {chunk_count} chunks; maximum is {maximum_count}"
             ),
-            Self::InvalidTrailerSection => {
-                formatter.write_str("HTTP trailer section is invalid")
-            }
+            Self::InvalidTrailerSection => formatter.write_str("HTTP trailer section is invalid"),
             Self::ExcessiveTrailerFieldCount {
                 field_count,
                 maximum_count,
@@ -485,18 +480,14 @@ impl fmt::Display for HttpError {
                 formatter,
                 "HTTP content expanded from {encoded_bytes} to {decoded_bytes} bytes; maximum ratio is {maximum_ratio}"
             ),
-            Self::InvalidDigestField => {
-                formatter.write_str("HTTP digest field is invalid")
-            }
+            Self::InvalidDigestField => formatter.write_str("HTTP digest field is invalid"),
             Self::DigestMismatch { algorithm } => {
                 write!(formatter, "HTTP {algorithm} digest does not match content")
             }
             Self::SupportedDigestRequired => {
                 formatter.write_str("HTTP policy requires a supported digest")
             }
-            Self::InvalidMimeType => {
-                formatter.write_str("HTTP Content-Type metadata is invalid")
-            }
+            Self::InvalidMimeType => formatter.write_str("HTTP Content-Type metadata is invalid"),
             Self::InvalidContentDisposition => {
                 formatter.write_str("HTTP Content-Disposition metadata is invalid or unsafe")
             }
@@ -504,11 +495,12 @@ impl fmt::Display for HttpError {
                 formatter.write_str("HTTP redirect metadata is invalid or ambiguous")
             }
             Self::HttpExchangeTimedOut { timeout } => {
-                write!(formatter, "HTTP exchange exceeded total timeout {timeout:?}")
+                write!(
+                    formatter,
+                    "HTTP exchange exceeded total timeout {timeout:?}"
+                )
             }
-            Self::HttpExchangeIoFailed { .. } => {
-                formatter.write_str("HTTP exchange I/O failed")
-            }
+            Self::HttpExchangeIoFailed { .. } => formatter.write_str("HTTP exchange I/O failed"),
             Self::TimeoutRestorationFailed { .. } => {
                 formatter.write_str("HTTP socket timeout restoration failed")
             }

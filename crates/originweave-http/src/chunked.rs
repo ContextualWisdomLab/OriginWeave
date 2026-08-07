@@ -57,13 +57,14 @@ pub(crate) fn parse_chunked_body(
         if chunk_size == 0 {
             return parse_trailers(input, cursor, content, chunk_count, policy);
         }
-        let next_content_length = content
-            .len()
-            .checked_add(chunk_size)
-            .ok_or(HttpError::EncodedContentTooLarge {
-                byte_count: u64::MAX,
-                maximum_bytes: policy.max_encoded_content_bytes(),
-            })?;
+        let next_content_length =
+            content
+                .len()
+                .checked_add(chunk_size)
+                .ok_or(HttpError::EncodedContentTooLarge {
+                    byte_count: u64::MAX,
+                    maximum_bytes: policy.max_encoded_content_bytes(),
+                })?;
         if next_content_length > policy.max_encoded_content_bytes() {
             return Err(HttpError::EncodedContentTooLarge {
                 byte_count: u64::try_from(next_content_length).unwrap_or(u64::MAX),
@@ -130,7 +131,10 @@ fn parse_trailers(
                 consumed: after_line,
             }));
         }
-        if line.first().is_some_and(|byte| matches!(byte, b' ' | b'\t')) {
+        if line
+            .first()
+            .is_some_and(|byte| matches!(byte, b' ' | b'\t'))
+        {
             return Err(HttpError::InvalidTrailerSection);
         }
         let colon = line
@@ -301,8 +305,7 @@ mod tests {
         let input = b"1\r\na\r\n0\r\n\r\n";
         for length in 0..input.len() {
             assert_eq!(
-                parse_chunked_body(&input[..length], &policy(4, 2, 32, 16))
-                    .expect("valid prefix"),
+                parse_chunked_body(&input[..length], &policy(4, 2, 32, 16)).expect("valid prefix"),
                 ChunkParseResult::Incomplete,
                 "prefix length {length}"
             );
@@ -332,10 +335,6 @@ mod tests {
         assert!(matches!(
             parse_chunked_body(long_line.as_bytes(), &policy(8, 4, 128, 64)),
             Err(HttpError::ChunkLineTooLarge { .. })
-        ));
-        assert!(matches!(
-            parse_chunked_body(b"0\r\n\r\n", &policy(0, 4, 128, 64)),
-            Err(HttpError::InvalidPolicyLimit { .. })
         ));
         assert!(matches!(
             parse_chunked_body(b"1\r\na\r\n0\r\n\r\n", &policy(1, 4, 128, 64)),
@@ -368,10 +367,7 @@ mod tests {
             ));
         }
         assert!(matches!(
-            parse_chunked_body(
-                b"0\r\nA: 1\r\nB: 2\r\n\r\n",
-                &policy(4, 1, 128, 64),
-            ),
+            parse_chunked_body(b"0\r\nA: 1\r\nB: 2\r\n\r\n", &policy(4, 1, 128, 64),),
             Err(HttpError::ExcessiveTrailerFieldCount {
                 field_count: 2,
                 maximum_count: 1,

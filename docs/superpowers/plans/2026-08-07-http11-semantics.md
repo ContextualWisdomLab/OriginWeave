@@ -114,7 +114,7 @@ homepage.workspace = true
 
 [dependencies]
 base64 = "=0.22.1"
-flate2 = { version = "=1.1.10", default-features = false, features = ["rust_backend"] }
+flate2 = { version = "=1.1.9", default-features = false, features = ["rust_backend"] }
 originweave-core = { path = "../originweave-core" }
 originweave-tls = { path = "../originweave-tls" }
 sha2 = "=0.10.9"
@@ -772,7 +772,7 @@ State explicitly that:
 
 - [ ] **Step 3: Add APA 7th doctoring**
 
-Record the exact design decisions derived from RFC 9110, RFC 9112, RFC 8941, RFC 9530, RFC 6266, the reviewed WHATWG MIME snapshot, and flate2 1.1.10 primary repository documentation.
+Record the exact design decisions derived from RFC 9110, RFC 9112, RFC 8941, RFC 9530, RFC 6266, the reviewed WHATWG MIME snapshot, and flate2 1.1.9 primary repository documentation.
 
 - [ ] **Step 4: Run the complete verification matrix**
 

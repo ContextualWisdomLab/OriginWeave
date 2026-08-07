@@ -84,9 +84,7 @@ fn validate_digest_values(
     let Some(dictionary) = dictionary else {
         return match requirement {
             IntegrityRequirement::Optional => Ok(IntegrityStatus::Absent),
-            IntegrityRequirement::RequireSupportedDigest => {
-                Err(HttpError::SupportedDigestRequired)
-            }
+            IntegrityRequirement::RequireSupportedDigest => Err(HttpError::SupportedDigestRequired),
         };
     };
     let mut verified = Vec::new();
@@ -104,9 +102,7 @@ fn validate_digest_values(
     if verified.is_empty() {
         return match requirement {
             IntegrityRequirement::Optional => Ok(IntegrityStatus::UnsupportedAlgorithm),
-            IntegrityRequirement::RequireSupportedDigest => {
-                Err(HttpError::SupportedDigestRequired)
-            }
+            IntegrityRequirement::RequireSupportedDigest => Err(HttpError::SupportedDigestRequired),
         };
     }
     Ok(IntegrityStatus::Verified(verified))
@@ -232,10 +228,9 @@ mod tests {
                 IntegrityRequirement::RequireSupportedDigest,
             )
             .expect("valid digests"),
-            IntegrityStatus::Verified(vec![
-                IntegrityAlgorithm::Sha256,
-                IntegrityAlgorithm::Sha512,
-            ])
+            IntegrityStatus::Verified(
+                vec![IntegrityAlgorithm::Sha256, IntegrityAlgorithm::Sha512,]
+            )
         );
     }
 
@@ -340,7 +335,7 @@ mod tests {
         let error = validate_content_digest(
             &fields(&[(
                 "content-digest",
-                b"sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:"
+                b"sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:",
             )]),
             &FieldBlock::default(),
             b"not empty",
@@ -360,7 +355,7 @@ mod tests {
     fn representation_digest_is_validated_only_for_supported_full_context() {
         let digest = fields(&[(
             "repr-digest",
-            b"sha-256=:Y39Vfsc6JaKuw7be30VwWgoMK//ZDxApEd+FUBoaVH8=:"
+            b"sha-256=:Y39Vfsc6JaKuw7be30VwWgoMK//ZDxApEd+FUBoaVH8=:",
         )]);
         assert_eq!(
             validate_representation_digest(

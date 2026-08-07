@@ -140,7 +140,8 @@ pub(crate) fn parse_content_disposition(
     if let Some(filename) = filename.as_deref() {
         validate_safe_filename(filename)?;
     }
-    let extension_mime_relation = extension_mime_relation(filename.as_deref(), observed.mime_type());
+    let extension_mime_relation =
+        extension_mime_relation(filename.as_deref(), observed.mime_type());
     Ok(Some(SafeContentDisposition {
         kind,
         filename,
@@ -169,13 +170,14 @@ pub(crate) fn parse_redirect_metadata(
     {
         return Err(HttpError::InvalidRedirectMetadata);
     }
-    let location_text = std::str::from_utf8(location)
-        .map_err(|_error| HttpError::InvalidRedirectMetadata)?;
+    let location_text =
+        std::str::from_utf8(location).map_err(|_error| HttpError::InvalidRedirectMetadata)?;
     let (target_origin, is_relative) = if location_text.starts_with('/') {
         (None, true)
     } else {
         let origin_text = absolute_location_origin(location_text)?;
-        let origin = Origin::parse(origin_text).map_err(|_error| HttpError::InvalidRedirectMetadata)?;
+        let origin =
+            Origin::parse(origin_text).map_err(|_error| HttpError::InvalidRedirectMetadata)?;
         (Some(origin), false)
     };
     Ok(Some(RedirectMetadata {
@@ -222,12 +224,18 @@ fn parse_filename_value(value: &[u8]) -> Result<String, HttpError> {
 }
 
 fn parse_extended_filename(value: &[u8]) -> Result<String, HttpError> {
-    let value = std::str::from_utf8(value)
-        .map_err(|_error| HttpError::InvalidContentDisposition)?;
+    let value =
+        std::str::from_utf8(value).map_err(|_error| HttpError::InvalidContentDisposition)?;
     let mut sections = value.splitn(3, '\'');
-    let charset = sections.next().ok_or(HttpError::InvalidContentDisposition)?;
-    let _language = sections.next().ok_or(HttpError::InvalidContentDisposition)?;
-    let encoded = sections.next().ok_or(HttpError::InvalidContentDisposition)?;
+    let charset = sections
+        .next()
+        .ok_or(HttpError::InvalidContentDisposition)?;
+    let _language = sections
+        .next()
+        .ok_or(HttpError::InvalidContentDisposition)?;
+    let encoded = sections
+        .next()
+        .ok_or(HttpError::InvalidContentDisposition)?;
     if !charset.eq_ignore_ascii_case("utf-8") {
         return Err(HttpError::InvalidContentDisposition);
     }
@@ -263,7 +271,7 @@ fn validate_safe_filename(filename: &str) -> Result<(), HttpError> {
     if filename.is_empty()
         || filename.len() > MAX_SAFE_FILENAME_BYTES
         || filename.trim() != filename
-        || filename.ends_with(['.', ' '])
+        || (filename.ends_with('.') || filename.ends_with(' '))
         || matches!(filename, "." | "..")
         || filename.chars().any(is_forbidden_filename_character)
     {
@@ -304,14 +312,14 @@ fn is_windows_device_name(base: &str) -> bool {
             && matches!(base.as_bytes()[3], b'1'..=b'9'))
 }
 
-fn extension_mime_relation(
-    filename: Option<&str>,
-    observed: &MimeType,
-) -> ExtensionMimeRelation {
+fn extension_mime_relation(filename: Option<&str>, observed: &MimeType) -> ExtensionMimeRelation {
     let Some(filename) = filename else {
         return ExtensionMimeRelation::Absent;
     };
-    let Some(extension) = filename.rsplit_once('.').map(|(_base, extension)| extension) else {
+    let Some(extension) = filename
+        .rsplit_once('.')
+        .map(|(_base, extension)| extension)
+    else {
         return ExtensionMimeRelation::Absent;
     };
     if extension.is_empty() {
@@ -368,7 +376,7 @@ fn absolute_location_origin(location: &str) -> Result<&str, HttpError> {
         .ok_or(HttpError::InvalidRedirectMetadata)?;
     let authority_start = scheme_end + 3;
     let authority_end = location[authority_start..]
-        .find(['/', '?'])
+        .find(|character| matches!(character, '/' | '?'))
         .map_or(location.len(), |offset| authority_start + offset);
     if authority_end == authority_start {
         return Err(HttpError::InvalidRedirectMetadata);
@@ -461,10 +469,7 @@ mod tests {
         );
 
         let attachment = parse_content_disposition(
-            &fields(&[(
-                "content-disposition",
-                b"attachment; filename=report.pdf"
-            )]),
+            &fields(&[("content-disposition", b"attachment; filename=report.pdf")]),
             &observed(b"%PDF-1.7"),
         )
         .expect("attachment metadata")
@@ -482,7 +487,7 @@ mod tests {
         let disposition = parse_content_disposition(
             &fields(&[(
                 "content-disposition",
-                b"attachment; filename=fallback.txt; filename*=UTF-8''%ED%95%9C%EA%B8%80.txt"
+                b"attachment; filename=fallback.txt; filename*=UTF-8''%ED%95%9C%EA%B8%80.txt",
             )]),
             &observed(b"plain text"),
         )
@@ -500,7 +505,7 @@ mod tests {
         let disposition = parse_content_disposition(
             &fields(&[(
                 "content-disposition",
-                b"attachment; filename=\"quarter\\\"one.txt\""
+                b"attachment; filename=\"quarter\\\"one.txt\"",
             )]),
             &observed(b"plain"),
         )
@@ -557,9 +562,18 @@ mod tests {
     #[test]
     fn extension_relations_distinguish_mismatch_unknown_and_absence() {
         for (value, expected) in [
-            (b"attachment; filename=page.pdf".as_slice(), ExtensionMimeRelation::Mismatch),
-            (b"attachment; filename=data.custom", ExtensionMimeRelation::Unknown),
-            (b"attachment; filename=README", ExtensionMimeRelation::Absent),
+            (
+                b"attachment; filename=page.pdf".as_slice(),
+                ExtensionMimeRelation::Mismatch,
+            ),
+            (
+                b"attachment; filename=data.custom",
+                ExtensionMimeRelation::Unknown,
+            ),
+            (
+                b"attachment; filename=README",
+                ExtensionMimeRelation::Absent,
+            ),
         ] {
             let disposition = parse_content_disposition(
                 &fields(&[("content-disposition", value)]),
@@ -577,7 +591,7 @@ mod tests {
             302,
             &fields(&[(
                 "location",
-                b"https://example.net:8443/new/path?token=secret"
+                b"https://example.net:8443/new/path?token=secret",
             )]),
         )
         .expect("absolute redirect")
@@ -591,12 +605,10 @@ mod tests {
         assert_eq!(absolute.location_hash().len(), 71);
         assert!(!format!("{absolute:?}").contains("secret"));
 
-        let relative = parse_redirect_metadata(
-            307,
-            &fields(&[("location", b"/next/path?opaque=value")]),
-        )
-        .expect("relative redirect")
-        .expect("present");
+        let relative =
+            parse_redirect_metadata(307, &fields(&[("location", b"/next/path?opaque=value")]))
+                .expect("relative redirect")
+                .expect("present");
         assert!(relative.is_relative());
         assert_eq!(relative.target_origin(), None);
     }
