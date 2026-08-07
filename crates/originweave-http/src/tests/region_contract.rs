@@ -195,6 +195,21 @@ fn digest_dictionary_accepts_http_ows_around_member_delimiters() {
 }
 
 #[test]
+fn digest_parameters_cover_star_colon_slash_and_both_boolean_tokens() {
+    let value = b"sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:;star=*wild;colon=Abc:def;slash=Abc/def;false=?0;true=?1";
+    assert_eq!(
+        validate_content_digest(
+            &fields(&[("content-digest", value)]),
+            &FieldBlock::default(),
+            b"",
+            IntegrityRequirement::RequireSupportedDigest,
+        )
+        .expect("RFC 8941 token and boolean parameter variants remain interoperable"),
+        IntegrityStatus::Verified(vec![crate::IntegrityAlgorithm::Sha256])
+    );
+}
+
+#[test]
 fn rfc9530_remains_bound_to_rfc8941_parameter_item_types() {
     for value in [
         b"sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:;date=@42".as_slice(),
