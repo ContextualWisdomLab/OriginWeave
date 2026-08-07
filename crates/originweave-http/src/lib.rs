@@ -22,6 +22,9 @@ mod field;
 mod framing;
 mod integrity;
 mod mime;
+#[cfg(test)]
+#[path = "tests/mime_contract.rs"]
+mod mime_contract;
 mod policy;
 #[cfg(test)]
 #[path = "tests/reachability_contract.rs"]
