@@ -29,7 +29,10 @@ fn observed_text() -> crate::ObservedMimeClassification {
     observe_mime_type(b"plain text", None).expect("observed text MIME")
 }
 
-fn response_policy(max_status_line_bytes: usize, max_header_section_bytes: usize) -> HttpClientPolicy {
+fn response_policy(
+    max_status_line_bytes: usize,
+    max_header_section_bytes: usize,
+) -> HttpClientPolicy {
     HttpClientPolicy::new(
         Duration::from_secs(1),
         1_024,
@@ -91,10 +94,7 @@ fn disposition_rejects_quoted_and_extended_filename_edge_classes() {
     ));
 
     let quoted_semicolon = parse_content_disposition(
-        &fields(&[(
-            "content-disposition",
-            b"attachment; filename=\"a;b.txt\"",
-        )]),
+        &fields(&[("content-disposition", b"attachment; filename=\"a;b.txt\"")]),
         &observed,
     )
     .expect("quoted semicolon is valid")
@@ -162,10 +162,7 @@ fn digest_dictionary_rejects_short_value_and_digit_started_key() {
 #[test]
 fn response_header_scanner_enforces_crossing_budget_and_non_status_tail() {
     assert!(matches!(
-        parse_response_head(
-            b"HTTP/1.1 200 OK\r\n\r\n",
-            &response_policy(64, 16),
-        ),
+        parse_response_head(b"HTTP/1.1 200 OK\r\n\r\n", &response_policy(64, 16),),
         Err(HttpError::HeaderSectionTooLarge {
             byte_count: 17,
             maximum_bytes: 16,
@@ -173,11 +170,8 @@ fn response_header_scanner_enforces_crossing_budget_and_non_status_tail() {
     ));
 
     assert_eq!(
-        parse_response_head(
-            b"HTTP/1.1 200 OK\r\nX",
-            &response_policy(15, 64),
-        )
-        .expect("incomplete field tail"),
+        parse_response_head(b"HTTP/1.1 200 OK\r\nX", &response_policy(15, 64),)
+            .expect("incomplete field tail"),
         HeadParseResult::Incomplete
     );
 }
@@ -193,8 +187,7 @@ fn chunk_line_limit_is_enforced_at_exact_unterminated_boundary() {
         }) if byte_count == MAX_CHUNK_LINE_BYTES + 1
     ));
     assert_eq!(
-        parse_chunked_body(b"", &HttpClientPolicy::strict_defaults())
-            .expect("empty chunk prefix"),
+        parse_chunked_body(b"", &HttpClientPolicy::strict_defaults()).expect("empty chunk prefix"),
         ChunkParseResult::Incomplete
     );
 }
