@@ -303,6 +303,27 @@ mod tests {
     }
 
     #[test]
+    fn status_line_requires_separator_before_optional_reason_phrase() {
+        let parsed = parse_response_head(
+            b"HTTP/1.1 200 \r\n\r\n",
+            &HttpClientPolicy::strict_defaults(),
+        )
+        .expect("empty reason phrase with mandatory separator is valid");
+        let HeadParseResult::Complete { head, .. } = parsed else {
+            panic!("head must be complete");
+        };
+        assert_eq!(head.status_code, 200);
+
+        assert!(matches!(
+            parse_response_head(
+                b"HTTP/1.1 200\r\n\r\n",
+                &HttpClientPolicy::strict_defaults(),
+            ),
+            Err(HttpError::InvalidResponseStatusLine)
+        ));
+    }
+
+    #[test]
     fn bounded_prefixes_remain_incomplete_until_the_empty_line() {
         for prefix in [b"".as_slice(), b"HTTP/1.1 200", b"HTTP/1.1 200 OK\r"] {
             assert_eq!(
@@ -321,7 +342,7 @@ mod tests {
             (b"HTTP/1.1 99 OK\r\n\r\n", false),
             (b"HTTP/1.1 600 OK\r\n\r\n", false),
             (b"HTTP/1.1 2A0 OK\r\n\r\n", false),
-            (b"HTTP/1.1 200 \r\n\r\n", false),
+            (b"HTTP/1.1 200\r\n\r\n", false),
             (b"HTTP/1.1 200 OK\0\r\n\r\n", false),
         ];
         for (input, version_error) in cases {
