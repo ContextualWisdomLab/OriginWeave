@@ -5,6 +5,7 @@
 //! applies strict request and response contracts, and exposes content only
 //! after every configured resource and evidence check succeeds.
 
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
