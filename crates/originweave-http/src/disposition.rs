@@ -235,15 +235,11 @@ fn parse_filename_value(value: &[u8]) -> Result<String, HttpError> {
 fn parse_extended_filename(value: &[u8]) -> Result<String, HttpError> {
     let value =
         std::str::from_utf8(value).map_err(|_error| HttpError::InvalidContentDisposition)?;
-    let mut sections = value.splitn(3, '\'');
-    let charset = sections
-        .next()
+    let (charset, remainder) = value
+        .split_once('\'')
         .ok_or(HttpError::InvalidContentDisposition)?;
-    let _language = sections
-        .next()
-        .ok_or(HttpError::InvalidContentDisposition)?;
-    let encoded = sections
-        .next()
+    let (_language, encoded) = remainder
+        .split_once('\'')
         .ok_or(HttpError::InvalidContentDisposition)?;
     if !charset.eq_ignore_ascii_case("utf-8") {
         return Err(HttpError::InvalidContentDisposition);
@@ -282,7 +278,6 @@ fn validate_safe_filename(filename: &str) -> Result<(), HttpError> {
         || filename.trim() != filename
         // A trailing ASCII space is already rejected by the trim equality above.
         || filename.ends_with('.')
-        || matches!(filename, "." | "..")
         || filename.chars().any(is_forbidden_filename_character)
     {
         return Err(HttpError::InvalidContentDisposition);
