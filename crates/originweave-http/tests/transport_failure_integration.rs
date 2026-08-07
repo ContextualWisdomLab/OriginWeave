@@ -261,7 +261,8 @@ fn stalled_content_length_body_expires_the_total_exchange_deadline() {
 
 #[test]
 fn stalled_chunked_body_expires_the_total_exchange_deadline() {
-    let response = b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n5\r\nhe";
+    let response =
+        b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n5\r\nhe";
     let (result, server) = execute(
         ServerBehavior::WriteThenStall(response, Duration::from_millis(300)),
         policy_with_exchange_timeout(EXCHANGE_TIMEOUT),
