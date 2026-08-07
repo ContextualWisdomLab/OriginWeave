@@ -224,6 +224,7 @@ pub(crate) const fn is_field_value_byte(byte: u8) -> bool {
 }
 
 #[cfg(test)]
+#[cfg_attr(coverage_nightly, coverage(off))]
 mod tests {
     #![allow(clippy::expect_used)]
 
