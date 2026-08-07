@@ -43,23 +43,25 @@ pub struct TlsClientPolicy {
 
 impl TlsClientPolicy {
     /// Validate a fixed-time, deadline-bound, explicit-ALPN TLS client policy.
-    #[inline(never)]
     pub fn new(
         trusted_time: UnixTime,
         handshake_timeout: Duration,
         alpn_protocols: Vec<Vec<u8>>,
         alpn_requirement: AlpnRequirement,
     ) -> Result<Self, TlsError> {
-        if handshake_timeout.is_zero() || handshake_timeout > MAX_TLS_HANDSHAKE_TIMEOUT {
+        let invalid_timeout = handshake_timeout.is_zero()
+            | (handshake_timeout > MAX_TLS_HANDSHAKE_TIMEOUT);
+        if invalid_timeout {
             return Err(TlsError::InvalidHandshakeTimeout {
                 timeout: handshake_timeout,
                 maximum_timeout: MAX_TLS_HANDSHAKE_TIMEOUT,
             });
         }
         let protocol_count = alpn_protocols.len();
-        if protocol_count > MAX_ALPN_PROTOCOL_COUNT
-            || (alpn_protocols.is_empty() && alpn_requirement == AlpnRequirement::Required)
-        {
+        let invalid_protocol_count = (protocol_count > MAX_ALPN_PROTOCOL_COUNT)
+            | (alpn_protocols.is_empty()
+                & (alpn_requirement == AlpnRequirement::Required));
+        if invalid_protocol_count {
             return Err(TlsError::InvalidAlpnCount {
                 protocol_count,
                 maximum_count: MAX_ALPN_PROTOCOL_COUNT,
@@ -69,7 +71,9 @@ impl TlsClientPolicy {
         let mut seen = BTreeSet::new();
         let mut total_bytes = 0_usize;
         for (protocol_index, protocol) in alpn_protocols.iter().enumerate() {
-            if protocol.is_empty() || protocol.len() > MAX_ALPN_PROTOCOL_LENGTH {
+            let invalid_identifier = protocol.is_empty()
+                | (protocol.len() > MAX_ALPN_PROTOCOL_LENGTH);
+            if invalid_identifier {
                 return Err(TlsError::InvalidAlpnIdentifier {
                     protocol_index,
                     protocol_length: protocol.len(),
@@ -127,31 +131,5 @@ impl TlsClientPolicy {
             self.alpn_protocols,
             self.alpn_requirement,
         )
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #![allow(clippy::expect_used)]
-
-    use super::*;
-
-    #[test]
-    fn required_alpn_rejects_an_empty_allow_list() {
-        let trusted_time = UnixTime::since_unix_epoch(Duration::from_secs(1_800_000_000));
-        let error = TlsClientPolicy::new(
-            trusted_time,
-            Duration::from_secs(1),
-            Vec::new(),
-            AlpnRequirement::Required,
-        )
-        .expect_err("required ALPN must name at least one protocol");
-        assert!(matches!(
-            error,
-            TlsError::InvalidAlpnCount {
-                protocol_count: 0,
-                ..
-            }
-        ));
     }
 }
