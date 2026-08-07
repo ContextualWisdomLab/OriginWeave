@@ -191,6 +191,7 @@ pub(crate) fn no_sniff_status(fields: &FieldBlock) -> Result<NoSniffStatus, Http
 }
 
 #[cfg(test)]
+#[cfg_attr(coverage_nightly, coverage(off))]
 pub(crate) fn observe_mime_type(
     content: &[u8],
     supplied: Option<&MimeType>,
