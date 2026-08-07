@@ -15,6 +15,8 @@ mod request;
 mod target;
 
 #[cfg(test)]
+mod chunked;
+#[cfg(test)]
 mod framing;
 #[cfg(test)]
 mod response_head;
