@@ -245,6 +245,7 @@ fn response_field_error(error: FieldSyntaxError) -> HttpError {
 }
 
 #[cfg(test)]
+#[cfg_attr(coverage_nightly, coverage(off))]
 mod tests {
     #![allow(clippy::expect_used)]
 
