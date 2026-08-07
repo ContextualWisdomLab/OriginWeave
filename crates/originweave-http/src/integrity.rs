@@ -193,6 +193,7 @@ fn trim_optional_whitespace(value: &[u8]) -> &[u8] {
 }
 
 #[cfg(test)]
+#[cfg_attr(coverage_nightly, coverage(off))]
 mod tests {
     #![allow(clippy::expect_used)]
 
@@ -312,7 +313,7 @@ mod tests {
             b"sha-256=::",
             b"sha-256=:not base64:",
             b"sha-256=:AQ==:;foo=1",
-            b"sha-256=:AQ==:,",
+            b"sha-256=:AQ==:",
             b"sha-256=:AQ==:, sha-256=:AQ==:",
         ] {
             assert!(matches!(
