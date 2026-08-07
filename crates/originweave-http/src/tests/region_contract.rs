@@ -163,6 +163,15 @@ fn structured_field_extension_keys_cover_the_complete_allowed_punctuation() {
         .expect("syntactically valid extension keys"),
         IntegrityStatus::UnsupportedAlgorithm
     );
+    assert!(matches!(
+        validate_content_digest(
+            &fields(&[("content-digest", b"a!=:AQ==:")]),
+            &FieldBlock::default(),
+            b"payload",
+            IntegrityRequirement::Optional,
+        ),
+        Err(HttpError::InvalidDigestField)
+    ));
 }
 
 #[test]
@@ -196,12 +205,16 @@ fn malformed_digest_trailers_fail_through_the_public_validation_path() {
 }
 
 #[test]
-fn final_response_head_reports_incomplete_input_before_network_reads() {
+fn final_response_head_reports_incomplete_and_malformed_prefixes() {
     assert_eq!(
         parse_final_response_head(b"", &HttpClientPolicy::strict_defaults())
             .expect("empty prefix is incomplete"),
         FinalHeadParseResult::Incomplete
     );
+    assert!(matches!(
+        parse_final_response_head(b"\r\n\r\n", &HttpClientPolicy::strict_defaults()),
+        Err(HttpError::InvalidResponseStatusLine)
+    ));
 }
 
 #[test]
