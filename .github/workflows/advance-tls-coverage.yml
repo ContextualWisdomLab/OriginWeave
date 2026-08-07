@@ -30,7 +30,7 @@ jobs:
           toolchain: 1.97.1
           components: clippy,rustfmt
 
-      - name: Stabilize staged source markers
+      - name: Stabilize staged source transformations
         shell: bash
         run: |
           python3 - <<'PY'
@@ -39,37 +39,79 @@ jobs:
           path = Path("scripts/ci/advance_tls_coverage.py")
           text = path.read_text(encoding="utf-8")
 
+          function_start = text.index("def update_origin_contract() -> None:")
+          function_end = text.index("\ndef replace_identity_module() -> None:")
+          compact_origin_function = '''def update_origin_contract() -> None:
+              """Expose validated scheme and host views without enlarging Origin."""
+
+              path = Path("crates/originweave-core/src/lib.rs")
+              text = path.read_text(encoding="utf-8")
+              text = replace_once(
+                  text,
+                  """    /// Return the normalized origin string.
+              #[must_use]
+              pub fn as_str(&self) -> &str {
+                  &self.canonical
+              }
+          """,
+                  """    /// Return the normalized origin string.
+              #[must_use]
+              pub fn as_str(&self) -> &str {
+                  &self.canonical
+              }
+
+              /// Return the validated lowercase origin scheme.
+              #[must_use]
+              pub fn scheme(&self) -> &str {
+                  if self.canonical.starts_with("https://") {
+                      "https"
+                  } else {
+                      "http"
+                  }
+              }
+
+              /// Return the validated canonical host without IPv6 brackets.
+              #[must_use]
+              pub fn host(&self) -> &str {
+                  let authority = &self.canonical[self.scheme().len() + 3..];
+                  let bracketed = authority.starts_with('[');
+                  let host_start = usize::from(bracketed);
+                  let host_end = if bracketed {
+                      authority.find(']').unwrap_or(authority.len())
+                  } else {
+                      authority.find(':').unwrap_or(authority.len())
+                  };
+                  &authority[host_start..host_end]
+              }
+          """,
+                  "Origin accessors",
+              )
+              path.write_text(text, encoding="utf-8")
+
+              path = Path("crates/originweave-core/tests/contracts.rs")
+              text = path.read_text(encoding="utf-8")
+              text = replace_once(
+                  text,
+                  """    assert_eq!(secure_ipv6.as_str(), "https://[2001:db8::1]");
+              assert_eq!(secure.to_string(), secure.as_str());
+          """,
+                  """    assert_eq!(secure_ipv6.as_str(), "https://[2001:db8::1]");
+              assert_eq!(secure.scheme(), "https");
+              assert_eq!(secure.host(), "example.com");
+              assert_eq!(localhost.scheme(), "http");
+              assert_eq!(localhost.host(), "localhost");
+              assert_eq!(ipv4.host(), "127.0.0.1");
+              assert_eq!(ipv6.host(), "::1");
+              assert_eq!(secure_ipv6.host(), "2001:db8::1");
+              assert_eq!(secure.to_string(), secure.as_str());
+          """,
+                  "Origin accessor assertions",
+              )
+              path.write_text(text, encoding="utf-8")
+          '''
+          text = text[:function_start] + compact_origin_function + text[function_end:]
+
           replacements = [
-              (
-                  """        '''    pub fn as_str(&self) -> &str {
-                  &self.canonical
-              }
-          ''',""",
-                  """        '''    /// Return the normalized origin string.
-              #[must_use]
-              pub fn as_str(&self) -> &str {
-                  &self.canonical
-              }
-          ''',""",
-                  "staged accessor marker",
-              ),
-              (
-                  """        '''    pub fn as_str(&self) -> &str {
-                  &self.canonical
-              }
-
-              /// Return the validated lowercase origin scheme.
-          """,
-                  """        '''    /// Return the normalized origin string.
-              #[must_use]
-              pub fn as_str(&self) -> &str {
-                  &self.canonical
-              }
-
-              /// Return the validated lowercase origin scheme.
-          """,
-                  "staged accessor output",
-              ),
               (
                   """    text = replace_once(
                   text,
