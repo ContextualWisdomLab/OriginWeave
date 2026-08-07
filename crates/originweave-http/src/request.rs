@@ -166,11 +166,9 @@ mod tests {
 
     #[test]
     fn request_serialization_rejects_every_narrower_per_exchange_limit() {
-        let target = HttpRequestTarget::parse(
-            Origin::parse("https://example.com").expect("origin"),
-            "/",
-        )
-        .expect("target");
+        let target =
+            HttpRequestTarget::parse(Origin::parse("https://example.com").expect("origin"), "/")
+                .expect("target");
         let first = RequestField::new("x-a", b"a").expect("first field");
         let second = RequestField::new("x-b", b"b").expect("second field");
         assert!(matches!(
