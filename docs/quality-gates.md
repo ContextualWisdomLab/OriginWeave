@@ -7,6 +7,7 @@ A PR is mergeable only when all apply:
 - one coherent scope and current architecture alignment;
 - realistic failing test observed before implementation;
 - complete focused and full verification on the exact head;
+- required PR checks explicitly check out the pull request head SHA; GitHub synthetic merge-ref evidence is supplemental and cannot substitute for exact-head evidence;
 - production function, line, region, and branch coverage each at 100%;
 - all public Rust APIs documented and rustdoc warnings denied;
 - format, check, test, Clippy, and documentation jobs pass;
@@ -28,6 +29,42 @@ A policy, evidence, or resource change additionally requires:
 - simultaneous RAM, VRAM, frame, batch, model-residency, and admission-pressure tests;
 - proof that crossing a hard memory limit reduces the active consumer and rejects new work.
 
+## Destination and direct-transport gates
+
+A destination or network change additionally requires:
+
+- reviewed IANA and cloud-platform endpoint classification fixtures;
+- IPv4-mapped IPv6 canonicalization and special-purpose bypass tests;
+- non-empty bounded origin-bound DNS snapshots;
+- exact connection-address pinning and DNS answer expansion rejection;
+- redirect origin, target-bound resolution, HTTPS downgrade, complete-target cycle, and hop-budget tests;
+- an explicit canonical `SocketAddr` with no hostname reconnect or ambient proxy path;
+- port, timeout, and attempt-count boundary tests;
+- a real loopback TCP connection whose operating-system peer exactly matches the requested IP and port;
+- deterministic timeout, refusal, retry, peer-inspection failure, and peer-mismatch tests;
+- a compile-fail proof that consumed connection authority cannot be replayed.
+
+## TLS service-identity gates
+
+A TLS change additionally requires:
+
+- one existing verified direct TCP stream; no DNS, reconnect, or proxy inheritance;
+- exact equality between TLS origin and transport-authority origin;
+- explicit immutable roots and fixed trusted verification time;
+- TLS 1.2 and TLS 1.3 only, with obsolete versions absent from production configuration;
+- disabled resumption, 0-RTT, secret extraction, key logging, client certificates, certificate compression, and dangerous custom verifier hooks unless a later ADR explicitly changes the boundary;
+- bounded handshake deadline, ALPN inputs, trust roots, and server-presented certificate evidence;
+- operating-system peer revalidation before, during, and after the handshake;
+- real loopback rustls client/server integration over `DirectTcpConnection`;
+- trusted DNS SAN success and proof that Common Name never replaces SAN;
+- wrong-name, untrusted-root, expired, and not-yet-valid rejection;
+- exact IPv4 and IPv6 SAN success;
+- TLS 1.2 and TLS 1.3 negotiation tests;
+- explicit required-ALPN rejection and optional-ALPN absence evidence;
+- credential-free protocol, cipher, ALPN, certificate, SPKI, trust-bundle, validity, revocation-configuration, and timing evidence;
+- documentation that server-presented certificate hashes are not mislabeled as a reconstructed validation path;
+- no revocation-validation claim while the evidence status is `NotConfigured`.
+
 ## Browser vertical-slice gates
 
 A browser or scraping feature additionally requires:
@@ -39,7 +76,7 @@ A browser or scraping feature additionally requires:
 - secret non-disclosure in prompts, traces, logs, and provenance;
 - Chromium crash/restart and task-checkpoint recovery;
 - bounded request, response, snapshot, download, and artifact sizes;
-- DNS-resolution, rebinding, redirect, proxy, private-address, link-local, metadata-endpoint, and partial-connection tests;
+- DNS-resolution, rebinding, redirect, TCP-peer, TLS-identity, proxy, private-address, link-local, metadata-endpoint, and partial-connection tests;
 - MIME and declared-versus-observed content validation before persistence;
 - keyboard and screen-reader-compatible approval and evidence UI;
 - repeatable real-site or controlled-browser task benchmarks.
@@ -49,6 +86,7 @@ A browser or scraping feature additionally requires:
 Report distributions, not isolated best runs:
 
 - input and action latency;
+- DNS, TCP connection, TLS handshake, HTTP header, body, and total elapsed time;
 - compositor frame time and dropped frames;
 - process and task peak RSS;
 - JavaScript heap and semantic snapshot bytes;

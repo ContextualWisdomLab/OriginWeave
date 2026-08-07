@@ -6,6 +6,7 @@ members = [
     "crates/originweave-evidence",
     "crates/originweave-destination",
     "crates/originweave-network",
+    "crates/originweave-tls",
 ]
 resolver = "3"
 

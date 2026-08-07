@@ -13,5 +13,8 @@
 - [Resolved-destination policy implementation plan](superpowers/plans/2026-08-06-resolved-destination-policy.md)
 - [Direct socket binding design](superpowers/specs/2026-08-06-direct-socket-binding-design.md)
 - [Direct socket binding implementation plan](superpowers/plans/2026-08-06-direct-socket-binding.md)
+- [TLS service-identity design](superpowers/specs/2026-08-06-tls-server-identity-design.md)
+- [TLS service-identity implementation plan](superpowers/plans/2026-08-06-tls-server-identity.md)
 - [ADR 0004: Logical origin and resolved destination safety](adr/0004-resolved-destination-policy.md)
 - [ADR 0005: Exact direct TCP peer binding](adr/0005-direct-socket-binding.md)
+- [ADR 0006: TLS service identity over the verified peer](adr/0006-tls-server-identity.md)

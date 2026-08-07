@@ -2,20 +2,21 @@
 
 **Browse. Act. Prove.**
 
-OriginWeave is a Chromium-compatible, Rust-first control plane for governed AI agents on the web. It is designed to let an agent observe, extract, and act without turning untrusted page content into authority, exposing secrets to a model, connecting to an unapproved network destination, or losing the evidence required to explain what happened.
+OriginWeave is a Chromium-compatible, Rust-first control plane for governed AI agents on the web. It is designed to let an agent observe, extract, and act without turning untrusted page content into authority, exposing secrets to a model, connecting to an unapproved network destination, accepting an unauthenticated web service, or losing the evidence required to explain what happened.
 
-> Project status: pre-alpha. The current repository contains independently reusable safety, resolved-destination, and direct TCP peer-binding kernels. Chromium, WebDriver BiDi, CDP, MCP, TLS, HTTP, proxy, WARC, and persistent provenance adapters are planned but not yet shipped.
+> Project status: pre-alpha. The current repository contains independently reusable safety, resolved-destination, direct TCP peer-binding, and authenticated TLS service-identity kernels. Chromium, WebDriver BiDi, CDP, MCP, HTTP, proxy, WARC, and persistent provenance adapters are planned but not yet shipped.
 
 ## Why OriginWeave
 
-Existing browser automation commonly exposes raw selectors, unrestricted script evaluation, ambient cookies, implicit resolver authority, and screenshots with weak provenance. OriginWeave instead establishes six product contracts:
+Existing browser automation commonly exposes raw selectors, unrestricted script evaluation, ambient cookies, implicit resolver authority, host-dependent TLS assumptions, and screenshots with weak provenance. OriginWeave instead establishes seven product contracts:
 
 1. **Compatibility** — preserve Chromium web and Manifest V3 extension compatibility rather than rewriting Blink or V8.
 2. **Governance** — evaluate typed actions against session mode, purpose, capability, browser-equivalent origin, robots policy, secret-delivery evidence, and approval bound to the complete action intent.
 3. **Destination safety** — classify resolved addresses, bind a non-empty and bounded approved address set to each origin, preserve `localhost` and literal-IP host semantics, reject DNS-rebinding through set expansion, and reauthorize every redirect target.
 4. **Transport proof** — consume a single-use direct connection plan, submit one exact canonical socket address to the operating system, and verify the observed TCP peer before exposing the stream.
-5. **Resource control** — protect interactive rendering before agent inference and background collection with cumulative RAM, VRAM, admission, model-offload, batch, and frame-pressure mitigations.
-6. **Evidence** — retain bounded, universally value-redacted network metadata and verifiable provenance for extracted values and state-changing actions.
+5. **TLS service identity** — authenticate the canonical HTTPS DNS or IP identity over that same verified stream with explicit trust roots, fixed verification time, bounded protocol policy, and credential-free evidence.
+6. **Resource control** — protect interactive rendering before agent inference and background collection with cumulative RAM, VRAM, admission, model-offload, batch, and frame-pressure mitigations.
+7. **Evidence** — retain bounded, universally value-redacted network metadata and verifiable provenance for extracted values and state-changing actions.
 
 ## Architecture
 
@@ -24,9 +25,9 @@ User experience and enterprise administration
                     |
 Chromium compatibility kernel: Blink, V8, Skia, Viz, Dawn, MV3
                     |
-Rust control plane: policy, destination, network, observation, action, resource, evidence
+Rust control plane: policy, destination, network, TLS, observation, action, resource, evidence
                     |
-Adapters: TLS, HTTP, proxy/PAC, WebDriver BiDi, CDP, WebMCP, MCP, WARC, PROV-O
+Adapters: HTTP, proxy/PAC, WebDriver BiDi, CDP, WebMCP, MCP, WARC, PROV-O
 ```
 
 The repository is organized as independently consumable Rust crates:
@@ -35,6 +36,7 @@ The repository is organized as independently consumable Rust crates:
 - `originweave-policy`: deterministic fail-closed action evaluation.
 - `originweave-destination`: address classification, explicit destination policy, origin-bound DNS snapshots, connection pinning, rebinding detection, and redirect reauthorization.
 - `originweave-network`: direct-only, single-use TCP connection plans that bind an approved canonical address to the exact operating-system peer and emit credential-free evidence.
+- `originweave-tls`: single-use WebPKI handshakes over an existing verified TCP stream, with RFC 9525 DNS/IP identity, explicit roots and time, TLS 1.2/1.3, bounded ALPN and certificate evidence, and no reconnect or verifier bypass.
 - `originweave-resource`: task-level RAM, VRAM, thread, and frame-time budgets with cumulative mitigation plans.
 - `originweave-evidence`: universally value-redacted network evidence and source-bound provenance records.
 
@@ -56,7 +58,11 @@ The origin type rejects shortened, integer, hexadecimal, and legacy octal-lookin
 
 The direct network kernel then accepts one explicit canonical `SocketAddr`, rejects port zero and unbounded timeout or retry requests, consumes a non-cloneable plan, calls the standard-library single-address timeout API, and checks the stream's reported peer. It releases the stream only when the requested and observed IP and port match exactly. This proves the exact operating-system peer without resolving a hostname again or inheriting proxy configuration.
 
-Safe Chromium navigation still requires adapters that route the browser's real socket through these contracts, validate TLS server identity, define proxy and PAC authority, apply HTTP connection and response budgets, validate downloads and observed MIME, and record complete transport evidence. A syntactically valid origin is never treated as an SSRF decision, and TCP peer equality is never presented as TLS identity.
+The TLS kernel consumes that exact stream rather than reconnecting. It requires the TLS origin to equal the transport-authority origin, derives DNS or literal-IP reference identity only from the canonical HTTPS origin, validates WebPKI with an explicit immutable root bundle and fixed trusted time, permits only TLS 1.2 and TLS 1.3, and makes ALPN absence an explicit policy result. It disables resumption, 0-RTT, secret extraction, key logging, client certificates, certificate compression, and dangerous custom verification. The peer is rechecked before, during, and after the deadline-bound handshake. DNS identity never falls back to Common Name, and a literal IP requires an exact IP subjectAltName.
+
+Successful TLS authentication emits immutable evidence for the canonical origin, requested and observed TCP peer, DNS/IP reference identity, protocol, cipher suite, ALPN, leaf certificate and SPKI hashes, server-presented certificate hashes and bounds, explicit trust-root bundle, fixed verification time, validity interval, revocation configuration, and measured handshake duration. The first slice reports revocation as not configured and makes no OCSP or CRL validation claim.
+
+Safe Chromium navigation still requires adapters that prove the browser's real socket consumes these contracts, define proxy and PAC authority, apply HTTP connection and response budgets, validate downloads and observed MIME, and record complete transport evidence. A syntactically valid origin is never treated as an SSRF decision, resolver approval is not a connection, TCP peer equality is not TLS identity, and authenticated TLS is not an HTTP resource-budget decision.
 
 Generic network evidence retains bounded field names but no header or query values. Every value is replaced before the record leaves the trusted boundary, and malformed, ambiguous, or excessive paths and metadata fail closed. Any future typed response value or body requires a separate schema-specific capture policy.
 
@@ -82,7 +88,8 @@ The first commercial vertical slice is:
 isolated Chromium session
 → origin grant and resolved-destination authorization
 → exact direct TCP peer binding
-→ TLS and HTTP authority
+→ authenticated TLS service identity
+→ bounded HTTP authority
 → semantic observation
 → typed policy decision
 → browser action

@@ -23,6 +23,7 @@ class RepositoryContractTests(unittest.TestCase):
                 "crates/originweave-policy",
                 "crates/originweave-destination",
                 "crates/originweave-network",
+                "crates/originweave-tls",
                 "crates/originweave-resource",
                 "crates/originweave-evidence",
             },
@@ -56,10 +57,13 @@ class RepositoryContractTests(unittest.TestCase):
             "docs/adr/0003-provenance-native-observation.md",
             "docs/adr/0004-resolved-destination-policy.md",
             "docs/adr/0005-direct-socket-binding.md",
+            "docs/adr/0006-tls-server-identity.md",
             "docs/superpowers/specs/2026-08-06-resolved-destination-policy-design.md",
             "docs/superpowers/specs/2026-08-06-direct-socket-binding-design.md",
+            "docs/superpowers/specs/2026-08-06-tls-server-identity-design.md",
             "docs/superpowers/plans/2026-08-06-resolved-destination-policy.md",
             "docs/superpowers/plans/2026-08-06-direct-socket-binding.md",
+            "docs/superpowers/plans/2026-08-06-tls-server-identity.md",
         }
         missing = sorted(path for path in required_paths if not (ROOT / path).is_file())
         self.assertEqual(missing, [])
@@ -92,6 +96,27 @@ class RepositoryContractTests(unittest.TestCase):
         self.assertIn("originweave-network", architecture)
         self.assertIn("exact operating-system peer", readme)
         self.assertIn("direct-only", architecture)
+
+    def test_tls_service_identity_is_documented_as_a_separate_boundary(self) -> None:
+        """TCP peer equality must not be presented as authenticated HTTPS identity."""
+
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        architecture = (ROOT / "ARCHITECTURE.md").read_text(encoding="utf-8")
+        self.assertIn("originweave-tls", readme)
+        self.assertIn("originweave-tls", architecture)
+        self.assertIn("TLS service identity", readme)
+        self.assertIn("TCP peer", architecture)
+        self.assertIn("RFC 9525", architecture)
+
+    def test_ci_validates_the_exact_pull_request_head(self) -> None:
+        """Required PR evidence must validate the head commit, not only a merge ref."""
+
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        exact_head = "${{ github.event.pull_request.head.sha || github.sha }}"
+        self.assertGreaterEqual(workflow.count(f"ref: {exact_head}"), 2)
+        self.assertIn(f"exact-coverage-{exact_head}", workflow)
+        self.assertIn("permissions:\n  contents: read", workflow)
+        self.assertNotIn("contents: write", workflow)
 
     def test_hourly_loop_uses_nvidia_nim_and_dedicated_publication_authority(self) -> None:
         """The product loop must use OpenCode/NIM without review or merge credentials."""

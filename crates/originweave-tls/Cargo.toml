@@ -1,0 +1,25 @@
+[package]
+name = "originweave-tls"
+description = "Authenticated TLS service-identity authority for OriginWeave."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish = false
+
+[dependencies]
+originweave-core = { path = "../originweave-core" }
+originweave-network = { path = "../originweave-network" }
+rustls = { version = "=0.23.42", default-features = false, features = ["ring", "std", "tls12"] }
+sha2 = "=0.10.9"
+x509-parser = { version = "=0.18.1", default-features = false }
+
+[dev-dependencies]
+originweave-destination = { path = "../originweave-destination" }
+rcgen = "=0.14.8"
+
+[lints]
+workspace = true
