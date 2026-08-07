@@ -258,6 +258,34 @@ class CoverageVerifierTests(unittest.TestCase):
             ],
         )
 
+    def test_raw_zero_count_segments_expose_non_entry_counter_state(self) -> None:
+        """Deficient files retain zero-count segment flags even when no entry is reported."""
+
+        candidate = payload(3, 2)
+        candidate["data"][0]["files"] = [  # type: ignore[index]
+            {
+                "filename": "src/complete.rs",
+                "segments": [[5, 1, 0, True, False, False]],
+                "summary": {"regions": {"count": 4, "covered": 4}},
+            },
+            {
+                "filename": "src/partial.rs",
+                "segments": [
+                    [42, 9, 0, True, False, False],
+                    [43, 2, 0, True, False, True],
+                    [44, 1, 3, True, True, False],
+                ],
+                "summary": {"regions": {"count": 7, "covered": 6}},
+            },
+        ]
+        self.assertEqual(
+            verify_coverage.uncovered_raw_segment_diagnostics(candidate),
+            [
+                "src/partial.rs:42:9 count=0 has_count=True region_entry=False gap=False",
+                "src/partial.rs:43:2 count=0 has_count=True region_entry=False gap=True",
+            ],
+        )
+
     def test_uncovered_region_locations_are_best_effort_for_missing_file_detail(self) -> None:
         """Summary-only or malformed file detail never weakens aggregate enforcement."""
 
