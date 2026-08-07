@@ -31,6 +31,9 @@ mod policy;
 mod reachability_contract;
 mod request;
 mod response_head;
+#[cfg(test)]
+#[path = "tests/security_contract.rs"]
+mod security_contract;
 mod target;
 
 pub use content::ContentCoding;
