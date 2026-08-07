@@ -84,6 +84,14 @@ fn content_type_and_nosniff_fields_are_single_and_strict() {
         no_sniff_status(&field_block).expect("nosniff"),
         NoSniffStatus::Enabled
     );
+    let repeated_nosniff = fields(&[
+        ("x-content-type-options", b"nosniff"),
+        ("x-content-type-options", b" NoSniff \t"),
+    ]);
+    assert_eq!(
+        no_sniff_status(&repeated_nosniff).expect("repeated nosniff"),
+        NoSniffStatus::Enabled
+    );
     assert_eq!(
         no_sniff_status(&FieldBlock::default()).expect("absence"),
         NoSniffStatus::Absent
