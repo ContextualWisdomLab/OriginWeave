@@ -62,6 +62,12 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "require false path")]
+    fn require_covers_the_false_path() {
+        require(false, "require false path");
+    }
+
+    #[test]
     fn explicit_dns_variants_validate_before_becoming_server_names() {
         let origin = Origin::parse("https://example.com").expect("HTTPS origin");
         let valid = TlsReferenceIdentity::Dns("example.com".to_owned());
