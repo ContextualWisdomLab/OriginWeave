@@ -313,7 +313,7 @@ mod tests {
             b"sha-256=::",
             b"sha-256=:not base64:",
             b"sha-256=:AQ==:;foo=1",
-            b"sha-256=:AQ==:",
+            b"sha-256=:AQ==:,",
             b"sha-256=:AQ==:, sha-256=:AQ==:",
         ] {
             assert!(matches!(
