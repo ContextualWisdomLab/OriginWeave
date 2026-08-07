@@ -149,7 +149,7 @@ class CoverageVerifierTests(unittest.TestCase):
             {
                 "name": "generic_covered",
                 "filenames": ["src/partial.rs"],
-                "regions": [[42, 9, 42, 15, 3, 0, 0, 0]],
+                "regions": [[42, 9, 42, 15, 3, 0, 0, 0, 0]],
             },
             {
                 "name": "actually_uncovered",
@@ -180,6 +180,46 @@ class CoverageVerifierTests(unittest.TestCase):
         self.assertEqual(
             verify_coverage.uncovered_file_region_summaries(candidate),
             ["src/partial.rs=6/7"],
+        )
+
+    def test_uncovered_expansions_are_reported_only_for_deficient_files(self) -> None:
+        """Zero-count expansion source regions identify real deficient coordinates."""
+
+        candidate = payload(3, 2)
+        candidate["data"][0]["files"] = [  # type: ignore[index]
+            {
+                "filename": "src/complete.rs",
+                "segments": [],
+                "expansions": [
+                    {
+                        "source_region": [10, 2, 10, 20, 0, 0, 1, 1],
+                        "target_regions": [],
+                        "filenames": ["src/complete.rs"],
+                    }
+                ],
+                "summary": {"regions": {"count": 4, "covered": 4}},
+            },
+            {
+                "filename": "src/partial.rs",
+                "segments": [],
+                "expansions": [
+                    {
+                        "source_region": [42, 9, 42, 18, 0, 0, 1, 1],
+                        "target_regions": [],
+                        "filenames": ["src/partial.rs"],
+                    },
+                    {
+                        "source_region": [50, 3, 50, 12, 2, 0, 1, 1],
+                        "target_regions": [],
+                        "filenames": ["src/partial.rs"],
+                    },
+                ],
+                "summary": {"regions": {"count": 7, "covered": 6}},
+            },
+        ]
+        self.assertEqual(
+            verify_coverage.uncovered_expansion_locations(candidate),
+            ["src/partial.rs:42:9"],
         )
 
     def test_uncovered_region_locations_are_best_effort_for_missing_file_detail(self) -> None:
