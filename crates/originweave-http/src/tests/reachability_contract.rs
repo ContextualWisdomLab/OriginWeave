@@ -8,7 +8,7 @@ use crate::chunked::{ChunkParseResult, MAX_CHUNK_LINE_BYTES, parse_chunked_body}
 use crate::disposition::{parse_content_disposition, parse_redirect_metadata};
 use crate::field::{FieldBlock, FieldLine};
 use crate::integrity::{validate_content_digest, validate_representation_digest};
-use crate::mime::{MimeType, observe_mime_type};
+use crate::mime::{MimeType, classify_observed_mime};
 use crate::response_head::{HeadParseResult, parse_response_head};
 use crate::{
     AlpnHttp11Policy, HttpClientPolicy, HttpError, HttpRequestTarget, IntegrityRequirement,
@@ -27,7 +27,7 @@ fn fields(entries: &[(&str, &[u8])]) -> FieldBlock {
 }
 
 fn observed_text() -> crate::ObservedMimeClassification {
-    observe_mime_type(b"plain text", None).expect("observed text MIME")
+    classify_observed_mime(b"plain text", None)
 }
 
 fn response_policy(
@@ -145,23 +145,20 @@ fn mime_parameters_and_remaining_zip_signatures_are_bounded() {
 
     let javascript = MimeType::parse(b"text/javascript").expect("JavaScript MIME");
     assert_eq!(
-        observe_mime_type(b"\x00\x01", Some(&javascript))
-            .expect("binary JavaScript-labeled bytes are classifiable")
+        classify_observed_mime(b"\x00\x01", Some(&javascript))
             .mime_type()
             .essence(),
         "application/octet-stream"
     );
 
     assert_eq!(
-        observe_mime_type(b"PK\x05\x06rest", None)
-            .expect("empty ZIP signature")
+        classify_observed_mime(b"PK\x05\x06rest", None)
             .mime_type()
             .essence(),
         "application/zip"
     );
     assert_eq!(
-        observe_mime_type(b"PK\x07\x08rest", None)
-            .expect("spanned ZIP signature")
+        classify_observed_mime(b"PK\x07\x08rest", None)
             .mime_type()
             .essence(),
         "application/zip"
