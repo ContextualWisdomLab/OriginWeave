@@ -174,7 +174,12 @@ pub(crate) fn parse_redirect_metadata(
     }
     let location_text =
         std::str::from_utf8(location).map_err(|_error| HttpError::InvalidRedirectMetadata)?;
-    let (target_origin, is_relative) = if location_text.starts_with('/') {
+    let (target_origin, is_relative) = if location_text.starts_with("//") {
+        // RFC 3986 §4.2 defines `//authority/path` as a network-path reference. This crate does
+        // not carry the base URI needed to resolve that authority safely, so fail closed rather
+        // than misrepresenting it as a same-origin absolute-path reference.
+        return Err(HttpError::InvalidRedirectMetadata);
+    } else if location_text.starts_with('/') {
         (None, true)
     } else {
         let origin_text = absolute_location_origin(location_text)?;
@@ -295,7 +300,10 @@ fn validate_safe_filename(filename: &str) -> Result<(), HttpError> {
 
 fn is_forbidden_filename_character(character: char) -> bool {
     character.is_control()
-        || matches!(character, '/' | '\\' | ':' | '\0')
+        || matches!(
+            character,
+            '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*' | '\0'
+        )
         || matches!(
             character,
             '\u{202a}'
@@ -521,13 +529,13 @@ mod tests {
         let disposition = parse_content_disposition(
             &fields(&[(
                 "content-disposition",
-                b"attachment; filename=\"quarter\\\"one.txt\"",
+                b"attachment; filename=\"quarter\\ one.txt\"",
             )]),
             &observed(b"plain"),
         )
         .expect("quoted filename")
         .expect("present");
-        assert_eq!(disposition.filename(), Some("quarter\"one.txt"));
+        assert_eq!(disposition.filename(), Some("quarter one.txt"));
     }
 
     #[test]
