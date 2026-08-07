@@ -83,7 +83,6 @@ jobs:
           --all-features
           --branch
           --json
-          --summary-only
           --output-path coverage.json
       - name: Record uncovered production lines
         run: >-
