@@ -41,12 +41,9 @@ pub(crate) fn parse_chunked_body(
         };
         let size_line = &input[cursor..line_end];
         let chunk_size = parse_chunk_size(size_line)?;
-        chunk_count = chunk_count
-            .checked_add(1)
-            .ok_or(HttpError::ExcessiveChunkCount {
-                chunk_count: usize::MAX,
-                maximum_count: policy.max_chunk_count(),
-            })?;
+        // Policy bounds admitted chunk counts far below `usize::MAX`; saturation keeps the
+        // fail-closed comparison below total without carrying an impossible overflow branch.
+        chunk_count = chunk_count.saturating_add(1);
         if chunk_count > policy.max_chunk_count() {
             return Err(HttpError::ExcessiveChunkCount {
                 chunk_count,
