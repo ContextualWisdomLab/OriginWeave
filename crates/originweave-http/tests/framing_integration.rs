@@ -202,7 +202,10 @@ fn execute(
     method: HttpMethod,
     response: &'static [u8],
     policy: HttpClientPolicy,
-) -> (Result<originweave_http::AuthenticatedHttpResponse, HttpError>, JoinHandle<ServerResult>) {
+) -> (
+    Result<originweave_http::AuthenticatedHttpResponse, HttpError>,
+    JoinHandle<ServerResult>,
+) {
     let material = certificate_material();
     let (root_der, config) = server_config(material);
     let (socket_address, server) = spawn_http_server(config, response);
