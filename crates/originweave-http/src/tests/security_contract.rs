@@ -3,7 +3,7 @@
 use crate::HttpError;
 use crate::disposition::{parse_content_disposition, parse_redirect_metadata};
 use crate::field::{FieldBlock, FieldLine};
-use crate::mime::observe_mime_type;
+use crate::mime::classify_observed_mime;
 
 fn fields(entries: &[(&str, &[u8])]) -> FieldBlock {
     FieldBlock::new(
@@ -25,7 +25,7 @@ fn network_path_redirects_do_not_lose_their_authority() {
 
 #[test]
 fn windows_reserved_filename_characters_are_rejected_after_quoted_decoding() {
-    let observed = observe_mime_type(b"plain text", None).expect("observed MIME");
+    let observed = classify_observed_mime(b"plain text", None);
     for filename in [
         "bad<name.txt",
         "bad>name.txt",
