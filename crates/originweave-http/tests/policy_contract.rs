@@ -234,6 +234,51 @@ fn callers_can_reduce_every_reviewed_limit() {
 }
 
 #[test]
+fn new_preserves_every_budget_and_policy_in_order() {
+    let policy = HttpClientPolicy::new(
+        Duration::from_secs(7),
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        3,
+        17,
+        4,
+        18,
+        19,
+        20,
+        5,
+        AlpnHttp11Policy::PermitAbsentForManagedLoopback,
+        IntegrityRequirement::RequireSupportedDigest,
+    )
+    .expect("distinct policy budgets");
+    assert_eq!(policy.exchange_timeout(), Duration::from_secs(7));
+    assert_eq!(policy.max_request_bytes(), 11);
+    assert_eq!(policy.max_status_line_bytes(), 12);
+    assert_eq!(policy.max_header_field_count(), 13);
+    assert_eq!(policy.max_header_name_bytes(), 14);
+    assert_eq!(policy.max_header_value_bytes(), 15);
+    assert_eq!(policy.max_header_section_bytes(), 16);
+    assert_eq!(policy.max_interim_response_count(), 3);
+    assert_eq!(policy.max_chunk_count(), 17);
+    assert_eq!(policy.max_trailer_field_count(), 4);
+    assert_eq!(policy.max_trailer_section_bytes(), 18);
+    assert_eq!(policy.max_encoded_content_bytes(), 19);
+    assert_eq!(policy.max_decoded_content_bytes(), 20);
+    assert_eq!(policy.max_content_expansion_ratio(), 5);
+    assert_eq!(
+        policy.alpn_policy(),
+        AlpnHttp11Policy::PermitAbsentForManagedLoopback
+    );
+    assert_eq!(
+        policy.integrity_requirement(),
+        IntegrityRequirement::RequireSupportedDigest
+    );
+}
+
+#[test]
 fn timeout_and_expansion_ratio_fail_outside_the_reviewed_range() {
     for timeout in [
         Duration::ZERO,
