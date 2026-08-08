@@ -1,10 +1,10 @@
 # HTTP/1.1 Reason-Phrase Retention Addendum
 
-**Status:** Accepted amendment to `2026-08-07-http11-semantics-design.md`  
+**Status:** Proposed amendment to `2026-08-07-http11-semantics-design.md`, pending qualifying independent non-author review  
 **Date:** 2026-08-08  
 **Scope:** Preserve exact final reason-phrase octets without expanding HTTP authority
 
-## Amendment
+## Proposed amendment
 
 The original HTTP/1.1 design already requires the status parser to accept bounded reason-phrase bytes for diagnostics and never derive semantics from them. This addendum makes the corresponding public response contract explicit.
 
@@ -30,6 +30,7 @@ This amendment does not add network, redirect-following, persistence, rendering,
 3. Retain valid non-UTF-8 `obs-text` octets losslessly.
 4. Prove the public accessor and `into_parts()` through a real loopback rustls HTTP exchange.
 5. Keep exact production function, line, region, and branch coverage at 100% and preserve strict Clippy/rustdoc gates.
+6. Treat this amendment as accepted only after qualifying independent review and merge of the protected pull-request head.
 
 ## Reference
 
