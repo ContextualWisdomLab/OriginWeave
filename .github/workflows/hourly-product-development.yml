@@ -442,6 +442,30 @@ jobs:
             sudo chown -R 65532:65532 "$AGENT_WORKSPACE"
           }
 
+          read_provider_status() {
+            local payload
+            if ! payload="$(
+              curl -fsS "http://${NIM_PROXY_HOST}:${NIM_PROXY_PORT}${provider_status_path}" 2>/dev/null
+            )"; then
+              return 1
+            fi
+            python3 - "$payload" <<'PY'
+          import json
+          import sys
+
+          data = json.loads(sys.argv[1])
+          keys = (
+              "request_counter",
+              "last_auth_rejected_request",
+              "last_rate_limited_request",
+          )
+          values = tuple(data[key] for key in keys)
+          if any(type(value) is not int or value < 0 for value in values):
+              raise SystemExit(1)
+          print(*values)
+          PY
+          }
+
           trap cleanup_agent EXIT
           sudo iptables -I OUTPUT 1 -m owner --uid-owner 65532 ! -d 127.0.0.0/8 -j REJECT
           sudo ip6tables -I OUTPUT 1 -m owner --uid-owner 65532 ! -d ::1/128 -j REJECT
@@ -487,13 +511,14 @@ jobs:
           for model in $OPENCODE_MODEL_CANDIDATES; do
             reset_agent_workspace
             provider_status_path="/statusz"
-            provider_before_json="$(
-              curl -fsS "http://${NIM_PROXY_HOST}:${NIM_PROXY_PORT}${provider_status_path}"
-            )"
-            provider_before="$(
-              python3 -c 'import json,sys; print(json.loads(sys.argv[1])["request_counter"])' \
-                "$provider_before_json"
-            )"
+            if ! provider_before_status="$(read_provider_status)"; then
+              cause=credential_broker_unavailable
+              feasible_retry=false
+              echo "OpenCode RCA: model=$model status=not_started cause=$cause feasible_retry=$feasible_retry" >>"$GITHUB_STEP_SUMMARY"
+              tail -n 50 "${RUNNER_TEMP}/originweave-nim-broker.log" >&2 || true
+              break
+            fi
+            read -r provider_before _provider_auth_before _provider_rate_before <<<"$provider_before_status"
             set +e
             timeout --kill-after=30s "${OPENCODE_RUN_TIMEOUT_SECONDS}s" \
               sudo -u '#65532' -g '#65532' env -i \
@@ -525,18 +550,12 @@ jobs:
               break
             fi
 
-            provider_status="$(
-              curl -fsS "http://${NIM_PROXY_HOST}:${NIM_PROXY_PORT}${provider_status_path}" 2>/dev/null || true
-            )"
-            if [ -z "$provider_status" ]; then
+            if ! provider_status="$(read_provider_status)"; then
               cause=credential_broker_unavailable
               feasible_retry=false
               tail -n 50 "${RUNNER_TEMP}/originweave-nim-broker.log" >&2 || true
             else
-              read -r provider_auth_rejected provider_rate_limited < <(
-                python3 -c 'import json,sys; data=json.loads(sys.argv[1]); print(data["last_auth_rejected_request"], data["last_rate_limited_request"])' \
-                  "$provider_status"
-              )
+              read -r _provider_after provider_auth_rejected provider_rate_limited <<<"$provider_status"
               if [ "$provider_auth_rejected" -gt "$provider_before" ]; then
                 cause=provider_auth_rejected
                 feasible_retry=false
