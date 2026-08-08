@@ -3,7 +3,7 @@
 use crate::field::{FieldBlock, FieldLine, FieldSyntaxError};
 use crate::{HttpClientPolicy, HttpError};
 
-pub(crate) const MAX_CHUNK_LINE_BYTES: usize = 1_024;
+pub(crate) const MAX_CHUNK_LINE_BYTES: usize = 16;
 const FORBIDDEN_TRAILER_FIELDS: &[&str] = &[
     "transfer-encoding",
     "content-length",
