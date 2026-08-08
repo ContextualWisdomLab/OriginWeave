@@ -25,6 +25,7 @@ use rustls::{ServerConfig, ServerConnection, StreamOwned};
 
 const TRUSTED_TIME_SECONDS: u64 = 1_767_225_600;
 const TEST_TIMEOUT: Duration = Duration::from_secs(3);
+const SEGMENT_DELAY: Duration = Duration::from_millis(50);
 
 type ServerResult = Result<Vec<u8>, String>;
 
@@ -88,6 +89,25 @@ fn server_config(material: CertificateMaterial) -> (Vec<u8>, Arc<ServerConfig>) 
     (material.root_der, Arc::new(config))
 }
 
+fn read_request(tls: &mut StreamOwned<ServerConnection, std::net::TcpStream>) -> ServerResult {
+    let mut request = Vec::new();
+    let mut scratch = [0_u8; 512];
+    while !request.windows(4).any(|window| window == b"\r\n\r\n") {
+        match tls.read(&mut scratch) {
+            Ok(0) => break,
+            Ok(count) => request.extend_from_slice(&scratch[..count]),
+            Err(error) if error.kind() == std::io::ErrorKind::UnexpectedEof => {
+                if request.is_empty() {
+                    break;
+                }
+                return Err(error.to_string());
+            }
+            Err(error) => return Err(error.to_string()),
+        }
+    }
+    Ok(request)
+}
+
 fn spawn_http_server(
     config: Arc<ServerConfig>,
     response: &'static [u8],
@@ -104,27 +124,50 @@ fn spawn_http_server(
             .map_err(|error| error.to_string())?;
         let connection = ServerConnection::new(config).map_err(|error| error.to_string())?;
         let mut tls = StreamOwned::new(connection, stream);
-        let mut request = Vec::new();
-        let mut scratch = [0_u8; 512];
-        while !request.windows(4).any(|window| window == b"\r\n\r\n") {
-            match tls.read(&mut scratch) {
-                Ok(0) => break,
-                Ok(count) => request.extend_from_slice(&scratch[..count]),
-                Err(error) if error.kind() == std::io::ErrorKind::UnexpectedEof => {
-                    if request.is_empty() {
-                        break;
-                    }
-                    return Err(error.to_string());
-                }
-                Err(error) => return Err(error.to_string()),
-            }
-        }
+        let request = read_request(&mut tls)?;
         if !response.is_empty() {
             tls.write_all(response).map_err(|error| error.to_string())?;
             tls.flush().map_err(|error| error.to_string())?;
         }
         tls.conn.send_close_notify();
         tls.flush().map_err(|error| error.to_string())?;
+        Ok(request)
+    });
+    (socket_address, handle)
+}
+
+fn spawn_segmented_chunked_wire_overflow_server(
+    config: Arc<ServerConfig>,
+) -> (SocketAddr, JoinHandle<ServerResult>) {
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("loopback listener");
+    let socket_address = listener.local_addr().expect("listener address");
+    let handle = thread::spawn(move || {
+        let (stream, _peer) = listener.accept().map_err(|error| error.to_string())?;
+        stream
+            .set_read_timeout(Some(TEST_TIMEOUT))
+            .map_err(|error| error.to_string())?;
+        stream
+            .set_write_timeout(Some(TEST_TIMEOUT))
+            .map_err(|error| error.to_string())?;
+        let connection = ServerConnection::new(config).map_err(|error| error.to_string())?;
+        let mut tls = StreamOwned::new(connection, stream);
+        let request = read_request(&mut tls)?;
+
+        // The body prefix is exactly 37 bytes: one accepted chunk followed by an unterminated
+        // 16-byte chunk-size line. Under `tiny_chunked_wire_policy` the complete wire budget is
+        // 42 bytes, leaving five bytes of capacity and forcing the client to perform the six-byte
+        // sentinel read that must be rejected before buffer growth.
+        tls.write_all(
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n0000000000000001\r\na\r\n0000000000000000",
+        )
+        .map_err(|error| error.to_string())?;
+        tls.flush().map_err(|error| error.to_string())?;
+        thread::sleep(SEGMENT_DELAY);
+        tls.write_all(b"000000")
+            .map_err(|error| error.to_string())?;
+        tls.flush().map_err(|error| error.to_string())?;
+        tls.conn.send_close_notify();
+        let _ = tls.flush();
         Ok(request)
     });
     (socket_address, handle)
@@ -228,6 +271,28 @@ fn tiny_chunked_wire_policy() -> HttpClientPolicy {
     .expect("tiny chunked-wire policy")
 }
 
+fn execute_segmented_chunked_wire_overflow() -> (
+    Result<originweave_http::AuthenticatedHttpResponse, HttpError>,
+    JoinHandle<ServerResult>,
+) {
+    let material = certificate_material();
+    let (root_der, config) = server_config(material);
+    let (socket_address, server) = spawn_segmented_chunked_wire_overflow_server(config);
+    let origin = origin_for(socket_address);
+    let connection = authenticated_connection(&origin, socket_address, root_der);
+    let target = HttpRequestTarget::parse(origin, "/segmented-overflow").expect("target");
+    let result = HttpExchangePlan::new(
+        connection,
+        HttpMethod::Get,
+        target,
+        &[],
+        tiny_chunked_wire_policy(),
+    )
+    .expect("HTTP exchange plan")
+    .execute();
+    (result, server)
+}
+
 fn join_server(server: JoinHandle<ServerResult>) {
     server
         .join()
@@ -265,6 +330,19 @@ fn chunked_body_prefix_over_independent_wire_budget_fails_before_parsing() {
             byte_count,
             maximum_bytes: 42,
         }) if byte_count > 42
+    ));
+    join_server(server);
+}
+
+#[test]
+fn segmented_chunked_wire_growth_rejects_sentinel_read_before_buffer_expansion() {
+    let (result, server) = execute_segmented_chunked_wire_overflow();
+    assert!(matches!(
+        result,
+        Err(HttpError::EncodedContentTooLarge {
+            byte_count: 43,
+            maximum_bytes: 42,
+        })
     ));
     join_server(server);
 }
