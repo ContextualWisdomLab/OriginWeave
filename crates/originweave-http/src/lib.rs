@@ -24,6 +24,10 @@ mod exchange_error_contract;
 mod field;
 mod framing;
 mod integrity;
+#[cfg(test)]
+#[cfg_attr(coverage_nightly, coverage(off))]
+#[path = "tests/integrity_padding_contract.rs"]
+mod integrity_padding_contract;
 mod mime;
 #[cfg(test)]
 #[path = "tests/mime_contract.rs"]
