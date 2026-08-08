@@ -24,6 +24,7 @@ class RepositoryContractTests(unittest.TestCase):
                 "crates/originweave-destination",
                 "crates/originweave-network",
                 "crates/originweave-tls",
+                "crates/originweave-http",
                 "crates/originweave-resource",
                 "crates/originweave-evidence",
             },
@@ -58,12 +59,15 @@ class RepositoryContractTests(unittest.TestCase):
             "docs/adr/0004-resolved-destination-policy.md",
             "docs/adr/0005-direct-socket-binding.md",
             "docs/adr/0006-tls-server-identity.md",
+            "docs/adr/0007-bounded-http11-semantics.md",
             "docs/superpowers/specs/2026-08-06-resolved-destination-policy-design.md",
             "docs/superpowers/specs/2026-08-06-direct-socket-binding-design.md",
             "docs/superpowers/specs/2026-08-06-tls-server-identity-design.md",
+            "docs/superpowers/specs/2026-08-07-http11-semantics-design.md",
             "docs/superpowers/plans/2026-08-06-resolved-destination-policy.md",
             "docs/superpowers/plans/2026-08-06-direct-socket-binding.md",
             "docs/superpowers/plans/2026-08-06-tls-server-identity.md",
+            "docs/superpowers/plans/2026-08-07-http11-semantics.md",
         }
         missing = sorted(path for path in required_paths if not (ROOT / path).is_file())
         self.assertEqual(missing, [])
@@ -107,6 +111,22 @@ class RepositoryContractTests(unittest.TestCase):
         self.assertIn("TLS service identity", readme)
         self.assertIn("TCP peer", architecture)
         self.assertIn("RFC 9525", architecture)
+
+    def test_http_semantics_has_its_own_accepted_authority_boundary(self) -> None:
+        """TLS identity must not be presented as complete HTTP semantics."""
+
+        adr = (ROOT / "docs/adr/0007-bounded-http11-semantics.md").read_text(
+            encoding="utf-8"
+        )
+        design = (
+            ROOT / "docs/superpowers/specs/2026-08-07-http11-semantics-design.md"
+        ).read_text(encoding="utf-8")
+        for text in [adr, design]:
+            self.assertIn("originweave-http", text)
+            self.assertIn("HTTP/1.1", text)
+            self.assertIn("AuthenticatedTlsConnection", text)
+            self.assertIn("never follow", text.lower())
+            self.assertIn("RFC 9112", text)
 
     def test_ci_validates_the_exact_pull_request_head(self) -> None:
         """Required PR evidence must validate the head commit, not only a merge ref."""

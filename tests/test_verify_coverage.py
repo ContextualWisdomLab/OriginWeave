@@ -47,6 +47,253 @@ class CoverageVerifierTests(unittest.TestCase):
             {metric: (2, 3) for metric in verify_coverage.REQUIRED_METRICS},
         )
 
+    def test_uncovered_region_locations_report_only_real_zero_count_region_entries(self) -> None:
+        """LLVM segment diagnostics identify uncovered production coordinates precisely."""
+
+        candidate = payload(3, 2)
+        candidate["data"][0]["files"] = [  # type: ignore[index]
+            {
+                "filename": "src/example.rs",
+                "segments": [
+                    [10, 2, 0, True, True, False],
+                    [10, 8, 0, True, False, False],
+                    [11, 1, 0, True, True, True],
+                    [12, 3, 4, True, True, False],
+                    [13, 5, 0, False, True, False],
+                    [10, 2, 0, True, True, False],
+                ],
+            },
+            {
+                "filename": "src/second.rs",
+                "segments": [[3, 7, 0, True, True, False]],
+            },
+        ]
+        self.assertEqual(
+            verify_coverage.uncovered_region_locations(candidate),
+            ["src/example.rs:10:2", "src/second.rs:3:7"],
+        )
+
+    def test_uncovered_region_locations_fall_back_to_function_regions(self) -> None:
+        """LLVM function-region detail locates misses absent from segment entries."""
+
+        candidate = payload(3, 2)
+        candidate["data"][0]["files"] = [  # type: ignore[index]
+            {"filename": "src/example.rs", "segments": []}
+        ]
+        candidate["data"][0]["functions"] = [  # type: ignore[index]
+            {
+                "name": "example",
+                "filenames": ["src/example.rs"],
+                "regions": [
+                    [42, 9, 42, 15, 0, 0, 0, 0],
+                    [43, 1, 43, 8, 2, 0, 0, 0],
+                    [44, 3, 44, 7, 0, 0, 0, 3],
+                ],
+            }
+        ]
+        self.assertEqual(
+            verify_coverage.uncovered_region_locations(candidate),
+            ["src/example.rs:42:9"],
+        )
+
+    def test_function_region_fallback_is_scoped_to_deficient_files(self) -> None:
+        """Noisy zero-count instantiations from fully covered files are excluded."""
+
+        candidate = payload(3, 2)
+        candidate["data"][0]["files"] = [  # type: ignore[index]
+            {
+                "filename": "src/complete.rs",
+                "segments": [],
+                "summary": {"regions": {"count": 4, "covered": 4}},
+            },
+            {
+                "filename": "src/partial.rs",
+                "segments": [],
+                "summary": {"regions": {"count": 7, "covered": 6}},
+            },
+        ]
+        candidate["data"][0]["functions"] = [  # type: ignore[index]
+            {
+                "name": "complete_instantiation",
+                "filenames": ["src/complete.rs"],
+                "regions": [[10, 2, 10, 8, 0, 0, 0, 0]],
+            },
+            {
+                "name": "partial_instantiation",
+                "filenames": ["src/partial.rs"],
+                "regions": [[42, 9, 42, 15, 0, 0, 0, 0]],
+            },
+        ]
+        self.assertEqual(
+            verify_coverage.uncovered_region_locations(candidate),
+            ["src/partial.rs:42:9"],
+        )
+
+    def test_function_region_fallback_merges_identical_instantiations(self) -> None:
+        """A covered monomorphization satisfies the same aggregate source region."""
+
+        candidate = payload(3, 2)
+        candidate["data"][0]["files"] = [  # type: ignore[index]
+            {
+                "filename": "src/partial.rs",
+                "segments": [],
+                "summary": {"regions": {"count": 2, "covered": 1}},
+            }
+        ]
+        candidate["data"][0]["functions"] = [  # type: ignore[index]
+            {
+                "name": "generic_zero",
+                "filenames": ["src/partial.rs"],
+                "regions": [[42, 9, 42, 15, 0, 0, 0, 0]],
+            },
+            {
+                "name": "generic_covered",
+                "filenames": ["src/partial.rs"],
+                "regions": [[42, 9, 42, 15, 3, 0, 0, 0, 0]],
+            },
+            {
+                "name": "actually_uncovered",
+                "filenames": ["src/partial.rs"],
+                "regions": [[50, 2, 50, 8, 0, 0, 0, 0]],
+            },
+        ]
+        self.assertEqual(
+            verify_coverage.uncovered_region_locations(candidate),
+            ["src/partial.rs:50:2"],
+        )
+
+    def test_uncovered_file_region_summaries_report_only_deficient_files(self) -> None:
+        """File summaries identify which source contributes aggregate region debt."""
+
+        candidate = payload(3, 2)
+        candidate["data"][0]["files"] = [  # type: ignore[index]
+            {
+                "filename": "src/complete.rs",
+                "summary": {"regions": {"count": 4, "covered": 4}},
+            },
+            {
+                "filename": "src/partial.rs",
+                "summary": {"regions": {"count": 7, "covered": 6}},
+            },
+            {"filename": "src/no-summary.rs"},
+        ]
+        self.assertEqual(
+            verify_coverage.uncovered_file_region_summaries(candidate),
+            ["src/partial.rs=6/7"],
+        )
+
+    def test_uncovered_expansions_are_reported_only_for_deficient_files(self) -> None:
+        """Zero-count expansion source regions identify real deficient coordinates."""
+
+        candidate = payload(3, 2)
+        candidate["data"][0]["files"] = [  # type: ignore[index]
+            {
+                "filename": "src/complete.rs",
+                "segments": [],
+                "expansions": [
+                    {
+                        "source_region": [10, 2, 10, 20, 0, 0, 1, 1],
+                        "target_regions": [],
+                        "filenames": ["src/complete.rs"],
+                    }
+                ],
+                "summary": {"regions": {"count": 4, "covered": 4}},
+            },
+            {
+                "filename": "src/partial.rs",
+                "segments": [],
+                "expansions": [
+                    {
+                        "source_region": [42, 9, 42, 18, 0, 0, 1, 1],
+                        "target_regions": [],
+                        "filenames": ["src/partial.rs"],
+                    },
+                    {
+                        "source_region": [50, 3, 50, 12, 2, 0, 1, 1],
+                        "target_regions": [],
+                        "filenames": ["src/partial.rs"],
+                    },
+                ],
+                "summary": {"regions": {"count": 7, "covered": 6}},
+            },
+        ]
+        self.assertEqual(
+            verify_coverage.uncovered_expansion_locations(candidate),
+            ["src/partial.rs:42:9"],
+        )
+
+    def test_raw_zero_count_regions_expose_special_llvm_region_kinds(self) -> None:
+        """Unexplained aggregate debt must retain raw LLVM kind metadata for diagnosis."""
+
+        candidate = payload(3, 2)
+        candidate["data"][0]["files"] = [  # type: ignore[index]
+            {
+                "filename": "src/complete.rs",
+                "segments": [],
+                "summary": {"regions": {"count": 4, "covered": 4}},
+            },
+            {
+                "filename": "src/partial.rs",
+                "segments": [],
+                "summary": {"regions": {"count": 7, "covered": 6}},
+            },
+        ]
+        candidate["data"][0]["functions"] = [  # type: ignore[index]
+            {
+                "name": "covered_file_special",
+                "filenames": ["src/complete.rs"],
+                "regions": [[10, 2, 10, 8, 0, 0, 1, 2]],
+            },
+            {
+                "name": "partial_file_special",
+                "filenames": ["src/partial.rs"],
+                "regions": [[42, 9, 42, 15, 0, 0, 1, 2]],
+            },
+        ]
+        self.assertEqual(
+            verify_coverage.uncovered_raw_region_diagnostics(candidate),
+            [
+                "src/partial.rs:42:9-42:15 count=0 kind=2 expanded_file_id=1 "
+                "function=partial_file_special"
+            ],
+        )
+
+    def test_raw_zero_count_segments_expose_non_entry_counter_state(self) -> None:
+        """Deficient files retain zero-count segment flags even when no entry is reported."""
+
+        candidate = payload(3, 2)
+        candidate["data"][0]["files"] = [  # type: ignore[index]
+            {
+                "filename": "src/complete.rs",
+                "segments": [[5, 1, 0, True, False, False]],
+                "summary": {"regions": {"count": 4, "covered": 4}},
+            },
+            {
+                "filename": "src/partial.rs",
+                "segments": [
+                    [42, 9, 0, True, False, False],
+                    [43, 2, 0, True, False, True],
+                    [44, 1, 3, True, True, False],
+                ],
+                "summary": {"regions": {"count": 7, "covered": 6}},
+            },
+        ]
+        self.assertEqual(
+            verify_coverage.uncovered_raw_segment_diagnostics(candidate),
+            [
+                "src/partial.rs:42:9 count=0 has_count=True region_entry=False gap=False",
+                "src/partial.rs:43:2 count=0 has_count=True region_entry=False gap=True",
+            ],
+        )
+
+    def test_uncovered_region_locations_are_best_effort_for_missing_file_detail(self) -> None:
+        """Summary-only or malformed file detail never weakens aggregate enforcement."""
+
+        self.assertEqual(verify_coverage.uncovered_region_locations(payload(3, 2)), [])
+        candidate = payload(3, 2)
+        candidate["data"][0]["files"] = "not-a-list"  # type: ignore[index]
+        self.assertEqual(verify_coverage.uncovered_region_locations(candidate), [])
+
     def test_malformed_payloads_fail_closed(self) -> None:
         """Missing, ambiguous, and impossible summaries are rejected."""
 
@@ -84,6 +331,27 @@ class CoverageVerifierTests(unittest.TestCase):
 
             path.write_text(json.dumps(payload(3, 2)), encoding="utf-8")
             with self.assertRaisesRegex(RuntimeError, "below 100%"):
+                verify_coverage.verify_file(path)
+
+    def test_verify_file_includes_precise_uncovered_region_coordinates(self) -> None:
+        """A region-only failure points directly at uncovered source coordinates."""
+
+        candidate = payload()
+        totals = candidate["data"][0]["totals"]  # type: ignore[index]
+        totals["regions"] = {"count": 2, "covered": 1}  # type: ignore[index]
+        candidate["data"][0]["files"] = [  # type: ignore[index]
+            {
+                "filename": "src/example.rs",
+                "segments": [[42, 9, 0, True, True, False]],
+            }
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "coverage.json"
+            path.write_text(json.dumps(candidate), encoding="utf-8")
+            with self.assertRaisesRegex(
+                RuntimeError,
+                r"regions=1/2; uncovered regions: src/example\.rs:42:9",
+            ):
                 verify_coverage.verify_file(path)
 
     def test_main_reports_usage_success_and_input_failures(self) -> None:
