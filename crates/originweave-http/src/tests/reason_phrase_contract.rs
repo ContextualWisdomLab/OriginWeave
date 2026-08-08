@@ -13,13 +13,13 @@ fn response_head_retains_exact_reason_phrase_octets() {
     ];
 
     for (wire, expected_reason_phrase) in cases {
-        match parse_response_head(wire, &policy).expect("valid RFC 9112 status line") {
-            HeadParseResult::Complete { head, .. } => {
-                assert_eq!(head.reason_phrase(), *expected_reason_phrase);
-            }
-            HeadParseResult::Incomplete => {
-                assert!(false, "complete status line must not remain incomplete");
-            }
+        let parsed = parse_response_head(wire, &policy).expect("valid RFC 9112 status line");
+        assert!(
+            matches!(parsed, HeadParseResult::Complete { .. }),
+            "complete status line must not remain incomplete"
+        );
+        if let HeadParseResult::Complete { head, .. } = parsed {
+            assert_eq!(head.reason_phrase(), *expected_reason_phrase);
         }
     }
 }
