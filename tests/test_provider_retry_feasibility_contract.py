@@ -84,6 +84,25 @@ class ProviderRetryFeasibilityContractTests(unittest.TestCase):
             loop,
         )
 
+    def test_broker_status_preflight_failure_is_classified_before_model_start(self) -> None:
+        """A dead or malformed status endpoint must not bypass RCA before model execution."""
+
+        agent = _step_block(
+            self.workflow, "Run OpenCode in an unprivileged no-Git workspace"
+        )
+        self.assertIn("read_provider_status()", agent)
+        loop = agent[agent.index("for model in $OPENCODE_MODEL_CANDIDATES; do") :]
+        invocation = loop.index("opencode run")
+        preflight = loop[:invocation]
+        for contract in (
+            'if ! provider_before_status="$(read_provider_status)"; then',
+            "cause=credential_broker_unavailable",
+            "feasible_retry=false",
+            'tail -n 50 "${RUNNER_TEMP}/originweave-nim-broker.log"',
+        ):
+            with self.subTest(contract=contract):
+                self.assertIn(contract, preflight)
+
 
 if __name__ == "__main__":
     unittest.main()
