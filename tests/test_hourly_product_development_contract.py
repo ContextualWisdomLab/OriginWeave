@@ -206,6 +206,14 @@ class HourlyProductDevelopmentContractTests(unittest.TestCase):
         self.assertIn(reset, loop)
         self.assertLess(loop.index(reset), loop.index(invocation))
 
+    def test_success_cleanup_handles_unprivileged_workspace_ownership(self) -> None:
+        """A successful model must not fail while removing its uid-65532 config."""
+
+        agent = _step_block(
+            self.workflow, "Run OpenCode in an unprivileged no-Git workspace"
+        )
+        self.assertIn('sudo rm -f "${AGENT_WORKSPACE}/opencode.json"', agent)
+
     def test_retry_feasibility_distinguishes_model_failure_from_broker_failure(self) -> None:
         """The scheduler may retry a model only while its local credential broker is healthy."""
 
