@@ -1,7 +1,7 @@
 #![allow(clippy::expect_used)]
 
-use crate::response_head::{HeadParseResult, parse_response_head};
 use crate::HttpClientPolicy;
+use crate::response_head::{HeadParseResult, parse_response_head};
 
 #[test]
 fn response_head_retains_exact_reason_phrase_octets() {
