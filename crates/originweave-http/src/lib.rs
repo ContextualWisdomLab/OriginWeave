@@ -18,6 +18,9 @@ mod disposition;
 mod error;
 mod evidence;
 mod exchange;
+#[cfg(test)]
+#[path = "tests/exchange_error_contract.rs"]
+mod exchange_error_contract;
 mod field;
 mod framing;
 mod integrity;
