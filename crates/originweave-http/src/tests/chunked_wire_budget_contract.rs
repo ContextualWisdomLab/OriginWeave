@@ -11,14 +11,13 @@ fn default_chunked_wire_prefix_stays_below_eighteen_mib() {
 #[test]
 fn chunked_wire_growth_is_rejected_before_the_buffer_can_exceed_its_budget() {
     let mut wire = vec![0_u8; 3];
-    let error = extend_chunked_wire(&mut wire, &[4], 3).expect_err("wire growth must be bounded");
 
     assert!(matches!(
-        error,
-        crate::HttpError::EncodedContentTooLarge {
+        extend_chunked_wire(&mut wire, &[4], 3),
+        Err(crate::HttpError::EncodedContentTooLarge {
             byte_count: 4,
             maximum_bytes: 3,
-        }
+        })
     ));
     assert_eq!(wire, vec![0_u8; 3]);
 }
