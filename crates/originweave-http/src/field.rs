@@ -33,6 +33,15 @@ impl RequestField {
             DEFAULT_MAX_HEADER_VALUE_BYTES,
         )
         .map_err(request_field_error)?;
+        if value
+            .first()
+            .is_some_and(|byte| matches!(byte, b' ' | b'\t'))
+            || value
+                .last()
+                .is_some_and(|byte| matches!(byte, b' ' | b'\t'))
+        {
+            return Err(HttpError::InvalidRequestFieldValue);
+        }
         if FORBIDDEN_REQUEST_FIELDS.contains(&inner.name()) {
             return Err(HttpError::ForbiddenRequestField {
                 field_name: inner.name().to_owned(),
