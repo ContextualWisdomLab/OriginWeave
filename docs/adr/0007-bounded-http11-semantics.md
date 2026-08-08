@@ -75,11 +75,12 @@ Body framing follows RFC 9110 and RFC 9112 with additional fail-closed restricti
 2. `Transfer-Encoding` plus `Content-Length` is always rejected.
 3. Transfer coding is accepted only when the complete coding list is exactly `chunked`.
 4. Multiple or comma-separated content lengths are accepted only when every canonical decimal value is identical.
-5. Without either framing field, content is close-delimited because the request requires connection close.
-6. `101 Switching Protocols` is rejected because upgrade is outside this boundary.
-7. A partial, malformed, or uncleanly terminated response never becomes a successful complete response.
+5. A chunked response completes when the terminal zero chunk, bounded optional trailers, and final empty line are complete; peer connection closure is not part of that message boundary.
+6. Without either framing field, content is close-delimited and authenticated TLS EOF is required because the request requires connection close.
+7. `101 Switching Protocols` is rejected because upgrade is outside this boundary.
+8. A partial, malformed, or uncleanly terminated response never becomes a successful complete response.
 
-Chunk extensions are rejected in the first slice. Chunk sizes, cumulative bytes, chunk count, required CRLF, zero chunk, and trailer fields are validated with checked arithmetic and separate limits.
+Chunk extensions are rejected in the first slice. Chunk sizes, cumulative bytes, chunk count, required CRLF, zero chunk, and trailer fields are validated with checked arithmetic and separate limits. Chunked input is reparsed after each bounded TLS read and returns immediately at the unambiguous terminal message boundary. Bytes already buffered beyond that complete boundary are rejected because this slice never reuses parser state for another response.
 
 ## Resource budgets
 
@@ -106,11 +107,11 @@ The reviewed maximums are:
 | MIME observation prefix | 1,445 bytes |
 | safe filename | 255 UTF-8 bytes |
 
-Callers can reduce but cannot expand these limits. They are product safety budgets, not claims that every larger HTTP message is invalid. With the default encoded-content, chunk-count, chunk-size-line, and trailer limits, the pre-parse chunked wire buffer is bounded to 18,104,340 bytes, below 18 MiB; this prevents hostile chunk syntax from multiplying a 16 MiB content budget into the former roughly 80 MiB wire allocation.
+Callers can reduce but cannot expand these limits. They are product safety budgets, not claims that every larger HTTP message is invalid. Chunked input is validated incrementally before another read can grow the retained prefix: the parser independently enforces chunk-size-line bytes, chunk count, encoded-content bytes, trailer-field count, and trailer-section bytes. This removes the former synthetic whole-wire bound while preserving all underlying resource ceilings and preventing hostile chunk syntax from multiplying the encoded-content budget into an unbounded allocation.
 
 ## Deadline
 
-One monotonic deadline begins before request bytes are written. Before and after every blocking TLS read or write, the crate checks the deadline and sets the underlying socket timeout to the remaining duration. Timeout-like I/O failures and elapsed deadlines become a typed `HttpExchangeTimedOut`. The stream is consumed on failure, preventing uncertain parser state from being reused. Timeout restoration is attempted on every path; an existing exchange failure remains primary, and a restoration error replaces the result only when the exchange itself otherwise succeeded.
+One monotonic deadline begins before request bytes are written. Before and after every blocking TLS read or write, the crate checks the deadline and sets the underlying socket timeout to the remaining duration. Timeout-like I/O failures and elapsed deadlines become a typed `HttpExchangeTimedOut`. A complete chunked response does not perform an additional blocking read merely to await peer closure. Close-delimited responses still require authenticated TLS EOF. The authenticated stream is consumed by the single-use exchange on both success and failure, so a peer keeping its connection open does not create connection-reuse authority. Timeout restoration is attempted on every path; an existing exchange failure remains primary, and a restoration error replaces the result only when the exchange itself otherwise succeeded.
 
 ## Content coding
 
@@ -193,6 +194,10 @@ Rejected because TLS authenticates records on one connection but does not resolv
 
 Rejected because declared lengths and compressed data are attacker controlled. Every allocation and decoder read must remain within reviewed budgets.
 
+### Wait for connection close after a complete chunked message
+
+Rejected because RFC 9112 makes chunked transfer coding self-delimiting and usable on persistent connections. Treating TLS EOF as an additional chunked delimiter converts a valid persistent peer into a timeout failure and conflates connection lifetime with message framing.
+
 ### Follow redirects inside the HTTP crate
 
 Rejected because each target is a new origin, destination, peer, TLS, capability, and policy decision.
@@ -211,13 +216,14 @@ Rejected because extensions are attacker-controlled metadata and do not establis
 
 - One exact authenticated stream yields one unambiguous complete HTTP result.
 - Framing, resource, integrity, and metadata decisions are typed and reproducible.
+- Chunked responses interoperate with peers that keep the connection open after the terminal message boundary.
 - Redirects cannot bypass the existing trust boundaries.
 - No browser or general client dependency is required.
 - The crate is reusable by OriginWeave, naruon, and other CWL services.
 
 ### Negative
 
-- HTTP/1.1 only and connection close per request reduce performance and compatibility.
+- HTTP/1.1 only and a single-use `Connection: close` request policy reduce performance and compatibility; a peer's close timing nevertheless does not define completion for an already complete chunked message.
 - Strict syntax rejects some legacy but interoperable messages.
 - The bounded decoded body is materialized in memory; larger downloads need a future bounded sink authority.
 - The observed MIME table is deliberately conservative and incomplete.
@@ -225,8 +231,8 @@ Rejected because extensions are attacker-controlled metadata and do not establis
 
 ## Verification
 
-The merge gate requires pure parser and property-style boundary tests, byte-truncation tests, deterministic error tests, real loopback HTTPS success and adversary scenarios, proof of exactly one connection, hard deadline tests, digest known-answer vectors, RFC 8941 parameter/duplicate-key/repeated-field/trailer-merge interoperability cases, canonical and omitted-padding Byte Sequence interoperability with malformed-alphabet/length/trailing-bit rejection, explicit rejection of RFC 9651-only parameter bare-item types for this RFC 9530 field definition, SP/HTAB OWS coverage around dictionary delimiters, MIME/disposition cases, network-path redirect rejection, Win32-reserved filename rejection after decoding, static forbidden-source scans, complete public rustdoc, and exact 100% production function, line, region, and branch coverage on the pull-request head.
+The merge gate requires pure parser and property-style boundary tests, byte-truncation tests, deterministic error tests, real loopback HTTPS success and adversary scenarios, a persistent-peer chunked fixture proving success at the zero-chunk/trailer boundary before TLS close, proof of exactly one connection, hard deadline tests, digest known-answer vectors, RFC 8941 parameter/duplicate-key/repeated-field/trailer-merge interoperability cases, canonical and omitted-padding Byte Sequence interoperability with malformed-alphabet/length/trailing-bit rejection, explicit rejection of RFC 9651-only parameter bare-item types for this RFC 9530 field definition, SP/HTAB OWS coverage around dictionary delimiters, MIME/disposition cases, network-path redirect rejection, Win32-reserved filename rejection after decoding, static forbidden-source scans, complete public rustdoc, and exact 100% production function, line, region, and branch coverage on the pull-request head.
 
 ## Standards
 
-RFC 9110 defines current HTTP semantics. RFC 9112 defines HTTP/1.1 syntax and framing. RFC 3986 defines URI-reference forms and distinguishes network-path references from absolute-path references. RFC 9530 defines `Content-Digest` and `Repr-Digest`, binds their Structured Fields syntax to RFC 8941, permits digest trailer-to-header merging, and obsoletes RFC 3230. RFC 9651 is the current Structured Fields standard and obsoletes RFC 8941, while retaining version-specific interpretation for fields defined against an earlier Structured Fields RFC. RFC 6266 defines HTTP `Content-Disposition`. Microsoft documents the Win32 reserved filename characters and device names enforced by the portable handoff policy. The WHATWG MIME Sniffing Living Standard informs the versioned conservative observation table. Full APA 7th references and the evidence-to-decision trace are recorded in `docs/doctoring.md`.
+RFC 9110 defines current HTTP semantics. RFC 9112 defines HTTP/1.1 syntax and framing, including chunked transfer coding as a self-delimiting message body compatible with persistent connections. RFC 3986 defines URI-reference forms and distinguishes network-path references from absolute-path references. RFC 9530 defines `Content-Digest` and `Repr-Digest`, binds their Structured Fields syntax to RFC 8941, permits digest trailer-to-header merging, and obsoletes RFC 3230. RFC 9651 is the current Structured Fields standard and obsoletes RFC 8941, while retaining version-specific interpretation for fields defined against an earlier Structured Fields RFC. RFC 6266 defines HTTP `Content-Disposition`. Microsoft documents the Win32 reserved filename characters and device names enforced by the portable handoff policy. The WHATWG MIME Sniffing Living Standard informs the versioned conservative observation table. Full APA 7th references and the evidence-to-decision trace are recorded in `docs/doctoring.md` and the focused doctoring addenda under `docs/doctoring/`.
