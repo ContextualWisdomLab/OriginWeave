@@ -98,9 +98,26 @@ class HourlyProductDevelopmentContractTests(unittest.TestCase):
             'gh api "repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=1"', gate
         )
         self.assertIn(
-            'gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=release-blocker&per_page=1"',
+            'gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=release-blocker&per_page=100"',
             gate,
         )
+
+    def test_release_blocker_checks_filter_pulls_after_a_full_page(self) -> None:
+        """A labeled PR must not hide a real release-blocker issue behind pagination."""
+
+        query = (
+            'gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&labels='
+            'release-blocker&per_page=100"'
+        )
+        for step_name in (
+            "Evaluate deterministic pull-request-first gates",
+            "Recheck repository state and publish the verified PR",
+        ):
+            with self.subTest(step_name=step_name):
+                step = _step_block(self.workflow, step_name)
+                self.assertIn(query, step)
+                self.assertIn("select(.pull_request == null)", step)
+                self.assertNotIn("labels=release-blocker&per_page=1", step)
 
     def test_nvidia_secret_is_materialized_only_after_deterministic_gates(self) -> None:
         """Stopped runs must never receive the optional live-model credential."""
