@@ -196,6 +196,7 @@ fn authenticated_http11_get_uses_the_exact_tls_stream_and_returns_complete_evide
         .expect("bounded HTTP exchange");
 
     assert_eq!(response.content(), b"hello");
+    assert_eq!(response.reason_phrase(), b"OK");
     assert!(response.redirect().is_none());
     assert_eq!(
         response.supplied_mime().expect("content type").essence(),
@@ -310,8 +311,9 @@ fn authenticated_http11_get_uses_the_exact_tls_stream_and_returns_complete_evide
         &NegotiatedAlpn::Protocol(b"http/1.1".to_vec())
     );
 
-    let (content, parts_evidence) = response.into_parts();
+    let (content, reason_phrase, parts_evidence) = response.into_parts();
     assert_eq!(content, b"hello");
+    assert_eq!(reason_phrase, b"OK");
     assert_eq!(parts_evidence.status_code(), 200);
 
     let request = server
