@@ -446,10 +446,12 @@ fn read_chunked_body(
         }
 
         let mut scratch = [0_u8; IO_BUFFER_BYTES];
-        let byte_count = read_with_deadline(connection, &mut scratch, deadline, timeout)?;
-        if byte_count == 0 {
-            return Err(HttpError::IncompleteResponse);
-        }
+        let byte_count = require_read_progress(read_with_deadline(
+            connection,
+            &mut scratch,
+            deadline,
+            timeout,
+        )?)?;
         wire.extend_from_slice(&scratch[..byte_count]);
     }
 }
@@ -500,6 +502,14 @@ fn read_with_deadline(
         let result = classify_read_result(connection.stream_mut().read(output), timeout);
         ensure_before_deadline(deadline, timeout).and(result)
     })
+}
+
+fn require_read_progress(byte_count: usize) -> Result<usize, HttpError> {
+    if byte_count == 0 {
+        Err(HttpError::IncompleteResponse)
+    } else {
+        Ok(byte_count)
+    }
 }
 
 fn classify_read_result(result: io::Result<usize>, timeout: Duration) -> Result<usize, HttpError> {
@@ -835,6 +845,13 @@ mod tests {
                 &HttpError::HttpExchangeTimedOut { timeout },
             );
         }
+    }
+
+    #[test]
+    fn required_response_reads_reject_clean_eof_and_preserve_progress() {
+        let eof = require_read_progress(0).expect_err("clean EOF");
+        assert_variant(&eof, &HttpError::IncompleteResponse);
+        assert_eq!(require_read_progress(3).expect("read progress"), 3);
     }
 
     #[test]
