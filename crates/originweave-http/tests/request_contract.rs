@@ -102,11 +102,27 @@ fn request_field_names_use_the_complete_token_alphabet() {
 }
 
 #[test]
-fn request_field_values_accept_htab_visible_ascii_and_obs_text() {
-    let value = [b'\t', b' ', b'~', 0x80, 0xff];
+fn request_field_values_accept_internal_htab_visible_ascii_and_obs_text() {
+    let value = [b'A', b'\t', b' ', b'~', 0x80, 0xff, b'Z'];
     let field = RequestField::new("X-Binary-Metadata", &value).expect("field");
     assert_eq!(field.name(), "x-binary-metadata");
     assert_eq!(field.value_byte_count(), value.len());
+}
+
+#[test]
+fn request_field_values_reject_surrounding_optional_whitespace() {
+    for invalid_value in [
+        b" leading".as_slice(),
+        b"\tleading",
+        b"trailing ",
+        b"trailing\t",
+        b" \t surrounded \t",
+    ] {
+        assert!(matches!(
+            RequestField::new("x-test", invalid_value),
+            Err(HttpError::InvalidRequestFieldValue)
+        ));
+    }
 }
 
 #[test]
