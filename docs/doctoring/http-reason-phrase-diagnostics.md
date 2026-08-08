@@ -15,7 +15,7 @@ The bytes are deliberately excluded from `HttpExchangeEvidence`, generic logs, a
 ## Required verification
 
 - Accept `HTTP/1.1 200 OK` and retain `b"OK"` exactly.
-- Accept `HTTP/1.1 204 ` and retain an empty byte sequence while preserving the mandatory separator SP.
+- Accept `HTTP/1.1 204` followed by one required `SP` octet and retain an empty byte sequence as the reason phrase.
 - Accept valid `obs-text` reason bytes such as `b"O\xffK"` without lossy UTF-8 conversion.
 - Reject a status line that omits the mandatory second SP.
 - Demonstrate through a real authenticated loopback TLS exchange that the exact final reason phrase reaches the public response accessor and `into_parts()` unchanged.
