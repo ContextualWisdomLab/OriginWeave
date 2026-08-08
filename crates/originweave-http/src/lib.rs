@@ -53,6 +53,9 @@ mod response_head;
 #[path = "tests/security_contract.rs"]
 mod security_contract;
 mod target;
+#[cfg(test)]
+#[path = "tests/trailer_error_contract.rs"]
+mod trailer_error_contract;
 
 pub use content::ContentCoding;
 pub use disposition::{
