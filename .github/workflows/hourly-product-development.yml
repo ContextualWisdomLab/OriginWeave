@@ -60,12 +60,11 @@ jobs:
             *.blob.core.windows.net:443
             results-receiver.actions.githubusercontent.com:443
 
-      - name: Enforce NVIDIA NIM and pull-request-first gates
+      - name: Evaluate deterministic pull-request-first gates
         id: gate
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          NIM_UPSTREAM_API_KEY: ${{ secrets.NVIDIA_NIM_API_KEY }}
           DRY_RUN: ${{ inputs.dry_run || false }}
         run: |
           set -euo pipefail
@@ -80,9 +79,6 @@ jobs:
           elif [ "$DRY_RUN" = "true" ]; then
             develop=false
             reason=dry_run
-          elif [ -z "${NIM_UPSTREAM_API_KEY:-}" ]; then
-            develop=false
-            reason=nim_api_key_unavailable
           fi
           {
             echo "develop=$develop"
@@ -90,8 +86,28 @@ jobs:
           } >>"$GITHUB_OUTPUT"
           echo "Hourly product gate: $reason" >>"$GITHUB_STEP_SUMMARY"
 
-      - name: Check out the protected default branch without persisted credentials
+      - name: Require NVIDIA NIM credential for model-backed path
+        id: credential
         if: steps.gate.outputs.develop == 'true'
+        shell: bash
+        env:
+          NIM_UPSTREAM_API_KEY: ${{ secrets.NVIDIA_NIM_API_KEY }}
+        run: |
+          set -euo pipefail
+          ready=true
+          reason=ready
+          if [ -z "${NIM_UPSTREAM_API_KEY:-}" ]; then
+            ready=false
+            reason=nim_api_key_unavailable
+          fi
+          {
+            echo "ready=$ready"
+            echo "reason=$reason"
+          } >>"$GITHUB_OUTPUT"
+          echo "Hourly model credential gate: $reason" >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Check out the protected default branch without persisted credentials
+        if: steps.credential.outputs.ready == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
@@ -99,7 +115,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pinned toolchains
-        if: steps.gate.outputs.develop == 'true'
+        if: steps.credential.outputs.ready == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -115,7 +131,7 @@ jobs:
           opencode --version
 
       - name: Prepare immutable baseline and disposable workspace
-        if: steps.gate.outputs.develop == 'true'
+        if: steps.credential.outputs.ready == 'true'
         id: prepare
         shell: bash
         run: |
@@ -188,7 +204,7 @@ jobs:
           } >>"$GITHUB_OUTPUT"
 
       - name: Start loopback-only NVIDIA NIM credential broker
-        if: steps.gate.outputs.develop == 'true'
+        if: steps.credential.outputs.ready == 'true'
         shell: bash
         env:
           NIM_UPSTREAM_API_KEY: ${{ secrets.NVIDIA_NIM_API_KEY }}
@@ -320,7 +336,7 @@ jobs:
           exit 1
 
       - name: Run OpenCode in an unprivileged no-Git workspace
-        if: steps.gate.outputs.develop == 'true'
+        if: steps.credential.outputs.ready == 'true'
         shell: bash
         env:
           AGENT_WORKSPACE: ${{ steps.prepare.outputs.workspace }}
@@ -443,7 +459,7 @@ jobs:
           fi
 
       - name: Stop credential broker
-        if: always() && steps.gate.outputs.develop == 'true'
+        if: always() && steps.credential.outputs.ready == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -454,7 +470,7 @@ jobs:
           fi
 
       - name: Validate and seal the credential-free change bundle
-        if: steps.gate.outputs.develop == 'true'
+        if: steps.credential.outputs.ready == 'true'
         id: bundle
         shell: bash
         env:
