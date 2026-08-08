@@ -26,6 +26,7 @@ use rustls::{ServerConfig, ServerConnection, StreamOwned};
 const TRUSTED_TIME_SECONDS: u64 = 1_767_225_600;
 const SOCKET_TIMEOUT: Duration = Duration::from_secs(3);
 const EXCHANGE_TIMEOUT: Duration = Duration::from_millis(250);
+const SEGMENT_DELAY: Duration = Duration::from_millis(50);
 const KEEP_ALIVE_AFTER_RESPONSE: Duration = Duration::from_secs(1);
 
 struct CertificateMaterial {
@@ -138,6 +139,41 @@ fn spawn_persistent_chunked_server(
     (socket_address, handle)
 }
 
+fn spawn_segmented_persistent_chunked_server(
+    config: Arc<ServerConfig>,
+) -> (SocketAddr, thread::JoinHandle<Vec<u8>>) {
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("loopback listener");
+    let socket_address = listener.local_addr().expect("listener address");
+    let handle = thread::spawn(move || {
+        let (stream, _peer) = listener.accept().expect("server accept");
+        stream
+            .set_read_timeout(Some(SOCKET_TIMEOUT))
+            .expect("server read timeout");
+        stream
+            .set_write_timeout(Some(SOCKET_TIMEOUT))
+            .expect("server write timeout");
+        let connection = ServerConnection::new(config).expect("server TLS connection");
+        let mut tls = StreamOwned::new(connection, stream);
+        let request = read_request(&mut tls).expect("server request read");
+
+        // Flush the response head before the chunked body so the client must cross the exact
+        // authenticated read-progress path after framing has already selected chunked transfer.
+        tls.write_all(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n")
+            .expect("segmented chunked response head");
+        tls.flush().expect("flush segmented response head");
+        thread::sleep(SEGMENT_DELAY);
+        tls.write_all(b"5\r\nhello\r\n0\r\n\r\n")
+            .expect("segmented chunked response body");
+        tls.flush().expect("flush segmented chunked response body");
+
+        thread::sleep(KEEP_ALIVE_AFTER_RESPONSE);
+        tls.conn.send_close_notify();
+        let _ = tls.flush();
+        request
+    });
+    (socket_address, handle)
+}
+
 fn origin_for(socket_address: SocketAddr) -> Origin {
     Origin::parse(&format!("https://localhost:{}", socket_address.port())).expect("test origin")
 }
@@ -232,4 +268,32 @@ fn complete_chunked_response_does_not_wait_for_tls_eof() {
 
     let request = server.join().expect("server thread");
     assert!(request.starts_with(b"GET /persistent-chunked HTTP/1.1\r\n"));
+}
+
+#[test]
+fn segmented_chunked_response_reads_body_after_head_before_tls_eof() {
+    let material = certificate_material();
+    let (root_der, config) = server_config(material);
+    let (socket_address, server) = spawn_segmented_persistent_chunked_server(config);
+    let origin = origin_for(socket_address);
+    let connection = authenticated_connection(&origin, socket_address, root_der);
+    let target = HttpRequestTarget::parse(origin, "/segmented-chunked").expect("target");
+
+    let response = HttpExchangePlan::new(
+        connection,
+        HttpMethod::Get,
+        target,
+        &[],
+        short_exchange_policy(),
+    )
+    .expect("HTTP exchange plan")
+    .execute()
+    .expect("segmented chunked body completes before peer close");
+
+    assert_eq!(response.content(), b"hello");
+    assert_eq!(response.evidence().body_framing(), BodyFraming::Chunked);
+    assert_eq!(response.evidence().chunk_count(), 2);
+
+    let request = server.join().expect("server thread");
+    assert!(request.starts_with(b"GET /segmented-chunked HTTP/1.1\r\n"));
 }
