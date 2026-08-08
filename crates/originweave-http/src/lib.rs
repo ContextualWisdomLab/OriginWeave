@@ -37,6 +37,10 @@ mod policy;
 #[path = "tests/reachability_contract.rs"]
 mod reachability_contract;
 #[cfg(test)]
+#[cfg_attr(coverage_nightly, coverage(off))]
+#[path = "tests/reason_phrase_contract.rs"]
+mod reason_phrase_contract;
+#[cfg(test)]
 #[path = "tests/region_contract.rs"]
 mod region_contract;
 mod request;
