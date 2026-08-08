@@ -675,6 +675,7 @@ jobs:
                       return True
               return False
 
+          MAX_CHANGED_FILE_BYTES = 1_048_576
           allowed = re.compile(r"^(crates/|tests/|docs/|README\.md$|ARCHITECTURE\.md$|CHANGELOG\.md$)")
 
           def files(root):
@@ -694,6 +695,13 @@ jobs:
           deleted = sorted(set(old_files) - set(new_files))
           if deleted:
               raise SystemExit(f"deletions rejected: {deleted}")
+          oversized = sorted(
+              name
+              for name, path in new_files.items()
+              if path.stat().st_size > MAX_CHANGED_FILE_BYTES
+          )
+          if oversized:
+              raise SystemExit(f"oversized workspace files rejected: {oversized}")
           changed = sorted(
               name for name in set(old_files) | set(new_files)
               if old_files.get(name) is None
@@ -711,7 +719,7 @@ jobs:
           for name in changed:
               old_bytes = old_files[name].read_bytes() if name in old_files else b""
               new_bytes = new_files[name].read_bytes()
-              if len(new_bytes) > 1_048_576 or contains_forbidden_secret(new_bytes):
+              if len(new_bytes) > MAX_CHANGED_FILE_BYTES or contains_forbidden_secret(new_bytes):
                   raise SystemExit(f"size or credential contract rejected: {name}")
               try:
                   old_text = old_bytes.decode("utf-8").splitlines(keepends=True)
