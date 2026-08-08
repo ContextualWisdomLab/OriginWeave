@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use originweave_tls::{AuthenticatedTlsConnection, NegotiatedAlpn};
 
-use crate::chunked::{ChunkParseResult, MAX_CHUNK_LINE_BYTES, parse_chunked_body};
+use crate::chunked::{ChunkParseResult, ChunkedResult, parse_chunked_body};
 use crate::content::{ContentCoding, decode_content};
 use crate::disposition::{parse_content_disposition, parse_redirect_metadata};
 use crate::evidence::{
@@ -341,22 +341,7 @@ fn read_network_response(
             })
         }
         BodyFraming::Chunked => {
-            let wire = read_to_clean_eof_bounded(
-                connection,
-                body_prefix,
-                maximum_chunked_wire_bytes(policy),
-                deadline,
-                timeout,
-            )?;
-            let result = match parse_chunked_body(&wire, policy)? {
-                ChunkParseResult::Complete(result) => result,
-                ChunkParseResult::Incomplete => return Err(HttpError::IncompleteResponse),
-            };
-            if result.consumed != wire.len() {
-                return Err(HttpError::UnexpectedResponseBytes {
-                    byte_count: wire.len() - result.consumed,
-                });
-            }
+            let result = read_chunked_body(connection, body_prefix, policy, deadline, timeout)?;
             Ok(NetworkResult {
                 head,
                 encoded_content: result.content,
@@ -440,6 +425,35 @@ fn read_exact_content(
     Ok(output)
 }
 
+fn read_chunked_body(
+    connection: &mut AuthenticatedTlsConnection,
+    mut wire: Vec<u8>,
+    policy: &HttpClientPolicy,
+    deadline: Instant,
+    timeout: Duration,
+) -> Result<ChunkedResult, HttpError> {
+    loop {
+        match parse_chunked_body(&wire, policy)? {
+            ChunkParseResult::Complete(result) => {
+                if result.consumed != wire.len() {
+                    return Err(HttpError::UnexpectedResponseBytes {
+                        byte_count: wire.len() - result.consumed,
+                    });
+                }
+                return Ok(result);
+            }
+            ChunkParseResult::Incomplete => {}
+        }
+
+        let mut scratch = [0_u8; IO_BUFFER_BYTES];
+        let byte_count = read_with_deadline(connection, &mut scratch, deadline, timeout)?;
+        if byte_count == 0 {
+            return Err(HttpError::IncompleteResponse);
+        }
+        wire.extend_from_slice(&scratch[..byte_count]);
+    }
+}
+
 fn read_to_clean_eof_bounded(
     connection: &mut AuthenticatedTlsConnection,
     mut output: Vec<u8>,
@@ -474,16 +488,6 @@ fn read_to_clean_eof_bounded(
         }
         output.extend_from_slice(&scratch[..byte_count]);
     }
-}
-
-fn maximum_chunked_wire_bytes(policy: &HttpClientPolicy) -> usize {
-    let per_chunk_overhead = MAX_CHUNK_LINE_BYTES.saturating_add(4);
-    policy
-        .max_encoded_content_bytes()
-        .saturating_add(policy.max_chunk_count().saturating_mul(per_chunk_overhead))
-        .saturating_add(policy.max_trailer_section_bytes())
-        .saturating_add(MAX_CHUNK_LINE_BYTES)
-        .saturating_add(4)
 }
 
 fn read_with_deadline(
@@ -861,14 +865,6 @@ mod tests {
         assert_variant(
             &classify_io_error(io::Error::from(io::ErrorKind::BrokenPipe), timeout),
             &io_failure(),
-        );
-    }
-
-    #[test]
-    fn default_chunked_wire_bound_uses_the_production_calculation() {
-        assert_eq!(
-            maximum_chunked_wire_bytes(&HttpClientPolicy::strict_defaults()),
-            18_104_340
         );
     }
 }
