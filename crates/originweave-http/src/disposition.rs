@@ -314,10 +314,22 @@ fn is_forbidden_filename_character(character: char) -> bool {
 }
 
 fn is_windows_device_name(base: &str) -> bool {
-    matches!(base, "CON" | "PRN" | "AUX" | "NUL" | "CLOCK$")
-        || (base.len() == 4
-            && (base.starts_with("COM") || base.starts_with("LPT"))
-            && matches!(base.as_bytes()[3], b'1'..=b'9'))
+    matches!(
+        base,
+        "CON"
+            | "PRN"
+            | "AUX"
+            | "NUL"
+            | "CLOCK$"
+            | "COM¹"
+            | "COM²"
+            | "COM³"
+            | "LPT¹"
+            | "LPT²"
+            | "LPT³"
+    ) || (base.len() == 4
+        && (base.starts_with("COM") || base.starts_with("LPT"))
+        && matches!(base.as_bytes()[3], b'1'..=b'9'))
 }
 
 fn extension_mime_relation(filename: Option<&str>, observed: &MimeType) -> ExtensionMimeRelation {
