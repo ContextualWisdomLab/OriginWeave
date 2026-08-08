@@ -34,7 +34,7 @@ jobs:
   develop-one-gap:
     name: Develop, verify, and publish one bounded product gap
     runs-on: ubuntu-24.04
-    timeout-minutes: 55
+    timeout-minutes: 180
     permissions:
       contents: read
       pull-requests: read
@@ -152,6 +152,17 @@ jobs:
           and exact 100% production function, line, region, and branch coverage.
           Add useful rustdoc to every changed public production item. Update
           CHANGELOG.md and the affected architecture, ADR, research, or roadmap docs.
+
+          For every failed command or unexpected result:
+          1. Perform root-cause analysis from exact diagnostics and reproduce once.
+          2. Verify that the corrective action is feasible within the allowed paths,
+             permissions, dependencies, remaining runtime, and every quality or
+             security gate.
+          3. Implement only a feasible corrective action; never weaken, bypass, skip,
+             rewrite, or misreport a test, review, security, or coverage gate.
+          4. Rerun the exact failed command, then all affected exact-head checks.
+          If no bounded feasible corrective action exists, leave the workspace
+          unchanged rather than fabricating success or repeatedly applying guesses.
 
           Edit only crates/**, tests/**, docs/**, README.md, ARCHITECTURE.md, and
           CHANGELOG.md. Do not edit .github/**, scripts/**, governance files,
@@ -316,17 +327,30 @@ jobs:
           AGENT_HOME: ${{ steps.prepare.outputs.agent_home }}
         run: |
           set -euo pipefail
+          config="${RUNNER_TEMP}/originweave-opencode.json"
+
           cleanup_agent() {
             sudo pkill -KILL -u 65532 >/dev/null 2>&1 || true
             sudo iptables -D OUTPUT -m owner --uid-owner 65532 ! -d 127.0.0.0/8 -j REJECT >/dev/null 2>&1 || true
             sudo ip6tables -D OUTPUT -m owner --uid-owner 65532 ! -d ::1/128 -j REJECT >/dev/null 2>&1 || true
+            rm -f "$config"
           }
+
+          reset_agent_workspace() {
+            sudo pkill -KILL -u 65532 >/dev/null 2>&1 || true
+            sudo rm -rf "$AGENT_WORKSPACE"
+            install -d -m 0750 "$AGENT_WORKSPACE"
+            git archive HEAD | tar -x -C "$AGENT_WORKSPACE"
+            install -m 0600 "$config" "${AGENT_WORKSPACE}/opencode.json"
+            sudo chown -R 65532:65532 "$AGENT_WORKSPACE"
+          }
+
           trap cleanup_agent EXIT
           sudo iptables -I OUTPUT 1 -m owner --uid-owner 65532 ! -d 127.0.0.0/8 -j REJECT
           sudo ip6tables -I OUTPUT 1 -m owner --uid-owner 65532 ! -d ::1/128 -j REJECT
           prompt="$(cat "${RUNNER_TEMP}/originweave-agent-prompt.md")"
           success=false
-          cat >"${AGENT_WORKSPACE}/opencode.json" <<'CONFIG'
+          cat >"$config" <<'CONFIG'
           {
             "$schema": "https://opencode.ai/config.json",
             "enabled_providers": ["nvidia-nim"],
@@ -362,11 +386,11 @@ jobs:
             }
           }
           CONFIG
-          sudo chown 65532:65532 "${AGENT_WORKSPACE}/opencode.json"
 
           for model in $OPENCODE_MODEL_CANDIDATES; do
-            sudo pkill -KILL -u 65532 >/dev/null 2>&1 || true
-            if timeout --kill-after=30s "${OPENCODE_RUN_TIMEOUT_SECONDS}s" \
+            reset_agent_workspace
+            set +e
+            timeout --kill-after=30s "${OPENCODE_RUN_TIMEOUT_SECONDS}s" \
               sudo -u '#65532' -g '#65532' env -i \
                 PATH="/usr/local/bin:/usr/bin:/bin:/home/runner/.cargo/bin" \
                 HOME="$AGENT_HOME" \
@@ -386,15 +410,34 @@ jobs:
                 NVIDIA_API_KEY=originweave-local-broker \
                 OPENCODE_DISABLE_AUTOUPDATE=1 \
                 /bin/bash -c 'cd "$1"; exec opencode run "$2" --model "$3"' \
-                bash "$AGENT_WORKSPACE" "$prompt" "$model"; then
+                bash "$AGENT_WORKSPACE" "$prompt" "$model"
+            status=$?
+            set -e
+
+            if [ "$status" -eq 0 ]; then
               success=true
               echo "OpenCode completed with $model." >>"$GITHUB_STEP_SUMMARY"
               break
             fi
-            rm -f "${AGENT_WORKSPACE}/PR_MESSAGE.md"
+
+            if ! curl -fsS "http://${NIM_PROXY_HOST}:${NIM_PROXY_PORT}/healthz" >/dev/null; then
+              cause=credential_broker_unavailable
+              feasible_retry=false
+            elif [ "$status" -eq 124 ] || [ "$status" -eq 137 ]; then
+              cause=model_timeout
+              feasible_retry=true
+            else
+              cause=model_or_tool_failure
+              feasible_retry=true
+            fi
+            echo "OpenCode RCA: model=$model status=$status cause=$cause feasible_retry=$feasible_retry" >>"$GITHUB_STEP_SUMMARY"
+            if [ "$feasible_retry" != "true" ]; then
+              break
+            fi
           done
+
           sudo pkill -KILL -u 65532 >/dev/null 2>&1 || true
-          rm -f "${AGENT_WORKSPACE}/opencode.json"
+          rm -f "$config" "${AGENT_WORKSPACE}/opencode.json"
           if [ "$success" != "true" ]; then
             exit 1
           fi
