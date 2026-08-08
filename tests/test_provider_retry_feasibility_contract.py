@@ -37,8 +37,8 @@ class ProviderRetryFeasibilityContractTests(unittest.TestCase):
             '"request_counter"',
             '"last_auth_rejected_request"',
             '"last_rate_limited_request"',
-            "response.status in (401, 403)",
-            "response.status == 429",
+            "status in (401, 403)",
+            "status == 429",
         ):
             with self.subTest(contract=contract):
                 self.assertIn(contract, broker)
