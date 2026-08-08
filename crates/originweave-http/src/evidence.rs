@@ -445,6 +445,7 @@ impl From<EvidenceInput> for HttpExchangeEvidence {
 #[derive(Debug)]
 pub struct AuthenticatedHttpResponse {
     pub(crate) content: Vec<u8>,
+    pub(crate) reason_phrase: Vec<u8>,
     pub(crate) evidence: HttpExchangeEvidence,
 }
 
@@ -453,6 +454,15 @@ impl AuthenticatedHttpResponse {
     #[must_use]
     pub const fn content(&self) -> &[u8] {
         self.content.as_slice()
+    }
+
+    /// Borrow the exact untrusted HTTP/1.1 reason-phrase octets for diagnostics.
+    ///
+    /// The reason phrase never drives HTTP semantics and is deliberately excluded from the
+    /// credential-free evidence record because servers can place arbitrary octets in it.
+    #[must_use]
+    pub const fn reason_phrase(&self) -> &[u8] {
+        self.reason_phrase.as_slice()
     }
 
     /// Borrow the immutable credential-free exchange evidence.
@@ -485,9 +495,9 @@ impl AuthenticatedHttpResponse {
         self.evidence.content_disposition()
     }
 
-    /// Consume the response and return content plus immutable evidence.
+    /// Consume the response and return content, reason phrase, and immutable evidence.
     #[must_use]
-    pub fn into_parts(self) -> (Vec<u8>, HttpExchangeEvidence) {
-        (self.content, self.evidence)
+    pub fn into_parts(self) -> (Vec<u8>, Vec<u8>, HttpExchangeEvidence) {
+        (self.content, self.reason_phrase, self.evidence)
     }
 }
