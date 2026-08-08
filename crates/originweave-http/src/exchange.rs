@@ -6,9 +6,7 @@ use std::time::{Duration, Instant};
 
 use originweave_tls::{AuthenticatedTlsConnection, NegotiatedAlpn};
 
-use crate::chunked::{
-    ChunkParseResult, ChunkedResult, MAX_CHUNK_LINE_BYTES, parse_chunked_body,
-};
+use crate::chunked::{ChunkParseResult, ChunkedResult, MAX_CHUNK_LINE_BYTES, parse_chunked_body};
 use crate::content::{ContentCoding, decode_content};
 use crate::disposition::{parse_content_disposition, parse_redirect_metadata};
 use crate::evidence::{
@@ -458,11 +456,7 @@ fn read_chunked_body(
             deadline,
             timeout,
         )?)?;
-        extend_chunked_wire(
-            &mut wire,
-            &scratch[..byte_count],
-            maximum_wire_bytes,
-        )?;
+        extend_chunked_wire(&mut wire, &scratch[..byte_count], maximum_wire_bytes)?;
     }
 }
 
