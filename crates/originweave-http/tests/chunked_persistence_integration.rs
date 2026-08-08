@@ -89,7 +89,9 @@ fn server_config(material: CertificateMaterial) -> (Vec<u8>, Arc<ServerConfig>) 
     (material.root_der, Arc::new(config))
 }
 
-fn read_request(tls: &mut StreamOwned<ServerConnection, std::net::TcpStream>) -> Vec<u8> {
+fn read_request(
+    tls: &mut StreamOwned<ServerConnection, std::net::TcpStream>,
+) -> std::io::Result<Vec<u8>> {
     let mut request = Vec::new();
     let mut scratch = [0_u8; 512];
     while !request.windows(4).any(|window| window == b"\r\n\r\n") {
@@ -97,10 +99,10 @@ fn read_request(tls: &mut StreamOwned<ServerConnection, std::net::TcpStream>) ->
             Ok(0) => break,
             Ok(count) => request.extend_from_slice(&scratch[..count]),
             Err(error) if error.kind() == std::io::ErrorKind::UnexpectedEof => break,
-            Err(error) => panic!("server request read failed: {error}"),
+            Err(error) => return Err(error),
         }
     }
-    request
+    Ok(request)
 }
 
 fn spawn_persistent_chunked_server(
@@ -118,7 +120,7 @@ fn spawn_persistent_chunked_server(
             .expect("server write timeout");
         let connection = ServerConnection::new(config).expect("server TLS connection");
         let mut tls = StreamOwned::new(connection, stream);
-        let request = read_request(&mut tls);
+        let request = read_request(&mut tls).expect("server request read");
         tls.write_all(
             b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nhello\r\n0\r\n\r\n",
         )
