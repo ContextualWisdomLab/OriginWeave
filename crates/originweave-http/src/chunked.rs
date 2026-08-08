@@ -1,6 +1,6 @@
 //! Bounded HTTP/1.1 chunked transfer-coding and trailer parsing.
 
-use crate::field::{FieldBlock, FieldLine, FieldSyntaxError};
+use crate::field::{FieldBlock, FieldLine, FieldSyntaxError, trim_optional_whitespace};
 use crate::{HttpClientPolicy, HttpError};
 
 pub(crate) const MAX_CHUNK_LINE_BYTES: usize = 16;
@@ -217,18 +217,6 @@ fn hex_value(byte: u8) -> u8 {
     }
 }
 
-fn trim_optional_whitespace(value: &[u8]) -> &[u8] {
-    let start = value
-        .iter()
-        .position(|byte| !matches!(byte, b' ' | b'\t'))
-        .unwrap_or(value.len());
-    let end = value
-        .iter()
-        .rposition(|byte| !matches!(byte, b' ' | b'\t'))
-        .map_or(start, |index| index + 1);
-    &value[start..end]
-}
-
 fn trailer_field_error(_error: FieldSyntaxError) -> HttpError {
     HttpError::InvalidTrailerSection
 }
@@ -409,6 +397,18 @@ mod tests {
                 MAX_CHUNK_LINE_BYTES
             )
         );
+    }
+
+    #[test]
+    fn exact_unterminated_line_over_budget_fails_after_scan() {
+        let unterminated = vec![b'1'; MAX_CHUNK_LINE_BYTES + 1];
+        assert!(matches!(
+            parse_chunked_body(&unterminated, &policy(8, 4, 128, 64)),
+            Err(HttpError::ChunkLineTooLarge {
+                byte_count,
+                maximum_bytes: MAX_CHUNK_LINE_BYTES,
+            }) if byte_count == MAX_CHUNK_LINE_BYTES + 1
+        ));
     }
 
     #[test]
