@@ -45,6 +45,8 @@ Each model attempt starts from a pristine archive of the exact protected source 
 
 The broker therefore exposes only bounded, credential-free `/statusz` counters. A monotonic request identifier is allocated when an upstream request begins, and the broker records the latest request identifiers that received authentication or authorization rejection (`401` or `403`) and rate limiting (`429`). The runner snapshots the request counter immediately before each model attempt. After a failed attempt, only provider outcomes whose request identifier is newer than that snapshot may influence that attempt's retry decision. This generation binding prevents a late response from an earlier model attempt from poisoning a later clean-room retry.
 
+The `/statusz` snapshot is itself a required trusted-control dependency. Before starting a model, the runner must fetch and locally validate all three nonnegative integer counters. If the endpoint is unavailable or its JSON/schema is malformed, the attempt is classified as `credential_broker_unavailable`, `feasible_retry=false` is recorded, bounded broker diagnostics are emitted, and the model is not started. The same validated reader is reused after a failed model attempt. This prevents shell `errexit`, a transient broker death, or malformed telemetry from bypassing RCA classification and silently terminating the agent step outside the scheduler's retry policy.
+
 An observed `401` or `403` is classified as `provider_auth_rejected` and stops same-run cross-model fallback because another model using the same NVIDIA credential and provider cannot repair that authority failure. NVIDIA's own evaluator guidance treats authentication failures such as `401` and `403` as fail-immediately client errors. An observed `429` is classified as `provider_rate_limited` and also stops same-run cross-model fallback. NVIDIA documents `429` as normally retryable, but retryability does not imply that consuming another 35-minute model slot immediately on the same provider is feasible; the next independently revalidated scheduled invocation is the bounded retry boundary. If neither provider condition occurred, broker unavailability, bounded model timeout, and model/tool failure retain their existing classifications.
 
 ### Publication authority is separate
@@ -58,6 +60,7 @@ An observed `401` or `403` is classified as `provider_auth_rejected` and stops s
 - The model has no raw NVIDIA credential, Git metadata, GitHub token, OIDC token, or direct non-loopback egress.
 - A compromised or malformed candidate bundle cannot force post-model validation to receive the raw upstream credential.
 - Broker failure is distinguishable from model failure and produces bounded diagnostics without exposing request bodies or credentials.
+- Missing or malformed trusted broker telemetry is classified before model execution rather than escaping through shell error handling.
 - Provider authentication rejection and rate limiting are distinguishable from model/tool failure without exposing response bodies, request paths, or credentials.
 - Same-provider fallback stops when current-attempt evidence proves that another immediate model attempt is not feasible; transient rate limiting is re-evaluated by a later fresh scheduler invocation rather than by an in-run cooldown wait.
 - Request-generation counters prevent predecessor-attempt provider outcomes from being attributed to a later pristine fallback.
@@ -72,10 +75,11 @@ The change is not considered operationally proven by pull-request CI alone. On t
 1. with an open PR, the workflow exits through `open_pull_request` before credential materialization;
 2. with no open PR or release blocker and not in `dry_run`, an absent `NVIDIA_NIM_API_KEY` fails at the credential step rather than ending green, while a valid credential reaches the conditional model path or a later explicit deterministic gate;
 3. a controlled model failure records its cause, restores pristine source for any feasible next attempt, and stops immediately if the credential broker is unavailable;
-4. controlled provider `401`/`403` evidence is attributed only to the current request generation and stops same-run fallback as `provider_auth_rejected`;
-5. controlled provider `429` evidence is attributed only to the current request generation and stops same-run fallback as `provider_rate_limited`, leaving retry to a later fresh invocation;
-6. fail-closed Harden Runner egress remains effective without adding unproved endpoints; and
-7. publication, when reached, uses `OPENCODE_PR_TOKEN` only after exact bundle verification and live repository-state rechecks.
+4. an unavailable or malformed `/statusz` response before a model attempt records `credential_broker_unavailable`, emits bounded diagnostics, and starts no model process;
+5. controlled provider `401`/`403` evidence is attributed only to the current request generation and stops same-run fallback as `provider_auth_rejected`;
+6. controlled provider `429` evidence is attributed only to the current request generation and stops same-run fallback as `provider_rate_limited`, leaving retry to a later fresh invocation;
+7. fail-closed Harden Runner egress remains effective without adding unproved endpoints; and
+8. publication, when reached, uses `OPENCODE_PR_TOKEN` only after exact bundle verification and live repository-state rechecks.
 
 ## Alternatives rejected
 
@@ -85,6 +89,7 @@ The change is not considered operationally proven by pull-request CI alone. On t
 - **Rematerialize the raw key during bundle scanning.** Rejected because credential-free validation can use an exact one-way fingerprint instead.
 - **Disable leak scanning.** Rejected because it weakens the security gate rather than repairing the credential boundary.
 - **Use broker `/healthz` alone to authorize model fallback.** Rejected because process liveness does not prove provider authentication, authorization, or capacity.
+- **Let `/statusz` curl or JSON parsing fail under shell `errexit`.** Rejected because a trusted-control failure must be classified as broker infrastructure evidence before any model starts, not terminate outside the RCA contract.
 - **Parse OpenCode prose or logs for provider HTTP status.** Rejected because free-form model/tool output is an unstable and untrusted control boundary; the trusted broker observes the authoritative upstream status directly.
 - **Issue an extra provider preflight before every fallback.** Rejected because it consumes provider capacity and can disagree with the actual model request; generation-bound telemetry from the request already made is stronger evidence.
 - **Retry `429` inside the same run after an arbitrary sleep.** Rejected because the hourly recurrence provides a bounded fresh retry with full state revalidation, while an in-run cooldown consumes finite verification budget without proving capacity has returned.
