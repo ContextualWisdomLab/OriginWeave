@@ -862,4 +862,12 @@ mod tests {
             &io_failure(),
         );
     }
+
+    #[test]
+    fn default_chunked_wire_bound_uses_the_production_calculation() {
+        assert_eq!(
+            maximum_chunked_wire_bytes(&HttpClientPolicy::strict_defaults()),
+            18_104_340
+        );
+    }
 }
