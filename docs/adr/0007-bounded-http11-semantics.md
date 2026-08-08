@@ -63,7 +63,7 @@ Accept-Encoding: gzip, deflate
 
 ```
 
-The caller cannot supply `Host`, connection, proxy, framing, authorization, cookie, trailer, or upgrade fields. The request target rejects fragments, controls, whitespace, backslashes, invalid percent escapes, absolute form, authority form, and an encoded size above 8 KiB. Non-ASCII UTF-8 bytes are percent encoded with uppercase hexadecimal.
+The caller cannot supply `Host`, connection, proxy, framing, authorization, cookie, trailer, or upgrade fields. The request target rejects fragments, controls, whitespace, backslashes, invalid percent escapes, absolute form, authority form, and an encoded size above 8 KiB. Non-ASCII UTF-8 bytes are percent encoded with uppercase hexadecimal. Caller-supplied field values reject leading and trailing OWS before serialization while preserving valid interior SP/HTAB and obs-text bytes.
 
 ## Response syntax and framing
 
@@ -97,6 +97,7 @@ The reviewed maximums are:
 | header section | 64 KiB |
 | informational responses | 8 |
 | chunks including zero chunk | 65,536 |
+| chunk-size line | 16 bytes |
 | trailer fields | 32 |
 | trailer section | 16 KiB |
 | encoded content | 16 MiB |
@@ -105,23 +106,25 @@ The reviewed maximums are:
 | MIME observation prefix | 1,445 bytes |
 | safe filename | 255 UTF-8 bytes |
 
-Callers can reduce but cannot expand these limits. They are product safety budgets, not claims that every larger HTTP message is invalid.
+Callers can reduce but cannot expand these limits. They are product safety budgets, not claims that every larger HTTP message is invalid. With the default encoded-content, chunk-count, chunk-size-line, and trailer limits, the pre-parse chunked wire buffer is bounded to 18,104,340 bytes, below 18 MiB; this prevents hostile chunk syntax from multiplying a 16 MiB content budget into the former roughly 80 MiB wire allocation.
 
 ## Deadline
 
-One monotonic deadline begins before request bytes are written. Before and after every blocking TLS read or write, the crate checks the deadline and sets the underlying socket timeout to the remaining duration. Timeout-like I/O failures and elapsed deadlines become a typed `HttpExchangeTimedOut`. The stream is consumed on failure, preventing uncertain parser state from being reused.
+One monotonic deadline begins before request bytes are written. Before and after every blocking TLS read or write, the crate checks the deadline and sets the underlying socket timeout to the remaining duration. Timeout-like I/O failures and elapsed deadlines become a typed `HttpExchangeTimedOut`. The stream is consumed on failure, preventing uncertain parser state from being reused. Timeout restoration is attempted on every path; an existing exchange failure remains primary, and a restoration error replaces the result only when the exchange itself otherwise succeeded.
 
 ## Content coding
 
 The first slice accepts no content coding, `identity`, one `gzip`, or one zlib-wrapped `deflate`. Multiple or unknown codings and raw-deflate fallback are rejected. The encoded body is bounded before decoding. Decoding uses an 8 KiB scratch buffer and checks decoded bytes and expansion ratio after every read before extending the output.
 
-The implementation pins `flate2` 1.1.10 with default features disabled and the explicit portable pure-Rust backend. Decoder errors remain available through the standard error chain without including content bytes.
+The implementation pins `flate2` 1.1.9 with default features disabled and the explicit portable pure-Rust backend. Decoder errors remain available through the standard error chain without including content bytes.
 
 ## Integrity
 
 RFC 9530 defines `Content-Digest` and `Repr-Digest` using the Structured Fields version published as RFC 8941. RFC 9651 is the current Structured Fields standard and obsoletes RFC 8941, but RFC 9651 explicitly preserves version binding for fields defined by an earlier Structured Fields specification; its later Date and Display String bare-item types are therefore not retroactively valid RFC 9530 parameter values. The relevant dictionary semantics are consistent across RFC 8941 and RFC 9651: repeated field lines are combined in message order, duplicate dictionary keys use the last occurrence, optional whitespace around dictionary commas includes SP and HTAB, and Item parameters are valid extensibility metadata unless the field specification constrains them.
 
 RFC 9530 requires each digest member value itself to be a Byte Sequence and explicitly permits a digest trailer to be merged into the corresponding header field. OriginWeave therefore parses header members first and trailer members second, accepts RFC 8941 parameter bare-item types without assigning them security meaning, validates the complete parameter syntax, and lets later duplicate keys replace earlier values before digest verification. The implementation does not silently upgrade RFC 9530 to RFC 9651-only parameter types.
+
+RFC 8941 Byte Sequence parsing permits a recipient to synthesize missing Base64 padding and says parsers should not fail solely because `=` padding is absent when their decoder can be configured accordingly. The pinned `base64` 0.22.1 decoder is therefore configured with `DecodePaddingMode::Indifferent`, accepting canonical or omitted padding. Invalid alphabet characters and impossible lengths remain errors. OriginWeave intentionally keeps the decoder's strict rejection of non-zero trailing bits as an additional fail-closed restriction; changing that interoperability choice requires separate review.
 
 The first slice verifies `sha-256` and `sha-512` only. Every supported digest value remaining after Structured Fields parsing must match the applicable bytes. Unsupported algorithm members remain typed as unsupported rather than becoming an implicit verification result. Malformed dictionary syntax, malformed Byte Sequences, invalid parameter bare items, and invalid Structured Fields keys fail closed. A syntactically valid empty Byte Sequence is not rejected as Structured Fields syntax, but it cannot match the fixed-length output of a supported SHA algorithm and therefore produces `DigestMismatch`.
 
@@ -222,7 +225,7 @@ Rejected because extensions are attacker-controlled metadata and do not establis
 
 ## Verification
 
-The merge gate requires pure parser and property-style boundary tests, byte-truncation tests, deterministic error tests, real loopback HTTPS success and adversary scenarios, proof of exactly one connection, hard deadline tests, digest known-answer vectors, RFC 8941 parameter/duplicate-key/repeated-field/trailer-merge interoperability cases, explicit rejection of RFC 9651-only parameter bare-item types for this RFC 9530 field definition, SP/HTAB OWS coverage around dictionary delimiters, MIME/disposition cases, network-path redirect rejection, Win32-reserved filename rejection after decoding, static forbidden-source scans, complete public rustdoc, and exact 100% production function, line, region, and branch coverage on the pull-request head.
+The merge gate requires pure parser and property-style boundary tests, byte-truncation tests, deterministic error tests, real loopback HTTPS success and adversary scenarios, proof of exactly one connection, hard deadline tests, digest known-answer vectors, RFC 8941 parameter/duplicate-key/repeated-field/trailer-merge interoperability cases, canonical and omitted-padding Byte Sequence interoperability with malformed-alphabet/length/trailing-bit rejection, explicit rejection of RFC 9651-only parameter bare-item types for this RFC 9530 field definition, SP/HTAB OWS coverage around dictionary delimiters, MIME/disposition cases, network-path redirect rejection, Win32-reserved filename rejection after decoding, static forbidden-source scans, complete public rustdoc, and exact 100% production function, line, region, and branch coverage on the pull-request head.
 
 ## Standards
 
