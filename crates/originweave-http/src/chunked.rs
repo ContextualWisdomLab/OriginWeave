@@ -105,7 +105,18 @@ fn parse_trailers(
         let remaining_budget = policy
             .max_trailer_section_bytes()
             .saturating_sub(consumed_trailer_bytes);
-        let Some(line_end) = find_crlf(input, cursor, remaining_budget)? else {
+        let Some(line_end) = find_crlf(input, cursor, remaining_budget).map_err(|error| {
+            match error {
+                HttpError::ChunkLineTooLarge { byte_count, .. } => {
+                    HttpError::TrailerSectionTooLarge {
+                        byte_count: consumed_trailer_bytes.saturating_add(byte_count),
+                        maximum_bytes: policy.max_trailer_section_bytes(),
+                    }
+                }
+                other => other,
+            }
+        })?
+        else {
             return Ok(ChunkParseResult::Incomplete);
         };
         let line = &input[cursor..line_end];
