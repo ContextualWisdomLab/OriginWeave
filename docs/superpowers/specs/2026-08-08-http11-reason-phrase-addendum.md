@@ -26,7 +26,7 @@ This amendment does not add network, redirect-following, persistence, rendering,
 ## Acceptance tests
 
 1. Retain `b"OK"` from `HTTP/1.1 200 OK`.
-2. Retain an empty value from `HTTP/1.1 204 ` while still requiring the second SP.
+2. Retain an empty value from `HTTP/1.1 204` followed by one required `SP` octet while still requiring the second status-line separator.
 3. Retain valid non-UTF-8 `obs-text` octets losslessly.
 4. Prove the public accessor and `into_parts()` through a real loopback rustls HTTP exchange.
 5. Keep exact production function, line, region, and branch coverage at 100% and preserve strict Clippy/rustdoc gates.
