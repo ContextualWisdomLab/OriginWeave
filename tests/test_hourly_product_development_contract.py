@@ -205,18 +205,26 @@ class HourlyProductDevelopmentContractTests(unittest.TestCase):
         )
 
     def test_pr_message_is_bounded_before_secret_scan(self) -> None:
-        """Untrusted PR prose must be size-bounded before byte-wise leak scanning."""
+        """Untrusted PR prose must be size-bounded before allocation and leak scanning."""
 
         bundle = _step_block(
             self.workflow, "Validate and seal the credential-free change bundle"
         )
+        stat = 'message_size = message_path.stat().st_size'
+        bound = 'if message_size > 65_536:'
         read = 'message_bytes = message_path.read_bytes()'
-        bound = 'if len(message_bytes) > 65_536:'
         scan = 'if contains_forbidden_secret(message_bytes):'
-        for contract in (read, bound, 'raise SystemExit("PR_MESSAGE.md is too large")', scan):
+        for contract in (
+            stat,
+            bound,
+            read,
+            'raise SystemExit("PR_MESSAGE.md is too large")',
+            scan,
+        ):
             self.assertIn(contract, bundle)
-        self.assertLess(bundle.index(read), bundle.index(bound))
-        self.assertLess(bundle.index(bound), bundle.index(scan))
+        self.assertLess(bundle.index(stat), bundle.index(bound))
+        self.assertLess(bundle.index(bound), bundle.index(read))
+        self.assertLess(bundle.index(read), bundle.index(scan))
 
     def test_declared_runtime_can_execute_every_model_and_verification_reserve(self) -> None:
         """The job timeout must cover every advertised model plus final verification."""
