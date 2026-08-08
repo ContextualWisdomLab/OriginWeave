@@ -214,6 +214,16 @@ fn clean_eof_before_any_response_head_is_incomplete() {
 }
 
 #[test]
+fn clean_tls_eof_before_first_chunk_is_incomplete() {
+    let (result, server) = execute(
+        HttpMethod::Get,
+        b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n",
+    );
+    assert!(matches!(result, Err(HttpError::IncompleteResponse)));
+    join_server(server);
+}
+
+#[test]
 fn no_content_semantics_reject_payload_bytes_already_received_with_the_head() {
     let (result, server) = execute(
         HttpMethod::Head,
