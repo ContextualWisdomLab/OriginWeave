@@ -256,8 +256,10 @@ jobs:
           broker="${RUNNER_TEMP}/originweave_nim_broker.py"
           cat >"$broker" <<'PY'
           import http.client
+          import json
           import os
           import ssl
+          import threading
           from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
           from urllib.parse import unquote
 
@@ -265,6 +267,39 @@ jobs:
           KEY = os.environ["NIM_UPSTREAM_API_KEY"]
           MAX_REQUEST = 16 * 1024 * 1024
           MAX_RESPONSE = 32 * 1024 * 1024
+          STATE_LOCK = threading.Lock()
+          REQUEST_COUNTER = 0
+          LAST_AUTH_REJECTED_REQUEST = 0
+          LAST_RATE_LIMITED_REQUEST = 0
+
+          def begin_request():
+              global REQUEST_COUNTER
+              with STATE_LOCK:
+                  REQUEST_COUNTER += 1
+                  return REQUEST_COUNTER
+
+          def record_provider_status(request_id, status):
+              global LAST_AUTH_REJECTED_REQUEST, LAST_RATE_LIMITED_REQUEST
+              with STATE_LOCK:
+                  if status in (401, 403):
+                      LAST_AUTH_REJECTED_REQUEST = max(
+                          LAST_AUTH_REJECTED_REQUEST, request_id
+                      )
+                  elif status == 429:
+                      LAST_RATE_LIMITED_REQUEST = max(
+                          LAST_RATE_LIMITED_REQUEST, request_id
+                      )
+
+          def provider_status():
+              with STATE_LOCK:
+                  return json.dumps(
+                      {
+                          "request_counter": REQUEST_COUNTER,
+                          "last_auth_rejected_request": LAST_AUTH_REJECTED_REQUEST,
+                          "last_rate_limited_request": LAST_RATE_LIMITED_REQUEST,
+                      },
+                      sort_keys=True,
+                  ).encode()
 
           def valid_path(path: str) -> bool:
               if len(path) > 4096 or not path.startswith("/v1/") or "?" in path or "#" in path:
@@ -321,6 +356,7 @@ jobs:
                   if body is None:
                       self.send_body(400, b'{"error":"invalid body"}')
                       return
+                  request_id = begin_request()
                   context = ssl.create_default_context()
                   context.minimum_version = ssl.TLSVersion.TLSv1_2
                   connection = http.client.HTTPSConnection(HOST, 443, timeout=180, context=context)
@@ -337,6 +373,7 @@ jobs:
                           },
                       )
                       response = connection.getresponse()
+                      record_provider_status(request_id, response.status)
                       response_body = response.read(MAX_RESPONSE + 1)
                       if len(response_body) > MAX_RESPONSE:
                           raise ValueError("response too large")
@@ -353,6 +390,8 @@ jobs:
               def do_GET(self):
                   if self.path == "/healthz":
                       self.send_body(200, b"ok\n", "text/plain; charset=utf-8")
+                  elif self.path == "/statusz":
+                      self.send_body(200, provider_status())
                   else:
                       self.send_body(405, b'{"error":"method not allowed"}')
 
@@ -447,6 +486,11 @@ jobs:
 
           for model in $OPENCODE_MODEL_CANDIDATES; do
             reset_agent_workspace
+            provider_status_path="/statusz"
+            provider_before="$(
+              curl -fsS "http://${NIM_PROXY_HOST}:${NIM_PROXY_PORT}${provider_status_path}" |
+                python3 -c 'import json,sys; print(json.load(sys.stdin)["request_counter"])'
+            )"
             set +e
             timeout --kill-after=30s "${OPENCODE_RUN_TIMEOUT_SECONDS}s" \
               sudo -u '#65532' -g '#65532' env -i \
@@ -478,16 +522,31 @@ jobs:
               break
             fi
 
-            if ! curl -fsS "http://${NIM_PROXY_HOST}:${NIM_PROXY_PORT}/healthz" >/dev/null; then
+            provider_status="$(
+              curl -fsS "http://${NIM_PROXY_HOST}:${NIM_PROXY_PORT}${provider_status_path}" 2>/dev/null || true
+            )"
+            if [ -z "$provider_status" ]; then
               cause=credential_broker_unavailable
               feasible_retry=false
               tail -n 50 "${RUNNER_TEMP}/originweave-nim-broker.log" >&2 || true
-            elif [ "$status" -eq 124 ] || [ "$status" -eq 137 ]; then
-              cause=model_timeout
-              feasible_retry=true
             else
-              cause=model_or_tool_failure
-              feasible_retry=true
+              read -r provider_auth_rejected provider_rate_limited < <(
+                printf '%s' "$provider_status" |
+                  python3 -c 'import json,sys; data=json.load(sys.stdin); print(data["last_auth_rejected_request"], data["last_rate_limited_request"])'
+              )
+              if [ "$provider_auth_rejected" -gt "$provider_before" ]; then
+                cause=provider_auth_rejected
+                feasible_retry=false
+              elif [ "$provider_rate_limited" -gt "$provider_before" ]; then
+                cause=provider_rate_limited
+                feasible_retry=false
+              elif [ "$status" -eq 124 ] || [ "$status" -eq 137 ]; then
+                cause=model_timeout
+                feasible_retry=true
+              else
+                cause=model_or_tool_failure
+                feasible_retry=true
+              fi
             fi
             echo "OpenCode RCA: model=$model status=$status cause=$cause feasible_retry=$feasible_retry" >>"$GITHUB_STEP_SUMMARY"
             if [ "$feasible_retry" != "true" ]; then
