@@ -174,6 +174,7 @@ impl HttpExchangePlan {
                 .into();
                 AuthenticatedHttpResponse {
                     content: decoded.bytes,
+                    reason_phrase: network.head.reason_phrase().to_vec(),
                     evidence,
                 }
             })
