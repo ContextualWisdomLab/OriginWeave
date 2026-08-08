@@ -130,6 +130,23 @@ class HourlyProductDevelopmentContractTests(unittest.TestCase):
         )
         self.assertIn("if: steps.credential.outputs.ready == 'true'", checkout)
 
+    def test_missing_model_credential_is_not_a_green_noop(self) -> None:
+        """A model-backed run must fail closed when its required NIM key is absent."""
+
+        credential = _step_block(
+            self.workflow, "Require NVIDIA NIM credential for model-backed path"
+        )
+        marker = 'if [ -z "${NIM_UPSTREAM_API_KEY:-}" ]; then'
+        else_marker = "          else\n"
+        self.assertIn(marker, credential)
+        self.assertIn(else_marker, credential)
+        missing_key_branch = credential[
+            credential.index(marker) : credential.index(else_marker, credential.index(marker))
+        ]
+        self.assertIn("reason=nim_api_key_unavailable", missing_key_branch)
+        self.assertIn("exit 1", missing_key_branch)
+        self.assertNotIn("exit 0", missing_key_branch)
+
     def test_bundle_leak_scan_uses_a_fingerprint_without_rematerializing_secret(
         self,
     ) -> None:
