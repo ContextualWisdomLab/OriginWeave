@@ -1,6 +1,6 @@
 # ADR 0008: Retain HTTP reason phrases only as bounded diagnostics
 
-- **Status:** Accepted
+- **Status:** Proposed — pending qualifying independent non-author review
 - **Date:** 2026-08-08
 - **Decision owners:** Contextual Wisdom Lab
 
@@ -10,7 +10,7 @@ OriginWeave issue #9 requires the final HTTP status code and the exact HTTP/1.1 
 
 RFC 9112 defines the reason phrase as optional diagnostic text in the status line and permits HTAB, SP, visible ASCII, and `obs-text`. It also states that clients should ignore the reason phrase content. Converting these octets to UTF-8 text would reject valid `obs-text`; placing arbitrary server-provided text in credential-free evidence would also weaken the evidence boundary.
 
-## Decision
+## Proposed decision
 
 `originweave-http` retains the exact final reason-phrase octets as a bounded `Vec<u8>` owned by `AuthenticatedHttpResponse`.
 
@@ -28,14 +28,14 @@ The status code remains the sole status-line input to HTTP semantics.
 
 ### Positive
 
-- OriginWeave now satisfies the issue #9 diagnostic-retention contract without changing HTTP semantics.
+- OriginWeave satisfies the issue #9 diagnostic-retention contract without changing HTTP semantics when this proposal is accepted with the containing pull request.
 - RFC 9112 `obs-text` remains lossless.
 - Arbitrary server diagnostics do not contaminate credential-free evidence.
 - The existing status-line byte budget bounds retained diagnostic memory.
 
 ### Negative
 
-- `AuthenticatedHttpResponse::into_parts()` now returns a three-tuple `(content, reason_phrase, evidence)`, which is a source-level API change for callers of this unreleased crate.
+- `AuthenticatedHttpResponse::into_parts()` returns a three-tuple `(content, reason_phrase, evidence)`, which is a source-level API change for callers of this unreleased crate.
 - Callers that choose to display the bytes must perform their own safe presentation or escaping; the crate intentionally does not claim they are UTF-8.
 
 ## Verification
@@ -44,6 +44,7 @@ The status code remains the sole status-line input to HTTP semantics.
 - The real loopback rustls HTTP exchange proves `HTTP/1.1 200 OK` reaches the public response accessor and `into_parts()` unchanged.
 - Existing tests continue to prove reason-phrase content does not influence status, framing, integrity, MIME, redirect, or completion behavior.
 - Exact production function, line, region, and branch coverage remains a merge gate.
+- This ADR becomes Accepted only with qualifying independent review and merge of the protected pull-request head.
 
 ## Reference
 
