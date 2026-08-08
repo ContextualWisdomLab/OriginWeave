@@ -1,6 +1,6 @@
 # Bounded HTTP/1.1 Semantics Design
 
-**Status:** Approved by issue #9 and the autonomous Phase 1 product loop  
+**Status:** Approved product scope via issue #9; independent non-author review remains required for merge  
 **Date:** 2026-08-07  
 **Scope:** Perform one fail-closed HTTP/1.1 `GET` or `HEAD` exchange over an already authenticated OriginWeave TLS stream
 
@@ -76,9 +76,11 @@ The implementation follows:
 - RFC 9110 for HTTP semantics;
 - RFC 9112 for HTTP/1.1 message syntax and framing;
 - RFC 9530 for `Content-Digest` and `Repr-Digest`;
-- RFC 8941 Structured Fields syntax needed by digest dictionaries;
+- RFC 8941 Structured Fields syntax needed by RFC 9530 digest dictionaries;
 - the WHATWG MIME Sniffing Living Standard snapshot reviewed on 17 July 2026;
 - RFC 6266 for `Content-Disposition` semantics, with a stricter local filename safety policy.
+
+RFC 9530 normatively binds its Structured Fields processing to RFC 8941. RFC 9651 later obsoletes RFC 8941, but its additional Date and Display String bare-item types are not silently imported into this version-bound digest parser. They remain rejected until a separately reviewed protocol-version decision adopts them.
 
 The standards permit behavior that OriginWeave intentionally rejects. Product limits and syntax restrictions are safety policy, not claims that rejected messages are invalid for every HTTP deployment.
 
@@ -89,7 +91,7 @@ Production dependencies are pinned through `Cargo.lock`:
 - `originweave-core` and `originweave-tls` path dependencies;
 - `sha2 = 0.10.9` for target and evidence hashes plus SHA-256/SHA-512 digest validation;
 - `base64 = 0.22.1` for RFC 8941 byte-sequence decoding;
-- `flate2 = 1.1.10`, default features disabled, explicit `rust_backend`, for bounded gzip and zlib-wrapped deflate decoding.
+- `flate2 = 1.1.9`, default features disabled, explicit `rust_backend`, for bounded gzip and zlib-wrapped deflate decoding.
 
 `flate2` uses the portable pure-Rust backend selected explicitly rather than inheriting a mutable default. OriginWeave performs all output and ratio accounting outside the decoder.
 
@@ -165,7 +167,7 @@ impl RequestField {
 }
 ```
 
-Field names are lowercase ASCII tokens after validation. Values may contain HTAB, SP, visible ASCII, and bytes `0x80..=0xff`; every other control byte is rejected. The caller cannot supply:
+Field names are lowercase ASCII tokens after validation. Field values can contain interior HTAB, SP, visible ASCII, and bytes `0x80..=0xff`; every other control byte is rejected. Leading or trailing optional whitespace is rejected before serialization so the generated field value cannot depend on recipient-side trimming. The caller cannot supply:
 
 ```text
 host
@@ -255,11 +257,11 @@ impl HttpExchangePlan {
         connection: AuthenticatedTlsConnection,
         method: HttpMethod,
         target: HttpRequestTarget,
-        fields: impl IntoIterator<Item = RequestField>,
+        fields: &[RequestField],
         policy: HttpClientPolicy,
     ) -> Result<Self, HttpError>;
 
-    pub fn exchange(self) -> Result<AuthenticatedHttpResponse, HttpError>;
+    pub fn execute(self) -> Result<AuthenticatedHttpResponse, HttpError>;
 }
 ```
 
@@ -310,7 +312,7 @@ The Host value includes a non-default explicit port and brackets IPv6 as already
 A private bounded buffer reads until the first `CRLF CRLF`. The parser:
 
 - rejects bare CR, bare LF, NUL, and a section that exceeds the configured maximum;
-- requires `HTTP/1.1`, one SP, exactly three decimal status digits, and either end-of-line or one SP followed by bounded reason bytes;
+- requires `HTTP/1.1`, one SP, exactly three decimal status digits, and the mandatory second SP before the optional reason phrase, including when the reason phrase is empty;
 - accepts reason bytes for evidence-free diagnostics but never uses them for semantics;
 - rejects whitespace before a field name and every line beginning with SP or HTAB;
 - validates field names as non-empty RFC token bytes;
@@ -324,7 +326,7 @@ Unknown fields are parsed for framing safety but not automatically exposed. Evid
 
 ## Framing decision
 
-`FramingDecision::for_response(method, status, fields)` returns one of:
+`determine_body_framing(method, status, fields, maximum_encoded_bytes)` returns one of:
 
 ```rust
 pub enum BodyFraming {
@@ -354,7 +356,7 @@ The chunk parser alternates:
 size line -> data -> CRLF -> size line ... -> zero size -> trailer section -> complete
 ```
 
-- size lines are limited to 1 KiB;
+- size lines are limited to 16 bytes, which is sufficient to represent every admitted `usize` chunk size while sharply bounding syntax overhead;
 - only one or more hexadecimal digits followed by CRLF are accepted;
 - chunk extensions are rejected in the first slice;
 - size arithmetic uses checked conversion and checked cumulative addition;
@@ -364,19 +366,21 @@ size line -> data -> CRLF -> size line ... -> zero size -> trailer section -> co
 - `transfer-encoding`, `content-length`, `host`, `connection`, `trailer`, `content-encoding`, and `content-type` are forbidden in trailers;
 - the parser returns encoded content bytes and separately indexed trailers.
 
+With the default 16 MiB encoded-content budget, 65,536-chunk limit, 16-byte chunk-size-line budget, and 16 KiB trailer budget, the pre-parse chunked wire bound is 18,104,340 bytes, below 18 MiB. This is a product memory budget, not a protocol-validity claim.
+
 ## Deadline-bound I/O
 
-`HttpExchangePlan::exchange` captures inherited read and write timeouts. A monotonic deadline is created before request serialization is written. Before and after every blocking operation:
+`HttpExchangePlan::execute` captures inherited read and write timeouts. A monotonic deadline is created before request serialization is written. Before and after every blocking operation:
 
 ```text
 remaining = deadline - now
-if remaining == 0: Handshake-equivalent HttpExchangeTimedOut
+if remaining == 0: HttpExchangeTimedOut
 set relevant socket timeout to remaining
 perform one bounded read or write
 recheck deadline
 ```
 
-Because `rustls::StreamOwned` owns the underlying `TcpStream`, the crate updates `stream.sock` timeouts while it exclusively owns the wrapper. Timeout-like I/O errors become `HttpExchangeTimedOut`; other errors retain their source. The stream is consumed even on failure. On success, inherited timeouts are restored before response construction, although the first slice does not return the connection for reuse.
+Because `rustls::StreamOwned` owns the underlying `TcpStream`, the crate updates `stream.sock` timeouts while it exclusively owns the wrapper. Timeout-like I/O errors become `HttpExchangeTimedOut`; other errors retain their source. The stream is consumed even on failure. The implementation attempts to restore inherited socket timeouts on every path; an existing exchange failure remains the primary error, while a restoration failure is reported only when the exchange itself succeeded. The first slice does not return the connection for reuse.
 
 ## Content decoding
 
@@ -399,23 +403,27 @@ Checked arithmetic is mandatory. A zero-byte encoded body can produce only a zer
 
 ## Digest validation
 
-The crate parses the RFC 8941 dictionary subset needed by RFC 9530:
+The crate parses the RFC 8941 Structured Fields dictionary profile required by RFC 9530:
 
 ```text
-algorithm-key = :base64-byte-sequence:
+algorithm-key = :base64-byte-sequence:;optional-parameters
 ```
 
-Members are comma separated with optional SP. Parameters, inner lists, bare items other than byte sequences, duplicate keys, invalid base64, empty values, and excessive field bytes are rejected.
+Repeated field lines are processed in message order. Header field members are processed before trailer field members, and a later occurrence of the same dictionary key replaces the earlier occurrence. RFC 8941 item parameters are syntax-checked and retained only as extensible metadata with no security meaning for digest verification. Inner lists and non-byte-sequence dictionary values remain outside this digest profile.
+
+RFC 8941 byte-sequence parsing uses the standard Base64 alphabet. Missing `=` padding is accepted by synthesizing/accepting fewer padding bytes as permitted by RFC 8941 recipient behavior. Invalid alphabet characters and impossible Base64 lengths fail parsing. OriginWeave also keeps the base64 crate's strict rejection of non-zero trailing bits as a local fail-closed interoperability restriction. Serialization, when introduced, must emit canonical RFC 4648 padding.
+
+RFC 9530 is version-bound to RFC 8941. RFC 9651-only Date (`@`) and Display String (`%"..."`) parameter bare-item types are intentionally rejected until a separately reviewed protocol-version change adopts them.
 
 Supported active keys are `sha-256` and `sha-512`.
 
 - `Content-Digest` is calculated over the HTTP message content after transfer coding removal and before content-coding decoding.
 - `Repr-Digest` is calculated over the selected representation data. For the first full `GET` response without range semantics, this is the decoded representation bytes plus the representation metadata interpretation defined by policy. To avoid overstating support, the first slice validates `Repr-Digest` only when there is no `Content-Range`, no non-identity transformation other than the represented `Content-Encoding`, and the response status is `200`; otherwise it records `UnsupportedContext`.
-- If multiple supported values are present, every supported value must match.
+- If multiple supported algorithm keys remain after ordered dictionary merging, every supported value must match.
 - Unsupported-only dictionaries are `UnsupportedAlgorithm` unless policy requires a supported digest, in which case the exchange fails.
 - An unsigned digest is integrity evidence against accidental corruption, not authentication or malicious-tamper protection.
 
-Digest values can appear in headers or trailers. A value appearing in both locations must be byte-identical after canonical parsing.
+Digest values can appear in headers or trailers. They are combined through the ordered dictionary merge above; byte-identical header/trailer duplication is not required. A valid later trailer digest can replace an earlier value, and a mismatching later supported digest fails verification.
 
 ## MIME classification
 
@@ -539,12 +547,12 @@ Public `Display` values are deterministic and exclude message content, field val
 
 - every policy boundary at `0`, `1`, maximum, and maximum plus one;
 - target encoding, invalid percent escapes, fragments, controls, and size boundaries;
-- field token/value validation, blocked names, duplicate names, and byte accounting;
+- field token/value validation, blocked names, duplicate names, OWS generation rules, and byte accounting;
 - status and field parser grammar including bare LF, obs-fold, whitespace-before-name, and obs-text;
 - framing matrix for method, status, transfer coding, and content length;
 - chunk and trailer state transitions with truncated input at every byte boundary;
 - decoder output and ratio boundaries;
-- digest dictionary grammar and SHA-256/SHA-512 known-answer vectors;
+- digest dictionary grammar, ordered duplicate-key merging, padded and unpadded RFC 8941 Byte Sequences, and SHA-256/SHA-512 known-answer vectors;
 - MIME signatures, no-sniff state, and mismatch classification;
 - hostile Unix/Windows/Unicode filenames;
 - deterministic error display/source behavior.
@@ -561,7 +569,7 @@ Use the same managed loopback destination, direct TCP, explicit CA, and rustls s
 - malformed status, fields, chunk sizes, missing CRLF, and premature close;
 - every byte/count/time budget;
 - gzip and zlib-deflate decoding plus expansion bomb;
-- digest header and trailer success/mismatch;
+- digest header and trailer success/mismatch, including later trailer replacement of a duplicate header key;
 - MIME agreement and mislabeled active content;
 - safe and hostile content disposition;
 - redirect evidence with no second connection;
@@ -593,7 +601,7 @@ They also require the crate, ADR, design, plan, doctoring references, README/arc
 
 The implementation adds ADR 0007 and updates:
 
-- `AGENTS.md` and `CLAUDE.md` with the HTTP authority boundary;
+- `AGENTS.md` and `CLAUDE.md` when the governing repository contract changes and the human task authorizes that governance scope;
 - `ARCHITECTURE.md` with a sequence diagram from TLS through HTTP evidence and redirect reauthorization;
 - `README.md` with supported and explicitly unsupported HTTP behavior;
 - `CHANGELOG.md` under `Unreleased`;
