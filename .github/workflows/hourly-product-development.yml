@@ -485,7 +485,8 @@ jobs:
           done
 
           sudo pkill -KILL -u 65532 >/dev/null 2>&1 || true
-          rm -f "$config" "${AGENT_WORKSPACE}/opencode.json"
+          rm -f "$config"
+          sudo rm -f "${AGENT_WORKSPACE}/opencode.json"
           if [ "$success" != "true" ]; then
             exit 1
           fi
