@@ -19,3 +19,12 @@ fn overlong_trailer_line_reports_the_trailer_section_budget() {
             && maximum_bytes == policy.max_trailer_section_bytes()
     ));
 }
+
+#[test]
+fn malformed_trailer_line_endings_remain_chunked_syntax_errors() {
+    let policy = HttpClientPolicy::strict_defaults();
+    assert!(matches!(
+        parse_chunked_body(b"0\r\nX-Test: value\rX", &policy),
+        Err(HttpError::MalformedChunkedBody)
+    ));
+}
