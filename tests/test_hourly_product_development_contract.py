@@ -7,6 +7,22 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/hourly-product-development.yml"
+EXPECTED_ENDPOINTS = {
+    "*.actions.githubusercontent.com:443",
+    "*.blob.core.windows.net:443",
+    "api.github.com:443",
+    "codeload.github.com:443",
+    "crates.io:443",
+    "github.com:443",
+    "index.crates.io:443",
+    "integrate.api.nvidia.com:443",
+    "objects.githubusercontent.com:443",
+    "registry.npmjs.org:443",
+    "release-assets.githubusercontent.com:443",
+    "results-receiver.actions.githubusercontent.com:443",
+    "static.crates.io:443",
+    "static.rust-lang.org:443",
+}
 
 
 def _step_block(workflow: str, step_name: str) -> str:
@@ -40,16 +56,14 @@ class HourlyProductDevelopmentContractTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.workflow = WORKFLOW.read_text(encoding="utf-8")
 
-    def test_gitHub_api_gate_keeps_exact_fail_closed_endpoint_contract(self) -> None:
-        """GitHub API access must stay explicit without broadening fail-closed egress."""
+    def test_github_api_gate_keeps_exact_fail_closed_endpoint_contract(self) -> None:
+        """GitHub API access must stay explicit without unreviewed egress expansion."""
 
         hardening = _step_block(
             self.workflow, "Harden runner and block undeclared egress"
         )
-        endpoints = _allowed_endpoints(hardening)
         self.assertIn("egress-policy: block", hardening)
-        self.assertIn("api.github.com:443", endpoints)
-        self.assertNotIn("*.github.com:443", endpoints)
+        self.assertEqual(_allowed_endpoints(hardening), EXPECTED_ENDPOINTS)
 
         gate = _step_block(
             self.workflow, "Enforce NVIDIA NIM and pull-request-first gates"
@@ -63,7 +77,7 @@ class HourlyProductDevelopmentContractTests(unittest.TestCase):
         )
 
     def test_deterministic_stop_gates_precede_optional_nvidia_credential(self) -> None:
-        """Open PR, release blocker, and dry run decisions must not require NIM."""
+        """Open PR, release blocker, and dry run decisions must stop before NIM."""
 
         gate = _step_block(
             self.workflow, "Enforce NVIDIA NIM and pull-request-first gates"
@@ -71,7 +85,9 @@ class HourlyProductDevelopmentContractTests(unittest.TestCase):
         credential_gate = gate.index("reason=nim_api_key_unavailable")
         for reason in ("open_pull_request", "release_blocker", "dry_run"):
             with self.subTest(reason=reason):
-                self.assertLess(gate.index(f"reason={reason}"), credential_gate)
+                stop = f"develop=false\n            reason={reason}"
+                self.assertIn(stop, gate)
+                self.assertLess(gate.index(stop), credential_gate)
 
 
 if __name__ == "__main__":
