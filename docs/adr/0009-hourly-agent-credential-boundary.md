@@ -16,6 +16,10 @@ The workflow also needs fail-closed network policy, deterministic early exits fo
 
 The `open_pull_request`, `release_blocker`, and `dry_run` decisions execute before any step references `NVIDIA_NIM_API_KEY`. If any of those gates stops development, the model-backed path does not receive the secret. A missing NVIDIA credential is evaluated only after those deterministic gates have selected the model-backed path.
 
+### Required model credential fails closed
+
+Once deterministic governance selects the model-backed path, `NVIDIA_NIM_API_KEY` is a required execution dependency rather than an optional optimization. If the credential is absent, the credential step records `nim_api_key_unavailable` in the job summary and exits nonzero. The workflow must not convert that missing authority into a green run merely because all model, bundle, and publication steps are conditionally skipped. This differs from `open_pull_request`, `release_blocker`, and `dry_run`, which are intentional deterministic safe-stop outcomes before model execution is selected.
+
 ### Raw credential authority is limited to two trusted steps
 
 The raw `NVIDIA_NIM_API_KEY` is referenced only by:
@@ -46,6 +50,7 @@ Each model attempt starts from a pristine archive of the exact protected source 
 ## Consequences
 
 - Deterministic open-PR, release-blocker, and dry-run paths do not receive the NVIDIA model secret.
+- After the model-backed path is selected, an absent NVIDIA credential fails the job instead of producing a successful no-op.
 - The model has no raw NVIDIA credential, Git metadata, GitHub token, OIDC token, or direct non-loopback egress.
 - A compromised or malformed candidate bundle cannot force post-model validation to receive the raw upstream credential.
 - Broker failure is distinguishable from model failure and produces bounded diagnostics without exposing request bodies or credentials.
@@ -58,7 +63,7 @@ Each model attempt starts from a pristine archive of the exact protected source 
 The change is not considered operationally proven by pull-request CI alone. On the exact protected-main head, evidence must show all of the following:
 
 1. with an open PR, the workflow exits through `open_pull_request` before credential materialization;
-2. with no open PR or release blocker and not in `dry_run`, the workflow reaches the conditional credential/model path or a later explicit deterministic gate;
+2. with no open PR or release blocker and not in `dry_run`, an absent `NVIDIA_NIM_API_KEY` fails at the credential step rather than ending green, while a valid credential reaches the conditional model path or a later explicit deterministic gate;
 3. a controlled model failure records its cause, restores pristine source for any feasible next attempt, and stops immediately if the credential broker is unavailable;
 4. fail-closed Harden Runner egress remains effective without adding unproved endpoints; and
 5. publication, when reached, uses `OPENCODE_PR_TOKEN` only after exact bundle verification and live repository-state rechecks.
@@ -66,6 +71,7 @@ The change is not considered operationally proven by pull-request CI alone. On t
 ## Alternatives rejected
 
 - **Inject `NVIDIA_NIM_API_KEY` at job or deterministic-gate scope.** Rejected because stopped deterministic paths would receive authority they do not need.
+- **Treat a missing model credential as a successful skipped run.** Rejected because deterministic governance has already selected model-backed development; silently skipping every remaining step would create a false-green execution result and conceal an unavailable required dependency.
 - **Give the raw key directly to OpenCode.** Rejected because model/tool execution is an untrusted boundary and does not need upstream credentials.
 - **Rematerialize the raw key during bundle scanning.** Rejected because credential-free validation can use an exact one-way fingerprint instead.
 - **Disable leak scanning.** Rejected because it weakens the security gate rather than repairing the credential boundary.
