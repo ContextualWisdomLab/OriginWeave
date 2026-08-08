@@ -235,6 +235,18 @@ pub(crate) const fn is_field_value_byte(byte: u8) -> bool {
     byte == b'\t' || (byte >= 0x20 && byte != 0x7f)
 }
 
+pub(crate) fn trim_optional_whitespace(value: &[u8]) -> &[u8] {
+    let start = value
+        .iter()
+        .position(|byte| !matches!(byte, b' ' | b'\t'))
+        .unwrap_or(value.len());
+    let end = value
+        .iter()
+        .rposition(|byte| !matches!(byte, b' ' | b'\t'))
+        .map_or(start, |index| index + 1);
+    &value[start..end]
+}
+
 #[cfg(test)]
 #[cfg_attr(coverage_nightly, coverage(off))]
 mod tests {
