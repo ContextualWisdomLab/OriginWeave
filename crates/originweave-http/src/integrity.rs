@@ -348,7 +348,8 @@ mod tests {
     }
 
     fn digest_member(algorithm: IntegrityAlgorithm, bytes: &[u8]) -> String {
-        let encoded = base64::engine::general_purpose::STANDARD.encode(digest_bytes(algorithm, bytes));
+        let encoded =
+            base64::engine::general_purpose::STANDARD.encode(digest_bytes(algorithm, bytes));
         format!("{}=:{encoded}:", algorithm.key())
     }
 
