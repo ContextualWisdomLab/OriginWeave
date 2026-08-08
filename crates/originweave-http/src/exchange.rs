@@ -79,12 +79,12 @@ impl HttpExchangePlan {
             let started = Instant::now();
             let deadline = started + timeout;
             let result = self.execute_inner(started, deadline);
-            map_timeout_restoration(restore_timeouts(
+            let restoration = map_timeout_restoration(restore_timeouts(
                 &mut self.connection,
                 read_timeout,
                 write_timeout,
-            ))
-            .and(result)
+            ));
+            combine_exchange_and_restoration(result, restoration)
         })
     }
 
@@ -620,6 +620,16 @@ fn map_timeout_restoration(result: io::Result<()>) -> Result<(), HttpError> {
     match result {
         Ok(()) => Ok(()),
         Err(source) => Err(HttpError::TimeoutRestorationFailed { source }),
+    }
+}
+
+pub(crate) fn combine_exchange_and_restoration<T>(
+    exchange: Result<T, HttpError>,
+    restoration: Result<(), HttpError>,
+) -> Result<T, HttpError> {
+    match exchange {
+        Ok(value) => restoration.map(|()| value),
+        Err(error) => Err(error),
     }
 }
 
