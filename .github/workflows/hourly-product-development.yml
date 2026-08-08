@@ -71,10 +71,7 @@ jobs:
           set -euo pipefail
           develop=true
           reason=ready
-          if [ -z "${NIM_UPSTREAM_API_KEY:-}" ]; then
-            develop=false
-            reason=nim_api_key_unavailable
-          elif [ "$(gh api "repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=1" --jq 'length')" -ne 0 ]; then
+          if [ "$(gh api "repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=1" --jq 'length')" -ne 0 ]; then
             develop=false
             reason=open_pull_request
           elif [ "$(gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=release-blocker&per_page=1" --jq '[.[] | select(.pull_request == null)] | length')" -ne 0 ]; then
@@ -83,6 +80,9 @@ jobs:
           elif [ "$DRY_RUN" = "true" ]; then
             develop=false
             reason=dry_run
+          elif [ -z "${NIM_UPSTREAM_API_KEY:-}" ]; then
+            develop=false
+            reason=nim_api_key_unavailable
           fi
           {
             echo "develop=$develop"
