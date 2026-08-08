@@ -6,7 +6,7 @@ use crate::field::{FieldBlock, FieldLine};
 use crate::integrity::{validate_content_digest, validate_representation_digest};
 use crate::mime::{MimeType, classify_observed_mime, no_sniff_status, supplied_mime_type};
 use crate::response_head::{FinalHeadParseResult, parse_final_response_head, parse_response_head};
-use crate::{HttpClientPolicy, HttpError, IntegrityRequirement};
+use crate::{ContentRiskClass, HttpClientPolicy, HttpError, IntegrityRequirement};
 
 fn fields(entries: &[(&str, &[u8])]) -> FieldBlock {
     FieldBlock::new(
@@ -137,23 +137,35 @@ fn mime_parser_rejects_every_ambiguous_syntax_class_and_classifies_signatures() 
     ));
 
     let javascript = MimeType::parse(b"text/javascript").expect("JS MIME");
-    let signatures: &[(&[u8], Option<&MimeType>)] = &[
-        (b"%PDF-1.7", None),
-        (b"\x89PNG\r\n\x1a\nrest", None),
-        (b"\xff\xd8\xffrest", None),
-        (b"GIF87arest", None),
-        (b"GIF89arest", None),
-        (b"RIFF\x04\x00\x00\x00WEBP", None),
-        (b"PK\x03\x04rest", None),
-        (b"  <SvG xmlns='x'>", None),
-        (b"\t<?XML version='1.0'?>", None),
-        (b"<!doctype HTML><html>", None),
-        (b"const answer = 42;", Some(&javascript)),
-        (b"ordinary text", None),
-        (b"\x00\xff\x10", None),
+    let signatures: &[(&[u8], Option<&MimeType>, &str, ContentRiskClass)] = &[
+        (b"%PDF-1.7", None, "application/pdf", ContentRiskClass::ActiveOrScriptable),
+        (b"\x89PNG\r\n\x1a\nrest", None, "image/png", ContentRiskClass::Passive),
+        (b"\xff\xd8\xffrest", None, "image/jpeg", ContentRiskClass::Passive),
+        (b"GIF87arest", None, "image/gif", ContentRiskClass::Passive),
+        (b"GIF89arest", None, "image/gif", ContentRiskClass::Passive),
+        (b"RIFF\x04\x00\x00\x00WEBP", None, "image/webp", ContentRiskClass::Passive),
+        (b"PK\x03\x04rest", None, "application/zip", ContentRiskClass::ArchiveOrContainer),
+        (b"  <SvG xmlns='x'>", None, "image/svg+xml", ContentRiskClass::ActiveOrScriptable),
+        (b"\t<?XML version='1.0'?>", None, "application/xml", ContentRiskClass::ActiveOrScriptable),
+        (b"<!doctype HTML><html>", None, "text/html", ContentRiskClass::ActiveOrScriptable),
+        (
+            b"const answer = 42;",
+            Some(&javascript),
+            "text/javascript",
+            ContentRiskClass::ActiveOrScriptable,
+        ),
+        (b"ordinary text", None, "text/plain", ContentRiskClass::Passive),
+        (
+            b"\x00\xff\x10",
+            None,
+            "application/octet-stream",
+            ContentRiskClass::UnknownBinary,
+        ),
     ];
-    for (content, supplied) in signatures {
-        let _observed = classify_observed_mime(content, *supplied);
+    for (content, supplied, expected_essence, expected_risk) in signatures {
+        let observed = classify_observed_mime(content, *supplied);
+        assert_eq!(observed.mime_type().essence(), *expected_essence);
+        assert_eq!(observed.risk_class(), *expected_risk);
     }
 }
 
