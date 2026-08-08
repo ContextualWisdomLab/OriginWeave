@@ -24,7 +24,6 @@ use rustls::{ServerConfig, ServerConnection, StreamOwned};
 
 const TRUSTED_TIME_SECONDS: u64 = 1_767_225_600;
 const TEST_TIMEOUT: Duration = Duration::from_secs(3);
-const CLEAN_CLOSE_GRACE: Duration = Duration::from_millis(100);
 
 type ServerResult = Result<Vec<u8>, String>;
 
@@ -125,10 +124,6 @@ fn spawn_http_server(
         }
         tls.conn.send_close_notify();
         tls.flush().map_err(|error| error.to_string())?;
-        // Keep the TCP socket alive briefly after the authenticated TLS close-notify record is
-        // flushed. This makes the fixture exercise rustls' clean TLS EOF (`Ok(0)`) rather than a
-        // transport teardown race that can surface as `UnexpectedEof`.
-        thread::sleep(CLEAN_CLOSE_GRACE);
         Ok(request)
     });
     (socket_address, handle)
