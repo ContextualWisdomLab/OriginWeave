@@ -52,11 +52,9 @@ fn windows_superscript_device_names_are_rejected_after_extended_filename_decodin
         b"attachment; filename*=UTF-8''COM%C2%B9.txt".as_slice(),
         b"attachment; filename*=UTF-8''LPT%C2%B2.txt".as_slice(),
     ] {
-        let error = parse_content_disposition(
-            &fields(&[("content-disposition", value)]),
-            &observed,
-        )
-        .expect_err("Windows superscript device name must fail closed");
+        let error =
+            parse_content_disposition(&fields(&[("content-disposition", value)]), &observed)
+                .expect_err("Windows superscript device name must fail closed");
         assert!(matches!(error, HttpError::InvalidContentDisposition));
     }
 }
