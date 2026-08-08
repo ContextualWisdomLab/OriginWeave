@@ -3,10 +3,10 @@
 use std::collections::BTreeMap;
 
 use base64::Engine as _;
-use base64::engine::general_purpose::STANDARD;
+use base64::engine::general_purpose::{STANDARD, STANDARD_PAD_INDIFFERENT};
 use sha2::{Digest, Sha256, Sha512};
 
-use crate::field::FieldBlock;
+use crate::field::{FieldBlock, is_token_byte};
 use crate::{HttpError, IntegrityRequirement};
 
 /// One digest algorithm supported by the first HTTP integrity slice.
@@ -191,7 +191,7 @@ fn parse_byte_sequence(input: &[u8], cursor: &mut usize) -> Result<Vec<u8>, Http
     if input.get(*cursor) != Some(&b':') {
         return Err(HttpError::InvalidDigestField);
     }
-    let decoded = STANDARD
+    let decoded = STANDARD_PAD_INDIFFERENT
         .decode(&input[start..*cursor])
         .map_err(|_error| HttpError::InvalidDigestField)?;
     *cursor += 1;
@@ -286,27 +286,6 @@ fn parse_token(input: &[u8], cursor: &mut usize) -> Result<(), HttpError> {
         *cursor += 1;
     }
     Ok(())
-}
-
-fn is_token_byte(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric()
-        || matches!(
-            byte,
-            b'!' | b'#'
-                | b'$'
-                | b'%'
-                | b'&'
-                | b'\''
-                | b'*'
-                | b'+'
-                | b'-'
-                | b'.'
-                | b'^'
-                | b'_'
-                | b'`'
-                | b'|'
-                | b'~'
-        )
 }
 
 fn parse_boolean(input: &[u8], cursor: &mut usize) -> Result<(), HttpError> {
