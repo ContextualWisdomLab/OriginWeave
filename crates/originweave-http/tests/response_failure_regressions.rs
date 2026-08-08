@@ -9,7 +9,8 @@ use std::time::Duration;
 use originweave_core::Origin;
 use originweave_destination::{AddressClass, DestinationPolicy, ResolutionSnapshot};
 use originweave_http::{
-    HttpClientPolicy, HttpError, HttpExchangePlan, HttpMethod, HttpRequestTarget,
+    AlpnHttp11Policy, HttpClientPolicy, HttpError, HttpExchangePlan, HttpMethod, HttpRequestTarget,
+    IntegrityRequirement,
 };
 use originweave_network::{ConnectionPlan, DirectTcpConnection};
 use originweave_tls::{
@@ -174,9 +175,10 @@ fn authenticated_connection(
     .expect("authenticated loopback TLS")
 }
 
-fn execute(
+fn execute_with_policy(
     method: HttpMethod,
     response: &'static [u8],
+    policy: HttpClientPolicy,
 ) -> (
     Result<originweave_http::AuthenticatedHttpResponse, HttpError>,
     JoinHandle<ServerResult>,
@@ -187,16 +189,43 @@ fn execute(
     let origin = origin_for(socket_address);
     let connection = authenticated_connection(&origin, socket_address, root_der);
     let target = HttpRequestTarget::parse(origin, "/resource").expect("target");
-    let result = HttpExchangePlan::new(
-        connection,
-        method,
-        target,
-        &[],
-        HttpClientPolicy::strict_defaults(),
-    )
-    .expect("HTTP exchange plan")
-    .execute();
+    let result = HttpExchangePlan::new(connection, method, target, &[], policy)
+        .expect("HTTP exchange plan")
+        .execute();
     (result, server)
+}
+
+fn execute(
+    method: HttpMethod,
+    response: &'static [u8],
+) -> (
+    Result<originweave_http::AuthenticatedHttpResponse, HttpError>,
+    JoinHandle<ServerResult>,
+) {
+    execute_with_policy(method, response, HttpClientPolicy::strict_defaults())
+}
+
+fn tiny_chunked_wire_policy() -> HttpClientPolicy {
+    let defaults = HttpClientPolicy::strict_defaults();
+    HttpClientPolicy::new(
+        TEST_TIMEOUT,
+        defaults.max_request_bytes(),
+        defaults.max_status_line_bytes(),
+        defaults.max_header_field_count(),
+        defaults.max_header_name_bytes(),
+        defaults.max_header_value_bytes(),
+        defaults.max_header_section_bytes(),
+        defaults.max_interim_response_count(),
+        1,
+        defaults.max_trailer_field_count(),
+        1,
+        1,
+        1,
+        1,
+        AlpnHttp11Policy::RequireHttp11,
+        IntegrityRequirement::Optional,
+    )
+    .expect("tiny chunked-wire policy")
 }
 
 fn join_server(server: JoinHandle<ServerResult>) {
@@ -220,6 +249,23 @@ fn clean_tls_eof_before_first_chunk_is_incomplete() {
         b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n",
     );
     assert!(matches!(result, Err(HttpError::IncompleteResponse)));
+    join_server(server);
+}
+
+#[test]
+fn chunked_body_prefix_over_independent_wire_budget_fails_before_parsing() {
+    let (result, server) = execute_with_policy(
+        HttpMethod::Get,
+        b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n1111111111111111111111111111111111111111111111111111111111111111",
+        tiny_chunked_wire_policy(),
+    );
+    assert!(matches!(
+        result,
+        Err(HttpError::EncodedContentTooLarge {
+            byte_count,
+            maximum_bytes: 42,
+        }) if byte_count > 42
+    ));
     join_server(server);
 }
 
