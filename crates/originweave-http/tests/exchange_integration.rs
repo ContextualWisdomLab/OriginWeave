@@ -15,7 +15,8 @@ use originweave_http::{
 };
 use originweave_network::{ConnectionPlan, DirectTcpConnection};
 use originweave_tls::{
-    AlpnRequirement, TlsClientPolicy, TlsHandshakePlan, TrustBundleIdentifier, TrustRootBundle,
+    AlpnRequirement, NegotiatedAlpn, TlsClientPolicy, TlsHandshakePlan, TlsProtocolVersion,
+    TrustBundleIdentifier, TrustRootBundle,
 };
 use rcgen::{
     BasicConstraints, Certificate, CertificateParams, DnType, ExtendedKeyUsagePurpose, IsCa,
@@ -300,8 +301,14 @@ fn authenticated_http11_get_uses_the_exact_tls_stream_and_returns_complete_evide
         budgets.max_content_expansion_ratio(),
         expected_policy.max_content_expansion_ratio()
     );
-    let _tls_protocol_version = evidence.tls_protocol_version();
-    let _negotiated_alpn = evidence.negotiated_alpn();
+    assert!(matches!(
+        evidence.tls_protocol_version(),
+        TlsProtocolVersion::Tls12 | TlsProtocolVersion::Tls13
+    ));
+    assert_eq!(
+        evidence.negotiated_alpn(),
+        &NegotiatedAlpn::Protocol(b"http/1.1".to_vec())
+    );
 
     let (content, parts_evidence) = response.into_parts();
     assert_eq!(content, b"hello");
