@@ -649,9 +649,10 @@ jobs:
           message_path = workspace / "PR_MESSAGE.md"
           if not message_path.is_file():
               raise SystemExit("PR_MESSAGE.md is required")
-          message_bytes = message_path.read_bytes()
-          if len(message_bytes) > 65_536:
+          message_size = message_path.stat().st_size
+          if message_size > 65_536:
               raise SystemExit("PR_MESSAGE.md is too large")
+          message_bytes = message_path.read_bytes()
           if contains_forbidden_secret(message_bytes):
               raise SystemExit("credential disclosure rejected in PR message")
           try:
