@@ -10,6 +10,10 @@
 #![deny(missing_docs)]
 
 mod chunked;
+#[cfg(test)]
+#[cfg_attr(coverage_nightly, coverage(off))]
+#[path = "tests/chunked_wire_budget_contract.rs"]
+mod chunked_wire_budget_contract;
 mod content;
 #[cfg(test)]
 #[path = "tests/coverage_contract.rs"]
