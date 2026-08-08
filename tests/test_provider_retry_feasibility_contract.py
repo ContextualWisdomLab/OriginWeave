@@ -51,7 +51,7 @@ class ProviderRetryFeasibilityContractTests(unittest.TestCase):
         )
         loop = agent[agent.index("for model in $OPENCODE_MODEL_CANDIDATES; do") :]
         for contract in (
-            "provider_before=",
+            "read -r provider_before",
             '"/statusz"',
             "cause=provider_auth_rejected",
             "cause=provider_rate_limited",
@@ -60,7 +60,7 @@ class ProviderRetryFeasibilityContractTests(unittest.TestCase):
             with self.subTest(contract=contract):
                 self.assertIn(contract, loop)
 
-        self.assertLess(loop.index("provider_before="), loop.index("opencode run"))
+        self.assertLess(loop.index("read -r provider_before"), loop.index("opencode run"))
         self.assertLess(
             loop.index("cause=provider_auth_rejected"),
             loop.index("cause=model_or_tool_failure"),
@@ -76,13 +76,13 @@ class ProviderRetryFeasibilityContractTests(unittest.TestCase):
         agent = _step_block(
             self.workflow, "Run OpenCode in an unprivileged no-Git workspace"
         )
-        loop = agent[agent.index("for model in $OPENCODE_MODEL_CANDIDATES; do") :]
-        self.assertIn("provider_before_json=", loop)
-        self.assertIn("json.loads(sys.argv[1])", loop)
-        self.assertNotIn(
-            'curl -fsS "http://${NIM_PROXY_HOST}:${NIM_PROXY_PORT}${provider_status_path}" |',
-            loop,
-        )
+        helper_start = agent.index("read_provider_status()")
+        helper_end = agent.index("\n          }", helper_start)
+        helper = agent[helper_start:helper_end]
+        self.assertIn('payload="$(' , helper)
+        self.assertIn("json.loads(sys.argv[1])", helper)
+        self.assertLess(helper.index("curl -fsS"), helper.index("json.loads(sys.argv[1])"))
+        self.assertNotIn("| python3", helper)
 
     def test_broker_status_preflight_failure_is_classified_before_model_start(self) -> None:
         """A dead or malformed status endpoint must not bypass RCA before model execution."""
