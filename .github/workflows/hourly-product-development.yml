@@ -96,13 +96,45 @@ jobs:
           set -euo pipefail
           ready=true
           reason=ready
+          fingerprint_file="${RUNNER_TEMP}/originweave-nim-secret-fingerprint.json"
           if [ -z "${NIM_UPSTREAM_API_KEY:-}" ]; then
             ready=false
             reason=nim_api_key_unavailable
+          else
+            umask 077
+            python3 - "$fingerprint_file" <<'PY'
+          import hashlib
+          import json
+          import os
+          import pathlib
+          import sys
+
+          rolling_base = 257
+          rolling_mask = (1 << 64) - 1
+          secret = os.environ["NIM_UPSTREAM_API_KEY"].encode()
+          rolling_hash = 0
+          for byte in secret:
+              rolling_hash = ((rolling_hash * rolling_base) + byte) & rolling_mask
+          pathlib.Path(sys.argv[1]).write_text(
+              json.dumps(
+                  {
+                      "secret_length": len(secret),
+                      "secret_sha256": hashlib.sha256(secret).hexdigest(),
+                      "rolling_hash": rolling_hash,
+                  },
+                  sort_keys=True,
+              ),
+              encoding="utf-8",
+          )
+          PY
+            chmod 0400 "$fingerprint_file"
           fi
           {
             echo "ready=$ready"
             echo "reason=$reason"
+            if [ "$ready" = "true" ]; then
+              echo "fingerprint_file=$fingerprint_file"
+            fi
           } >>"$GITHUB_OUTPUT"
           echo "Hourly model credential gate: $reason" >>"$GITHUB_STEP_SUMMARY"
 
@@ -476,7 +508,7 @@ jobs:
         env:
           BASELINE: ${{ steps.prepare.outputs.baseline }}
           AGENT_WORKSPACE: ${{ steps.prepare.outputs.workspace }}
-          FORBIDDEN_SECRET: ${{ secrets.NVIDIA_NIM_API_KEY }}
+          FORBIDDEN_SECRET_FINGERPRINT_FILE: ${{ steps.credential.outputs.fingerprint_file }}
         run: |
           set -euo pipefail
           sudo chown -R "$(id -u):$(id -g)" "$AGENT_WORKSPACE"
@@ -495,7 +527,61 @@ jobs:
           workspace = pathlib.Path(sys.argv[2])
           bundle_path = pathlib.Path(sys.argv[3])
           proposal_path = pathlib.Path(sys.argv[4])
-          forbidden = os.environ.get("FORBIDDEN_SECRET", "").encode()
+          fingerprint_path = pathlib.Path(
+              os.environ["FORBIDDEN_SECRET_FINGERPRINT_FILE"]
+          )
+          if fingerprint_path.is_symlink() or not fingerprint_path.is_file():
+              raise SystemExit("credential fingerprint is not a regular file")
+          try:
+              fingerprint = json.loads(fingerprint_path.read_text(encoding="utf-8"))
+          finally:
+              fingerprint_path.unlink()
+          expected_keys = {"secret_length", "secret_sha256", "rolling_hash"}
+          if set(fingerprint) != expected_keys:
+              raise SystemExit("credential fingerprint schema mismatch")
+          secret_length = fingerprint["secret_length"]
+          secret_sha256 = fingerprint["secret_sha256"]
+          secret_rolling_hash = fingerprint["rolling_hash"]
+          rolling_base = 257
+          rolling_mask = (1 << 64) - 1
+          if (
+              type(secret_length) is not int
+              or not 1 <= secret_length <= 16_384
+              or not isinstance(secret_sha256, str)
+              or re.fullmatch(r"[0-9a-f]{64}", secret_sha256) is None
+              or type(secret_rolling_hash) is not int
+              or not 0 <= secret_rolling_hash <= rolling_mask
+          ):
+              raise SystemExit("credential fingerprint values are invalid")
+
+          def contains_forbidden_secret(payload):
+              if len(payload) < secret_length:
+                  return False
+              highest_power = pow(rolling_base, secret_length - 1, 1 << 64)
+              current_hash = 0
+              for byte in payload[:secret_length]:
+                  current_hash = ((current_hash * rolling_base) + byte) & rolling_mask
+              for offset in range(len(payload) - secret_length + 1):
+                  if offset:
+                      removed = payload[offset - 1]
+                      added = payload[offset + secret_length - 1]
+                      current_hash = (
+                          (
+                              current_hash
+                              - ((removed * highest_power) & rolling_mask)
+                          )
+                          & rolling_mask
+                      )
+                      current_hash = (
+                          (current_hash * rolling_base) + added
+                      ) & rolling_mask
+                  if current_hash != secret_rolling_hash:
+                      continue
+                  candidate = payload[offset : offset + secret_length]
+                  if hashlib.sha256(candidate).hexdigest() == secret_sha256:
+                      return True
+              return False
+
           allowed = re.compile(r"^(crates/|tests/|docs/|README\.md$|ARCHITECTURE\.md$|CHANGELOG\.md$)")
 
           def files(root):
@@ -532,7 +618,7 @@ jobs:
           for name in changed:
               old_bytes = old_files[name].read_bytes() if name in old_files else b""
               new_bytes = new_files[name].read_bytes()
-              if len(new_bytes) > 1_048_576 or (forbidden and forbidden in new_bytes):
+              if len(new_bytes) > 1_048_576 or contains_forbidden_secret(new_bytes):
                   raise SystemExit(f"size or credential contract rejected: {name}")
               try:
                   old_text = old_bytes.decode("utf-8").splitlines(keepends=True)
@@ -551,9 +637,13 @@ jobs:
           message_path = workspace / "PR_MESSAGE.md"
           if not message_path.is_file():
               raise SystemExit("PR_MESSAGE.md is required")
-          message = message_path.read_text(encoding="utf-8")
-          if forbidden and forbidden.decode(errors="ignore") in message:
+          message_bytes = message_path.read_bytes()
+          if contains_forbidden_secret(message_bytes):
               raise SystemExit("credential disclosure rejected in PR message")
+          try:
+              message = message_bytes.decode("utf-8")
+          except UnicodeDecodeError as error:
+              raise SystemExit("PR_MESSAGE.md must be UTF-8") from error
           title, separator, body = message.partition("\n")
           title = title.strip()
           body = body.strip()
