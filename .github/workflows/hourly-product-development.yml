@@ -487,9 +487,12 @@ jobs:
           for model in $OPENCODE_MODEL_CANDIDATES; do
             reset_agent_workspace
             provider_status_path="/statusz"
+            provider_before_json="$(
+              curl -fsS "http://${NIM_PROXY_HOST}:${NIM_PROXY_PORT}${provider_status_path}"
+            )"
             provider_before="$(
-              curl -fsS "http://${NIM_PROXY_HOST}:${NIM_PROXY_PORT}${provider_status_path}" |
-                python3 -c 'import json,sys; print(json.load(sys.stdin)["request_counter"])'
+              python3 -c 'import json,sys; print(json.loads(sys.argv[1])["request_counter"])' \
+                "$provider_before_json"
             )"
             set +e
             timeout --kill-after=30s "${OPENCODE_RUN_TIMEOUT_SECONDS}s" \
@@ -531,8 +534,8 @@ jobs:
               tail -n 50 "${RUNNER_TEMP}/originweave-nim-broker.log" >&2 || true
             else
               read -r provider_auth_rejected provider_rate_limited < <(
-                printf '%s' "$provider_status" |
-                  python3 -c 'import json,sys; data=json.load(sys.stdin); print(data["last_auth_rejected_request"], data["last_rate_limited_request"])'
+                python3 -c 'import json,sys; data=json.loads(sys.argv[1]); print(data["last_auth_rejected_request"], data["last_rate_limited_request"])' \
+                  "$provider_status"
               )
               if [ "$provider_auth_rejected" -gt "$provider_before" ]; then
                 cause=provider_auth_rejected
