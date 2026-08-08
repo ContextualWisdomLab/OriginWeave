@@ -25,7 +25,10 @@ fn restoration_failure_is_reported_after_a_successful_exchange() {
         Ok::<usize, HttpError>(42),
         Err(restoration_failure()),
     );
-    assert!(matches!(result, Err(HttpError::TimeoutRestorationFailed { .. })));
+    assert!(matches!(
+        result,
+        Err(HttpError::TimeoutRestorationFailed { .. })
+    ));
 }
 
 #[test]
