@@ -208,13 +208,19 @@ jobs:
           2. Verify that the corrective action is feasible within the allowed paths,
              permissions, dependencies, remaining runtime, and every quality or
              security gate.
-          3. Implement only a feasible corrective action that is materially distinct
-             from every previously attempted and disproven action; never weaken,
-             bypass, skip, rewrite, or misreport a test, review, security, or
-             coverage gate.
+          3. within the current isolated model attempt, implement only a feasible
+             corrective action that is materially distinct from every action already
+             attempted and disproven in that same attempt; never weaken, bypass,
+             skip, rewrite, or misreport a test, review, security, or coverage gate.
           4. Rerun the exact failed command, then all affected exact-head checks.
           If no bounded feasible corrective action exists, leave the workspace
           unchanged rather than fabricating success or repeatedly applying guesses.
+
+          Fallback model retries are independent clean-room attempts. The runner
+          restores pristine exact HEAD and does not pass model-produced RCA,
+          candidates, or selected actions from one model to another as trusted
+          context. Cross-model fallback is chosen only from bounded runner-observed
+          outcome classification and broker health.
 
           Edit only crates/**, tests/**, docs/**, README.md, ARCHITECTURE.md, and
           CHANGELOG.md. Do not edit .github/**, scripts/**, governance files,
