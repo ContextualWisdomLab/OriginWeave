@@ -27,7 +27,7 @@ class SchedulerBlockerResolutionContractTests(unittest.TestCase):
             "actual tool support",
             "actor permissions",
             "Execute the first safe and feasible action",
-            "Verify the authoritative state transition",
+            "verify the authoritative state transition",
             "Only report an external blocker",
         )
         positions = []
