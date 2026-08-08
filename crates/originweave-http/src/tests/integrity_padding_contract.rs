@@ -12,8 +12,7 @@ fn fields(value: &[u8]) -> FieldBlock {
 
 #[test]
 fn rfc8941_byte_sequence_accepts_omitted_base64_padding() {
-    let unpadded_sha256 =
-        b"sha-256=:LPJNul+wow4m6DsqxbninhsWHlwfp0JecwQzYpOLmCQ:";
+    let unpadded_sha256 = b"sha-256=:LPJNul+wow4m6DsqxbninhsWHlwfp0JecwQzYpOLmCQ:";
     assert_eq!(
         validate_content_digest(
             &fields(unpadded_sha256),
