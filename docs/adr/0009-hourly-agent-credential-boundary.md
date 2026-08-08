@@ -39,9 +39,13 @@ While the raw credential is already authorized in the credential step, the workf
 
 Untrusted `PR_MESSAGE.md` input is size-bounded before byte-wise fingerprint scanning, and changed source files remain subject to the existing per-file, file-count, changed-line, path, symlink, binary, and credential-disclosure bounds.
 
-### Retry decisions require causal evidence
+### Retry decisions require causal provider evidence
 
-Each model attempt starts from a pristine archive of the exact protected source head. A local broker failure is classified as `credential_broker_unavailable`, emits bounded broker diagnostics, and stops model fallback. A bounded model timeout or model/tool failure may proceed to the next configured model only while the broker remains healthy and the next action is feasible. A retry must be materially distinct from an already disproven corrective action rather than repeating the same mutation or command without new evidence.
+Each model attempt starts from a pristine archive of the exact protected source head. Local broker liveness and upstream provider viability are separate facts: a healthy `/healthz` response proves only that the loopback broker process is alive, not that NVIDIA will accept the credential or serve another model request.
+
+The broker therefore exposes only bounded, credential-free `/statusz` counters. A monotonic request identifier is allocated when an upstream request begins, and the broker records the latest request identifiers that received authentication or authorization rejection (`401` or `403`) and rate limiting (`429`). The runner snapshots the request counter immediately before each model attempt. After a failed attempt, only provider outcomes whose request identifier is newer than that snapshot may influence that attempt's retry decision. This generation binding prevents a late response from an earlier model attempt from poisoning a later clean-room retry.
+
+An observed `401` or `403` is classified as `provider_auth_rejected` and stops same-run cross-model fallback because another model using the same NVIDIA credential and provider cannot repair that authority failure. NVIDIA's own evaluator guidance treats authentication failures such as `401` and `403` as fail-immediately client errors. An observed `429` is classified as `provider_rate_limited` and also stops same-run cross-model fallback. NVIDIA documents `429` as normally retryable, but retryability does not imply that consuming another 35-minute model slot immediately on the same provider is feasible; the next independently revalidated scheduled invocation is the bounded retry boundary. If neither provider condition occurred, broker unavailability, bounded model timeout, and model/tool failure retain their existing classifications.
 
 ### Publication authority is separate
 
@@ -54,9 +58,12 @@ Each model attempt starts from a pristine archive of the exact protected source 
 - The model has no raw NVIDIA credential, Git metadata, GitHub token, OIDC token, or direct non-loopback egress.
 - A compromised or malformed candidate bundle cannot force post-model validation to receive the raw upstream credential.
 - Broker failure is distinguishable from model failure and produces bounded diagnostics without exposing request bodies or credentials.
+- Provider authentication rejection and rate limiting are distinguishable from model/tool failure without exposing response bodies, request paths, or credentials.
+- Same-provider fallback stops when current-attempt evidence proves that another immediate model attempt is not feasible; transient rate limiting is re-evaluated by a later fresh scheduler invocation rather than by an in-run cooldown wait.
+- Request-generation counters prevent predecessor-attempt provider outcomes from being attributed to a later pristine fallback.
 - Fallback attempts are isolated from predecessor edits and cannot justify repeated, disproven repairs.
 - Pull-request publication remains operationally separate from review and merge authority.
-- The stricter boundary may stop development when credentials, broker health, reviewer provisioning, or repository state are unavailable; that is intentional fail-closed behavior.
+- The stricter boundary may stop development when credentials, provider viability, broker health, reviewer provisioning, or repository state are unavailable; that is intentional fail-closed behavior.
 
 ## Operational proof required after protected merge
 
@@ -65,8 +72,10 @@ The change is not considered operationally proven by pull-request CI alone. On t
 1. with an open PR, the workflow exits through `open_pull_request` before credential materialization;
 2. with no open PR or release blocker and not in `dry_run`, an absent `NVIDIA_NIM_API_KEY` fails at the credential step rather than ending green, while a valid credential reaches the conditional model path or a later explicit deterministic gate;
 3. a controlled model failure records its cause, restores pristine source for any feasible next attempt, and stops immediately if the credential broker is unavailable;
-4. fail-closed Harden Runner egress remains effective without adding unproved endpoints; and
-5. publication, when reached, uses `OPENCODE_PR_TOKEN` only after exact bundle verification and live repository-state rechecks.
+4. controlled provider `401`/`403` evidence is attributed only to the current request generation and stops same-run fallback as `provider_auth_rejected`;
+5. controlled provider `429` evidence is attributed only to the current request generation and stops same-run fallback as `provider_rate_limited`, leaving retry to a later fresh invocation;
+6. fail-closed Harden Runner egress remains effective without adding unproved endpoints; and
+7. publication, when reached, uses `OPENCODE_PR_TOKEN` only after exact bundle verification and live repository-state rechecks.
 
 ## Alternatives rejected
 
@@ -75,6 +84,10 @@ The change is not considered operationally proven by pull-request CI alone. On t
 - **Give the raw key directly to OpenCode.** Rejected because model/tool execution is an untrusted boundary and does not need upstream credentials.
 - **Rematerialize the raw key during bundle scanning.** Rejected because credential-free validation can use an exact one-way fingerprint instead.
 - **Disable leak scanning.** Rejected because it weakens the security gate rather than repairing the credential boundary.
+- **Use broker `/healthz` alone to authorize model fallback.** Rejected because process liveness does not prove provider authentication, authorization, or capacity.
+- **Parse OpenCode prose or logs for provider HTTP status.** Rejected because free-form model/tool output is an unstable and untrusted control boundary; the trusted broker observes the authoritative upstream status directly.
+- **Issue an extra provider preflight before every fallback.** Rejected because it consumes provider capacity and can disagree with the actual model request; generation-bound telemetry from the request already made is stronger evidence.
+- **Retry `429` inside the same run after an arbitrary sleep.** Rejected because the hourly recurrence provides a bounded fresh retry with full state revalidation, while an in-run cooldown consumes finite verification budget without proving capacity has returned.
 - **Broaden network egress to simplify retries.** Rejected because no repository-specific runtime evidence justifies a wider authority set.
 - **Use `OPENCODE_PR_TOKEN` for approval or merge.** Rejected because publication and independent governance are intentionally separate authorities.
 
@@ -85,5 +98,7 @@ GitHub. (2026). *Secrets*. GitHub Docs. https://docs.github.com/en/actions/conce
 GitHub. (2026). *Workflow syntax for GitHub Actions*. GitHub Docs. https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax
 
 NVIDIA. (2026). *Authentication and API keys*. NVIDIA NeMo Retriever documentation. https://docs.nvidia.com/nemo/retriever/latest/extraction/ngc-api-key/index.html
+
+NVIDIA. (2026). *Raise client error interceptor*. NVIDIA NeMo Evaluator SDK. https://docs.nvidia.com/nemo/evaluator/latest/libraries/nemo-evaluator/interceptors/raise-client-error.html
 
 NVIDIA. (2026). *API reference: NVIDIA NIM for large language models*. NVIDIA Docs. https://docs.nvidia.com/nim/large-language-models/latest/api-reference.html
