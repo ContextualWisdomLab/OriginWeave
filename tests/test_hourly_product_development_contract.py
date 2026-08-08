@@ -259,6 +259,23 @@ class HourlyProductDevelopmentContractTests(unittest.TestCase):
             agent,
         )
 
+    def test_missing_publication_authority_is_not_a_green_noop(self) -> None:
+        """A verified change must fail closed when its dedicated publisher is absent."""
+
+        publish = _step_block(
+            self.workflow, "Recheck repository state and publish the verified PR"
+        )
+        marker = 'if [ -z "${AUTOMATION_TOKEN:-}" ]; then'
+        next_probe = 'live_default_sha="$(GH_TOKEN="$AUTOMATION_TOKEN" gh api'
+        self.assertIn(marker, publish)
+        self.assertIn(next_probe, publish)
+        missing_token_branch = publish[
+            publish.index(marker) : publish.index(next_probe)
+        ]
+        self.assertIn("Dedicated OpenCode PR token unavailable", missing_token_branch)
+        self.assertIn("exit 1", missing_token_branch)
+        self.assertNotIn("exit 0", missing_token_branch)
+
 
 if __name__ == "__main__":
     unittest.main()
