@@ -196,8 +196,7 @@ fn digest_dictionary_accepts_http_ows_around_member_delimiters() {
 
 #[test]
 fn structured_byte_sequences_accept_omitted_padding_but_remain_strict() {
-    let unpadded_sha256 =
-        b"sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU:";
+    let unpadded_sha256 = b"sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU:";
     assert_eq!(
         validate_content_digest(
             &fields(&[("content-digest", unpadded_sha256)]),
