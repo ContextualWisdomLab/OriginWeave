@@ -92,7 +92,7 @@ class HourlyProductDevelopmentContractTests(unittest.TestCase):
         self.assertEqual(_allowed_endpoints(hardening), EXPECTED_ENDPOINTS)
 
         gate = _step_block(
-            self.workflow, "Enforce NVIDIA NIM and pull-request-first gates"
+            self.workflow, "Evaluate deterministic pull-request-first gates"
         )
         self.assertIn(
             'gh api "repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=1"', gate
@@ -102,18 +102,33 @@ class HourlyProductDevelopmentContractTests(unittest.TestCase):
             gate,
         )
 
-    def test_deterministic_stop_gates_precede_optional_nvidia_credential(self) -> None:
-        """Open PR, release blocker, and dry run decisions must stop before NIM."""
+    def test_nvidia_secret_is_materialized_only_after_deterministic_gates(self) -> None:
+        """Stopped runs must never receive the optional live-model credential."""
 
         gate = _step_block(
-            self.workflow, "Enforce NVIDIA NIM and pull-request-first gates"
+            self.workflow, "Evaluate deterministic pull-request-first gates"
         )
-        credential_gate = gate.index("reason=nim_api_key_unavailable")
+        self.assertNotIn("NIM_UPSTREAM_API_KEY", gate)
+        self.assertNotIn("secrets.NVIDIA_NIM_API_KEY", gate)
         for reason in ("open_pull_request", "release_blocker", "dry_run"):
             with self.subTest(reason=reason):
-                stop = f"develop=false\n            reason={reason}"
-                self.assertIn(stop, gate)
-                self.assertLess(gate.index(stop), credential_gate)
+                self.assertIn(f"reason={reason}", gate)
+
+        credential = _step_block(
+            self.workflow, "Require NVIDIA NIM credential for model-backed path"
+        )
+        self.assertIn("if: steps.gate.outputs.develop == 'true'", credential)
+        self.assertIn(
+            "NIM_UPSTREAM_API_KEY: ${{ secrets.NVIDIA_NIM_API_KEY }}", credential
+        )
+        self.assertIn("reason=nim_api_key_unavailable", credential)
+        self.assertIn("ready=true", credential)
+
+        checkout = _step_block(
+            self.workflow,
+            "Check out the protected default branch without persisted credentials",
+        )
+        self.assertIn("if: steps.credential.outputs.ready == 'true'", checkout)
 
     def test_declared_runtime_can_execute_every_model_and_verification_reserve(self) -> None:
         """The job timeout must cover every advertised model plus final verification."""
