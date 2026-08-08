@@ -138,23 +138,68 @@ fn mime_parser_rejects_every_ambiguous_syntax_class_and_classifies_signatures() 
 
     let javascript = MimeType::parse(b"text/javascript").expect("JS MIME");
     let signatures: &[(&[u8], Option<&MimeType>, &str, ContentRiskClass)] = &[
-        (b"%PDF-1.7", None, "application/pdf", ContentRiskClass::ActiveOrScriptable),
-        (b"\x89PNG\r\n\x1a\nrest", None, "image/png", ContentRiskClass::Passive),
-        (b"\xff\xd8\xffrest", None, "image/jpeg", ContentRiskClass::Passive),
+        (
+            b"%PDF-1.7",
+            None,
+            "application/pdf",
+            ContentRiskClass::ActiveOrScriptable,
+        ),
+        (
+            b"\x89PNG\r\n\x1a\nrest",
+            None,
+            "image/png",
+            ContentRiskClass::Passive,
+        ),
+        (
+            b"\xff\xd8\xffrest",
+            None,
+            "image/jpeg",
+            ContentRiskClass::Passive,
+        ),
         (b"GIF87arest", None, "image/gif", ContentRiskClass::Passive),
         (b"GIF89arest", None, "image/gif", ContentRiskClass::Passive),
-        (b"RIFF\x04\x00\x00\x00WEBP", None, "image/webp", ContentRiskClass::Passive),
-        (b"PK\x03\x04rest", None, "application/zip", ContentRiskClass::ArchiveOrContainer),
-        (b"  <SvG xmlns='x'>", None, "image/svg+xml", ContentRiskClass::ActiveOrScriptable),
-        (b"\t<?XML version='1.0'?>", None, "application/xml", ContentRiskClass::ActiveOrScriptable),
-        (b"<!doctype HTML><html>", None, "text/html", ContentRiskClass::ActiveOrScriptable),
+        (
+            b"RIFF\x04\x00\x00\x00WEBP",
+            None,
+            "image/webp",
+            ContentRiskClass::Passive,
+        ),
+        (
+            b"PK\x03\x04rest",
+            None,
+            "application/zip",
+            ContentRiskClass::ArchiveOrContainer,
+        ),
+        (
+            b"  <SvG xmlns='x'>",
+            None,
+            "image/svg+xml",
+            ContentRiskClass::ActiveOrScriptable,
+        ),
+        (
+            b"\t<?XML version='1.0'?>",
+            None,
+            "application/xml",
+            ContentRiskClass::ActiveOrScriptable,
+        ),
+        (
+            b"<!doctype HTML><html>",
+            None,
+            "text/html",
+            ContentRiskClass::ActiveOrScriptable,
+        ),
         (
             b"const answer = 42;",
             Some(&javascript),
             "text/javascript",
             ContentRiskClass::ActiveOrScriptable,
         ),
-        (b"ordinary text", None, "text/plain", ContentRiskClass::Passive),
+        (
+            b"ordinary text",
+            None,
+            "text/plain",
+            ContentRiskClass::Passive,
+        ),
         (
             b"\x00\xff\x10",
             None,
