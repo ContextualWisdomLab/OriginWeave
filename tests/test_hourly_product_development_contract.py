@@ -98,15 +98,15 @@ class HourlyProductDevelopmentContractTests(unittest.TestCase):
             'gh api "repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=1"', gate
         )
         self.assertIn(
-            'gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=release-blocker&per_page=100"',
+            'gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=release-blocker&per_page=100"',
             gate,
         )
 
-    def test_release_blocker_checks_filter_pulls_after_a_full_page(self) -> None:
-        """A labeled PR must not hide a real release-blocker issue behind pagination."""
+    def test_release_blocker_checks_filter_pulls_after_exhaustive_pagination(self) -> None:
+        """Labeled PR pages must not hide a real release-blocker issue on any later page."""
 
         query = (
-            'gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&labels='
+            'gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/issues?state=open&labels='
             'release-blocker&per_page=100"'
         )
         for step_name in (
@@ -116,7 +116,7 @@ class HourlyProductDevelopmentContractTests(unittest.TestCase):
             with self.subTest(step_name=step_name):
                 step = _step_block(self.workflow, step_name)
                 self.assertIn(query, step)
-                self.assertIn("select(.pull_request == null)", step)
+                self.assertIn("[.[][] | select(.pull_request == null)] | length", step)
                 self.assertNotIn('labels=release-blocker&per_page=1"', step)
 
     def test_nvidia_secret_is_materialized_only_after_deterministic_gates(self) -> None:
