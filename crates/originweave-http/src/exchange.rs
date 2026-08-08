@@ -6,7 +6,9 @@ use std::time::{Duration, Instant};
 
 use originweave_tls::{AuthenticatedTlsConnection, NegotiatedAlpn};
 
-use crate::chunked::{ChunkParseResult, ChunkedResult, parse_chunked_body};
+use crate::chunked::{
+    ChunkParseResult, ChunkedResult, MAX_CHUNK_LINE_BYTES, parse_chunked_body,
+};
 use crate::content::{ContentCoding, decode_content};
 use crate::disposition::{parse_content_disposition, parse_redirect_metadata};
 use crate::evidence::{
@@ -432,6 +434,8 @@ fn read_chunked_body(
     deadline: Instant,
     timeout: Duration,
 ) -> Result<ChunkedResult, HttpError> {
+    let maximum_wire_bytes = maximum_chunked_wire_bytes(policy);
+    extend_chunked_wire(&mut wire, &[], maximum_wire_bytes)?;
     loop {
         match parse_chunked_body(&wire, policy)? {
             ChunkParseResult::Complete(result) => {
@@ -445,15 +449,47 @@ fn read_chunked_body(
             ChunkParseResult::Incomplete => {}
         }
 
+        let remaining_capacity = maximum_wire_bytes.saturating_sub(wire.len());
         let mut scratch = [0_u8; IO_BUFFER_BYTES];
+        let read_limit = remaining_capacity.saturating_add(1).min(scratch.len());
         let byte_count = require_read_progress(read_with_deadline(
             connection,
-            &mut scratch,
+            &mut scratch[..read_limit],
             deadline,
             timeout,
         )?)?;
-        wire.extend_from_slice(&scratch[..byte_count]);
+        extend_chunked_wire(
+            &mut wire,
+            &scratch[..byte_count],
+            maximum_wire_bytes,
+        )?;
     }
+}
+
+pub(crate) fn maximum_chunked_wire_bytes(policy: &HttpClientPolicy) -> usize {
+    let per_chunk_overhead = MAX_CHUNK_LINE_BYTES.saturating_add(4);
+    policy
+        .max_encoded_content_bytes()
+        .saturating_add(policy.max_chunk_count().saturating_mul(per_chunk_overhead))
+        .saturating_add(policy.max_trailer_section_bytes())
+        .saturating_add(MAX_CHUNK_LINE_BYTES)
+        .saturating_add(4)
+}
+
+pub(crate) fn extend_chunked_wire(
+    wire: &mut Vec<u8>,
+    bytes: &[u8],
+    maximum: usize,
+) -> Result<(), HttpError> {
+    let next_len = wire.len().saturating_add(bytes.len());
+    if next_len > maximum {
+        return Err(HttpError::EncodedContentTooLarge {
+            byte_count: u64::try_from(next_len).unwrap_or(u64::MAX),
+            maximum_bytes: maximum,
+        });
+    }
+    wire.extend_from_slice(bytes);
+    Ok(())
 }
 
 fn read_to_clean_eof_bounded(
