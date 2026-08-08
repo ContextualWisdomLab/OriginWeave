@@ -252,6 +252,15 @@ class HourlyProductDevelopmentContractTests(unittest.TestCase):
             positions.append(prepare.index(phrase))
         self.assertEqual(positions, sorted(positions))
 
+    def test_corrective_action_memory_is_scoped_to_one_isolated_model_attempt(self) -> None:
+        """Clean fallback models must not receive unbounded prior-model reasoning as truth."""
+
+        prepare = _step_block(
+            self.workflow, "Prepare immutable baseline and disposable workspace"
+        )
+        self.assertIn("within the current isolated model attempt", prepare)
+        self.assertIn("Fallback model retries are independent clean-room attempts", prepare)
+
     def test_each_model_retry_starts_from_the_exact_pristine_source_tree(self) -> None:
         """Fallback models must not inherit partial source edits from failed attempts."""
 
