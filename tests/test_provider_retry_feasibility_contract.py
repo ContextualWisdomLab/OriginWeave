@@ -70,6 +70,20 @@ class ProviderRetryFeasibilityContractTests(unittest.TestCase):
             loop.index("cause=model_or_tool_failure"),
         )
 
+    def test_provider_status_is_fetched_before_local_json_parsing(self) -> None:
+        """Status JSON must be data to local code, never a curl-to-interpreter pipe."""
+
+        agent = _step_block(
+            self.workflow, "Run OpenCode in an unprivileged no-Git workspace"
+        )
+        loop = agent[agent.index("for model in $OPENCODE_MODEL_CANDIDATES; do") :]
+        self.assertIn("provider_before_json=", loop)
+        self.assertIn("json.loads(sys.argv[1])", loop)
+        self.assertNotIn(
+            'curl -fsS "http://${NIM_PROXY_HOST}:${NIM_PROXY_PORT}${provider_status_path}" |',
+            loop,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
