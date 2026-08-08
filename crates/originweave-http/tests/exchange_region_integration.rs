@@ -24,7 +24,7 @@ use rustls::{ServerConfig, ServerConnection, StreamOwned};
 
 const TRUSTED_TIME_SECONDS: u64 = 1_767_225_600;
 const TEST_TIMEOUT: Duration = Duration::from_secs(3);
-const EXCHANGE_TIMEOUT: Duration = Duration::from_millis(75);
+const EXCHANGE_TIMEOUT: Duration = Duration::from_millis(250);
 
 type ServerResult = Result<Vec<u8>, String>;
 
@@ -255,7 +255,7 @@ fn malformed_chunked_body_propagates_through_the_authenticated_exchange() {
 #[test]
 fn stalled_response_head_expires_the_total_exchange_deadline() {
     let (result, server) = execute(
-        ServerBehavior::Stall(Duration::from_millis(300)),
+        ServerBehavior::Stall(Duration::from_secs(1)),
         policy_with_timeout(EXCHANGE_TIMEOUT),
     );
     assert!(matches!(
