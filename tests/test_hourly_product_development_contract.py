@@ -130,6 +130,34 @@ class HourlyProductDevelopmentContractTests(unittest.TestCase):
         )
         self.assertIn("if: steps.credential.outputs.ready == 'true'", checkout)
 
+    def test_bundle_leak_scan_uses_a_fingerprint_without_rematerializing_secret(
+        self,
+    ) -> None:
+        """Post-model validation must detect the key without receiving the raw key."""
+
+        credential = _step_block(
+            self.workflow, "Require NVIDIA NIM credential for model-backed path"
+        )
+        for contract in (
+            "originweave-nim-secret-fingerprint.json",
+            '"secret_length"',
+            '"secret_sha256"',
+            '"rolling_hash"',
+            'echo "fingerprint_file=$fingerprint_file"',
+        ):
+            self.assertIn(contract, credential)
+
+        bundle = _step_block(
+            self.workflow, "Validate and seal the credential-free change bundle"
+        )
+        self.assertNotIn("FORBIDDEN_SECRET:", bundle)
+        self.assertNotIn("secrets.NVIDIA_NIM_API_KEY", bundle)
+        self.assertIn("FORBIDDEN_SECRET_FINGERPRINT_FILE:", bundle)
+        self.assertIn("steps.credential.outputs.fingerprint_file", bundle)
+        self.assertIn("contains_forbidden_secret", bundle)
+        self.assertIn("fingerprint_path.unlink", bundle)
+        self.assertEqual(self.workflow.count("secrets.NVIDIA_NIM_API_KEY"), 2)
+
     def test_declared_runtime_can_execute_every_model_and_verification_reserve(self) -> None:
         """The job timeout must cover every advertised model plus final verification."""
 
