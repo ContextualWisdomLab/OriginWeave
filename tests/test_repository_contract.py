@@ -31,10 +31,14 @@ class RepositoryContractTests(unittest.TestCase):
         )
 
     def test_toolchain_is_pinned_to_current_project_baseline(self) -> None:
-        """Reproducible builds require an explicit Rust patch version."""
+        """Toolchain and package metadata must share the exact Rust patch baseline."""
 
-        data = tomllib.loads((ROOT / "rust-toolchain.toml").read_text(encoding="utf-8"))
-        self.assertEqual(data["toolchain"]["channel"], "1.97.1")
+        toolchain = tomllib.loads(
+            (ROOT / "rust-toolchain.toml").read_text(encoding="utf-8")
+        )
+        manifest = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))
+        self.assertEqual(toolchain["toolchain"]["channel"], "1.97.1")
+        self.assertEqual(manifest["workspace"]["package"]["rust-version"], "1.97.1")
 
     def test_required_architecture_and_governance_documents_exist(self) -> None:
         """A commercial repository must keep binding decisions discoverable."""
