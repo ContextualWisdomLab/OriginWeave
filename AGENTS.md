@@ -29,7 +29,7 @@ For every failed check, review, approval, permission, tool, infrastructure, or w
 2. Identify the root cause from current diagnostics and confirm it with the smallest safe reproduction or policy-compliant probe.
 3. Enumerate candidate corrective actions in dependency order instead of stopping at the first apparent blocker.
 4. Validate each candidate against actual tool support, actor permissions, required credentials, reviewer eligibility, branch protection and rulesets, the repository-writer lease, path and authority boundaries, remaining runtime, and unchanged quality and security gates.
-5. Execute the first safe and feasible action immediately, then refetch and Verify the authoritative state transition. A posted comment, accepted command, dispatch, or successful status is not proof that the intended review, check, merge, or protected-main run occurred.
+5. Execute the first safe and feasible action immediately, then refetch and verify the authoritative state transition. A posted comment, accepted command, dispatch, or successful status is not proof that the intended review, check, merge, or protected-main run occurred.
 6. If the action does not produce that state transition, incorporate the evidence into the RCA and evaluate the next safe candidate; do not repeat an unsupported or disproven action.
 7. Only report an external blocker after current evidence proves that no safe feasible corrective action is available. Continue one non-conflicting bounded task when the writer lease and dependency graph permit it.
 
