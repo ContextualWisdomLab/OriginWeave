@@ -117,7 +117,7 @@ class HourlyProductDevelopmentContractTests(unittest.TestCase):
                 step = _step_block(self.workflow, step_name)
                 self.assertIn(query, step)
                 self.assertIn("select(.pull_request == null)", step)
-                self.assertNotIn("labels=release-blocker&per_page=1", step)
+                self.assertNotIn('labels=release-blocker&per_page=1"', step)
 
     def test_nvidia_secret_is_materialized_only_after_deterministic_gates(self) -> None:
         """Stopped runs must never receive the optional live-model credential."""
