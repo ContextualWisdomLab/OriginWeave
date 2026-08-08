@@ -49,8 +49,34 @@ def _allowed_endpoints(hardening_step: str) -> set[str]:
     }
 
 
+def _scalar_value(workflow: str, name: str, indentation: int) -> str:
+    """Return one quoted or unquoted YAML scalar from the expected indentation."""
+
+    marker = f"{' ' * indentation}{name}: "
+    for line in workflow.splitlines():
+        if line.startswith(marker):
+            return line.removeprefix(marker).strip().strip('"')
+    raise AssertionError(f"missing scalar: {name}")
+
+
+def _folded_environment_values(workflow: str, name: str) -> list[str]:
+    """Return nonempty values from one top-level folded environment scalar."""
+
+    marker = f"  {name}: >-\n"
+    _before, separator, remainder = workflow.partition(marker)
+    if not separator:
+        raise AssertionError(f"missing folded environment value: {name}")
+    values = []
+    for line in remainder.splitlines():
+        if not line.startswith("    "):
+            break
+        if line.strip():
+            values.append(line.strip())
+    return values
+
+
 class HourlyProductDevelopmentContractTests(unittest.TestCase):
-    """Keep deterministic governance independent from optional model credentials."""
+    """Keep deterministic governance and recovery bounded, isolated, and realistic."""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -88,6 +114,69 @@ class HourlyProductDevelopmentContractTests(unittest.TestCase):
                 stop = f"develop=false\n            reason={reason}"
                 self.assertIn(stop, gate)
                 self.assertLess(gate.index(stop), credential_gate)
+
+    def test_declared_runtime_can_execute_every_model_and_verification_reserve(self) -> None:
+        """The job timeout must cover every advertised model plus final verification."""
+
+        candidates = _folded_environment_values(
+            self.workflow, "OPENCODE_MODEL_CANDIDATES"
+        )
+        per_model_seconds = int(
+            _scalar_value(self.workflow, "OPENCODE_RUN_TIMEOUT_SECONDS", 2)
+        )
+        job_timeout_minutes = int(
+            _scalar_value(self.workflow, "timeout-minutes", 4)
+        )
+        model_minutes = (len(candidates) * per_model_seconds + 59) // 60
+        self.assertGreaterEqual(job_timeout_minutes, model_minutes + 30)
+        self.assertIn("cancel-in-progress: false", self.workflow)
+
+    def test_agent_prompt_requires_rca_feasibility_action_and_revalidation(self) -> None:
+        """A failed command must lead to evidence-based feasible remediation, not surrender."""
+
+        prepare = _step_block(
+            self.workflow, "Prepare immutable baseline and disposable workspace"
+        )
+        required_sequence = (
+            "Perform root-cause analysis",
+            "Verify that the corrective action is feasible",
+            "Implement only a feasible corrective action",
+            "Rerun the exact failed command",
+        )
+        positions = []
+        for phrase in required_sequence:
+            self.assertIn(phrase, prepare)
+            positions.append(prepare.index(phrase))
+        self.assertEqual(positions, sorted(positions))
+
+    def test_each_model_retry_starts_from_the_exact_pristine_source_tree(self) -> None:
+        """Fallback models must not inherit partial source edits from failed attempts."""
+
+        agent = _step_block(
+            self.workflow, "Run OpenCode in an unprivileged no-Git workspace"
+        )
+        loop = agent[agent.index("for model in $OPENCODE_MODEL_CANDIDATES; do") :]
+        reset = "reset_agent_workspace"
+        invocation = "opencode run"
+        self.assertIn('rm -rf "$AGENT_WORKSPACE"', agent)
+        self.assertIn('git archive HEAD | tar -x -C "$AGENT_WORKSPACE"', agent)
+        self.assertIn(reset, loop)
+        self.assertLess(loop.index(reset), loop.index(invocation))
+
+    def test_retry_feasibility_distinguishes_model_failure_from_broker_failure(self) -> None:
+        """The scheduler may retry a model only while its local credential broker is healthy."""
+
+        agent = _step_block(
+            self.workflow, "Run OpenCode in an unprivileged no-Git workspace"
+        )
+        for contract in (
+            "cause=model_timeout",
+            "cause=model_or_tool_failure",
+            "cause=credential_broker_unavailable",
+            "feasible_retry=true",
+            "feasible_retry=false",
+        ):
+            self.assertIn(contract, agent)
 
 
 if __name__ == "__main__":
