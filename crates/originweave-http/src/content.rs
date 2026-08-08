@@ -4,7 +4,7 @@ use std::io::{self, Read};
 
 use flate2::read::{GzDecoder, ZlibDecoder};
 
-use crate::field::FieldBlock;
+use crate::field::{FieldBlock, trim_optional_whitespace};
 use crate::{HttpClientPolicy, HttpError};
 
 /// One supported HTTP content-coding decision.
@@ -14,7 +14,8 @@ pub enum ContentCoding {
     Identity,
     /// The content uses the gzip wrapper and DEFLATE coding.
     Gzip,
-    /// The content uses the zlib wrapper and DEFLATE coding.
+    /// The content uses zlib-wrapped DEFLATE; raw wrapperless DEFLATE is rejected as
+    /// [`HttpError::ContentDecodingFailed`].
     Deflate,
 }
 
@@ -31,7 +32,9 @@ pub(crate) fn decode_content(
 ) -> Result<DecodedContent, HttpError> {
     if encoded.len() > policy.max_encoded_content_bytes() {
         return Err(HttpError::EncodedContentTooLarge {
-            byte_count: u64::try_from(encoded.len()).unwrap_or(u64::MAX),
+            // OriginWeave supports Rust targets whose pointer width is at most 64 bits, so this
+            // widening conversion cannot truncate a valid slice length.
+            byte_count: encoded.len() as u64,
             maximum_bytes: policy.max_encoded_content_bytes(),
         });
     }
@@ -51,7 +54,8 @@ fn select_content_coding(values: &[&[u8]]) -> Result<ContentCoding, HttpError> {
     if values.is_empty() {
         return Ok(ContentCoding::Identity);
     }
-    let mut selected = None;
+    let mut selected = ContentCoding::Identity;
+    let mut selected_one = false;
     for value in values {
         for member in value.split(|byte| *byte == b',') {
             let member = trim_optional_whitespace(member);
@@ -64,12 +68,17 @@ fn select_content_coding(values: &[&[u8]]) -> Result<ContentCoding, HttpError> {
             } else {
                 return Err(HttpError::UnsupportedContentCoding);
             };
-            if selected.replace(coding).is_some() {
+            if selected_one {
                 return Err(HttpError::UnsupportedContentCoding);
             }
+            selected = coding;
+            selected_one = true;
         }
     }
-    selected.ok_or(HttpError::UnsupportedContentCoding)
+    // A non-empty value slice always contributes at least one split member. Empty members are
+    // rejected above, so successful parsing has assigned exactly one coding without a nullable
+    // end state.
+    Ok(selected)
 }
 
 fn decode_reader<R: Read>(
@@ -114,18 +123,6 @@ fn enforce_decoded_limits(
         });
     }
     Ok(())
-}
-
-fn trim_optional_whitespace(value: &[u8]) -> &[u8] {
-    let start = value
-        .iter()
-        .position(|byte| !matches!(byte, b' ' | b'\t'))
-        .unwrap_or(value.len());
-    let end = value
-        .iter()
-        .rposition(|byte| !matches!(byte, b' ' | b'\t'))
-        .map_or(start, |index| index + 1);
-    &value[start..end]
 }
 
 fn content_decoding_error(source: io::Error) -> HttpError {
