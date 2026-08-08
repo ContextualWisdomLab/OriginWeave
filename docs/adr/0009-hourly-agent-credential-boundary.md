@@ -37,7 +37,7 @@ Harden Runner retains `egress-policy: block` with an explicit reviewed endpoint 
 
 While the raw credential is already authorized in the credential step, the workflow derives its length, SHA-256 digest, and a 64-bit rolling hash into a root-readable fingerprint file. The rolling hash is only a candidate-window prefilter; SHA-256 confirms exact byte equality before a leak is reported. The fingerprint file is deleted before candidate source and PR-message scanning begins. Post-model validation therefore detects an exact accidental credential disclosure without rematerializing `NVIDIA_NIM_API_KEY` into that step.
 
-Untrusted `PR_MESSAGE.md` input is size-bounded before byte-wise fingerprint scanning, and changed source files remain subject to the existing per-file, file-count, changed-line, path, symlink, binary, and credential-disclosure bounds.
+Untrusted `PR_MESSAGE.md` input is size-bounded before byte-wise fingerprint scanning. Model-controlled workspace files are also stat-size-checked against the one-mebibyte per-file limit before any full byte comparison or allocation used to determine the changed-file set. Oversized workspace files therefore fail closed before the validator reads them into memory. Changed source files remain subject to the file-count, changed-line, path, symlink, binary, and credential-disclosure bounds after that pre-read size gate.
 
 ### Retry decisions require causal provider evidence
 
@@ -59,6 +59,7 @@ An observed `401` or `403` is classified as `provider_auth_rejected` and stops s
 - After the model-backed path is selected, an absent NVIDIA credential fails the job instead of producing a successful no-op.
 - The model has no raw NVIDIA credential, Git metadata, GitHub token, OIDC token, or direct non-loopback egress.
 - A compromised or malformed candidate bundle cannot force post-model validation to receive the raw upstream credential.
+- Oversized model-controlled workspace files are rejected from metadata before full comparison reads, bounding validator memory use before changed-file detection.
 - Broker failure is distinguishable from model failure and produces bounded diagnostics without exposing request bodies or credentials.
 - Missing or malformed trusted broker telemetry is classified before model execution rather than escaping through shell error handling.
 - Provider authentication rejection and rate limiting are distinguishable from model/tool failure without exposing response bodies, request paths, or credentials.
@@ -78,8 +79,9 @@ The change is not considered operationally proven by pull-request CI alone. On t
 4. an unavailable or malformed `/statusz` response before a model attempt records `credential_broker_unavailable`, emits bounded diagnostics, and starts no model process;
 5. controlled provider `401`/`403` evidence is attributed only to the current request generation and stops same-run fallback as `provider_auth_rejected`;
 6. controlled provider `429` evidence is attributed only to the current request generation and stops same-run fallback as `provider_rate_limited`, leaving retry to a later fresh invocation;
-7. fail-closed Harden Runner egress remains effective without adding unproved endpoints; and
-8. publication, when reached, uses `OPENCODE_PR_TOKEN` only after exact bundle verification and live repository-state rechecks.
+7. fail-closed Harden Runner egress remains effective without adding unproved endpoints;
+8. publication, when reached, uses `OPENCODE_PR_TOKEN` only after exact bundle verification and live repository-state rechecks; and
+9. an oversized model-created workspace file is rejected by the pre-read metadata bound before changed-file comparison allocates the file contents.
 
 ## Alternatives rejected
 
@@ -88,6 +90,7 @@ The change is not considered operationally proven by pull-request CI alone. On t
 - **Give the raw key directly to OpenCode.** Rejected because model/tool execution is an untrusted boundary and does not need upstream credentials.
 - **Rematerialize the raw key during bundle scanning.** Rejected because credential-free validation can use an exact one-way fingerprint instead.
 - **Disable leak scanning.** Rejected because it weakens the security gate rather than repairing the credential boundary.
+- **Read candidate workspace files first and enforce the size bound afterward.** Rejected because an untrusted model could force the trusted validator to allocate an arbitrarily large file before the nominal one-mebibyte gate executes.
 - **Use broker `/healthz` alone to authorize model fallback.** Rejected because process liveness does not prove provider authentication, authorization, or capacity.
 - **Let `/statusz` curl or JSON parsing fail under shell `errexit`.** Rejected because a trusted-control failure must be classified as broker infrastructure evidence before any model starts, not terminate outside the RCA contract.
 - **Parse OpenCode prose or logs for provider HTTP status.** Rejected because free-form model/tool output is an unstable and untrusted control boundary; the trusted broker observes the authoritative upstream status directly.
