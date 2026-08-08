@@ -100,6 +100,8 @@ jobs:
           if [ -z "${NIM_UPSTREAM_API_KEY:-}" ]; then
             ready=false
             reason=nim_api_key_unavailable
+            echo "Hourly model credential gate: $reason" >>"$GITHUB_STEP_SUMMARY"
+            exit 1
           else
             umask 077
             python3 - "$fingerprint_file" <<'PY'
