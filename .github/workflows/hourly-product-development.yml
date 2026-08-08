@@ -206,8 +206,10 @@ jobs:
           2. Verify that the corrective action is feasible within the allowed paths,
              permissions, dependencies, remaining runtime, and every quality or
              security gate.
-          3. Implement only a feasible corrective action; never weaken, bypass, skip,
-             rewrite, or misreport a test, review, security, or coverage gate.
+          3. Implement only a feasible corrective action that is materially distinct
+             from every previously attempted and disproven action; never weaken,
+             bypass, skip, rewrite, or misreport a test, review, security, or
+             coverage gate.
           4. Rerun the exact failed command, then all affected exact-head checks.
           If no bounded feasible corrective action exists, leave the workspace
           unchanged rather than fabricating success or repeatedly applying guesses.
@@ -471,6 +473,7 @@ jobs:
             if ! curl -fsS "http://${NIM_PROXY_HOST}:${NIM_PROXY_PORT}/healthz" >/dev/null; then
               cause=credential_broker_unavailable
               feasible_retry=false
+              tail -n 50 "${RUNNER_TEMP}/originweave-nim-broker.log" >&2 || true
             elif [ "$status" -eq 124 ] || [ "$status" -eq 137 ]; then
               cause=model_timeout
               feasible_retry=true
@@ -639,6 +642,8 @@ jobs:
           if not message_path.is_file():
               raise SystemExit("PR_MESSAGE.md is required")
           message_bytes = message_path.read_bytes()
+          if len(message_bytes) > 65_536:
+              raise SystemExit("PR_MESSAGE.md is too large")
           if contains_forbidden_secret(message_bytes):
               raise SystemExit("credential disclosure rejected in PR message")
           try:
