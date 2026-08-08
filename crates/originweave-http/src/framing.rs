@@ -1,6 +1,6 @@
 //! HTTP/1.1 response body-length and message-framing decisions.
 
-use crate::field::FieldBlock;
+use crate::field::{FieldBlock, trim_optional_whitespace};
 use crate::{HttpError, HttpMethod};
 
 /// The framing selected for one strict HTTP/1.1 response message.
@@ -92,9 +92,9 @@ fn parse_content_length(
             }
         }
     }
-    canonical_length
-        .ok_or(HttpError::InvalidContentLength)
-        .map(Some)
+    // A non-empty `values` slice always yields at least one split member. Invalid or empty
+    // members return above, so successful parsing has already assigned the canonical length.
+    Ok(canonical_length)
 }
 
 fn parse_decimal_usize(input: &[u8]) -> Result<usize, HttpError> {
@@ -107,18 +107,6 @@ fn parse_decimal_usize(input: &[u8]) -> Result<usize, HttpError> {
             .and_then(|scaled| scaled.checked_add(usize::from(*byte - b'0')))
             .ok_or(HttpError::InvalidContentLength)
     })
-}
-
-fn trim_optional_whitespace(value: &[u8]) -> &[u8] {
-    let start = value
-        .iter()
-        .position(|byte| !matches!(byte, b' ' | b'\t'))
-        .unwrap_or(value.len());
-    let end = value
-        .iter()
-        .rposition(|byte| !matches!(byte, b' ' | b'\t'))
-        .map_or(start, |index| index + 1);
-    &value[start..end]
 }
 
 #[cfg(test)]
