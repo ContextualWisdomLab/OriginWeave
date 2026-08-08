@@ -6,7 +6,14 @@ use crate::{HttpClientPolicy, HttpError};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ResponseHead {
     pub(crate) status_code: u16,
+    reason_phrase: Vec<u8>,
     pub(crate) fields: FieldBlock,
+}
+
+impl ResponseHead {
+    pub(crate) const fn reason_phrase(&self) -> &[u8] {
+        self.reason_phrase.as_slice()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -40,7 +47,7 @@ pub(crate) fn parse_response_head(
     let Some((&(status_start, status_end), field_ranges)) = scan.lines.split_first() else {
         return Err(HttpError::InvalidResponseStatusLine);
     };
-    let status_code = parse_status_line(&input[status_start..status_end])?;
+    let (status_code, reason_phrase) = parse_status_line(&input[status_start..status_end])?;
     let mut fields = Vec::new();
     for &(line_start, line_end) in field_ranges {
         let line = &input[line_start..line_end];
@@ -75,6 +82,7 @@ pub(crate) fn parse_response_head(
     Ok(HeadParseResult::Complete {
         head: ResponseHead {
             status_code,
+            reason_phrase,
             fields: FieldBlock::new(fields),
         },
         consumed: scan.consumed,
@@ -173,7 +181,7 @@ fn scan_header_lines(
     Ok(None)
 }
 
-fn parse_status_line(line: &[u8]) -> Result<u16, HttpError> {
+fn parse_status_line(line: &[u8]) -> Result<(u16, Vec<u8>), HttpError> {
     if line.len() < 13 {
         return Err(HttpError::InvalidResponseStatusLine);
     }
@@ -193,7 +201,8 @@ fn parse_status_line(line: &[u8]) -> Result<u16, HttpError> {
     if line[12] != b' ' {
         return Err(HttpError::InvalidResponseStatusLine);
     }
-    if !line[13..]
+    let reason_phrase = &line[13..];
+    if !reason_phrase
         .iter()
         .copied()
         .all(crate::field::is_field_value_byte)
@@ -206,7 +215,7 @@ fn parse_status_line(line: &[u8]) -> Result<u16, HttpError> {
     if !(100..=599).contains(&status_code) {
         return Err(HttpError::InvalidResponseStatusLine);
     }
-    Ok(status_code)
+    Ok((status_code, reason_phrase.to_vec()))
 }
 
 fn trim_optional_whitespace(value: &[u8]) -> &[u8] {
@@ -295,6 +304,7 @@ mod tests {
             HeadParseResult::Complete {
                 head: ResponseHead {
                     status_code: 200,
+                    reason_phrase: b"OK".to_vec(),
                     fields: expected_fields,
                 },
                 consumed: input.len() - b"hello".len(),
@@ -311,6 +321,7 @@ mod tests {
             HeadParseResult::Complete {
                 head: ResponseHead {
                     status_code: 200,
+                    reason_phrase: Vec::new(),
                     fields: FieldBlock::default(),
                 },
                 consumed: complete.len(),
@@ -444,6 +455,7 @@ mod tests {
             FinalHeadParseResult::Complete {
                 head: ResponseHead {
                     status_code: 200,
+                    reason_phrase: b"OK".to_vec(),
                     fields: FieldBlock::default(),
                 },
                 consumed: input.len() - b"body".len(),
