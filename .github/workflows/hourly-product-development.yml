@@ -73,7 +73,7 @@ jobs:
           if [ "$(gh api "repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=1" --jq 'length')" -ne 0 ]; then
             develop=false
             reason=open_pull_request
-          elif [ "$(gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=release-blocker&per_page=100" --jq '[.[] | select(.pull_request == null)] | length')" -ne 0 ]; then
+          elif [ "$(gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=release-blocker&per_page=100" --jq '[.[][] | select(.pull_request == null)] | length')" -ne 0 ]; then
             develop=false
             reason=release_blocker
           elif [ "$DRY_RUN" = "true" ]; then
@@ -742,7 +742,7 @@ jobs:
           fi
           live_default_sha="$(GH_TOKEN="$AUTOMATION_TOKEN" gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/${DEFAULT_BRANCH}" --jq '.object.sha')"
           open_prs="$(GH_TOKEN="$AUTOMATION_TOKEN" gh api "repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=1" --jq 'length')"
-          release_blockers="$(GH_TOKEN="$AUTOMATION_TOKEN" gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=release-blocker&per_page=100" --jq '[.[] | select(.pull_request == null)] | length')"
+          release_blockers="$(GH_TOKEN="$AUTOMATION_TOKEN" gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=release-blocker&per_page=100" --jq '[.[][] | select(.pull_request == null)] | length')"
           if [ "$open_prs" -ne 0 ] || [ "$release_blockers" -ne 0 ] || [ "$live_default_sha" != "$EXPECTED_BASE_SHA" ]; then
             echo "Repository state changed; publication cancelled." >>"$GITHUB_STEP_SUMMARY"
             exit 0
