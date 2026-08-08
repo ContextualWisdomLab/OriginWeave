@@ -3,11 +3,18 @@
 use std::collections::BTreeMap;
 
 use base64::Engine as _;
-use base64::engine::general_purpose::{STANDARD, STANDARD_PAD_INDIFFERENT};
+use base64::alphabet;
+use base64::engine::DecodePaddingMode;
+use base64::engine::general_purpose::{GeneralPurpose, GeneralPurposeConfig};
 use sha2::{Digest, Sha256, Sha512};
 
 use crate::field::{FieldBlock, is_token_byte};
 use crate::{HttpError, IntegrityRequirement};
+
+const STRUCTURED_FIELD_BASE64: GeneralPurpose = GeneralPurpose::new(
+    &alphabet::STANDARD,
+    GeneralPurposeConfig::new().with_decode_padding_mode(DecodePaddingMode::Indifferent),
+);
 
 /// One digest algorithm supported by the first HTTP integrity slice.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -191,7 +198,7 @@ fn parse_byte_sequence(input: &[u8], cursor: &mut usize) -> Result<Vec<u8>, Http
     if input.get(*cursor) != Some(&b':') {
         return Err(HttpError::InvalidDigestField);
     }
-    let decoded = STANDARD_PAD_INDIFFERENT
+    let decoded = STRUCTURED_FIELD_BASE64
         .decode(&input[start..*cursor])
         .map_err(|_error| HttpError::InvalidDigestField)?;
     *cursor += 1;
@@ -341,7 +348,7 @@ mod tests {
     }
 
     fn digest_member(algorithm: IntegrityAlgorithm, bytes: &[u8]) -> String {
-        let encoded = STANDARD.encode(digest_bytes(algorithm, bytes));
+        let encoded = base64::engine::general_purpose::STANDARD.encode(digest_bytes(algorithm, bytes));
         format!("{}=:{encoded}:", algorithm.key())
     }
 
