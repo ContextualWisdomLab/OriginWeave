@@ -45,6 +45,12 @@ class ProductDocumentationContractTests(unittest.TestCase):
             with self.subTest(link=link):
                 self.assertIn(link, architecture)
 
+    def test_security_policy_links_the_product_threat_model(self) -> None:
+        """Vulnerability reporters and operators must be able to find modeled trust boundaries."""
+
+        security = (ROOT / "SECURITY.md").read_text(encoding="utf-8")
+        self.assertIn("docs/THREAT_MODEL.md", security)
+
     def test_prd_covers_product_family_modes_and_buyer_acceptance(self) -> None:
         """The PRD must describe the actual product family rather than one kernel slice."""
 
