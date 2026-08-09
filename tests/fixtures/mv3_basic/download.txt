@@ -1,0 +1,1 @@
+OriginWeave deterministic MV3 download fixture.
