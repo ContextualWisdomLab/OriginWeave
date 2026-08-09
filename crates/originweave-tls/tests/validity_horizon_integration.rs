@@ -71,11 +71,7 @@ fn complete_server_handshake(
 ) -> Result<(), String> {
     match connection.complete_io(stream) {
         Ok(_) => Ok(()),
-        Err(error)
-            if error.kind() == io::ErrorKind::UnexpectedEof && !connection.is_handshaking() =>
-        {
-            Ok(())
-        }
+        Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => Ok(()),
         Err(error) => Err(error.to_string()),
     }
 }
