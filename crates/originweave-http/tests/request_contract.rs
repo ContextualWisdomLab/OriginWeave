@@ -26,6 +26,18 @@ fn request_targets_preserve_valid_percent_escape_spelling() {
 }
 
 #[test]
+fn bounded_evidence_path_prefix_never_splits_a_percent_escape() {
+    let origin = Origin::parse("https://example.com").expect("origin");
+    let safe_prefix = format!("/{}", "a".repeat(254));
+    let input = format!("{safe_prefix}é");
+    let target = HttpRequestTarget::parse(origin, &input).expect("target");
+
+    assert!(target.path_and_query().starts_with(&safe_prefix));
+    assert_eq!(target.path_prefix(), safe_prefix);
+    assert!(!target.path_prefix().ends_with('%'));
+}
+
+#[test]
 fn request_targets_accept_the_complete_origin_form_ascii_grammar() {
     let origin = Origin::parse("https://example.com").expect("origin");
     let input = "/AZaz09-._~!$&'()*+,;=:@/segment?x=/?:@!$&'()*+,;=-._~";
