@@ -1,8 +1,7 @@
 #![allow(clippy::expect_used)]
 
 use originweave_core::{
-    BrowserSessionId, BrowsingContextId, DocumentEpoch, NodeHandleError, ObservedNodeHandle,
-    Origin,
+    BrowserSessionId, BrowsingContextId, DocumentEpoch, NodeHandleError, ObservedNodeHandle, Origin,
 };
 
 fn assert_standard_error<T: std::error::Error>() {}
@@ -60,45 +59,25 @@ fn a_node_handle_is_valid_only_for_its_exact_session_context_origin_and_document
     assert_eq!(observed_context.value(), 11);
     assert_eq!(observed_epoch.value(), 7);
     assert_eq!(
-        handle.validate_current(
-            observed_session,
-            observed_context,
-            &origin,
-            observed_epoch,
-        ),
+        handle.validate_current(observed_session, observed_context, &origin, observed_epoch,),
         Ok(())
     );
     assert_eq!(
-        handle.validate_current(
-            other_session,
-            observed_context,
-            &origin,
-            observed_epoch,
-        ),
+        handle.validate_current(other_session, observed_context, &origin, observed_epoch,),
         Err(NodeHandleError::BrowserSessionMismatch {
             observed: observed_session,
             current: other_session,
         })
     );
     assert_eq!(
-        handle.validate_current(
-            observed_session,
-            other_context,
-            &origin,
-            observed_epoch,
-        ),
+        handle.validate_current(observed_session, other_context, &origin, observed_epoch,),
         Err(NodeHandleError::BrowsingContextMismatch {
             observed: observed_context,
             current: other_context,
         })
     );
     assert_eq!(
-        handle.validate_current(
-            observed_session,
-            observed_context,
-            &origin,
-            current_epoch,
-        ),
+        handle.validate_current(observed_session, observed_context, &origin, current_epoch,),
         Err(NodeHandleError::StaleDocumentEpoch {
             observed: observed_epoch,
             current: current_epoch,
