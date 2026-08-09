@@ -15,7 +15,10 @@ use crate::evidence::{
 };
 use crate::field::FieldBlock;
 use crate::framing::{BodyFraming, determine_body_framing};
-use crate::integrity::{validate_content_digest, validate_representation_digest};
+use crate::integrity::{
+    validate_content_digest, validate_content_digest_without_content, validate_representation_digest,
+    validate_representation_digest_without_content,
+};
 use crate::mime::{classify_mismatch, classify_observed_mime, no_sniff_status, supplied_mime_type};
 use crate::request::serialize_request;
 use crate::response_head::{FinalHeadParseResult, ResponseHead, parse_final_response_head};
@@ -108,22 +111,39 @@ impl HttpExchangePlan {
         )?;
         let timeout = self.policy.exchange_timeout();
         ensure_before_deadline(deadline, timeout).and_then(|()| {
-            let content_digest_status = validate_content_digest(
-                &network.head.fields,
-                &network.trailers,
-                &network.encoded_content,
-                self.policy.integrity_requirement(),
-            )?;
-            let has_content_range = !network.head.fields.values("content-range").is_empty();
-            let representation_digest_status = validate_representation_digest(
-                &network.head.fields,
-                &network.trailers,
-                &network.encoded_content,
-                network.head.status_code,
-                has_content_range,
-                self.policy.integrity_requirement(),
-            )?;
-            let decoded = if matches!(network.framing, BodyFraming::NoContent) {
+            let no_content = matches!(network.framing, BodyFraming::NoContent);
+            let (content_digest_status, representation_digest_status) = if no_content {
+                (
+                    validate_content_digest_without_content(
+                        &network.head.fields,
+                        &network.trailers,
+                        self.policy.integrity_requirement(),
+                    )?,
+                    validate_representation_digest_without_content(
+                        &network.head.fields,
+                        &network.trailers,
+                        self.policy.integrity_requirement(),
+                    )?,
+                )
+            } else {
+                let content_digest_status = validate_content_digest(
+                    &network.head.fields,
+                    &network.trailers,
+                    &network.encoded_content,
+                    self.policy.integrity_requirement(),
+                )?;
+                let has_content_range = !network.head.fields.values("content-range").is_empty();
+                let representation_digest_status = validate_representation_digest(
+                    &network.head.fields,
+                    &network.trailers,
+                    &network.encoded_content,
+                    network.head.status_code,
+                    has_content_range,
+                    self.policy.integrity_requirement(),
+                )?;
+                (content_digest_status, representation_digest_status)
+            };
+            let decoded = if no_content {
                 crate::content::DecodedContent {
                     bytes: Vec::new(),
                     coding: ContentCoding::Identity,
