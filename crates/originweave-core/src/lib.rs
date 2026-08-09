@@ -264,7 +264,7 @@ pub struct ObservedNodeHandle {
 
 impl ObservedNodeHandle {
     /// Create one observed node handle from a nonzero adapter node identifier.
-    pub const fn new(
+    pub fn new(
         origin: Origin,
         document_epoch: DocumentEpoch,
         node_id: u64,
