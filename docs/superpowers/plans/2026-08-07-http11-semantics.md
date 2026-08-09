@@ -6,7 +6,7 @@
 
 **Architecture:** Pure modules validate request targets and fields, parse response heads, determine RFC 9110/9112 framing, decode bounded bodies, validate RFC 9530 digests, and classify MIME/disposition metadata. A single-use `HttpExchangePlan` owns `AuthenticatedTlsConnection`, enforces one monotonic deadline, never reconnects or follows redirects, and returns a response only after all framing, budget, integrity, and metadata checks succeed.
 
-**Tech Stack:** Rust 1.97.1, edition 2024, `originweave-core`, `originweave-tls`, `sha2` 0.10.9, `base64` 0.22.1, `flate2` 1.1.10 with explicit pure-Rust backend, rustls/rcgen loopback tests, Python repository-governance contracts, cargo-llvm-cov 0.8.6 on pinned nightly.
+**Tech Stack:** Rust 1.97.1, edition 2024, `originweave-core`, `originweave-tls`, `sha2` 0.10.9, `base64` 0.22.1, `flate2` 1.1.9 with explicit pure-Rust backend, rustls/rcgen loopback tests, Python repository-governance contracts, cargo-llvm-cov 0.8.6 on pinned nightly.
 
 ## Global Constraints
 
