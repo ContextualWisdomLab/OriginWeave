@@ -307,8 +307,28 @@ jobs:
                       sort_keys=True,
                   ).encode()
 
+          def valid_percent_escapes(path: str) -> bool:
+              index = 0
+              while True:
+                  index = path.find("%", index)
+                  if index < 0:
+                      return True
+                  escape = path[index + 1 : index + 3]
+                  if len(escape) != 2 or any(
+                      character not in "0123456789abcdefABCDEF"
+                      for character in escape
+                  ):
+                      return False
+                  index += 3
+
           def valid_path(path: str) -> bool:
-              if len(path) > 4096 or not path.startswith("/v1/") or "?" in path or "#" in path:
+              if (
+                  len(path) > 4096
+                  or not path.startswith("/v1/")
+                  or "?" in path
+                  or "#" in path
+                  or not valid_percent_escapes(path)
+              ):
                   return False
               if any(ord(character) < 32 or ord(character) == 127 for character in path):
                   return False
