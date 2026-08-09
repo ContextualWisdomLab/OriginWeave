@@ -97,11 +97,25 @@ pub(crate) fn parse_final_response_head(
     let mut interim_response_count = 0_usize;
     loop {
         match parse_response_head(&input[offset..], policy)? {
-            HeadParseResult::Incomplete => return Ok(FinalHeadParseResult::Incomplete),
+            HeadParseResult::Incomplete => {
+                if input.len() > policy.max_header_section_bytes() {
+                    return Err(HttpError::HeaderSectionTooLarge {
+                        byte_count: input.len(),
+                        maximum_bytes: policy.max_header_section_bytes(),
+                    });
+                }
+                return Ok(FinalHeadParseResult::Incomplete);
+            }
             HeadParseResult::Complete { head, consumed } => {
                 // `consumed` is an index inside `input[offset..]`, so a successful parse proves
                 // `offset + consumed <= input.len()` and makes arithmetic overflow impossible.
                 offset += consumed;
+                if offset > policy.max_header_section_bytes() {
+                    return Err(HttpError::HeaderSectionTooLarge {
+                        byte_count: offset,
+                        maximum_bytes: policy.max_header_section_bytes(),
+                    });
+                }
                 if head.status_code == 101 {
                     return Err(HttpError::SwitchingProtocolsUnsupported);
                 }
