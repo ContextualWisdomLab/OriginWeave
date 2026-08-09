@@ -72,20 +72,18 @@ impl ProxyRoutePolicy {
         }
     }
 
-    /// Construct an explicit bounded route policy.
+    /// Construct an explicit bounded route policy from owned canonical origins.
     ///
     /// Proxy and PAC sources are accepted only as already validated canonical
     /// [`Origin`] values. This policy does not grant destination, TCP, or TLS
-    /// authority to any listed origin.
-    pub fn new<P, A>(
+    /// authority to any listed origin. Owned vectors keep the constructor's
+    /// executable coverage and generated code independent of caller iterator
+    /// types while the policy consumes the supplied authority set.
+    pub fn new(
         allow_direct: bool,
-        proxy_origins: P,
-        pac_origins: A,
-    ) -> Result<Self, ProxyRouteError>
-    where
-        P: IntoIterator<Item = Origin>,
-        A: IntoIterator<Item = Origin>,
-    {
+        proxy_origins: Vec<Origin>,
+        pac_origins: Vec<Origin>,
+    ) -> Result<Self, ProxyRouteError> {
         Ok(Self {
             allow_direct,
             proxy_origins: collect_proxy_origins(proxy_origins)?,
@@ -293,10 +291,7 @@ impl fmt::Display for ProxyRouteError {
 
 impl std::error::Error for ProxyRouteError {}
 
-fn collect_proxy_origins<P>(origins: P) -> Result<BTreeSet<Origin>, ProxyRouteError>
-where
-    P: IntoIterator<Item = Origin>,
-{
+fn collect_proxy_origins(origins: Vec<Origin>) -> Result<BTreeSet<Origin>, ProxyRouteError> {
     let mut collected = BTreeSet::new();
     let mut count = 0usize;
     for origin in origins {
@@ -312,10 +307,7 @@ where
     Ok(collected)
 }
 
-fn collect_pac_origins<A>(origins: A) -> Result<BTreeSet<Origin>, ProxyRouteError>
-where
-    A: IntoIterator<Item = Origin>,
-{
+fn collect_pac_origins(origins: Vec<Origin>) -> Result<BTreeSet<Origin>, ProxyRouteError> {
     let mut collected = BTreeSet::new();
     let mut count = 0usize;
     for origin in origins {
