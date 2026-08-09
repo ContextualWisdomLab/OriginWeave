@@ -7,7 +7,7 @@ OriginWeave is an enterprise agentic web runtime and provenance-native browser c
 ## 2. Architectural principles
 
 1. **Compatibility before reinvention.** Blink, V8, Skia, Viz, Dawn, Site Isolation, sandboxing, and Manifest V3 remain upstream-compatible.
-2. **Authority is explicit.** No ambient browser state or page content implicitly grants a capability.
+2. **Authority is explicit.** No ambient browser state or page content implicitly grants a capability; observed node authority is bound to an exact browsing context, canonical origin, and document epoch.
 3. **Actions are typed.** Production agents do not receive unrestricted JavaScript evaluation as a default tool.
 4. **Observe before acting; verify after acting.** A command is successful only when its expected post-condition is observed.
 5. **Secrets stay outside model context.** Models receive opaque handles; a broker resolves values directly into a trusted browser process.
@@ -55,6 +55,7 @@ An Agent Task session must not automatically share the default human profile. Fu
 Owns stable value contracts without I/O:
 
 - browser-equivalent normalized `Origin` values that reject ambiguous numeric hosts;
+- nonzero `BrowsingContextId` and `DocumentEpoch` identities plus `ObservedNodeHandle` values bound to their exact context, origin, document lifetime, and adapter-local node identifier;
 - immutable `ActionIntentDigest` values;
 - `SessionMode` and `ExecutionPurpose`;
 - `InstructionSource` and `SecretDelivery`;
@@ -151,7 +152,7 @@ Observation should prefer the most structured trustworthy source available:
 4. accessibility tree combined with DOM and layout;
 5. screenshot or vision fallback for canvas and inaccessible custom interfaces.
 
-Raw HTML is not the default model input. Full snapshots are followed by incremental semantic diffs, versioned by document epoch. Node references become invalid after navigation or epoch change.
+Raw HTML is not the default model input. Full snapshots are followed by incremental semantic diffs, versioned by document epoch. Every actionable node reference carries its nonzero browsing-context identity, canonical origin, document epoch, and adapter-local node identifier. A browser adapter must validate all four values immediately before use; navigation, document replacement, origin change, or a different tab/frame context invalidates the handle.
 
 ## 8. Action lifecycle
 
@@ -162,6 +163,7 @@ user intent
 → typed request
 → instruction-source check
 → capability and browser-equivalent origin check
+→ browsing-context + origin + document-epoch node binding
 → resolved-destination approval and pinning
 → exact direct TCP peer binding
 → authenticated TLS service identity
@@ -246,6 +248,7 @@ WARC stores source exchanges and resources; relational storage holds sessions, p
 - Browser content is data, never authority.
 - Secrets are never included in model prompts, traces, or provenance values.
 - Generic header and query values are never retained by the evidence kernel.
+- Observed node handles are valid only in the exact browsing context, canonical origin, and document epoch that produced them; adapter-local node identifiers alone never confer authority.
 - Logical origin grants, resolved-destination grants, actual peer evidence, and TLS service identity remain distinct.
 - DNS answer expansion after approval is denied as a possible rebinding event.
 - Direct TCP accepts only a canonical approved socket, never a hostname.
@@ -280,7 +283,7 @@ No deployment mode may depend on an in-process singleton. Session, policy, desti
 | Attribute | Required evidence |
 |---|---|
 | correctness | contract, property, hostile-input, real TCP/TLS, and post-condition tests |
-| safety | prompt-injection, secret, origin, destination, rebinding, redirect, exact-peer, TLS identity, approval, and renderer-boundary tests |
+| safety | prompt-injection, secret, context-bound node, origin, destination, rebinding, redirect, exact-peer, TLS identity, approval, and renderer-boundary tests |
 | reliability | crash recovery, checkpoint, retry, timeout, and idempotency tests |
 | performance | input latency, frame time, task RSS, VRAM, transfer, connection, handshake, and token metrics |
 | interoperability | BiDi/CDP/MCP/WARC/PROV and Manifest V3 compatibility suites |
@@ -289,4 +292,4 @@ No deployment mode may depend on an in-process singleton. Session, policy, desti
 
 ## 15. Change control
 
-Changes to the compatibility-kernel boundary, risk taxonomy, secret model, origin model, canonical intent model, evidence semantics, destination taxonomy, DNS pinning semantics, direct socket authority, TLS reference identity, trust-root semantics, trusted-time semantics, ALPN policy, redirect policy, resource mitigation semantics, or protocol versioning require a new ADR. The current baseline decisions are recorded under `docs/adr/`.
+Changes to the compatibility-kernel boundary, risk taxonomy, secret model, origin model, context-bound node-handle identity, canonical intent model, evidence semantics, destination taxonomy, DNS pinning semantics, direct socket authority, TLS reference identity, trust-root semantics, trusted-time semantics, ALPN policy, redirect policy, resource mitigation semantics, or protocol versioning require a new ADR. The current baseline decisions are recorded under `docs/adr/`.
