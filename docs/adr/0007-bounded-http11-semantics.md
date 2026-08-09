@@ -63,7 +63,7 @@ Accept-Encoding: gzip, deflate
 
 ```
 
-The caller cannot supply `Host`, connection, proxy, framing, authorization, cookie, trailer, or upgrade fields. The request target rejects fragments, controls, whitespace, backslashes, invalid percent escapes, absolute form, authority form, and an encoded size above 8 KiB. Non-ASCII UTF-8 bytes are percent encoded with uppercase hexadecimal. Caller-supplied field values reject leading and trailing OWS before serialization while preserving valid interior SP/HTAB and obs-text bytes.
+The caller cannot supply `Host`, connection, proxy, framing, authorization, cookie, trailer, or upgrade fields. Response-coding negotiation is also implementation-owned: the serializer rejects caller-supplied `Accept-Encoding` instead of combining it with the fixed `gzip, deflate` field and potentially advertising a coding that this crate cannot decode. The request target rejects fragments, controls, whitespace, backslashes, invalid percent escapes, absolute form, authority form, and an encoded size above 8 KiB. Non-ASCII UTF-8 bytes are percent encoded with uppercase hexadecimal. Caller-supplied field values reject leading and trailing OWS before serialization while preserving valid interior SP/HTAB and obs-text bytes.
 
 ## Response syntax and framing
 
@@ -117,7 +117,7 @@ One monotonic deadline begins before request bytes are written. Before and after
 
 ## Content coding
 
-The first slice accepts no content coding, `identity`, one `gzip`, or one zlib-wrapped `deflate`. Multiple or unknown codings and raw-deflate fallback are rejected. The encoded body is bounded before decoding. Decoding uses an 8 KiB scratch buffer and checks decoded bytes and expansion ratio after every read before extending the output.
+The first slice accepts no content coding, `identity`, one `gzip`, or one zlib-wrapped `deflate`. Multiple or unknown codings and raw-deflate fallback are rejected. The encoded body is bounded before decoding. Decoding uses an 8 KiB scratch buffer and checks decoded bytes and expansion ratio after every read before extending the output. Because the request advertises exactly `gzip, deflate`, only the serializer may emit `Accept-Encoding`; arbitrary caller negotiation cannot expand the decoder's accepted coding set.
 
 The implementation pins `flate2` 1.1.9 with default features disabled and the explicit portable pure-Rust backend. Decoder errors remain available through the standard error chain without including content bytes.
 
@@ -196,6 +196,10 @@ Rejected because TLS authenticates records on one connection but does not resolv
 
 Rejected because declared lengths and compressed data are attacker controlled. Every allocation and decoder read must remain within reviewed budgets.
 
+### Let callers supply `Accept-Encoding`
+
+Rejected because a caller could add or duplicate response-coding negotiation beside the crate's fixed field, causing a server to select an unsupported coding such as Brotli. The component that owns the decoder set also owns the advertised coding set.
+
 ### Wait for connection close after a complete chunked message
 
 Rejected because RFC 9112 makes chunked transfer coding self-delimiting and usable on persistent connections. Treating TLS EOF as an additional chunked delimiter converts a valid persistent peer into a timeout failure and conflates connection lifetime with message framing.
@@ -218,6 +222,7 @@ Rejected because extensions are attacker-controlled metadata and do not establis
 
 - One exact authenticated stream yields one unambiguous complete HTTP result.
 - Framing, resource, integrity, and metadata decisions are typed and reproducible.
+- Request response-coding negotiation cannot advertise more than the decoder supports.
 - Chunked responses interoperate with peers that keep the connection open after the terminal message boundary.
 - Redirects cannot bypass the existing trust boundaries.
 - No browser or general client dependency is required.
@@ -233,7 +238,7 @@ Rejected because extensions are attacker-controlled metadata and do not establis
 
 ## Verification
 
-The merge gate requires pure parser and property-style boundary tests, byte-truncation tests, deterministic error tests, real loopback HTTPS success and adversary scenarios, a persistent-peer chunked fixture proving success at the zero-chunk/trailer boundary before TLS close, a production-calculation contract fixing the strict-default retained chunked wire cap at `18,104,340` bytes plus exact over-cap rejection before buffer growth, proof of exactly one connection, hard deadline tests, digest known-answer vectors, RFC 8941 parameter/duplicate-key/repeated-field/trailer-merge interoperability cases, canonical and omitted-padding Byte Sequence interoperability with malformed-alphabet/length/trailing-bit rejection, explicit rejection of RFC 9651-only parameter bare-item types for this RFC 9530 field definition, SP/HTAB OWS coverage around dictionary delimiters, MIME/disposition cases, network-path redirect rejection, Win32-reserved filename rejection after decoding, static forbidden-source scans, complete public rustdoc, and exact 100% production function, line, region, and branch coverage on the pull-request head.
+The merge gate requires pure parser and property-style boundary tests, byte-truncation tests, deterministic error tests, real loopback HTTPS success and adversary scenarios, a request-serialization regression proving caller `Accept-Encoding` cannot expand the fixed decoder-supported coding set, a persistent-peer chunked fixture proving success at the zero-chunk/trailer boundary before TLS close, a production-calculation contract fixing the strict-default retained chunked wire cap at `18,104,340` bytes plus exact over-cap rejection before buffer growth, proof of exactly one connection, hard deadline tests, digest known-answer vectors, RFC 8941 parameter/duplicate-key/repeated-field/trailer-merge interoperability cases, canonical and omitted-padding Byte Sequence interoperability with malformed-alphabet/length/trailing-bit rejection, explicit rejection of RFC 9651-only parameter bare-item types for this RFC 9530 field definition, SP/HTAB OWS coverage around dictionary delimiters, MIME/disposition cases, network-path redirect rejection, Win32-reserved filename rejection after decoding, static forbidden-source scans, complete public rustdoc, and exact 100% production function, line, region, and branch coverage on the pull-request head.
 
 ## Standards
 
