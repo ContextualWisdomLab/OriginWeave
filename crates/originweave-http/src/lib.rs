@@ -30,9 +30,6 @@ mod field;
 mod framing;
 mod integrity;
 #[cfg(test)]
-#[path = "tests/no_content_integrity_contract.rs"]
-mod no_content_integrity_contract;
-#[cfg(test)]
 #[cfg_attr(coverage_nightly, coverage(off))]
 #[path = "tests/integrity_padding_contract.rs"]
 mod integrity_padding_contract;
@@ -40,6 +37,9 @@ mod mime;
 #[cfg(test)]
 #[path = "tests/mime_contract.rs"]
 mod mime_contract;
+#[cfg(test)]
+#[path = "tests/no_content_integrity_contract.rs"]
+mod no_content_integrity_contract;
 mod policy;
 #[cfg(test)]
 #[path = "tests/reachability_contract.rs"]
