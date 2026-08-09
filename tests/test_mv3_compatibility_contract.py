@@ -113,6 +113,19 @@ class ManifestV3CompatibilityContractTests(unittest.TestCase):
         self.assertIn("originweave_worker_start_count", worker)
         self.assertIn("originweaveWorkerStartCount", content)
 
+    def test_runner_reports_repeated_trial_pass_rate(self) -> None:
+        """Release evidence must quantify repeatability rather than one lucky browser run."""
+
+        runner = RUNNER.read_text(encoding="utf-8")
+        for expected in (
+            "REPEATABILITY_TRIALS = 3",
+            "trial_results",
+            "trial_pass_rate",
+            "successful_trials",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, runner)
+
     def test_workflow_runs_the_real_browser_lane_without_model_credentials(self) -> None:
         """Compatibility evidence must execute Chromium and never require LLM secrets."""
 
