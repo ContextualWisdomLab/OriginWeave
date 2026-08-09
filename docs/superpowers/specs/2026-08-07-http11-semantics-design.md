@@ -281,12 +281,13 @@ pub struct AuthenticatedHttpResponse { /* private */ }
 
 impl AuthenticatedHttpResponse {
     pub fn content(&self) -> &[u8];
+    pub fn reason_phrase(&self) -> &[u8];
     pub fn evidence(&self) -> &HttpExchangeEvidence;
     pub fn redirect(&self) -> Option<&RedirectMetadata>;
     pub fn supplied_mime(&self) -> Option<&MimeType>;
-    pub fn observed_mime(&self) -> &MimeType;
+    pub fn observed_mime(&self) -> &ObservedMimeClassification;
     pub fn disposition(&self) -> Option<&SafeContentDisposition>;
-    pub fn into_parts(self) -> (Vec<u8>, HttpExchangeEvidence);
+    pub fn into_parts(self) -> (Vec<u8>, Vec<u8>, HttpExchangeEvidence);
 }
 ```
 
