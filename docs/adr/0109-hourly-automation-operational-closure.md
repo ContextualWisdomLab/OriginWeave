@@ -32,15 +32,17 @@ The workflow runner and pinned actions/scripts are trusted only within their dec
 
 The hourly workflow executes credential-free deterministic gates first, including open PR, release blocker, dry-run, writer-lease, and feasibility state. An open PR outcome is represented explicitly as `open_pull_request` and stops before model-secret materialization. Only a zero-PR or explicitly eligible development state may enter the credential step that exposes `NVIDIA_NIM_API_KEY` to the loopback broker/model path. Model attempts use pristine exact HEAD, bounded per-attempt and total budgets, and classified failures such as timeout, model/tool failure, broker failure, validation failure, or publication-authority failure. Post-model validation uses credential-free fingerprints/handles rather than rematerializing the raw secret. Missing publication authority for a verified non-empty change fails closed. The single-flight hourly loop returns to other safe work after each blocked item.
 
+Before automated maintenance completes, it performs a **mandatory exit sweep** over protected main, **open OriginWeave PRs and issues**, current reviews and checks, **release state**, canonical **documentation**, operational acceptance, and buyer-visible **product gaps**. If **safe actionable work remains**, the invocation continues with the highest-value non-conflicting item instead of treating the current result, blocker, documentation update, or queued check as completion. A second fresh sweep is required after any action discovered by the first sweep. Termination is allowed only when practical run budget is exhausted or the second sweep proves every remaining item non-actionable under current authority, dependency, writer lease, repository policy, and safety constraints.
+
 Repository and job permissions remain least-privilege. Third-party actions and reusable workflows are immutably pinned where repository policy requires it; action pinning does not substitute for reviewing the called workflow's permissions, inputs, secret contract, and source. Secrets are scoped to the smallest consuming job/step path and are never inherited merely for convenience.
 
 ## Consequences
 
-Model availability no longer blocks deterministic maintenance. Secret exposure is narrower and easier to audit. Fallbacks consume more explicit setup/reset time but are independently attributable. Operational acceptance requires real workflow executions from the integrated protected branch rather than only source-level tests.
+Model availability no longer blocks deterministic maintenance. Secret exposure is narrower and easier to audit. Fallbacks consume more explicit setup/reset time but are independently attributable. Operational acceptance requires real workflow executions from the integrated protected branch rather than only source-level tests. A single completed action, blocked merge, or documentation repair no longer has run-completion semantics; work is conserved across independent lanes.
 
 ## Failure and degraded behavior
 
-A deterministic open-PR/release-blocker state exits before credential access and leaves the model path untouched. Broker failure stops model fallback immediately. A model timeout or tool failure may proceed to another pristine attempt only if the broker remains healthy and the remaining job budget is sufficient. Validation or publication failure cannot be converted to success by discarding a non-empty patch. Unknown failure classes fail closed with evidence.
+A deterministic open-PR/release-blocker state exits before credential access and leaves the model path untouched. Broker failure stops model fallback immediately. A model timeout or tool failure may proceed to another pristine attempt only if the broker remains healthy and the remaining job budget is sufficient. Validation or publication failure cannot be converted to success by discarding a non-empty patch. Unknown failure classes fail closed with evidence. A queued check, reviewer delay, provider cooldown, or external prerequisite blocks only that item and is deferred while the exit sweep identifies other safe work.
 
 ## Security / privacy / governance impact
 
@@ -48,19 +50,23 @@ Harden Runner egress stays fail closed with evidence-backed endpoint sets. The m
 
 ## Tests and acceptance evidence
 
-Repository contracts must verify gate-before-secret ordering, absence of the raw key from deterministic/post-model steps, exact egress, physically schedulable time budgets, pristine fallback reset, bounded model-controlled file reads, classified failures, immutable external action/workflow references where required, least-privilege permissions, and fail-closed publication. Incident closure additionally requires protected-main scheduled or manual evidence: with an open PR the run reaches `open_pull_request` without materializing `NVIDIA_NIM_API_KEY`; after a later zero-PR state, a run reaches the conditional model path or an explicit deterministic product/release gate; controlled model failure demonstrates classification and pristine retry where feasible.
+Repository contracts must verify gate-before-secret ordering, absence of the raw key from deterministic/post-model steps, exact egress, physically schedulable time budgets, pristine fallback reset, bounded model-controlled file reads, classified failures, immutable external action/workflow references where required, least-privilege permissions, and fail-closed publication.
+
+They must also verify that the mandatory exit sweep inspects protected main, open OriginWeave PRs and issues, reviews, checks, release state, documentation, and product gaps, and that the automation continues whenever safe actionable work remains. A regression must prevent one completed action, blocker, queued check, or documentation update from becoming an implicit run terminator.
+
+Incident closure additionally requires protected-main scheduled or manual evidence: with an open PR the run reaches `open_pull_request` without materializing `NVIDIA_NIM_API_KEY`; after a later zero-PR state, a run reaches the conditional model path or an explicit deterministic product/release gate; controlled model failure demonstrates classification and pristine retry where feasible.
 
 ## Migration and rollback
 
-Integrate scheduler changes through normal protected review. Rollback may return to the previous protected workflow only if it preserves deterministic-before-secret ordering, fail-closed egress, authority separation, and protected-main evidence. Never roll back to raw-secret rematerialization, broad inherited secrets, unpinned mutable third-party action authority, or an unschedulable fallback sequence.
+Integrate scheduler changes through normal protected review. Rollback may return to the previous protected workflow only if it preserves deterministic-before-secret ordering, fail-closed egress, authority separation, the mandatory exit sweep, and protected-main evidence. Never roll back to raw-secret rematerialization, broad inherited secrets, unpinned mutable third-party action authority, report-as-completion semantics, or an unschedulable fallback sequence.
 
 ## Open follow-ups
 
-Collect protected-main acceptance runs after the incident repair merges; maintain runbooks for broker/provider outages; keep reviewer-provisioning governance separate from the workflow's technical correctness.
+Collect protected-main acceptance runs after the incident repair merges; maintain runbooks for broker/provider outages; keep reviewer-provisioning governance separate from the workflow's technical correctness; retain machine-checkable exit-sweep coverage as the queue and documentation graph evolve.
 
 ## Supersession / reversal conditions
 
-Supersede only if a replacement scheduler demonstrates equal or stronger secret minimization, exact-head reset, physical budget feasibility, failure classification, authority separation, work-conserving behavior, and protected-main operational proof.
+Supersede only if a replacement scheduler demonstrates equal or stronger secret minimization, exact-head reset, physical budget feasibility, failure classification, authority separation, work-conserving exit-sweep behavior, and protected-main operational proof.
 
 ## References
 
