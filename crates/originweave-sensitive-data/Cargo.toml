@@ -1,0 +1,18 @@
+[package]
+name = "originweave-sensitive-data"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Purpose-bound trusted broker for OriginWeave sensitive-value handles"
+
+[dependencies]
+getrandom = "0.2.17"
+originweave-policy = { path = "../originweave-policy" }
+zeroize = "1.9.0"
+
+[lints]
+workspace = true
