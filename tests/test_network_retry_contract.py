@@ -20,10 +20,8 @@ class NetworkRetryContractTests(unittest.TestCase):
         """Retries must be allow-listed instead of applying to every I/O error."""
 
         self.assertIn("fn is_retryable_connect_error", self.source)
-        self.assertIn(
-            "Err(source) if is_retryable_connect_error(source.kind())",
-            self.source,
-        )
+        self.assertIn("is_retryable_connect_error(source.kind())", self.source)
+        self.assertIn("attempt_number < self.maximum_attempts", self.source)
         for kind in (
             "TimedOut",
             "ConnectionRefused",
