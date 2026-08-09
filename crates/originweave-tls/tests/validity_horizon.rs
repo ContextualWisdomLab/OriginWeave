@@ -1,6 +1,10 @@
 use std::time::Duration;
 
-use originweave_tls::{LeafValidityHorizon, LeafValidityHorizonError};
+use originweave_tls::{
+    AlpnRequirement, LeafValidityHorizon, LeafValidityHorizonError, MAX_MINIMUM_LEAF_VALIDITY,
+    TlsClientPolicy, TlsError,
+};
+use rustls::pki_types::UnixTime;
 
 #[test]
 fn zero_horizon_accepts_a_certificate_valid_at_the_trusted_second() {
@@ -84,4 +88,70 @@ fn typed_failure_is_usable_in_standard_error_chains_without_a_source() {
         "TLS leaf certificate has 299 seconds remaining; delegated task requires at least 300 seconds"
     );
     assert!(std::error::Error::source(&error).is_none());
+}
+
+#[test]
+fn tls_policy_defaults_to_zero_leaf_horizon_for_existing_callers() {
+    let result = TlsClientPolicy::new(
+        UnixTime::since_unix_epoch(Duration::from_secs(1_000)),
+        Duration::from_secs(1),
+        Vec::new(),
+        AlpnRequirement::Optional,
+    );
+    assert!(result.is_ok());
+    let Ok(policy) = result else {
+        return;
+    };
+    assert_eq!(policy.minimum_leaf_validity(), Duration::ZERO);
+}
+
+#[test]
+fn tls_policy_bounds_the_configurable_leaf_horizon() {
+    assert_eq!(MAX_MINIMUM_LEAF_VALIDITY, Duration::from_secs(604_800));
+    let result = TlsClientPolicy::new(
+        UnixTime::since_unix_epoch(Duration::from_secs(1_000)),
+        Duration::from_secs(1),
+        Vec::new(),
+        AlpnRequirement::Optional,
+    );
+    assert!(result.is_ok());
+    let Ok(policy) = result else {
+        return;
+    };
+
+    let accepted = policy
+        .clone()
+        .with_minimum_leaf_validity(MAX_MINIMUM_LEAF_VALIDITY);
+    assert!(accepted.is_ok());
+    let Ok(accepted) = accepted else {
+        return;
+    };
+    assert_eq!(
+        accepted.minimum_leaf_validity(),
+        MAX_MINIMUM_LEAF_VALIDITY
+    );
+
+    let excessive = policy.with_minimum_leaf_validity(
+        MAX_MINIMUM_LEAF_VALIDITY.saturating_add(Duration::from_nanos(1)),
+    );
+    assert!(excessive.is_err());
+    let Err(error) = excessive else {
+        return;
+    };
+    match error {
+        TlsError::InvalidMinimumLeafValidity {
+            minimum_validity,
+            maximum_validity,
+        } => {
+            assert_eq!(
+                minimum_validity,
+                MAX_MINIMUM_LEAF_VALIDITY.saturating_add(Duration::from_nanos(1))
+            );
+            assert_eq!(maximum_validity, MAX_MINIMUM_LEAF_VALIDITY);
+        }
+        other => assert_eq!(
+            other.to_string(),
+            "TLS minimum leaf validity exceeds the supported product maximum"
+        ),
+    }
 }
