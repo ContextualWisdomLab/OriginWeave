@@ -9,7 +9,7 @@ use originweave_core::Origin;
 use originweave_destination::{AddressClass, DestinationPolicy, ResolutionSnapshot};
 use originweave_network::{ConnectionPlan, DirectTcpConnection};
 use originweave_tls::{
-    AlpnRequirement, LeafValidityHorizon, LeafValidityHorizonError, TlsClientPolicy,
+    AlpnRequirement, LeafValidityHorizon, LeafValidityHorizonError, TlsClientPolicy, TlsError,
     TlsHandshakePlan, TrustBundleIdentifier, TrustRootBundle,
 };
 use rcgen::{
@@ -107,6 +107,16 @@ fn direct_connection(origin: &Origin, socket_address: SocketAddr) -> DirectTcpCo
         .expect("loopback TCP connection")
 }
 
+fn test_policy() -> TlsClientPolicy {
+    TlsClientPolicy::new(
+        UnixTime::since_unix_epoch(Duration::from_secs(TRUSTED_TIME_SECONDS)),
+        TEST_TIMEOUT,
+        Vec::new(),
+        AlpnRequirement::Optional,
+    )
+    .expect("test TLS policy")
+}
+
 #[test]
 fn authenticated_point_in_time_certificate_can_fail_a_longer_task_horizon() {
     let (socket_address, root_der, server) = spawn_server();
@@ -117,18 +127,11 @@ fn authenticated_point_in_time_certificate_can_fail_a_longer_task_horizon() {
         vec![root_der],
     )
     .expect("test trust bundle");
-    let policy = TlsClientPolicy::new(
-        UnixTime::since_unix_epoch(Duration::from_secs(TRUSTED_TIME_SECONDS)),
-        TEST_TIMEOUT,
-        Vec::new(),
-        AlpnRequirement::Optional,
-    )
-    .expect("test TLS policy");
     let authenticated = TlsHandshakePlan::new(
         origin.clone(),
         direct_connection(&origin, socket_address),
         trust_bundle,
-        policy,
+        test_policy(),
     )
     .expect("valid TLS plan")
     .authenticate()
@@ -160,4 +163,52 @@ fn authenticated_point_in_time_certificate_can_fail_a_longer_task_horizon() {
 
     assert_eq!(server.join().expect("server thread"), Ok(()));
     drop(authenticated);
+}
+
+#[test]
+fn tls_policy_enforces_the_configured_task_horizon_before_stream_exposure() {
+    let (socket_address, root_der, server) = spawn_server();
+    let origin = Origin::parse(&format!("https://localhost:{}", socket_address.port()))
+        .expect("test origin must be canonical");
+    let trust_bundle = TrustRootBundle::new(
+        TrustBundleIdentifier::parse("policy_horizon_roots:v1").expect("trust identifier"),
+        vec![root_der],
+    )
+    .expect("test trust bundle");
+    let policy = test_policy()
+        .with_minimum_leaf_validity(Duration::from_secs(86_401))
+        .expect("one-day delegated horizon must be within the product policy maximum");
+
+    let result = TlsHandshakePlan::new(
+        origin.clone(),
+        direct_connection(&origin, socket_address),
+        trust_bundle,
+        policy,
+    )
+    .expect("valid TLS plan")
+    .authenticate();
+
+    let error = result.err();
+    assert!(
+        error.is_some(),
+        "the authenticated stream must not escape when the leaf expires before the delegated horizon"
+    );
+    let Some(error) = error else {
+        return;
+    };
+    match error {
+        TlsError::InsufficientLeafValidity {
+            remaining_seconds,
+            minimum_seconds,
+        } => {
+            assert_eq!(remaining_seconds, 86_400);
+            assert_eq!(minimum_seconds, 86_401);
+        }
+        other => assert_eq!(
+            other.to_string(),
+            "TLS leaf certificate has insufficient delegated-task validity"
+        ),
+    }
+
+    assert_eq!(server.join().expect("server thread"), Ok(()));
 }
