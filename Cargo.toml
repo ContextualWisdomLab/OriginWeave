@@ -7,13 +7,14 @@ members = [
     "crates/originweave-destination",
     "crates/originweave-network",
     "crates/originweave-tls",
+    "crates/originweave-http",
 ]
 resolver = "3"
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.97"
+rust-version = "1.97.1"
 license = "Apache-2.0"
 authors = ["Contextual Wisdom Lab"]
 repository = "https://github.com/ContextualWisdomLab/OriginWeave"
@@ -21,6 +22,7 @@ homepage = "https://github.com/ContextualWisdomLab/OriginWeave"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(coverage_nightly)"] }
 
 [workspace.lints.clippy]
 dbg_macro = "deny"
