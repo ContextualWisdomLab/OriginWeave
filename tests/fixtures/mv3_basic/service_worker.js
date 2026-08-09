@@ -46,12 +46,24 @@ async function exerciseCoreApis(sender) {
   const sidePanelOptions = await chrome.sidePanel.getOptions({ tabId });
   const sidePanelReady = sidePanelOptions?.path === "side_panel.html";
 
+  const bookmarkTree = await chrome.bookmarks.getTree();
+  const bookmarksReady = Array.isArray(bookmarkTree) && bookmarkTree.length > 0;
+
+  const historyItems = await chrome.history.search({
+    text: "",
+    startTime: 0,
+    maxResults: 10,
+  });
+  const historyReady = Array.isArray(historyItems);
+
   return {
     tabs: tabReady ? "ready" : "missing",
     windows: windowReady ? "ready" : "missing",
     scripting: scriptingReady ? "ready" : "missing",
     commands: commandsReady ? "ready" : "missing",
     sidePanel: sidePanelReady ? "ready" : "missing",
+    bookmarks: bookmarksReady ? "ready" : "missing",
+    history: historyReady ? "ready" : "missing",
   };
 }
 
@@ -77,6 +89,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         scripting: "missing",
         commands: "missing",
         sidePanel: "missing",
+        bookmarks: "missing",
+        history: "missing",
       });
     }
   );
