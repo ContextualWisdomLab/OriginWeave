@@ -4,19 +4,20 @@
 
 OriginWeave is a Chromium-compatible, Rust-first control plane for governed AI agents on the web. It is designed to let an agent observe, extract, and act without turning untrusted page content into authority, exposing secrets to a model, connecting to an unapproved network destination, accepting an unauthenticated web service, or losing the evidence required to explain what happened.
 
-> Project status: pre-alpha. The current repository contains independently reusable safety, resolved-destination, direct TCP peer-binding, and authenticated TLS service-identity kernels. Chromium, WebDriver BiDi, CDP, MCP, HTTP, proxy, WARC, and persistent provenance adapters are planned but not yet shipped.
+> Project status: pre-alpha. The current repository contains independently reusable safety, resolved-destination, direct TCP peer-binding, authenticated TLS service-identity, and purpose-bound sensitive-data policy kernels. Chromium, WebDriver BiDi, CDP, MCP, HTTP, proxy, WARC, and persistent provenance adapters are planned but not yet shipped.
 
 ## Why OriginWeave
 
-Existing browser automation commonly exposes raw selectors, unrestricted script evaluation, ambient cookies, implicit resolver authority, host-dependent TLS assumptions, and screenshots with weak provenance. OriginWeave instead establishes seven product contracts:
+Existing browser automation commonly exposes raw selectors, unrestricted script evaluation, ambient cookies, implicit resolver authority, host-dependent TLS assumptions, and screenshots with weak provenance. OriginWeave instead establishes eight product contracts:
 
 1. **Compatibility** — preserve Chromium web and Manifest V3 extension compatibility rather than rewriting Blink or V8.
 2. **Governance** — evaluate typed actions against session mode, purpose, capability, browser-equivalent origin, robots policy, secret-delivery evidence, and approval bound to the complete action intent.
 3. **Destination safety** — classify resolved addresses, bind a non-empty and bounded approved address set to each origin, preserve `localhost` and literal-IP host semantics, reject DNS-rebinding through set expansion, and reauthorize every redirect target.
 4. **Transport proof** — consume a single-use direct connection plan, submit one exact canonical socket address to the operating system, and verify the observed TCP peer before exposing the stream.
 5. **TLS service identity** — authenticate the canonical HTTPS DNS or IP identity over that same verified stream with explicit trust roots, fixed verification time, bounded protocol policy, and credential-free evidence.
-6. **Resource control** — protect interactive rendering before agent inference and background collection with cumulative RAM, VRAM, admission, model-offload, batch, and frame-pressure mitigations.
-7. **Evidence** — retain bounded, universally value-redacted network metadata and verifiable provenance for extracted values and state-changing actions.
+6. **Sensitive-data authority** — authorize disclosure from exact tenant, task, field, purpose, destination, and classification scope; authorize opaque-handle use only within its exact audience, expiry, and use-count bounds; never make network or session membership equivalent to raw-value access.
+7. **Resource control** — protect interactive rendering before agent inference and background collection with cumulative RAM, VRAM, admission, model-offload, batch, and frame-pressure mitigations.
+8. **Evidence** — retain bounded, universally value-redacted network metadata and verifiable provenance for extracted values and state-changing actions.
 
 ## Architecture
 
@@ -25,7 +26,7 @@ User experience and enterprise administration
                     |
 Chromium compatibility kernel: Blink, V8, Skia, Viz, Dawn, MV3
                     |
-Rust control plane: policy, destination, network, TLS, observation, action, resource, evidence
+Rust control plane: policy, destination, network, TLS, sensitive data, observation, action, resource, evidence
                     |
 Adapters: HTTP, proxy/PAC, WebDriver BiDi, CDP, WebMCP, MCP, WARC, PROV-O
 ```
@@ -33,12 +34,14 @@ Adapters: HTTP, proxy/PAC, WebDriver BiDi, CDP, WebMCP, MCP, WARC, PROV-O
 The repository is organized as independently consumable Rust crates:
 
 - `originweave-core`: normalized origins, immutable action-intent digests, session modes, typed actions, capabilities, approvals, and policy contexts.
-- `originweave-policy`: deterministic fail-closed action evaluation.
+- `originweave-policy`: deterministic fail-closed action evaluation plus the first purpose-bound sensitive-data disclosure and opaque-handle authority kernel.
 - `originweave-destination`: address classification, explicit destination policy, origin-bound DNS snapshots, connection pinning, rebinding detection, and redirect reauthorization.
 - `originweave-network`: direct-only, single-use TCP connection plans that bind an approved canonical address to the exact operating-system peer and emit credential-free evidence.
 - `originweave-tls`: single-use WebPKI handshakes over an existing verified TCP stream, with RFC 9525 DNS/IP identity, explicit roots and time, TLS 1.2/1.3, bounded ALPN and certificate evidence, and no reconnect or verifier bypass.
 - `originweave-resource`: task-level RAM, VRAM, thread, and frame-time budgets with cumulative mitigation plans.
 - `originweave-evidence`: universally value-redacted network evidence and source-bound provenance records.
+
+The full enterprise sensitive-data gap still requires a separately versioned reusable authority/service crate, broker, storage, evidence, lifecycle, and adapter contracts. The current policy kernel is the fail-closed foundation, not a claim that those later components are implemented.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) and the [architecture decision records](docs/adr/) for binding design decisions.
 
@@ -53,6 +56,8 @@ Protected secret: cookies, passwords, API keys, session tokens, personal data
 ```
 
 Web content can provide evidence but cannot grant a capability, approve an action, change policy, or request secret disclosure. Public crawler work is read-only and requires an explicit robots-policy result. R3 and R4 actions require approval bound to the exact action kind, target origin, and immutable lowercase SHA-256 digest of the complete canonical action intent; R5 legal consent is non-delegable.
+
+Sensitive-data authority is separate from ordinary session and network authority. The first policy kernel carries no protected value bytes. It permits a configured disclosure decision only when tenant, task, field, purpose, destination, and data classification match exactly; any mismatch denies access. Opaque handle use is separately bound to tenant, task, field, purpose, destination, exclusive expiry, and maximum use count. Handle resolution and raw-value release remain future trusted-broker responsibilities and must recheck these boundaries immediately before disclosure.
 
 The origin type rejects shortened, integer, hexadecimal, and legacy octal-looking IPv4 spellings that a browser could reinterpret differently from a DNS validator. This protects logical origin identity. The destination kernel separately canonicalizes IPv4-mapped IPv6, classifies IPv4 and IPv6 special-purpose ranges and reviewed cloud platform endpoints, permits only public destinations by default, accepts at most 256 resolver addresses per snapshot, pins approved DNS address sets, rejects set expansion, and re-evaluates origin, resolution, downgrade, cycle, and hop authority for each redirect. The special `localhost` name may resolve only to loopback, and a literal IPv4 or IPv6 origin may approve only its exact canonical address.
 
@@ -97,7 +102,7 @@ isolated Chromium session
 → redacted provenance bundle
 ```
 
-Subsequent work connects the live Chromium network service, adds explicit proxy and download policy, WARC/PROV persistence, MCP and Browser Agent Protocol adapters, extension compatibility testing, GPU/RAM telemetry, prompt-injection benchmarks, and an accessible approval interface. See [docs/product-roadmap.md](docs/product-roadmap.md).
+Subsequent work connects the live Chromium network service, adds explicit proxy and download policy, purpose-bound sensitive-data broker/service contracts, WARC/PROV persistence, MCP and Browser Agent Protocol adapters, extension compatibility testing, GPU/RAM telemetry, prompt-injection benchmarks, and an accessible approval interface. See [docs/product-roadmap.md](docs/product-roadmap.md).
 
 ## Hourly product-development loop
 
