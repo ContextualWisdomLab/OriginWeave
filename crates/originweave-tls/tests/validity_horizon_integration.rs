@@ -158,6 +158,6 @@ fn authenticated_point_in_time_certificate_can_fail_a_longer_task_horizon() {
         })
     );
 
-    drop(authenticated);
     assert_eq!(server.join().expect("server thread"), Ok(()));
+    drop(authenticated);
 }
