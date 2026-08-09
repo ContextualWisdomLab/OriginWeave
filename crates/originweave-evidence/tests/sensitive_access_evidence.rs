@@ -87,6 +87,13 @@ fn authority_identifiers_and_field_sets_are_bounded_and_unambiguous() {
         Err(SensitiveEvidenceError::InvalidIdentifier)
     ));
 
+    let mut invalid_field = valid_input();
+    invalid_field.field_ids = vec!["customer/email".to_owned()];
+    assert!(matches!(
+        SensitiveAccessEvidence::try_from(invalid_field),
+        Err(SensitiveEvidenceError::InvalidFieldSet)
+    ));
+
     let mut empty_fields = valid_input();
     empty_fields.field_ids.clear();
     assert!(matches!(
@@ -109,6 +116,17 @@ fn authority_identifiers_and_field_sets_are_bounded_and_unambiguous() {
         SensitiveAccessEvidence::try_from(too_many_fields),
         Err(SensitiveEvidenceError::InvalidFieldSet)
     ));
+
+    let mut invalid_approval = valid_input();
+    invalid_approval.approval_reference = Some("approval/7".to_owned());
+    assert!(matches!(
+        SensitiveAccessEvidence::try_from(invalid_approval),
+        Err(SensitiveEvidenceError::InvalidIdentifier)
+    ));
+
+    let mut no_approval = valid_input();
+    no_approval.approval_reference = None;
+    assert!(SensitiveAccessEvidence::try_from(no_approval).is_ok());
 }
 
 #[test]
@@ -151,34 +169,7 @@ fn disclosure_and_retention_times_fail_closed_when_semantics_are_impossible() {
 }
 
 #[test]
-fn non_disclosure_control_states_never_claim_a_disclosure_timestamp() {
-    for outcome in [
-        SensitiveAccessOutcome::DenyAccess,
-        SensitiveAccessOutcome::OpaqueHandleOnly,
-        SensitiveAccessOutcome::HumanApprovalRequired,
-        SensitiveAccessOutcome::DualControlRequired,
-    ] {
-        let mut input = valid_input();
-        input.outcome = outcome;
-        input.disclosure_epoch_seconds = None;
-        input.retention_deadline_epoch_seconds = None;
-        let evidence = SensitiveAccessEvidence::try_from(input).expect("control state evidence");
-        assert_eq!(evidence.disclosure_epoch_seconds(), None);
-    }
-}
-
-#[test]
-fn every_documented_classification_and_outcome_is_representable() {
-    let classifications = [
-        SensitiveAccessClass::PublicData,
-        SensitiveAccessClass::InternalData,
-        SensitiveAccessClass::PersonalData,
-        SensitiveAccessClass::SensitivePersonalData,
-        SensitiveAccessClass::CredentialData,
-        SensitiveAccessClass::PaymentData,
-    ];
-    assert_eq!(classifications.len(), 6);
-
+fn every_disclosure_and_control_outcome_has_consistent_lifecycle_semantics() {
     let outcomes = [
         SensitiveAccessOutcome::DenyAccess,
         SensitiveAccessOutcome::OpaqueHandleOnly,
@@ -188,5 +179,39 @@ fn every_documented_classification_and_outcome_is_representable() {
         SensitiveAccessOutcome::HumanApprovalRequired,
         SensitiveAccessOutcome::DualControlRequired,
     ];
-    assert_eq!(outcomes.len(), 7);
+
+    for outcome in outcomes {
+        let mut input = valid_input();
+        input.outcome = outcome;
+        input.disclosure_epoch_seconds = match outcome {
+            SensitiveAccessOutcome::DerivedValueOnly
+            | SensitiveAccessOutcome::PartialFieldDisclosure
+            | SensitiveAccessOutcome::FullFieldDisclosure => Some(1_786_176_001),
+            SensitiveAccessOutcome::DenyAccess
+            | SensitiveAccessOutcome::OpaqueHandleOnly
+            | SensitiveAccessOutcome::HumanApprovalRequired
+            | SensitiveAccessOutcome::DualControlRequired => None,
+        };
+        let evidence = SensitiveAccessEvidence::try_from(input).expect("consistent lifecycle");
+        assert_eq!(evidence.outcome(), outcome);
+    }
+}
+
+#[test]
+fn every_documented_classification_is_representable() {
+    let classifications = [
+        SensitiveAccessClass::PublicData,
+        SensitiveAccessClass::InternalData,
+        SensitiveAccessClass::PersonalData,
+        SensitiveAccessClass::SensitivePersonalData,
+        SensitiveAccessClass::CredentialData,
+        SensitiveAccessClass::PaymentData,
+    ];
+
+    for classification in classifications {
+        let mut input = valid_input();
+        input.classification = classification;
+        let evidence = SensitiveAccessEvidence::try_from(input).expect("classification evidence");
+        assert_eq!(evidence.classification(), classification);
+    }
 }
