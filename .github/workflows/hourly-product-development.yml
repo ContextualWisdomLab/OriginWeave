@@ -545,8 +545,28 @@ jobs:
             set -e
 
             if [ "$status" -eq 0 ]; then
-              success=true
-              echo "OpenCode completed with $model." >>"$GITHUB_STEP_SUMMARY"
+              if ! provider_after_status="$(read_provider_status)"; then
+                cause=credential_broker_unavailable
+                feasible_retry=false
+                tail -n 50 "${RUNNER_TEMP}/originweave-nim-broker.log" >&2 || true
+              else
+                read -r provider_after provider_auth_rejected provider_rate_limited <<<"$provider_after_status"
+                if [ "$provider_auth_rejected" -gt "$provider_before" ]; then
+                  cause=provider_auth_rejected
+                  feasible_retry=false
+                elif [ "$provider_rate_limited" -gt "$provider_before" ]; then
+                  cause=provider_rate_limited
+                  feasible_retry=false
+                elif [ "$provider_after" -le "$provider_before" ]; then
+                  cause=model_path_not_reached
+                  feasible_retry=false
+                else
+                  success=true
+                  echo "OpenCode completed with $model." >>"$GITHUB_STEP_SUMMARY"
+                  break
+                fi
+              fi
+              echo "OpenCode RCA: model=$model status=$status cause=$cause feasible_retry=$feasible_retry" >>"$GITHUB_STEP_SUMMARY"
               break
             fi
 
