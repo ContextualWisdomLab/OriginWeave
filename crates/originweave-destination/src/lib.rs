@@ -15,8 +15,8 @@ mod resolution;
 
 pub use address::{AddressClass, ClassifiedAddress, classify_address};
 pub use proxy::{
-    MAX_PAC_ORIGIN_COUNT, MAX_PROXY_ORIGIN_COUNT, ProxyRoute, ProxyRouteError, ProxyRouteEvidence,
-    ProxyRouteKind, ProxyRoutePolicy,
+    MAX_PAC_ORIGIN_COUNT, MAX_PROXY_SERVER_COUNT, ProxyRoute, ProxyRouteError, ProxyRouteEvidence,
+    ProxyRouteKind, ProxyRoutePolicy, ProxyServer, ProxyServerError, ProxyServerScheme,
 };
 pub use redirect::{
     MAX_REDIRECT_HOPS, RedirectError, RedirectEvidence, RedirectGuard, RedirectTargetDigest,
