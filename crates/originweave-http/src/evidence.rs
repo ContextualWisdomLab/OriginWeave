@@ -1,5 +1,6 @@
 //! Credential-free immutable evidence for one complete HTTP exchange.
 
+use std::fmt;
 use std::net::SocketAddr;
 use std::time::Duration;
 
@@ -442,11 +443,21 @@ impl From<EvidenceInput> for HttpExchangeEvidence {
 }
 
 /// One complete decoded HTTP response and its immutable evidence.
-#[derive(Debug)]
 pub struct AuthenticatedHttpResponse {
     pub(crate) content: Vec<u8>,
     pub(crate) reason_phrase: Vec<u8>,
     pub(crate) evidence: HttpExchangeEvidence,
+}
+
+impl fmt::Debug for AuthenticatedHttpResponse {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("AuthenticatedHttpResponse")
+            .field("content_byte_count", &self.content.len())
+            .field("reason_phrase_byte_count", &self.reason_phrase.len())
+            .field("evidence", &self.evidence)
+            .finish()
+    }
 }
 
 impl AuthenticatedHttpResponse {
