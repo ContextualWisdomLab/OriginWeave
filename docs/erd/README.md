@@ -23,6 +23,7 @@ The ERD does **not** authorize direct cross-service database access. Other CWL p
 erDiagram
     tenant_record ||--o{ browser_profile : owns
     tenant_record ||--o{ agent_session : owns
+    tenant_record ||--o{ extraction_schema : governs
     browser_profile ||--o{ agent_session : supplies
     agent_session ||--o{ browsing_context : contains
     browsing_context ||--o{ page_snapshot : produces
@@ -55,7 +56,9 @@ erDiagram
 
     page_snapshot ||--o{ source_resource : references
     network_exchange ||--o{ source_resource : captures
-    source_resource ||--o{ extracted_value : supports
+    source_resource ||--o{ content_record : materializes
+    content_record ||--o{ extracted_value : supports
+    extraction_schema ||--o{ extracted_value : constrains
     semantic_node o|--o{ extracted_value : supports
     extracted_value ||--o{ provenance_record : derives
     action_event ||--o{ provenance_record : contributes
@@ -278,9 +281,29 @@ erDiagram
         string content_digest
     }
 
+    content_record {
+        string content_record_id PK
+        string source_resource_id FK
+        string content_kind
+        string media_type
+        string content_digest
+        integer content_bytes
+        string retention_class
+    }
+
+    extraction_schema {
+        string extraction_schema_id PK
+        string tenant_record_id FK
+        string schema_name
+        string schema_version
+        string schema_digest
+        string lifecycle_state
+    }
+
     extracted_value {
         string extracted_value_id PK
-        string source_resource_id FK
+        string content_record_id FK
+        string extraction_schema_id FK
         string semantic_node_id FK
         string field_name
         string value_digest
@@ -393,15 +416,28 @@ sensitive_authority
 
 The protected value is deliberately absent from the conceptual audit entities. Storage adapters may need encrypted secret material, but that material belongs to a dedicated trusted secret store rather than general evidence tables.
 
+### Content and extraction aggregate
+
+```text
+source_resource
+-> content_record
+-> extracted_value
+extraction_schema
+-> extracted_value
+```
+
+`source_resource` identifies where evidence came from; `content_record` identifies a bounded retained representation of that source; `extraction_schema` identifies the versioned contract used to interpret content; and `extracted_value` records a derived field without pretending that its digest is the source itself. A screenshot, HTTP body, DOM-derived record, WARC member, or download may therefore have separate storage/export representations while keeping one conceptual source/content/extraction lineage. Protected secrets do not become `content_record` payloads merely because a page used them.
+
 ### Evidence/provenance aggregate
 
 ```text
 source_resource
+-> content_record
 -> extracted_value
 -> provenance_record
 ```
 
-`provenance_record` can also reference action, policy, and post-condition evidence so a buyer can trace both extracted facts and state-changing results.
+`provenance_record` can also reference action, policy, and post-condition evidence so a buyer can trace both extracted facts and state-changing results. The extraction schema is an independent versioned authority for interpretation and does not merge with source-content identity or provenance truth.
 
 ## 4. Identity rules
 
@@ -410,6 +446,7 @@ source_resource
 - Digests are content/intent/evidence identifiers, not authorization by themselves.
 - A canonical origin string is a logical identity, not a database key for authorization state.
 - A `secret_handle_id` is opaque authority reference metadata, never the protected value.
+- `source_resource_id`, `content_record_id`, `extraction_schema_id`, and `extracted_value_id` remain separate so storage identity, interpretation contract, and derived-value identity cannot collapse into one identifier.
 
 ## 5. Temporal rules
 
@@ -426,14 +463,14 @@ At minimum, future durable task implementations distinguish:
 ## 6. Privacy and retention rules
 
 - Evidence defaults to data minimization and universal redaction for generic network values.
-- Protected values are not duplicated into audit/provenance tables.
+- Protected values are not duplicated into audit/provenance tables or ordinary `content_record` payloads.
 - Tenant/resource authorization applies before record access, not after retrieval.
-- Retention is purpose/classification aware.
+- Retention is purpose/classification aware and can differ between source metadata, retained content, derived values, and accountability records.
 - Export and deletion operations preserve integrity/accountability records only to the extent required by the governing policy or law; the exact enterprise lifecycle remains Planned.
 
 ## 7. Adapter mapping guidance
 
-A relational adapter might persist `agent_session`, policy/action metadata, and indexes. WARC may persist source protocol material. Object storage may hold screenshots/downloads. PROV serialization may represent derivation. These are parallel representations of bounded concepts, not permission to duplicate secrets or bypass data-minimization rules.
+A relational adapter might persist `agent_session`, policy/action metadata, extraction schema metadata, and indexes. WARC may persist eligible source/content protocol material. Object storage may hold screenshots/downloads or larger `content_record` payloads. PROV serialization may represent derivation. These are parallel representations of bounded concepts, not permission to duplicate secrets or bypass data-minimization rules.
 
 ## 8. ERD change control
 
@@ -444,6 +481,7 @@ Update this file when an Accepted or implemented change alters:
 - action/approval/post-condition relationships;
 - network authority sequence;
 - sensitive-data handle lifecycle;
+- content/extraction schema lineage;
 - resource-governor evidence;
 - provenance derivation;
 - tenant/extension governance.
