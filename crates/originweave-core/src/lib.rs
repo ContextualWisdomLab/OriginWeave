@@ -234,6 +234,106 @@ pub enum OriginError {
     InvalidPort,
 }
 
+/// A nonzero identity for one observed browser document lifetime.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct DocumentEpoch(u64);
+
+impl DocumentEpoch {
+    /// Validate one adapter-supplied document epoch.
+    pub const fn new(value: u64) -> Result<Self, NodeHandleError> {
+        if value == 0 {
+            return Err(NodeHandleError::InvalidDocumentEpoch);
+        }
+        Ok(Self(value))
+    }
+
+    /// Return the validated document epoch value.
+    #[must_use]
+    pub const fn value(self) -> u64 {
+        self.0
+    }
+}
+
+/// A node identity bound to the exact origin and document that produced it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ObservedNodeHandle {
+    origin: Origin,
+    document_epoch: DocumentEpoch,
+    node_id: u64,
+}
+
+impl ObservedNodeHandle {
+    /// Create one observed node handle from a nonzero adapter node identifier.
+    pub const fn new(
+        origin: Origin,
+        document_epoch: DocumentEpoch,
+        node_id: u64,
+    ) -> Result<Self, NodeHandleError> {
+        if node_id == 0 {
+            return Err(NodeHandleError::InvalidNodeId);
+        }
+        Ok(Self {
+            origin,
+            document_epoch,
+            node_id,
+        })
+    }
+
+    /// Return the canonical origin that produced the node observation.
+    #[must_use]
+    pub const fn origin(&self) -> &Origin {
+        &self.origin
+    }
+
+    /// Return the document epoch that produced the node observation.
+    #[must_use]
+    pub const fn document_epoch(&self) -> DocumentEpoch {
+        self.document_epoch
+    }
+
+    /// Return the adapter-local nonzero node identifier.
+    #[must_use]
+    pub const fn node_id(&self) -> u64 {
+        self.node_id
+    }
+
+    /// Reject use when either the origin or document epoch has changed.
+    pub fn validate_current(
+        &self,
+        current_origin: &Origin,
+        current_epoch: DocumentEpoch,
+    ) -> Result<(), NodeHandleError> {
+        if &self.origin != current_origin {
+            return Err(NodeHandleError::OriginMismatch);
+        }
+        if self.document_epoch != current_epoch {
+            return Err(NodeHandleError::StaleDocumentEpoch {
+                observed: self.document_epoch,
+                current: current_epoch,
+            });
+        }
+        Ok(())
+    }
+}
+
+/// A failure to construct or reuse a document-bound node handle safely.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NodeHandleError {
+    /// Document epochs are one-based and zero was supplied.
+    InvalidDocumentEpoch,
+    /// Adapter-local node identifiers are one-based and zero was supplied.
+    InvalidNodeId,
+    /// The browser context is now at a different canonical origin.
+    OriginMismatch,
+    /// The browser context is now at a different document epoch.
+    StaleDocumentEpoch {
+        /// Epoch that originally produced the node handle.
+        observed: DocumentEpoch,
+        /// Epoch currently active in the browser context.
+        current: DocumentEpoch,
+    },
+}
+
 /// An immutable digest of the complete canonical action intent.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ActionIntentDigest {
