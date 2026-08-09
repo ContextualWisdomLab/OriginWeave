@@ -127,7 +127,9 @@ fn unsupported_context_status(
     match (has_supported_algorithm, requirement) {
         (true, IntegrityRequirement::Optional) => Ok(IntegrityStatus::UnsupportedContext),
         (false, IntegrityRequirement::Optional) => Ok(IntegrityStatus::UnsupportedAlgorithm),
-        (_, IntegrityRequirement::RequireSupportedDigest) => Err(HttpError::SupportedDigestRequired),
+        (_, IntegrityRequirement::RequireSupportedDigest) => {
+            Err(HttpError::SupportedDigestRequired)
+        }
     }
 }
 
