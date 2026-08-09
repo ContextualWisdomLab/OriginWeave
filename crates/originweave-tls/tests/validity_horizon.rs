@@ -68,9 +68,17 @@ fn extreme_horizon_uses_saturating_seconds_instead_of_wrapping() {
 
 #[test]
 fn typed_failure_is_usable_in_standard_error_chains_without_a_source() {
-    let error = LeafValidityHorizon::new(Duration::from_secs(300))
-        .evaluate(1_000, 1_299)
-        .expect_err("one-second-short certificate must fail");
+    let result = LeafValidityHorizon::new(Duration::from_secs(300)).evaluate(1_000, 1_299);
+    assert_eq!(
+        result,
+        Err(LeafValidityHorizonError::InsufficientRemainingValidity {
+            remaining_seconds: 299,
+            minimum_seconds: 300,
+        })
+    );
+    let Err(error) = result else {
+        return;
+    };
     assert_eq!(
         error.to_string(),
         "TLS leaf certificate has 299 seconds remaining; delegated task requires at least 300 seconds"
