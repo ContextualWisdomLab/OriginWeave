@@ -22,6 +22,6 @@ Chrome for Developers. (n.d.). *chrome.declarativeNetRequest*. Google. Retrieved
 
 Chrome for Developers. (n.d.). *Manifest file format*. Google. Retrieved August 9, 2026, from https://developer.chrome.com/docs/extensions/reference/manifest
 
-Chrome for Developers. (2023, June 12). *Chrome for Testing: Reliable downloads for browser automation*. Google. https://developer.chrome.com/blog/chrome-for-testing
+Bynens, M. (2023, June 12). *Chrome for Testing*. Chrome for Developers. https://developer.chrome.com/docs/automation-and-testing/chrome-for-testing
 
 Google Chrome Labs. (2026, July 21). *Chrome for Testing availability*. https://googlechromelabs.github.io/chrome-for-testing/
