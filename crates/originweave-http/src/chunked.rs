@@ -312,6 +312,31 @@ mod tests {
     }
 
     #[test]
+    fn incremental_decoder_resumes_after_committed_chunks() {
+        let policy = policy(8, 4, 128, 64);
+        let mut decoder = ChunkedDecoder::new();
+        assert_eq!(
+            decoder
+                .parse(b"1\r\na\r\n", &policy)
+                .expect("first complete chunk"),
+            ChunkParseResult::Incomplete
+        );
+
+        let mutated_committed_prefix = b"g\r\nx\r\n1\r\nb\r\n0\r\n\r\n";
+        assert_eq!(
+            decoder
+                .parse(mutated_committed_prefix, &policy)
+                .expect("resume after committed chunk"),
+            ChunkParseResult::Complete(ChunkedResult {
+                content: b"ab".to_vec(),
+                trailers: FieldBlock::default(),
+                chunk_count: 3,
+                consumed: mutated_committed_prefix.len(),
+            })
+        );
+    }
+
+    #[test]
     fn chunk_syntax_is_strict_and_extensions_are_rejected() {
         for invalid in [
             b"\r\n".as_slice(),
