@@ -463,4 +463,16 @@ mod tests {
             Err(HttpError::SwitchingProtocolsUnsupported)
         ));
     }
+
+    #[test]
+    fn interim_and_final_heads_share_one_header_section_budget() {
+        let input = b"HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 200 OK\r\n\r\n";
+        assert!(matches!(
+            parse_final_response_head(input, &policy(64, 4, 16, 16, 32, 2)),
+            Err(HttpError::HeaderSectionTooLarge {
+                byte_count: 44,
+                maximum_bytes: 32,
+            })
+        ));
+    }
 }
