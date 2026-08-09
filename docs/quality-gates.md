@@ -14,8 +14,22 @@ A PR is mergeable only when all apply:
 - dependency and GitHub Action references are locked or commit-pinned;
 - generated build outputs are ignored and absent from `git ls-files`;
 - review threads are resolved with code or evidence;
-- required independent approval and repository security checks pass;
+- repository security checks pass on the exact head;
+- current branch protection and ruleset requirements are satisfied without bypass;
+- any currently required non-author approval satisfies the review-governance rule below;
 - README, architecture, ADR, doctoring, and changelog are updated when affected.
+
+### Review-governance rule
+
+OriginWeave distinguishes GitHub-enforced review authority from advisory automated review and from repository-local governance. A formal non-author approval is a merge gate only when **current GitHub rules** require a counted approval or an explicit current OriginWeave/CWL governance rule requires one and a legitimate eligible non-author review path is operationally satisfiable.
+
+When **fewer than two eligible**, repository-authorized non-author maintainers or reviewers exist and current GitHub branch/ruleset policy does not require a counted approving review, the additional repository-local non-author approval gate is **ON HOLD (solo-maintainer)**. This is an explicit governance state, not an implicit bypass. Exact-head CI, repository security checks, production function/line/region/branch coverage at 100%, rustdoc, resolved current review findings, live-base and writer-lease checks, and branch protection remain mandatory.
+
+The hold is **re-enabled** when live governance evidence proves **at least two eligible** repository-authorized maintainers or reviewers exist, or immediately when GitHub rules require a counted approving review. Re-enablement is based on current collaborator/team/App eligibility and current repository policy, not on a historical reviewer name or bot label.
+
+No self-approval, synthesized or author-controlled identity, issue comment, commit status, check result, reaction, model verdict, or other automated review text may impersonate a counted approving review. Configured automated review remains required advisory/security evidence where repository policy requires it, but it is not mislabeled as independent human approval without eligibility proof.
+
+Issue #26 tracks reviewer-path/governance reconciliation. A previously rejected reviewer route, including a 422 non-collaborator response, must not be retried unchanged merely to manufacture activity; eligibility must materially change first.
 
 ## Safety-kernel gates
 
