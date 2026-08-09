@@ -88,11 +88,7 @@ fn handle_use(
     now: u64,
     uses: u32,
 ) -> HandleUseRequest {
-    HandleUseRequest::new(
-        sensitive_authority(authority, classification),
-        now,
-        uses,
-    )
+    HandleUseRequest::new(sensitive_authority(authority, classification), now, uses)
 }
 
 fn assert_disclosure_denied(authority: AuthorityCase<'_>, classification: DataClassification) {
@@ -368,13 +364,7 @@ fn authority_identifiers_are_bounded_ascii_policy_tokens() {
         PURPOSE,
         DESTINATION,
     ));
-    assert_invalid_equal_authority(authority_case(
-        TENANT,
-        TASK,
-        FIELD,
-        &oversized,
-        DESTINATION,
-    ));
+    assert_invalid_equal_authority(authority_case(TENANT, TASK, FIELD, &oversized, DESTINATION));
 
     let invalid_handle_authority =
         authority_case("tenant alpha", TASK, FIELD, PURPOSE, DESTINATION);
