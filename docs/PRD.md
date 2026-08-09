@@ -12,7 +12,7 @@
 
 ## 1. Purpose
 
-This PRD defines the product boundary that previously existed across architecture, ADRs, implementation plans, roadmap entries, pull-request descriptions, and product-design conversations. It does not convert planned work into shipped functionality. Protected `main`, executable tests and integrated operational evidence are the implementation authority.
+This PRD defines the product boundary that previously existed across architecture, ADRs, implementation plans, roadmap entries, pull-request descriptions, and product-design conversations. It does not convert planned work into shipped functionality. Shipped implementation truth is determined from the consistent set of protected `main` source, executable tests, produced build/release artifacts, applicable migrations and configuration, and integrated operational evidence. If those authorities disagree, the discrepancy is a release/operability defect that must be resolved before the affected behavior is described as shipped; an Accepted ADR provides design authority but never overrides contrary executable or released evidence.
 
 OriginWeave is an enterprise agentic web runtime and provenance-native browser platform. Chromium remains the compatibility kernel; Rust owns the governance, authority, resource, evidence, and agent-facing control plane.
 
@@ -78,15 +78,17 @@ Needs observable failure modes, operability, rollback, SBOM/provenance, compatib
 
 ## 6. Product family
 
+The status applies to the **whole named product surface**, not to every implemented foundation underneath it. Partial protected-main foundations are called out explicitly so a product-family row never promotes an unfinished surface to shipped functionality.
+
 | Surface | Product responsibility | Status | Implementation evidence / note |
 |---|---|---|---|
 | **OriginWeave Browser** | Chromium-compatible interactive distribution with governed agent entry points | Planned | No protected-main branded browser distribution yet |
 | **OriginWeave Runtime** | Headless/embedded governed web-task runtime | Planned | Rust authority kernels exist; browser integration remains incomplete |
-| **OriginWeave Observe** | Structured observation from tools, structured data, network, accessibility, DOM/layout and visual fallback | Planned | Observation/evidence foundations exist; semantic browser adapter not complete |
+| **OriginWeave Observe** | Structured observation from tools, structured data, network, accessibility, DOM/layout and visual fallback | Planned | Session/context/node-authority foundations are on protected main; semantic browser observation adapter is incomplete |
 | **OriginWeave Capture** | Schema-bound extraction, crawler controls, downloads and WARC/PROV-oriented capture | Planned | Evidence foundations exist; complete capture runtime not shipped |
-| **OriginWeave Governor** | CPU, RAM, GPU, VRAM, admission and model/browser priority governance | Accepted architecture | Deterministic resource-budget foundations exist; platform adapters remain incomplete |
-| **OriginWeave Policy** | Capability, origin, purpose, risk, crawler, approval and sensitive-data authority | Implemented | Protected-main deterministic policy/destination foundations; later policy families are tracked separately |
-| **OriginWeave Evidence** | Credential-free evidence, provenance and task-trail contracts | Implemented | Protected-main evidence foundations; durable enterprise adapters remain planned |
+| **OriginWeave Governor** | CPU, RAM, GPU, VRAM, admission and model/browser priority governance | Accepted architecture | Deterministic resource-budget and CPU-worker admission foundations are implemented; platform telemetry/scheduling adapters remain incomplete |
+| **OriginWeave Policy** | Capability, origin, purpose, risk, crawler, approval and sensitive-data authority | Accepted architecture | Capability/origin/purpose/risk/crawler/approval foundations are implemented; purpose-bound sensitive-data policy is active work in PR #33 and the trusted broker remains planned |
+| **OriginWeave Evidence** | Credential-free evidence, provenance and task-trail contracts | Accepted architecture | Credential-free network evidence and purpose-bound sensitive-access receipts are implemented; complete Evidence Trail, WARC/PROV adapters and durable enterprise storage remain planned |
 | **OriginWeave Protocol** | Stable browser-agent protocol independent of one upstream automation standard | Planned | Contract documented; implementation pending |
 | **OriginWeave SDK** | Typed client libraries and adapters | Planned | Not a shipped product surface |
 | **OriginWeave Enterprise** | Managed policy, tenancy, SSO/SCIM, residency, audit, deployment and support | Planned | Enterprise persistence/control plane not shipped |
@@ -161,6 +163,8 @@ planner identifies field + purpose + destination
 -> disclosure receipt records metadata without protected value
 ```
 
+The full journey is target architecture until the sensitive policy, trusted broker, browser-fill path, and post-condition/evidence path are all protected-main integrated. Implemented subcomponents do not make this whole sequence shipped.
+
 ### 8.4 Enterprise crawler
 
 ```text
@@ -179,7 +183,7 @@ public-crawl purpose
 | ID | Requirement | Status | Implementation evidence / note |
 |---|---|---|---|
 | PRD-COMP-001 | Chromium is the compatibility kernel; OriginWeave does not reimplement Blink or V8 | Accepted architecture | ADR 0001 |
-| PRD-COMP-002 | Maintain a Manifest V3 compatibility matrix and representative extension test farm | Planned | Release-specific evidence required |
+| PRD-COMP-002 | Maintain a Manifest V3 compatibility matrix and representative extension test farm | Planned | Issue #27 / release-specific evidence required |
 | PRD-COMP-003 | Chromium-specific integrations remain behind versioned adapters | Planned | Adapter strategy ADR 0107 |
 | PRD-COMP-004 | Headless runtime remains independently usable without the interactive browser UI | Planned | Modular architecture target |
 
@@ -187,8 +191,8 @@ public-crawl purpose
 
 | ID | Requirement | Status | Implementation evidence / note |
 |---|---|---|---|
-| PRD-OBS-001 | Autonomous tasks have explicit browser-session and browsing-context identity | Planned | Browser adapter work required |
-| PRD-OBS-002 | Actionable semantic-node handles are invalidated by relevant document-epoch changes | Planned | ADR 0103 defines acceptance |
+| PRD-OBS-001 | Autonomous observations can carry explicit browser-session, browsing-context, canonical-origin and document-epoch authority | Implemented | `ObservedNodeHandle`, `BrowserSessionId`, `BrowsingContextId` and `DocumentEpoch` on protected main via #17; real browser adapter remains planned |
+| PRD-OBS-002 | Actionable semantic-node handles are invalidated by relevant document-epoch changes at the action linearization boundary | Accepted architecture | Core exact-authority validation exists; adapter lifecycle/mutation invalidation and atomic dispatch evidence remain planned |
 | PRD-OBS-003 | Observation prefers typed/structured evidence before accessibility/DOM/layout and bounded visual fallback | Accepted architecture | ADR 0103 |
 | PRD-OBS-004 | Observation can use bounded incremental updates rather than full repeated snapshots | Planned | Adapter-specific design needed |
 | PRD-OBS-005 | Source channel and trust/provenance remain explicit | Accepted architecture | Evidence model foundations exist |
@@ -211,17 +215,17 @@ public-crawl purpose
 | PRD-NET-002 | Resolution snapshots are bounded, origin-bound and fail closed on unapproved expansion | Implemented | `originweave-destination` |
 | PRD-NET-003 | Direct transport connects only to approved canonical sockets and verifies `peer_addr` | Implemented | `originweave-network` |
 | PRD-NET-004 | TLS authenticates service identity over the exact governed transport with explicit roots/time | Implemented | `originweave-tls` |
-| PRD-NET-005 | Proxy/PAC route authority is explicit and never ambient | Planned | Active product line may implement it; protected main is authority |
-| PRD-NET-006 | Bounded HTTP semantics operate over authenticated governed transport | Planned | Do not describe active PR work as shipped |
-| PRD-NET-007 | Real Chromium navigation proves end-to-end consumption of every shipped authority layer | Planned | Release acceptance requirement |
+| PRD-NET-005 | Proxy/PAC route authority is explicit and never ambient | Implemented | Protected-main route-authority foundation from #20; PAC evaluation, proxy transport and CONNECT remain planned |
+| PRD-NET-006 | Bounded HTTP semantics operate over authenticated governed transport | Planned | Active PR #11 is not shipped evidence |
+| PRD-NET-007 | Real Chromium navigation proves end-to-end consumption of every shipped authority layer | Planned | Issue #28 / release acceptance requirement |
 
 ### 9.5 Secret and sensitive-data authority
 
 | ID | Requirement | Status | Implementation evidence / note |
 |---|---|---|---|
-| PRD-DATA-001 | Raw secret values never enter model-visible context | Accepted architecture | ADR 0104; broker path not fully shipped |
-| PRD-DATA-002 | Sensitive disclosure binds tenant/task/field/purpose/destination/classification | Planned | Sensitive authority work exists outside protected-main baseline |
-| PRD-DATA-003 | Trusted broker owns expiry, revocation, atomic use reservation and resolution | Planned | Broker implementation pending |
+| PRD-DATA-001 | Raw secret values never enter model-visible context | Accepted architecture | ADR 0104; trusted browser/broker runtime path not fully shipped |
+| PRD-DATA-002 | Sensitive disclosure binds tenant/task/field/purpose/destination/classification | Planned | Active replacement PR #33; no active-PR evidence counts as protected-main implementation |
+| PRD-DATA-003 | Trusted broker owns expiry, revocation, atomic use reservation and resolution | Planned | Broker implementation pending under issue #10 |
 | PRD-DATA-004 | Privacy controls use purpose-bound authorization, encryption, retention and audit rather than blanket masking | Accepted architecture | `DATA_GOVERNANCE.md` |
 | PRD-DATA-005 | Model disclosure additionally binds provider/model/region/retention policy | Planned | Requires orchestrator/provider integration |
 
@@ -231,10 +235,10 @@ public-crawl purpose
 |---|---|---|---|
 | PRD-EVD-001 | Generic network evidence is credential-free and value-redacted | Implemented | Protected-main evidence kernel |
 | PRD-EVD-002 | Evidence binds validated source identity and digests | Implemented | Protected-main evidence foundations |
-| PRD-EVD-003 | Evidence Trail links source, model judgement, policy, approval, action and verified outcome as distinct authorities | Planned | Conceptual ERD/provenance ADR |
+| PRD-EVD-003 | Evidence Trail links source, model judgement, policy, approval, action and verified outcome as distinct authorities | Planned | Conceptual ERD/provenance ADR; complete trail is not shipped |
 | PRD-EVD-004 | **Origin Map** provides buyer-visible provenance exploration | Proposed | UX/product-design work still required |
 | PRD-EVD-005 | WARC and PROV are separate interoperability/export adapters | Accepted architecture | ADR 0106 |
-| PRD-EVD-006 | Sensitive-access evidence records authority without protected value | Planned | Sensitive receipt work not protected-main truth |
+| PRD-EVD-006 | Sensitive-access evidence records authority without protected value | Implemented | Protected-main purpose-bound sensitive-access receipts via #31 |
 
 ### 9.7 Resource governance
 
@@ -242,7 +246,7 @@ public-crawl purpose
 |---|---|---|---|
 | PRD-RES-001 | Deterministic resource budgets produce cumulative mitigations | Implemented | `originweave-resource` foundations |
 | PRD-RES-002 | Browser/human correctness outranks optional model throughput | Accepted architecture | ADR 0105 |
-| PRD-RES-003 | CPU worker admission participates in real task admission | Planned | Active work does not become shipped until merge |
+| PRD-RES-003 | CPU worker saturation participates in deterministic new-work admission | Implemented | Protected-main `ResourceSnapshot`/`ResourceGovernor` CPU-worker admission via #30; platform worker telemetry/actuation remains adapter work |
 | PRD-RES-004 | Platform adapters report bounded CPU/RAM/GPU/VRAM/network/storage telemetry | Planned | Platform integration required |
 | PRD-RES-005 | Constrained GPU systems shrink/offload/pause model work before sacrificing governed browser correctness | Accepted architecture | ADR 0105 |
 
@@ -262,8 +266,8 @@ public-crawl purpose
 |---|---|---|---|
 | PRD-EXT-001 | Manifest V3 remains the extension compatibility baseline | Accepted architecture | Official Chrome platform baseline |
 | PRD-EXT-002 | Upstream extension APIs are preserved where possible | Accepted architecture | Chromium-kernel strategy |
-| PRD-EXT-003 | Extension access to agent authority requires separate signed policy grant | Planned | Enterprise/runtime integration |
-| PRD-EXT-004 | Compatibility tests cover install/update, worker lifecycle, scripts, storage, DNR, messaging, download, side panel and isolation | Planned | Release-specific suite |
+| PRD-EXT-003 | Extension access to agent authority requires separate signed policy grant | Planned | Issue #27 / enterprise-runtime integration |
+| PRD-EXT-004 | Compatibility tests cover install/update, worker lifecycle, scripts, storage, DNR, messaging, download, side panel and isolation | Planned | Issue #27 / release-specific suite |
 
 ### 9.10 Crawler and capture policy
 
@@ -330,20 +334,20 @@ Performance goals are profile- and hardware-specific. Product releases must publ
 
 ## 11. Buyer-visible acceptance
 
-A commercial release is accepted only when the integrated exact protected source head proves the claims actually included in that release.
+A commercial release is accepted only when the integrated exact protected source head and produced release evidence prove the claims actually included in that release.
 
 Minimum acceptance families:
 
 1. exact CI/security/SAST/coverage/rustdoc evidence;
-2. qualifying independent non-author review where repository/governance requires it;
+2. qualifying independent non-author review when current GitHub or explicit operational governance requires it;
 3. protected branch/ruleset acceptance with zero valid unresolved findings;
 4. browser/version/extension compatibility evidence for claimed surfaces;
 5. realistic DNS/route/TCP/TLS/HTTP/navigation security tests for claimed network paths;
 6. hostile prompt/node/secret/tenant/resource tests for claimed agent paths;
 7. accessibility evidence for shipped UI;
 8. package/SBOM/provenance/reproducibility evidence;
-9. migration/rollback/recovery evidence for changed durable/runtime contracts; and
-10. post-publication artifact verification.
+9. migration/configuration/rollback/recovery evidence for changed durable/runtime contracts; and
+10. post-publication artifact verification against the intended source/release identity.
 
 No emergency or executive path may convert missing required evidence into a successful release.
 
@@ -372,7 +376,7 @@ The following are not product capabilities unless a future reviewed product deci
 - unbounded raw HTML/screenshot/network retention;
 - universal legal/copyright authorization inferred from `robots.txt`;
 - self-declared CSAP/SOC 2/ISO certification;
-- merging or releasing by bypassing checks, required independent approval or branch protection.
+- merging or releasing by bypassing required checks, currently applicable review governance, branch protection, or reproducibility/provenance evidence.
 
 ## 14. Product metrics
 
