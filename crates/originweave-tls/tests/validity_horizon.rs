@@ -126,10 +126,7 @@ fn tls_policy_bounds_the_configurable_leaf_horizon() {
     let Ok(accepted) = accepted else {
         return;
     };
-    assert_eq!(
-        accepted.minimum_leaf_validity(),
-        MAX_MINIMUM_LEAF_VALIDITY
-    );
+    assert_eq!(accepted.minimum_leaf_validity(), MAX_MINIMUM_LEAF_VALIDITY);
 
     let excessive = policy.with_minimum_leaf_validity(
         MAX_MINIMUM_LEAF_VALIDITY.saturating_add(Duration::from_nanos(1)),
