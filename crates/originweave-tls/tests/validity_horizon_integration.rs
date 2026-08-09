@@ -22,7 +22,11 @@ use rustls::{ServerConfig, ServerConnection};
 const TRUSTED_TIME_SECONDS: u64 = 1_767_225_600;
 const TEST_TIMEOUT: Duration = Duration::from_secs(3);
 
-fn server_material() -> (Vec<u8>, Vec<CertificateDer<'static>>, PrivateKeyDer<'static>) {
+fn server_material() -> (
+    Vec<u8>,
+    Vec<CertificateDer<'static>>,
+    PrivateKeyDer<'static>,
+) {
     let mut root_parameters =
         CertificateParams::new(Vec::new()).expect("empty root SAN list must be valid");
     root_parameters.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
@@ -136,10 +140,13 @@ fn authenticated_point_in_time_certificate_can_fail_a_longer_task_horizon() {
         .checked_sub(evidence.trusted_time_unix_seconds())
         .expect("test certificate remains valid after trusted time");
     assert_eq!(remaining, 86_400);
-    assert_eq!(LeafValidityHorizon::new(Duration::from_secs(86_400)).evaluate(
-        evidence.trusted_time_unix_seconds(),
-        evidence.leaf_not_after_unix_seconds(),
-    ), Ok(()));
+    assert_eq!(
+        LeafValidityHorizon::new(Duration::from_secs(86_400)).evaluate(
+            evidence.trusted_time_unix_seconds(),
+            evidence.leaf_not_after_unix_seconds(),
+        ),
+        Ok(())
+    );
     assert_eq!(
         LeafValidityHorizon::new(Duration::from_secs(86_401)).evaluate(
             evidence.trusted_time_unix_seconds(),
