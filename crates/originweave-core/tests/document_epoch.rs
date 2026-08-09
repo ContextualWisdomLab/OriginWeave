@@ -1,3 +1,5 @@
+#![allow(clippy::expect_used)]
+
 use originweave_core::{DocumentEpoch, NodeHandleError, ObservedNodeHandle, Origin};
 
 #[test]
