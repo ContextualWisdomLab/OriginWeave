@@ -16,8 +16,8 @@ use crate::evidence::{
 use crate::field::FieldBlock;
 use crate::framing::{BodyFraming, determine_body_framing};
 use crate::integrity::{
-    validate_content_digest, validate_content_digest_without_content, validate_representation_digest,
-    validate_representation_digest_without_content,
+    validate_content_digest, validate_content_digest_without_content,
+    validate_representation_digest, validate_representation_digest_without_content,
 };
 use crate::mime::{classify_mismatch, classify_observed_mime, no_sniff_status, supplied_mime_type};
 use crate::request::serialize_request;
