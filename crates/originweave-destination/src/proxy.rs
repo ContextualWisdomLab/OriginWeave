@@ -11,6 +11,8 @@ use std::fmt;
 
 use originweave_core::Origin;
 
+/// Maximum byte length accepted for one proxy server identifier.
+pub const MAX_PROXY_SERVER_IDENTIFIER_BYTES: usize = 512;
 /// Maximum number of explicit proxy servers retained by one route policy.
 pub const MAX_PROXY_SERVER_COUNT: usize = 32;
 /// Maximum number of PAC source origins retained by one route policy.
@@ -70,9 +72,11 @@ impl ProxyServer {
     /// accepted as Chromium's SOCKS5 alias), and QUIC. When the scheme is
     /// omitted, Chromium-compatible URI-form input defaults to HTTP. Credentials,
     /// paths, queries, fragments, zero or invalid ports, malformed authorities,
-    /// and browser-special numeric host spellings fail closed.
+    /// oversized identifiers, and browser-special numeric host spellings fail
+    /// closed before canonicalization.
     pub fn parse(input: &str) -> Result<Self, ProxyServerError> {
-        if input.trim() != input
+        if input.len() > MAX_PROXY_SERVER_IDENTIFIER_BYTES
+            || input.trim() != input
             || input
                 .chars()
                 .any(|character| character.is_control() || character.is_whitespace())
