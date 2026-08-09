@@ -16,6 +16,9 @@ fn cpu_worker_budget_is_an_exact_admission_boundary() {
     let at_limit = governor().decide(ResourceSnapshot::new(2_000, 1_000, 8, false, 10, 8));
     assert!(at_limit.reject_new_agent_work());
     assert!(!at_limit.pause_current_agent());
+    assert!(!at_limit.spill_observation_cache());
+    assert_eq!(at_limit.next_batch_size(), None);
+    assert!(!at_limit.offload_inference_to_cpu());
     assert!(!at_limit.is_noop());
 }
 
