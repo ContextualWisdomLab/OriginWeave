@@ -23,7 +23,7 @@ class DataGovernanceDocumentationContractTests(unittest.TestCase):
     def test_data_governance_rejects_both_blanket_masking_and_ambient_access(self) -> None:
         """Privacy controls must preserve legitimate enterprise workflows without ambient disclosure."""
 
-        governance = (ROOT / "docs/DATA_GOVERNANCE.md").read_text(encoding="utf-8")
+        governance = (ROOT / "docs/DATA_GOVERNANCE.md").read_text(encoding="utf-8").casefold()
         for phrase in (
             "blanket masking",
             "ambient raw-value propagation",
