@@ -21,6 +21,20 @@ For every change:
 
 Do not bypass required checks, independent approval, or branch protection. Waiting checks are not permission to weaken tests; continue with independent product analysis or a non-conflicting next task.
 
+## Work-conserving autonomous maintenance
+
+**A completed action is an intermediate state**, not an implicit end of a maintenance invocation. “One bounded slice” means **one write-active slice at a time**, not one slice, pull request, RCA, check, review request, documentation update, or merge per run.
+
+After every completed mutation, validation result, merge, defer decision, or newly proven blocker, return to the fresh executable queue. A pending check, reviewer delay, rate limit, unavailable provider, external dependency, or writer conflict **blocks only that item** or branch. Continue with another safe, non-conflicting OriginWeave task while practical run budget remains.
+
+### Mandatory exit sweep
+
+Before autonomous maintenance ends, refetch protected `main`, every open OriginWeave pull request and issue, current reviews/checks, release state, documentation graph, and buyer-visible product gaps. Evaluate whether any safe action remains, including merge, test-first defect repair, thread resolution, duplicate cleanup, another PR/issue, protected-main acceptance, documentation repair, product-gap implementation, quality/security/operability improvement, or release evidence work.
+
+If any safe executable item remains, **termination is prohibited**: execute the highest-value item and repeat the sweep. End only when the practical invocation budget is exhausted or every remaining item is genuinely non-actionable under current authority, dependency order, writer lease, and safety constraints.
+
+Do not repeatedly poll an unchanged pending item. Defer it by exact PR/head/run/review identity, work elsewhere, and revisit after a material state change, another substantive action, or the exit sweep.
+
 ## Architecture constraints
 
 - Keep Blink, V8, Skia, Viz, Dawn, Chromium sandboxing, Site Isolation, and Manifest V3 compatibility upstream-aligned.
