@@ -913,3 +913,153 @@ impl PolicyContext {
         self.approval = approval;
     }
 }
+
+/// A canonical Chromium extension identifier admitted to OriginWeave policy.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ExtensionId {
+    canonical: String,
+}
+
+impl ExtensionId {
+    /// Parse one canonical 32-character lowercase Chromium extension identifier.
+    ///
+    /// Chromium extension identifiers use only the lowercase `a` through `p`
+    /// alphabet. OriginWeave rejects any non-canonical spelling rather than
+    /// normalizing caller-controlled identity text.
+    pub fn parse(input: &str) -> Result<Self, ExtensionIdError> {
+        if input.len() != 32 {
+            return Err(ExtensionIdError::InvalidExtensionId);
+        }
+        if !input.bytes().all(|byte| (b'a'..=b'p').contains(&byte)) {
+            return Err(ExtensionIdError::InvalidExtensionId);
+        }
+        Ok(Self {
+            canonical: input.to_owned(),
+        })
+    }
+
+    /// Return the canonical extension identifier.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.canonical
+    }
+}
+
+/// A validation error for a Chromium extension identifier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExtensionIdError {
+    /// The value was not exactly 32 lowercase characters from `a` through `p`.
+    InvalidExtensionId,
+}
+
+/// An OriginWeave Agent capability that a browser extension may request explicitly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ExtensionAgentCapability {
+    /// Observe the governed semantic representation of the exact current context.
+    ObserveCurrentContext,
+    /// Propose a typed action for independent OriginWeave policy evaluation.
+    ProposeTypedAction,
+}
+
+/// An explicit host-originated grant from one extension to bounded Agent capabilities.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExtensionAgentGrant {
+    extension_id: ExtensionId,
+    browser_session: BrowserSessionId,
+    browsing_context: BrowsingContextId,
+    capabilities: BTreeSet<ExtensionAgentCapability>,
+}
+
+impl ExtensionAgentGrant {
+    /// Build an exact extension-to-Agent grant for one browser session and context.
+    #[must_use]
+    pub fn new<I>(
+        extension_id: ExtensionId,
+        browser_session: BrowserSessionId,
+        browsing_context: BrowsingContextId,
+        capabilities: I,
+    ) -> Self
+    where
+        I: IntoIterator<Item = ExtensionAgentCapability>,
+    {
+        Self {
+            extension_id,
+            browser_session,
+            browsing_context,
+            capabilities: capabilities.into_iter().collect(),
+        }
+    }
+}
+
+/// One extension request to use a bounded OriginWeave Agent capability.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExtensionAccessRequest {
+    extension_id: ExtensionId,
+    browser_session: BrowserSessionId,
+    browsing_context: BrowsingContextId,
+    capability: ExtensionAgentCapability,
+}
+
+impl ExtensionAccessRequest {
+    /// Build one exact extension capability request without granting authority.
+    #[must_use]
+    pub const fn new(
+        extension_id: ExtensionId,
+        browser_session: BrowserSessionId,
+        browsing_context: BrowsingContextId,
+        capability: ExtensionAgentCapability,
+    ) -> Self {
+        Self {
+            extension_id,
+            browser_session,
+            browsing_context,
+            capability,
+        }
+    }
+}
+
+/// Result of evaluating an extension request against one explicit Agent grant.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExtensionAccessDecision {
+    /// The exact extension, session, context, and capability are explicitly granted.
+    Allow,
+    /// No explicit extension-to-Agent grant was supplied.
+    DenyMissingGrant,
+    /// The request belongs to a different extension identity.
+    DenyExtensionMismatch,
+    /// The request belongs to a different browser automation session.
+    DenyBrowserSessionMismatch,
+    /// The request belongs to a different independently navigable browser context.
+    DenyBrowsingContextMismatch,
+    /// The extension grant does not contain the requested OriginWeave capability.
+    DenyCapabilityNotGranted,
+}
+
+/// Evaluate extension Agent access without inheriting ambient Chrome permissions.
+///
+/// A Chrome extension permission, installation state, or page capability is never
+/// consulted here. A future Chromium adapter must construct a host-originated
+/// [`ExtensionAgentGrant`] explicitly and re-evaluate the exact session/context
+/// request at the boundary where Agent authority would otherwise cross.
+#[must_use]
+pub fn evaluate_extension_access(
+    request: &ExtensionAccessRequest,
+    grant: Option<&ExtensionAgentGrant>,
+) -> ExtensionAccessDecision {
+    let Some(grant) = grant else {
+        return ExtensionAccessDecision::DenyMissingGrant;
+    };
+    if request.extension_id != grant.extension_id {
+        return ExtensionAccessDecision::DenyExtensionMismatch;
+    }
+    if request.browser_session != grant.browser_session {
+        return ExtensionAccessDecision::DenyBrowserSessionMismatch;
+    }
+    if request.browsing_context != grant.browsing_context {
+        return ExtensionAccessDecision::DenyBrowsingContextMismatch;
+    }
+    if !grant.capabilities.contains(&request.capability) {
+        return ExtensionAccessDecision::DenyCapabilityNotGranted;
+    }
+    ExtensionAccessDecision::Allow
+}
