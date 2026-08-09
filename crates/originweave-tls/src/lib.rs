@@ -15,6 +15,7 @@ mod handshake;
 mod identity;
 mod policy;
 mod trust;
+mod validity;
 
 pub use error::TlsError;
 pub use evidence::{
@@ -31,3 +32,4 @@ pub use policy::{
 pub use trust::{
     MAX_TRUST_ROOT_BYTES, MAX_TRUST_ROOT_COUNT, TrustBundleIdentifier, TrustRootBundle,
 };
+pub use validity::{LeafValidityHorizon, LeafValidityHorizonError};
