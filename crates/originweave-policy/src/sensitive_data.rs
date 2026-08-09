@@ -65,7 +65,8 @@ impl SensitiveDataAuthority {
     ///
     /// Tenant, task, field, and purpose identifiers are admitted only as 1–128
     /// byte ASCII policy tokens using alphanumeric characters plus `.`, `_`, `:`,
-    /// and `-`. Invalid identifiers remain fail-closed when the authority is used.
+    /// and `-`. Each token must contain at least one alphanumeric character.
+    /// Invalid identifiers remain fail-closed when the authority is used.
     #[must_use]
     pub fn new(
         tenant_id: &str,
@@ -96,6 +97,7 @@ impl SensitiveDataAuthority {
 fn authority_identifier_is_valid(identifier: &str) -> bool {
     !identifier.is_empty()
         && identifier.len() <= MAX_AUTHORITY_IDENTIFIER_BYTES
+        && identifier.bytes().any(|byte| byte.is_ascii_alphanumeric())
         && identifier
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b':' | b'-'))
