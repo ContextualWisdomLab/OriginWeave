@@ -65,7 +65,7 @@ Body framing follows RFC 9110 and RFC 9112 with these product constraints:
 
 The strict policy bounds request bytes, target bytes, status line, field counts/names/values/section, interim responses, chunk count/line size, trailer count/section, encoded and decoded content, decoded-to-encoded expansion, and one monotonic total exchange timeout. The unfinished chunked wire prefix has an independent derived memory bound checked before retained-buffer growth.
 
-Supported content coding is identity, one gzip layer, or one zlib-wrapped deflate layer. Unsupported or stacked coding fails closed. RFC 9530 `Content-Digest` and `Repr-Digest` support SHA-256 and SHA-512 with the Structured Fields version semantics to which RFC 9530 is bound. Integrity remains corruption evidence, not authentication.
+Supported content coding is identity, one gzip layer, or one zlib-wrapped deflate layer. Unsupported or stacked coding fails closed. RFC 9530 `Content-Digest` and `Repr-Digest` support SHA-256 and SHA-512 using the RFC 8941 Structured Fields grammar to which RFC 9530 was originally bound. RFC 9651 now obsoletes RFC 8941; this first slice intentionally remains on the RFC 8941 baseline and rejects RFC 9651-only Date and Display String bare-item syntax until a separate reviewed compatibility change updates the parser and its evidence contract. Integrity remains corruption evidence, not authentication.
 
 MIME handling records supplied type separately from a conservative versioned observed classification. `Content-Disposition` may yield only bounded portable metadata; it does not create a file. Redirect handling returns bounded/hash-oriented metadata and never follows the redirect. Network-path redirect references that could carry an authority are never collapsed into same-origin path metadata.
 
@@ -122,5 +122,9 @@ Fielding, R., Nottingham, M., & Reschke, J. (2022). *HTTP semantics* (RFC 9110; 
 Fielding, R., Nottingham, M., & Reschke, J. (2022). *HTTP/1.1* (RFC 9112; STD 99). Internet Engineering Task Force. https://doi.org/10.17487/RFC9112
 
 Berners-Lee, T., Fielding, R., & Masinter, L. (2005). *Uniform resource identifier (URI): Generic syntax* (RFC 3986; STD 66). Internet Engineering Task Force. https://doi.org/10.17487/RFC3986
+
+Nottingham, M., & Reschke, J. (2021). *Structured field values for HTTP* (RFC 8941). Internet Engineering Task Force. https://doi.org/10.17487/RFC8941
+
+Nottingham, M., & Pardue, L. (2024). *Structured field values for HTTP* (RFC 9651). Internet Engineering Task Force. https://doi.org/10.17487/RFC9651
 
 Polli, R., Pardue, L., & Oku, K. (2023). *Digest fields* (RFC 9530). Internet Engineering Task Force. https://doi.org/10.17487/RFC9530
