@@ -29,7 +29,13 @@ fn authority_case<'a>(
     purpose: &'a str,
     destination: &'a str,
 ) -> AuthorityCase<'a> {
-    AuthorityCase { tenant, task, field, purpose, destination }
+    AuthorityCase {
+        tenant,
+        task,
+        field,
+        purpose,
+        destination,
+    }
 }
 
 fn exact_authority() -> AuthorityCase<'static> {
@@ -160,7 +166,13 @@ fn sensitive_destination_uses_the_canonical_origin_boundary() {
     );
 
     assert_disclosure_denied(
-        authority_case(TENANT, TASK, FIELD, PURPOSE, "https://shipping.example:8443"),
+        authority_case(
+            TENANT,
+            TASK,
+            FIELD,
+            PURPOSE,
+            "https://shipping.example:8443",
+        ),
         DataClassification::PersonalData,
     );
 
@@ -172,7 +184,10 @@ fn sensitive_destination_uses_the_canonical_origin_boundary() {
         "https://127.1",
         "http://shipping.example",
     ] {
-        assert!(Origin::parse(invalid).is_err(), "unexpected origin: {invalid}");
+        assert!(
+            Origin::parse(invalid).is_err(),
+            "unexpected origin: {invalid}"
+        );
     }
     assert!(Origin::parse("http://127.0.0.1").is_ok());
 }
