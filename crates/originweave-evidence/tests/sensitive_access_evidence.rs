@@ -76,6 +76,9 @@ fn exact_metadata_receipt_preserves_authority_without_protected_values() -> Test
 fn authority_identifiers_and_field_sets_are_bounded_and_unambiguous() -> TestResult {
     for invalid in [
         "",
+        ":",
+        "...",
+        "_-_",
         "tenant with spaces",
         "tenant/42",
         "테넌트:42",
