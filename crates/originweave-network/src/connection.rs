@@ -12,6 +12,17 @@ pub const MAX_CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 /// The largest number of direct TCP connection attempts in one plan.
 pub const MAX_CONNECTION_ATTEMPTS: u8 = 4;
 
+fn is_retryable_connect_error(kind: io::ErrorKind) -> bool {
+    matches!(
+        kind,
+        io::ErrorKind::TimedOut
+            | io::ErrorKind::ConnectionRefused
+            | io::ErrorKind::ConnectionReset
+            | io::ErrorKind::ConnectionAborted
+            | io::ErrorKind::Interrupted
+    )
+}
+
 /// A validated, single-use authority to connect to one exact socket address.
 ///
 /// The plan deliberately does not implement `Clone` or `Copy`. Calling
@@ -129,7 +140,13 @@ impl ConnectionPlan {
                     };
                     return Ok((stream, evidence));
                 }
-                Err(source) if attempt_number >= self.maximum_attempts => {
+                Err(source)
+                    if is_retryable_connect_error(source.kind())
+                        && attempt_number < self.maximum_attempts =>
+                {
+                    attempt_number += 1;
+                }
+                Err(source) => {
                     if source.kind() == io::ErrorKind::TimedOut {
                         return Err(NetworkError::ConnectionTimedOut {
                             socket_address: self.requested_socket,
@@ -143,9 +160,6 @@ impl ConnectionPlan {
                         attempt_count: attempt_number,
                         source,
                     });
-                }
-                Err(_source) => {
-                    attempt_number += 1;
                 }
             }
         }
@@ -287,7 +301,7 @@ pub enum NetworkError {
         /// The canonical IP address required by the snapshot.
         canonical_address: IpAddr,
     },
-    /// Every bounded attempt ended with a timeout error.
+    /// The final bounded attempt ended with a timeout error.
     ConnectionTimedOut {
         /// The exact socket address submitted to the operating system.
         socket_address: SocketAddr,
@@ -298,7 +312,7 @@ pub enum NetworkError {
         /// The final operating-system error.
         source: io::Error,
     },
-    /// Every bounded attempt ended with a non-timeout connection error.
+    /// The final attempt ended with a non-timeout connection error.
     ConnectionFailed {
         /// The exact socket address submitted to the operating system.
         socket_address: SocketAddr,
@@ -548,6 +562,26 @@ mod tests {
     }
 
     #[test]
+    fn retryable_connect_error_kinds_are_explicit_and_conservative() {
+        for kind in [
+            io::ErrorKind::TimedOut,
+            io::ErrorKind::ConnectionRefused,
+            io::ErrorKind::ConnectionReset,
+            io::ErrorKind::ConnectionAborted,
+            io::ErrorKind::Interrupted,
+        ] {
+            assert!(is_retryable_connect_error(kind), "{kind:?} must retry");
+        }
+        for kind in [
+            io::ErrorKind::PermissionDenied,
+            io::ErrorKind::InvalidInput,
+            io::ErrorKind::AddrNotAvailable,
+        ] {
+            assert!(!is_retryable_connect_error(kind), "{kind:?} must fail fast");
+        }
+    }
+
+    #[test]
     fn timeout_uses_every_bounded_attempt_and_retains_source() {
         let connector = FakeConnector::new(
             vec![
@@ -585,6 +619,31 @@ mod tests {
         assert_eq!(error.attempt_count(), Some(2));
         assert!(error.source().is_some());
         assert!(error.to_string().contains("failed after 2 attempts"));
+    }
+
+    #[test]
+    fn non_retryable_connection_errors_stop_immediately() {
+        for kind in [io::ErrorKind::PermissionDenied, io::ErrorKind::InvalidInput] {
+            let connector = FakeConnector::new(
+                vec![
+                    ConnectOutcome::Error(kind),
+                    ConnectOutcome::Error(io::ErrorKind::ConnectionRefused),
+                ],
+                vec![],
+            );
+            let error = plan(4)
+                .connect_with(&connector)
+                .expect_err("deterministic connection failure must stop immediately");
+
+            assert_eq!(connector.connect_calls.get(), 1);
+            assert_eq!(connector.peer_calls.get(), 0);
+            assert_eq!(error.attempt_count(), Some(1));
+            let source = error
+                .source()
+                .and_then(|source| source.downcast_ref::<io::Error>())
+                .expect("connection error must retain its operating-system source");
+            assert_eq!(source.kind(), kind);
+        }
     }
 
     #[test]
