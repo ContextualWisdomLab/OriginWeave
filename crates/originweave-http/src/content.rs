@@ -32,6 +32,8 @@ pub(crate) fn decode_content(
 ) -> Result<DecodedContent, HttpError> {
     if encoded.len() > policy.max_encoded_content_bytes() {
         return Err(HttpError::EncodedContentTooLarge {
+            // OriginWeave supports Rust targets whose pointer width is at most 64 bits, so this
+            // widening conversion cannot truncate a valid slice length.
             byte_count: encoded.len() as u64,
             maximum_bytes: policy.max_encoded_content_bytes(),
         });
@@ -73,6 +75,9 @@ fn select_content_coding(values: &[&[u8]]) -> Result<ContentCoding, HttpError> {
             selected_one = true;
         }
     }
+    // A non-empty value slice always contributes at least one split member. Empty members are
+    // rejected above, so successful parsing has assigned exactly one coding without a nullable
+    // end state.
     Ok(selected)
 }
 
@@ -88,6 +93,9 @@ fn decode_reader<R: Read>(
         if byte_count == 0 {
             break;
         }
+        // The decoder scratch buffer is fixed at 8 KiB and the configured decoded-content
+        // budget is bounded far below `usize::MAX`, so saturation preserves the fail-closed
+        // result without carrying an unreachable arithmetic-error branch.
         let next_length = decoded.len().saturating_add(byte_count);
         enforce_decoded_limits(next_length, encoded_bytes, policy)?;
         decoded.extend_from_slice(&buffer[..byte_count]);
@@ -205,7 +213,11 @@ mod tests {
         let input = b"deterministic compressed content";
         for (encoded, name, expected_coding) in [
             (gzip(input), b"gzip".as_slice(), ContentCoding::Gzip),
-            (deflate(input), b"DEFLATE".as_slice(), ContentCoding::Deflate),
+            (
+                deflate(input),
+                b"DEFLATE".as_slice(),
+                ContentCoding::Deflate,
+            ),
         ] {
             let decoded = decode_content(
                 &encoded,

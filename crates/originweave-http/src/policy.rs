@@ -101,19 +101,65 @@ impl HttpClientPolicy {
                 maximum_timeout: MAX_HTTP_EXCHANGE_TIMEOUT,
             });
         }
-        validate_limit("max_request_bytes", max_request_bytes, DEFAULT_MAX_REQUEST_BYTES)?;
-        validate_limit("max_status_line_bytes", max_status_line_bytes, DEFAULT_MAX_STATUS_LINE_BYTES)?;
-        validate_limit("max_header_field_count", max_header_field_count, DEFAULT_MAX_HEADER_FIELD_COUNT)?;
-        validate_limit("max_header_name_bytes", max_header_name_bytes, DEFAULT_MAX_HEADER_NAME_BYTES)?;
-        validate_limit("max_header_value_bytes", max_header_value_bytes, DEFAULT_MAX_HEADER_VALUE_BYTES)?;
-        validate_limit("max_header_section_bytes", max_header_section_bytes, DEFAULT_MAX_HEADER_SECTION_BYTES)?;
-        validate_limit("max_interim_response_count", max_interim_response_count, DEFAULT_MAX_INTERIM_RESPONSE_COUNT)?;
+        validate_limit(
+            "max_request_bytes",
+            max_request_bytes,
+            DEFAULT_MAX_REQUEST_BYTES,
+        )?;
+        validate_limit(
+            "max_status_line_bytes",
+            max_status_line_bytes,
+            DEFAULT_MAX_STATUS_LINE_BYTES,
+        )?;
+        validate_limit(
+            "max_header_field_count",
+            max_header_field_count,
+            DEFAULT_MAX_HEADER_FIELD_COUNT,
+        )?;
+        validate_limit(
+            "max_header_name_bytes",
+            max_header_name_bytes,
+            DEFAULT_MAX_HEADER_NAME_BYTES,
+        )?;
+        validate_limit(
+            "max_header_value_bytes",
+            max_header_value_bytes,
+            DEFAULT_MAX_HEADER_VALUE_BYTES,
+        )?;
+        validate_limit(
+            "max_header_section_bytes",
+            max_header_section_bytes,
+            DEFAULT_MAX_HEADER_SECTION_BYTES,
+        )?;
+        validate_limit(
+            "max_interim_response_count",
+            max_interim_response_count,
+            DEFAULT_MAX_INTERIM_RESPONSE_COUNT,
+        )?;
         validate_limit("max_chunk_count", max_chunk_count, DEFAULT_MAX_CHUNK_COUNT)?;
-        validate_limit("max_trailer_field_count", max_trailer_field_count, DEFAULT_MAX_TRAILER_FIELD_COUNT)?;
-        validate_limit("max_trailer_section_bytes", max_trailer_section_bytes, DEFAULT_MAX_TRAILER_SECTION_BYTES)?;
-        validate_limit("max_encoded_content_bytes", max_encoded_content_bytes, DEFAULT_MAX_ENCODED_CONTENT_BYTES)?;
-        validate_limit("max_decoded_content_bytes", max_decoded_content_bytes, DEFAULT_MAX_DECODED_CONTENT_BYTES)?;
-        if max_content_expansion_ratio == 0 || max_content_expansion_ratio > DEFAULT_MAX_CONTENT_EXPANSION_RATIO {
+        validate_limit(
+            "max_trailer_field_count",
+            max_trailer_field_count,
+            DEFAULT_MAX_TRAILER_FIELD_COUNT,
+        )?;
+        validate_limit(
+            "max_trailer_section_bytes",
+            max_trailer_section_bytes,
+            DEFAULT_MAX_TRAILER_SECTION_BYTES,
+        )?;
+        validate_limit(
+            "max_encoded_content_bytes",
+            max_encoded_content_bytes,
+            DEFAULT_MAX_ENCODED_CONTENT_BYTES,
+        )?;
+        validate_limit(
+            "max_decoded_content_bytes",
+            max_decoded_content_bytes,
+            DEFAULT_MAX_DECODED_CONTENT_BYTES,
+        )?;
+        if max_content_expansion_ratio == 0
+            || max_content_expansion_ratio > DEFAULT_MAX_CONTENT_EXPANSION_RATIO
+        {
             return Err(HttpError::InvalidExpansionRatio {
                 ratio: max_content_expansion_ratio,
                 maximum_ratio: DEFAULT_MAX_CONTENT_EXPANSION_RATIO,
@@ -164,57 +210,108 @@ impl HttpClientPolicy {
 
     /// Return the total monotonic exchange timeout.
     #[must_use]
-    pub const fn exchange_timeout(&self) -> Duration { self.exchange_timeout }
+    pub const fn exchange_timeout(&self) -> Duration {
+        self.exchange_timeout
+    }
+
     /// Return the maximum serialized request bytes.
     #[must_use]
-    pub const fn max_request_bytes(&self) -> usize { self.max_request_bytes }
+    pub const fn max_request_bytes(&self) -> usize {
+        self.max_request_bytes
+    }
+
     /// Return the maximum response status-line bytes.
     #[must_use]
-    pub const fn max_status_line_bytes(&self) -> usize { self.max_status_line_bytes }
+    pub const fn max_status_line_bytes(&self) -> usize {
+        self.max_status_line_bytes
+    }
+
     /// Return the maximum caller or response field count.
     #[must_use]
-    pub const fn max_header_field_count(&self) -> usize { self.max_header_field_count }
+    pub const fn max_header_field_count(&self) -> usize {
+        self.max_header_field_count
+    }
+
     /// Return the maximum field-name bytes.
     #[must_use]
-    pub const fn max_header_name_bytes(&self) -> usize { self.max_header_name_bytes }
+    pub const fn max_header_name_bytes(&self) -> usize {
+        self.max_header_name_bytes
+    }
+
     /// Return the maximum field-value bytes.
     #[must_use]
-    pub const fn max_header_value_bytes(&self) -> usize { self.max_header_value_bytes }
+    pub const fn max_header_value_bytes(&self) -> usize {
+        self.max_header_value_bytes
+    }
+
     /// Return the maximum response header-section bytes.
     #[must_use]
-    pub const fn max_header_section_bytes(&self) -> usize { self.max_header_section_bytes }
+    pub const fn max_header_section_bytes(&self) -> usize {
+        self.max_header_section_bytes
+    }
+
     /// Return the maximum informational-response count.
     #[must_use]
-    pub const fn max_interim_response_count(&self) -> usize { self.max_interim_response_count }
+    pub const fn max_interim_response_count(&self) -> usize {
+        self.max_interim_response_count
+    }
+
     /// Return the maximum chunk count.
     #[must_use]
-    pub const fn max_chunk_count(&self) -> usize { self.max_chunk_count }
+    pub const fn max_chunk_count(&self) -> usize {
+        self.max_chunk_count
+    }
+
     /// Return the maximum trailer field count.
     #[must_use]
-    pub const fn max_trailer_field_count(&self) -> usize { self.max_trailer_field_count }
+    pub const fn max_trailer_field_count(&self) -> usize {
+        self.max_trailer_field_count
+    }
+
     /// Return the maximum trailer-section bytes.
     #[must_use]
-    pub const fn max_trailer_section_bytes(&self) -> usize { self.max_trailer_section_bytes }
+    pub const fn max_trailer_section_bytes(&self) -> usize {
+        self.max_trailer_section_bytes
+    }
+
     /// Return the maximum encoded content bytes.
     #[must_use]
-    pub const fn max_encoded_content_bytes(&self) -> usize { self.max_encoded_content_bytes }
+    pub const fn max_encoded_content_bytes(&self) -> usize {
+        self.max_encoded_content_bytes
+    }
+
     /// Return the maximum decoded content bytes.
     #[must_use]
-    pub const fn max_decoded_content_bytes(&self) -> usize { self.max_decoded_content_bytes }
+    pub const fn max_decoded_content_bytes(&self) -> usize {
+        self.max_decoded_content_bytes
+    }
+
     /// Return the maximum decoded-to-encoded expansion ratio.
     #[must_use]
-    pub const fn max_content_expansion_ratio(&self) -> usize { self.max_content_expansion_ratio }
+    pub const fn max_content_expansion_ratio(&self) -> usize {
+        self.max_content_expansion_ratio
+    }
+
     /// Return the HTTP/1.1 ALPN policy.
     #[must_use]
-    pub const fn alpn_policy(&self) -> AlpnHttp11Policy { self.alpn_policy }
+    pub const fn alpn_policy(&self) -> AlpnHttp11Policy {
+        self.alpn_policy
+    }
+
     /// Return the response integrity requirement.
     #[must_use]
-    pub const fn integrity_requirement(&self) -> IntegrityRequirement { self.integrity_requirement }
+    pub const fn integrity_requirement(&self) -> IntegrityRequirement {
+        self.integrity_requirement
+    }
 }
 
 fn validate_limit(limit_name: &'static str, value: usize, maximum: usize) -> Result<(), HttpError> {
     if value == 0 || value > maximum {
-        return Err(HttpError::InvalidPolicyLimit { limit_name, value, maximum });
+        return Err(HttpError::InvalidPolicyLimit {
+            limit_name,
+            value,
+            maximum,
+        });
     }
     Ok(())
 }

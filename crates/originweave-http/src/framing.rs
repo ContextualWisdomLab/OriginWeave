@@ -84,12 +84,16 @@ fn parse_content_length(
                 });
             }
             match canonical_length {
-                Some(existing) if existing != parsed => return Err(HttpError::ConflictingContentLength),
+                Some(existing) if existing != parsed => {
+                    return Err(HttpError::ConflictingContentLength);
+                }
                 Some(_existing) => {}
                 None => canonical_length = Some(parsed),
             }
         }
     }
+    // A non-empty `values` slice always yields at least one split member. Invalid or empty
+    // members return above, so successful parsing has already assigned the canonical length.
     Ok(canonical_length)
 }
 
@@ -118,7 +122,9 @@ mod tests {
         FieldBlock::new(
             entries
                 .iter()
-                .map(|(name, value)| FieldLine::new(name.as_bytes(), value, 256, 8_192).expect("field"))
+                .map(|(name, value)| {
+                    FieldLine::new(name.as_bytes(), value, 256, 8_192).expect("field")
+                })
                 .collect(),
         )
     }
@@ -133,8 +139,13 @@ mod tests {
             (HttpMethod::Get, 304),
         ] {
             assert_eq!(
-                determine_body_framing(method, status, &fields(&[("content-length", b"999")]), 1_000)
-                    .expect("no-content framing"),
+                determine_body_framing(
+                    method,
+                    status,
+                    &fields(&[("content-length", b"999")]),
+                    1_000,
+                )
+                .expect("no-content framing"),
                 BodyFraming::NoContent
             );
         }
@@ -155,7 +166,7 @@ mod tests {
             determine_body_framing(
                 HttpMethod::Head,
                 200,
-                &fields(&[("transfer-encoding", b"chunked"), ("content-length", b"0")]),
+                &fields(&[("transfer-encoding", b"chunked"), ("content-length", b"0"),]),
                 1_000,
             ),
             Err(HttpError::TransferEncodingWithContentLength)
@@ -185,7 +196,7 @@ mod tests {
             ],
         ] {
             assert!(matches!(
-                determine_body_framing(HttpMethod::Get, 200, &fields(&values), 1_000),
+                determine_body_framing(HttpMethod::Get, 200, &fields(&values), 1_000,),
                 Err(HttpError::UnsupportedTransferCoding)
             ));
         }
@@ -202,7 +213,7 @@ mod tests {
             ],
         ] {
             assert_eq!(
-                determine_body_framing(HttpMethod::Get, 200, &fields(&entries), 100)
+                determine_body_framing(HttpMethod::Get, 200, &fields(&entries), 100,)
                     .expect("content length"),
                 BodyFraming::ContentLength(42)
             );
@@ -211,7 +222,14 @@ mod tests {
 
     #[test]
     fn malformed_conflicting_and_excessive_content_lengths_fail() {
-        for invalid in [b"".as_slice(), b"+1", b"-1", b"1 0", b"1,,1", b"18446744073709551616"] {
+        for invalid in [
+            b"".as_slice(),
+            b"+1",
+            b"-1",
+            b"1 0",
+            b"1,,1",
+            b"18446744073709551616",
+        ] {
             assert!(matches!(
                 determine_body_framing(
                     HttpMethod::Get,
@@ -238,7 +256,10 @@ mod tests {
                 &fields(&[("content-length", b"101")]),
                 100,
             ),
-            Err(HttpError::EncodedContentTooLarge { byte_count: 101, maximum_bytes: 100 })
+            Err(HttpError::EncodedContentTooLarge {
+                byte_count: 101,
+                maximum_bytes: 100,
+            })
         ));
     }
 

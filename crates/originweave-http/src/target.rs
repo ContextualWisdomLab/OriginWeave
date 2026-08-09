@@ -77,19 +77,33 @@ impl HttpRequestTarget {
 
     /// Return the canonical origin that owns the target.
     #[must_use]
-    pub const fn origin(&self) -> &Origin { &self.origin }
+    pub const fn origin(&self) -> &Origin {
+        &self.origin
+    }
+
     /// Return the encoded origin-form path and optional query used on the wire.
     #[must_use]
-    pub const fn path_and_query(&self) -> &str { self.encoded_path_and_query.as_str() }
+    pub const fn path_and_query(&self) -> &str {
+        self.encoded_path_and_query.as_str()
+    }
+
     /// Return a domain-separated SHA-256 identifier for the exact target.
     #[must_use]
-    pub const fn target_hash(&self) -> &str { self.target_hash.as_str() }
+    pub const fn target_hash(&self) -> &str {
+        self.target_hash.as_str()
+    }
+
     /// Return whether the exact request target contains a query component.
     #[must_use]
-    pub const fn query_present(&self) -> bool { self.query_present }
+    pub const fn query_present(&self) -> bool {
+        self.query_present
+    }
+
     /// Return the bounded encoded path prefix retained without query values.
     #[must_use]
-    pub const fn path_prefix(&self) -> &str { self.path_prefix.as_str() }
+    pub const fn path_prefix(&self) -> &str {
+        self.path_prefix.as_str()
+    }
 }
 
 fn evidence_path_prefix_end(encoded: &[u8], path_end: usize) -> usize {
@@ -108,8 +122,24 @@ fn is_origin_form_ascii(byte: u8) -> bool {
     byte.is_ascii_alphanumeric()
         || matches!(
             byte,
-            b'-' | b'.' | b'_' | b'~' | b'!' | b'$' | b'&' | b'\'' | b'(' | b')' | b'*'
-                | b'+' | b',' | b';' | b'=' | b':' | b'@' | b'/' | b'?'
+            b'-' | b'.'
+                | b'_'
+                | b'~'
+                | b'!'
+                | b'$'
+                | b'&'
+                | b'\''
+                | b'('
+                | b')'
+                | b'*'
+                | b'+'
+                | b','
+                | b';'
+                | b'='
+                | b':'
+                | b'@'
+                | b'/'
+                | b'?'
         )
 }
 
