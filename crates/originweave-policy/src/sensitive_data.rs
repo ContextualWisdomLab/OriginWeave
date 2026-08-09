@@ -125,10 +125,7 @@ pub struct DisclosureScope {
 impl DisclosureScope {
     /// Build an exact disclosure authority scope and its maximum permitted outcome.
     #[must_use]
-    pub const fn new(
-        authority: SensitiveDataAuthority,
-        decision: DisclosureDecision,
-    ) -> Self {
+    pub const fn new(authority: SensitiveDataAuthority, decision: DisclosureDecision) -> Self {
         Self {
             authority,
             decision,
