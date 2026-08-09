@@ -60,6 +60,10 @@ fn ordinary_http_and_ipv6_proxies_are_not_forced_through_web_origin_policy() {
         .expect("scheme-less default-port HTTP proxy must be representable");
     assert_eq!(no_port.as_str(), "http://proxy.example");
 
+    let ipv6_without_port = ProxyServer::parse("https://[2001:db8::1]")
+        .expect("bracketed IPv6 proxy without an explicit port must be representable");
+    assert_eq!(ipv6_without_port.as_str(), "https://[2001:db8::1]");
+
     let ipv6 = ProxyServer::parse("socks5://[2001:db8::1]:1080")
         .expect("canonical IPv6 proxy must be representable");
     assert_eq!(ipv6.as_str(), "socks5://[2001:db8::1]");
