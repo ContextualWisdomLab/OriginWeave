@@ -11,20 +11,151 @@ use std::fmt;
 
 use originweave_core::Origin;
 
-/// Maximum number of explicit proxy origins retained by one route policy.
-pub const MAX_PROXY_ORIGIN_COUNT: usize = 32;
+/// Maximum number of explicit proxy servers retained by one route policy.
+pub const MAX_PROXY_SERVER_COUNT: usize = 32;
 /// Maximum number of PAC source origins retained by one route policy.
 pub const MAX_PAC_ORIGIN_COUNT: usize = 16;
+
+/// Chromium-compatible protocol used to communicate with one proxy server.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ProxyServerScheme {
+    /// Cleartext HTTP proxy transport.
+    Http,
+    /// TLS-protected HTTP proxy transport.
+    Https,
+    /// SOCKS version 4 proxy transport.
+    Socks4,
+    /// SOCKS version 5 proxy transport.
+    Socks5,
+    /// QUIC proxy transport.
+    Quic,
+}
+
+impl ProxyServerScheme {
+    const fn canonical_name(self) -> &'static str {
+        match self {
+            Self::Http => "http",
+            Self::Https => "https",
+            Self::Socks4 => "socks4",
+            Self::Socks5 => "socks5",
+            Self::Quic => "quic",
+        }
+    }
+
+    const fn default_port(self) -> u16 {
+        match self {
+            Self::Http => 80,
+            Self::Https | Self::Quic => 443,
+            Self::Socks4 | Self::Socks5 => 1080,
+        }
+    }
+}
+
+/// Canonical identity of one explicitly configured Chromium proxy server.
+///
+/// Unlike [`Origin`], a proxy-server identity may legitimately use ordinary
+/// cleartext HTTP, SOCKS4, SOCKS5, or QUIC. The parser therefore reuses the
+/// Origin authority validator without inheriting the web-origin rule that
+/// remote HTTP origins are forbidden.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ProxyServer {
+    canonical: String,
+    scheme: ProxyServerScheme,
+}
+
+impl ProxyServer {
+    /// Parse an explicit URI-form Chromium proxy server identifier.
+    ///
+    /// Supported schemes are HTTP, HTTPS, SOCKS4, SOCKS5 (`socks` is accepted
+    /// as Chromium's SOCKS5 alias), and QUIC. Credentials, paths, queries,
+    /// fragments, zero or invalid ports, malformed authorities, and
+    /// browser-special numeric host spellings fail closed.
+    pub fn parse(input: &str) -> Result<Self, ProxyServerError> {
+        if input.trim() != input
+            || input
+                .chars()
+                .any(|character| character.is_control() || character.is_whitespace())
+        {
+            return Err(ProxyServerError::InvalidIdentifier);
+        }
+
+        let Some((raw_scheme, authority)) = input.split_once("://") else {
+            return Err(ProxyServerError::InvalidIdentifier);
+        };
+        let scheme = match raw_scheme.to_ascii_lowercase().as_str() {
+            "http" => ProxyServerScheme::Http,
+            "https" => ProxyServerScheme::Https,
+            "socks4" => ProxyServerScheme::Socks4,
+            "socks" | "socks5" => ProxyServerScheme::Socks5,
+            "quic" => ProxyServerScheme::Quic,
+            _ => return Err(ProxyServerError::InvalidIdentifier),
+        };
+        if authority.is_empty() {
+            return Err(ProxyServerError::InvalidIdentifier);
+        }
+
+        let validation_input = format!("https://{authority}");
+        let validated = Origin::parse(&validation_input)
+            .map_err(|_error| ProxyServerError::InvalidIdentifier)?;
+        let port = explicit_port(authority)?;
+        let host = if validated.host().contains(':') {
+            format!("[{}]", validated.host())
+        } else {
+            validated.host().to_owned()
+        };
+        let canonical = match port {
+            Some(port_number) if port_number != scheme.default_port() => {
+                format!("{}://{host}:{port_number}", scheme.canonical_name())
+            }
+            _ => format!("{}://{host}", scheme.canonical_name()),
+        };
+
+        Ok(Self { canonical, scheme })
+    }
+
+    /// Return the canonical URI-form proxy server identifier.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.canonical
+    }
+
+    /// Return the proxy protocol encoded by this server identifier.
+    #[must_use]
+    pub const fn scheme(&self) -> ProxyServerScheme {
+        self.scheme
+    }
+}
+
+impl fmt::Display for ProxyServer {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+/// Reason a proxy server identifier could not enter the routing boundary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProxyServerError {
+    /// The identifier was malformed, ambiguous, credential-bearing, or used an unsupported scheme.
+    InvalidIdentifier,
+}
+
+impl fmt::Display for ProxyServerError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("invalid proxy server identifier")
+    }
+}
+
+impl std::error::Error for ProxyServerError {}
 
 /// A route selected by a trusted adapter before network I/O begins.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProxyRoute {
     /// Connect directly to the final target.
     Direct,
-    /// Connect through one explicitly selected proxy origin.
+    /// Connect through one explicitly selected proxy server.
     ExplicitProxy {
-        /// Canonical origin of the selected proxy.
-        proxy_origin: Origin,
+        /// Canonical identity of the selected proxy server.
+        proxy_server: ProxyServer,
     },
     /// A separately authorized PAC source selected a direct route.
     PacDirect {
@@ -35,8 +166,8 @@ pub enum ProxyRoute {
     PacProxy {
         /// Canonical origin from which the PAC policy was obtained.
         pac_origin: Origin,
-        /// Canonical origin of the proxy selected by the PAC result.
-        proxy_origin: Origin,
+        /// Canonical identity of the proxy server selected by the PAC result.
+        proxy_server: ProxyServer,
     },
 }
 
@@ -57,7 +188,7 @@ pub enum ProxyRouteKind {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProxyRoutePolicy {
     allow_direct: bool,
-    proxy_origins: BTreeSet<Origin>,
+    proxy_servers: BTreeSet<ProxyServer>,
     pac_origins: BTreeSet<Origin>,
 }
 
@@ -67,26 +198,24 @@ impl ProxyRoutePolicy {
     pub fn direct_only() -> Self {
         Self {
             allow_direct: true,
-            proxy_origins: BTreeSet::new(),
+            proxy_servers: BTreeSet::new(),
             pac_origins: BTreeSet::new(),
         }
     }
 
-    /// Construct an explicit bounded route policy from owned canonical origins.
+    /// Construct an explicit bounded route policy from canonical authorities.
     ///
-    /// Proxy and PAC sources are accepted only as already validated canonical
-    /// [`Origin`] values. This policy does not grant destination, TCP, or TLS
-    /// authority to any listed origin. Owned vectors keep the constructor's
-    /// executable coverage and generated code independent of caller iterator
-    /// types while the policy consumes the supplied authority set.
+    /// Proxy servers and PAC sources are accepted only as already validated
+    /// [`ProxyServer`] and [`Origin`] values. This policy does not grant
+    /// destination, TCP, or TLS authority to any listed server or origin.
     pub fn new(
         allow_direct: bool,
-        proxy_origins: Vec<Origin>,
+        proxy_servers: Vec<ProxyServer>,
         pac_origins: Vec<Origin>,
     ) -> Result<Self, ProxyRouteError> {
         Ok(Self {
             allow_direct,
-            proxy_origins: collect_proxy_origins(proxy_origins)?,
+            proxy_servers: collect_proxy_servers(proxy_servers)?,
             pac_origins: collect_pac_origins(pac_origins)?,
         })
     }
@@ -117,12 +246,12 @@ impl ProxyRoutePolicy {
                     None,
                 ))
             }
-            ProxyRoute::ExplicitProxy { proxy_origin } => {
-                self.require_proxy(proxy_origin)?;
+            ProxyRoute::ExplicitProxy { proxy_server } => {
+                self.require_proxy(proxy_server)?;
                 Ok(ProxyRouteEvidence::new(
                     target_origin,
                     ProxyRouteKind::ExplicitProxy,
-                    Some(proxy_origin),
+                    Some(proxy_server),
                     None,
                 ))
             }
@@ -138,14 +267,14 @@ impl ProxyRoutePolicy {
             }
             ProxyRoute::PacProxy {
                 pac_origin,
-                proxy_origin,
+                proxy_server,
             } => {
                 self.require_pac(pac_origin)?;
-                self.require_proxy(proxy_origin)?;
+                self.require_proxy(proxy_server)?;
                 Ok(ProxyRouteEvidence::new(
                     target_origin,
                     ProxyRouteKind::PacProxy,
-                    Some(proxy_origin),
+                    Some(proxy_server),
                     Some(pac_origin),
                 ))
             }
@@ -160,12 +289,12 @@ impl ProxyRoutePolicy {
         }
     }
 
-    fn require_proxy(&self, origin: &Origin) -> Result<(), ProxyRouteError> {
-        if self.proxy_origins.contains(origin) {
+    fn require_proxy(&self, server: &ProxyServer) -> Result<(), ProxyRouteError> {
+        if self.proxy_servers.contains(server) {
             Ok(())
         } else {
-            Err(ProxyRouteError::ProxyOriginDenied {
-                origin: origin.clone(),
+            Err(ProxyRouteError::ProxyServerDenied {
+                server: server.clone(),
             })
         }
     }
@@ -192,7 +321,7 @@ impl Default for ProxyRoutePolicy {
 pub struct ProxyRouteEvidence {
     target_origin: Origin,
     route_kind: ProxyRouteKind,
-    proxy_origin: Option<Origin>,
+    proxy_server: Option<ProxyServer>,
     pac_origin: Option<Origin>,
 }
 
@@ -200,13 +329,13 @@ impl ProxyRouteEvidence {
     fn new(
         target_origin: &Origin,
         route_kind: ProxyRouteKind,
-        proxy_origin: Option<&Origin>,
+        proxy_server: Option<&ProxyServer>,
         pac_origin: Option<&Origin>,
     ) -> Self {
         Self {
             target_origin: target_origin.clone(),
             route_kind,
-            proxy_origin: proxy_origin.cloned(),
+            proxy_server: proxy_server.cloned(),
             pac_origin: pac_origin.cloned(),
         }
     }
@@ -223,10 +352,10 @@ impl ProxyRouteEvidence {
         self.route_kind
     }
 
-    /// Return the exact selected proxy origin when the route uses a proxy.
+    /// Return the exact selected proxy server when the route uses a proxy.
     #[must_use]
-    pub const fn proxy_origin(&self) -> Option<&Origin> {
-        self.proxy_origin.as_ref()
+    pub const fn proxy_server(&self) -> Option<&ProxyServer> {
+        self.proxy_server.as_ref()
     }
 
     /// Return the exact PAC source origin when PAC selected the route.
@@ -241,21 +370,21 @@ impl ProxyRouteEvidence {
 pub enum ProxyRouteError {
     /// The selected route requires direct routing but the policy denies it.
     DirectRouteDenied,
-    /// The selected proxy was not in the exact canonical proxy allow-list.
-    ProxyOriginDenied {
-        /// Canonical proxy origin that was denied.
-        origin: Origin,
+    /// The selected proxy server was not in the exact canonical allow-list.
+    ProxyServerDenied {
+        /// Canonical proxy server that was denied.
+        server: ProxyServer,
     },
     /// The PAC source was not in the exact canonical PAC-source allow-list.
     PacOriginDenied {
         /// Canonical PAC source origin that was denied.
         origin: Origin,
     },
-    /// More proxy origins were supplied than the policy permits.
-    TooManyProxyOrigins {
-        /// Number of supplied origins observed before rejecting construction.
+    /// More proxy servers were supplied than the policy permits.
+    TooManyProxyServers {
+        /// Number of supplied servers observed before rejecting construction.
         count: usize,
-        /// Maximum number of proxy origins accepted by the policy.
+        /// Maximum number of proxy servers accepted by the policy.
         maximum: usize,
     },
     /// More PAC source origins were supplied than the policy permits.
@@ -271,15 +400,15 @@ impl fmt::Display for ProxyRouteError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::DirectRouteDenied => formatter.write_str("direct proxy route is not authorized"),
-            Self::ProxyOriginDenied { origin } => {
-                write!(formatter, "proxy origin is not authorized: {origin}")
+            Self::ProxyServerDenied { server } => {
+                write!(formatter, "proxy server is not authorized: {server}")
             }
             Self::PacOriginDenied { origin } => {
                 write!(formatter, "PAC origin is not authorized: {origin}")
             }
-            Self::TooManyProxyOrigins { count, maximum } => write!(
+            Self::TooManyProxyServers { count, maximum } => write!(
                 formatter,
-                "proxy origin policy has {count} entries; maximum is {maximum}"
+                "proxy server policy has {count} entries; maximum is {maximum}"
             ),
             Self::TooManyPacOrigins { count, maximum } => write!(
                 formatter,
@@ -291,18 +420,48 @@ impl fmt::Display for ProxyRouteError {
 
 impl std::error::Error for ProxyRouteError {}
 
-fn collect_proxy_origins(origins: Vec<Origin>) -> Result<BTreeSet<Origin>, ProxyRouteError> {
+fn explicit_port(authority: &str) -> Result<Option<u16>, ProxyServerError> {
+    let port_text = if authority.starts_with('[') {
+        let close_index = authority
+            .find(']')
+            .ok_or(ProxyServerError::InvalidIdentifier)?;
+        let remainder = &authority[close_index + 1..];
+        if remainder.is_empty() {
+            return Ok(None);
+        }
+        remainder
+            .strip_prefix(':')
+            .ok_or(ProxyServerError::InvalidIdentifier)?
+    } else {
+        let Some((_host, port)) = authority.rsplit_once(':') else {
+            return Ok(None);
+        };
+        port
+    };
+
+    let port = port_text
+        .parse::<u16>()
+        .map_err(|_error| ProxyServerError::InvalidIdentifier)?;
+    if port == 0 {
+        return Err(ProxyServerError::InvalidIdentifier);
+    }
+    Ok(Some(port))
+}
+
+fn collect_proxy_servers(
+    servers: Vec<ProxyServer>,
+) -> Result<BTreeSet<ProxyServer>, ProxyRouteError> {
     let mut collected = BTreeSet::new();
     let mut count = 0usize;
-    for origin in origins {
+    for server in servers {
         count += 1;
-        if count > MAX_PROXY_ORIGIN_COUNT {
-            return Err(ProxyRouteError::TooManyProxyOrigins {
+        if count > MAX_PROXY_SERVER_COUNT {
+            return Err(ProxyRouteError::TooManyProxyServers {
                 count,
-                maximum: MAX_PROXY_ORIGIN_COUNT,
+                maximum: MAX_PROXY_SERVER_COUNT,
             });
         }
-        collected.insert(origin);
+        collected.insert(server);
     }
     Ok(collected)
 }
