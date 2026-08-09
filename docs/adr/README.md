@@ -5,12 +5,14 @@ This directory contains durable architecture decisions for OriginWeave. A pull-r
 ## Status vocabulary
 
 - **Proposed** — under review; not binding and not a shipped claim.
-- **Accepted** — governing decision for protected `main`.
+- **Accepted** — governing design decision on protected `main`; acceptance does not by itself prove that every described capability is implemented.
 - **Superseded** — replaced by a later Accepted ADR; retained for history.
 - **Deprecated** — still discoverable but no longer recommended for new work.
 - **Rejected** — evaluated and intentionally not adopted.
 
-An ADR becomes Accepted only through normal protected-branch review and merge. Conversation-derived ideas remain Proposed/Open in PRD/TRD/traceability until that process is complete.
+An ADR becomes Accepted only through normal protected-branch review and merge. Where live repository policy or explicit CWL/OriginWeave governance requires independent review, acceptance also requires a qualifying non-author formal `APPROVED` review on the unchanged exact head. COMMENTED reviews, check/status results, model verdicts, reactions, author approval, predecessor-head approval, or dismissed reviews never substitute for that requirement. Conversation-derived ideas remain Proposed/Open in PRD/TRD/traceability until the protected process is complete.
+
+An Accepted ADR is **design authority, not implementation evidence**. Protected-main source, executable tests, built/released artifacts, migrations/configuration, and protected-main operational evidence appropriate to the claim establish current implemented behavior. An ADR may intentionally describe an accepted target that is only partially implemented; the product documents must label that implementation status separately.
 
 ## Current protected-main decisions
 
@@ -99,4 +101,4 @@ Material external standards or research belong in APA 7th format in [`../doctori
 - [`../erd/README.md`](../erd/README.md) defines the conceptual durable domain model.
 - [`../traceability/README.md`](../traceability/README.md) maps requirements and decisions to implementation and evidence.
 
-If these artifacts disagree, protected code plus an Accepted ADR define the current implemented truth; the disagreement is a documentation defect that must be repaired rather than silently rationalized from conversation history.
+If these artifacts disagree about what is currently implemented, protected-main source, executable tests, built/released artifacts, configuration/migrations, and protected-main operational evidence appropriate to the claim define implementation truth. Accepted ADRs explain the governing design decision and expected boundary; they do not upgrade missing behavior into shipped behavior. The disagreement is a documentation or implementation defect that must be repaired rather than silently rationalized from conversation history.
