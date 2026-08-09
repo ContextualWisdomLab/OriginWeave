@@ -3,6 +3,8 @@
 //! The governor protects human-visible rendering before agent throughput. It
 //! does not allocate memory or schedule threads itself; platform adapters apply
 //! the returned mitigation plan to Chromium, model, and observation processes.
+//! Adapters include the CPU workers currently reserved by the task in every
+//! snapshot so worker-pool saturation closes new admission deterministically.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -104,10 +106,15 @@ pub struct ResourceSnapshot {
     agent_batch_size: u32,
     local_model_loaded: bool,
     frame_time_milliseconds: u16,
+    cpu_threads_in_use: u16,
 }
 
 impl ResourceSnapshot {
     /// Create one resource observation collected by a platform adapter.
+    ///
+    /// `cpu_threads_in_use` is the number of CPU workers already reserved by
+    /// this task at the decision point. It is observation data, not a request
+    /// to create or resize a worker pool.
     #[must_use]
     pub const fn new(
         ram_mebibytes: u64,
@@ -115,6 +122,7 @@ impl ResourceSnapshot {
         agent_batch_size: u32,
         local_model_loaded: bool,
         frame_time_milliseconds: u16,
+        cpu_threads_in_use: u16,
     ) -> Self {
         Self {
             ram_mebibytes,
@@ -122,6 +130,7 @@ impl ResourceSnapshot {
             agent_batch_size,
             local_model_loaded,
             frame_time_milliseconds,
+            cpu_threads_in_use,
         }
     }
 }
@@ -214,7 +223,9 @@ impl ResourceGovernor {
     ///
     /// Hard memory pressure always pauses the active agent and rejects new
     /// admission. Hard VRAM pressure also unloads a resident local model so the
-    /// plan reduces the consumer that crossed the configured limit.
+    /// plan reduces the consumer that crossed the configured limit. CPU worker
+    /// saturation closes only new admission; it does not pause the active task
+    /// unless another pressure rule independently requires that action.
     #[must_use]
     pub const fn decide(self, snapshot: ResourceSnapshot) -> ResourceMitigationPlan {
         let hard_ram = snapshot.ram_mebibytes >= self.budget.hard_ram_mebibytes;
@@ -223,9 +234,10 @@ impl ResourceGovernor {
             snapshot.frame_time_milliseconds >= self.budget.frame_budget_milliseconds;
         let soft_ram = snapshot.ram_mebibytes >= self.budget.soft_ram_mebibytes;
         let soft_vram = snapshot.vram_mebibytes >= self.budget.soft_vram_mebibytes;
+        let cpu_saturated = snapshot.cpu_threads_in_use >= self.budget.cpu_threads;
 
         let spill_observation_cache = soft_ram;
-        let reject_new_agent_work = hard_ram || hard_vram;
+        let reject_new_agent_work = hard_ram || hard_vram || cpu_saturated;
         let mut pause_current_agent = hard_ram || hard_vram;
         let mut offload_inference_to_cpu = hard_vram && snapshot.local_model_loaded;
         let mut next_batch_size = None;
