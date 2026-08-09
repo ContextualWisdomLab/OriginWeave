@@ -1,3 +1,5 @@
+#![allow(clippy::expect_used)]
+
 use std::error::Error;
 
 use originweave_core::{
@@ -5,8 +7,8 @@ use originweave_core::{
     NodeHandleError, Origin,
 };
 
-fn loopback_origin() -> Result<Origin, Box<dyn Error>> {
-    Ok(Origin::parse("http://127.0.0.1:43127")?)
+fn loopback_origin() -> Origin {
+    Origin::parse("http://127.0.0.1:43127").expect("valid loopback fixture origin")
 }
 
 #[test]
@@ -39,7 +41,7 @@ fn document_rotation_invalidates_old_external_node_bindings() -> Result<(), Box<
     let mut registry = BrowserAuthorityRegistry::new();
     let session = registry.register_session("webdriver-session")?;
     let context = registry.register_context(session, "top-level-context")?;
-    let origin = loopback_origin()?;
+    let origin = loopback_origin();
 
     let first = registry.bind_node(session, context, &origin, "backend-node-17")?;
     let same = registry.bind_node(session, context, &origin, "backend-node-17")?;
@@ -67,7 +69,7 @@ fn context_cannot_be_reused_by_another_session() -> Result<(), Box<dyn Error>> {
     let owner = registry.register_session("owner-session")?;
     let attacker = registry.register_session("attacker-session")?;
     let context = registry.register_context(owner, "shared-looking-context")?;
-    let origin = loopback_origin()?;
+    let origin = loopback_origin();
 
     assert_eq!(
         registry.bind_node(attacker, context, &origin, "node"),
