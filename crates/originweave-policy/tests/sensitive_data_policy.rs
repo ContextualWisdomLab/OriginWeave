@@ -343,6 +343,15 @@ fn authority_identifiers_are_bounded_ascii_policy_tokens() {
     );
 
     let oversized = "a".repeat(129);
+    for punctuation_only in [":", "...", "_-_"] {
+        assert_invalid_equal_authority(authority_case(
+            punctuation_only,
+            TASK,
+            FIELD,
+            PURPOSE,
+            DESTINATION,
+        ));
+    }
     assert_invalid_equal_authority(authority_case(
         "tenant alpha",
         TASK,
