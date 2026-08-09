@@ -51,6 +51,8 @@ For every failed check, review, approval, permission, tool, infrastructure, or w
 
 A formal non-author approval is a merge gate only when **current GitHub rules** or an explicit current, operationally satisfiable OriginWeave/CWL governance rule requires it. Advisory comments, statuses, automated-review prose, author reviews, and unavailable identities never substitute for a counted approval when one is actually required.
 
+When current rules require counted approval, the required evidence must be a formal `APPROVED` review by an eligible non-author **repository collaborator** (or another identity that current GitHub policy explicitly counts). If that governing rule remains active but no legitimate eligible path exists, classify the condition as a **reviewer-provisioning gap**; never synthesize, self-submit, or impersonate approval.
+
 The organization currently documents a **solo-maintainer** governance condition. When there are **fewer than two eligible** independent maintainers, an otherwise impossible non-author approval rule is **on hold** rather than manufactured or bypassed; exact-head CI, security, 100% coverage, rustdoc, resolved findings, live-base checks, and branch protection remain mandatory. The independent-review gate must be **re-enabled** when the repository again has two or more eligible maintainers or when current GitHub rules independently require it. If a counted reviewer route is required, verify collaborator/team/App eligibility before requesting it and never repeat a route already proven ineligible without a relevant state change.
 
 ## Architecture constraints
