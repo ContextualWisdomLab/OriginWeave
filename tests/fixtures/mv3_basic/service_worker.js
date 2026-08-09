@@ -1,5 +1,9 @@
 "use strict";
 
+const DOWNLOAD_PAYLOAD = "OriginWeave deterministic MV3 download fixture.\n";
+const DOWNLOAD_POLL_ATTEMPTS = 100;
+const DOWNLOAD_POLL_INTERVAL_MS = 50;
+
 const workerStartPromise = (async () => {
   const values = await chrome.storage.local.get("originweave_worker_start_count");
   const previous = Number(values.originweave_worker_start_count ?? 0);
@@ -14,6 +18,43 @@ async function ensureWorkerState() {
     await chrome.storage.local.set({ originweave_worker: "installed" });
   }
   return "installed";
+}
+
+async function waitForDownload(downloadId, expectedUrl) {
+  const expectedBytes = new TextEncoder().encode(DOWNLOAD_PAYLOAD).byteLength;
+  for (let attempt = 0; attempt < DOWNLOAD_POLL_ATTEMPTS; attempt += 1) {
+    const items = await chrome.downloads.search({ id: downloadId, limit: 1 });
+    if (Array.isArray(items) && items.length === 1) {
+      const item = items[0];
+      if (item.state === "interrupted") {
+        return false;
+      }
+      if (item.state === "complete") {
+        return (
+          item.url === expectedUrl &&
+          item.bytesReceived === expectedBytes &&
+          item.totalBytes === expectedBytes &&
+          item.exists !== false
+        );
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, DOWNLOAD_POLL_INTERVAL_MS));
+  }
+  return false;
+}
+
+async function exerciseDownload() {
+  const url = chrome.runtime.getURL("download.txt");
+  const downloadId = await chrome.downloads.download({
+    url,
+    filename: "originweave-mv3/download.txt",
+    conflictAction: "overwrite",
+    saveAs: false,
+  });
+  if (!Number.isInteger(downloadId)) {
+    return false;
+  }
+  return waitForDownload(downloadId, url);
 }
 
 async function exerciseCoreApis(sender) {
@@ -56,6 +97,8 @@ async function exerciseCoreApis(sender) {
   });
   const historyReady = Array.isArray(historyItems);
 
+  const downloadsReady = await exerciseDownload();
+
   return {
     tabs: tabReady ? "ready" : "missing",
     windows: windowReady ? "ready" : "missing",
@@ -64,6 +107,7 @@ async function exerciseCoreApis(sender) {
     sidePanel: sidePanelReady ? "ready" : "missing",
     bookmarks: bookmarksReady ? "ready" : "missing",
     history: historyReady ? "ready" : "missing",
+    downloads: downloadsReady ? "ready" : "missing",
   };
 }
 
@@ -91,6 +135,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sidePanel: "missing",
         bookmarks: "missing",
         history: "missing",
+        downloads: "missing",
       });
     }
   );
