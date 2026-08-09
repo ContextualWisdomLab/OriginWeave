@@ -43,7 +43,7 @@ The exact artifact source must satisfy all repository-required gates plus the fo
 
 - exact head/base state refetched;
 - no valid unresolved review thread;
-- qualifying independent non-author formal approval when required;
+- qualifying independent non-author formal approval when required by current policy;
 - no writer race or unexpected source mutation;
 - dependency/lockfile changes intentional and reviewed.
 
@@ -124,7 +124,7 @@ browser/chromium profile
 protocol/schema versions
 ```
 
-Reproducibility targets are declared per artifact because platform-signed browser bundles may have nondeterministic/signing-specific steps. Any non-reproducible step must be identified and separately attested rather than ignored.
+Every release artifact that OriginWeave itself builds must have reproducibility evidence for the artifact-generation step. When a platform requires nondeterministic signing or notarization, the reproducible artifact is generated and verified first; nondeterministic signing is a separate attested transformation bound to the verified pre-signing digest. A release is blocked when the reproducible artifact cannot be independently regenerated or otherwise proven byte-for-byte equivalent under its declared build profile.
 
 ## 7. Signing and trust
 
@@ -138,7 +138,7 @@ A release evidence bundle contains or references:
 
 - exact commit and tag;
 - required check conclusions and run IDs;
-- formal review evidence;
+- formal review evidence when policy requires it;
 - test/coverage summaries;
 - compatibility matrices;
 - threat/security scan results;
@@ -260,17 +260,19 @@ Security configuration is current authority, not necessarily historical applicat
 
 ## 17. Emergency release
 
-A security emergency may shorten normal cadence but may not fabricate checks/approval. The emergency path documents:
+**Emergency releases do not bypass required gates.** A security emergency may shorten coordination cadence, but the same exact-source evidence requirements remain in force before publication.
 
-- incident/vulnerability;
-- exact smallest fix;
-- required tests/security scans actually run;
-- independent review/authority used;
-- residual unrun evidence and why;
-- rollback/forward-fix plan;
-- follow-up full validation deadline.
+The emergency path must document and prove:
 
-Repository branch/ruleset protections are not bypassed unless an established organizational emergency governance process explicitly authorizes and records it; OriginWeave automation itself does not create that authority.
+- incident/vulnerability and exact smallest fix;
+- current-head checks and every repository-required security scan;
+- complete coverage and required rustdoc/static-quality gates;
+- independent approval when current branch/repository policy requires it;
+- branch protection/ruleset acceptance without administrative bypass;
+- reproducible artifact generation plus separately attested nondeterministic signing when applicable;
+- rollback/forward-fix plan and post-release verification.
+
+If a mandatory gate cannot run or produces non-passing evidence, the release remains blocked. OriginWeave automation has no authority to turn missing evidence into an emergency exception.
 
 ## 18. Release notes truthfulness
 
