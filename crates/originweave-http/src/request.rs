@@ -54,6 +54,11 @@ pub(crate) fn serialize_request(
                 maximum_bytes: policy.max_header_value_bytes(),
             });
         }
+        if field.name() == "accept-encoding" {
+            return Err(HttpError::ForbiddenRequestField {
+                field_name: field.name().to_owned(),
+            });
+        }
         if !seen.insert(field.name()) {
             return Err(HttpError::DuplicateRequestField {
                 field_name: field.name().to_owned(),
