@@ -64,12 +64,13 @@ pub struct ProxyServer {
 }
 
 impl ProxyServer {
-    /// Parse an explicit URI-form Chromium proxy server identifier.
+    /// Parse a Chromium proxy server identifier.
     ///
-    /// Supported schemes are HTTP, HTTPS, SOCKS4, SOCKS5 (`socks` is accepted
-    /// as Chromium's SOCKS5 alias), and QUIC. Credentials, paths, queries,
-    /// fragments, zero or invalid ports, malformed authorities, and
-    /// browser-special numeric host spellings fail closed.
+    /// Supported explicit schemes are HTTP, HTTPS, SOCKS4, SOCKS5 (`socks` is
+    /// accepted as Chromium's SOCKS5 alias), and QUIC. When the scheme is
+    /// omitted, Chromium-compatible URI-form input defaults to HTTP. Credentials,
+    /// paths, queries, fragments, zero or invalid ports, malformed authorities,
+    /// and browser-special numeric host spellings fail closed.
     pub fn parse(input: &str) -> Result<Self, ProxyServerError> {
         if input.trim() != input
             || input
@@ -79,16 +80,18 @@ impl ProxyServer {
             return Err(ProxyServerError::InvalidIdentifier);
         }
 
-        let Some((raw_scheme, authority)) = input.split_once("://") else {
-            return Err(ProxyServerError::InvalidIdentifier);
-        };
-        let scheme = match raw_scheme.to_ascii_lowercase().as_str() {
-            "http" => ProxyServerScheme::Http,
-            "https" => ProxyServerScheme::Https,
-            "socks4" => ProxyServerScheme::Socks4,
-            "socks" | "socks5" => ProxyServerScheme::Socks5,
-            "quic" => ProxyServerScheme::Quic,
-            _ => return Err(ProxyServerError::InvalidIdentifier),
+        let (scheme, authority) = if let Some((raw_scheme, authority)) = input.split_once("://") {
+            let scheme = match raw_scheme.to_ascii_lowercase().as_str() {
+                "http" => ProxyServerScheme::Http,
+                "https" => ProxyServerScheme::Https,
+                "socks4" => ProxyServerScheme::Socks4,
+                "socks" | "socks5" => ProxyServerScheme::Socks5,
+                "quic" => ProxyServerScheme::Quic,
+                _ => return Err(ProxyServerError::InvalidIdentifier),
+            };
+            (scheme, authority)
+        } else {
+            (ProxyServerScheme::Http, input)
         };
         if authority.is_empty() {
             return Err(ProxyServerError::InvalidIdentifier);
