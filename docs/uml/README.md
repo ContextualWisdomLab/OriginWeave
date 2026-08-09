@@ -256,7 +256,133 @@ flowchart TD
 
 A model proposal can explain *why an action was proposed* but is not mergeable with `policy_decision`, `approval_evidence`, `network` authority, or `post_condition_evidence` into one undifferentiated success status.
 
-## 7. Diagram maintenance rules
+## 7. Secret-fill sequence
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Goal as Trusted User / Enterprise Authority
+    participant Session as Governed Session / Task
+    participant Model as Model / Planner
+    participant Policy as Deterministic Policy
+    participant Broker as Secret Broker
+    participant Adapter as Trusted Browser Adapter
+    participant Page as Untrusted Page
+    participant Evidence as Credential-free Evidence
+
+    Goal->>Session: authorize purpose, origin, capability, task scope
+    Model->>Policy: propose secret_fill(opaque_handle, target, action_intent)
+    Note over Model,Policy: Model never receives the raw secret.
+    Policy->>Policy: validate mode, purpose, capability, origin, risk, approval, exact scope
+    alt authority mismatch / stale approval / invalid handle scope
+        Policy-->>Model: deny without broker resolution
+        Policy-->>Evidence: denial + scope references
+    else policy permits broker use
+        Policy->>Broker: resolve opaque handle under exact authorized scope
+        Broker->>Broker: validate tenant/task, destination, expiry, revocation, use policy
+        alt broker validation fails
+            Broker-->>Policy: fail closed
+            Policy-->>Evidence: broker denial without raw value
+        else broker validation succeeds
+            Broker-->>Adapter: minimum secret value on trusted delivery path
+            Adapter->>Page: fill only the authorized field/action
+            Page-->>Adapter: resulting observable state
+            Adapter-->>Evidence: delivery reference + post-condition; no raw secret
+        end
+    end
+```
+
+Page content, model output, logs, and evidence can reference an opaque handle or redacted fingerprint but cannot request broker authority or receive the durable raw value merely by describing it.
+
+## 8. Read/write risk approval flow
+
+```mermaid
+flowchart TD
+    intent[Typed action intent] --> classify[Classify mutability + risk]
+    classify --> read{Read-only and within declared capability?}
+    read -- yes --> readpolicy[Validate purpose, session, origin, destination, resource policy]
+    readpolicy -->|pass| execute_read[Execute bounded read]
+    readpolicy -->|deny| denied[Denied / unsupported]
+    read -- no --> writepolicy[Validate write capability, exact target, intent digest, risk tier]
+    writepolicy --> approval{Exact approval required?}
+    approval -- no --> execute_write[Execute typed action]
+    approval -- yes --> approvalcheck{Fresh in-scope approval supplied by authorized authority?}
+    approvalcheck -- no --> waiting[Await approval / deny on expiry or rejection]
+    approvalcheck -- yes --> execute_write
+    execute_read --> verify[Verify declared result]
+    execute_write --> verify
+    verify --> ok{Post-condition established?}
+    ok -- yes --> evidence[Record separate observation, policy, approval, action, post-condition evidence]
+    ok -- no --> quarantine[Failed or quarantined; never mark success]
+    page[Untrusted page content] -. cannot approve .-> approvalcheck
+    model[Model proposal] -. cannot approve .-> approvalcheck
+```
+
+A page, model, comment, status check, or other observation cannot synthesize approval. Approval is an independent authority bound to the action contract, and a valid approval does not substitute for post-condition verification.
+
+## 9. Resource-pressure and fallback flow
+
+```mermaid
+flowchart TD
+    task[Task/session admission request] --> budget[Evaluate CPU, RAM, GPU, VRAM, network, storage and concurrency budgets]
+    budget --> fits{Fits bounded budget?}
+    fits -- no --> reject[Reject or queue before unsafe launch]
+    fits -- yes --> run[Run browser + optional model under governor]
+    run --> pressure{Resource pressure detected?}
+    pressure -- no --> preserve[Continue within budget]
+    pressure -- yes --> browserneed{Browser resources required for current observation/action verification?}
+    browserneed -- yes --> modeldegrade[Degrade optional model first]
+    modeldegrade --> reduce[Reduce model concurrency / batch]
+    reduce --> fallback{Policy permits CPU or remote-model fallback?}
+    fallback -- yes --> modelalternate[Use governed alternate model path]
+    fallback -- no --> modelpause[Pause or fail model-backed work]
+    browserneed -- no --> boundeddegrade[Apply documented bounded capture/model degradation]
+    modelalternate --> browserok{Browser still verifiable and inside hard limits?}
+    modelpause --> browserok
+    boundeddegrade --> browserok
+    browserok -- yes --> preserve
+    browserok -- no --> stop[Pause/fail task before state-changing action or verification loss]
+    preserve --> evidence[Record resource decision and resulting evidence]
+    stop --> evidence
+```
+
+The browser is not unbounded: browser correctness is prioritized over optional model acceleration, but hard host and tenant limits still fail closed. A task cannot be recorded as successfully changed when resource eviction prevents the browser from establishing its post-condition.
+
+## 10. Hourly product-development gate-to-model flow
+
+```mermaid
+flowchart TD
+    trigger[Hourly / manual trigger on protected workflow definition] --> snapshot[Refetch exact protected main, open PRs/issues, release blockers and writer lease]
+    snapshot --> openpr{Open PR exists?}
+    openpr -- yes --> openstate[Emit open_pull_request deterministic state]
+    openstate --> nostart[Stop before NVIDIA_NIM_API_KEY materialization]
+    openpr -- no --> deterministic{Release blocker, dry-run or deterministic product/release gate?}
+    deterministic -- yes --> deterministic_result[Handle deterministic state without model credential]
+    deterministic -- no --> credential[Conditional credential gate]
+    credential --> broker[Expose NVIDIA_NIM_API_KEY only to authorized credential/broker path]
+    broker --> pristine[Create pristine workspace from exact HEAD]
+    pristine --> attempt[Run bounded model attempt]
+    attempt --> classify{Attempt result}
+    classify -- success --> seal[Seal credential-free bounded change bundle]
+    classify -- model_timeout --> retry{Broker healthy and remaining budget feasible?}
+    classify -- model_or_tool_failure --> retry
+    classify -- credential_broker_unavailable --> stopmodel[Stop model fallback]
+    retry -- yes --> pristine
+    retry -- no --> stopmodel
+    seal --> validate[Independent tests, coverage, security and secret-fingerprint validation]
+    validate --> changed{Verified non-empty change?}
+    changed -- no --> evidence[Record deterministic no-change / product result]
+    changed -- yes --> publish{Publication authority available and live state unchanged?}
+    publish -- no --> failclosed[Fail closed; never report successful publication]
+    publish -- yes --> pr[Open/update one reviewed PR]
+    pr --> governance[Independent exact-head checks, review and protected branch policy]
+    governance --> merge[Protected merge only when all authorities pass]
+    merge --> acceptance[Protected-main scheduled/manual operational acceptance]
+```
+
+This diagram describes the governing workflow architecture and closure contract. It is not evidence that an active incident repair has merged or that protected-main acceptance has already occurred. `COPILOT_GITHUB_TOKEN`, invented PATs, raw-secret rematerialization, synthesized approval, and fail-open publication are outside the design.
+
+## 11. Diagram maintenance rules
 
 Update this pack when a protected change materially alters:
 
@@ -264,6 +390,9 @@ Update this pack when a protected change materially alters:
 - authority ordering or trust boundaries;
 - task/session lifecycle;
 - observation hierarchy or action lifecycle;
+- secret-broker delivery or approval semantics;
+- resource admission, pressure, or browser/model fallback priority;
+- hourly deterministic/model gate ordering or operational-closure evidence;
 - deployment boundaries;
 - evidence/provenance relationships.
 
