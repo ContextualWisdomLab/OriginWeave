@@ -10,6 +10,7 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "mv3_basic"
 RUNNER = ROOT / "scripts" / "ci" / "run_mv3_compatibility.py"
+WORKFLOW = ROOT / ".github" / "workflows" / "mv3-compatibility.yml"
 
 
 class ManifestV3CompatibilityContractTests(unittest.TestCase):
@@ -47,6 +48,7 @@ class ManifestV3CompatibilityContractTests(unittest.TestCase):
         """The compatibility lane must not silently float to a new Chromium build."""
 
         runner = RUNNER.read_text(encoding="utf-8")
+        workflow = WORKFLOW.read_text(encoding="utf-8")
         for expected in (
             "150.0.7871.129",
             "r1639810",
@@ -61,8 +63,17 @@ class ManifestV3CompatibilityContractTests(unittest.TestCase):
         ):
             with self.subTest(expected=expected):
                 self.assertIn(expected, runner)
-        self.assertNotIn("latest", runner.lower())
-        self.assertNotIn("google-chrome-stable", runner)
+        self.assertIn('CHROME_VERSION: "150.0.7871.129"', workflow)
+        combined = f"{runner}\n{workflow}".lower()
+        for forbidden in (
+            "last-known-good-versions",
+            "known-good-versions-with-downloads",
+            "latest-versions-per-milestone",
+            "latest-patch-versions-per-build",
+            "google-chrome-stable",
+        ):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, combined)
 
     def test_runner_transport_cannot_follow_dynamic_url_schemes(self) -> None:
         """WebDriver control transport must be hard-bound to loopback HTTP only."""
@@ -88,9 +99,7 @@ class ManifestV3CompatibilityContractTests(unittest.TestCase):
     def test_workflow_runs_the_real_browser_lane_without_model_credentials(self) -> None:
         """Compatibility evidence must execute Chromium and never require LLM secrets."""
 
-        workflow = (ROOT / ".github" / "workflows" / "mv3-compatibility.yml").read_text(
-            encoding="utf-8"
-        )
+        workflow = WORKFLOW.read_text(encoding="utf-8")
         for expected in (
             "150.0.7871.129",
             "chrome-linux64.zip",
