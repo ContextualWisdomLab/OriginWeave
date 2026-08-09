@@ -1,5 +1,20 @@
 # OriginWeave Architecture
 
+## Authoritative documentation graph
+
+This file is the canonical product-wide topology and bounded-context view. It is intentionally linked to the rest of the authoritative documentation graph so a maintainer or buyer does not have to reconstruct requirements or decisions from chat, pull-request prose, or isolated feature plans:
+
+- [Product requirements](docs/PRD.md)
+- [Technical requirements and implementation-status boundaries](docs/TRD.md)
+- [Architecture decision index and lifecycle](docs/adr/README.md)
+- [UML and control-flow diagrams](docs/uml/README.md)
+- [Conceptual ERD and durable domain model](docs/erd/README.md)
+- [Requirement, decision, standards, and implementation traceability](docs/traceability/README.md)
+- [Research and standards doctoring](docs/doctoring.md)
+- [Product roadmap](docs/product-roadmap.md)
+
+Protected-main code and executable tests define current implementation truth; deployed build/release artifacts, migrations, and configuration are additional operational evidence when they exist. Accepted ADRs define design authority, not proof that planned behavior has shipped. The PRD/TRD/diagrams may also contain `Planned`, `Proposed`, or `Open` product direction; those labels must remain explicit until corresponding implementation and review evidence reaches protected `main`.
+
 ## 1. Product definition
 
 OriginWeave is an enterprise agentic web runtime and provenance-native browser control plane. Chromium remains the compatibility kernel; Rust owns new governance, destination, direct network, TLS identity, resource, evidence, and agent-facing contracts. This separation minimizes the Chromium patch surface and allows the same Rust modules to operate in a desktop browser, headless service, naruon module, or external agent runtime.
@@ -7,7 +22,7 @@ OriginWeave is an enterprise agentic web runtime and provenance-native browser c
 ## 2. Architectural principles
 
 1. **Compatibility before reinvention.** Blink, V8, Skia, Viz, Dawn, Site Isolation, sandboxing, and Manifest V3 remain upstream-compatible.
-2. **Authority is explicit.** No ambient browser state or page content implicitly grants a capability; observed node authority is bound to an exact browser session, browsing context, canonical origin, and document epoch.
+2. **Authority is explicit.** No ambient browser state or page content implicitly grants a capability.
 3. **Actions are typed.** Production agents do not receive unrestricted JavaScript evaluation as a default tool.
 4. **Observe before acting; verify after acting.** A command is successful only when its expected post-condition is observed.
 5. **Secrets stay outside model context.** Models receive opaque handles; a broker resolves values directly into a trusted browser process.
@@ -55,7 +70,6 @@ An Agent Task session must not automatically share the default human profile. Fu
 Owns stable value contracts without I/O:
 
 - browser-equivalent normalized `Origin` values that reject ambiguous numeric hosts;
-- nonzero `BrowserSessionId`, `BrowsingContextId`, and `DocumentEpoch` identities plus `ObservedNodeHandle` values bound to their exact session, context, origin, document lifetime, and adapter-local node identifier;
 - immutable `ActionIntentDigest` values;
 - `SessionMode` and `ExecutionPurpose`;
 - `InstructionSource` and `SecretDelivery`;
@@ -152,7 +166,7 @@ Observation should prefer the most structured trustworthy source available:
 4. accessibility tree combined with DOM and layout;
 5. screenshot or vision fallback for canvas and inaccessible custom interfaces.
 
-Raw HTML is not the default model input. Full snapshots are followed by incremental semantic diffs, versioned by document epoch. Every actionable node reference carries its nonzero browser-session identity, browsing-context identity, canonical origin, document epoch, and adapter-local node identifier. A browser adapter must validate all five values immediately before use; another automation session, navigation, document replacement, origin change, or a different tab or frame context invalidates the handle.
+Raw HTML is not the default model input. Full snapshots are followed by incremental semantic diffs, versioned by document epoch. Node references become invalid after navigation or epoch change.
 
 ## 8. Action lifecycle
 
@@ -163,7 +177,6 @@ user intent
 → typed request
 → instruction-source check
 → capability and browser-equivalent origin check
-→ browser-session + browsing-context + origin + document-epoch node binding
 → resolved-destination approval and pinning
 → exact direct TCP peer binding
 → authenticated TLS service identity
@@ -248,7 +261,6 @@ WARC stores source exchanges and resources; relational storage holds sessions, p
 - Browser content is data, never authority.
 - Secrets are never included in model prompts, traces, or provenance values.
 - Generic header and query values are never retained by the evidence kernel.
-- Observed node handles are valid only in the exact browser session, browsing context, canonical origin, and document epoch that produced them; adapter-local node identifiers alone never confer authority.
 - Logical origin grants, resolved-destination grants, actual peer evidence, and TLS service identity remain distinct.
 - DNS answer expansion after approval is denied as a possible rebinding event.
 - Direct TCP accepts only a canonical approved socket, never a hostname.
@@ -283,7 +295,7 @@ No deployment mode may depend on an in-process singleton. Session, policy, desti
 | Attribute | Required evidence |
 |---|---|
 | correctness | contract, property, hostile-input, real TCP/TLS, and post-condition tests |
-| safety | prompt-injection, secret, session/context-bound node, origin, destination, rebinding, redirect, exact-peer, TLS identity, approval, and renderer-boundary tests |
+| safety | prompt-injection, secret, origin, destination, rebinding, redirect, exact-peer, TLS identity, approval, and renderer-boundary tests |
 | reliability | crash recovery, checkpoint, retry, timeout, and idempotency tests |
 | performance | input latency, frame time, task RSS, VRAM, transfer, connection, handshake, and token metrics |
 | interoperability | BiDi/CDP/MCP/WARC/PROV and Manifest V3 compatibility suites |
@@ -292,4 +304,4 @@ No deployment mode may depend on an in-process singleton. Session, policy, desti
 
 ## 15. Change control
 
-Changes to the compatibility-kernel boundary, risk taxonomy, secret model, origin model, session/context-bound node-handle identity, canonical intent model, evidence semantics, destination taxonomy, DNS pinning semantics, direct socket authority, TLS reference identity, trust-root semantics, trusted-time semantics, ALPN policy, redirect policy, resource mitigation semantics, or protocol versioning require a new ADR. The current baseline decisions are recorded under `docs/adr/`.
+Changes to the compatibility-kernel boundary, risk taxonomy, secret model, origin model, canonical intent model, evidence semantics, destination taxonomy, DNS pinning semantics, direct socket authority, TLS reference identity, trust-root semantics, trusted-time semantics, ALPN policy, redirect policy, resource mitigation semantics, or protocol versioning require a new ADR. The current baseline decisions are recorded under `docs/adr/`.
