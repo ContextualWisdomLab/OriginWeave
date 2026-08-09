@@ -1,7 +1,7 @@
 use originweave_core::Origin;
 use originweave_evidence::{
-    SensitiveAccessClass, SensitiveAccessEvidence, SensitiveAccessEvidenceInput,
-    SensitiveAccessOutcome, SensitiveEvidenceError, MAX_SENSITIVE_FIELD_COUNT,
+    MAX_SENSITIVE_FIELD_COUNT, SensitiveAccessClass, SensitiveAccessEvidence,
+    SensitiveAccessEvidenceInput, SensitiveAccessOutcome, SensitiveEvidenceError,
 };
 
 fn valid_input() -> SensitiveAccessEvidenceInput {
@@ -11,7 +11,10 @@ fn valid_input() -> SensitiveAccessEvidenceInput {
         tenant_id: "tenant:acme".to_owned(),
         actor_id: "workload:fulfillment".to_owned(),
         task_id: "task:ship-order-42".to_owned(),
-        field_ids: vec!["customer.full_name".to_owned(), "shipping.address".to_owned()],
+        field_ids: vec![
+            "customer.full_name".to_owned(),
+            "shipping.address".to_owned(),
+        ],
         purpose_id: "purpose:order-fulfillment".to_owned(),
         destination: Origin::parse("HTTPS://shipping.example:443").expect("canonical origin"),
         classification: SensitiveAccessClass::PersonalData,
@@ -39,7 +42,10 @@ fn exact_metadata_receipt_preserves_authority_without_protected_values() {
     );
     assert_eq!(evidence.purpose_id(), "purpose:order-fulfillment");
     assert_eq!(evidence.destination().as_str(), "https://shipping.example");
-    assert_eq!(evidence.classification(), SensitiveAccessClass::PersonalData);
+    assert_eq!(
+        evidence.classification(),
+        SensitiveAccessClass::PersonalData
+    );
     assert_eq!(
         evidence.outcome(),
         SensitiveAccessOutcome::PartialFieldDisclosure
@@ -59,7 +65,13 @@ fn exact_metadata_receipt_preserves_authority_without_protected_values() {
 
 #[test]
 fn authority_identifiers_and_field_sets_are_bounded_and_unambiguous() {
-    for invalid in ["", "tenant with spaces", "tenant/42", "테넌트:42", "tenant\n42"] {
+    for invalid in [
+        "",
+        "tenant with spaces",
+        "tenant/42",
+        "테넌트:42",
+        "tenant\n42",
+    ] {
         let mut input = valid_input();
         input.tenant_id = invalid.to_owned();
         assert!(matches!(
