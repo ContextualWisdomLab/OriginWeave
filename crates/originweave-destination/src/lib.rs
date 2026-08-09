@@ -1,17 +1,23 @@
-//! Fail-closed resolved-destination and redirect policy for OriginWeave.
+//! Fail-closed destination, redirect, and proxy-route policy for OriginWeave.
 //!
 //! This crate performs no DNS lookup and opens no socket. A browser-network
-//! adapter supplies resolved addresses and receives deterministic approval,
-//! pinning, rebinding, connection, and redirect decisions.
+//! adapter supplies resolved addresses and selected routes and receives
+//! deterministic approval, pinning, rebinding, connection, redirect, and route
+//! decisions.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
 mod address;
+mod proxy;
 mod redirect;
 mod resolution;
 
 pub use address::{AddressClass, ClassifiedAddress, classify_address};
+pub use proxy::{
+    MAX_PAC_ORIGIN_COUNT, MAX_PROXY_ORIGIN_COUNT, ProxyRoute, ProxyRouteError, ProxyRouteEvidence,
+    ProxyRouteKind, ProxyRoutePolicy,
+};
 pub use redirect::{
     MAX_REDIRECT_HOPS, RedirectError, RedirectEvidence, RedirectGuard, RedirectTargetDigest,
     RedirectTargetDigestError,
