@@ -96,6 +96,23 @@ class ManifestV3CompatibilityContractTests(unittest.TestCase):
                 with self.assertRaises(RuntimeError):
                     validate(invalid, "element identifier")
 
+    def test_runner_proves_restart_and_storage_persistence(self) -> None:
+        """A second browser session must prove MV3 state survives a real browser restart."""
+
+        runner = RUNNER.read_text(encoding="utf-8")
+        worker = (FIXTURE / "service_worker.js").read_text(encoding="utf-8")
+        content = (FIXTURE / "content_script.js").read_text(encoding="utf-8")
+        for expected in (
+            "_run_browser_pass",
+            "restart-persistence",
+            "worker-start-count",
+            "storage-persistence",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, runner)
+        self.assertIn("originweave_worker_start_count", worker)
+        self.assertIn("originweaveWorkerStartCount", content)
+
     def test_workflow_runs_the_real_browser_lane_without_model_credentials(self) -> None:
         """Compatibility evidence must execute Chromium and never require LLM secrets."""
 

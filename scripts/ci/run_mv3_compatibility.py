@@ -4,7 +4,8 @@
 This is a release/CI evidence runner, not a product browser adapter. It uses the
 W3C WebDriver HTTP protocol only to prove that a real Chrome for Testing build
 can load the controlled MV3 fixture and exercise service-worker, content-script,
-storage, declarative-net-request, and real browser-click behavior.
+storage, declarative-net-request, real browser-click, and restart-persistence
+behavior.
 """
 
 from __future__ import annotations
@@ -67,7 +68,9 @@ def _webdriver_path(session_id: str, suffix: str) -> str:
     """Build one bounded ChromeDriver path from a validated session identifier."""
 
     safe_session = _path_token(session_id, "session identifier")
-    if not suffix.startswith("/") or "://" in suffix or any(char in suffix for char in "\r\n"):
+    if suffix and not suffix.startswith("/"):
+        raise RuntimeError("invalid WebDriver path suffix")
+    if "://" in suffix or any(char in suffix for char in "\r\n"):
         raise RuntimeError("invalid WebDriver path suffix")
     return f"/session/{safe_session}{suffix}"
 
@@ -145,21 +148,32 @@ def _execute(driver_port: int, session_id: str, script: str) -> Any:
     return response.get("value")
 
 
-def _wait_for_extension_evidence(driver_port: int, session_id: str) -> dict[str, str]:
+def _wait_for_extension_evidence(
+    driver_port: int,
+    session_id: str,
+    expected_storage_persistence: str,
+) -> dict[str, str]:
     """Wait until every controlled MV3 fixture surface reports its expected result."""
 
+    if expected_storage_persistence not in {"initialized", "persisted"}:
+        raise ValueError("invalid storage persistence expectation")
     script = """
 return {
   content: document.documentElement.dataset.originweaveContentScript || "missing",
   storage: document.documentElement.dataset.originweaveStorage || "missing",
+  storagePersistence:
+    document.documentElement.dataset.originweaveStoragePersistence || "missing",
   workerReply: document.documentElement.dataset.originweaveWorkerReply || "missing",
   workerState: document.documentElement.dataset.originweaveWorkerState || "missing",
+  workerStartCount:
+    document.documentElement.dataset.originweaveWorkerStartCount || "missing",
   dnr: document.documentElement.dataset.originweaveDnr || "missing"
 };
 """
     expected = {
         "content": "ready",
         "storage": "ready",
+        "storagePersistence": expected_storage_persistence,
         "workerReply": "pong",
         "workerState": "installed",
         "dnr": "blocked",
@@ -170,7 +184,11 @@ return {
         value = _execute(driver_port, session_id, script)
         if isinstance(value, dict):
             latest = {str(key): str(item) for key, item in value.items()}
-            if latest == expected:
+            try:
+                worker_start_count = int(latest.get("workerStartCount", "0"))
+            except ValueError:
+                worker_start_count = 0
+            if worker_start_count > 0 and all(latest.get(key) == item for key, item in expected.items()):
                 return latest
         time.sleep(0.1)
     raise RuntimeError(f"MV3 fixture did not converge: expected={expected!r}, observed={latest!r}")
@@ -216,8 +234,109 @@ def _exercise_real_click(driver_port: int, session_id: str) -> str:
     return str(text)
 
 
+def _run_browser_pass(
+    chrome_bin: pathlib.Path,
+    chromedriver_bin: pathlib.Path,
+    fixture_url: str,
+    profile_dir: str,
+    expected_storage_persistence: str,
+) -> dict[str, Any]:
+    """Run one fresh browser process against a shared bounded compatibility profile."""
+
+    driver_port = _free_loopback_port()
+    session_id: str | None = None
+    driver = subprocess.Popen(
+        [str(chromedriver_bin), f"--port={driver_port}", "--allowed-ips=127.0.0.1"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    try:
+        _wait_for_driver(driver_port)
+        session = _json_request(
+            driver_port,
+            "POST",
+            "/session",
+            {
+                "capabilities": {
+                    "alwaysMatch": {
+                        "browserName": "chrome",
+                        "goog:chromeOptions": {
+                            "binary": str(chrome_bin),
+                            "args": [
+                                "--headless=new",
+                                "--no-first-run",
+                                "--disable-default-apps",
+                                "--disable-component-update",
+                                "--disable-sync",
+                                "--disable-dev-shm-usage",
+                                "--no-sandbox",
+                                f"--user-data-dir={profile_dir}",
+                                f"--disable-extensions-except={FIXTURE}",
+                                f"--load-extension={FIXTURE}",
+                            ],
+                        },
+                    }
+                }
+            },
+        ).get("value", {})
+        if not isinstance(session, dict):
+            raise RuntimeError("ChromeDriver session response is malformed")
+        raw_session_id = session.get("sessionId")
+        capabilities = session.get("capabilities", {})
+        if not isinstance(raw_session_id, str):
+            raise RuntimeError("ChromeDriver did not return a session id")
+        session_id = _path_token(raw_session_id, "session identifier")
+        browser_version = capabilities.get("browserVersion") if isinstance(capabilities, dict) else None
+        if browser_version != PINNED_CHROME_VERSION:
+            raise RuntimeError(
+                f"unexpected Chrome version: expected {PINNED_CHROME_VERSION}, got {browser_version!r}"
+            )
+
+        _json_request(
+            driver_port,
+            "POST",
+            _webdriver_path(session_id, "/url"),
+            {"url": fixture_url},
+        )
+        surfaces = _wait_for_extension_evidence(
+            driver_port,
+            session_id,
+            expected_storage_persistence,
+        )
+        click_result = _exercise_real_click(driver_port, session_id)
+        worker_start_count = int(surfaces["workerStartCount"])
+        return {
+            "browser_version": browser_version,
+            "worker_start_count": worker_start_count,
+            "storage_persistence": surfaces["storagePersistence"],
+            "surfaces": {
+                "service-worker": surfaces["workerReply"] == "pong",
+                "content-script": surfaces["content"] == "ready",
+                "storage": surfaces["storage"] == "ready",
+                "declarative-net-request": surfaces["dnr"] == "blocked",
+                "real-browser-click": click_result == "clicked",
+            },
+        }
+    finally:
+        if session_id is not None:
+            with contextlib.suppress(Exception):
+                _json_request(
+                    driver_port,
+                    "DELETE",
+                    _webdriver_path(session_id, ""),
+                    {},
+                )
+        driver.terminate()
+        try:
+            driver.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            driver.kill()
+            driver.wait(timeout=5)
+
+
 def main() -> int:
-    """Run the pinned local-only MV3 compatibility probe and print bounded evidence."""
+    """Run two pinned local-only browser passes and print bounded compatibility evidence."""
 
     chrome_bin = pathlib.Path(os.environ.get("CHROME_BIN", ""))
     chromedriver_bin = pathlib.Path(os.environ.get("CHROMEDRIVER_BIN", ""))
@@ -230,111 +349,69 @@ def main() -> int:
 
     fixture_server = http.server.ThreadingHTTPServer(
         ("127.0.0.1", 0),
-        lambda *args, **kwargs: QuietFixtureHandler(
-            *args, directory=str(FIXTURE), **kwargs
-        ),
+        lambda *args, **kwargs: QuietFixtureHandler(*args, directory=str(FIXTURE), **kwargs),
     )
     fixture_thread = threading.Thread(target=fixture_server.serve_forever, daemon=True)
     fixture_thread.start()
-
-    driver_port = _free_loopback_port()
-    session_id: str | None = None
     started = time.monotonic()
 
-    with tempfile.TemporaryDirectory(prefix="originweave-mv3-profile-") as profile_dir:
-        driver = subprocess.Popen(
-            [str(chromedriver_bin), f"--port={driver_port}", "--allowed-ips=127.0.0.1"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-        )
-        try:
-            _wait_for_driver(driver_port)
-            session = _json_request(
-                driver_port,
-                "POST",
-                "/session",
-                {
-                    "capabilities": {
-                        "alwaysMatch": {
-                            "browserName": "chrome",
-                            "goog:chromeOptions": {
-                                "binary": str(chrome_bin),
-                                "args": [
-                                    "--headless=new",
-                                    "--no-first-run",
-                                    "--disable-default-apps",
-                                    "--disable-component-update",
-                                    "--disable-sync",
-                                    "--disable-dev-shm-usage",
-                                    "--no-sandbox",
-                                    f"--user-data-dir={profile_dir}",
-                                    f"--disable-extensions-except={FIXTURE}",
-                                    f"--load-extension={FIXTURE}",
-                                ],
-                            },
-                        }
-                    }
-                },
-            ).get("value", {})
-            if not isinstance(session, dict):
-                raise RuntimeError("ChromeDriver session response is malformed")
-            raw_session_id = session.get("sessionId")
-            capabilities = session.get("capabilities", {})
-            if not isinstance(raw_session_id, str):
-                raise RuntimeError("ChromeDriver did not return a session id")
-            session_id = _path_token(raw_session_id, "session identifier")
-            browser_version = (
-                capabilities.get("browserVersion") if isinstance(capabilities, dict) else None
+    try:
+        fixture_url = f"http://127.0.0.1:{fixture_server.server_port}/page.html"
+        with tempfile.TemporaryDirectory(prefix="originweave-mv3-profile-") as profile_dir:
+            initial = _run_browser_pass(
+                chrome_bin,
+                chromedriver_bin,
+                fixture_url,
+                profile_dir,
+                "initialized",
             )
-            if browser_version != PINNED_CHROME_VERSION:
-                raise RuntimeError(
-                    f"unexpected Chrome version: expected {PINNED_CHROME_VERSION}, got {browser_version!r}"
-                )
+            restarted = _run_browser_pass(
+                chrome_bin,
+                chromedriver_bin,
+                fixture_url,
+                profile_dir,
+                "persisted",
+            )
 
-            fixture_url = f"http://127.0.0.1:{fixture_server.server_port}/page.html"
-            _json_request(
-                driver_port,
-                "POST",
-                _webdriver_path(session_id, "/url"),
-                {"url": fixture_url},
-            )
-            surfaces = _wait_for_extension_evidence(driver_port, session_id)
-            click_result = _exercise_real_click(driver_port, session_id)
-            evidence = {
-                "chrome_version": browser_version,
-                "chrome_revision": PINNED_CHROME_REVISION,
-                "surfaces": {
-                    "service-worker": surfaces["workerReply"] == "pong",
-                    "content-script": surfaces["content"] == "ready",
-                    "storage": surfaces["storage"] == "ready",
-                    "declarative-net-request": surfaces["dnr"] == "blocked",
-                    "real-browser-click": click_result == "clicked",
-                },
-                "duration_ms": round((time.monotonic() - started) * 1000),
+        initial_count = int(initial["worker_start_count"])
+        restarted_count = int(restarted["worker_start_count"])
+        shared_surfaces = {
+            name: bool(initial["surfaces"][name]) and bool(restarted["surfaces"][name])
+            for name in initial["surfaces"]
+        }
+        shared_surfaces.update(
+            {
+                "restart-persistence": restarted["storage_persistence"] == "persisted",
+                "worker-start-count": restarted_count > initial_count,
+                "storage-persistence": restarted["storage_persistence"] == "persisted",
             }
-            if not all(evidence["surfaces"].values()):
-                raise RuntimeError(f"compatibility surface failed: {evidence!r}")
-            print(json.dumps(evidence, sort_keys=True))
-            return 0
-        finally:
-            if session_id is not None:
-                with contextlib.suppress(Exception):
-                    _json_request(
-                        driver_port,
-                        "DELETE",
-                        _webdriver_path(session_id, ""),
-                        {},
-                    )
-            driver.terminate()
-            try:
-                driver.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                driver.kill()
-                driver.wait(timeout=5)
-            fixture_server.shutdown()
-            fixture_server.server_close()
-            fixture_thread.join(timeout=5)
+        )
+        evidence = {
+            "chrome_version": restarted["browser_version"],
+            "chrome_revision": PINNED_CHROME_REVISION,
+            "surfaces": shared_surfaces,
+            "browser_passes": [
+                {
+                    "phase": "initial",
+                    "worker_start_count": initial_count,
+                    "storage_persistence": initial["storage_persistence"],
+                },
+                {
+                    "phase": "restart",
+                    "worker_start_count": restarted_count,
+                    "storage_persistence": restarted["storage_persistence"],
+                },
+            ],
+            "duration_ms": round((time.monotonic() - started) * 1000),
+        }
+        if not all(evidence["surfaces"].values()):
+            raise RuntimeError(f"compatibility surface failed: {evidence!r}")
+        print(json.dumps(evidence, sort_keys=True))
+        return 0
+    finally:
+        fixture_server.shutdown()
+        fixture_server.server_close()
+        fixture_thread.join(timeout=5)
 
 
 if __name__ == "__main__":
