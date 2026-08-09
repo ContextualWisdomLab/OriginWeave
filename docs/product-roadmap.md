@@ -10,10 +10,13 @@ Status: complete as a reusable pre-alpha foundation.
 
 - typed session, purpose, origin, capability, action, risk, secret, robots, and approval contracts;
 - fail-closed deterministic action policy;
+- purpose-bound sensitive-data disclosure foundation that binds tenant, task, field, purpose, destination, classification, opaque-handle expiry, and use count without carrying protected values;
 - cumulative interactive-first resource mitigation;
 - universally value-redacted evidence and provenance pointers;
 - 100% production function, line, region, and branch coverage plus public documentation;
 - an hourly bounded OpenCode product-development workflow separated from review and merge authority.
+
+The first sensitive-data policy kernel is intentionally narrower than the enterprise authority defined by issue #10. The full gap still requires a separately versioned reusable `originweave-sensitive-data` crate and provider-neutral service contract, authoritative storage, encryption/key references, brokered handle resolution, selective model disclosure, access evidence, retention/revocation, tenant/service identity, break-glass controls, and realistic end-to-end tests. No later adapter may infer raw-value authority from network location, session ownership, repository membership, administrator role, or model credentials.
 
 ## Phase 1 — Isolated Chromium vertical slice
 
@@ -113,13 +116,14 @@ Commercial proof: declared performance and extension compatibility are reproduci
 
 ## Phase 5 — Enterprise product
 
-- accessible task, approval, secret, destination, connection, TLS identity, and evidence UI designed in Figma;
+- independently reusable sensitive-data authority/service crate, opaque-value broker, encrypted authoritative store contracts, selective human/browser/model disclosure, retention/revocation, and credential-free access evidence;
+- accessible task, approval, secret, destination, connection, TLS identity, sensitive-data, and evidence UI designed in Figma;
 - SSO, SCIM, tenant isolation, managed policies, data residency, and immutable audit;
 - encrypted profiles and regional object storage;
 - observability, SLOs, incident response, upgrade, and rollback;
 - SBOM, attestations, reproducible release, procurement, and support package.
 
-Commercial proof: a regulated enterprise can approve, operate, audit, and renew the product.
+Commercial proof: a regulated enterprise can approve, operate, audit, and renew the product while workflows that legitimately require protected values disclose only the exact authorized fields to the exact authorized destination for the exact task and purpose.
 
 ## Benchmark program
 
@@ -132,6 +136,7 @@ Each phase expands a stable benchmark suite:
 - stale nodes, hidden instructions, cross-origin transitions, CAPTCHA handoff, renderer crash, network failure, and memory pressure;
 - DNS rebinding, IPv4-mapped IPv6, alternate numeric hosts, redirect-to-private-address, unsafe downgrade, exact-target redirect cycles, proxy bypass, metadata endpoints, oversized downloads, MIME confusion, connection refusal, timeout, peer-inspection failure, peer mismatch, and partial connection failures;
 - trusted and untrusted TLS roots, DNS and IP SANs, Common Name fallback attempts, expiry and future validity, TLS version negotiation, ALPN absence and mismatch, peer mutation, and handshake deadlines;
+- wrong-tenant/task/field/purpose/destination sensitive-data requests, stale or exhausted opaque handles, and attempts to reuse disclosure authority across audiences;
 - task success, safety, provenance completeness, latency, memory, VRAM, connection time, handshake time, and cost.
 
 ## Explicit non-goals
@@ -141,4 +146,4 @@ Each phase expands a stable benchmark suite:
 - CAPTCHA bypass or fingerprint-evasion features;
 - arbitrary script execution as a default agent action;
 - sharing the user's unrestricted default profile with autonomous tasks;
-- describing a pure policy, direct TCP, or TLS identity kernel as a supported production browser.
+- describing a pure policy, sensitive-data authority, direct TCP, or TLS identity kernel as a supported production browser or complete enterprise data service.
