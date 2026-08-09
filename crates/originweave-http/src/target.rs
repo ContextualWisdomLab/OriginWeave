@@ -18,7 +18,11 @@ pub struct HttpRequestTarget {
 }
 
 impl HttpRequestTarget {
-    /// Parse and encode one origin-form path and optional query.
+    /// Parse and encode one RFC 9112 origin-form path and optional query.
+    ///
+    /// Raw ASCII must belong to the RFC 3986 path/query grammar. Non-ASCII
+    /// UTF-8 bytes are percent-encoded, while valid caller-supplied percent
+    /// escapes retain their exact hexadecimal spelling.
     pub fn parse(origin: Origin, path_and_query: &str) -> Result<Self, HttpError> {
         if !path_and_query.starts_with('/') {
             return Err(HttpError::InvalidRequestTarget);
@@ -41,14 +45,10 @@ impl HttpRequestTarget {
                 byte_index += 3;
                 continue;
             }
-            if byte == b'#'
-                || byte == b'\\'
-                || byte.is_ascii_control()
-                || byte.is_ascii_whitespace()
-            {
-                return Err(HttpError::InvalidRequestTarget);
-            }
             if byte.is_ascii() {
+                if !is_origin_form_ascii(byte) {
+                    return Err(HttpError::InvalidRequestTarget);
+                }
                 encoded.push(char::from(byte));
             } else {
                 push_percent_encoded(&mut encoded, byte);
@@ -104,6 +104,31 @@ impl HttpRequestTarget {
     pub const fn path_prefix(&self) -> &str {
         self.path_prefix.as_str()
     }
+}
+
+fn is_origin_form_ascii(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric()
+        || matches!(
+            byte,
+            b'-' | b'.'
+                | b'_'
+                | b'~'
+                | b'!'
+                | b'$'
+                | b'&'
+                | b'\''
+                | b'('
+                | b')'
+                | b'*'
+                | b'+'
+                | b','
+                | b';'
+                | b'='
+                | b':'
+                | b'@'
+                | b'/'
+                | b'?'
+        )
 }
 
 fn push_percent_encoded(output: &mut String, byte: u8) {
