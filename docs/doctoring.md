@@ -32,6 +32,12 @@ RFC 9110 models a redirect `Location` as a new target URI and describes reconstr
 
 The pure destination kernel performs no DNS lookup and opens no socket. It approves non-empty origin-bound address sets, authorizes only addresses in the pinned set, permits a refreshed DNS answer to contract to a non-empty subset, and rejects any newly introduced address as a possible rebinding event.
 
+### Proxy server identity and route authority
+
+Chromium models a proxy server as an address together with the proxy scheme used to communicate with it, rather than as the target web origin. Its proxy documentation defines DIRECT, HTTP, HTTPS, SOCKSv4, SOCKSv5, and QUIC schemes; the networked schemes use default ports 80, 443, 1080, 1080, and 443 respectively, and SOCKSv5 accepts both `socks://` and `socks5://` URI forms. Chromium also documents ordinary remote cleartext HTTP proxies such as `http://foo:8080`. OriginWeave therefore models `ProxyServer` separately from `Origin`: an HTTP proxy can be valid routing infrastructure even though an ordinary remote HTTP web origin remains forbidden by OriginWeave's web-origin policy.
+
+Proxy-server identity remains only routing authority. Its scheme, canonical host, and effective port do not grant permission to resolve or connect to that proxy, authenticate to it, issue CONNECT, trust a TLS certificate, or reach the final target. Those remain separate destination, TCP peer, TLS identity, and application-policy boundaries. PAC source authority is likewise separate from the proxy server returned by PAC evaluation. The Chromium proxy evidence used for this contract is pinned to revision `a3e71ebfa307d8760eb68b777e2998a869940092` so later documentation edits cannot silently change the reviewed compatibility basis.
+
 ### Direct TCP peer binding
 
 RFC 9293 consolidates the current Standards Track Transmission Control Protocol and identifies a connection through its endpoint sockets. This does not make a TCP connection equivalent to a web origin or a TLS identity, but it establishes the concrete remote IP address and port that must be compared with destination authority.
@@ -99,6 +105,8 @@ Amazon Web Services. (n.d.). *Set up the Amazon EKS Pod Identity Agent*. Retriev
 Autio, C., Schwartz, R., Dunietz, J., Jain, S., Stanley, M., Tabassi, E., Hall, P., & Roberts, K. (2024). *Artificial intelligence risk management framework: Generative artificial intelligence profile* (NIST AI 600-1). National Institute of Standards and Technology. https://doi.org/10.6028/NIST.AI.600-1
 
 Bonica, R., Cotton, M., Haberman, B., & Vegoda, L. (2017). *Updates to the special-purpose IP address registries* (RFC 8190). Internet Engineering Task Force. https://doi.org/10.17487/RFC8190
+
+Chromium Authors. (n.d.). *Proxy support in Chrome* [Source documentation]. Chromium. https://chromium.googlesource.com/chromium/src/+/a3e71ebfa307d8760eb68b777e2998a869940092/net/docs/proxy.md
 
 Chromium Authors. (2026). *URL canonicalizer unit tests* [Source code]. Chromium. https://chromium.googlesource.com/chromium/src/+/446d05d21720f0b3505ec21057b3e9f909784262/url/url_canon_unittest.cc
 

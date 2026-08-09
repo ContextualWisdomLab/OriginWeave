@@ -30,6 +30,16 @@ Delivered destination-policy foundation:
 - per-hop redirect origin, resolution, HTTPS downgrade, exact-target cycle, and hop-limit reauthorization;
 - credential-free connection and redirect evidence.
 
+Delivered proxy-route authority foundation:
+
+- direct-only routing by default with no ambient proxy inheritance;
+- bounded exact allow-lists for Chromium-compatible proxy server identities and PAC source origins;
+- separate proxy-server schemes for HTTP, HTTPS, SOCKS4, SOCKS5, and QUIC, including scheme-specific default-port canonicalization;
+- separate authority for explicit proxy, PAC-selected proxy, and PAC-selected `DIRECT` routes;
+- exact canonical target origin, proxy server identity, and PAC source origin retained as credential-free route evidence;
+- no DNS, socket I/O, PAC execution, proxy authentication, CONNECT, or Chromium side effect in the policy layer;
+- explicit separation between route authorization and the destination, TCP peer, TLS identity, and live PAC/browser adapters that must enforce the selected route.
+
 Delivered direct TCP foundation:
 
 - an independently reusable `originweave-network` crate;
@@ -66,14 +76,14 @@ Remaining vertical-slice work:
 - perform DNS resolution in a trusted browser-network adapter and prove that Chromium's actual connection consumes the approved snapshot, direct socket authority, and authenticated TLS stream;
 - define the exact interval between resolution approval and socket use and close remaining time-of-check/time-of-use races;
 - define revocation material acquisition and freshness without overstating the current `NotConfigured` evidence;
-- define proxy and PAC behavior explicitly so a proxy cannot silently bypass destination policy;
-- separately authorize every intermediate proxy and final target;
+- implement trusted PAC evaluation and proxy transport adapters that consume explicit route authority without ambient environment fallback;
+- separately authorize and authenticate every intermediate proxy and final target through the applicable destination, transport, and TLS boundaries;
 - re-evaluate the implemented origin, resolved-address, capability, transport, TLS, and action-risk gates on every redirect in the live adapter;
 - bound connection count, response headers, body bytes, redirects, download bytes, and elapsed time;
 - validate download MIME type and declared versus observed content before persistence;
 - retain complete DNS, connection, address, TLS, redirect, proxy, HTTP, and policy-decision evidence without exposing credentials.
 
-A syntactically canonical origin is an identity input, not an SSRF boundary. An approved resolver address is a policy decision, an exact TCP peer is transport evidence, and an authenticated TLS stream is service-identity evidence; none substitutes for proof that Chromium used the governed path or for bounded HTTP semantics. Phase 1 cannot claim safe real navigation until the trusted browser adapter composes all of these boundaries.
+A syntactically canonical origin is an identity input, not an SSRF boundary. A Chromium proxy server identity is a routing input whose scheme is part of its authority and is not interchangeable with the target web origin. An approved resolver address is a policy decision, an exact TCP peer is transport evidence, an authorized proxy route is a routing decision, and an authenticated TLS stream is service-identity evidence; none substitutes for proof that Chromium used the governed path or for bounded HTTP semantics. Phase 1 cannot claim safe real navigation until the trusted browser adapter composes all of these boundaries.
 
 Commercial proof: one controlled workflow completes repeatedly without selector scripts, raw secrets, unverified success, destination-policy bypass, DNS rebinding, peer substitution, TLS identity confusion, unsafe downgrade, redirect cycles, proxy bypass, or unbounded download behavior.
 
@@ -141,4 +151,4 @@ Each phase expands a stable benchmark suite:
 - CAPTCHA bypass or fingerprint-evasion features;
 - arbitrary script execution as a default agent action;
 - sharing the user's unrestricted default profile with autonomous tasks;
-- describing a pure policy, direct TCP, or TLS identity kernel as a supported production browser.
+- describing a pure policy, proxy-route, direct TCP, or TLS identity kernel as a supported production browser.
