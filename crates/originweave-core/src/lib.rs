@@ -234,6 +234,234 @@ pub enum OriginError {
     InvalidPort,
 }
 
+/// A nonzero identity for one active browser automation session.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct BrowserSessionId(u64);
+
+impl BrowserSessionId {
+    /// Validate one adapter-supplied browser-session identifier.
+    pub const fn new(value: u64) -> Result<Self, NodeHandleError> {
+        if value == 0 {
+            return Err(NodeHandleError::InvalidBrowserSessionId);
+        }
+        Ok(Self(value))
+    }
+
+    /// Return the validated browser-session identifier.
+    #[must_use]
+    pub const fn value(self) -> u64 {
+        self.0
+    }
+}
+
+/// A nonzero identity for one independently navigable browser context.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct BrowsingContextId(u64);
+
+impl BrowsingContextId {
+    /// Validate one adapter-supplied browsing-context identifier.
+    pub const fn new(value: u64) -> Result<Self, NodeHandleError> {
+        if value == 0 {
+            return Err(NodeHandleError::InvalidBrowsingContextId);
+        }
+        Ok(Self(value))
+    }
+
+    /// Return the validated browsing-context identifier.
+    #[must_use]
+    pub const fn value(self) -> u64 {
+        self.0
+    }
+}
+
+/// A nonzero identity for one observed browser document lifetime.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct DocumentEpoch(u64);
+
+impl DocumentEpoch {
+    /// Validate one adapter-supplied document epoch.
+    pub const fn new(value: u64) -> Result<Self, NodeHandleError> {
+        if value == 0 {
+            return Err(NodeHandleError::InvalidDocumentEpoch);
+        }
+        Ok(Self(value))
+    }
+
+    /// Return the validated document epoch value.
+    #[must_use]
+    pub const fn value(self) -> u64 {
+        self.0
+    }
+}
+
+/// A node identity bound to the exact session, context, origin, and document that produced it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ObservedNodeHandle {
+    browser_session: BrowserSessionId,
+    browsing_context: BrowsingContextId,
+    origin: Origin,
+    document_epoch: DocumentEpoch,
+    node_id: u64,
+}
+
+impl ObservedNodeHandle {
+    /// Create one authority-bound observed node handle from a nonzero adapter node identifier.
+    pub fn new(
+        browser_session: BrowserSessionId,
+        browsing_context: BrowsingContextId,
+        origin: Origin,
+        document_epoch: DocumentEpoch,
+        node_id: u64,
+    ) -> Result<Self, NodeHandleError> {
+        if node_id == 0 {
+            return Err(NodeHandleError::InvalidNodeId);
+        }
+        Ok(Self {
+            browser_session,
+            browsing_context,
+            origin,
+            document_epoch,
+            node_id,
+        })
+    }
+
+    /// Return the browser session that produced the node observation.
+    #[must_use]
+    pub const fn browser_session(&self) -> BrowserSessionId {
+        self.browser_session
+    }
+
+    /// Return the browsing context that produced the node observation.
+    #[must_use]
+    pub const fn browsing_context(&self) -> BrowsingContextId {
+        self.browsing_context
+    }
+
+    /// Return the canonical origin that produced the node observation.
+    #[must_use]
+    pub const fn origin(&self) -> &Origin {
+        &self.origin
+    }
+
+    /// Return the document epoch that produced the node observation.
+    #[must_use]
+    pub const fn document_epoch(&self) -> DocumentEpoch {
+        self.document_epoch
+    }
+
+    /// Return the adapter-local nonzero node identifier.
+    #[must_use]
+    pub const fn node_id(&self) -> u64 {
+        self.node_id
+    }
+
+    /// Reject use when the session, browsing context, origin, or document epoch has changed.
+    pub fn validate_current(
+        &self,
+        current_session: BrowserSessionId,
+        current_context: BrowsingContextId,
+        current_origin: &Origin,
+        current_epoch: DocumentEpoch,
+    ) -> Result<(), NodeHandleError> {
+        if self.browser_session != current_session {
+            return Err(NodeHandleError::BrowserSessionMismatch {
+                observed: self.browser_session,
+                current: current_session,
+            });
+        }
+        if self.browsing_context != current_context {
+            return Err(NodeHandleError::BrowsingContextMismatch {
+                observed: self.browsing_context,
+                current: current_context,
+            });
+        }
+        if &self.origin != current_origin {
+            return Err(NodeHandleError::OriginMismatch);
+        }
+        if self.document_epoch != current_epoch {
+            return Err(NodeHandleError::StaleDocumentEpoch {
+                observed: self.document_epoch,
+                current: current_epoch,
+            });
+        }
+        Ok(())
+    }
+}
+
+/// A failure to construct or reuse an authority- and document-bound node handle safely.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NodeHandleError {
+    /// Browser-session identifiers are one-based and zero was supplied.
+    InvalidBrowserSessionId,
+    /// Browsing-context identifiers are one-based and zero was supplied.
+    InvalidBrowsingContextId,
+    /// Document epochs are one-based and zero was supplied.
+    InvalidDocumentEpoch,
+    /// Adapter-local node identifiers are one-based and zero was supplied.
+    InvalidNodeId,
+    /// The node handle belongs to a different browser automation session.
+    BrowserSessionMismatch {
+        /// Session that originally produced the node handle.
+        observed: BrowserSessionId,
+        /// Session currently active for the requested action.
+        current: BrowserSessionId,
+    },
+    /// The node handle belongs to a different independently navigable context.
+    BrowsingContextMismatch {
+        /// Context that originally produced the node handle.
+        observed: BrowsingContextId,
+        /// Context currently active for the requested action.
+        current: BrowsingContextId,
+    },
+    /// The browser context is now at a different canonical origin.
+    OriginMismatch,
+    /// The browser context is now at a different document epoch.
+    StaleDocumentEpoch {
+        /// Epoch that originally produced the node handle.
+        observed: DocumentEpoch,
+        /// Epoch currently active in the browser context.
+        current: DocumentEpoch,
+    },
+}
+
+impl fmt::Display for NodeHandleError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidBrowserSessionId => {
+                formatter.write_str("browser session identifier must be nonzero")
+            }
+            Self::InvalidBrowsingContextId => {
+                formatter.write_str("browsing context identifier must be nonzero")
+            }
+            Self::InvalidDocumentEpoch => formatter.write_str("document epoch must be nonzero"),
+            Self::InvalidNodeId => formatter.write_str("observed node identifier must be nonzero"),
+            Self::BrowserSessionMismatch { observed, current } => write!(
+                formatter,
+                "observed node browser session {} does not match current session {}",
+                observed.value(),
+                current.value()
+            ),
+            Self::BrowsingContextMismatch { observed, current } => write!(
+                formatter,
+                "observed node browsing context {} does not match current context {}",
+                observed.value(),
+                current.value()
+            ),
+            Self::OriginMismatch => {
+                formatter.write_str("observed node origin does not match the current origin")
+            }
+            Self::StaleDocumentEpoch { observed, current } => write!(
+                formatter,
+                "observed node document epoch {} is stale; current epoch is {}",
+                observed.value(),
+                current.value()
+            ),
+        }
+    }
+}
+
+impl std::error::Error for NodeHandleError {}
+
 /// An immutable digest of the complete canonical action intent.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ActionIntentDigest {
