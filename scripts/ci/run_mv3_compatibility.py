@@ -36,6 +36,39 @@ FIXTURE_TIMEOUT_SECONDS = 20.0
 MAX_WEBDRIVER_RESPONSE_BYTES = 1_048_576
 W3C_ELEMENT_KEY = "element-6066-11e4-a52e-4f735466cecf"
 PATH_TOKEN_CHARACTERS = frozenset(string.ascii_letters + string.digits + "-_.")
+SURFACE_EVIDENCE_KEYS = (
+    "content",
+    "storage",
+    "storagePersistence",
+    "workerReply",
+    "workerState",
+    "workerStartCount",
+    "dnr",
+    "tabs",
+    "windows",
+    "scripting",
+    "scriptingExecuted",
+    "commands",
+    "sidePanel",
+    "bookmarks",
+    "history",
+    "downloads",
+)
+SURFACE_EVIDENCE_VALUES = frozenset(
+    {"ready", "missing", "initialized", "persisted", "pong", "installed", "blocked"}
+)
+
+
+class CompatibilitySurfaceError(RuntimeError):
+    """Report only bounded fixture-surface state when real-browser evidence does not converge."""
+
+    def __init__(self, observed: dict[str, str]) -> None:
+        self.observed = {
+            key: _safe_surface_value(key, observed[key])
+            for key in SURFACE_EVIDENCE_KEYS
+            if key in observed
+        }
+        super().__init__("Manifest V3 fixture surfaces did not converge")
 
 
 class QuietFixtureHandler(http.server.SimpleHTTPRequestHandler):
@@ -43,6 +76,28 @@ class QuietFixtureHandler(http.server.SimpleHTTPRequestHandler):
 
     def log_message(self, _format: str, *args: object) -> None:
         """Suppress request logs because the fixture contains no diagnostic value."""
+
+
+def _safe_surface_value(key: str, value: str) -> str:
+    """Reduce one controlled DOM evidence value to a non-sensitive diagnostic token."""
+
+    if key == "workerStartCount":
+        return value if value.isdecimal() and len(value) <= 20 else "invalid"
+    return value if value in SURFACE_EVIDENCE_VALUES else "unexpected"
+
+
+def _failure_evidence(error: BaseException) -> dict[str, Any]:
+    """Classify one browser-trial failure without retaining raw exception text."""
+
+    if isinstance(error, CompatibilitySurfaceError):
+        return {"failure_kind": "surface_mismatch", "observed": error.observed}
+    if isinstance(error, json.JSONDecodeError):
+        return {"failure_kind": "json_decode_error"}
+    if isinstance(error, OSError):
+        return {"failure_kind": "io_error"}
+    if isinstance(error, ValueError):
+        return {"failure_kind": "value_error"}
+    return {"failure_kind": "runtime_error"}
 
 
 def _free_loopback_port() -> int:
@@ -214,9 +269,7 @@ return {
             ):
                 return latest
         time.sleep(0.1)
-    raise RuntimeError(
-        f"MV3 fixture did not converge: expected={expected!r}, observed={latest!r}"
-    )
+    raise CompatibilitySurfaceError(latest)
 
 
 def _exercise_real_click(driver_port: int, session_id: str) -> str:
@@ -478,13 +531,13 @@ def main() -> int:
                         trial_number,
                     )
                 )
-            except (OSError, ValueError, RuntimeError, json.JSONDecodeError):
-                trial_results.append(
-                    {
-                        "trial_number": trial_number,
-                        "passed": False,
-                    }
-                )
+            except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+                failed_trial: dict[str, Any] = {
+                    "trial_number": trial_number,
+                    "passed": False,
+                }
+                failed_trial.update(_failure_evidence(exc))
+                trial_results.append(failed_trial)
 
         successful_trials = sum(
             1 for trial in trial_results if trial.get("passed") is True
