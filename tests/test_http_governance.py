@@ -145,6 +145,14 @@ class HttpGovernanceTests(unittest.TestCase):
             source = (SOURCE / relative_path).read_text(encoding="utf-8")
             self.assertIn(marker, source, relative_path)
 
+        exchange_error_contract_module = (
+            "#[cfg(test)]\n"
+            "#[cfg_attr(coverage_nightly, coverage(off))]\n"
+            "#[path = \"tests/exchange_error_contract.rs\"]\n"
+            "mod exchange_error_contract;"
+        )
+        self.assertIn(exchange_error_contract_module, crate_root)
+
         mime_source = (SOURCE / "mime.rs").read_text(encoding="utf-8")
         self.assertNotIn(marker, mime_source)
         self.assertIn('#[path = "tests/mime_contract.rs"]', crate_root)
