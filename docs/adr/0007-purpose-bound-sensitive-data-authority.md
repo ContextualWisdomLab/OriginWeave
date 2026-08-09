@@ -21,14 +21,16 @@ The kernel carries authority metadata but never the protected value. A disclosur
 - task identity;
 - field identity;
 - declared business purpose;
-- destination;
+- canonical destination `Origin`;
 - data classification.
 
-All authority identifiers must be present before policy can grant disclosure or opaque-handle use. Two equally incomplete scopes are not valid authority merely because their missing identifiers compare equal; incomplete authority fails closed.
+All authority identifiers must be present before policy can grant disclosure or opaque-handle use. Two equally incomplete scopes are not valid authority merely because their missing identifiers compare equal; incomplete authority fails closed. The destination must already have crossed the canonical `Origin` parser boundary, so credentials, paths, malformed or ambiguous hosts, unsupported insecure remote schemes, Unicode/control input, and browser-special numeric-host spellings cannot be smuggled into the sensitive-data authority as arbitrary text.
 
-An exact match may return only the explicitly configured disclosure decision: deny, opaque handle only, derived value only, partial field disclosure, full field disclosure, human approval required, or dual control required. Any authority mismatch or incomplete authority fails closed to denial.
+An exact match may return only the explicitly configured disclosure decision: deny, opaque handle only, derived value only, partial field disclosure, full field disclosure, human approval required, or dual control required. Any authority mismatch or incomplete authority fails closed to denial. `HumanApprovalRequired` and `DualControlRequired` are not execution permissions: the caller must collect the required independent approval evidence and re-evaluate the exact same tenant, task, field, purpose, destination, and classification scope before any trusted broker, browser fill, export, or model-disclosure path can proceed. `DenyAccess` terminates the disclosure path.
 
-Opaque handle use is separately bound to tenant, task, field, purpose, destination, exclusive expiry time, and maximum use count. The policy function only authorizes handle use; it does not resolve the handle or return the protected value. Resolution belongs in a later trusted broker or browser adapter that rechecks the same authority immediately before disclosure.
+Opaque handle use is separately bound to tenant, task, field, purpose, canonical destination, exclusive expiry time, and maximum use count. `authorize_handle_use` is intentionally a pure admission predicate: it compares authority, trusted-time input, and broker-recorded prior-use count, but it does not own mutable handle state, resolve a handle, consume a use, or return the protected value. It must never be treated as standalone enforcement by an untrusted caller.
+
+The later trusted broker or browser adapter is the stateful enforcement boundary. Before resolving any protected value, it must obtain trusted time and authoritative, caller-unforgeable handle state; atomically compare the exact scope, exclusive expiry, and current use count; and reserve or increment the use count in the same transaction that grants the use. Concurrent or replayed requests therefore compete for one authoritative count rather than reusing a stale caller-supplied count. Once a use has been successfully reserved, a downstream browser/action failure does not silently refund that use unless a separately specified compensating transaction is both safe and auditable. At the expiry boundary (`now >= expires_at`) no new reservation is permitted. Immediately before release, the broker rechecks that the reserved handle and requested scope still match and that revocation or lifecycle state has not invalidated the disclosure.
 
 The first kernel intentionally does not implement storage, encryption, tokenization, model disclosure, provider or region policy, retention, audit persistence, break-glass access, or a broker. Those remain separate authority and lifecycle boundaries rather than being inferred from this primitive.
 
@@ -36,8 +38,9 @@ The first kernel intentionally does not implement storage, encryption, tokenizat
 
 - Raw protected bytes are structurally absent from the first policy API.
 - A caller with the wrong tenant, task, field, purpose, destination, or classification cannot reuse another disclosure scope.
-- Missing tenant, task, field, purpose, or destination identifiers cannot become authority through equality with another incomplete scope.
-- A stale or exhausted opaque handle fails closed before any value resolution can occur.
+- Missing tenant, task, field, or purpose identifiers cannot become authority through equality with another incomplete scope; destination validity is guaranteed by the canonical `Origin` boundary.
+- A stale or exhausted opaque handle fails closed in the pure predicate, while the future broker must enforce expiry and use-count consumption atomically before value resolution.
+- Approval-required disclosure outcomes cannot fall through directly to execution; the exact scope is re-evaluated after approval evidence is obtained.
 - Later UI, connector, model, export, and browser-fill adapters can reuse the same explicit decision boundary without inheriting ambient authority.
 - The complete enterprise gap is not closed by this kernel; independently reusable storage/broker/service contracts, evidence, lifecycle controls, and end-to-end tests are still required.
 
@@ -55,9 +58,13 @@ Rejected because network or session membership is not a sufficient authorization
 
 Rejected because many actions can operate through opaque handles or deterministic trusted adapters. Model disclosure must remain a separately governed exceptional path.
 
+### Caller-managed handle-use counters
+
+Rejected because two concurrent callers can present the same stale `uses_so_far` value and both appear admissible. The mutable count, trusted clock, revocation state, and compare-and-increment operation belong to the trusted broker's authoritative state boundary.
+
 ## Verification
 
-Tests must prove exact-scope disclosure, denial on every authority-dimension mismatch, fail-closed behavior for incomplete authority, every supported disclosure result, opaque-handle expiry, use-count exhaustion, and destination/audience mismatch. Production function, line, region, and branch coverage remains exactly 100%.
+Tests must prove exact-scope disclosure, canonical destination behavior, denial on every authority-dimension mismatch, fail-closed behavior for incomplete authority, every supported disclosure result, opaque-handle expiry, use-count exhaustion, and destination mismatch. The broker slice must add concurrency, replay, expiry-boundary, post-reservation failure, revocation, and atomic compare-and-increment tests before any protected-value resolution is described as implemented. Production function, line, region, and branch coverage remains exactly 100%.
 
 ## References
 
