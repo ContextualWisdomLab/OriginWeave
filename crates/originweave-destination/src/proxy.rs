@@ -94,10 +94,10 @@ impl ProxyServer {
             return Err(ProxyServerError::InvalidIdentifier);
         }
 
+        let port = explicit_port(authority)?;
         let validation_input = format!("https://{authority}");
         let validated = Origin::parse(&validation_input)
             .map_err(|_error| ProxyServerError::InvalidIdentifier)?;
-        let port = explicit_port(authority)?;
         let host = if validated.host().contains(':') {
             format!("[{}]", validated.host())
         } else {
