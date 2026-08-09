@@ -217,6 +217,16 @@ fn observation_reads_only_the_bounded_prefix() {
 }
 
 #[test]
+fn observation_accepts_utf8_prefix_truncated_mid_scalar() {
+    let mut content = vec![b'a'; MAX_MIME_SNIFF_BYTES - 1];
+    content.extend_from_slice("é".as_bytes());
+    assert_eq!(
+        classify_observed_mime(&content, None).mime_type().essence(),
+        "text/plain"
+    );
+}
+
+#[test]
 fn supplied_and_observed_mismatch_states_are_explicit() {
     let html = classify_observed_mime(b"<html>", None);
     let binary = classify_observed_mime(b"\0", None);
