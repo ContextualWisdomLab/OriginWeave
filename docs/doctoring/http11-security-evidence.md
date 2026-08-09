@@ -1,6 +1,6 @@
 # HTTP/1.1 Redirect and Download-Metadata Security Evidence
 
-This document is an authoritative doctoring addendum for ADR 0007. It records primary-source evidence that changed the bounded HTTP/1.1 redirect and download-metadata contracts on 2026-08-07. References use APA 7th style.
+This document is an authoritative doctoring addendum for ADR 0011. It records primary-source evidence that changed the bounded HTTP/1.1 redirect and download-metadata contracts on 2026-08-07. References use APA 7th style.
 
 ## Redirect-reference authority
 
@@ -28,7 +28,7 @@ The exact pull-request head must demonstrate:
 - preservation of existing control, path, device-name, bidi, length, dot, and whitespace restrictions;
 - Rust formatting, workspace checks, tests, Clippy, and rustdoc;
 - exact 100% production function, line, region, statement, and branch coverage;
-- Security Scan, SAST, required review, and branch-protection gates.
+- Security Scan, SAST, all operationally required current review gates, and branch-protection gates.
 
 ## References
 
