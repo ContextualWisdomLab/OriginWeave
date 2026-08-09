@@ -23,7 +23,24 @@ An ADR becomes Accepted only through normal protected-branch review and merge. C
 | [0005](0005-direct-socket-binding.md) | Exact direct TCP peer binding | Accepted | explicit socket authority and operating-system peer proof |
 | [0006](0006-tls-server-identity.md) | TLS service identity over the verified peer | Accepted | WebPKI identity, roots, time, ALPN and stream binding |
 
-Active feature PRs may contain additional Proposed ADRs. Those ADRs are not added to this protected-main index or described as Accepted until their exact changes merge. When a new ADR lands, update this index in the same protected change or an immediately coupled documentation repair.
+## Proposed target-architecture decisions in this change
+
+The following ADRs make the product-wide target architecture reviewable without promoting it to shipped behavior. They remain **Proposed** until their exact branch is reviewed and merged under protected-main policy. Existing feature PRs may independently carry lower-numbered Proposed ADRs; the `0100` range avoids claiming or conflicting with those active decisions.
+
+| ADR | Decision | Status | Governs |
+|---|---|---|---|
+| [0100](0100-rust-control-plane-boundary.md) | Rust control-plane boundary | Proposed | Rust-owned product authority versus Chromium compatibility kernel |
+| [0101](0101-isolated-execution-profile-modes.md) | Isolated execution/profile modes | Proposed | Human, Assist, Agent Task and Crawler session/profile isolation |
+| [0102](0102-typed-actions-and-arbitrary-js.md) | Typed actions over arbitrary JavaScript authority | Proposed | action API, script escape hatches, risk/policy semantics |
+| [0103](0103-semantic-observation-and-stale-node-identity.md) | Semantic observation precedence and stale-node identity | Proposed | WebMCP/structured/accessibility/DOM/layout/visual precedence and document epochs |
+| [0104](0104-prompt-injection-and-secret-authority.md) | Prompt-injection and secret authority separation | Proposed | untrusted page data, opaque secret handles and broker boundaries |
+| [0105](0105-resource-governor-priority.md) | Resource governor and browser-over-model priority | Proposed | CPU/RAM/GPU/VRAM admission, fallback and tenant fairness |
+| [0106](0106-provenance-evidence-model.md) | Provenance-native evidence model | Proposed | WARC/PROV-style evidence identities, integrity and disclosure |
+| [0107](0107-browser-protocol-adapter-strategy.md) | Versioned browser and agent protocol adapters | Proposed | WebDriver BiDi, CDP, WebMCP, MCP and OriginWeave Protocol boundaries |
+| [0108](0108-crawler-policy.md) | Policy-bound crawler mode | Proposed | robots, rate/resource policy, read-only collection and no-evasion behavior |
+| [0109](0109-hourly-automation-operational-closure.md) | Hourly automation secret ordering and operational closure | Proposed | deterministic gates, model secret boundary, retries and protected-main proof |
+
+Active feature PRs may contain additional Proposed ADRs. Those ADRs are not described as Accepted until their exact changes merge. When an ADR becomes protected-main architecture, update this index in the same protected change or an immediately coupled documentation repair.
 
 ## Decisions that require a dedicated ADR
 
