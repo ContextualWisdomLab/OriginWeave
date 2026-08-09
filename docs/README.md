@@ -18,3 +18,4 @@
 - [ADR 0004: Logical origin and resolved destination safety](adr/0004-resolved-destination-policy.md)
 - [ADR 0005: Exact direct TCP peer binding](adr/0005-direct-socket-binding.md)
 - [ADR 0006: TLS service identity over the verified peer](adr/0006-tls-server-identity.md)
+- [ADR 0007: Purpose-bound sensitive-data authority](adr/0007-purpose-bound-sensitive-data-authority.md)
