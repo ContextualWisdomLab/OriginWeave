@@ -336,6 +336,8 @@ jobs:
                   decoded = unquote(path, errors="strict")
               except UnicodeError:
                   return False
+              if any(ord(character) < 32 or ord(character) == 127 for character in decoded):
+                  return False
               return "\\" not in decoded and not any(
                   segment in {".", ".."} for segment in decoded.split("/")
               )
