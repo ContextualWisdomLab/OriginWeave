@@ -123,6 +123,18 @@ fn handle_scope() -> SensitiveValueHandleScope {
     )
 }
 
+fn valid_handle_use() -> HandleUseRequest {
+    HandleUseRequest::new(
+        "tenant_alpha",
+        "task_ship_order",
+        "shipping_address",
+        "fulfill_order",
+        "https://shipping.example",
+        1_999,
+        0,
+    )
+}
+
 #[test]
 fn opaque_handle_use_is_bound_to_scope_expiry_and_use_count() {
     let scope = handle_scope();
@@ -235,14 +247,41 @@ fn handle_scope_mismatch_covers_every_authority_dimension() {
 
 #[test]
 fn incomplete_authority_never_grants_disclosure_or_handle_use() {
-    let incomplete_request = SensitiveDataRequest::new(
-        "",
-        "task_ship_order",
-        "shipping_address",
-        "fulfill_order",
-        "https://shipping.example",
-        DataClassification::PersonalData,
-    );
+    for incomplete_request in [
+        SensitiveDataRequest::new(
+            "",
+            "task_ship_order",
+            "shipping_address",
+            "fulfill_order",
+            "https://shipping.example",
+            DataClassification::PersonalData,
+        ),
+        SensitiveDataRequest::new(
+            "tenant_alpha",
+            "task_ship_order",
+            "",
+            "fulfill_order",
+            "https://shipping.example",
+            DataClassification::PersonalData,
+        ),
+        SensitiveDataRequest::new(
+            "tenant_alpha",
+            "task_ship_order",
+            "shipping_address",
+            "",
+            "https://shipping.example",
+            DataClassification::PersonalData,
+        ),
+    ] {
+        assert_eq!(
+            evaluate_disclosure(
+                &incomplete_request,
+                &shipping_scope(DisclosureDecision::FullFieldDisclosure),
+            ),
+            DisclosureDecision::DenyAccess
+        );
+    }
+
     let incomplete_scope = DisclosureScope::new(
         "",
         "task_ship_order",
@@ -253,19 +292,24 @@ fn incomplete_authority_never_grants_disclosure_or_handle_use() {
         DisclosureDecision::FullFieldDisclosure,
     );
     assert_eq!(
-        evaluate_disclosure(&incomplete_request, &incomplete_scope),
+        evaluate_disclosure(&shipping_request(), &incomplete_scope),
         DisclosureDecision::DenyAccess
     );
 
     let incomplete_handle_scope = SensitiveValueHandleScope::new(
-        "tenant_alpha",
         "",
+        "task_ship_order",
         "shipping_address",
         "fulfill_order",
         "https://shipping.example",
         2_000,
         2,
     );
+    assert_eq!(
+        authorize_handle_use(&valid_handle_use(), &incomplete_handle_scope),
+        HandleUseDecision::ScopeMismatch
+    );
+
     let incomplete_handle_use = HandleUseRequest::new(
         "tenant_alpha",
         "",
@@ -276,7 +320,7 @@ fn incomplete_authority_never_grants_disclosure_or_handle_use() {
         0,
     );
     assert_eq!(
-        authorize_handle_use(&incomplete_handle_use, &incomplete_handle_scope),
+        authorize_handle_use(&incomplete_handle_use, &handle_scope()),
         HandleUseDecision::ScopeMismatch
     );
 }
