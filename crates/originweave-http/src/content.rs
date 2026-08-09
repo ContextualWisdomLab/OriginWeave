@@ -231,6 +231,24 @@ mod tests {
     }
 
     #[test]
+    fn gzip_rejects_concatenated_members_and_trailing_bytes() {
+        let first = gzip(b"first member");
+        let second = gzip(b"second member");
+        for suffix in [second, b"trailing bytes".to_vec()] {
+            let mut encoded = first.clone();
+            encoded.extend_from_slice(&suffix);
+            assert!(matches!(
+                decode_content(
+                    &encoded,
+                    &fields(&[("content-encoding", b"gzip")]),
+                    &policy(1_024, 1_024, 32),
+                ),
+                Err(HttpError::ContentDecodingFailed { .. })
+            ));
+        }
+    }
+
+    #[test]
     fn multiple_empty_and_unknown_codings_are_rejected() {
         for entries in [
             vec![("content-encoding", b"".as_slice())],
