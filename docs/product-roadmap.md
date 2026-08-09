@@ -33,9 +33,10 @@ Delivered destination-policy foundation:
 Delivered proxy-route authority foundation:
 
 - direct-only routing by default with no ambient proxy inheritance;
-- bounded exact allow-lists for explicit proxy origins and PAC source origins;
+- bounded exact allow-lists for Chromium-compatible proxy server identities and PAC source origins;
+- separate proxy-server schemes for HTTP, HTTPS, SOCKS4, SOCKS5, and QUIC, including scheme-specific default-port canonicalization;
 - separate authority for explicit proxy, PAC-selected proxy, and PAC-selected `DIRECT` routes;
-- exact canonical target, proxy, and PAC origins retained as credential-free route evidence;
+- exact canonical target origin, proxy server identity, and PAC source origin retained as credential-free route evidence;
 - no DNS, socket I/O, PAC execution, proxy authentication, CONNECT, or Chromium side effect in the policy layer;
 - explicit separation between route authorization and the destination, TCP peer, TLS identity, and live PAC/browser adapters that must enforce the selected route.
 
@@ -82,7 +83,7 @@ Remaining vertical-slice work:
 - validate download MIME type and declared versus observed content before persistence;
 - retain complete DNS, connection, address, TLS, redirect, proxy, HTTP, and policy-decision evidence without exposing credentials.
 
-A syntactically canonical origin is an identity input, not an SSRF boundary. An approved resolver address is a policy decision, an exact TCP peer is transport evidence, an authorized proxy route is a routing decision, and an authenticated TLS stream is service-identity evidence; none substitutes for proof that Chromium used the governed path or for bounded HTTP semantics. Phase 1 cannot claim safe real navigation until the trusted browser adapter composes all of these boundaries.
+A syntactically canonical origin is an identity input, not an SSRF boundary. A Chromium proxy server identity is a routing input whose scheme is part of its authority and is not interchangeable with the target web origin. An approved resolver address is a policy decision, an exact TCP peer is transport evidence, an authorized proxy route is a routing decision, and an authenticated TLS stream is service-identity evidence; none substitutes for proof that Chromium used the governed path or for bounded HTTP semantics. Phase 1 cannot claim safe real navigation until the trusted browser adapter composes all of these boundaries.
 
 Commercial proof: one controlled workflow completes repeatedly without selector scripts, raw secrets, unverified success, destination-policy bypass, DNS rebinding, peer substitution, TLS identity confusion, unsafe downgrade, redirect cycles, proxy bypass, or unbounded download behavior.
 
