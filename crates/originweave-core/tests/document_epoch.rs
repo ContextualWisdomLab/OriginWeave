@@ -2,6 +2,8 @@
 
 use originweave_core::{DocumentEpoch, NodeHandleError, ObservedNodeHandle, Origin};
 
+fn assert_standard_error<T: std::error::Error>() {}
+
 #[test]
 fn document_epochs_and_node_handles_reject_invalid_identifiers() {
     assert_eq!(
@@ -42,4 +44,36 @@ fn a_node_handle_is_valid_only_for_its_exact_origin_and_document_epoch() {
         handle.validate_current(&other_origin, observed_epoch),
         Err(NodeHandleError::OriginMismatch)
     );
+}
+
+#[test]
+fn node_handle_errors_are_standard_and_deterministic_for_adapters() {
+    assert_standard_error::<NodeHandleError>();
+
+    let observed = DocumentEpoch::new(7).expect("document epoch");
+    let current = DocumentEpoch::new(8).expect("document epoch");
+    let cases = [
+        (
+            NodeHandleError::InvalidDocumentEpoch,
+            "document epoch must be nonzero".to_owned(),
+        ),
+        (
+            NodeHandleError::InvalidNodeId,
+            "observed node identifier must be nonzero".to_owned(),
+        ),
+        (
+            NodeHandleError::OriginMismatch,
+            "observed node origin does not match the current origin".to_owned(),
+        ),
+        (
+            NodeHandleError::StaleDocumentEpoch { observed, current },
+            "observed node document epoch 7 is stale; current epoch is 8".to_owned(),
+        ),
+    ];
+
+    for (error, expected) in cases {
+        assert_eq!(error.to_string(), expected);
+        let standard: &dyn std::error::Error = &error;
+        assert!(standard.source().is_none());
+    }
 }
