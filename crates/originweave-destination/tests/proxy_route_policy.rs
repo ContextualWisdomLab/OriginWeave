@@ -17,7 +17,7 @@ fn proxy(value: &str) -> ProxyServer {
 #[test]
 fn direct_only_default_rejects_proxy_and_pac_routes() {
     let target = origin("https://target.example");
-    let proxy = proxy("http://proxy.example:8080");
+    let proxy_server = proxy("http://proxy.example:8080");
     let pac = origin("https://config.example");
     let policy = ProxyRoutePolicy::default();
     assert_eq!(policy, ProxyRoutePolicy::direct_only());
@@ -34,10 +34,12 @@ fn direct_only_default_rejects_proxy_and_pac_routes() {
         policy.authorize(
             &target,
             &ProxyRoute::ExplicitProxy {
-                proxy_server: proxy.clone(),
+                proxy_server: proxy_server.clone(),
             },
         ),
-        Err(ProxyRouteError::ProxyServerDenied { server: proxy })
+        Err(ProxyRouteError::ProxyServerDenied {
+            server: proxy_server,
+        })
     );
     assert_eq!(
         policy.authorize(
@@ -83,11 +85,11 @@ fn explicit_proxy_authority_uses_canonical_server_identity() {
 #[test]
 fn pac_selected_proxy_requires_both_authority_boundaries() {
     let target = origin("https://target.example");
-    let proxy = proxy("socks5://proxy.example:1080");
+    let proxy_server = proxy("socks5://proxy.example:1080");
     let pac = origin("https://config.example");
     let other_proxy = proxy("https://other-proxy.example:8443");
     let other_pac = origin("https://other-config.example");
-    let policy = ProxyRoutePolicy::new(false, vec![proxy.clone()], vec![pac.clone()])
+    let policy = ProxyRoutePolicy::new(false, vec![proxy_server.clone()], vec![pac.clone()])
         .expect("bounded PAC policy must be valid");
 
     let evidence = policy
@@ -95,12 +97,12 @@ fn pac_selected_proxy_requires_both_authority_boundaries() {
             &target,
             &ProxyRoute::PacProxy {
                 pac_origin: pac.clone(),
-                proxy_server: proxy.clone(),
+                proxy_server: proxy_server.clone(),
             },
         )
         .expect("PAC source and selected proxy server are separately authorized");
     assert_eq!(evidence.route_kind(), ProxyRouteKind::PacProxy);
-    assert_eq!(evidence.proxy_server(), Some(&proxy));
+    assert_eq!(evidence.proxy_server(), Some(&proxy_server));
     assert_eq!(evidence.pac_origin(), Some(&pac));
 
     assert_eq!(
@@ -120,7 +122,7 @@ fn pac_selected_proxy_requires_both_authority_boundaries() {
             &target,
             &ProxyRoute::PacProxy {
                 pac_origin: other_pac.clone(),
-                proxy_server: proxy,
+                proxy_server,
             },
         ),
         Err(ProxyRouteError::PacOriginDenied { origin: other_pac })
