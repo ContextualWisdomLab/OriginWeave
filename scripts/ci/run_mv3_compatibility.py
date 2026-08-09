@@ -10,17 +10,17 @@ storage, declarative-net-request, and real browser-click behavior.
 from __future__ import annotations
 
 import contextlib
+import http.client
 import http.server
 import json
 import os
 import pathlib
 import socket
+import string
 import subprocess
 import tempfile
 import threading
 import time
-import urllib.error
-import urllib.request
 from typing import Any
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -30,7 +30,9 @@ PINNED_CHROME_REVISION = "r1639810"
 REQUEST_TIMEOUT_SECONDS = 5.0
 STARTUP_TIMEOUT_SECONDS = 20.0
 FIXTURE_TIMEOUT_SECONDS = 20.0
+MAX_WEBDRIVER_RESPONSE_BYTES = 1_048_576
 W3C_ELEMENT_KEY = "element-6066-11e4-a52e-4f735466cecf"
+PATH_TOKEN_CHARACTERS = frozenset(string.ascii_letters + string.digits + "-_")
 
 
 class QuietFixtureHandler(http.server.SimpleHTTPRequestHandler):
@@ -48,28 +50,59 @@ def _free_loopback_port() -> int:
         return int(sock.getsockname()[1])
 
 
+def _path_token(value: str, label: str) -> str:
+    """Validate one ChromeDriver-issued identifier before interpolating a path."""
+
+    if not value or len(value) > 256 or any(char not in PATH_TOKEN_CHARACTERS for char in value):
+        raise RuntimeError(f"invalid WebDriver {label}")
+    return value
+
+
+def _webdriver_path(session_id: str, suffix: str) -> str:
+    """Build one bounded ChromeDriver path from a validated session identifier."""
+
+    safe_session = _path_token(session_id, "session identifier")
+    if not suffix.startswith("/") or "://" in suffix or any(char in suffix for char in "\r\n"):
+        raise RuntimeError("invalid WebDriver path suffix")
+    return f"/session/{safe_session}{suffix}"
+
+
 def _json_request(
+    driver_port: int,
     method: str,
-    url: str,
+    path: str,
     payload: dict[str, Any] | None = None,
     *,
     timeout: float = REQUEST_TIMEOUT_SECONDS,
 ) -> dict[str, Any]:
-    """Issue one bounded JSON WebDriver request and return its decoded object."""
+    """Issue one bounded JSON request to the fixed loopback ChromeDriver authority."""
+
+    if not 1 <= driver_port <= 65_535:
+        raise ValueError("invalid ChromeDriver port")
+    if method not in {"GET", "POST", "DELETE"}:
+        raise ValueError("unsupported ChromeDriver method")
+    if not path.startswith("/") or "://" in path or any(char in path for char in "\r\n"):
+        raise ValueError("invalid ChromeDriver path")
 
     body = None if payload is None else json.dumps(payload).encode("utf-8")
-    request = urllib.request.Request(
-        url,
-        data=body,
-        method=method,
-        headers={"Content-Type": "application/json"},
-    )
+    connection = http.client.HTTPConnection("127.0.0.1", driver_port, timeout=timeout)
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            raw = response.read(1_048_576)
-    except urllib.error.HTTPError as exc:
-        detail = exc.read(65_536).decode("utf-8", errors="replace")
-        raise RuntimeError(f"WebDriver HTTP {exc.code}: {detail}") from exc
+        connection.request(
+            method,
+            path,
+            body=body,
+            headers={"Content-Type": "application/json"},
+        )
+        response = connection.getresponse()
+        raw = response.read(MAX_WEBDRIVER_RESPONSE_BYTES + 1)
+        if len(raw) > MAX_WEBDRIVER_RESPONSE_BYTES:
+            raise RuntimeError("WebDriver response exceeded the bounded JSON limit")
+        if response.status >= 400:
+            detail = raw.decode("utf-8", errors="replace")
+            raise RuntimeError(f"WebDriver HTTP {response.status}: {detail}")
+    finally:
+        connection.close()
+
     decoded = json.loads(raw.decode("utf-8"))
     if not isinstance(decoded, dict):
         raise RuntimeError("WebDriver returned a non-object JSON payload")
@@ -79,34 +112,35 @@ def _json_request(
     return decoded
 
 
-def _wait_for_driver(base_url: str) -> None:
+def _wait_for_driver(driver_port: int) -> None:
     """Wait for the exact local ChromeDriver process to become ready."""
 
     deadline = time.monotonic() + STARTUP_TIMEOUT_SECONDS
     last_error: Exception | None = None
     while time.monotonic() < deadline:
         try:
-            status = _json_request("GET", f"{base_url}/status", timeout=1.0)
+            status = _json_request(driver_port, "GET", "/status", timeout=1.0)
             if status.get("value", {}).get("ready") is True:
                 return
-        except (OSError, ValueError, RuntimeError) as exc:
+        except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
             last_error = exc
         time.sleep(0.1)
     raise RuntimeError(f"ChromeDriver did not become ready: {last_error}")
 
 
-def _execute(base_url: str, session_id: str, script: str) -> Any:
+def _execute(driver_port: int, session_id: str, script: str) -> Any:
     """Run fixture-only JavaScript through the test WebDriver session."""
 
     response = _json_request(
+        driver_port,
         "POST",
-        f"{base_url}/session/{session_id}/execute/sync",
+        _webdriver_path(session_id, "/execute/sync"),
         {"script": script, "args": []},
     )
     return response.get("value")
 
 
-def _wait_for_extension_evidence(base_url: str, session_id: str) -> dict[str, str]:
+def _wait_for_extension_evidence(driver_port: int, session_id: str) -> dict[str, str]:
     """Wait until every controlled MV3 fixture surface reports its expected result."""
 
     script = """
@@ -128,7 +162,7 @@ return {
     deadline = time.monotonic() + FIXTURE_TIMEOUT_SECONDS
     latest: dict[str, str] = {}
     while time.monotonic() < deadline:
-        value = _execute(base_url, session_id, script)
+        value = _execute(driver_port, session_id, script)
         if isinstance(value, dict):
             latest = {str(key): str(item) for key, item in value.items()}
             if latest == expected:
@@ -137,33 +171,40 @@ return {
     raise RuntimeError(f"MV3 fixture did not converge: expected={expected!r}, observed={latest!r}")
 
 
-def _exercise_real_click(base_url: str, session_id: str) -> str:
+def _exercise_real_click(driver_port: int, session_id: str) -> str:
     """Use the WebDriver element-click command and verify the DOM post-condition."""
 
     found = _json_request(
+        driver_port,
         "POST",
-        f"{base_url}/session/{session_id}/element",
+        _webdriver_path(session_id, "/element"),
         {"using": "css selector", "value": "#fixture-button"},
     )
     element = found.get("value", {})
     element_id = element.get(W3C_ELEMENT_KEY) if isinstance(element, dict) else None
-    if not isinstance(element_id, str) or not element_id:
+    if not isinstance(element_id, str):
         raise RuntimeError("WebDriver did not return a W3C element identifier")
+    safe_element = _path_token(element_id, "element identifier")
     _json_request(
+        driver_port,
         "POST",
-        f"{base_url}/session/{session_id}/element/{element_id}/click",
+        _webdriver_path(session_id, f"/element/{safe_element}/click"),
         {},
     )
     output = _json_request(
+        driver_port,
         "POST",
-        f"{base_url}/session/{session_id}/element",
+        _webdriver_path(session_id, "/element"),
         {"using": "css selector", "value": "#fixture-output"},
     ).get("value", {})
     output_id = output.get(W3C_ELEMENT_KEY) if isinstance(output, dict) else None
-    if not isinstance(output_id, str) or not output_id:
+    if not isinstance(output_id, str):
         raise RuntimeError("WebDriver did not return the fixture output element")
+    safe_output = _path_token(output_id, "element identifier")
     text = _json_request(
-        "GET", f"{base_url}/session/{session_id}/element/{output_id}/text"
+        driver_port,
+        "GET",
+        _webdriver_path(session_id, f"/element/{safe_output}/text"),
     ).get("value")
     if text != "clicked":
         raise RuntimeError(f"real click post-condition failed: {text!r}")
@@ -192,7 +233,6 @@ def main() -> int:
     fixture_thread.start()
 
     driver_port = _free_loopback_port()
-    driver_url = f"http://127.0.0.1:{driver_port}"
     session_id: str | None = None
     started = time.monotonic()
 
@@ -204,10 +244,11 @@ def main() -> int:
             text=True,
         )
         try:
-            _wait_for_driver(driver_url)
+            _wait_for_driver(driver_port)
             session = _json_request(
+                driver_port,
                 "POST",
-                f"{driver_url}/session",
+                "/session",
                 {
                     "capabilities": {
                         "alwaysMatch": {
@@ -233,11 +274,14 @@ def main() -> int:
             ).get("value", {})
             if not isinstance(session, dict):
                 raise RuntimeError("ChromeDriver session response is malformed")
-            session_id = session.get("sessionId")
+            raw_session_id = session.get("sessionId")
             capabilities = session.get("capabilities", {})
-            if not isinstance(session_id, str) or not session_id:
+            if not isinstance(raw_session_id, str):
                 raise RuntimeError("ChromeDriver did not return a session id")
-            browser_version = capabilities.get("browserVersion") if isinstance(capabilities, dict) else None
+            session_id = _path_token(raw_session_id, "session identifier")
+            browser_version = (
+                capabilities.get("browserVersion") if isinstance(capabilities, dict) else None
+            )
             if browser_version != PINNED_CHROME_VERSION:
                 raise RuntimeError(
                     f"unexpected Chrome version: expected {PINNED_CHROME_VERSION}, got {browser_version!r}"
@@ -245,12 +289,13 @@ def main() -> int:
 
             fixture_url = f"http://127.0.0.1:{fixture_server.server_port}/page.html"
             _json_request(
+                driver_port,
                 "POST",
-                f"{driver_url}/session/{session_id}/url",
+                _webdriver_path(session_id, "/url"),
                 {"url": fixture_url},
             )
-            surfaces = _wait_for_extension_evidence(driver_url, session_id)
-            click_result = _exercise_real_click(driver_url, session_id)
+            surfaces = _wait_for_extension_evidence(driver_port, session_id)
+            click_result = _exercise_real_click(driver_port, session_id)
             evidence = {
                 "chrome_version": browser_version,
                 "chrome_revision": PINNED_CHROME_REVISION,
@@ -270,7 +315,12 @@ def main() -> int:
         finally:
             if session_id is not None:
                 with contextlib.suppress(Exception):
-                    _json_request("DELETE", f"{driver_url}/session/{session_id}", {})
+                    _json_request(
+                        driver_port,
+                        "DELETE",
+                        _webdriver_path(session_id, ""),
+                        {},
+                    )
             driver.terminate()
             try:
                 driver.wait(timeout=5)
