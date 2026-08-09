@@ -29,7 +29,9 @@ Chromium is an untrusted-complexity compatibility kernel, not the policy authori
 
 ## Decision
 
-Chromium remains the compatibility kernel. New OriginWeave product behavior is implemented in Rust control-plane modules connected through narrow, validated, versioned adapters. Chromium patches are limited to integration points that cannot be supplied safely through WebDriver BiDi, stable CDP surfaces, Mojo, extension APIs, or an external process boundary. Any tip-of-tree or experimental browser interface remains behind an OriginWeave-owned adapter and cannot become the sole source of product authority.
+Chromium remains the compatibility kernel. New OriginWeave product behavior is implemented in Rust control-plane modules connected through narrow, validated, versioned adapters. Chromium patches are limited to integration points that cannot be supplied safely through WebDriver BiDi, stable or pinned CDP surfaces, Mojo, extension APIs, or an external process boundary. Any tip-of-tree or experimental browser interface remains behind an OriginWeave-owned adapter and cannot become the sole source of product authority.
+
+Chromium's sandbox, multi-process model, and Site Isolation remain security boundaries that OriginWeave preserves rather than replacing. OriginWeave nevertheless assumes renderer compromise is possible and keeps privileged policy/secret/evidence decisions outside renderer authority. Chromium's Rust support and supported C++/Rust interoperability mechanisms are implementation inputs, not permission to move unvalidated browser types directly across the control-plane boundary.
 
 ## Consequences
 
@@ -67,4 +69,18 @@ Supersede this ADR only if another engine or an OriginWeave-owned engine demonst
 
 ## References
 
-See `docs/doctoring.md` and `docs/doctoring/product-documentation-baseline.md` for current Chromium, CDP, WebMCP, WebDriver BiDi, and related standards evidence.
+Chromium. (n.d.-a). *Getting started with Rust in Chromium*. Chromium source documentation. Retrieved August 9, 2026, from https://chromium.googlesource.com/chromium/src/+/refs/heads/main/docs/rust/README.md
+
+Chromium. (n.d.-b). *Process model and Site Isolation*. Chromium source documentation. Retrieved August 9, 2026, from https://chromium.googlesource.com/chromium/src.git/+/refs/heads/main/docs/process_model_and_site_isolation.md
+
+Chromium. (n.d.-c). *Sandbox*. Chromium source documentation. Retrieved August 9, 2026, from https://chromium.googlesource.com/chromium/src/+/main/docs/design/sandbox.md
+
+Chromium. (n.d.-d). *Threat model and defenses against compromised renderers*. Chromium source documentation. Retrieved August 9, 2026, from https://chromium.googlesource.com/chromium/src.git/+/main/docs/security/compromised-renderers.md
+
+Chrome DevTools Protocol. (2026). *Chrome DevTools Protocol — latest (tip-of-tree)*. Chromium. Retrieved August 9, 2026, from https://chromedevtools.github.io/devtools-protocol/tot/
+
+World Wide Web Consortium. (2026, June 29). *WebDriver BiDi* [Working Draft]. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260629/
+
+## Related documents
+
+See `docs/doctoring.md`, `docs/doctoring/product-documentation-baseline.md`, and ADR 0100 for current Rust/protocol evidence.
