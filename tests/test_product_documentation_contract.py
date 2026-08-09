@@ -198,9 +198,17 @@ class ProductDocumentationContractTests(unittest.TestCase):
 
         uml = (ROOT / "docs/uml/README.md").read_text(encoding="utf-8")
         erd = (ROOT / "docs/erd/README.md").read_text(encoding="utf-8")
-        self.assertGreaterEqual(uml.count("```mermaid"), 4)
+        self.assertGreaterEqual(uml.count("```mermaid"), 8)
         self.assertIn("sequenceDiagram", uml)
         self.assertIn("stateDiagram-v2", uml)
+        for heading in (
+            "Secret-fill sequence",
+            "Read/write risk approval flow",
+            "Resource-pressure and fallback flow",
+            "Hourly product-development gate-to-model flow",
+        ):
+            with self.subTest(heading=heading):
+                self.assertIn(heading, uml)
         self.assertIn("erDiagram", erd)
         for entity in (
             "agent_session",
