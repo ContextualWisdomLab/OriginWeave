@@ -2,7 +2,8 @@
 
 use std::io::{self, Read};
 
-use flate2::read::{GzDecoder, ZlibDecoder};
+use flate2::bufread::GzDecoder;
+use flate2::read::ZlibDecoder;
 
 use crate::field::{FieldBlock, trim_optional_whitespace};
 use crate::{HttpClientPolicy, HttpError};
@@ -44,10 +45,22 @@ pub(crate) fn decode_content(
             enforce_decoded_limits(encoded.len(), encoded.len(), policy)?;
             encoded.to_vec()
         }
-        ContentCoding::Gzip => decode_reader(GzDecoder::new(encoded), encoded.len(), policy)?,
+        ContentCoding::Gzip => decode_gzip(encoded, policy)?,
         ContentCoding::Deflate => decode_reader(ZlibDecoder::new(encoded), encoded.len(), policy)?,
     };
     Ok(DecodedContent { bytes, coding })
+}
+
+fn decode_gzip(encoded: &[u8], policy: &HttpClientPolicy) -> Result<Vec<u8>, HttpError> {
+    let mut decoder = GzDecoder::new(encoded);
+    let decoded = decode_reader(&mut decoder, encoded.len(), policy)?;
+    if !decoder.into_inner().is_empty() {
+        return Err(content_decoding_error(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "unexpected bytes after the first gzip member",
+        )));
+    }
+    Ok(decoded)
 }
 
 fn select_content_coding(values: &[&[u8]]) -> Result<ContentCoding, HttpError> {
