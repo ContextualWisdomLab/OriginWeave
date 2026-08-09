@@ -32,6 +32,8 @@ The OriginWeave Protocol and Rust control plane own product semantics. WebDriver
 
 OriginWeave exposes its own versioned protocol for session, observation, query, typed action, policy/evidence, secret-handle, resource, and lifecycle semantics. Browser and ecosystem adapters map that protocol to supported WebDriver BiDi, stable or pinned CDP, WebMCP, and MCP surfaces. Prefer standards-track BiDi when it satisfies the contract. Use Chromium-specific CDP only behind versioned adapter capability declarations. Treat WebMCP outputs as untrusted page/tool observations. Treat MCP as an external integration boundary, not a source of OriginWeave authority. Experimental/tip-of-tree surfaces are optional and must have fallback or explicit unsupported behavior.
 
+MCP version negotiation is independent of the OriginWeave Protocol version. As of this review, MCP `2026-07-28` is the current released protocol generation; a future MCP change does not silently alter OriginWeave task, approval, secret, tenant, or browser semantics. MCP tool/resource content remains untrusted input and any server-to-client/user interaction capability is mediated by the same OriginWeave policy/approval boundaries as other adapter traffic.
+
 ## Consequences
 
 OriginWeave carries adapter maintenance and version negotiation but gains a durable customer API. Multiple browser/control transports can coexist. New upstream capabilities do not silently change risk or action semantics. Compatibility matrices become release artifacts.
@@ -42,15 +44,15 @@ Adapter negotiation failure disables only affected capabilities. Unsupported or 
 
 ## Security / privacy / governance impact
 
-Protocol validation occurs before messages influence policy. Tool/page-provided strings remain untrusted. Secret handles never become raw protocol payloads except inside a separately authorized broker-to-browser delivery path. Adapter version/provenance is recorded for audit and incident reconstruction.
+Protocol validation occurs before messages influence policy. Tool/page-provided strings remain untrusted. Secret handles never become raw secret protocol payloads; only the separately authorized trusted broker-to-browser delivery path may materialize the value, and that value does not pass through MCP, WebMCP, BiDi observation, or model-visible CDP output. Adapter version/provenance is recorded for audit and incident reconstruction.
 
 ## Tests and acceptance evidence
 
-Require version-negotiation tests, schema/property tests, malformed-message tests, BiDi/CDP semantic parity tests for shared capabilities, WebMCP prompt-injection tests, MCP authority-separation tests, browser-version compatibility matrices, and end-to-end proof that unsupported capabilities fail without side effects.
+Require version-negotiation tests, schema/property tests, malformed-message tests, BiDi/CDP semantic parity tests for shared capabilities, WebMCP prompt-injection tests, MCP authority-separation and version-change tests, browser-version compatibility matrices, and end-to-end proof that unsupported capabilities fail without side effects.
 
 ## Migration and rollback
 
-Adapters are independently versioned and can be canaried. Clients migrate through OriginWeave Protocol compatibility rules, not upstream protocol rewrites. Rollback pins a previously supported adapter/browser pair and records that pair in provenance.
+Adapters are independently versioned and can be canaried. Clients migrate through OriginWeave Protocol compatibility rules, not upstream protocol rewrites. Rollback pins a previously supported adapter/browser/protocol pair and records that pair in provenance.
 
 ## Open follow-ups
 
@@ -62,4 +64,14 @@ Supersede if one mature standard gains all required capabilities, stable compati
 
 ## References
 
-See `docs/API_CONTRACT.md`, `docs/TRD.md`, `docs/doctoring/product-documentation-baseline.md`, and current W3C/Chromium/MCP primary documentation recorded there.
+Chrome DevTools Protocol. (2026). *Chrome DevTools Protocol — latest (tip-of-tree)*. Chromium. Retrieved August 9, 2026, from https://chromedevtools.github.io/devtools-protocol/tot/
+
+Chrome DevTools Protocol. (2026). *WebMCP domain*. Chromium. Retrieved August 9, 2026, from https://chromedevtools.github.io/devtools-protocol/tot/WebMCP/
+
+Parra, D. S., & Delimarsky, D. (2026, July 28). *The 2026-07-28 specification*. Model Context Protocol Blog. https://blog.modelcontextprotocol.io/posts/2026-07-28/
+
+World Wide Web Consortium. (2026, June 29). *WebDriver BiDi* [Working Draft]. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260629/
+
+## Related documents
+
+See `docs/API_CONTRACT.md`, `docs/TRD.md`, `docs/doctoring/product-documentation-baseline.md`, and `docs/DATA_GOVERNANCE.md`.
