@@ -6,6 +6,8 @@
 
 use originweave_core::Origin;
 
+const MAX_AUTHORITY_IDENTIFIER_BYTES: usize = 128;
+
 /// Classification applied to one protected field before disclosure policy runs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DataClassification {
@@ -69,11 +71,19 @@ impl AuthorityScope {
     }
 
     fn is_complete(&self) -> bool {
-        !self.tenant_id.is_empty()
-            && !self.task_id.is_empty()
-            && !self.field_id.is_empty()
-            && !self.purpose_id.is_empty()
+        authority_identifier_is_valid(&self.tenant_id)
+            && authority_identifier_is_valid(&self.task_id)
+            && authority_identifier_is_valid(&self.field_id)
+            && authority_identifier_is_valid(&self.purpose_id)
     }
+}
+
+fn authority_identifier_is_valid(identifier: &str) -> bool {
+    !identifier.is_empty()
+        && identifier.len() <= MAX_AUTHORITY_IDENTIFIER_BYTES
+        && identifier.bytes().all(|byte| {
+            byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b':' | b'-')
+        })
 }
 
 /// One requested disclosure, without carrying the protected field value.
@@ -85,6 +95,10 @@ pub struct SensitiveDataRequest {
 
 impl SensitiveDataRequest {
     /// Build a request bound to an exact tenant, task, field, purpose, validated destination, and class.
+    ///
+    /// Authority identifiers are admitted only as 1–128 byte ASCII policy tokens using
+    /// alphanumeric characters plus `.`, `_`, `:`, and `-`; invalid identifiers remain
+    /// fail-closed when the request is evaluated.
     #[must_use]
     pub fn new(
         tenant_id: &str,
@@ -111,6 +125,9 @@ pub struct DisclosureScope {
 
 impl DisclosureScope {
     /// Build an exact disclosure authority scope and its maximum permitted outcome.
+    ///
+    /// Authority identifiers use the same bounded ASCII policy-token contract as
+    /// [`SensitiveDataRequest`]; malformed scopes never grant disclosure.
     #[must_use]
     pub fn new(
         tenant_id: &str,
@@ -131,8 +148,8 @@ impl DisclosureScope {
 
 /// Evaluate disclosure only from the exact request and explicit authority scope.
 ///
-/// An incomplete authority scope fails closed even when both sides contain the
-/// same missing identifier.
+/// An incomplete or malformed authority scope fails closed even when both sides
+/// contain the same invalid identifier.
 #[must_use]
 pub fn evaluate_disclosure(
     request: &SensitiveDataRequest,
@@ -172,6 +189,9 @@ pub struct SensitiveValueHandleScope {
 
 impl SensitiveValueHandleScope {
     /// Build an opaque-handle scope with an exclusive expiry and bounded use count.
+    ///
+    /// Authority identifiers use the same bounded ASCII policy-token contract as
+    /// disclosure requests and scopes.
     #[must_use]
     pub fn new(
         tenant_id: &str,
@@ -203,7 +223,8 @@ impl HandleUseRequest {
     ///
     /// The eventual broker must supply these state values from its own trusted,
     /// caller-unforgeable storage; accepting this struct does not make arbitrary
-    /// caller input authoritative.
+    /// caller input authoritative. Authority identifiers use the same bounded ASCII
+    /// policy-token contract as disclosure requests and scopes.
     #[must_use]
     pub fn new(
         tenant_id: &str,
@@ -229,8 +250,9 @@ impl HandleUseRequest {
 /// enforcement. A trusted broker must obtain trusted time and caller-unforgeable
 /// handle state, atomically reserve or increment the use count before value
 /// resolution, and recheck the reserved scope immediately before disclosure.
-/// Missing authority identifiers fail closed as a scope mismatch. The caller must
-/// supply a destination that has already crossed the canonical [`Origin`] boundary.
+/// Missing or malformed authority identifiers fail closed as a scope mismatch.
+/// The caller must supply a destination that has already crossed the canonical
+/// [`Origin`] boundary.
 #[must_use]
 pub fn evaluate_handle_use(
     request: &HandleUseRequest,
