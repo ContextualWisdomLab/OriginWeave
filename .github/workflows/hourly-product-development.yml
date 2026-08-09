@@ -269,6 +269,7 @@ jobs:
           MAX_RESPONSE = 32 * 1024 * 1024
           STATE_LOCK = threading.Lock()
           REQUEST_COUNTER = 0
+          LAST_SUCCESSFUL_REQUEST = 0
           LAST_AUTH_REJECTED_REQUEST = 0
           LAST_RATE_LIMITED_REQUEST = 0
 
@@ -279,9 +280,12 @@ jobs:
                   return REQUEST_COUNTER
 
           def record_provider_status(request_id, status):
+              global LAST_SUCCESSFUL_REQUEST
               global LAST_AUTH_REJECTED_REQUEST, LAST_RATE_LIMITED_REQUEST
               with STATE_LOCK:
-                  if status in (401, 403):
+                  if 200 <= status < 300:
+                      LAST_SUCCESSFUL_REQUEST = max(LAST_SUCCESSFUL_REQUEST, request_id)
+                  elif status in (401, 403):
                       LAST_AUTH_REJECTED_REQUEST = max(
                           LAST_AUTH_REJECTED_REQUEST, request_id
                       )
@@ -295,6 +299,7 @@ jobs:
                   return json.dumps(
                       {
                           "request_counter": REQUEST_COUNTER,
+                          "last_successful_request": LAST_SUCCESSFUL_REQUEST,
                           "last_auth_rejected_request": LAST_AUTH_REJECTED_REQUEST,
                           "last_rate_limited_request": LAST_RATE_LIMITED_REQUEST,
                       },
@@ -456,6 +461,7 @@ jobs:
           data = json.loads(sys.argv[1])
           keys = (
               "request_counter",
+              "last_successful_request",
               "last_auth_rejected_request",
               "last_rate_limited_request",
           )
@@ -518,7 +524,7 @@ jobs:
               tail -n 50 "${RUNNER_TEMP}/originweave-nim-broker.log" >&2 || true
               break
             fi
-            read -r provider_before _provider_auth_before _provider_rate_before <<<"$provider_before_status"
+            read -r provider_before provider_success_before _provider_auth_before _provider_rate_before <<<"$provider_before_status"
             set +e
             timeout --kill-after=30s "${OPENCODE_RUN_TIMEOUT_SECONDS}s" \
               sudo -u '#65532' -g '#65532' env -i \
@@ -550,7 +556,7 @@ jobs:
                 feasible_retry=false
                 tail -n 50 "${RUNNER_TEMP}/originweave-nim-broker.log" >&2 || true
               else
-                read -r provider_after provider_auth_rejected provider_rate_limited <<<"$provider_after_status"
+                read -r provider_after provider_successful provider_auth_rejected provider_rate_limited <<<"$provider_after_status"
                 if [ "$provider_auth_rejected" -gt "$provider_before" ]; then
                   cause=provider_auth_rejected
                   feasible_retry=false
@@ -559,6 +565,9 @@ jobs:
                   feasible_retry=false
                 elif [ "$provider_after" -le "$provider_before" ]; then
                   cause=model_path_not_reached
+                  feasible_retry=false
+                elif [ "$provider_successful" -le "$provider_success_before" ]; then
+                  cause=provider_success_not_observed
                   feasible_retry=false
                 else
                   success=true
@@ -575,7 +584,7 @@ jobs:
               feasible_retry=false
               tail -n 50 "${RUNNER_TEMP}/originweave-nim-broker.log" >&2 || true
             else
-              read -r _provider_after provider_auth_rejected provider_rate_limited <<<"$provider_status"
+              read -r _provider_after _provider_successful provider_auth_rejected provider_rate_limited <<<"$provider_status"
               if [ "$provider_auth_rejected" -gt "$provider_before" ]; then
                 cause=provider_auth_rejected
                 feasible_retry=false
