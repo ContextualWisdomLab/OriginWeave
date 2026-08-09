@@ -3,7 +3,7 @@
 use originweave_core::Origin;
 use originweave_policy::{
     DataClassification, DisclosureDecision, DisclosureScope, HandleUseDecision, HandleUseRequest,
-    SensitiveDataRequest, SensitiveValueHandleScope, authorize_handle_use, evaluate_disclosure,
+    SensitiveDataRequest, SensitiveValueHandleScope, evaluate_disclosure, evaluate_handle_use,
 };
 
 fn origin(input: &str) -> Origin {
@@ -206,7 +206,7 @@ fn opaque_handle_use_is_bound_to_scope_expiry_and_use_count() {
         1,
     );
     assert_eq!(
-        authorize_handle_use(&authorized, &scope),
+        evaluate_handle_use(&authorized, &scope),
         HandleUseDecision::Authorized
     );
 
@@ -220,7 +220,7 @@ fn opaque_handle_use_is_bound_to_scope_expiry_and_use_count() {
         1,
     );
     assert_eq!(
-        authorize_handle_use(&wrong_destination, &scope),
+        evaluate_handle_use(&wrong_destination, &scope),
         HandleUseDecision::ScopeMismatch
     );
 
@@ -234,7 +234,7 @@ fn opaque_handle_use_is_bound_to_scope_expiry_and_use_count() {
         1,
     );
     assert_eq!(
-        authorize_handle_use(&expired, &scope),
+        evaluate_handle_use(&expired, &scope),
         HandleUseDecision::Expired
     );
 
@@ -248,7 +248,7 @@ fn opaque_handle_use_is_bound_to_scope_expiry_and_use_count() {
         2,
     );
     assert_eq!(
-        authorize_handle_use(&exhausted, &scope),
+        evaluate_handle_use(&exhausted, &scope),
         HandleUseDecision::UseLimitReached
     );
 }
@@ -306,7 +306,7 @@ fn handle_scope_mismatch_covers_every_authority_dimension() {
 
     for request in mismatches {
         assert_eq!(
-            authorize_handle_use(&request, &scope),
+            evaluate_handle_use(&request, &scope),
             HandleUseDecision::ScopeMismatch
         );
     }
@@ -393,7 +393,7 @@ fn incomplete_authority_never_grants_disclosure_or_handle_use() {
         2,
     );
     assert_eq!(
-        authorize_handle_use(&valid_handle_use(), &incomplete_handle_scope),
+        evaluate_handle_use(&valid_handle_use(), &incomplete_handle_scope),
         HandleUseDecision::ScopeMismatch
     );
 
@@ -407,7 +407,7 @@ fn incomplete_authority_never_grants_disclosure_or_handle_use() {
         0,
     );
     assert_eq!(
-        authorize_handle_use(&incomplete_handle_use, &handle_scope()),
+        evaluate_handle_use(&incomplete_handle_use, &handle_scope()),
         HandleUseDecision::ScopeMismatch
     );
 }
