@@ -191,6 +191,7 @@ impl ChunkedDecoder {
     }
 }
 
+#[cfg(test)]
 pub(crate) fn parse_chunked_body(
     input: &[u8],
     policy: &HttpClientPolicy,
