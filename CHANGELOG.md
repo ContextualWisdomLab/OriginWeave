@@ -11,7 +11,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Typed browser actions, capabilities, risk classes, execution modes, robots decisions, secret-delivery contracts, immutable canonical action-intent digests, and intent-bound approval scopes.
 - Deterministic fail-closed policy evaluation for untrusted instructions, origin grants, crawler restrictions, execution-mode and purpose consistency, approvals, and brokered secrets.
 - Fail-closed resolved-destination policy with IPv4/IPv6 special-purpose and reviewed cloud-platform endpoint classification, IPv4-mapped canonicalization, explicit class grants, non-empty origin-bound DNS snapshots capped at 256 resolver addresses, concrete connection pinning, DNS-set expansion detection, and per-hop redirect reauthorization.
-- Explicit bounded proxy/PAC route authority in `originweave-destination`: direct-only by default, separately allow-listed proxy and PAC origins, independent authorization for PAC-selected DIRECT versus proxy routes, exact canonical target/proxy/PAC evidence, and no DNS, socket, PAC execution, CONNECT, authentication, or Chromium side effects.
+- Explicit bounded proxy/PAC route authority in `originweave-destination`: direct-only by default, separately allow-listed Chromium-compatible proxy server identifiers and PAC source origins, independent authorization for PAC-selected DIRECT versus proxy routes, exact canonical target/proxy/PAC evidence, and no DNS, socket, PAC execution, CONNECT, authentication, or Chromium side effects.
 - Direct-only `originweave-network` TCP boundary with explicit canonical `SocketAddr` authority, zero IPv6 flow and scope metadata unless separately modeled, a non-cloneable single-use plan, a 30-second per-attempt timeout ceiling, at most four attempts, exact `peer_addr` verification before stream exposure, and no hostname re-resolution or ambient proxy inheritance.
 - Authenticated `originweave-tls` service-identity boundary that consumes an existing verified TCP stream, requires exact TLS-origin and transport-origin equality, derives RFC 9525 DNS or literal-IP reference identity only from the canonical HTTPS origin, validates WebPKI with explicit roots and fixed time, permits only TLS 1.2 and TLS 1.3, and never reconnects or resolves.
 - Bounded TLS policy for total handshake time, ALPN identifiers, trust-root count and bytes, and server-presented certificate count and bytes, with explicit optional-versus-required ALPN behavior and `NotConfigured` revocation evidence.
@@ -30,6 +30,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 ### Changed
 
 - Separated logical origin authority from resolved network destination authority; an origin grant no longer implies permission to connect to every resolver result.
+- Separated proxy-server routing identity from web-origin identity: HTTP, HTTPS, SOCKS4, SOCKS5, and QUIC proxy schemes retain their own canonical authority, so an ordinary remote HTTP proxy is representable without weakening the web-origin HTTPS requirement.
 - Separated resolved-address authorization from direct transport evidence; an approved IP now becomes a usable stream only after the operating system reports the exact requested IP and port.
 - Separated exact TCP peer proof from authenticated TLS service identity; an observed peer becomes an authenticated HTTPS stream only after explicit-root, fixed-time, SAN-bound WebPKI verification over that same stream.
 - Replaced single resource-pressure directives with a cumulative mitigation plan so simultaneous RAM, VRAM, frame, model, and admission pressure cannot discard required actions.
@@ -54,6 +55,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - `localhost` may approve only loopback addresses, while literal IPv4 and IPv6 origins may approve only the exact canonical address encoded in the origin.
 - Resolver answers must remain a non-empty subset of the origin-bound approved address set; any newly introduced address fails closed as a possible DNS-rebinding event.
 - Every redirect rechecks target-origin authority, target-bound resolution, HTTPS downgrade, complete-target cycle state, and hop capacity before policy state changes.
+- Proxy route policy permits only exact canonical server identities and PAC source origins; route approval does not grant destination, TCP peer, proxy authentication, CONNECT, TLS, or final-target authority.
 - Direct TCP plans reject port zero, zero or excessive timeouts, excessive attempts, unapproved IPs, non-canonical IPv4-mapped IPv6 sockets, and IPv6 flow or scope metadata not represented in destination authority before connection I/O.
 - Direct connection code accepts only an explicit `SocketAddr`, never a hostname, and does not read proxy environment variables.
 - Established streams are discarded when peer inspection fails or the observed remote IP or port differs from the approved socket.
