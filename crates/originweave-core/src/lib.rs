@@ -234,6 +234,26 @@ pub enum OriginError {
     InvalidPort,
 }
 
+/// A nonzero identity for one independently navigable browser context.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct BrowsingContextId(u64);
+
+impl BrowsingContextId {
+    /// Validate one adapter-supplied browsing-context identifier.
+    pub const fn new(value: u64) -> Result<Self, NodeHandleError> {
+        if value == 0 {
+            return Err(NodeHandleError::InvalidBrowsingContextId);
+        }
+        Ok(Self(value))
+    }
+
+    /// Return the validated browsing-context identifier.
+    #[must_use]
+    pub const fn value(self) -> u64 {
+        self.0
+    }
+}
+
 /// A nonzero identity for one observed browser document lifetime.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DocumentEpoch(u64);
@@ -254,17 +274,19 @@ impl DocumentEpoch {
     }
 }
 
-/// A node identity bound to the exact origin and document that produced it.
+/// A node identity bound to the exact context, origin, and document that produced it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObservedNodeHandle {
+    browsing_context: BrowsingContextId,
     origin: Origin,
     document_epoch: DocumentEpoch,
     node_id: u64,
 }
 
 impl ObservedNodeHandle {
-    /// Create one observed node handle from a nonzero adapter node identifier.
+    /// Create one context-bound observed node handle from a nonzero adapter node identifier.
     pub fn new(
+        browsing_context: BrowsingContextId,
         origin: Origin,
         document_epoch: DocumentEpoch,
         node_id: u64,
@@ -273,10 +295,17 @@ impl ObservedNodeHandle {
             return Err(NodeHandleError::InvalidNodeId);
         }
         Ok(Self {
+            browsing_context,
             origin,
             document_epoch,
             node_id,
         })
+    }
+
+    /// Return the browsing context that produced the node observation.
+    #[must_use]
+    pub const fn browsing_context(&self) -> BrowsingContextId {
+        self.browsing_context
     }
 
     /// Return the canonical origin that produced the node observation.
@@ -297,12 +326,19 @@ impl ObservedNodeHandle {
         self.node_id
     }
 
-    /// Reject use when either the origin or document epoch has changed.
+    /// Reject use when the browsing context, origin, or document epoch has changed.
     pub fn validate_current(
         &self,
+        current_context: BrowsingContextId,
         current_origin: &Origin,
         current_epoch: DocumentEpoch,
     ) -> Result<(), NodeHandleError> {
+        if self.browsing_context != current_context {
+            return Err(NodeHandleError::BrowsingContextMismatch {
+                observed: self.browsing_context,
+                current: current_context,
+            });
+        }
         if &self.origin != current_origin {
             return Err(NodeHandleError::OriginMismatch);
         }
@@ -316,13 +352,22 @@ impl ObservedNodeHandle {
     }
 }
 
-/// A failure to construct or reuse a document-bound node handle safely.
+/// A failure to construct or reuse a context- and document-bound node handle safely.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NodeHandleError {
+    /// Browsing-context identifiers are one-based and zero was supplied.
+    InvalidBrowsingContextId,
     /// Document epochs are one-based and zero was supplied.
     InvalidDocumentEpoch,
     /// Adapter-local node identifiers are one-based and zero was supplied.
     InvalidNodeId,
+    /// The node handle belongs to a different independently navigable context.
+    BrowsingContextMismatch {
+        /// Context that originally produced the node handle.
+        observed: BrowsingContextId,
+        /// Context currently active for the requested action.
+        current: BrowsingContextId,
+    },
     /// The browser context is now at a different canonical origin.
     OriginMismatch,
     /// The browser context is now at a different document epoch.
@@ -337,8 +382,17 @@ pub enum NodeHandleError {
 impl fmt::Display for NodeHandleError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::InvalidBrowsingContextId => {
+                formatter.write_str("browsing context identifier must be nonzero")
+            }
             Self::InvalidDocumentEpoch => formatter.write_str("document epoch must be nonzero"),
             Self::InvalidNodeId => formatter.write_str("observed node identifier must be nonzero"),
+            Self::BrowsingContextMismatch { observed, current } => write!(
+                formatter,
+                "observed node browsing context {} does not match current context {}",
+                observed.value(),
+                current.value()
+            ),
             Self::OriginMismatch => {
                 formatter.write_str("observed node origin does not match the current origin")
             }
