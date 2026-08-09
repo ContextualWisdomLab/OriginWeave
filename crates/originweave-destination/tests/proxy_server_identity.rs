@@ -69,6 +69,7 @@ fn proxy_server_identity_rejects_ambiguous_or_credential_bearing_values() {
     for input in [
         " proxy://host",
         "http://proxy.exa\nmple:8080",
+        "http://proxy.exa\u{2003}mple:8080",
         "proxy.example:8080",
         "ftp://proxy.example:21",
         "http://",
