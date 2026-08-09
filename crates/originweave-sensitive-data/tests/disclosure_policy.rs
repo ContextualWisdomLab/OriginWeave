@@ -1,7 +1,6 @@
 use originweave_sensitive_data::{
-    DataClassification, DisclosureDecision, DisclosureScope, HandleUseDecision,
-    HandleUseRequest, SensitiveDataRequest, SensitiveValueHandleScope, authorize_handle_use,
-    evaluate_disclosure,
+    DataClassification, DisclosureDecision, DisclosureScope, HandleUseDecision, HandleUseRequest,
+    SensitiveDataRequest, SensitiveValueHandleScope, authorize_handle_use, evaluate_disclosure,
 };
 
 fn shipping_request() -> SensitiveDataRequest {
