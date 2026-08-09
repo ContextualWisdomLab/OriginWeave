@@ -45,7 +45,8 @@ fn direct_only_default_rejects_proxy_and_pac_routes() {
         Err(ProxyRouteError::PacOriginDenied { origin: pac })
     );
 
-    let deny_all = ProxyRoutePolicy::new(false, [], []).expect("empty policy must be bounded");
+    let deny_all =
+        ProxyRoutePolicy::new(false, Vec::new(), Vec::new()).expect("empty policy must be bounded");
     assert_eq!(
         deny_all.authorize(&target, &ProxyRoute::Direct),
         Err(ProxyRouteError::DirectRouteDenied)
@@ -57,7 +58,7 @@ fn explicit_proxy_authority_uses_canonical_origins() {
     let target = origin("https://target.example");
     let configured_proxy = origin("https://proxy.example:443");
     let route_proxy = origin("HTTPS://PROXY.EXAMPLE");
-    let policy = ProxyRoutePolicy::new(false, [configured_proxy], [])
+    let policy = ProxyRoutePolicy::new(false, vec![configured_proxy], Vec::new())
         .expect("bounded proxy policy must be valid");
 
     let evidence = policy
@@ -82,7 +83,7 @@ fn pac_selected_proxy_requires_both_authority_boundaries() {
     let pac = origin("https://config.example");
     let other_proxy = origin("https://other-proxy.example");
     let other_pac = origin("https://other-config.example");
-    let policy = ProxyRoutePolicy::new(false, [proxy.clone()], [pac.clone()])
+    let policy = ProxyRoutePolicy::new(false, vec![proxy.clone()], vec![pac.clone()])
         .expect("bounded PAC policy must be valid");
 
     let evidence = policy
@@ -126,10 +127,10 @@ fn pac_selected_proxy_requires_both_authority_boundaries() {
 fn pac_selected_direct_requires_pac_and_direct_authority() {
     let target = origin("https://target.example");
     let pac = origin("https://config.example");
-    let allowed =
-        ProxyRoutePolicy::new(true, [], [pac.clone()]).expect("bounded PAC policy must be valid");
-    let denied =
-        ProxyRoutePolicy::new(false, [], [pac.clone()]).expect("bounded PAC policy must be valid");
+    let allowed = ProxyRoutePolicy::new(true, Vec::new(), vec![pac.clone()])
+        .expect("bounded PAC policy must be valid");
+    let denied = ProxyRoutePolicy::new(false, Vec::new(), vec![pac.clone()])
+        .expect("bounded PAC policy must be valid");
 
     let evidence = allowed
         .authorize(
@@ -157,14 +158,14 @@ fn policy_rejects_unbounded_origin_sets_before_authorization() {
         .collect::<Vec<_>>();
 
     assert_eq!(
-        ProxyRoutePolicy::new(false, proxies, []),
+        ProxyRoutePolicy::new(false, proxies, Vec::new()),
         Err(ProxyRouteError::TooManyProxyOrigins {
             count: MAX_PROXY_ORIGIN_COUNT + 1,
             maximum: MAX_PROXY_ORIGIN_COUNT,
         })
     );
     assert_eq!(
-        ProxyRoutePolicy::new(false, [], pacs),
+        ProxyRoutePolicy::new(false, Vec::new(), pacs),
         Err(ProxyRouteError::TooManyPacOrigins {
             count: MAX_PAC_ORIGIN_COUNT + 1,
             maximum: MAX_PAC_ORIGIN_COUNT,
