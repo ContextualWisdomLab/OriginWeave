@@ -19,12 +19,8 @@ fn no_content_digest_contexts_cover_absence_supported_and_unsupported_algorithms
     let unsupported = fields("content-digest", b"md5=:AQ==:");
 
     assert_eq!(
-        validate_content_digest_without_content(
-            &empty,
-            &empty,
-            IntegrityRequirement::Optional,
-        )
-        .expect("optional absence"),
+        validate_content_digest_without_content(&empty, &empty, IntegrityRequirement::Optional,)
+            .expect("optional absence"),
         IntegrityStatus::Absent
     );
     assert_eq!(
@@ -45,22 +41,22 @@ fn no_content_digest_contexts_cover_absence_supported_and_unsupported_algorithms
         .expect("unsupported digest without content"),
         IntegrityStatus::UnsupportedAlgorithm
     );
-    assert_eq!(
+    assert!(matches!(
         validate_content_digest_without_content(
             &empty,
             &empty,
             IntegrityRequirement::RequireSupportedDigest,
         ),
         Err(HttpError::SupportedDigestRequired)
-    );
-    assert_eq!(
+    ));
+    assert!(matches!(
         validate_content_digest_without_content(
             &supported,
             &empty,
             IntegrityRequirement::RequireSupportedDigest,
         ),
         Err(HttpError::SupportedDigestRequired)
-    );
+    ));
 }
 
 #[test]
@@ -96,12 +92,12 @@ fn no_representation_content_uses_the_same_fail_closed_requirement_semantics() {
         .expect("unsupported digest without representation bytes"),
         IntegrityStatus::UnsupportedAlgorithm
     );
-    assert_eq!(
+    assert!(matches!(
         validate_representation_digest_without_content(
             &unsupported,
             &empty,
             IntegrityRequirement::RequireSupportedDigest,
         ),
         Err(HttpError::SupportedDigestRequired)
-    );
+    ));
 }
