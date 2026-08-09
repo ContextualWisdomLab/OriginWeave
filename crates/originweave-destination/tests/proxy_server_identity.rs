@@ -1,3 +1,5 @@
+#![allow(clippy::expect_used)]
+
 use originweave_destination::{ProxyServer, ProxyServerError, ProxyServerScheme};
 
 #[test]
