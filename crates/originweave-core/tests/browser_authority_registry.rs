@@ -1,8 +1,8 @@
 use std::error::Error;
 
 use originweave_core::{
-    BrowserAuthorityRegistry, BrowserRegistryError, BrowserSessionId, DocumentEpoch, NodeHandleError,
-    Origin,
+    BrowserAuthorityRegistry, BrowserRegistryError, BrowserSessionId, DocumentEpoch,
+    NodeHandleError, Origin,
 };
 
 fn loopback_origin() -> Result<Origin, Box<dyn Error>> {
@@ -10,8 +10,8 @@ fn loopback_origin() -> Result<Origin, Box<dyn Error>> {
 }
 
 #[test]
-fn external_protocol_identifiers_are_scoped_and_never_become_authority(
-) -> Result<(), Box<dyn Error>> {
+fn external_protocol_identifiers_are_scoped_and_never_become_authority()
+-> Result<(), Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
 
     let first_session = registry.register_session("webdriver-session-A")?;
@@ -27,7 +27,10 @@ fn external_protocol_identifiers_are_scoped_and_never_become_authority(
 
     assert_eq!(first_context, repeated_context);
     assert_ne!(first_context, second_context);
-    assert_eq!(registry.current_epoch(first_context)?, DocumentEpoch::new(1)?);
+    assert_eq!(
+        registry.current_epoch(first_context)?,
+        DocumentEpoch::new(1)?
+    );
     Ok(())
 }
 
@@ -77,8 +80,8 @@ fn context_cannot_be_reused_by_another_session() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
-fn external_identifiers_are_bounded_without_assuming_protocol_syntax(
-) -> Result<(), Box<dyn Error>> {
+fn external_identifiers_are_bounded_without_assuming_protocol_syntax() -> Result<(), Box<dyn Error>>
+{
     let mut registry = BrowserAuthorityRegistry::new();
 
     assert_eq!(
