@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>OriginWeave MV3 compatibility fixture</title>
+</head>
+<body>
+  <main>
+    <h1>OriginWeave MV3 compatibility fixture</h1>
+    <button id="fixture-button" type="button">Fixture action</button>
+    <output id="fixture-output">idle</output>
+  </main>
+  <script>
+    "use strict";
+    document.querySelector("#fixture-button").addEventListener("click", () => {
+      document.querySelector("#fixture-output").textContent = "clicked";
+    });
+    fetch("/originweave-blocked", { cache: "no-store" })
+      .then(() => {
+        document.documentElement.dataset.originweaveDnr = "leaked";
+      })
+      .catch(() => {
+        document.documentElement.dataset.originweaveDnr = "blocked";
+      });
+  </script>
+</body>
+</html>
