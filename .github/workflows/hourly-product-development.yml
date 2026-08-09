@@ -267,6 +267,7 @@ jobs:
           KEY = os.environ["NIM_UPSTREAM_API_KEY"]
           MAX_REQUEST = 16 * 1024 * 1024
           MAX_RESPONSE = 32 * 1024 * 1024
+          MAX_BROKER_REQUESTS = 4
           STATE_LOCK = threading.Lock()
           REQUEST_COUNTER = 0
           LAST_SUCCESSFUL_REQUEST = 0
@@ -318,6 +319,30 @@ jobs:
               return "\\" not in decoded and not any(
                   segment in {".", ".."} for segment in decoded.split("/")
               )
+
+          class BoundedThreadingHTTPServer(ThreadingHTTPServer):
+              daemon_threads = True
+              request_queue_size = MAX_BROKER_REQUESTS
+
+              def __init__(self, server_address, handler_class):
+                  super().__init__(server_address, handler_class)
+                  self.request_slots = threading.BoundedSemaphore(MAX_BROKER_REQUESTS)
+
+              def process_request(self, request, client_address):
+                  if not self.request_slots.acquire(blocking=False):
+                      request.close()
+                      return
+                  try:
+                      super().process_request(request, client_address)
+                  except BaseException:
+                      self.request_slots.release()
+                      raise
+
+              def process_request_thread(self, request, client_address):
+                  try:
+                      super().process_request_thread(request, client_address)
+                  finally:
+                      self.request_slots.release()
 
           class Handler(BaseHTTPRequestHandler):
               protocol_version = "HTTP/1.1"
@@ -406,8 +431,7 @@ jobs:
                   else:
                       self.send_body(405, b'{"error":"method not allowed"}')
 
-          server = ThreadingHTTPServer(("127.0.0.1", 8765), Handler)
-          server.daemon_threads = True
+          server = BoundedThreadingHTTPServer(("127.0.0.1", 8765), Handler)
           server.serve_forever(poll_interval=0.25)
           PY
           python3 "$broker" >"${RUNNER_TEMP}/originweave-nim-broker.log" 2>&1 &
