@@ -10,7 +10,7 @@ use originweave_core::Origin;
 use originweave_destination::{AddressClass, DestinationPolicy, ResolutionSnapshot};
 use originweave_http::{
     AlpnHttp11Policy, HttpClientPolicy, HttpError, HttpExchangePlan, HttpMethod, HttpRequestTarget,
-    IntegrityRequirement,
+    IntegrityRequirement, IntegrityStatus,
 };
 use originweave_network::{ConnectionPlan, DirectTcpConnection};
 use originweave_tls::{
@@ -26,6 +26,7 @@ use rustls::{ServerConfig, ServerConnection, StreamOwned};
 const TRUSTED_TIME_SECONDS: u64 = 1_767_225_600;
 const TEST_TIMEOUT: Duration = Duration::from_secs(3);
 const SEGMENT_DELAY: Duration = Duration::from_millis(50);
+const HEAD_WITH_DIGESTS: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nContent-Digest: sha-256=:LPJNul+wow4m6DsqxbninhsWHlwfp0JecwQzYpOLmCQ=:\r\nRepr-Digest: sha-256=:LPJNul+wow4m6DsqxbninhsWHlwfp0JecwQzYpOLmCQ=:\r\nConnection: close\r\n\r\n";
 
 type ServerResult = Result<Vec<u8>, String>;
 
@@ -248,6 +249,29 @@ fn execute(
     execute_with_policy(method, response, HttpClientPolicy::strict_defaults())
 }
 
+fn policy_with_integrity(requirement: IntegrityRequirement) -> HttpClientPolicy {
+    let defaults = HttpClientPolicy::strict_defaults();
+    HttpClientPolicy::new(
+        defaults.exchange_timeout(),
+        defaults.max_request_bytes(),
+        defaults.max_status_line_bytes(),
+        defaults.max_header_field_count(),
+        defaults.max_header_name_bytes(),
+        defaults.max_header_value_bytes(),
+        defaults.max_header_section_bytes(),
+        defaults.max_interim_response_count(),
+        defaults.max_chunk_count(),
+        defaults.max_trailer_field_count(),
+        defaults.max_trailer_section_bytes(),
+        defaults.max_encoded_content_bytes(),
+        defaults.max_decoded_content_bytes(),
+        defaults.max_content_expansion_ratio(),
+        AlpnHttp11Policy::RequireHttp11,
+        requirement,
+    )
+    .expect("integrity policy")
+}
+
 fn tiny_chunked_wire_policy() -> HttpClientPolicy {
     let defaults = HttpClientPolicy::strict_defaults();
     HttpClientPolicy::new(
@@ -357,6 +381,36 @@ fn no_content_semantics_reject_payload_bytes_already_received_with_the_head() {
         result,
         Err(HttpError::UnexpectedResponseBytes { byte_count: 1 })
     ));
+    join_server(server);
+}
+
+#[test]
+fn head_digest_metadata_is_recorded_as_unverifiable_without_false_mismatch() {
+    let (result, server) = execute_with_policy(
+        HttpMethod::Head,
+        HEAD_WITH_DIGESTS,
+        policy_with_integrity(IntegrityRequirement::Optional),
+    );
+    let response = result.expect("HEAD metadata digests are not body digests of empty content");
+    assert_eq!(
+        response.evidence().content_digest_status(),
+        &IntegrityStatus::UnsupportedContext
+    );
+    assert_eq!(
+        response.evidence().representation_digest_status(),
+        &IntegrityStatus::UnsupportedContext
+    );
+    join_server(server);
+}
+
+#[test]
+fn head_digest_metadata_cannot_satisfy_require_supported_digest() {
+    let (result, server) = execute_with_policy(
+        HttpMethod::Head,
+        HEAD_WITH_DIGESTS,
+        policy_with_integrity(IntegrityRequirement::RequireSupportedDigest),
+    );
+    assert!(matches!(result, Err(HttpError::SupportedDigestRequired)));
     join_server(server);
 }
 
