@@ -34,7 +34,7 @@ jobs:
   develop-one-gap:
     name: Develop, verify, and publish one bounded product gap
     runs-on: ubuntu-24.04
-    timeout-minutes: 55
+    timeout-minutes: 180
     permissions:
       contents: read
       pull-requests: read
@@ -60,24 +60,20 @@ jobs:
             *.blob.core.windows.net:443
             results-receiver.actions.githubusercontent.com:443
 
-      - name: Enforce NVIDIA NIM and pull-request-first gates
+      - name: Evaluate deterministic pull-request-first gates
         id: gate
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          NIM_UPSTREAM_API_KEY: ${{ secrets.NVIDIA_NIM_API_KEY }}
           DRY_RUN: ${{ inputs.dry_run || false }}
         run: |
           set -euo pipefail
           develop=true
           reason=ready
-          if [ -z "${NIM_UPSTREAM_API_KEY:-}" ]; then
-            develop=false
-            reason=nim_api_key_unavailable
-          elif [ "$(gh api "repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=1" --jq 'length')" -ne 0 ]; then
+          if [ "$(gh api "repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=1" --jq 'length')" -ne 0 ]; then
             develop=false
             reason=open_pull_request
-          elif [ "$(gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=release-blocker&per_page=1" --jq '[.[] | select(.pull_request == null)] | length')" -ne 0 ]; then
+          elif [ "$(gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=release-blocker&per_page=100" --jq '[.[][] | select(.pull_request == null)] | length')" -ne 0 ]; then
             develop=false
             reason=release_blocker
           elif [ "$DRY_RUN" = "true" ]; then
@@ -90,8 +86,62 @@ jobs:
           } >>"$GITHUB_OUTPUT"
           echo "Hourly product gate: $reason" >>"$GITHUB_STEP_SUMMARY"
 
-      - name: Check out the protected default branch without persisted credentials
+      - name: Require NVIDIA NIM credential for model-backed path
+        id: credential
         if: steps.gate.outputs.develop == 'true'
+        shell: bash
+        env:
+          NIM_UPSTREAM_API_KEY: ${{ secrets.NVIDIA_NIM_API_KEY }}
+        run: |
+          set -euo pipefail
+          ready=true
+          reason=ready
+          fingerprint_file="${RUNNER_TEMP}/originweave-nim-secret-fingerprint.json"
+          if [ -z "${NIM_UPSTREAM_API_KEY:-}" ]; then
+            ready=false
+            reason=nim_api_key_unavailable
+            echo "Hourly model credential gate: $reason" >>"$GITHUB_STEP_SUMMARY"
+            exit 1
+          else
+            umask 077
+            python3 - "$fingerprint_file" <<'PY'
+          import hashlib
+          import json
+          import os
+          import pathlib
+          import sys
+
+          rolling_base = 257
+          rolling_mask = (1 << 64) - 1
+          secret = os.environ["NIM_UPSTREAM_API_KEY"].encode()
+          rolling_hash = 0
+          for byte in secret:
+              rolling_hash = ((rolling_hash * rolling_base) + byte) & rolling_mask
+          pathlib.Path(sys.argv[1]).write_text(
+              json.dumps(
+                  {
+                      "secret_length": len(secret),
+                      "secret_sha256": hashlib.sha256(secret).hexdigest(),
+                      "rolling_hash": rolling_hash,
+                  },
+                  sort_keys=True,
+              ),
+              encoding="utf-8",
+          )
+          PY
+            chmod 0400 "$fingerprint_file"
+          fi
+          {
+            echo "ready=$ready"
+            echo "reason=$reason"
+            if [ "$ready" = "true" ]; then
+              echo "fingerprint_file=$fingerprint_file"
+            fi
+          } >>"$GITHUB_OUTPUT"
+          echo "Hourly model credential gate: $reason" >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Check out the protected default branch without persisted credentials
+        if: steps.credential.outputs.ready == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
@@ -99,7 +149,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pinned toolchains
-        if: steps.gate.outputs.develop == 'true'
+        if: steps.credential.outputs.ready == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -115,7 +165,7 @@ jobs:
           opencode --version
 
       - name: Prepare immutable baseline and disposable workspace
-        if: steps.gate.outputs.develop == 'true'
+        if: steps.credential.outputs.ready == 'true'
         id: prepare
         shell: bash
         run: |
@@ -153,6 +203,25 @@ jobs:
           Add useful rustdoc to every changed public production item. Update
           CHANGELOG.md and the affected architecture, ADR, research, or roadmap docs.
 
+          For every failed command or unexpected result:
+          1. Perform root-cause analysis from exact diagnostics and reproduce once.
+          2. Verify that the corrective action is feasible within the allowed paths,
+             permissions, dependencies, remaining runtime, and every quality or
+             security gate.
+          3. within the current isolated model attempt, implement only a feasible
+             corrective action that is materially distinct from every action already
+             attempted and disproven in that same attempt; never weaken, bypass,
+             skip, rewrite, or misreport a test, review, security, or coverage gate.
+          4. Rerun the exact failed command, then all affected exact-head checks.
+          If no bounded feasible corrective action exists, leave the workspace
+          unchanged rather than fabricating success or repeatedly applying guesses.
+
+          Fallback model retries are independent clean-room attempts. The runner
+          restores pristine exact HEAD and does not pass model-produced RCA,
+          candidates, or selected actions from one model to another as trusted
+          context. Cross-model fallback is chosen only from bounded runner-observed
+          outcome classification and broker health.
+
           Edit only crates/**, tests/**, docs/**, README.md, ARCHITECTURE.md, and
           CHANGELOG.md. Do not edit .github/**, scripts/**, governance files,
           Cargo.toml, Cargo.lock, toolchain files, licenses, generated files, or release
@@ -177,7 +246,7 @@ jobs:
           } >>"$GITHUB_OUTPUT"
 
       - name: Start loopback-only NVIDIA NIM credential broker
-        if: steps.gate.outputs.develop == 'true'
+        if: steps.credential.outputs.ready == 'true'
         shell: bash
         env:
           NIM_UPSTREAM_API_KEY: ${{ secrets.NVIDIA_NIM_API_KEY }}
@@ -187,8 +256,10 @@ jobs:
           broker="${RUNNER_TEMP}/originweave_nim_broker.py"
           cat >"$broker" <<'PY'
           import http.client
+          import json
           import os
           import ssl
+          import threading
           from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
           from urllib.parse import unquote
 
@@ -196,9 +267,68 @@ jobs:
           KEY = os.environ["NIM_UPSTREAM_API_KEY"]
           MAX_REQUEST = 16 * 1024 * 1024
           MAX_RESPONSE = 32 * 1024 * 1024
+          MAX_BROKER_REQUESTS = 4
+          STATE_LOCK = threading.Lock()
+          REQUEST_COUNTER = 0
+          LAST_SUCCESSFUL_REQUEST = 0
+          LAST_AUTH_REJECTED_REQUEST = 0
+          LAST_RATE_LIMITED_REQUEST = 0
+
+          def begin_request():
+              global REQUEST_COUNTER
+              with STATE_LOCK:
+                  REQUEST_COUNTER += 1
+                  return REQUEST_COUNTER
+
+          def record_provider_status(request_id, status):
+              global LAST_SUCCESSFUL_REQUEST
+              global LAST_AUTH_REJECTED_REQUEST, LAST_RATE_LIMITED_REQUEST
+              with STATE_LOCK:
+                  if 200 <= status < 300:
+                      LAST_SUCCESSFUL_REQUEST = max(LAST_SUCCESSFUL_REQUEST, request_id)
+                  elif status in (401, 403):
+                      LAST_AUTH_REJECTED_REQUEST = max(
+                          LAST_AUTH_REJECTED_REQUEST, request_id
+                      )
+                  elif status == 429:
+                      LAST_RATE_LIMITED_REQUEST = max(
+                          LAST_RATE_LIMITED_REQUEST, request_id
+                      )
+
+          def provider_status():
+              with STATE_LOCK:
+                  return json.dumps(
+                      {
+                          "request_counter": REQUEST_COUNTER,
+                          "last_successful_request": LAST_SUCCESSFUL_REQUEST,
+                          "last_auth_rejected_request": LAST_AUTH_REJECTED_REQUEST,
+                          "last_rate_limited_request": LAST_RATE_LIMITED_REQUEST,
+                      },
+                      sort_keys=True,
+                  ).encode()
+
+          def valid_percent_escapes(path: str) -> bool:
+              index = 0
+              while True:
+                  index = path.find("%", index)
+                  if index < 0:
+                      return True
+                  escape = path[index + 1 : index + 3]
+                  if len(escape) != 2 or any(
+                      character not in "0123456789abcdefABCDEF"
+                      for character in escape
+                  ):
+                      return False
+                  index += 3
 
           def valid_path(path: str) -> bool:
-              if len(path) > 4096 or not path.startswith("/v1/") or "?" in path or "#" in path:
+              if (
+                  len(path) > 4096
+                  or not path.startswith("/v1/")
+                  or "?" in path
+                  or "#" in path
+                  or not valid_percent_escapes(path)
+              ):
                   return False
               if any(ord(character) < 32 or ord(character) == 127 for character in path):
                   return False
@@ -206,9 +336,35 @@ jobs:
                   decoded = unquote(path, errors="strict")
               except UnicodeError:
                   return False
+              if any(ord(character) < 32 or ord(character) == 127 for character in decoded):
+                  return False
               return "\\" not in decoded and not any(
                   segment in {".", ".."} for segment in decoded.split("/")
               )
+
+          class BoundedThreadingHTTPServer(ThreadingHTTPServer):
+              daemon_threads = True
+              request_queue_size = MAX_BROKER_REQUESTS
+
+              def __init__(self, server_address, handler_class):
+                  super().__init__(server_address, handler_class)
+                  self.request_slots = threading.BoundedSemaphore(MAX_BROKER_REQUESTS)
+
+              def process_request(self, request, client_address):
+                  if not self.request_slots.acquire(blocking=False):
+                      request.close()
+                      return
+                  try:
+                      super().process_request(request, client_address)
+                  except BaseException:
+                      self.request_slots.release()
+                      raise
+
+              def process_request_thread(self, request, client_address):
+                  try:
+                      super().process_request_thread(request, client_address)
+                  finally:
+                      self.request_slots.release()
 
           class Handler(BaseHTTPRequestHandler):
               protocol_version = "HTTP/1.1"
@@ -252,6 +408,7 @@ jobs:
                   if body is None:
                       self.send_body(400, b'{"error":"invalid body"}')
                       return
+                  request_id = begin_request()
                   context = ssl.create_default_context()
                   context.minimum_version = ssl.TLSVersion.TLSv1_2
                   connection = http.client.HTTPSConnection(HOST, 443, timeout=180, context=context)
@@ -271,6 +428,7 @@ jobs:
                       response_body = response.read(MAX_RESPONSE + 1)
                       if len(response_body) > MAX_RESPONSE:
                           raise ValueError("response too large")
+                      record_provider_status(request_id, response.status)
                       self.send_body(
                           response.status,
                           response_body,
@@ -284,6 +442,8 @@ jobs:
               def do_GET(self):
                   if self.path == "/healthz":
                       self.send_body(200, b"ok\n", "text/plain; charset=utf-8")
+                  elif self.path == "/statusz":
+                      self.send_body(200, provider_status())
                   else:
                       self.send_body(405, b'{"error":"method not allowed"}')
 
@@ -293,8 +453,7 @@ jobs:
                   else:
                       self.send_body(405, b'{"error":"method not allowed"}')
 
-          server = ThreadingHTTPServer(("127.0.0.1", 8765), Handler)
-          server.daemon_threads = True
+          server = BoundedThreadingHTTPServer(("127.0.0.1", 8765), Handler)
           server.serve_forever(poll_interval=0.25)
           PY
           python3 "$broker" >"${RUNNER_TEMP}/originweave-nim-broker.log" 2>&1 &
@@ -309,24 +468,62 @@ jobs:
           exit 1
 
       - name: Run OpenCode in an unprivileged no-Git workspace
-        if: steps.gate.outputs.develop == 'true'
+        if: steps.credential.outputs.ready == 'true'
         shell: bash
         env:
           AGENT_WORKSPACE: ${{ steps.prepare.outputs.workspace }}
           AGENT_HOME: ${{ steps.prepare.outputs.agent_home }}
         run: |
           set -euo pipefail
+          config="${RUNNER_TEMP}/originweave-opencode.json"
+
           cleanup_agent() {
             sudo pkill -KILL -u 65532 >/dev/null 2>&1 || true
             sudo iptables -D OUTPUT -m owner --uid-owner 65532 ! -d 127.0.0.0/8 -j REJECT >/dev/null 2>&1 || true
             sudo ip6tables -D OUTPUT -m owner --uid-owner 65532 ! -d ::1/128 -j REJECT >/dev/null 2>&1 || true
+            rm -f "$config"
           }
+
+          reset_agent_workspace() {
+            sudo pkill -KILL -u 65532 >/dev/null 2>&1 || true
+            sudo rm -rf "$AGENT_WORKSPACE"
+            install -d -m 0750 "$AGENT_WORKSPACE"
+            git archive HEAD | tar -x -C "$AGENT_WORKSPACE"
+            install -m 0600 "$config" "${AGENT_WORKSPACE}/opencode.json"
+            sudo chown -R 65532:65532 "$AGENT_WORKSPACE"
+          }
+
+          read_provider_status() {
+            local payload
+            if ! payload="$(
+              curl -fsS "http://${NIM_PROXY_HOST}:${NIM_PROXY_PORT}${provider_status_path}" 2>/dev/null
+            )"; then
+              return 1
+            fi
+            python3 - "$payload" <<'PY'
+          import json
+          import sys
+
+          data = json.loads(sys.argv[1])
+          keys = (
+              "request_counter",
+              "last_successful_request",
+              "last_auth_rejected_request",
+              "last_rate_limited_request",
+          )
+          values = tuple(data[key] for key in keys)
+          if any(type(value) is not int or value < 0 for value in values):
+              raise SystemExit(1)
+          print(*values)
+          PY
+          }
+
           trap cleanup_agent EXIT
           sudo iptables -I OUTPUT 1 -m owner --uid-owner 65532 ! -d 127.0.0.0/8 -j REJECT
           sudo ip6tables -I OUTPUT 1 -m owner --uid-owner 65532 ! -d ::1/128 -j REJECT
           prompt="$(cat "${RUNNER_TEMP}/originweave-agent-prompt.md")"
           success=false
-          cat >"${AGENT_WORKSPACE}/opencode.json" <<'CONFIG'
+          cat >"$config" <<'CONFIG'
           {
             "$schema": "https://opencode.ai/config.json",
             "enabled_providers": ["nvidia-nim"],
@@ -362,11 +559,20 @@ jobs:
             }
           }
           CONFIG
-          sudo chown 65532:65532 "${AGENT_WORKSPACE}/opencode.json"
 
           for model in $OPENCODE_MODEL_CANDIDATES; do
-            sudo pkill -KILL -u 65532 >/dev/null 2>&1 || true
-            if timeout --kill-after=30s "${OPENCODE_RUN_TIMEOUT_SECONDS}s" \
+            reset_agent_workspace
+            provider_status_path="/statusz"
+            if ! provider_before_status="$(read_provider_status)"; then
+              cause=credential_broker_unavailable
+              feasible_retry=false
+              echo "OpenCode RCA: model=$model status=not_started cause=$cause feasible_retry=$feasible_retry" >>"$GITHUB_STEP_SUMMARY"
+              tail -n 50 "${RUNNER_TEMP}/originweave-nim-broker.log" >&2 || true
+              break
+            fi
+            read -r provider_before provider_success_before _provider_auth_before _provider_rate_before <<<"$provider_before_status"
+            set +e
+            timeout --kill-after=30s "${OPENCODE_RUN_TIMEOUT_SECONDS}s" \
               sudo -u '#65532' -g '#65532' env -i \
                 PATH="/usr/local/bin:/usr/bin:/bin:/home/runner/.cargo/bin" \
                 HOME="$AGENT_HOME" \
@@ -386,21 +592,74 @@ jobs:
                 NVIDIA_API_KEY=originweave-local-broker \
                 OPENCODE_DISABLE_AUTOUPDATE=1 \
                 /bin/bash -c 'cd "$1"; exec opencode run "$2" --model "$3"' \
-                bash "$AGENT_WORKSPACE" "$prompt" "$model"; then
-              success=true
-              echo "OpenCode completed with $model." >>"$GITHUB_STEP_SUMMARY"
+                bash "$AGENT_WORKSPACE" "$prompt" "$model"
+            status=$?
+            set -e
+
+            if [ "$status" -eq 0 ]; then
+              if ! provider_after_status="$(read_provider_status)"; then
+                cause=credential_broker_unavailable
+                feasible_retry=false
+                tail -n 50 "${RUNNER_TEMP}/originweave-nim-broker.log" >&2 || true
+              else
+                read -r provider_after provider_successful provider_auth_rejected provider_rate_limited <<<"$provider_after_status"
+                if [ "$provider_auth_rejected" -gt "$provider_before" ]; then
+                  cause=provider_auth_rejected
+                  feasible_retry=false
+                elif [ "$provider_rate_limited" -gt "$provider_before" ]; then
+                  cause=provider_rate_limited
+                  feasible_retry=false
+                elif [ "$provider_after" -le "$provider_before" ]; then
+                  cause=model_path_not_reached
+                  feasible_retry=false
+                elif [ "$provider_successful" -le "$provider_success_before" ]; then
+                  cause=provider_success_not_observed
+                  feasible_retry=false
+                else
+                  success=true
+                  echo "OpenCode completed with $model." >>"$GITHUB_STEP_SUMMARY"
+                  break
+                fi
+              fi
+              echo "OpenCode RCA: model=$model status=$status cause=$cause feasible_retry=$feasible_retry" >>"$GITHUB_STEP_SUMMARY"
               break
             fi
-            rm -f "${AGENT_WORKSPACE}/PR_MESSAGE.md"
+
+            if ! provider_status="$(read_provider_status)"; then
+              cause=credential_broker_unavailable
+              feasible_retry=false
+              tail -n 50 "${RUNNER_TEMP}/originweave-nim-broker.log" >&2 || true
+            else
+              read -r _provider_after _provider_successful provider_auth_rejected provider_rate_limited <<<"$provider_status"
+              if [ "$provider_auth_rejected" -gt "$provider_before" ]; then
+                cause=provider_auth_rejected
+                feasible_retry=false
+              elif [ "$provider_rate_limited" -gt "$provider_before" ]; then
+                cause=provider_rate_limited
+                feasible_retry=false
+              elif [ "$status" -eq 124 ] || [ "$status" -eq 137 ]; then
+                cause=model_timeout
+                feasible_retry=true
+              else
+                cause=model_or_tool_failure
+                feasible_retry=true
+              fi
+            fi
+            echo "OpenCode RCA: model=$model status=$status cause=$cause feasible_retry=$feasible_retry" >>"$GITHUB_STEP_SUMMARY"
+            if [ "$feasible_retry" != "true" ]; then
+              break
+            fi
           done
+
           sudo pkill -KILL -u 65532 >/dev/null 2>&1 || true
-          rm -f "${AGENT_WORKSPACE}/opencode.json"
+          rm -f "$config"
+          sudo rm -f "${AGENT_WORKSPACE}/opencode.json"
           if [ "$success" != "true" ]; then
             exit 1
           fi
 
       - name: Stop credential broker
-        if: always() && steps.gate.outputs.develop == 'true'
+        if: always() && steps.credential.outputs.ready == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -411,13 +670,13 @@ jobs:
           fi
 
       - name: Validate and seal the credential-free change bundle
-        if: steps.gate.outputs.develop == 'true'
+        if: steps.credential.outputs.ready == 'true'
         id: bundle
         shell: bash
         env:
           BASELINE: ${{ steps.prepare.outputs.baseline }}
           AGENT_WORKSPACE: ${{ steps.prepare.outputs.workspace }}
-          FORBIDDEN_SECRET: ${{ secrets.NVIDIA_NIM_API_KEY }}
+          FORBIDDEN_SECRET_FINGERPRINT_FILE: ${{ steps.credential.outputs.fingerprint_file }}
         run: |
           set -euo pipefail
           sudo chown -R "$(id -u):$(id -g)" "$AGENT_WORKSPACE"
@@ -436,7 +695,62 @@ jobs:
           workspace = pathlib.Path(sys.argv[2])
           bundle_path = pathlib.Path(sys.argv[3])
           proposal_path = pathlib.Path(sys.argv[4])
-          forbidden = os.environ.get("FORBIDDEN_SECRET", "").encode()
+          fingerprint_path = pathlib.Path(
+              os.environ["FORBIDDEN_SECRET_FINGERPRINT_FILE"]
+          )
+          if fingerprint_path.is_symlink() or not fingerprint_path.is_file():
+              raise SystemExit("credential fingerprint is not a regular file")
+          try:
+              fingerprint = json.loads(fingerprint_path.read_text(encoding="utf-8"))
+          finally:
+              fingerprint_path.unlink()
+          expected_keys = {"secret_length", "secret_sha256", "rolling_hash"}
+          if set(fingerprint) != expected_keys:
+              raise SystemExit("credential fingerprint schema mismatch")
+          secret_length = fingerprint["secret_length"]
+          secret_sha256 = fingerprint["secret_sha256"]
+          secret_rolling_hash = fingerprint["rolling_hash"]
+          rolling_base = 257
+          rolling_mask = (1 << 64) - 1
+          if (
+              type(secret_length) is not int
+              or not 1 <= secret_length <= 16_384
+              or not isinstance(secret_sha256, str)
+              or re.fullmatch(r"[0-9a-f]{64}", secret_sha256) is None
+              or type(secret_rolling_hash) is not int
+              or not 0 <= secret_rolling_hash <= rolling_mask
+          ):
+              raise SystemExit("credential fingerprint values are invalid")
+
+          def contains_forbidden_secret(payload):
+              if len(payload) < secret_length:
+                  return False
+              highest_power = pow(rolling_base, secret_length - 1, 1 << 64)
+              current_hash = 0
+              for byte in payload[:secret_length]:
+                  current_hash = ((current_hash * rolling_base) + byte) & rolling_mask
+              for offset in range(len(payload) - secret_length + 1):
+                  if offset:
+                      removed = payload[offset - 1]
+                      added = payload[offset + secret_length - 1]
+                      current_hash = (
+                          (
+                              current_hash
+                              - ((removed * highest_power) & rolling_mask)
+                          )
+                          & rolling_mask
+                      )
+                      current_hash = (
+                          (current_hash * rolling_base) + added
+                      ) & rolling_mask
+                  if current_hash != secret_rolling_hash:
+                      continue
+                  candidate = payload[offset : offset + secret_length]
+                  if hashlib.sha256(candidate).hexdigest() == secret_sha256:
+                      return True
+              return False
+
+          MAX_CHANGED_FILE_BYTES = 1_048_576
           allowed = re.compile(r"^(crates/|tests/|docs/|README\.md$|ARCHITECTURE\.md$|CHANGELOG\.md$)")
 
           def files(root):
@@ -456,6 +770,13 @@ jobs:
           deleted = sorted(set(old_files) - set(new_files))
           if deleted:
               raise SystemExit(f"deletions rejected: {deleted}")
+          oversized = sorted(
+              name
+              for name, path in new_files.items()
+              if path.stat().st_size > MAX_CHANGED_FILE_BYTES
+          )
+          if oversized:
+              raise SystemExit(f"oversized workspace files rejected: {oversized}")
           changed = sorted(
               name for name in set(old_files) | set(new_files)
               if old_files.get(name) is None
@@ -473,7 +794,7 @@ jobs:
           for name in changed:
               old_bytes = old_files[name].read_bytes() if name in old_files else b""
               new_bytes = new_files[name].read_bytes()
-              if len(new_bytes) > 1_048_576 or (forbidden and forbidden in new_bytes):
+              if len(new_bytes) > MAX_CHANGED_FILE_BYTES or contains_forbidden_secret(new_bytes):
                   raise SystemExit(f"size or credential contract rejected: {name}")
               try:
                   old_text = old_bytes.decode("utf-8").splitlines(keepends=True)
@@ -492,9 +813,16 @@ jobs:
           message_path = workspace / "PR_MESSAGE.md"
           if not message_path.is_file():
               raise SystemExit("PR_MESSAGE.md is required")
-          message = message_path.read_text(encoding="utf-8")
-          if forbidden and forbidden.decode(errors="ignore") in message:
+          message_size = message_path.stat().st_size
+          if message_size > 65_536:
+              raise SystemExit("PR_MESSAGE.md is too large")
+          message_bytes = message_path.read_bytes()
+          if contains_forbidden_secret(message_bytes):
               raise SystemExit("credential disclosure rejected in PR message")
+          try:
+              message = message_bytes.decode("utf-8")
+          except UnicodeDecodeError as error:
+              raise SystemExit("PR_MESSAGE.md must be UTF-8") from error
           title, separator, body = message.partition("\n")
           title = title.strip()
           body = body.strip()
@@ -581,11 +909,11 @@ jobs:
           set -euo pipefail
           if [ -z "${AUTOMATION_TOKEN:-}" ]; then
             echo "Dedicated OpenCode PR token unavailable; publication cancelled." >>"$GITHUB_STEP_SUMMARY"
-            exit 0
+            exit 1
           fi
           live_default_sha="$(GH_TOKEN="$AUTOMATION_TOKEN" gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/${DEFAULT_BRANCH}" --jq '.object.sha')"
           open_prs="$(GH_TOKEN="$AUTOMATION_TOKEN" gh api "repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=1" --jq 'length')"
-          release_blockers="$(GH_TOKEN="$AUTOMATION_TOKEN" gh api "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=release-blocker&per_page=1" --jq '[.[] | select(.pull_request == null)] | length')"
+          release_blockers="$(GH_TOKEN="$AUTOMATION_TOKEN" gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/issues?state=open&labels=release-blocker&per_page=100" --jq '[.[][] | select(.pull_request == null)] | length')"
           if [ "$open_prs" -ne 0 ] || [ "$release_blockers" -ne 0 ] || [ "$live_default_sha" != "$EXPECTED_BASE_SHA" ]; then
             echo "Repository state changed; publication cancelled." >>"$GITHUB_STEP_SUMMARY"
             exit 0
