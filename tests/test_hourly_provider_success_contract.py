@@ -1,4 +1,4 @@
-"""Fail-closed proof that a green model attempt reached a successful provider response."""
+"""Fail-closed proof that model traffic remains successful and resource-bounded."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ def _step_block(workflow: str, step_name: str) -> str:
 
 
 class HourlyProviderSuccessContractTests(unittest.TestCase):
-    """Do not accept process exit zero as upstream model success evidence."""
+    """Do not accept process exit zero or unbounded broker work as model success."""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -73,6 +73,37 @@ class HourlyProviderSuccessContractTests(unittest.TestCase):
                 'if [ "$provider_successful" -le "$provider_success_before" ]; then'
             ),
             success_branch.index("success=true"),
+        )
+
+    def test_local_credential_broker_has_a_hard_request_worker_bound(self) -> None:
+        """Untrusted agent traffic must not create an unbounded runner thread pool."""
+
+        broker = _step_block(
+            self.workflow, "Start loopback-only NVIDIA NIM credential broker"
+        )
+        for contract in (
+            "MAX_BROKER_REQUESTS = 4",
+            "class BoundedThreadingHTTPServer(ThreadingHTTPServer):",
+            "threading.BoundedSemaphore(MAX_BROKER_REQUESTS)",
+            "if not self.request_slots.acquire(blocking=False):",
+            "request.close()",
+            "self.request_slots.release()",
+            "server = BoundedThreadingHTTPServer((\"127.0.0.1\", 8765), Handler)",
+        ):
+            self.assertIn(contract, broker)
+
+        server_class = broker[
+            broker.index("class BoundedThreadingHTTPServer") : broker.index(
+                "class Handler"
+            )
+        ]
+        self.assertLess(
+            server_class.index("self.request_slots.acquire(blocking=False)"),
+            server_class.index("super().process_request(request, client_address)"),
+        )
+        self.assertLess(
+            server_class.index("super().process_request_thread(request, client_address)"),
+            server_class.index("self.request_slots.release()"),
         )
 
 
