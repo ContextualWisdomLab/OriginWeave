@@ -28,145 +28,174 @@ pub(crate) enum ChunkParseResult {
     Complete(ChunkedResult),
 }
 
+#[derive(Debug, Default)]
+pub(crate) struct ChunkedDecoder {
+    cursor: usize,
+    content: Vec<u8>,
+    chunk_count: usize,
+    trailer_start: Option<usize>,
+    trailers: Vec<FieldLine>,
+}
+
+impl ChunkedDecoder {
+    pub(crate) const fn new() -> Self {
+        Self {
+            cursor: 0,
+            content: Vec::new(),
+            chunk_count: 0,
+            trailer_start: None,
+            trailers: Vec::new(),
+        }
+    }
+
+    pub(crate) fn parse(
+        &mut self,
+        input: &[u8],
+        policy: &HttpClientPolicy,
+    ) -> Result<ChunkParseResult, HttpError> {
+        if let Some(trailer_start) = self.trailer_start {
+            return self.parse_trailers(input, trailer_start, policy);
+        }
+
+        loop {
+            let Some(line_end) = find_crlf(input, self.cursor, MAX_CHUNK_LINE_BYTES)? else {
+                return Ok(ChunkParseResult::Incomplete);
+            };
+            let size_line = &input[self.cursor..line_end];
+            let chunk_size = parse_chunk_size(size_line)?;
+            // Policy bounds admitted chunk counts far below `usize::MAX`; saturation keeps the
+            // fail-closed comparison below total without carrying an impossible overflow branch.
+            let next_chunk_count = self.chunk_count.saturating_add(1);
+            if next_chunk_count > policy.max_chunk_count() {
+                return Err(HttpError::ExcessiveChunkCount {
+                    chunk_count: next_chunk_count,
+                    maximum_count: policy.max_chunk_count(),
+                });
+            }
+            let data_start = line_end + 2;
+            if chunk_size == 0 {
+                self.chunk_count = next_chunk_count;
+                self.cursor = data_start;
+                self.trailer_start = Some(data_start);
+                return self.parse_trailers(input, data_start, policy);
+            }
+            let next_content_length = self.content.len().checked_add(chunk_size).ok_or(
+                HttpError::EncodedContentTooLarge {
+                    byte_count: u64::MAX,
+                    maximum_bytes: policy.max_encoded_content_bytes(),
+                },
+            )?;
+            if next_content_length > policy.max_encoded_content_bytes() {
+                return Err(HttpError::EncodedContentTooLarge {
+                    byte_count: u64::try_from(next_content_length).unwrap_or(u64::MAX),
+                    maximum_bytes: policy.max_encoded_content_bytes(),
+                });
+            }
+            // `data_start` is an index into `input`, while `chunk_size` has already passed the
+            // configured encoded-content budget above. Safe Rust slices cannot be longer than
+            // the addressable object bound, so these additions cannot overflow for an admitted
+            // input; keeping checked fallbacks here would create unreachable error branches.
+            let data_end = data_start + chunk_size;
+            let message_end = data_end + 2;
+            if input.len() < message_end {
+                return Ok(ChunkParseResult::Incomplete);
+            }
+            if &input[data_end..message_end] != b"\r\n" {
+                return Err(HttpError::MalformedChunkedBody);
+            }
+            self.content.extend_from_slice(&input[data_start..data_end]);
+            self.chunk_count = next_chunk_count;
+            self.cursor = message_end;
+        }
+    }
+
+    fn parse_trailers(
+        &mut self,
+        input: &[u8],
+        start: usize,
+        policy: &HttpClientPolicy,
+    ) -> Result<ChunkParseResult, HttpError> {
+        loop {
+            let consumed_trailer_bytes = self.cursor.saturating_sub(start);
+            if consumed_trailer_bytes >= policy.max_trailer_section_bytes() {
+                return Err(HttpError::TrailerSectionTooLarge {
+                    byte_count: consumed_trailer_bytes + 1,
+                    maximum_bytes: policy.max_trailer_section_bytes(),
+                });
+            }
+            let remaining_budget = policy
+                .max_trailer_section_bytes()
+                .saturating_sub(consumed_trailer_bytes);
+            let Some(line_end) =
+                find_crlf(input, self.cursor, remaining_budget).map_err(|error| match error {
+                    HttpError::ChunkLineTooLarge { byte_count, .. } => {
+                        HttpError::TrailerSectionTooLarge {
+                            byte_count: consumed_trailer_bytes.saturating_add(byte_count),
+                            maximum_bytes: policy.max_trailer_section_bytes(),
+                        }
+                    }
+                    other => other,
+                })?
+            else {
+                return Ok(ChunkParseResult::Incomplete);
+            };
+            let line = &input[self.cursor..line_end];
+            let after_line = line_end + 2;
+            let total_trailer_bytes = after_line - start;
+            if total_trailer_bytes > policy.max_trailer_section_bytes() {
+                return Err(HttpError::TrailerSectionTooLarge {
+                    byte_count: total_trailer_bytes,
+                    maximum_bytes: policy.max_trailer_section_bytes(),
+                });
+            }
+            if line.is_empty() {
+                return Ok(ChunkParseResult::Complete(ChunkedResult {
+                    content: std::mem::take(&mut self.content),
+                    trailers: FieldBlock::new(std::mem::take(&mut self.trailers)),
+                    chunk_count: self.chunk_count,
+                    consumed: after_line,
+                }));
+            }
+            if line
+                .first()
+                .is_some_and(|byte| matches!(byte, b' ' | b'\t'))
+            {
+                return Err(HttpError::InvalidTrailerSection);
+            }
+            let colon = line
+                .iter()
+                .position(|byte| *byte == b':')
+                .ok_or(HttpError::InvalidTrailerSection)?;
+            let name = &line[..colon];
+            let value = trim_optional_whitespace(&line[colon + 1..]);
+            let field = FieldLine::new(
+                name,
+                value,
+                policy.max_header_name_bytes(),
+                policy.max_header_value_bytes(),
+            )
+            .map_err(trailer_field_error)?;
+            if FORBIDDEN_TRAILER_FIELDS.contains(&field.name()) {
+                return Err(HttpError::InvalidTrailerSection);
+            }
+            let field_count = self.trailers.len() + 1;
+            if field_count > policy.max_trailer_field_count() {
+                return Err(HttpError::ExcessiveTrailerFieldCount {
+                    field_count,
+                    maximum_count: policy.max_trailer_field_count(),
+                });
+            }
+            self.trailers.push(field);
+            self.cursor = after_line;
+        }
+    }
+}
+
 pub(crate) fn parse_chunked_body(
     input: &[u8],
     policy: &HttpClientPolicy,
 ) -> Result<ChunkParseResult, HttpError> {
-    let mut cursor = 0_usize;
-    let mut content = Vec::new();
-    let mut chunk_count = 0_usize;
-    loop {
-        let Some(line_end) = find_crlf(input, cursor, MAX_CHUNK_LINE_BYTES)? else {
-            return Ok(ChunkParseResult::Incomplete);
-        };
-        let size_line = &input[cursor..line_end];
-        let chunk_size = parse_chunk_size(size_line)?;
-        // Policy bounds admitted chunk counts far below `usize::MAX`; saturation keeps the
-        // fail-closed comparison below total without carrying an impossible overflow branch.
-        chunk_count = chunk_count.saturating_add(1);
-        if chunk_count > policy.max_chunk_count() {
-            return Err(HttpError::ExcessiveChunkCount {
-                chunk_count,
-                maximum_count: policy.max_chunk_count(),
-            });
-        }
-        cursor = line_end + 2;
-        if chunk_size == 0 {
-            return parse_trailers(input, cursor, content, chunk_count, policy);
-        }
-        let next_content_length =
-            content
-                .len()
-                .checked_add(chunk_size)
-                .ok_or(HttpError::EncodedContentTooLarge {
-                    byte_count: u64::MAX,
-                    maximum_bytes: policy.max_encoded_content_bytes(),
-                })?;
-        if next_content_length > policy.max_encoded_content_bytes() {
-            return Err(HttpError::EncodedContentTooLarge {
-                byte_count: u64::try_from(next_content_length).unwrap_or(u64::MAX),
-                maximum_bytes: policy.max_encoded_content_bytes(),
-            });
-        }
-        // `cursor` is an index into `input`, while `chunk_size` has already passed the
-        // configured encoded-content budget above. Safe Rust slices cannot be longer than
-        // the addressable object bound, so these additions cannot overflow for an admitted
-        // input; keeping checked fallbacks here would create unreachable error branches.
-        let data_end = cursor + chunk_size;
-        let message_end = data_end + 2;
-        if input.len() < message_end {
-            return Ok(ChunkParseResult::Incomplete);
-        }
-        if &input[data_end..message_end] != b"\r\n" {
-            return Err(HttpError::MalformedChunkedBody);
-        }
-        content.extend_from_slice(&input[cursor..data_end]);
-        cursor = message_end;
-    }
-}
-
-fn parse_trailers(
-    input: &[u8],
-    start: usize,
-    content: Vec<u8>,
-    chunk_count: usize,
-    policy: &HttpClientPolicy,
-) -> Result<ChunkParseResult, HttpError> {
-    let mut cursor = start;
-    let mut trailers = Vec::new();
-    loop {
-        let consumed_trailer_bytes = cursor.saturating_sub(start);
-        if consumed_trailer_bytes >= policy.max_trailer_section_bytes() {
-            return Err(HttpError::TrailerSectionTooLarge {
-                byte_count: consumed_trailer_bytes + 1,
-                maximum_bytes: policy.max_trailer_section_bytes(),
-            });
-        }
-        let remaining_budget = policy
-            .max_trailer_section_bytes()
-            .saturating_sub(consumed_trailer_bytes);
-        let Some(line_end) =
-            find_crlf(input, cursor, remaining_budget).map_err(|error| match error {
-                HttpError::ChunkLineTooLarge { byte_count, .. } => {
-                    HttpError::TrailerSectionTooLarge {
-                        byte_count: consumed_trailer_bytes.saturating_add(byte_count),
-                        maximum_bytes: policy.max_trailer_section_bytes(),
-                    }
-                }
-                other => other,
-            })?
-        else {
-            return Ok(ChunkParseResult::Incomplete);
-        };
-        let line = &input[cursor..line_end];
-        let after_line = line_end + 2;
-        let total_trailer_bytes = after_line - start;
-        if total_trailer_bytes > policy.max_trailer_section_bytes() {
-            return Err(HttpError::TrailerSectionTooLarge {
-                byte_count: total_trailer_bytes,
-                maximum_bytes: policy.max_trailer_section_bytes(),
-            });
-        }
-        if line.is_empty() {
-            return Ok(ChunkParseResult::Complete(ChunkedResult {
-                content,
-                trailers: FieldBlock::new(trailers),
-                chunk_count,
-                consumed: after_line,
-            }));
-        }
-        if line
-            .first()
-            .is_some_and(|byte| matches!(byte, b' ' | b'\t'))
-        {
-            return Err(HttpError::InvalidTrailerSection);
-        }
-        let colon = line
-            .iter()
-            .position(|byte| *byte == b':')
-            .ok_or(HttpError::InvalidTrailerSection)?;
-        let name = &line[..colon];
-        let value = trim_optional_whitespace(&line[colon + 1..]);
-        let field = FieldLine::new(
-            name,
-            value,
-            policy.max_header_name_bytes(),
-            policy.max_header_value_bytes(),
-        )
-        .map_err(trailer_field_error)?;
-        if FORBIDDEN_TRAILER_FIELDS.contains(&field.name()) {
-            return Err(HttpError::InvalidTrailerSection);
-        }
-        let field_count = trailers.len() + 1;
-        if field_count > policy.max_trailer_field_count() {
-            return Err(HttpError::ExcessiveTrailerFieldCount {
-                field_count,
-                maximum_count: policy.max_trailer_field_count(),
-            });
-        }
-        trailers.push(field);
-        cursor = after_line;
-    }
+    ChunkedDecoder::new().parse(input, policy)
 }
 
 fn find_crlf(
