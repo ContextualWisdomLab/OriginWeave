@@ -72,6 +72,7 @@ fn ordinary_http_and_ipv6_proxies_are_not_forced_through_web_origin_policy() {
 #[test]
 fn proxy_server_identity_rejects_ambiguous_or_credential_bearing_values() {
     for input in [
+        "",
         " proxy://host",
         "http://proxy.exa\nmple:8080",
         "http://proxy.exa\u{2003}mple:8080",
