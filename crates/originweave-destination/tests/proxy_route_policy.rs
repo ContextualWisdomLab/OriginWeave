@@ -16,6 +16,7 @@ fn direct_only_default_rejects_proxy_and_pac_routes() {
     let proxy = origin("https://proxy.example:443");
     let pac = origin("https://config.example");
     let policy = ProxyRoutePolicy::default();
+    assert_eq!(policy, ProxyRoutePolicy::direct_only());
 
     let direct = policy
         .authorize(&target, &ProxyRoute::Direct)
@@ -35,8 +36,19 @@ fn direct_only_default_rejects_proxy_and_pac_routes() {
         Err(ProxyRouteError::ProxyOriginDenied { origin: proxy })
     );
     assert_eq!(
-        policy.authorize(&target, &ProxyRoute::PacDirect { pac_origin: pac.clone() }),
+        policy.authorize(
+            &target,
+            &ProxyRoute::PacDirect {
+                pac_origin: pac.clone(),
+            },
+        ),
         Err(ProxyRouteError::PacOriginDenied { origin: pac })
+    );
+
+    let deny_all = ProxyRoutePolicy::new(false, [], []).expect("empty policy must be bounded");
+    assert_eq!(
+        deny_all.authorize(&target, &ProxyRoute::Direct),
+        Err(ProxyRouteError::DirectRouteDenied)
     );
 }
 
@@ -114,13 +126,18 @@ fn pac_selected_proxy_requires_both_authority_boundaries() {
 fn pac_selected_direct_requires_pac_and_direct_authority() {
     let target = origin("https://target.example");
     let pac = origin("https://config.example");
-    let allowed = ProxyRoutePolicy::new(true, [], [pac.clone()])
-        .expect("bounded PAC policy must be valid");
-    let denied = ProxyRoutePolicy::new(false, [], [pac.clone()])
-        .expect("bounded PAC policy must be valid");
+    let allowed =
+        ProxyRoutePolicy::new(true, [], [pac.clone()]).expect("bounded PAC policy must be valid");
+    let denied =
+        ProxyRoutePolicy::new(false, [], [pac.clone()]).expect("bounded PAC policy must be valid");
 
     let evidence = allowed
-        .authorize(&target, &ProxyRoute::PacDirect { pac_origin: pac.clone() })
+        .authorize(
+            &target,
+            &ProxyRoute::PacDirect {
+                pac_origin: pac.clone(),
+            },
+        )
         .expect("PAC DIRECT needs both authorities");
     assert_eq!(evidence.route_kind(), ProxyRouteKind::PacDirect);
     assert_eq!(evidence.pac_origin(), Some(&pac));
@@ -157,8 +174,49 @@ fn policy_rejects_unbounded_origin_sets_before_authorization() {
 
 #[test]
 fn proxy_route_errors_have_deterministic_standard_error_contracts() {
-    let error = ProxyRouteError::DirectRouteDenied;
-    assert_eq!(error.to_string(), "direct proxy route is not authorized");
-    let standard: &dyn std::error::Error = &error;
-    assert!(standard.source().is_none());
+    let origin = origin("https://proxy.example");
+    let cases = [
+        (
+            ProxyRouteError::DirectRouteDenied,
+            "direct proxy route is not authorized".to_owned(),
+        ),
+        (
+            ProxyRouteError::ProxyOriginDenied {
+                origin: origin.clone(),
+            },
+            "proxy origin is not authorized: https://proxy.example".to_owned(),
+        ),
+        (
+            ProxyRouteError::PacOriginDenied { origin },
+            "PAC origin is not authorized: https://proxy.example".to_owned(),
+        ),
+        (
+            ProxyRouteError::TooManyProxyOrigins {
+                count: MAX_PROXY_ORIGIN_COUNT + 1,
+                maximum: MAX_PROXY_ORIGIN_COUNT,
+            },
+            format!(
+                "proxy origin policy has {} entries; maximum is {}",
+                MAX_PROXY_ORIGIN_COUNT + 1,
+                MAX_PROXY_ORIGIN_COUNT
+            ),
+        ),
+        (
+            ProxyRouteError::TooManyPacOrigins {
+                count: MAX_PAC_ORIGIN_COUNT + 1,
+                maximum: MAX_PAC_ORIGIN_COUNT,
+            },
+            format!(
+                "PAC origin policy has {} entries; maximum is {}",
+                MAX_PAC_ORIGIN_COUNT + 1,
+                MAX_PAC_ORIGIN_COUNT
+            ),
+        ),
+    ];
+
+    for (error, expected) in cases {
+        assert_eq!(error.to_string(), expected);
+        let standard: &dyn std::error::Error = &error;
+        assert!(standard.source().is_none());
+    }
 }
