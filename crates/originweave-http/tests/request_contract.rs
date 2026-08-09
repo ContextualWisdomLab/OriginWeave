@@ -143,6 +143,9 @@ fn invalid_field_names_and_values_fail_closed() {
 
 #[test]
 fn field_name_and_value_sizes_are_bounded() {
+    let exact_name = "a".repeat(256);
+    assert!(RequestField::new(&exact_name, b"value").is_ok());
+
     let long_name = "a".repeat(257);
     assert!(matches!(
         RequestField::new(&long_name, b"value"),
@@ -151,6 +154,10 @@ fn field_name_and_value_sizes_are_bounded() {
             maximum_bytes: 256,
         })
     ));
+
+    let exact_value = vec![b'a'; 8_192];
+    assert!(RequestField::new("x-test", &exact_value).is_ok());
+
     let long_value = vec![b'a'; 8_193];
     assert!(matches!(
         RequestField::new("x-test", &long_value),
