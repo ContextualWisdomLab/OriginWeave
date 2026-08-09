@@ -24,7 +24,9 @@ The kernel carries authority metadata but never the protected value. A disclosur
 - destination;
 - data classification.
 
-An exact match may return only the explicitly configured disclosure decision: deny, opaque handle only, derived value only, partial field disclosure, full field disclosure, human approval required, or dual control required. Any authority mismatch fails closed to denial.
+All authority identifiers must be present before policy can grant disclosure or opaque-handle use. Two equally incomplete scopes are not valid authority merely because their missing identifiers compare equal; incomplete authority fails closed.
+
+An exact match may return only the explicitly configured disclosure decision: deny, opaque handle only, derived value only, partial field disclosure, full field disclosure, human approval required, or dual control required. Any authority mismatch or incomplete authority fails closed to denial.
 
 Opaque handle use is separately bound to tenant, task, field, purpose, destination, exclusive expiry time, and maximum use count. The policy function only authorizes handle use; it does not resolve the handle or return the protected value. Resolution belongs in a later trusted broker or browser adapter that rechecks the same authority immediately before disclosure.
 
@@ -34,6 +36,7 @@ The first kernel intentionally does not implement storage, encryption, tokenizat
 
 - Raw protected bytes are structurally absent from the first policy API.
 - A caller with the wrong tenant, task, field, purpose, destination, or classification cannot reuse another disclosure scope.
+- Missing tenant, task, field, purpose, or destination identifiers cannot become authority through equality with another incomplete scope.
 - A stale or exhausted opaque handle fails closed before any value resolution can occur.
 - Later UI, connector, model, export, and browser-fill adapters can reuse the same explicit decision boundary without inheriting ambient authority.
 - The complete enterprise gap is not closed by this kernel; independently reusable storage/broker/service contracts, evidence, lifecycle controls, and end-to-end tests are still required.
@@ -54,7 +57,7 @@ Rejected because many actions can operate through opaque handles or deterministi
 
 ## Verification
 
-Tests must prove exact-scope disclosure, denial on every authority-dimension mismatch, every supported disclosure result, opaque-handle expiry, use-count exhaustion, and destination/audience mismatch. Production function, line, region, and branch coverage remains exactly 100%.
+Tests must prove exact-scope disclosure, denial on every authority-dimension mismatch, fail-closed behavior for incomplete authority, every supported disclosure result, opaque-handle expiry, use-count exhaustion, and destination/audience mismatch. Production function, line, region, and branch coverage remains exactly 100%.
 
 ## References
 
