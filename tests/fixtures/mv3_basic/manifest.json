@@ -9,7 +9,9 @@
     "declarativeNetRequestWithHostAccess",
     "tabs",
     "scripting",
-    "sidePanel"
+    "sidePanel",
+    "bookmarks",
+    "history"
   ],
   "host_permissions": [
     "http://127.0.0.1/*"
