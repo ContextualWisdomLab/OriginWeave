@@ -5,7 +5,8 @@ This is a release/CI evidence runner, not a product browser adapter. It uses the
 W3C WebDriver HTTP protocol only to prove that a real Chrome for Testing build
 can load the controlled MV3 fixture and repeatedly exercise service-worker,
 content-script, storage, declarative-net-request, tabs, windows, scripting,
-commands, side-panel, real browser-click, and restart-persistence behavior.
+commands, side-panel, bookmarks, history, real browser-click, and
+restart-persistence behavior.
 """
 
 from __future__ import annotations
@@ -175,7 +176,9 @@ return {
   scriptingExecuted:
     document.documentElement.dataset.originweaveScriptingExecuted || "missing",
   commands: document.documentElement.dataset.originweaveCommands || "missing",
-  sidePanel: document.documentElement.dataset.originweaveSidePanel || "missing"
+  sidePanel: document.documentElement.dataset.originweaveSidePanel || "missing",
+  bookmarks: document.documentElement.dataset.originweaveBookmarks || "missing",
+  history: document.documentElement.dataset.originweaveHistory || "missing"
 };
 """
     expected = {
@@ -191,6 +194,8 @@ return {
         "scriptingExecuted": "ready",
         "commands": "ready",
         "sidePanel": "ready",
+        "bookmarks": "ready",
+        "history": "ready",
     }
     deadline = time.monotonic() + FIXTURE_TIMEOUT_SECONDS
     latest: dict[str, str] = {}
@@ -342,6 +347,8 @@ def _run_browser_pass(
                 and surfaces["scriptingExecuted"] == "ready",
                 "commands": surfaces["commands"] == "ready",
                 "side-panel": surfaces["sidePanel"] == "ready",
+                "bookmarks": surfaces["bookmarks"] == "ready",
+                "history": surfaces["history"] == "ready",
                 "real-browser-click": click_result == "clicked",
             },
         }
