@@ -35,6 +35,31 @@ class ManifestV3DownloadsContractTests(unittest.TestCase):
             with self.subTest(expected=expected):
                 self.assertIn(expected, worker)
 
+    def test_download_failures_emit_only_bounded_stage_diagnostics(self) -> None:
+        """A real-browser failure must identify its reviewed download stage without raw paths."""
+
+        worker = (FIXTURE / "service_worker.js").read_text(encoding="utf-8")
+        content = (FIXTURE / "content_script.js").read_text(encoding="utf-8")
+        runner = RUNNER.read_text(encoding="utf-8")
+        for expected in (
+            "download-start-rejected",
+            "download-search-missing",
+            "download-interrupted",
+            "download-url-mismatch",
+            "download-byte-count-mismatch",
+            "download-exists-false",
+            "download-timeout",
+            "download-complete-ready",
+            "downloadsDiagnostic",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, worker)
+        self.assertIn("originweaveDownloadsDiagnostic", content)
+        self.assertIn("downloadsDiagnostic", runner)
+        self.assertIn("DOWNLOAD_DIAGNOSTIC_VALUES", runner)
+        self.assertNotIn("download.default_directory", worker)
+        self.assertNotIn("item.filename", worker)
+
     def test_content_script_and_runner_require_downloads_on_every_pass(self) -> None:
         """The compatibility report must fail closed when downloads evidence is missing."""
 
