@@ -1,6 +1,6 @@
 //! Strict response status-line, field, and interim-response parsing.
 
-use crate::field::{trim_optional_whitespace, FieldBlock, FieldLine, FieldSyntaxError};
+use crate::field::{FieldBlock, FieldLine, FieldSyntaxError, trim_optional_whitespace};
 use crate::{HttpClientPolicy, HttpError};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
