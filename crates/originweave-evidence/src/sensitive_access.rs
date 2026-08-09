@@ -300,6 +300,7 @@ fn validate_fields(field_ids: &[String]) -> Result<(), SensitiveEvidenceError> {
 fn valid_identifier(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= MAX_SENSITIVE_IDENTIFIER_BYTES
+        && value.bytes().any(|byte| byte.is_ascii_alphanumeric())
         && value
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b':' | b'-'))
