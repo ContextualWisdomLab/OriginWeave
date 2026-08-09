@@ -11,9 +11,8 @@ fn origin(host: &str) -> Origin {
     Origin::parse(host).expect("test origin")
 }
 
-#[test]
-fn every_public_http_error_has_a_nonempty_operator_message() {
-    let errors = vec![
+fn public_http_errors() -> Vec<HttpError> {
+    vec![
         HttpError::InvalidExchangeTimeout {
             timeout: Duration::ZERO,
             maximum_timeout: Duration::from_secs(1),
@@ -152,28 +151,25 @@ fn every_public_http_error_has_a_nonempty_operator_message() {
         HttpError::TimeoutRestorationFailed {
             source: io::Error::other("restore"),
         },
-    ];
+    ]
+}
 
-    for error in errors {
+#[test]
+fn every_public_http_error_has_a_nonempty_operator_message() {
+    for error in public_http_errors() {
         assert!(!error.to_string().is_empty(), "{error:?}");
     }
 }
 
 #[test]
 fn http_error_sources_are_exposed_only_for_wrapped_io_failures() {
-    for error in [
-        HttpError::ContentDecodingFailed {
-            source: io::Error::new(io::ErrorKind::InvalidData, "decode"),
-        },
-        HttpError::HttpExchangeIoFailed {
-            source: io::Error::new(io::ErrorKind::ConnectionReset, "exchange"),
-        },
-        HttpError::TimeoutRestorationFailed {
-            source: io::Error::other("restore"),
-        },
-    ] {
-        assert!(error.source().is_some());
+    for error in public_http_errors() {
+        let wraps_io = matches!(
+            error,
+            HttpError::ContentDecodingFailed { .. }
+                | HttpError::HttpExchangeIoFailed { .. }
+                | HttpError::TimeoutRestorationFailed { .. }
+        );
+        assert_eq!(error.source().is_some(), wraps_io, "{error:?}");
     }
-
-    assert!(HttpError::InvalidRequestTarget.source().is_none());
 }
