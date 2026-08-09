@@ -52,6 +52,9 @@ mod reason_phrase_contract;
 #[path = "tests/region_contract.rs"]
 mod region_contract;
 mod request;
+#[cfg(test)]
+#[path = "tests/response_debug_runtime_contract.rs"]
+mod response_debug_runtime_contract;
 mod response_head;
 #[cfg(test)]
 #[path = "tests/security_contract.rs"]
