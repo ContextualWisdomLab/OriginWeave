@@ -1,3 +1,5 @@
+#![allow(clippy::expect_used)]
+
 use originweave_core::Origin;
 use originweave_policy::{
     DataClassification, DisclosureDecision, DisclosureScope, HandleUseDecision, HandleUseRequest,
