@@ -6,6 +6,11 @@ use originweave_destination::{ProxyServer, ProxyServerError, ProxyServerScheme};
 fn chromium_proxy_server_schemes_have_distinct_canonical_identity() {
     let cases = [
         (
+            "PROXY.EXAMPLE:8080",
+            "http://proxy.example:8080",
+            ProxyServerScheme::Http,
+        ),
+        (
             "http://PROXY.EXAMPLE:80",
             "http://proxy.example",
             ProxyServerScheme::Http,
@@ -51,8 +56,8 @@ fn ordinary_http_and_ipv6_proxies_are_not_forced_through_web_origin_policy() {
     assert_eq!(http.as_str(), "http://proxy.example:8080");
     assert_eq!(http.scheme(), ProxyServerScheme::Http);
 
-    let no_port = ProxyServer::parse("http://proxy.example")
-        .expect("default-port HTTP proxy must be representable");
+    let no_port = ProxyServer::parse("proxy.example")
+        .expect("scheme-less default-port HTTP proxy must be representable");
     assert_eq!(no_port.as_str(), "http://proxy.example");
 
     let ipv6 = ProxyServer::parse("socks5://[2001:db8::1]:1080")
@@ -70,7 +75,6 @@ fn proxy_server_identity_rejects_ambiguous_or_credential_bearing_values() {
         " proxy://host",
         "http://proxy.exa\nmple:8080",
         "http://proxy.exa\u{2003}mple:8080",
-        "proxy.example:8080",
         "ftp://proxy.example:21",
         "http://",
         "http://user:pass@proxy.example:8080",
