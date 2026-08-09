@@ -123,7 +123,7 @@ Commercial proof: declared performance and extension compatibility are reproduci
 - observability, SLOs, incident response, upgrade, and rollback;
 - SBOM, attestations, reproducible release, procurement, and support package.
 
-Commercial proof: a regulated enterprise can approve, operate, audit, and renew the product while workflows that legitimately require protected values disclose only the exact authorized fields to the exact authorized destination for the exact task and purpose.
+Commercial proof: a regulated enterprise can approve, operate, audit, and renew the product while workflows that legitimately require protected values disclose only the exact authorized fields for the exact tenant and classification to the exact authorized destination for the exact task and purpose.
 
 ## Benchmark program
 
