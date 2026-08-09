@@ -2,7 +2,7 @@
 
 ## 1. Product definition
 
-OriginWeave is an enterprise agentic web runtime and provenance-native browser control plane. Chromium remains the compatibility kernel; Rust owns new governance, destination, direct network, TLS identity, resource, evidence, and agent-facing contracts. This separation minimizes the Chromium patch surface and allows the same Rust modules to operate in a desktop browser, headless service, naruon module, or external agent runtime.
+OriginWeave is an enterprise agentic web runtime and provenance-native browser control plane. Chromium remains the compatibility kernel; Rust owns new governance, sensitive-data authority, destination, direct network, TLS identity, resource, evidence, and agent-facing contracts. This separation minimizes the Chromium patch surface and allows the same Rust modules to operate in a desktop browser, headless service, naruon module, or external agent runtime.
 
 ## 2. Architectural principles
 
@@ -10,8 +10,8 @@ OriginWeave is an enterprise agentic web runtime and provenance-native browser c
 2. **Authority is explicit.** No ambient browser state or page content implicitly grants a capability.
 3. **Actions are typed.** Production agents do not receive unrestricted JavaScript evaluation as a default tool.
 4. **Observe before acting; verify after acting.** A command is successful only when its expected post-condition is observed.
-5. **Secrets stay outside model context.** Models receive opaque handles; a broker resolves values directly into a trusted browser process.
-6. **Logical origin, resolved destination, TCP peer, and TLS service identity are separate.** An origin grant never implies permission to connect to every resolver result; an approved address is not a transport proof until the operating-system peer is checked; and an exact TCP peer is not an authenticated HTTPS service until WebPKI identity is verified.
+5. **Secrets and protected values stay outside model context by default.** Models receive opaque handles; a broker resolves values directly into a trusted browser process only after an explicit purpose-bound disclosure decision.
+6. **Logical origin, resolved destination, TCP peer, TLS service identity, and sensitive-data disclosure are separate.** An origin grant never implies permission to connect to every resolver result; an approved address is not a transport proof until the operating-system peer is checked; an exact TCP peer is not an authenticated HTTPS service until WebPKI identity is verified; and none of those authorities grants raw protected-value access.
 7. **Human interaction wins resource contention.** Rendering, input, and active-tab work outrank inference and background collection.
 8. **Evidence is a product output.** Extracted data and actions carry source locators, hashes, verification state, and policy decisions.
 9. **Adapters are replaceable.** HTTP, proxy/PAC, WebDriver BiDi, CDP, WebMCP, MCP, and future protocols map to internal versioned contracts.
@@ -27,8 +27,8 @@ OriginWeave is an enterprise agentic web runtime and provenance-native browser c
 │ OriginWeave browser, headless runtime, SDK, MCP server   │
 ├──────────────────────────────────────────────────────────┤
 │ Rust control plane                                      │
-│ session | policy | destination | network | TLS           │
-│ observation | action | resource | secret | evidence      │
+│ session | policy | sensitive data | destination | network│
+│ TLS | observation | action | resource | secret | evidence│
 ├──────────────────────────────────────────────────────────┤
 │ Chromium compatibility kernel                            │
 │ Blink | V8 | Skia | Viz | Dawn | Network | Extensions    │
@@ -64,7 +64,9 @@ Owns stable value contracts without I/O:
 
 ### `originweave-policy`
 
-Owns a pure decision function. It denies human-mode agent control, untrusted instruction promotion, missing capabilities, unauthorized origins, crawler mutation, cross-origin mutation, absent robots evidence, unsafe secret delivery, R5 actions, and mismatched action, target-origin, or intent approvals.
+Owns deterministic pure policy decisions without I/O. Its action evaluator denies human-mode agent control, untrusted instruction promotion, missing capabilities, unauthorized origins, crawler mutation, cross-origin mutation, absent robots evidence, unsafe secret delivery, R5 actions, and mismatched action, target-origin, or intent approvals.
+
+The crate also contains the first purpose-bound sensitive-data authority kernel. A `SensitiveDataRequest` and `DisclosureScope` carry no protected value bytes and must match exactly on tenant, task, field, business purpose, destination, and classification before the configured disclosure outcome is returned; any mismatch denies access. `SensitiveValueHandleScope` and `HandleUseRequest` additionally bind opaque-handle use to an exclusive expiry and maximum use count. This is a preparatory policy kernel, not the final independently versioned sensitive-data service, storage, broker, evidence, or lifecycle layer described by issue #10 and ADR 0007.
 
 ### `originweave-destination`
 
@@ -124,19 +126,20 @@ Owns universally value-redacted network evidence and source-bound provenance rec
 ## 6. Planned modules
 
 ```text
-originweave-session       isolated browser contexts and checkpoints
-originweave-proxy         separately approved proxy and final-target routing
-originweave-http          request, response, redirect, and elapsed-time budgets
-originweave-observation   AX + DOM + layout + network semantic snapshots
-originweave-action        typed browser actions and post-condition verification
-originweave-secret        opaque secret broker and trusted fill channel
-originweave-bidi          WebDriver BiDi adapter
-originweave-cdp           versioned Chromium DevTools Protocol adapter
-originweave-mcp           external MCP server
-originweave-protocol      Browser Agent Protocol schemas and compatibility
-originweave-warc          ISO 28500 WARC persistence
-originweave-prov          W3C PROV-O serialization
-originweave-benchmark     Mind2Web, WebArena, and hostile-page evaluation
+originweave-session        isolated browser contexts and checkpoints
+originweave-sensitive-data independently versioned field authority/service contracts
+originweave-proxy          separately approved proxy and final-target routing
+originweave-http           request, response, redirect, and elapsed-time budgets
+originweave-observation    AX + DOM + layout + network semantic snapshots
+originweave-action         typed browser actions and post-condition verification
+originweave-secret         opaque secret/data broker and trusted fill channel
+originweave-bidi           WebDriver BiDi adapter
+originweave-cdp            versioned Chromium DevTools Protocol adapter
+originweave-mcp            external MCP server
+originweave-protocol       Browser Agent Protocol schemas and compatibility
+originweave-warc           ISO 28500 WARC persistence
+originweave-prov           W3C PROV-O serialization
+originweave-benchmark      Mind2Web, WebArena, and hostile-page evaluation
 ```
 
 Each module must be usable alone, through the OriginWeave runtime, and as a module imported by naruon or another CWL product.
@@ -168,12 +171,13 @@ user intent
 → proxy and bounded HTTP adapter checks
 → crawler / robots / secret checks
 → risk and exact action + target + intent approval check
-→ trusted input execution
+→ purpose-bound sensitive-data decision when protected fields are required
+→ trusted broker or input execution
 → observed post-condition
 → evidence and audit record
 ```
 
-State-changing actions remain same-origin by default. Cross-origin workflows require decomposition into separately granted steps rather than one ambient action.
+State-changing actions remain same-origin by default. Cross-origin workflows require decomposition into separately granted steps rather than one ambient action. A successful action or network decision cannot be reused as sensitive-data disclosure authority; that decision is evaluated separately for each protected field transition.
 
 ## 9. Resource architecture
 
@@ -231,21 +235,24 @@ Trust-root count and bytes, ALPN count and bytes, server-presented certificate c
 
 The network crate remains direct-only and the TLS crate remains transport-bound. Before OriginWeave claims safe real navigation, the Chromium/BiDi/CDP adapter must prove that its real socket path consumes both authorities; proxy and PAC behavior must separately authorize intermediate and final destinations; HTTP must bound connection, header, body, redirect, download, and elapsed-time resources; and download policy must compare declared and observed MIME without exposing credentials.
 
-No browser adapter may treat syntactic origin validation as an SSRF defense, resolver success as authorization, TCP peer equality as TLS identity, or successful TLS authentication as an HTTP resource-budget decision.
+No browser adapter may treat syntactic origin validation as an SSRF defense, resolver success as authorization, TCP peer equality as TLS identity, successful TLS authentication as an HTTP resource-budget decision, or any of those network authorities as permission to disclose a protected field.
 
 ## 11. Persistence and database naming
 
-Persistent objects use two-or-more-word `snake_case` names. Examples include `agent_session`, `browser_profile`, `page_snapshot`, `semantic_node`, `network_exchange`, `action_event`, `policy_decision`, `provenance_record`, `resource_budget`, and `extension_grant`.
+Persistent objects use two-or-more-word `snake_case` names. Examples include `agent_session`, `browser_profile`, `page_snapshot`, `semantic_node`, `network_exchange`, `action_event`, `policy_decision`, `provenance_record`, `resource_budget`, and `extension_grant`. Planned sensitive-data persistence uses names such as `sensitive_data_record`, `sensitive_value_handle`, `sensitive_access_evidence`, `retention_policy_record`, and `encryption_key_reference`; those objects are not implemented by the current pure policy kernel.
 
-WARC stores source exchanges and resources; relational storage holds sessions, policy, and audit metadata; object storage holds screenshots and large artifacts; PROV-JSON-LD represents derivation and responsibility.
+WARC stores source exchanges and resources; relational storage holds sessions, policy, and audit metadata; object storage holds screenshots and large artifacts; PROV-JSON-LD represents derivation and responsibility. Protected values require a separately authorized storage and retention design rather than ambient inclusion in these generic stores.
 
 ## 12. Security boundaries
 
 - Chromium sandbox and Site Isolation are retained.
 - Renderer compromise is assumed possible; privileged validation occurs outside the renderer.
 - Browser content is data, never authority.
-- Secrets are never included in model prompts, traces, or provenance values.
+- Secrets and protected values are never included in model prompts, traces, provenance values, or generic evidence without a separately authorized disclosure contract.
 - Generic header and query values are never retained by the evidence kernel.
+- Sensitive-data disclosure is separate from session, repository, administrator, origin, destination, transport, TLS, and model-credential authority.
+- The current sensitive-data policy API carries authority metadata only, never protected value bytes.
+- Disclosure mismatches on tenant, task, field, purpose, destination, or classification deny access; opaque-handle audience mismatch, expiry, or exhausted use count fail closed.
 - Logical origin grants, resolved-destination grants, actual peer evidence, and TLS service identity remain distinct.
 - DNS answer expansion after approval is denied as a possible rebinding event.
 - Direct TCP accepts only a canonical approved socket, never a hostname.
@@ -273,14 +280,14 @@ OriginWeave headless service ├─ Browser Agent Protocol ─ agent orchestrato
 naruon embedded module       ┘                    └─ contextual-orchestrator
 ```
 
-No deployment mode may depend on an in-process singleton. Session, policy, destination, network, TLS, evidence, and persistence interfaces must remain tenant-scoped and transport-neutral.
+No deployment mode may depend on an in-process singleton. Session, policy, sensitive-data authority, destination, network, TLS, evidence, and persistence interfaces must remain tenant-scoped and transport-neutral.
 
 ## 14. Quality attributes
 
 | Attribute | Required evidence |
 |---|---|
-| correctness | contract, property, hostile-input, real TCP/TLS, and post-condition tests |
-| safety | prompt-injection, secret, origin, destination, rebinding, redirect, exact-peer, TLS identity, approval, and renderer-boundary tests |
+| correctness | contract, property, hostile-input, real TCP/TLS, exact sensitive-data scope, and post-condition tests |
+| safety | prompt-injection, secret, sensitive-data audience/expiry/use-count, origin, destination, rebinding, redirect, exact-peer, TLS identity, approval, and renderer-boundary tests |
 | reliability | crash recovery, checkpoint, retry, timeout, and idempotency tests |
 | performance | input latency, frame time, task RSS, VRAM, transfer, connection, handshake, and token metrics |
 | interoperability | BiDi/CDP/MCP/WARC/PROV and Manifest V3 compatibility suites |
@@ -289,4 +296,4 @@ No deployment mode may depend on an in-process singleton. Session, policy, desti
 
 ## 15. Change control
 
-Changes to the compatibility-kernel boundary, risk taxonomy, secret model, origin model, canonical intent model, evidence semantics, destination taxonomy, DNS pinning semantics, direct socket authority, TLS reference identity, trust-root semantics, trusted-time semantics, ALPN policy, redirect policy, resource mitigation semantics, or protocol versioning require a new ADR. The current baseline decisions are recorded under `docs/adr/`.
+Changes to the compatibility-kernel boundary, risk taxonomy, secret or sensitive-data authority model, origin model, canonical intent model, evidence semantics, destination taxonomy, DNS pinning semantics, direct socket authority, TLS reference identity, trust-root semantics, trusted-time semantics, ALPN policy, redirect policy, resource mitigation semantics, or protocol versioning require a new ADR. The current baseline decisions are recorded under `docs/adr/`.
