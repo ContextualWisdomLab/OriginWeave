@@ -31,6 +31,8 @@ The Chromium compatibility kernel may be compromised or return malformed observa
 
 OriginWeave-owned authority-bearing behavior is implemented in a Rust control plane with narrow adapters to Chromium and external protocols. Adapters translate evidence and commands but cannot silently widen capability, origin, approval, secret, resource, or provenance authority. Arbitrary JavaScript is not a control-plane escape hatch. Experimental interfaces remain replaceable adapters behind versioned internal contracts.
 
+The boundary uses data-oriented versioned messages and narrow FFI/IPC surfaces rather than sharing browser-owned mutable objects across trust boundaries. Rust type safety, ownership, and `Send`/`Sync` discipline are useful implementation controls but do not themselves validate untrusted IPC or browser data. Chromium/Rust integration follows supported Chromium mechanisms such as `cxx`/Crubit or Mojo where appropriate, with explicit validation at the OriginWeave boundary.
+
 ## Consequences
 
 The Rust crates become the durable product boundary and must maintain strict APIs, rustdoc, compatibility tests, and exact owned-code coverage. Some browser operations require additional adapter work instead of direct scripting. Chromium integration can evolve without redefining policy semantics.
@@ -41,11 +43,11 @@ If a required adapter is unavailable or incompatible, the governed capability fa
 
 ## Security / privacy / governance impact
 
-Secret material, approval authority, tenant policy, and high-risk action decisions remain outside renderer/page authority. Rust boundaries reduce accidental memory-unsafety in OriginWeave-owned code but do not imply Chromium itself is memory-safe. Evidence must identify which component made each decision.
+Secret material, approval authority, tenant policy, and high-risk action decisions remain outside renderer/page authority. Rust boundaries reduce accidental memory-unsafety in OriginWeave-owned code but do not imply Chromium itself is memory-safe or that unsafe FFI is automatically trustworthy. Evidence must identify which component made each decision.
 
 ## Tests and acceptance evidence
 
-Require crate-level API and property tests, adapter conformance tests, hostile-input tests, renderer-compromise simulations, exact 100% owned production coverage, rustdoc, Clippy, and end-to-end tests proving that adapter failure cannot bypass policy. Architecture documentation must map each authority to an owning module.
+Require crate-level API and property tests, adapter conformance tests, hostile-input tests, renderer-compromise simulations, serialization/version tests, FFI/IPC boundary tests, exact 100% owned production coverage, rustdoc, Clippy, and end-to-end tests proving that adapter failure cannot bypass policy. Architecture documentation must map each authority to an owning module.
 
 ## Migration and rollback
 
@@ -60,5 +62,13 @@ Define the stable internal adapter protocol and compatibility matrix; identify t
 Supersede only if another implementation boundary demonstrates equal or better memory safety, auditability, browser compatibility, migration economics, and fail-closed authority semantics with production evidence.
 
 ## References
+
+Chromium. (n.d.-a). *Getting started with Rust in Chromium*. Chromium source documentation. Retrieved August 9, 2026, from https://chromium.googlesource.com/chromium/src/+/refs/heads/main/docs/rust/README.md
+
+Chromium. (n.d.-b). *Crubit C++/Rust interoperability*. Chromium source documentation. Retrieved August 9, 2026, from https://chromium.googlesource.com/chromium/src/+/refs/heads/main/docs/rust/crubit.md
+
+The Rust Project Developers. (n.d.). *Send and Sync*. The Rustonomicon. Retrieved August 9, 2026, from https://doc.rust-lang.org/nomicon/send-and-sync.html
+
+## Related documents
 
 See ADR 0001, `ARCHITECTURE.md`, `docs/TRD.md`, and `docs/doctoring/product-documentation-baseline.md`.
