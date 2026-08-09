@@ -63,7 +63,7 @@ impl HttpRequestTarget {
         }
         let query_index = encoded.find('?');
         let path_end = query_index.unwrap_or(encoded.len());
-        let prefix_end = path_end.min(MAX_EVIDENCE_PATH_PREFIX_BYTES);
+        let prefix_end = evidence_path_prefix_end(encoded.as_bytes(), path_end);
         let path_prefix = encoded[..prefix_end].to_owned();
         let target_hash = target_identifier(&origin, encoded.as_bytes());
         Ok(Self {
@@ -104,6 +104,18 @@ impl HttpRequestTarget {
     pub const fn path_prefix(&self) -> &str {
         self.path_prefix.as_str()
     }
+}
+
+fn evidence_path_prefix_end(encoded: &[u8], path_end: usize) -> usize {
+    let bounded_end = path_end.min(MAX_EVIDENCE_PATH_PREFIX_BYTES);
+    if bounded_end == path_end {
+        return bounded_end;
+    }
+    let tail_start = bounded_end.saturating_sub(2);
+    encoded[tail_start..bounded_end]
+        .iter()
+        .position(|byte| *byte == b'%')
+        .map_or(bounded_end, |offset| tail_start + offset)
 }
 
 fn is_origin_form_ascii(byte: u8) -> bool {
