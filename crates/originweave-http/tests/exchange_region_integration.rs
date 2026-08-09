@@ -116,6 +116,12 @@ fn spawn_http_server(
             match tls.read(&mut scratch) {
                 Ok(0) => break,
                 Ok(count) => request.extend_from_slice(&scratch[..count]),
+                Err(error) if error.kind() == std::io::ErrorKind::UnexpectedEof => {
+                    if request.is_empty() {
+                        break;
+                    }
+                    return Err(error.to_string());
+                }
                 Err(error) => return Err(error.to_string()),
             }
         }
