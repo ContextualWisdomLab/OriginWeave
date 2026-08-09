@@ -228,3 +228,27 @@ fn every_documented_classification_is_representable() -> TestResult {
     }
     Ok(())
 }
+
+#[test]
+fn sensitive_evidence_errors_integrate_with_standard_error_chains() {
+    let cases = [
+        (
+            SensitiveEvidenceError::InvalidIdentifier,
+            "invalid sensitive-access identifier",
+        ),
+        (
+            SensitiveEvidenceError::InvalidFieldSet,
+            "invalid sensitive-access field set",
+        ),
+        (
+            SensitiveEvidenceError::InvalidLifecycle,
+            "invalid sensitive-access lifecycle",
+        ),
+    ];
+
+    for (error, expected_message) in cases {
+        assert_eq!(error.to_string(), expected_message);
+        let standard_error: &dyn std::error::Error = &error;
+        assert!(standard_error.source().is_none());
+    }
+}
