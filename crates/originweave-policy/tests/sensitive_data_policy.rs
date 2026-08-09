@@ -1,7 +1,12 @@
+use originweave_core::Origin;
 use originweave_policy::{
     DataClassification, DisclosureDecision, DisclosureScope, HandleUseDecision, HandleUseRequest,
     SensitiveDataRequest, SensitiveValueHandleScope, authorize_handle_use, evaluate_disclosure,
 };
+
+fn origin(input: &str) -> Origin {
+    Origin::parse(input).expect("test origin must be valid")
+}
 
 fn shipping_request() -> SensitiveDataRequest {
     SensitiveDataRequest::new(
@@ -9,7 +14,7 @@ fn shipping_request() -> SensitiveDataRequest {
         "task_ship_order",
         "shipping_address",
         "fulfill_order",
-        "https://shipping.example",
+        origin("https://shipping.example"),
         DataClassification::PersonalData,
     )
 }
@@ -20,7 +25,7 @@ fn shipping_scope(decision: DisclosureDecision) -> DisclosureScope {
         "task_ship_order",
         "shipping_address",
         "fulfill_order",
-        "https://shipping.example",
+        origin("https://shipping.example"),
         DataClassification::PersonalData,
         decision,
     )
@@ -40,7 +45,7 @@ fn disclosure_is_bound_to_exact_tenant_task_field_purpose_destination_and_classi
             "task_ship_order",
             "shipping_address",
             "fulfill_order",
-            "https://shipping.example",
+            origin("https://shipping.example"),
             DataClassification::PersonalData,
         ),
         SensitiveDataRequest::new(
@@ -48,7 +53,7 @@ fn disclosure_is_bound_to_exact_tenant_task_field_purpose_destination_and_classi
             "task_other",
             "shipping_address",
             "fulfill_order",
-            "https://shipping.example",
+            origin("https://shipping.example"),
             DataClassification::PersonalData,
         ),
         SensitiveDataRequest::new(
@@ -56,7 +61,7 @@ fn disclosure_is_bound_to_exact_tenant_task_field_purpose_destination_and_classi
             "task_ship_order",
             "customer_email",
             "fulfill_order",
-            "https://shipping.example",
+            origin("https://shipping.example"),
             DataClassification::PersonalData,
         ),
         SensitiveDataRequest::new(
@@ -64,7 +69,7 @@ fn disclosure_is_bound_to_exact_tenant_task_field_purpose_destination_and_classi
             "task_ship_order",
             "shipping_address",
             "marketing",
-            "https://shipping.example",
+            origin("https://shipping.example"),
             DataClassification::PersonalData,
         ),
         SensitiveDataRequest::new(
@@ -72,7 +77,7 @@ fn disclosure_is_bound_to_exact_tenant_task_field_purpose_destination_and_classi
             "task_ship_order",
             "shipping_address",
             "fulfill_order",
-            "https://other.example",
+            origin("https://other.example"),
             DataClassification::PersonalData,
         ),
         SensitiveDataRequest::new(
@@ -80,7 +85,7 @@ fn disclosure_is_bound_to_exact_tenant_task_field_purpose_destination_and_classi
             "task_ship_order",
             "shipping_address",
             "fulfill_order",
-            "https://shipping.example",
+            origin("https://shipping.example"),
             DataClassification::SensitivePersonalData,
         ),
     ];
@@ -91,6 +96,54 @@ fn disclosure_is_bound_to_exact_tenant_task_field_purpose_destination_and_classi
             DisclosureDecision::DenyAccess
         );
     }
+}
+
+#[test]
+fn sensitive_destination_uses_the_canonical_origin_boundary() {
+    let canonical_request = SensitiveDataRequest::new(
+        "tenant_alpha",
+        "task_ship_order",
+        "shipping_address",
+        "fulfill_order",
+        origin("HTTPS://Shipping.Example:443"),
+        DataClassification::PersonalData,
+    );
+    assert_eq!(
+        evaluate_disclosure(
+            &canonical_request,
+            &shipping_scope(DisclosureDecision::FullFieldDisclosure),
+        ),
+        DisclosureDecision::FullFieldDisclosure
+    );
+
+    let non_default_port = SensitiveDataRequest::new(
+        "tenant_alpha",
+        "task_ship_order",
+        "shipping_address",
+        "fulfill_order",
+        origin("https://shipping.example:8443"),
+        DataClassification::PersonalData,
+    );
+    assert_eq!(
+        evaluate_disclosure(
+            &non_default_port,
+            &shipping_scope(DisclosureDecision::FullFieldDisclosure),
+        ),
+        DisclosureDecision::DenyAccess
+    );
+
+    for invalid in [
+        "https://user@shipping.example",
+        "https://shipping.example/path",
+        "https://shipping.example\n",
+        "https://배송.example",
+        "https://127.1",
+        "http://shipping.example",
+    ] {
+        assert!(Origin::parse(invalid).is_err(), "unexpected origin: {invalid}");
+    }
+
+    assert!(Origin::parse("http://127.0.0.1").is_ok());
 }
 
 #[test]
@@ -117,7 +170,7 @@ fn handle_scope() -> SensitiveValueHandleScope {
         "task_ship_order",
         "shipping_address",
         "fulfill_order",
-        "https://shipping.example",
+        origin("https://shipping.example"),
         2_000,
         2,
     )
@@ -129,7 +182,7 @@ fn valid_handle_use() -> HandleUseRequest {
         "task_ship_order",
         "shipping_address",
         "fulfill_order",
-        "https://shipping.example",
+        origin("https://shipping.example"),
         1_999,
         0,
     )
@@ -143,7 +196,7 @@ fn opaque_handle_use_is_bound_to_scope_expiry_and_use_count() {
         "task_ship_order",
         "shipping_address",
         "fulfill_order",
-        "https://shipping.example",
+        origin("https://shipping.example"),
         1_999,
         1,
     );
@@ -152,17 +205,17 @@ fn opaque_handle_use_is_bound_to_scope_expiry_and_use_count() {
         HandleUseDecision::Authorized
     );
 
-    let wrong_audience = HandleUseRequest::new(
+    let wrong_destination = HandleUseRequest::new(
         "tenant_alpha",
         "task_ship_order",
         "shipping_address",
         "fulfill_order",
-        "https://other.example",
+        origin("https://other.example"),
         1_999,
         1,
     );
     assert_eq!(
-        authorize_handle_use(&wrong_audience, &scope),
+        authorize_handle_use(&wrong_destination, &scope),
         HandleUseDecision::ScopeMismatch
     );
 
@@ -171,7 +224,7 @@ fn opaque_handle_use_is_bound_to_scope_expiry_and_use_count() {
         "task_ship_order",
         "shipping_address",
         "fulfill_order",
-        "https://shipping.example",
+        origin("https://shipping.example"),
         2_000,
         1,
     );
@@ -185,7 +238,7 @@ fn opaque_handle_use_is_bound_to_scope_expiry_and_use_count() {
         "task_ship_order",
         "shipping_address",
         "fulfill_order",
-        "https://shipping.example",
+        origin("https://shipping.example"),
         1_999,
         2,
     );
@@ -204,7 +257,7 @@ fn handle_scope_mismatch_covers_every_authority_dimension() {
             "task_ship_order",
             "shipping_address",
             "fulfill_order",
-            "https://shipping.example",
+            origin("https://shipping.example"),
             1_999,
             0,
         ),
@@ -213,7 +266,7 @@ fn handle_scope_mismatch_covers_every_authority_dimension() {
             "task_other",
             "shipping_address",
             "fulfill_order",
-            "https://shipping.example",
+            origin("https://shipping.example"),
             1_999,
             0,
         ),
@@ -222,7 +275,7 @@ fn handle_scope_mismatch_covers_every_authority_dimension() {
             "task_ship_order",
             "customer_email",
             "fulfill_order",
-            "https://shipping.example",
+            origin("https://shipping.example"),
             1_999,
             0,
         ),
@@ -231,7 +284,16 @@ fn handle_scope_mismatch_covers_every_authority_dimension() {
             "task_ship_order",
             "shipping_address",
             "marketing",
-            "https://shipping.example",
+            origin("https://shipping.example"),
+            1_999,
+            0,
+        ),
+        HandleUseRequest::new(
+            "tenant_alpha",
+            "task_ship_order",
+            "shipping_address",
+            "fulfill_order",
+            origin("https://other.example"),
             1_999,
             0,
         ),
@@ -253,7 +315,15 @@ fn incomplete_authority_never_grants_disclosure_or_handle_use() {
             "task_ship_order",
             "shipping_address",
             "fulfill_order",
-            "https://shipping.example",
+            origin("https://shipping.example"),
+            DataClassification::PersonalData,
+        ),
+        SensitiveDataRequest::new(
+            "tenant_alpha",
+            "",
+            "shipping_address",
+            "fulfill_order",
+            origin("https://shipping.example"),
             DataClassification::PersonalData,
         ),
         SensitiveDataRequest::new(
@@ -261,7 +331,7 @@ fn incomplete_authority_never_grants_disclosure_or_handle_use() {
             "task_ship_order",
             "",
             "fulfill_order",
-            "https://shipping.example",
+            origin("https://shipping.example"),
             DataClassification::PersonalData,
         ),
         SensitiveDataRequest::new(
@@ -269,7 +339,7 @@ fn incomplete_authority_never_grants_disclosure_or_handle_use() {
             "task_ship_order",
             "shipping_address",
             "",
-            "https://shipping.example",
+            origin("https://shipping.example"),
             DataClassification::PersonalData,
         ),
     ] {
@@ -282,26 +352,38 @@ fn incomplete_authority_never_grants_disclosure_or_handle_use() {
         );
     }
 
-    let incomplete_scope = DisclosureScope::new(
-        "",
-        "task_ship_order",
-        "shipping_address",
-        "fulfill_order",
-        "https://shipping.example",
-        DataClassification::PersonalData,
-        DisclosureDecision::FullFieldDisclosure,
-    );
-    assert_eq!(
-        evaluate_disclosure(&shipping_request(), &incomplete_scope),
-        DisclosureDecision::DenyAccess
-    );
+    for incomplete_scope in [
+        DisclosureScope::new(
+            "",
+            "task_ship_order",
+            "shipping_address",
+            "fulfill_order",
+            origin("https://shipping.example"),
+            DataClassification::PersonalData,
+            DisclosureDecision::FullFieldDisclosure,
+        ),
+        DisclosureScope::new(
+            "tenant_alpha",
+            "",
+            "shipping_address",
+            "fulfill_order",
+            origin("https://shipping.example"),
+            DataClassification::PersonalData,
+            DisclosureDecision::FullFieldDisclosure,
+        ),
+    ] {
+        assert_eq!(
+            evaluate_disclosure(&shipping_request(), &incomplete_scope),
+            DisclosureDecision::DenyAccess
+        );
+    }
 
     let incomplete_handle_scope = SensitiveValueHandleScope::new(
         "",
         "task_ship_order",
         "shipping_address",
         "fulfill_order",
-        "https://shipping.example",
+        origin("https://shipping.example"),
         2_000,
         2,
     );
@@ -315,7 +397,7 @@ fn incomplete_authority_never_grants_disclosure_or_handle_use() {
         "",
         "shipping_address",
         "fulfill_order",
-        "https://shipping.example",
+        origin("https://shipping.example"),
         1_999,
         0,
     );
