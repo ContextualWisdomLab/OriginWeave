@@ -7,6 +7,14 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+mod sensitive_access;
+
+pub use sensitive_access::{
+    MAX_SENSITIVE_FIELD_COUNT, MAX_SENSITIVE_IDENTIFIER_BYTES, SensitiveAccessClass,
+    SensitiveAccessEvidence, SensitiveAccessEvidenceInput, SensitiveAccessOutcome,
+    SensitiveEvidenceError,
+};
+
 use std::collections::BTreeMap;
 
 use originweave_core::Origin;
