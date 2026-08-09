@@ -310,6 +310,29 @@ class HourlyProductDevelopmentContractTests(unittest.TestCase):
             agent,
         )
 
+    def test_success_requires_observed_model_provider_traffic(self) -> None:
+        """Exit zero is not proof that OpenCode reached the broker-backed model path."""
+
+        agent = _step_block(
+            self.workflow, "Run OpenCode in an unprivileged no-Git workspace"
+        )
+        success_branch = agent[
+            agent.index('if [ "$status" -eq 0 ]; then') : agent.index(
+                'if ! provider_status="$(read_provider_status)"; then'
+            )
+        ]
+        for contract in (
+            'provider_after_status="$(read_provider_status)"',
+            'read -r provider_after',
+            'if [ "$provider_after" -le "$provider_before" ]; then',
+            "cause=model_path_not_reached",
+        ):
+            self.assertIn(contract, success_branch)
+        self.assertLess(
+            success_branch.index('if [ "$provider_after" -le "$provider_before" ]; then'),
+            success_branch.index("success=true"),
+        )
+
     def test_missing_publication_authority_is_not_a_green_noop(self) -> None:
         """A verified change must fail closed when its dedicated publisher is absent."""
 
