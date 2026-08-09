@@ -34,13 +34,8 @@ fn a_node_handle_is_valid_only_for_its_exact_context_origin_and_document_epoch()
     let other_context = BrowsingContextId::new(12).expect("browsing context");
     let observed_epoch = DocumentEpoch::new(7).expect("document epoch");
     let current_epoch = DocumentEpoch::new(8).expect("document epoch");
-    let handle = ObservedNodeHandle::new(
-        observed_context,
-        origin.clone(),
-        observed_epoch,
-        42,
-    )
-    .expect("valid observed node handle");
+    let handle = ObservedNodeHandle::new(observed_context, origin.clone(), observed_epoch, 42)
+        .expect("valid observed node handle");
 
     assert_eq!(handle.browsing_context(), observed_context);
     assert_eq!(handle.origin(), &origin);
