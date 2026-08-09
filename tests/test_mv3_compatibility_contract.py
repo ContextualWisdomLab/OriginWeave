@@ -24,12 +24,21 @@ class ManifestV3CompatibilityContractTests(unittest.TestCase):
         self.assertIn("storage", manifest["permissions"])
         self.assertIn("declarativeNetRequest", manifest["permissions"])
         self.assertIn("declarativeNetRequestWithHostAccess", manifest["permissions"])
-        self.assertEqual(manifest["declarative_net_request"]["rule_resources"][0]["path"], "rules.json")
+        self.assertEqual(
+            manifest["declarative_net_request"]["rule_resources"][0]["path"],
+            "rules.json",
+        )
         scripts = manifest["content_scripts"]
         self.assertEqual(len(scripts), 1)
         self.assertEqual(scripts[0]["js"], ["content_script.js"])
         self.assertEqual(scripts[0]["matches"], ["http://127.0.0.1/*"])
-        for relative in ("service_worker.js", "content_script.js", "rules.json", "page.html"):
+        self.assertEqual(manifest["host_permissions"], ["http://127.0.0.1/*"])
+        for relative in (
+            "service_worker.js",
+            "content_script.js",
+            "rules.json",
+            "page.html",
+        ):
             self.assertTrue((FIXTURE / relative).is_file(), relative)
 
     def test_runner_pins_one_chrome_for_testing_revision(self) -> None:
@@ -54,6 +63,17 @@ class ManifestV3CompatibilityContractTests(unittest.TestCase):
                 self.assertIn(expected, runner)
         self.assertNotIn("latest", runner.lower())
         self.assertNotIn("google-chrome-stable", runner)
+
+    def test_runner_transport_cannot_follow_dynamic_url_schemes(self) -> None:
+        """WebDriver control transport must be hard-bound to loopback HTTP only."""
+
+        runner = (ROOT / "scripts" / "ci" / "run_mv3_compatibility.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("http.client.HTTPConnection", runner)
+        self.assertIn('"127.0.0.1"', runner)
+        self.assertNotIn("urllib.request", runner)
+        self.assertNotIn("urllib.error", runner)
 
     def test_workflow_runs_the_real_browser_lane_without_model_credentials(self) -> None:
         """Compatibility evidence must execute Chromium and never require LLM secrets."""
