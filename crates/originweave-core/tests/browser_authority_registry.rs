@@ -32,7 +32,9 @@ fn external_protocol_identifiers_are_scoped_and_never_become_authority() {
 
     assert_ne!(first_context, second_context);
     assert_eq!(
-        registry.current_epoch(first_context).expect("known context"),
+        registry
+            .current_epoch(first_context)
+            .expect("known context"),
         originweave_core::DocumentEpoch::new(1).expect("nonzero epoch")
     );
 }
