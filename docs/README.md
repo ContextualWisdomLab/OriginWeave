@@ -9,13 +9,18 @@
 - [UML and control-flow diagrams](uml/README.md)
 - [Conceptual ERD and durable domain model](erd/README.md)
 - [Product and decision traceability](traceability/README.md)
+- [Threat model](THREAT_MODEL.md)
+- [Product-wide test strategy](TEST_STRATEGY.md)
+- [Operability and incident-response baseline](OPERABILITY.md)
+- [OriginWeave API and protocol contract](API_CONTRACT.md)
+- [Release and rollback contract](RELEASE_AND_ROLLBACK.md)
 - [Product roadmap](product-roadmap.md)
 - [Research and standards](doctoring.md)
 - [Current product-baseline standards addendum](doctoring/product-documentation-baseline.md)
 - [Quality gates](quality-gates.md)
 - [Security policy](../SECURITY.md)
 
-The PRD/TRD/Architecture/ADR/UML/ERD/traceability set is the product-wide documentation graph. Feature-specific design specifications and plans below provide detailed implementation history but do not substitute for the product-wide baseline. Planned or conversation-derived capabilities must remain labelled Planned, Proposed, or Open until reviewed implementation evidence reaches protected `main`.
+The PRD/TRD/Architecture/ADR/UML/ERD/traceability/security/operations/API/release set is the product-wide documentation graph. Feature-specific design specifications and plans below provide detailed implementation history but do not substitute for the product-wide baseline. Planned or conversation-derived capabilities must remain labelled Planned, Proposed, or Open until reviewed implementation evidence reaches protected `main`.
 
 ## Governance and maintenance
 
