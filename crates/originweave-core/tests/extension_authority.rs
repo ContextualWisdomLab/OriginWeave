@@ -32,7 +32,10 @@ fn extension_id_accepts_only_canonical_chromium_extension_ids() {
         "abcdefghijklmnopabcdefghijklmno\n",
         "abcdefghijklmnopabcdefghijklmnoπ",
     ] {
-        assert!(ExtensionId::parse(invalid).is_err(), "unexpected id: {invalid:?}");
+        assert!(
+            ExtensionId::parse(invalid).is_err(),
+            "unexpected id: {invalid:?}"
+        );
     }
 }
 
@@ -53,7 +56,10 @@ fn extension_agent_access_requires_an_explicit_exact_grant() {
         context(11),
         ExtensionAgentCapability::ObserveCurrentContext,
     );
-    assert_eq!(evaluate_extension_access(&exact, Some(&grant)), ExtensionAccessDecision::Allow);
+    assert_eq!(
+        evaluate_extension_access(&exact, Some(&grant)),
+        ExtensionAccessDecision::Allow
+    );
 
     let no_grant = evaluate_extension_access(&exact, None);
     assert_eq!(no_grant, ExtensionAccessDecision::DenyMissingGrant);
@@ -131,12 +137,7 @@ fn explicit_grant_can_authorize_multiple_bounded_agent_capabilities() {
         ExtensionAgentCapability::ObserveCurrentContext,
         ExtensionAgentCapability::ProposeTypedAction,
     ] {
-        let request = ExtensionAccessRequest::new(
-            id.clone(),
-            session(13),
-            context(17),
-            capability,
-        );
+        let request = ExtensionAccessRequest::new(id.clone(), session(13), context(17), capability);
         assert_eq!(
             evaluate_extension_access(&request, Some(&grant)),
             ExtensionAccessDecision::Allow
