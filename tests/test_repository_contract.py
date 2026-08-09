@@ -58,6 +58,7 @@ class RepositoryContractTests(unittest.TestCase):
             "docs/adr/0004-resolved-destination-policy.md",
             "docs/adr/0005-direct-socket-binding.md",
             "docs/adr/0006-tls-server-identity.md",
+            "docs/adr/0009-hourly-agent-credential-boundary.md",
             "docs/superpowers/specs/2026-08-06-resolved-destination-policy-design.md",
             "docs/superpowers/specs/2026-08-06-direct-socket-binding-design.md",
             "docs/superpowers/specs/2026-08-06-tls-server-identity-design.md",
@@ -136,6 +137,26 @@ class RepositoryContractTests(unittest.TestCase):
         self.assertNotIn("contents: write", workflow)
         self.assertNotIn("gh pr merge", workflow)
         self.assertNotIn("gh pr review", workflow)
+
+    def test_hourly_credential_boundary_has_an_architecture_decision(self) -> None:
+        """Secret withholding, broker use, and publication authority must stay explicit."""
+
+        decision = (
+            ROOT / "docs/adr/0009-hourly-agent-credential-boundary.md"
+        ).read_text(encoding="utf-8")
+        for phrase in (
+            "NVIDIA_NIM_API_KEY",
+            "open_pull_request",
+            "release_blocker",
+            "dry_run",
+            "127.0.0.1:8765",
+            "credential broker",
+            "egress-policy: block",
+            "fingerprint",
+            "OPENCODE_PR_TOKEN",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, decision)
 
     def test_generated_build_outputs_are_ignored(self) -> None:
         """Verification artifacts must never be staged as product source."""
