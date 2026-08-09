@@ -7,6 +7,13 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+mod sensitive_data;
+
+pub use sensitive_data::{
+    DataClassification, DisclosureDecision, DisclosureScope, HandleUseDecision, HandleUseRequest,
+    SensitiveDataRequest, SensitiveValueHandleScope, authorize_handle_use, evaluate_disclosure,
+};
+
 use originweave_core::{
     ActionRequest, ApprovalEvidence, ApprovalScope, Capability, ExecutionPurpose,
     InstructionSource, PolicyContext, RiskClass, RobotsDecision, SecretDelivery, SessionMode,
