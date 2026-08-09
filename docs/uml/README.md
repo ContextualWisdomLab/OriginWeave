@@ -358,8 +358,10 @@ flowchart TD
     openstate --> nostart[Stop before NVIDIA_NIM_API_KEY materialization]
     openpr -- no --> deterministic{Release blocker, dry-run or deterministic product/release gate?}
     deterministic -- yes --> deterministic_result[Handle deterministic state without model credential]
-    deterministic -- no --> credential[Conditional credential gate]
-    credential --> broker[Expose NVIDIA_NIM_API_KEY only to authorized credential/broker path]
+    deterministic -- no --> credential{Conditional credential gate authorized and broker healthy?}
+    credential -- no --> credentialdenied[credential denied or broker unavailable]
+    credentialdenied --> stopnosecret[stop without secret materialization]
+    credential -- yes --> broker[Expose NVIDIA_NIM_API_KEY only to authorized credential/broker path]
     broker --> pristine[Create pristine workspace from exact HEAD]
     pristine --> attempt[Run bounded model attempt]
     attempt --> classify{Attempt result}
@@ -370,15 +372,21 @@ flowchart TD
     retry -- yes --> pristine
     retry -- no --> stopmodel
     seal --> validate[Independent tests, coverage, security and secret-fingerprint validation]
-    validate --> changed{Verified non-empty change?}
+    validate --> validation{Validation result}
+    validation -- failed --> validationfailed[validation failed]
+    validationfailed --> failclosed[fail closed without publication]
+    validation -- passed --> validationpassed[validation passed]
+    validationpassed --> changed{Verified non-empty change?}
     changed -- no --> evidence[Record deterministic no-change / product result]
     changed -- yes --> publish{Publication authority available and live state unchanged?}
-    publish -- no --> failclosed[Fail closed; never report successful publication]
+    publish -- no --> failclosed
     publish -- yes --> pr[Open/update one reviewed PR]
     pr --> governance[Independent exact-head checks, review and protected branch policy]
     governance --> merge[Protected merge only when all authorities pass]
     merge --> acceptance[Protected-main scheduled/manual operational acceptance]
 ```
+
+The credential decision is fail closed: `credential denied or broker unavailable` reaches `stop without secret materialization`. The validation decision is also fail closed: `validation failed` reaches `fail closed without publication`; only `validation passed` can proceed to non-empty-change and publication decisions.
 
 This diagram describes the governing workflow architecture and closure contract. It is not evidence that an active incident repair has merged or that protected-main acceptance has already occurred. `COPILOT_GITHUB_TOKEN`, invented PATs, raw-secret rematerialization, synthesized approval, and fail-open publication are outside the design.
 
