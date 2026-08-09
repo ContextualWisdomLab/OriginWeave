@@ -116,24 +116,15 @@ fn assert_disclosure_denied(authority: AuthorityCase<'_>, classification: DataCl
         DisclosureDecision::FullFieldDisclosure,
     );
     assert_eq!(
-        evaluate_disclosure(
-            &disclosure_request(authority, classification),
-            &permitted,
-        ),
+        evaluate_disclosure(&disclosure_request(authority, classification), &permitted,),
         DisclosureDecision::DenyAccess
     );
 }
 
-fn assert_handle_scope_mismatch(
-    authority: AuthorityCase<'_>,
-    classification: DataClassification,
-) {
+fn assert_handle_scope_mismatch(authority: AuthorityCase<'_>, classification: DataClassification) {
     let scope = handle_scope(exact_authority(), DataClassification::PersonalData);
     assert_eq!(
-        evaluate_handle_use(
-            &handle_use(authority, classification, 1_999, 0),
-            &scope,
-        ),
+        evaluate_handle_use(&handle_use(authority, classification, 1_999, 0), &scope,),
         HandleUseDecision::ScopeMismatch
     );
 }
@@ -179,13 +170,7 @@ fn disclosure_is_bound_to_every_exact_authority_dimension() {
 
 #[test]
 fn sensitive_destination_uses_the_canonical_origin_boundary() {
-    let canonical = authority_case(
-        TENANT,
-        TASK,
-        FIELD,
-        PURPOSE,
-        "HTTPS://Shipping.Example:443",
-    );
+    let canonical = authority_case(TENANT, TASK, FIELD, PURPOSE, "HTTPS://Shipping.Example:443");
     assert_eq!(
         evaluate_disclosure(
             &disclosure_request(canonical, DataClassification::PersonalData),
@@ -397,21 +382,10 @@ fn authority_identifiers_are_bounded_ascii_policy_tokens() {
         PURPOSE,
         DESTINATION,
     ));
-    assert_invalid_equal_authority(authority_case(
-        TENANT,
-        TASK,
-        FIELD,
-        &oversized,
-        DESTINATION,
-    ));
+    assert_invalid_equal_authority(authority_case(TENANT, TASK, FIELD, &oversized, DESTINATION));
 
-    let invalid_handle_authority = authority_case(
-        "tenant alpha",
-        TASK,
-        FIELD,
-        PURPOSE,
-        DESTINATION,
-    );
+    let invalid_handle_authority =
+        authority_case("tenant alpha", TASK, FIELD, PURPOSE, DESTINATION);
     assert_eq!(
         evaluate_handle_use(
             &handle_use(
@@ -420,10 +394,7 @@ fn authority_identifiers_are_bounded_ascii_policy_tokens() {
                 1_999,
                 0,
             ),
-            &handle_scope(
-                invalid_handle_authority,
-                DataClassification::PersonalData,
-            ),
+            &handle_scope(invalid_handle_authority, DataClassification::PersonalData,),
         ),
         HandleUseDecision::ScopeMismatch
     );
