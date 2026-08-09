@@ -125,6 +125,6 @@ Berners-Lee, T., Fielding, R., & Masinter, L. (2005). *Uniform resource identifi
 
 Nottingham, M., & Reschke, J. (2021). *Structured field values for HTTP* (RFC 8941). Internet Engineering Task Force. https://doi.org/10.17487/RFC8941
 
-Nottingham, M., & Pardue, L. (2024). *Structured field values for HTTP* (RFC 9651). Internet Engineering Task Force. https://doi.org/10.17487/RFC9651
+Nottingham, M., & Kamp, P.-H. (2024). *Structured field values for HTTP* (RFC 9651). Internet Engineering Task Force. https://doi.org/10.17487/RFC9651
 
 Polli, R., Pardue, L., & Oku, K. (2023). *Digest fields* (RFC 9530). Internet Engineering Task Force. https://doi.org/10.17487/RFC9530
