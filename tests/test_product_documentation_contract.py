@@ -25,6 +25,21 @@ class ProductDocumentationContractTests(unittest.TestCase):
         missing = sorted(path for path in required_paths if not (ROOT / path).is_file())
         self.assertEqual(missing, [])
 
+    def test_root_architecture_links_the_authoritative_product_graph(self) -> None:
+        """Architecture readers must be able to reach requirements, decisions, diagrams, and data."""
+
+        architecture = (ROOT / "ARCHITECTURE.md").read_text(encoding="utf-8")
+        for link in (
+            "docs/PRD.md",
+            "docs/TRD.md",
+            "docs/adr/README.md",
+            "docs/uml/README.md",
+            "docs/erd/README.md",
+            "docs/traceability/README.md",
+        ):
+            with self.subTest(link=link):
+                self.assertIn(link, architecture)
+
     def test_prd_covers_product_family_modes_and_buyer_acceptance(self) -> None:
         """The PRD must describe the actual product family rather than one kernel slice."""
 
