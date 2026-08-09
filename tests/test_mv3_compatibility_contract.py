@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import json
 import pathlib
+import runpy
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "mv3_basic"
+RUNNER = ROOT / "scripts" / "ci" / "run_mv3_compatibility.py"
 
 
 class ManifestV3CompatibilityContractTests(unittest.TestCase):
@@ -44,9 +46,7 @@ class ManifestV3CompatibilityContractTests(unittest.TestCase):
     def test_runner_pins_one_chrome_for_testing_revision(self) -> None:
         """The compatibility lane must not silently float to a new Chromium build."""
 
-        runner = (ROOT / "scripts" / "ci" / "run_mv3_compatibility.py").read_text(
-            encoding="utf-8"
-        )
+        runner = RUNNER.read_text(encoding="utf-8")
         for expected in (
             "150.0.7871.129",
             "r1639810",
@@ -67,13 +67,23 @@ class ManifestV3CompatibilityContractTests(unittest.TestCase):
     def test_runner_transport_cannot_follow_dynamic_url_schemes(self) -> None:
         """WebDriver control transport must be hard-bound to loopback HTTP only."""
 
-        runner = (ROOT / "scripts" / "ci" / "run_mv3_compatibility.py").read_text(
-            encoding="utf-8"
-        )
+        runner = RUNNER.read_text(encoding="utf-8")
         self.assertIn("http.client.HTTPConnection", runner)
         self.assertIn('"127.0.0.1"', runner)
         self.assertNotIn("urllib.request", runner)
         self.assertNotIn("urllib.error", runner)
+
+    def test_runner_accepts_real_chromedriver_element_ids_without_path_injection(self) -> None:
+        """ChromeDriver dotted element IDs must work while path syntax stays fail-closed."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="mv3_contract")
+        validate = namespace["_path_token"]
+        element_id = "f.3A0B2C.d.9D8E7F.e.2"
+        self.assertEqual(validate(element_id, "element identifier"), element_id)
+        for invalid in (".", "..", "f/escape", "f%2Fescape", "f?query", "f#fragment"):
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(RuntimeError):
+                    validate(invalid, "element identifier")
 
     def test_workflow_runs_the_real_browser_lane_without_model_credentials(self) -> None:
         """Compatibility evidence must execute Chromium and never require LLM secrets."""
