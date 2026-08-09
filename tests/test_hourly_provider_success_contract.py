@@ -48,8 +48,12 @@ class HourlyProviderSuccessContractTests(unittest.TestCase):
         status_record = "record_provider_status(request_id, response.status)"
         for contract in (response_read, response_bound, status_record):
             self.assertIn(contract, provider_exchange)
-        self.assertLess(provider_exchange.index(response_read), provider_exchange.index(response_bound))
-        self.assertLess(provider_exchange.index(response_bound), provider_exchange.index(status_record))
+        self.assertLess(
+            provider_exchange.index(response_read), provider_exchange.index(response_bound)
+        )
+        self.assertLess(
+            provider_exchange.index(response_bound), provider_exchange.index(status_record)
+        )
 
         agent = _step_block(
             self.workflow, "Run OpenCode in an unprivileged no-Git workspace"
@@ -101,9 +105,13 @@ class HourlyProviderSuccessContractTests(unittest.TestCase):
             server_class.index("self.request_slots.acquire(blocking=False)"),
             server_class.index("super().process_request(request, client_address)"),
         )
+
+        worker = server_class[
+            server_class.index("def process_request_thread") :
+        ]
         self.assertLess(
-            server_class.index("super().process_request_thread(request, client_address)"),
-            server_class.index("self.request_slots.release()"),
+            worker.index("super().process_request_thread(request, client_address)"),
+            worker.index("self.request_slots.release()"),
         )
 
 
