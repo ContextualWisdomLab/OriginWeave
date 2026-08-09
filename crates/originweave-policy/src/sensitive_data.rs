@@ -44,22 +44,36 @@ pub enum DisclosureDecision {
     DualControlRequired,
 }
 
+/// Exact authority metadata for one classified sensitive-data field use.
+///
+/// The value contains no protected field bytes. It combines the tenant, task,
+/// field, business purpose, canonical destination, and data classification so
+/// disclosure, opaque-handle issuance, and opaque-handle use cannot silently
+/// diverge on one of those authority dimensions.
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct AuthorityScope {
+pub struct SensitiveDataAuthority {
     tenant_id: String,
     task_id: String,
     field_id: String,
     purpose_id: String,
     destination: Origin,
+    classification: DataClassification,
 }
 
-impl AuthorityScope {
-    fn new(
+impl SensitiveDataAuthority {
+    /// Build one exact classified authority value without carrying protected data.
+    ///
+    /// Tenant, task, field, and purpose identifiers are admitted only as 1–128
+    /// byte ASCII policy tokens using alphanumeric characters plus `.`, `_`, `:`,
+    /// and `-`. Invalid identifiers remain fail-closed when the authority is used.
+    #[must_use]
+    pub fn new(
         tenant_id: &str,
         task_id: &str,
         field_id: &str,
         purpose_id: &str,
         destination: Origin,
+        classification: DataClassification,
     ) -> Self {
         Self {
             tenant_id: tenant_id.to_owned(),
@@ -67,6 +81,7 @@ impl AuthorityScope {
             field_id: field_id.to_owned(),
             purpose_id: purpose_id.to_owned(),
             destination,
+            classification,
         }
     }
 
@@ -89,58 +104,33 @@ fn authority_identifier_is_valid(identifier: &str) -> bool {
 /// One requested disclosure, without carrying the protected field value.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SensitiveDataRequest {
-    authority: AuthorityScope,
-    classification: DataClassification,
+    authority: SensitiveDataAuthority,
 }
 
 impl SensitiveDataRequest {
-    /// Build a request bound to an exact tenant, task, field, purpose, validated destination, and class.
-    ///
-    /// Authority identifiers are admitted only as 1–128 byte ASCII policy tokens using
-    /// alphanumeric characters plus `.`, `_`, `:`, and `-`; invalid identifiers remain
-    /// fail-closed when the request is evaluated.
+    /// Build a disclosure request from one exact classified authority value.
     #[must_use]
-    pub fn new(
-        tenant_id: &str,
-        task_id: &str,
-        field_id: &str,
-        purpose_id: &str,
-        destination: Origin,
-        classification: DataClassification,
-    ) -> Self {
-        Self {
-            authority: AuthorityScope::new(tenant_id, task_id, field_id, purpose_id, destination),
-            classification,
-        }
+    pub const fn new(authority: SensitiveDataAuthority) -> Self {
+        Self { authority }
     }
 }
 
 /// Explicit authority for one requested sensitive-data disclosure.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DisclosureScope {
-    authority: AuthorityScope,
-    classification: DataClassification,
+    authority: SensitiveDataAuthority,
     decision: DisclosureDecision,
 }
 
 impl DisclosureScope {
     /// Build an exact disclosure authority scope and its maximum permitted outcome.
-    ///
-    /// Authority identifiers use the same bounded ASCII policy-token contract as
-    /// [`SensitiveDataRequest`]; malformed scopes never grant disclosure.
     #[must_use]
-    pub fn new(
-        tenant_id: &str,
-        task_id: &str,
-        field_id: &str,
-        purpose_id: &str,
-        destination: Origin,
-        classification: DataClassification,
+    pub const fn new(
+        authority: SensitiveDataAuthority,
         decision: DisclosureDecision,
     ) -> Self {
         Self {
-            authority: AuthorityScope::new(tenant_id, task_id, field_id, purpose_id, destination),
-            classification,
+            authority,
             decision,
         }
     }
@@ -148,8 +138,8 @@ impl DisclosureScope {
 
 /// Evaluate disclosure only from the exact request and explicit authority scope.
 ///
-/// An incomplete or malformed authority scope fails closed even when both sides
-/// contain the same invalid identifier.
+/// An incomplete or malformed authority fails closed even when both sides contain
+/// the same invalid identifier.
 #[must_use]
 pub fn evaluate_disclosure(
     request: &SensitiveDataRequest,
@@ -158,7 +148,6 @@ pub fn evaluate_disclosure(
     if !request.authority.is_complete()
         || !scope.authority.is_complete()
         || request.authority != scope.authority
-        || request.classification != scope.classification
     {
         DisclosureDecision::DenyAccess
     } else {
@@ -182,32 +171,24 @@ pub enum HandleUseDecision {
 /// Authority metadata attached to an opaque sensitive-value handle.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SensitiveValueHandleScope {
-    authority: AuthorityScope,
-    classification: DataClassification,
+    authority: SensitiveDataAuthority,
     expires_at_epoch_seconds: u64,
     max_uses: u32,
 }
 
 impl SensitiveValueHandleScope {
-    /// Build an opaque-handle scope with an exact classification, exclusive expiry, and bounded use count.
+    /// Build an opaque-handle scope with exact authority, exclusive expiry, and bounded use count.
     ///
-    /// Authority identifiers use the same bounded ASCII policy-token contract as
-    /// disclosure requests and scopes. A later field reclassification requires a
-    /// newly authorized handle rather than reusing this scope.
+    /// A later field reclassification creates a different [`SensitiveDataAuthority`]
+    /// and therefore requires a newly authorized handle.
     #[must_use]
-    pub fn new(
-        tenant_id: &str,
-        task_id: &str,
-        field_id: &str,
-        purpose_id: &str,
-        destination: Origin,
-        classification: DataClassification,
+    pub const fn new(
+        authority: SensitiveDataAuthority,
         expires_at_epoch_seconds: u64,
         max_uses: u32,
     ) -> Self {
         Self {
-            authority: AuthorityScope::new(tenant_id, task_id, field_id, purpose_id, destination),
-            classification,
+            authority,
             expires_at_epoch_seconds,
             max_uses,
         }
@@ -217,8 +198,7 @@ impl SensitiveValueHandleScope {
 /// One proposed use of an opaque sensitive-value handle.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HandleUseRequest {
-    authority: AuthorityScope,
-    classification: DataClassification,
+    authority: SensitiveDataAuthority,
     now_epoch_seconds: u64,
     uses_so_far: u32,
 }
@@ -228,22 +208,15 @@ impl HandleUseRequest {
     ///
     /// The eventual broker must supply these state values from its own trusted,
     /// caller-unforgeable storage; accepting this struct does not make arbitrary
-    /// caller input authoritative. Authority identifiers use the same bounded ASCII
-    /// policy-token contract as disclosure requests and scopes.
+    /// caller input authoritative.
     #[must_use]
-    pub fn new(
-        tenant_id: &str,
-        task_id: &str,
-        field_id: &str,
-        purpose_id: &str,
-        destination: Origin,
-        classification: DataClassification,
+    pub const fn new(
+        authority: SensitiveDataAuthority,
         now_epoch_seconds: u64,
         uses_so_far: u32,
     ) -> Self {
         Self {
-            authority: AuthorityScope::new(tenant_id, task_id, field_id, purpose_id, destination),
-            classification,
+            authority,
             now_epoch_seconds,
             uses_so_far,
         }
@@ -256,10 +229,10 @@ impl HandleUseRequest {
 /// handle, or release a protected value. It is therefore not standalone
 /// enforcement. A trusted broker must obtain trusted time and caller-unforgeable
 /// handle state, atomically reserve or increment the use count before value
-/// resolution, and recheck the reserved authority and classification immediately
-/// before disclosure. Missing or malformed authority identifiers fail closed as
-/// a scope mismatch. The caller must supply a destination that has already crossed
-/// the canonical [`Origin`] boundary.
+/// resolution, and recheck the reserved authority immediately before disclosure.
+/// Missing or malformed authority identifiers fail closed as a scope mismatch.
+/// The authority destination must already have crossed the canonical [`Origin`]
+/// boundary.
 #[must_use]
 pub fn evaluate_handle_use(
     request: &HandleUseRequest,
@@ -268,7 +241,6 @@ pub fn evaluate_handle_use(
     if !request.authority.is_complete()
         || !scope.authority.is_complete()
         || request.authority != scope.authority
-        || request.classification != scope.classification
     {
         HandleUseDecision::ScopeMismatch
     } else if request.now_epoch_seconds >= scope.expires_at_epoch_seconds {
