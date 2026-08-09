@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import os
 import pathlib
+import textwrap
 import unittest
+from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/hourly-product-development.yml"
@@ -15,6 +18,19 @@ def _step_block(workflow: str, step_name: str) -> str:
     if not separator:
         raise AssertionError(f"missing workflow step: {step_name}")
     return remainder.partition("\n      - name: ")[0]
+
+
+def _broker_preamble(broker_step: str) -> str:
+    """Extract executable broker definitions before server classes and startup."""
+
+    marker = '          cat >"$broker" <<\'PY\'\n'
+    _before, separator, remainder = broker_step.partition(marker)
+    if not separator:
+        raise AssertionError("missing embedded broker script")
+    script, separator, _after = remainder.partition("\n          PY\n")
+    if not separator:
+        raise AssertionError("unterminated embedded broker script")
+    return textwrap.dedent(script).partition("class BoundedThreadingHTTPServer")[0]
 
 
 class HourlyProviderSuccessContractTests(unittest.TestCase):
@@ -113,6 +129,25 @@ class HourlyProviderSuccessContractTests(unittest.TestCase):
             worker.index("super().process_request_thread(request, client_address)"),
             worker.index("self.request_slots.release()"),
         )
+
+    def test_broker_rejects_malformed_percent_escapes_before_upstream_forwarding(self) -> None:
+        """Malformed escape spelling must not cross the local broker authority boundary."""
+
+        broker = _step_block(
+            self.workflow, "Start loopback-only NVIDIA NIM credential broker"
+        )
+        namespace: dict[str, object] = {}
+        with mock.patch.dict(os.environ, {"NIM_UPSTREAM_API_KEY": "test-key"}):
+            exec(compile(_broker_preamble(broker), "<broker-preamble>", "exec"), namespace)
+        valid_path = namespace["valid_path"]
+        self.assertTrue(callable(valid_path))
+
+        for invalid in ("/v1/%", "/v1/%2", "/v1/%GG", "/v1/%C3%28"):
+            with self.subTest(invalid=invalid):
+                self.assertFalse(valid_path(invalid))
+        for valid in ("/v1/chat/completions", "/v1/models/model%2Dname"):
+            with self.subTest(valid=valid):
+                self.assertTrue(valid_path(valid))
 
 
 if __name__ == "__main__":
