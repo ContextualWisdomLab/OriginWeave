@@ -129,7 +129,9 @@ Remote sites, proxies, DNS resolvers, PAC sources, model providers, connectors a
 
 **Attack:** an adapter-local node ID collides across sessions, frames, origins or documents; an agent acts on stale UI after navigation.
 
-**Controls:** planned/active node authority binds browser session, browsing context, canonical origin, document epoch and adapter-local ID; validation occurs immediately before dispatch; epoch changes invalidate stale handles.
+**Implemented controls:** `originweave-core` already binds `ObservedNodeHandle` to OriginWeave browser-session, browsing-context, canonical-origin, document-epoch and adapter-local-node identities and exposes deterministic validation for cross-session, cross-context, cross-origin and stale-document reuse. These contracts are covered by the current core tests and remain observation-authority primitives rather than proof of a live Chromium dispatch path.
+
+**Planned controls:** the browser adapter must rotate the document epoch for relevant same-document DOM/accessibility mutations, revalidate the same handle authority at the action linearization point immediately before the trusted side effect, abort on any competing mutation, and require re-observation before a new action can proceed. The first real Chromium vertical slice must prove that a pre-mutation handle is rejected while the newly observed handle succeeds.
 
 ### TM-007 — Secret/PII exfiltration
 
@@ -183,7 +185,7 @@ Remote sites, proxies, DNS resolvers, PAC sources, model providers, connectors a
 
 **Attack:** comment/status/model output/self-review is treated as qualifying approval, or pending/old checks are treated as current success.
 
-**Controls:** exact current head/base evidence, formal review-state validation, non-author reviewer eligibility, unresolved-thread checks, no synthetic approval, no old-head check promotion, separate publication and merge authority.
+**Controls:** exact current head/base evidence, formal review-state validation when policy requires a counted review, reviewer eligibility, unresolved-thread checks, no synthetic approval, no old-head check promotion, separate publication and merge authority.
 
 ### TM-016 — Operator/support abuse
 
