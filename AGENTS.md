@@ -19,7 +19,21 @@ For every change:
 7. inspect review feedback and exact-head checks;
 8. merge only when repository policy is satisfied.
 
-Do not bypass required checks, independent approval, or branch protection. Waiting checks are not permission to weaken tests; continue with independent product analysis or a non-conflicting next task.
+Do not bypass required checks, branch protection, or any review authority actually required by current GitHub rules or an explicit operationally satisfiable OriginWeave/CWL governance rule. Waiting checks are not permission to weaken tests; continue with a non-conflicting next task.
+
+## Work-conserving autonomous maintenance
+
+**A completed action is an intermediate state**, not an implicit end of a maintenance invocation. “One bounded slice” means **one write-active slice at a time**, not one slice, pull request, RCA, check, review request, documentation update, or merge per run.
+
+After every completed mutation, validation result, merge, defer decision, or newly proven blocker, return to the fresh executable queue. A pending check, reviewer delay, rate limit, unavailable provider, external dependency, or writer conflict **blocks only that item** or branch. Continue with another safe, non-conflicting OriginWeave task while practical run budget remains.
+
+### Mandatory exit sweep
+
+Before autonomous maintenance ends, refetch protected `main`, every open OriginWeave pull request and issue, current reviews/checks, release state, documentation graph, and buyer-visible product gaps. Evaluate whether any safe action remains, including merge, test-first defect repair, thread resolution, duplicate cleanup, another PR/issue, protected-main acceptance, documentation repair, product-gap implementation, quality/security/operability improvement, or release evidence work.
+
+If any safe executable item remains, **termination is prohibited**: execute the highest-value item and repeat the sweep. End only when the practical invocation budget is exhausted or every remaining item is genuinely non-actionable under current authority, dependency order, writer lease, and safety constraints.
+
+Do not repeatedly poll an unchanged pending item. Defer it by exact PR/head/run/review identity, work elsewhere, and revisit after a material state change, another substantive action, or the exit sweep.
 
 ## Blocker RCA and corrective-action feasibility
 
@@ -33,7 +47,13 @@ For every failed check, review, approval, permission, tool, infrastructure, or w
 6. If the action does not produce that state transition, incorporate the evidence into the RCA and evaluate the next safe candidate; do not repeat an unsupported or disproven action.
 7. Only report an external blocker after current evidence proves that no safe feasible corrective action is available. Continue one non-conflicting bounded task when the writer lease and dependency graph permit it.
 
-A qualifying approval is a formal `APPROVED` review by an eligible non-author repository collaborator on the exact unchanged head. Comments, statuses, mentions, clean-review prose, author reviews, and unavailable bot identities are not approval. If no eligible reviewer exists, classify the condition as a reviewer-provisioning gap rather than approval latency; never synthesize, self-submit, or bypass approval.
+### Review-governance realism
+
+A formal non-author approval is a merge gate only when **current GitHub rules** or an explicit current, operationally satisfiable OriginWeave/CWL governance rule requires it. Advisory comments, statuses, automated-review prose, author reviews, and unavailable identities never substitute for a counted approval when one is actually required.
+
+When current rules require counted approval, the required evidence must be a formal `APPROVED` review by an eligible non-author **repository collaborator** (or another identity that current GitHub policy explicitly counts). If that governing rule remains active but no legitimate eligible path exists, classify the condition as a **reviewer-provisioning gap**; never synthesize, self-submit, or impersonate approval.
+
+The organization currently documents a **solo-maintainer** governance condition. When there are **fewer than two eligible** independent maintainers, an otherwise impossible non-author approval rule is **on hold** rather than manufactured or bypassed; exact-head CI, security, 100% coverage, rustdoc, resolved findings, live-base checks, and branch protection remain mandatory. The independent-review gate must be **re-enabled** when the repository again has two or more eligible maintainers or when current GitHub rules independently require it. If a counted reviewer route is required, verify collaborator/team/App eligibility before requesting it and never repeat a route already proven ineligible without a relevant state change.
 
 ## Architecture constraints
 

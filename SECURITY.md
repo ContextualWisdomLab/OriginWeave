@@ -1,5 +1,7 @@
 # Security Policy
 
+The product-wide trust zones, assets, attacker scenarios, mitigations, acceptance evidence, and residual risks are defined in [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md). This policy defines reporting and top-level invariants; the threat model does not replace coordinated disclosure or make a certification claim.
+
 ## Supported versions
 
 OriginWeave is pre-alpha and has no supported production release. Security fixes are applied to the default branch. Do not deploy the current repository as an unattended production browser.
