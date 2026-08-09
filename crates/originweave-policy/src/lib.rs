@@ -11,7 +11,7 @@ mod sensitive_data;
 
 pub use sensitive_data::{
     DataClassification, DisclosureDecision, DisclosureScope, HandleUseDecision, HandleUseRequest,
-    SensitiveDataRequest, SensitiveValueHandleScope, authorize_handle_use, evaluate_disclosure,
+    SensitiveDataRequest, SensitiveValueHandleScope, evaluate_disclosure, evaluate_handle_use,
 };
 
 use originweave_core::{
