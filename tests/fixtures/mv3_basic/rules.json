@@ -4,7 +4,7 @@
     "priority": 1,
     "action": {"type": "block"},
     "condition": {
-      "urlFilter": "|http://127.0.0.1:*/*originweave-blocked*",
+      "urlFilter": "originweave-blocked",
       "resourceTypes": ["xmlhttprequest"]
     }
   }
