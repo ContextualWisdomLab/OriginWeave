@@ -19,7 +19,7 @@ For every change:
 7. inspect review feedback and exact-head checks;
 8. merge only when repository policy is satisfied.
 
-Do not bypass required checks, independent approval, or branch protection. Waiting checks are not permission to weaken tests; continue with independent product analysis or a non-conflicting next task.
+Do not bypass required checks, currently applicable review governance, or branch protection. Waiting checks are not permission to weaken tests; continue with independent product analysis or a non-conflicting next task.
 
 ## Work-conserving autonomous maintenance
 
@@ -34,6 +34,29 @@ Before autonomous maintenance ends, refetch protected `main`, every open OriginW
 If any safe executable item remains, **termination is prohibited**: execute the highest-value item and repeat the sweep. End only when the practical invocation budget is exhausted or every remaining item is genuinely non-actionable under current authority, dependency order, writer lease, and safety constraints.
 
 Do not repeatedly poll an unchanged pending item. Defer it by exact PR/head/run/review identity, work elsewhere, and revisit after a material state change, another substantive action, or the exit sweep.
+
+## Blocker RCA and corrective-action feasibility
+
+For every failed check, review, approval, permission, tool, infrastructure, or writer-lease blocker, automated maintenance must complete this sequence before ordinary progress reporting:
+
+1. Refetch exact live evidence for the current head, base, target object, review and check state, permissions, and available tools.
+2. Identify the root cause from current diagnostics and confirm it with the smallest safe reproduction or policy-compliant probe.
+3. Enumerate candidate corrective actions in dependency order instead of stopping at the first apparent blocker.
+4. Validate each candidate against actual tool support, actor permissions, required credentials, reviewer eligibility, branch protection and rulesets, the repository-writer lease, path and authority boundaries, remaining runtime, and unchanged quality and security gates.
+5. Execute the first safe and feasible action immediately, then refetch and verify the authoritative state transition. A posted comment, accepted command, dispatch, or successful status is not proof that the intended review, check, merge, or protected-main run occurred.
+6. If the action does not produce that state transition, incorporate the evidence into the RCA and evaluate the next safe candidate; do not repeat an unsupported or disproven action.
+7. Only report an external blocker after current evidence proves that no safe feasible corrective action is available. Continue one non-conflicting bounded task when the writer lease and dependency graph permit it.
+
+## Review governance
+
+OriginWeave follows the satisfiable review-governance rule in `docs/quality-gates.md`.
+
+- A formal non-author approval is a merge gate only when **current GitHub rules** require counted approval or an explicit current OriginWeave/CWL rule requires one and a legitimate eligible non-author path exists.
+- When **fewer than two eligible** repository-authorized non-author maintainers or reviewers exist and current GitHub rules do not require counted approval, the additional repository-local gate is **ON HOLD (solo-maintainer)** rather than treated as an impossible permanent blocker.
+- Exact-head checks, repository security checks, complete production coverage, rustdoc, resolved current findings, live-base validation, writer-lease checks, and branch protection remain mandatory while the local review gate is on hold.
+- The non-author gate is **re-enabled** when at least two eligible repository-authorized reviewers exist or GitHub rules require counted approval.
+- Comments, statuses, check results, reactions, model verdicts, author-controlled identities, self-approval, and synthesized identities never impersonate a counted approving review.
+- A previously rejected route such as an unchanged 422 non-collaborator request is not retried until eligibility materially changes.
 
 ## Architecture constraints
 
