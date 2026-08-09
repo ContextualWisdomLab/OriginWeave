@@ -22,37 +22,58 @@ async function ensureWorkerState() {
 
 async function waitForDownload(downloadId, expectedUrl) {
   const expectedBytes = new TextEncoder().encode(DOWNLOAD_PAYLOAD).byteLength;
+  let observedDownload = false;
   for (let attempt = 0; attempt < DOWNLOAD_POLL_ATTEMPTS; attempt += 1) {
-    const items = await chrome.downloads.search({ id: downloadId, limit: 1 });
-    if (Array.isArray(items) && items.length === 1) {
-      const item = items[0];
-      if (item.state === "interrupted") {
-        return false;
+    let items;
+    try {
+      items = await chrome.downloads.search({ id: downloadId, limit: 1 });
+    } catch (_error) {
+      return { ready: false, diagnostic: "download-search-missing" };
+    }
+    if (!Array.isArray(items) || items.length !== 1) {
+      await new Promise((resolve) => setTimeout(resolve, DOWNLOAD_POLL_INTERVAL_MS));
+      continue;
+    }
+    observedDownload = true;
+    const item = items[0];
+    if (item.state === "interrupted") {
+      return { ready: false, diagnostic: "download-interrupted" };
+    }
+    if (item.state === "complete") {
+      if (item.url !== expectedUrl) {
+        return { ready: false, diagnostic: "download-url-mismatch" };
       }
-      if (item.state === "complete") {
-        return (
-          item.url === expectedUrl &&
-          item.bytesReceived === expectedBytes &&
-          item.totalBytes === expectedBytes &&
-          item.exists !== false
-        );
+      if (item.bytesReceived !== expectedBytes || item.totalBytes !== expectedBytes) {
+        return { ready: false, diagnostic: "download-byte-count-mismatch" };
       }
+      if (item.exists === false) {
+        return { ready: false, diagnostic: "download-exists-false" };
+      }
+      return { ready: true, diagnostic: "download-complete-ready" };
     }
     await new Promise((resolve) => setTimeout(resolve, DOWNLOAD_POLL_INTERVAL_MS));
   }
-  return false;
+  return {
+    ready: false,
+    diagnostic: observedDownload ? "download-timeout" : "download-search-missing",
+  };
 }
 
 async function exerciseDownload() {
   const url = chrome.runtime.getURL("download.txt");
-  const downloadId = await chrome.downloads.download({
-    url,
-    filename: "originweave-mv3/download.txt",
-    conflictAction: "overwrite",
-    saveAs: false,
-  });
+  let downloadId;
+  try {
+    downloadId = await chrome.downloads.download({
+      url,
+      filename: "originweave-mv3/download.txt",
+      conflictAction: "overwrite",
+      saveAs: false,
+    });
+  } catch (_error) {
+    return { ready: false, diagnostic: "download-start-rejected" };
+  }
   if (!Number.isInteger(downloadId)) {
-    return false;
+    return { ready: false, diagnostic: "download-start-rejected" };
   }
   return waitForDownload(downloadId, url);
 }
@@ -97,7 +118,7 @@ async function exerciseCoreApis(sender) {
   });
   const historyReady = Array.isArray(historyItems);
 
-  const downloadsReady = await exerciseDownload();
+  const downloadResult = await exerciseDownload();
 
   return {
     tabs: tabReady ? "ready" : "missing",
@@ -107,7 +128,8 @@ async function exerciseCoreApis(sender) {
     sidePanel: sidePanelReady ? "ready" : "missing",
     bookmarks: bookmarksReady ? "ready" : "missing",
     history: historyReady ? "ready" : "missing",
-    downloads: downloadsReady ? "ready" : "missing",
+    downloads: downloadResult.ready ? "ready" : "missing",
+    downloadsDiagnostic: downloadResult.diagnostic,
   };
 }
 
@@ -136,6 +158,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         bookmarks: "missing",
         history: "missing",
         downloads: "missing",
+        downloadsDiagnostic: "download-not-evaluated",
       });
     }
   );
