@@ -6,93 +6,138 @@ use originweave_policy::{
     SensitiveDataRequest, SensitiveValueHandleScope, evaluate_disclosure, evaluate_handle_use,
 };
 
+const TENANT: &str = "tenant_alpha";
+const TASK: &str = "task_ship_order";
+const FIELD: &str = "shipping_address";
+const PURPOSE: &str = "fulfill_order";
+const DESTINATION: &str = "https://shipping.example";
+
 fn origin(input: &str) -> Origin {
     Origin::parse(input).expect("test origin must be valid")
 }
 
-fn shipping_request() -> SensitiveDataRequest {
+fn disclosure_request(
+    tenant: &str,
+    task: &str,
+    field: &str,
+    purpose: &str,
+    destination: &str,
+    classification: DataClassification,
+) -> SensitiveDataRequest {
     SensitiveDataRequest::new(
-        "tenant_alpha",
-        "task_ship_order",
-        "shipping_address",
-        "fulfill_order",
-        origin("https://shipping.example"),
-        DataClassification::PersonalData,
+        tenant,
+        task,
+        field,
+        purpose,
+        origin(destination),
+        classification,
     )
 }
 
-fn shipping_scope(decision: DisclosureDecision) -> DisclosureScope {
+fn disclosure_scope(decision: DisclosureDecision) -> DisclosureScope {
     DisclosureScope::new(
-        "tenant_alpha",
-        "task_ship_order",
-        "shipping_address",
-        "fulfill_order",
-        origin("https://shipping.example"),
+        TENANT,
+        TASK,
+        FIELD,
+        PURPOSE,
+        origin(DESTINATION),
         DataClassification::PersonalData,
         decision,
     )
 }
 
+fn handle_scope(
+    tenant: &str,
+    classification: DataClassification,
+) -> SensitiveValueHandleScope {
+    SensitiveValueHandleScope::new(
+        tenant,
+        TASK,
+        FIELD,
+        PURPOSE,
+        origin(DESTINATION),
+        classification,
+        2_000,
+        2,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn handle_use(
+    tenant: &str,
+    task: &str,
+    field: &str,
+    purpose: &str,
+    destination: &str,
+    classification: DataClassification,
+    now: u64,
+    uses: u32,
+) -> HandleUseRequest {
+    HandleUseRequest::new(
+        tenant,
+        task,
+        field,
+        purpose,
+        origin(destination),
+        classification,
+        now,
+        uses,
+    )
+}
+
+fn valid_handle_use() -> HandleUseRequest {
+    handle_use(
+        TENANT,
+        TASK,
+        FIELD,
+        PURPOSE,
+        DESTINATION,
+        DataClassification::PersonalData,
+        1_999,
+        0,
+    )
+}
+
 #[test]
-fn disclosure_is_bound_to_exact_tenant_task_field_purpose_destination_and_classification() {
-    let permitted = shipping_scope(DisclosureDecision::FullFieldDisclosure);
+fn disclosure_is_bound_to_every_exact_authority_dimension() {
+    let permitted = disclosure_scope(DisclosureDecision::FullFieldDisclosure);
+    let request = disclosure_request(
+        TENANT,
+        TASK,
+        FIELD,
+        PURPOSE,
+        DESTINATION,
+        DataClassification::PersonalData,
+    );
     assert_eq!(
-        evaluate_disclosure(&shipping_request(), &permitted),
+        evaluate_disclosure(&request, &permitted),
         DisclosureDecision::FullFieldDisclosure
     );
 
     let mismatches = [
-        SensitiveDataRequest::new(
-            "tenant_beta",
-            "task_ship_order",
-            "shipping_address",
-            "fulfill_order",
-            origin("https://shipping.example"),
-            DataClassification::PersonalData,
-        ),
-        SensitiveDataRequest::new(
-            "tenant_alpha",
-            "task_other",
-            "shipping_address",
-            "fulfill_order",
-            origin("https://shipping.example"),
-            DataClassification::PersonalData,
-        ),
-        SensitiveDataRequest::new(
-            "tenant_alpha",
-            "task_ship_order",
-            "customer_email",
-            "fulfill_order",
-            origin("https://shipping.example"),
-            DataClassification::PersonalData,
-        ),
-        SensitiveDataRequest::new(
-            "tenant_alpha",
-            "task_ship_order",
-            "shipping_address",
-            "marketing",
-            origin("https://shipping.example"),
-            DataClassification::PersonalData,
-        ),
-        SensitiveDataRequest::new(
-            "tenant_alpha",
-            "task_ship_order",
-            "shipping_address",
-            "fulfill_order",
-            origin("https://other.example"),
-            DataClassification::PersonalData,
-        ),
-        SensitiveDataRequest::new(
-            "tenant_alpha",
-            "task_ship_order",
-            "shipping_address",
-            "fulfill_order",
-            origin("https://shipping.example"),
+        ("tenant_beta", TASK, FIELD, PURPOSE, DESTINATION, DataClassification::PersonalData),
+        (TENANT, "task_other", FIELD, PURPOSE, DESTINATION, DataClassification::PersonalData),
+        (TENANT, TASK, "customer_email", PURPOSE, DESTINATION, DataClassification::PersonalData),
+        (TENANT, TASK, FIELD, "marketing", DESTINATION, DataClassification::PersonalData),
+        (TENANT, TASK, FIELD, PURPOSE, "https://other.example", DataClassification::PersonalData),
+        (
+            TENANT,
+            TASK,
+            FIELD,
+            PURPOSE,
+            DESTINATION,
             DataClassification::SensitivePersonalData,
         ),
     ];
-
-    for request in mismatches {
+    for (tenant, task, field, purpose, destination, classification) in mismatches {
+        let request = disclosure_request(
+            tenant,
+            task,
+            field,
+            purpose,
+            destination,
+            classification,
+        );
         assert_eq!(
             evaluate_disclosure(&request, &permitted),
             DisclosureDecision::DenyAccess
@@ -102,34 +147,34 @@ fn disclosure_is_bound_to_exact_tenant_task_field_purpose_destination_and_classi
 
 #[test]
 fn sensitive_destination_uses_the_canonical_origin_boundary() {
-    let canonical_request = SensitiveDataRequest::new(
-        "tenant_alpha",
-        "task_ship_order",
-        "shipping_address",
-        "fulfill_order",
-        origin("HTTPS://Shipping.Example:443"),
+    let canonical = disclosure_request(
+        TENANT,
+        TASK,
+        FIELD,
+        PURPOSE,
+        "HTTPS://Shipping.Example:443",
         DataClassification::PersonalData,
     );
     assert_eq!(
         evaluate_disclosure(
-            &canonical_request,
-            &shipping_scope(DisclosureDecision::FullFieldDisclosure),
+            &canonical,
+            &disclosure_scope(DisclosureDecision::FullFieldDisclosure),
         ),
         DisclosureDecision::FullFieldDisclosure
     );
 
-    let non_default_port = SensitiveDataRequest::new(
-        "tenant_alpha",
-        "task_ship_order",
-        "shipping_address",
-        "fulfill_order",
-        origin("https://shipping.example:8443"),
+    let non_default_port = disclosure_request(
+        TENANT,
+        TASK,
+        FIELD,
+        PURPOSE,
+        "https://shipping.example:8443",
         DataClassification::PersonalData,
     );
     assert_eq!(
         evaluate_disclosure(
             &non_default_port,
-            &shipping_scope(DisclosureDecision::FullFieldDisclosure),
+            &disclosure_scope(DisclosureDecision::FullFieldDisclosure),
         ),
         DisclosureDecision::DenyAccess
     );
@@ -142,17 +187,21 @@ fn sensitive_destination_uses_the_canonical_origin_boundary() {
         "https://127.1",
         "http://shipping.example",
     ] {
-        assert!(
-            Origin::parse(invalid).is_err(),
-            "unexpected origin: {invalid}"
-        );
+        assert!(Origin::parse(invalid).is_err(), "unexpected origin: {invalid}");
     }
-
     assert!(Origin::parse("http://127.0.0.1").is_ok());
 }
 
 #[test]
 fn every_supported_disclosure_outcome_is_preserved_by_exact_scope() {
+    let request = disclosure_request(
+        TENANT,
+        TASK,
+        FIELD,
+        PURPOSE,
+        DESTINATION,
+        DataClassification::PersonalData,
+    );
     for decision in [
         DisclosureDecision::DenyAccess,
         DisclosureDecision::OpaqueHandleOnly,
@@ -162,149 +211,117 @@ fn every_supported_disclosure_outcome_is_preserved_by_exact_scope() {
         DisclosureDecision::HumanApprovalRequired,
         DisclosureDecision::DualControlRequired,
     ] {
-        assert_eq!(
-            evaluate_disclosure(&shipping_request(), &shipping_scope(decision)),
-            decision
-        );
+        assert_eq!(evaluate_disclosure(&request, &disclosure_scope(decision)), decision);
     }
 }
 
-fn handle_scope() -> SensitiveValueHandleScope {
-    SensitiveValueHandleScope::new(
-        "tenant_alpha",
-        "task_ship_order",
-        "shipping_address",
-        "fulfill_order",
-        origin("https://shipping.example"),
-        2_000,
-        2,
-    )
-}
-
-fn valid_handle_use() -> HandleUseRequest {
-    HandleUseRequest::new(
-        "tenant_alpha",
-        "task_ship_order",
-        "shipping_address",
-        "fulfill_order",
-        origin("https://shipping.example"),
-        1_999,
-        0,
-    )
-}
-
 #[test]
-fn opaque_handle_use_is_bound_to_scope_expiry_and_use_count() {
-    let scope = handle_scope();
-    let authorized = HandleUseRequest::new(
-        "tenant_alpha",
-        "task_ship_order",
-        "shipping_address",
-        "fulfill_order",
-        origin("https://shipping.example"),
-        1_999,
-        1,
-    );
+fn opaque_handle_use_is_bound_to_scope_classification_expiry_and_use_count() {
+    let scope = handle_scope(TENANT, DataClassification::PersonalData);
     assert_eq!(
-        evaluate_handle_use(&authorized, &scope),
+        evaluate_handle_use(
+            &handle_use(
+                TENANT,
+                TASK,
+                FIELD,
+                PURPOSE,
+                DESTINATION,
+                DataClassification::PersonalData,
+                1_999,
+                1,
+            ),
+            &scope,
+        ),
         HandleUseDecision::Authorized
     );
-
-    let wrong_destination = HandleUseRequest::new(
-        "tenant_alpha",
-        "task_ship_order",
-        "shipping_address",
-        "fulfill_order",
-        origin("https://other.example"),
-        1_999,
-        1,
-    );
     assert_eq!(
-        evaluate_handle_use(&wrong_destination, &scope),
+        evaluate_handle_use(
+            &handle_use(
+                TENANT,
+                TASK,
+                FIELD,
+                PURPOSE,
+                "https://other.example",
+                DataClassification::PersonalData,
+                1_999,
+                1,
+            ),
+            &scope,
+        ),
         HandleUseDecision::ScopeMismatch
     );
-
-    let expired = HandleUseRequest::new(
-        "tenant_alpha",
-        "task_ship_order",
-        "shipping_address",
-        "fulfill_order",
-        origin("https://shipping.example"),
-        2_000,
-        1,
+    assert_eq!(
+        evaluate_handle_use(
+            &handle_use(
+                TENANT,
+                TASK,
+                FIELD,
+                PURPOSE,
+                DESTINATION,
+                DataClassification::SensitivePersonalData,
+                1_999,
+                1,
+            ),
+            &scope,
+        ),
+        HandleUseDecision::ScopeMismatch
     );
     assert_eq!(
-        evaluate_handle_use(&expired, &scope),
+        evaluate_handle_use(
+            &handle_use(
+                TENANT,
+                TASK,
+                FIELD,
+                PURPOSE,
+                DESTINATION,
+                DataClassification::PersonalData,
+                2_000,
+                1,
+            ),
+            &scope,
+        ),
         HandleUseDecision::Expired
     );
-
-    let exhausted = HandleUseRequest::new(
-        "tenant_alpha",
-        "task_ship_order",
-        "shipping_address",
-        "fulfill_order",
-        origin("https://shipping.example"),
-        1_999,
-        2,
-    );
     assert_eq!(
-        evaluate_handle_use(&exhausted, &scope),
+        evaluate_handle_use(
+            &handle_use(
+                TENANT,
+                TASK,
+                FIELD,
+                PURPOSE,
+                DESTINATION,
+                DataClassification::PersonalData,
+                1_999,
+                2,
+            ),
+            &scope,
+        ),
         HandleUseDecision::UseLimitReached
     );
 }
 
 #[test]
 fn handle_scope_mismatch_covers_every_authority_dimension() {
-    let scope = handle_scope();
+    let scope = handle_scope(TENANT, DataClassification::PersonalData);
     let mismatches = [
-        HandleUseRequest::new(
-            "tenant_beta",
-            "task_ship_order",
-            "shipping_address",
-            "fulfill_order",
-            origin("https://shipping.example"),
-            1_999,
-            0,
-        ),
-        HandleUseRequest::new(
-            "tenant_alpha",
-            "task_other",
-            "shipping_address",
-            "fulfill_order",
-            origin("https://shipping.example"),
-            1_999,
-            0,
-        ),
-        HandleUseRequest::new(
-            "tenant_alpha",
-            "task_ship_order",
-            "customer_email",
-            "fulfill_order",
-            origin("https://shipping.example"),
-            1_999,
-            0,
-        ),
-        HandleUseRequest::new(
-            "tenant_alpha",
-            "task_ship_order",
-            "shipping_address",
-            "marketing",
-            origin("https://shipping.example"),
-            1_999,
-            0,
-        ),
-        HandleUseRequest::new(
-            "tenant_alpha",
-            "task_ship_order",
-            "shipping_address",
-            "fulfill_order",
-            origin("https://other.example"),
-            1_999,
-            0,
-        ),
+        ("tenant_beta", TASK, FIELD, PURPOSE, DESTINATION, DataClassification::PersonalData),
+        (TENANT, "task_other", FIELD, PURPOSE, DESTINATION, DataClassification::PersonalData),
+        (TENANT, TASK, "customer_email", PURPOSE, DESTINATION, DataClassification::PersonalData),
+        (TENANT, TASK, FIELD, "marketing", DESTINATION, DataClassification::PersonalData),
+        (TENANT, TASK, FIELD, PURPOSE, "https://other.example", DataClassification::PersonalData),
+        (TENANT, TASK, FIELD, PURPOSE, DESTINATION, DataClassification::CredentialData),
     ];
-
-    for request in mismatches {
+    for (tenant, task, field, purpose, destination, classification) in mismatches {
+        let request = handle_use(
+            tenant,
+            task,
+            field,
+            purpose,
+            destination,
+            classification,
+            1_999,
+            0,
+        );
         assert_eq!(
             evaluate_handle_use(&request, &scope),
             HandleUseDecision::ScopeMismatch
@@ -314,100 +331,70 @@ fn handle_scope_mismatch_covers_every_authority_dimension() {
 
 #[test]
 fn incomplete_authority_never_grants_disclosure_or_handle_use() {
-    for incomplete_request in [
-        SensitiveDataRequest::new(
-            "",
-            "task_ship_order",
-            "shipping_address",
-            "fulfill_order",
-            origin("https://shipping.example"),
-            DataClassification::PersonalData,
-        ),
-        SensitiveDataRequest::new(
-            "tenant_alpha",
-            "",
-            "shipping_address",
-            "fulfill_order",
-            origin("https://shipping.example"),
-            DataClassification::PersonalData,
-        ),
-        SensitiveDataRequest::new(
-            "tenant_alpha",
-            "task_ship_order",
-            "",
-            "fulfill_order",
-            origin("https://shipping.example"),
-            DataClassification::PersonalData,
-        ),
-        SensitiveDataRequest::new(
-            "tenant_alpha",
-            "task_ship_order",
-            "shipping_address",
-            "",
-            origin("https://shipping.example"),
-            DataClassification::PersonalData,
-        ),
+    let permitted = disclosure_scope(DisclosureDecision::FullFieldDisclosure);
+    for (tenant, task, field, purpose) in [
+        ("", TASK, FIELD, PURPOSE),
+        (TENANT, "", FIELD, PURPOSE),
+        (TENANT, TASK, "", PURPOSE),
+        (TENANT, TASK, FIELD, ""),
     ] {
+        let request = disclosure_request(
+            tenant,
+            task,
+            field,
+            purpose,
+            DESTINATION,
+            DataClassification::PersonalData,
+        );
         assert_eq!(
-            evaluate_disclosure(
-                &incomplete_request,
-                &shipping_scope(DisclosureDecision::FullFieldDisclosure),
-            ),
+            evaluate_disclosure(&request, &permitted),
             DisclosureDecision::DenyAccess
         );
     }
 
-    for incomplete_scope in [
-        DisclosureScope::new(
-            "",
-            "task_ship_order",
-            "shipping_address",
-            "fulfill_order",
-            origin("https://shipping.example"),
-            DataClassification::PersonalData,
-            DisclosureDecision::FullFieldDisclosure,
-        ),
-        DisclosureScope::new(
-            "tenant_alpha",
-            "",
-            "shipping_address",
-            "fulfill_order",
-            origin("https://shipping.example"),
-            DataClassification::PersonalData,
-            DisclosureDecision::FullFieldDisclosure,
-        ),
-    ] {
-        assert_eq!(
-            evaluate_disclosure(&shipping_request(), &incomplete_scope),
-            DisclosureDecision::DenyAccess
-        );
-    }
-
-    let incomplete_handle_scope = SensitiveValueHandleScope::new(
+    let incomplete_disclosure_scope = DisclosureScope::new(
         "",
-        "task_ship_order",
-        "shipping_address",
-        "fulfill_order",
-        origin("https://shipping.example"),
-        2_000,
-        2,
+        TASK,
+        FIELD,
+        PURPOSE,
+        origin(DESTINATION),
+        DataClassification::PersonalData,
+        DisclosureDecision::FullFieldDisclosure,
+    );
+    let request = disclosure_request(
+        TENANT,
+        TASK,
+        FIELD,
+        PURPOSE,
+        DESTINATION,
+        DataClassification::PersonalData,
     );
     assert_eq!(
-        evaluate_handle_use(&valid_handle_use(), &incomplete_handle_scope),
+        evaluate_disclosure(&request, &incomplete_disclosure_scope),
+        DisclosureDecision::DenyAccess
+    );
+
+    assert_eq!(
+        evaluate_handle_use(
+            &valid_handle_use(),
+            &handle_scope("", DataClassification::PersonalData),
+        ),
         HandleUseDecision::ScopeMismatch
     );
-
-    let incomplete_handle_use = HandleUseRequest::new(
-        "tenant_alpha",
-        "",
-        "shipping_address",
-        "fulfill_order",
-        origin("https://shipping.example"),
-        1_999,
-        0,
-    );
     assert_eq!(
-        evaluate_handle_use(&incomplete_handle_use, &handle_scope()),
+        evaluate_handle_use(
+            &handle_use(
+                TENANT,
+                "",
+                FIELD,
+                PURPOSE,
+                DESTINATION,
+                DataClassification::PersonalData,
+                1_999,
+                0,
+            ),
+            &handle_scope(TENANT, DataClassification::PersonalData),
+        ),
         HandleUseDecision::ScopeMismatch
     );
 }
@@ -415,20 +402,20 @@ fn incomplete_authority_never_grants_disclosure_or_handle_use() {
 #[test]
 fn authority_identifiers_are_bounded_ascii_policy_tokens() {
     let exact_maximum = "a".repeat(128);
-    let valid_request = SensitiveDataRequest::new(
+    let valid_request = disclosure_request(
         &exact_maximum,
         "task.ship-order:v1",
-        "shipping_address",
+        FIELD,
         "fulfill-order",
-        origin("https://shipping.example"),
+        DESTINATION,
         DataClassification::PersonalData,
     );
     let valid_scope = DisclosureScope::new(
         &exact_maximum,
         "task.ship-order:v1",
-        "shipping_address",
+        FIELD,
         "fulfill-order",
-        origin("https://shipping.example"),
+        origin(DESTINATION),
         DataClassification::PersonalData,
         DisclosureDecision::FullFieldDisclosure,
     );
@@ -438,112 +425,48 @@ fn authority_identifiers_are_bounded_ascii_policy_tokens() {
     );
 
     let oversized = "a".repeat(129);
-    let invalid_pairs = [
-        (
-            SensitiveDataRequest::new(
-                "tenant alpha",
-                "task_ship_order",
-                "shipping_address",
-                "fulfill_order",
-                origin("https://shipping.example"),
-                DataClassification::PersonalData,
-            ),
-            DisclosureScope::new(
-                "tenant alpha",
-                "task_ship_order",
-                "shipping_address",
-                "fulfill_order",
-                origin("https://shipping.example"),
-                DataClassification::PersonalData,
-                DisclosureDecision::FullFieldDisclosure,
-            ),
-        ),
-        (
-            SensitiveDataRequest::new(
-                "tenant_alpha",
-                "task\nship_order",
-                "shipping_address",
-                "fulfill_order",
-                origin("https://shipping.example"),
-                DataClassification::PersonalData,
-            ),
-            DisclosureScope::new(
-                "tenant_alpha",
-                "task\nship_order",
-                "shipping_address",
-                "fulfill_order",
-                origin("https://shipping.example"),
-                DataClassification::PersonalData,
-                DisclosureDecision::FullFieldDisclosure,
-            ),
-        ),
-        (
-            SensitiveDataRequest::new(
-                "tenant_alpha",
-                "task_ship_order",
-                "배송주소",
-                "fulfill_order",
-                origin("https://shipping.example"),
-                DataClassification::PersonalData,
-            ),
-            DisclosureScope::new(
-                "tenant_alpha",
-                "task_ship_order",
-                "배송주소",
-                "fulfill_order",
-                origin("https://shipping.example"),
-                DataClassification::PersonalData,
-                DisclosureDecision::FullFieldDisclosure,
-            ),
-        ),
-        (
-            SensitiveDataRequest::new(
-                "tenant_alpha",
-                "task_ship_order",
-                "shipping_address",
-                &oversized,
-                origin("https://shipping.example"),
-                DataClassification::PersonalData,
-            ),
-            DisclosureScope::new(
-                "tenant_alpha",
-                "task_ship_order",
-                "shipping_address",
-                &oversized,
-                origin("https://shipping.example"),
-                DataClassification::PersonalData,
-                DisclosureDecision::FullFieldDisclosure,
-            ),
-        ),
-    ];
-
-    for (request, scope) in invalid_pairs {
+    for (tenant, task, field, purpose) in [
+        ("tenant alpha", TASK, FIELD, PURPOSE),
+        (TENANT, "task\nship_order", FIELD, PURPOSE),
+        (TENANT, TASK, "배송주소", PURPOSE),
+        (TENANT, TASK, FIELD, oversized.as_str()),
+    ] {
+        let request = disclosure_request(
+            tenant,
+            task,
+            field,
+            purpose,
+            DESTINATION,
+            DataClassification::PersonalData,
+        );
+        let scope = DisclosureScope::new(
+            tenant,
+            task,
+            field,
+            purpose,
+            origin(DESTINATION),
+            DataClassification::PersonalData,
+            DisclosureDecision::FullFieldDisclosure,
+        );
         assert_eq!(
             evaluate_disclosure(&request, &scope),
             DisclosureDecision::DenyAccess
         );
     }
 
-    let invalid_handle_scope = SensitiveValueHandleScope::new(
+    let invalid_scope = handle_scope("tenant alpha", DataClassification::PersonalData);
+    let invalid_use = handle_use(
         "tenant alpha",
-        "task_ship_order",
-        "shipping_address",
-        "fulfill_order",
-        origin("https://shipping.example"),
-        2_000,
-        2,
-    );
-    let invalid_handle_use = HandleUseRequest::new(
-        "tenant alpha",
-        "task_ship_order",
-        "shipping_address",
-        "fulfill_order",
-        origin("https://shipping.example"),
+        TASK,
+        FIELD,
+        PURPOSE,
+        DESTINATION,
+        DataClassification::PersonalData,
         1_999,
         0,
     );
     assert_eq!(
-        evaluate_handle_use(&invalid_handle_use, &invalid_handle_scope),
+        evaluate_handle_use(&invalid_use, &invalid_scope),
         HandleUseDecision::ScopeMismatch
     );
 }
