@@ -54,12 +54,18 @@ Delivered TLS service-identity foundation:
 - credential-free protocol, cipher, ALPN, certificate, SPKI, trust-bundle, validity, revocation-configuration, and timing evidence;
 - real loopback rustls integration for trusted identity, wrong name, Common Name non-fallback, untrusted root, fixed-time validity, IPv4/IPv6 SAN, TLS versions, ALPN, and transport-origin binding.
 
+Delivered document-node authority foundation:
+
+- a nonzero `DocumentEpoch` identity for one observed browser document lifetime;
+- an `ObservedNodeHandle` bound to the exact canonical origin, document epoch, and nonzero adapter-local node identifier;
+- deterministic rejection of cross-origin or stale-document node reuse before a future browser adapter performs an action;
+- reusable core contracts without Chromium, selector, script-execution, network, storage, or secret dependencies.
+
 Remaining vertical-slice work:
 
 - launch and terminate ephemeral Chromium user contexts;
 - WebDriver BiDi adapter behind a versioned interface;
 - navigation and accessibility-tree observation;
-- document epoch and stale-node invalidation;
 - typed `navigate`, `observe`, `query`, and `click` actions;
 - post-condition verification and audit events;
 - crash recovery and task checkpoint;
