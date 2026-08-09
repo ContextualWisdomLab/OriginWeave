@@ -51,6 +51,20 @@ class ProductDocumentationContractTests(unittest.TestCase):
         security = (ROOT / "SECURITY.md").read_text(encoding="utf-8")
         self.assertIn("docs/THREAT_MODEL.md", security)
 
+    def test_agent_contract_is_work_conserving_instead_of_one_action_per_run(self) -> None:
+        """Finishing one bounded slice must return maintenance to the live queue."""
+
+        contract = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+        for phrase in (
+            "A completed action is an intermediate state",
+            "one write-active slice at a time",
+            "Mandatory exit sweep",
+            "termination is prohibited",
+            "blocks only that item",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, contract)
+
     def test_prd_covers_product_family_modes_and_buyer_acceptance(self) -> None:
         """The PRD must describe the actual product family rather than one kernel slice."""
 
