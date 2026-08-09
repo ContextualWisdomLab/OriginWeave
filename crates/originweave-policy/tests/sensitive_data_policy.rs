@@ -411,3 +411,139 @@ fn incomplete_authority_never_grants_disclosure_or_handle_use() {
         HandleUseDecision::ScopeMismatch
     );
 }
+
+#[test]
+fn authority_identifiers_are_bounded_ascii_policy_tokens() {
+    let exact_maximum = "a".repeat(128);
+    let valid_request = SensitiveDataRequest::new(
+        &exact_maximum,
+        "task.ship-order:v1",
+        "shipping_address",
+        "fulfill-order",
+        origin("https://shipping.example"),
+        DataClassification::PersonalData,
+    );
+    let valid_scope = DisclosureScope::new(
+        &exact_maximum,
+        "task.ship-order:v1",
+        "shipping_address",
+        "fulfill-order",
+        origin("https://shipping.example"),
+        DataClassification::PersonalData,
+        DisclosureDecision::FullFieldDisclosure,
+    );
+    assert_eq!(
+        evaluate_disclosure(&valid_request, &valid_scope),
+        DisclosureDecision::FullFieldDisclosure
+    );
+
+    let oversized = "a".repeat(129);
+    let invalid_pairs = [
+        (
+            SensitiveDataRequest::new(
+                "tenant alpha",
+                "task_ship_order",
+                "shipping_address",
+                "fulfill_order",
+                origin("https://shipping.example"),
+                DataClassification::PersonalData,
+            ),
+            DisclosureScope::new(
+                "tenant alpha",
+                "task_ship_order",
+                "shipping_address",
+                "fulfill_order",
+                origin("https://shipping.example"),
+                DataClassification::PersonalData,
+                DisclosureDecision::FullFieldDisclosure,
+            ),
+        ),
+        (
+            SensitiveDataRequest::new(
+                "tenant_alpha",
+                "task\nship_order",
+                "shipping_address",
+                "fulfill_order",
+                origin("https://shipping.example"),
+                DataClassification::PersonalData,
+            ),
+            DisclosureScope::new(
+                "tenant_alpha",
+                "task\nship_order",
+                "shipping_address",
+                "fulfill_order",
+                origin("https://shipping.example"),
+                DataClassification::PersonalData,
+                DisclosureDecision::FullFieldDisclosure,
+            ),
+        ),
+        (
+            SensitiveDataRequest::new(
+                "tenant_alpha",
+                "task_ship_order",
+                "배송주소",
+                "fulfill_order",
+                origin("https://shipping.example"),
+                DataClassification::PersonalData,
+            ),
+            DisclosureScope::new(
+                "tenant_alpha",
+                "task_ship_order",
+                "배송주소",
+                "fulfill_order",
+                origin("https://shipping.example"),
+                DataClassification::PersonalData,
+                DisclosureDecision::FullFieldDisclosure,
+            ),
+        ),
+        (
+            SensitiveDataRequest::new(
+                "tenant_alpha",
+                "task_ship_order",
+                "shipping_address",
+                &oversized,
+                origin("https://shipping.example"),
+                DataClassification::PersonalData,
+            ),
+            DisclosureScope::new(
+                "tenant_alpha",
+                "task_ship_order",
+                "shipping_address",
+                &oversized,
+                origin("https://shipping.example"),
+                DataClassification::PersonalData,
+                DisclosureDecision::FullFieldDisclosure,
+            ),
+        ),
+    ];
+
+    for (request, scope) in invalid_pairs {
+        assert_eq!(
+            evaluate_disclosure(&request, &scope),
+            DisclosureDecision::DenyAccess
+        );
+    }
+
+    let invalid_handle_scope = SensitiveValueHandleScope::new(
+        "tenant alpha",
+        "task_ship_order",
+        "shipping_address",
+        "fulfill_order",
+        origin("https://shipping.example"),
+        2_000,
+        2,
+    );
+    let invalid_handle_use = HandleUseRequest::new(
+        "tenant alpha",
+        "task_ship_order",
+        "shipping_address",
+        "fulfill_order",
+        origin("https://shipping.example"),
+        1_999,
+        0,
+    );
+    assert_eq!(
+        evaluate_handle_use(&invalid_handle_use, &invalid_handle_scope),
+        HandleUseDecision::ScopeMismatch
+    );
+}
