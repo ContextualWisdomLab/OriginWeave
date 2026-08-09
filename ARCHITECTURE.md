@@ -66,7 +66,7 @@ Owns stable value contracts without I/O:
 
 Owns deterministic pure policy decisions without I/O. Its action evaluator denies human-mode agent control, untrusted instruction promotion, missing capabilities, unauthorized origins, crawler mutation, cross-origin mutation, absent robots evidence, unsafe secret delivery, R5 actions, and mismatched action, target-origin, or intent approvals.
 
-The crate also contains the first purpose-bound sensitive-data authority kernel. A `SensitiveDataRequest` and `DisclosureScope` carry no protected value bytes and must match exactly on tenant, task, field, business purpose, destination, and classification before the configured disclosure outcome is returned; any mismatch denies access. `SensitiveValueHandleScope` and `HandleUseRequest` additionally bind opaque-handle use to an exclusive expiry and maximum use count. This is a preparatory policy kernel, not the final independently versioned sensitive-data service, storage, broker, evidence, or lifecycle layer described by issue #10 and ADR 0007.
+The crate also contains the first purpose-bound sensitive-data authority kernel. A `SensitiveDataRequest` and `DisclosureScope` carry no protected value bytes and must match exactly on tenant, task, field, business purpose, canonical destination `Origin`, and classification before the configured disclosure outcome is returned; any mismatch denies access. `SensitiveValueHandleScope` and `HandleUseRequest` bind proposed opaque-handle use to the same canonical scope plus exclusive expiry and maximum use count. `evaluate_handle_use` is a pure admission evaluation over trusted-time and authoritative-state inputs; it does not consume a use, mutate state, resolve a handle, or release a protected value. A later trusted broker must own caller-unforgeable handle state and trusted time, atomically reserve or increment the use count before resolution, and recheck the reserved scope and lifecycle state immediately before disclosure. This is a preparatory policy kernel, not the final independently versioned sensitive-data service, storage, broker, evidence, or lifecycle layer described by issue #10 and ADR 0007.
 
 ### `originweave-destination`
 
@@ -172,12 +172,18 @@ user intent
 → crawler / robots / secret checks
 → risk and exact action + target + intent approval check
 → purpose-bound sensitive-data decision when protected fields are required
+   ├─ DenyAccess → terminate without disclosure
+   ├─ HumanApprovalRequired / DualControlRequired
+   │  → collect the required independent approval evidence
+   │  → re-evaluate the exact tenant/task/field/purpose/destination/classification scope
+   └─ permitted disclosure mode → continue only through that exact channel
+→ for opaque handles, trusted broker atomically reserves a use from authoritative state
 → trusted broker or input execution
 → observed post-condition
 → evidence and audit record
 ```
 
-State-changing actions remain same-origin by default. Cross-origin workflows require decomposition into separately granted steps rather than one ambient action. A successful action or network decision cannot be reused as sensitive-data disclosure authority; that decision is evaluated separately for each protected field transition.
+State-changing actions remain same-origin by default. Cross-origin workflows require decomposition into separately granted steps rather than one ambient action. A successful action or network decision cannot be reused as sensitive-data disclosure authority; that decision is evaluated separately for each protected field transition. Approval-required sensitive-data outcomes are not execution permission: the exact scope must be re-evaluated after the required approval evidence exists. Opaque-handle evaluation is not state consumption; the later broker must serialize concurrent reservations against authoritative use-count, expiry, and revocation state before releasing a value.
 
 ## 9. Resource architecture
 
@@ -252,7 +258,9 @@ WARC stores source exchanges and resources; relational storage holds sessions, p
 - Generic header and query values are never retained by the evidence kernel.
 - Sensitive-data disclosure is separate from session, repository, administrator, origin, destination, transport, TLS, and model-credential authority.
 - The current sensitive-data policy API carries authority metadata only, never protected value bytes.
-- Disclosure mismatches on tenant, task, field, purpose, destination, or classification deny access; opaque-handle audience mismatch, expiry, or exhausted use count fail closed.
+- Disclosure mismatches on tenant, task, field, purpose, canonical destination, or classification deny access; opaque-handle scope mismatch, expiry, or exhausted use count fail closed at evaluation.
+- `evaluate_handle_use` does not consume state or release a value; the trusted broker must atomically reserve use count and recheck authoritative expiry/revocation state before resolution.
+- Approval-required sensitive-data outcomes must collect approval evidence and re-evaluate the exact scope before execution; `DenyAccess` terminates the disclosure path.
 - Logical origin grants, resolved-destination grants, actual peer evidence, and TLS service identity remain distinct.
 - DNS answer expansion after approval is denied as a possible rebinding event.
 - Direct TCP accepts only a canonical approved socket, never a hostname.
@@ -287,7 +295,7 @@ No deployment mode may depend on an in-process singleton. Session, policy, sensi
 | Attribute | Required evidence |
 |---|---|
 | correctness | contract, property, hostile-input, real TCP/TLS, exact sensitive-data scope, and post-condition tests |
-| safety | prompt-injection, secret, sensitive-data audience/expiry/use-count, origin, destination, rebinding, redirect, exact-peer, TLS identity, approval, and renderer-boundary tests |
+| safety | prompt-injection, secret, sensitive-data scope/expiry/use-count, origin, destination, rebinding, redirect, exact-peer, TLS identity, approval, and renderer-boundary tests |
 | reliability | crash recovery, checkpoint, retry, timeout, and idempotency tests |
 | performance | input latency, frame time, task RSS, VRAM, transfer, connection, handshake, and token metrics |
 | interoperability | BiDi/CDP/MCP/WARC/PROV and Manifest V3 compatibility suites |
