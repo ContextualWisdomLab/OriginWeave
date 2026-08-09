@@ -2,7 +2,7 @@
 
 **Decision date:** 2026-08-08  
 **Applies to:** `originweave-http` bounded HTTP/1.1 response handling  
-**Governing ADR:** `docs/adr/0008-http-reason-phrase-diagnostics.md`
+**Governing ADR:** `docs/adr/0012-http-reason-phrase-diagnostics.md`
 
 ## Evidence-to-decision trace
 
