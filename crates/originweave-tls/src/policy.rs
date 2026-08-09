@@ -164,13 +164,7 @@ impl TlsClientPolicy {
 
     pub(crate) fn into_parts(
         self,
-    ) -> (
-        UnixTime,
-        Duration,
-        Vec<Vec<u8>>,
-        AlpnRequirement,
-        Duration,
-    ) {
+    ) -> (UnixTime, Duration, Vec<Vec<u8>>, AlpnRequirement, Duration) {
         (
             self.trusted_time,
             self.handshake_timeout,
