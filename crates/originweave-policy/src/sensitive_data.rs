@@ -4,6 +4,8 @@
 //! protected value itself, performs no I/O, and grants no authority from ambient
 //! session, network, repository, or model state.
 
+use originweave_core::Origin;
+
 /// Classification applied to one protected field before disclosure policy runs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DataClassification {
@@ -46,7 +48,7 @@ struct AuthorityScope {
     task_id: String,
     field_id: String,
     purpose_id: String,
-    destination: String,
+    destination: Origin,
 }
 
 impl AuthorityScope {
@@ -55,14 +57,14 @@ impl AuthorityScope {
         task_id: &str,
         field_id: &str,
         purpose_id: &str,
-        destination: &str,
+        destination: Origin,
     ) -> Self {
         Self {
             tenant_id: tenant_id.to_owned(),
             task_id: task_id.to_owned(),
             field_id: field_id.to_owned(),
             purpose_id: purpose_id.to_owned(),
-            destination: destination.to_owned(),
+            destination,
         }
     }
 
@@ -71,7 +73,6 @@ impl AuthorityScope {
             && !self.task_id.is_empty()
             && !self.field_id.is_empty()
             && !self.purpose_id.is_empty()
-            && !self.destination.is_empty()
     }
 }
 
@@ -83,14 +84,14 @@ pub struct SensitiveDataRequest {
 }
 
 impl SensitiveDataRequest {
-    /// Build a request bound to an exact tenant, task, field, purpose, destination, and class.
+    /// Build a request bound to an exact tenant, task, field, purpose, validated destination, and class.
     #[must_use]
     pub fn new(
         tenant_id: &str,
         task_id: &str,
         field_id: &str,
         purpose_id: &str,
-        destination: &str,
+        destination: Origin,
         classification: DataClassification,
     ) -> Self {
         Self {
@@ -116,7 +117,7 @@ impl DisclosureScope {
         task_id: &str,
         field_id: &str,
         purpose_id: &str,
-        destination: &str,
+        destination: Origin,
         classification: DataClassification,
         decision: DisclosureDecision,
     ) -> Self {
@@ -177,7 +178,7 @@ impl SensitiveValueHandleScope {
         task_id: &str,
         field_id: &str,
         purpose_id: &str,
-        destination: &str,
+        destination: Origin,
         expires_at_epoch_seconds: u64,
         max_uses: u32,
     ) -> Self {
@@ -205,7 +206,7 @@ impl HandleUseRequest {
         task_id: &str,
         field_id: &str,
         purpose_id: &str,
-        destination: &str,
+        destination: Origin,
         now_epoch_seconds: u64,
         uses_so_far: u32,
     ) -> Self {
@@ -219,7 +220,8 @@ impl HandleUseRequest {
 
 /// Authorize one opaque-handle use without resolving or exposing its protected value.
 ///
-/// Missing authority identifiers fail closed as a scope mismatch.
+/// Missing authority identifiers fail closed as a scope mismatch. The caller must
+/// supply a destination that has already crossed the canonical [`Origin`] boundary.
 #[must_use]
 pub fn authorize_handle_use(
     request: &HandleUseRequest,
