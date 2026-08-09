@@ -6,7 +6,10 @@
   "permissions": [
     "storage",
     "declarativeNetRequest",
-    "declarativeNetRequestWithHostAccess"
+    "declarativeNetRequestWithHostAccess",
+    "tabs",
+    "scripting",
+    "sidePanel"
   ],
   "host_permissions": [
     "http://127.0.0.1/*"
@@ -21,6 +24,17 @@
       "run_at": "document_idle"
     }
   ],
+  "side_panel": {
+    "default_path": "side_panel.html"
+  },
+  "commands": {
+    "originweave-fixture-command": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Y"
+      },
+      "description": "Exercise the OriginWeave MV3 commands API fixture"
+    }
+  },
   "declarative_net_request": {
     "rule_resources": [
       {

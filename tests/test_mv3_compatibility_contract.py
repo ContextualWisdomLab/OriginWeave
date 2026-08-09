@@ -44,6 +44,42 @@ class ManifestV3CompatibilityContractTests(unittest.TestCase):
         ):
             self.assertTrue((FIXTURE / relative).is_file(), relative)
 
+    def test_fixture_expands_the_declared_core_mv3_api_matrix(self) -> None:
+        """The real-browser lane must exercise core Chrome APIs beyond the initial smoke set."""
+
+        manifest = json.loads((FIXTURE / "manifest.json").read_text(encoding="utf-8"))
+        for permission in ("tabs", "scripting", "sidePanel"):
+            with self.subTest(permission=permission):
+                self.assertIn(permission, manifest["permissions"])
+        self.assertEqual(manifest["side_panel"]["default_path"], "side_panel.html")
+        self.assertIn("originweave-fixture-command", manifest["commands"])
+        self.assertTrue((FIXTURE / "side_panel.html").is_file())
+
+        worker = (FIXTURE / "service_worker.js").read_text(encoding="utf-8")
+        content = (FIXTURE / "content_script.js").read_text(encoding="utf-8")
+        runner = RUNNER.read_text(encoding="utf-8")
+        for expected in (
+            "chrome.tabs.query",
+            "chrome.windows.getCurrent",
+            "chrome.scripting.executeScript",
+            "chrome.commands.getAll",
+            "chrome.sidePanel.getOptions",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, worker)
+        for expected in (
+            "originweaveTabs",
+            "originweaveWindows",
+            "originweaveScripting",
+            "originweaveCommands",
+            "originweaveSidePanel",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, content)
+        for surface in ("tabs", "windows", "scripting", "commands", "side-panel"):
+            with self.subTest(surface=surface):
+                self.assertIn(f'"{surface}"', runner)
+
     def test_runner_pins_one_chrome_for_testing_revision(self) -> None:
         """The compatibility lane must not silently float to a new Chromium build."""
 
