@@ -45,6 +45,11 @@ pub enum DisclosureDecision {
 }
 
 /// Exact authority metadata for one classified sensitive-data field use.
+///
+/// The value contains no protected field bytes. It combines the tenant, task,
+/// field, business purpose, canonical destination, and data classification so
+/// disclosure, opaque-handle issuance, and opaque-handle use cannot silently
+/// diverge on one of those authority dimensions.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SensitiveDataAuthority {
     tenant_id: String,
@@ -57,6 +62,11 @@ pub struct SensitiveDataAuthority {
 
 impl SensitiveDataAuthority {
     /// Build one exact classified authority value without carrying protected data.
+    ///
+    /// Tenant, task, field, and purpose identifiers are admitted only as 1–128
+    /// byte ASCII policy tokens using alphanumeric characters plus `.`, `_`, `:`,
+    /// and `-`. Each token must contain at least one alphanumeric character.
+    /// Invalid identifiers remain fail-closed when the authority is used.
     #[must_use]
     pub fn new(
         tenant_id: &str,
@@ -118,11 +128,17 @@ impl DisclosureScope {
     /// Build an exact disclosure authority scope and its maximum permitted outcome.
     #[must_use]
     pub const fn new(authority: SensitiveDataAuthority, decision: DisclosureDecision) -> Self {
-        Self { authority, decision }
+        Self {
+            authority,
+            decision,
+        }
     }
 }
 
 /// Evaluate disclosure only from the exact request and explicit authority scope.
+///
+/// An incomplete or malformed authority fails closed even when both sides contain
+/// the same invalid identifier.
 #[must_use]
 pub fn evaluate_disclosure(
     request: &SensitiveDataRequest,
@@ -161,6 +177,9 @@ pub struct SensitiveValueHandleScope {
 
 impl SensitiveValueHandleScope {
     /// Build an opaque-handle scope with exact authority, exclusive expiry, and bounded use count.
+    ///
+    /// A later field reclassification creates a different [`SensitiveDataAuthority`]
+    /// and therefore requires a newly authorized handle.
     #[must_use]
     pub const fn new(
         authority: SensitiveDataAuthority,
@@ -185,6 +204,10 @@ pub struct HandleUseRequest {
 
 impl HandleUseRequest {
     /// Build a handle-use evaluation request from trusted time and authoritative broker state.
+    ///
+    /// The eventual broker must supply these state values from its own trusted,
+    /// caller-unforgeable storage; accepting this struct does not make arbitrary
+    /// caller input authoritative.
     #[must_use]
     pub const fn new(
         authority: SensitiveDataAuthority,
@@ -200,6 +223,15 @@ impl HandleUseRequest {
 }
 
 /// Evaluate whether authoritative broker state is admissible for one handle use.
+///
+/// This pure function does not consume a use, mutate broker state, resolve a
+/// handle, or release a protected value. It is therefore not standalone
+/// enforcement. A trusted broker must obtain trusted time and caller-unforgeable
+/// handle state, atomically reserve or increment the use count before value
+/// resolution, and recheck the reserved authority immediately before disclosure.
+/// Missing or malformed authority identifiers fail closed as a scope mismatch.
+/// The authority destination must already have crossed the canonical [`Origin`]
+/// boundary.
 #[must_use]
 pub fn evaluate_handle_use(
     request: &HandleUseRequest,
