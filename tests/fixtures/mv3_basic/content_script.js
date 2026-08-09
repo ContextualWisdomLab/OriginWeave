@@ -27,4 +27,5 @@
   document.documentElement.dataset.originweaveSidePanel = response?.sidePanel ?? "missing";
   document.documentElement.dataset.originweaveBookmarks = response?.bookmarks ?? "missing";
   document.documentElement.dataset.originweaveHistory = response?.history ?? "missing";
+  document.documentElement.dataset.originweaveDownloads = response?.downloads ?? "missing";
 })();
