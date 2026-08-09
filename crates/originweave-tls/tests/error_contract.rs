@@ -53,6 +53,13 @@ fn every_public_error_has_deterministic_display_and_source_semantics() {
             false,
         ),
         (
+            TlsError::InvalidMinimumLeafValidity {
+                minimum_validity: Duration::from_secs(604_801),
+                maximum_validity: Duration::from_secs(604_800),
+            },
+            false,
+        ),
+        (
             TlsError::InvalidAlpnCount {
                 protocol_count: 9,
                 maximum_count: 8,
@@ -187,6 +194,13 @@ fn every_public_error_has_deterministic_display_and_source_semantics() {
             false,
         ),
         (TlsError::InvalidLeafCertificate, false),
+        (
+            TlsError::InsufficientLeafValidity {
+                remaining_seconds: 86_400,
+                minimum_seconds: 86_401,
+            },
+            false,
+        ),
         (
             TlsError::TimeoutRestorationFailed {
                 source: io_error(io::ErrorKind::InvalidInput),

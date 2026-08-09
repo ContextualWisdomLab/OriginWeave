@@ -15,6 +15,7 @@ mod handshake;
 mod identity;
 mod policy;
 mod trust;
+mod validity;
 
 pub use error::TlsError;
 pub use evidence::{
@@ -25,9 +26,10 @@ pub use handshake::TlsHandshakePlan;
 pub use identity::TlsReferenceIdentity;
 pub use policy::{
     AlpnRequirement, MAX_ALPN_PROTOCOL_COUNT, MAX_ALPN_PROTOCOL_LENGTH, MAX_ALPN_TOTAL_BYTES,
-    MAX_SERVER_CERTIFICATE_BYTES, MAX_SERVER_CERTIFICATE_COUNT, MAX_TLS_HANDSHAKE_TIMEOUT,
-    TlsClientPolicy,
+    MAX_MINIMUM_LEAF_VALIDITY, MAX_SERVER_CERTIFICATE_BYTES, MAX_SERVER_CERTIFICATE_COUNT,
+    MAX_TLS_HANDSHAKE_TIMEOUT, TlsClientPolicy,
 };
 pub use trust::{
     MAX_TRUST_ROOT_BYTES, MAX_TRUST_ROOT_COUNT, TrustBundleIdentifier, TrustRootBundle,
 };
+pub use validity::{LeafValidityHorizon, LeafValidityHorizonError};

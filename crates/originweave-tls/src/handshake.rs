@@ -19,8 +19,8 @@ use crate::evidence::{AuthenticatedTlsConnection, EvidenceInput};
 use crate::policy::{MAX_SERVER_CERTIFICATE_BYTES, MAX_SERVER_CERTIFICATE_COUNT};
 use crate::trust::sha256_identifier;
 use crate::{
-    AlpnRequirement, NegotiatedAlpn, TlsClientPolicy, TlsError, TlsProtocolVersion,
-    TlsReferenceIdentity, TrustRootBundle,
+    AlpnRequirement, LeafValidityHorizon, LeafValidityHorizonError, NegotiatedAlpn,
+    TlsClientPolicy, TlsError, TlsProtocolVersion, TlsReferenceIdentity, TrustRootBundle,
 };
 
 /// A single-use authority to authenticate one HTTPS origin over a verified TCP stream.
@@ -70,8 +70,13 @@ impl TlsHandshakePlan {
         let (mut stream, network_evidence) = connection.into_parts();
 
         verify_peer_evidence(&stream, &network_evidence).and_then(|()| {
-            let (trusted_time, handshake_timeout, alpn_protocols, alpn_requirement) =
-                policy.into_parts();
+            let (
+                trusted_time,
+                handshake_timeout,
+                alpn_protocols,
+                alpn_requirement,
+                minimum_leaf_validity,
+            ) = policy.into_parts();
             let (
                 trust_bundle_identifier,
                 root_store,
@@ -148,6 +153,12 @@ impl TlsHandshakePlan {
                                                         trusted_time,
                                                         handshake_duration,
                                                         handshake_timeout,
+                                                    )
+                                                })
+                                                .and_then(|evidence| {
+                                                    enforce_leaf_validity_horizon(
+                                                        evidence,
+                                                        minimum_leaf_validity,
                                                     )
                                                 })
                                                 .map(|evidence| AuthenticatedTlsConnection {
@@ -398,6 +409,27 @@ fn validate_peer_addresses(
             observed_peer,
             current_peer,
         })
+}
+
+fn enforce_leaf_validity_horizon(
+    evidence: crate::TlsConnectionEvidence,
+    minimum_leaf_validity: Duration,
+) -> Result<crate::TlsConnectionEvidence, TlsError> {
+    LeafValidityHorizon::new(minimum_leaf_validity)
+        .evaluate(
+            evidence.trusted_time_unix_seconds(),
+            evidence.leaf_not_after_unix_seconds(),
+        )
+        .map_err(|source| match source {
+            LeafValidityHorizonError::InsufficientRemainingValidity {
+                remaining_seconds,
+                minimum_seconds,
+            } => TlsError::InsufficientLeafValidity {
+                remaining_seconds,
+                minimum_seconds,
+            },
+        })
+        .map(|()| evidence)
 }
 
 #[allow(clippy::too_many_arguments)]

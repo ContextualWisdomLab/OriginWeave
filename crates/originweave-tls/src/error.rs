@@ -38,6 +38,13 @@ pub enum TlsError {
         /// The largest accepted timeout.
         maximum_timeout: Duration,
     },
+    /// The delegated-task leaf validity horizon exceeded the product maximum.
+    InvalidMinimumLeafValidity {
+        /// The rejected minimum remaining validity.
+        minimum_validity: Duration,
+        /// The largest supported minimum remaining validity.
+        maximum_validity: Duration,
+    },
     /// The ALPN protocol count exceeded the supported maximum or was missing when required.
     InvalidAlpnCount {
         /// The rejected protocol count.
@@ -172,6 +179,13 @@ pub enum TlsError {
     },
     /// The leaf certificate could not be parsed as one complete X.509 DER object.
     InvalidLeafCertificate,
+    /// The authenticated leaf certificate expires before the delegated-task safety horizon.
+    InsufficientLeafValidity {
+        /// Whole seconds remaining after the fixed trusted validation time.
+        remaining_seconds: u64,
+        /// Whole seconds required by the configured product safety horizon.
+        minimum_seconds: u64,
+    },
     /// Clearing the temporary handshake socket timeout failed.
     TimeoutRestorationFailed {
         /// The operating-system timeout error.
@@ -208,6 +222,13 @@ impl fmt::Display for TlsError {
             } => write!(
                 formatter,
                 "TLS handshake timeout {timeout:?} is outside 1ns..={maximum_timeout:?}",
+            ),
+            Self::InvalidMinimumLeafValidity {
+                minimum_validity,
+                maximum_validity,
+            } => write!(
+                formatter,
+                "TLS minimum leaf validity {minimum_validity:?} exceeds the supported product maximum {maximum_validity:?}",
             ),
             Self::InvalidAlpnCount {
                 protocol_count,
@@ -317,6 +338,13 @@ impl fmt::Display for TlsError {
             Self::InvalidLeafCertificate => {
                 formatter.write_str("TLS leaf certificate is not one complete X.509 DER object")
             }
+            Self::InsufficientLeafValidity {
+                remaining_seconds,
+                minimum_seconds,
+            } => write!(
+                formatter,
+                "TLS leaf certificate has {remaining_seconds} seconds remaining; delegated task requires at least {minimum_seconds} seconds",
+            ),
             Self::TimeoutRestorationFailed { .. } => {
                 formatter.write_str("could not restore TCP stream timeout after TLS handshake")
             }
@@ -342,6 +370,7 @@ impl std::error::Error for TlsError {
             | Self::InvalidTrustRootCount { .. }
             | Self::InvalidTrustRootBytes { .. }
             | Self::InvalidHandshakeTimeout { .. }
+            | Self::InvalidMinimumLeafValidity { .. }
             | Self::InvalidAlpnCount { .. }
             | Self::InvalidAlpnIdentifier { .. }
             | Self::DuplicateAlpnIdentifier { .. }
@@ -359,7 +388,8 @@ impl std::error::Error for TlsError {
             | Self::MissingPeerCertificates
             | Self::ExcessivePeerCertificateCount { .. }
             | Self::ExcessivePeerCertificateBytes { .. }
-            | Self::InvalidLeafCertificate => None,
+            | Self::InvalidLeafCertificate
+            | Self::InsufficientLeafValidity { .. } => None,
         }
     }
 }

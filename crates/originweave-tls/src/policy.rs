@@ -8,6 +8,13 @@ use crate::TlsError;
 /// The largest accepted total TLS handshake duration.
 pub const MAX_TLS_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(30);
 
+/// The largest caller-configurable minimum remaining leaf-certificate validity.
+///
+/// Seven days is a product safety bound for delegated-task scheduling, not a
+/// PKIX validity rule. Longer-lived work must obtain fresh transport authority
+/// rather than treating one authenticated connection as durable authority.
+pub const MAX_MINIMUM_LEAF_VALIDITY: Duration = Duration::from_secs(604_800);
+
 /// The largest number of ALPN identifiers accepted in one policy.
 pub const MAX_ALPN_PROTOCOL_COUNT: usize = 8;
 
@@ -39,10 +46,15 @@ pub struct TlsClientPolicy {
     handshake_timeout: Duration,
     alpn_protocols: Vec<Vec<u8>>,
     alpn_requirement: AlpnRequirement,
+    minimum_leaf_validity: Duration,
 }
 
 impl TlsClientPolicy {
     /// Validate a fixed-time, deadline-bound, explicit-ALPN TLS client policy.
+    ///
+    /// The minimum remaining leaf-certificate validity defaults to zero for
+    /// compatibility. Delegated-task callers can opt into a nonzero product
+    /// safety horizon with [`Self::with_minimum_leaf_validity`].
     pub fn new(
         trusted_time: UnixTime,
         handshake_timeout: Duration,
@@ -96,7 +108,28 @@ impl TlsClientPolicy {
             handshake_timeout,
             alpn_protocols,
             alpn_requirement,
+            minimum_leaf_validity: Duration::ZERO,
         })
+    }
+
+    /// Configure the minimum remaining leaf-certificate validity required
+    /// before an authenticated stream may be exposed to delegated work.
+    ///
+    /// Zero preserves point-in-time WebPKI behavior. Nonzero horizons are
+    /// bounded by [`MAX_MINIMUM_LEAF_VALIDITY`] so a caller cannot turn one TLS
+    /// authentication into indefinite task authority.
+    pub fn with_minimum_leaf_validity(
+        mut self,
+        minimum_validity: Duration,
+    ) -> Result<Self, TlsError> {
+        if minimum_validity > MAX_MINIMUM_LEAF_VALIDITY {
+            return Err(TlsError::InvalidMinimumLeafValidity {
+                minimum_validity,
+                maximum_validity: MAX_MINIMUM_LEAF_VALIDITY,
+            });
+        }
+        self.minimum_leaf_validity = minimum_validity;
+        Ok(self)
     }
 
     /// Return the fixed certificate-validation time.
@@ -123,12 +156,21 @@ impl TlsClientPolicy {
         self.alpn_requirement
     }
 
-    pub(crate) fn into_parts(self) -> (UnixTime, Duration, Vec<Vec<u8>>, AlpnRequirement) {
+    /// Return the configured delegated-task leaf validity horizon.
+    #[must_use]
+    pub const fn minimum_leaf_validity(&self) -> Duration {
+        self.minimum_leaf_validity
+    }
+
+    pub(crate) fn into_parts(
+        self,
+    ) -> (UnixTime, Duration, Vec<Vec<u8>>, AlpnRequirement, Duration) {
         (
             self.trusted_time,
             self.handshake_timeout,
             self.alpn_protocols,
             self.alpn_requirement,
+            self.minimum_leaf_validity,
         )
     }
 }
