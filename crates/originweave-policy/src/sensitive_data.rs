@@ -86,13 +86,7 @@ impl SensitiveDataRequest {
         classification: DataClassification,
     ) -> Self {
         Self {
-            authority: AuthorityScope::new(
-                tenant_id,
-                task_id,
-                field_id,
-                purpose_id,
-                destination,
-            ),
+            authority: AuthorityScope::new(tenant_id, task_id, field_id, purpose_id, destination),
             classification,
         }
     }
@@ -119,13 +113,7 @@ impl DisclosureScope {
         decision: DisclosureDecision,
     ) -> Self {
         Self {
-            authority: AuthorityScope::new(
-                tenant_id,
-                task_id,
-                field_id,
-                purpose_id,
-                destination,
-            ),
+            authority: AuthorityScope::new(tenant_id, task_id, field_id, purpose_id, destination),
             classification,
             decision,
         }
@@ -179,13 +167,7 @@ impl SensitiveValueHandleScope {
         max_uses: u32,
     ) -> Self {
         Self {
-            authority: AuthorityScope::new(
-                tenant_id,
-                task_id,
-                field_id,
-                purpose_id,
-                destination,
-            ),
+            authority: AuthorityScope::new(tenant_id, task_id, field_id, purpose_id, destination),
             expires_at_epoch_seconds,
             max_uses,
         }
@@ -213,13 +195,7 @@ impl HandleUseRequest {
         uses_so_far: u32,
     ) -> Self {
         Self {
-            authority: AuthorityScope::new(
-                tenant_id,
-                task_id,
-                field_id,
-                purpose_id,
-                destination,
-            ),
+            authority: AuthorityScope::new(tenant_id, task_id, field_id, purpose_id, destination),
             now_epoch_seconds,
             uses_so_far,
         }
