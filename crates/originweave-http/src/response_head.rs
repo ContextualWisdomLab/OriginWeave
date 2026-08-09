@@ -1,6 +1,6 @@
 //! Strict response status-line, field, and interim-response parsing.
 
-use crate::field::{FieldBlock, FieldLine, FieldSyntaxError};
+use crate::field::{trim_optional_whitespace, FieldBlock, FieldLine, FieldSyntaxError};
 use crate::{HttpClientPolicy, HttpError};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -216,18 +216,6 @@ fn parse_status_line(line: &[u8]) -> Result<(u16, Vec<u8>), HttpError> {
         return Err(HttpError::InvalidResponseStatusLine);
     }
     Ok((status_code, reason_phrase.to_vec()))
-}
-
-fn trim_optional_whitespace(value: &[u8]) -> &[u8] {
-    let start = value
-        .iter()
-        .position(|byte| !matches!(byte, b' ' | b'\t'))
-        .unwrap_or(value.len());
-    let end = value
-        .iter()
-        .rposition(|byte| !matches!(byte, b' ' | b'\t'))
-        .map_or(start, |index| index + 1);
-    &value[start..end]
 }
 
 fn response_field_error(error: FieldSyntaxError) -> HttpError {
