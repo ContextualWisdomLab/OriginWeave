@@ -2,7 +2,10 @@ use originweave_core::{DocumentEpoch, NodeHandleError, ObservedNodeHandle, Origi
 
 #[test]
 fn document_epochs_and_node_handles_reject_invalid_identifiers() {
-    assert_eq!(DocumentEpoch::new(0), Err(NodeHandleError::InvalidDocumentEpoch));
+    assert_eq!(
+        DocumentEpoch::new(0),
+        Err(NodeHandleError::InvalidDocumentEpoch)
+    );
 
     let epoch = DocumentEpoch::new(7).expect("nonzero document epoch");
     let origin = Origin::parse("https://example.com").expect("canonical origin");
