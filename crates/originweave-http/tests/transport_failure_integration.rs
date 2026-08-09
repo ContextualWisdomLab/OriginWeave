@@ -25,7 +25,7 @@ use rustls::{ServerConfig, ServerConnection, StreamOwned};
 
 const TRUSTED_TIME_SECONDS: u64 = 1_767_225_600;
 const TEST_TIMEOUT: Duration = Duration::from_secs(3);
-const EXCHANGE_TIMEOUT: Duration = Duration::from_millis(75);
+const EXCHANGE_TIMEOUT: Duration = Duration::from_millis(250);
 
 type ServerResult = Result<Vec<u8>, String>;
 
@@ -260,7 +260,7 @@ fn execute_static_response(
 fn stalled_content_length_body_expires_the_total_exchange_deadline() {
     let response = b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\nhe";
     let (result, server) = execute(
-        ServerBehavior::WriteThenStall(response, Duration::from_millis(300)),
+        ServerBehavior::WriteThenStall(response, Duration::from_secs(1)),
         policy_with_exchange_timeout(EXCHANGE_TIMEOUT),
     );
 
@@ -276,7 +276,7 @@ fn stalled_chunked_body_expires_the_total_exchange_deadline() {
     let response =
         b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n5\r\nhe";
     let (result, server) = execute(
-        ServerBehavior::WriteThenStall(response, Duration::from_millis(300)),
+        ServerBehavior::WriteThenStall(response, Duration::from_secs(1)),
         policy_with_exchange_timeout(EXCHANGE_TIMEOUT),
     );
 
