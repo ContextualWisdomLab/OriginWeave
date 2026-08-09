@@ -169,9 +169,9 @@ pub fn evaluate_disclosure(
 /// Result of evaluating one attempted use of an opaque sensitive-value handle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HandleUseDecision {
-    /// The supplied exact scope, expiry, and prior-use count permit broker admission.
+    /// The supplied exact scope, classification, expiry, and prior-use count permit broker admission.
     Authorized,
-    /// Tenant, task, field, purpose, or destination did not match the handle scope.
+    /// Tenant, task, field, purpose, destination, or classification did not match the handle scope.
     ScopeMismatch,
     /// The handle is no longer valid at the supplied trusted time.
     Expired,
@@ -183,15 +183,17 @@ pub enum HandleUseDecision {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SensitiveValueHandleScope {
     authority: AuthorityScope,
+    classification: DataClassification,
     expires_at_epoch_seconds: u64,
     max_uses: u32,
 }
 
 impl SensitiveValueHandleScope {
-    /// Build an opaque-handle scope with an exclusive expiry and bounded use count.
+    /// Build an opaque-handle scope with an exact classification, exclusive expiry, and bounded use count.
     ///
     /// Authority identifiers use the same bounded ASCII policy-token contract as
-    /// disclosure requests and scopes.
+    /// disclosure requests and scopes. A later field reclassification requires a
+    /// newly authorized handle rather than reusing this scope.
     #[must_use]
     pub fn new(
         tenant_id: &str,
@@ -199,11 +201,13 @@ impl SensitiveValueHandleScope {
         field_id: &str,
         purpose_id: &str,
         destination: Origin,
+        classification: DataClassification,
         expires_at_epoch_seconds: u64,
         max_uses: u32,
     ) -> Self {
         Self {
             authority: AuthorityScope::new(tenant_id, task_id, field_id, purpose_id, destination),
+            classification,
             expires_at_epoch_seconds,
             max_uses,
         }
@@ -214,6 +218,7 @@ impl SensitiveValueHandleScope {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HandleUseRequest {
     authority: AuthorityScope,
+    classification: DataClassification,
     now_epoch_seconds: u64,
     uses_so_far: u32,
 }
@@ -232,11 +237,13 @@ impl HandleUseRequest {
         field_id: &str,
         purpose_id: &str,
         destination: Origin,
+        classification: DataClassification,
         now_epoch_seconds: u64,
         uses_so_far: u32,
     ) -> Self {
         Self {
             authority: AuthorityScope::new(tenant_id, task_id, field_id, purpose_id, destination),
+            classification,
             now_epoch_seconds,
             uses_so_far,
         }
@@ -249,10 +256,10 @@ impl HandleUseRequest {
 /// handle, or release a protected value. It is therefore not standalone
 /// enforcement. A trusted broker must obtain trusted time and caller-unforgeable
 /// handle state, atomically reserve or increment the use count before value
-/// resolution, and recheck the reserved scope immediately before disclosure.
-/// Missing or malformed authority identifiers fail closed as a scope mismatch.
-/// The caller must supply a destination that has already crossed the canonical
-/// [`Origin`] boundary.
+/// resolution, and recheck the reserved authority and classification immediately
+/// before disclosure. Missing or malformed authority identifiers fail closed as
+/// a scope mismatch. The caller must supply a destination that has already crossed
+/// the canonical [`Origin`] boundary.
 #[must_use]
 pub fn evaluate_handle_use(
     request: &HandleUseRequest,
@@ -261,6 +268,7 @@ pub fn evaluate_handle_use(
     if !request.authority.is_complete()
         || !scope.authority.is_complete()
         || request.authority != scope.authority
+        || request.classification != scope.classification
     {
         HandleUseDecision::ScopeMismatch
     } else if request.now_epoch_seconds >= scope.expires_at_epoch_seconds {
