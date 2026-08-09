@@ -140,7 +140,10 @@ fn sensitive_destination_uses_the_canonical_origin_boundary() {
         "https://127.1",
         "http://shipping.example",
     ] {
-        assert!(Origin::parse(invalid).is_err(), "unexpected origin: {invalid}");
+        assert!(
+            Origin::parse(invalid).is_err(),
+            "unexpected origin: {invalid}"
+        );
     }
 
     assert!(Origin::parse("http://127.0.0.1").is_ok());
