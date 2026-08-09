@@ -19,7 +19,7 @@ OriginWeave serves materially different authority models: a person browsing dire
 
 ## Assumptions and authority boundaries
 
-A browser profile stores potentially sensitive state but does not itself authorize an action. Session mode, declared purpose, capabilities, origins, approval evidence, and secret handles are explicit control-plane inputs. Page content cannot switch mode or enlarge authority.
+A browser profile stores potentially sensitive state but does not itself authorize an action. Session mode, declared purpose, capabilities, origins, approval evidence, and secret handles are explicit control-plane inputs. Page content cannot switch mode or enlarge authority. Chromium renderer/process isolation reduces blast radius but is not a substitute for OriginWeave tenant/task/profile isolation or control-plane authorization.
 
 ## Options considered
 
@@ -30,6 +30,8 @@ A browser profile stores potentially sensitive state but does not itself authori
 ## Decision
 
 OriginWeave defines four governed execution modes: Human, Assist, Agent Task, and Crawler. Each session binds an explicit mode, purpose, tenant/user/task identity where applicable, isolated browser profile or context policy, capability set, origin grants, resource budget, and evidence stream. Agent Task and Crawler executions use isolated task contexts by default. Crawler mode is read-only. Assist mode may prepare reversible work but state-changing actions remain governed. Human Mode does not silently transfer direct browser control to an autonomous agent.
+
+Browser-context primitives supplied by Chromium/CDP are adapters for isolation, not OriginWeave's semantic authority. Context creation, disposal, storage/cookie partitioning, download ownership, permissions, cache/history behavior, and crash recovery must be bound to the OriginWeave session/task lifecycle and tested for supported browser versions. Reusing a context or profile across tasks requires an explicit reviewed policy and must never transfer prior task approvals, secret handles, or write capabilities.
 
 ## Consequences
 
@@ -45,7 +47,7 @@ Cross-tenant, cross-user, and cross-task cookie/storage leakage is a high-severi
 
 ## Tests and acceptance evidence
 
-Require cross-mode isolation tests, cookie/storage partition tests, task cancellation tests, tenant separation tests, profile lifecycle/crash-recovery tests, crawler write-denial tests, and evidence assertions proving mode/purpose/session identity on actions. Hostile page content must be unable to switch execution mode.
+Require cross-mode isolation tests, cookie/storage partition tests, task cancellation tests, tenant separation tests, profile/context create-dispose tests, download/cache/history isolation tests, profile lifecycle/crash-recovery tests, crawler write-denial tests, and evidence assertions proving mode/purpose/session identity on actions. Hostile page content must be unable to switch execution mode. Supported Chromium versions must prove that browser-context disposal makes the task context unavailable before task-scoped authority is considered revoked successfully.
 
 ## Migration and rollback
 
@@ -60,5 +62,13 @@ Define enterprise profile-retention defaults, tenant keying, SSO/SCIM bindings, 
 Supersede only when an alternative isolation model proves equivalent cross-user/task/tenant containment, lower operational cost, and equally auditable authority semantics under hostile-state tests.
 
 ## References
+
+Chrome DevTools Protocol. (2026). *Target domain*. Chromium. Retrieved August 9, 2026, from https://chromedevtools.github.io/devtools-protocol/tot/Target/
+
+Chromium. (n.d.-a). *Process model and Site Isolation*. Chromium source documentation. Retrieved August 9, 2026, from https://chromium.googlesource.com/chromium/src.git/+/refs/heads/main/docs/process_model_and_site_isolation.md
+
+Chromium. (n.d.-b). *Threat model and defenses against compromised renderers*. Chromium source documentation. Retrieved August 9, 2026, from https://chromium.googlesource.com/chromium/src.git/+/main/docs/security/compromised-renderers.md
+
+## Related documents
 
 See `docs/PRD.md`, `docs/TRD.md`, `docs/THREAT_MODEL.md`, and the conceptual entities in `docs/erd/README.md`.
