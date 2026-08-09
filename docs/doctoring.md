@@ -60,6 +60,14 @@ Credential-free TLS evidence records the canonical origin, TCP peers, reference 
 
 The test-only rcgen 0.14.8 dependency creates a local CA and deterministic certificate-policy scenarios. It is not part of production arithmetic or trust. Tests cover trusted DNS identity, Common Name non-fallback, wrong name, untrusted root, expired and not-yet-valid validity, exact IPv4 and IPv6 SAN identity, TLS 1.2 and TLS 1.3, required and optional ALPN, and equality between TLS origin and TCP authority.
 
+### Purpose-bound sensitive-data authority
+
+NIST SP 800-207A treats application and service identities and policy enforcement as explicit access-control inputs rather than relying on network location as a trust signal. OriginWeave applies that separation to protected fields: session ownership, repository membership, administrator status, destination reachability, transport proof, TLS identity, or possession of a model credential cannot by themselves authorize raw sensitive-data disclosure.
+
+Article 5 of Regulation (EU) 2016/679 establishes purpose limitation and data minimisation principles. OriginWeave uses those principles as engineering constraints—not as a claim of legal compliance—by binding each disclosure decision to an explicit business purpose and field, then denying mismatched tenant, task, field, purpose, destination, or classification authority. The first kernel carries no protected value bytes.
+
+OWASP logging guidance treats personal and other sensitive information as data that can create secondary exposure when included in application logs. OriginWeave therefore keeps raw protected values outside generic logs, traces, provenance records, and model context by default. Opaque handles are authorized separately against the same tenant/task/field/purpose/destination audience plus exclusive expiry and maximum use count. A later trusted broker must recheck that authority immediately before resolving a handle or releasing a protected value.
+
 ### Crawling policy
 
 RFC 9309 standardizes robots parsing, matching, error handling, and caching. It also states that robots rules are not access authorization. OriginWeave therefore requires robots evidence for public crawler mode while maintaining authentication, terms, rate, privacy, and retention policy as separate controls.
@@ -92,6 +100,8 @@ Autio, C., Schwartz, R., Dunietz, J., Jain, S., Stanley, M., Tabassi, E., Hall, 
 
 Bonica, R., Cotton, M., Haberman, B., & Vegoda, L. (2017). *Updates to the special-purpose IP address registries* (RFC 8190). Internet Engineering Task Force. https://doi.org/10.17487/RFC8190
 
+Chandramouli, R., & Butcher, Z. (2023). *A zero trust architecture model for access control in cloud-native applications in multi-cloud environments* (NIST Special Publication 800-207A). National Institute of Standards and Technology. https://doi.org/10.6028/NIST.SP.800-207A
+
 Chromium Authors. (2026). *URL canonicalizer unit tests* [Source code]. Chromium. https://chromium.googlesource.com/chromium/src/+/446d05d21720f0b3505ec21057b3e9f909784262/url/url_canon_unittest.cc
 
 Cooper, D., Santesson, S., Farrell, S., Boeyen, S., Housley, R., & Polk, W. (2008). *Internet X.509 public key infrastructure certificate and certificate revocation list (CRL) profile* (RFC 5280). Internet Engineering Task Force. https://doi.org/10.17487/RFC5280
@@ -101,6 +111,8 @@ Cotton, M., Vegoda, L., Bonica, R., & Haberman, B. (2013). *Special-purpose IP a
 Deng, X., Gu, Y., Zheng, B., Chen, S., Stevens, S., Wang, B., Sun, H., & Su, Y. (2023). *Mind2Web: Towards a generalist agent for the web*. arXiv. https://doi.org/10.48550/arXiv.2306.06070
 
 Eddy, W. M. (Ed.). (2022). *Transmission Control Protocol (TCP)* (RFC 9293). Internet Engineering Task Force. https://doi.org/10.17487/RFC9293
+
+European Parliament & Council of the European Union. (2016). *Regulation (EU) 2016/679 of the European Parliament and of the Council of 27 April 2016 (General Data Protection Regulation)*. *Official Journal of the European Union, L 119*, 1–88. https://eur-lex.europa.eu/eli/reg/2016/679/oj
 
 Evtimov, I., Zharmagambetov, A., Grattafiori, A., Guo, C., & Chaudhuri, K. (2025). *WASP: Benchmarking web agent security against prompt injection attacks*. arXiv. https://doi.org/10.48550/arXiv.2504.18575
 
@@ -123,6 +135,8 @@ Koster, M., Illyes, G., Zeller, H., & Sassman, L. (2022). *Robots Exclusion Prot
 Microsoft. (2025, July 25). *Azure IP address 168.63.129.16 overview*. Microsoft Learn. https://learn.microsoft.com/azure/virtual-network/what-is-ip-address-168-63-129-16
 
 Nielsen, S., Cetin, E., Schwendeman, P., Sun, Q., Xu, J., & Tang, Y. (2025). *Learning to orchestrate agents in natural language with the Conductor* [Preprint]. arXiv. https://doi.org/10.48550/arXiv.2512.04388
+
+OWASP Foundation. (n.d.). *Logging cheat sheet*. OWASP Cheat Sheet Series. Retrieved August 9, 2026, from https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html
 
 Rescorla, E. (2026). *The Transport Layer Security (TLS) protocol version 1.3* (RFC 9846). Internet Engineering Task Force. https://doi.org/10.17487/RFC9846
 
