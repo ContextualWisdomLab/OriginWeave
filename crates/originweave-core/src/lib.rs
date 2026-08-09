@@ -334,6 +334,26 @@ pub enum NodeHandleError {
     },
 }
 
+impl fmt::Display for NodeHandleError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidDocumentEpoch => formatter.write_str("document epoch must be nonzero"),
+            Self::InvalidNodeId => formatter.write_str("observed node identifier must be nonzero"),
+            Self::OriginMismatch => {
+                formatter.write_str("observed node origin does not match the current origin")
+            }
+            Self::StaleDocumentEpoch { observed, current } => write!(
+                formatter,
+                "observed node document epoch {} is stale; current epoch is {}",
+                observed.value(),
+                current.value()
+            ),
+        }
+    }
+}
+
+impl std::error::Error for NodeHandleError {}
+
 /// An immutable digest of the complete canonical action intent.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ActionIntentDigest {
