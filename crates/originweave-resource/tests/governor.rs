@@ -52,7 +52,7 @@ fn governor_preserves_interactivity_before_agent_throughput() {
     );
 
     assert_plan(
-        governor.decide(ResourceSnapshot::new(2_000, 1_000, 8, false, 10)),
+        governor.decide(ResourceSnapshot::new(2_000, 1_000, 8, false, 10, 1)),
         false,
         None,
         false,
@@ -60,7 +60,7 @@ fn governor_preserves_interactivity_before_agent_throughput() {
         false,
     );
     assert_plan(
-        governor.decide(ResourceSnapshot::new(5_000, 1_000, 8, false, 10)),
+        governor.decide(ResourceSnapshot::new(5_000, 1_000, 8, false, 10, 1)),
         true,
         None,
         false,
@@ -68,7 +68,7 @@ fn governor_preserves_interactivity_before_agent_throughput() {
         false,
     );
     assert_plan(
-        governor.decide(ResourceSnapshot::new(2_000, 2_500, 8, false, 10)),
+        governor.decide(ResourceSnapshot::new(2_000, 2_500, 8, false, 10, 1)),
         false,
         Some(4),
         false,
@@ -76,7 +76,7 @@ fn governor_preserves_interactivity_before_agent_throughput() {
         false,
     );
     assert_plan(
-        governor.decide(ResourceSnapshot::new(2_000, 2_500, 1, true, 10)),
+        governor.decide(ResourceSnapshot::new(2_000, 2_500, 1, true, 10, 1)),
         false,
         None,
         true,
@@ -84,7 +84,7 @@ fn governor_preserves_interactivity_before_agent_throughput() {
         false,
     );
     assert_plan(
-        governor.decide(ResourceSnapshot::new(2_000, 2_500, 1, false, 10)),
+        governor.decide(ResourceSnapshot::new(2_000, 2_500, 1, false, 10, 1)),
         false,
         None,
         false,
@@ -92,7 +92,7 @@ fn governor_preserves_interactivity_before_agent_throughput() {
         false,
     );
     assert_plan(
-        governor.decide(ResourceSnapshot::new(2_000, 1_000, 8, true, 20)),
+        governor.decide(ResourceSnapshot::new(2_000, 1_000, 8, true, 20, 1)),
         false,
         None,
         true,
@@ -100,7 +100,7 @@ fn governor_preserves_interactivity_before_agent_throughput() {
         false,
     );
     assert_plan(
-        governor.decide(ResourceSnapshot::new(2_000, 1_000, 8, false, 20)),
+        governor.decide(ResourceSnapshot::new(2_000, 1_000, 8, false, 20, 1)),
         false,
         None,
         false,
@@ -108,7 +108,7 @@ fn governor_preserves_interactivity_before_agent_throughput() {
         false,
     );
     assert_plan(
-        governor.decide(ResourceSnapshot::new(8_500, 1_000, 8, false, 10)),
+        governor.decide(ResourceSnapshot::new(8_500, 1_000, 8, false, 10, 1)),
         true,
         None,
         false,
@@ -116,7 +116,7 @@ fn governor_preserves_interactivity_before_agent_throughput() {
         true,
     );
     assert_plan(
-        governor.decide(ResourceSnapshot::new(2_000, 4_500, 8, false, 10)),
+        governor.decide(ResourceSnapshot::new(2_000, 4_500, 8, false, 10, 1)),
         false,
         None,
         false,
@@ -124,7 +124,7 @@ fn governor_preserves_interactivity_before_agent_throughput() {
         true,
     );
     assert_plan(
-        governor.decide(ResourceSnapshot::new(8_500, 4_500, 8, true, 30)),
+        governor.decide(ResourceSnapshot::new(8_500, 4_500, 8, true, 30, 1)),
         true,
         None,
         true,
@@ -140,7 +140,7 @@ fn governor_treats_budget_boundaries_as_pressure() {
     );
 
     assert_plan(
-        governor.decide(ResourceSnapshot::new(2_000, 4_096, 8, true, 10)),
+        governor.decide(ResourceSnapshot::new(2_000, 4_096, 8, true, 10, 1)),
         false,
         None,
         true,
@@ -148,7 +148,7 @@ fn governor_treats_budget_boundaries_as_pressure() {
         true,
     );
     assert_plan(
-        governor.decide(ResourceSnapshot::new(8_192, 1_000, 8, false, 10)),
+        governor.decide(ResourceSnapshot::new(8_192, 1_000, 8, false, 10, 1)),
         true,
         None,
         false,
@@ -156,7 +156,7 @@ fn governor_treats_budget_boundaries_as_pressure() {
         true,
     );
     assert_plan(
-        governor.decide(ResourceSnapshot::new(2_000, 1_000, 8, true, 16)),
+        governor.decide(ResourceSnapshot::new(2_000, 1_000, 8, true, 16, 1)),
         false,
         None,
         true,
@@ -164,7 +164,7 @@ fn governor_treats_budget_boundaries_as_pressure() {
         false,
     );
     assert_plan(
-        governor.decide(ResourceSnapshot::new(4_096, 1_000, 8, false, 10)),
+        governor.decide(ResourceSnapshot::new(4_096, 1_000, 8, false, 10, 1)),
         true,
         None,
         false,
@@ -172,7 +172,7 @@ fn governor_treats_budget_boundaries_as_pressure() {
         false,
     );
     assert_plan(
-        governor.decide(ResourceSnapshot::new(2_000, 2_048, 8, false, 10)),
+        governor.decide(ResourceSnapshot::new(2_000, 2_048, 8, false, 10, 1)),
         false,
         Some(4),
         false,
