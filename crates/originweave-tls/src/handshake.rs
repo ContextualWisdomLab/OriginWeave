@@ -19,8 +19,8 @@ use crate::evidence::{AuthenticatedTlsConnection, EvidenceInput};
 use crate::policy::{MAX_SERVER_CERTIFICATE_BYTES, MAX_SERVER_CERTIFICATE_COUNT};
 use crate::trust::sha256_identifier;
 use crate::{
-    AlpnRequirement, NegotiatedAlpn, TlsClientPolicy, TlsError, TlsProtocolVersion,
-    TlsReferenceIdentity, TrustRootBundle,
+    AlpnRequirement, LeafValidityHorizon, LeafValidityHorizonError, NegotiatedAlpn,
+    TlsClientPolicy, TlsError, TlsProtocolVersion, TlsReferenceIdentity, TrustRootBundle,
 };
 
 /// A single-use authority to authenticate one HTTPS origin over a verified TCP stream.
@@ -70,8 +70,13 @@ impl TlsHandshakePlan {
         let (mut stream, network_evidence) = connection.into_parts();
 
         verify_peer_evidence(&stream, &network_evidence).and_then(|()| {
-            let (trusted_time, handshake_timeout, alpn_protocols, alpn_requirement) =
-                policy.into_parts();
+            let (
+                trusted_time,
+                handshake_timeout,
+                alpn_protocols,
+                alpn_requirement,
+                minimum_leaf_validity,
+            ) = policy.into_parts();
             let (
                 trust_bundle_identifier,
                 root_store,
@@ -148,6 +153,12 @@ impl TlsHandshakePlan {
                                                         trusted_time,
                                                         handshake_duration,
                                                         handshake_timeout,
+                                                    )
+                                                })
+                                                .and_then(|evidence| {
+                                                    enforce_leaf_validity_horizon(
+                                                        evidence,
+                                                        minimum_leaf_validity,
                                                     )
                                                 })
                                                 .map(|evidence| AuthenticatedTlsConnection {
@@ -398,6 +409,27 @@ fn validate_peer_addresses(
             observed_peer,
             current_peer,
         })
+}
+
+fn enforce_leaf_validity_horizon(
+    evidence: crate::TlsConnectionEvidence,
+    minimum_leaf_validity: Duration,
+) -> Result<crate::TlsConnectionEvidence, TlsError> {
+    LeafValidityHorizon::new(minimum_leaf_validity)
+        .evaluate(
+            evidence.trusted_time_unix_seconds(),
+            evidence.leaf_not_after_unix_seconds(),
+        )
+        .map_err(|source| match source {
+            LeafValidityHorizonError::InsufficientRemainingValidity {
+                remaining_seconds,
+                minimum_seconds,
+            } => TlsError::InsufficientLeafValidity {
+                remaining_seconds,
+                minimum_seconds,
+            },
+        })
+        .map(|()| evidence)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -772,13 +804,13 @@ mod tests {
         assert_error_variant(&query_error, &handshake_io_error());
 
         handshake_timeout_update(Ok(())).expect("timeout update");
-        let update_error =
-            handshake_timeout_update(Err(io::Error::other("update"))).expect_err("update failure");
+        let update_error = handshake_timeout_update(Err(io::Error::other("update")))
+            .expect_err("update failure");
         assert_error_variant(&update_error, &handshake_io_error());
 
         timeout_restoration(Ok(())).expect("timeout restoration");
-        let restoration_error =
-            timeout_restoration(Err(io::Error::other("restore"))).expect_err("restoration failure");
+        let restoration_error = timeout_restoration(Err(io::Error::other("restore")))
+            .expect_err("restoration failure");
         assert_error_variant(&restoration_error, &timeout_restoration_error());
     }
 
@@ -860,8 +892,9 @@ mod tests {
                 .expect("offered ALPN"),
             NegotiatedAlpn::Protocol(b"h2".to_vec())
         );
-        let unexpected = negotiated_alpn_evidence(Some(b"h3"), &offered, AlpnRequirement::Optional)
-            .expect_err("unexpected ALPN");
+        let unexpected =
+            negotiated_alpn_evidence(Some(b"h3"), &offered, AlpnRequirement::Optional)
+                .expect_err("unexpected ALPN");
         assert_error_variant(&unexpected, &TlsError::UnexpectedAlpn);
         let required = negotiated_alpn_evidence(None, &offered, AlpnRequirement::Required)
             .expect_err("required ALPN");
@@ -929,8 +962,8 @@ mod tests {
 
         let excessive_count =
             vec![CertificateDer::from(vec![1_u8]); MAX_SERVER_CERTIFICATE_COUNT + 1];
-        let count_error =
-            validate_certificate_bounds(&excessive_count).expect_err("excessive certificate count");
+        let count_error = validate_certificate_bounds(&excessive_count)
+            .expect_err("excessive certificate count");
         assert_error_variant(
             &count_error,
             &TlsError::ExcessivePeerCertificateCount {
@@ -943,8 +976,8 @@ mod tests {
             1_u8;
             MAX_SERVER_CERTIFICATE_BYTES + 1
         ])];
-        let bytes_error =
-            validate_certificate_bounds(&excessive_bytes).expect_err("excessive certificate bytes");
+        let bytes_error = validate_certificate_bounds(&excessive_bytes)
+            .expect_err("excessive certificate bytes");
         assert_error_variant(
             &bytes_error,
             &TlsError::ExcessivePeerCertificateBytes {
