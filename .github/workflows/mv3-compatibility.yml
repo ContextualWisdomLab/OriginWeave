@@ -1,0 +1,86 @@
+name: Manifest V3 Compatibility
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/mv3-compatibility.yml"
+      - "crates/originweave-core/**"
+      - "scripts/ci/run_mv3_compatibility.py"
+      - "tests/fixtures/mv3_basic/**"
+      - "tests/test_mv3_compatibility_contract.py"
+      - "docs/doctoring/mv3-compatibility.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mv3-compatibility-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  chrome-for-testing:
+    name: Pinned Chrome for Testing MV3 fixture
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Harden runner and block undeclared egress
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: block
+          disable-telemetry: true
+          allowed-endpoints: >-
+            github.com:443
+            codeload.github.com:443
+            objects.githubusercontent.com:443
+            release-assets.githubusercontent.com:443
+            storage.googleapis.com:443
+            *.actions.githubusercontent.com:443
+            *.blob.core.windows.net:443
+            results-receiver.actions.githubusercontent.com:443
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Download exact Chrome for Testing pair
+        shell: bash
+        env:
+          CHROME_VERSION: "150.0.7871.129"
+        run: |
+          set -euo pipefail
+          base="https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/linux64"
+          curl --fail --location --proto '=https' --tlsv1.2 --retry 3 \
+            --output chrome-linux64.zip "${base}/chrome-linux64.zip"
+          curl --fail --location --proto '=https' --tlsv1.2 --retry 3 \
+            --output chromedriver-linux64.zip "${base}/chromedriver-linux64.zip"
+          sha256sum chrome-linux64.zip chromedriver-linux64.zip > mv3-download-sha256.txt
+          mkdir -p .mv3-browser
+          unzip -q chrome-linux64.zip -d .mv3-browser
+          unzip -q chromedriver-linux64.zip -d .mv3-browser
+          chmod 0755 \
+            .mv3-browser/chrome-linux64/chrome \
+            .mv3-browser/chromedriver-linux64/chromedriver
+
+      - name: Execute real MV3 compatibility fixture
+        shell: bash
+        env:
+          CHROME_BIN: ${{ github.workspace }}/.mv3-browser/chrome-linux64/chrome
+          CHROMEDRIVER_BIN: ${{ github.workspace }}/.mv3-browser/chromedriver-linux64/chromedriver
+        run: |
+          set -euo pipefail
+          "$CHROME_BIN" --version
+          "$CHROMEDRIVER_BIN" --version
+          python3 scripts/ci/run_mv3_compatibility.py | tee mv3-compatibility.json
+
+      - name: Upload bounded compatibility evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mv3-compatibility-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            mv3-download-sha256.txt
+            mv3-compatibility.json
+          if-no-files-found: warn
+          retention-days: 7
