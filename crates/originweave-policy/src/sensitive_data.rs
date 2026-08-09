@@ -149,10 +149,10 @@ pub fn evaluate_disclosure(
     }
 }
 
-/// Result of validating one attempted use of an opaque sensitive-value handle.
+/// Result of evaluating one attempted use of an opaque sensitive-value handle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HandleUseDecision {
-    /// The exact scope, expiry, and use-count limits permit this use.
+    /// The supplied exact scope, expiry, and prior-use count permit broker admission.
     Authorized,
     /// Tenant, task, field, purpose, or destination did not match the handle scope.
     ScopeMismatch,
@@ -190,7 +190,7 @@ impl SensitiveValueHandleScope {
     }
 }
 
-/// One attempted use of an opaque sensitive-value handle.
+/// One proposed use of an opaque sensitive-value handle.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HandleUseRequest {
     authority: AuthorityScope,
@@ -199,7 +199,11 @@ pub struct HandleUseRequest {
 }
 
 impl HandleUseRequest {
-    /// Build a handle-use request using trusted time and the broker-recorded prior-use count.
+    /// Build a handle-use evaluation request from trusted time and authoritative broker state.
+    ///
+    /// The eventual broker must supply these state values from its own trusted,
+    /// caller-unforgeable storage; accepting this struct does not make arbitrary
+    /// caller input authoritative.
     #[must_use]
     pub fn new(
         tenant_id: &str,
@@ -218,12 +222,17 @@ impl HandleUseRequest {
     }
 }
 
-/// Authorize one opaque-handle use without resolving or exposing its protected value.
+/// Evaluate whether authoritative broker state is admissible for one handle use.
 ///
+/// This pure function does not consume a use, mutate broker state, resolve a
+/// handle, or release a protected value. It is therefore not standalone
+/// enforcement. A trusted broker must obtain trusted time and caller-unforgeable
+/// handle state, atomically reserve or increment the use count before value
+/// resolution, and recheck the reserved scope immediately before disclosure.
 /// Missing authority identifiers fail closed as a scope mismatch. The caller must
 /// supply a destination that has already crossed the canonical [`Origin`] boundary.
 #[must_use]
-pub fn authorize_handle_use(
+pub fn evaluate_handle_use(
     request: &HandleUseRequest,
     scope: &SensitiveValueHandleScope,
 ) -> HandleUseDecision {
