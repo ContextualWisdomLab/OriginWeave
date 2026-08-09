@@ -149,6 +149,22 @@ class HourlyProviderSuccessContractTests(unittest.TestCase):
             with self.subTest(valid=valid):
                 self.assertTrue(valid_path(valid))
 
+    def test_broker_rejects_percent_encoded_control_bytes(self) -> None:
+        """Decoded controls must not reach the upstream request-target boundary."""
+
+        broker = _step_block(
+            self.workflow, "Start loopback-only NVIDIA NIM credential broker"
+        )
+        namespace: dict[str, object] = {}
+        with mock.patch.dict(os.environ, {"NIM_UPSTREAM_API_KEY": "test-key"}):
+            exec(compile(_broker_preamble(broker), "<broker-preamble>", "exec"), namespace)
+        valid_path = namespace["valid_path"]
+        self.assertTrue(callable(valid_path))
+
+        for invalid in ("/v1/%00", "/v1/%09", "/v1/%0A", "/v1/%0D", "/v1/%7F"):
+            with self.subTest(invalid=invalid):
+                self.assertFalse(valid_path(invalid))
+
 
 if __name__ == "__main__":
     unittest.main()
