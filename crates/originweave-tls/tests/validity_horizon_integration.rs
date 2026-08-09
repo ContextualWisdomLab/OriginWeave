@@ -1,6 +1,7 @@
 #![allow(clippy::expect_used)]
 
-use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener};
+use std::io;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -64,6 +65,21 @@ fn server_material() -> (
     )
 }
 
+fn complete_server_handshake(
+    connection: &mut ServerConnection,
+    stream: &mut TcpStream,
+) -> Result<(), String> {
+    match connection.complete_io(stream) {
+        Ok(_) => Ok(()),
+        Err(error)
+            if error.kind() == io::ErrorKind::UnexpectedEof && !connection.is_handshaking() =>
+        {
+            Ok(())
+        }
+        Err(error) => Err(error.to_string()),
+    }
+}
+
 fn spawn_server() -> (SocketAddr, Vec<u8>, thread::JoinHandle<Result<(), String>>) {
     let (root_der, certificate_chain, private_key) = server_material();
     let provider = Arc::new(rustls::crypto::ring::default_provider());
@@ -86,10 +102,7 @@ fn spawn_server() -> (SocketAddr, Vec<u8>, thread::JoinHandle<Result<(), String>
             .map_err(|error| error.to_string())?;
         let mut connection =
             ServerConnection::new(Arc::new(config)).map_err(|error| error.to_string())?;
-        connection
-            .complete_io(&mut stream)
-            .map_err(|error| error.to_string())?;
-        Ok(())
+        complete_server_handshake(&mut connection, &mut stream)
     });
     (socket_address, root_der, handle)
 }
