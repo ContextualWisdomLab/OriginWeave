@@ -149,7 +149,7 @@ class CoverageVerifierTests(unittest.TestCase):
             {
                 "name": "generic_covered",
                 "filenames": ["src/partial.rs"],
-                "regions": [[42, 9, 42, 15, 3, 0, 0, 0, 0]],
+                "regions": [[42, 9, 42, 15, 3, 0, 0, 0]],
             },
             {
                 "name": "actually_uncovered",
