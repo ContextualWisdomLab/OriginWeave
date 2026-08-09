@@ -6,6 +6,7 @@
 //! disclosure channel.
 
 use std::collections::BTreeSet;
+use std::fmt;
 
 use originweave_core::Origin;
 
@@ -69,6 +70,18 @@ pub enum SensitiveEvidenceError {
     /// Decision, disclosure, outcome, or retention timestamps described an impossible lifecycle.
     InvalidLifecycle,
 }
+
+impl fmt::Display for SensitiveEvidenceError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::InvalidIdentifier => "invalid sensitive-access identifier",
+            Self::InvalidFieldSet => "invalid sensitive-access field set",
+            Self::InvalidLifecycle => "invalid sensitive-access lifecycle",
+        })
+    }
+}
+
+impl std::error::Error for SensitiveEvidenceError {}
 
 /// Unvalidated metadata for one purpose-bound sensitive-data access receipt.
 ///
