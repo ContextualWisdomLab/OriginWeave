@@ -26,6 +26,14 @@ fn request_targets_preserve_valid_percent_escape_spelling() {
 }
 
 #[test]
+fn request_targets_accept_the_complete_origin_form_ascii_grammar() {
+    let origin = Origin::parse("https://example.com").expect("origin");
+    let input = "/AZaz09-._~!$&'()*+,;=:@/segment?x=/?:@!$&'()*+,;=-._~";
+    let target = HttpRequestTarget::parse(origin, input).expect("valid origin-form target");
+    assert_eq!(target.path_and_query(), input);
+}
+
+#[test]
 fn request_target_hash_is_bound_to_the_origin() {
     let first = HttpRequestTarget::parse(
         Origin::parse("https://example.com").expect("first origin"),
@@ -55,6 +63,17 @@ fn invalid_origin_form_targets_fail_closed() {
         "/line\nvalue",
         "/carriage\rvalue",
         "/nul\0value",
+        "/raw<angle",
+        "/raw>angle",
+        "/raw\"quote",
+        "/raw{brace",
+        "/raw}brace",
+        "/raw|pipe",
+        "/raw^caret",
+        "/raw`tick",
+        "/raw[bracket",
+        "/raw]bracket",
+        "/?query=<invalid>",
     ] {
         assert!(matches!(
             HttpRequestTarget::parse(origin.clone(), invalid),
