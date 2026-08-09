@@ -247,7 +247,9 @@ impl SensitiveAccessEvidence {
     }
 }
 
-fn validate_identifiers(input: &SensitiveAccessEvidenceInput) -> Result<(), SensitiveEvidenceError> {
+fn validate_identifiers(
+    input: &SensitiveAccessEvidenceInput,
+) -> Result<(), SensitiveEvidenceError> {
     let required = [
         input.request_id.as_str(),
         input.decision_id.as_str(),
@@ -285,9 +287,9 @@ fn validate_fields(field_ids: &[String]) -> Result<(), SensitiveEvidenceError> {
 fn valid_identifier(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= MAX_SENSITIVE_IDENTIFIER_BYTES
-        && value.bytes().all(|byte| {
-            byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b':' | b'-')
-        })
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b':' | b'-'))
 }
 
 fn validate_lifecycle(input: &SensitiveAccessEvidenceInput) -> Result<(), SensitiveEvidenceError> {
