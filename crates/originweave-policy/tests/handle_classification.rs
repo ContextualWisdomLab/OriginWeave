@@ -23,16 +23,9 @@ fn authority(classification: DataClassification) -> SensitiveDataAuthority {
 
 #[test]
 fn opaque_handle_use_requires_the_exact_data_classification() {
-    let scope = SensitiveValueHandleScope::new(
-        authority(DataClassification::PersonalData),
-        2_000,
-        2,
-    );
-    let permitted = HandleUseRequest::new(
-        authority(DataClassification::PersonalData),
-        1_999,
-        0,
-    );
+    let scope =
+        SensitiveValueHandleScope::new(authority(DataClassification::PersonalData), 2_000, 2);
+    let permitted = HandleUseRequest::new(authority(DataClassification::PersonalData), 1_999, 0);
     let reclassified = HandleUseRequest::new(
         authority(DataClassification::SensitivePersonalData),
         1_999,
