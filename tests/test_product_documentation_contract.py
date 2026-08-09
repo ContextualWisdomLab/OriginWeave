@@ -112,7 +112,7 @@ class ProductDocumentationContractTests(unittest.TestCase):
                 self.assertIn(phrase, trd)
 
     def test_target_architecture_adr_set_is_detailed(self) -> None:
-        """Accepted product direction must be reconstructable from durable, reviewable decisions."""
+        """Product direction must be reconstructable from durable, reviewable decisions."""
 
         required_adrs = {
             "docs/adr/0001-chromium-compatibility-kernel.md": (
@@ -183,11 +183,14 @@ class ProductDocumentationContractTests(unittest.TestCase):
             "## Migration and rollback",
             "## Supersession / reversal conditions",
         )
+        lifecycle_fields = ("- Status:", "- Date:", "- Supersedes:", "- Superseded by:")
         for path, phrases in required_adrs.items():
             with self.subTest(path=path):
                 adr_path = ROOT / path
                 self.assertTrue(adr_path.is_file(), f"missing architecture decision: {path}")
                 text = adr_path.read_text(encoding="utf-8")
+                for field in lifecycle_fields:
+                    self.assertIn(field, text)
                 for section in required_sections:
                     self.assertIn(section, text)
                 for phrase in phrases:
@@ -222,6 +225,20 @@ class ProductDocumentationContractTests(unittest.TestCase):
         ):
             with self.subTest(entity=entity):
                 self.assertIn(entity, erd)
+
+    def test_hourly_uml_fails_closed_before_secret_or_publication(self) -> None:
+        """Denied credentials and failed validation must terminate before secret use or publication."""
+
+        uml = (ROOT / "docs/uml/README.md").read_text(encoding="utf-8")
+        for phrase in (
+            "credential denied or broker unavailable",
+            "stop without secret materialization",
+            "validation failed",
+            "fail closed without publication",
+            "validation passed",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, uml)
 
     def test_operational_documents_preserve_fail_closed_product_boundaries(self) -> None:
         """Security, operations, APIs, tests, and rollback must agree on core authority boundaries."""
@@ -263,6 +280,22 @@ class ProductDocumentationContractTests(unittest.TestCase):
             for phrase in phrases:
                 with self.subTest(path=path, phrase=phrase):
                     self.assertIn(phrase, text)
+
+    def test_release_contract_never_bypasses_evidence_or_reproducibility(self) -> None:
+        """Emergency release handling must preserve exact-head gates and reproducible artifacts."""
+
+        release = (ROOT / "docs/RELEASE_AND_ROLLBACK.md").read_text(encoding="utf-8")
+        for phrase in (
+            "Emergency releases do not bypass required gates",
+            "current-head checks",
+            "complete coverage",
+            "branch protection",
+            "reproducible artifact",
+            "nondeterministic signing",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, release)
+        self.assertNotIn("residual unrun evidence", release)
 
     def test_traceability_labels_conversation_derived_future_work(self) -> None:
         """Conversation decisions must preserve implementation status instead of becoming claims."""
