@@ -29,7 +29,9 @@ The resource governor is a Rust control-plane authority. Browser and model runti
 
 ## Decision
 
-Every automated session receives an explicit resource budget and admission decision. The governor accounts for CPU, RAM, GPU/VRAM, browser processes, model processes, network concurrency, and evidence/storage pressure. Browser execution needed to preserve current task correctness and verifiable state has priority over optional local model acceleration. Under GPU/VRAM pressure the model degrades first: reduce concurrency, use CPU or remote inference when policy permits, or pause/fail the model path. Browser workloads are still bounded and may be rejected rather than overcommitted.
+Every automated session receives an explicit resource budget and admission decision. The governor accounts for CPU capacity, RAM, GPU/VRAM, browser-process priority, model-process priority/residency, network concurrency, evidence/cache bytes, temporary/durable artifact pressure, file descriptors, and bounded queue/concurrency limits. Browser execution needed to preserve current task correctness and verifiable state has priority over optional local model acceleration. Under GPU/VRAM pressure the model degrades first: reduce concurrency or batch size, free model caches, use CPU or remote inference when policy permits, pause the model path, or fail it. Browser workloads are still bounded and may be rejected rather than overcommitted.
+
+A resource-budget version and mitigation decision are evidence-bearing control-plane values. Admission and mitigation evidence record quantities, units, resource owner/task, policy version, trigger, and applied mitigation without carrying page content. A `cpu_worker_limit` is a count of OriginWeave-controlled CPU compute workers/admitted execution slots, not a percentage of total host CPU and not authority to change Chromium's internal scheduler.
 
 ## Consequences
 
@@ -41,24 +43,32 @@ Admission failure occurs before launching work that cannot fit. Runtime pressure
 
 ## Security / privacy / governance impact
 
-Budgets mitigate resource-exhaustion attacks from hostile pages, crawls, model outputs, and tenants. Tenant quotas prevent noisy-neighbor denial of service. Telemetry must avoid leaking page or secret content and should record quantities, owners, and decisions rather than sensitive payloads.
+Budgets mitigate resource-exhaustion attacks from hostile pages, crawls, model outputs, and tenants. Tenant quotas prevent noisy-neighbor denial of service. Telemetry must avoid leaking page or secret content and should record quantities, owners, policy versions, priorities, and decisions rather than sensitive payloads.
 
 ## Tests and acceptance evidence
 
-Require deterministic admission tests, CPU/RAM/GPU/VRAM pressure tests, browser-vs-model priority tests, concurrent tenant/session tests, crash/restart tests, bounded queue tests, and evidence proving no state-changing action is marked verified when the browser needed for post-condition checking was evicted. Performance tests must record workload and hardware assumptions.
+Require deterministic admission tests; CPU-worker, RAM, GPU/VRAM, network-concurrency, evidence/storage-pressure, file-descriptor, and queue pressure tests; browser-vs-model process-priority tests; concurrent tenant/session tests; crash/restart tests; bounded queue tests; and evidence proving no state-changing action is marked verified when the browser needed for post-condition checking was evicted. GPU tests must prove model offload/pause occurs before protected foreground browser capacity is sacrificed under the configured policy. Performance tests must record workload, browser build, model/runtime, and hardware assumptions.
 
 ## Migration and rollback
 
-Introduce accounting in observe-only mode before enforcing limits, then enable admission per resource class. Rollback may disable a new optimization or fallback but must retain hard safety bounds already required to prevent host instability.
+Introduce accounting in observe-only mode before enforcing limits, then enable admission per resource class. Rollback may disable a new optimization or fallback but must retain hard safety bounds already required to prevent host instability and must not silently widen a previously enforced task budget.
 
 ## Open follow-ups
 
-Define production default budgets, hardware classes, tenant quota APIs, remote-model fallback policy, and capacity/SLO dashboards.
+Define production default budgets, hardware classes, tenant quota APIs, remote-model fallback policy, supported telemetry adapters, and capacity/SLO dashboards.
 
 ## Supersession / reversal conditions
 
 Supersede only if another scheduler demonstrates equivalent fail-closed resource isolation, tenant fairness, browser correctness, observability, and materially better utilization in representative workloads.
 
 ## References
+
+Chromium. (n.d.). *MemoryInfra*. Chromium source documentation. Retrieved August 9, 2026, from https://chromium.googlesource.com/chromium/src/+/HEAD/docs/memory-infra/README.md
+
+Chromium. (n.d.). *Key concepts in Chrome memory*. Chromium source documentation. Retrieved August 9, 2026, from https://chromium.googlesource.com/chromium/src.git/+/HEAD/docs/memory/key_concepts.md
+
+V8 Project Authors. (2018, June 11). *Concurrent marking in V8*. https://v8.dev/blog/concurrent-marking
+
+## Related documents
 
 See `docs/OPERABILITY.md`, `docs/TEST_STRATEGY.md`, `docs/erd/README.md`, and the `originweave-resource` crate.
