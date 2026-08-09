@@ -6,6 +6,7 @@ import os
 import pathlib
 import textwrap
 import unittest
+import unittest.mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/hourly-product-development.yml"
