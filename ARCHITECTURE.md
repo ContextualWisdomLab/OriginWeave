@@ -1,5 +1,20 @@
 # OriginWeave Architecture
 
+## Authoritative documentation graph
+
+This file is the canonical product-wide topology and bounded-context view. It is intentionally linked to the rest of the authoritative documentation graph so a maintainer or buyer does not have to reconstruct requirements or decisions from chat, pull-request prose, or isolated feature plans:
+
+- [Product requirements](docs/PRD.md)
+- [Technical requirements and implementation-status boundaries](docs/TRD.md)
+- [Architecture decision index and lifecycle](docs/adr/README.md)
+- [UML and control-flow diagrams](docs/uml/README.md)
+- [Conceptual ERD and durable domain model](docs/erd/README.md)
+- [Requirement, decision, standards, and implementation traceability](docs/traceability/README.md)
+- [Research and standards doctoring](docs/doctoring.md)
+- [Product roadmap](docs/product-roadmap.md)
+
+Protected-main code plus Accepted ADRs define implemented truth. The PRD/TRD/diagrams may also contain `Planned`, `Proposed`, or `Open` product direction; those labels must remain explicit until corresponding implementation and review evidence reaches protected `main`.
+
 ## 1. Product definition
 
 OriginWeave is an enterprise agentic web runtime and provenance-native browser control plane. Chromium remains the compatibility kernel; Rust owns new governance, destination, direct network, TLS identity, resource, evidence, and agent-facing contracts. This separation minimizes the Chromium patch surface and allows the same Rust modules to operate in a desktop browser, headless service, naruon module, or external agent runtime.
