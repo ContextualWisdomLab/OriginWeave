@@ -12,171 +12,201 @@ const FIELD: &str = "shipping_address";
 const PURPOSE: &str = "fulfill_order";
 const DESTINATION: &str = "https://shipping.example";
 
+#[derive(Clone, Copy)]
+struct AuthorityCase<'a> {
+    tenant: &'a str,
+    task: &'a str,
+    field: &'a str,
+    purpose: &'a str,
+    destination: &'a str,
+}
+
+fn authority_case<'a>(
+    tenant: &'a str,
+    task: &'a str,
+    field: &'a str,
+    purpose: &'a str,
+    destination: &'a str,
+) -> AuthorityCase<'a> {
+    AuthorityCase {
+        tenant,
+        task,
+        field,
+        purpose,
+        destination,
+    }
+}
+
+fn exact_authority() -> AuthorityCase<'static> {
+    authority_case(TENANT, TASK, FIELD, PURPOSE, DESTINATION)
+}
+
 fn origin(input: &str) -> Origin {
     Origin::parse(input).expect("test origin must be valid")
 }
 
 fn disclosure_request(
-    tenant: &str,
-    task: &str,
-    field: &str,
-    purpose: &str,
-    destination: &str,
+    authority: AuthorityCase<'_>,
     classification: DataClassification,
 ) -> SensitiveDataRequest {
     SensitiveDataRequest::new(
-        tenant,
-        task,
-        field,
-        purpose,
-        origin(destination),
+        authority.tenant,
+        authority.task,
+        authority.field,
+        authority.purpose,
+        origin(authority.destination),
         classification,
     )
 }
 
-fn disclosure_scope(decision: DisclosureDecision) -> DisclosureScope {
+fn disclosure_scope(
+    authority: AuthorityCase<'_>,
+    classification: DataClassification,
+    decision: DisclosureDecision,
+) -> DisclosureScope {
     DisclosureScope::new(
-        TENANT,
-        TASK,
-        FIELD,
-        PURPOSE,
-        origin(DESTINATION),
-        DataClassification::PersonalData,
+        authority.tenant,
+        authority.task,
+        authority.field,
+        authority.purpose,
+        origin(authority.destination),
+        classification,
         decision,
     )
 }
 
 fn handle_scope(
-    tenant: &str,
+    authority: AuthorityCase<'_>,
     classification: DataClassification,
 ) -> SensitiveValueHandleScope {
     SensitiveValueHandleScope::new(
-        tenant,
-        TASK,
-        FIELD,
-        PURPOSE,
-        origin(DESTINATION),
+        authority.tenant,
+        authority.task,
+        authority.field,
+        authority.purpose,
+        origin(authority.destination),
         classification,
         2_000,
         2,
     )
 }
 
-#[allow(clippy::too_many_arguments)]
 fn handle_use(
-    tenant: &str,
-    task: &str,
-    field: &str,
-    purpose: &str,
-    destination: &str,
+    authority: AuthorityCase<'_>,
     classification: DataClassification,
     now: u64,
     uses: u32,
 ) -> HandleUseRequest {
     HandleUseRequest::new(
-        tenant,
-        task,
-        field,
-        purpose,
-        origin(destination),
+        authority.tenant,
+        authority.task,
+        authority.field,
+        authority.purpose,
+        origin(authority.destination),
         classification,
         now,
         uses,
     )
 }
 
-fn valid_handle_use() -> HandleUseRequest {
-    handle_use(
-        TENANT,
-        TASK,
-        FIELD,
-        PURPOSE,
-        DESTINATION,
+fn assert_disclosure_denied(authority: AuthorityCase<'_>, classification: DataClassification) {
+    let permitted = disclosure_scope(
+        exact_authority(),
         DataClassification::PersonalData,
-        1_999,
-        0,
-    )
+        DisclosureDecision::FullFieldDisclosure,
+    );
+    assert_eq!(
+        evaluate_disclosure(
+            &disclosure_request(authority, classification),
+            &permitted,
+        ),
+        DisclosureDecision::DenyAccess
+    );
+}
+
+fn assert_handle_scope_mismatch(
+    authority: AuthorityCase<'_>,
+    classification: DataClassification,
+) {
+    let scope = handle_scope(exact_authority(), DataClassification::PersonalData);
+    assert_eq!(
+        evaluate_handle_use(
+            &handle_use(authority, classification, 1_999, 0),
+            &scope,
+        ),
+        HandleUseDecision::ScopeMismatch
+    );
 }
 
 #[test]
 fn disclosure_is_bound_to_every_exact_authority_dimension() {
-    let permitted = disclosure_scope(DisclosureDecision::FullFieldDisclosure);
-    let request = disclosure_request(
-        TENANT,
-        TASK,
-        FIELD,
-        PURPOSE,
-        DESTINATION,
+    let exact = exact_authority();
+    let permitted = disclosure_scope(
+        exact,
         DataClassification::PersonalData,
+        DisclosureDecision::FullFieldDisclosure,
     );
     assert_eq!(
-        evaluate_disclosure(&request, &permitted),
+        evaluate_disclosure(
+            &disclosure_request(exact, DataClassification::PersonalData),
+            &permitted,
+        ),
         DisclosureDecision::FullFieldDisclosure
     );
 
-    let mismatches = [
-        ("tenant_beta", TASK, FIELD, PURPOSE, DESTINATION, DataClassification::PersonalData),
-        (TENANT, "task_other", FIELD, PURPOSE, DESTINATION, DataClassification::PersonalData),
-        (TENANT, TASK, "customer_email", PURPOSE, DESTINATION, DataClassification::PersonalData),
-        (TENANT, TASK, FIELD, "marketing", DESTINATION, DataClassification::PersonalData),
-        (TENANT, TASK, FIELD, PURPOSE, "https://other.example", DataClassification::PersonalData),
-        (
-            TENANT,
-            TASK,
-            FIELD,
-            PURPOSE,
-            DESTINATION,
-            DataClassification::SensitivePersonalData,
-        ),
-    ];
-    for (tenant, task, field, purpose, destination, classification) in mismatches {
-        let request = disclosure_request(
-            tenant,
-            task,
-            field,
-            purpose,
-            destination,
-            classification,
-        );
-        assert_eq!(
-            evaluate_disclosure(&request, &permitted),
-            DisclosureDecision::DenyAccess
-        );
-    }
+    assert_disclosure_denied(
+        authority_case("tenant_beta", TASK, FIELD, PURPOSE, DESTINATION),
+        DataClassification::PersonalData,
+    );
+    assert_disclosure_denied(
+        authority_case(TENANT, "task_other", FIELD, PURPOSE, DESTINATION),
+        DataClassification::PersonalData,
+    );
+    assert_disclosure_denied(
+        authority_case(TENANT, TASK, "customer_email", PURPOSE, DESTINATION),
+        DataClassification::PersonalData,
+    );
+    assert_disclosure_denied(
+        authority_case(TENANT, TASK, FIELD, "marketing", DESTINATION),
+        DataClassification::PersonalData,
+    );
+    assert_disclosure_denied(
+        authority_case(TENANT, TASK, FIELD, PURPOSE, "https://other.example"),
+        DataClassification::PersonalData,
+    );
+    assert_disclosure_denied(exact, DataClassification::SensitivePersonalData);
 }
 
 #[test]
 fn sensitive_destination_uses_the_canonical_origin_boundary() {
-    let canonical = disclosure_request(
+    let canonical = authority_case(
         TENANT,
         TASK,
         FIELD,
         PURPOSE,
         "HTTPS://Shipping.Example:443",
-        DataClassification::PersonalData,
     );
     assert_eq!(
         evaluate_disclosure(
-            &canonical,
-            &disclosure_scope(DisclosureDecision::FullFieldDisclosure),
+            &disclosure_request(canonical, DataClassification::PersonalData),
+            &disclosure_scope(
+                exact_authority(),
+                DataClassification::PersonalData,
+                DisclosureDecision::FullFieldDisclosure,
+            ),
         ),
         DisclosureDecision::FullFieldDisclosure
     );
 
-    let non_default_port = disclosure_request(
-        TENANT,
-        TASK,
-        FIELD,
-        PURPOSE,
-        "https://shipping.example:8443",
-        DataClassification::PersonalData,
-    );
-    assert_eq!(
-        evaluate_disclosure(
-            &non_default_port,
-            &disclosure_scope(DisclosureDecision::FullFieldDisclosure),
+    assert_disclosure_denied(
+        authority_case(
+            TENANT,
+            TASK,
+            FIELD,
+            PURPOSE,
+            "https://shipping.example:8443",
         ),
-        DisclosureDecision::DenyAccess
+        DataClassification::PersonalData,
     );
 
     for invalid in [
@@ -187,21 +217,18 @@ fn sensitive_destination_uses_the_canonical_origin_boundary() {
         "https://127.1",
         "http://shipping.example",
     ] {
-        assert!(Origin::parse(invalid).is_err(), "unexpected origin: {invalid}");
+        assert!(
+            Origin::parse(invalid).is_err(),
+            "unexpected origin: {invalid}"
+        );
     }
     assert!(Origin::parse("http://127.0.0.1").is_ok());
 }
 
 #[test]
 fn every_supported_disclosure_outcome_is_preserved_by_exact_scope() {
-    let request = disclosure_request(
-        TENANT,
-        TASK,
-        FIELD,
-        PURPOSE,
-        DESTINATION,
-        DataClassification::PersonalData,
-    );
+    let exact = exact_authority();
+    let request = disclosure_request(exact, DataClassification::PersonalData);
     for decision in [
         DisclosureDecision::DenyAccess,
         DisclosureDecision::OpaqueHandleOnly,
@@ -211,89 +238,42 @@ fn every_supported_disclosure_outcome_is_preserved_by_exact_scope() {
         DisclosureDecision::HumanApprovalRequired,
         DisclosureDecision::DualControlRequired,
     ] {
-        assert_eq!(evaluate_disclosure(&request, &disclosure_scope(decision)), decision);
+        assert_eq!(
+            evaluate_disclosure(
+                &request,
+                &disclosure_scope(exact, DataClassification::PersonalData, decision),
+            ),
+            decision
+        );
     }
 }
 
 #[test]
 fn opaque_handle_use_is_bound_to_scope_classification_expiry_and_use_count() {
-    let scope = handle_scope(TENANT, DataClassification::PersonalData);
+    let exact = exact_authority();
+    let scope = handle_scope(exact, DataClassification::PersonalData);
     assert_eq!(
         evaluate_handle_use(
-            &handle_use(
-                TENANT,
-                TASK,
-                FIELD,
-                PURPOSE,
-                DESTINATION,
-                DataClassification::PersonalData,
-                1_999,
-                1,
-            ),
+            &handle_use(exact, DataClassification::PersonalData, 1_999, 1),
             &scope,
         ),
         HandleUseDecision::Authorized
     );
-    assert_eq!(
-        evaluate_handle_use(
-            &handle_use(
-                TENANT,
-                TASK,
-                FIELD,
-                PURPOSE,
-                "https://other.example",
-                DataClassification::PersonalData,
-                1_999,
-                1,
-            ),
-            &scope,
-        ),
-        HandleUseDecision::ScopeMismatch
+    assert_handle_scope_mismatch(
+        authority_case(TENANT, TASK, FIELD, PURPOSE, "https://other.example"),
+        DataClassification::PersonalData,
     );
+    assert_handle_scope_mismatch(exact, DataClassification::SensitivePersonalData);
     assert_eq!(
         evaluate_handle_use(
-            &handle_use(
-                TENANT,
-                TASK,
-                FIELD,
-                PURPOSE,
-                DESTINATION,
-                DataClassification::SensitivePersonalData,
-                1_999,
-                1,
-            ),
-            &scope,
-        ),
-        HandleUseDecision::ScopeMismatch
-    );
-    assert_eq!(
-        evaluate_handle_use(
-            &handle_use(
-                TENANT,
-                TASK,
-                FIELD,
-                PURPOSE,
-                DESTINATION,
-                DataClassification::PersonalData,
-                2_000,
-                1,
-            ),
+            &handle_use(exact, DataClassification::PersonalData, 2_000, 1),
             &scope,
         ),
         HandleUseDecision::Expired
     );
     assert_eq!(
         evaluate_handle_use(
-            &handle_use(
-                TENANT,
-                TASK,
-                FIELD,
-                PURPOSE,
-                DESTINATION,
-                DataClassification::PersonalData,
-                1_999,
-                2,
-            ),
+            &handle_use(exact, DataClassification::PersonalData, 1_999, 2),
             &scope,
         ),
         HandleUseDecision::UseLimitReached
@@ -302,171 +282,162 @@ fn opaque_handle_use_is_bound_to_scope_classification_expiry_and_use_count() {
 
 #[test]
 fn handle_scope_mismatch_covers_every_authority_dimension() {
-    let scope = handle_scope(TENANT, DataClassification::PersonalData);
-    let mismatches = [
-        ("tenant_beta", TASK, FIELD, PURPOSE, DESTINATION, DataClassification::PersonalData),
-        (TENANT, "task_other", FIELD, PURPOSE, DESTINATION, DataClassification::PersonalData),
-        (TENANT, TASK, "customer_email", PURPOSE, DESTINATION, DataClassification::PersonalData),
-        (TENANT, TASK, FIELD, "marketing", DESTINATION, DataClassification::PersonalData),
-        (TENANT, TASK, FIELD, PURPOSE, "https://other.example", DataClassification::PersonalData),
-        (TENANT, TASK, FIELD, PURPOSE, DESTINATION, DataClassification::CredentialData),
-    ];
-    for (tenant, task, field, purpose, destination, classification) in mismatches {
-        let request = handle_use(
-            tenant,
-            task,
-            field,
-            purpose,
-            destination,
-            classification,
-            1_999,
-            0,
-        );
-        assert_eq!(
-            evaluate_handle_use(&request, &scope),
-            HandleUseDecision::ScopeMismatch
-        );
-    }
+    assert_handle_scope_mismatch(
+        authority_case("tenant_beta", TASK, FIELD, PURPOSE, DESTINATION),
+        DataClassification::PersonalData,
+    );
+    assert_handle_scope_mismatch(
+        authority_case(TENANT, "task_other", FIELD, PURPOSE, DESTINATION),
+        DataClassification::PersonalData,
+    );
+    assert_handle_scope_mismatch(
+        authority_case(TENANT, TASK, "customer_email", PURPOSE, DESTINATION),
+        DataClassification::PersonalData,
+    );
+    assert_handle_scope_mismatch(
+        authority_case(TENANT, TASK, FIELD, "marketing", DESTINATION),
+        DataClassification::PersonalData,
+    );
+    assert_handle_scope_mismatch(
+        authority_case(TENANT, TASK, FIELD, PURPOSE, "https://other.example"),
+        DataClassification::PersonalData,
+    );
+    assert_handle_scope_mismatch(exact_authority(), DataClassification::CredentialData);
 }
 
 #[test]
 fn incomplete_authority_never_grants_disclosure_or_handle_use() {
-    let permitted = disclosure_scope(DisclosureDecision::FullFieldDisclosure);
-    for (tenant, task, field, purpose) in [
-        ("", TASK, FIELD, PURPOSE),
-        (TENANT, "", FIELD, PURPOSE),
-        (TENANT, TASK, "", PURPOSE),
-        (TENANT, TASK, FIELD, ""),
-    ] {
-        let request = disclosure_request(
-            tenant,
-            task,
-            field,
-            purpose,
-            DESTINATION,
-            DataClassification::PersonalData,
-        );
-        assert_eq!(
-            evaluate_disclosure(&request, &permitted),
-            DisclosureDecision::DenyAccess
-        );
-    }
+    assert_disclosure_denied(
+        authority_case("", TASK, FIELD, PURPOSE, DESTINATION),
+        DataClassification::PersonalData,
+    );
+    assert_disclosure_denied(
+        authority_case(TENANT, "", FIELD, PURPOSE, DESTINATION),
+        DataClassification::PersonalData,
+    );
+    assert_disclosure_denied(
+        authority_case(TENANT, TASK, "", PURPOSE, DESTINATION),
+        DataClassification::PersonalData,
+    );
+    assert_disclosure_denied(
+        authority_case(TENANT, TASK, FIELD, "", DESTINATION),
+        DataClassification::PersonalData,
+    );
 
-    let incomplete_disclosure_scope = DisclosureScope::new(
-        "",
-        TASK,
-        FIELD,
-        PURPOSE,
-        origin(DESTINATION),
+    let exact = exact_authority();
+    let request = disclosure_request(exact, DataClassification::PersonalData);
+    let incomplete_scope = disclosure_scope(
+        authority_case("", TASK, FIELD, PURPOSE, DESTINATION),
         DataClassification::PersonalData,
         DisclosureDecision::FullFieldDisclosure,
     );
-    let request = disclosure_request(
-        TENANT,
-        TASK,
-        FIELD,
-        PURPOSE,
-        DESTINATION,
-        DataClassification::PersonalData,
-    );
     assert_eq!(
-        evaluate_disclosure(&request, &incomplete_disclosure_scope),
+        evaluate_disclosure(&request, &incomplete_scope),
         DisclosureDecision::DenyAccess
     );
 
-    assert_eq!(
-        evaluate_handle_use(
-            &valid_handle_use(),
-            &handle_scope("", DataClassification::PersonalData),
-        ),
-        HandleUseDecision::ScopeMismatch
+    let incomplete_handle_scope = handle_scope(
+        authority_case("", TASK, FIELD, PURPOSE, DESTINATION),
+        DataClassification::PersonalData,
     );
     assert_eq!(
         evaluate_handle_use(
-            &handle_use(
-                TENANT,
-                "",
-                FIELD,
-                PURPOSE,
-                DESTINATION,
-                DataClassification::PersonalData,
-                1_999,
-                0,
-            ),
-            &handle_scope(TENANT, DataClassification::PersonalData),
+            &handle_use(exact, DataClassification::PersonalData, 1_999, 0),
+            &incomplete_handle_scope,
         ),
         HandleUseDecision::ScopeMismatch
+    );
+    assert_handle_scope_mismatch(
+        authority_case(TENANT, "", FIELD, PURPOSE, DESTINATION),
+        DataClassification::PersonalData,
     );
 }
 
 #[test]
 fn authority_identifiers_are_bounded_ascii_policy_tokens() {
     let exact_maximum = "a".repeat(128);
-    let valid_request = disclosure_request(
+    let valid = authority_case(
         &exact_maximum,
         "task.ship-order:v1",
         FIELD,
         "fulfill-order",
         DESTINATION,
-        DataClassification::PersonalData,
-    );
-    let valid_scope = DisclosureScope::new(
-        &exact_maximum,
-        "task.ship-order:v1",
-        FIELD,
-        "fulfill-order",
-        origin(DESTINATION),
-        DataClassification::PersonalData,
-        DisclosureDecision::FullFieldDisclosure,
     );
     assert_eq!(
-        evaluate_disclosure(&valid_request, &valid_scope),
+        evaluate_disclosure(
+            &disclosure_request(valid, DataClassification::PersonalData),
+            &disclosure_scope(
+                valid,
+                DataClassification::PersonalData,
+                DisclosureDecision::FullFieldDisclosure,
+            ),
+        ),
         DisclosureDecision::FullFieldDisclosure
     );
 
     let oversized = "a".repeat(129);
-    for (tenant, task, field, purpose) in [
-        ("tenant alpha", TASK, FIELD, PURPOSE),
-        (TENANT, "task\nship_order", FIELD, PURPOSE),
-        (TENANT, TASK, "배송주소", PURPOSE),
-        (TENANT, TASK, FIELD, oversized.as_str()),
-    ] {
-        let request = disclosure_request(
-            tenant,
-            task,
-            field,
-            purpose,
-            DESTINATION,
-            DataClassification::PersonalData,
-        );
-        let scope = DisclosureScope::new(
-            tenant,
-            task,
-            field,
-            purpose,
-            origin(DESTINATION),
-            DataClassification::PersonalData,
-            DisclosureDecision::FullFieldDisclosure,
-        );
-        assert_eq!(
-            evaluate_disclosure(&request, &scope),
-            DisclosureDecision::DenyAccess
-        );
-    }
-
-    let invalid_scope = handle_scope("tenant alpha", DataClassification::PersonalData);
-    let invalid_use = handle_use(
+    assert_invalid_equal_authority(authority_case(
         "tenant alpha",
         TASK,
         FIELD,
         PURPOSE,
         DESTINATION,
-        DataClassification::PersonalData,
-        1_999,
-        0,
+    ));
+    assert_invalid_equal_authority(authority_case(
+        TENANT,
+        "task\nship_order",
+        FIELD,
+        PURPOSE,
+        DESTINATION,
+    ));
+    assert_invalid_equal_authority(authority_case(
+        TENANT,
+        TASK,
+        "배송주소",
+        PURPOSE,
+        DESTINATION,
+    ));
+    assert_invalid_equal_authority(authority_case(
+        TENANT,
+        TASK,
+        FIELD,
+        &oversized,
+        DESTINATION,
+    ));
+
+    let invalid_handle_authority = authority_case(
+        "tenant alpha",
+        TASK,
+        FIELD,
+        PURPOSE,
+        DESTINATION,
     );
     assert_eq!(
-        evaluate_handle_use(&invalid_use, &invalid_scope),
+        evaluate_handle_use(
+            &handle_use(
+                invalid_handle_authority,
+                DataClassification::PersonalData,
+                1_999,
+                0,
+            ),
+            &handle_scope(
+                invalid_handle_authority,
+                DataClassification::PersonalData,
+            ),
+        ),
         HandleUseDecision::ScopeMismatch
+    );
+}
+
+fn assert_invalid_equal_authority(authority: AuthorityCase<'_>) {
+    let request = disclosure_request(authority, DataClassification::PersonalData);
+    let scope = disclosure_scope(
+        authority,
+        DataClassification::PersonalData,
+        DisclosureDecision::FullFieldDisclosure,
+    );
+    assert_eq!(
+        evaluate_disclosure(&request, &scope),
+        DisclosureDecision::DenyAccess
     );
 }
