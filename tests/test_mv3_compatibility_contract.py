@@ -162,6 +162,23 @@ class ManifestV3CompatibilityContractTests(unittest.TestCase):
             with self.subTest(expected=expected):
                 self.assertIn(expected, runner)
 
+    def test_runner_preserves_safe_surface_failure_evidence(self) -> None:
+        """A failed trial must identify the bounded fixture surface without leaking raw errors."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="mv3_contract")
+        surface_error = namespace["CompatibilitySurfaceError"]
+        failure_evidence = namespace["_failure_evidence"]
+
+        observed = {"downloads": "missing", "storage": "ready"}
+        diagnostic = failure_evidence(surface_error(observed))
+        self.assertEqual(diagnostic["failure_kind"], "surface_mismatch")
+        self.assertEqual(diagnostic["observed"], observed)
+
+        generic = failure_evidence(
+            RuntimeError("secret-token https://example.invalid /home/runner/private")
+        )
+        self.assertEqual(generic, {"failure_kind": "runtime_error"})
+
     def test_workflow_runs_the_real_browser_lane_without_model_credentials(self) -> None:
         """Compatibility evidence must execute Chromium and never require LLM secrets."""
 
