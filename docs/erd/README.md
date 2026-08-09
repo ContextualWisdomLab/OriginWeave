@@ -54,16 +54,20 @@ erDiagram
     resource_budget ||--o{ mitigation_plan : derives
     resource_snapshot ||--o{ mitigation_plan : informs
 
-    page_snapshot ||--o{ source_resource : references
-    network_exchange ||--o{ source_resource : captures
+    page_snapshot o|--o{ source_resource : may_reference
+    network_exchange o|--o{ source_resource : may_capture
     source_resource ||--o{ content_record : materializes
     content_record ||--o{ extracted_value : supports
     extraction_schema ||--o{ extracted_value : constrains
     semantic_node o|--o{ extracted_value : supports
-    extracted_value ||--o{ provenance_record : derives
-    action_event ||--o{ provenance_record : contributes
-    policy_decision ||--o{ provenance_record : contributes
-    postcondition_evidence ||--o{ provenance_record : contributes
+
+    provenance_record ||--|{ provenance_link : contains
+    source_resource o|--o{ provenance_link : may_target
+    content_record o|--o{ provenance_link : may_target
+    extracted_value o|--o{ provenance_link : may_target
+    action_event o|--o{ provenance_link : may_target
+    policy_decision o|--o{ provenance_link : may_target
+    postcondition_evidence o|--o{ provenance_link : may_target
 
     agent_session ||--o{ task_checkpoint : checkpoints
     agent_session ||--o{ download_artifact : produces
@@ -251,6 +255,13 @@ erDiagram
         integer cpu_worker_limit
         integer ram_byte_limit
         integer vram_byte_limit
+        integer network_concurrency_limit
+        integer evidence_cache_byte_limit
+        integer artifact_storage_byte_limit
+        integer file_descriptor_limit
+        integer queue_entry_limit
+        string browser_process_priority
+        string model_process_priority
         string budget_version
     }
 
@@ -260,6 +271,11 @@ erDiagram
         integer cpu_worker_count
         integer ram_bytes
         integer vram_bytes
+        integer network_active_count
+        integer evidence_cache_bytes
+        integer artifact_storage_bytes
+        integer file_descriptor_count
+        integer queue_entry_count
         string observed_at
     }
 
@@ -269,13 +285,15 @@ erDiagram
         string resource_snapshot_id FK
         boolean reject_admission
         boolean pause_agent
+        boolean reduce_model_batch
         boolean offload_model
+        boolean spill_evidence_cache
     }
 
     source_resource {
         string source_resource_id PK
-        string page_snapshot_id FK
-        string network_exchange_id FK
+        string page_snapshot_id FK "nullable"
+        string network_exchange_id FK "nullable"
         string source_kind
         string source_locator
         string content_digest
@@ -304,7 +322,7 @@ erDiagram
         string extracted_value_id PK
         string content_record_id FK
         string extraction_schema_id FK
-        string semantic_node_id FK
+        string semantic_node_id FK "nullable"
         string field_name
         string value_digest
         string verification_state
@@ -312,11 +330,18 @@ erDiagram
 
     provenance_record {
         string provenance_record_id PK
-        string extracted_value_id FK
-        string action_event_id FK
-        string policy_decision_id FK
-        string postcondition_evidence_id FK
         string provenance_digest
+        string schema_version
+        string created_at
+    }
+
+    provenance_link {
+        string provenance_link_id PK
+        string provenance_record_id FK
+        string target_kind
+        string target_identifier
+        string relation_kind
+        integer sequence_number
     }
 
     task_checkpoint {
@@ -416,6 +441,12 @@ sensitive_authority
 
 The protected value is deliberately absent from the conceptual audit entities. Storage adapters may need encrypted secret material, but that material belongs to a dedicated trusted secret store rather than general evidence tables.
 
+### Resource-governance aggregate
+
+`resource_budget` is scoped to exactly one `agent_session` in this conceptual model. `cpu_worker_limit` means the count of OriginWeave-controlled CPU compute workers/admitted execution slots; it is not a percentage of total host CPU and does not govern Chromium's internal scheduler. The budget also carries RAM, VRAM, network-concurrency, evidence-cache, artifact-storage, file-descriptor, queue, and browser/model-priority limits. `resource_snapshot` measures the same auditable dimensions, and a `mitigation_plan` binds one budget plus one observed snapshot to concrete admission/pause/batch/offload/cache actions.
+
+Tenant-wide or host-wide quotas require separate versioned policy entities rather than overloading one session budget.
+
 ### Content and extraction aggregate
 
 ```text
@@ -426,18 +457,24 @@ extraction_schema
 -> extracted_value
 ```
 
-`source_resource` identifies where evidence came from; `content_record` identifies a bounded retained representation of that source; `extraction_schema` identifies the versioned contract used to interpret content; and `extracted_value` records a derived field without pretending that its digest is the source itself. A screenshot, HTTP body, DOM-derived record, WARC member, or download may therefore have separate storage/export representations while keeping one conceptual source/content/extraction lineage. Protected secrets do not become `content_record` payloads merely because a page used them.
+`source_resource` identifies where evidence came from; `content_record` identifies a bounded retained representation of that source; `extraction_schema` identifies the versioned contract used to interpret content; and `extracted_value` records a derived field without pretending that its digest is the source itself.
+
+A `source_resource` may link to **zero or one** `page_snapshot` and **zero or one** `network_exchange`; neither link is universally mandatory. The valid combination depends on `source_kind`: a DOM/accessibility/screenshot source normally binds a page snapshot, an HTTP body or WARC member normally binds a network exchange, a source reconstructed from both may bind both, and an approved external/file source can bind neither when its versioned locator/content identity supplies the source authority. Adapters must validate the allowed combination for each `source_kind` rather than manufacture a fake page or network parent.
+
+A screenshot, HTTP body, DOM-derived record, WARC member, or download may therefore have separate storage/export representations while keeping one conceptual source/content/extraction lineage. Protected secrets do not become `content_record` payloads merely because a page used them.
 
 ### Evidence/provenance aggregate
 
 ```text
-source_resource
--> content_record
--> extracted_value
--> provenance_record
+provenance_record
+-> one-or-more provenance_link
+provenance_link
+-> typed source/evidence target
 ```
 
-`provenance_record` can also reference action, policy, and post-condition evidence so a buyer can trace both extracted facts and state-changing results. The extraction schema is an independent versioned authority for interpretation and does not merge with source-content identity or provenance truth.
+`provenance_record` does not require every possible evidence parent. Instead it has one or more typed `provenance_link` records whose `target_kind`, `target_identifier`, and `relation_kind` identify the actual lineage edge. Supported targets may include `source_resource`, `content_record`, `extracted_value`, `action_event`, `policy_decision`, and `postcondition_evidence`; a versioned schema defines the allowed target kinds and relation kinds. This avoids fake/null-filled relationships while allowing extraction-only, action-only, or combined provenance.
+
+A physical relational adapter may implement typed association tables instead of one polymorphic table when stronger foreign-key enforcement is desired. In either representation, an adapter must reject unknown target kinds and dangling targets. The extraction schema is an independent versioned authority for interpretation and does not merge with source-content identity or provenance truth.
 
 ## 4. Identity rules
 
@@ -468,6 +505,8 @@ At minimum, future durable task implementations distinguish:
 - Retention is purpose/classification aware and can differ between source metadata, retained content, derived values, and accountability records.
 - Export and deletion operations preserve integrity/accountability records only to the extent required by the governing policy or law; the exact enterprise lifecycle remains Planned.
 
+See [`../DATA_GOVERNANCE.md`](../DATA_GOVERNANCE.md) for field-scoped disclosure, opaque-handle, model/provider, retention/deletion/residency, and assurance boundaries.
+
 ## 7. Adapter mapping guidance
 
 A relational adapter might persist `agent_session`, policy/action metadata, extraction schema metadata, and indexes. WARC may persist eligible source/content protocol material. Object storage may hold screenshots/downloads or larger `content_record` payloads. PROV serialization may represent derivation. These are parallel representations of bounded concepts, not permission to duplicate secrets or bypass data-minimization rules.
@@ -487,3 +526,11 @@ Update this file when an Accepted or implemented change alters:
 - tenant/extension governance.
 
 A new database table alone does not justify changing the conceptual model if it is an implementation detail; conversely, a new durable domain concept must appear here even if its persistence adapter is not yet implemented.
+
+## References
+
+International Organization for Standardization. (2017). *Information and documentation—WARC file format* (ISO 28500:2017). https://www.iso.org/standard/68004.html
+
+Lebo, T., Sahoo, S., & McGuinness, D. (Eds.). (2013). *PROV-O: The PROV ontology* (W3C Recommendation). World Wide Web Consortium. https://www.w3.org/TR/prov-o/
+
+Moreau, L., & Missier, P. (Eds.). (2013). *PROV-DM: The PROV data model* (W3C Recommendation). World Wide Web Consortium. https://www.w3.org/TR/prov-dm/
