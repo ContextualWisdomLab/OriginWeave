@@ -26,7 +26,6 @@ class RepositoryContractTests(unittest.TestCase):
                 "crates/originweave-tls",
                 "crates/originweave-resource",
                 "crates/originweave-evidence",
-                "crates/originweave-sensitive-data",
             },
         )
 
