@@ -31,6 +31,8 @@ Evidence records describe events and artifacts; they do not retroactively author
 
 OriginWeave maintains provenance-native evidence with stable identifiers for sessions, snapshots, network exchanges, content records, policy decisions, approvals, action events, artifacts, and verification outcomes. WARC-compatible records may preserve eligible web exchanges or content; PROV-style relations describe derivation and responsibility without making either external format the sole internal authority. Evidence binds logical origin, resolved destination, TCP peer, TLS identity, HTTP semantics, browser/session/document identity, action intent, policy outcome, approval reference, and post-condition where applicable. Sensitive values are omitted, redacted, tokenized, or represented by opaque handles/fingerprints according to policy.
 
+WARC and PROV are interoperability/export contracts, not substitutes for OriginWeave's internal authorization or evidence schema. A WARC record can contain untrusted or sensitive payload bytes and therefore inherits capture, retention, encryption, and export policy. A PROV entity/activity/agent relation records derivation or responsibility; it cannot manufacture authentication, authorization, durable completion, or tenant ownership not established by the producing system.
+
 ## Consequences
 
 Capture becomes a designed product surface rather than incidental logging. Storage and retention need budgets. Consumers can distinguish a model claim from source evidence and an action request from verified completion. Export adapters can target WARC, provenance graphs, audit streams, or buyer-specific schemas.
@@ -41,11 +43,11 @@ If mandatory evidence cannot be recorded durably enough for a governed state-cha
 
 ## Security / privacy / governance impact
 
-Evidence is tenant-scoped, selectively disclosed, encrypted as appropriate, retention-bounded, and auditable. Credential-bearing headers, cookies, secret values, and sensitive form data are excluded or transformed according to explicit schema policy. Integrity metadata and immutable artifact identities support tamper detection without claiming external certification.
+Evidence is tenant-scoped, selectively disclosed, encrypted as appropriate, retention-bounded, and auditable. Credential-bearing headers, cookies, secret values, and sensitive form data are excluded or transformed according to explicit schema policy. Integrity metadata and immutable artifact identities support tamper detection without claiming external certification. `docs/DATA_GOVERNANCE.md` defines the disclosure/retention boundary for protected content and derived artifacts.
 
 ## Tests and acceptance evidence
 
-Require provenance-link tests, credential-leak tests, integrity/corruption tests, crash-recovery tests, WARC/export conformance where implemented, retention/deletion tests, tenant-isolation tests, and end-to-end checks that state-changing actions link request, policy, approval, execution, and post-condition as separate records.
+Require provenance-link tests, credential-leak tests, integrity/corruption tests, crash-recovery tests, WARC/export conformance where implemented, PROV relation/schema tests where implemented, retention/deletion tests, tenant-isolation tests, and end-to-end checks that state-changing actions link request, policy, approval, execution, and post-condition as separate records. Export tests must prove that disabled or unauthorized source bodies never appear merely because metadata provenance is exportable.
 
 ## Migration and rollback
 
@@ -61,4 +63,12 @@ Supersede only if a different evidence model provides equal or better derivation
 
 ## References
 
-See ADR 0003, `docs/erd/README.md`, `docs/API_CONTRACT.md`, `docs/OPERABILITY.md`, WARC guidance, and W3C PROV material recorded in project doctoring.
+International Organization for Standardization. (2017). *Information and documentation—WARC file format* (ISO 28500:2017). https://www.iso.org/standard/68004.html
+
+Lebo, T., Sahoo, S., & McGuinness, D. (Eds.). (2013). *PROV-O: The PROV ontology* (W3C Recommendation). World Wide Web Consortium. https://www.w3.org/TR/prov-o/
+
+Moreau, L., & Missier, P. (Eds.). (2013). *PROV-DM: The PROV data model* (W3C Recommendation). World Wide Web Consortium. https://www.w3.org/TR/prov-dm/
+
+## Related documents
+
+See ADR 0003, `docs/erd/README.md`, `docs/API_CONTRACT.md`, `docs/OPERABILITY.md`, and `docs/DATA_GOVERNANCE.md`.
