@@ -4,8 +4,8 @@
 This is a release/CI evidence runner, not a product browser adapter. It uses the
 W3C WebDriver HTTP protocol only to prove that a real Chrome for Testing build
 can load the controlled MV3 fixture and repeatedly exercise service-worker,
-content-script, storage, declarative-net-request, real browser-click, and
-restart-persistence behavior.
+content-script, storage, declarative-net-request, tabs, windows, scripting,
+commands, side-panel, real browser-click, and restart-persistence behavior.
 """
 
 from __future__ import annotations
@@ -168,7 +168,14 @@ return {
   workerState: document.documentElement.dataset.originweaveWorkerState || "missing",
   workerStartCount:
     document.documentElement.dataset.originweaveWorkerStartCount || "missing",
-  dnr: document.documentElement.dataset.originweaveDnr || "missing"
+  dnr: document.documentElement.dataset.originweaveDnr || "missing",
+  tabs: document.documentElement.dataset.originweaveTabs || "missing",
+  windows: document.documentElement.dataset.originweaveWindows || "missing",
+  scripting: document.documentElement.dataset.originweaveScripting || "missing",
+  scriptingExecuted:
+    document.documentElement.dataset.originweaveScriptingExecuted || "missing",
+  commands: document.documentElement.dataset.originweaveCommands || "missing",
+  sidePanel: document.documentElement.dataset.originweaveSidePanel || "missing"
 };
 """
     expected = {
@@ -178,6 +185,12 @@ return {
         "workerReply": "pong",
         "workerState": "installed",
         "dnr": "blocked",
+        "tabs": "ready",
+        "windows": "ready",
+        "scripting": "ready",
+        "scriptingExecuted": "ready",
+        "commands": "ready",
+        "sidePanel": "ready",
     }
     deadline = time.monotonic() + FIXTURE_TIMEOUT_SECONDS
     latest: dict[str, str] = {}
@@ -323,6 +336,12 @@ def _run_browser_pass(
                 "content-script": surfaces["content"] == "ready",
                 "storage": surfaces["storage"] == "ready",
                 "declarative-net-request": surfaces["dnr"] == "blocked",
+                "tabs": surfaces["tabs"] == "ready",
+                "windows": surfaces["windows"] == "ready",
+                "scripting": surfaces["scripting"] == "ready"
+                and surfaces["scriptingExecuted"] == "ready",
+                "commands": surfaces["commands"] == "ready",
+                "side-panel": surfaces["sidePanel"] == "ready",
                 "real-browser-click": click_result == "clicked",
             },
         }
