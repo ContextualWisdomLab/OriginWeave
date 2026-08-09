@@ -174,6 +174,24 @@ mod tests {
     }
 
     #[test]
+    fn request_serialization_rejects_caller_response_coding_negotiation() {
+        let target =
+            HttpRequestTarget::parse(Origin::parse("https://example.com").expect("origin"), "/")
+                .expect("target");
+        let field = RequestField::new("Accept-Encoding", b"br").expect("syntactic field");
+        assert!(matches!(
+            serialize_request(
+                HttpMethod::Get,
+                &target,
+                &[field],
+                &HttpClientPolicy::strict_defaults(),
+            ),
+            Err(HttpError::ForbiddenRequestField { field_name })
+                if field_name == "accept-encoding"
+        ));
+    }
+
+    #[test]
     fn request_serialization_rejects_every_narrower_per_exchange_limit() {
         let target =
             HttpRequestTarget::parse(Origin::parse("https://example.com").expect("origin"), "/")
