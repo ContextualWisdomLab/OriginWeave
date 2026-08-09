@@ -169,7 +169,7 @@ fn field_name_and_value_sizes_are_bounded() {
 }
 
 #[test]
-fn authority_credential_and_framing_fields_are_caller_forbidden() {
+fn authority_credentials_framing_and_coding_negotiation_are_caller_forbidden() {
     for forbidden in [
         "Host",
         "Connection",
@@ -180,6 +180,7 @@ fn authority_credential_and_framing_fields_are_caller_forbidden() {
         "Trailer",
         "TE",
         "Upgrade",
+        "Accept-Encoding",
         "Authorization",
         "Proxy-Authorization",
         "Cookie",
