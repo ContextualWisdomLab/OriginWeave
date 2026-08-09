@@ -3,7 +3,8 @@
 use originweave_core::Origin;
 use originweave_policy::{
     DataClassification, DisclosureDecision, DisclosureScope, HandleUseDecision, HandleUseRequest,
-    SensitiveDataRequest, SensitiveValueHandleScope, evaluate_disclosure, evaluate_handle_use,
+    SensitiveDataAuthority, SensitiveDataRequest, SensitiveValueHandleScope, evaluate_disclosure,
+    evaluate_handle_use,
 };
 
 const TENANT: &str = "tenant_alpha";
@@ -45,11 +46,11 @@ fn origin(input: &str) -> Origin {
     Origin::parse(input).expect("test origin must be valid")
 }
 
-fn disclosure_request(
+fn sensitive_authority(
     authority: AuthorityCase<'_>,
     classification: DataClassification,
-) -> SensitiveDataRequest {
-    SensitiveDataRequest::new(
+) -> SensitiveDataAuthority {
+    SensitiveDataAuthority::new(
         authority.tenant,
         authority.task,
         authority.field,
@@ -57,6 +58,13 @@ fn disclosure_request(
         origin(authority.destination),
         classification,
     )
+}
+
+fn disclosure_request(
+    authority: AuthorityCase<'_>,
+    classification: DataClassification,
+) -> SensitiveDataRequest {
+    SensitiveDataRequest::new(sensitive_authority(authority, classification))
 }
 
 fn disclosure_scope(
@@ -64,31 +72,14 @@ fn disclosure_scope(
     classification: DataClassification,
     decision: DisclosureDecision,
 ) -> DisclosureScope {
-    DisclosureScope::new(
-        authority.tenant,
-        authority.task,
-        authority.field,
-        authority.purpose,
-        origin(authority.destination),
-        classification,
-        decision,
-    )
+    DisclosureScope::new(sensitive_authority(authority, classification), decision)
 }
 
 fn handle_scope(
     authority: AuthorityCase<'_>,
     classification: DataClassification,
 ) -> SensitiveValueHandleScope {
-    SensitiveValueHandleScope::new(
-        authority.tenant,
-        authority.task,
-        authority.field,
-        authority.purpose,
-        origin(authority.destination),
-        classification,
-        2_000,
-        2,
-    )
+    SensitiveValueHandleScope::new(sensitive_authority(authority, classification), 2_000, 2)
 }
 
 fn handle_use(
@@ -98,12 +89,7 @@ fn handle_use(
     uses: u32,
 ) -> HandleUseRequest {
     HandleUseRequest::new(
-        authority.tenant,
-        authority.task,
-        authority.field,
-        authority.purpose,
-        origin(authority.destination),
-        classification,
+        sensitive_authority(authority, classification),
         now,
         uses,
     )
@@ -116,7 +102,7 @@ fn assert_disclosure_denied(authority: AuthorityCase<'_>, classification: DataCl
         DisclosureDecision::FullFieldDisclosure,
     );
     assert_eq!(
-        evaluate_disclosure(&disclosure_request(authority, classification), &permitted,),
+        evaluate_disclosure(&disclosure_request(authority, classification), &permitted),
         DisclosureDecision::DenyAccess
     );
 }
@@ -124,7 +110,7 @@ fn assert_disclosure_denied(authority: AuthorityCase<'_>, classification: DataCl
 fn assert_handle_scope_mismatch(authority: AuthorityCase<'_>, classification: DataClassification) {
     let scope = handle_scope(exact_authority(), DataClassification::PersonalData);
     assert_eq!(
-        evaluate_handle_use(&handle_use(authority, classification, 1_999, 0), &scope,),
+        evaluate_handle_use(&handle_use(authority, classification, 1_999, 0), &scope),
         HandleUseDecision::ScopeMismatch
     );
 }
@@ -382,7 +368,13 @@ fn authority_identifiers_are_bounded_ascii_policy_tokens() {
         PURPOSE,
         DESTINATION,
     ));
-    assert_invalid_equal_authority(authority_case(TENANT, TASK, FIELD, &oversized, DESTINATION));
+    assert_invalid_equal_authority(authority_case(
+        TENANT,
+        TASK,
+        FIELD,
+        &oversized,
+        DESTINATION,
+    ));
 
     let invalid_handle_authority =
         authority_case("tenant alpha", TASK, FIELD, PURPOSE, DESTINATION);
@@ -394,7 +386,7 @@ fn authority_identifiers_are_bounded_ascii_policy_tokens() {
                 1_999,
                 0,
             ),
-            &handle_scope(invalid_handle_authority, DataClassification::PersonalData,),
+            &handle_scope(invalid_handle_authority, DataClassification::PersonalData),
         ),
         HandleUseDecision::ScopeMismatch
     );
