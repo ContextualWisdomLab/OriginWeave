@@ -11,6 +11,7 @@
 - [Product and decision traceability](traceability/README.md)
 - [Product roadmap](product-roadmap.md)
 - [Research and standards](doctoring.md)
+- [Current product-baseline standards addendum](doctoring/product-documentation-baseline.md)
 - [Quality gates](quality-gates.md)
 - [Security policy](../SECURITY.md)
 
