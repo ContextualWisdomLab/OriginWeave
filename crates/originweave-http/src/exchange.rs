@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use originweave_tls::{AuthenticatedTlsConnection, NegotiatedAlpn};
 
-use crate::chunked::{ChunkParseResult, ChunkedResult, MAX_CHUNK_LINE_BYTES, parse_chunked_body};
+use crate::chunked::{ChunkParseResult, ChunkedDecoder, ChunkedResult, MAX_CHUNK_LINE_BYTES};
 use crate::content::{ContentCoding, decode_content};
 use crate::disposition::{parse_content_disposition, parse_redirect_metadata};
 use crate::evidence::{
@@ -434,8 +434,9 @@ fn read_chunked_body(
 ) -> Result<ChunkedResult, HttpError> {
     let maximum_wire_bytes = maximum_chunked_wire_bytes(policy);
     extend_chunked_wire(&mut wire, &[], maximum_wire_bytes)?;
+    let mut decoder = ChunkedDecoder::new();
     loop {
-        match parse_chunked_body(&wire, policy)? {
+        match decoder.parse(&wire, policy)? {
             ChunkParseResult::Complete(result) => {
                 if result.consumed != wire.len() {
                     return Err(HttpError::UnexpectedResponseBytes {
