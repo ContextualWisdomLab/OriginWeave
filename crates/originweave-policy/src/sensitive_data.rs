@@ -65,6 +65,14 @@ impl AuthorityScope {
             destination: destination.to_owned(),
         }
     }
+
+    fn is_complete(&self) -> bool {
+        !self.tenant_id.is_empty()
+            && !self.task_id.is_empty()
+            && !self.field_id.is_empty()
+            && !self.purpose_id.is_empty()
+            && !self.destination.is_empty()
+    }
 }
 
 /// One requested disclosure, without carrying the protected field value.
@@ -121,12 +129,19 @@ impl DisclosureScope {
 }
 
 /// Evaluate disclosure only from the exact request and explicit authority scope.
+///
+/// An incomplete authority scope fails closed even when both sides contain the
+/// same missing identifier.
 #[must_use]
 pub fn evaluate_disclosure(
     request: &SensitiveDataRequest,
     scope: &DisclosureScope,
 ) -> DisclosureDecision {
-    if request.authority != scope.authority || request.classification != scope.classification {
+    if !request.authority.is_complete()
+        || !scope.authority.is_complete()
+        || request.authority != scope.authority
+        || request.classification != scope.classification
+    {
         DisclosureDecision::DenyAccess
     } else {
         scope.decision
@@ -203,12 +218,17 @@ impl HandleUseRequest {
 }
 
 /// Authorize one opaque-handle use without resolving or exposing its protected value.
+///
+/// Missing authority identifiers fail closed as a scope mismatch.
 #[must_use]
 pub fn authorize_handle_use(
     request: &HandleUseRequest,
     scope: &SensitiveValueHandleScope,
 ) -> HandleUseDecision {
-    if request.authority != scope.authority {
+    if !request.authority.is_complete()
+        || !scope.authority.is_complete()
+        || request.authority != scope.authority
+    {
         HandleUseDecision::ScopeMismatch
     } else if request.now_epoch_seconds >= scope.expires_at_epoch_seconds {
         HandleUseDecision::Expired
