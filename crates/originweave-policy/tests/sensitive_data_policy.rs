@@ -232,3 +232,51 @@ fn handle_scope_mismatch_covers_every_authority_dimension() {
         );
     }
 }
+
+#[test]
+fn incomplete_authority_never_grants_disclosure_or_handle_use() {
+    let incomplete_request = SensitiveDataRequest::new(
+        "",
+        "task_ship_order",
+        "shipping_address",
+        "fulfill_order",
+        "https://shipping.example",
+        DataClassification::PersonalData,
+    );
+    let incomplete_scope = DisclosureScope::new(
+        "",
+        "task_ship_order",
+        "shipping_address",
+        "fulfill_order",
+        "https://shipping.example",
+        DataClassification::PersonalData,
+        DisclosureDecision::FullFieldDisclosure,
+    );
+    assert_eq!(
+        evaluate_disclosure(&incomplete_request, &incomplete_scope),
+        DisclosureDecision::DenyAccess
+    );
+
+    let incomplete_handle_scope = SensitiveValueHandleScope::new(
+        "tenant_alpha",
+        "",
+        "shipping_address",
+        "fulfill_order",
+        "https://shipping.example",
+        2_000,
+        2,
+    );
+    let incomplete_handle_use = HandleUseRequest::new(
+        "tenant_alpha",
+        "",
+        "shipping_address",
+        "fulfill_order",
+        "https://shipping.example",
+        1_999,
+        0,
+    );
+    assert_eq!(
+        authorize_handle_use(&incomplete_handle_use, &incomplete_handle_scope),
+        HandleUseDecision::ScopeMismatch
+    );
+}
