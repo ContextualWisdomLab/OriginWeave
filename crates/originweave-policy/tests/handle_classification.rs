@@ -2,43 +2,39 @@
 
 use originweave_core::Origin;
 use originweave_policy::{
-    DataClassification, HandleUseDecision, HandleUseRequest, SensitiveValueHandleScope,
-    evaluate_handle_use,
+    DataClassification, HandleUseDecision, HandleUseRequest, SensitiveDataAuthority,
+    SensitiveValueHandleScope, evaluate_handle_use,
 };
 
 fn destination() -> Origin {
     Origin::parse("https://shipping.example").expect("canonical destination")
 }
 
-#[test]
-fn opaque_handle_use_requires_the_exact_data_classification() {
-    let scope = SensitiveValueHandleScope::new(
+fn authority(classification: DataClassification) -> SensitiveDataAuthority {
+    SensitiveDataAuthority::new(
         "tenant_alpha",
         "task_ship_order",
         "shipping_address",
         "fulfill_order",
         destination(),
-        DataClassification::PersonalData,
+        classification,
+    )
+}
+
+#[test]
+fn opaque_handle_use_requires_the_exact_data_classification() {
+    let scope = SensitiveValueHandleScope::new(
+        authority(DataClassification::PersonalData),
         2_000,
         2,
     );
     let permitted = HandleUseRequest::new(
-        "tenant_alpha",
-        "task_ship_order",
-        "shipping_address",
-        "fulfill_order",
-        destination(),
-        DataClassification::PersonalData,
+        authority(DataClassification::PersonalData),
         1_999,
         0,
     );
     let reclassified = HandleUseRequest::new(
-        "tenant_alpha",
-        "task_ship_order",
-        "shipping_address",
-        "fulfill_order",
-        destination(),
-        DataClassification::SensitivePersonalData,
+        authority(DataClassification::SensitivePersonalData),
         1_999,
         0,
     );
