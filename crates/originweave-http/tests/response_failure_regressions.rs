@@ -130,7 +130,7 @@ fn spawn_http_server(
             tls.flush().map_err(|error| error.to_string())?;
         }
         tls.conn.send_close_notify();
-        tls.flush().map_err(|error| error.to_string())?;
+        let _ = tls.flush();
         Ok(request)
     });
     (socket_address, handle)
