@@ -2,18 +2,22 @@
 
 use originweave_core::Origin;
 use originweave_destination::{
-    MAX_PAC_ORIGIN_COUNT, MAX_PROXY_ORIGIN_COUNT, ProxyRoute, ProxyRouteError, ProxyRouteKind,
-    ProxyRoutePolicy,
+    MAX_PAC_ORIGIN_COUNT, MAX_PROXY_SERVER_COUNT, ProxyRoute, ProxyRouteError, ProxyRouteKind,
+    ProxyRoutePolicy, ProxyServer,
 };
 
 fn origin(value: &str) -> Origin {
     Origin::parse(value).expect("test origin must parse")
 }
 
+fn proxy(value: &str) -> ProxyServer {
+    ProxyServer::parse(value).expect("test proxy server must parse")
+}
+
 #[test]
 fn direct_only_default_rejects_proxy_and_pac_routes() {
     let target = origin("https://target.example");
-    let proxy = origin("https://proxy.example:443");
+    let proxy = proxy("http://proxy.example:8080");
     let pac = origin("https://config.example");
     let policy = ProxyRoutePolicy::default();
     assert_eq!(policy, ProxyRoutePolicy::direct_only());
@@ -23,17 +27,17 @@ fn direct_only_default_rejects_proxy_and_pac_routes() {
         .expect("direct route must be authorized by default");
     assert_eq!(direct.route_kind(), ProxyRouteKind::Direct);
     assert_eq!(direct.target_origin(), &target);
-    assert_eq!(direct.proxy_origin(), None);
+    assert_eq!(direct.proxy_server(), None);
     assert_eq!(direct.pac_origin(), None);
 
     assert_eq!(
         policy.authorize(
             &target,
             &ProxyRoute::ExplicitProxy {
-                proxy_origin: proxy.clone(),
+                proxy_server: proxy.clone(),
             },
         ),
-        Err(ProxyRouteError::ProxyOriginDenied { origin: proxy })
+        Err(ProxyRouteError::ProxyServerDenied { server: proxy })
     );
     assert_eq!(
         policy.authorize(
@@ -54,10 +58,10 @@ fn direct_only_default_rejects_proxy_and_pac_routes() {
 }
 
 #[test]
-fn explicit_proxy_authority_uses_canonical_origins() {
+fn explicit_proxy_authority_uses_canonical_server_identity() {
     let target = origin("https://target.example");
-    let configured_proxy = origin("https://proxy.example:443");
-    let route_proxy = origin("HTTPS://PROXY.EXAMPLE");
+    let configured_proxy = proxy("http://proxy.example:8080");
+    let route_proxy = proxy("HTTP://PROXY.EXAMPLE:8080");
     let policy = ProxyRoutePolicy::new(false, vec![configured_proxy], Vec::new())
         .expect("bounded proxy policy must be valid");
 
@@ -65,23 +69,23 @@ fn explicit_proxy_authority_uses_canonical_origins() {
         .authorize(
             &target,
             &ProxyRoute::ExplicitProxy {
-                proxy_origin: route_proxy.clone(),
+                proxy_server: route_proxy.clone(),
             },
         )
-        .expect("canonical proxy must be authorized");
+        .expect("canonical proxy server must be authorized");
     assert_eq!(evidence.route_kind(), ProxyRouteKind::ExplicitProxy);
-    assert_eq!(evidence.proxy_origin(), Some(&route_proxy));
+    assert_eq!(evidence.proxy_server(), Some(&route_proxy));
     assert_eq!(evidence.pac_origin(), None);
-    assert_eq!(route_proxy.as_str(), "https://proxy.example");
+    assert_eq!(route_proxy.as_str(), "http://proxy.example:8080");
     assert!(!policy.allows_direct());
 }
 
 #[test]
 fn pac_selected_proxy_requires_both_authority_boundaries() {
     let target = origin("https://target.example");
-    let proxy = origin("https://proxy.example");
+    let proxy = proxy("socks5://proxy.example:1080");
     let pac = origin("https://config.example");
-    let other_proxy = origin("https://other-proxy.example");
+    let other_proxy = proxy("https://other-proxy.example:8443");
     let other_pac = origin("https://other-config.example");
     let policy = ProxyRoutePolicy::new(false, vec![proxy.clone()], vec![pac.clone()])
         .expect("bounded PAC policy must be valid");
@@ -91,12 +95,12 @@ fn pac_selected_proxy_requires_both_authority_boundaries() {
             &target,
             &ProxyRoute::PacProxy {
                 pac_origin: pac.clone(),
-                proxy_origin: proxy.clone(),
+                proxy_server: proxy.clone(),
             },
         )
-        .expect("PAC source and selected proxy are separately authorized");
+        .expect("PAC source and selected proxy server are separately authorized");
     assert_eq!(evidence.route_kind(), ProxyRouteKind::PacProxy);
-    assert_eq!(evidence.proxy_origin(), Some(&proxy));
+    assert_eq!(evidence.proxy_server(), Some(&proxy));
     assert_eq!(evidence.pac_origin(), Some(&pac));
 
     assert_eq!(
@@ -104,11 +108,11 @@ fn pac_selected_proxy_requires_both_authority_boundaries() {
             &target,
             &ProxyRoute::PacProxy {
                 pac_origin: pac.clone(),
-                proxy_origin: other_proxy.clone(),
+                proxy_server: other_proxy.clone(),
             },
         ),
-        Err(ProxyRouteError::ProxyOriginDenied {
-            origin: other_proxy,
+        Err(ProxyRouteError::ProxyServerDenied {
+            server: other_proxy,
         })
     );
     assert_eq!(
@@ -116,7 +120,7 @@ fn pac_selected_proxy_requires_both_authority_boundaries() {
             &target,
             &ProxyRoute::PacProxy {
                 pac_origin: other_pac.clone(),
-                proxy_origin: proxy,
+                proxy_server: proxy,
             },
         ),
         Err(ProxyRouteError::PacOriginDenied { origin: other_pac })
@@ -149,9 +153,9 @@ fn pac_selected_direct_requires_pac_and_direct_authority() {
 }
 
 #[test]
-fn policy_rejects_unbounded_origin_sets_before_authorization() {
-    let proxies = (0..=MAX_PROXY_ORIGIN_COUNT)
-        .map(|index| origin(&format!("https://proxy-{index}.example")))
+fn policy_rejects_unbounded_authority_sets_before_authorization() {
+    let proxies = (0..=MAX_PROXY_SERVER_COUNT)
+        .map(|index| proxy(&format!("http://proxy-{index}.example:8080")))
         .collect::<Vec<_>>();
     let pacs = (0..=MAX_PAC_ORIGIN_COUNT)
         .map(|index| origin(&format!("https://pac-{index}.example")))
@@ -159,9 +163,9 @@ fn policy_rejects_unbounded_origin_sets_before_authorization() {
 
     assert_eq!(
         ProxyRoutePolicy::new(false, proxies, Vec::new()),
-        Err(ProxyRouteError::TooManyProxyOrigins {
-            count: MAX_PROXY_ORIGIN_COUNT + 1,
-            maximum: MAX_PROXY_ORIGIN_COUNT,
+        Err(ProxyRouteError::TooManyProxyServers {
+            count: MAX_PROXY_SERVER_COUNT + 1,
+            maximum: MAX_PROXY_SERVER_COUNT,
         })
     );
     assert_eq!(
@@ -175,31 +179,32 @@ fn policy_rejects_unbounded_origin_sets_before_authorization() {
 
 #[test]
 fn proxy_route_errors_have_deterministic_standard_error_contracts() {
-    let origin = origin("https://proxy.example");
+    let server = proxy("http://proxy.example:8080");
+    let pac_origin = origin("https://proxy.example");
     let cases = [
         (
             ProxyRouteError::DirectRouteDenied,
             "direct proxy route is not authorized".to_owned(),
         ),
         (
-            ProxyRouteError::ProxyOriginDenied {
-                origin: origin.clone(),
+            ProxyRouteError::ProxyServerDenied {
+                server: server.clone(),
             },
-            "proxy origin is not authorized: https://proxy.example".to_owned(),
+            "proxy server is not authorized: http://proxy.example:8080".to_owned(),
         ),
         (
-            ProxyRouteError::PacOriginDenied { origin },
+            ProxyRouteError::PacOriginDenied { origin: pac_origin },
             "PAC origin is not authorized: https://proxy.example".to_owned(),
         ),
         (
-            ProxyRouteError::TooManyProxyOrigins {
-                count: MAX_PROXY_ORIGIN_COUNT + 1,
-                maximum: MAX_PROXY_ORIGIN_COUNT,
+            ProxyRouteError::TooManyProxyServers {
+                count: MAX_PROXY_SERVER_COUNT + 1,
+                maximum: MAX_PROXY_SERVER_COUNT,
             },
             format!(
-                "proxy origin policy has {} entries; maximum is {}",
-                MAX_PROXY_ORIGIN_COUNT + 1,
-                MAX_PROXY_ORIGIN_COUNT
+                "proxy server policy has {} entries; maximum is {}",
+                MAX_PROXY_SERVER_COUNT + 1,
+                MAX_PROXY_SERVER_COUNT
             ),
         ),
         (
