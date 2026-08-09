@@ -5,7 +5,7 @@ This is a release/CI evidence runner, not a product browser adapter. It uses the
 W3C WebDriver HTTP protocol only to prove that a real Chrome for Testing build
 can load the controlled MV3 fixture and repeatedly exercise service-worker,
 content-script, storage, declarative-net-request, tabs, windows, scripting,
-commands, side-panel, bookmarks, history, real browser-click, and
+commands, side-panel, bookmarks, history, downloads, real browser-click, and
 restart-persistence behavior.
 """
 
@@ -178,7 +178,8 @@ return {
   commands: document.documentElement.dataset.originweaveCommands || "missing",
   sidePanel: document.documentElement.dataset.originweaveSidePanel || "missing",
   bookmarks: document.documentElement.dataset.originweaveBookmarks || "missing",
-  history: document.documentElement.dataset.originweaveHistory || "missing"
+  history: document.documentElement.dataset.originweaveHistory || "missing",
+  downloads: document.documentElement.dataset.originweaveDownloads || "missing"
 };
 """
     expected = {
@@ -196,6 +197,7 @@ return {
         "sidePanel": "ready",
         "bookmarks": "ready",
         "history": "ready",
+        "downloads": "ready",
     }
     deadline = time.monotonic() + FIXTURE_TIMEOUT_SECONDS
     latest: dict[str, str] = {}
@@ -268,6 +270,8 @@ def _run_browser_pass(
 
     driver_port = _free_loopback_port()
     session_id: str | None = None
+    download_dir = pathlib.Path(profile_dir) / "downloads"
+    download_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     driver = subprocess.Popen(
         [str(chromedriver_bin), f"--port={driver_port}", "--allowed-ips=127.0.0.1"],
         stdout=subprocess.DEVNULL,
@@ -298,6 +302,11 @@ def _run_browser_pass(
                                 f"--disable-extensions-except={FIXTURE}",
                                 f"--load-extension={FIXTURE}",
                             ],
+                            "prefs": {
+                                "download.default_directory": str(download_dir),
+                                "download.prompt_for_download": False,
+                                "download.directory_upgrade": True,
+                            },
                         },
                     }
                 }
@@ -349,6 +358,7 @@ def _run_browser_pass(
                 "side-panel": surfaces["sidePanel"] == "ready",
                 "bookmarks": surfaces["bookmarks"] == "ready",
                 "history": surfaces["history"] == "ready",
+                "downloads": surfaces["downloads"] == "ready",
                 "real-browser-click": click_result == "clicked",
             },
         }
