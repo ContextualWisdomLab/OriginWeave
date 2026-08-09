@@ -378,10 +378,10 @@ jobs:
                           },
                       )
                       response = connection.getresponse()
-                      record_provider_status(request_id, response.status)
                       response_body = response.read(MAX_RESPONSE + 1)
                       if len(response_body) > MAX_RESPONSE:
                           raise ValueError("response too large")
+                      record_provider_status(request_id, response.status)
                       self.send_body(
                           response.status,
                           response_body,
