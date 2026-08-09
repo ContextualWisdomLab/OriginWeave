@@ -7,7 +7,6 @@ members = [
     "crates/originweave-destination",
     "crates/originweave-network",
     "crates/originweave-tls",
-    "crates/originweave-sensitive-data",
 ]
 resolver = "3"
 
