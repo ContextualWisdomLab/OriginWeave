@@ -23,6 +23,7 @@ mod error;
 mod evidence;
 mod exchange;
 #[cfg(test)]
+#[cfg_attr(coverage_nightly, coverage(off))]
 #[path = "tests/exchange_error_contract.rs"]
 mod exchange_error_contract;
 mod field;
