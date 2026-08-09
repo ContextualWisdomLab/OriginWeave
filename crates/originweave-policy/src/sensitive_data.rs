@@ -81,9 +81,9 @@ impl AuthorityScope {
 fn authority_identifier_is_valid(identifier: &str) -> bool {
     !identifier.is_empty()
         && identifier.len() <= MAX_AUTHORITY_IDENTIFIER_BYTES
-        && identifier.bytes().all(|byte| {
-            byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b':' | b'-')
-        })
+        && identifier
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b':' | b'-'))
 }
 
 /// One requested disclosure, without carrying the protected field value.
