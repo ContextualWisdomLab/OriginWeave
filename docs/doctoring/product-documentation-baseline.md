@@ -1,10 +1,10 @@
 # Product Documentation Baseline — Research and Standards Doctoring
 
 - **Reviewed:** 2026-08-09
-- **Purpose:** Fresh primary-source evidence for the PRD/TRD/UML/ERD documentation baseline
+- **Purpose:** Fresh primary-source evidence for the PRD/TRD/UML/ERD/data-governance documentation baseline
 - **Relationship:** Supplements [`../doctoring.md`](../doctoring.md); it does not supersede the deeper network/TLS/research bibliography there.
 
-This addendum exists because product-level documentation introduced explicit interoperability and accessibility status claims that need a current evidence snapshot. The production design still requires feature-specific evidence in the governing ADR and main doctoring document.
+This addendum exists because product-level documentation introduced explicit interoperability, accessibility, data-governance, and assurance-status claims that need a current evidence snapshot. The production design still requires feature-specific evidence in the governing ADR and main doctoring document.
 
 ## WebDriver BiDi
 
@@ -43,7 +43,34 @@ NIST AI 600-1, *Artificial Intelligence Risk Management Framework: Generative Ar
 
 **Product implication:** OriginWeave uses NIST AI 600-1 as risk-management input for model/provider, untrusted-content, evaluation, provenance and lifecycle controls. It is not a certification claim and cannot substitute for deterministic browser authority or application-specific threat analysis.
 
+## NIST zero-trust architecture and data access
+
+NIST SP 800-207 states that zero trust grants no implicit trust based solely on physical/network location or asset ownership and focuses authorization on resources. NIST SP 800-207A extends the model to cloud-native and multi-location applications and explicitly emphasizes application/service identity plus granular application-level authorization policy.
+
+**Product implications:**
+
+- Sensitive-data disclosure is a resource-access decision, not an ambient consequence of being inside the network or browser session.
+- Tenant, task, field, purpose, destination, classification, service identity, and current policy state are independent authorization dimensions where applicable.
+- A trusted broker or browser adapter rechecks authority immediately before disclosure instead of treating a previously issued opaque handle as transferable bearer authority.
+- Service-to-service paths must authenticate workload/service identity and prevent confused-deputy disclosure.
+
+## KISA CSAP assurance boundary
+
+KISA's current CSAP program description states that the certification applies to cloud computing services evaluated against the applicable cloud security certification criteria and that the certification mark is for services that have actually obtained certification.
+
+**Product implication:** OriginWeave may design features and evidence for CSAP readiness, but source code, tests, or a control mapping cannot truthfully claim that a deployed service is CSAP certified. Certification claims remain bound to the assessed service boundary and current program requirements.
+
+## AICPA Trust Services Criteria assurance boundary
+
+The AICPA 2017 Trust Services Criteria with revised 2022 points of focus provide criteria for evaluating controls relevant to security, availability, processing integrity, confidentiality, and privacy in attestation or consulting engagements.
+
+**Product implication:** OriginWeave uses the criteria as a control/evidence design input. Product capability, configured control, operating control, collected evidence, management assertion, and independent examination result remain distinct evidence classes. Documentation must not collapse them into a generic “SOC 2 compliant” claim.
+
 ## APA 7th references
+
+American Institute of Certified Public Accountants. (2023). *2017 trust services criteria for security, availability, processing integrity, confidentiality, and privacy (with revised points of focus—2022)*. AICPA & CIMA. https://www.aicpa-cima.com/resources/download/2017-trust-services-criteria-with-revised-points-of-focus-2022
+
+Chandramouli, R., & Butcher, Z. (2023). *A zero trust architecture model for access control in cloud-native applications in multi-location environments* (NIST Special Publication 800-207A). National Institute of Standards and Technology. https://doi.org/10.6028/NIST.SP.800-207A
 
 Chrome for Developers. (n.d.). *Extensions / Manifest V3*. Google. Retrieved August 9, 2026, from https://developer.chrome.com/docs/extensions/develop/migrate/what-is-mv3
 
@@ -51,7 +78,11 @@ Chrome DevTools Protocol. (2026). *Chrome DevTools Protocol — latest (tip-of-t
 
 Chrome DevTools Protocol. (2026). *WebMCP domain*. Chromium. Retrieved August 9, 2026, from https://chromedevtools.github.io/devtools-protocol/tot/WebMCP/
 
+Korea Internet & Security Agency. (n.d.). *클라우드 보안인증제 제도소개*. Retrieved August 9, 2026, from https://isms.kisa.or.kr/main/csap/intro/index.jsp
+
 National Institute of Standards and Technology. (2024). *Artificial intelligence risk management framework: Generative artificial intelligence profile* (NIST AI 600-1). https://doi.org/10.6028/NIST.AI.600-1
+
+Rose, S., Borchert, O., Mitchell, S., & Connelly, S. (2020). *Zero trust architecture* (NIST Special Publication 800-207). National Institute of Standards and Technology. https://doi.org/10.6028/NIST.SP.800-207
 
 World Wide Web Consortium. (2023). *Web Content Accessibility Guidelines (WCAG) 2.2*. https://www.w3.org/TR/WCAG22/
 
