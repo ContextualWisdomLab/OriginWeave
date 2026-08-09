@@ -111,6 +111,88 @@ class ProductDocumentationContractTests(unittest.TestCase):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, trd)
 
+    def test_target_architecture_adr_set_is_detailed(self) -> None:
+        """Accepted product direction must be reconstructable from durable, reviewable decisions."""
+
+        required_adrs = {
+            "docs/adr/0001-chromium-compatibility-kernel.md": (
+                "Chromium",
+                "browser-engine rewrite",
+            ),
+            "docs/adr/0100-rust-control-plane-boundary.md": (
+                "Rust control plane",
+                "Chromium compatibility kernel",
+            ),
+            "docs/adr/0101-isolated-execution-profile-modes.md": (
+                "Human",
+                "Assist",
+                "Agent Task",
+                "Crawler",
+            ),
+            "docs/adr/0102-typed-actions-and-arbitrary-js.md": (
+                "typed action",
+                "arbitrary JavaScript",
+            ),
+            "docs/adr/0103-semantic-observation-and-stale-node-identity.md": (
+                "WebMCP",
+                "accessibility",
+                "document epoch",
+                "stale",
+            ),
+            "docs/adr/0104-prompt-injection-and-secret-authority.md": (
+                "prompt injection",
+                "opaque",
+                "secret",
+            ),
+            "docs/adr/0105-resource-governor-priority.md": (
+                "resource governor",
+                "GPU",
+                "browser",
+                "model",
+            ),
+            "docs/adr/0106-provenance-evidence-model.md": (
+                "WARC",
+                "PROV",
+                "evidence",
+            ),
+            "docs/adr/0107-browser-protocol-adapter-strategy.md": (
+                "WebDriver BiDi",
+                "Chrome DevTools Protocol",
+                "WebMCP",
+                "Model Context Protocol",
+            ),
+            "docs/adr/0108-crawler-policy.md": (
+                "robots",
+                "rate",
+                "CAPTCHA",
+            ),
+            "docs/adr/0109-hourly-automation-operational-closure.md": (
+                "NVIDIA_NIM_API_KEY",
+                "protected-main",
+                "open_pull_request",
+            ),
+        }
+        required_sections = (
+            "## Context",
+            "## Options considered",
+            "## Decision",
+            "## Consequences",
+            "## Failure and degraded behavior",
+            "## Security / privacy / governance impact",
+            "## Tests and acceptance evidence",
+            "## Migration and rollback",
+            "## Supersession / reversal conditions",
+        )
+        for path, phrases in required_adrs.items():
+            with self.subTest(path=path):
+                adr_path = ROOT / path
+                self.assertTrue(adr_path.is_file(), f"missing architecture decision: {path}")
+                text = adr_path.read_text(encoding="utf-8")
+                for section in required_sections:
+                    self.assertIn(section, text)
+                for phrase in phrases:
+                    self.assertIn(phrase, text)
+
     def test_uml_and_erd_are_diagram_as_code(self) -> None:
         """Architecture flows and the conceptual domain model must be reviewable in Git."""
 
