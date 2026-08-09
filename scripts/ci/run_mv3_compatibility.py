@@ -32,7 +32,7 @@ STARTUP_TIMEOUT_SECONDS = 20.0
 FIXTURE_TIMEOUT_SECONDS = 20.0
 MAX_WEBDRIVER_RESPONSE_BYTES = 1_048_576
 W3C_ELEMENT_KEY = "element-6066-11e4-a52e-4f735466cecf"
-PATH_TOKEN_CHARACTERS = frozenset(string.ascii_letters + string.digits + "-_")
+PATH_TOKEN_CHARACTERS = frozenset(string.ascii_letters + string.digits + "-_.")
 
 
 class QuietFixtureHandler(http.server.SimpleHTTPRequestHandler):
@@ -53,7 +53,12 @@ def _free_loopback_port() -> int:
 def _path_token(value: str, label: str) -> str:
     """Validate one ChromeDriver-issued identifier before interpolating a path."""
 
-    if not value or len(value) > 256 or any(char not in PATH_TOKEN_CHARACTERS for char in value):
+    if (
+        not value
+        or len(value) > 256
+        or value in {".", ".."}
+        or any(char not in PATH_TOKEN_CHARACTERS for char in value)
+    ):
         raise RuntimeError(f"invalid WebDriver {label}")
     return value
 
