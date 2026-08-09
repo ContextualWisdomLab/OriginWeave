@@ -136,6 +136,11 @@ fn authority_identifiers_and_field_sets_are_bounded_and_unambiguous() -> TestRes
     let mut no_approval = valid_input()?;
     no_approval.approval_reference = None;
     assert!(SensitiveAccessEvidence::try_from(no_approval).is_ok());
+
+    let mut no_retention_deadline = valid_input()?;
+    no_retention_deadline.retention_deadline_epoch_seconds = None;
+    let evidence = validated(no_retention_deadline)?;
+    assert_eq!(evidence.retention_deadline_epoch_seconds(), None);
     Ok(())
 }
 
