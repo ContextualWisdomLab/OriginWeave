@@ -6,7 +6,6 @@ import os
 import pathlib
 import textwrap
 import unittest
-from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/hourly-product-development.yml"
@@ -137,7 +136,7 @@ class HourlyProviderSuccessContractTests(unittest.TestCase):
             self.workflow, "Start loopback-only NVIDIA NIM credential broker"
         )
         namespace: dict[str, object] = {}
-        with mock.patch.dict(os.environ, {"NIM_UPSTREAM_API_KEY": "test-key"}):
+        with unittest.mock.patch.dict(os.environ, {"NIM_UPSTREAM_API_KEY": "test-key"}):
             exec(compile(_broker_preamble(broker), "<broker-preamble>", "exec"), namespace)
         valid_path = namespace["valid_path"]
         self.assertTrue(callable(valid_path))
@@ -156,7 +155,7 @@ class HourlyProviderSuccessContractTests(unittest.TestCase):
             self.workflow, "Start loopback-only NVIDIA NIM credential broker"
         )
         namespace: dict[str, object] = {}
-        with mock.patch.dict(os.environ, {"NIM_UPSTREAM_API_KEY": "test-key"}):
+        with unittest.mock.patch.dict(os.environ, {"NIM_UPSTREAM_API_KEY": "test-key"}):
             exec(compile(_broker_preamble(broker), "<broker-preamble>", "exec"), namespace)
         valid_path = namespace["valid_path"]
         self.assertTrue(callable(valid_path))
