@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Run the bounded Manifest V3 compatibility fixture against pinned Chromium.
+"""Run bounded repeatable Manifest V3 compatibility evidence against pinned Chromium.
 
 This is a release/CI evidence runner, not a product browser adapter. It uses the
 W3C WebDriver HTTP protocol only to prove that a real Chrome for Testing build
-can load the controlled MV3 fixture and exercise service-worker, content-script,
-storage, declarative-net-request, real browser-click, and restart-persistence
-behavior.
+can load the controlled MV3 fixture and repeatedly exercise service-worker,
+content-script, storage, declarative-net-request, real browser-click, and
+restart-persistence behavior.
 """
 
 from __future__ import annotations
@@ -28,6 +28,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 FIXTURE = ROOT / "tests" / "fixtures" / "mv3_basic"
 PINNED_CHROME_VERSION = "150.0.7871.129"
 PINNED_CHROME_REVISION = "r1639810"
+REPEATABILITY_TRIALS = 3
 REQUEST_TIMEOUT_SECONDS = 5.0
 STARTUP_TIMEOUT_SECONDS = 20.0
 FIXTURE_TIMEOUT_SECONDS = 20.0
@@ -188,10 +189,14 @@ return {
                 worker_start_count = int(latest.get("workerStartCount", "0"))
             except ValueError:
                 worker_start_count = 0
-            if worker_start_count > 0 and all(latest.get(key) == item for key, item in expected.items()):
+            if worker_start_count > 0 and all(
+                latest.get(key) == item for key, item in expected.items()
+            ):
                 return latest
         time.sleep(0.1)
-    raise RuntimeError(f"MV3 fixture did not converge: expected={expected!r}, observed={latest!r}")
+    raise RuntimeError(
+        f"MV3 fixture did not converge: expected={expected!r}, observed={latest!r}"
+    )
 
 
 def _exercise_real_click(driver_port: int, session_id: str) -> str:
@@ -287,10 +292,13 @@ def _run_browser_pass(
         if not isinstance(raw_session_id, str):
             raise RuntimeError("ChromeDriver did not return a session id")
         session_id = _path_token(raw_session_id, "session identifier")
-        browser_version = capabilities.get("browserVersion") if isinstance(capabilities, dict) else None
+        browser_version = (
+            capabilities.get("browserVersion") if isinstance(capabilities, dict) else None
+        )
         if browser_version != PINNED_CHROME_VERSION:
             raise RuntimeError(
-                f"unexpected Chrome version: expected {PINNED_CHROME_VERSION}, got {browser_version!r}"
+                f"unexpected Chrome version: expected {PINNED_CHROME_VERSION}, "
+                f"got {browser_version!r}"
             )
 
         _json_request(
@@ -335,8 +343,72 @@ def _run_browser_pass(
             driver.wait(timeout=5)
 
 
+def _run_restart_trial(
+    chrome_bin: pathlib.Path,
+    chromedriver_bin: pathlib.Path,
+    fixture_url: str,
+    trial_number: int,
+) -> dict[str, Any]:
+    """Run one independent initial/restart pair and return credential-free evidence."""
+
+    trial_started = time.monotonic()
+    with tempfile.TemporaryDirectory(
+        prefix=f"originweave-mv3-trial-{trial_number}-"
+    ) as profile_dir:
+        initial = _run_browser_pass(
+            chrome_bin,
+            chromedriver_bin,
+            fixture_url,
+            profile_dir,
+            "initialized",
+        )
+        restarted = _run_browser_pass(
+            chrome_bin,
+            chromedriver_bin,
+            fixture_url,
+            profile_dir,
+            "persisted",
+        )
+
+    initial_count = int(initial["worker_start_count"])
+    restarted_count = int(restarted["worker_start_count"])
+    surfaces = {
+        name: bool(initial["surfaces"][name]) and bool(restarted["surfaces"][name])
+        for name in initial["surfaces"]
+    }
+    surfaces.update(
+        {
+            "restart-persistence": restarted["storage_persistence"] == "persisted",
+            "worker-start-count": restarted_count > initial_count,
+            "storage-persistence": restarted["storage_persistence"] == "persisted",
+        }
+    )
+    if not all(surfaces.values()):
+        raise RuntimeError(f"compatibility surface failed in trial {trial_number}")
+
+    return {
+        "trial_number": trial_number,
+        "passed": True,
+        "browser_version": restarted["browser_version"],
+        "surfaces": surfaces,
+        "browser_passes": [
+            {
+                "phase": "initial",
+                "worker_start_count": initial_count,
+                "storage_persistence": initial["storage_persistence"],
+            },
+            {
+                "phase": "restart",
+                "worker_start_count": restarted_count,
+                "storage_persistence": restarted["storage_persistence"],
+            },
+        ],
+        "duration_ms": round((time.monotonic() - trial_started) * 1000),
+    }
+
+
 def main() -> int:
-    """Run two pinned local-only browser passes and print bounded compatibility evidence."""
+    """Run three independent restart trials and emit bounded repeatability evidence."""
 
     chrome_bin = pathlib.Path(os.environ.get("CHROME_BIN", ""))
     chromedriver_bin = pathlib.Path(os.environ.get("CHROMEDRIVER_BIN", ""))
@@ -349,7 +421,9 @@ def main() -> int:
 
     fixture_server = http.server.ThreadingHTTPServer(
         ("127.0.0.1", 0),
-        lambda *args, **kwargs: QuietFixtureHandler(*args, directory=str(FIXTURE), **kwargs),
+        lambda *args, **kwargs: QuietFixtureHandler(
+            *args, directory=str(FIXTURE), **kwargs
+        ),
     )
     fixture_thread = threading.Thread(target=fixture_server.serve_forever, daemon=True)
     fixture_thread.start()
@@ -357,56 +431,68 @@ def main() -> int:
 
     try:
         fixture_url = f"http://127.0.0.1:{fixture_server.server_port}/page.html"
-        with tempfile.TemporaryDirectory(prefix="originweave-mv3-profile-") as profile_dir:
-            initial = _run_browser_pass(
-                chrome_bin,
-                chromedriver_bin,
-                fixture_url,
-                profile_dir,
-                "initialized",
-            )
-            restarted = _run_browser_pass(
-                chrome_bin,
-                chromedriver_bin,
-                fixture_url,
-                profile_dir,
-                "persisted",
-            )
+        trial_results: list[dict[str, Any]] = []
+        for trial_number in range(1, REPEATABILITY_TRIALS + 1):
+            try:
+                trial_results.append(
+                    _run_restart_trial(
+                        chrome_bin,
+                        chromedriver_bin,
+                        fixture_url,
+                        trial_number,
+                    )
+                )
+            except (OSError, ValueError, RuntimeError, json.JSONDecodeError):
+                trial_results.append(
+                    {
+                        "trial_number": trial_number,
+                        "passed": False,
+                    }
+                )
 
-        initial_count = int(initial["worker_start_count"])
-        restarted_count = int(restarted["worker_start_count"])
-        shared_surfaces = {
-            name: bool(initial["surfaces"][name]) and bool(restarted["surfaces"][name])
-            for name in initial["surfaces"]
-        }
-        shared_surfaces.update(
-            {
-                "restart-persistence": restarted["storage_persistence"] == "persisted",
-                "worker-start-count": restarted_count > initial_count,
-                "storage-persistence": restarted["storage_persistence"] == "persisted",
-            }
+        successful_trials = sum(
+            1 for trial in trial_results if trial.get("passed") is True
         )
+        trial_pass_rate = successful_trials / REPEATABILITY_TRIALS
+        successful_results = [
+            trial for trial in trial_results if trial.get("passed") is True
+        ]
+        common_surfaces: dict[str, bool] = {}
+        if successful_results:
+            first_surfaces = successful_results[0].get("surfaces", {})
+            if isinstance(first_surfaces, dict):
+                common_surfaces = {
+                    str(name): all(
+                        isinstance(trial.get("surfaces"), dict)
+                        and trial["surfaces"].get(name) is True
+                        for trial in successful_results
+                    )
+                    for name in first_surfaces
+                }
+
         evidence = {
-            "chrome_version": restarted["browser_version"],
+            "chrome_version": PINNED_CHROME_VERSION,
             "chrome_revision": PINNED_CHROME_REVISION,
-            "surfaces": shared_surfaces,
-            "browser_passes": [
-                {
-                    "phase": "initial",
-                    "worker_start_count": initial_count,
-                    "storage_persistence": initial["storage_persistence"],
-                },
-                {
-                    "phase": "restart",
-                    "worker_start_count": restarted_count,
-                    "storage_persistence": restarted["storage_persistence"],
-                },
-            ],
+            "repeatability_trials": REPEATABILITY_TRIALS,
+            "successful_trials": successful_trials,
+            "trial_pass_rate": trial_pass_rate,
+            "surfaces": common_surfaces,
+            "trial_results": trial_results,
+            "browser_passes": (
+                successful_results[-1].get("browser_passes", [])
+                if successful_results
+                else []
+            ),
             "duration_ms": round((time.monotonic() - started) * 1000),
         }
-        if not all(evidence["surfaces"].values()):
-            raise RuntimeError(f"compatibility surface failed: {evidence!r}")
         print(json.dumps(evidence, sort_keys=True))
+        if successful_trials != REPEATABILITY_TRIALS:
+            raise RuntimeError(
+                "Manifest V3 repeatability gate failed: "
+                f"{successful_trials}/{REPEATABILITY_TRIALS} trials passed"
+            )
+        if not common_surfaces or not all(common_surfaces.values()):
+            raise RuntimeError("Manifest V3 repeatability surfaces were incomplete")
         return 0
     finally:
         fixture_server.shutdown()
