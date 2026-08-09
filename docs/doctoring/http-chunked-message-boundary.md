@@ -2,7 +2,7 @@
 
 **Decision date:** 2026-08-08  
 **Applies to:** `originweave-http` bounded HTTP/1.1 response handling  
-**Governing ADR:** `docs/adr/0007-bounded-http11-semantics.md`
+**Governing ADR:** `docs/adr/0011-bounded-http11-semantics.md`
 
 ## Evidence-to-decision trace
 
