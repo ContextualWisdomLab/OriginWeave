@@ -65,6 +65,20 @@ pub(crate) fn validate_content_digest(
     )
 }
 
+pub(crate) fn validate_content_digest_without_content(
+    fields: &FieldBlock,
+    trailers: &FieldBlock,
+    requirement: IntegrityRequirement,
+) -> Result<IntegrityStatus, HttpError> {
+    unsupported_context_status(
+        resolve_digest_dictionary(
+            &fields.values("content-digest"),
+            &trailers.values("content-digest"),
+        )?,
+        requirement,
+    )
+}
+
 pub(crate) fn validate_representation_digest(
     fields: &FieldBlock,
     trailers: &FieldBlock,
@@ -81,6 +95,40 @@ pub(crate) fn validate_representation_digest(
         return Ok(IntegrityStatus::UnsupportedContext);
     }
     validate_digest_values(dictionary, representation_bytes, requirement)
+}
+
+pub(crate) fn validate_representation_digest_without_content(
+    fields: &FieldBlock,
+    trailers: &FieldBlock,
+    requirement: IntegrityRequirement,
+) -> Result<IntegrityStatus, HttpError> {
+    unsupported_context_status(
+        resolve_digest_dictionary(
+            &fields.values("repr-digest"),
+            &trailers.values("repr-digest"),
+        )?,
+        requirement,
+    )
+}
+
+fn unsupported_context_status(
+    dictionary: Option<BTreeMap<String, Vec<u8>>>,
+    requirement: IntegrityRequirement,
+) -> Result<IntegrityStatus, HttpError> {
+    let Some(dictionary) = dictionary else {
+        return match requirement {
+            IntegrityRequirement::Optional => Ok(IntegrityStatus::Absent),
+            IntegrityRequirement::RequireSupportedDigest => Err(HttpError::SupportedDigestRequired),
+        };
+    };
+    let has_supported_algorithm = [IntegrityAlgorithm::Sha256, IntegrityAlgorithm::Sha512]
+        .iter()
+        .any(|algorithm| dictionary.contains_key(algorithm.key()));
+    match (has_supported_algorithm, requirement) {
+        (true, IntegrityRequirement::Optional) => Ok(IntegrityStatus::UnsupportedContext),
+        (false, IntegrityRequirement::Optional) => Ok(IntegrityStatus::UnsupportedAlgorithm),
+        (_, IntegrityRequirement::RequireSupportedDigest) => Err(HttpError::SupportedDigestRequired),
+    }
 }
 
 fn validate_digest_values(
@@ -478,6 +526,76 @@ mod tests {
     }
 
     #[test]
+    fn unsupported_context_preserves_parse_and_requirement_semantics() {
+        let no_fields = FieldBlock::default();
+        assert_eq!(
+            validate_content_digest_without_content(
+                &no_fields,
+                &FieldBlock::default(),
+                IntegrityRequirement::Optional,
+            )
+            .expect("optional absent no-content digest"),
+            IntegrityStatus::Absent
+        );
+        assert!(matches!(
+            validate_content_digest_without_content(
+                &no_fields,
+                &FieldBlock::default(),
+                IntegrityRequirement::RequireSupportedDigest,
+            ),
+            Err(HttpError::SupportedDigestRequired)
+        ));
+
+        let supported = fields(&[("content-digest", b"sha-256=:AQ==:")]);
+        assert_eq!(
+            validate_content_digest_without_content(
+                &supported,
+                &FieldBlock::default(),
+                IntegrityRequirement::Optional,
+            )
+            .expect("supported but unverifiable no-content digest"),
+            IntegrityStatus::UnsupportedContext
+        );
+        assert!(matches!(
+            validate_content_digest_without_content(
+                &supported,
+                &FieldBlock::default(),
+                IntegrityRequirement::RequireSupportedDigest,
+            ),
+            Err(HttpError::SupportedDigestRequired)
+        ));
+
+        let unsupported = fields(&[("content-digest", b"sha-999=:AQ==:")]);
+        assert_eq!(
+            validate_content_digest_without_content(
+                &unsupported,
+                &FieldBlock::default(),
+                IntegrityRequirement::Optional,
+            )
+            .expect("unsupported no-content digest"),
+            IntegrityStatus::UnsupportedAlgorithm
+        );
+        assert!(matches!(
+            validate_content_digest_without_content(
+                &unsupported,
+                &FieldBlock::default(),
+                IntegrityRequirement::RequireSupportedDigest,
+            ),
+            Err(HttpError::SupportedDigestRequired)
+        ));
+
+        let malformed = fields(&[("content-digest", b"sha-256=not-a-byte-sequence")]);
+        assert!(matches!(
+            validate_content_digest_without_content(
+                &malformed,
+                &FieldBlock::default(),
+                IntegrityRequirement::Optional,
+            ),
+            Err(HttpError::InvalidDigestField)
+        ));
+    }
+
+    #[test]
     fn malformed_structured_field_members_fail_closed() {
         for invalid in [
             b"".as_slice(),
@@ -582,5 +700,16 @@ mod tests {
                 IntegrityStatus::UnsupportedContext
             );
         }
+
+        let no_content = fields(&[("repr-digest", b"sha-256=:AQ==:")]);
+        assert_eq!(
+            validate_representation_digest_without_content(
+                &no_content,
+                &FieldBlock::default(),
+                IntegrityRequirement::Optional,
+            )
+            .expect("HEAD representation digest is syntactically valid but unverifiable"),
+            IntegrityStatus::UnsupportedContext
+        );
     }
 }
