@@ -56,16 +56,18 @@ Delivered TLS service-identity foundation:
 
 Delivered document-node authority foundation:
 
-- a nonzero `BrowsingContextId` for one independently navigable browser context;
+- a nonzero `BrowserSessionId` for one active automation session;
+- a nonzero `BrowsingContextId` for one independently navigable browser context inside that session;
 - a nonzero `DocumentEpoch` identity for one observed document lifetime inside that context;
-- an `ObservedNodeHandle` bound to the exact browsing context, canonical origin, document epoch, and nonzero adapter-local node identifier;
-- deterministic rejection of cross-context, cross-origin, or stale-document node reuse before a future browser adapter performs an action;
-- reusable core contracts without Chromium, selector, script-execution, network, storage, or secret dependencies.
+- an `ObservedNodeHandle` bound to the exact browser session, browsing context, canonical origin, document epoch, and nonzero adapter-local node identifier;
+- deterministic rejection of cross-session, cross-context, cross-origin, or stale-document node reuse before a future browser adapter performs an action;
+- reusable core contracts without Chromium, WebDriver, selector, script-execution, network, storage, or secret dependencies.
 
 Remaining vertical-slice work:
 
 - launch and terminate ephemeral Chromium user contexts;
 - WebDriver BiDi adapter behind a versioned interface;
+- session-scoped translation from external protocol identifiers to collision-free internal browser-session, browsing-context, document-epoch, and node identities;
 - navigation and accessibility-tree observation;
 - typed `navigate`, `observe`, `query`, and `click` actions;
 - post-condition verification and audit events;
@@ -82,7 +84,7 @@ Remaining vertical-slice work:
 
 A syntactically canonical origin is an identity input, not an SSRF boundary. An approved resolver address is a policy decision, an exact TCP peer is transport evidence, and an authenticated TLS stream is service-identity evidence; none substitutes for proof that Chromium used the governed path or for bounded HTTP semantics. Phase 1 cannot claim safe real navigation until the trusted browser adapter composes all of these boundaries.
 
-Commercial proof: one controlled workflow completes repeatedly without selector scripts, raw secrets, unverified success, cross-context or stale-node authority, destination-policy bypass, DNS rebinding, peer substitution, TLS identity confusion, unsafe downgrade, redirect cycles, proxy bypass, or unbounded download behavior.
+Commercial proof: one controlled workflow completes repeatedly without selector scripts, raw secrets, unverified success, cross-session, cross-context, cross-origin, or stale-node authority, destination-policy bypass, DNS rebinding, peer substitution, TLS identity confusion, unsafe downgrade, redirect cycles, proxy bypass, or unbounded download behavior.
 
 ## Phase 2 — Agent-native scraping
 
@@ -136,7 +138,7 @@ Each phase expands a stable benchmark suite:
 - Mind2Web-derived task diversity;
 - WebArena/VisualWebArena-style repeatability;
 - WASP prompt-injection scenarios;
-- cross-context node collisions, stale nodes, hidden instructions, cross-origin transitions, CAPTCHA handoff, renderer crash, network failure, and memory pressure;
+- cross-session and cross-context node collisions, stale nodes, hidden instructions, cross-origin transitions, CAPTCHA handoff, renderer crash, network failure, and memory pressure;
 - DNS rebinding, IPv4-mapped IPv6, alternate numeric hosts, redirect-to-private-address, unsafe downgrade, exact-target redirect cycles, proxy bypass, metadata endpoints, oversized downloads, MIME confusion, connection refusal, timeout, peer-inspection failure, peer mismatch, and partial connection failures;
 - trusted and untrusted TLS roots, DNS and IP SANs, Common Name fallback attempts, expiry and future validity, TLS version negotiation, ALPN absence and mismatch, peer mutation, and handshake deadlines;
 - task success, safety, provenance completeness, latency, memory, VRAM, connection time, handshake time, and cost.
