@@ -21,6 +21,11 @@ class ProductDocumentationContractTests(unittest.TestCase):
             "docs/uml/README.md",
             "docs/erd/README.md",
             "docs/traceability/README.md",
+            "docs/THREAT_MODEL.md",
+            "docs/TEST_STRATEGY.md",
+            "docs/OPERABILITY.md",
+            "docs/API_CONTRACT.md",
+            "docs/RELEASE_AND_ROLLBACK.md",
         }
         missing = sorted(path for path in required_paths if not (ROOT / path).is_file())
         self.assertEqual(missing, [])
@@ -107,6 +112,47 @@ class ProductDocumentationContractTests(unittest.TestCase):
         ):
             with self.subTest(entity=entity):
                 self.assertIn(entity, erd)
+
+    def test_operational_documents_preserve_fail_closed_product_boundaries(self) -> None:
+        """Security, operations, APIs, tests, and rollback must agree on core authority boundaries."""
+
+        documents = {
+            "docs/THREAT_MODEL.md": (
+                "renderer compromise",
+                "prompt injection",
+                "confused deputy",
+                "cross-tenant",
+            ),
+            "docs/TEST_STRATEGY.md": (
+                "true production boundary",
+                "100%",
+                "hostile",
+                "protected-main",
+            ),
+            "docs/OPERABILITY.md": (
+                "SLI",
+                "SLO",
+                "quarantine",
+                "break-glass",
+            ),
+            "docs/API_CONTRACT.md": (
+                "OriginWeave Protocol",
+                "idempotency",
+                "post-condition",
+                "opaque",
+            ),
+            "docs/RELEASE_AND_ROLLBACK.md": (
+                "SBOM",
+                "provenance",
+                "rollback",
+                "protected main",
+            ),
+        }
+        for path, phrases in documents.items():
+            text = (ROOT / path).read_text(encoding="utf-8")
+            for phrase in phrases:
+                with self.subTest(path=path, phrase=phrase):
+                    self.assertIn(phrase, text)
 
     def test_traceability_labels_conversation_derived_future_work(self) -> None:
         """Conversation decisions must preserve implementation status instead of becoming claims."""
