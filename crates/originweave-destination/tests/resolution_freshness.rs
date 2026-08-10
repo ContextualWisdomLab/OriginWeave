@@ -116,6 +116,39 @@ fn fresh_resolution_rejects_invalid_or_overflowing_validity() {
 }
 
 #[test]
+fn fresh_resolution_rejects_denied_addresses_before_granting_time_authority() {
+    let target = origin("https://example.com");
+    let denied = ipv4(127, 0, 0, 1);
+    let public = ipv4(8, 8, 8, 8);
+    let policy = DestinationPolicy::public_web();
+    let expected = Err(DestinationError::AddressClassDenied {
+        address: denied,
+        address_class: AddressClass::Loopback,
+    });
+
+    assert_eq!(
+        FreshResolutionSnapshot::approve(
+            target.clone(),
+            [denied],
+            &policy,
+            Duration::from_secs(1),
+            Duration::from_secs(1),
+        ),
+        expected.clone()
+    );
+    assert_eq!(
+        FreshResolutionSnapshot::approve(
+            target,
+            [denied, public],
+            &policy,
+            Duration::from_secs(1),
+            Duration::from_secs(1),
+        ),
+        expected
+    );
+}
+
+#[test]
 fn fresh_revalidation_preserves_the_budget_and_resets_approval_time() {
     let first = ipv4(8, 8, 8, 8);
     let second = ipv4(1, 1, 1, 1);
