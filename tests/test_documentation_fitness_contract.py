@@ -26,7 +26,7 @@ def _adr_file_status(path: Path) -> str:
     """Read one ADR's explicit lifecycle status from its metadata header."""
     text = path.read_text(encoding="utf-8")
     match = re.search(
-        r"(?im)^-\s+(?:\*\*Status:\*\*|\*\*Status\*\*:|Status:)\s*(\w+)(?:\s+.+)?$",
+        r"(?im)^-\s+(?:\*\*Status:\*\*|\*\*Status\*\*:|Status:)\s*(\w+)(?:[;\s].*)?$",
         text,
     )
     if match is None:
@@ -147,7 +147,7 @@ class DocumentationFitnessContractTests(unittest.TestCase):
         self.assertIn("Protected-main status", trd)
         self.assertIn("Active/non-shipped evidence", trd)
         self.assertIn("Active replacement PR #37", trd)
-        self.assertIn("purpose-bound sensitive-data policy kernel", trd)
+        self.assertIn("purpose-bound sensitive-data authority", trd)
 
     def test_extension_authority_uml_separates_compatibility_from_agent_authority(self) -> None:
         """A Chrome permission must never be documented as an Agent capability."""
