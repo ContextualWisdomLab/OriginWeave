@@ -29,8 +29,7 @@ const MALFORMED_HEAD_REPRESENTATION_DIGEST: &[u8] =
     b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nRepr-Digest: sha-256\r\nConnection: close\r\n\r\n";
 const INVALID_REASON_PHRASE: &[u8] =
     b"HTTP/1.1 200 OK\0\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
-const INCOMPLETE_OVERSIZED_STATUS_LINE: &[u8] =
-    b"HTTP/1.1 200 deliberately-oversized-status-line";
+const INCOMPLETE_OVERSIZED_STATUS_LINE: &[u8] = b"HTTP/1.1 200 deliberately-oversized-status-line";
 const CUMULATIVE_INCOMPLETE_HEAD: &[u8] = concat!(
     "HTTP/1.1 100 Continue\r\n\r\n",
     "HTTP/1.1 200 OK\r\nx:",
