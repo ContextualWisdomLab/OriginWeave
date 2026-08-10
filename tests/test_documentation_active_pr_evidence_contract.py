@@ -31,7 +31,7 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
 
     def test_dependency_stacks_are_explicit_and_non_shipped(self) -> None:
         """Current browser, network, sensitive and compatibility stacks stay active-only."""
-        for pr_number in (52, 53, 54, 55, 56):
+        for pr_number in (52, 53, 54, 55, 56, 57):
             with self.subTest(pr_number=pr_number):
                 row = active_pr_row(self.maturity, pr_number)
                 self.assertIn("**IMPLEMENTED_ON_ACTIVE_PR**", row)
@@ -61,6 +61,23 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, self.fitness)
+
+    def test_typed_semantic_query_evidence_stays_descriptive_and_bounded(self) -> None:
+        """PR #57 cannot turn semantic matching into selector or execution authority."""
+        row = active_pr_row(self.maturity, 57)
+        for marker in (
+            "SemanticNodeQuery",
+            "role",
+            "accessible-name",
+            "typed-action",
+            "no CSS/XPath/raw DOM selector language",
+            "no browser I/O or action authority",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, row)
+
+        self.assertIn("Draft stacked on exact #52 head", row)
+        self.assertIn("predecessor-head gate result is transferred", row)
 
     def test_sensitive_audience_evidence_does_not_claim_authentication(self) -> None:
         """An internal audience field is not authenticated workload/service identity."""
