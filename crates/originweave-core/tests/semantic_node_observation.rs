@@ -1,10 +1,10 @@
 use std::collections::BTreeSet;
 
 use originweave_core::{
-    BrowserSessionId, BrowsingContextId, DocumentEpoch, NodeActionKind, ObservationChannel,
+    BrowserSessionId, BrowsingContextId, DocumentEpoch, MAX_ACCESSIBLE_NAME_BYTES,
+    MAX_SEMANTIC_ROLE_BYTES, MAX_VISIBLE_TEXT_BYTES, NodeActionKind, ObservationChannel,
     ObservedNodeHandle, Origin, SemanticNodeObservation, SemanticNodeObservationError,
-    SemanticNodeObservationInput, MAX_ACCESSIBLE_NAME_BYTES, MAX_SEMANTIC_ROLE_BYTES,
-    MAX_VISIBLE_TEXT_BYTES,
+    SemanticNodeObservationInput,
 };
 
 fn observed_node() -> Result<ObservedNodeHandle, String> {
@@ -12,8 +12,14 @@ fn observed_node() -> Result<ObservedNodeHandle, String> {
     let browsing_context = BrowsingContextId::new(11).map_err(|error| error.to_string())?;
     let origin = Origin::parse("https://example.com").map_err(|error| format!("{error:?}"))?;
     let document_epoch = DocumentEpoch::new(3).map_err(|error| error.to_string())?;
-    ObservedNodeHandle::new(browser_session, browsing_context, origin, document_epoch, 17)
-        .map_err(|error| error.to_string())
+    ObservedNodeHandle::new(
+        browser_session,
+        browsing_context,
+        origin,
+        document_epoch,
+        17,
+    )
+    .map_err(|error| error.to_string())
 }
 
 fn semantic_input(
@@ -75,26 +81,22 @@ fn reviewed_text_bounds_are_inclusive_and_visible_text_is_optional() -> Result<(
     .map_err(|error| error.to_string())?;
     assert_eq!(boundary.role().len(), MAX_SEMANTIC_ROLE_BYTES);
     assert_eq!(boundary.accessible_name().len(), MAX_ACCESSIBLE_NAME_BYTES);
-    assert_eq!(boundary.visible_text().map(str::len), Some(MAX_VISIBLE_TEXT_BYTES));
+    assert_eq!(
+        boundary.visible_text().map(str::len),
+        Some(MAX_VISIBLE_TEXT_BYTES)
+    );
 
-    let without_text = SemanticNodeObservation::new(semantic_input(
-        "button".to_owned(),
-        String::new(),
-        None,
-    )?)
-    .map_err(|error| error.to_string())?;
+    let without_text =
+        SemanticNodeObservation::new(semantic_input("button".to_owned(), String::new(), None)?)
+            .map_err(|error| error.to_string())?;
     assert_eq!(without_text.visible_text(), None);
     Ok(())
 }
 
 #[test]
 fn semantic_node_rejects_unbounded_or_missing_role_text() -> Result<(), String> {
-    let empty_role = SemanticNodeObservation::new(semantic_input(
-        String::new(),
-        "name".to_owned(),
-        None,
-    )?)
-    .err();
+    let empty_role =
+        SemanticNodeObservation::new(semantic_input(String::new(), "name".to_owned(), None)?).err();
     assert_eq!(empty_role, Some(SemanticNodeObservationError::EmptyRole));
 
     let long_role = SemanticNodeObservation::new(semantic_input(
