@@ -25,6 +25,8 @@ The first production-complete PR #47 head reached all ordinary Rust contracts an
 
 That was a realistic DNS-rebinding case rather than an impossible instrumentation artifact. The branch added a focused one-address expansion regression requiring `ResolutionSetExpanded`, retained the two-address expansion case, and exact head `6b5ed4dcea281b505f67db6180bb14c3bc95b392` subsequently passed CI including exact production function/line/region/branch coverage, Security Scan, and SAST Semgrep.
 
+The freshness ceiling is also executable active-PR evidence rather than an aspirational requirement. `crates/originweave-destination/src/resolution.rs` owns `MAX_RESOLUTION_VALIDITY: Duration = Duration::from_secs(30)`. `FreshResolutionSnapshot::approve` rejects `Duration::ZERO` and any interval above that constant with `DestinationError::InvalidResolutionValidity`; `crates/originweave-destination/tests/resolution_freshness.rs::fresh_resolution_rejects_invalid_or_overflowing_validity` verifies both the zero and greater-than-30-second boundaries plus approval-time overflow. This evidence remains active-PR-only until PR #47 integrates.
+
 ### PR #50 consumer
 
 PR #50 began from exact PR #47 head `6b5ed4dcea281b505f67db6180bb14c3bc95b392` with a test contract that intentionally does not compile against the old `ConnectionPlan::new(&ResolutionSnapshot, ...)` API. Predecessor CI also exposed and removed a setup-only `OriginError` formatting defect, leaving the production API mismatch as the valid RED boundary.
@@ -40,7 +42,7 @@ The root cause is therefore **not** a formatting, runner, dependency, or coverag
 The active work is intended to prove one continuous destination-to-socket authority chain with all of the following properties:
 
 1. approval time is explicit and supplied from one trusted monotonic clock domain;
-2. validity is non-zero and capped by a repository-owned product safety budget;
+2. validity is non-zero and capped by the active implementation's repository-owned `MAX_RESOLUTION_VALIDITY` safety budget (30 seconds on PR #47 exact head), with shorter caller-selected intervals permitted;
 3. the usable interval is half-open: `approved_at <= now < valid_until`;
 4. use before approval, use at/after expiry, arithmetic overflow, unapproved addresses, and set expansion fail closed with typed errors;
 5. the first-party socket planner cannot accept an untimed `ResolutionSnapshot` as sufficient authority once the consumer integration is complete;
