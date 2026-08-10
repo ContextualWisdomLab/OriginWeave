@@ -298,13 +298,8 @@ fn opaque_handle_use_is_bound_to_scope_classification_audience_expiry_and_use_co
 fn invalid_handle_audience_fails_closed_on_request_and_scope() {
     let exact = exact_authority();
     let valid_scope = handle_scope(exact, DataClassification::PersonalData);
-    let invalid_request = handle_use_for_audience(
-        exact,
-        DataClassification::PersonalData,
-        "",
-        1_999,
-        0,
-    );
+    let invalid_request =
+        handle_use_for_audience(exact, DataClassification::PersonalData, "", 1_999, 0);
     assert_eq!(
         evaluate_handle_use(&invalid_request, &valid_scope),
         HandleUseDecision::AudienceMismatch
