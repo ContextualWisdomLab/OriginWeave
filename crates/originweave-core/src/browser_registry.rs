@@ -72,11 +72,10 @@ impl BrowserAuthorityRegistry {
             return Ok(*existing);
         }
         let identifier = take_identifier(&mut self.next_session_id, self.maximum_identifier)?;
-        browser_session_id(identifier).map(|session| {
+        browser_session_id(identifier).inspect(|&session| {
             self.session_by_external
                 .insert(external_identifier.to_owned(), session);
             self.known_sessions.insert(session);
-            session
         })
     }
 
@@ -135,12 +134,11 @@ impl BrowserAuthorityRegistry {
             .value()
             .checked_add(1)
             .ok_or(BrowserRegistryError::DocumentEpochExhausted)?;
-        document_epoch(next_value).map(|next| {
+        document_epoch(next_value).inspect(|&next| {
             self.context_epoch.insert(browsing_context, next);
             self.context_origin.remove(&browsing_context);
             self.node_by_external
                 .retain(|(context, _epoch, _external), _node_id| *context != browsing_context);
-            next
         })
     }
 
