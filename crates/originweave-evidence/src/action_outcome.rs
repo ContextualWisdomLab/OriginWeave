@@ -28,9 +28,8 @@ pub enum VerifiedActionOutcomeError {
 impl Display for VerifiedActionOutcomeError {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Self::PostConditionNotVerified => formatter.write_str(
-                "action success requires an independently verified post-condition",
-            ),
+            Self::PostConditionNotVerified => formatter
+                .write_str("action success requires an independently verified post-condition"),
         }
     }
 }
