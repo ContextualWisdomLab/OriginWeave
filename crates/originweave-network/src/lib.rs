@@ -3,6 +3,16 @@
 //! The crate consumes a validated connection plan, opens one exact socket
 //! address without hostname resolution or proxy inheritance, verifies the
 //! operating-system peer, and emits credential-free evidence.
+//!
+//! Direct planning from an untimed resolution snapshot is intentionally not a
+//! public capability. External callers must cross the fresh-resolution boundary
+//! before they can obtain socket authority.
+//!
+//! ```compile_fail
+//! use originweave_network::ConnectionPlan;
+//!
+//! fn stale_resolution_bypass(_: Option<ConnectionPlan>) {}
+//! ```
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
