@@ -44,14 +44,33 @@ fn revocation_material_freshness_rejects_empty_or_reversed_windows() {
 
 #[test]
 fn revocation_freshness_errors_are_stable_and_source_free() {
-    let error = RevocationMaterialFreshnessError::Expired {
+    let invalid = RevocationMaterialFreshnessError::InvalidWindow {
+        this_update_unix_seconds: 1_000,
+        next_update_unix_seconds: 1_000,
+    };
+    let future = RevocationMaterialFreshnessError::NotYetValid {
+        trusted_time_unix_seconds: 999,
+        this_update_unix_seconds: 1_000,
+    };
+    let stale = RevocationMaterialFreshnessError::Expired {
         trusted_time_unix_seconds: 1_100,
         next_update_unix_seconds: 1_100,
     };
 
     assert_eq!(
-        error.to_string(),
+        invalid.to_string(),
+        "revocation material window is invalid: thisUpdate 1000 must be before nextUpdate 1000"
+    );
+    assert_eq!(
+        future.to_string(),
+        "revocation material is not usable at trusted time 999; thisUpdate is 1000"
+    );
+    assert_eq!(
+        stale.to_string(),
         "revocation material is stale at trusted time 1100; nextUpdate is 1100"
     );
-    assert!(error.source().is_none());
+
+    for error in [invalid, future, stale] {
+        assert!(error.source().is_none());
+    }
 }
