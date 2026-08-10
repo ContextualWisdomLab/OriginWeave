@@ -269,3 +269,91 @@ impl ResourceGovernor {
         )
     }
 }
+
+/// Validated measurements from one real browser-task execution interval.
+///
+/// Platform adapters supply these values after sampling the browser/runtime.
+/// This contract stores no page content, credentials, GPU state, model identity,
+/// or persistence metadata and never infers local-AI usage when none was measured.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BrowserTaskTelemetry {
+    browser_rss_bytes: u64,
+    observation_bytes: u64,
+    action_latency_milliseconds: u64,
+    task_duration_milliseconds: u64,
+}
+
+impl BrowserTaskTelemetry {
+    /// Validate one bounded browser-task telemetry record.
+    ///
+    /// Browser RSS and total task duration must be nonzero. An empty semantic
+    /// observation is valid. Action latency may be zero, but cannot exceed the
+    /// total task duration measured over the same execution interval.
+    pub const fn new(
+        browser_rss_bytes: u64,
+        observation_bytes: u64,
+        action_latency_milliseconds: u64,
+        task_duration_milliseconds: u64,
+    ) -> Result<Self, BrowserTaskTelemetryError> {
+        if browser_rss_bytes == 0 {
+            return Err(BrowserTaskTelemetryError::ZeroBrowserRss);
+        }
+        if task_duration_milliseconds == 0 {
+            return Err(BrowserTaskTelemetryError::ZeroTaskDuration);
+        }
+        if action_latency_milliseconds > task_duration_milliseconds {
+            return Err(
+                BrowserTaskTelemetryError::ActionLatencyExceedsTaskDuration {
+                    action_latency_milliseconds,
+                    task_duration_milliseconds,
+                },
+            );
+        }
+        Ok(Self {
+            browser_rss_bytes,
+            observation_bytes,
+            action_latency_milliseconds,
+            task_duration_milliseconds,
+        })
+    }
+
+    /// Return the measured resident-set size of the browser/task process set.
+    #[must_use]
+    pub const fn browser_rss_bytes(self) -> u64 {
+        self.browser_rss_bytes
+    }
+
+    /// Return the number of bytes in the bounded semantic observation.
+    #[must_use]
+    pub const fn observation_bytes(self) -> u64 {
+        self.observation_bytes
+    }
+
+    /// Return the measured latency of the governed browser action.
+    #[must_use]
+    pub const fn action_latency_milliseconds(self) -> u64 {
+        self.action_latency_milliseconds
+    }
+
+    /// Return the measured duration of the complete browser-task interval.
+    #[must_use]
+    pub const fn task_duration_milliseconds(self) -> u64 {
+        self.task_duration_milliseconds
+    }
+}
+
+/// A reason that browser-task telemetry cannot enter the trusted resource record.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BrowserTaskTelemetryError {
+    /// Browser/task resident-set size was zero and therefore not a real sample.
+    ZeroBrowserRss,
+    /// Total task duration was zero and therefore not a usable interval.
+    ZeroTaskDuration,
+    /// One action was reported as taking longer than the enclosing task interval.
+    ActionLatencyExceedsTaskDuration {
+        /// Reported governed-action latency in milliseconds.
+        action_latency_milliseconds: u64,
+        /// Reported complete task duration in milliseconds.
+        task_duration_milliseconds: u64,
+    },
+}
