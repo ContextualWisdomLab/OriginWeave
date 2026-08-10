@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import pathlib
 import unittest
@@ -9,6 +10,17 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "mv3_basic"
 RUNNER = ROOT / "scripts" / "ci" / "run_mv3_compatibility.py"
+
+
+def _load_runner_module():
+    """Load the compatibility runner without invoking its command-line entry point."""
+
+    spec = importlib.util.spec_from_file_location("originweave_mv3_runner", RUNNER)
+    if spec is None or spec.loader is None:
+        raise AssertionError("unable to load the MV3 compatibility runner")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 class ManifestV3DownloadsContractTests(unittest.TestCase):
@@ -71,6 +83,55 @@ class ManifestV3DownloadsContractTests(unittest.TestCase):
         self.assertIn("originweaveDownloads", content)
         self.assertIn('"downloads": surfaces["downloads"] == "ready"', runner)
         self.assertIn('"downloads": "ready"', runner)
+
+    def test_runner_preserves_only_reviewed_download_diagnostic_tokens(self) -> None:
+        """Runner failure evidence must retain stage tokens while rejecting raw diagnostics."""
+
+        runner = _load_runner_module()
+        approved = {
+            "download-source-rejected",
+            "download-start-rejected",
+            "download-search-missing",
+            "download-interrupted",
+            "download-url-mismatch",
+            "download-byte-count-mismatch",
+            "download-exists-false",
+            "download-timeout",
+            "download-complete-ready",
+            "download-not-evaluated",
+        }
+        self.assertIn("downloadsDiagnostic", runner.SURFACE_EVIDENCE_KEYS)
+        self.assertEqual(runner.DOWNLOAD_DIAGNOSTIC_VALUES, frozenset(approved))
+        for token in approved:
+            with self.subTest(token=token):
+                self.assertEqual(
+                    runner._safe_surface_value("downloadsDiagnostic", token), token
+                )
+        for raw in ("/tmp/private/download.txt", "Error: secret browser failure"):
+            with self.subTest(raw=raw):
+                self.assertEqual(
+                    runner._safe_surface_value("downloadsDiagnostic", raw), "unexpected"
+                )
+
+        error = runner.CompatibilitySurfaceError(
+            {
+                "downloads": "missing",
+                "downloadsDiagnostic": "download-source-rejected",
+            }
+        )
+        evidence = runner._failure_evidence(error)
+        self.assertEqual(
+            evidence["observed"]["downloadsDiagnostic"], "download-source-rejected"
+        )
+        self.assertNotIn("/tmp/private", repr(evidence))
+        self.assertNotIn("secret browser failure", repr(evidence))
+
+    def test_runner_collects_download_diagnostic_from_fixture_dataset(self) -> None:
+        """The WebDriver evidence script must collect the bounded fixture diagnostic field."""
+
+        runner = RUNNER.read_text(encoding="utf-8")
+        self.assertIn("originweaveDownloadsDiagnostic", runner)
+        self.assertIn('"downloadsDiagnostic": "download-complete-ready"', runner)
 
 
 if __name__ == "__main__":
