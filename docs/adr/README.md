@@ -28,15 +28,15 @@ An Accepted ADR is **design authority, not implementation evidence**. Protected-
 | [0008](0008-leaf-validity-horizon.md) | Delegated-task TLS leaf-validity horizon | Accepted | minimum certificate-validity horizon for bounded delegated tasks |
 | [0010](0010-session-context-bound-node-authority.md) | Session/context-bound node authority | Accepted | browser-session, browsing-context, origin, document-epoch and stale-node authority |
 
-## Proposed decisions retained on protected main
+## Proposed architecture decisions
 
-Proposed ADR files can live on protected `main` as reviewable target architecture without becoming Accepted or shipped behavior. Their own status metadata remains authoritative until a later reviewed change accepts, supersedes, rejects, or deprecates them.
+Proposed ADR files are reviewable target architecture without becoming Accepted or shipped behavior. The provenance subsections distinguish files already present in the protected-main baseline from decisions introduced by this documentation reconciliation. Provenance never changes lifecycle: file presence on an active branch is not protected-main truth, and later integration does not itself promote a Proposed ADR to Accepted.
+
+### Protected-main baseline proposed decisions
 
 | ADR | Decision | Status | Governs |
 |---|---|---|---|
 | [0009](0009-hourly-agent-credential-boundary.md) | Hourly agent credential boundary | Proposed | deterministic gates, NVIDIA credential materialization, local broker and publication separation |
-| [0013](0013-manifest-v3-extension-authority.md) | Manifest V3 compatibility and extension-to-Agent authority | Proposed | Chromium extension compatibility evidence, profile separation, extension grants, native-messaging boundary and release claims |
-| [0014](0014-architecture-decision-governance.md) | Architecture decision acceptance governance | Proposed | ADR lifecycle authority, reviewer eligibility, solo-maintainer hold and re-enablement conditions |
 | [0100](0100-rust-control-plane-boundary.md) | Rust control-plane boundary | Proposed | Rust-owned product authority versus Chromium compatibility kernel |
 | [0101](0101-isolated-execution-profile-modes.md) | Isolated execution/profile modes | Proposed | Human, Assist, Agent Task and Crawler session/profile isolation |
 | [0102](0102-typed-actions-and-arbitrary-js.md) | Typed actions over arbitrary JavaScript authority | Proposed | action API, script escape hatches, risk/policy semantics |
@@ -48,17 +48,27 @@ Proposed ADR files can live on protected `main` as reviewable target architectur
 | [0108](0108-crawler-policy.md) | Policy-bound crawler mode | Proposed | robots, rate/resource policy, read-only collection and no-evasion behavior |
 | [0109](0109-hourly-automation-operational-closure.md) | Hourly automation secret ordering and operational closure | Proposed | deterministic gates, model secret boundary, retries and protected-main proof |
 
-Active feature PRs may contain additional Proposed ADRs. They are not indexed here as protected-main decisions until their files reach protected `main`. Historical PR checks, stale branch state, or chat decisions never transfer ADR acceptance across a changed head.
+### Proposed decisions introduced by documentation reconciliation
+
+| ADR | Decision | Status | Governs |
+|---|---|---|---|
+| [0013](0013-manifest-v3-extension-authority.md) | Manifest V3 compatibility and extension-to-Agent authority | Proposed | Chromium extension compatibility evidence, profile separation, extension grants, native-messaging boundary and release claims |
+| [0014](0014-architecture-decision-governance.md) | Architecture decision acceptance governance | Proposed | ADR lifecycle authority, reviewer eligibility, solo-maintainer hold and re-enablement conditions |
+
+ADR 0013 and ADR 0014 exist only on this documentation branch until it integrates. After integration, this subsection remains historical provenance rather than an active-PR claim; both decisions remain Proposed until a later policy-compliant change explicitly changes their lifecycle.
+
+Other active feature PRs may contain additional Proposed ADRs. Those files are not part of this canonical documentation line until integrated or deliberately reconciled here. Historical PR checks, stale branch state, or chat decisions never transfer ADR acceptance across a changed head.
 
 ## Index completeness rule
 
-Every ADR file on protected `main` must be discoverable from this index with a status that agrees with the ADR's own status metadata. A feature ADR in an active PR belongs in that PR's traceability until merge. When an ADR is added, accepted, superseded, deprecated, or rejected, update this index in the same protected change or an immediately coupled documentation reconciliation.
+Every numbered ADR file in the canonical documentation tree under review must be discoverable from this index with a status that agrees with the ADR's own lifecycle metadata. The protected-main subset must remain exact, while feature ADRs outside this canonical line belong in their owning PR's traceability until integration. When an ADR is added, accepted, superseded, deprecated, or rejected, update this index in the same protected change or an immediately coupled documentation reconciliation.
 
 The machine-checkable documentation contract should fail when:
 
-- an ADR file on protected `main` is absent from this index;
+- a numbered ADR file in the canonical documentation tree is absent from this index;
 - this index claims `Accepted` while the ADR metadata says `Proposed`, or the reverse;
 - a superseded ADR lacks a discoverable successor;
+- branch provenance is presented as lifecycle status or protected-main implementation evidence;
 - an active-PR ADR is presented as protected-main implementation evidence; or
 - a stale PR number, SHA, run ID, automation prompt, or conversation statement is used as timeless architecture authority.
 
