@@ -2,7 +2,9 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener};
 use std::time::Duration;
 
 use originweave_core::Origin;
-use originweave_destination::{AddressClass, DestinationPolicy, FreshResolutionSnapshot};
+use originweave_destination::{
+    AddressClass, DestinationError, DestinationPolicy, FreshResolutionSnapshot,
+};
 use originweave_network::{FreshConnectionPlan, NetworkError};
 
 fn fresh_loopback_snapshot() -> Result<FreshResolutionSnapshot, String> {
@@ -63,8 +65,14 @@ fn expired_resolution_cannot_create_a_connection_plan() -> Result<(), String> {
 
     assert!(matches!(
         result,
-        Err(NetworkError::DestinationNotApproved { ref source, .. })
-            if source.to_string().contains("expired")
+        Err(NetworkError::DestinationNotApproved {
+            source: DestinationError::ResolutionApprovalExpired {
+                valid_until,
+                current_time,
+            },
+            ..
+        }) if valid_until == Duration::from_secs(15)
+            && current_time == Duration::from_secs(15)
     ));
     Ok(())
 }
@@ -85,19 +93,20 @@ fn plan_must_still_be_fresh_at_actual_socket_use() -> Result<(), String> {
     let result = plan.connect_at(Duration::from_secs(15));
     assert!(matches!(
         result,
-        Err(NetworkError::ResolutionAuthorityExpired {
-            authorized_at,
-            valid_until,
-            attempted_at,
-        }) if authorized_at == Duration::from_secs(12)
-            && valid_until == Duration::from_secs(15)
-            && attempted_at == Duration::from_secs(15)
+        Err(NetworkError::DestinationNotApproved {
+            source: DestinationError::ResolutionApprovalExpired {
+                valid_until,
+                current_time,
+            },
+            ..
+        }) if valid_until == Duration::from_secs(15)
+            && current_time == Duration::from_secs(15)
     ));
     Ok(())
 }
 
 #[test]
-fn socket_use_time_cannot_regress_before_plan_authorization() -> Result<(), String> {
+fn socket_use_time_cannot_regress_before_resolution_approval() -> Result<(), String> {
     let snapshot = fresh_loopback_snapshot()?;
     let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9);
     let plan = FreshConnectionPlan::new(
@@ -109,14 +118,17 @@ fn socket_use_time_cannot_regress_before_plan_authorization() -> Result<(), Stri
     )
     .map_err(|error| format!("authorize fresh connection plan: {error}"))?;
 
-    let result = plan.connect_at(Duration::from_secs(11));
+    let result = plan.connect_at(Duration::from_secs(9));
     assert!(matches!(
         result,
-        Err(NetworkError::ResolutionAuthorityTimeRegressed {
-            authorized_at,
-            attempted_at,
-        }) if authorized_at == Duration::from_secs(12)
-            && attempted_at == Duration::from_secs(11)
+        Err(NetworkError::DestinationNotApproved {
+            source: DestinationError::ResolutionUseBeforeApproval {
+                approved_at,
+                current_time,
+            },
+            ..
+        }) if approved_at == Duration::from_secs(10)
+            && current_time == Duration::from_secs(9)
     ));
     Ok(())
 }
