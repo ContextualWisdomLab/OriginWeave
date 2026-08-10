@@ -96,6 +96,7 @@ class DocumentationFitnessContractTests(unittest.TestCase):
         self.assertIn("HTTP lineage", assessment)
         self.assertIn("Manifest V3 compatibility", assessment)
         self.assertIn("Browser identifier authority", assessment)
+        self.assertIn("Semantic observation authority", assessment)
         self.assertIn("integration before any of these branch repairs become protected-main truth", assessment)
 
     def test_every_adr_is_indexed_once_with_its_file_status(self) -> None:
@@ -149,12 +150,29 @@ class DocumentationFitnessContractTests(unittest.TestCase):
         """Canonical docs must distinguish active implementation from shipped implementation."""
         assessment = (DOCS_ROOT / "DOCUMENTATION_FITNESS.md").read_text(encoding="utf-8")
         traceability = (DOCS_ROOT / "traceability" / "README.md").read_text(encoding="utf-8")
-        for marker in ("PR #37", "PR #40", "PR #43", "issue #10", "issue #27", "issue #28"):
+        for marker in (
+            "PR #37",
+            "PR #40",
+            "PR #43",
+            "PR #52",
+            "issue #10",
+            "issue #27",
+            "issue #28",
+        ):
             with self.subTest(marker=marker):
                 self.assertTrue(marker in assessment or marker in traceability)
         self.assertIn("IMPLEMENTED_ON_ACTIVE_PR", traceability)
         self.assertIn("IMPLEMENTED_ON_PROTECTED_MAIN", traceability)
         self.assertIn("Active-PR behavior is never protected-main truth", traceability)
+
+    def test_semantic_observation_lane_stays_non_shipped_and_provenance_bound(self) -> None:
+        """The semantic observation value object must not be documented as a real browser adapter."""
+        assessment = (DOCS_ROOT / "DOCUMENTATION_FITNESS.md").read_text(encoding="utf-8")
+        prd = (DOCS_ROOT / "PRD.md").read_text(encoding="utf-8")
+        self.assertIn("PR #52", assessment)
+        self.assertIn("evidence channel", assessment)
+        self.assertIn("active PR #52", prd)
+        self.assertIn("not a browser observation adapter", prd)
 
     def test_prd_does_not_restore_superseded_active_pr_claims(self) -> None:
         """Historical feature branches must not reappear as the current implementation lane."""
