@@ -36,6 +36,15 @@ class FreshnessTraceabilityContractTests(unittest.TestCase):
                 self.assertIn("IMPLEMENTED_ON_ACTIVE_PR", text)
                 self.assertIn("not protected-main truth", text)
 
+    def test_resolution_trace_requires_socket_use_freshness_not_only_plan_time(self) -> None:
+        """The DNS freshness trace must retain the delayed-use boundary added by PR #54."""
+        text = (TRACEABILITY / "resolution-freshness-authority.md").read_text(encoding="utf-8")
+        self.assertIn("Socket-use freshness lane:** PR #54", text)
+        self.assertIn("connect_at(current_time)", text)
+        self.assertIn("rechecks the retained freshness authority immediately before socket I/O", text)
+        self.assertIn("delayed call cannot reuse plan-time freshness", text)
+        self.assertIn("#47 + #50 + #54", text)
+
 
 if __name__ == "__main__":
     unittest.main()
