@@ -125,6 +125,28 @@ fn revocation_is_authoritative_idempotent_and_blocks_future_use() {
 }
 
 #[test]
+fn revocation_precedes_request_mismatch_without_leaking_later_policy_state() {
+    let mut state = SensitiveHandleUseState::new(scope(3));
+    assert!(state.revoke(HandleRevocationReason::SuspiciousUse));
+
+    for (request_authority, audience, now) in [
+        (authority("https://other.example"), AUDIENCE, 1_999),
+        (authority(DESTINATION), "other_service", 1_999),
+        (authority(DESTINATION), AUDIENCE, 2_000),
+    ] {
+        assert_eq!(
+            state.reserve_use(request_authority, audience, now),
+            HandleUseDecision::Revoked
+        );
+        assert_eq!(state.reserved_uses(), 0);
+        assert_eq!(
+            state.revocation_reason(),
+            Some(HandleRevocationReason::SuspiciousUse)
+        );
+    }
+}
+
+#[test]
 fn every_required_revocation_cause_can_be_recorded() {
     for reason in [
         HandleRevocationReason::TaskCompleted,
