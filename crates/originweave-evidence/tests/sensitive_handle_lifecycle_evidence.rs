@@ -15,16 +15,10 @@ fn valid_input() -> SensitiveHandleLifecycleEvidenceInput {
     }
 }
 
-fn valid_evidence(input: SensitiveHandleLifecycleEvidenceInput) -> SensitiveHandleLifecycleEvidence {
-    match SensitiveHandleLifecycleEvidence::try_from(input) {
-        Ok(evidence) => evidence,
-        Err(error) => panic!("expected valid lifecycle evidence, got {error:?}"),
-    }
-}
-
 #[test]
-fn records_bounded_handle_lifecycle_without_handle_or_secret_material() {
-    let evidence = valid_evidence(valid_input());
+fn records_bounded_handle_lifecycle_without_handle_or_secret_material(
+) -> Result<(), SensitiveEvidenceError> {
+    let evidence = SensitiveHandleLifecycleEvidence::try_from(valid_input())?;
 
     assert_eq!(evidence.request_id(), "request-42");
     assert_eq!(evidence.decision_id(), "decision-42");
@@ -38,19 +32,22 @@ fn records_bounded_handle_lifecycle_without_handle_or_secret_material() {
     let debug = format!("{evidence:?}");
     assert!(!debug.contains("opaque-handle-token-should-never-be-evidence"));
     assert!(!debug.contains("raw-secret-should-never-be-evidence"));
+    Ok(())
 }
 
 #[test]
-fn records_revocation_time_without_storing_revocation_payloads() {
+fn records_revocation_time_without_storing_revocation_payloads(
+) -> Result<(), SensitiveEvidenceError> {
     let mut input = valid_input();
     input.revoked_epoch_seconds = Some(1_720_000_120);
     input.resolution_count = 2;
 
-    let evidence = valid_evidence(input);
+    let evidence = SensitiveHandleLifecycleEvidence::try_from(input)?;
 
     assert_eq!(evidence.revoked_epoch_seconds(), Some(1_720_000_120));
     assert!(evidence.is_revoked());
     assert_eq!(evidence.resolution_count(), evidence.maximum_uses());
+    Ok(())
 }
 
 #[test]
