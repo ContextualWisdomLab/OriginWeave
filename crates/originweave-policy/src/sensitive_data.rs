@@ -222,6 +222,59 @@ impl HandleUseRequest {
     }
 }
 
+/// In-process authoritative use-count state for one opaque sensitive-value handle scope.
+///
+/// This value removes the caller-supplied prior-use count from the reservation
+/// operation. A successful reservation compares the exact authority, trusted
+/// time, expiry, and current count and then increments the count while the caller
+/// holds an exclusive mutable borrow of this state. Denied reservations never
+/// consume a use.
+///
+/// This is a policy-state primitive, not the trusted broker itself. It contains
+/// neither the opaque handle token nor protected data and provides no durable or
+/// cross-process transaction, revocation, value resolution, compensation, or
+/// persistence. A shared or durable broker must place the state behind its own
+/// transactional/locking boundary and recheck lifecycle state before disclosure.
+#[derive(Debug, PartialEq, Eq)]
+pub struct SensitiveHandleUseState {
+    scope: SensitiveValueHandleScope,
+    reserved_uses: u32,
+}
+
+impl SensitiveHandleUseState {
+    /// Start authoritative in-process reservation state with no uses consumed.
+    #[must_use]
+    pub const fn new(scope: SensitiveValueHandleScope) -> Self {
+        Self {
+            scope,
+            reserved_uses: 0,
+        }
+    }
+
+    /// Return the number of uses already reserved through this state value.
+    #[must_use]
+    pub const fn reserved_uses(&self) -> u32 {
+        self.reserved_uses
+    }
+
+    /// Reserve one use from the current authoritative count when policy permits it.
+    ///
+    /// The supplied time must come from the trusted broker boundary. Exact-scope,
+    /// expiry, and use-limit denial leaves the authoritative count unchanged.
+    pub fn reserve_use(
+        &mut self,
+        authority: SensitiveDataAuthority,
+        now_epoch_seconds: u64,
+    ) -> HandleUseDecision {
+        let request = HandleUseRequest::new(authority, now_epoch_seconds, self.reserved_uses);
+        let decision = evaluate_handle_use(&request, &self.scope);
+        if decision == HandleUseDecision::Authorized {
+            self.reserved_uses += 1;
+        }
+        decision
+    }
+}
+
 /// Evaluate whether authoritative broker state is admissible for one handle use.
 ///
 /// This pure function does not consume a use, mutate broker state, resolve a
