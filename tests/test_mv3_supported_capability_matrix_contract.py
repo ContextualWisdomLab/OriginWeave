@@ -28,6 +28,7 @@ class ManifestV3SupportedCapabilityMatrixContractTests(unittest.TestCase):
             "**ACTIVE_PR #56**",
             "**ACTIVE_PR #59**",
             "**ACTIVE_PR #60**",
+            "**ACTIVE_PR #61**",
             "**PLANNED**",
             "**PLANNED / SECURITY-GATED**",
             "**OUT_OF_SCOPE FOR COMPATIBILITY CLAIM**",
@@ -56,6 +57,28 @@ class ManifestV3SupportedCapabilityMatrixContractTests(unittest.TestCase):
         self.assertIn("Manifest V3 Compatibility run `31433968931`", row)
         self.assertNotIn("IMPLEMENTED_ON_PROTECTED_MAIN", row)
 
+    def test_isolated_world_evidence_stays_active_only(self) -> None:
+        """Content-script isolation proof must not be promoted into protected-main support."""
+
+        for marker in (
+            "Content-script injection | **PROTECTED_MAIN**",
+            "Content-script isolated-world separation | **ACTIVE_PR #61**",
+            "Content-script injection and content-script JavaScript isolation are separate compatibility claims",
+            "page publisher changes to `extension` and real-browser compatibility fails",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, self.doctoring)
+
+        row = next(
+            line for line in self.maturity.splitlines() if line.startswith("| #61 |")
+        )
+        self.assertIn("**IMPLEMENTED_ON_ACTIVE_PR**", row)
+        self.assertIn("c1705ad9fd2d96e620b89bb6e7ea1235063dcb6a", row)
+        self.assertIn("CI run `31434670642`", row)
+        self.assertIn("Manifest V3 Compatibility run `31434670629`", row)
+        self.assertIn("3/3 repeatability trials", row)
+        self.assertNotIn("IMPLEMENTED_ON_PROTECTED_MAIN", row)
+
     def test_compatibility_never_grants_agent_authority(self) -> None:
         """Chrome API success must remain separate from OriginWeave Agent grants."""
 
@@ -64,6 +87,7 @@ class ManifestV3SupportedCapabilityMatrixContractTests(unittest.TestCase):
             "no Agent bookmark capability",
             "no Agent history capability",
             "does not claim Chrome Web Store/enterprise update semantics or Agent authority",
+            "no arbitrary page-JavaScript bridge or Agent authority",
         ):
             with self.subTest(marker=marker):
                 self.assertTrue(marker in self.doctoring or marker in self.maturity)
