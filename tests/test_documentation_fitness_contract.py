@@ -174,6 +174,20 @@ class DocumentationFitnessContractTests(unittest.TestCase):
         self.assertIn("active PR #52", prd)
         self.assertIn("not a browser observation adapter", prd)
 
+    def test_active_pr_maturity_appendix_tracks_current_dependency_stacks(self) -> None:
+        """Volatile evidence must retain the current browser/network/sensitive stacks explicitly."""
+        appendix = (DOCS_ROOT / "evidence" / "2026-08-10-active-pr-maturity.md").read_text(
+            encoding="utf-8"
+        )
+        for marker in ("| #52 |", "| #53 |", "| #54 |", "| #55 |"):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, appendix)
+        self.assertIn("authenticated workload/service identity", appendix)
+        self.assertIn(
+            "formatting-only or metadata-only correction invalidates predecessor-head exactness",
+            appendix,
+        )
+
     def test_prd_does_not_restore_superseded_active_pr_claims(self) -> None:
         """Historical feature branches must not reappear as the current implementation lane."""
         prd = (DOCS_ROOT / "PRD.md").read_text(encoding="utf-8")
