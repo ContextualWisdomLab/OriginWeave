@@ -5,36 +5,53 @@ use std::fmt;
 /// This value does not fetch, parse, authenticate, or interpret OCSP responses or
 /// certificate revocation lists. A trusted adapter must first obtain and
 /// cryptographically validate the revocation material, then pass the signed
-/// `thisUpdate` and `nextUpdate` timestamps into this authority. Passing this
-/// check proves only that the supplied material is within its declared freshness
-/// window; it does not prove that any certificate is unrevoked.
+/// `thisUpdate` and `nextUpdate` timestamps into this authority together with a
+/// caller-selected local maximum freshness window. Passing this check proves only
+/// that the supplied material is within both its signed interval and the caller's
+/// bounded freshness policy; it does not prove that any certificate is unrevoked.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RevocationMaterialFreshness {
     this_update_unix_seconds: u64,
     next_update_unix_seconds: u64,
+    maximum_window_seconds: u64,
 }
 
 impl RevocationMaterialFreshness {
-    /// Create a non-empty freshness window from trusted signed timestamps.
+    /// Create a non-empty, locally bounded freshness window from trusted signed timestamps.
     ///
-    /// The window is half-open: `thisUpdate <= trusted_time < nextUpdate`.
+    /// The signed window is half-open: `thisUpdate <= trusted_time < nextUpdate`.
     /// Equal or reversed timestamps fail closed because they provide no usable
-    /// interval in which a caller can rely on the material as current.
+    /// interval. `maximum_window_seconds` is a separate local policy ceiling and
+    /// must be nonzero; signed material whose declared interval exceeds that
+    /// ceiling is rejected even if its timestamps are otherwise well-formed.
     pub const fn new(
         this_update_unix_seconds: u64,
         next_update_unix_seconds: u64,
+        maximum_window_seconds: u64,
     ) -> Result<Self, RevocationMaterialFreshnessError> {
         if next_update_unix_seconds <= this_update_unix_seconds {
-            Err(RevocationMaterialFreshnessError::InvalidWindow {
+            return Err(RevocationMaterialFreshnessError::InvalidWindow {
                 this_update_unix_seconds,
                 next_update_unix_seconds,
-            })
-        } else {
-            Ok(Self {
-                this_update_unix_seconds,
-                next_update_unix_seconds,
-            })
+            });
         }
+        if maximum_window_seconds == 0 {
+            return Err(RevocationMaterialFreshnessError::ZeroMaximumWindow);
+        }
+
+        let window_seconds = next_update_unix_seconds - this_update_unix_seconds;
+        if window_seconds > maximum_window_seconds {
+            return Err(RevocationMaterialFreshnessError::WindowExceedsMaximum {
+                window_seconds,
+                maximum_window_seconds,
+            });
+        }
+
+        Ok(Self {
+            this_update_unix_seconds,
+            next_update_unix_seconds,
+            maximum_window_seconds,
+        })
     }
 
     /// Return the signed time at which the revocation material becomes current.
@@ -47,6 +64,12 @@ impl RevocationMaterialFreshness {
     #[must_use]
     pub const fn next_update_unix_seconds(self) -> u64 {
         self.next_update_unix_seconds
+    }
+
+    /// Return the caller-selected maximum accepted signed-window duration.
+    #[must_use]
+    pub const fn maximum_window_seconds(self) -> u64 {
+        self.maximum_window_seconds
     }
 
     /// Evaluate one trusted time against the half-open freshness window.
@@ -84,6 +107,15 @@ pub enum RevocationMaterialFreshnessError {
         /// Signed `nextUpdate` timestamp in Unix seconds.
         next_update_unix_seconds: u64,
     },
+    /// The caller supplied no positive local maximum freshness duration.
+    ZeroMaximumWindow,
+    /// The material's signed interval exceeds the caller's local freshness ceiling.
+    WindowExceedsMaximum {
+        /// Duration of the signed `thisUpdate` to `nextUpdate` interval in seconds.
+        window_seconds: u64,
+        /// Caller-selected maximum accepted interval in seconds.
+        maximum_window_seconds: u64,
+    },
     /// Trusted time falls before the material's signed `thisUpdate` timestamp.
     NotYetValid {
         /// Trusted evaluation time in Unix seconds.
@@ -109,6 +141,17 @@ impl fmt::Display for RevocationMaterialFreshnessError {
             } => write!(
                 formatter,
                 "revocation material window is invalid: thisUpdate {this_update_unix_seconds} must be before nextUpdate {next_update_unix_seconds}",
+            ),
+            Self::ZeroMaximumWindow => write!(
+                formatter,
+                "revocation material maximum freshness window must be greater than zero",
+            ),
+            Self::WindowExceedsMaximum {
+                window_seconds,
+                maximum_window_seconds,
+            } => write!(
+                formatter,
+                "revocation material window is {window_seconds} seconds, exceeding the local maximum of {maximum_window_seconds} seconds",
             ),
             Self::NotYetValid {
                 trusted_time_unix_seconds,
