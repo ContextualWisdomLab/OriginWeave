@@ -10,7 +10,7 @@ This directory contains durable architecture decisions for OriginWeave. A pull-r
 - **Deprecated** — still discoverable but no longer recommended for new work.
 - **Rejected** — evaluated and intentionally not adopted.
 
-Current contributor/review authority is defined by protected-main [`../../AGENTS.md`](../../AGENTS.md) together with live GitHub repository policy. [ADR 0012](0012-architecture-decision-governance.md) records the proposed durable ADR-acceptance model, including reviewer eligibility, the solo-maintainer hold, re-enablement conditions, and the prohibition on synthetic approval. While ADR 0012 is Proposed, it does not override those live authorities. COMMENTED reviews, check/status results, model verdicts, reactions, author approval, predecessor-head approval, or dismissed reviews never substitute for a review that current policy actually requires.
+Current contributor/review authority is defined by protected-main [`../../AGENTS.md`](../../AGENTS.md) together with live GitHub repository policy. [ADR 0014](0014-architecture-decision-governance.md) records the proposed durable ADR-acceptance model, including reviewer eligibility, the solo-maintainer hold, re-enablement conditions, and the prohibition on synthetic approval. While ADR 0014 is Proposed, it does not override those live authorities. COMMENTED reviews, check/status results, model verdicts, reactions, author approval, predecessor-head approval, or dismissed reviews never substitute for a review that current policy actually requires.
 
 An Accepted ADR is **design authority, not implementation evidence**. Protected-main source, executable tests, built/released artifacts, migrations/configuration, and protected-main operational evidence appropriate to the claim establish current implemented behavior. An ADR may intentionally describe an accepted target that is only partially implemented; product documents must label implementation status separately.
 
@@ -35,8 +35,8 @@ Proposed ADR files can live on protected `main` as reviewable target architectur
 | ADR | Decision | Status | Governs |
 |---|---|---|---|
 | [0009](0009-hourly-agent-credential-boundary.md) | Hourly agent credential boundary | Proposed | deterministic gates, NVIDIA credential materialization, local broker and publication separation |
-| [0011](0011-manifest-v3-extension-authority.md) | Manifest V3 compatibility and extension-to-Agent authority | Proposed | Chromium extension compatibility evidence, profile separation, extension grants, native-messaging boundary and release claims |
-| [0012](0012-architecture-decision-governance.md) | Architecture decision acceptance governance | Proposed | ADR lifecycle authority, reviewer eligibility, solo-maintainer hold and re-enablement conditions |
+| [0013](0013-manifest-v3-extension-authority.md) | Manifest V3 compatibility and extension-to-Agent authority | Proposed | Chromium extension compatibility evidence, profile separation, extension grants, native-messaging boundary and release claims |
+| [0014](0014-architecture-decision-governance.md) | Architecture decision acceptance governance | Proposed | ADR lifecycle authority, reviewer eligibility, solo-maintainer hold and re-enablement conditions |
 | [0100](0100-rust-control-plane-boundary.md) | Rust control-plane boundary | Proposed | Rust-owned product authority versus Chromium compatibility kernel |
 | [0101](0101-isolated-execution-profile-modes.md) | Isolated execution/profile modes | Proposed | Human, Assist, Agent Task and Crawler session/profile isolation |
 | [0102](0102-typed-actions-and-arbitrary-js.md) | Typed actions over arbitrary JavaScript authority | Proposed | action API, script escape hatches, risk/policy semantics |
