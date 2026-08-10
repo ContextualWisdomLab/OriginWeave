@@ -152,6 +152,7 @@ fn fresh_resolution_rejects_denied_addresses_before_granting_time_authority() {
 fn fresh_revalidation_preserves_the_budget_and_resets_approval_time() {
     let first = ipv4(8, 8, 8, 8);
     let second = ipv4(1, 1, 1, 1);
+    let unexpected = ipv4(9, 9, 9, 9);
     let policy = DestinationPolicy::public_web();
     let snapshot = FreshResolutionSnapshot::approve(
         origin("https://example.com"),
@@ -184,9 +185,15 @@ fn fresh_revalidation_preserves_the_budget_and_resets_approval_time() {
         })
     );
     assert_eq!(
-        snapshot.revalidate([first, ipv4(9, 9, 9, 9)], &policy, Duration::from_secs(11)),
+        snapshot.revalidate([unexpected], &policy, Duration::from_secs(11)),
         Err(DestinationError::ResolutionSetExpanded {
-            address: ipv4(9, 9, 9, 9),
+            address: unexpected,
+        })
+    );
+    assert_eq!(
+        snapshot.revalidate([first, unexpected], &policy, Duration::from_secs(11)),
+        Err(DestinationError::ResolutionSetExpanded {
+            address: unexpected,
         })
     );
 }
