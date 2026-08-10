@@ -10,7 +10,7 @@
 
 Protected `main` already classifies, approves, pins, and non-expansively revalidates resolved destination addresses. It does **not** yet encode a resolution approval timestamp, bounded validity interval, or expiry decision in the destination authority consumed by the socket path.
 
-PR #47 now contains the reusable production `FreshResolutionSnapshot` primitive and realistic tests, so the primitive is **IMPLEMENTED_ON_ACTIVE_PR** evidence. It is still non-shipped evidence. The complete DNS-rebinding/TOCTOU path is not closed merely by introducing a deterministic freshness primitive: first-party direct socket planning must subsequently require the fresh authority at the action linearization boundary and that consumer must use one trusted monotonic clock domain. Until that integration reaches protected main, the overall capability remains **PARTIAL**.
+PR #47 now contains the reusable production `FreshResolutionSnapshot` primitive and realistic tests, so the primitive is **IMPLEMENTED_ON_ACTIVE_PR** evidence. It is not protected-main truth. It is still non-shipped evidence. The complete DNS-rebinding/TOCTOU path is not closed merely by introducing a deterministic freshness primitive: first-party direct socket planning must subsequently require the fresh authority at the action linearization boundary and that consumer must use one trusted monotonic clock domain. Until that integration reaches protected main, the overall capability remains **PARTIAL**.
 
 The initial test-only head is historical RED evidence only and must never be cited as shipped implementation evidence.
 
