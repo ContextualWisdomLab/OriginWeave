@@ -57,13 +57,13 @@ The PRD/TRD/Architecture/ADR/UML/ERD/data-governance/traceability/security/opera
 - [ADR 0008: Delegated-task TLS leaf-validity horizon](adr/0008-leaf-validity-horizon.md)
 - [ADR 0010: Session/context-bound node authority](adr/0010-session-context-bound-node-authority.md)
 
-## Proposed decisions retained on protected main
+## Proposed architecture decisions
 
-Proposed ADRs are reviewable architecture memory, not shipped behavior and not automatically Accepted merely because their files live on protected `main`.
+Proposed ADRs are reviewable architecture memory, not shipped behavior and not automatically Accepted because their files are present in a branch or later reach protected `main`. The provenance headings below distinguish the protected-main baseline from decisions introduced by this documentation reconciliation without changing either decision's lifecycle status.
+
+### Protected-main baseline proposed decisions
 
 - [ADR 0009: Hourly agent credential boundary](adr/0009-hourly-agent-credential-boundary.md)
-- [ADR 0013: Manifest V3 compatibility and extension-to-Agent authority](adr/0013-manifest-v3-extension-authority.md)
-- [ADR 0014: Architecture decision acceptance governance](adr/0014-architecture-decision-governance.md)
 - [ADR 0100: Rust control-plane boundary](adr/0100-rust-control-plane-boundary.md)
 - [ADR 0101: Isolated execution/profile modes](adr/0101-isolated-execution-profile-modes.md)
 - [ADR 0102: Typed actions over arbitrary JavaScript](adr/0102-typed-actions-and-arbitrary-js.md)
@@ -74,5 +74,12 @@ Proposed ADRs are reviewable architecture memory, not shipped behavior and not a
 - [ADR 0107: Browser protocol adapter strategy](adr/0107-browser-protocol-adapter-strategy.md)
 - [ADR 0108: Crawler policy](adr/0108-crawler-policy.md)
 - [ADR 0109: Hourly automation secret ordering and operational closure](adr/0109-hourly-automation-operational-closure.md)
+
+### Proposed decisions introduced by this documentation reconciliation
+
+- [ADR 0013: Manifest V3 compatibility and extension-to-Agent authority](adr/0013-manifest-v3-extension-authority.md)
+- [ADR 0014: Architecture decision acceptance governance](adr/0014-architecture-decision-governance.md)
+
+The second group exists only on this documentation branch until the branch integrates. After integration, the heading remains useful historical provenance; it does not promote either ADR from Proposed to Accepted and it does not claim that the described runtime capability is implemented.
 
 See the [ADR index](adr/README.md) for status rules, required decision structure, supersession rules, and active feature ADRs. The index and each ADR's own status metadata must agree; a PR body, chat transcript, automation prompt, or stale issue reference cannot change ADR status.
