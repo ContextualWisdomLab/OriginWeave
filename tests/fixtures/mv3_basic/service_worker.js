@@ -59,8 +59,29 @@ async function waitForDownload(downloadId, expectedUrl) {
   };
 }
 
-async function exerciseDownload() {
-  const url = chrome.runtime.getURL("download.txt");
+async function exerciseDownload(sender) {
+  const sourceUrl = sender?.tab?.url;
+  if (typeof sourceUrl !== "string") {
+    return { ready: false, diagnostic: "download-source-rejected" };
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(sourceUrl);
+  } catch (_error) {
+    return { ready: false, diagnostic: "download-source-rejected" };
+  }
+  if (
+    parsed.protocol !== "http:" ||
+    parsed.hostname !== "127.0.0.1" ||
+    parsed.pathname !== "/page.html" ||
+    parsed.username !== "" ||
+    parsed.password !== ""
+  ) {
+    return { ready: false, diagnostic: "download-source-rejected" };
+  }
+
+  const url = new URL("download.txt", sourceUrl).href;
   let downloadId;
   try {
     downloadId = await chrome.downloads.download({
@@ -118,7 +139,7 @@ async function exerciseCoreApis(sender) {
   });
   const historyReady = Array.isArray(historyItems);
 
-  const downloadResult = await exerciseDownload();
+  const downloadResult = await exerciseDownload(sender);
   const downloadsReady = downloadResult.ready;
 
   return {
