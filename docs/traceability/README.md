@@ -62,11 +62,12 @@ ADR lifecycle is separate and remains `Proposed`, `Accepted`, `Superseded`, `Dep
 | Proxy/PAC route authority must be explicit | PARTIAL | PRD-NET-005; TRD Section 6.3 | Protected-main direct-route authority exists; PAC evaluation/proxy transport/CONNECT remain incomplete |
 | Bounded HTTP semantics require an authenticated governed connection and resource bounds | IMPLEMENTED_ON_ACTIVE_PR | PRD-NET-006; issue #9; active PR #37 | `originweave-http` replacement exists on active PR #37; historical PR #11 is SUPERSEDED implementation lineage and is not current evidence; no protected-main HTTP claim yet |
 | Node handles bind session/context/origin/document lifetime | PARTIAL | ADR 0010; PRD-OBS-001/002; TRD Section 5 | Core opaque session/context/document/node authority is on protected main; active PR #40 owns the protocol-ID registry and remains non-shipped evidence |
+| Semantic observations retain OriginWeave node authority and explicit source-channel provenance | IMPLEMENTED_ON_ACTIVE_PR | PRD-OBS-001/003/005; ADR 0010; structured-observation architecture | Active PR #52, stacked on #40, implements a bounded `SemanticNodeObservation` value primitive that rejects missing evidence-channel provenance. It is not a browser observation adapter; channels and advertised node actions are descriptive evidence and grant no execution authority |
 | Raw secrets never enter model context | PARTIAL | PRD-DATA-001; ADR 0002; TRD Section 9 | Core secret-delivery policy exists; trusted broker/runtime completion remains Planned |
 | Sensitive disclosure is purpose- and classification-bound | PARTIAL | ADR 0007; PRD-DATA-002; issue #10 | Purpose-bound policy/evidence foundations are on protected main; active PR #45 adds credential-free handle-lifecycle evidence and #46 adds bounded in-process authoritative use reservation, while trusted storage/revocation/value resolution/cross-process lifecycle/model-disclosure remain open |
 | Evidence/provenance are product outputs, not debug leftovers | PARTIAL | ADR 0003; PRD Section 9.6 | `originweave-evidence` foundations exist; complete durable Evidence Trail/WARC/PROV adapters remain Planned |
 | Human interaction outranks inference/background collection | PARTIAL | `ARCHITECTURE.md`; PRD-RES-002 | Deterministic resource mitigation/CPU-worker admission foundations exist; platform telemetry/actuation remain Planned |
-| Structured observation precedes raw HTML/screenshot fallback | ACCEPTED_ARCHITECTURE | PRD-OBS-003; TRD Section 7 | Real semantic observation adapter remains Planned |
+| Structured observation precedes raw HTML/screenshot fallback | ACCEPTED_ARCHITECTURE | PRD-OBS-003; TRD Section 7 | Active PR #52 supplies a non-shipped bounded semantic value primitive; real browser observation and fallback adapters remain Planned |
 | WebDriver BiDi / CDP / WebMCP / MCP are adapters, not internal authority | ACCEPTED_ARCHITECTURE | PRD Section 9.8; TRD Section 12 | Protocol adapter implementation remains Planned/active under issue #28; active PR #40 may not be called shipped |
 | Manifest V3 compatibility is preserved upstream where practical | PARTIAL | ADR 0001; issue #27; Proposed ADR 0013 | Protected main has pinned real-Chromium compatibility evidence for service worker/content script/storage/DNR/tabs/windows/scripting/commands/side panel/bookmarks/history/restart/repeatability; active PR #43 adds real bounded downloads evidence; full issue #27 matrix remains incomplete |
 | Extension permission does not imply OriginWeave Agent capability | PARTIAL | protected-main extension authority kernel; Proposed ADR 0013 | Core extension-to-Agent authority isolation exists on protected main; complete managed-extension/native-messaging/enterprise release policy remains incomplete |
@@ -92,6 +93,7 @@ ADR lifecycle is separate and remains `Proposed`, `Accepted`, `Superseded`, `Dep
 | Bounded HTTP/1.1 | active `originweave-http` replacement in PR #37 | issue #9; active-PR unit/integration/coverage evidence | IMPLEMENTED_ON_ACTIVE_PR |
 | Proxy/PAC | destination/route foundation + future adapter | roadmap/TRD | PARTIAL |
 | Session/context/document/node authority | `originweave-core` authority values; active registry work in PR #40 | ADR 0010; roadmap/TRD/UML | PARTIAL |
+| Semantic observation value authority/provenance | active `originweave-core` work in PR #52, stacked on #40 | `semantic_node_observation` tests; PRD-OBS-001/003/005; issue #28 | IMPLEMENTED_ON_ACTIVE_PR |
 | Manifest V3 compatibility evidence | `scripts/ci/run_mv3_compatibility.py` + controlled MV3 fixture; active downloads lane #43 | issue #27; real-browser contracts | PARTIAL |
 | Extension-to-Agent authority | protected-main core authority kernel + Proposed ADR 0013 | issue #27; extension authority UML | PARTIAL |
 | Purpose-bound sensitive-data policy/evidence | `originweave-policy` + evidence foundations; active lifecycle/reservation work #45/#46 | ADR 0007; issue #10 | PARTIAL |
@@ -112,6 +114,7 @@ ADR lifecycle is separate and remains `Proposed`, `Accepted`, `Superseded`, `Dep
 | Purpose-bound sensitive-data authority | ADR 0007 (Accepted); trusted broker/storage/lifecycle still issue #10 |
 | TLS delegated-task leaf-validity horizon | ADR 0008 (Accepted) |
 | Session/context/document/node binding | ADR 0010 (Accepted); active registry implementation #40 remains non-shipped |
+| Semantic observation authority/provenance | Existing session/node authority plus structured-observation architecture; active PR #52 narrows the value contract without creating a new service, trust owner, persistence boundary, or external protocol and therefore does not justify a new ADR by itself |
 | Manifest V3 compatibility + extension-to-Agent authority | ADR 0013 is Proposed on documentation PR #44; protected-main extension authority code does not auto-Accept the ADR |
 | Architecture-decision acceptance governance | ADR 0014 is Proposed on documentation PR #44; protected-main AGENTS + live policy remain authoritative |
 | HTTP semantics | active PR #37 contains its feature ADR lineage; it is active-PR evidence until protected merge and index reconciliation |
@@ -145,13 +148,13 @@ Material claims should update `docs/doctoring.md` with current primary evidence 
 |---|---|
 | UML component/bounded-context view | Product family, Chromium/Rust ownership, adapter boundaries |
 | Network authority sequence | PRD-NET-001..007; TRD-INV-002; HTTP remains active-PR until #37 integrates; resolution freshness remains an active lower-layer primitive until the socket consumer requires it |
-| Observation/action sequence | PRD-OBS, PRD-ACT, PRD-DATA, trust separation |
+| Observation/action sequence | PRD-OBS, PRD-ACT, PRD-DATA, trust separation; active #52 makes the bounded semantic-observation value/provenance contract explicit without establishing browser I/O or action dispatch |
 | Delegated-task state machine | session lifecycle, approval, resource pause, cancellation/recovery, post-condition truth |
 | Deployment topology | renderer trust, orchestrator/model/store boundaries |
 | Evidence authority flow | PRD-EVD; proposal/policy/approval/execution/outcome separation |
 | Extension authority sequence | MV3 compatibility plane vs explicit OriginWeave extension grant and Agent capability separation |
-| Conceptual ERD | session/action/network/sensitive/resource/provenance identity; active freshness primitives introduce no physical persistence |
-| Real Chromium vertical-slice sequence | PLANNED until issue #28 implementation stabilizes; do not encode temporary adapter fields as shipped architecture |
+| Conceptual ERD | session/action/network/sensitive/resource/provenance identity; active freshness and semantic-value primitives introduce no physical persistence |
+| Real Chromium vertical-slice sequence | PLANNED until issue #28 implementation stabilizes; active #40/#51/#52 are prerequisites, not proof of the real adapter flow; do not encode temporary adapter fields as shipped architecture |
 
 ## 8. Conversation-to-repository capture rule
 
@@ -179,6 +182,7 @@ Repository contracts should fail when canonical PRD/TRD/ADR/UML/ERD/traceability
 - **Open:** after #37 integrates, move bounded HTTP from `IMPLEMENTED_ON_ACTIVE_PR` into protected-main evidence and close historical PR #11 only after unique-work preservation and protected-main verification are proven.
 - **Open:** after #43 integrates, move bounded MV3 downloads from `IMPLEMENTED_ON_ACTIVE_PR` into the protected-main compatibility evidence inventory while issue #27 remains open for the complete matrix.
 - **Open:** after #40 stabilizes/integrates, map its registry API and tests without presenting raw BiDi/CDP identifiers as durable authority.
+- **Open:** after stacked #52 stabilizes/integrates behind #40, reclassify only its bounded semantic-observation value/provenance primitive; keep real browser observation I/O, action dispatch, mutation invalidation and post-condition evidence under issue #28 until implemented.
 - **Open:** after #45/#46 integrate, reclassify their narrow lifecycle/reservation primitives while keeping durable trusted-broker storage/revocation/value-resolution/model-disclosure boundaries under issue #10 until implemented.
 - **Open:** attach concrete release profiles and quantitative benchmark thresholds after reproducible benchmark evidence exists.
 - **Open:** map every future public OriginWeave Protocol operation to risk/capability/authority and conformance tests.
