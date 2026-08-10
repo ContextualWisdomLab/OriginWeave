@@ -396,3 +396,91 @@ pub enum BrowserTaskTelemetryError {
         task_duration_milliseconds: u64,
     },
 }
+
+/// A reason that a Linux process resident-set-size sample could not be obtained safely.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BrowserRssSampleError {
+    /// Process identifiers are one-based and zero was supplied.
+    InvalidProcessId,
+    /// The process status file could not be read at the sampling boundary.
+    ProcessStatusUnavailable,
+    /// The Linux process status did not contain a resident-set-size field.
+    MissingVmRss,
+    /// More than one resident-set-size field was present in the status record.
+    DuplicateVmRss,
+    /// The resident-set-size field was syntactically malformed.
+    InvalidVmRss,
+    /// The resident-set-size field did not use the Linux kernel `kB` unit.
+    UnsupportedVmRssUnit,
+    /// Converting the kernel kibibyte count to bytes would overflow `u64`.
+    VmRssOverflow,
+    /// The current operating system does not expose Linux `/proc` process status.
+    UnsupportedPlatform,
+}
+
+/// Parse Linux `/proc/<pid>/status` and return the exact `VmRSS` value in bytes.
+///
+/// Linux reports `VmRSS` in `kB`, where the kernel ABI uses 1024-byte units.
+/// The parser accepts exactly one `VmRSS:` record with one integer and the
+/// literal `kB` unit, rejects ambiguous duplicates or trailing fields, and uses
+/// checked multiplication so an untrusted status payload cannot wrap the byte count.
+pub fn parse_linux_proc_status_rss_bytes(status: &str) -> Result<u64, BrowserRssSampleError> {
+    let mut resident_kibibytes = None;
+
+    for line in status.lines() {
+        let Some(value_text) = line.strip_prefix("VmRSS:") else {
+            continue;
+        };
+        if resident_kibibytes.is_some() {
+            return Err(BrowserRssSampleError::DuplicateVmRss);
+        }
+
+        let mut fields = value_text.split_whitespace();
+        let Some(raw_value) = fields.next() else {
+            return Err(BrowserRssSampleError::InvalidVmRss);
+        };
+        let Some(unit) = fields.next() else {
+            return Err(BrowserRssSampleError::InvalidVmRss);
+        };
+        if fields.next().is_some() {
+            return Err(BrowserRssSampleError::InvalidVmRss);
+        }
+        if unit != "kB" {
+            return Err(BrowserRssSampleError::UnsupportedVmRssUnit);
+        }
+        let parsed = raw_value
+            .parse::<u64>()
+            .map_err(|_error| BrowserRssSampleError::InvalidVmRss)?;
+        resident_kibibytes = Some(parsed);
+    }
+
+    let resident_kibibytes = resident_kibibytes.ok_or(BrowserRssSampleError::MissingVmRss)?;
+    resident_kibibytes
+        .checked_mul(1_024)
+        .ok_or(BrowserRssSampleError::VmRssOverflow)
+}
+
+/// Sample one operating-system process resident set in bytes from Linux `/proc`.
+///
+/// The caller supplies the exact browser process identifier it owns. This
+/// function performs no process discovery and follows no browser-child tree;
+/// it only reads `/proc/<pid>/status` for that identifier. Non-Linux platforms
+/// fail closed with [`BrowserRssSampleError::UnsupportedPlatform`].
+pub fn sample_linux_process_rss_bytes(process_id: u32) -> Result<u64, BrowserRssSampleError> {
+    if process_id == 0 {
+        return Err(BrowserRssSampleError::InvalidProcessId);
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let status = std::fs::read_to_string(format!("/proc/{process_id}/status"))
+            .map_err(|_error| BrowserRssSampleError::ProcessStatusUnavailable)?;
+        parse_linux_proc_status_rss_bytes(&status)
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = process_id;
+        Err(BrowserRssSampleError::UnsupportedPlatform)
+    }
+}
