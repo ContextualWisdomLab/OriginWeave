@@ -146,3 +146,63 @@ fn untrusted_extension_content_cannot_become_a_policy_instruction() {
         Decision::Deny(DenialReason::UntrustedInstructionSource)
     );
 }
+
+#[test]
+fn explicit_extension_grant_cannot_turn_raw_secret_delivery_into_a_fill_capability() {
+    let grant = action_proposal_grant();
+    assert_extension_can_only_propose(&grant);
+
+    let site = origin("https://app.example");
+    let context = PolicyContext::new(
+        SessionMode::AgentTask,
+        ExecutionPurpose::UserDelegatedTask,
+        BTreeSet::from([Capability::FillSecret]),
+        BTreeSet::from([site.clone()]),
+        BTreeSet::from([site.clone()]),
+        RobotsDecision::Allowed,
+        ApprovalEvidence::None,
+    );
+    let proposed = ActionRequest::new(
+        ActionKind::FillSecret,
+        site.clone(),
+        site,
+        InstructionSource::User,
+        SecretDelivery::RawValue,
+        intent(),
+    );
+
+    assert_eq!(
+        evaluate(&proposed, &context),
+        Decision::Deny(DenialReason::SecretBrokerRequired)
+    );
+}
+
+#[test]
+fn explicit_extension_grant_cannot_attach_secret_material_to_non_secret_action() {
+    let grant = action_proposal_grant();
+    assert_extension_can_only_propose(&grant);
+
+    let site = origin("https://app.example");
+    let context = PolicyContext::new(
+        SessionMode::AgentTask,
+        ExecutionPurpose::UserDelegatedTask,
+        BTreeSet::from([Capability::Navigate]),
+        BTreeSet::from([site.clone()]),
+        BTreeSet::new(),
+        RobotsDecision::Allowed,
+        ApprovalEvidence::None,
+    );
+    let proposed = ActionRequest::new(
+        ActionKind::Navigate,
+        site.clone(),
+        site,
+        InstructionSource::User,
+        SecretDelivery::RawValue,
+        intent(),
+    );
+
+    assert_eq!(
+        evaluate(&proposed, &context),
+        Decision::Deny(DenialReason::UnexpectedSecretMaterial)
+    );
+}
