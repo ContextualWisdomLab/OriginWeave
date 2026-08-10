@@ -41,7 +41,7 @@ fn connection_plan_requires_a_current_fresh_resolution_authority() -> Result<(),
     assert_eq!(plan.resolution_authorized_at(), Duration::from_secs(12));
 
     let connection = plan
-        .connect()
+        .connect_at(Duration::from_secs(12))
         .map_err(|error| format!("connect fresh loopback plan: {error}"))?;
     assert_eq!(connection.evidence().requested_socket(), socket);
     assert_eq!(connection.evidence().observed_peer(), socket);
@@ -65,6 +65,58 @@ fn expired_resolution_cannot_create_a_connection_plan() -> Result<(), String> {
         result,
         Err(NetworkError::DestinationNotApproved { ref source, .. })
             if source.to_string().contains("expired")
+    ));
+    Ok(())
+}
+
+#[test]
+fn plan_must_still_be_fresh_at_actual_socket_use() -> Result<(), String> {
+    let snapshot = fresh_loopback_snapshot()?;
+    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9);
+    let plan = FreshConnectionPlan::new(
+        &snapshot,
+        Duration::from_secs(12),
+        socket,
+        Duration::from_secs(1),
+        1,
+    )
+    .map_err(|error| format!("authorize fresh connection plan: {error}"))?;
+
+    let result = plan.connect_at(Duration::from_secs(15));
+    assert!(matches!(
+        result,
+        Err(NetworkError::ResolutionAuthorityExpired {
+            authorized_at,
+            valid_until,
+            attempted_at,
+        }) if authorized_at == Duration::from_secs(12)
+            && valid_until == Duration::from_secs(15)
+            && attempted_at == Duration::from_secs(15)
+    ));
+    Ok(())
+}
+
+#[test]
+fn socket_use_time_cannot_regress_before_plan_authorization() -> Result<(), String> {
+    let snapshot = fresh_loopback_snapshot()?;
+    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9);
+    let plan = FreshConnectionPlan::new(
+        &snapshot,
+        Duration::from_secs(12),
+        socket,
+        Duration::from_secs(1),
+        1,
+    )
+    .map_err(|error| format!("authorize fresh connection plan: {error}"))?;
+
+    let result = plan.connect_at(Duration::from_secs(11));
+    assert!(matches!(
+        result,
+        Err(NetworkError::ResolutionAuthorityTimeRegressed {
+            authorized_at,
+            attempted_at,
+        }) if authorized_at == Duration::from_secs(12)
+            && attempted_at == Duration::from_secs(11)
     ));
     Ok(())
 }
