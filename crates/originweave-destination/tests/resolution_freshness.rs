@@ -73,7 +73,10 @@ fn fresh_resolution_rejects_invalid_or_overflowing_validity() {
     let address = ipv4(8, 8, 8, 8);
     let policy = DestinationPolicy::public_web();
 
-    for validity in [Duration::ZERO, MAX_RESOLUTION_VALIDITY + Duration::from_nanos(1)] {
+    for validity in [
+        Duration::ZERO,
+        MAX_RESOLUTION_VALIDITY + Duration::from_nanos(1),
+    ] {
         assert_eq!(
             FreshResolutionSnapshot::approve(
                 target.clone(),
@@ -121,7 +124,10 @@ fn fresh_revalidation_preserves_the_budget_and_resets_approval_time() {
     let refreshed = snapshot
         .revalidate([second], &policy, Duration::from_secs(13))
         .expect("a fresh non-expanding answer renews the bounded window");
-    assert_eq!(refreshed.addresses(), &std::collections::BTreeSet::from([second]));
+    assert_eq!(
+        refreshed.addresses(),
+        &std::collections::BTreeSet::from([second])
+    );
     assert_eq!(refreshed.approved_at(), Duration::from_secs(13));
     assert_eq!(refreshed.validity(), Duration::from_secs(4));
     assert_eq!(refreshed.valid_until(), Duration::from_secs(17));
