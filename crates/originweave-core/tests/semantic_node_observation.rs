@@ -94,6 +94,19 @@ fn reviewed_text_bounds_are_inclusive_and_visible_text_is_optional() -> Result<(
 }
 
 #[test]
+fn semantic_node_requires_observation_provenance() -> Result<(), String> {
+    let mut input = semantic_input("button".to_owned(), "Submit".to_owned(), None)?;
+    input.evidence_channels.clear();
+
+    let error = SemanticNodeObservation::new(input).err();
+    assert_eq!(
+        error,
+        Some(SemanticNodeObservationError::MissingEvidenceChannel)
+    );
+    Ok(())
+}
+
+#[test]
 fn semantic_node_rejects_unbounded_or_missing_role_text() -> Result<(), String> {
     let empty_role =
         SemanticNodeObservation::new(semantic_input(String::new(), "name".to_owned(), None)?).err();
