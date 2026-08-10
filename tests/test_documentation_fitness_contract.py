@@ -10,6 +10,70 @@ DOCS_ROOT = REPOSITORY_ROOT / "docs"
 ADR_ROOT = DOCS_ROOT / "adr"
 UML_ROOT = DOCS_ROOT / "uml"
 
+ADR_STATUSES = {"Proposed", "Accepted", "Superseded", "Deprecated", "Rejected"}
+
+
+def _adr_files() -> set[str]:
+    """Return every numbered ADR Markdown file currently tracked by the repository."""
+    return {
+        path.name
+        for path in ADR_ROOT.glob("[0-9][0-9][0-9][0-9]-*.md")
+        if path.is_file()
+    }
+
+
+def _adr_file_status(path: Path) -> str:
+    """Read one ADR's explicit lifecycle status from its metadata header."""
+    text = path.read_text(encoding="utf-8")
+    match = re.search(r"(?im)^-\s+(?:\*\*)?Status(?:\*\*)?:\s*(\w+)\s*$", text)
+    if match is None:
+        raise AssertionError(f"ADR has no parseable status: {path.name}")
+    status = match.group(1)
+    if status not in ADR_STATUSES:
+        raise AssertionError(f"ADR has unsupported status {status!r}: {path.name}")
+    return status
+
+
+def _insert_unique(mapping: dict[str, str], path: str, status: str, source: str) -> None:
+    """Insert one index target while rejecting duplicate or conflicting entries."""
+    if path in mapping:
+        raise AssertionError(f"duplicate ADR index target {path!r} in {source}")
+    mapping[path] = status
+
+
+def _parse_docs_index(text: str) -> dict[str, str]:
+    """Parse ADR links from the product documentation index by lifecycle section."""
+    mapping: dict[str, str] = {}
+    current_status: str | None = None
+    for line in text.splitlines():
+        if line.startswith("## "):
+            current_status = next(
+                (status for status in ADR_STATUSES if line.startswith(f"## {status}")),
+                None,
+            )
+            continue
+        target = re.search(r"\(adr/(\d{4}[-\w]*\.md)\)", line)
+        if target is not None:
+            if current_status is None:
+                raise AssertionError(
+                    f"ADR link {target.group(1)!r} is outside a lifecycle-status section"
+                )
+            _insert_unique(mapping, target.group(1), current_status, "docs/README.md")
+    return mapping
+
+
+def _parse_adr_index(text: str) -> dict[str, str]:
+    """Parse the dedicated ADR table into an exact target-to-status mapping."""
+    mapping: dict[str, str] = {}
+    pattern = re.compile(
+        r"^\|\s*\[\d{4}\]\((\d{4}[-\w]*\.md)\)\s*\|[^|]*\|\s*"
+        r"(Proposed|Accepted|Superseded|Deprecated|Rejected)\s*\|",
+        re.MULTILINE,
+    )
+    for path, status in pattern.findall(text):
+        _insert_unique(mapping, path, status, "docs/adr/README.md")
+    return mapping
+
 
 class DocumentationFitnessContractTests(unittest.TestCase):
     """Keep architecture discovery and ADR lifecycle metadata coherent."""
@@ -30,50 +94,20 @@ class DocumentationFitnessContractTests(unittest.TestCase):
         self.assertIn("MV3 compatibility evidence", assessment)
         self.assertIn("Browser authority", assessment)
 
-    def test_accepted_protected_main_adrs_are_discoverable(self) -> None:
-        """Accepted protected-main ADRs must appear in both documentation indexes."""
-        docs_index = (DOCS_ROOT / "README.md").read_text(encoding="utf-8")
-        adr_index = (ADR_ROOT / "README.md").read_text(encoding="utf-8")
-        accepted_paths = [
-            "0001-chromium-compatibility-kernel.md",
-            "0002-agent-safety-kernel.md",
-            "0003-provenance-native-observation.md",
-            "0004-resolved-destination-policy.md",
-            "0005-direct-socket-binding.md",
-            "0006-tls-server-identity.md",
-            "0007-purpose-bound-sensitive-data-authority.md",
-            "0008-leaf-validity-horizon.md",
-            "0010-session-context-bound-node-authority.md",
-        ]
-        for path in accepted_paths:
-            with self.subTest(path=path):
-                self.assertTrue((ADR_ROOT / path).is_file())
-                self.assertIn(path, docs_index)
-                self.assertIn(path, adr_index)
+    def test_every_adr_is_indexed_once_with_its_file_status(self) -> None:
+        """Both canonical indexes must exactly cover ADR files and their lifecycle status."""
+        actual_files = _adr_files()
+        file_status = {
+            path: _adr_file_status(ADR_ROOT / path)
+            for path in sorted(actual_files)
+        }
+        docs_index = _parse_docs_index((DOCS_ROOT / "README.md").read_text(encoding="utf-8"))
+        adr_index = _parse_adr_index((ADR_ROOT / "README.md").read_text(encoding="utf-8"))
 
-    def test_proposed_protected_main_adrs_are_discoverable_without_promotion(self) -> None:
-        """Proposed ADR files may be on main but must remain visibly Proposed."""
-        docs_index = (DOCS_ROOT / "README.md").read_text(encoding="utf-8")
-        adr_index = (ADR_ROOT / "README.md").read_text(encoding="utf-8")
-        proposed_paths = [
-            "0009-hourly-agent-credential-boundary.md",
-            "0100-rust-control-plane-boundary.md",
-            "0101-isolated-execution-profile-modes.md",
-            "0102-typed-actions-and-arbitrary-js.md",
-            "0103-semantic-observation-and-stale-node-identity.md",
-            "0104-prompt-injection-and-secret-authority.md",
-            "0105-resource-governor-priority.md",
-            "0106-provenance-evidence-model.md",
-            "0107-browser-protocol-adapter-strategy.md",
-            "0108-crawler-policy.md",
-            "0109-hourly-automation-operational-closure.md",
-        ]
-        for path in proposed_paths:
-            with self.subTest(path=path):
-                file_text = (ADR_ROOT / path).read_text(encoding="utf-8")
-                self.assertRegex(file_text, r"(?im)^- \*\*Status:\*\* Proposed|^- Status: Proposed")
-                self.assertIn(path, docs_index)
-                self.assertIn(path, adr_index)
+        self.assertEqual(set(docs_index), actual_files)
+        self.assertEqual(set(adr_index), actual_files)
+        self.assertEqual(docs_index, file_status)
+        self.assertEqual(adr_index, file_status)
 
     def test_adr_index_does_not_use_change_local_language_as_timeless_authority(self) -> None:
         """The protected-main ADR index must not describe its ADRs as only `this change`."""
@@ -106,12 +140,6 @@ class DocumentationFitnessContractTests(unittest.TestCase):
         self.assertIn("Hourly autonomous-development authority flow — already present", assessment)
         self.assertIn("## 9. Resource-pressure and fallback flow", uml_index)
         self.assertIn("## 10. Hourly product-development gate-to-model flow", uml_index)
-
-    def test_documentation_index_has_no_duplicate_adr_links(self) -> None:
-        """Each ADR target should have one index entry per section, not duplicate drift."""
-        docs_index = (DOCS_ROOT / "README.md").read_text(encoding="utf-8")
-        targets = re.findall(r"\(adr/(\d{4}[-\w]*\.md)\)", docs_index)
-        self.assertEqual(len(targets), len(set(targets)))
 
 
 if __name__ == "__main__":
