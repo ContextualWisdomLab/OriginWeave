@@ -145,13 +145,13 @@ impl ResourceSnapshot {
         }
     }
 
-    /// Build a governor snapshot using measured browser/task RSS telemetry.
+    /// Build a governor snapshot using adapter-supplied browser/task RSS telemetry.
     ///
-    /// Browser RSS bytes are rounded up to mebibytes so a partial mebibyte is
-    /// never understated at a configured pressure boundary. VRAM, batch size,
-    /// local-model state, frame time, and CPU-worker use remain explicit
-    /// adapter observations; this conversion does not infer any of them from
-    /// browser telemetry.
+    /// Supplied browser RSS bytes are rounded up to mebibytes so a partial
+    /// mebibyte is never understated at a configured pressure boundary. VRAM,
+    /// batch size, local-model state, frame time, and CPU-worker use remain
+    /// explicit adapter observations; this conversion does not infer any of
+    /// them from browser telemetry.
     #[must_use]
     pub const fn from_browser_task_telemetry(
         telemetry: BrowserTaskTelemetry,
@@ -307,11 +307,13 @@ impl ResourceGovernor {
     }
 }
 
-/// Validated measurements from one real browser-task execution interval.
+/// Validated browser-task resource measurements supplied by a platform adapter.
 ///
-/// Platform adapters supply these values after sampling the browser/runtime.
-/// This contract stores no page content, credentials, GPU state, model identity,
-/// or persistence metadata and never infers local-AI usage when none was measured.
+/// The producer is responsible for obtaining these values from its own trusted
+/// measurement boundary. This value type validates relationships and bounds only;
+/// it does not sample the operating system or Chromium or prove measurement
+/// provenance. It stores no page content, credentials, GPU state, model identity,
+/// or persistence metadata and never infers local-AI usage.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BrowserTaskTelemetry {
     browser_rss_bytes: u64,
@@ -321,11 +323,11 @@ pub struct BrowserTaskTelemetry {
 }
 
 impl BrowserTaskTelemetry {
-    /// Validate one bounded browser-task telemetry record.
+    /// Validate one bounded platform-supplied browser-task telemetry record.
     ///
     /// Browser RSS and total task duration must be nonzero. An empty semantic
     /// observation is valid. Action latency may be zero, but cannot exceed the
-    /// total task duration measured over the same execution interval.
+    /// total task duration reported for the same execution interval.
     pub const fn new(
         browser_rss_bytes: u64,
         observation_bytes: u64,
@@ -354,25 +356,25 @@ impl BrowserTaskTelemetry {
         })
     }
 
-    /// Return the measured resident-set size of the browser/task process set.
+    /// Return the supplied resident-set size for the browser/task process set.
     #[must_use]
     pub const fn browser_rss_bytes(self) -> u64 {
         self.browser_rss_bytes
     }
 
-    /// Return the number of bytes in the bounded semantic observation.
+    /// Return the supplied number of bytes in the bounded semantic observation.
     #[must_use]
     pub const fn observation_bytes(self) -> u64 {
         self.observation_bytes
     }
 
-    /// Return the measured latency of the governed browser action.
+    /// Return the supplied latency of the governed browser action.
     #[must_use]
     pub const fn action_latency_milliseconds(self) -> u64 {
         self.action_latency_milliseconds
     }
 
-    /// Return the measured duration of the complete browser-task interval.
+    /// Return the supplied duration of the complete browser-task interval.
     #[must_use]
     pub const fn task_duration_milliseconds(self) -> u64 {
         self.task_duration_milliseconds
@@ -382,7 +384,7 @@ impl BrowserTaskTelemetry {
 /// A reason that browser-task telemetry cannot enter the trusted resource record.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BrowserTaskTelemetryError {
-    /// Browser/task resident-set size was zero and therefore not a real sample.
+    /// Browser/task resident-set size was zero and therefore unusable.
     ZeroBrowserRss,
     /// Total task duration was zero and therefore not a usable interval.
     ZeroTaskDuration,
