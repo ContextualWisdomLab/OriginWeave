@@ -19,6 +19,7 @@
 - [Release and rollback contract](RELEASE_AND_ROLLBACK.md)
 - [Product roadmap](product-roadmap.md)
 - [Research and standards](doctoring.md)
+  - [Browser and Agent protocol standards evidence](doctoring/browser-agent-protocols.md)
 - [Current product-baseline standards addendum](doctoring/product-documentation-baseline.md)
 - [Quality gates](quality-gates.md)
 - [Security policy](../SECURITY.md)
