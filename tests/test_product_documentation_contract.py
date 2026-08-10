@@ -218,6 +218,11 @@ class ProductDocumentationContractTests(unittest.TestCase):
     def test_uml_and_erd_are_diagram_as_code(self) -> None:
         """Architecture flows and the conceptual domain model must be reviewable in Git."""
         uml = (ROOT / "docs/uml/README.md").read_text(encoding="utf-8")
+        authority_view = ROOT / "docs/uml/extension-authority.md"
+        self.assertTrue(authority_view.is_file())
+        self.assertIn("](extension-authority.md)", uml)
+        self.assertIn("```mermaid", authority_view.read_text(encoding="utf-8"))
+
         erd = (ROOT / "docs/erd/README.md").read_text(encoding="utf-8")
         self.assertGreaterEqual(uml.count("```mermaid"), 8)
         self.assertIn("sequenceDiagram", uml)
@@ -316,6 +321,9 @@ class ProductDocumentationContractTests(unittest.TestCase):
             "PARTIAL",
             "ACCEPTED_ARCHITECTURE",
             "PLANNED",
+            "RESEARCH_ONLY",
+            "SUPERSEDED",
+            "OUT_OF_SCOPE",
             "conversation-derived",
             "docs/doctoring.md",
             "Active-PR behavior is never protected-main truth",
