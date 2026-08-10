@@ -22,7 +22,7 @@ File existence alone is never sufficient. A document can be present and still be
 | Root Architecture | **PRESENT-CURRENT with follow-up** | Correct Chromium-compatibility-kernel + Rust-control-plane direction and explicit authority layers. Must continue to be reconciled when the browser registry, HTTP replacement and Chromium vertical slice integrate. |
 | ADR index/lifecycle | **REPAIRED IN THIS CHANGE** | Previous index omitted Accepted ADRs 0007, 0008 and 0010, omitted Proposed ADR 0009, and described 0100-series ADRs as being `in this change` even after the documentation baseline reached protected main. This branch reconciles discoverability and status categories without promoting Proposed ADRs. |
 | Individual ADRs | **PARTIAL** | Core Accepted decisions 0001-0008 and 0010 are durable. Proposed 0009 and 0100-0109 remain explicitly Proposed. HTTP feature ADRs remain active-PR evidence until the replacement merges. A dedicated accepted extension/MV3 authority decision is still required before closing the extension compatibility issue. |
-| UML / control-flow diagrams | **PARTIAL** | Component, network authority, observation/action, delegated-task state, deployment, evidence, secret-fill and approval flows exist. Missing or incomplete whole-product views include explicit extension-permission-to-agent-capability sequence, resource-pressure/GPU fallback flow, and hourly deterministic-gate -> optional-model -> independent publication/acceptance flow. |
+| UML / control-flow diagrams | **PRESENT-CURRENT with follow-up** | The product-wide pack already contains component, network authority, observation/action, delegated-task state, deployment, evidence, secret-fill, approval, resource-pressure/GPU fallback and hourly deterministic-gate/model/publication flows. This branch adds [`uml/extension-authority.md`](uml/extension-authority.md) so Chromium MV3 permission and OriginWeave Agent capability cannot be visually conflated. The real Chromium vertical-slice sequence remains incomplete until issue #28 stabilizes. |
 | Conceptual ERD/domain model | **PRESENT-CURRENT with follow-up** | Correctly distinguishes conceptual persistence and includes session/context, action/policy/approval, network/TLS/HTTP, sensitive authority, resources, provenance, downloads and extension grants. Must be updated only when persistence ownership or new durable entities actually change; do not invent a database merely to increase diagram count. |
 | Traceability | **PARTIAL** | Requirement/decision/standard/module/test mapping exists but must be reconciled with protected-main MV3 evidence, the HTTP replacement, browser registry work and issue-driven buyer gaps. Active PRs must remain visibly distinct from protected-main implementation. |
 | Threat model / Security | **PRESENT-CURRENT with follow-up** | Covers major untrusted-content, secret, network, provenance and extension risks. Continue adding executable mitigations when HTTP/browser/runtime boundaries integrate. |
@@ -59,6 +59,10 @@ Protected main already contains session/context/document/node authority foundati
 
 The previous ADR index listed only 0001-0006 as current protected-main decisions even though Accepted ADRs 0007, 0008 and 0010 were present on protected main. Proposed ADR 0009 was also absent from both accepted and proposed tables. This created an architecture-discovery defect. The current documentation branch repairs the index while preserving each ADR's own Accepted/Proposed status.
 
+### 3.6 UML assessment itself was initially stale
+
+The first pass of this assessment incorrectly called resource-pressure and hourly automation flows missing. A direct re-read of protected-main `docs/uml/README.md` showed both already exist. This branch corrects the matrix instead of preserving the mistaken audit claim, and adds only the genuinely missing extension-permission-to-Agent-authority view.
+
 ## 4. Durable conversation decisions that must remain represented
 
 The following product decisions are durable architecture input and may not live only in chat, scheduler prompts, PR bodies, or implementation plans:
@@ -84,11 +88,11 @@ The following product decisions are durable architecture input and may not live 
 19. Documentation, checks, reviews and operational evidence are separate authorities. A green sub-check, model verdict, active PR, chat decision or ADR never silently upgrades missing implementation to shipped behavior.
 20. Work-conserving autonomous maintenance continues to another safe lane instead of ending on one merge, one document, one RCA, one queued check or one external approval gap.
 
-## 5. Missing or incomplete architecture views to add when their executable boundaries stabilize
+## 5. Architecture views requiring follow-through
 
-### 5.1 Extension authority and compatibility sequence
+### 5.1 Extension authority and compatibility sequence — added in this branch
 
-Show separately:
+[`uml/extension-authority.md`](uml/extension-authority.md) now separates:
 
 ```text
 Chromium MV3 permission
@@ -100,17 +104,17 @@ Chromium MV3 permission
 -> deterministic policy
 ```
 
-The diagram must make it impossible to read Chrome permission as automatic Agent authority.
+It also separates **compatibility evidence** from **Agent-authority isolation evidence**: neither evidence class proves the other.
 
-### 5.2 Resource-pressure state/sequence
+### 5.2 Resource-pressure state/sequence — already present
 
-Show browser/compositor priority, task resource snapshot, soft/hard RAM/VRAM pressure, batch shrink, CPU offload, evidence-cache spill, current-agent pause and new-work rejection as cumulative mitigations.
+Protected-main `docs/uml/README.md` already models browser/model resource pressure and fallback. Future edits should refine it only when the platform telemetry/admission implementation changes, rather than creating a duplicate diagram merely to satisfy a checklist.
 
-### 5.3 Hourly autonomous-development authority flow
+### 5.3 Hourly autonomous-development authority flow — already present
 
-Show deterministic early gates before model-secret materialization, unprivileged model workspace, loopback credential broker, bounded patch validation, credential-free independent verification, publication-only authority, central review separation and protected-main operational acceptance.
+Protected-main `docs/uml/README.md` already models deterministic early gates, conditional model-credential use, pristine attempts, bounded validation, publication authority, protected merge and protected-main operational acceptance. Its implementation/evidence status must continue to be reconciled against the actual workflow rather than inferred from the diagram.
 
-### 5.4 Real Chromium vertical slice
+### 5.4 Real Chromium vertical slice — incomplete until issue #28 stabilizes
 
 Once issue #28 begins integrating, diagram and trace:
 
@@ -134,12 +138,13 @@ isolated profile/context
 - Keep this fitness assessment discoverable from `docs/README.md`.
 - Reconcile the ADR index with every protected-main ADR and its own status.
 - Add machine-checkable documentation fitness contracts so ADR discoverability/status drift is caught automatically.
+- Add the missing extension-permission-to-Agent-authority UML without duplicating already-present resource/automation views.
 - Continue the existing HTTP replacement, browser-registry and MV3 compatibility work without using documentation as a reason to stop.
 
 ### Defer to stable implementation state
 
 - Replace historical/current PR references in PRD/TRD/traceability immediately after the relevant active branch reaches a stable exact head or protected merge, so documentation does not race source writers.
-- Add detailed new UML views when their executable contracts are stable enough that the diagrams will not encode temporary protocol/field names.
+- Add the detailed real-Chromium vertical-slice UML when its executable contracts are stable enough that the diagram will not encode temporary protocol/field names.
 - Promote Proposed ADRs only through an explicit reviewed status change; do not infer Acceptance from file presence on `main`.
 
 ## 7. Completion criteria for documentation fitness
@@ -149,7 +154,7 @@ The whole documentation graph becomes **PROTECTED-MAIN-SUFFICIENT** only when:
 1. PRD and TRD implementation inventories agree with current protected-main crates, APIs and executable browser/extension evidence;
 2. no canonical document identifies a superseded/historical PR as current active implementation evidence;
 3. the ADR index discovers every ADR and its status agrees with the file metadata;
-4. UML covers all current material authority flows, including extension/Agent isolation and operational automation once implemented;
+4. UML covers all current material authority flows, including extension/Agent isolation and the real Chromium vertical slice once implemented;
 5. ERD/domain models accurately distinguish conceptual, in-memory, persisted, adapter-owned and external entities;
 6. traceability maps every material requirement and Accepted decision to current implementation/test/evidence or an explicit open issue;
 7. machine-checkable documentation tests catch stale status/index/link/ownership terminology;
