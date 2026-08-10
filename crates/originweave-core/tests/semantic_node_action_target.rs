@@ -58,7 +58,8 @@ fn node_action_target_revalidates_exact_browser_authority() -> Result<(), String
     let observed = observation()?;
     let target = SemanticNodeActionTarget::from_observation(&observed, NodeActionKind::Click)
         .map_err(|error| error.to_string())?;
-    let current_origin = Origin::parse("https://example.com").map_err(|error| format!("{error:?}"))?;
+    let current_origin =
+        Origin::parse("https://example.com").map_err(|error| format!("{error:?}"))?;
 
     target
         .validate_current(
@@ -76,7 +77,8 @@ fn node_action_target_rejects_stale_document_authority() -> Result<(), String> {
     let observed = observation()?;
     let target = SemanticNodeActionTarget::from_observation(&observed, NodeActionKind::Click)
         .map_err(|error| error.to_string())?;
-    let current_origin = Origin::parse("https://example.com").map_err(|error| format!("{error:?}"))?;
+    let current_origin =
+        Origin::parse("https://example.com").map_err(|error| format!("{error:?}"))?;
     let observed_epoch = DocumentEpoch::new(3).map_err(|error| error.to_string())?;
     let current_epoch = DocumentEpoch::new(4).map_err(|error| error.to_string())?;
 
