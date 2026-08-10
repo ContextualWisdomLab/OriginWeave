@@ -29,6 +29,8 @@ const MALFORMED_HEAD_REPRESENTATION_DIGEST: &[u8] =
     b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nRepr-Digest: sha-256\r\nConnection: close\r\n\r\n";
 const INVALID_REASON_PHRASE: &[u8] =
     b"HTTP/1.1 200 OK\0\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+const INCOMPLETE_OVERSIZED_STATUS_LINE: &[u8] =
+    b"HTTP/1.1 200 deliberately-oversized-status-line";
 const CUMULATIVE_INCOMPLETE_HEAD: &[u8] = concat!(
     "HTTP/1.1 100 Continue\r\n\r\n",
     "HTTP/1.1 200 OK\r\nx:",
@@ -228,6 +230,29 @@ fn tiny_header_policy() -> HttpClientPolicy {
     .expect("tiny header policy")
 }
 
+fn tiny_status_line_policy() -> HttpClientPolicy {
+    let defaults = HttpClientPolicy::strict_defaults();
+    HttpClientPolicy::new(
+        TEST_TIMEOUT,
+        defaults.max_request_bytes(),
+        16,
+        defaults.max_header_field_count(),
+        defaults.max_header_name_bytes(),
+        defaults.max_header_value_bytes(),
+        defaults.max_header_section_bytes(),
+        defaults.max_interim_response_count(),
+        defaults.max_chunk_count(),
+        defaults.max_trailer_field_count(),
+        defaults.max_trailer_section_bytes(),
+        defaults.max_encoded_content_bytes(),
+        defaults.max_decoded_content_bytes(),
+        defaults.max_content_expansion_ratio(),
+        AlpnHttp11Policy::RequireHttp11,
+        IntegrityRequirement::Optional,
+    )
+    .expect("tiny status-line policy")
+}
+
 fn join_server(server: JoinHandle<ServerResult>) {
     server
         .join()
@@ -254,6 +279,23 @@ fn invalid_reason_phrase_is_rejected_at_the_authenticated_exchange_boundary() {
         HttpClientPolicy::strict_defaults(),
     );
     assert!(matches!(result, Err(HttpError::InvalidResponseStatusLine)));
+    join_server(server);
+}
+
+#[test]
+fn incomplete_oversized_status_line_is_rejected_at_authenticated_exchange_boundary() {
+    let (result, server) = execute(
+        HttpMethod::Get,
+        INCOMPLETE_OVERSIZED_STATUS_LINE,
+        tiny_status_line_policy(),
+    );
+    assert!(matches!(
+        result,
+        Err(HttpError::StatusLineTooLarge {
+            byte_count,
+            maximum_bytes: 16,
+        }) if byte_count > 16
+    ));
     join_server(server);
 }
 
