@@ -119,6 +119,7 @@ async function exerciseCoreApis(sender) {
   const historyReady = Array.isArray(historyItems);
 
   const downloadResult = await exerciseDownload();
+  const downloadsReady = downloadResult.ready;
 
   return {
     tabs: tabReady ? "ready" : "missing",
@@ -128,7 +129,7 @@ async function exerciseCoreApis(sender) {
     sidePanel: sidePanelReady ? "ready" : "missing",
     bookmarks: bookmarksReady ? "ready" : "missing",
     history: historyReady ? "ready" : "missing",
-    downloads: downloadResult.ready ? "ready" : "missing",
+    downloads: downloadsReady ? "ready" : "missing",
     downloadsDiagnostic: downloadResult.diagnostic,
   };
 }
