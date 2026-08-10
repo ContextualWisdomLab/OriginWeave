@@ -26,7 +26,7 @@ def _adr_file_status(path: Path) -> str:
     """Read one ADR's explicit lifecycle status from its metadata header."""
     text = path.read_text(encoding="utf-8")
     match = re.search(
-        r"(?im)^-\s+(?:\*\*Status:\*\*|\*\*Status\*\*:|Status:)\s*(\w+)\s*$",
+        r"(?im)^-\s+(?:\*\*Status:\*\*|\*\*Status\*\*:|Status:)\s*(\w+)(?:\s+.+)?$",
         text,
     )
     if match is None:
