@@ -87,7 +87,8 @@ fn context_origin_cannot_change_without_document_rotation() -> Result<(), Box<dy
     let session = registry.register_session("webdriver-session")?;
     let context = registry.register_context(session, "top-level-context")?;
     let first_origin = loopback_origin();
-    let second_origin = Origin::parse("http://localhost:43127").expect("valid loopback fixture origin");
+    let second_origin =
+        Origin::parse("http://localhost:43127").expect("valid loopback fixture origin");
 
     registry.bind_node(session, context, &first_origin, "backend-node-17")?;
     assert_eq!(
