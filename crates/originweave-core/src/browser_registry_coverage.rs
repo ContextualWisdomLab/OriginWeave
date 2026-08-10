@@ -8,7 +8,7 @@ fn repeated_node_binding_exercises_the_unit_crate_existing_node_path() -> Result
     let mut registry = BrowserAuthorityRegistry::new();
     let session = registry.register_session("unit-session")?;
     let context = registry.register_context(session, "unit-context")?;
-    let origins: Vec<_> = Origin::parse("http://127.0.0.1:43127")?
+    let origins: Vec<_> = Origin::parse("http://127.0.0.1:43127")
         .into_iter()
         .collect();
     assert_eq!(origins.len(), 1);
