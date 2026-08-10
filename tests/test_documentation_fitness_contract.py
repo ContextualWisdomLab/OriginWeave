@@ -8,6 +8,7 @@ import unittest
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 DOCS_ROOT = REPOSITORY_ROOT / "docs"
 ADR_ROOT = DOCS_ROOT / "adr"
+UML_ROOT = DOCS_ROOT / "uml"
 
 
 class DocumentationFitnessContractTests(unittest.TestCase):
@@ -86,6 +87,25 @@ class DocumentationFitnessContractTests(unittest.TestCase):
         for marker in ("PR #37", "PR #40", "Issue #27", "issue #28"):
             with self.subTest(marker=marker):
                 self.assertIn(marker, assessment)
+
+    def test_extension_authority_uml_separates_compatibility_from_agent_authority(self) -> None:
+        """A Chrome permission must never be documented as an Agent capability."""
+        diagram = (UML_ROOT / "extension-authority.md").read_text(encoding="utf-8")
+        self.assertIn("A Chromium extension permission is not an OriginWeave Agent capability", diagram)
+        self.assertIn("Compatibility evidence is separate from authority evidence", diagram)
+        self.assertIn("sequenceDiagram", diagram)
+        self.assertIn("OriginWeave Extension Grant Policy", diagram)
+        self.assertIn("cannot approve", diagram)
+        self.assertIn("cannot resolve", diagram)
+
+    def test_fitness_audit_does_not_duplicate_existing_resource_or_hourly_uml(self) -> None:
+        """The audit must recognize existing product-wide resource and automation diagrams."""
+        assessment = (DOCS_ROOT / "DOCUMENTATION_FITNESS.md").read_text(encoding="utf-8")
+        uml_index = (UML_ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("Resource-pressure state/sequence — already present", assessment)
+        self.assertIn("Hourly autonomous-development authority flow — already present", assessment)
+        self.assertIn("## 9. Resource-pressure and fallback flow", uml_index)
+        self.assertIn("## 10. Hourly product-development gate-to-model flow", uml_index)
 
     def test_documentation_index_has_no_duplicate_adr_links(self) -> None:
         """Each ADR target should have one index entry per section, not duplicate drift."""
