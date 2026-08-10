@@ -13,6 +13,8 @@ use crate::connection::{ConnectionPlan, DirectTcpConnection, NetworkError};
 #[derive(Debug)]
 pub struct FreshConnectionPlan {
     connection_plan: ConnectionPlan,
+    resolution: FreshResolutionSnapshot,
+    socket_address: SocketAddr,
     resolution_approved_at: Duration,
     resolution_valid_until: Duration,
     resolution_authorized_at: Duration,
@@ -41,6 +43,8 @@ impl FreshConnectionPlan {
         )?;
         Ok(Self {
             connection_plan,
+            resolution: resolution.clone(),
+            socket_address,
             resolution_approved_at: fresh_evidence.resolution_approved_at(),
             resolution_valid_until: fresh_evidence.resolution_valid_until(),
             resolution_authorized_at: fresh_evidence.authorized_at(),
@@ -65,8 +69,20 @@ impl FreshConnectionPlan {
         self.resolution_authorized_at
     }
 
-    /// Open the exact approved socket and expose it only after peer verification.
-    pub fn connect(self) -> Result<DirectTcpConnection, NetworkError> {
+    /// Open the exact approved socket only while resolution authority is still fresh.
+    ///
+    /// `current_time` must come from the same trusted monotonic clock domain used
+    /// when this plan was created. Freshness is re-authorized immediately before
+    /// socket I/O so a plan cannot be created inside the validity window and then
+    /// replayed after that authority expires or before its recorded authorization
+    /// time. The plan remains single-use because this method consumes `self`.
+    pub fn connect_at(self, current_time: Duration) -> Result<DirectTcpConnection, NetworkError> {
+        self.resolution
+            .authorize_connection(self.socket_address.ip(), current_time)
+            .map_err(|source| NetworkError::DestinationNotApproved {
+                socket_address: self.socket_address,
+                source,
+            })?;
         self.connection_plan.connect()
     }
 }
