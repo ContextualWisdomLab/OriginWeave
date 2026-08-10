@@ -79,7 +79,7 @@ def _parse_adr_index(text: str) -> dict[str, str]:
 
 
 class DocumentationFitnessContractTests(unittest.TestCase):
-    """Keep architecture discovery and ADR lifecycle metadata coherent."""
+    """Keep architecture discovery and implementation-maturity metadata coherent."""
 
     def test_documentation_index_links_fitness_assessment(self) -> None:
         """The semantic fitness audit must remain discoverable from the docs index."""
@@ -88,14 +88,15 @@ class DocumentationFitnessContractTests(unittest.TestCase):
         self.assertTrue((DOCS_ROOT / "DOCUMENTATION_FITNESS.md").is_file())
 
     def test_documentation_fitness_distinguishes_design_from_protected_main(self) -> None:
-        """A broad design pack must not be mislabeled as code-current closure."""
+        """A broad design pack must not be mislabeled as protected-main closure."""
         assessment = (DOCS_ROOT / "DOCUMENTATION_FITNESS.md").read_text(encoding="utf-8")
         self.assertIn("DESIGN-SUFFICIENT", assessment)
         self.assertIn("PROTECTED-MAIN-PARTIAL", assessment)
         self.assertIn("File existence alone is never sufficient", assessment)
-        self.assertIn("Historical HTTP PR", assessment)
-        self.assertIn("MV3 compatibility evidence", assessment)
-        self.assertIn("Browser authority", assessment)
+        self.assertIn("HTTP lineage", assessment)
+        self.assertIn("Manifest V3 compatibility", assessment)
+        self.assertIn("Browser identifier authority", assessment)
+        self.assertIn("integration before any of these branch repairs become protected-main truth", assessment)
 
     def test_every_adr_is_indexed_once_with_its_file_status(self) -> None:
         """Both canonical indexes must exactly cover ADR files and their lifecycle status."""
@@ -118,12 +119,35 @@ class DocumentationFitnessContractTests(unittest.TestCase):
         self.assertNotIn("Proposed target-architecture decisions in this change", adr_index)
         self.assertIn("Index completeness rule", adr_index)
 
-    def test_fitness_audit_tracks_current_replacement_and_buyer_gap_lanes(self) -> None:
-        """The dated audit must identify the current implementation lanes it evaluated."""
+    def test_current_replacement_lanes_are_not_promoted_to_protected_main(self) -> None:
+        """Canonical docs must distinguish active implementation from shipped implementation."""
         assessment = (DOCS_ROOT / "DOCUMENTATION_FITNESS.md").read_text(encoding="utf-8")
-        for marker in ("PR #37", "PR #40", "Issue #27", "issue #28"):
+        traceability = (DOCS_ROOT / "traceability" / "README.md").read_text(encoding="utf-8")
+        for marker in ("PR #37", "PR #40", "PR #43", "issue #10", "issue #27", "issue #28"):
             with self.subTest(marker=marker):
-                self.assertIn(marker, assessment)
+                self.assertTrue(marker in assessment or marker in traceability)
+        self.assertIn("IMPLEMENTED_ON_ACTIVE_PR", traceability)
+        self.assertIn("IMPLEMENTED_ON_PROTECTED_MAIN", traceability)
+        self.assertIn("Active-PR behavior is never protected-main truth", traceability)
+
+    def test_prd_does_not_restore_superseded_active_pr_claims(self) -> None:
+        """Historical feature branches must not reappear as the current implementation lane."""
+        prd = (DOCS_ROOT / "PRD.md").read_text(encoding="utf-8")
+        self.assertNotIn("Active PR #11", prd)
+        self.assertNotIn("Active replacement PR #33", prd)
+        self.assertIn("active replacement PR #37", prd)
+        self.assertIn("Protected-main purpose-bound sensitive-data policy kernel", prd)
+        self.assertIn("active PR #43 adds", prd)
+
+    def test_trd_uses_single_status_with_separate_active_pr_evidence(self) -> None:
+        """Implementation status must not be collapsed with active-development annotations."""
+        trd = (DOCS_ROOT / "TRD.md").read_text(encoding="utf-8")
+        self.assertNotIn("**Planned / active development**", trd)
+        self.assertNotIn("**Accepted architecture; active development.**", trd)
+        self.assertIn("Protected-main status", trd)
+        self.assertIn("Active/non-shipped evidence", trd)
+        self.assertIn("Active replacement PR #37", trd)
+        self.assertIn("purpose-bound sensitive-data policy kernel", trd)
 
     def test_extension_authority_uml_separates_compatibility_from_agent_authority(self) -> None:
         """A Chrome permission must never be documented as an Agent capability."""
@@ -139,8 +163,8 @@ class DocumentationFitnessContractTests(unittest.TestCase):
         """The audit must recognize existing product-wide resource and automation diagrams."""
         assessment = (DOCS_ROOT / "DOCUMENTATION_FITNESS.md").read_text(encoding="utf-8")
         uml_index = (UML_ROOT / "README.md").read_text(encoding="utf-8")
-        self.assertIn("Resource-pressure state/sequence — already present", assessment)
-        self.assertIn("Hourly autonomous-development authority flow — already present", assessment)
+        self.assertIn("resource-pressure/GPU fallback", assessment)
+        self.assertIn("hourly automation flows", assessment)
         self.assertIn("## 9. Resource-pressure and fallback flow", uml_index)
         self.assertIn("## 10. Hourly product-development gate-to-model flow", uml_index)
 
