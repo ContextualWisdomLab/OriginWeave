@@ -81,12 +81,7 @@ fn semantic_node_query_bounds_attacker_controlled_text() {
         Some(SemanticNodeQueryError::RoleTooLong)
     );
     assert_eq!(
-        SemanticNodeQuery::new(
-            None,
-            Some("n".repeat(MAX_ACCESSIBLE_NAME_BYTES + 1)),
-            None,
-        )
-        .err(),
+        SemanticNodeQuery::new(None, Some("n".repeat(MAX_ACCESSIBLE_NAME_BYTES + 1)), None,).err(),
         Some(SemanticNodeQueryError::AccessibleNameTooLong)
     );
 }
