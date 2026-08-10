@@ -20,4 +20,11 @@
   document.documentElement.dataset.originweaveWorkerStartCount = String(
     response?.workerStartCount ?? "missing"
   );
+  document.documentElement.dataset.originweaveTabs = response?.tabs ?? "missing";
+  document.documentElement.dataset.originweaveWindows = response?.windows ?? "missing";
+  document.documentElement.dataset.originweaveScripting = response?.scripting ?? "missing";
+  document.documentElement.dataset.originweaveCommands = response?.commands ?? "missing";
+  document.documentElement.dataset.originweaveSidePanel = response?.sidePanel ?? "missing";
+  document.documentElement.dataset.originweaveBookmarks = response?.bookmarks ?? "missing";
+  document.documentElement.dataset.originweaveHistory = response?.history ?? "missing";
 })();
