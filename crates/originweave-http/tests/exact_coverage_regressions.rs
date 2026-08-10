@@ -25,7 +25,8 @@ use rustls::{ServerConfig, ServerConnection, StreamOwned};
 
 const TRUSTED_TIME_SECONDS: u64 = 1_767_225_600;
 const TEST_TIMEOUT: Duration = Duration::from_secs(3);
-const MALFORMED_HEAD_REPRESENTATION_DIGEST: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nRepr-Digest: sha-256\r\nConnection: close\r\n\r\n";
+const MALFORMED_HEAD_REPRESENTATION_DIGEST: &[u8] =
+    b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nRepr-Digest: sha-256\r\nConnection: close\r\n\r\n";
 const CUMULATIVE_INCOMPLETE_HEAD: &[u8] = concat!(
     "HTTP/1.1 100 Continue\r\n\r\n",
     "HTTP/1.1 200 OK\r\nx:",
