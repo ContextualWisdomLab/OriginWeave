@@ -15,25 +15,28 @@ class ManifestV3DownloadsContractTests(unittest.TestCase):
     """Require the real Chrome downloads API in every pinned-browser trial."""
 
     def test_fixture_declares_downloads_permission_and_local_resource(self) -> None:
-        """The controlled extension must request downloads and own its test payload."""
+        """The controlled extension must request downloads and serve its test payload locally."""
 
         manifest = json.loads((FIXTURE / "manifest.json").read_text(encoding="utf-8"))
         self.assertIn("downloads", manifest["permissions"])
         payload = (FIXTURE / "download.txt").read_bytes()
         self.assertEqual(payload, b"OriginWeave deterministic MV3 download fixture.\n")
 
-    def test_service_worker_executes_and_verifies_a_real_local_download(self) -> None:
-        """Evidence must originate from a real download followed by bounded inspection."""
+    def test_service_worker_executes_and_verifies_a_real_loopback_download(self) -> None:
+        """Evidence must originate from the controlled fixture origin and bounded inspection."""
 
         worker = (FIXTURE / "service_worker.js").read_text(encoding="utf-8")
         for expected in (
             "chrome.downloads.download",
             "chrome.downloads.search",
-            "chrome.runtime.getURL(\"download.txt\")",
+            'new URL("download.txt", sourceUrl).href',
+            'parsed.hostname !== "127.0.0.1"',
+            'parsed.protocol !== "http:"',
             "downloadsReady",
         ):
             with self.subTest(expected=expected):
                 self.assertIn(expected, worker)
+        self.assertNotIn('chrome.runtime.getURL("download.txt")', worker)
 
     def test_download_failures_emit_only_bounded_stage_diagnostics(self) -> None:
         """A real-browser failure must identify its reviewed download stage without raw paths."""
@@ -42,6 +45,7 @@ class ManifestV3DownloadsContractTests(unittest.TestCase):
         content = (FIXTURE / "content_script.js").read_text(encoding="utf-8")
         runner = RUNNER.read_text(encoding="utf-8")
         for expected in (
+            "download-source-rejected",
             "download-start-rejected",
             "download-search-missing",
             "download-interrupted",
@@ -68,6 +72,7 @@ class ManifestV3DownloadsContractTests(unittest.TestCase):
         self.assertIn("originweaveDownloads", content)
         self.assertIn('"downloads": surfaces["downloads"] == "ready"', runner)
         self.assertIn('"downloads": "ready"', runner)
+        self.assertIn('"downloadsDiagnostic": "download-complete-ready"', runner)
 
 
 if __name__ == "__main__":
