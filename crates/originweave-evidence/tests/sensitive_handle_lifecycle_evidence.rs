@@ -1,5 +1,6 @@
 use originweave_evidence::{
-    SensitiveEvidenceError, SensitiveHandleLifecycleEvidence, SensitiveHandleLifecycleEvidenceInput,
+    MAX_SENSITIVE_IDENTIFIER_BYTES, SensitiveEvidenceError, SensitiveHandleLifecycleEvidence,
+    SensitiveHandleLifecycleEvidenceInput,
 };
 
 fn valid_input() -> SensitiveHandleLifecycleEvidenceInput {
@@ -49,18 +50,27 @@ fn records_revocation_time_without_storing_revocation_payloads() {
 
 #[test]
 fn rejects_invalid_request_or_decision_identifiers() {
-    for mutate in [0_u8, 1_u8] {
+    let invalid_request_ids = [
+        String::new(),
+        "-".repeat(3),
+        "bad/request".to_owned(),
+        "a".repeat(MAX_SENSITIVE_IDENTIFIER_BYTES + 1),
+    ];
+    for request_id in invalid_request_ids {
         let mut input = valid_input();
-        if mutate == 0 {
-            input.request_id = "bad/request".to_owned();
-        } else {
-            input.decision_id = String::new();
-        }
+        input.request_id = request_id;
         assert_eq!(
             SensitiveHandleLifecycleEvidence::try_from(input),
             Err(SensitiveEvidenceError::InvalidIdentifier)
         );
     }
+
+    let mut invalid_decision = valid_input();
+    invalid_decision.decision_id = String::new();
+    assert_eq!(
+        SensitiveHandleLifecycleEvidence::try_from(invalid_decision),
+        Err(SensitiveEvidenceError::InvalidIdentifier)
+    );
 }
 
 #[test]
