@@ -18,12 +18,13 @@ The complete revocation path therefore remains **PARTIAL** until a separately re
 
 The bounded primitive is expected to preserve these properties:
 
-1. `thisUpdate` and `nextUpdate` are supplied only after independent cryptographic verification by a higher-layer adapter;
-2. the signed interval is non-empty and ordered;
-3. the usable interval is half-open: `thisUpdate <= trusted_time < nextUpdate`;
-4. trusted time before `thisUpdate` and at/after `nextUpdate` fails closed with typed bounded errors;
-5. the primitive performs no OCSP/CRL fetch, DNS, socket connection, TLS handshake mutation, parsing, signature verification, cache operation, browser control, persistence, or model call; and
-6. no evidence or documentation converts freshness into an `unrevoked` claim.
+1. a higher-layer adapter may construct `RevocationMaterialFreshness` only after independent cryptographic verification has supplied both signed `thisUpdate` and `nextUpdate`; because RFC 6960 permits an OCSP `SingleResponse` to omit `nextUpdate`, absence must fail closed in that adapter before construction and must never be converted into an invented timestamp;
+2. the active PR #48 primitive deliberately accepts mandatory `u64` `this_update_unix_seconds` and `next_update_unix_seconds`, so a missing `nextUpdate` has no representable successful state in the primitive; any future parser/adapter must expose a typed missing-`nextUpdate` error or a separately reviewed bounded fallback contract before calling freshness approved;
+3. the signed interval is non-empty and ordered;
+4. the usable interval is half-open: `thisUpdate <= trusted_time < nextUpdate`;
+5. trusted time before `thisUpdate` and at/after `nextUpdate` fails closed with typed bounded errors;
+6. the primitive performs no OCSP/CRL fetch, DNS, socket connection, TLS handshake mutation, parsing, signature verification, cache operation, browser control, persistence, or model call; and
+7. no evidence or documentation converts freshness into an `unrevoked` claim.
 
 ## Architecture and ADR assessment
 
@@ -40,13 +41,13 @@ No new physical ERD object is justified by this active in-memory primitive. UML 
 | Protected main records `RevocationStatus::NotConfigured` | `PARTIAL`; no revocation enforcement or unrevoked claim |
 | Active PR freshness primitive with exact-head tests/coverage | `IMPLEMENTED_ON_ACTIVE_PR` for freshness classification only |
 | Protected-main freshness primitive without verified material acquisition/composition | `PARTIAL` |
-| Protected-main adapter verifies responder/material authenticity, freshness, cache/failure policy, and binds the result into TLS authentication | implementation evidence for the chosen bounded revocation policy |
+| Protected-main adapter verifies responder/material authenticity, requires or safely bounds missing `nextUpdate`, enforces freshness, cache/failure policy, and binds the result into TLS authentication | implementation evidence for the chosen bounded revocation policy |
 | Protected-main integration/recovery/operational tests prove the complete path | required additional release evidence; not implied by the helper primitive |
 
 ## Required follow-through
 
 - keep PRD/TRD/TLS evidence from implying revocation enforcement while protected main remains `NotConfigured`;
-- define revocation-material acquisition, authenticity, cache, freshness, failure, privacy, and recovery semantics before calling the TLS revocation boundary implemented;
+- define revocation-material acquisition, authenticity, missing-`nextUpdate`, cache, freshness, failure, privacy, and recovery semantics before calling the TLS revocation boundary implemented;
 - require exact 100% owned production function/line/region/branch coverage and complete rustdoc on every changed head;
 - add or supersede an ADR only when the concrete revocation architecture changes a durable trust or deployment decision; and
 - retain the conceptual ERD unless executable persistence ownership actually appears.
