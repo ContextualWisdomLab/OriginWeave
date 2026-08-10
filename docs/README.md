@@ -12,6 +12,7 @@
 - [Data governance and privacy boundary](DATA_GOVERNANCE.md)
 - [Product and decision traceability](traceability/README.md)
 - [Documentation fitness assessment](DOCUMENTATION_FITNESS.md)
+- [Dated active-PR maturity evidence (2026-08-10)](evidence/2026-08-10-active-pr-maturity.md)
 - [Threat model](THREAT_MODEL.md)
 - [Product-wide test strategy](TEST_STRATEGY.md)
 - [Operability and incident-response baseline](OPERABILITY.md)
@@ -24,7 +25,7 @@
 - [Quality gates](quality-gates.md)
 - [Security policy](../SECURITY.md)
 
-The PRD/TRD/Architecture/ADR/UML/ERD/data-governance/traceability/security/operations/API/release set is the product-wide documentation graph. The documentation-fitness assessment records where that graph is current, stale, partial, or intentionally proposed. Feature-specific design specifications and plans below provide detailed implementation history but do not substitute for the product-wide baseline. Planned or conversation-derived capabilities must remain labelled Planned, Proposed, or Open until reviewed implementation evidence reaches protected `main`.
+The PRD/TRD/Architecture/ADR/UML/ERD/data-governance/traceability/security/operations/API/release set is the product-wide documentation graph. The documentation-fitness assessment records where that graph is current, stale, partial, or intentionally proposed. Volatile exact heads, workflow results, stack state, and active-PR maturity belong in dated evidence appendices rather than timeless architecture claims. Feature-specific design specifications and plans below provide detailed implementation history but do not substitute for the product-wide baseline. Planned or conversation-derived capabilities must remain labelled Planned, Proposed, or Open until reviewed implementation evidence reaches protected `main`.
 
 ## Governance and maintenance
 
