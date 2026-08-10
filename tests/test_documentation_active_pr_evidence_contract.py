@@ -31,7 +31,7 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
 
     def test_dependency_stacks_are_explicit_and_non_shipped(self) -> None:
         """Current browser, network, sensitive and compatibility stacks stay active-only."""
-        for pr_number in (52, 53, 54, 55, 56, 57):
+        for pr_number in (52, 53, 54, 55, 56, 57, 58, 59, 60, 61):
             with self.subTest(pr_number=pr_number):
                 row = active_pr_row(self.maturity, pr_number)
                 self.assertIn("**IMPLEMENTED_ON_ACTIVE_PR**", row)
@@ -40,11 +40,13 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         for stack in (
             "#47 → #50 → #54",
             "#45 → #46 → #53 → #55",
-            "#40→#52",
-            "#43→#49/#56",
+            "#40→#52→#57→#58",
+            "#43→#56→#59→#60→#61",
         ):
             with self.subTest(stack=stack):
                 self.assertIn(stack, self.fitness)
+
+        self.assertIn("#49", self.fitness)
 
     def test_semantic_relationship_evidence_stays_bounded_and_authority_scoped(self) -> None:
         """PR #52 cannot turn relationship metadata into browser or execution authority."""
@@ -91,19 +93,30 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         )
         self.assertIn("new deployment topology or physical ERD entity", self.fitness)
 
-    def test_bookmark_mutation_is_compatibility_not_agent_authority(self) -> None:
-        """Real MV3 mutation evidence must remain separate from OriginWeave capability grants."""
-        row = active_pr_row(self.maturity, 56)
+    def test_mv3_mutation_and_isolation_are_compatibility_not_agent_authority(self) -> None:
+        """Real MV3 evidence must remain separate from OriginWeave capability grants."""
+        bookmark_row = active_pr_row(self.maturity, 56)
         for marker in ("create", "get", "remove", "compatibility evidence only"):
             with self.subTest(marker=marker):
-                self.assertIn(marker, row)
+                self.assertIn(marker, bookmark_row)
+
+        for pr_number in (59, 60, 61):
+            with self.subTest(pr_number=pr_number):
+                row = active_pr_row(self.maturity, pr_number)
+                self.assertIn("**IMPLEMENTED_ON_ACTIVE_PR**", row)
+                self.assertNotIn("IMPLEMENTED_ON_PROTECTED_MAIN", row)
 
         self.assertIn("Manifest V3 compatibility", self.fitness)
         self.assertIn(
             "Chromium permission or browser compatibility success is not an OriginWeave Agent capability",
             self.fitness,
         )
-        self.assertIn("#43/#49/#56/#59 are active compatibility evidence only", self.fitness)
+        self.assertIn(
+            "#43/#49/#56/#59/#60/#61 are active compatibility evidence only",
+            self.fitness,
+        )
+        self.assertIn("Update migration is intentionally distinct from restart persistence", self.fitness)
+        self.assertIn("isolated-world behavior is intentionally distinct from injection alone", self.fitness)
 
     def test_erd_stays_conceptual_without_persistence_owner(self) -> None:
         """Active in-memory/value primitives must not manufacture a physical data model."""
