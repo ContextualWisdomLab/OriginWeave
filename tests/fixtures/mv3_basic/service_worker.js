@@ -154,6 +154,62 @@ async function exerciseBookmarkMutation(sender) {
   return bookmarkMutationReady;
 }
 
+async function exerciseHistoryMutation(sender) {
+  const sourceUrl = sender?.tab?.url;
+  if (typeof sourceUrl !== "string") {
+    return false;
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(sourceUrl);
+  } catch (_error) {
+    return false;
+  }
+  if (
+    parsed.protocol !== "http:" ||
+    parsed.hostname !== "127.0.0.1" ||
+    parsed.pathname !== "/page.html" ||
+    parsed.username !== "" ||
+    parsed.password !== ""
+  ) {
+    return false;
+  }
+
+  const historyUrl = new URL("history-entry.html", sourceUrl).href;
+  let historyMutationReady = false;
+  try {
+    await chrome.history.addUrl({ url: historyUrl });
+    const items = await chrome.history.search({
+      text: historyUrl,
+      startTime: 0,
+      maxResults: 10,
+    });
+    historyMutationReady =
+      Array.isArray(items) && items.some((item) => item?.url === historyUrl);
+  } catch (_error) {
+    historyMutationReady = false;
+  } finally {
+    try {
+      await chrome.history.deleteUrl({ url: historyUrl });
+      const remainingItems = await chrome.history.search({
+        text: historyUrl,
+        startTime: 0,
+        maxResults: 10,
+      });
+      if (
+        !Array.isArray(remainingItems) ||
+        remainingItems.some((item) => item?.url === historyUrl)
+      ) {
+        historyMutationReady = false;
+      }
+    } catch (_error) {
+      historyMutationReady = false;
+    }
+  }
+  return historyMutationReady;
+}
+
 async function exerciseCoreApis(sender) {
   const tabId = sender?.tab?.id;
   if (!Number.isInteger(tabId)) {
@@ -187,12 +243,8 @@ async function exerciseCoreApis(sender) {
   const bookmarkMutationReady = await exerciseBookmarkMutation(sender);
   const bookmarksReady = bookmarkMutationReady;
 
-  const historyItems = await chrome.history.search({
-    text: "",
-    startTime: 0,
-    maxResults: 10,
-  });
-  const historyReady = Array.isArray(historyItems);
+  const historyMutationReady = await exerciseHistoryMutation(sender);
+  const historyReady = historyMutationReady;
 
   const downloadResult = await exerciseDownload(sender);
   const downloadsReady = downloadResult.ready;
