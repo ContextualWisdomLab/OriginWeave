@@ -31,7 +31,7 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
 
     def test_dependency_stacks_are_explicit_and_non_shipped(self) -> None:
         """Current browser, network, sensitive and compatibility stacks stay active-only."""
-        for pr_number in (52, 53, 54, 55, 56, 57, 58, 59, 60, 61):
+        for pr_number in (52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62):
             with self.subTest(pr_number=pr_number):
                 row = active_pr_row(self.maturity, pr_number)
                 self.assertIn("**IMPLEMENTED_ON_ACTIVE_PR**", row)
@@ -117,6 +117,24 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         )
         self.assertIn("Update migration is intentionally distinct from restart persistence", self.fitness)
         self.assertIn("isolated-world behavior is intentionally distinct from injection alone", self.fitness)
+
+    def test_extension_proposal_grant_does_not_become_agent_policy_authority(self) -> None:
+        """PR #62 must remain a policy-isolation regression, not a new action grant."""
+        row = active_pr_row(self.maturity, 62)
+        for marker in (
+            "ProposeTypedAction",
+            "out-of-grant target origin",
+            "missing core `Navigate` capability",
+            "untrusted instruction source",
+            "adds no production API or real Chromium adapter",
+            "does not convert extension proposal authority into Agent action/origin authority",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, row)
+        self.assertIn("CI run `31436078746`", row)
+        self.assertIn("Security Scan run `31436078045`", row)
+        self.assertIn("SAST Semgrep run `31436078163`", row)
+        self.assertNotIn("IMPLEMENTED_ON_PROTECTED_MAIN", row)
 
     def test_erd_stays_conceptual_without_persistence_owner(self) -> None:
         """Active in-memory/value primitives must not manufacture a physical data model."""
