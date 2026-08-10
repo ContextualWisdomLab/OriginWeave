@@ -4,7 +4,7 @@ use std::error::Error;
 
 use originweave_core::{
     BrowserAuthorityRegistry, BrowserRegistryError, BrowserSessionId, DocumentEpoch,
-    NodeHandleError, Origin,
+    MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES, NodeHandleError, Origin,
 };
 
 fn loopback_origin() -> Origin {
@@ -159,7 +159,7 @@ fn external_identifiers_are_bounded_without_assuming_protocol_syntax() -> Result
         Err(BrowserRegistryError::InvalidExternalIdentifier)
     );
     assert_eq!(
-        registry.register_session(&"x".repeat(513)),
+        registry.register_session(&"x".repeat(MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES + 1)),
         Err(BrowserRegistryError::InvalidExternalIdentifier)
     );
 
