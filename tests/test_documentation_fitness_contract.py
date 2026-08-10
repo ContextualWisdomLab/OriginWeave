@@ -119,6 +119,32 @@ class DocumentationFitnessContractTests(unittest.TestCase):
         self.assertNotIn("Proposed target-architecture decisions in this change", adr_index)
         self.assertIn("Index completeness rule", adr_index)
 
+    def test_proposed_adr_provenance_does_not_promote_branch_to_protected_main(self) -> None:
+        """Branch-only ADR presence must remain distinct from lifecycle and protected-main truth."""
+        docs_index = (DOCS_ROOT / "README.md").read_text(encoding="utf-8")
+        adr_index = (ADR_ROOT / "README.md").read_text(encoding="utf-8")
+
+        for text in (docs_index, adr_index):
+            with self.subTest(index="docs" if text is docs_index else "adr"):
+                self.assertIn("## Proposed architecture decisions", text)
+                self.assertIn("Protected-main baseline proposed decisions", text)
+                self.assertNotIn("## Proposed decisions retained on protected main", text)
+
+        docs_branch = docs_index.split(
+            "### Proposed decisions introduced by this documentation reconciliation", 1
+        )[1].split("\n## ", 1)[0]
+        adr_branch = adr_index.split(
+            "### Proposed decisions introduced by documentation reconciliation", 1
+        )[1].split("\n## ", 1)[0]
+        for adr_path in (
+            "0013-manifest-v3-extension-authority.md",
+            "0014-architecture-decision-governance.md",
+        ):
+            with self.subTest(adr=adr_path):
+                self.assertIn(adr_path, docs_branch)
+                self.assertIn(adr_path, adr_branch)
+        self.assertIn("exist only on this documentation branch until it integrates", adr_index)
+
     def test_current_replacement_lanes_are_not_promoted_to_protected_main(self) -> None:
         """Canonical docs must distinguish active implementation from shipped implementation."""
         assessment = (DOCS_ROOT / "DOCUMENTATION_FITNESS.md").read_text(encoding="utf-8")
