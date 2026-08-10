@@ -1,6 +1,8 @@
-# Active pull-request maturity evidence — 2026-08-10
+# Active pull-request maturity evidence series — opened 2026-08-10
 
-> Last refreshed: 2026-08-11
+- **Evidence series opened:** 2026-08-10
+- **Last refreshed:** 2026-08-11
+- **Filename semantics:** the date in this filename is the date this evidence series was opened; refresh provenance is recorded separately and is never backdated to match the filename.
 
 This dated appendix records volatile implementation evidence that must not be embedded as timeless architecture truth. Protected `main` remains the only shipped-code authority. Active pull requests are implementation evidence only until they integrate and protected-main acceptance is re-established.
 
@@ -28,7 +30,7 @@ This dated appendix records volatile implementation evidence that must not be em
 | #52 | Bounded semantic-node observation value contract | **IMPLEMENTED_ON_ACTIVE_PR** | Draft stacked on #40 at exact head `661091dcc52f0a52e7a6a636b0f4bcea5469f82d`; CI and Manifest V3 Compatibility are green, provenance must be non-empty, and the value contract performs no browser I/O or action dispatch. |
 | #53 | Authoritative in-process sensitive-handle revocation state | **IMPLEMENTED_ON_ACTIVE_PR** | Draft stacked on #46 at exact head `86ce4bc1c11c270dc532593d673c42bd6f623d74`; CI and CodeRabbit are green. It adds typed first-revocation-wins state but no durable broker, cross-process transactionality, protected-value resolution, KMS, or persistence. |
 | #54 | Recheck resolution freshness at socket use | **IMPLEMENTED_ON_ACTIVE_PR** | Draft stacked on #50 at exact head `ec81031c537f2b662910c1ce78c7ae0e0bfc9c1e`; CI and CodeRabbit are green. `connect_at` revalidates freshness immediately before socket I/O and the compatibility path derives elapsed monotonic time; no resolver, DNS lookup, proxy/PAC or wall-clock authority is added. |
-| #55 | Bind opaque sensitive-value handle use to a non-transferable audience | **IMPLEMENTED_ON_ACTIVE_PR** | Draft stacked on #53. Current exact head `09b9f4e45e6f4d177e7ed11d39ed3e6f7d267082` applies the canonical rustfmt repair after run `31419061773` proved exact production coverage success but failed only formatting on predecessor head `490178b465b44996361371bd80433d09b1bdbe93`; exact-head CI run `31419594448` is in progress. The primitive still relies on a future trusted broker to derive audience from authenticated workload/service identity. |
+| #55 | Bind opaque sensitive-value handle use to a non-transferable audience | **IMPLEMENTED_ON_ACTIVE_PR** | Draft stacked on exact #53 head `86ce4bc1c11c270dc532593d673c42bd6f623d74`. Test-only head `95f0f1e418024f5dbe7aa613e5fd1e9d88a9417a` and CI run `31419991170` proved a real regression: audience binding had caused a revoked handle with later mismatched policy state to return `ScopeMismatch` instead of authoritative `Revoked`. Current exact head `b83c10977a0d0103fb0307222720f70c6dc7cf3d` restores revocation precedence while retaining audience binding and passes CI run `31420279920`, including repository contracts, rustfmt, all workspace tests, strict Clippy, rustdoc and exact owned production function/line/region/branch coverage; CodeRabbit exact-head status is success. A future trusted broker must still derive the audience from authenticated workload/service identity. |
 
 ## Historical lineage
 
