@@ -25,7 +25,8 @@ The ADR index previously repeated these binding details directly. An index shoul
 ## Assumptions and authority boundaries
 
 - Protected-main `AGENTS.md` and live GitHub rules are authoritative for contributor actions.
-- This ADR is Proposed until protected-main governance accepts it.
+- This ADR remains Proposed until a protected-main revision explicitly records an Accepted lifecycle transition in this ADR's metadata and both canonical indexes.
+- Merely merging a file that still says `Proposed` does not Accept it.
 - Formal review and technical checks are separate evidence classes.
 - A review counts only if the governing policy recognizes that reviewer identity and review state for the relevant exact head.
 - Predecessor-head approval does not transfer across a changed head unless live policy explicitly defines that behavior.
@@ -52,7 +53,7 @@ Selected.
 
 If Accepted, OriginWeave applies these durable ADR-governance rules:
 
-1. **Protected-main transition defines architecture acceptance.** A branch file, issue, chat statement, prompt, PR body, check, or model verdict does not independently create a governing Accepted ADR.
+1. **Explicit protected-main lifecycle transition defines architecture acceptance.** A branch file, issue, chat statement, prompt, PR body, check, model verdict, or merge by itself does not create a governing Accepted ADR. An ADR becomes Accepted only when a protected-main revision explicitly changes that ADR's lifecycle metadata to `Accepted` and both `docs/README.md` and `docs/adr/README.md` mirror the same status. A Proposed ADR that merely reaches protected main remains Proposed.
 2. **Live policy defines mandatory review evidence.** When current GitHub rules require counted approval, acceptance requires a formal `APPROVED` review from an eligible identity recognized by that policy on the applicable unchanged head.
 3. **Repository-specific review requirements must be operationally satisfiable.** A stricter CWL/OriginWeave rule may require an eligible non-author reviewer only when a legitimate reviewer route exists.
 4. **No synthetic approval.** Author approval, COMMENTED reviews, reactions, model verdicts, statuses, predecessor-head approvals, impersonated identities, and fabricated accounts never substitute for required counted approval.
@@ -100,4 +101,12 @@ Supersede this ADR if GitHub governance changes to a materially different review
 
 ## References
 
-Current contributor authority is defined by [`../../AGENTS.md`](../../AGENTS.md), live GitHub repository policy, and the ADR lifecycle index [`README.md`](README.md). This ADR deliberately does not freeze mutable GitHub product semantics into timeless prose.
+ContextualWisdomLab. (2026). *Agent development contract* [Repository specification]. *OriginWeave*. [`../../AGENTS.md`](../../AGENTS.md)
+
+ContextualWisdomLab. (2026). *OriginWeave architecture decision records* [Repository specification]. *OriginWeave*. [`README.md`](README.md)
+
+GitHub. (n.d.). *Approving a pull request with required reviews*. GitHub Docs. Retrieved August 10, 2026, from https://docs.github.com/en/pull-requests/how-tos/review-pull-requests/approving-a-pull-request-with-required-reviews
+
+GitHub. (n.d.). *About protected branches*. GitHub Docs. Retrieved August 10, 2026, from https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches
+
+Current repository settings remain mutable runtime policy and must be probed live; these references document GitHub review/protection semantics rather than freezing the repository's current configuration into this ADR.
