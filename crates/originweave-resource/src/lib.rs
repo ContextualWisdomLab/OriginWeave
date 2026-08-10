@@ -9,6 +9,17 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+const MEBIBYTE_BYTES: u64 = 1_048_576;
+
+const fn bytes_to_mebibytes_ceil(bytes: u64) -> u64 {
+    let whole_mebibytes = bytes / MEBIBYTE_BYTES;
+    if bytes % MEBIBYTE_BYTES == 0 {
+        whole_mebibytes
+    } else {
+        whole_mebibytes + 1
+    }
+}
+
 /// A validation error in a resource budget.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BudgetError {
@@ -132,6 +143,32 @@ impl ResourceSnapshot {
             frame_time_milliseconds,
             cpu_threads_in_use,
         }
+    }
+
+    /// Build a governor snapshot using measured browser/task RSS telemetry.
+    ///
+    /// Browser RSS bytes are rounded up to mebibytes so a partial mebibyte is
+    /// never understated at a configured pressure boundary. VRAM, batch size,
+    /// local-model state, frame time, and CPU-worker use remain explicit
+    /// adapter observations; this conversion does not infer any of them from
+    /// browser telemetry.
+    #[must_use]
+    pub const fn from_browser_task_telemetry(
+        telemetry: BrowserTaskTelemetry,
+        vram_mebibytes: u64,
+        agent_batch_size: u32,
+        local_model_loaded: bool,
+        frame_time_milliseconds: u16,
+        cpu_threads_in_use: u16,
+    ) -> Self {
+        Self::new(
+            bytes_to_mebibytes_ceil(telemetry.browser_rss_bytes()),
+            vram_mebibytes,
+            agent_batch_size,
+            local_model_loaded,
+            frame_time_milliseconds,
+            cpu_threads_in_use,
+        )
     }
 }
 
