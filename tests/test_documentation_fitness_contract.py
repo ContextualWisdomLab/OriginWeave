@@ -25,7 +25,10 @@ def _adr_files() -> set[str]:
 def _adr_file_status(path: Path) -> str:
     """Read one ADR's explicit lifecycle status from its metadata header."""
     text = path.read_text(encoding="utf-8")
-    match = re.search(r"(?im)^-\s+(?:\*\*)?Status(?:\*\*)?:\s*(\w+)\s*$", text)
+    match = re.search(
+        r"(?im)^-\s+(?:\*\*Status:\*\*|\*\*Status\*\*:|Status:)\s*(\w+)\s*$",
+        text,
+    )
     if match is None:
         raise AssertionError(f"ADR has no parseable status: {path.name}")
     status = match.group(1)
