@@ -5,7 +5,7 @@
 //! observed, and when it was revoked. The evidence intentionally has no field
 //! for the opaque handle token or the protected value behind that token.
 
-use crate::sensitive_access::{SensitiveEvidenceError, MAX_SENSITIVE_IDENTIFIER_BYTES};
+use crate::sensitive_access::{MAX_SENSITIVE_IDENTIFIER_BYTES, SensitiveEvidenceError};
 
 /// Unvalidated metadata describing one opaque sensitive-value handle lifecycle.
 ///
