@@ -17,20 +17,20 @@ File existence alone is never sufficient. An artifact can exist and still be sta
 
 | Documentation family | Fitness | Current evidence / remaining boundary |
 |---|---|---|
-| PRD | **REPAIRED IN THIS CHANGE** | HTTP now names active replacement PR #37 while retaining `Planned` protected-main status; historical PR #11 is predecessor lineage. Purpose-bound sensitive disclosure is recorded as an Implemented policy kernel while broker/storage/lifecycle remain Planned under issue #10. MV3 remains a Planned complete compatibility program while protected-main and active-PR evidence are separately identified. |
-| TRD | **REPAIRED IN THIS CHANGE** | Implementation inventory now separates protected-main status from active/non-shipped evidence instead of composite labels such as `Planned / active development`. Session/node, route, sensitive-data, HTTP, proxy/PAC, MV3 and broker boundaries are reconciled to current evidence. |
-| Root Architecture | **PRESENT-CURRENT with follow-up** | Correct Chromium compatibility-kernel + Rust control-plane direction, explicit authority stack and protected-main truth rule. Reconcile implementation-facing details after #37/#40 or the real Chromium vertical slice integrate. |
-| ADR index/lifecycle | **REPAIRED IN THIS CHANGE** | Indexes now discover Accepted ADRs 0001-0008 and 0010 plus Proposed 0009, 0013, 0014 and 0100-0109 without promoting Proposed decisions. Identifier allocation is treated as a cross-main-and-active-work reservation problem. |
-| Individual ADRs | **PARTIAL BY LIFECYCLE** | Accepted ADRs remain governing design authority. Proposed ADR 0013 covers MV3 compatibility vs extension-to-Agent authority; Proposed ADR 0014 covers ADR acceptance governance. Their presence does not imply Acceptance. HTTP ADRs in PR #37 remain active-PR evidence. |
-| UML / control-flow diagrams | **PRESENT-CURRENT with follow-up** | Component, network authority, observation/action, delegated-task state, deployment, evidence, secret-fill, approval, resource-pressure/GPU fallback and hourly automation flows already exist. This PR adds `uml/extension-authority.md`. A detailed real-Chromium vertical-slice sequence is deferred until issue #28 contracts stabilize. |
-| Conceptual ERD/domain model | **PRESENT-CURRENT** | Explicitly conceptual unless an adapter/schema is separately implemented; distinguishes current value/evidence concepts from planned durable records and adapter-owned representations. No physical database is invented merely to satisfy an ERD checklist. |
-| Traceability | **REPAIRED IN THIS CHANGE** | Separates `IMPLEMENTED_ON_PROTECTED_MAIN`, `IMPLEMENTED_ON_ACTIVE_PR`, `PARTIAL`, `ACCEPTED_ARCHITECTURE`, `PLANNED`, `RESEARCH_ONLY`, `SUPERSEDED`, and `OUT_OF_SCOPE`; records #37/#40/#43 without promoting them to shipped truth. |
-| Threat model / Security | **PRESENT-CURRENT with follow-up** | Covers major untrusted-content, network, secret, provenance and extension risks. Update when new real browser/HTTP/runtime attack surfaces integrate. |
-| Test strategy / quality gates | **PRESENT-CURRENT** | Exact owned-code coverage, rustdoc and realistic boundary testing are explicit. Real browser and MV3 evidence remain pinned-browser executable evidence rather than source-text claims. |
-| Operability / incident response | **PRESENT-CURRENT with follow-up** | Failure, readiness, quarantine and recovery concepts exist. Protected-main runtime/scheduled evidence remains required for operational closure where applicable. |
-| API / protocol contracts | **PRESENT-CURRENT as target contracts** | OriginWeave Protocol and adapter boundaries are documented; much browser adapter implementation remains Planned. External protocol identifiers are never durable authority by themselves. |
+| PRD | **REPAIRED IN THIS CHANGE** | HTTP names active replacement PR #37 while retaining `Planned` protected-main status; historical PR #11 is predecessor lineage. Purpose-bound sensitive disclosure is an Implemented protected-main policy kernel while broker/storage/lifecycle remain Planned under issue #10; active PR #45 adds credential-free lifecycle evidence and active PR #46 adds bounded in-process authoritative use reservation without turning the broker runtime into shipped behavior. MV3 remains a Planned complete compatibility program while protected-main and active-PR evidence are separately identified. |
+| TRD | **REPAIRED IN THIS CHANGE** | Implementation inventory separates protected-main status from active/non-shipped evidence instead of composite labels. Session/node, route, sensitive-data, HTTP, proxy/PAC, MV3 and broker boundaries remain reconciled to protected-main truth; #45/#46 are active partial broker-lifecycle evidence only. |
+| Root Architecture | **PRESENT-CURRENT with follow-up** | Correct Chromium compatibility-kernel + Rust control-plane direction, explicit authority stack and protected-main truth rule. No topology change is required for #45/#46 because they implement already-governed ADR 0007 evidence/policy primitives rather than introducing broker persistence or a new service boundary. Reconcile implementation-facing details after #37/#40 or the real Chromium vertical slice integrate. |
+| ADR index/lifecycle | **REPAIRED IN THIS CHANGE** | Indexes Accepted ADRs 0001-0008 and 0010 plus Proposed 0009, 0013, 0014 and 0100-0109 without promoting Proposed decisions. Identifier allocation is treated as a cross-main-and-active-work reservation problem. No new ADR is required for #45/#46 because both stay within Accepted ADR 0007's existing sensitive-data authority/broker-lifecycle direction. |
+| Individual ADRs | **PARTIAL BY LIFECYCLE** | Accepted ADRs remain governing design authority. Proposed ADR 0013 covers MV3 compatibility vs extension-to-Agent authority; Proposed ADR 0014 covers ADR acceptance governance. Their presence does not imply Acceptance. HTTP ADRs in PR #37 remain active-PR evidence. ADR 0007 already specifies caller-unforgeable state and atomic broker reservation; #45/#46 are partial implementation evidence, not a new architecture decision. |
+| UML / control-flow diagrams | **PRESENT-CURRENT with follow-up** | Component, network authority, observation/action, delegated-task state, deployment, evidence, secret-fill, approval, resource-pressure/GPU fallback and hourly automation flows already exist. This PR adds `uml/extension-authority.md`. No new UML is justified for #45/#46 until a real trusted broker/storage/fill runtime changes the deployed component or transaction boundary. A detailed real-Chromium vertical-slice sequence is deferred until issue #28 contracts stabilize. |
+| Conceptual ERD/domain model | **PRESENT-CURRENT** | Explicitly conceptual unless an adapter/schema is separately implemented; distinguishes current value/evidence concepts from planned durable records and adapter-owned representations. #45/#46 introduce no physical persistence, so adding tables merely to represent active in-memory primitives would be false architecture. |
+| Traceability | **REPAIRED IN THIS CHANGE** | Separates `IMPLEMENTED_ON_PROTECTED_MAIN`, `IMPLEMENTED_ON_ACTIVE_PR`, `PARTIAL`, `ACCEPTED_ARCHITECTURE`, `PLANNED`, `RESEARCH_ONLY`, `SUPERSEDED`, and `OUT_OF_SCOPE`; #37/#40/#43/#45/#46 are active evidence only and cannot be promoted to protected-main truth. |
+| Threat model / Security | **PRESENT-CURRENT with follow-up** | Covers major untrusted-content, network, secret, provenance and extension risks. ADR 0007 already identifies stale caller-count/concurrent replay risk; #46 narrows that risk only within one in-process mutable state object and does not claim cross-process atomicity/revocation. Update when a real broker/storage/runtime attack surface integrates. |
+| Test strategy / quality gates | **PRESENT-CURRENT** | Exact owned-code coverage, rustdoc and realistic boundary testing are explicit. #46 follows real RED at the unresolved production API, then exact-head workspace/test/Clippy/rustdoc and 100% function/line/region/branch coverage. Real browser and MV3 evidence remain pinned-browser executable evidence rather than source-text claims. |
+| Operability / incident response | **PRESENT-CURRENT with follow-up** | Failure, readiness, quarantine and recovery concepts exist. #45/#46 intentionally add no durable broker operation, so no new runbook/SLO/RPO/RTO is fabricated. Protected-main runtime/scheduled evidence remains required for operational closure where applicable. |
+| API / protocol contracts | **PRESENT-CURRENT as target contracts** | OriginWeave Protocol and adapter boundaries are documented; much browser adapter implementation remains Planned. External protocol identifiers are never durable authority by themselves. #46's Rust policy API is internal reusable control-plane state, not a new external wire/schema contract. |
 | Release / rollback / provenance | **PRESENT-CURRENT** | Feature-branch green checks cannot become release readiness. Release remains bound to one exact integrated protected head and applicable CI/security/coverage/package/provenance/recovery/compatibility/review evidence. |
-| Data governance / privacy | **PRESENT-CURRENT architecture / PARTIAL runtime** | Purpose-bound policy/evidence foundations exist; trusted broker/storage/revocation/model-disclosure lifecycle remains open under issue #10. |
+| Data governance / privacy | **PRESENT-CURRENT architecture / PARTIAL runtime** | Purpose-bound policy/evidence foundations exist. Active PR #45 adds credential-free handle lifecycle evidence; active PR #46 adds a bounded in-process reservation counter that removes caller-supplied prior-use state from the reservation operation. Trusted broker storage, cross-process transactionality, revocation, protected-value resolution/fill, compensation, encryption/KMS and model-disclosure lifecycle remain open under issue #10. |
 | Standards / doctoring | **PRESENT-CURRENT with continuous watch** | Primary browser/protocol/standards evidence and APA 7 references are kept in doctoring documents with draft/experimental status distinguished from final normative standards. |
 
 ## 3. Reconciliation findings and resolution state
@@ -39,13 +39,20 @@ File existence alone is never sufficient. An artifact can exist and still be sta
 
 Protected-main PRD previously named historical PR #11 as active HTTP evidence. Current executable replacement work is PR #37, while protected main still does not ship bounded HTTP semantics.
 
-**Resolved on this documentation branch:** PRD, TRD and traceability now name #37 only as active/non-shipped evidence, retain protected-main `Planned`, and treat #11 as predecessor lineage. Old-head checks/reviews do not transfer.
+**Resolved on this documentation branch:** PRD, TRD and traceability name #37 only as active/non-shipped evidence, retain protected-main `Planned`, and treat #11 as predecessor lineage. Old-head checks/reviews do not transfer.
 
-### 3.2 Sensitive-data authority
+### 3.2 Sensitive-data authority and broker lifecycle
 
-Protected main contains a purpose-bound sensitive-data policy/evidence foundation, while the trusted broker, durable value lifecycle, revocation/reservation, trusted fill and provider/model disclosure controls remain incomplete.
+Protected main contains a purpose-bound sensitive-data policy/evidence foundation governed by Accepted ADR 0007, while the complete trusted broker remains unimplemented.
 
-**Resolved on this documentation branch:** PRD/TRD/traceability distinguish the Implemented policy foundation from the Planned broker/runtime under issue #10 instead of calling the entire concern active or shipped.
+Two newer active lanes provide narrower non-shipped evidence:
+
+- PR #45 records credential-free handle lifecycle evidence in `originweave-evidence` without storing protected values; and
+- PR #46 adds `SensitiveHandleUseState`, an in-process authoritative reservation count in `originweave-policy` that increments only after existing exact-scope/classification/expiry/use-limit admission and does not trust a reservation caller to supply the prior-use count.
+
+PR #46's mutable-borrow serialization is deliberately **not** described as durable or cross-process atomic broker enforcement. It stores neither the opaque token nor protected data and does not implement revocation, transactionally durable reservation, value resolution/fill, compensation, encryption/KMS, retention, or model/provider/region disclosure policy.
+
+**Resolved on this documentation branch:** the design verdict remains unchanged. PRD/TRD/traceability may identify #45/#46 as `IMPLEMENTED_ON_ACTIVE_PR`/partial evidence while the complete broker/runtime stays `Planned` under issue #10. Root Architecture, UML and ERD do not gain fictitious service/database boundaries before those boundaries actually exist.
 
 ### 3.3 Manifest V3 compatibility
 
@@ -101,6 +108,7 @@ The canonical graph must continue to preserve these durable decisions:
 18. Documentation, checks, reviews, model judgements and operational evidence are separate evidence authorities.
 19. Work-conserving maintenance continues to another safe lane rather than stopping on one merge, document, RCA, queued check or external approval gap.
 20. ADR numbers, migrations, schema/API/protocol versions and other collision-sensitive repository identifiers are reserved across protected main **and active work** before allocation.
+21. A policy primitive may narrow stale-count/replay risk without claiming the durable trusted broker exists; in-memory serialization, cross-process transactionality, lifecycle evidence and protected-value release remain separate maturity claims.
 
 ## 5. Architecture views still legitimately deferred
 
@@ -139,6 +147,10 @@ isolated profile/context
 
 Do not freeze temporary protocol/field names into authoritative UML before the executable contracts stabilize.
 
+### 5.3 Trusted sensitive-data broker — deferred until issue #10 owns a real runtime boundary
+
+Current protected-main policy/evidence plus active #45/#46 primitives do not justify inventing a broker process, database table, transaction manager, KMS path or browser-fill adapter in timeless Architecture/UML/ERD. When a real broker slice exists, the documentation graph must add the actual component/transaction/data-lifecycle views and mark persisted versus in-memory versus external state from executable evidence.
+
 ## 6. What remains before documentation closure
 
 ### Completed or materially advanced on this branch
@@ -152,14 +164,16 @@ Do not freeze temporary protocol/field names into authoritative UML before the e
 - extension authority UML;
 - conceptual ERD truth discipline;
 - documentation fitness and regression contracts;
-- current browser/protocol standards doctoring.
+- current browser/protocol standards doctoring;
+- active-sensitive-data evidence reconciliation without promoting #45/#46 to shipped or inventing broker persistence.
 
 ### Still required
 
 - exact-head CI/security/review acceptance of this documentation PR;
 - integration before any of these branch repairs become protected-main truth;
-- re-reconciliation after active PR #37 or #40 integrates, because active-PR status must then move to protected-main evidence;
+- re-reconciliation after active PR #37, #40, #43, #45 or #46 integrates, because active-PR status must then move to protected-main evidence;
 - detailed real-Chromium vertical-slice UML when issue #28 implementation contracts are stable;
+- trusted-broker UML/ERD/operability additions only when issue #10 establishes real runtime/persistence ownership;
 - future ERD changes only when persistence ownership/entities actually change;
 - ongoing security/operability/release reconciliation as real browser/runtime boundaries integrate.
 
