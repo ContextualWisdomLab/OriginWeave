@@ -127,7 +127,7 @@ The canonical APA 7th bibliography is [`../doctoring.md`](../doctoring.md). This
 | WHATWG URL + Chromium canonicalizer | Browser-compatible origin identity and numeric-host rejection |
 | IANA special-purpose registries / RFC 6890 / RFC 8190 / RFC 9637 | Destination classification and fail-closed public-web policy |
 | RFC 9293 | Exact TCP endpoint/peer model |
-| RFC 5280 / RFC 9525 / current TLS guidance | Certificate path, HTTPS service identity, and the separation between certificate validity and any future revocation policy |
+| RFC 5280 / RFC 9525 / RFC 9325 | Certificate path, HTTPS service identity, and the separation between certificate validity and any future revocation policy |
 | RFC 9110 / RFC 9112 / RFC 9530 | Bounded HTTP semantics, framing, redirect evidence and digest fields |
 | RFC 9309 | Crawler robots evidence, explicitly not access authorization |
 | W3C WebDriver BiDi | Versioned browser automation adapter, not core authority |
