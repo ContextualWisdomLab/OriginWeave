@@ -52,8 +52,7 @@ fn revocation_material_freshness_requires_a_bounded_local_policy_window() {
         Err(RevocationMaterialFreshnessError::ZeroMaximumWindow)
     );
 
-    let exact_maximum =
-        RevocationMaterialFreshness::new(1_000, 1_300, MAXIMUM_WINDOW_SECONDS);
+    let exact_maximum = RevocationMaterialFreshness::new(1_000, 1_300, MAXIMUM_WINDOW_SECONDS);
     assert!(exact_maximum.is_ok());
 
     assert_eq!(
