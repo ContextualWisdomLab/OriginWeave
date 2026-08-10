@@ -125,9 +125,18 @@ class ProductDocumentationContractTests(unittest.TestCase):
         self.assertNotIn("residual unrun evidence", release)
 
     def test_traceability_labels_conversation_derived_future_work(self) -> None:
-        """Conversation decisions must preserve implementation status instead of becoming claims."""
+        """Conversation decisions must preserve canonical maturity instead of becoming shipped claims."""
         traceability = (ROOT / "docs/traceability/README.md").read_text(encoding="utf-8")
-        for phrase in ("Implemented", "Accepted architecture", "Proposed", "Open", "conversation-derived", "docs/doctoring.md"):
+        for phrase in (
+            "IMPLEMENTED_ON_PROTECTED_MAIN",
+            "IMPLEMENTED_ON_ACTIVE_PR",
+            "PARTIAL",
+            "ACCEPTED_ARCHITECTURE",
+            "PLANNED",
+            "conversation-derived",
+            "docs/doctoring.md",
+            "Active-PR behavior is never protected-main truth",
+        ):
             with self.subTest(phrase=phrase): self.assertIn(phrase, traceability)
 
 
