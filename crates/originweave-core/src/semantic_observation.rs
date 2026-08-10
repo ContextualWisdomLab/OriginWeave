@@ -227,22 +227,20 @@ impl SemanticNodeQuery {
         accessible_name: Option<String>,
         required_action: Option<NodeActionKind>,
     ) -> Result<Self, SemanticNodeQueryError> {
-        if role.is_none() {
-            if accessible_name.is_none() {
-                if required_action.is_none() {
-                    return Err(SemanticNodeQueryError::EmptySelector);
-                }
-            }
+        if role.is_none() && accessible_name.is_none() && required_action.is_none() {
+            return Err(SemanticNodeQueryError::EmptySelector);
         }
-        if let Some(role) = role.as_ref() {
-            if role.len() > MAX_SEMANTIC_ROLE_BYTES {
-                return Err(SemanticNodeQueryError::RoleTooLong);
-            }
+        if role
+            .as_ref()
+            .is_some_and(|role| role.len() > MAX_SEMANTIC_ROLE_BYTES)
+        {
+            return Err(SemanticNodeQueryError::RoleTooLong);
         }
-        if let Some(accessible_name) = accessible_name.as_ref() {
-            if accessible_name.len() > MAX_ACCESSIBLE_NAME_BYTES {
-                return Err(SemanticNodeQueryError::AccessibleNameTooLong);
-            }
+        if accessible_name
+            .as_ref()
+            .is_some_and(|accessible_name| accessible_name.len() > MAX_ACCESSIBLE_NAME_BYTES)
+        {
+            return Err(SemanticNodeQueryError::AccessibleNameTooLong);
         }
         Ok(Self {
             role,
@@ -272,20 +270,24 @@ impl SemanticNodeQuery {
     /// Match the query against one already bounded semantic observation.
     #[must_use]
     pub fn matches(&self, observation: &SemanticNodeObservation) -> bool {
-        if let Some(role) = self.role.as_deref() {
-            if observation.role() != role {
-                return false;
-            }
+        if self
+            .role
+            .as_deref()
+            .is_some_and(|role| observation.role() != role)
+        {
+            return false;
         }
-        if let Some(accessible_name) = self.accessible_name.as_deref() {
-            if observation.accessible_name() != accessible_name {
-                return false;
-            }
+        if self
+            .accessible_name
+            .as_deref()
+            .is_some_and(|accessible_name| observation.accessible_name() != accessible_name)
+        {
+            return false;
         }
-        if let Some(required_action) = self.required_action {
-            if !observation.supported_actions().contains(&required_action) {
-                return false;
-            }
+        if self.required_action.is_some_and(|required_action| {
+            !observation.supported_actions().contains(&required_action)
+        }) {
+            return false;
         }
         true
     }
