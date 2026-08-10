@@ -84,7 +84,7 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
             "Chromium permission or browser compatibility success is not an OriginWeave Agent capability",
             self.fitness,
         )
-        self.assertIn("does not justify", self.fitness)
+        self.assertIn("#43/#49/#56 are active compatibility evidence only", self.fitness)
 
     def test_erd_stays_conceptual_without_persistence_owner(self) -> None:
         """Active in-memory/value primitives must not manufacture a physical data model."""
