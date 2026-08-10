@@ -10,6 +10,7 @@
 - [Conceptual ERD and durable domain model](erd/README.md)
 - [Data governance and privacy boundary](DATA_GOVERNANCE.md)
 - [Product and decision traceability](traceability/README.md)
+- [Documentation fitness assessment](DOCUMENTATION_FITNESS.md)
 - [Threat model](THREAT_MODEL.md)
 - [Product-wide test strategy](TEST_STRATEGY.md)
 - [Operability and incident-response baseline](OPERABILITY.md)
@@ -21,7 +22,7 @@
 - [Quality gates](quality-gates.md)
 - [Security policy](../SECURITY.md)
 
-The PRD/TRD/Architecture/ADR/UML/ERD/data-governance/traceability/security/operations/API/release set is the product-wide documentation graph. Feature-specific design specifications and plans below provide detailed implementation history but do not substitute for the product-wide baseline. Planned or conversation-derived capabilities must remain labelled Planned, Proposed, or Open until reviewed implementation evidence reaches protected `main`.
+The PRD/TRD/Architecture/ADR/UML/ERD/data-governance/traceability/security/operations/API/release set is the product-wide documentation graph. The documentation-fitness assessment records where that graph is current, stale, partial, or intentionally proposed. Feature-specific design specifications and plans below provide detailed implementation history but do not substitute for the product-wide baseline. Planned or conversation-derived capabilities must remain labelled Planned, Proposed, or Open until reviewed implementation evidence reaches protected `main`.
 
 ## Governance and maintenance
 
@@ -42,7 +43,7 @@ The PRD/TRD/Architecture/ADR/UML/ERD/data-governance/traceability/security/opera
 - [TLS service-identity design](superpowers/specs/2026-08-06-tls-server-identity-design.md)
 - [TLS service-identity implementation plan](superpowers/plans/2026-08-06-tls-server-identity.md)
 
-## Protected-main architecture decisions
+## Accepted protected-main architecture decisions
 
 - [ADR 0001: Chromium compatibility kernel](adr/0001-chromium-compatibility-kernel.md)
 - [ADR 0002: Agent safety kernel](adr/0002-agent-safety-kernel.md)
@@ -50,5 +51,24 @@ The PRD/TRD/Architecture/ADR/UML/ERD/data-governance/traceability/security/opera
 - [ADR 0004: Logical origin and resolved destination safety](adr/0004-resolved-destination-policy.md)
 - [ADR 0005: Exact direct TCP peer binding](adr/0005-direct-socket-binding.md)
 - [ADR 0006: TLS service identity over the verified peer](adr/0006-tls-server-identity.md)
+- [ADR 0007: Purpose-bound sensitive-data authority](adr/0007-purpose-bound-sensitive-data-authority.md)
+- [ADR 0008: Delegated-task TLS leaf-validity horizon](adr/0008-leaf-validity-horizon.md)
+- [ADR 0010: Session/context-bound node authority](adr/0010-session-context-bound-node-authority.md)
 
-See the [ADR index](adr/README.md) for status rules, required decision structure, and the rule that active-PR ADRs do not become Accepted merely because they exist on an unmerged branch.
+## Proposed decisions retained on protected main
+
+Proposed ADRs are reviewable architecture memory, not shipped behavior and not automatically Accepted merely because their files live on protected `main`.
+
+- [ADR 0009: Hourly agent credential boundary](adr/0009-hourly-agent-credential-boundary.md)
+- [ADR 0100: Rust control-plane boundary](adr/0100-rust-control-plane-boundary.md)
+- [ADR 0101: Isolated execution/profile modes](adr/0101-isolated-execution-profile-modes.md)
+- [ADR 0102: Typed actions over arbitrary JavaScript](adr/0102-typed-actions-and-arbitrary-js.md)
+- [ADR 0103: Semantic observation and stale-node identity](adr/0103-semantic-observation-and-stale-node-identity.md)
+- [ADR 0104: Prompt-injection and secret authority separation](adr/0104-prompt-injection-and-secret-authority.md)
+- [ADR 0105: Resource governor priority](adr/0105-resource-governor-priority.md)
+- [ADR 0106: Provenance evidence model](adr/0106-provenance-evidence-model.md)
+- [ADR 0107: Browser protocol adapter strategy](adr/0107-browser-protocol-adapter-strategy.md)
+- [ADR 0108: Crawler policy](adr/0108-crawler-policy.md)
+- [ADR 0109: Hourly automation operational closure](adr/0109-hourly-automation-operational-closure.md)
+
+See the [ADR index](adr/README.md) for status rules, required decision structure, supersession rules, and active feature ADRs. The index and each ADR's own status metadata must agree; a PR body, chat transcript, automation prompt, or stale issue reference cannot change ADR status.
