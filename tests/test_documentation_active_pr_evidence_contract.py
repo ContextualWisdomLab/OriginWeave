@@ -71,13 +71,15 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
             "accessible-name",
             "typed-action",
             "no CSS/XPath/raw DOM selector language",
-            "no browser I/O or action authority",
+            "browser I/O or action authority",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, row)
 
         self.assertIn("Draft stacked on exact #52 head", row)
-        self.assertIn("predecessor-head gate result is transferred", row)
+        self.assertIn("CI run `31429995885` passes", row)
+        self.assertIn("exact owned production function/line/region/branch coverage", row)
+        self.assertIn("remains Draft because #52/#40 are active prerequisites", row)
 
     def test_sensitive_audience_evidence_does_not_claim_authentication(self) -> None:
         """An internal audience field is not authenticated workload/service identity."""
