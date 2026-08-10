@@ -7,6 +7,7 @@
 - [Architecture](../ARCHITECTURE.md)
 - [Architecture Decision Record index](adr/README.md)
 - [UML and control-flow diagrams](uml/README.md)
+  - [Extension compatibility and Agent authority UML](uml/extension-authority.md)
 - [Conceptual ERD and durable domain model](erd/README.md)
 - [Data governance and privacy boundary](DATA_GOVERNANCE.md)
 - [Product and decision traceability](traceability/README.md)
