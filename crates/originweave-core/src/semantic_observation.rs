@@ -209,6 +209,114 @@ impl SemanticNodeObservation {
     }
 }
 
+/// A bounded typed selector over already validated semantic node observations.
+///
+/// Queries match only reviewed semantic fields and descriptive action evidence. They never expose
+/// raw DOM/protocol selectors and never grant browser action authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SemanticNodeQuery {
+    role: Option<String>,
+    accessible_name: Option<String>,
+    required_action: Option<NodeActionKind>,
+}
+
+impl SemanticNodeQuery {
+    /// Validate and construct a query with at least one exact typed selector.
+    pub fn new(
+        role: Option<String>,
+        accessible_name: Option<String>,
+        required_action: Option<NodeActionKind>,
+    ) -> Result<Self, SemanticNodeQueryError> {
+        if role.is_none() {
+            if accessible_name.is_none() {
+                if required_action.is_none() {
+                    return Err(SemanticNodeQueryError::EmptySelector);
+                }
+            }
+        }
+        if let Some(role) = role.as_ref() {
+            if role.len() > MAX_SEMANTIC_ROLE_BYTES {
+                return Err(SemanticNodeQueryError::RoleTooLong);
+            }
+        }
+        if let Some(accessible_name) = accessible_name.as_ref() {
+            if accessible_name.len() > MAX_ACCESSIBLE_NAME_BYTES {
+                return Err(SemanticNodeQueryError::AccessibleNameTooLong);
+            }
+        }
+        Ok(Self {
+            role,
+            accessible_name,
+            required_action,
+        })
+    }
+
+    /// Return the optional exact semantic-role selector.
+    #[must_use]
+    pub fn role(&self) -> Option<&str> {
+        self.role.as_deref()
+    }
+
+    /// Return the optional exact accessible-name selector.
+    #[must_use]
+    pub fn accessible_name(&self) -> Option<&str> {
+        self.accessible_name.as_deref()
+    }
+
+    /// Return the optional required descriptive node action.
+    #[must_use]
+    pub const fn required_action(&self) -> Option<NodeActionKind> {
+        self.required_action
+    }
+
+    /// Match the query against one already bounded semantic observation.
+    #[must_use]
+    pub fn matches(&self, observation: &SemanticNodeObservation) -> bool {
+        if let Some(role) = self.role.as_deref() {
+            if observation.role() != role {
+                return false;
+            }
+        }
+        if let Some(accessible_name) = self.accessible_name.as_deref() {
+            if observation.accessible_name() != accessible_name {
+                return false;
+            }
+        }
+        if let Some(required_action) = self.required_action {
+            if !observation.supported_actions().contains(&required_action) {
+                return false;
+            }
+        }
+        true
+    }
+}
+
+/// A bounded validation failure for one typed semantic node query.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SemanticNodeQueryError {
+    /// No typed selector was supplied.
+    EmptySelector,
+    /// The role selector exceeded [`MAX_SEMANTIC_ROLE_BYTES`].
+    RoleTooLong,
+    /// The accessible-name selector exceeded [`MAX_ACCESSIBLE_NAME_BYTES`].
+    AccessibleNameTooLong,
+}
+
+impl fmt::Display for SemanticNodeQueryError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::EmptySelector => {
+                formatter.write_str("semantic node query requires at least one selector")
+            }
+            Self::RoleTooLong => formatter.write_str("semantic node query role exceeds 64 UTF-8 bytes"),
+            Self::AccessibleNameTooLong => formatter
+                .write_str("semantic node query accessible name exceeds 512 UTF-8 bytes"),
+        }
+    }
+}
+
+impl std::error::Error for SemanticNodeQueryError {}
+
 fn validate_relationship(
     handle: &ObservedNodeHandle,
     related: &ObservedNodeHandle,
