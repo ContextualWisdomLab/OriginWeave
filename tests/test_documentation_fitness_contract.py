@@ -78,6 +78,15 @@ def _parse_adr_index(text: str) -> dict[str, str]:
     return mapping
 
 
+def _active_pr_row(text: str, pr_number: int) -> str:
+    """Return one exact active-PR evidence row from the dated maturity appendix."""
+    prefix = f"| #{pr_number} |"
+    rows = [line for line in text.splitlines() if line.startswith(prefix)]
+    if len(rows) != 1:
+        raise AssertionError(f"expected exactly one maturity row for PR #{pr_number}, got {len(rows)}")
+    return rows[0]
+
+
 class DocumentationFitnessContractTests(unittest.TestCase):
     """Keep architecture discovery and implementation-maturity metadata coherent."""
 
@@ -147,30 +156,39 @@ class DocumentationFitnessContractTests(unittest.TestCase):
         self.assertIn("exist only on this documentation branch until it integrates", adr_index)
 
     def test_current_replacement_lanes_are_not_promoted_to_protected_main(self) -> None:
-        """Canonical docs must distinguish active implementation from shipped implementation."""
+        """Each active implementation lane must carry its own exact non-shipped maturity mapping."""
         assessment = (DOCS_ROOT / "DOCUMENTATION_FITNESS.md").read_text(encoding="utf-8")
         traceability = (DOCS_ROOT / "traceability" / "README.md").read_text(encoding="utf-8")
-        for marker in (
-            "PR #37",
-            "PR #40",
-            "PR #43",
-            "PR #52",
-            "issue #10",
-            "issue #27",
-            "issue #28",
-        ):
+        appendix = (DOCS_ROOT / "evidence" / "2026-08-10-active-pr-maturity.md").read_text(
+            encoding="utf-8"
+        )
+
+        for pr_number in (37, 40, 43, 52):
+            row = _active_pr_row(appendix, pr_number)
+            with self.subTest(pr_number=pr_number):
+                self.assertIn("**IMPLEMENTED_ON_ACTIVE_PR**", row)
+                self.assertNotIn("IMPLEMENTED_ON_PROTECTED_MAIN", row)
+
+        for marker in ("issue #10", "issue #27", "issue #28"):
             with self.subTest(marker=marker):
                 self.assertTrue(marker in assessment or marker in traceability)
+
         self.assertIn("IMPLEMENTED_ON_ACTIVE_PR", traceability)
         self.assertIn("IMPLEMENTED_ON_PROTECTED_MAIN", traceability)
         self.assertIn("Active-PR behavior is never protected-main truth", traceability)
 
     def test_semantic_observation_lane_stays_non_shipped_and_provenance_bound(self) -> None:
-        """The semantic observation value object must not be documented as a real browser adapter."""
-        assessment = (DOCS_ROOT / "DOCUMENTATION_FITNESS.md").read_text(encoding="utf-8")
+        """The semantic observation value object must stay active-only and distinct from browser I/O."""
+        appendix = (DOCS_ROOT / "evidence" / "2026-08-10-active-pr-maturity.md").read_text(
+            encoding="utf-8"
+        )
         prd = (DOCS_ROOT / "PRD.md").read_text(encoding="utf-8")
-        self.assertIn("PR #52", assessment)
-        self.assertIn("evidence channel", assessment)
+        row = _active_pr_row(appendix, 52)
+
+        self.assertIn("**IMPLEMENTED_ON_ACTIVE_PR**", row)
+        self.assertIn("semantic-node observation", row)
+        self.assertIn("no browser I/O or action dispatch", row)
+        self.assertNotIn("IMPLEMENTED_ON_PROTECTED_MAIN", row)
         self.assertIn("active PR #52", prd)
         self.assertIn("not a browser observation adapter", prd)
 
