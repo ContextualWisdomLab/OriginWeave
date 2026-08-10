@@ -12,6 +12,7 @@ const TASK: &str = "task_ship_order";
 const FIELD: &str = "shipping_address";
 const PURPOSE: &str = "fulfill_order";
 const DESTINATION: &str = "https://shipping.example";
+const AUDIENCE: &str = "trusted_browser_adapter";
 
 #[derive(Clone, Copy)]
 struct AuthorityCase<'a> {
@@ -79,7 +80,25 @@ fn handle_scope(
     authority: AuthorityCase<'_>,
     classification: DataClassification,
 ) -> SensitiveValueHandleScope {
-    SensitiveValueHandleScope::new(sensitive_authority(authority, classification), 2_000, 2)
+    SensitiveValueHandleScope::new(
+        sensitive_authority(authority, classification),
+        AUDIENCE,
+        2_000,
+        2,
+    )
+}
+
+fn handle_scope_for_audience(
+    authority: AuthorityCase<'_>,
+    classification: DataClassification,
+    audience: &str,
+) -> SensitiveValueHandleScope {
+    SensitiveValueHandleScope::new(
+        sensitive_authority(authority, classification),
+        audience,
+        2_000,
+        2,
+    )
 }
 
 fn handle_use(
@@ -88,7 +107,22 @@ fn handle_use(
     now: u64,
     uses: u32,
 ) -> HandleUseRequest {
-    HandleUseRequest::new(sensitive_authority(authority, classification), now, uses)
+    handle_use_for_audience(authority, classification, AUDIENCE, now, uses)
+}
+
+fn handle_use_for_audience(
+    authority: AuthorityCase<'_>,
+    classification: DataClassification,
+    audience: &str,
+    now: u64,
+    uses: u32,
+) -> HandleUseRequest {
+    HandleUseRequest::new(
+        sensitive_authority(authority, classification),
+        audience,
+        now,
+        uses,
+    )
 }
 
 fn assert_disclosure_denied(authority: AuthorityCase<'_>, classification: DataClassification) {
@@ -216,7 +250,7 @@ fn every_supported_disclosure_outcome_is_preserved_by_exact_scope() {
 }
 
 #[test]
-fn opaque_handle_use_is_bound_to_scope_classification_expiry_and_use_count() {
+fn opaque_handle_use_is_bound_to_scope_classification_audience_expiry_and_use_count() {
     let exact = exact_authority();
     let scope = handle_scope(exact, DataClassification::PersonalData);
     assert_eq!(
@@ -233,6 +267,19 @@ fn opaque_handle_use_is_bound_to_scope_classification_expiry_and_use_count() {
     assert_handle_scope_mismatch(exact, DataClassification::SensitivePersonalData);
     assert_eq!(
         evaluate_handle_use(
+            &handle_use_for_audience(
+                exact,
+                DataClassification::PersonalData,
+                "other_service",
+                1_999,
+                1,
+            ),
+            &scope,
+        ),
+        HandleUseDecision::AudienceMismatch
+    );
+    assert_eq!(
+        evaluate_handle_use(
             &handle_use(exact, DataClassification::PersonalData, 2_000, 1),
             &scope,
         ),
@@ -244,6 +291,33 @@ fn opaque_handle_use_is_bound_to_scope_classification_expiry_and_use_count() {
             &scope,
         ),
         HandleUseDecision::UseLimitReached
+    );
+}
+
+#[test]
+fn invalid_handle_audience_fails_closed_on_request_and_scope() {
+    let exact = exact_authority();
+    let valid_scope = handle_scope(exact, DataClassification::PersonalData);
+    let invalid_request = handle_use_for_audience(
+        exact,
+        DataClassification::PersonalData,
+        "",
+        1_999,
+        0,
+    );
+    assert_eq!(
+        evaluate_handle_use(&invalid_request, &valid_scope),
+        HandleUseDecision::AudienceMismatch
+    );
+
+    let invalid_scope =
+        handle_scope_for_audience(exact, DataClassification::PersonalData, "browser adapter");
+    assert_eq!(
+        evaluate_handle_use(
+            &handle_use(exact, DataClassification::PersonalData, 1_999, 0),
+            &invalid_scope,
+        ),
+        HandleUseDecision::AudienceMismatch
     );
 }
 
