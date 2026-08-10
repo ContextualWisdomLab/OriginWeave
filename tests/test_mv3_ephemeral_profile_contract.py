@@ -1,4 +1,4 @@
-"""Fail-first contract for bounded ephemeral Chromium profile evidence."""
+"""Regression contract for bounded ephemeral Chromium profile lifecycle."""
 
 from __future__ import annotations
 
@@ -23,10 +23,10 @@ def _load_runner():
 
 
 class ManifestV3EphemeralProfileContractTests(unittest.TestCase):
-    """Require each Chromium trial to prove isolated profile creation and cleanup."""
+    """Prove each Chromium trial creates, reuses, and deletes one isolated profile."""
 
-    def test_restart_trial_reports_isolated_ephemeral_profile_cleanup(self) -> None:
-        """Trial evidence must prove an empty new profile and deletion after browser use."""
+    def test_restart_trial_uses_empty_profile_then_deletes_it(self) -> None:
+        """A trial must start empty, reuse only its own profile, then remove it."""
 
         runner = _load_runner()
         observed_profiles: list[pathlib.Path] = []
@@ -68,11 +68,10 @@ class ManifestV3EphemeralProfileContractTests(unittest.TestCase):
             )
 
         self.assertEqual(len(observed_profiles), 2)
+        self.assertEqual(observed_profiles[0], observed_profiles[1])
         self.assertFalse(observed_profiles[0].exists())
-        surfaces = result["surfaces"]
-        self.assertIsInstance(surfaces, dict)
-        self.assertIs(surfaces.get("ephemeral-profile-isolation"), True)
-        self.assertIs(surfaces.get("ephemeral-profile-cleanup"), True)
+        self.assertNotIn(str(observed_profiles[0]), repr(result))
+        self.assertIs(result.get("passed"), True)
 
 
 if __name__ == "__main__":
