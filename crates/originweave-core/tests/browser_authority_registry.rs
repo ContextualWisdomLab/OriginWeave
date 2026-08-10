@@ -37,6 +37,57 @@ fn external_protocol_identifiers_are_scoped_and_never_become_authority()
 }
 
 #[test]
+fn public_default_and_error_contracts_are_usable_from_an_adapter() -> Result<(), Box<dyn Error>> {
+    let mut registry = BrowserAuthorityRegistry::default();
+    assert!(registry.register_session("adapter-session")?.value() > 0);
+
+    let first_session = BrowserSessionId::new(1)?;
+    let second_session = BrowserSessionId::new(2)?;
+    let cases = [
+        (
+            BrowserRegistryError::InvalidExternalIdentifier,
+            "external browser identifier must contain 1 to 512 UTF-8 bytes".to_owned(),
+        ),
+        (
+            BrowserRegistryError::UnknownBrowserSession,
+            "browser session is not registered in this authority registry".to_owned(),
+        ),
+        (
+            BrowserRegistryError::UnknownBrowsingContext,
+            "browsing context is not registered in this authority registry".to_owned(),
+        ),
+        (
+            BrowserRegistryError::ContextSessionMismatch {
+                expected: first_session,
+                actual: second_session,
+            },
+            "browsing context belongs to session 1, not session 2".to_owned(),
+        ),
+        (
+            BrowserRegistryError::OriginChangedWithoutDocumentAdvance,
+            "browsing context origin changed without advancing the document epoch".to_owned(),
+        ),
+        (
+            BrowserRegistryError::IdentifierSpaceExhausted,
+            "browser authority identifier space is exhausted".to_owned(),
+        ),
+        (
+            BrowserRegistryError::DocumentEpochExhausted,
+            "browser document epoch space is exhausted".to_owned(),
+        ),
+        (
+            BrowserRegistryError::InternalAuthorityInvariant,
+            "browser authority registry violated a nonzero invariant".to_owned(),
+        ),
+    ];
+
+    for (error, expected) in cases {
+        assert_eq!(error.to_string(), expected);
+    }
+    Ok(())
+}
+
+#[test]
 fn document_rotation_invalidates_old_external_node_bindings() -> Result<(), Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
     let session = registry.register_session("webdriver-session")?;
