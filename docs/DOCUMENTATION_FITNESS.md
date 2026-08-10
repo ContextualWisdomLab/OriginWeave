@@ -17,19 +17,19 @@ File existence alone is never sufficient. An artifact can exist and still be sta
 
 | Documentation family | Fitness | Current evidence / remaining boundary |
 |---|---|---|
-| PRD | **REPAIRED IN THIS CHANGE with active-lane follow-up** | Protected-main requirements remain distinct from active evidence. #37 is the current bounded-HTTP replacement; #45→#46→#53→#55 narrows sensitive-handle lifecycle, reservation, revocation and audience admission without creating the trusted broker; #47→#50→#54 narrows resolution freshness through the socket-use boundary; #51/#52 are browser-runtime prerequisites, not a real Chromium adapter; #43/#49/#56 are MV3 compatibility evidence, not Agent authority. |
-| TRD | **REPAIRED IN THIS CHANGE with active-lane follow-up** | Implementation inventory uses one protected-main status plus separate active/non-shipped evidence. Session/node, route, sensitive-data, HTTP, proxy/PAC, MV3 and broker boundaries remain reconciled to protected-main truth. Active value objects and compatibility fixtures do not imply deployed services or complete runtime paths. |
-| Root Architecture | **PRESENT-CURRENT with follow-up** | Chromium compatibility kernel + Rust authority-bearing control plane remains correct. #47/#50/#54 tighten ADR 0004; #45/#46/#53/#55 remain inside ADR 0007; #40/#52 remain inside browser authority/structured-observation decisions; #43/#49/#56 remain compatibility work under issue #27. No later lane introduces a new trust domain, persistence owner or deployed component. |
+| PRD | **REPAIRED IN THIS CHANGE with active-lane follow-up** | Protected-main requirements remain distinct from active evidence. #37 is the current bounded-HTTP replacement; #45→#46→#53→#55 narrows sensitive-handle lifecycle, reservation, revocation and audience admission without creating the trusted broker; #47→#50→#54 narrows resolution freshness through the socket-use boundary; #51/#52/#57 are browser-runtime prerequisites, not a real Chromium adapter; #43/#49/#56 are MV3 compatibility evidence, not Agent authority. |
+| TRD | **REPAIRED IN THIS CHANGE with active-lane follow-up** | Implementation inventory uses one protected-main status plus separate active/non-shipped evidence. Session/node, route, sensitive-data, HTTP, proxy/PAC, MV3 and broker boundaries remain reconciled to protected-main truth. Active value objects, semantic matching and compatibility fixtures do not imply deployed services or complete runtime paths. |
+| Root Architecture | **PRESENT-CURRENT with follow-up** | Chromium compatibility kernel + Rust authority-bearing control plane remains correct. #47/#50/#54 tighten ADR 0004; #45/#46/#53/#55 remain inside ADR 0007; #40/#52/#57 remain inside browser authority/structured-observation/action-boundary decisions; #43/#49/#56 remain compatibility work under issue #27. No later lane introduces a new trust domain, persistence owner or deployed component. |
 | ADR index/lifecycle | **REPAIRED IN THIS CHANGE** | Accepted ADRs 0001-0008 and 0010 plus Proposed 0009, 0013, 0014 and 0100-0109 are discoverable without promoting Proposed decisions. Repository-scoped identifiers are reserved across protected main and active work. |
-| Individual ADRs | **PARTIAL BY LIFECYCLE** | Accepted ADRs remain governing design authority. Proposed ADR 0013 separates MV3 compatibility from extension-to-Agent authority; Proposed ADR 0014 governs ADR acceptance. #53/#54/#55/#56 refine existing decisions and do not independently justify new ADRs. |
+| Individual ADRs | **PARTIAL BY LIFECYCLE** | Accepted ADRs remain governing design authority. Proposed ADR 0013 separates MV3 compatibility from extension-to-Agent authority; Proposed ADR 0014 governs ADR acceptance. #53/#54/#55/#56/#57 refine existing decisions and do not independently justify new ADRs. |
 | UML / control-flow diagrams | **PRESENT-CURRENT with follow-up** | Component, network authority, observation/action, delegated-task state, deployment, evidence, secret-fill, approval, resource-pressure/GPU fallback and hourly automation flows already exist. `uml/extension-authority.md` closes the permission-vs-Agent-authority gap. Network freshness should reflect the socket-use recheck after #54 integrates; detailed real-Chromium sequence remains deferred until issue #28 stabilizes. |
-| Conceptual ERD/domain model | **PRESENT-CURRENT** | The ERD remains explicitly conceptual unless a real persistence owner/schema is implemented. #45/#46/#47/#48/#50/#51/#52/#53/#54/#55/#56 add no OriginWeave-owned durable store, so manufacturing tables for in-memory/value/fixture primitives would be false architecture. |
-| Traceability | **REPAIRED IN THIS CHANGE with volatile evidence refresh required** | Uses `IMPLEMENTED_ON_PROTECTED_MAIN`, `IMPLEMENTED_ON_ACTIVE_PR`, `PARTIAL`, `ACCEPTED_ARCHITECTURE`, `PLANNED`, `RESEARCH_ONLY`, `SUPERSEDED`, and `OUT_OF_SCOPE`. The dated maturity appendix carries volatile exact heads for current active lanes through #56. |
-| Threat model / Security | **PRESENT-CURRENT with follow-up** | Untrusted content, network, secret, provenance and extension risks are covered. #54 narrows resolution-to-socket TOCTOU only on active work; #48 is revocation-material freshness only; #53/#55 narrow handle revocation/audience misuse only in process; #52 binds semantic relationships to exact browser authority. None creates a broader authority grant. |
-| Test strategy / quality gates | **PRESENT-CURRENT** | Exact owned-code function/line/region/branch coverage, rustdoc and realistic boundary testing remain explicit. Active work uses intentional RED evidence followed by narrow production changes. #52's relationship boundary was compile-time RED before production implementation; #56 proved a stale compatibility contract against a real browser workflow. |
+| Conceptual ERD/domain model | **PRESENT-CURRENT** | The ERD remains explicitly conceptual unless a real persistence owner/schema is implemented. #45/#46/#47/#48/#50/#51/#52/#53/#54/#55/#56/#57 add no OriginWeave-owned durable store, so manufacturing tables for in-memory/value/query/fixture primitives would be false architecture. |
+| Traceability | **REPAIRED IN THIS CHANGE with volatile evidence refresh required** | Uses `IMPLEMENTED_ON_PROTECTED_MAIN`, `IMPLEMENTED_ON_ACTIVE_PR`, `PARTIAL`, `ACCEPTED_ARCHITECTURE`, `PLANNED`, `RESEARCH_ONLY`, `SUPERSEDED`, and `OUT_OF_SCOPE`. The dated maturity appendix carries volatile exact heads for current active lanes through #57. |
+| Threat model / Security | **PRESENT-CURRENT with follow-up** | Untrusted content, network, secret, provenance and extension risks are covered. #54 narrows resolution-to-socket TOCTOU only on active work; #48 is revocation-material freshness only; #53/#55 narrow handle revocation/audience misuse only in process; #52 binds semantic relationships to exact browser authority; #57 performs bounded semantic matching without minting selector or action authority. None creates a broader authority grant. |
+| Test strategy / quality gates | **PRESENT-CURRENT** | Exact owned-code function/line/region/branch coverage, rustdoc and realistic boundary testing remain explicit. Active work uses intentional RED evidence followed by narrow production changes. #52's relationship boundary and #57's typed-query boundary were compile-time RED before production implementation; #56 proved a stale compatibility contract against a real browser workflow. |
 | Operability / incident response | **PRESENT-CURRENT with follow-up** | Failure, readiness, quarantine and recovery concepts exist. Later active lanes add no new daemon/service, so no SLO/RPO/RTO or runbook is fabricated. First-party socket timing and browser fixture cleanup remain implementation concerns within existing runtime boundaries. |
-| API / protocol contracts | **PRESENT-CURRENT as target contracts** | OriginWeave Protocol and adapter boundaries are documented. #52 is an internal authority-bound semantic-observation API, not a BiDi/CDP/WebMCP wire protocol; #55 is an in-process policy API, not authenticated service identity; #56 is a compatibility fixture, not a product protocol. |
-| Release / rollback / provenance | **PRESENT-CURRENT** | Release remains bound to one exact integrated protected head. Active stacks #40→#52, #47→#50→#54, #45→#46→#53→#55, and #43→#49/#56 must preserve dependency order; predecessor-head success cannot satisfy a later head. |
+| API / protocol contracts | **PRESENT-CURRENT as target contracts** | OriginWeave Protocol and adapter boundaries are documented. #52 is an internal authority-bound semantic-observation API and #57 is an internal bounded typed-query API over those observations; neither is a BiDi/CDP/WebMCP wire protocol or action executor. #55 is an in-process policy API, not authenticated service identity; #56 is a compatibility fixture, not a product protocol. |
+| Release / rollback / provenance | **PRESENT-CURRENT** | Release remains bound to one exact integrated protected head. Active stacks #40→#52→#57, #47→#50→#54, #45→#46→#53→#55, and #43→#49/#56 must preserve dependency order; predecessor-head success cannot satisfy a later head. |
 | Data governance / privacy | **PRESENT-CURRENT architecture / PARTIAL runtime** | Purpose-bound policy/evidence foundations exist. #53 adds first-revocation-wins in-process state and #55 adds audience binding, but authenticated workload identity, durable broker storage, protected-value resolution/fill, KMS, cross-process transactionality, compensation, retention and model-disclosure lifecycle remain open under issue #10. |
 | Standards / doctoring | **PRESENT-CURRENT with continuous watch** | Primary browser/protocol/standards evidence and APA 7 references distinguish draft/experimental material from final normative standards. |
 
@@ -114,11 +114,17 @@ Active PR #52 is stacked on browser-registry PR #40 and remains non-shipped. Its
 
 The latest active refinement adds optional parent and ordered child relationships with at most 128 children. Every relationship must remain inside the same browser session, browsing context, canonical origin and document epoch as the observation handle. Self-parent/self-child relationships and duplicate child handles fail closed. The relationship graph remains descriptive evidence; it cannot create execution capability or cross-document authority.
 
-The test-only relationship head intentionally failed compilation because the production fields, accessors, bound and error variants did not exist. The current production head implements that boundary, but current-head gate evidence must be observed independently before it is called gate-clean.
-
 The evidence channel records how a value was observed; Accessibility, DOM, layout, WebMCP, structured-data and visual content remain untrusted observations. An advertised `NodeActionKind` likewise remains descriptive and grants no execution authority.
 
 **Documentation consequence:** #52 is `IMPLEMENTED_ON_ACTIVE_PR` evidence for a semantic-observation value primitive only. It is not a browser observation adapter, performs no BiDi/CDP/WebMCP I/O or action dispatch, and establishes no service or persistence boundary. No new ADR or physical ERD entity is justified.
+
+### 3.12 Typed semantic query authority
+
+Active PR #57 is stacked on exact semantic-observation authority from #52 and remains non-shipped. Its `SemanticNodeQuery` requires at least one bounded typed selector and matches exact semantic role, accessible name and advertised `NodeActionKind` only against already validated `SemanticNodeObservation` values.
+
+The test-only head intentionally failed compilation on the absent public query/error boundary. The current exact #57 head passes repository contracts, formatting, workspace checks/tests, strict Clippy, rustdoc and exact owned production function/line/region/branch coverage, plus the inherited Manifest V3 compatibility gate.
+
+**Documentation consequence:** query matching is descriptive selection only. #57 does not expose CSS/XPath/raw DOM selector languages, arbitrary JavaScript, browser I/O, action dispatch, capability grants, policy approval or persistence. It refines the existing observation/action architecture and therefore does not independently justify a new ADR, deployed component, topology view or physical ERD entity.
 
 ## 4. Durable conversation decisions captured in GitHub
 
@@ -152,6 +158,7 @@ The canonical graph must continue to preserve these durable decisions:
 26. Semantic parent/child relationships must be bounded and remain inside the observation's exact session/context/origin/document authority; relationship metadata cannot mint capability.
 27. Sensitive-handle audience must ultimately be derived from authenticated workload/service identity; accepting an audience string in an internal value object is not authentication.
 28. A real browser compatibility fixture may mutate and clean up test state, but compatibility success still cannot substitute for OriginWeave Agent-authority evidence.
+29. A semantic node query may select bounded reviewed observation evidence, but query success is neither browser-selector authority nor permission to execute the advertised node-local action.
 
 ## 5. Architecture views still legitimately deferred
 
@@ -198,6 +205,7 @@ isolated profile/context
 -> OriginWeave registry
 -> semantic observation
 -> bounded exact-authority relationships
+-> typed semantic query
 -> opaque node authority
 -> typed policy decision
 -> real browser input
@@ -206,7 +214,7 @@ isolated profile/context
 -> teardown/recovery
 ```
 
-Active #52 makes semantic-observation relationships more concrete but still does not establish the browser adapter, process topology or action-dispatch sequence. Temporary protocol/field names must not be frozen into authoritative UML before executable contracts stabilize.
+Active #52 and #57 make the semantic-observation and typed-query boundaries more concrete but still do not establish the browser adapter, process topology, policy-to-node action bridge, real input or post-condition verification sequence. Temporary protocol/field names must not be frozen into authoritative UML before executable contracts stabilize.
 
 ### 5.4 Trusted sensitive-data broker — deferred until issue #10 owns a real runtime boundary
 
@@ -228,14 +236,15 @@ Protected-main policy/evidence plus active #45→#46→#53→#55 do not justify 
 - browser/protocol standards doctoring;
 - sensitive-data evidence reconciliation through #55 without inventing broker persistence or authenticated service identity;
 - resolution-freshness reconciliation through socket-use recheck #54 without inventing resolver/proxy authority;
-- semantic-observation authority/relationship reconciliation for #52 without promoting it to a browser adapter; and
+- semantic-observation authority/relationship reconciliation for #52 without promoting it to a browser adapter;
+- typed semantic-query reconciliation for #57 without promoting semantic matching to selector/action authority; and
 - MV3 compatibility reconciliation through #56 without equating browser permission with Agent authority.
 
 ### Still required
 
-- exact-head CI/security/review acceptance of this documentation PR;
+- exact-head CI/security/review acceptance of this documentation PR after every documentation mutation;
 - integration before any of these branch repairs become protected-main truth;
-- re-reconciliation whenever active PR #37, #40, #43, #45, #46, #47, #48, #49, #50, #51, #52, #53, #54, #55 or #56 integrates, closes, is superseded or materially changes head;
+- re-reconciliation whenever active PR #37, #40, #43, #45, #46, #47, #48, #49, #50, #51, #52, #53, #54, #55, #56 or #57 integrates, closes, is superseded or materially changes head;
 - network-authority sequence reconciliation after #47→#50→#54 reaches protected main;
 - detailed real-Chromium vertical-slice UML when issue #28 implementation contracts are stable;
 - trusted-broker UML/ERD/operability additions only when issue #10 establishes real runtime/persistence ownership;
