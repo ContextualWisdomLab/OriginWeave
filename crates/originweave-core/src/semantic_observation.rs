@@ -201,9 +201,8 @@ impl fmt::Display for SemanticNodeObservationError {
             Self::VisibleTextTooLong => {
                 formatter.write_str("semantic node visible text exceeds 4096 UTF-8 bytes")
             }
-            Self::MissingEvidenceChannel => {
-                formatter.write_str("semantic node observation requires at least one evidence channel")
-            }
+            Self::MissingEvidenceChannel => formatter
+                .write_str("semantic node observation requires at least one evidence channel"),
         }
     }
 }
