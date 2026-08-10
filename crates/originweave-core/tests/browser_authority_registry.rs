@@ -101,6 +101,30 @@ fn external_identifiers_are_bounded_without_assuming_protocol_syntax() -> Result
 }
 
 #[test]
+fn authority_identifier_capacity_is_bounded_and_testable() -> Result<(), Box<dyn Error>> {
+    let mut registry = BrowserAuthorityRegistry::with_identifier_limit(1);
+    let session = registry.register_session("session-one")?;
+    assert_eq!(
+        registry.register_session("session-two"),
+        Err(BrowserRegistryError::IdentifierSpaceExhausted)
+    );
+
+    let context = registry.register_context(session, "context-one")?;
+    assert_eq!(
+        registry.register_context(session, "context-two"),
+        Err(BrowserRegistryError::IdentifierSpaceExhausted)
+    );
+
+    let origin = loopback_origin();
+    assert!(registry.bind_node(session, context, &origin, "node-one").is_ok());
+    assert_eq!(
+        registry.bind_node(session, context, &origin, "node-two"),
+        Err(BrowserRegistryError::IdentifierSpaceExhausted)
+    );
+    Ok(())
+}
+
+#[test]
 fn unknown_internal_authority_is_rejected_before_node_binding() -> Result<(), Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
     let unknown = BrowserSessionId::new(999)?;
