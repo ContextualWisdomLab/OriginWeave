@@ -18,7 +18,7 @@ pub use browser_registry::{
 };
 pub use contracts::*;
 pub use semantic_observation::{
-    NodeActionKind, ObservationChannel, SemanticNodeObservation, SemanticNodeObservationError,
-    SemanticNodeObservationInput, MAX_ACCESSIBLE_NAME_BYTES, MAX_SEMANTIC_ROLE_BYTES,
-    MAX_VISIBLE_TEXT_BYTES,
+    MAX_ACCESSIBLE_NAME_BYTES, MAX_SEMANTIC_ROLE_BYTES, MAX_VISIBLE_TEXT_BYTES, NodeActionKind,
+    ObservationChannel, SemanticNodeObservation, SemanticNodeObservationError,
+    SemanticNodeObservationInput,
 };
