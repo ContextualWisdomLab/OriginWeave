@@ -5,7 +5,8 @@ use std::time::Duration;
 
 use originweave_core::Origin;
 use originweave_destination::{
-    DestinationError, DestinationPolicy, FreshResolutionSnapshot, MAX_RESOLUTION_VALIDITY,
+    AddressClass, DestinationError, DestinationPolicy, FreshResolutionSnapshot,
+    MAX_RESOLUTION_VALIDITY,
 };
 
 fn origin(value: &str) -> Origin {
@@ -20,9 +21,10 @@ fn ipv4(a: u8, b: u8, c: u8, d: u8) -> IpAddr {
 fn fresh_resolution_authority_is_half_open_and_bound_to_pinned_addresses() {
     let approved_at = Duration::from_secs(100);
     let validity = Duration::from_secs(5);
+    let target = origin("https://example.com");
     let approved = ipv4(8, 8, 8, 8);
     let snapshot = FreshResolutionSnapshot::approve(
-        origin("https://example.com"),
+        target.clone(),
         [approved],
         &DestinationPolicy::public_web(),
         approved_at,
@@ -30,6 +32,7 @@ fn fresh_resolution_authority_is_half_open_and_bound_to_pinned_addresses() {
     )
     .expect("bounded fresh resolution");
 
+    assert_eq!(snapshot.origin(), &target);
     assert_eq!(snapshot.approved_at(), approved_at);
     assert_eq!(snapshot.validity(), validity);
     assert_eq!(snapshot.valid_until(), Duration::from_secs(105));
@@ -37,6 +40,11 @@ fn fresh_resolution_authority_is_half_open_and_bound_to_pinned_addresses() {
     let evidence = snapshot
         .authorize_connection(approved, approved_at)
         .expect("authority begins at approval time");
+    let connection = evidence.connection_evidence();
+    assert_eq!(connection.origin(), &target);
+    assert_eq!(connection.requested_address(), approved);
+    assert_eq!(connection.canonical_address(), approved);
+    assert_eq!(connection.address_class(), AddressClass::Public);
     assert_eq!(evidence.resolution_approved_at(), approved_at);
     assert_eq!(evidence.resolution_valid_until(), Duration::from_secs(105));
     assert_eq!(evidence.authorized_at(), approved_at);
@@ -147,5 +155,41 @@ fn fresh_revalidation_preserves_the_budget_and_resets_approval_time() {
         Err(DestinationError::ResolutionSetExpanded {
             address: ipv4(9, 9, 9, 9),
         })
+    );
+}
+
+#[test]
+fn freshness_errors_have_deterministic_bounded_messages() {
+    let invalid = DestinationError::InvalidResolutionValidity {
+        validity: Duration::ZERO,
+        maximum_validity: MAX_RESOLUTION_VALIDITY,
+    };
+    assert_eq!(
+        invalid.to_string(),
+        "resolution validity 0ns is outside 1ns..=30s"
+    );
+
+    let overflow = DestinationError::ResolutionValidityOverflow {
+        approved_at: Duration::MAX,
+        validity: Duration::from_nanos(1),
+    };
+    assert!(overflow.to_string().contains("overflows approval time"));
+
+    let before = DestinationError::ResolutionUseBeforeApproval {
+        approved_at: Duration::from_secs(10),
+        current_time: Duration::from_secs(9),
+    };
+    assert_eq!(
+        before.to_string(),
+        "resolution use time 9s precedes approval time 10s"
+    );
+
+    let expired = DestinationError::ResolutionApprovalExpired {
+        valid_until: Duration::from_secs(15),
+        current_time: Duration::from_secs(15),
+    };
+    assert_eq!(
+        expired.to_string(),
+        "resolution approval expired at 15s; current time is 15s"
     );
 }
