@@ -44,7 +44,7 @@ Proposed ADR files can live on protected `main` as reviewable target architectur
 | [0106](0106-provenance-evidence-model.md) | Provenance-native evidence model | Proposed | WARC/PROV-style evidence identities, integrity and disclosure |
 | [0107](0107-browser-protocol-adapter-strategy.md) | Versioned browser and agent protocol adapters | Proposed | WebDriver BiDi, CDP, WebMCP, MCP and OriginWeave Protocol boundaries |
 | [0108](0108-crawler-policy.md) | Policy-bound crawler mode | Proposed | robots, rate/resource policy, read-only collection and no-evasion behavior |
-| [0109](0109-hourly-automation-operational-closure.md) | Hourly automation operational closure | Proposed | deterministic gates, model secret boundary, retries and protected-main proof |
+| [0109](0109-hourly-automation-operational-closure.md) | Hourly automation secret ordering and operational closure | Proposed | deterministic gates, model secret boundary, retries and protected-main proof |
 
 Active feature PRs may contain additional Proposed ADRs. They are not indexed here as protected-main decisions until their files reach protected `main`. Historical PR checks, stale branch state, or chat decisions never transfer ADR acceptance across a changed head.
 
