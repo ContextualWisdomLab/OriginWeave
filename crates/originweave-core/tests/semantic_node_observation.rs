@@ -7,11 +7,20 @@ use originweave_core::{
     SemanticNodeObservationError, SemanticNodeObservationInput,
 };
 
-fn observed_node_with_id(node_id: u64) -> Result<ObservedNodeHandle, String> {
-    let browser_session = BrowserSessionId::new(7).map_err(|error| error.to_string())?;
-    let browsing_context = BrowsingContextId::new(11).map_err(|error| error.to_string())?;
-    let origin = Origin::parse("https://example.com").map_err(|error| format!("{error:?}"))?;
-    let document_epoch = DocumentEpoch::new(3).map_err(|error| error.to_string())?;
+fn observed_node_with_authority(
+    browser_session_id: u64,
+    browsing_context_id: u64,
+    origin_value: &str,
+    document_epoch_value: u64,
+    node_id: u64,
+) -> Result<ObservedNodeHandle, String> {
+    let browser_session =
+        BrowserSessionId::new(browser_session_id).map_err(|error| error.to_string())?;
+    let browsing_context =
+        BrowsingContextId::new(browsing_context_id).map_err(|error| error.to_string())?;
+    let origin = Origin::parse(origin_value).map_err(|error| format!("{error:?}"))?;
+    let document_epoch =
+        DocumentEpoch::new(document_epoch_value).map_err(|error| error.to_string())?;
     ObservedNodeHandle::new(
         browser_session,
         browsing_context,
@@ -20,6 +29,10 @@ fn observed_node_with_id(node_id: u64) -> Result<ObservedNodeHandle, String> {
         node_id,
     )
     .map_err(|error| error.to_string())
+}
+
+fn observed_node_with_id(node_id: u64) -> Result<ObservedNodeHandle, String> {
+    observed_node_with_authority(7, 11, "https://example.com", 3, node_id)
 }
 
 fn observed_node() -> Result<ObservedNodeHandle, String> {
@@ -115,23 +128,33 @@ fn semantic_node_bounds_child_relationship_count() -> Result<(), String> {
 }
 
 #[test]
-fn semantic_node_rejects_relationships_outside_exact_authority() -> Result<(), String> {
-    let mut input = semantic_input("group".to_owned(), "Account".to_owned(), None)?;
-    let different_origin =
-        Origin::parse("https://other.example").map_err(|error| format!("{error:?}"))?;
-    input.parent = Some(
-        ObservedNodeHandle::new(
-            BrowserSessionId::new(7).map_err(|error| error.to_string())?,
-            BrowsingContextId::new(11).map_err(|error| error.to_string())?,
-            different_origin,
-            DocumentEpoch::new(3).map_err(|error| error.to_string())?,
-            16,
-        )
-        .map_err(|error| error.to_string())?,
-    );
+fn semantic_node_rejects_each_relationship_authority_axis() -> Result<(), String> {
+    let mismatched_parents = [
+        observed_node_with_authority(8, 11, "https://example.com", 3, 16)?,
+        observed_node_with_authority(7, 12, "https://example.com", 3, 16)?,
+        observed_node_with_authority(7, 11, "https://other.example", 3, 16)?,
+        observed_node_with_authority(7, 11, "https://example.com", 4, 16)?,
+    ];
 
+    for parent in mismatched_parents {
+        let mut input = semantic_input("group".to_owned(), "Account".to_owned(), None)?;
+        input.parent = Some(parent);
+        assert_eq!(
+            SemanticNodeObservation::new(input).err(),
+            Some(SemanticNodeObservationError::RelationshipAuthorityMismatch)
+        );
+    }
+
+    let mut child_input = semantic_input("group".to_owned(), "Account".to_owned(), None)?;
+    child_input.children = vec![observed_node_with_authority(
+        7,
+        11,
+        "https://other.example",
+        3,
+        18,
+    )?];
     assert_eq!(
-        SemanticNodeObservation::new(input).err(),
+        SemanticNodeObservation::new(child_input).err(),
         Some(SemanticNodeObservationError::RelationshipAuthorityMismatch)
     );
     Ok(())
