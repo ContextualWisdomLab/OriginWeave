@@ -109,7 +109,12 @@ fn linux_proc_status_parser_rejects_missing_duplicate_malformed_and_overflow_val
         parse_linux_proc_status_rss_bytes("VmRSS: 1 kB\nVmRSS: 2 kB\n"),
         Err(BrowserRssSampleError::DuplicateVmRss)
     );
-    for malformed in ["VmRSS:\n", "VmRSS: many kB\n", "VmRSS: 10\n", "VmRSS: 10 kB extra\n"] {
+    for malformed in [
+        "VmRSS:\n",
+        "VmRSS: many kB\n",
+        "VmRSS: 10\n",
+        "VmRSS: 10 kB extra\n",
+    ] {
         assert_eq!(
             parse_linux_proc_status_rss_bytes(malformed),
             Err(BrowserRssSampleError::InvalidVmRss)
