@@ -82,6 +82,22 @@ fn context_cannot_be_reused_by_another_session() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
+fn context_origin_cannot_change_without_document_rotation() -> Result<(), Box<dyn Error>> {
+    let mut registry = BrowserAuthorityRegistry::new();
+    let session = registry.register_session("webdriver-session")?;
+    let context = registry.register_context(session, "top-level-context")?;
+    let first_origin = loopback_origin();
+    let second_origin = Origin::parse("http://localhost:43127")?;
+
+    registry.bind_node(session, context, &first_origin, "backend-node-17")?;
+    assert_eq!(
+        registry.bind_node(session, context, &second_origin, "backend-node-18"),
+        Err(BrowserRegistryError::OriginChangedWithoutDocumentAdvance)
+    );
+    Ok(())
+}
+
+#[test]
 fn external_identifiers_are_bounded_without_assuming_protocol_syntax() -> Result<(), Box<dyn Error>>
 {
     let mut registry = BrowserAuthorityRegistry::new();
@@ -116,7 +132,11 @@ fn authority_identifier_capacity_is_bounded_and_testable() -> Result<(), Box<dyn
     );
 
     let origin = loopback_origin();
-    assert!(registry.bind_node(session, context, &origin, "node-one").is_ok());
+    assert!(
+        registry
+            .bind_node(session, context, &origin, "node-one")
+            .is_ok()
+    );
     assert_eq!(
         registry.bind_node(session, context, &origin, "node-two"),
         Err(BrowserRegistryError::IdentifierSpaceExhausted)
@@ -131,6 +151,14 @@ fn unknown_internal_authority_is_rejected_before_node_binding() -> Result<(), Bo
 
     assert_eq!(
         registry.register_context(unknown, "context"),
+        Err(BrowserRegistryError::UnknownBrowserSession)
+    );
+
+    let known = registry.register_session("known-session")?;
+    let context = registry.register_context(known, "known-context")?;
+    let origin = loopback_origin();
+    assert_eq!(
+        registry.bind_node(unknown, context, &origin, "node"),
         Err(BrowserRegistryError::UnknownBrowserSession)
     );
     Ok(())
