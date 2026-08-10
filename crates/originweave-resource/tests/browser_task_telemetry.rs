@@ -75,8 +75,8 @@ fn exact_mebibyte_browser_rss_is_not_overstated() {
 
 #[test]
 fn browser_rss_conversion_is_overflow_safe_at_u64_max() {
-    let telemetry = BrowserTaskTelemetry::new(u64::MAX, 0, 0, 1)
-        .expect("maximum representable measured RSS");
+    let telemetry =
+        BrowserTaskTelemetry::new(u64::MAX, 0, 0, 1).expect("maximum representable measured RSS");
     let snapshot = ResourceSnapshot::from_browser_task_telemetry(telemetry, 0, 1, false, 10, 1);
     let ceiling_mebibytes = u64::MAX / MEBIBYTE_BYTES + 1;
     let budget = ResourceBudget::new(ceiling_mebibytes, u64::MAX, 1, 2, 4, 20)
