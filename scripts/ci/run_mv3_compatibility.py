@@ -53,9 +53,24 @@ SURFACE_EVIDENCE_KEYS = (
     "bookmarks",
     "history",
     "downloads",
+    "downloadsDiagnostic",
 )
 SURFACE_EVIDENCE_VALUES = frozenset(
     {"ready", "missing", "initialized", "persisted", "pong", "installed", "blocked"}
+)
+DOWNLOAD_DIAGNOSTIC_VALUES = frozenset(
+    {
+        "download-source-rejected",
+        "download-start-rejected",
+        "download-search-missing",
+        "download-interrupted",
+        "download-url-mismatch",
+        "download-byte-count-mismatch",
+        "download-exists-false",
+        "download-timeout",
+        "download-complete-ready",
+        "download-not-evaluated",
+    }
 )
 
 
@@ -83,6 +98,8 @@ def _safe_surface_value(key: str, value: str) -> str:
 
     if key == "workerStartCount":
         return value if value.isdecimal() and len(value) <= 20 else "invalid"
+    if key == "downloadsDiagnostic":
+        return value if value in DOWNLOAD_DIAGNOSTIC_VALUES else "unexpected"
     return value if value in SURFACE_EVIDENCE_VALUES else "unexpected"
 
 
@@ -234,7 +251,9 @@ return {
   sidePanel: document.documentElement.dataset.originweaveSidePanel || "missing",
   bookmarks: document.documentElement.dataset.originweaveBookmarks || "missing",
   history: document.documentElement.dataset.originweaveHistory || "missing",
-  downloads: document.documentElement.dataset.originweaveDownloads || "missing"
+  downloads: document.documentElement.dataset.originweaveDownloads || "missing",
+  downloadsDiagnostic:
+    document.documentElement.dataset.originweaveDownloadsDiagnostic || "download-not-evaluated"
 };
 """
     expected = {
@@ -253,6 +272,7 @@ return {
         "bookmarks": "ready",
         "history": "ready",
         "downloads": "ready",
+        "downloadsDiagnostic": "download-complete-ready",
     }
     deadline = time.monotonic() + FIXTURE_TIMEOUT_SECONDS
     latest: dict[str, str] = {}
