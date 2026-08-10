@@ -16,8 +16,8 @@ fn valid_input() -> SensitiveHandleLifecycleEvidenceInput {
 }
 
 #[test]
-fn records_bounded_handle_lifecycle_without_handle_or_secret_material(
-) -> Result<(), SensitiveEvidenceError> {
+fn records_bounded_handle_lifecycle_without_handle_or_secret_material()
+-> Result<(), SensitiveEvidenceError> {
     let evidence = SensitiveHandleLifecycleEvidence::try_from(valid_input())?;
 
     assert_eq!(evidence.request_id(), "request-42");
@@ -36,8 +36,8 @@ fn records_bounded_handle_lifecycle_without_handle_or_secret_material(
 }
 
 #[test]
-fn records_revocation_time_without_storing_revocation_payloads(
-) -> Result<(), SensitiveEvidenceError> {
+fn records_revocation_time_without_storing_revocation_payloads()
+-> Result<(), SensitiveEvidenceError> {
     let mut input = valid_input();
     input.revoked_epoch_seconds = Some(1_720_000_120);
     input.resolution_count = 2;
