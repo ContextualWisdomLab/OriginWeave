@@ -1,8 +1,9 @@
 #![allow(clippy::expect_used)]
 
 use originweave_resource::{
-    BrowserTaskTelemetry, BrowserTaskTelemetryError, ResourceBudget, ResourceGovernor,
-    ResourceSnapshot,
+    BrowserRssSampleError, BrowserTaskTelemetry, BrowserTaskTelemetryError, ResourceBudget,
+    ResourceGovernor, ResourceSnapshot, parse_linux_proc_status_rss_bytes,
+    sample_linux_process_rss_bytes,
 };
 
 const MEBIBYTE_BYTES: u64 = 1_048_576;
@@ -86,4 +87,63 @@ fn browser_rss_conversion_is_overflow_safe_at_u64_max() {
 
     assert!(plan.spill_observation_cache());
     assert!(!plan.pause_current_agent());
+}
+
+#[test]
+fn linux_proc_status_parser_returns_rss_bytes_from_kernel_kibibytes() {
+    let status = "Name:\tchrome\nState:\tS (sleeping)\nVmRSS:\t  262145 kB\nThreads:\t42\n";
+
+    assert_eq!(
+        parse_linux_proc_status_rss_bytes(status),
+        Ok(262_145 * 1_024)
+    );
+}
+
+#[test]
+fn linux_proc_status_parser_rejects_missing_duplicate_malformed_and_overflow_values() {
+    assert_eq!(
+        parse_linux_proc_status_rss_bytes("Name:\tchrome\n"),
+        Err(BrowserRssSampleError::MissingVmRss)
+    );
+    assert_eq!(
+        parse_linux_proc_status_rss_bytes("VmRSS: 1 kB\nVmRSS: 2 kB\n"),
+        Err(BrowserRssSampleError::DuplicateVmRss)
+    );
+    assert_eq!(
+        parse_linux_proc_status_rss_bytes("VmRSS: many kB\n"),
+        Err(BrowserRssSampleError::InvalidVmRss)
+    );
+    assert_eq!(
+        parse_linux_proc_status_rss_bytes("VmRSS: 10 MB\n"),
+        Err(BrowserRssSampleError::UnsupportedVmRssUnit)
+    );
+    assert_eq!(
+        parse_linux_proc_status_rss_bytes(&format!("VmRSS: {} kB\n", u64::MAX)),
+        Err(BrowserRssSampleError::VmRssOverflow)
+    );
+}
+
+#[test]
+fn linux_process_rss_sampler_reads_the_current_process_and_rejects_invalid_or_missing_processes() {
+    assert_eq!(
+        sample_linux_process_rss_bytes(0),
+        Err(BrowserRssSampleError::InvalidProcessId)
+    );
+
+    #[cfg(target_os = "linux")]
+    {
+        let current = sample_linux_process_rss_bytes(std::process::id())
+            .expect("the current Linux test process has a readable /proc status");
+        assert!(current > 0);
+        assert_eq!(
+            sample_linux_process_rss_bytes(u32::MAX),
+            Err(BrowserRssSampleError::ProcessStatusUnavailable)
+        );
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    assert_eq!(
+        sample_linux_process_rss_bytes(std::process::id()),
+        Err(BrowserRssSampleError::UnsupportedPlatform)
+    );
 }
