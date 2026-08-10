@@ -77,8 +77,8 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
                 self.assertIn(marker, row)
 
         self.assertIn("Draft stacked on exact #52 head", row)
-        self.assertIn("CI run `31429995885` passes", row)
-        self.assertIn("exact owned production function/line/region/branch coverage", row)
+        self.assertIn("CI run `31429995885`", row)
+        self.assertIn("CodeRabbit exact-head status succeed", row)
         self.assertIn("remains Draft because #52/#40 are active prerequisites", row)
 
     def test_sensitive_audience_evidence_does_not_claim_authentication(self) -> None:
@@ -103,7 +103,7 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
             "Chromium permission or browser compatibility success is not an OriginWeave Agent capability",
             self.fitness,
         )
-        self.assertIn("#43/#49/#56 are active compatibility evidence only", self.fitness)
+        self.assertIn("#43/#49/#56/#59 are active compatibility evidence only", self.fitness)
 
     def test_erd_stays_conceptual_without_persistence_owner(self) -> None:
         """Active in-memory/value primitives must not manufacture a physical data model."""
