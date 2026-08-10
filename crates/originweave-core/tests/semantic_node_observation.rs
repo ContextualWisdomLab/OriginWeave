@@ -162,4 +162,8 @@ fn semantic_node_errors_are_stable_and_credential_free() {
         SemanticNodeObservationError::VisibleTextTooLong.to_string(),
         "semantic node visible text exceeds 4096 UTF-8 bytes"
     );
+    assert_eq!(
+        SemanticNodeObservationError::MissingEvidenceChannel.to_string(),
+        "semantic node observation requires at least one evidence channel"
+    );
 }
