@@ -1,22 +1,22 @@
 # OriginWeave Architecture Decision Index
 
-This directory contains durable architecture decisions for OriginWeave. A pull-request body, chat transcript, roadmap bullet, or implementation plan may motivate a decision but does not replace an ADR when the decision changes a governing product or authority boundary.
+This directory contains durable architecture decisions for OriginWeave. A pull-request body, chat transcript, roadmap bullet, automation prompt, issue, or implementation plan may motivate a decision but does not replace an ADR when the decision changes a governing product or authority boundary.
 
 ## Status vocabulary
 
 - **Proposed** — under review; not binding and not a shipped claim.
-- **Accepted** — governing design decision on protected `main`; acceptance does not by itself prove that every described capability is implemented.
+- **Accepted** — governing design decision on protected `main`; acceptance does not itself prove that every described capability is implemented.
 - **Superseded** — replaced by a later Accepted ADR; retained for history.
 - **Deprecated** — still discoverable but no longer recommended for new work.
 - **Rejected** — evaluated and intentionally not adopted.
 
-An ADR becomes Accepted only through normal protected-branch review and merge. Where live repository policy or explicit CWL/OriginWeave governance requires independent review, acceptance also requires a qualifying non-author formal `APPROVED` review on the unchanged exact head. COMMENTED reviews, check/status results, model verdicts, reactions, author approval, predecessor-head approval, or dismissed reviews never substitute for that requirement. Conversation-derived ideas remain Proposed/Open in PRD/TRD/traceability until the protected process is complete.
+An ADR becomes Accepted only through the repository's actual protected-branch governance at the time of the change. Where live GitHub policy or an explicit operationally satisfiable CWL/OriginWeave rule requires independent non-author approval, that approval is part of acceptance. When the repository is operating under its documented solo-maintainer exception and GitHub does not require a counted approval, automation must not invent an impossible approval gate. COMMENTED reviews, check/status results, model verdicts, reactions, author approval, predecessor-head approval, or dismissed reviews never substitute for a review that policy actually requires.
 
-An Accepted ADR is **design authority, not implementation evidence**. Protected-main source, executable tests, built/released artifacts, migrations/configuration, and protected-main operational evidence appropriate to the claim establish current implemented behavior. An ADR may intentionally describe an accepted target that is only partially implemented; the product documents must label that implementation status separately.
+An Accepted ADR is **design authority, not implementation evidence**. Protected-main source, executable tests, built/released artifacts, migrations/configuration, and protected-main operational evidence appropriate to the claim establish current implemented behavior. An ADR may intentionally describe an accepted target that is only partially implemented; product documents must label implementation status separately.
 
-## Current protected-main decisions
+## Accepted protected-main decisions
 
-| ADR | Decision | Protected-main status | Governs |
+| ADR | Decision | Status | Governs |
 |---|---|---|---|
 | [0001](0001-chromium-compatibility-kernel.md) | Retain Chromium as the compatibility kernel | Accepted | Blink/V8/graphics/extensions boundary; Rust control-plane integration |
 | [0002](0002-agent-safety-kernel.md) | Agent safety kernel | Accepted | mode, capability, origin, risk, crawler, secret and approval policy |
@@ -24,13 +24,17 @@ An Accepted ADR is **design authority, not implementation evidence**. Protected-
 | [0004](0004-resolved-destination-policy.md) | Logical origin and resolved destination safety | Accepted | SSRF/rebinding/special-purpose address and redirect authority |
 | [0005](0005-direct-socket-binding.md) | Exact direct TCP peer binding | Accepted | explicit socket authority and operating-system peer proof |
 | [0006](0006-tls-server-identity.md) | TLS service identity over the verified peer | Accepted | WebPKI identity, roots, time, ALPN and stream binding |
+| [0007](0007-purpose-bound-sensitive-data-authority.md) | Purpose-bound sensitive-data authority | Accepted | tenant/task/field/purpose/destination/classification disclosure authority |
+| [0008](0008-leaf-validity-horizon.md) | Delegated-task TLS leaf-validity horizon | Accepted | minimum certificate-validity horizon for bounded delegated tasks |
+| [0010](0010-session-context-bound-node-authority.md) | Session/context-bound node authority | Accepted | browser-session, browsing-context, origin, document-epoch and stale-node authority |
 
-## Proposed target-architecture decisions in this change
+## Proposed decisions retained on protected main
 
-The following ADRs make the product-wide target architecture reviewable without promoting it to shipped behavior. They remain **Proposed** until their exact branch is reviewed and merged under protected-main policy. Existing feature PRs may independently carry lower-numbered Proposed ADRs; the `0100` range avoids claiming or conflicting with those active decisions.
+Proposed ADR files can live on protected `main` as reviewable target architecture without becoming Accepted or shipped behavior. Their own status metadata remains authoritative until a later reviewed change accepts, supersedes, rejects, or deprecates them.
 
 | ADR | Decision | Status | Governs |
 |---|---|---|---|
+| [0009](0009-hourly-agent-credential-boundary.md) | Hourly agent credential boundary | Proposed | deterministic gates, NVIDIA credential materialization, local broker and publication separation |
 | [0100](0100-rust-control-plane-boundary.md) | Rust control-plane boundary | Proposed | Rust-owned product authority versus Chromium compatibility kernel |
 | [0101](0101-isolated-execution-profile-modes.md) | Isolated execution/profile modes | Proposed | Human, Assist, Agent Task and Crawler session/profile isolation |
 | [0102](0102-typed-actions-and-arbitrary-js.md) | Typed actions over arbitrary JavaScript authority | Proposed | action API, script escape hatches, risk/policy semantics |
@@ -40,9 +44,21 @@ The following ADRs make the product-wide target architecture reviewable without 
 | [0106](0106-provenance-evidence-model.md) | Provenance-native evidence model | Proposed | WARC/PROV-style evidence identities, integrity and disclosure |
 | [0107](0107-browser-protocol-adapter-strategy.md) | Versioned browser and agent protocol adapters | Proposed | WebDriver BiDi, CDP, WebMCP, MCP and OriginWeave Protocol boundaries |
 | [0108](0108-crawler-policy.md) | Policy-bound crawler mode | Proposed | robots, rate/resource policy, read-only collection and no-evasion behavior |
-| [0109](0109-hourly-automation-operational-closure.md) | Hourly automation secret ordering and operational closure | Proposed | deterministic gates, model secret boundary, retries and protected-main proof |
+| [0109](0109-hourly-automation-operational-closure.md) | Hourly automation operational closure | Proposed | deterministic gates, model secret boundary, retries and protected-main proof |
 
-Active feature PRs may contain additional Proposed ADRs. Those ADRs are not described as Accepted until their exact changes merge. When an ADR becomes protected-main architecture, update this index in the same protected change or an immediately coupled documentation repair.
+Active feature PRs may contain additional Proposed ADRs. They are not indexed here as protected-main decisions until their files reach protected `main`. Historical PR checks, stale branch state, or chat decisions never transfer ADR acceptance across a changed head.
+
+## Index completeness rule
+
+Every ADR file on protected `main` must be discoverable from this index with a status that agrees with the ADR's own status metadata. A feature ADR in an active PR belongs in that PR's traceability until merge. When an ADR is added, accepted, superseded, deprecated, or rejected, update this index in the same protected change or an immediately coupled documentation reconciliation.
+
+The machine-checkable documentation contract should fail when:
+
+- an ADR file on protected `main` is absent from this index;
+- this index claims `Accepted` while the ADR metadata says `Proposed`, or the reverse;
+- a superseded ADR lacks a discoverable successor;
+- an active-PR ADR is presented as protected-main implementation evidence; or
+- a stale PR number, SHA, run ID, automation prompt, or conversation statement is used as timeless architecture authority.
 
 ## Decisions that require a dedicated ADR
 
@@ -59,9 +75,10 @@ A new or superseding ADR is required when a change materially alters any of the 
 9. resource-governor priority, telemetry or GPU/CPU fallback semantics;
 10. evidence/provenance identity, retention or persistence boundaries;
 11. WebDriver BiDi, CDP, WebMCP, MCP or OriginWeave Protocol authority/version boundaries;
-12. Manifest V3 extension-to-agent authorization;
+12. Manifest V3 extension-to-agent authorization or compatibility evidence policy;
 13. tenant, privacy, residency, audit, deployment or enterprise-control ownership;
-14. release acceptance, rollback/recovery or protected-main operational-proof requirements.
+14. hourly automation credential, writer, continuation or protected-main operational-proof authority; or
+15. release acceptance, rollback/recovery or protected-main operational-proof requirements.
 
 ## Required ADR structure
 
@@ -100,5 +117,6 @@ Material external standards or research belong in APA 7th format in [`../doctori
 - [`../uml/README.md`](../uml/README.md) visualizes component, sequence, state and deployment relationships.
 - [`../erd/README.md`](../erd/README.md) defines the conceptual durable domain model.
 - [`../traceability/README.md`](../traceability/README.md) maps requirements and decisions to implementation and evidence.
+- [`../DOCUMENTATION_FITNESS.md`](../DOCUMENTATION_FITNESS.md) records semantic completeness and stale/current findings across the graph.
 
-If these artifacts disagree about what is currently implemented, protected-main source, executable tests, built/released artifacts, configuration/migrations, and protected-main operational evidence appropriate to the claim define implementation truth. Accepted ADRs explain the governing design decision and expected boundary; they do not upgrade missing behavior into shipped behavior. The disagreement is a documentation or implementation defect that must be repaired rather than silently rationalized from conversation history.
+If these artifacts disagree about current implementation, protected-main source, executable tests, built/released artifacts, configuration/migrations, and protected-main operational evidence appropriate to the claim define implementation truth. Accepted ADRs explain governing design decisions; they do not upgrade missing behavior into shipped behavior. The disagreement is a documentation or implementation defect that must be repaired rather than silently rationalized from conversation history.
