@@ -1,23 +1,21 @@
 use std::collections::BTreeSet;
-use std::error::Error;
 
 use originweave_core::{
     BrowserSessionId, BrowsingContextId, DocumentEpoch, NodeActionKind, ObservationChannel,
     ObservedNodeHandle, Origin, SemanticNodeObservation, SemanticNodeObservationInput,
 };
 
-fn observed_node() -> Result<ObservedNodeHandle, Box<dyn Error>> {
-    Ok(ObservedNodeHandle::new(
-        BrowserSessionId::new(7)?,
-        BrowsingContextId::new(11)?,
-        Origin::parse("https://example.com")?,
-        DocumentEpoch::new(3)?,
-        17,
-    )?)
+fn observed_node() -> Result<ObservedNodeHandle, String> {
+    let browser_session = BrowserSessionId::new(7).map_err(|error| error.to_string())?;
+    let browsing_context = BrowsingContextId::new(11).map_err(|error| error.to_string())?;
+    let origin = Origin::parse("https://example.com").map_err(|error| format!("{error:?}"))?;
+    let document_epoch = DocumentEpoch::new(3).map_err(|error| error.to_string())?;
+    ObservedNodeHandle::new(browser_session, browsing_context, origin, document_epoch, 17)
+        .map_err(|error| error.to_string())
 }
 
 #[test]
-fn semantic_node_preserves_authority_and_bounded_surface() -> Result<(), Box<dyn Error>> {
+fn semantic_node_preserves_authority_and_bounded_surface() -> Result<(), String> {
     let handle = observed_node()?;
     let observation = SemanticNodeObservation::new(SemanticNodeObservationInput {
         handle: handle.clone(),
@@ -32,7 +30,8 @@ fn semantic_node_preserves_authority_and_bounded_surface() -> Result<(), Box<dyn
             ObservationChannel::Accessibility,
             ObservationChannel::Dom,
         ]),
-    })?;
+    })
+    .map_err(|error| error.to_string())?;
 
     assert_eq!(observation.handle(), &handle);
     assert_eq!(observation.role(), "textbox");
