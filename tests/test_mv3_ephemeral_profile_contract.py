@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import importlib.util
 import pathlib
+import signal
+import tempfile
 import unittest
 from unittest import mock
 
@@ -72,6 +74,40 @@ class ManifestV3EphemeralProfileContractTests(unittest.TestCase):
         self.assertFalse(observed_profiles[0].exists())
         self.assertNotIn(str(observed_profiles[0]), repr(result))
         self.assertIs(result.get("passed"), True)
+
+    def test_browser_pass_owns_and_terminates_the_chromedriver_process_group(self) -> None:
+        """Failure cleanup must signal the isolated driver group, not only its leader."""
+
+        runner = _load_runner()
+        driver = mock.Mock()
+        driver.pid = 4242
+        driver.wait.return_value = 0
+
+        with tempfile.TemporaryDirectory(prefix="originweave-mv3-cleanup-") as profile_dir:
+            with (
+                mock.patch.object(runner.subprocess, "Popen", return_value=driver) as popen,
+                mock.patch.object(
+                    runner,
+                    "_wait_for_driver",
+                    side_effect=RuntimeError("controlled startup failure"),
+                ),
+                mock.patch.object(runner.os, "killpg") as kill_process_group,
+            ):
+                with self.assertRaisesRegex(RuntimeError, "controlled startup failure"):
+                    runner._run_browser_pass(
+                        pathlib.Path("/unused/chrome"),
+                        pathlib.Path("/unused/chromedriver"),
+                        "http://127.0.0.1/fixture",
+                        profile_dir,
+                        "initialized",
+                    )
+
+        _, popen_kwargs = popen.call_args
+        self.assertIs(popen_kwargs.get("start_new_session"), True)
+        kill_process_group.assert_called_once_with(driver.pid, signal.SIGTERM)
+        driver.wait.assert_called_once_with(timeout=5)
+        driver.terminate.assert_not_called()
+        driver.kill.assert_not_called()
 
 
 if __name__ == "__main__":
