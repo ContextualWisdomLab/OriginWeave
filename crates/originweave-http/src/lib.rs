@@ -26,11 +26,11 @@ mod exchange;
 #[cfg_attr(coverage_nightly, coverage(off))]
 #[path = "tests/exchange_error_contract.rs"]
 mod exchange_error_contract;
+mod field;
 #[cfg(test)]
 #[cfg_attr(coverage_nightly, coverage(off))]
 #[path = "tests/final_head_budget_contract.rs"]
 mod final_head_budget_contract;
-mod field;
 mod framing;
 mod integrity;
 #[cfg(test)]
