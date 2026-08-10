@@ -1,6 +1,5 @@
 use originweave_evidence::{
-    SensitiveEvidenceError, SensitiveHandleLifecycleEvidence,
-    SensitiveHandleLifecycleEvidenceInput,
+    SensitiveEvidenceError, SensitiveHandleLifecycleEvidence, SensitiveHandleLifecycleEvidenceInput,
 };
 
 fn valid_input() -> SensitiveHandleLifecycleEvidenceInput {
@@ -17,7 +16,8 @@ fn valid_input() -> SensitiveHandleLifecycleEvidenceInput {
 
 #[test]
 fn records_bounded_handle_lifecycle_without_handle_or_secret_material() {
-    let evidence = SensitiveHandleLifecycleEvidence::try_from(valid_input()).expect("valid evidence");
+    let evidence =
+        SensitiveHandleLifecycleEvidence::try_from(valid_input()).expect("valid evidence");
 
     assert_eq!(evidence.request_id(), "request-42");
     assert_eq!(evidence.decision_id(), "decision-42");
@@ -39,7 +39,8 @@ fn records_revocation_time_without_storing_revocation_payloads() {
     input.revoked_epoch_seconds = Some(1_720_000_120);
     input.resolution_count = 2;
 
-    let evidence = SensitiveHandleLifecycleEvidence::try_from(input).expect("valid revoked evidence");
+    let evidence =
+        SensitiveHandleLifecycleEvidence::try_from(input).expect("valid revoked evidence");
 
     assert_eq!(evidence.revoked_epoch_seconds(), Some(1_720_000_120));
     assert!(evidence.is_revoked());
