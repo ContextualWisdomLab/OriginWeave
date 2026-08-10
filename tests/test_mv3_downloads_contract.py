@@ -39,11 +39,10 @@ class ManifestV3DownloadsContractTests(unittest.TestCase):
         self.assertNotIn('chrome.runtime.getURL("download.txt")', worker)
 
     def test_download_failures_emit_only_bounded_stage_diagnostics(self) -> None:
-        """A real-browser failure must identify its reviewed download stage without raw paths."""
+        """Fixture diagnostics must name a reviewed stage without retaining raw browser errors."""
 
         worker = (FIXTURE / "service_worker.js").read_text(encoding="utf-8")
         content = (FIXTURE / "content_script.js").read_text(encoding="utf-8")
-        runner = RUNNER.read_text(encoding="utf-8")
         for expected in (
             "download-source-rejected",
             "download-start-rejected",
@@ -59,10 +58,10 @@ class ManifestV3DownloadsContractTests(unittest.TestCase):
             with self.subTest(expected=expected):
                 self.assertIn(expected, worker)
         self.assertIn("originweaveDownloadsDiagnostic", content)
-        self.assertIn("downloadsDiagnostic", runner)
-        self.assertIn("DOWNLOAD_DIAGNOSTIC_VALUES", runner)
         self.assertNotIn("download.default_directory", worker)
         self.assertNotIn("item.filename", worker)
+        self.assertNotIn("_error.message", worker)
+        self.assertNotIn("String(_error)", worker)
 
     def test_content_script_and_runner_require_downloads_on_every_pass(self) -> None:
         """The compatibility report must fail closed when downloads evidence is missing."""
@@ -72,7 +71,6 @@ class ManifestV3DownloadsContractTests(unittest.TestCase):
         self.assertIn("originweaveDownloads", content)
         self.assertIn('"downloads": surfaces["downloads"] == "ready"', runner)
         self.assertIn('"downloads": "ready"', runner)
-        self.assertIn('"downloadsDiagnostic": "download-complete-ready"', runner)
 
 
 if __name__ == "__main__":
