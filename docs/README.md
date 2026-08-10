@@ -70,6 +70,6 @@ Proposed ADRs are reviewable architecture memory, not shipped behavior and not a
 - [ADR 0106: Provenance evidence model](adr/0106-provenance-evidence-model.md)
 - [ADR 0107: Browser protocol adapter strategy](adr/0107-browser-protocol-adapter-strategy.md)
 - [ADR 0108: Crawler policy](adr/0108-crawler-policy.md)
-- [ADR 0109: Hourly automation operational closure](adr/0109-hourly-automation-operational-closure.md)
+- [ADR 0109: Hourly automation secret ordering and operational closure](adr/0109-hourly-automation-operational-closure.md)
 
 See the [ADR index](adr/README.md) for status rules, required decision structure, supersession rules, and active feature ADRs. The index and each ADR's own status metadata must agree; a PR body, chat transcript, automation prompt, or stale issue reference cannot change ADR status.
