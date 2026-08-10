@@ -31,7 +31,23 @@ File existence alone is never sufficient. A document can be present and still be
 | API / protocol contract | **PRESENT-CURRENT as target contract** | The typed OriginWeave Protocol boundary is documented but much of the browser adapter implementation remains Planned. Keep adapter identifiers non-authoritative and versioned. |
 | Release / rollback / provenance | **PRESENT-CURRENT** | Correctly prevents feature-level green checks from becoming release readiness. Formal release remains blocked by missing full browser/runtime product evidence. |
 | Data governance / PII | **PRESENT-CURRENT as architecture; PARTIAL implementation** | Correctly rejects blanket masking and ambient raw propagation in favor of purpose-bound authorization, opaque handles, encryption, retention and audit. Trusted broker/storage/lifecycle completion remains open work. |
-| Standards / doctoring | **PRESENT-CURRENT with continuous watch** | Primary standards and APA 7 doctoring exist. Experimental/draft browser interfaces must remain explicitly separated from final normative standards. |
+| Standards / doctoring | **PRESENT-CURRENT with continuous watch** | Primary standards and APA 7 doctoring exist in [`doctoring.md`](doctoring.md) and the browser/agent protocol addendum [`doctoring/browser-agent-protocols.md`](doctoring/browser-agent-protocols.md). Experimental/draft browser interfaces remain explicitly separated from final normative standards. |
+
+### 2.1 Primary-source standards evidence used by this assessment
+
+The protocol names in this assessment are not free-floating design jargon. Their normative or official status is grounded in the repository doctoring and these primary sources:
+
+| Boundary | Primary evidence | Repository evidence rule |
+|---|---|---|
+| WebDriver BiDi | [W3C WebDriver BiDi, 1 June 2026 Working Draft](https://www.w3.org/TR/2026/WD-webdriver-bidi-20260601/) | [`doctoring.md`](doctoring.md) and [`doctoring/browser-agent-protocols.md`](doctoring/browser-agent-protocols.md) record that it is a Working Draft and therefore remains adapter-bound. |
+| Manifest V3 | [Chrome manifest format](https://developer.chrome.com/docs/extensions/reference/manifest) and [Manifest Version](https://developer.chrome.com/docs/extensions/reference/manifest/manifest-version) | The browser-protocol addendum records MV3 as the current Chrome extension baseline without claiming universal Chrome/Web Store/Google-service compatibility. |
+| Chrome DevTools Protocol | [Official CDP tip-of-tree documentation](https://chromedevtools.github.io/devtools-protocol/tot/) | The official documentation says tip-of-tree changes frequently and has no backwards-compatibility guarantee; OriginWeave pins and versions the adapter. |
+| WebMCP | [Chrome WebMCP](https://developer.chrome.com/docs/ai/webmcp), [WebMCP tool security](https://developer.chrome.com/docs/ai/webmcp/secure-tools), and [agent security considerations](https://developer.chrome.com/docs/agents/security) | The addendum records the origin-trial/experimental status and the untrusted-content/prompt-injection boundary. |
+| Model Context Protocol | [MCP 2026-07-28 specification](https://modelcontextprotocol.io/specification/2026-07-28) and [official release announcement](https://blog.modelcontextprotocol.io/posts/2026-07-28/) | OriginWeave keeps durable browser state in application-level handles and treats MCP as a high-level adapter, not Chromium authority. |
+| W3C PROV-O | [PROV-O Recommendation](https://www.w3.org/TR/prov-o/) | [`doctoring.md`](doctoring.md) records PROV as a provenance interoperability adapter, not authorization. |
+| WARC | [ISO 28500:2017](https://www.iso.org/standard/68004.html) | [`doctoring.md`](doctoring.md) records WARC as evidence/payload preservation format, not a truth or permission escalation mechanism. |
+
+APA 7th references for all rows are recorded in the doctoring documents rather than duplicated into every architecture assessment.
 
 ## 3. Concrete stale/current discrepancies discovered
 
@@ -139,6 +155,7 @@ isolated profile/context
 - Reconcile the ADR index with every protected-main ADR and its own status.
 - Add machine-checkable documentation fitness contracts so ADR discoverability/status drift is caught automatically.
 - Add the missing extension-permission-to-Agent-authority UML without duplicating already-present resource/automation views.
+- Keep browser/protocol claims linked to primary evidence and APA 7 doctoring.
 - Continue the existing HTTP replacement, browser-registry and MV3 compatibility work without using documentation as a reason to stop.
 
 ### Defer to stable implementation state
