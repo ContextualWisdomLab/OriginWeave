@@ -318,14 +318,19 @@ impl SensitiveHandleUseState {
     ///
     /// The audience must be derived by the trusted broker from authenticated caller
     /// identity, and the supplied time must come from the broker's trusted clock.
-    /// Audience/scope/expiry/use-limit/revocation denial leaves the authoritative
-    /// count unchanged.
+    /// Revocation is authoritative and is checked before later request details so a
+    /// revoked handle cannot expose whether a different scope, audience, expiry, or
+    /// use-limit condition would otherwise have matched. Every denial leaves the
+    /// authoritative count unchanged.
     pub fn reserve_use(
         &mut self,
         authority: SensitiveDataAuthority,
         audience_id: &str,
         now_epoch_seconds: u64,
     ) -> HandleUseDecision {
+        if self.revocation_reason.is_some() {
+            return HandleUseDecision::Revoked;
+        }
         let request = HandleUseRequest::new(
             authority,
             audience_id,
@@ -335,9 +340,6 @@ impl SensitiveHandleUseState {
         let decision = evaluate_handle_use(&request, &self.scope);
         if decision != HandleUseDecision::Authorized {
             return decision;
-        }
-        if self.revocation_reason.is_some() {
-            return HandleUseDecision::Revoked;
         }
         self.reserved_uses += 1;
         HandleUseDecision::Authorized
