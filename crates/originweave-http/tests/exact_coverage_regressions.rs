@@ -27,6 +27,8 @@ const TRUSTED_TIME_SECONDS: u64 = 1_767_225_600;
 const TEST_TIMEOUT: Duration = Duration::from_secs(3);
 const MALFORMED_HEAD_REPRESENTATION_DIGEST: &[u8] =
     b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nRepr-Digest: sha-256\r\nConnection: close\r\n\r\n";
+const INVALID_REASON_PHRASE: &[u8] =
+    b"HTTP/1.1 200 OK\0\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
 const CUMULATIVE_INCOMPLETE_HEAD: &[u8] = concat!(
     "HTTP/1.1 100 Continue\r\n\r\n",
     "HTTP/1.1 200 OK\r\nx:",
@@ -241,6 +243,17 @@ fn head_rejects_malformed_representation_digest_after_content_digest_absence() {
         HttpClientPolicy::strict_defaults(),
     );
     assert!(matches!(result, Err(HttpError::InvalidDigestField)));
+    join_server(server);
+}
+
+#[test]
+fn invalid_reason_phrase_is_rejected_at_the_authenticated_exchange_boundary() {
+    let (result, server) = execute(
+        HttpMethod::Get,
+        INVALID_REASON_PHRASE,
+        HttpClientPolicy::strict_defaults(),
+    );
+    assert!(matches!(result, Err(HttpError::InvalidResponseStatusLine)));
     join_server(server);
 }
 
