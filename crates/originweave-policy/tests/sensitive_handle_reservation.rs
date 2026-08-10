@@ -5,8 +5,8 @@ use std::thread;
 
 use originweave_core::Origin;
 use originweave_policy::{
-    DataClassification, HandleRevocationReason, HandleUseDecision, SensitiveDataAuthority,
-    SensitiveHandleUseState, SensitiveValueHandleScope,
+    DataClassification, HandleReleaseDecision, HandleRevocationReason, HandleUseDecision,
+    SensitiveDataAuthority, SensitiveHandleUseState, SensitiveValueHandleScope,
 };
 
 const TENANT: &str = "tenant_alpha";
@@ -105,6 +105,102 @@ fn concurrent_reservations_share_one_count_and_never_transfer_audience_authority
             .reserved_uses(),
         1
     );
+}
+
+#[test]
+fn reserved_use_requires_release_recheck_and_cannot_release_twice() {
+    let mut state = SensitiveHandleUseState::new(scope(1));
+
+    assert_eq!(state.released_uses(), 0);
+    assert_eq!(
+        state.reserve_use(authority(DESTINATION), AUDIENCE, 1_999),
+        HandleUseDecision::Authorized
+    );
+    assert_eq!(state.reserved_uses(), 1);
+    assert_eq!(state.released_uses(), 0);
+
+    assert_eq!(
+        state.authorize_reserved_release(authority(DESTINATION), AUDIENCE, 1_999),
+        HandleReleaseDecision::Authorized
+    );
+    assert_eq!(state.reserved_uses(), 1);
+    assert_eq!(state.released_uses(), 1);
+
+    assert_eq!(
+        state.authorize_reserved_release(authority(DESTINATION), AUDIENCE, 1_999),
+        HandleReleaseDecision::NoReservedUse
+    );
+    assert_eq!(state.released_uses(), 1);
+}
+
+#[test]
+fn release_recheck_denials_never_refund_or_consume_a_pending_reservation() {
+    let mut state = SensitiveHandleUseState::new(scope(1));
+    assert_eq!(
+        state.reserve_use(authority(DESTINATION), AUDIENCE, 1_999),
+        HandleUseDecision::Authorized
+    );
+
+    assert_eq!(
+        state.authorize_reserved_release(
+            authority("https://other.example"),
+            AUDIENCE,
+            1_999,
+        ),
+        HandleReleaseDecision::ScopeMismatch
+    );
+    assert_eq!(state.reserved_uses(), 1);
+    assert_eq!(state.released_uses(), 0);
+
+    assert_eq!(
+        state.authorize_reserved_release(authority(DESTINATION), "other_service", 1_999),
+        HandleReleaseDecision::AudienceMismatch
+    );
+    assert_eq!(state.reserved_uses(), 1);
+    assert_eq!(state.released_uses(), 0);
+
+    assert_eq!(
+        state.authorize_reserved_release(authority(DESTINATION), AUDIENCE, 1_999),
+        HandleReleaseDecision::Authorized
+    );
+    assert_eq!(state.released_uses(), 1);
+
+    let mut expired = SensitiveHandleUseState::new(scope(1));
+    assert_eq!(
+        expired.reserve_use(authority(DESTINATION), AUDIENCE, 1_999),
+        HandleUseDecision::Authorized
+    );
+    assert_eq!(
+        expired.authorize_reserved_release(authority(DESTINATION), AUDIENCE, 2_000),
+        HandleReleaseDecision::Expired
+    );
+    assert_eq!(expired.reserved_uses(), 1);
+    assert_eq!(expired.released_uses(), 0);
+
+    let mut revoked = SensitiveHandleUseState::new(scope(1));
+    assert_eq!(
+        revoked.reserve_use(authority(DESTINATION), AUDIENCE, 1_999),
+        HandleUseDecision::Authorized
+    );
+    assert!(revoked.revoke(HandleRevocationReason::PolicyChanged));
+    assert_eq!(
+        revoked.authorize_reserved_release(
+            authority("https://other.example"),
+            "other_service",
+            2_000,
+        ),
+        HandleReleaseDecision::Revoked
+    );
+    assert_eq!(revoked.reserved_uses(), 1);
+    assert_eq!(revoked.released_uses(), 0);
+
+    let mut never_reserved = SensitiveHandleUseState::new(scope(1));
+    assert_eq!(
+        never_reserved.authorize_reserved_release(authority(DESTINATION), AUDIENCE, 1_999),
+        HandleReleaseDecision::NoReservedUse
+    );
+    assert_eq!(never_reserved.reserved_uses(), 0);
+    assert_eq!(never_reserved.released_uses(), 0);
 }
 
 #[test]
