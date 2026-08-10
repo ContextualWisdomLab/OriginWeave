@@ -73,6 +73,82 @@ fn node_action_target_revalidates_exact_browser_authority() -> Result<(), String
 }
 
 #[test]
+fn node_action_target_rejects_cross_session_authority() -> Result<(), String> {
+    let observed = observation()?;
+    let target = SemanticNodeActionTarget::from_observation(&observed, NodeActionKind::Click)
+        .map_err(|error| error.to_string())?;
+    let current_origin =
+        Origin::parse("https://example.com").map_err(|error| format!("{error:?}"))?;
+    let observed_session = BrowserSessionId::new(7).map_err(|error| error.to_string())?;
+    let current_session = BrowserSessionId::new(8).map_err(|error| error.to_string())?;
+
+    assert_eq!(
+        target
+            .validate_current(
+                current_session,
+                BrowsingContextId::new(11).map_err(|error| error.to_string())?,
+                &current_origin,
+                DocumentEpoch::new(3).map_err(|error| error.to_string())?,
+            )
+            .err(),
+        Some(NodeHandleError::BrowserSessionMismatch {
+            observed: observed_session,
+            current: current_session,
+        })
+    );
+    Ok(())
+}
+
+#[test]
+fn node_action_target_rejects_cross_context_authority() -> Result<(), String> {
+    let observed = observation()?;
+    let target = SemanticNodeActionTarget::from_observation(&observed, NodeActionKind::Click)
+        .map_err(|error| error.to_string())?;
+    let current_origin =
+        Origin::parse("https://example.com").map_err(|error| format!("{error:?}"))?;
+    let observed_context = BrowsingContextId::new(11).map_err(|error| error.to_string())?;
+    let current_context = BrowsingContextId::new(12).map_err(|error| error.to_string())?;
+
+    assert_eq!(
+        target
+            .validate_current(
+                BrowserSessionId::new(7).map_err(|error| error.to_string())?,
+                current_context,
+                &current_origin,
+                DocumentEpoch::new(3).map_err(|error| error.to_string())?,
+            )
+            .err(),
+        Some(NodeHandleError::BrowsingContextMismatch {
+            observed: observed_context,
+            current: current_context,
+        })
+    );
+    Ok(())
+}
+
+#[test]
+fn node_action_target_rejects_cross_origin_authority() -> Result<(), String> {
+    let observed = observation()?;
+    let target = SemanticNodeActionTarget::from_observation(&observed, NodeActionKind::Click)
+        .map_err(|error| error.to_string())?;
+    let current_origin =
+        Origin::parse("https://other.example").map_err(|error| format!("{error:?}"))?;
+
+    assert_eq!(
+        target
+            .validate_current(
+                BrowserSessionId::new(7).map_err(|error| error.to_string())?,
+                BrowsingContextId::new(11).map_err(|error| error.to_string())?,
+                &current_origin,
+                DocumentEpoch::new(3).map_err(|error| error.to_string())?,
+            )
+            .err(),
+        Some(NodeHandleError::OriginMismatch)
+    );
+    Ok(())
+}
+
+#[test]
 fn node_action_target_rejects_stale_document_authority() -> Result<(), String> {
     let observed = observation()?;
     let target = SemanticNodeActionTarget::from_observation(&observed, NodeActionKind::Click)
