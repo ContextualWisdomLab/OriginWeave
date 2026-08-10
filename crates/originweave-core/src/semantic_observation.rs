@@ -86,7 +86,7 @@ pub struct SemanticNodeObservation {
 }
 
 impl SemanticNodeObservation {
-    /// Validate reviewed text budgets and create one semantic observation.
+    /// Validate reviewed text budgets and provenance before creating one semantic observation.
     pub fn new(input: SemanticNodeObservationInput) -> Result<Self, SemanticNodeObservationError> {
         if input.role.is_empty() {
             return Err(SemanticNodeObservationError::EmptyRole);
@@ -103,6 +103,9 @@ impl SemanticNodeObservation {
             .is_some_and(|text| text.len() > MAX_VISIBLE_TEXT_BYTES)
         {
             return Err(SemanticNodeObservationError::VisibleTextTooLong);
+        }
+        if input.evidence_channels.is_empty() {
+            return Err(SemanticNodeObservationError::MissingEvidenceChannel);
         }
         Ok(Self {
             handle: input.handle,
@@ -165,7 +168,7 @@ impl SemanticNodeObservation {
         &self.supported_actions
     }
 
-    /// Return the evidence-channel provenance set.
+    /// Return the non-empty evidence-channel provenance set.
     #[must_use]
     pub const fn evidence_channels(&self) -> &BTreeSet<ObservationChannel> {
         &self.evidence_channels
@@ -183,6 +186,8 @@ pub enum SemanticNodeObservationError {
     AccessibleNameTooLong,
     /// The visible-text excerpt exceeded [`MAX_VISIBLE_TEXT_BYTES`].
     VisibleTextTooLong,
+    /// No evidence channel was supplied for the observation.
+    MissingEvidenceChannel,
 }
 
 impl fmt::Display for SemanticNodeObservationError {
@@ -195,6 +200,9 @@ impl fmt::Display for SemanticNodeObservationError {
             }
             Self::VisibleTextTooLong => {
                 formatter.write_str("semantic node visible text exceeds 4096 UTF-8 bytes")
+            }
+            Self::MissingEvidenceChannel => {
+                formatter.write_str("semantic node observation requires at least one evidence channel")
             }
         }
     }
