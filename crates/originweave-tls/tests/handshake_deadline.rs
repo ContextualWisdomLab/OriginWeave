@@ -5,8 +5,8 @@ use std::thread;
 use std::time::Duration;
 
 use originweave_core::Origin;
-use originweave_destination::{AddressClass, DestinationPolicy, ResolutionSnapshot};
-use originweave_network::ConnectionPlan;
+use originweave_destination::{AddressClass, DestinationPolicy, FreshResolutionSnapshot};
+use originweave_network::FreshConnectionPlan;
 use originweave_tls::{
     AlpnRequirement, TlsClientPolicy, TlsError, TlsHandshakePlan, TrustBundleIdentifier,
     TrustRootBundle,
@@ -15,21 +15,32 @@ use rustls::pki_types::UnixTime;
 
 const TRUSTED_TIME_SECONDS: u64 = 1_767_225_600;
 const HARD_DEADLINE: Duration = Duration::from_nanos(1);
+const RESOLUTION_APPROVED_AT: Duration = Duration::from_secs(10);
+const RESOLUTION_VALIDITY: Duration = Duration::from_secs(5);
+const RESOLUTION_AUTHORIZED_AT: Duration = Duration::from_secs(12);
 
 fn direct_connection(
     origin: &Origin,
     socket_address: SocketAddr,
 ) -> originweave_network::DirectTcpConnection {
-    let snapshot = ResolutionSnapshot::approve(
+    let snapshot = FreshResolutionSnapshot::approve(
         origin.clone(),
         [socket_address.ip()],
         &DestinationPolicy::from_allowed_classes([AddressClass::Loopback]),
+        RESOLUTION_APPROVED_AT,
+        RESOLUTION_VALIDITY,
     )
     .expect("managed loopback resolution must be approved");
-    ConnectionPlan::new(&snapshot, socket_address, Duration::from_secs(1), 1)
-        .expect("direct connection plan")
-        .connect()
-        .expect("loopback TCP connection")
+    FreshConnectionPlan::new(
+        &snapshot,
+        RESOLUTION_AUTHORIZED_AT,
+        socket_address,
+        Duration::from_secs(1),
+        1,
+    )
+    .expect("fresh direct connection plan")
+    .connect()
+    .expect("loopback TCP connection")
 }
 
 #[test]
