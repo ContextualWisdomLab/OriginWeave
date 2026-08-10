@@ -56,7 +56,7 @@ The main [`docs/doctoring.md`](../doctoring.md) records the stable W3C PROV-O Re
 
 ## References — APA 7th
 
-Chrome DevTools Protocol. (2026). *Chrome DevTools Protocol—Latest (tip-of-tree)*. https://chromedevtools.github.io/devtools-protocol/tot/
+Chrome DevTools Protocol. (n.d.). *Chrome DevTools Protocol—Latest (tip-of-tree)*. Retrieved August 10, 2026, from https://chromedevtools.github.io/devtools-protocol/tot/
 
 Google Chrome Developers. (n.d.). *Manifest file format*. Chrome for Developers. Retrieved August 10, 2026, from https://developer.chrome.com/docs/extensions/reference/manifest
 
