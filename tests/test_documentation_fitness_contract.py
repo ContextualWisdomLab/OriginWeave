@@ -70,7 +70,7 @@ def _parse_adr_index(text: str) -> dict[str, str]:
     mapping: dict[str, str] = {}
     pattern = re.compile(
         r"^\|\s*\[\d{4}\]\((\d{4}[-\w]*\.md)\)\s*\|[^|]*\|\s*"
-        r"(Proposed|Accepted|Superseded|Deprecated|Rejected)\s*\|",
+        r"(Proposed|Accepted|Superseded|Deprecated|Rejected)(?:[;\s][^|\r\n]*)?\s*\|",
         re.MULTILINE,
     )
     for path, status in pattern.findall(text):
