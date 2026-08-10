@@ -1,5 +1,8 @@
 #![allow(clippy::expect_used)]
 
+use std::sync::{Arc, Barrier, Mutex};
+use std::thread;
+
 use originweave_core::Origin;
 use originweave_policy::{
     DataClassification, HandleRevocationReason, HandleUseDecision, SensitiveDataAuthority,
@@ -48,6 +51,60 @@ fn reservation_state_consumes_each_authorized_use_exactly_once() {
         HandleUseDecision::UseLimitReached
     );
     assert_eq!(state.reserved_uses(), 2);
+}
+
+#[test]
+fn concurrent_reservations_share_one_count_and_never_transfer_audience_authority() {
+    let state = Arc::new(Mutex::new(SensitiveHandleUseState::new(scope(1))));
+    let start = Arc::new(Barrier::new(4));
+    let mut workers = Vec::new();
+
+    for audience in [AUDIENCE, AUDIENCE, "other_service"] {
+        let state = Arc::clone(&state);
+        let start = Arc::clone(&start);
+        workers.push(thread::spawn(move || {
+            start.wait();
+            state
+                .lock()
+                .expect("test mutex must remain healthy")
+                .reserve_use(authority(DESTINATION), audience, 1_999)
+        }));
+    }
+
+    start.wait();
+    let decisions: Vec<_> = workers
+        .into_iter()
+        .map(|worker| worker.join().expect("reservation worker must complete"))
+        .collect();
+
+    assert_eq!(
+        decisions
+            .iter()
+            .filter(|decision| **decision == HandleUseDecision::Authorized)
+            .count(),
+        1
+    );
+    assert_eq!(
+        decisions
+            .iter()
+            .filter(|decision| **decision == HandleUseDecision::UseLimitReached)
+            .count(),
+        1
+    );
+    assert_eq!(
+        decisions
+            .iter()
+            .filter(|decision| **decision == HandleUseDecision::AudienceMismatch)
+            .count(),
+        1
+    );
+    assert_eq!(
+        state
+            .lock()
+            .expect("test mutex must remain healthy")
+            .reserved_uses(),
+        1
+    );
 }
 
 #[test]
