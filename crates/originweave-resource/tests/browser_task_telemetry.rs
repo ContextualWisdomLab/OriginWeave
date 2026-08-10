@@ -33,9 +33,11 @@ fn browser_task_telemetry_rejects_impossible_measurements() {
     );
     assert_eq!(
         BrowserTaskTelemetry::new(1, 1, 11, 10),
-        Err(BrowserTaskTelemetryError::ActionLatencyExceedsTaskDuration {
-            action_latency_milliseconds: 11,
-            task_duration_milliseconds: 10,
-        })
+        Err(
+            BrowserTaskTelemetryError::ActionLatencyExceedsTaskDuration {
+                action_latency_milliseconds: 11,
+                task_duration_milliseconds: 10,
+            }
+        )
     );
 }
