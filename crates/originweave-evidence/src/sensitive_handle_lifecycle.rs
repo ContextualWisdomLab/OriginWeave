@@ -5,7 +5,7 @@
 //! observed, and when it was revoked. The evidence intentionally has no field
 //! for the opaque handle token or the protected value behind that token.
 
-use crate::sensitive_access::{MAX_SENSITIVE_IDENTIFIER_BYTES, SensitiveEvidenceError};
+use crate::sensitive_access::{SensitiveEvidenceError, valid_identifier};
 
 /// Unvalidated metadata describing one opaque sensitive-value handle lifecycle.
 ///
@@ -122,13 +122,4 @@ impl SensitiveHandleLifecycleEvidence {
     pub const fn is_revoked(&self) -> bool {
         self.revoked_epoch_seconds.is_some()
     }
-}
-
-fn valid_identifier(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= MAX_SENSITIVE_IDENTIFIER_BYTES
-        && value.bytes().any(|byte| byte.is_ascii_alphanumeric())
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b':' | b'-'))
 }
