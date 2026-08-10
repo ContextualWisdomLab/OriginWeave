@@ -13,9 +13,9 @@ Protected `main` already classifies, approves, pins, and non-expansively revalid
 
 PR #47 exact head `6b5ed4dcea281b505f67db6180bb14c3bc95b392` contains the reusable production `FreshResolutionSnapshot` primitive and has terminal successful CI/security/SAST/exact-coverage evidence. That primitive is therefore **IMPLEMENTED_ON_ACTIVE_PR** evidence only; it is not protected-main truth.
 
-PR #50 is the dependent consumer lane. Its contract requires `originweave-network::ConnectionPlan` to consume the fresh snapshot together with one caller-supplied trusted monotonic current time, reject expired authority before socket I/O, and retain only credential-free freshness timestamps needed to prove the planning decision. PR #50 remains Draft and non-shipped. Its current production implementation is not yet gate-clean, so the complete resolution-to-socket interval remains **PARTIAL**.
+PR #50 is the dependent consumer lane. Its intended contract requires the first-party direct-socket planning boundary to consume the fresh snapshot together with one caller-supplied trusted monotonic current time, reject expired authority before socket I/O, and retain only credential-free freshness timestamps needed to prove the planning decision. PR #50 remains Draft and non-shipped. Current exact head `18d3b19523de61f59dd47a11c2c82d6451512272` adds a production `FreshConnectionPlan`, but leaves the original public `ConnectionPlan::new(&ResolutionSnapshot, ...)` bypass available and leaves the acceptance test intentionally calling that old path. Exact-head CI therefore fails at the intended policy boundary rather than proving the consumer complete. The complete resolution-to-socket interval remains **PARTIAL**.
 
-Neither an active primitive nor a test contract may be cited as shipped implementation evidence. The overall DNS-rebinding/TOCTOU boundary becomes protected-main implemented only after the primitive and the first-party consumer integrate under one exact trusted clock/authority chain with current protected-main evidence.
+Neither an active primitive nor an alternative wrapper may be cited as shipped implementation evidence while the first-party untimed planning path remains callable. The overall DNS-rebinding/TOCTOU boundary becomes protected-main implemented only after the primitive and the first-party consumer integrate under one exact trusted clock/authority chain and no ordinary first-party socket plan can bypass freshness.
 
 ## Current exact-head RCA
 
@@ -27,9 +27,13 @@ That was a realistic DNS-rebinding case rather than an impossible instrumentatio
 
 ### PR #50 consumer
 
-PR #50 began from exact PR #47 head `6b5ed4dcea281b505f67db6180bb14c3bc95b392` with a test contract that intentionally does not compile against the old `ConnectionPlan::new(&ResolutionSnapshot, ...)` API. CI on predecessor head `1fcc3b39c5c4f420ed85d5084afe2e68896ef7a3` proved the intended production mismatch, but it also exposed an unrelated setup defect: the test attempted to format `OriginError` with `Display`, which that type intentionally does not implement.
+PR #50 began from exact PR #47 head `6b5ed4dcea281b505f67db6180bb14c3bc95b392` with a test contract that intentionally does not compile against the old `ConnectionPlan::new(&ResolutionSnapshot, ...)` API. Predecessor CI also exposed and removed a setup-only `OriginError` formatting defect, leaving the production API mismatch as the valid RED boundary.
 
-The consumer lane was corrected at head `a8da35a156d62c5da17e4ea3f248d5d90b339af3` to use debug formatting for that setup-only diagnostic. That correction does **not** satisfy the product contract; it only removes the accidental test-harness failure so the remaining compile failure is attributable to the missing fresh-authority `ConnectionPlan` API and evidence accessors. Fresh exact-head CI after this correction is required before using the head as canonical RED evidence, and production implementation plus complete exact-head gates are still required before the consumer can be called implemented on an active PR.
+Current exact head `18d3b19523de61f59dd47a11c2c82d6451512272` implements a separate `FreshConnectionPlan`. That wrapper first calls `FreshResolutionSnapshot::authorize_connection`, then delegates to the existing untimed `ConnectionPlan`, and stores approval/expiry/authorization timestamps. This is useful implementation progress, but it does **not** yet satisfy the accepted consumer contract because the existing public `ConnectionPlan::new(&ResolutionSnapshot, ...)` remains a first-party route that can bypass freshness entirely.
+
+CI run `31400013559` checked out exactly `18d3b19523de61f59dd47a11c2c82d6451512272`; repository contracts and rustfmt passed, then `cargo check --locked --workspace --all-targets` failed in `crates/originweave-network/tests/fresh_resolution_plan.rs`. The test still supplies a `FreshResolutionSnapshot` plus trusted current time to `ConnectionPlan::new` and requires freshness evidence accessors. Rust correctly reports the old four-argument untimed signature and missing freshness accessors. Production coverage also fails because the workspace does not compile.
+
+The root cause is therefore **not** a formatting, runner, dependency, or coverage-instrumentation defect, and the smallest correct remedy is **not** to weaken the acceptance test to call `FreshConnectionPlan` while leaving an ordinary untimed `ConnectionPlan` public. The product boundary requires eliminating or structurally constraining the bypass: for example, make the externally consumable direct planner itself require `FreshResolutionSnapshot` + trusted time, or make the untimed planner an internal implementation detail reachable only after freshness authorization. Any chosen remedy must preserve current socket-validation semantics, use the same trusted monotonic clock domain, and reacquire exact-head CI/security/coverage evidence.
 
 ## Deterministic authority contract
 
@@ -56,7 +60,8 @@ The network-authority UML should be reconciled when the PR #50 consumer stabiliz
 |---|---|
 | Test-only consumer head with unresolved production API | intentional RED contract only; not implementation evidence |
 | Active PR #47 production primitive + unchanged exact-head CI/security/100% coverage | `IMPLEMENTED_ON_ACTIVE_PR` for the primitive; overall path remains `PARTIAL` |
-| Active PR #50 production consumer requires fresh authority but has non-passing gates | `IMPLEMENTED_ON_ACTIVE_PR` only for code already present and testable; overall path remains `PARTIAL` |
+| Active PR #50 adds a freshness wrapper while an ordinary untimed planner remains public | implementation progress only; bypass still makes the overall path `PARTIAL` |
+| Active PR #50 production consumer structurally requires fresh authority but has non-passing gates | `IMPLEMENTED_ON_ACTIVE_PR` only for code already present and testable; overall path remains `PARTIAL` |
 | PR #47 + #50 exact heads are individually gate-clean but neither is on protected main | active-PR evidence only; no shipped claim |
 | Protected-main primitive, but direct socket consumer can still bypass freshness | `PARTIAL` |
 | Protected-main direct socket path requires exact fresh authority and tests prove pre-approval/expiry/rebinding behavior | `IMPLEMENTED_ON_PROTECTED_MAIN` for the bounded resolution-to-socket interval |
@@ -65,8 +70,9 @@ The network-authority UML should be reconciled when the PR #50 consumer stabiliz
 ## Required follow-through
 
 - keep PR #47 as active/non-shipped evidence until repository governance integrates it;
-- on PR #50, preserve valid RED at the production API, implement the smallest fresh-authority consumer boundary, and require terminal exact-head workspace/tests/Clippy/rustdoc/100% function-line-region-branch coverage plus security evidence;
-- keep PRD/TRD/traceability from calling the DNS-rebinding/TOCTOU interval closed while either prerequisite is active or the socket path can bypass freshness;
+- on PR #50, preserve the valid RED at the public first-party planning API and remove or structurally constrain the untimed `ResolutionSnapshot` bypass rather than weakening the test to accept a parallel wrapper;
+- require terminal exact-head workspace/tests/Clippy/rustdoc/100% function-line-region-branch coverage plus security evidence after that production boundary changes;
+- keep PRD/TRD/traceability from calling the DNS-rebinding/TOCTOU interval closed while either prerequisite is active or any ordinary socket path can bypass freshness;
 - update network-authority sequence documentation after the executable consumer signature/evidence contract stabilizes, without encoding temporary branch-only details as protected-main truth;
 - retain the existing conceptual ERD unless a real persistence owner is introduced; and
 - after both layers integrate, rerun protected-main operational/release acceptance before promoting the capability maturity.
