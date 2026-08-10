@@ -72,11 +72,12 @@ impl BrowserAuthorityRegistry {
             return Ok(*existing);
         }
         let identifier = take_identifier(&mut self.next_session_id, self.maximum_identifier)?;
-        let session = browser_session_id(identifier)?;
-        self.session_by_external
-            .insert(external_identifier.to_owned(), session);
-        self.known_sessions.insert(session);
-        Ok(session)
+        browser_session_id(identifier).map(|session| {
+            self.session_by_external
+                .insert(external_identifier.to_owned(), session);
+            self.known_sessions.insert(session);
+            session
+        })
     }
 
     /// Register one opaque external browsing-context identifier inside a known browser session.
@@ -97,11 +98,14 @@ impl BrowserAuthorityRegistry {
             return Ok(*existing);
         }
         let identifier = take_identifier(&mut self.next_context_id, self.maximum_identifier)?;
-        let context = browsing_context_id(identifier)?;
-        self.context_by_external.insert(key, context);
-        self.context_session.insert(context, browser_session);
-        self.context_epoch.insert(context, document_epoch(1)?);
-        Ok(context)
+        browsing_context_id(identifier).and_then(|context| {
+            document_epoch(1).map(|initial_epoch| {
+                self.context_by_external.insert(key, context);
+                self.context_session.insert(context, browser_session);
+                self.context_epoch.insert(context, initial_epoch);
+                context
+            })
+        })
     }
 
     /// Return the currently active document epoch for a known browsing context.
@@ -131,12 +135,13 @@ impl BrowserAuthorityRegistry {
             .value()
             .checked_add(1)
             .ok_or(BrowserRegistryError::DocumentEpochExhausted)?;
-        let next = document_epoch(next_value)?;
-        self.context_epoch.insert(browsing_context, next);
-        self.context_origin.remove(&browsing_context);
-        self.node_by_external
-            .retain(|(context, _epoch, _external), _node_id| *context != browsing_context);
-        Ok(next)
+        document_epoch(next_value).map(|next| {
+            self.context_epoch.insert(browsing_context, next);
+            self.context_origin.remove(&browsing_context);
+            self.node_by_external
+                .retain(|(context, _epoch, _external), _node_id| *context != browsing_context);
+            next
+        })
     }
 
     /// Bind one opaque adapter-local node identifier to the exact current browser authority.
@@ -175,16 +180,17 @@ impl BrowserAuthorityRegistry {
                 self.context_origin.insert(browsing_context, origin.clone());
             }
         }
-        let epoch = self.current_epoch(browsing_context)?;
-        let key = (browsing_context, epoch, external_identifier.to_owned());
-        let node_id = if let Some(existing) = self.node_by_external.get(&key) {
-            *existing
-        } else {
-            let allocated = take_identifier(&mut self.next_node_id, self.maximum_identifier)?;
-            self.node_by_external.insert(key, allocated);
-            allocated
-        };
-        observed_node_handle(browser_session, browsing_context, origin, epoch, node_id)
+        self.current_epoch(browsing_context).and_then(|epoch| {
+            let key = (browsing_context, epoch, external_identifier.to_owned());
+            let node_id = if let Some(existing) = self.node_by_external.get(&key) {
+                *existing
+            } else {
+                let allocated = take_identifier(&mut self.next_node_id, self.maximum_identifier)?;
+                self.node_by_external.insert(key, allocated);
+                allocated
+            };
+            observed_node_handle(browser_session, browsing_context, origin, epoch, node_id)
+        })
     }
 }
 
