@@ -99,6 +99,61 @@ async function exerciseDownload(sender) {
   return waitForDownload(downloadId, url);
 }
 
+async function exerciseBookmarkMutation(sender) {
+  const sourceUrl = sender?.tab?.url;
+  if (typeof sourceUrl !== "string") {
+    return false;
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(sourceUrl);
+  } catch (_error) {
+    return false;
+  }
+  if (
+    parsed.protocol !== "http:" ||
+    parsed.hostname !== "127.0.0.1" ||
+    parsed.pathname !== "/page.html" ||
+    parsed.username !== "" ||
+    parsed.password !== ""
+  ) {
+    return false;
+  }
+
+  const title = "OriginWeave MV3 compatibility bookmark";
+  let bookmarkId;
+  try {
+    const created = await chrome.bookmarks.create({ title, url: sourceUrl });
+    if (typeof created?.id !== "string" || created.id.length === 0) {
+      return false;
+    }
+    bookmarkId = created.id;
+  } catch (_error) {
+    return false;
+  }
+
+  let bookmarkMutationReady = false;
+  try {
+    const nodes = await chrome.bookmarks.get(bookmarkId);
+    bookmarkMutationReady =
+      Array.isArray(nodes) &&
+      nodes.length === 1 &&
+      nodes[0]?.id === bookmarkId &&
+      nodes[0]?.title === title &&
+      nodes[0]?.url === sourceUrl;
+  } catch (_error) {
+    bookmarkMutationReady = false;
+  } finally {
+    try {
+      await chrome.bookmarks.remove(bookmarkId);
+    } catch (_error) {
+      bookmarkMutationReady = false;
+    }
+  }
+  return bookmarkMutationReady;
+}
+
 async function exerciseCoreApis(sender) {
   const tabId = sender?.tab?.id;
   if (!Number.isInteger(tabId)) {
@@ -129,8 +184,8 @@ async function exerciseCoreApis(sender) {
   const sidePanelOptions = await chrome.sidePanel.getOptions({ tabId });
   const sidePanelReady = sidePanelOptions?.path === "side_panel.html";
 
-  const bookmarkTree = await chrome.bookmarks.getTree();
-  const bookmarksReady = Array.isArray(bookmarkTree) && bookmarkTree.length > 0;
+  const bookmarkMutationReady = await exerciseBookmarkMutation(sender);
+  const bookmarksReady = bookmarkMutationReady;
 
   const historyItems = await chrome.history.search({
     text: "",
