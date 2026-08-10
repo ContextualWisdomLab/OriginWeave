@@ -308,9 +308,12 @@ impl fmt::Display for SemanticNodeQueryError {
             Self::EmptySelector => {
                 formatter.write_str("semantic node query requires at least one selector")
             }
-            Self::RoleTooLong => formatter.write_str("semantic node query role exceeds 64 UTF-8 bytes"),
-            Self::AccessibleNameTooLong => formatter
-                .write_str("semantic node query accessible name exceeds 512 UTF-8 bytes"),
+            Self::RoleTooLong => {
+                formatter.write_str("semantic node query role exceeds 64 UTF-8 bytes")
+            }
+            Self::AccessibleNameTooLong => {
+                formatter.write_str("semantic node query accessible name exceeds 512 UTF-8 bytes")
+            }
         }
     }
 }
