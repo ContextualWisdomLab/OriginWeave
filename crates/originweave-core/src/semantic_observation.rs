@@ -9,6 +9,8 @@ pub const MAX_SEMANTIC_ROLE_BYTES: usize = 64;
 pub const MAX_ACCESSIBLE_NAME_BYTES: usize = 512;
 /// Maximum UTF-8 byte length retained for one semantic node visible-text excerpt.
 pub const MAX_VISIBLE_TEXT_BYTES: usize = 4_096;
+/// Maximum number of child relationships retained for one semantic node observation.
+pub const MAX_SEMANTIC_CHILDREN: usize = 128;
 
 /// A node-local typed action advertised by an observation adapter.
 ///
@@ -51,6 +53,10 @@ pub enum ObservationChannel {
 pub struct SemanticNodeObservationInput {
     /// Exact OriginWeave authority handle for the observed node.
     pub handle: ObservedNodeHandle,
+    /// Optional exact-authority parent relationship.
+    pub parent: Option<ObservedNodeHandle>,
+    /// Bounded exact-authority child relationships in adapter-observed order.
+    pub children: Vec<ObservedNodeHandle>,
     /// Bounded semantic or accessibility role.
     pub role: String,
     /// Bounded accessible name; an empty name is valid.
@@ -75,6 +81,8 @@ pub struct SemanticNodeObservationInput {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SemanticNodeObservation {
     handle: ObservedNodeHandle,
+    parent: Option<ObservedNodeHandle>,
+    children: Vec<ObservedNodeHandle>,
     role: String,
     accessible_name: String,
     visible_text: Option<String>,
@@ -86,7 +94,7 @@ pub struct SemanticNodeObservation {
 }
 
 impl SemanticNodeObservation {
-    /// Validate reviewed text budgets and provenance before creating one semantic observation.
+    /// Validate reviewed text, relationship, authority, and provenance bounds.
     pub fn new(input: SemanticNodeObservationInput) -> Result<Self, SemanticNodeObservationError> {
         if input.role.is_empty() {
             return Err(SemanticNodeObservationError::EmptyRole);
@@ -107,8 +115,22 @@ impl SemanticNodeObservation {
         if input.evidence_channels.is_empty() {
             return Err(SemanticNodeObservationError::MissingEvidenceChannel);
         }
+        if input.children.len() > MAX_SEMANTIC_CHILDREN {
+            return Err(SemanticNodeObservationError::TooManyChildren);
+        }
+        if let Some(parent) = input.parent.as_ref() {
+            validate_relationship(&input.handle, parent)?;
+        }
+        for (index, child) in input.children.iter().enumerate() {
+            validate_relationship(&input.handle, child)?;
+            if input.children[..index].contains(child) {
+                return Err(SemanticNodeObservationError::DuplicateChild);
+            }
+        }
         Ok(Self {
             handle: input.handle,
+            parent: input.parent,
+            children: input.children,
             role: input.role,
             accessible_name: input.accessible_name,
             visible_text: input.visible_text,
@@ -124,6 +146,18 @@ impl SemanticNodeObservation {
     #[must_use]
     pub const fn handle(&self) -> &ObservedNodeHandle {
         &self.handle
+    }
+
+    /// Return the optional exact-authority parent relationship.
+    #[must_use]
+    pub const fn parent(&self) -> Option<&ObservedNodeHandle> {
+        self.parent.as_ref()
+    }
+
+    /// Return the bounded exact-authority child relationships in observed order.
+    #[must_use]
+    pub fn children(&self) -> &[ObservedNodeHandle] {
+        &self.children
     }
 
     /// Return the bounded semantic role.
@@ -175,6 +209,23 @@ impl SemanticNodeObservation {
     }
 }
 
+fn validate_relationship(
+    handle: &ObservedNodeHandle,
+    related: &ObservedNodeHandle,
+) -> Result<(), SemanticNodeObservationError> {
+    if handle == related {
+        return Err(SemanticNodeObservationError::SelfRelationship);
+    }
+    if handle.browser_session() != related.browser_session()
+        || handle.browsing_context() != related.browsing_context()
+        || handle.origin() != related.origin()
+        || handle.document_epoch() != related.document_epoch()
+    {
+        return Err(SemanticNodeObservationError::RelationshipAuthorityMismatch);
+    }
+    Ok(())
+}
+
 /// A bounded validation failure for one semantic node observation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SemanticNodeObservationError {
@@ -188,6 +239,14 @@ pub enum SemanticNodeObservationError {
     VisibleTextTooLong,
     /// No evidence channel was supplied for the observation.
     MissingEvidenceChannel,
+    /// The child relationship list exceeded [`MAX_SEMANTIC_CHILDREN`].
+    TooManyChildren,
+    /// A relationship crossed the observation's session, context, origin, or document authority.
+    RelationshipAuthorityMismatch,
+    /// The observation attempted to relate the node to itself.
+    SelfRelationship,
+    /// The child relationship list contained the same exact handle more than once.
+    DuplicateChild,
 }
 
 impl fmt::Display for SemanticNodeObservationError {
@@ -203,6 +262,17 @@ impl fmt::Display for SemanticNodeObservationError {
             }
             Self::MissingEvidenceChannel => formatter
                 .write_str("semantic node observation requires at least one evidence channel"),
+            Self::TooManyChildren => {
+                formatter.write_str("semantic node observation exceeds 128 child relationships")
+            }
+            Self::RelationshipAuthorityMismatch => formatter.write_str(
+                "semantic node relationship crosses its session, context, origin, or document authority",
+            ),
+            Self::SelfRelationship => {
+                formatter.write_str("semantic node observation cannot relate the node to itself")
+            }
+            Self::DuplicateChild => formatter
+                .write_str("semantic node observation contains a duplicate child relationship"),
         }
     }
 }
