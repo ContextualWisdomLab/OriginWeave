@@ -62,6 +62,8 @@ The PRD/TRD/Architecture/ADR/UML/ERD/data-governance/traceability/security/opera
 Proposed ADRs are reviewable architecture memory, not shipped behavior and not automatically Accepted merely because their files live on protected `main`.
 
 - [ADR 0009: Hourly agent credential boundary](adr/0009-hourly-agent-credential-boundary.md)
+- [ADR 0011: Manifest V3 compatibility and extension-to-Agent authority](adr/0011-manifest-v3-extension-authority.md)
+- [ADR 0012: Architecture decision acceptance governance](adr/0012-architecture-decision-governance.md)
 - [ADR 0100: Rust control-plane boundary](adr/0100-rust-control-plane-boundary.md)
 - [ADR 0101: Isolated execution/profile modes](adr/0101-isolated-execution-profile-modes.md)
 - [ADR 0102: Typed actions over arbitrary JavaScript](adr/0102-typed-actions-and-arbitrary-js.md)
