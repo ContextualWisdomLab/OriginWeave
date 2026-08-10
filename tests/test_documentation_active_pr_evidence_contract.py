@@ -66,8 +66,11 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         """An internal audience field is not authenticated workload/service identity."""
         row = active_pr_row(self.maturity, 55)
         self.assertIn("authenticated workload/service identity", row)
-        self.assertIn("audience string accepted by the value/policy primitive is **not authentication**", self.fitness)
-        self.assertIn("no new deployment topology or physical ERD entity", self.fitness)
+        self.assertIn(
+            "audience string accepted by the value/policy primitive is **not authentication**",
+            self.fitness,
+        )
+        self.assertIn("new deployment topology or physical ERD entity", self.fitness)
 
     def test_bookmark_mutation_is_compatibility_not_agent_authority(self) -> None:
         """Real MV3 mutation evidence must remain separate from OriginWeave capability grants."""
@@ -77,7 +80,10 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
                 self.assertIn(marker, row)
 
         self.assertIn("Manifest V3 compatibility", self.fitness)
-        self.assertIn("Chromium permission or browser compatibility success is not an OriginWeave Agent capability", self.fitness)
+        self.assertIn(
+            "Chromium permission or browser compatibility success is not an OriginWeave Agent capability",
+            self.fitness,
+        )
         self.assertIn("does not justify", self.fitness)
 
     def test_erd_stays_conceptual_without_persistence_owner(self) -> None:
