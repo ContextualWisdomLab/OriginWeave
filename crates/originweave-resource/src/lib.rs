@@ -13,7 +13,7 @@ const MEBIBYTE_BYTES: u64 = 1_048_576;
 
 const fn bytes_to_mebibytes_ceil(bytes: u64) -> u64 {
     let whole_mebibytes = bytes / MEBIBYTE_BYTES;
-    if bytes % MEBIBYTE_BYTES == 0 {
+    if bytes.is_multiple_of(MEBIBYTE_BYTES) {
         whole_mebibytes
     } else {
         whole_mebibytes + 1
