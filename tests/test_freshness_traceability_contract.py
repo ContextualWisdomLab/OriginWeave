@@ -21,7 +21,7 @@ class FreshnessTraceabilityContractTests(unittest.TestCase):
         ):
             with self.subTest(filename=filename):
                 self.assertTrue((TRACEABILITY / filename).is_file())
-                self.assertIn(filename, index)
+                self.assertIn(f"]({filename})", index)
 
     def test_active_freshness_traces_preserve_protected_main_maturity(self) -> None:
         """Active implementation evidence must remain explicitly non-shipped and partial overall."""
