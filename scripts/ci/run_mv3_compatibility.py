@@ -17,6 +17,7 @@ import http.server
 import json
 import os
 import pathlib
+import signal
 import socket
 import string
 import subprocess
@@ -332,6 +333,19 @@ def _exercise_real_click(driver_port: int, session_id: str) -> str:
     return str(text)
 
 
+def _terminate_process_group(driver: subprocess.Popen[str]) -> None:
+    """Terminate the isolated ChromeDriver process group and all inherited children."""
+
+    with contextlib.suppress(ProcessLookupError):
+        os.killpg(driver.pid, signal.SIGTERM)
+    try:
+        driver.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(driver.pid, signal.SIGKILL)
+        driver.wait(timeout=5)
+
+
 def _run_browser_pass(
     chrome_bin: pathlib.Path,
     chromedriver_bin: pathlib.Path,
@@ -350,6 +364,7 @@ def _run_browser_pass(
         stdout=subprocess.DEVNULL,
         stderr=subprocess.STDOUT,
         text=True,
+        start_new_session=True,
     )
     try:
         _wait_for_driver(driver_port)
@@ -444,12 +459,7 @@ def _run_browser_pass(
                     _webdriver_path(session_id, ""),
                     {},
                 )
-        driver.terminate()
-        try:
-            driver.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            driver.kill()
-            driver.wait(timeout=5)
+        _terminate_process_group(driver)
 
 
 def _run_restart_trial(
