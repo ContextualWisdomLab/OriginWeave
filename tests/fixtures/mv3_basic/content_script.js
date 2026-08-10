@@ -20,6 +20,10 @@
   document.documentElement.dataset.originweaveWorkerStartCount = String(
     response?.workerStartCount ?? "missing"
   );
+  document.documentElement.dataset.originweaveExtensionVersion =
+    response?.extensionVersion ?? "missing";
+  document.documentElement.dataset.originweaveStorageMigration =
+    response?.storageMigration ?? "missing";
   document.documentElement.dataset.originweaveTabs = response?.tabs ?? "missing";
   document.documentElement.dataset.originweaveWindows = response?.windows ?? "missing";
   document.documentElement.dataset.originweaveScripting = response?.scripting ?? "missing";
