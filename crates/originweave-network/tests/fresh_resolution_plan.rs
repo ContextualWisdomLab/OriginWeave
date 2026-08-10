@@ -8,7 +8,7 @@ use originweave_network::{ConnectionPlan, NetworkError};
 fn fresh_loopback_snapshot() -> FreshResolutionSnapshot {
     FreshResolutionSnapshot::approve(
         Origin::parse("http://localhost")
-            .unwrap_or_else(|error| panic!("loopback origin: {error}")),
+            .unwrap_or_else(|error| panic!("loopback origin: {error:?}")),
         [IpAddr::V4(Ipv4Addr::LOCALHOST)],
         &DestinationPolicy::from_allowed_classes([AddressClass::Loopback]),
         Duration::from_secs(10),
