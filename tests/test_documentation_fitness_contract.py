@@ -163,7 +163,7 @@ class DocumentationFitnessContractTests(unittest.TestCase):
             encoding="utf-8"
         )
 
-        for pr_number in (37, 40, 43, 52):
+        for pr_number in (37, 40, 43, 52, 58, 59):
             row = _active_pr_row(appendix, pr_number)
             with self.subTest(pr_number=pr_number):
                 self.assertIn("**IMPLEMENTED_ON_ACTIVE_PR**", row)
@@ -192,12 +192,28 @@ class DocumentationFitnessContractTests(unittest.TestCase):
         self.assertIn("active PR #52", prd)
         self.assertIn("not a browser observation adapter", prd)
 
+    def test_action_target_and_history_lanes_preserve_authority_boundaries(self) -> None:
+        """New active lanes must not turn descriptive or compatibility evidence into authority."""
+        assessment = (DOCS_ROOT / "DOCUMENTATION_FITNESS.md").read_text(encoding="utf-8")
+        appendix = (DOCS_ROOT / "evidence" / "2026-08-10-active-pr-maturity.md").read_text(
+            encoding="utf-8"
+        )
+        action_row = _active_pr_row(appendix, 58)
+        history_row = _active_pr_row(appendix, 59)
+
+        self.assertIn("descriptive execution input, not policy authorization", action_row)
+        self.assertIn("grants no Agent history capability", history_row)
+        self.assertIn("business-risk classification", assessment)
+        self.assertIn("OriginWeave Agent history grant", assessment)
+        self.assertNotIn("IMPLEMENTED_ON_PROTECTED_MAIN", action_row)
+        self.assertNotIn("IMPLEMENTED_ON_PROTECTED_MAIN", history_row)
+
     def test_active_pr_maturity_appendix_tracks_current_dependency_stacks(self) -> None:
         """Volatile evidence must retain the current browser/network/sensitive stacks explicitly."""
         appendix = (DOCS_ROOT / "evidence" / "2026-08-10-active-pr-maturity.md").read_text(
             encoding="utf-8"
         )
-        for marker in ("| #52 |", "| #53 |", "| #54 |", "| #55 |"):
+        for marker in ("| #52 |", "| #53 |", "| #54 |", "| #55 |", "| #58 |", "| #59 |"):
             with self.subTest(marker=marker):
                 self.assertIn(marker, appendix)
         self.assertIn("authenticated workload/service identity", appendix)
