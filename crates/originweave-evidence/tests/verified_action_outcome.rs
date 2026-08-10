@@ -45,7 +45,10 @@ fn verified_post_condition_can_create_action_success_evidence() {
     assert_eq!(evidence.action(), ActionKind::Submit);
     assert_eq!(evidence.target_origin(), &target);
     assert_eq!(evidence.intent_digest(), &intent());
-    assert_eq!(evidence.post_condition(), PostConditionKind::NodeStateChanged);
+    assert_eq!(
+        evidence.post_condition(),
+        PostConditionKind::NodeStateChanged
+    );
     assert_eq!(
         evidence.provenance().verification_result(),
         VerificationResult::Verified
