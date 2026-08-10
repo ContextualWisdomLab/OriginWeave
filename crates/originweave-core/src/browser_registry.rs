@@ -6,6 +6,9 @@ use crate::{BrowserSessionId, BrowsingContextId, DocumentEpoch, ObservedNodeHand
 /// Maximum UTF-8 byte length of an opaque browser-protocol identifier retained by the registry.
 pub const MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES: usize = 512;
 
+/// Default maximum number of authority identifiers allocated per registry namespace.
+const DEFAULT_MAX_BROWSER_AUTHORITY_IDENTIFIERS: u64 = 1_000_000;
+
 /// A bounded in-memory mapping from untrusted adapter identifiers to OriginWeave authority values.
 ///
 /// External WebDriver BiDi, CDP, renderer, frame, and DOM identifiers are retained only as
@@ -20,15 +23,28 @@ pub struct BrowserAuthorityRegistry {
     context_epoch: BTreeMap<BrowsingContextId, DocumentEpoch>,
     context_origin: BTreeMap<BrowsingContextId, Origin>,
     node_by_external: BTreeMap<(BrowsingContextId, DocumentEpoch, String), u64>,
+    maximum_identifier: u64,
     next_session_id: u64,
     next_context_id: u64,
     next_node_id: u64,
 }
 
 impl BrowserAuthorityRegistry {
-    /// Create an empty registry whose first internal identities are one.
+    /// Create an empty registry with the reviewed default per-namespace identifier capacity.
     #[must_use]
     pub fn new() -> Self {
+        Self::with_identifier_limit(DEFAULT_MAX_BROWSER_AUTHORITY_IDENTIFIERS)
+    }
+
+    /// Create an empty registry with a caller-selected per-namespace identifier capacity.
+    ///
+    /// Session, browsing-context, and node identifiers each have an independent monotonic
+    /// namespace capped at `maximum_identifier`. A zero limit intentionally rejects every new
+    /// allocation. Values above `u64::MAX - 1` are clamped so incrementing the next identifier
+    /// never wraps to zero.
+    #[must_use]
+    pub fn with_identifier_limit(maximum_identifier: u64) -> Self {
+        let maximum_identifier = maximum_identifier.min(u64::MAX - 1);
         Self {
             session_by_external: BTreeMap::new(),
             known_sessions: BTreeSet::new(),
@@ -37,6 +53,7 @@ impl BrowserAuthorityRegistry {
             context_epoch: BTreeMap::new(),
             context_origin: BTreeMap::new(),
             node_by_external: BTreeMap::new(),
+            maximum_identifier,
             next_session_id: 1,
             next_context_id: 1,
             next_node_id: 1,
@@ -54,7 +71,7 @@ impl BrowserAuthorityRegistry {
         if let Some(existing) = self.session_by_external.get(external_identifier) {
             return Ok(*existing);
         }
-        let identifier = take_identifier(&mut self.next_session_id)?;
+        let identifier = take_identifier(&mut self.next_session_id, self.maximum_identifier)?;
         let session = browser_session_id(identifier)?;
         self.session_by_external
             .insert(external_identifier.to_owned(), session);
@@ -79,7 +96,7 @@ impl BrowserAuthorityRegistry {
         if let Some(existing) = self.context_by_external.get(&key) {
             return Ok(*existing);
         }
-        let identifier = take_identifier(&mut self.next_context_id)?;
+        let identifier = take_identifier(&mut self.next_context_id, self.maximum_identifier)?;
         let context = browsing_context_id(identifier)?;
         self.context_by_external.insert(key, context);
         self.context_session.insert(context, browser_session);
@@ -163,7 +180,7 @@ impl BrowserAuthorityRegistry {
         let node_id = if let Some(existing) = self.node_by_external.get(&key) {
             *existing
         } else {
-            let allocated = take_identifier(&mut self.next_node_id)?;
+            let allocated = take_identifier(&mut self.next_node_id, self.maximum_identifier)?;
             self.node_by_external.insert(key, allocated);
             allocated
         };
@@ -245,12 +262,12 @@ fn validate_external_identifier(identifier: &str) -> Result<(), BrowserRegistryE
     Ok(())
 }
 
-fn take_identifier(next: &mut u64) -> Result<u64, BrowserRegistryError> {
-    if *next == 0 {
+fn take_identifier(next: &mut u64, maximum_identifier: u64) -> Result<u64, BrowserRegistryError> {
+    if *next > maximum_identifier {
         return Err(BrowserRegistryError::IdentifierSpaceExhausted);
     }
     let identifier = *next;
-    *next = identifier.wrapping_add(1);
+    *next = identifier + 1;
     Ok(identifier)
 }
 
@@ -322,11 +339,11 @@ mod tests {
 
     #[test]
     fn monotonic_identifier_exhaustion_is_fail_closed() {
-        let mut next = u64::MAX;
-        assert_eq!(take_identifier(&mut next), Ok(u64::MAX));
-        assert_eq!(next, 0);
+        let mut next = 1;
+        assert_eq!(take_identifier(&mut next, 1), Ok(1));
+        assert_eq!(next, 2);
         assert_eq!(
-            take_identifier(&mut next),
+            take_identifier(&mut next, 1),
             Err(BrowserRegistryError::IdentifierSpaceExhausted)
         );
     }
@@ -346,6 +363,32 @@ mod tests {
         let initial_epoch = initial_epochs[0];
         let origin = &origins[0];
 
+        let mut limited_registry = BrowserAuthorityRegistry::with_identifier_limit(1);
+        let limited_sessions = values(limited_registry.register_session("session-one"));
+        assert_eq!(limited_sessions.len(), 1);
+        let limited_session = limited_sessions[0];
+        assert_eq!(
+            limited_registry.register_session("session-two"),
+            Err(BrowserRegistryError::IdentifierSpaceExhausted)
+        );
+        let limited_contexts =
+            values(limited_registry.register_context(limited_session, "context-one"));
+        assert_eq!(limited_contexts.len(), 1);
+        let limited_context = limited_contexts[0];
+        assert_eq!(
+            limited_registry.register_context(limited_session, "context-two"),
+            Err(BrowserRegistryError::IdentifierSpaceExhausted)
+        );
+        assert!(
+            limited_registry
+                .bind_node(limited_session, limited_context, origin, "node-one")
+                .is_ok()
+        );
+        assert_eq!(
+            limited_registry.bind_node(limited_session, limited_context, origin, "node-two"),
+            Err(BrowserRegistryError::IdentifierSpaceExhausted)
+        );
+
         let mut registry = BrowserAuthorityRegistry::default();
         assert_eq!(
             registry.current_epoch(unknown_context),
@@ -360,22 +403,9 @@ mod tests {
             Err(BrowserRegistryError::UnknownBrowserSession)
         );
 
-        registry.next_session_id = 0;
-        assert_eq!(
-            registry.register_session("new-session"),
-            Err(BrowserRegistryError::IdentifierSpaceExhausted)
-        );
-        registry.next_session_id = 1;
         let sessions = values(registry.register_session("session"));
         assert_eq!(sessions.len(), 1);
         let session = sessions[0];
-
-        registry.next_context_id = 0;
-        assert_eq!(
-            registry.register_context(session, "context-a"),
-            Err(BrowserRegistryError::IdentifierSpaceExhausted)
-        );
-        registry.next_context_id = 1;
         let contexts = values(registry.register_context(session, "context-a"));
         assert_eq!(contexts.len(), 1);
         let context = contexts[0];
@@ -388,12 +418,6 @@ mod tests {
             Err(BrowserRegistryError::DocumentEpochExhausted)
         );
         registry.context_epoch.insert(context, initial_epoch);
-
-        registry.next_node_id = 0;
-        assert_eq!(
-            registry.bind_node(session, context, origin, "node-a"),
-            Err(BrowserRegistryError::IdentifierSpaceExhausted)
-        );
 
         let unknown_sessions = values(BrowserSessionId::new(999));
         let unknown_contexts = values(BrowsingContextId::new(999));
@@ -463,12 +487,28 @@ mod tests {
             registry.register_context(session, ""),
             Err(BrowserRegistryError::InvalidExternalIdentifier)
         );
+        assert_eq!(
+            registry.register_context(
+                session,
+                &"x".repeat(MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES + 1),
+            ),
+            Err(BrowserRegistryError::InvalidExternalIdentifier)
+        );
         let contexts = values(registry.register_context(session, "context"));
         let origins = values(Origin::parse("http://127.0.0.1:43127"));
         assert_eq!(contexts.len(), 1);
         assert_eq!(origins.len(), 1);
         assert_eq!(
             registry.bind_node(session, contexts[0], &origins[0], ""),
+            Err(BrowserRegistryError::InvalidExternalIdentifier)
+        );
+        assert_eq!(
+            registry.bind_node(
+                session,
+                contexts[0],
+                &origins[0],
+                &"x".repeat(MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES + 1),
+            ),
             Err(BrowserRegistryError::InvalidExternalIdentifier)
         );
     }
