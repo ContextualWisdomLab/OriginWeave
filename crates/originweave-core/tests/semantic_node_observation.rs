@@ -2,7 +2,9 @@ use std::collections::BTreeSet;
 
 use originweave_core::{
     BrowserSessionId, BrowsingContextId, DocumentEpoch, NodeActionKind, ObservationChannel,
-    ObservedNodeHandle, Origin, SemanticNodeObservation, SemanticNodeObservationInput,
+    ObservedNodeHandle, Origin, SemanticNodeObservation, SemanticNodeObservationError,
+    SemanticNodeObservationInput, MAX_ACCESSIBLE_NAME_BYTES, MAX_SEMANTIC_ROLE_BYTES,
+    MAX_VISIBLE_TEXT_BYTES,
 };
 
 fn observed_node() -> Result<ObservedNodeHandle, String> {
@@ -14,14 +16,16 @@ fn observed_node() -> Result<ObservedNodeHandle, String> {
         .map_err(|error| error.to_string())
 }
 
-#[test]
-fn semantic_node_preserves_authority_and_bounded_surface() -> Result<(), String> {
-    let handle = observed_node()?;
-    let observation = SemanticNodeObservation::new(SemanticNodeObservationInput {
-        handle: handle.clone(),
-        role: "textbox".to_owned(),
-        accessible_name: "Email address".to_owned(),
-        visible_text: Some("name@example.test".to_owned()),
+fn semantic_input(
+    role: String,
+    accessible_name: String,
+    visible_text: Option<String>,
+) -> Result<SemanticNodeObservationInput, String> {
+    Ok(SemanticNodeObservationInput {
+        handle: observed_node()?,
+        role,
+        accessible_name,
+        visible_text,
         enabled: true,
         visible: true,
         selected: None,
@@ -31,7 +35,17 @@ fn semantic_node_preserves_authority_and_bounded_surface() -> Result<(), String>
             ObservationChannel::Dom,
         ]),
     })
-    .map_err(|error| error.to_string())?;
+}
+
+#[test]
+fn semantic_node_preserves_authority_and_bounded_surface() -> Result<(), String> {
+    let input = semantic_input(
+        "textbox".to_owned(),
+        "Email address".to_owned(),
+        Some("name@example.test".to_owned()),
+    )?;
+    let handle = input.handle.clone();
+    let observation = SemanticNodeObservation::new(input).map_err(|error| error.to_string())?;
 
     assert_eq!(observation.handle(), &handle);
     assert_eq!(observation.role(), "textbox");
@@ -49,4 +63,88 @@ fn semantic_node_preserves_authority_and_bounded_surface() -> Result<(), String>
         &BTreeSet::from([ObservationChannel::Accessibility, ObservationChannel::Dom,])
     );
     Ok(())
+}
+
+#[test]
+fn reviewed_text_bounds_are_inclusive_and_visible_text_is_optional() -> Result<(), String> {
+    let boundary = SemanticNodeObservation::new(semantic_input(
+        "r".repeat(MAX_SEMANTIC_ROLE_BYTES),
+        "n".repeat(MAX_ACCESSIBLE_NAME_BYTES),
+        Some("v".repeat(MAX_VISIBLE_TEXT_BYTES)),
+    )?)
+    .map_err(|error| error.to_string())?;
+    assert_eq!(boundary.role().len(), MAX_SEMANTIC_ROLE_BYTES);
+    assert_eq!(boundary.accessible_name().len(), MAX_ACCESSIBLE_NAME_BYTES);
+    assert_eq!(boundary.visible_text().map(str::len), Some(MAX_VISIBLE_TEXT_BYTES));
+
+    let without_text = SemanticNodeObservation::new(semantic_input(
+        "button".to_owned(),
+        String::new(),
+        None,
+    )?)
+    .map_err(|error| error.to_string())?;
+    assert_eq!(without_text.visible_text(), None);
+    Ok(())
+}
+
+#[test]
+fn semantic_node_rejects_unbounded_or_missing_role_text() -> Result<(), String> {
+    let empty_role = SemanticNodeObservation::new(semantic_input(
+        String::new(),
+        "name".to_owned(),
+        None,
+    )?)
+    .err();
+    assert_eq!(empty_role, Some(SemanticNodeObservationError::EmptyRole));
+
+    let long_role = SemanticNodeObservation::new(semantic_input(
+        "r".repeat(MAX_SEMANTIC_ROLE_BYTES + 1),
+        "name".to_owned(),
+        None,
+    )?)
+    .err();
+    assert_eq!(long_role, Some(SemanticNodeObservationError::RoleTooLong));
+
+    let long_name = SemanticNodeObservation::new(semantic_input(
+        "button".to_owned(),
+        "n".repeat(MAX_ACCESSIBLE_NAME_BYTES + 1),
+        None,
+    )?)
+    .err();
+    assert_eq!(
+        long_name,
+        Some(SemanticNodeObservationError::AccessibleNameTooLong)
+    );
+
+    let long_visible_text = SemanticNodeObservation::new(semantic_input(
+        "button".to_owned(),
+        "name".to_owned(),
+        Some("v".repeat(MAX_VISIBLE_TEXT_BYTES + 1)),
+    )?)
+    .err();
+    assert_eq!(
+        long_visible_text,
+        Some(SemanticNodeObservationError::VisibleTextTooLong)
+    );
+    Ok(())
+}
+
+#[test]
+fn semantic_node_errors_are_stable_and_credential_free() {
+    assert_eq!(
+        SemanticNodeObservationError::EmptyRole.to_string(),
+        "semantic node role must not be empty"
+    );
+    assert_eq!(
+        SemanticNodeObservationError::RoleTooLong.to_string(),
+        "semantic node role exceeds 64 UTF-8 bytes"
+    );
+    assert_eq!(
+        SemanticNodeObservationError::AccessibleNameTooLong.to_string(),
+        "semantic node accessible name exceeds 512 UTF-8 bytes"
+    );
+    assert_eq!(
+        SemanticNodeObservationError::VisibleTextTooLong.to_string(),
+        "semantic node visible text exceeds 4096 UTF-8 bytes"
+    );
 }
