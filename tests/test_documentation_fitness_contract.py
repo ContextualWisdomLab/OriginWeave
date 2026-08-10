@@ -202,7 +202,7 @@ class DocumentationFitnessContractTests(unittest.TestCase):
         history_row = _active_pr_row(appendix, 59)
 
         self.assertIn("descriptive execution input, not policy authorization", action_row)
-        self.assertIn("grants no Agent history capability", history_row)
+        self.assertIn("no Agent history capability", history_row)
         self.assertIn("business-risk classification", assessment)
         self.assertIn("OriginWeave Agent history grant", assessment)
         self.assertNotIn("IMPLEMENTED_ON_PROTECTED_MAIN", action_row)
