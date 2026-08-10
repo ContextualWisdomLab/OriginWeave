@@ -8,8 +8,10 @@
 #![deny(missing_docs)]
 
 mod connection;
+mod fresh_connection;
 
 pub use connection::{
     ConnectionPlan, DirectTcpConnection, MAX_CONNECT_TIMEOUT, MAX_CONNECTION_ATTEMPTS,
     NetworkError, SocketConnectionEvidence,
 };
+pub use fresh_connection::FreshConnectionPlan;
