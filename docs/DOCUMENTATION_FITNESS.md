@@ -1,121 +1,112 @@
 # OriginWeave Documentation Fitness Assessment
 
 - **Assessment date:** 2026-08-10
-- **Assessment scope:** protected `main`, current open OriginWeave work, and durable product decisions that must be reconstructable without chat history
+- **Assessment scope:** protected `main`, every current OriginWeave implementation lane relevant to canonical product truth, and durable product decisions that must be reconstructable without chat history
 - **Assessment type:** semantic fitness, not file-presence inventory
 - **Current verdict:** **DESIGN-SUFFICIENT / PROTECTED-MAIN-PARTIAL**
 
-## 1. Meaning of the verdict
+## 1. Verdict
 
-**DESIGN-SUFFICIENT** means the repository contains enough coherent product, technical, architecture, decision, diagram, data-model, security, testing, operability, protocol and release material to implement and review OriginWeave without reconstructing the original design from conversation history.
+**DESIGN-SUFFICIENT** means the repository has a coherent product, technical, architecture, decision, diagram, data-model, security, testing, operability, protocol and release graph sufficient to implement and review OriginWeave without reconstructing product intent from chat history.
 
-**PROTECTED-MAIN-PARTIAL** means the canonical graph still contains stale implementation-status references and incomplete current-state reconciliation. The documentation set is broad enough, but PRD/TRD and some implementation-facing views lag protected-main code or current active replacement work. Therefore documentation is not yet a release-quality source of current implementation truth.
+**PROTECTED-MAIN-PARTIAL** now means something narrower than it did at the beginning of this reconciliation: this PR has repaired the known PRD/TRD/traceability/index semantic drift on its own branch, but protected `main` does not receive those repairs until this documentation line passes exact-head governance and integrates. Active feature PRs also remain non-shipped evidence. The branch therefore must not relabel protected main as documentation-closed before integration.
 
-File existence alone is never sufficient. A document can be present and still be stale, contradictory, overclaiming, underclaiming, or disconnected from code and evidence.
+File existence alone is never sufficient. An artifact can exist and still be stale, contradictory, overclaiming, underclaiming, or disconnected from executable evidence.
 
 ## 2. Fitness matrix
 
-| Documentation family | Fitness | Evidence / current gap |
+| Documentation family | Fitness | Current evidence / remaining boundary |
 |---|---|---|
-| PRD | **PARTIAL** | Strong whole-product requirements, modes, product family and buyer outcomes. Some implementation notes are stale: HTTP still names historical PR #11 rather than current replacement PR #37; sensitive-data policy text still references already-integrated work; real pinned-Chromium MV3 evidence is underrepresented. |
-| TRD | **PARTIAL** | Strong authority stack, lifecycle, action, observation, network, secret and resource contracts. Current implementation inventory lags protected-main additions and still uses composite implementation language in places where protected-main, active-PR and planned maturity should be separated. |
-| Root Architecture | **PRESENT-CURRENT with follow-up** | Correct Chromium-compatibility-kernel + Rust-control-plane direction and explicit authority layers. Reconcile again when the browser registry, HTTP replacement and Chromium vertical slice integrate. |
-| ADR index/lifecycle | **REPAIRED IN THIS CHANGE** | The previous index omitted Accepted ADRs 0007, 0008 and 0010, omitted Proposed ADR 0009, and retained change-local wording. This branch repairs discoverability/status categories and adds Proposed ADRs 0013/0014 without promoting them to Accepted. |
-| Individual ADRs | **PARTIAL** | Accepted decisions 0001-0008 and 0010 remain design authority. Proposed 0009, 0013, 0014 and 0100-0109 remain explicitly non-binding. HTTP feature ADRs remain active-PR evidence until PR #37 integrates. Extension/MV3 authority now has Proposed ADR 0013; issue #27 cannot close merely because the proposal exists. |
-| UML / control-flow diagrams | **PRESENT-CURRENT with follow-up** | Product-wide component, network authority, observation/action, delegated-task state, deployment, evidence, secret-fill, approval, resource-pressure/GPU fallback and hourly automation flows already exist. This branch adds [`uml/extension-authority.md`](uml/extension-authority.md), separating Chromium MV3 permission from OriginWeave Agent capability. The real Chromium vertical-slice sequence remains incomplete until issue #28 stabilizes. |
-| Conceptual ERD/domain model | **PRESENT-CURRENT with follow-up** | Correctly distinguishes conceptual persistence and includes session/context, action/policy/approval, network/TLS/HTTP, sensitive authority, resources, provenance, downloads and extension grants. Update only when persistence ownership or durable entities actually change; do not invent a database to increase diagram count. |
-| Traceability | **REPAIRED IN THIS CHANGE / PARTIAL BY DESIGN** | This branch now separates `IMPLEMENTED_ON_PROTECTED_MAIN`, `IMPLEMENTED_ON_ACTIVE_PR`, `PARTIAL`, accepted architecture and planned work. It records #37 as active HTTP evidence, protected-main node authority plus #40 registry work, partial protected-main MV3 evidence plus #43 downloads, and protected-main sensitive-data foundations plus issue #10 broker lifecycle. PRD/TRD still need the same reconciliation. |
-| Threat model / Security | **PRESENT-CURRENT with follow-up** | Covers major untrusted-content, secret, network, provenance and extension risks. Continue adding executable mitigations when HTTP/browser/runtime boundaries integrate. |
-| Test strategy / quality gates | **PRESENT-CURRENT** | Exact owned-code coverage, rustdoc and realistic boundary testing are explicit. Real Chromium/MV3 evidence must remain release-bound to pinned browser evidence rather than source-text assertions. |
-| Operability / incident response | **PRESENT-CURRENT with follow-up** | Failure, readiness, quarantine and recovery concepts exist. Protected-main evidence for model-backed hourly development remains an operational-closure requirement rather than a documentation-only claim. |
-| API / protocol contract | **PRESENT-CURRENT as target contract** | Typed OriginWeave Protocol boundaries are documented but much browser adapter implementation remains Planned. Keep adapter identifiers non-authoritative and versioned. |
-| Release / rollback / provenance | **PRESENT-CURRENT** | Correctly prevents feature-level green checks from becoming release readiness. Formal release remains blocked by missing full browser/runtime product evidence. |
-| Data governance / PII | **PRESENT-CURRENT as architecture; PARTIAL implementation** | Correctly rejects blanket masking and ambient raw propagation in favor of purpose-bound authorization, opaque handles, encryption, retention and audit. Trusted broker/storage/revocation/lifecycle completion remains open under issue #10. |
-| Standards / doctoring | **PRESENT-CURRENT with continuous watch** | Primary standards and APA 7 doctoring exist in [`doctoring.md`](doctoring.md) and [`doctoring/browser-agent-protocols.md`](doctoring/browser-agent-protocols.md). Experimental/draft browser interfaces remain explicitly separated from final normative standards. |
+| PRD | **REPAIRED IN THIS CHANGE** | HTTP now names active replacement PR #37 while retaining `Planned` protected-main status; historical PR #11 is predecessor lineage. Purpose-bound sensitive disclosure is recorded as an Implemented policy kernel while broker/storage/lifecycle remain Planned under issue #10. MV3 remains a Planned complete compatibility program while protected-main and active-PR evidence are separately identified. |
+| TRD | **REPAIRED IN THIS CHANGE** | Implementation inventory now separates protected-main status from active/non-shipped evidence instead of composite labels such as `Planned / active development`. Session/node, route, sensitive-data, HTTP, proxy/PAC, MV3 and broker boundaries are reconciled to current evidence. |
+| Root Architecture | **PRESENT-CURRENT with follow-up** | Correct Chromium compatibility-kernel + Rust control-plane direction, explicit authority stack and protected-main truth rule. Reconcile implementation-facing details after #37/#40 or the real Chromium vertical slice integrate. |
+| ADR index/lifecycle | **REPAIRED IN THIS CHANGE** | Indexes now discover Accepted ADRs 0001-0008 and 0010 plus Proposed 0009, 0013, 0014 and 0100-0109 without promoting Proposed decisions. Identifier allocation is treated as a cross-main-and-active-work reservation problem. |
+| Individual ADRs | **PARTIAL BY LIFECYCLE** | Accepted ADRs remain governing design authority. Proposed ADR 0013 covers MV3 compatibility vs extension-to-Agent authority; Proposed ADR 0014 covers ADR acceptance governance. Their presence does not imply Acceptance. HTTP ADRs in PR #37 remain active-PR evidence. |
+| UML / control-flow diagrams | **PRESENT-CURRENT with follow-up** | Component, network authority, observation/action, delegated-task state, deployment, evidence, secret-fill, approval, resource-pressure/GPU fallback and hourly automation flows already exist. This PR adds `uml/extension-authority.md`. A detailed real-Chromium vertical-slice sequence is deferred until issue #28 contracts stabilize. |
+| Conceptual ERD/domain model | **PRESENT-CURRENT** | Explicitly conceptual unless an adapter/schema is separately implemented; distinguishes current value/evidence concepts from planned durable records and adapter-owned representations. No physical database is invented merely to satisfy an ERD checklist. |
+| Traceability | **REPAIRED IN THIS CHANGE** | Separates `IMPLEMENTED_ON_PROTECTED_MAIN`, `IMPLEMENTED_ON_ACTIVE_PR`, `PARTIAL`, `ACCEPTED_ARCHITECTURE`, `PLANNED`, `RESEARCH_ONLY`, `SUPERSEDED`, and `OUT_OF_SCOPE`; records #37/#40/#43 without promoting them to shipped truth. |
+| Threat model / Security | **PRESENT-CURRENT with follow-up** | Covers major untrusted-content, network, secret, provenance and extension risks. Update when new real browser/HTTP/runtime attack surfaces integrate. |
+| Test strategy / quality gates | **PRESENT-CURRENT** | Exact owned-code coverage, rustdoc and realistic boundary testing are explicit. Real browser and MV3 evidence remain pinned-browser executable evidence rather than source-text claims. |
+| Operability / incident response | **PRESENT-CURRENT with follow-up** | Failure, readiness, quarantine and recovery concepts exist. Protected-main runtime/scheduled evidence remains required for operational closure where applicable. |
+| API / protocol contracts | **PRESENT-CURRENT as target contracts** | OriginWeave Protocol and adapter boundaries are documented; much browser adapter implementation remains Planned. External protocol identifiers are never durable authority by themselves. |
+| Release / rollback / provenance | **PRESENT-CURRENT** | Feature-branch green checks cannot become release readiness. Release remains bound to one exact integrated protected head and applicable CI/security/coverage/package/provenance/recovery/compatibility/review evidence. |
+| Data governance / privacy | **PRESENT-CURRENT architecture / PARTIAL runtime** | Purpose-bound policy/evidence foundations exist; trusted broker/storage/revocation/model-disclosure lifecycle remains open under issue #10. |
+| Standards / doctoring | **PRESENT-CURRENT with continuous watch** | Primary browser/protocol/standards evidence and APA 7 references are kept in doctoring documents with draft/experimental status distinguished from final normative standards. |
 
-### 2.1 Primary-source standards evidence used by this assessment
+## 3. Reconciliation findings and resolution state
 
-The protocol names in this assessment are grounded in repository doctoring and primary sources:
+### 3.1 HTTP lineage
 
-| Boundary | Primary evidence | Repository evidence rule |
-|---|---|---|
-| WebDriver BiDi | [W3C WebDriver BiDi, 1 June 2026 Working Draft](https://www.w3.org/TR/2026/WD-webdriver-bidi-20260601/) | Doctoring records Working Draft status, so it remains adapter-bound. |
-| Manifest V3 | [Chrome manifest format](https://developer.chrome.com/docs/extensions/reference/manifest) and [Manifest Version](https://developer.chrome.com/docs/extensions/reference/manifest/manifest-version) | MV3 is the current Chrome extension baseline without a claim of universal Chrome/Web Store/Google-service compatibility. |
-| Chrome DevTools Protocol | [Official CDP tip-of-tree documentation](https://chromedevtools.github.io/devtools-protocol/tot/) | Tip-of-tree changes frequently and lacks backwards-compatibility guarantee; OriginWeave pins/versions adapters. |
-| WebMCP | [Chrome WebMCP](https://developer.chrome.com/docs/ai/webmcp), [WebMCP tool security](https://developer.chrome.com/docs/ai/webmcp/secure-tools), and [agent security considerations](https://developer.chrome.com/docs/agents/security) | Doctoring records experimental/origin-trial status and untrusted-content/prompt-injection boundaries. |
-| Model Context Protocol | [MCP 2026-07-28 specification](https://modelcontextprotocol.io/specification/2026-07-28) and [official release announcement](https://blog.modelcontextprotocol.io/posts/2026-07-28/) | Durable browser state remains in OriginWeave-level handles; MCP is a high-level adapter, not Chromium authority. |
-| W3C PROV-O | [PROV-O Recommendation](https://www.w3.org/TR/prov-o/) | Provenance interoperability adapter, not authorization. |
-| WARC | [ISO 28500:2017](https://www.iso.org/standard/68004.html) | Evidence/payload preservation format, not a truth or permission escalation mechanism. |
+Protected-main PRD previously named historical PR #11 as active HTTP evidence. Current executable replacement work is PR #37, while protected main still does not ship bounded HTTP semantics.
 
-APA 7th references are recorded in doctoring documents rather than duplicated into every architecture assessment.
+**Resolved on this documentation branch:** PRD, TRD and traceability now name #37 only as active/non-shipped evidence, retain protected-main `Planned`, and treat #11 as predecessor lineage. Old-head checks/reviews do not transfer.
 
-## 3. Concrete stale/current discrepancies
+### 3.2 Sensitive-data authority
 
-### 3.1 Historical HTTP PR still appears as active PRD evidence
+Protected main contains a purpose-bound sensitive-data policy/evidence foundation, while the trusted broker, durable value lifecycle, revocation/reservation, trusted fill and provider/model disclosure controls remain incomplete.
 
-Protected-main PRD describes bounded HTTP semantics as Planned with `Active PR #11`. PR #11 is historical predecessor lineage; current executable replacement work is PR #37. Active PR #37 itself is not protected-main implementation truth.
+**Resolved on this documentation branch:** PRD/TRD/traceability distinguish the Implemented policy foundation from the Planned broker/runtime under issue #10 instead of calling the entire concern active or shipped.
 
-**Current reconciliation:** traceability now records HTTP as `IMPLEMENTED_ON_ACTIVE_PR` under #37 and treats #11 as predecessor/superseded implementation lineage. PRD/TRD still require the equivalent protected-main-vs-active-PR wording repair. Never transfer predecessor checks or reviews.
+### 3.3 Manifest V3 compatibility
 
-### 3.2 Sensitive-data implementation status lags protected main
+Protected main has executable pinned-Chromium evidence for service worker, content script, storage, DNR, tabs, windows, scripting, commands, side panel, bookmarks, history, restart persistence and repeatability. Active PR #43 adds real bounded downloads evidence. Issue #27 remains open for the complete compatibility/release matrix and additional managed/native-messaging boundaries.
 
-Protected main has purpose-bound sensitive-disclosure policy/evidence foundations, while PRD/TRD retain stale active-PR language. The trusted broker, storage, selective model disclosure, revocation and lifecycle remain open.
+**Resolved on this documentation branch:** PRD/TRD/traceability represent complete compatibility as Planned while separately naming partial protected-main evidence and active-PR downloads evidence. Proposed ADR 0013 separates compatibility evidence from Agent-authority evidence.
 
-**Current reconciliation:** traceability now records **PARTIAL**: protected-main policy/evidence foundation + planned broker/runtime under issue #10. PRD/TRD remain to reconcile.
+### 3.4 Browser identifier authority
 
-### 3.3 MV3 compatibility evidence moved beyond original roadmap wording
+Protected main contains session/context/document/node authority foundations under Accepted ADR 0010. Active PR #40 owns a bounded registry mapping protocol-local identifiers into that authority model.
 
-Protected main has executable pinned-Chromium MV3 evidence for service worker, content script, storage, DNR, tabs, windows, scripting, commands, side panel, bookmarks, history, restart and repeatability. Active PR #43 adds real bounded downloads evidence and now preserves only allowlisted download-stage diagnostics in runner failure evidence. Issue #27 remains open because the complete compatibility matrix, native-messaging/enterprise-policy boundaries and release integration are unfinished.
+**Resolved on this documentation branch:** PRD/TRD/traceability identify the protected-main core foundation separately from #40 active/non-shipped registry evidence. Detailed adapter-sequence UML is deliberately deferred until its executable contracts stabilize.
 
-**Current reconciliation:** traceability records protected-main compatibility as **PARTIAL** and #43 as active-PR evidence. PRD/TRD must adopt the same distinction.
+### 3.5 ADR discoverability and identifier allocation
 
-### 3.4 Browser authority is transitioning from protected-main value types to an adapter registry
+The prior index omitted Accepted ADRs 0007, 0008 and 0010 and Proposed ADR 0009. During this reconciliation, candidate ADR numbers 0011/0012 were also found to be reserved by active PR #37.
 
-Protected main contains session/context/document/node authority foundations governed by Accepted ADR 0010. PR #40 is adding a bounded session-scoped registry so raw BiDi/CDP identifiers do not become durable OriginWeave authority.
+**Resolved on this documentation branch:** lifecycle indexes are complete for the branch, extension/governance decisions use non-colliding 0013/0014, and repository-scoped collision-sensitive identifiers are reserved across protected main plus active work rather than allocated from main alone.
 
-**Current reconciliation:** traceability records the foundation as protected-main and #40 as active non-shipped evidence. Architecture/ERD remain directionally correct; detailed adapter UML should wait for stable protocol contracts rather than encode temporary field names.
+### 3.6 Documentation contract parser
 
-### 3.5 ADR lifecycle discoverability drifted
+The first fitness contract accepted only bare lifecycle metadata, while Accepted ADR 0007 legitimately contains a descriptive suffix after `Accepted`.
 
-The prior ADR index omitted Accepted ADRs 0007, 0008 and 0010 and Proposed ADR 0009. This branch repairs the index, adds Proposed ADR 0013 for MV3/extension authority and Proposed ADR 0014 for ADR acceptance governance, and preserves their non-Accepted status.
+**Resolved on this documentation branch:** the parser reads the leading supported lifecycle token and accepts repository-valid descriptive suffixes without accepting unknown lifecycle states.
 
-### 3.6 Documentation-contract parser overfit one metadata spelling
+### 3.7 Initial UML audit false positive
 
-The first documentation-fitness contract accepted only bare lifecycle tokens, but existing Accepted ADR 0007 legitimately uses `- Status: Accepted for the first authority kernel`. CI correctly exposed the mismatch. This branch now parses the leading lifecycle token while retaining exact supported lifecycle validation.
+The first audit incorrectly called resource-pressure and hourly automation views missing. Protected-main UML already contained them.
 
-### 3.7 UML assessment itself was initially stale
+**Resolved on this documentation branch:** the assessment recognizes those views and adds only the genuinely missing extension-permission-to-Agent-authority diagram.
 
-The first audit called resource-pressure and hourly automation flows missing. Protected-main `docs/uml/README.md` already contains both. The branch corrects the audit and adds only the genuinely missing extension-permission-to-Agent-authority view.
+## 4. Durable conversation decisions captured in GitHub
 
-## 4. Durable conversation decisions that must remain represented
+The canonical graph must continue to preserve these durable decisions:
 
-1. **OriginWeave — Browse. Act. Prove.** is an enterprise agentic web runtime/provenance-native browser platform, not merely a Selenium-style automation library.
-2. Chromium remains the compatibility kernel; OriginWeave does not reimplement Blink or V8 for product differentiation.
-3. Rust owns new authority-bearing control-plane semantics and remains independently reusable in headless/MSA composition.
-4. Human, Assist, Agent Task and Crawler modes have distinct profile/authority semantics.
-5. Agent Task Mode must not ambiently inherit a normal human browser profile.
-6. Page, extension and WebMCP content are untrusted observations, never policy or goal authority.
-7. Structured observation precedes raw HTML and screenshot-only interpretation.
-8. Typed actions and observed post-conditions replace arbitrary JavaScript and command-return-as-success.
-9. Logical origin, destination, route/proxy, TCP peer, TLS identity and HTTP semantics are separate authorities.
-10. Session/context/document epoch/node identity is separate from raw BiDi/CDP identifiers.
-11. Extension permissions are not Agent capabilities; Manifest V3 compatibility and Agent authority isolation are tested separately.
-12. Raw secrets stay out of model-visible context; sensitive values use purpose-bound disclosure and opaque handles wherever possible.
-13. Browser correctness and human interaction outrank optional local-model throughput under resource pressure.
-14. Provenance separates source observation, model judgement, policy decision, approval, action and verified outcome; WARC/PROV remain adapters, not collapsed truth.
-15. WebDriver BiDi, CDP, WebMCP and MCP remain versioned adapters; no experimental protocol becomes OriginWeave authority by itself.
-16. The first product proof is a pinned-stock-Chromium vertical slice before a large Chromium fork.
-17. High-risk actions remain approval-bound; Crawler Mode is read-only and does not include CAPTCHA/block-evasion features.
-18. Autonomous development uses NVIDIA NIM/OpenCode with deterministic gates and reviewer/publication authority separation; it does not use `COPILOT_GITHUB_TOKEN` as the development-model credential.
-19. Documentation, checks, reviews and operational evidence are separate authorities. A green sub-check, model verdict, active PR, chat decision or ADR never silently upgrades missing implementation to shipped behavior.
-20. Work-conserving autonomous maintenance continues to another safe lane instead of ending on one merge, one document, one RCA, one queued check or one external approval gap.
-21. Repository-scoped collision-sensitive identifiers such as ADR numbers must be reserved across protected main **and active PRs**, not allocated from protected main alone.
+1. OriginWeave is **Browse. Act. Prove.** — an enterprise agentic web runtime and provenance-native browser platform, not merely Selenium-style automation.
+2. Chromium remains the compatibility kernel; Blink/V8 are not rewritten for product differentiation.
+3. Rust owns new authority-bearing control-plane semantics and remains usable independently in headless/MSA composition.
+4. Human, Assist, Agent Task and Crawler modes have distinct authority/profile semantics; Agent Task does not ambiently inherit Human Mode authority.
+5. Page, extension, WebMCP and model content are untrusted observations, not goal/policy authority.
+6. Structured observation precedes raw HTML or screenshot-only interpretation.
+7. Typed actions and observed post-conditions replace arbitrary script execution and command-return-as-success.
+8. Logical origin, destination, route/proxy, TCP peer, TLS identity and HTTP semantics are separate authorities.
+9. Session/context/document epoch/node identity is separate from raw BiDi/CDP identifiers.
+10. Manifest V3 permission is not an OriginWeave Agent capability; compatibility evidence and Agent-authority evidence are independent.
+11. Raw secrets stay outside model-visible context; sensitive values use purpose-bound authority, opaque handles and trusted fill paths.
+12. Browser correctness/human interaction outrank optional local-model throughput under resource pressure.
+13. Provenance distinguishes source observation, model judgement, policy, approval, action and verified outcome; WARC/PROV are adapters rather than collapsed truth.
+14. WebDriver BiDi, CDP, WebMCP and MCP are versioned adapters, never the product's authority model by themselves.
+15. The first browser proof is a pinned-stock-Chromium vertical slice before any broad Chromium fork.
+16. High-risk actions remain approval-bound; Crawler Mode remains read-only and excludes CAPTCHA/block-evasion features.
+17. Autonomous development uses OpenCode/NVIDIA NIM under deterministic gates and separate review/publication authority, never `COPILOT_GITHUB_TOKEN` as the development-model credential.
+18. Documentation, checks, reviews, model judgements and operational evidence are separate evidence authorities.
+19. Work-conserving maintenance continues to another safe lane rather than stopping on one merge, document, RCA, queued check or external approval gap.
+20. ADR numbers, migrations, schema/API/protocol versions and other collision-sensitive repository identifiers are reserved across protected main **and active work** before allocation.
 
-## 5. Architecture views requiring follow-through
+## 5. Architecture views still legitimately deferred
 
-### 5.1 Extension authority and compatibility sequence — added in this branch
+### 5.1 Extension authority — present in this branch
 
-[`uml/extension-authority.md`](uml/extension-authority.md) separates:
+`uml/extension-authority.md` shows:
 
 ```text
 Chromium MV3 permission
@@ -127,19 +118,11 @@ Chromium MV3 permission
 -> deterministic policy
 ```
 
-It also separates **compatibility evidence** from **Agent-authority isolation evidence**: neither evidence class proves the other.
+Compatibility evidence cannot substitute for Agent-authority isolation evidence, and vice versa.
 
-### 5.2 Resource-pressure state/sequence — already present
+### 5.2 Real Chromium vertical slice — deferred until issue #28 stabilizes
 
-Protected-main `docs/uml/README.md` already models browser/model resource pressure and fallback. Refine it only when platform telemetry/admission implementation changes.
-
-### 5.3 Hourly autonomous-development authority flow — already present
-
-Protected-main `docs/uml/README.md` models deterministic early gates, conditional model-credential use, pristine attempts, bounded validation, publication authority, protected merge and protected-main operational acceptance. Its implementation/evidence status must be reconciled against actual workflows rather than inferred from the diagram.
-
-### 5.4 Real Chromium vertical slice — incomplete until issue #28 stabilizes
-
-Once issue #28 contracts stabilize, diagram and trace:
+The eventual sequence must cover:
 
 ```text
 isolated profile/context
@@ -154,42 +137,44 @@ isolated profile/context
 -> teardown/recovery
 ```
 
-## 6. Immediate repository actions
+Do not freeze temporary protocol/field names into authoritative UML before the executable contracts stabilize.
 
-### Completed or materially advanced in this documentation line
+## 6. What remains before documentation closure
 
-- documentation fitness is discoverable from `docs/README.md`;
-- ADR indexes are reconciled with protected-main lifecycle status;
-- machine-checkable documentation fitness contracts exist and now tolerate repository-valid descriptive status suffixes;
-- extension-permission-to-Agent-authority UML exists without duplicating resource/automation diagrams;
-- Proposed ADRs 0013 and 0014 make MV3/extension authority and architecture-decision governance explicit without claiming Acceptance;
-- traceability distinguishes protected-main, active-PR, partial and planned capability maturity;
-- current active lanes #37, #40 and #43 are represented without promoting them to shipped truth.
+### Completed or materially advanced on this branch
 
-### Execute next when the relevant file/branch lease is clear
+- PRD current-state reconciliation;
+- TRD current-state reconciliation;
+- requirement/decision/module/evidence traceability reconciliation;
+- ADR lifecycle/index repair;
+- Proposed ADR 0013 for MV3/extension authority separation;
+- Proposed ADR 0014 for architecture-decision acceptance governance;
+- extension authority UML;
+- conceptual ERD truth discipline;
+- documentation fitness and regression contracts;
+- current browser/protocol standards doctoring.
 
-- reconcile PRD HTTP, sensitive-data and MV3 implementation notes to the same maturity model without encoding unstable exact heads;
-- reconcile TRD implementation inventory/status language to protected-main vs active-PR vs planned truth;
-- after #43 reaches a stable exact head, resolve its addressed diagnostic review finding only after exact-head checks validate the fix;
-- after #37/#40 stop moving, re-read their exact contracts before mutating overlapping documentation or source.
+### Still required
 
-### Defer until executable contracts stabilize
+- exact-head CI/security/review acceptance of this documentation PR;
+- integration before any of these branch repairs become protected-main truth;
+- re-reconciliation after active PR #37 or #40 integrates, because active-PR status must then move to protected-main evidence;
+- detailed real-Chromium vertical-slice UML when issue #28 implementation contracts are stable;
+- future ERD changes only when persistence ownership/entities actually change;
+- ongoing security/operability/release reconciliation as real browser/runtime boundaries integrate.
 
-- add detailed real-Chromium vertical-slice UML only when issue #28 adapter contracts are stable enough that the diagram will not encode temporary protocol/field names;
-- promote Proposed ADRs only through explicit reviewed status changes; file presence or matching code never implies Acceptance.
+## 7. Completion criteria
 
-## 7. Completion criteria for documentation fitness
+The documentation graph becomes **PROTECTED-MAIN-SUFFICIENT** only when:
 
-The whole graph becomes **PROTECTED-MAIN-SUFFICIENT** only when:
+1. PRD/TRD implementation inventories agree with protected-main crates/APIs/executable browser evidence;
+2. no canonical document identifies historical/superseded PR lineage as current implementation evidence;
+3. ADR indexes discover every protected-main ADR and match its lifecycle metadata;
+4. UML covers every currently implemented material authority flow, with planned diagrams clearly marked;
+5. ERD/domain models accurately distinguish conceptual, in-memory, persisted, adapter-owned and external entities;
+6. traceability maps every material requirement/Accepted decision to protected-main evidence, explicitly active-PR evidence, or an open issue;
+7. documentation tests catch stale status/index/link/ownership/identifier terminology;
+8. security, test, operability, data-governance and release docs agree on shipped-vs-planned boundaries; and
+9. this documentation reconciliation itself reaches protected main through live repository governance.
 
-1. PRD and TRD implementation inventories agree with current protected-main crates/APIs and executable browser/extension evidence;
-2. no canonical document identifies a historical/superseded PR as current implementation evidence;
-3. ADR indexes discover every protected-main ADR and status agrees with file metadata;
-4. UML covers every current material authority flow, including extension/Agent isolation and the real Chromium vertical slice once implemented;
-5. ERD/domain models distinguish conceptual, in-memory, persisted, adapter-owned and external entities accurately;
-6. traceability maps every material requirement and Accepted decision to protected-main implementation/test/evidence, explicitly active-PR evidence, or an open issue;
-7. machine-checkable documentation tests catch stale status/index/link/ownership/identifier terminology;
-8. security, test, operability, data-governance and release docs agree with the same shipped-vs-planned boundary; and
-9. exact-head checks/review/governance for this documentation reconciliation pass.
-
-Until then, OriginWeave is **design-documented but not documentation-closed**. This is a product-quality finding, not a reason to stop unrelated safe implementation work.
+Until then, OriginWeave is **design-documented but not protected-main documentation-closed**. That finding must never be used as an excuse to stop unrelated safe implementation work.
