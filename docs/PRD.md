@@ -84,7 +84,7 @@ The status applies to the **whole named product surface**, not to every implemen
 |---|---|---|---|
 | **OriginWeave Browser** | Chromium-compatible interactive distribution with governed agent entry points | Planned | No protected-main branded browser distribution yet |
 | **OriginWeave Runtime** | Headless/embedded governed web-task runtime | Planned | Rust authority kernels exist; browser integration remains incomplete |
-| **OriginWeave Observe** | Structured observation from tools, structured data, network, accessibility, DOM/layout and visual fallback | Planned | Session/context/node-authority foundations are on protected main; semantic browser observation adapter is incomplete |
+| **OriginWeave Observe** | Structured observation from tools, structured data, network, accessibility, DOM/layout and visual fallback | Planned | Session/context/node-authority foundations are on protected main; active PR #52 adds a bounded authority-bound semantic-observation value primitive with explicit evidence-channel provenance, but it is not a browser observation adapter and remains non-shipped |
 | **OriginWeave Capture** | Schema-bound extraction, crawler controls, downloads and WARC/PROV-oriented capture | Planned | Evidence foundations and partial real-Chromium extension compatibility evidence exist; complete capture runtime is not shipped |
 | **OriginWeave Governor** | CPU, RAM, GPU, VRAM, admission and model/browser priority governance | Accepted architecture | Deterministic resource-budget and CPU-worker admission foundations are implemented; platform telemetry/scheduling adapters remain incomplete |
 | **OriginWeave Policy** | Capability, origin, purpose, risk, crawler, approval and sensitive-data authority | Accepted architecture | Capability/origin/purpose/risk/crawler/approval and purpose-bound sensitive-data policy foundations are implemented on protected main; trusted sensitive-data broker/storage/lifecycle remain planned under issue #10 |
@@ -193,9 +193,9 @@ public-crawl purpose
 |---|---|---|---|
 | PRD-OBS-001 | Autonomous observations can carry explicit browser-session, browsing-context, canonical-origin and document-epoch authority | Implemented | `ObservedNodeHandle`, `BrowserSessionId`, `BrowsingContextId` and `DocumentEpoch` are on protected main under Accepted ADR 0010; real browser adapter remains planned |
 | PRD-OBS-002 | Actionable semantic-node handles are invalidated by relevant document-epoch changes at the action linearization boundary | Accepted architecture | Core exact-authority validation exists; adapter lifecycle/mutation invalidation and atomic dispatch evidence remain planned; active PR #40 owns the bounded protocol-ID registry and remains non-shipped evidence |
-| PRD-OBS-003 | Observation prefers typed/structured evidence before accessibility/DOM/layout and bounded visual fallback | Accepted architecture | ADR 0103 |
+| PRD-OBS-003 | Observation prefers typed/structured evidence before accessibility/DOM/layout and bounded visual fallback | Accepted architecture | ADR 0103; active PR #52 adds a bounded `SemanticNodeObservation` value contract bound to `ObservedNodeHandle`, typed node-local action descriptors and explicit non-empty evidence-channel provenance. It is not a browser observation adapter and remains active/non-shipped evidence |
 | PRD-OBS-004 | Observation can use bounded incremental updates rather than full repeated snapshots | Planned | Adapter-specific design needed |
-| PRD-OBS-005 | Source channel and trust/provenance remain explicit | Accepted architecture | Evidence model foundations exist |
+| PRD-OBS-005 | Source channel and trust/provenance remain explicit | Accepted architecture | Evidence model foundations exist; active PR #52 fails closed when a semantic observation has no contributing evidence channel, while channel identity itself grants no execution authority |
 
 ### 9.3 Typed action execution
 
