@@ -28,33 +28,31 @@ These foundations are **IMPLEMENTED_ON_PROTECTED_MAIN**. They do not by themselv
 
 ## 3. Active executable evidence
 
-### PR #62 — proposal authority cannot widen Agent authority
+### PR #62 — proposal authority cannot widen Agent, instruction, or secret-material authority
 
 **Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
 
-Exact head `277df965602a97b1c221df2fc7a228ff5ac6c540` proves that, after an extension is genuinely allowed to `ProposeTypedAction`:
+Exact head `a57873b3688984711918be17aadd348ed9fb12a9` proves that, after an extension is genuinely allowed to `ProposeTypedAction`:
 
 1. a proposed navigation outside the Agent readable-origin grant is still denied;
-2. proposal permission cannot supply the missing Agent `Navigate` capability; and
-3. extension-produced untrusted content remains rejected as instruction authority.
+2. proposal permission cannot supply the missing Agent `Navigate` capability;
+3. extension-produced untrusted content remains rejected as instruction authority;
+4. `FillSecret` with `SecretDelivery::RawValue` remains denied as `SecretBrokerRequired`; and
+5. secret material attached to a non-secret action remains denied as `UnexpectedSecretMaterial`.
 
 The branch adds no production API and no extension runtime. It is compositional security evidence over protected-main authorities.
 
-### PR #63 — proposal authority cannot widen secret authority
+### PR #63 — proposal authority cannot manufacture high-risk approval
 
 **Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
 
-Exact initial head `3059fead1ef0b6cf2f7df765b03c4b00a669b9cf` adds a separate integration regression showing that, after the same exact proposal grant is admitted:
+Exact head `e83749acd1cf5a0b778ba38eb9d6ed5a9bd1e68f` deliberately keeps only the distinct approval-composition proof after duplicate regressions were removed in favor of PR #62 ownership. It proves that, after the same exact proposal grant is admitted and the Agent context independently possesses `FillSecret` plus exact readable/writable origin authority, broker-handle `FillSecret` still reaches the ordinary R3 approval boundary rather than becoming implicitly allowed.
 
-1. `FillSecret` with `SecretDelivery::RawValue` remains denied as `SecretBrokerRequired`;
-2. broker-handle `FillSecret` still reaches the ordinary R3 approval boundary rather than becoming implicitly allowed; and
-3. broker material attached to a non-secret `Observe` action remains denied as `UnexpectedSecretMaterial`.
-
-This evidence carries no raw secret bytes and does not create a broker, browser-fill adapter, protected-value store, KMS path, authenticated workload identity, persistence owner, or release claim.
+The exact head has successful CI, exact owned production coverage, Security Scan, SAST and CodeRabbit status and is Ready for review. It has no raw secret bytes and does not create approval evidence, a broker, browser-fill adapter, protected-value store, KMS path, authenticated workload identity, persistence owner, or release claim.
 
 ## 4. Security interpretation
 
-The executable authority chain is therefore intentionally non-transitive:
+The executable authority chain is intentionally non-transitive:
 
 ```text
 Chromium extension permission
@@ -84,4 +82,4 @@ This dossier does **not** close issue #27 or issue #10. Remaining material work 
 
 ## 6. Documentation fitness consequence
 
-The existing ADR/PRD/TRD/Architecture/UML/ERD graph remains **DESIGN-SUFFICIENT / PROTECTED-MAIN-PARTIAL**. PRs #62 and #63 narrow the executable extension-authority evidence gap without introducing a new trust domain, deployment component, persistence entity, database schema, or independent architecture decision. Proposed ADR 0013 remains Proposed until its own lifecycle authority changes.
+The existing ADR/PRD/TRD/Architecture/UML/ERD graph remains **DESIGN-SUFFICIENT / PROTECTED-MAIN-PARTIAL**. PRs #62 and #63 narrow distinct executable extension-authority evidence gaps without introducing a new trust domain, deployment component, persistence entity, database schema, or independent architecture decision. Proposed ADR 0013 remains Proposed until its own lifecycle authority changes.
