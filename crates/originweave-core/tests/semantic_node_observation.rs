@@ -117,8 +117,8 @@ fn semantic_node_bounds_child_relationship_count() -> Result<(), String> {
 #[test]
 fn semantic_node_rejects_relationships_outside_exact_authority() -> Result<(), String> {
     let mut input = semantic_input("group".to_owned(), "Account".to_owned(), None)?;
-    let different_origin = Origin::parse("https://other.example")
-        .map_err(|error| format!("{error:?}"))?;
+    let different_origin =
+        Origin::parse("https://other.example").map_err(|error| format!("{error:?}"))?;
     input.parent = Some(
         ObservedNodeHandle::new(
             BrowserSessionId::new(7).map_err(|error| error.to_string())?,
