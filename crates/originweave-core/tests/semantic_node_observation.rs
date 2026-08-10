@@ -2,8 +2,8 @@ use std::collections::BTreeSet;
 use std::error::Error;
 
 use originweave_core::{
-    BrowserSessionId, BrowsingContextId, DocumentEpoch, NodeActionKind, ObservationChannel, Origin,
-    ObservedNodeHandle, SemanticNodeObservation, SemanticNodeObservationInput,
+    BrowserSessionId, BrowsingContextId, DocumentEpoch, NodeActionKind, ObservationChannel,
+    ObservedNodeHandle, Origin, SemanticNodeObservation, SemanticNodeObservationInput,
 };
 
 fn observed_node() -> Result<ObservedNodeHandle, Box<dyn Error>> {
@@ -47,10 +47,7 @@ fn semantic_node_preserves_authority_and_bounded_surface() -> Result<(), Box<dyn
     );
     assert_eq!(
         observation.evidence_channels(),
-        &BTreeSet::from([
-            ObservationChannel::Accessibility,
-            ObservationChannel::Dom,
-        ])
+        &BTreeSet::from([ObservationChannel::Accessibility, ObservationChannel::Dom,])
     );
     Ok(())
 }
