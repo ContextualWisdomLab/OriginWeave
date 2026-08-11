@@ -26,6 +26,8 @@ use originweave_core::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AgentTaskExtensionPolicy {
     managed_extensions: BTreeSet<ExtensionId>,
+    valid_from: u64,
+    valid_until: u64,
 }
 
 impl AgentTaskExtensionPolicy {
@@ -33,13 +35,20 @@ impl AgentTaskExtensionPolicy {
     ///
     /// Duplicate identifiers collapse to one exact managed identity. An empty
     /// iterator therefore represents the default policy that admits no extension.
+    /// `valid_from` is inclusive and `valid_until` is exclusive. Both values are
+    /// opaque timestamps in the same caller-defined trusted time domain that will
+    /// be supplied to [`evaluate_agent_task_extension`]. This constructor does not
+    /// authenticate policy provenance or attest a clock; an invalid or empty
+    /// validity window is retained so evaluation can fail closed deterministically.
     #[must_use]
-    pub fn new<I>(managed_extensions: I) -> Self
+    pub fn new<I>(managed_extensions: I, valid_from: u64, valid_until: u64) -> Self
     where
         I: IntoIterator<Item = ExtensionId>,
     {
         Self {
             managed_extensions: managed_extensions.into_iter().collect(),
+            valid_from,
+            valid_until,
         }
     }
 }
@@ -51,19 +60,38 @@ pub enum AgentTaskExtensionDecision {
     AllowManagedExtension,
     /// The extension identity is absent from the managed allow-list.
     DenyNotManaged,
+    /// The configured policy validity window is empty or reversed.
+    DenyInvalidPolicyWindow,
+    /// The trusted evaluation time precedes the policy validity window.
+    DenyPolicyNotYetValid,
+    /// The trusted evaluation time is at or beyond the policy expiry boundary.
+    DenyPolicyExpired,
 }
 
 /// Evaluate extension admission without minting OriginWeave Agent capability.
 ///
 /// This pure boundary answers only whether the exact canonical extension may be
-/// present in the caller's managed Agent Task profile. Chromium permissions,
-/// installation state, native messaging, and [`originweave_core::ExtensionAgentGrant`]
-/// remain separate authorities.
+/// present in the caller's managed Agent Task profile at `trusted_time`.
+/// `trusted_time`, [`AgentTaskExtensionPolicy::new`] `valid_from`, and `valid_until`
+/// must use the same caller-attested time domain; this function does not read or
+/// attest a clock. The validity window is half-open: `valid_from <= trusted_time <
+/// valid_until`. Chromium permissions, installation state, native messaging, and
+/// [`originweave_core::ExtensionAgentGrant`] remain separate authorities.
 #[must_use]
 pub fn evaluate_agent_task_extension(
     extension_id: &ExtensionId,
     policy: &AgentTaskExtensionPolicy,
+    trusted_time: u64,
 ) -> AgentTaskExtensionDecision {
+    if policy.valid_from >= policy.valid_until {
+        return AgentTaskExtensionDecision::DenyInvalidPolicyWindow;
+    }
+    if trusted_time < policy.valid_from {
+        return AgentTaskExtensionDecision::DenyPolicyNotYetValid;
+    }
+    if trusted_time >= policy.valid_until {
+        return AgentTaskExtensionDecision::DenyPolicyExpired;
+    }
     if policy.managed_extensions.contains(extension_id) {
         AgentTaskExtensionDecision::AllowManagedExtension
     } else {
