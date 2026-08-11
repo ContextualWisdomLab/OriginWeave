@@ -116,3 +116,63 @@ fn explicit_extension_grant_cannot_supply_missing_write_origin_authority() {
         Decision::Deny(DenialReason::OriginNotWritable)
     );
 }
+
+#[test]
+fn explicit_extension_grant_cannot_turn_crawler_mode_into_mutation_authority() {
+    let grant = action_proposal_grant();
+    assert_extension_can_propose(&grant);
+
+    let site = origin("https://public.example");
+    let context = PolicyContext::new(
+        SessionMode::Crawler,
+        ExecutionPurpose::PublicCrawl,
+        BTreeSet::from([Capability::Submit]),
+        BTreeSet::from([site.clone()]),
+        BTreeSet::from([site.clone()]),
+        RobotsDecision::Allowed,
+        ApprovalEvidence::None,
+    );
+    let proposed = ActionRequest::new(
+        ActionKind::Submit,
+        site.clone(),
+        site,
+        InstructionSource::User,
+        SecretDelivery::None,
+        intent(),
+    );
+
+    assert_eq!(
+        evaluate(&proposed, &context),
+        Decision::Deny(DenialReason::CrawlerMutation)
+    );
+}
+
+#[test]
+fn explicit_extension_grant_cannot_delegate_forbidden_r5_action() {
+    let grant = action_proposal_grant();
+    assert_extension_can_propose(&grant);
+
+    let site = origin("https://consent.example");
+    let context = PolicyContext::new(
+        SessionMode::AgentTask,
+        ExecutionPurpose::UserDelegatedTask,
+        BTreeSet::from([Capability::LegalConsent]),
+        BTreeSet::from([site.clone()]),
+        BTreeSet::from([site.clone()]),
+        RobotsDecision::Allowed,
+        ApprovalEvidence::None,
+    );
+    let proposed = ActionRequest::new(
+        ActionKind::LegalConsent,
+        site.clone(),
+        site,
+        InstructionSource::User,
+        SecretDelivery::None,
+        intent(),
+    );
+
+    assert_eq!(
+        evaluate(&proposed, &context),
+        Decision::Deny(DenialReason::ForbiddenRisk)
+    );
+}
