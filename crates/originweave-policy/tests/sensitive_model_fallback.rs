@@ -58,10 +58,7 @@ fn fallback_scope() -> ModelRouteScope {
     route_scope("provider-fallback", "model-fallback-v1", "kr-central")
 }
 
-fn availability(
-    state: ModelRouteAvailability,
-    valid_until: u64,
-) -> ModelRouteAvailabilityEvidence {
+fn availability(state: ModelRouteAvailability, valid_until: u64) -> ModelRouteAvailabilityEvidence {
     ModelRouteAvailabilityEvidence::new(state, valid_until)
 }
 
