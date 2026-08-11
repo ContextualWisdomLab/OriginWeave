@@ -3,9 +3,9 @@
 //! Fail-closed policy contracts for model-route admission of sensitive data.
 //!
 //! Route admission is intentionally separate from disclosure authority: authorizing a
-//! provider/model/region/retention tuple must never imply that raw protected values may be
-//! disclosed. A later broker/orchestrator must independently authorize the value form and derive
-//! the actual route identity from trusted runtime configuration.
+//! provider/model/region/retention/training tuple must never imply that raw protected values may
+//! be disclosed. A later broker/orchestrator must independently authorize the value form and
+//! derive the actual route identity from trusted runtime configuration.
 
 use originweave_core::Origin;
 use originweave_policy::{
@@ -30,7 +30,8 @@ fn scope() -> ModelRouteScope {
         "provider-private",
         "model-reviewed-v1",
         "kr-central",
-        "no-training-ephemeral",
+        "ephemeral-retention",
+        "no-training",
     )
 }
 
@@ -40,7 +41,8 @@ fn request() -> ModelRouteRequest {
         "provider-private",
         "model-reviewed-v1",
         "kr-central",
-        "no-training-ephemeral",
+        "ephemeral-retention",
+        "no-training",
     )
 }
 
@@ -59,7 +61,8 @@ fn sensitive_authority_mismatch_is_distinct_from_route_mismatch() {
         "provider-private",
         "model-reviewed-v1",
         "kr-central",
-        "no-training-ephemeral",
+        "ephemeral-retention",
+        "no-training",
     );
 
     assert_eq!(
@@ -76,21 +79,24 @@ fn every_model_route_dimension_is_exact_and_non_transferable() {
             "provider-other",
             "model-reviewed-v1",
             "kr-central",
-            "no-training-ephemeral",
+            "ephemeral-retention",
+            "no-training",
         ),
         ModelRouteRequest::new(
             authority("https://model-gateway.example"),
             "provider-private",
             "model-other-v2",
             "kr-central",
-            "no-training-ephemeral",
+            "ephemeral-retention",
+            "no-training",
         ),
         ModelRouteRequest::new(
             authority("https://model-gateway.example"),
             "provider-private",
             "model-reviewed-v1",
             "us-east",
-            "no-training-ephemeral",
+            "ephemeral-retention",
+            "no-training",
         ),
         ModelRouteRequest::new(
             authority("https://model-gateway.example"),
@@ -98,6 +104,15 @@ fn every_model_route_dimension_is_exact_and_non_transferable() {
             "model-reviewed-v1",
             "kr-central",
             "provider-default-retention",
+            "no-training",
+        ),
+        ModelRouteRequest::new(
+            authority("https://model-gateway.example"),
+            "provider-private",
+            "model-reviewed-v1",
+            "kr-central",
+            "ephemeral-retention",
+            "training-allowed",
         ),
     ];
 
@@ -120,27 +135,39 @@ fn malformed_request_route_identifiers_fail_closed() {
                 malformed,
                 "model-reviewed-v1",
                 "kr-central",
-                "no-training-ephemeral",
+                "ephemeral-retention",
+                "no-training",
             ),
             ModelRouteRequest::new(
                 authority("https://model-gateway.example"),
                 "provider-private",
                 malformed,
                 "kr-central",
-                "no-training-ephemeral",
+                "ephemeral-retention",
+                "no-training",
             ),
             ModelRouteRequest::new(
                 authority("https://model-gateway.example"),
                 "provider-private",
                 "model-reviewed-v1",
                 malformed,
-                "no-training-ephemeral",
+                "ephemeral-retention",
+                "no-training",
             ),
             ModelRouteRequest::new(
                 authority("https://model-gateway.example"),
                 "provider-private",
                 "model-reviewed-v1",
                 "kr-central",
+                malformed,
+                "no-training",
+            ),
+            ModelRouteRequest::new(
+                authority("https://model-gateway.example"),
+                "provider-private",
+                "model-reviewed-v1",
+                "kr-central",
+                "ephemeral-retention",
                 malformed,
             ),
         ];
@@ -161,21 +188,24 @@ fn malformed_scope_route_identifiers_fail_closed_against_a_valid_request() {
             "invalid provider",
             "model-reviewed-v1",
             "kr-central",
-            "no-training-ephemeral",
+            "ephemeral-retention",
+            "no-training",
         ),
         ModelRouteScope::new(
             authority("https://model-gateway.example"),
             "provider-private",
             "invalid model",
             "kr-central",
-            "no-training-ephemeral",
+            "ephemeral-retention",
+            "no-training",
         ),
         ModelRouteScope::new(
             authority("https://model-gateway.example"),
             "provider-private",
             "model-reviewed-v1",
             "invalid region",
-            "no-training-ephemeral",
+            "ephemeral-retention",
+            "no-training",
         ),
         ModelRouteScope::new(
             authority("https://model-gateway.example"),
@@ -183,6 +213,15 @@ fn malformed_scope_route_identifiers_fail_closed_against_a_valid_request() {
             "model-reviewed-v1",
             "kr-central",
             "invalid retention",
+            "no-training",
+        ),
+        ModelRouteScope::new(
+            authority("https://model-gateway.example"),
+            "provider-private",
+            "model-reviewed-v1",
+            "kr-central",
+            "ephemeral-retention",
+            "invalid training",
         ),
     ];
 
@@ -209,14 +248,16 @@ fn malformed_sensitive_authority_fails_closed_even_when_both_sides_match() {
         "provider-private",
         "model-reviewed-v1",
         "kr-central",
-        "no-training-ephemeral",
+        "ephemeral-retention",
+        "no-training",
     );
     let invalid_scope = ModelRouteScope::new(
         invalid_authority,
         "provider-private",
         "model-reviewed-v1",
         "kr-central",
-        "no-training-ephemeral",
+        "ephemeral-retention",
+        "no-training",
     );
 
     assert_eq!(
