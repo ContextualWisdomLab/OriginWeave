@@ -29,11 +29,18 @@ pub(crate) fn determine_body_framing(
     }
 
     let transfer_coding = parse_transfer_encoding(&transfer_encoding_values)?;
-    let content_length = parse_content_length(&content_length_values, maximum_encoded_bytes)?;
-    if method.suppresses_response_content()
+    let suppresses_content = method.suppresses_response_content()
         || (100..200).contains(&status_code)
-        || matches!(status_code, 204 | 304)
-    {
+        || matches!(status_code, 204 | 304);
+    let content_length = parse_content_length(
+        &content_length_values,
+        if suppresses_content {
+            None
+        } else {
+            Some(maximum_encoded_bytes)
+        },
+    )?;
+    if suppresses_content {
         return Ok(BodyFraming::NoContent);
     }
     if transfer_coding {
@@ -67,7 +74,7 @@ fn parse_transfer_encoding(values: &[&[u8]]) -> Result<bool, HttpError> {
 
 fn parse_content_length(
     values: &[&[u8]],
-    maximum_encoded_bytes: usize,
+    maximum_encoded_bytes: Option<usize>,
 ) -> Result<Option<usize>, HttpError> {
     if values.is_empty() {
         return Ok(None);
@@ -77,7 +84,9 @@ fn parse_content_length(
         for member in value.split(|byte| *byte == b',') {
             let member = trim_optional_whitespace(member);
             let parsed = parse_decimal_usize(member)?;
-            if parsed > maximum_encoded_bytes {
+            if let Some(maximum_encoded_bytes) = maximum_encoded_bytes
+                && parsed > maximum_encoded_bytes
+            {
                 return Err(HttpError::EncodedContentTooLarge {
                     byte_count: u64::try_from(parsed).unwrap_or(u64::MAX),
                     maximum_bytes: maximum_encoded_bytes,
