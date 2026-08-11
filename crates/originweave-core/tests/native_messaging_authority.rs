@@ -25,7 +25,7 @@ fn context(value: u64) -> BrowsingContextId {
 
 #[test]
 fn native_messaging_host_name_matches_chromium_manifest_syntax() {
-    let canonical = "com.contextualwisdom.originweave_host";
+    let canonical = "com.contextualwisdom.originweave_host1";
     assert_eq!(host_name(canonical).as_str(), canonical);
 
     for invalid in [
