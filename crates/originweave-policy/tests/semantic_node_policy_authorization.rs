@@ -80,7 +80,10 @@ fn semantic_node_action_becomes_policy_authorized_only_after_allow() -> Result<(
         .map_err(|error| error.to_string())?;
 
     assert_eq!(authorized.binding(), &binding);
-    assert_eq!(authorized.binding().request().action(), ActionKind::Navigate);
+    assert_eq!(
+        authorized.binding().request().action(),
+        ActionKind::Navigate
+    );
     Ok(())
 }
 
