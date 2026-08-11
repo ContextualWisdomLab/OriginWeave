@@ -1,10 +1,10 @@
 //! Exact provider/model/region/retention/training/subprocessor/export route admission for sensitive-data workflows.
 //!
-//! This module evaluates route metadata only. An [`ModelRouteDecision::Authorized`] result does
-//! not authorize disclosure of a protected value, authenticate a provider, prove the provider's
-//! physical region, invoke a model, or choose a fallback. A trusted broker/orchestrator must
-//! independently authorize the permitted value form and derive the actual route identity from
-//! trusted runtime configuration.
+//! This module evaluates route and invocation metadata only. An [`ModelRouteDecision::Authorized`]
+//! or [`ModelInvocationDecision::Authorized`] result does not authorize disclosure of a protected
+//! value, authenticate a provider, prove the provider's physical region, invoke a model, validate
+//! model output, or choose a fallback. A trusted broker/orchestrator must independently authorize
+//! the permitted value form and derive actual runtime identities from trusted configuration.
 
 use crate::sensitive_data::{
     DisclosureDecision, DisclosureScope, SensitiveDataAuthority, SensitiveDataRequest,
@@ -149,6 +149,80 @@ impl ModelRouteScope {
     }
 }
 
+/// Result of composing exact route admission with one reviewed model-invocation policy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ModelInvocationDecision {
+    /// Exact route, prompt/schema contracts, and token budgets are authorized.
+    Authorized,
+    /// Route admission failed before invocation-specific policy could authorize the request.
+    RouteDenied(ModelRouteDecision),
+    /// Prompt/schema metadata or token budgets are malformed or outside the reviewed scope.
+    InvocationPolicyMismatch,
+}
+
+/// One proposed model invocation after a route has been selected.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ModelInvocationRequest {
+    route: ModelRouteRequest,
+    prompt_contract_id: String,
+    output_schema_id: String,
+    input_tokens: u32,
+    output_tokens: u32,
+}
+
+impl ModelInvocationRequest {
+    /// Build one invocation request without authorizing protected-value disclosure or execution.
+    #[must_use]
+    pub fn new(
+        route: ModelRouteRequest,
+        prompt_contract_id: &str,
+        output_schema_id: &str,
+        input_tokens: u32,
+        output_tokens: u32,
+    ) -> Self {
+        Self {
+            route,
+            prompt_contract_id: prompt_contract_id.to_owned(),
+            output_schema_id: output_schema_id.to_owned(),
+            input_tokens,
+            output_tokens,
+        }
+    }
+}
+
+/// Reviewed invocation-policy scope layered on one exact model-route scope.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ModelInvocationScope {
+    route: ModelRouteScope,
+    prompt_contract_id: String,
+    output_schema_id: String,
+    maximum_input_tokens: u32,
+    maximum_output_tokens: u32,
+}
+
+impl ModelInvocationScope {
+    /// Build trusted invocation policy for one prompt/schema pair and finite token maxima.
+    ///
+    /// Identifiers and token maxima are validated during evaluation so malformed trusted policy
+    /// state remains fail-closed instead of becoming authority because request and scope match.
+    #[must_use]
+    pub fn new(
+        route: ModelRouteScope,
+        prompt_contract_id: &str,
+        output_schema_id: &str,
+        maximum_input_tokens: u32,
+        maximum_output_tokens: u32,
+    ) -> Self {
+        Self {
+            route,
+            prompt_contract_id: prompt_contract_id.to_owned(),
+            output_schema_id: output_schema_id.to_owned(),
+            maximum_input_tokens,
+            maximum_output_tokens,
+        }
+    }
+}
+
 fn route_identifier_is_valid(identifier: &str) -> bool {
     !identifier.is_empty()
         && identifier.len() <= MAX_ROUTE_IDENTIFIER_BYTES
@@ -197,5 +271,42 @@ pub fn evaluate_model_route(
         ModelRouteDecision::RouteMismatch
     } else {
         ModelRouteDecision::Authorized
+    }
+}
+
+/// Evaluate reviewed prompt/schema and token limits after exact route admission.
+///
+/// Route admission remains a separate prerequisite and its failure is preserved in
+/// [`ModelInvocationDecision::RouteDenied`]. Invocation policy then requires bounded 1–128 byte
+/// ASCII prompt/schema identifiers, exact identifier matches, nonzero requested and trusted token
+/// budgets, and request budgets no larger than the reviewed maxima. Authorization from this
+/// function is metadata-only: it does not disclose a protected value, invoke a provider, validate
+/// output, retain/export data, or select a fallback route.
+#[must_use]
+pub fn evaluate_model_invocation(
+    request: &ModelInvocationRequest,
+    scope: &ModelInvocationScope,
+) -> ModelInvocationDecision {
+    let route_decision = evaluate_model_route(&request.route, &scope.route);
+    if route_decision != ModelRouteDecision::Authorized {
+        return ModelInvocationDecision::RouteDenied(route_decision);
+    }
+
+    if !route_identifier_is_valid(&request.prompt_contract_id)
+        || !route_identifier_is_valid(&request.output_schema_id)
+        || !route_identifier_is_valid(&scope.prompt_contract_id)
+        || !route_identifier_is_valid(&scope.output_schema_id)
+        || request.prompt_contract_id != scope.prompt_contract_id
+        || request.output_schema_id != scope.output_schema_id
+        || request.input_tokens == 0
+        || request.output_tokens == 0
+        || scope.maximum_input_tokens == 0
+        || scope.maximum_output_tokens == 0
+        || request.input_tokens > scope.maximum_input_tokens
+        || request.output_tokens > scope.maximum_output_tokens
+    {
+        ModelInvocationDecision::InvocationPolicyMismatch
+    } else {
+        ModelInvocationDecision::Authorized
     }
 }
