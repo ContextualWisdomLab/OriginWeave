@@ -42,6 +42,7 @@ STARTUP_TIMEOUT_SECONDS = 20.0
 FIXTURE_TIMEOUT_SECONDS = 20.0
 MAX_WEBDRIVER_RESPONSE_BYTES = 1_048_576
 MAX_PROC_STATUS_CHARACTERS = 65_536
+MAX_BROWSER_PROCESS_TREE_SIZE = 256
 MAX_U64 = (1 << 64) - 1
 W3C_ELEMENT_KEY = "element-6066-11e4-a52e-4f735466cecf"
 PATH_TOKEN_CHARACTERS = frozenset(string.ascii_letters + string.digits + "-_.")
@@ -239,6 +240,86 @@ def _sample_linux_process_rss_bytes(process_id: int) -> int:
     if len(status_text) > MAX_PROC_STATUS_CHARACTERS:
         raise RuntimeError("Linux proc status exceeded the bounded text limit")
     return _parse_linux_proc_status_rss_bytes(status_text)
+
+
+def _parse_linux_children_process_ids(children_text: str) -> tuple[int, ...]:
+    """Parse one bounded Linux ``children`` list into unique positive process IDs."""
+
+    fields = children_text.split()
+    if len(fields) > MAX_BROWSER_PROCESS_TREE_SIZE:
+        raise ValueError("Linux child process list exceeded the bounded process-tree size")
+    process_ids: list[int] = []
+    seen: set[int] = set()
+    for field in fields:
+        if not field.isascii() or not field.isdigit():
+            raise ValueError("malformed Linux child process identifier")
+        process_id = int(field, 10)
+        if process_id <= 0 or process_id in seen:
+            raise ValueError("Linux child process identifiers must be unique and positive")
+        seen.add(process_id)
+        process_ids.append(process_id)
+    return tuple(process_ids)
+
+
+def _discover_linux_process_tree_ids(root_process_id: int) -> tuple[int, ...]:
+    """Discover one bounded root-plus-descendant Linux process tree from ``/proc``."""
+
+    if (
+        isinstance(root_process_id, bool)
+        or not isinstance(root_process_id, int)
+        or root_process_id <= 0
+    ):
+        raise ValueError("invalid Linux root process identifier")
+
+    discovered: list[int] = []
+    queued: list[int] = [root_process_id]
+    known: set[int] = {root_process_id}
+    while queued:
+        process_id = queued.pop(0)
+        discovered.append(process_id)
+        if len(discovered) > MAX_BROWSER_PROCESS_TREE_SIZE:
+            raise ValueError("Linux process tree exceeded the bounded process-tree size")
+
+        children_path = (
+            pathlib.Path("/proc")
+            / str(process_id)
+            / "task"
+            / str(process_id)
+            / "children"
+        )
+        with children_path.open("r", encoding="utf-8", errors="strict") as children_file:
+            children_text = children_file.read(MAX_PROC_STATUS_CHARACTERS + 1)
+        if len(children_text) > MAX_PROC_STATUS_CHARACTERS:
+            raise RuntimeError("Linux proc children exceeded the bounded text limit")
+        children = _parse_linux_children_process_ids(children_text)
+        for child_process_id in children:
+            if child_process_id in known:
+                raise ValueError("Linux process tree contained a duplicate process identifier")
+            if len(known) >= MAX_BROWSER_PROCESS_TREE_SIZE:
+                raise ValueError("Linux process tree exceeded the bounded process-tree size")
+            known.add(child_process_id)
+            queued.append(child_process_id)
+
+    return tuple(discovered)
+
+
+def _sample_linux_process_set_rss_bytes(process_ids: tuple[int, ...]) -> int:
+    """Sample and sum one exact bounded Linux process set without silent overflow."""
+
+    if not process_ids or len(process_ids) > MAX_BROWSER_PROCESS_TREE_SIZE:
+        raise ValueError("invalid Linux process set size")
+    if len(set(process_ids)) != len(process_ids):
+        raise ValueError("Linux process set identifiers must be unique")
+
+    total_rss_bytes = 0
+    for process_id in process_ids:
+        if isinstance(process_id, bool) or not isinstance(process_id, int) or process_id <= 0:
+            raise ValueError("invalid Linux process identifier")
+        rss_bytes = _sample_linux_process_rss_bytes(process_id)
+        if rss_bytes > MAX_U64 - total_rss_bytes:
+            raise OverflowError("Linux process-set RSS exceeds u64 byte range")
+        total_rss_bytes += rss_bytes
+    return total_rss_bytes
 
 
 def _wait_for_extension_evidence(
@@ -652,7 +733,13 @@ def _run_agent_task_browser_pass(
             raise RuntimeError(f"Agent Task state post-condition failed: {state!r}")
         if text != AGENT_TASK_INPUT_VALUE:
             raise RuntimeError("Agent Task result did not match the synthetic typed value")
+
+        chromium_process_ids = _discover_linux_process_tree_ids(browser_process_id)
         browser_process_rss_bytes = _sample_linux_process_rss_bytes(browser_process_id)
+        chromium_process_set_rss_bytes = _sample_linux_process_set_rss_bytes(
+            chromium_process_ids
+        )
+        chromium_process_count = len(chromium_process_ids)
         task_duration_ms = round((time.monotonic() - started) * 1000, 3)
         if task_duration_ms <= 0:
             raise RuntimeError("Agent Task measured a non-positive task duration")
@@ -664,6 +751,8 @@ def _run_agent_task_browser_pass(
             "submit_semantics_verified": True,
             "extensions_disabled": True,
             "browser_process_rss_bytes": browser_process_rss_bytes,
+            "chromium_process_count": chromium_process_count,
+            "chromium_process_set_rss_bytes": chromium_process_set_rss_bytes,
             "semantic_observation_bytes": semantic_observation_bytes,
             "action_latency_ms": action_latency_ms,
             "task_duration_ms": task_duration_ms,
@@ -720,6 +809,8 @@ def _run_agent_task_trial(
         "submit_semantics_verified": result["submit_semantics_verified"],
         "extensions_disabled": result["extensions_disabled"],
         "browser_process_rss_bytes": result["browser_process_rss_bytes"],
+        "chromium_process_count": result["chromium_process_count"],
+        "chromium_process_set_rss_bytes": result["chromium_process_set_rss_bytes"],
         "semantic_observation_bytes": result["semantic_observation_bytes"],
         "action_latency_ms": result["action_latency_ms"],
         "task_duration_ms": result["task_duration_ms"],
@@ -853,6 +944,10 @@ def main() -> int:
             and trial.get("profile_cleaned") is True
             and isinstance(trial.get("browser_process_rss_bytes"), int)
             and trial["browser_process_rss_bytes"] > 0
+            and isinstance(trial.get("chromium_process_count"), int)
+            and 0 < trial["chromium_process_count"] <= MAX_BROWSER_PROCESS_TREE_SIZE
+            and isinstance(trial.get("chromium_process_set_rss_bytes"), int)
+            and trial["chromium_process_set_rss_bytes"] > 0
             and isinstance(trial.get("semantic_observation_bytes"), int)
             and trial["semantic_observation_bytes"] > 0
             and isinstance(trial.get("action_latency_ms"), (int, float))
