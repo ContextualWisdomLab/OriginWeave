@@ -30,6 +30,8 @@ pub enum VerifiedActionOutcomeError {
         /// Monotonic timestamp recorded when the post-condition was observed.
         observed_at_milliseconds: u64,
     },
+    /// Node-state provenance belongs to an origin other than the governed action target.
+    PostConditionOriginMismatch,
 }
 
 impl Display for VerifiedActionOutcomeError {
@@ -44,6 +46,9 @@ impl Display for VerifiedActionOutcomeError {
                 formatter,
                 "post-condition observation at {observed_at_milliseconds} ms predates action dispatch at {dispatched_at_milliseconds} ms"
             ),
+            Self::PostConditionOriginMismatch => formatter.write_str(
+                "node-state post-condition provenance must match the governed action target origin",
+            ),
         }
     }
 }
@@ -53,10 +58,11 @@ impl Error for VerifiedActionOutcomeError {}
 /// Credential-safe evidence that a typed action completed its verified post-condition.
 ///
 /// Construction is intentionally fail-closed: a command acknowledgement, an
-/// unverified observation, rejected provenance, or an observation timestamp
-/// earlier than the action dispatch cannot be represented by this type as
-/// successful action completion. Equal dispatch and observation timestamps are
-/// permitted because a bounded adapter may use a coarse monotonic clock.
+/// unverified observation, rejected provenance, an observation timestamp earlier
+/// than the action dispatch, or node-state provenance from a different origin
+/// cannot be represented by this type as successful action completion. Equal
+/// dispatch and observation timestamps are permitted because a bounded adapter
+/// may use a coarse monotonic clock.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedActionOutcomeEvidence {
     action: ActionKind,
@@ -73,6 +79,8 @@ impl VerifiedActionOutcomeEvidence {
     ///
     /// Both timestamps must come from the same monotonic clock domain. The
     /// observation may share the dispatch tick, but it may never predate it.
+    /// `NodeStateChanged` provenance must also originate from the canonical
+    /// action target; URL and network outcomes are not constrained by that rule.
     pub fn new(
         action: ActionKind,
         target_origin: Origin,
@@ -90,6 +98,11 @@ impl VerifiedActionOutcomeEvidence {
                 dispatched_at_milliseconds,
                 observed_at_milliseconds,
             });
+        }
+        if post_condition == PostConditionKind::NodeStateChanged
+            && provenance.source_origin() != &target_origin
+        {
+            return Err(VerifiedActionOutcomeError::PostConditionOriginMismatch);
         }
         Ok(Self {
             action,
