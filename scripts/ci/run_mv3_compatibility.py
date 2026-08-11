@@ -353,7 +353,7 @@ def _sample_linux_process_set_rss_bytes(
     process_ids: tuple[int, ...],
     process_evidence: dict[int, tuple[int, int | None]],
 ) -> int:
-    """Sum positive sampled RSS for one exact bounded process set without overflow."""
+    """Sum resident RSS for one exact bounded process set without overflow."""
 
     if not process_ids or len(process_ids) > MAX_BROWSER_PROCESS_TREE_SIZE:
         raise ValueError("invalid Linux process set size")
@@ -367,8 +367,10 @@ def _sample_linux_process_set_rss_bytes(
         if process_id not in process_evidence:
             raise ValueError("Linux process set was not present in the sampled evidence")
         rss_bytes = process_evidence[process_id][1]
+        if rss_bytes is None:
+            continue
         if isinstance(rss_bytes, bool) or not isinstance(rss_bytes, int) or rss_bytes <= 0:
-            raise ValueError("Linux process set contained unavailable sampled RSS")
+            raise ValueError("Linux process set contained invalid sampled RSS")
         if rss_bytes > MAX_U64 - total_rss_bytes:
             raise OverflowError("Linux process-set RSS exceeds u64 byte range")
         total_rss_bytes += rss_bytes
