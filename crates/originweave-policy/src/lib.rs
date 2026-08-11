@@ -15,10 +15,61 @@ pub use sensitive_data::{
     evaluate_handle_use,
 };
 
+use std::collections::BTreeSet;
+
 use originweave_core::{
-    ActionRequest, ApprovalEvidence, ApprovalScope, Capability, ExecutionPurpose,
+    ActionRequest, ApprovalEvidence, ApprovalScope, Capability, ExecutionPurpose, ExtensionId,
     InstructionSource, PolicyContext, RiskClass, RobotsDecision, SecretDelivery, SessionMode,
 };
+
+/// Exact extension identities that may be present in one managed Agent Task profile.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AgentTaskExtensionPolicy {
+    managed_extensions: BTreeSet<ExtensionId>,
+}
+
+impl AgentTaskExtensionPolicy {
+    /// Build one fail-closed Agent Task extension admission policy.
+    ///
+    /// Duplicate identifiers collapse to one exact managed identity. An empty
+    /// iterator therefore represents the default policy that admits no extension.
+    #[must_use]
+    pub fn new<I>(managed_extensions: I) -> Self
+    where
+        I: IntoIterator<Item = ExtensionId>,
+    {
+        Self {
+            managed_extensions: managed_extensions.into_iter().collect(),
+        }
+    }
+}
+
+/// Result of evaluating one extension identity for an isolated Agent Task profile.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AgentTaskExtensionDecision {
+    /// The exact canonical extension identity appears in the managed allow-list.
+    AllowManagedExtension,
+    /// The extension identity is absent from the managed allow-list.
+    DenyNotManaged,
+}
+
+/// Evaluate extension admission without minting OriginWeave Agent capability.
+///
+/// This pure boundary answers only whether the exact canonical extension may be
+/// present in the caller's managed Agent Task profile. Chromium permissions,
+/// installation state, native messaging, and [`originweave_core::ExtensionAgentGrant`]
+/// remain separate authorities.
+#[must_use]
+pub fn evaluate_agent_task_extension(
+    extension_id: &ExtensionId,
+    policy: &AgentTaskExtensionPolicy,
+) -> AgentTaskExtensionDecision {
+    if policy.managed_extensions.contains(extension_id) {
+        AgentTaskExtensionDecision::AllowManagedExtension
+    } else {
+        AgentTaskExtensionDecision::DenyNotManaged
+    }
+}
 
 /// The result of evaluating one typed action request.
 #[derive(Debug, Clone, PartialEq, Eq)]
