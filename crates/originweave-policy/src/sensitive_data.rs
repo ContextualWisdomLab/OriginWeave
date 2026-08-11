@@ -163,6 +163,8 @@ pub enum HandleUseDecision {
     Authorized,
     /// The authoritative in-process handle state was revoked before this use.
     Revoked,
+    /// The supplied tracked-use identity is not outstanding in this exact state.
+    ReservationNotOutstanding,
     /// Tenant, task, field, purpose, destination, or classification did not match the handle scope.
     ScopeMismatch,
     /// The caller audience was invalid or did not match the handle's non-transferable audience.
@@ -403,6 +405,51 @@ impl SensitiveHandleUseState {
             });
         self.reserved_uses += 1;
         Ok(SensitiveHandleUseReservation { identity })
+    }
+
+    /// Recheck the exact outstanding tracked reservation immediately before disclosure.
+    ///
+    /// This does not reserve another use and does not mutate settlement state. The
+    /// trusted broker must supply authenticated audience, trusted time, and the exact
+    /// authority that applies at disclosure time, and must call this inside the same
+    /// transaction or locking boundary that guards value disclosure. Revocation is
+    /// checked before reservation membership and request detail so a revoked state
+    /// does not disclose whether a foreign or stale reservation would otherwise match.
+    /// A use-limit check is intentionally omitted: the outstanding reservation has
+    /// already consumed its bounded use capacity.
+    #[must_use]
+    pub fn recheck_reservation(
+        &self,
+        reservation: &SensitiveHandleUseReservation,
+        authority: SensitiveDataAuthority,
+        audience_id: &str,
+        now_epoch_seconds: u64,
+    ) -> HandleUseDecision {
+        if self.revocation_reason.is_some() {
+            return HandleUseDecision::Revoked;
+        }
+        if !self
+            .outstanding_reservations
+            .iter()
+            .any(|candidate| candidate == reservation)
+        {
+            return HandleUseDecision::ReservationNotOutstanding;
+        }
+        if !authority.is_complete()
+            || !self.scope.authority.is_complete()
+            || authority != self.scope.authority
+        {
+            HandleUseDecision::ScopeMismatch
+        } else if !authority_identifier_is_valid(audience_id)
+            || !authority_identifier_is_valid(&self.scope.audience_id)
+            || audience_id != self.scope.audience_id
+        {
+            HandleUseDecision::AudienceMismatch
+        } else if now_epoch_seconds >= self.scope.expires_at_epoch_seconds {
+            HandleUseDecision::Expired
+        } else {
+            HandleUseDecision::Authorized
+        }
     }
 
     /// Mark one exact tracked reservation as a completed, permanently consumed use.
