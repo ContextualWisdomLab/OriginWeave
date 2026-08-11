@@ -24,7 +24,7 @@ fn authority() -> SensitiveDataAuthority {
 }
 
 fn request(export_policy_id: &str) -> ModelRouteRequest {
-    ModelRouteRequest::new_with_export_policy(
+    ModelRouteRequest::new(
         authority(),
         "provider-private",
         "model-reviewed-v1",
@@ -32,12 +32,12 @@ fn request(export_policy_id: &str) -> ModelRouteRequest {
         "ephemeral-retention",
         "no-training",
         "subprocessors-reviewed-v1",
-        export_policy_id,
     )
+    .with_export_policy(export_policy_id)
 }
 
 fn scope(export_policy_id: &str) -> ModelRouteScope {
-    ModelRouteScope::new_with_export_policy(
+    ModelRouteScope::new(
         authority(),
         "provider-private",
         "model-reviewed-v1",
@@ -45,8 +45,8 @@ fn scope(export_policy_id: &str) -> ModelRouteScope {
         "ephemeral-retention",
         "no-training",
         "subprocessors-reviewed-v1",
-        export_policy_id,
     )
+    .with_export_policy(export_policy_id)
 }
 
 #[test]
