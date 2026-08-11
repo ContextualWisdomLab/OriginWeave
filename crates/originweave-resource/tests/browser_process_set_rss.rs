@@ -1,9 +1,8 @@
 #![allow(clippy::expect_used)]
 
 use originweave_resource::{
-    BrowserRssSampleError, MAX_BROWSER_PROCESS_SET_SIZE,
-    aggregate_browser_process_rss_samples, sample_linux_process_rss_bytes,
-    sample_linux_process_set_rss_bytes,
+    BrowserRssSampleError, MAX_BROWSER_PROCESS_SET_SIZE, aggregate_browser_process_rss_samples,
+    sample_linux_process_rss_bytes, sample_linux_process_set_rss_bytes,
 };
 
 #[test]
@@ -53,7 +52,10 @@ fn linux_process_set_sampler_matches_the_single_process_sampler() {
         let process_id = std::process::id();
         let single = sample_linux_process_rss_bytes(process_id)
             .expect("the current Linux test process has a readable /proc status");
-        assert_eq!(sample_linux_process_set_rss_bytes(&[process_id]), Ok(single));
+        assert_eq!(
+            sample_linux_process_set_rss_bytes(&[process_id]),
+            Ok(single)
+        );
     }
 
     #[cfg(not(target_os = "linux"))]
