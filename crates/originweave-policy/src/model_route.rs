@@ -4,8 +4,9 @@
 //! or [`ModelInvocationDecision::Authorized`] result does not authorize disclosure of a protected
 //! value, authenticate a provider, prove the provider's physical region, invoke a model, validate
 //! model output, or choose a fallback. A trusted broker/orchestrator must independently authorize
-//! the permitted value form, derive actual runtime identities from trusted configuration, and
-//! supply invocation time from the same authoritative time domain used to issue policy expiry.
+//! the permitted value form, derive actual runtime identities from trusted configuration, derive
+//! context-isolation metadata from the actual bounded outgoing message set, and supply invocation
+//! time from the same authoritative time domain used to issue policy expiry.
 
 use crate::sensitive_data::{
     DisclosureDecision, DisclosureScope, SensitiveDataAuthority, SensitiveDataRequest,
@@ -153,10 +154,12 @@ impl ModelRouteScope {
 /// Result of composing exact route admission with one reviewed model-invocation policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ModelInvocationDecision {
-    /// Exact route, prompt/schema contracts, token budgets, and policy lifetime are authorized.
+    /// Exact route, isolated context, prompt/schema contracts, token budgets, and policy lifetime are authorized.
     Authorized,
     /// Route admission failed before invocation-specific policy could authorize the request.
     RouteDenied(ModelRouteDecision),
+    /// The broker detected unrelated conversation history in the sensitive invocation context.
+    UnrelatedConversationHistoryDenied,
     /// Prompt/schema metadata, token budgets, or the reviewed expiry are malformed or out of scope.
     InvocationPolicyMismatch,
     /// The otherwise valid invocation policy is no longer fresh at the caller-supplied trusted time.
@@ -171,10 +174,15 @@ pub struct ModelInvocationRequest {
     output_schema_id: String,
     input_tokens: u32,
     output_tokens: u32,
+    unrelated_history_items: u32,
 }
 
 impl ModelInvocationRequest {
     /// Build one invocation request without authorizing protected-value disclosure or execution.
+    ///
+    /// `unrelated_history_items` must be derived by the trusted broker/orchestrator from the actual
+    /// bounded outgoing message set. A caller-provided zero alone is not proof of isolation; this
+    /// pure policy boundary only guarantees that a known nonzero count cannot be authorized.
     #[must_use]
     pub fn new(
         route: ModelRouteRequest,
@@ -182,6 +190,7 @@ impl ModelInvocationRequest {
         output_schema_id: &str,
         input_tokens: u32,
         output_tokens: u32,
+        unrelated_history_items: u32,
     ) -> Self {
         Self {
             route,
@@ -189,6 +198,7 @@ impl ModelInvocationRequest {
             output_schema_id: output_schema_id.to_owned(),
             input_tokens,
             output_tokens,
+            unrelated_history_items,
         }
     }
 }
@@ -282,18 +292,20 @@ pub fn evaluate_model_route(
     }
 }
 
-/// Evaluate reviewed prompt/schema, token limits, and lifetime after exact route admission.
+/// Evaluate reviewed context isolation, prompt/schema, token limits, and lifetime after exact route admission.
 ///
 /// Route admission remains a separate prerequisite and its failure is preserved in
-/// [`ModelInvocationDecision::RouteDenied`]. Invocation policy then requires bounded 1–128 byte
-/// ASCII prompt/schema identifiers, exact identifier matches, nonzero requested and trusted token
-/// budgets, request budgets no larger than the reviewed maxima, and a nonzero exclusive expiry.
-/// After those static checks pass, `trusted_time >= valid_until` returns
+/// [`ModelInvocationDecision::RouteDenied`]. Once the exact route is admitted, any broker-derived
+/// nonzero unrelated-history count fails closed as
+/// [`ModelInvocationDecision::UnrelatedConversationHistoryDenied`]. Invocation policy then requires
+/// bounded 1–128 byte ASCII prompt/schema identifiers, exact identifier matches, nonzero requested
+/// and trusted token budgets, request budgets no larger than the reviewed maxima, and a nonzero
+/// exclusive expiry. After those static checks pass, `trusted_time >= valid_until` returns
 /// [`ModelInvocationDecision::InvocationExpired`]. The caller must source `trusted_time` from the
 /// same authoritative time domain used to issue `valid_until`; this pure policy function neither
 /// reads a clock nor attests clock provenance. Authorization remains metadata-only: it does not
-/// disclose a protected value, invoke a provider, validate output, retain/export data, or select a
-/// fallback route.
+/// inspect messages, prove context isolation, disclose a protected value, invoke a provider,
+/// validate output, retain/export data, or select a fallback route.
 #[must_use]
 pub fn evaluate_model_invocation(
     request: &ModelInvocationRequest,
@@ -303,6 +315,10 @@ pub fn evaluate_model_invocation(
     let route_decision = evaluate_model_route(&request.route, &scope.route);
     if route_decision != ModelRouteDecision::Authorized {
         return ModelInvocationDecision::RouteDenied(route_decision);
+    }
+
+    if request.unrelated_history_items != 0 {
+        return ModelInvocationDecision::UnrelatedConversationHistoryDenied;
     }
 
     if !route_identifier_is_valid(&request.prompt_contract_id)
