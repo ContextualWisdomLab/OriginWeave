@@ -176,3 +176,33 @@ fn explicit_extension_grant_cannot_delegate_forbidden_r5_action() {
         Decision::Deny(DenialReason::ForbiddenRisk)
     );
 }
+
+#[test]
+fn explicit_extension_grant_cannot_turn_human_mode_into_agent_control() {
+    let grant = action_proposal_grant();
+    assert_extension_can_propose(&grant);
+
+    let site = origin("https://human.example");
+    let context = PolicyContext::new(
+        SessionMode::Human,
+        ExecutionPurpose::UserDelegatedTask,
+        BTreeSet::from([Capability::Navigate]),
+        BTreeSet::from([site.clone()]),
+        BTreeSet::new(),
+        RobotsDecision::NotApplicable,
+        ApprovalEvidence::None,
+    );
+    let proposed = ActionRequest::new(
+        ActionKind::Navigate,
+        site.clone(),
+        site,
+        InstructionSource::User,
+        SecretDelivery::None,
+        intent(),
+    );
+
+    assert_eq!(
+        evaluate(&proposed, &context),
+        Decision::Deny(DenialReason::HumanModeNotAgentControlled)
+    );
+}
