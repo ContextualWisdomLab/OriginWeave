@@ -85,9 +85,7 @@ fn missing_extension_grant_stops_before_action_policy() {
             &observe_request(InstructionSource::User),
             &observe_context(),
         ),
-        ExtensionProposalDecision::ExtensionAccessDenied(
-            ExtensionAccessDecision::DenyMissingGrant
-        )
+        ExtensionProposalDecision::ExtensionAccessDenied(ExtensionAccessDecision::DenyMissingGrant)
     );
 }
 
