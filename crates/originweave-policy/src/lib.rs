@@ -7,9 +7,14 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+mod model_output;
 mod model_route;
 mod sensitive_data;
 
+pub use model_output::{
+    ModelOutputDecision, ModelOutputRequest, ModelOutputScope, ModelOutputValidation,
+    evaluate_model_output,
+};
 pub use model_route::{
     ModelInvocationDecision, ModelInvocationRequest, ModelInvocationScope, ModelRouteDecision,
     ModelRouteRequest, ModelRouteScope, evaluate_model_invocation, evaluate_model_route,
