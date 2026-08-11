@@ -154,26 +154,44 @@ fn malformed_request_route_identifiers_fail_closed() {
 }
 
 #[test]
-fn malformed_scope_route_identifiers_fail_closed_even_when_request_matches() {
-    let malformed_scope = ModelRouteScope::new(
-        authority("https://model-gateway.example"),
-        "provider-private",
-        "model-reviewed-v1",
-        "kr-central",
-        "invalid retention",
-    );
-    let matching_invalid_request = ModelRouteRequest::new(
-        authority("https://model-gateway.example"),
-        "provider-private",
-        "model-reviewed-v1",
-        "kr-central",
-        "invalid retention",
-    );
+fn malformed_scope_route_identifiers_fail_closed_against_a_valid_request() {
+    let cases = [
+        ModelRouteScope::new(
+            authority("https://model-gateway.example"),
+            "invalid provider",
+            "model-reviewed-v1",
+            "kr-central",
+            "no-training-ephemeral",
+        ),
+        ModelRouteScope::new(
+            authority("https://model-gateway.example"),
+            "provider-private",
+            "invalid model",
+            "kr-central",
+            "no-training-ephemeral",
+        ),
+        ModelRouteScope::new(
+            authority("https://model-gateway.example"),
+            "provider-private",
+            "model-reviewed-v1",
+            "invalid region",
+            "no-training-ephemeral",
+        ),
+        ModelRouteScope::new(
+            authority("https://model-gateway.example"),
+            "provider-private",
+            "model-reviewed-v1",
+            "kr-central",
+            "invalid retention",
+        ),
+    ];
 
-    assert_eq!(
-        evaluate_model_route(&matching_invalid_request, &malformed_scope),
-        ModelRouteDecision::RouteMismatch
-    );
+    for malformed_scope in cases {
+        assert_eq!(
+            evaluate_model_route(&request(), &malformed_scope),
+            ModelRouteDecision::RouteMismatch
+        );
+    }
 }
 
 #[test]
