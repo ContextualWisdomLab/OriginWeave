@@ -79,37 +79,47 @@ fn parse_content_length(
     if values.is_empty() {
         return Ok(None);
     }
-    let mut canonical_length = None;
+    let mut canonical_digits = None;
+    let mut parsed_length = None;
     for value in values {
         for member in value.split(|byte| *byte == b',') {
             let member = trim_optional_whitespace(member);
-            let parsed = parse_decimal_usize(member)?;
-            if let Some(maximum_encoded_bytes) = maximum_encoded_bytes
-                && parsed > maximum_encoded_bytes
-            {
-                return Err(HttpError::EncodedContentTooLarge {
-                    byte_count: u64::try_from(parsed).unwrap_or(u64::MAX),
-                    maximum_bytes: maximum_encoded_bytes,
-                });
-            }
-            match canonical_length {
-                Some(existing) if existing != parsed => {
+            let canonical_member = canonical_decimal(member)?;
+            match canonical_digits {
+                Some(existing) if existing != canonical_member => {
                     return Err(HttpError::ConflictingContentLength);
                 }
                 Some(_existing) => {}
-                None => canonical_length = Some(parsed),
+                None => canonical_digits = Some(canonical_member),
+            }
+            if let Some(maximum_encoded_bytes) = maximum_encoded_bytes {
+                let parsed = parse_decimal_usize(member)?;
+                if parsed > maximum_encoded_bytes {
+                    return Err(HttpError::EncodedContentTooLarge {
+                        byte_count: u64::try_from(parsed).unwrap_or(u64::MAX),
+                        maximum_bytes: maximum_encoded_bytes,
+                    });
+                }
+                parsed_length = Some(parsed);
             }
         }
     }
-    // A non-empty `values` slice always yields at least one split member. Invalid or empty
-    // members return above, so successful parsing has already assigned the canonical length.
-    Ok(canonical_length)
+    // When response semantics suppress content, decimal syntax and duplicate equality still
+    // matter, but no platform-sized body length is required or returned.
+    Ok(parsed_length)
 }
 
-fn parse_decimal_usize(input: &[u8]) -> Result<usize, HttpError> {
+fn canonical_decimal(input: &[u8]) -> Result<&[u8], HttpError> {
     if input.is_empty() || !input.iter().all(u8::is_ascii_digit) {
         return Err(HttpError::InvalidContentLength);
     }
+    Ok(input
+        .iter()
+        .position(|byte| *byte != b'0')
+        .map_or(&input[input.len() - 1..], |index| &input[index..]))
+}
+
+fn parse_decimal_usize(input: &[u8]) -> Result<usize, HttpError> {
     input.iter().try_fold(0_usize, |value, byte| {
         value
             .checked_mul(10)
@@ -172,26 +182,22 @@ mod tests {
     #[test]
     fn no_content_semantics_do_not_apply_body_size_budget_to_content_length_metadata() {
         for (method, status) in [(HttpMethod::Head, 200), (HttpMethod::Get, 304)] {
-            assert_eq!(
-                determine_body_framing(
-                    method,
-                    status,
-                    &fields(&[("content-length", b"1001")]),
-                    1_000,
-                )
-                .expect("no-content metadata must not consume the body budget"),
-                BodyFraming::NoContent
-            );
-            assert_eq!(
-                determine_body_framing(
-                    method,
-                    status,
-                    &fields(&[("content-length", b"18446744073709551616")]),
-                    1_000,
-                )
-                .expect("valid no-content metadata may exceed platform integer range"),
-                BodyFraming::NoContent
-            );
+            for metadata in [
+                b"1001".as_slice(),
+                b"18446744073709551616",
+                b"000, 0",
+            ] {
+                assert_eq!(
+                    determine_body_framing(
+                        method,
+                        status,
+                        &fields(&[("content-length", metadata)]),
+                        1_000,
+                    )
+                    .expect("valid no-content metadata must not consume the body budget"),
+                    BodyFraming::NoContent
+                );
+            }
         }
     }
 
