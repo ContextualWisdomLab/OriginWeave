@@ -272,8 +272,8 @@ def _sample_linux_process_rss_bytes(process_id: int) -> int:
     return _parse_linux_proc_status_rss_bytes(status_text)
 
 
-def _snapshot_linux_process_parent_ids() -> dict[int, int]:
-    """Read one bounded best-effort Linux PID/PPID snapshot from process status files."""
+def _snapshot_linux_process_evidence() -> dict[int, tuple[int, int | None]]:
+    """Capture one bounded best-effort PID/PPID/RSS sweep from Linux proc status."""
 
     proc_root = pathlib.Path("/proc")
     process_entries: list[tuple[int, pathlib.Path]] = []
@@ -288,7 +288,7 @@ def _snapshot_linux_process_parent_ids() -> dict[int, int]:
         if len(process_entries) > MAX_PROC_PROCESS_SCAN_SIZE:
             raise RuntimeError("Linux proc process scan exceeded the bounded entry limit")
 
-    parent_ids: dict[int, int] = {}
+    process_evidence: dict[int, tuple[int, int | None]] = {}
     for expected_process_id, entry in sorted(process_entries):
         status_path = entry / "status"
         try:
@@ -303,14 +303,24 @@ def _snapshot_linux_process_parent_ids() -> dict[int, int]:
         )
         if process_id != expected_process_id:
             raise RuntimeError("Linux proc status identity did not match its directory")
-        if process_id in parent_ids:
+        if process_id in process_evidence:
             raise RuntimeError("Linux proc process snapshot contained a duplicate PID")
-        parent_ids[process_id] = parent_process_id
-    return parent_ids
+        try:
+            rss_bytes: int | None = _parse_linux_proc_status_rss_bytes(status_text)
+        except ValueError as exc:
+            if "VmRSS must be positive" in str(exc) or "exactly one VmRSS" in str(exc):
+                rss_bytes = None
+            else:
+                raise
+        process_evidence[process_id] = (parent_process_id, rss_bytes)
+    return process_evidence
 
 
-def _discover_linux_process_tree_ids(root_process_id: int) -> tuple[int, ...]:
-    """Discover one bounded root-plus-descendant process set from a PID/PPID snapshot."""
+def _discover_linux_process_tree_ids(
+    root_process_id: int,
+    process_evidence: dict[int, tuple[int, int | None]],
+) -> tuple[int, ...]:
+    """Discover one bounded root-plus-descendant set from sampled process evidence."""
 
     if (
         isinstance(root_process_id, bool)
@@ -318,9 +328,7 @@ def _discover_linux_process_tree_ids(root_process_id: int) -> tuple[int, ...]:
         or root_process_id <= 0
     ):
         raise ValueError("invalid Linux root process identifier")
-
-    parent_ids = _snapshot_linux_process_parent_ids()
-    if root_process_id not in parent_ids:
+    if root_process_id not in process_evidence:
         raise RuntimeError("Linux process snapshot did not contain the browser root PID")
 
     discovered = [root_process_id]
@@ -328,7 +336,7 @@ def _discover_linux_process_tree_ids(root_process_id: int) -> tuple[int, ...]:
     while True:
         children = sorted(
             process_id
-            for process_id, parent_process_id in parent_ids.items()
+            for process_id, (parent_process_id, _rss_bytes) in process_evidence.items()
             if parent_process_id in known and process_id not in known
         )
         if not children:
@@ -341,8 +349,11 @@ def _discover_linux_process_tree_ids(root_process_id: int) -> tuple[int, ...]:
     return tuple(discovered)
 
 
-def _sample_linux_process_set_rss_bytes(process_ids: tuple[int, ...]) -> int:
-    """Sample and sum one exact bounded Linux process set without silent overflow."""
+def _sample_linux_process_set_rss_bytes(
+    process_ids: tuple[int, ...],
+    process_evidence: dict[int, tuple[int, int | None]],
+) -> int:
+    """Sum positive sampled RSS for one exact bounded process set without overflow."""
 
     if not process_ids or len(process_ids) > MAX_BROWSER_PROCESS_TREE_SIZE:
         raise ValueError("invalid Linux process set size")
@@ -353,7 +364,11 @@ def _sample_linux_process_set_rss_bytes(process_ids: tuple[int, ...]) -> int:
     for process_id in process_ids:
         if isinstance(process_id, bool) or not isinstance(process_id, int) or process_id <= 0:
             raise ValueError("invalid Linux process identifier")
-        rss_bytes = _sample_linux_process_rss_bytes(process_id)
+        if process_id not in process_evidence:
+            raise ValueError("Linux process set was not present in the sampled evidence")
+        rss_bytes = process_evidence[process_id][1]
+        if isinstance(rss_bytes, bool) or not isinstance(rss_bytes, int) or rss_bytes <= 0:
+            raise ValueError("Linux process set contained unavailable sampled RSS")
         if rss_bytes > MAX_U64 - total_rss_bytes:
             raise OverflowError("Linux process-set RSS exceeds u64 byte range")
         total_rss_bytes += rss_bytes
@@ -772,10 +787,15 @@ def _run_agent_task_browser_pass(
         if text != AGENT_TASK_INPUT_VALUE:
             raise RuntimeError("Agent Task result did not match the synthetic typed value")
 
-        chromium_process_ids = _discover_linux_process_tree_ids(browser_process_id)
+        process_evidence = _snapshot_linux_process_evidence()
+        chromium_process_ids = _discover_linux_process_tree_ids(
+            browser_process_id,
+            process_evidence,
+        )
         browser_process_rss_bytes = _sample_linux_process_rss_bytes(browser_process_id)
         chromium_process_set_rss_bytes = _sample_linux_process_set_rss_bytes(
-            chromium_process_ids
+            chromium_process_ids,
+            process_evidence,
         )
         chromium_process_count = len(chromium_process_ids)
         task_duration_ms = round((time.monotonic() - started) * 1000, 3)
@@ -917,11 +937,12 @@ def main() -> int:
                         trial_number,
                     )
                 )
-            except (OSError, ValueError, RuntimeError, json.JSONDecodeError):
+            except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
                 trial_results.append(
                     {
                         "trial_number": trial_number,
                         "passed": False,
+                        "failure_type": type(exc).__name__,
                     }
                 )
 
@@ -959,11 +980,12 @@ def main() -> int:
                         trial_number,
                     )
                 )
-            except (OSError, ValueError, RuntimeError, json.JSONDecodeError):
+            except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
                 agent_task_trials.append(
                     {
                         "trial_number": trial_number,
                         "passed": False,
+                        "failure_type": type(exc).__name__,
                     }
                 )
 
