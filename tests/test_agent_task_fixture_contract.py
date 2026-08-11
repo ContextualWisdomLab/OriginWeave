@@ -10,6 +10,21 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "agent_task_basic" / "index.html"
 
 
+def _is_credential_input(attributes: dict[str, str | None]) -> bool:
+    """Return whether parsed input attributes describe a credential surface."""
+
+    input_type = (attributes.get("type") or "").strip().lower()
+    if input_type == "password":
+        return True
+
+    autocomplete = (attributes.get("autocomplete") or "").strip().lower()
+    autocomplete_tokens = autocomplete.split()
+    return any(
+        token == "one-time-code" or "password" in token
+        for token in autocomplete_tokens
+    )
+
+
 class _FixtureParser(HTMLParser):
     """Collect the small semantic surface required by the deterministic fixture."""
 
@@ -18,6 +33,7 @@ class _FixtureParser(HTMLParser):
         self.ids: set[str] = set()
         self.labels_for: set[str] = set()
         self.input_names: set[str] = set()
+        self.input_attributes: list[dict[str, str | None]] = []
         self.button_types: set[str] = set()
         self.hidden_injection_markers = 0
 
@@ -30,12 +46,15 @@ class _FixtureParser(HTMLParser):
             self.ids.add(element_id)
         if tag == "label" and attributes.get("for"):
             self.labels_for.add(attributes["for"])
-        if tag == "input" and attributes.get("name"):
-            self.input_names.add(attributes["name"])
+        if tag == "input":
+            self.input_attributes.append(attributes)
+            if attributes.get("name"):
+                self.input_names.add(attributes["name"])
         if tag == "button" and attributes.get("type"):
             self.button_types.add(attributes["type"])
         if (
             attributes.get("data-originweave-untrusted") == "prompt-injection"
+            and "hidden" in attributes
             and attributes.get("aria-hidden") == "true"
         ):
             self.hidden_injection_markers += 1
@@ -70,19 +89,48 @@ class AgentTaskFixtureContractTests(unittest.TestCase):
         self.assertIn("UNTRUSTED_PAGE_INSTRUCTION", self.html)
         self.assertIn("request new browser capabilities", self.html)
 
+    def test_hidden_injection_requires_the_actual_hidden_attribute(self) -> None:
+        """ARIA metadata alone must not satisfy the hidden-injection fixture contract."""
+
+        parser = _FixtureParser()
+        parser.feed(
+            "<p data-originweave-untrusted='prompt-injection' aria-hidden='true'>visible</p>"
+            "<p data-originweave-untrusted='prompt-injection' aria-hidden='true' hidden>hidden</p>"
+        )
+        self.assertEqual(parser.hidden_injection_markers, 1)
+
     def test_fixture_is_synthetic_and_has_no_credential_fields(self) -> None:
         """The controlled workflow must not require or imitate real secret collection."""
 
+        for attributes in self.parser.input_attributes:
+            with self.subTest(attributes=attributes):
+                self.assertFalse(_is_credential_input(attributes))
+
         lowered = self.html.lower()
-        for forbidden in (
-            'type="password"',
-            'autocomplete="current-password"',
-            'autocomplete="one-time-code"',
-            "api_key",
-            "secret_key",
-        ):
+        for forbidden in ("api_key", "secret_key"):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, lowered)
+
+    def test_credential_detection_is_quote_independent(self) -> None:
+        """Parsed credential semantics must reject single-quoted and tokenized forms."""
+
+        for html in (
+            "<input type='password'>",
+            "<input autocomplete='current-password'>",
+            "<input autocomplete='new-password'>",
+            "<input autocomplete='section-login username current-password'>",
+            "<input autocomplete='one-time-code'>",
+        ):
+            with self.subTest(html=html):
+                parser = _FixtureParser()
+                parser.feed(html)
+                self.assertEqual(len(parser.input_attributes), 1)
+                self.assertTrue(_is_credential_input(parser.input_attributes[0]))
+
+        parser = _FixtureParser()
+        parser.feed("<input type='text' autocomplete='username'>")
+        self.assertEqual(len(parser.input_attributes), 1)
+        self.assertFalse(_is_credential_input(parser.input_attributes[0]))
 
 
 if __name__ == "__main__":
