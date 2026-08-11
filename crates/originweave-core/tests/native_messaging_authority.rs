@@ -1,8 +1,10 @@
 #![allow(clippy::expect_used)]
 
 use originweave_core::{
-    ExtensionId, NativeMessagingAccessDecision, NativeMessagingAccessRequest,
-    NativeMessagingHostGrant, NativeMessagingHostName, evaluate_native_messaging_access,
+    BrowserSessionId, BrowsingContextId, ExtensionAccessDecision, ExtensionAccessRequest,
+    ExtensionAgentCapability, ExtensionId, NativeMessagingAccessDecision,
+    NativeMessagingAccessRequest, NativeMessagingHostGrant, NativeMessagingHostName,
+    evaluate_extension_access, evaluate_native_messaging_access,
 };
 
 fn extension_id(value: &str) -> ExtensionId {
@@ -11,6 +13,14 @@ fn extension_id(value: &str) -> ExtensionId {
 
 fn host_name(value: &str) -> NativeMessagingHostName {
     NativeMessagingHostName::parse(value).expect("valid native messaging host name")
+}
+
+fn session(value: u64) -> BrowserSessionId {
+    BrowserSessionId::new(value).expect("nonzero browser session")
+}
+
+fn context(value: u64) -> BrowsingContextId {
+    BrowsingContextId::new(value).expect("nonzero browsing context")
 }
 
 #[test]
@@ -71,11 +81,22 @@ fn native_messaging_requires_an_explicit_exact_extension_and_host_grant() {
 fn native_messaging_grant_does_not_mint_agent_capability() {
     let extension = extension_id("abcdefghijklmnopabcdefghijklmnop");
     let host = host_name("com.contextualwisdom.originweave");
-    let grant = NativeMessagingHostGrant::new(extension.clone(), host.clone());
-    let request = NativeMessagingAccessRequest::new(extension, host);
+    let native_grant = NativeMessagingHostGrant::new(extension.clone(), host.clone());
+    let native_request = NativeMessagingAccessRequest::new(extension.clone(), host);
 
     assert_eq!(
-        evaluate_native_messaging_access(&request, Some(&grant)),
+        evaluate_native_messaging_access(&native_request, Some(&native_grant)),
         NativeMessagingAccessDecision::Allow
+    );
+
+    let agent_request = ExtensionAccessRequest::new(
+        extension,
+        session(23),
+        context(29),
+        ExtensionAgentCapability::ProposeTypedAction,
+    );
+    assert_eq!(
+        evaluate_extension_access(&agent_request, None),
+        ExtensionAccessDecision::DenyMissingGrant
     );
 }
