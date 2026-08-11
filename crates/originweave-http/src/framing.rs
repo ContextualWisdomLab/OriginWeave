@@ -161,6 +161,25 @@ mod tests {
     }
 
     #[test]
+    fn no_content_semantics_do_not_apply_body_size_budget_to_content_length_metadata() {
+        for (method, status) in [
+            (HttpMethod::Head, 200),
+            (HttpMethod::Get, 304),
+        ] {
+            assert_eq!(
+                determine_body_framing(
+                    method,
+                    status,
+                    &fields(&[("content-length", b"1001")]),
+                    1_000,
+                )
+                .expect("no-content metadata must not consume the body budget"),
+                BodyFraming::NoContent
+            );
+        }
+    }
+
+    #[test]
     fn transfer_encoding_and_content_length_are_always_ambiguous() {
         assert!(matches!(
             determine_body_framing(
@@ -207,10 +226,6 @@ mod tests {
         for entries in [
             vec![("content-length", b"42".as_slice())],
             vec![("content-length", b"42, 42".as_slice())],
-            vec![
-                ("content-length", b"042".as_slice()),
-                ("content-length", b"42".as_slice()),
-            ],
         ] {
             assert_eq!(
                 determine_body_framing(HttpMethod::Get, 200, &fields(&entries), 100,)
@@ -218,6 +233,19 @@ mod tests {
                 BodyFraming::ContentLength(42)
             );
         }
+    }
+
+    #[test]
+    fn differently_serialized_content_lengths_are_conflicting() {
+        assert!(matches!(
+            determine_body_framing(
+                HttpMethod::Get,
+                200,
+                &fields(&[("content-length", b"042, 42")]),
+                100,
+            ),
+            Err(HttpError::ConflictingContentLength)
+        ));
     }
 
     #[test]
