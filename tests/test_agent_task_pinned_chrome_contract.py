@@ -87,7 +87,7 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
                 self.assertIn(expected, runner)
 
     def test_agent_task_records_bounded_chromium_process_tree_rss(self) -> None:
-        """The evidence runner must measure a bounded root-plus-descendant process set."""
+        """The evidence runner must measure one bounded sampled process-set snapshot."""
 
         namespace = runpy.run_path(str(RUNNER), run_name="agent_task_process_tree_contract")
         runner = RUNNER.read_text(encoding="utf-8")
@@ -95,19 +95,39 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
             "MAX_BROWSER_PROCESS_TREE_SIZE",
             "MAX_PROC_PROCESS_SCAN_SIZE",
             "_parse_linux_proc_status_process_identity",
-            "_snapshot_linux_process_parent_ids",
+            "_snapshot_linux_process_evidence",
             "_discover_linux_process_tree_ids",
             "_sample_linux_process_set_rss_bytes",
         ):
             with self.subTest(expected=expected):
                 self.assertIn(expected, namespace)
         self.assertNotIn("_parse_linux_children_process_ids", namespace)
+        self.assertNotIn("_snapshot_linux_process_parent_ids", namespace)
         for expected in (
             '"chromium_process_count"',
             '"chromium_process_set_rss_bytes"',
+            '"failure_type"',
         ):
             with self.subTest(expected=expected):
                 self.assertIn(expected, runner)
+
+    def test_process_tree_and_rss_use_one_sampled_process_snapshot(self) -> None:
+        """Descendant RSS must come from the same bounded status snapshot as lineage."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_process_snapshot")
+        discover = namespace["_discover_linux_process_tree_ids"]
+        sample = namespace["_sample_linux_process_set_rss_bytes"]
+        evidence = {
+            10: (1, 100),
+            20: (10, 200),
+            30: (20, 300),
+            40: (999, 400),
+        }
+        process_ids = discover(10, evidence)
+        self.assertEqual(process_ids, (10, 20, 30))
+        self.assertEqual(sample(process_ids, evidence), 600)
+        with self.assertRaises(ValueError):
+            sample((10, 50), evidence)
 
     def test_linux_rss_parser_is_strict_and_overflow_safe(self) -> None:
         """Runner-side RSS evidence must not accept ambiguous proc status input."""
@@ -128,7 +148,7 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
                     parser(malformed)
 
     def test_linux_status_identity_parser_is_strict_and_positive(self) -> None:
-        """Parent-map discovery must parse one unambiguous process identity per status."""
+        """Process snapshot discovery must parse one unambiguous identity per status."""
 
         namespace = runpy.run_path(str(RUNNER), run_name="agent_task_parent_map_contract")
         parser = namespace["_parse_linux_proc_status_process_identity"]
