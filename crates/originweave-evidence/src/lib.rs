@@ -9,6 +9,7 @@
 
 mod sensitive_access;
 mod sensitive_handle_lifecycle;
+mod sensitive_model_disclosure;
 
 pub use sensitive_access::{
     MAX_SENSITIVE_FIELD_COUNT, MAX_SENSITIVE_IDENTIFIER_BYTES, SensitiveAccessClass,
@@ -17,6 +18,9 @@ pub use sensitive_access::{
 };
 pub use sensitive_handle_lifecycle::{
     SensitiveHandleLifecycleEvidence, SensitiveHandleLifecycleEvidenceInput,
+};
+pub use sensitive_model_disclosure::{
+    SensitiveModelDisclosureEvidence, SensitiveModelDisclosureEvidenceInput,
 };
 
 use std::collections::BTreeMap;
