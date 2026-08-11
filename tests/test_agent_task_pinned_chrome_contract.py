@@ -46,6 +46,19 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
             with self.subTest(expected=expected):
                 self.assertIn(expected, runner)
 
+    def test_agent_task_submission_preserves_the_loaded_url(self) -> None:
+        """Submission must prove that the controlled action did not navigate away."""
+
+        runner = RUNNER.read_text(encoding="utf-8")
+        for expected in (
+            "initial_url",
+            "post_submit_url",
+            "url_unchanged",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, runner)
+        self.assertIn("Agent Task URL changed during submission", runner)
+
     def test_agent_task_fixture_runs_under_the_existing_pinned_chrome_job(self) -> None:
         """No floating browser or second workflow may be introduced for this slice."""
 
