@@ -22,8 +22,12 @@ fn origin() -> Origin {
 }
 
 fn provenance(result: VerificationResult) -> ProvenanceRecord {
+    provenance_at("https://app.example/receipt", result)
+}
+
+fn provenance_at(source_url: &str, result: VerificationResult) -> ProvenanceRecord {
     ProvenanceRecord::new(
-        "https://app.example/receipt",
+        source_url,
         "dom:#receipt-status",
         VALID_SOURCE_HASH,
         EvidenceSourceKind::DomTree,
@@ -114,6 +118,51 @@ fn post_condition_observation_cannot_predate_action_dispatch() {
         error.to_string(),
         "post-condition observation at 1999 ms predates action dispatch at 2000 ms"
     );
+}
+
+#[test]
+fn node_state_post_condition_provenance_must_match_the_action_target_origin() {
+    let error = VerifiedActionOutcomeEvidence::new(
+        ActionKind::Submit,
+        origin(),
+        intent(),
+        PostConditionKind::NodeStateChanged,
+        DISPATCHED_AT_MILLISECONDS,
+        OBSERVED_AT_MILLISECONDS,
+        provenance_at(
+            "https://attacker.example/receipt",
+            VerificationResult::Verified,
+        ),
+    )
+    .expect_err("a different origin cannot prove the target node changed");
+
+    assert_eq!(
+        error,
+        VerifiedActionOutcomeError::PostConditionOriginMismatch
+    );
+    assert_eq!(
+        error.to_string(),
+        "node-state post-condition provenance must match the governed action target origin"
+    );
+}
+
+#[test]
+fn node_state_origin_comparison_uses_canonical_origin_semantics() {
+    let evidence = VerifiedActionOutcomeEvidence::new(
+        ActionKind::Submit,
+        origin(),
+        intent(),
+        PostConditionKind::NodeStateChanged,
+        DISPATCHED_AT_MILLISECONDS,
+        OBSERVED_AT_MILLISECONDS,
+        provenance_at(
+            "https://APP.EXAMPLE:443/receipt",
+            VerificationResult::Verified,
+        ),
+    )
+    .expect("canonical equivalent source origin should be accepted");
+
+    assert_eq!(evidence.target_origin(), &origin());
 }
 
 #[test]
