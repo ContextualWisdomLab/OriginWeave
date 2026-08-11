@@ -182,6 +182,16 @@ mod tests {
                 .expect("no-content metadata must not consume the body budget"),
                 BodyFraming::NoContent
             );
+            assert_eq!(
+                determine_body_framing(
+                    method,
+                    status,
+                    &fields(&[("content-length", b"18446744073709551616")]),
+                    1_000,
+                )
+                .expect("valid no-content metadata may exceed platform integer range"),
+                BodyFraming::NoContent
+            );
         }
     }
 
