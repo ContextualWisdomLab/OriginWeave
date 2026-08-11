@@ -86,6 +86,26 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
             with self.subTest(expected=expected):
                 self.assertIn(expected, runner)
 
+    def test_agent_task_records_bounded_chromium_process_tree_rss(self) -> None:
+        """The evidence runner must measure a bounded root-plus-descendant process set."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_process_tree_contract")
+        runner = RUNNER.read_text(encoding="utf-8")
+        for expected in (
+            "MAX_BROWSER_PROCESS_TREE_SIZE",
+            "_parse_linux_children_process_ids",
+            "_discover_linux_process_tree_ids",
+            "_sample_linux_process_set_rss_bytes",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, namespace)
+        for expected in (
+            '"chromium_process_count"',
+            '"chromium_process_set_rss_bytes"',
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, runner)
+
     def test_linux_rss_parser_is_strict_and_overflow_safe(self) -> None:
         """Runner-side RSS evidence must not accept ambiguous proc status input."""
 
@@ -102,6 +122,26 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
         ):
             with self.subTest(malformed=malformed):
                 with self.assertRaises((ValueError, OverflowError)):
+                    parser(malformed)
+
+    def test_linux_children_parser_is_bounded_unique_and_positive(self) -> None:
+        """Process-tree discovery must reject ambiguous or unbounded kernel child lists."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_children_contract")
+        parser = namespace["_parse_linux_children_process_ids"]
+        limit = namespace["MAX_BROWSER_PROCESS_TREE_SIZE"]
+        self.assertEqual(parser(""), ())
+        self.assertEqual(parser("12 34\n"), (12, 34))
+        for malformed in (
+            "0\n",
+            "12 12\n",
+            "12 child\n",
+            "-1\n",
+            "12 34 trailing!\n",
+            " ".join(str(index) for index in range(1, limit + 2)),
+        ):
+            with self.subTest(malformed=malformed[:120]):
+                with self.assertRaises(ValueError):
                     parser(malformed)
 
     def test_agent_task_fixture_runs_under_the_existing_pinned_chrome_job(self) -> None:
