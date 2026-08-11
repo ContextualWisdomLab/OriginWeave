@@ -7,11 +7,7 @@ const OUTPUT_SCHEMA_ID: &str = "customer-summary.v1";
 const OUTPUT_RETENTION_POLICY_ID: &str = "task-local-retention";
 
 fn request(validation: ModelOutputValidation) -> ModelOutputRequest {
-    ModelOutputRequest::new(
-        OUTPUT_SCHEMA_ID,
-        OUTPUT_RETENTION_POLICY_ID,
-        validation,
-    )
+    ModelOutputRequest::new(OUTPUT_SCHEMA_ID, OUTPUT_RETENTION_POLICY_ID, validation)
 }
 
 fn scope() -> ModelOutputScope {
@@ -85,10 +81,7 @@ fn malformed_output_policy_identifiers_fail_closed_on_request_or_scope() {
     ];
     for malformed in malformed_scopes {
         assert_eq!(
-            evaluate_model_output(
-                &request(ModelOutputValidation::Validated),
-                &malformed,
-            ),
+            evaluate_model_output(&request(ModelOutputValidation::Validated), &malformed,),
             ModelOutputDecision::OutputPolicyMismatch
         );
     }
