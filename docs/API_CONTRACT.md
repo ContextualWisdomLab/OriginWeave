@@ -270,6 +270,10 @@ The response contains only access/evidence metadata and post-condition state.
 
 Where policy permits, a caller may request a derived safe representation rather than the original value. The derivation and retention policy are typed and versioned; no generic “unmask” method exists.
 
+### Selective model disclosure
+
+A full protected field is not eligible for model input merely because sensitive-data policy and a reviewed model route both authorize it. The trusted broker/orchestrator must first derive current necessity from executable alternatives. If an opaque handle, deterministic transform, local rule, structured tool, or approved derived value can satisfy the task, the policy boundary returns a typed lower-disclosure-path denial rather than full-field model authorization. A `no lower disclosure path` assertion is metadata, not self-authenticating proof: untrusted page/model content cannot mint it, and protected bytes remain resolved only inside the trusted value boundary after policy and lifecycle revalidation.
+
 ## 16. Extraction operations
 
 ### `browser.extract`
