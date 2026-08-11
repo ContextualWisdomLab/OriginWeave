@@ -6,6 +6,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Added
 
+- Session-bound managed extension admission for isolated Agent Task profiles: policy is tied to one exact OriginWeave `BrowserSessionId`, mismatched sessions fail closed before allow-list membership is considered, and the boundary remains distinct from Chromium profile attestation and Agent capability grants.
 - Time-bounded managed extension admission for isolated Agent Task profiles with an explicit half-open validity window and caller-supplied trusted evaluation time; invalid, not-yet-valid, and expired policy states fail closed before exact extension allow-list membership is considered.
 - Fail-closed managed extension admission for isolated Agent Task profiles: an empty policy admits no extension, only exact canonical `ExtensionId` allow-list membership is accepted, duplicate entries cannot widen authority, and successful profile admission remains separate from `ExtensionAgentGrant` capability.
 - Explicit reduced-assurance classification for attached human tabs when trusted adapter evidence says an existing extension can influence page state; the narrow rule does not detect extensions, prove extension absence, grant Agent authority, or turn an unclassified context into high-assurance evidence.
