@@ -1194,7 +1194,8 @@ pub enum ExtensionInfluenceEvidence {
     /// The trusted adapter established that an extension can influence page state.
     CanInfluencePageState,
     /// This bounded rule has no trusted evidence of extension influence.
-    NoExtensionInfluence,
+    /// Absence of known influence is not proof that extensions are absent or unable to interfere.
+    NoKnownExtensionInfluence,
 }
 
 /// A specific reason that one browser context has reduced assurance.
