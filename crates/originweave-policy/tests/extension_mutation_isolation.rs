@@ -1,5 +1,12 @@
 #![allow(clippy::expect_used)]
 
+//! Keep extension proposal-grant evaluation separate from ordinary action policy.
+//!
+//! OriginWeave does not yet implement an adapter that converts an extension proposal into an
+//! [`ActionRequest`]. These regressions therefore prove two independent fail-closed boundaries:
+//! the exact extension/session/context grant permits only `ProposeTypedAction`, while an ordinary
+//! user-sourced action request remains subject to the core policy decision shown in each test.
+
 use std::collections::BTreeSet;
 
 use originweave_core::{
@@ -43,7 +50,7 @@ fn action_proposal_grant() -> ExtensionAgentGrant {
     )
 }
 
-fn assert_extension_can_propose(grant: &ExtensionAgentGrant) {
+fn assert_proposal_grant_is_independently_allowed(grant: &ExtensionAgentGrant) {
     let request = ExtensionAccessRequest::new(
         extension_id(),
         browser_session(),
@@ -57,9 +64,9 @@ fn assert_extension_can_propose(grant: &ExtensionAgentGrant) {
 }
 
 #[test]
-fn explicit_extension_grant_cannot_authorize_cross_origin_mutation() {
+fn extension_proposal_grant_is_independent_of_cross_origin_mutation_policy() {
     let grant = action_proposal_grant();
-    assert_extension_can_propose(&grant);
+    assert_proposal_grant_is_independently_allowed(&grant);
 
     let source = origin("https://source.example");
     let target = origin("https://target.example");
@@ -88,9 +95,9 @@ fn explicit_extension_grant_cannot_authorize_cross_origin_mutation() {
 }
 
 #[test]
-fn explicit_extension_grant_cannot_supply_missing_write_origin_authority() {
+fn extension_proposal_grant_is_independent_of_write_origin_policy() {
     let grant = action_proposal_grant();
-    assert_extension_can_propose(&grant);
+    assert_proposal_grant_is_independently_allowed(&grant);
 
     let site = origin("https://app.example");
     let context = PolicyContext::new(
@@ -118,9 +125,9 @@ fn explicit_extension_grant_cannot_supply_missing_write_origin_authority() {
 }
 
 #[test]
-fn explicit_extension_grant_cannot_turn_crawler_mode_into_mutation_authority() {
+fn extension_proposal_grant_is_independent_of_crawler_mutation_policy() {
     let grant = action_proposal_grant();
-    assert_extension_can_propose(&grant);
+    assert_proposal_grant_is_independently_allowed(&grant);
 
     let site = origin("https://public.example");
     let context = PolicyContext::new(
@@ -148,9 +155,9 @@ fn explicit_extension_grant_cannot_turn_crawler_mode_into_mutation_authority() {
 }
 
 #[test]
-fn explicit_extension_grant_cannot_pair_agent_task_with_public_crawl_purpose() {
+fn extension_proposal_grant_is_independent_of_mode_purpose_policy() {
     let grant = action_proposal_grant();
-    assert_extension_can_propose(&grant);
+    assert_proposal_grant_is_independently_allowed(&grant);
 
     let site = origin("https://public.example");
     let context = PolicyContext::new(
@@ -178,9 +185,9 @@ fn explicit_extension_grant_cannot_pair_agent_task_with_public_crawl_purpose() {
 }
 
 #[test]
-fn explicit_extension_grant_cannot_bypass_disallowed_robots_policy() {
+fn extension_proposal_grant_is_independent_of_disallowed_robots_policy() {
     let grant = action_proposal_grant();
-    assert_extension_can_propose(&grant);
+    assert_proposal_grant_is_independently_allowed(&grant);
 
     let site = origin("https://public.example");
     let context = PolicyContext::new(
@@ -208,9 +215,9 @@ fn explicit_extension_grant_cannot_bypass_disallowed_robots_policy() {
 }
 
 #[test]
-fn explicit_extension_grant_cannot_bypass_unknown_robots_policy() {
+fn extension_proposal_grant_is_independent_of_unknown_robots_policy() {
     let grant = action_proposal_grant();
-    assert_extension_can_propose(&grant);
+    assert_proposal_grant_is_independently_allowed(&grant);
 
     let site = origin("https://public.example");
     let context = PolicyContext::new(
@@ -238,9 +245,9 @@ fn explicit_extension_grant_cannot_bypass_unknown_robots_policy() {
 }
 
 #[test]
-fn explicit_extension_grant_cannot_bypass_missing_robots_policy() {
+fn extension_proposal_grant_is_independent_of_missing_robots_policy() {
     let grant = action_proposal_grant();
-    assert_extension_can_propose(&grant);
+    assert_proposal_grant_is_independently_allowed(&grant);
 
     let site = origin("https://public.example");
     let context = PolicyContext::new(
@@ -268,9 +275,9 @@ fn explicit_extension_grant_cannot_bypass_missing_robots_policy() {
 }
 
 #[test]
-fn explicit_extension_grant_cannot_delegate_forbidden_r5_action() {
+fn extension_proposal_grant_is_independent_of_non_delegable_r5_policy() {
     let grant = action_proposal_grant();
-    assert_extension_can_propose(&grant);
+    assert_proposal_grant_is_independently_allowed(&grant);
 
     let site = origin("https://consent.example");
     let context = PolicyContext::new(
@@ -298,9 +305,9 @@ fn explicit_extension_grant_cannot_delegate_forbidden_r5_action() {
 }
 
 #[test]
-fn explicit_extension_grant_cannot_turn_human_mode_into_agent_control() {
+fn extension_proposal_grant_is_independent_of_human_mode_policy() {
     let grant = action_proposal_grant();
-    assert_extension_can_propose(&grant);
+    assert_proposal_grant_is_independently_allowed(&grant);
 
     let site = origin("https://human.example");
     let context = PolicyContext::new(
