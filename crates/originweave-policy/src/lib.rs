@@ -21,8 +21,9 @@ pub use model_output::{
     evaluate_model_output,
 };
 pub use model_route::{
-    ModelInvocationDecision, ModelInvocationRequest, ModelInvocationScope, ModelRouteDecision,
-    ModelRouteRequest, ModelRouteScope, evaluate_model_invocation, evaluate_model_route,
+    ModelDisclosureDecision, ModelInvocationDecision, ModelInvocationRequest, ModelInvocationScope,
+    ModelRouteDecision, ModelRouteRequest, ModelRouteScope, evaluate_full_field_model_disclosure,
+    evaluate_model_invocation, evaluate_model_route,
 };
 pub use sensitive_data::{
     DataClassification, DisclosureDecision, DisclosureScope, HandleRevocationReason,
