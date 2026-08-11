@@ -1,4 +1,4 @@
-//! Exact provider/model/region/retention route admission for sensitive-data workflows.
+//! Exact provider/model/region/retention/training route admission for sensitive-data workflows.
 //!
 //! This module evaluates route metadata only. An [`ModelRouteDecision::Authorized`] result does
 //! not authorize disclosure of a protected value, authenticate a provider, prove the provider's
@@ -20,11 +20,11 @@ pub enum ModelRouteDecision {
     Authorized,
     /// The sensitive-data authority is malformed or does not match the route scope.
     AuthorityMismatch,
-    /// Provider, model, region, or retention-policy route metadata is malformed or does not match.
+    /// Provider, model, region, retention, or training route metadata is malformed or mismatched.
     RouteMismatch,
 }
 
-/// One proposed provider/model/region/retention route for an already classified sensitive field.
+/// One proposed model route for an already classified sensitive field.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModelRouteRequest {
     authority: SensitiveDataAuthority,
@@ -32,6 +32,7 @@ pub struct ModelRouteRequest {
     model_id: String,
     region_id: String,
     retention_policy_id: String,
+    training_policy_id: String,
 }
 
 impl ModelRouteRequest {
@@ -43,6 +44,7 @@ impl ModelRouteRequest {
         model_id: &str,
         region_id: &str,
         retention_policy_id: &str,
+        training_policy_id: &str,
     ) -> Self {
         Self {
             authority,
@@ -50,6 +52,7 @@ impl ModelRouteRequest {
             model_id: model_id.to_owned(),
             region_id: region_id.to_owned(),
             retention_policy_id: retention_policy_id.to_owned(),
+            training_policy_id: training_policy_id.to_owned(),
         }
     }
 
@@ -58,6 +61,7 @@ impl ModelRouteRequest {
             && route_identifier_is_valid(&self.model_id)
             && route_identifier_is_valid(&self.region_id)
             && route_identifier_is_valid(&self.retention_policy_id)
+            && route_identifier_is_valid(&self.training_policy_id)
     }
 }
 
@@ -69,6 +73,7 @@ pub struct ModelRouteScope {
     model_id: String,
     region_id: String,
     retention_policy_id: String,
+    training_policy_id: String,
 }
 
 impl ModelRouteScope {
@@ -83,6 +88,7 @@ impl ModelRouteScope {
         model_id: &str,
         region_id: &str,
         retention_policy_id: &str,
+        training_policy_id: &str,
     ) -> Self {
         Self {
             authority,
@@ -90,6 +96,7 @@ impl ModelRouteScope {
             model_id: model_id.to_owned(),
             region_id: region_id.to_owned(),
             retention_policy_id: retention_policy_id.to_owned(),
+            training_policy_id: training_policy_id.to_owned(),
         }
     }
 
@@ -98,6 +105,7 @@ impl ModelRouteScope {
             && route_identifier_is_valid(&self.model_id)
             && route_identifier_is_valid(&self.region_id)
             && route_identifier_is_valid(&self.retention_policy_id)
+            && route_identifier_is_valid(&self.training_policy_id)
     }
 }
 
@@ -114,9 +122,11 @@ fn route_identifier_is_valid(identifier: &str) -> bool {
 ///
 /// The existing sensitive-data disclosure comparator is reused only to validate that request and
 /// scope carry the same complete [`SensitiveDataAuthority`]. Route admission then independently
-/// requires valid, exact provider, model, region, and retention-policy identifiers. All route
-/// identifiers use bounded 1–128 byte ASCII policy tokens containing alphanumeric characters plus
-/// `.`, `_`, `:`, and `-`.
+/// requires valid, exact provider, model, region, retention-policy, and training-policy
+/// identifiers. Keeping retention and training authority distinct prevents a permitted data
+/// lifetime from silently granting provider training rights, or vice versa. All route identifiers
+/// use bounded 1–128 byte ASCII policy tokens containing alphanumeric characters plus `.`, `_`,
+/// `:`, and `-`.
 #[must_use]
 pub fn evaluate_model_route(
     request: &ModelRouteRequest,
@@ -139,6 +149,7 @@ pub fn evaluate_model_route(
         || request.model_id != scope.model_id
         || request.region_id != scope.region_id
         || request.retention_policy_id != scope.retention_policy_id
+        || request.training_policy_id != scope.training_policy_id
     {
         ModelRouteDecision::RouteMismatch
     } else {
