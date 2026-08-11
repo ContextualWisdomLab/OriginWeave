@@ -129,6 +129,18 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             sample((10, 50), evidence)
 
+    def test_process_set_tolerates_descendant_without_resident_rss(self) -> None:
+        """A sampled child with no resident RSS must not invalidate the whole tree."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_zero_rss_contract")
+        sample = namespace["_sample_linux_process_set_rss_bytes"]
+        evidence = {
+            10: (1, 100),
+            20: (10, None),
+            30: (20, 300),
+        }
+        self.assertEqual(sample((10, 20, 30), evidence), 400)
+
     def test_linux_rss_parser_is_strict_and_overflow_safe(self) -> None:
         """Runner-side RSS evidence must not accept ambiguous proc status input."""
 
