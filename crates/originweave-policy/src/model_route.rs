@@ -124,7 +124,10 @@ pub fn evaluate_model_route(
 ) -> ModelRouteDecision {
     let authority_decision = evaluate_disclosure(
         &SensitiveDataRequest::new(request.authority.clone()),
-        &DisclosureScope::new(scope.authority.clone(), DisclosureDecision::OpaqueHandleOnly),
+        &DisclosureScope::new(
+            scope.authority.clone(),
+            DisclosureDecision::OpaqueHandleOnly,
+        ),
     );
     if authority_decision == DisclosureDecision::DenyAccess {
         return ModelRouteDecision::AuthorityMismatch;
