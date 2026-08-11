@@ -62,6 +62,11 @@ fn malformed_output_policy_identifiers_fail_closed_on_request_or_scope() {
             ModelOutputValidation::Validated,
         ),
         ModelOutputRequest::new(
+            "---",
+            OUTPUT_RETENTION_POLICY_ID,
+            ModelOutputValidation::Validated,
+        ),
+        ModelOutputRequest::new(
             OUTPUT_SCHEMA_ID,
             "retention/policy",
             ModelOutputValidation::Validated,
