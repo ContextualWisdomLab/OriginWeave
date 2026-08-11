@@ -45,11 +45,15 @@ On this exact head, CI run `31441848670`, Security Scan run `31441848649`, SAST 
 
 ### PR #65 — controlled hostile local workflow fixture
 
-**Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR` only after its fail-first contract is satisfied; current state is **PARTIAL / RED-IN-PROGRESS**.
+**Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
 
-Test-only head `d2580305f05aba93d10b5342ec1886d601c6752e` is based directly on the protected-main baseline and requires a checked-in `tests/fixtures/agent_task_basic/index.html` that does not yet exist. The contract intentionally requires a labelled semantic field, submit control, deterministic `idle` → `submitted` observable state change, one explicitly hidden/untrusted prompt-injection marker, and no password/OTP/API-key/secret collection surface.
+Test-only head `d2580305f05aba93d10b5342ec1886d601c6752e` was based directly on the protected-main baseline and intentionally required a checked-in `tests/fixtures/agent_task_basic/index.html` before that fixture existed. CI run `31445088008`, Rust contracts job `93637443229`, checked out that exact head and failed with three `FileNotFoundError` results for the missing fixture, establishing the intended fail-first boundary.
 
-The missing fixture is deliberate fail-first evidence, not a shipped compatibility claim. The lane remains Draft until the exact RED is observed, the smallest controlled fixture is added, and exact-head verification succeeds.
+Exact head `0888fe3a6ef6da547a37fd075733cc73dc52b2ab` adds the smallest controlled fixture satisfying the contract: a labelled semantic field, submit control, deterministic `idle` → `submitted` observable state change carrying only synthetic text, one explicitly hidden/untrusted prompt-injection marker, and no password/OTP/API-key/secret collection surface.
+
+On that unchanged exact head, CI run `31445201739` succeeds; Rust contracts job `93637824750` passes repository contracts, formatting, locked workspace check, full tests, strict Clippy and rustdoc; Production coverage job `93637824824` passes exact owned production function/line/region/branch enforcement; Security Scan run `31445201774`, SAST Semgrep run `31445201669` and CodeRabbit exact-head status succeed. GitHub reports the PR mergeable and Ready for review with no formal reviews or inline review threads currently returned.
+
+This remains controlled test infrastructure rather than browser-execution evidence. The fixture itself does not establish WebDriver BiDi/CDP transport, Chromium semantic extraction, policy dispatch, native input, post-condition provenance, profile teardown or process attribution.
 
 ## 4. Non-transitive success semantics
 
@@ -73,9 +77,10 @@ Unverified -/> successful action completion
 Rejected -/> successful action completion
 caller-supplied timestamp ordering -/> proof of trusted clock provenance
 VerifiedActionOutcomeEvidence type existence -/> proof of real Chromium execution
+controlled fixture success -/> proof of real Chromium execution
 ```
 
-PR #64 now rejects a caller-supplied observation timestamp that predates caller-supplied dispatch time, but the type cannot independently prove the clock source, that a real browser actually dispatched the action, that the supplied provenance belongs to the claimed browser target/node, or that the observed state was caused by that action. Those claims remain the responsibility of the real adapter/runtime composition under issue #28.
+PR #64 now rejects a caller-supplied observation timestamp that predates caller-supplied dispatch time, but the type cannot independently prove the clock source, that a real browser actually dispatched the action, that the supplied provenance belongs to the claimed browser target/node, or that the observed state was caused by that action. PR #65 supplies deterministic hostile input and a post-condition target but no browser execution. Those claims remain the responsibility of the real adapter/runtime composition under issue #28.
 
 ## 5. Active prerequisite graph for issue #28
 
@@ -88,7 +93,7 @@ The first real Chromium vertical slice remains distributed across bounded active
 - PR #49 — ephemeral compatibility-profile lifecycle regression stacked on #43;
 - PR #51 — bounded browser-task telemetry plus one explicitly supplied Linux PID `VmRSS` sampler; Chromium process discovery/process-set attribution remains outside that slice;
 - PR #64 — verified and caller-timestamp-ordered post-condition action-outcome evidence; and
-- PR #65 — controlled hostile local Agent Task workflow fixture currently in fail-first Draft state.
+- PR #65 — controlled hostile local Agent Task workflow fixture, gate-clean and Ready for review.
 
 These active PRs are non-shipped evidence. They do not themselves compose WebDriver BiDi/CDP transport, trusted Chromium process attribution, policy-authorized real input dispatch, causal post-condition observation, or deterministic end-to-end teardown/recovery into one protected-main runtime.
 
