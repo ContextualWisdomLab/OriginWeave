@@ -63,30 +63,34 @@ fn forced_context_close_is_recorded_without_inventing_external_effect() {
 }
 
 #[test]
-fn recovery_is_incomplete_until_context_resources_and_evidence_are_all_closed() {
-    let context_open = BrowserTaskInterruptionEvidence::new(
-        BrowserTaskInterruptionKind::RendererCrash,
-        ExternalEffectDisposition::InterruptedBeforeExternalEffect,
-        false,
-        true,
-        true,
-    );
-    let resources_live = BrowserTaskInterruptionEvidence::new(
-        BrowserTaskInterruptionKind::RendererCrash,
-        ExternalEffectDisposition::InterruptedBeforeExternalEffect,
-        true,
-        false,
-        true,
-    );
-    let evidence_open = BrowserTaskInterruptionEvidence::new(
-        BrowserTaskInterruptionKind::RendererCrash,
-        ExternalEffectDisposition::InterruptedBeforeExternalEffect,
-        true,
-        true,
-        false,
-    );
-
-    assert!(!context_open.recovery_complete());
-    assert!(!resources_live.recovery_complete());
-    assert!(!evidence_open.recovery_complete());
+fn incomplete_cleanup_requires_quarantine_even_before_an_external_effect() {
+    for evidence in [
+        BrowserTaskInterruptionEvidence::new(
+            BrowserTaskInterruptionKind::RendererCrash,
+            ExternalEffectDisposition::InterruptedBeforeExternalEffect,
+            false,
+            true,
+            true,
+        ),
+        BrowserTaskInterruptionEvidence::new(
+            BrowserTaskInterruptionKind::RendererCrash,
+            ExternalEffectDisposition::InterruptedBeforeExternalEffect,
+            true,
+            false,
+            true,
+        ),
+        BrowserTaskInterruptionEvidence::new(
+            BrowserTaskInterruptionKind::RendererCrash,
+            ExternalEffectDisposition::InterruptedBeforeExternalEffect,
+            true,
+            true,
+            false,
+        ),
+    ] {
+        assert!(!evidence.recovery_complete());
+        assert_eq!(
+            evidence.retry_disposition(),
+            RetryDisposition::QuarantineRequired
+        );
+    }
 }
