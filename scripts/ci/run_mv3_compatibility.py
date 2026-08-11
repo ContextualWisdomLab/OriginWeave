@@ -510,6 +510,15 @@ def _run_agent_task_browser_pass(
             _webdriver_path(session_id, "/url"),
             {"url": fixture_url},
         )
+        initial_url = _json_request(
+            driver_port,
+            "GET",
+            _webdriver_path(session_id, "/url"),
+        ).get("value")
+        if initial_url != fixture_url:
+            raise RuntimeError(
+                f"Agent Task initial URL mismatch: expected {fixture_url!r}, got {initial_url!r}"
+            )
         input_element = _find_element(driver_port, session_id, "#task-text")
         _json_request(
             driver_port,
@@ -534,6 +543,14 @@ def _run_agent_task_browser_pass(
             _element_command_path(session_id, submit_element, "/click"),
             {},
         )
+        post_submit_url = _json_request(
+            driver_port,
+            "GET",
+            _webdriver_path(session_id, "/url"),
+        ).get("value")
+        url_unchanged = post_submit_url == initial_url
+        if not url_unchanged:
+            raise RuntimeError("Agent Task URL changed during submission")
         result_element = _find_element(driver_port, session_id, "#task-result")
         state = _json_request(
             driver_port,
@@ -553,6 +570,7 @@ def _run_agent_task_browser_pass(
             "browser_version": browser_version,
             "post_condition": True,
             "input_echo_verified": True,
+            "url_unchanged": url_unchanged,
             "extensions_disabled": True,
             "duration_ms": round((time.monotonic() - started) * 1000),
         }
@@ -603,6 +621,7 @@ def _run_agent_task_trial(
         "browser_version": result["browser_version"],
         "post_condition": result["post_condition"],
         "input_echo_verified": result["input_echo_verified"],
+        "url_unchanged": result["url_unchanged"],
         "extensions_disabled": result["extensions_disabled"],
         "profile_cleaned": profile_cleaned,
         "duration_ms": round((time.monotonic() - trial_started) * 1000),
@@ -726,6 +745,7 @@ def main() -> int:
         agent_task_surfaces_complete = all(
             trial.get("post_condition") is True
             and trial.get("input_echo_verified") is True
+            and trial.get("url_unchanged") is True
             and trial.get("extensions_disabled") is True
             and trial.get("profile_cleaned") is True
             for trial in agent_task_trials
