@@ -18,13 +18,15 @@ pub use sensitive_data::{
 use std::collections::BTreeSet;
 
 use originweave_core::{
-    ActionRequest, ApprovalEvidence, ApprovalScope, Capability, ExecutionPurpose, ExtensionId,
-    InstructionSource, PolicyContext, RiskClass, RobotsDecision, SecretDelivery, SessionMode,
+    ActionRequest, ApprovalEvidence, ApprovalScope, BrowserSessionId, Capability, ExecutionPurpose,
+    ExtensionId, InstructionSource, PolicyContext, RiskClass, RobotsDecision, SecretDelivery,
+    SessionMode,
 };
 
 /// Exact extension identities that may be present in one managed Agent Task profile.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AgentTaskExtensionPolicy {
+    browser_session: BrowserSessionId,
     managed_extensions: BTreeSet<ExtensionId>,
     valid_from: u64,
     valid_until: u64,
@@ -33,19 +35,28 @@ pub struct AgentTaskExtensionPolicy {
 impl AgentTaskExtensionPolicy {
     /// Build one fail-closed Agent Task extension admission policy.
     ///
-    /// Duplicate identifiers collapse to one exact managed identity. An empty
-    /// iterator therefore represents the default policy that admits no extension.
-    /// `valid_from` is inclusive and `valid_until` is exclusive. Both values are
-    /// opaque timestamps in the same caller-defined trusted time domain that will
-    /// be supplied to [`evaluate_agent_task_extension`]. This constructor does not
-    /// authenticate policy provenance or attest a clock; an invalid or empty
-    /// validity window is retained so evaluation can fail closed deterministically.
+    /// `browser_session` binds this policy to one OriginWeave browser-session
+    /// authority. It does not prove which Chromium profile is attached to that
+    /// session or authenticate enterprise-policy provenance. Duplicate identifiers
+    /// collapse to one exact managed identity. An empty iterator therefore
+    /// represents the default policy that admits no extension. `valid_from` is
+    /// inclusive and `valid_until` is exclusive. Both values are opaque timestamps
+    /// in the same caller-defined trusted time domain supplied to
+    /// [`evaluate_agent_task_extension`]. This constructor does not authenticate
+    /// policy provenance or attest a clock; an invalid or empty validity window is
+    /// retained so evaluation can fail closed deterministically.
     #[must_use]
-    pub fn new<I>(managed_extensions: I, valid_from: u64, valid_until: u64) -> Self
+    pub fn new<I>(
+        browser_session: BrowserSessionId,
+        managed_extensions: I,
+        valid_from: u64,
+        valid_until: u64,
+    ) -> Self
     where
         I: IntoIterator<Item = ExtensionId>,
     {
         Self {
+            browser_session,
             managed_extensions: managed_extensions.into_iter().collect(),
             valid_from,
             valid_until,
@@ -66,21 +77,27 @@ pub enum AgentTaskExtensionDecision {
     DenyPolicyNotYetValid,
     /// The trusted evaluation time is at or beyond the policy expiry boundary.
     DenyPolicyExpired,
+    /// The current OriginWeave browser session differs from the policy-bound session.
+    DenySessionMismatch,
 }
 
 /// Evaluate extension admission without minting OriginWeave Agent capability.
 ///
 /// This pure boundary answers only whether the exact canonical extension may be
-/// present in the caller's managed Agent Task profile at `trusted_time`.
+/// present in the policy-bound Agent Task session at `trusted_time`.
 /// `trusted_time`, [`AgentTaskExtensionPolicy::new`] `valid_from`, and `valid_until`
 /// must use the same caller-attested time domain; this function does not read or
 /// attest a clock. The validity window is half-open: `valid_from <= trusted_time <
-/// valid_until`. Chromium permissions, installation state, native messaging, and
+/// valid_until`. The current session is checked before allow-list membership so a
+/// policy cannot be replayed across OriginWeave browser sessions or used there as
+/// an extension-membership oracle. This does not attest Chromium profile identity.
+/// Chromium permissions, installation state, native messaging, and
 /// [`originweave_core::ExtensionAgentGrant`] remain separate authorities.
 #[must_use]
 pub fn evaluate_agent_task_extension(
     extension_id: &ExtensionId,
     policy: &AgentTaskExtensionPolicy,
+    current_session: BrowserSessionId,
     trusted_time: u64,
 ) -> AgentTaskExtensionDecision {
     if policy.valid_from >= policy.valid_until {
@@ -91,6 +108,9 @@ pub fn evaluate_agent_task_extension(
     }
     if trusted_time >= policy.valid_until {
         return AgentTaskExtensionDecision::DenyPolicyExpired;
+    }
+    if policy.browser_session != current_session {
+        return AgentTaskExtensionDecision::DenySessionMismatch;
     }
     if policy.managed_extensions.contains(extension_id) {
         AgentTaskExtensionDecision::AllowManagedExtension
