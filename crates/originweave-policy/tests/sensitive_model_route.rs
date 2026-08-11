@@ -3,9 +3,9 @@
 //! Fail-closed policy contracts for model-route admission of sensitive data.
 //!
 //! Route admission is intentionally separate from disclosure authority: authorizing a
-//! provider/model/region/retention/training tuple must never imply that raw protected values may
-//! be disclosed. A later broker/orchestrator must independently authorize the value form and
-//! derive the actual route identity from trusted runtime configuration.
+//! provider/model/region/retention/training/subprocessor-policy tuple must never imply that raw
+//! protected values may be disclosed. A later broker/orchestrator must independently authorize
+//! the value form and derive the actual route identity from trusted runtime configuration.
 
 use originweave_core::Origin;
 use originweave_policy::{
@@ -32,6 +32,7 @@ fn scope() -> ModelRouteScope {
         "kr-central",
         "ephemeral-retention",
         "no-training",
+        "subprocessors-reviewed-v1",
     )
 }
 
@@ -43,6 +44,7 @@ fn request() -> ModelRouteRequest {
         "kr-central",
         "ephemeral-retention",
         "no-training",
+        "subprocessors-reviewed-v1",
     )
 }
 
@@ -63,6 +65,7 @@ fn sensitive_authority_mismatch_is_distinct_from_route_mismatch() {
         "kr-central",
         "ephemeral-retention",
         "no-training",
+        "subprocessors-reviewed-v1",
     );
 
     assert_eq!(
@@ -81,6 +84,7 @@ fn every_model_route_dimension_is_exact_and_non_transferable() {
             "kr-central",
             "ephemeral-retention",
             "no-training",
+            "subprocessors-reviewed-v1",
         ),
         ModelRouteRequest::new(
             authority("https://model-gateway.example"),
@@ -89,6 +93,7 @@ fn every_model_route_dimension_is_exact_and_non_transferable() {
             "kr-central",
             "ephemeral-retention",
             "no-training",
+            "subprocessors-reviewed-v1",
         ),
         ModelRouteRequest::new(
             authority("https://model-gateway.example"),
@@ -97,6 +102,7 @@ fn every_model_route_dimension_is_exact_and_non_transferable() {
             "us-east",
             "ephemeral-retention",
             "no-training",
+            "subprocessors-reviewed-v1",
         ),
         ModelRouteRequest::new(
             authority("https://model-gateway.example"),
@@ -105,6 +111,7 @@ fn every_model_route_dimension_is_exact_and_non_transferable() {
             "kr-central",
             "provider-default-retention",
             "no-training",
+            "subprocessors-reviewed-v1",
         ),
         ModelRouteRequest::new(
             authority("https://model-gateway.example"),
@@ -113,6 +120,16 @@ fn every_model_route_dimension_is_exact_and_non_transferable() {
             "kr-central",
             "ephemeral-retention",
             "training-allowed",
+            "subprocessors-reviewed-v1",
+        ),
+        ModelRouteRequest::new(
+            authority("https://model-gateway.example"),
+            "provider-private",
+            "model-reviewed-v1",
+            "kr-central",
+            "ephemeral-retention",
+            "no-training",
+            "subprocessors-other-v2",
         ),
     ];
 
@@ -137,6 +154,7 @@ fn malformed_request_route_identifiers_fail_closed() {
                 "kr-central",
                 "ephemeral-retention",
                 "no-training",
+                "subprocessors-reviewed-v1",
             ),
             ModelRouteRequest::new(
                 authority("https://model-gateway.example"),
@@ -145,6 +163,7 @@ fn malformed_request_route_identifiers_fail_closed() {
                 "kr-central",
                 "ephemeral-retention",
                 "no-training",
+                "subprocessors-reviewed-v1",
             ),
             ModelRouteRequest::new(
                 authority("https://model-gateway.example"),
@@ -153,6 +172,7 @@ fn malformed_request_route_identifiers_fail_closed() {
                 malformed,
                 "ephemeral-retention",
                 "no-training",
+                "subprocessors-reviewed-v1",
             ),
             ModelRouteRequest::new(
                 authority("https://model-gateway.example"),
@@ -161,6 +181,7 @@ fn malformed_request_route_identifiers_fail_closed() {
                 "kr-central",
                 malformed,
                 "no-training",
+                "subprocessors-reviewed-v1",
             ),
             ModelRouteRequest::new(
                 authority("https://model-gateway.example"),
@@ -168,6 +189,16 @@ fn malformed_request_route_identifiers_fail_closed() {
                 "model-reviewed-v1",
                 "kr-central",
                 "ephemeral-retention",
+                malformed,
+                "subprocessors-reviewed-v1",
+            ),
+            ModelRouteRequest::new(
+                authority("https://model-gateway.example"),
+                "provider-private",
+                "model-reviewed-v1",
+                "kr-central",
+                "ephemeral-retention",
+                "no-training",
                 malformed,
             ),
         ];
@@ -190,6 +221,7 @@ fn malformed_scope_route_identifiers_fail_closed_against_a_valid_request() {
             "kr-central",
             "ephemeral-retention",
             "no-training",
+            "subprocessors-reviewed-v1",
         ),
         ModelRouteScope::new(
             authority("https://model-gateway.example"),
@@ -198,6 +230,7 @@ fn malformed_scope_route_identifiers_fail_closed_against_a_valid_request() {
             "kr-central",
             "ephemeral-retention",
             "no-training",
+            "subprocessors-reviewed-v1",
         ),
         ModelRouteScope::new(
             authority("https://model-gateway.example"),
@@ -206,6 +239,7 @@ fn malformed_scope_route_identifiers_fail_closed_against_a_valid_request() {
             "invalid region",
             "ephemeral-retention",
             "no-training",
+            "subprocessors-reviewed-v1",
         ),
         ModelRouteScope::new(
             authority("https://model-gateway.example"),
@@ -214,6 +248,7 @@ fn malformed_scope_route_identifiers_fail_closed_against_a_valid_request() {
             "kr-central",
             "invalid retention",
             "no-training",
+            "subprocessors-reviewed-v1",
         ),
         ModelRouteScope::new(
             authority("https://model-gateway.example"),
@@ -222,6 +257,16 @@ fn malformed_scope_route_identifiers_fail_closed_against_a_valid_request() {
             "kr-central",
             "ephemeral-retention",
             "invalid training",
+            "subprocessors-reviewed-v1",
+        ),
+        ModelRouteScope::new(
+            authority("https://model-gateway.example"),
+            "provider-private",
+            "model-reviewed-v1",
+            "kr-central",
+            "ephemeral-retention",
+            "no-training",
+            "invalid subprocessors",
         ),
     ];
 
@@ -250,6 +295,7 @@ fn malformed_sensitive_authority_fails_closed_even_when_both_sides_match() {
         "kr-central",
         "ephemeral-retention",
         "no-training",
+        "subprocessors-reviewed-v1",
     );
     let invalid_scope = ModelRouteScope::new(
         invalid_authority,
@@ -258,6 +304,7 @@ fn malformed_sensitive_authority_fails_closed_even_when_both_sides_match() {
         "kr-central",
         "ephemeral-retention",
         "no-training",
+        "subprocessors-reviewed-v1",
     );
 
     assert_eq!(
