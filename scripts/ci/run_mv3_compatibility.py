@@ -7,9 +7,10 @@ can load the controlled MV3 fixture and repeatedly exercise service-worker,
 content-script, storage, declarative-net-request, tabs, windows, scripting,
 commands, side-panel, bookmarks, history, real browser-click, and
 restart-persistence behavior. It also executes the controlled Agent Task fixture
-with extensions disabled in a fresh profile, performs real WebDriver input and
-click operations, verifies the observable post-condition, and proves profile
-cleanup without treating page content as instruction or authority.
+with extensions disabled in a fresh profile, verifies browser-computed role/name
+for the controlled action targets, performs real WebDriver input and click
+operations, verifies the observable post-condition, and proves profile cleanup
+without treating page content as instruction or authority.
 """
 
 from __future__ import annotations
@@ -177,6 +178,28 @@ def _element_command_path(session_id: str, element_id: str, suffix: str) -> str:
 
     safe_element = _path_token(element_id, "element identifier")
     return _webdriver_path(session_id, f"/element/{safe_element}{suffix}")
+
+
+def _get_element_semantics(
+    driver_port: int,
+    session_id: str,
+    element_id: str,
+) -> tuple[str, str]:
+    """Read one controlled element's browser-computed role and accessible name."""
+
+    role = _json_request(
+        driver_port,
+        "GET",
+        _element_command_path(session_id, element_id, "/computedrole"),
+    ).get("value")
+    label = _json_request(
+        driver_port,
+        "GET",
+        _element_command_path(session_id, element_id, "/computedlabel"),
+    ).get("value")
+    if not isinstance(role, str) or not isinstance(label, str):
+        raise RuntimeError("WebDriver returned malformed element semantics")
+    return role, label
 
 
 def _wait_for_extension_evidence(
@@ -511,6 +534,13 @@ def _run_agent_task_browser_pass(
             {"url": fixture_url},
         )
         input_element = _find_element(driver_port, session_id, "#task-text")
+        input_role, input_name = _get_element_semantics(
+            driver_port,
+            session_id,
+            input_element,
+        )
+        if input_role != "textbox" or input_name != "Task text":
+            raise RuntimeError("Agent Task input semantic evidence mismatch")
         _json_request(
             driver_port,
             "POST",
@@ -528,6 +558,13 @@ def _run_agent_task_browser_pass(
             session_id,
             "#agent-task-form button[type=submit]",
         )
+        submit_role, submit_name = _get_element_semantics(
+            driver_port,
+            session_id,
+            submit_element,
+        )
+        if submit_role != "button" or submit_name != "Submit task":
+            raise RuntimeError("Agent Task submit semantic evidence mismatch")
         _json_request(
             driver_port,
             "POST",
@@ -553,6 +590,8 @@ def _run_agent_task_browser_pass(
             "browser_version": browser_version,
             "post_condition": True,
             "input_echo_verified": True,
+            "input_semantics_verified": True,
+            "submit_semantics_verified": True,
             "extensions_disabled": True,
             "duration_ms": round((time.monotonic() - started) * 1000),
         }
@@ -603,13 +642,17 @@ def _run_agent_task_trial(
         "browser_version": result["browser_version"],
         "post_condition": result["post_condition"],
         "input_echo_verified": result["input_echo_verified"],
+        "input_semantics_verified": result["input_semantics_verified"],
+        "submit_semantics_verified": result["submit_semantics_verified"],
         "extensions_disabled": result["extensions_disabled"],
         "profile_cleaned": profile_cleaned,
         "duration_ms": round((time.monotonic() - trial_started) * 1000),
     }
 
 
-def _start_fixture_server(directory: pathlib.Path) -> tuple[http.server.ThreadingHTTPServer, threading.Thread]:
+def _start_fixture_server(
+    directory: pathlib.Path,
+) -> tuple[http.server.ThreadingHTTPServer, threading.Thread]:
     """Start one loopback-only static fixture server for a bounded browser lane."""
 
     server = http.server.ThreadingHTTPServer(
@@ -726,6 +769,8 @@ def main() -> int:
         agent_task_surfaces_complete = all(
             trial.get("post_condition") is True
             and trial.get("input_echo_verified") is True
+            and trial.get("input_semantics_verified") is True
+            and trial.get("submit_semantics_verified") is True
             and trial.get("extensions_disabled") is True
             and trial.get("profile_cleaned") is True
             for trial in agent_task_trials
