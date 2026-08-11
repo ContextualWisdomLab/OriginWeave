@@ -419,7 +419,7 @@ pub enum NodeHandleError {
     StaleDocumentEpoch {
         /// Epoch that originally produced the node handle.
         observed: DocumentEpoch,
-        /// Epoch currently active in the browser context.
+        /// Epoch currently active for the browser context.
         current: DocumentEpoch,
     },
 }
@@ -1082,10 +1082,7 @@ impl NativeMessagingHostName {
             || input.ends_with('.')
             || input.contains("..")
             || !input.bytes().all(|byte| {
-                byte.is_ascii_lowercase()
-                    || byte.is_ascii_digit()
-                    || byte == b'_'
-                    || byte == b'.'
+                byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_' || byte == b'.'
             })
         {
             return Err(NativeMessagingHostNameError::InvalidHostName);
