@@ -16,8 +16,10 @@ pub use sensitive_data::{
 };
 
 use originweave_core::{
-    ActionRequest, ApprovalEvidence, ApprovalScope, Capability, ExecutionPurpose,
-    InstructionSource, PolicyContext, RiskClass, RobotsDecision, SecretDelivery, SessionMode,
+    ActionRequest, ApprovalEvidence, ApprovalScope, BrowserSessionId, BrowsingContextId, Capability,
+    ExecutionPurpose, ExtensionAccessDecision, ExtensionAccessRequest, ExtensionAgentCapability,
+    ExtensionAgentGrant, ExtensionId, InstructionSource, PolicyContext, RiskClass, RobotsDecision,
+    SecretDelivery, SessionMode, evaluate_extension_access,
 };
 
 /// The result of evaluating one typed action request.
@@ -29,6 +31,15 @@ pub enum Decision {
     Deny(DenialReason),
     /// The action may proceed only after approval for the returned risk class.
     RequireApproval(RiskClass),
+}
+
+/// Result of composing exact extension proposal authority with ordinary action policy.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExtensionProposalDecision {
+    /// The extension/session/context lacks exact typed-action proposal authority.
+    ExtensionAccessDenied(ExtensionAccessDecision),
+    /// Proposal authority was present; this is the unchanged ordinary action-policy result.
+    ActionPolicy(Decision),
 }
 
 /// A stable reason that policy denied an action.
@@ -64,6 +75,36 @@ pub enum DenialReason {
     ForbiddenRisk,
     /// Approval evidence covers a different action, origin, or intent digest.
     ApprovalScopeMismatch,
+}
+
+/// Evaluate one extension-originated typed-action proposal without promoting transport authority.
+///
+/// This function checks the exact extension, browser-session, browsing-context and
+/// [`ExtensionAgentCapability::ProposeTypedAction`] grant before ordinary action policy. When
+/// extension access is allowed, the caller-supplied [`ActionRequest`] is evaluated unchanged, so
+/// its instruction source, capability, origin, secret-delivery and approval requirements cannot be
+/// minted or rewritten by extension transport. This function does not parse extension messages,
+/// execute browser input, resolve secrets, or claim an action post-condition.
+#[must_use]
+pub fn evaluate_extension_action_proposal(
+    extension_id: &ExtensionId,
+    browser_session: BrowserSessionId,
+    browsing_context: BrowsingContextId,
+    grant: Option<&ExtensionAgentGrant>,
+    request: &ActionRequest,
+    context: &PolicyContext,
+) -> ExtensionProposalDecision {
+    let access_request = ExtensionAccessRequest::new(
+        extension_id.clone(),
+        browser_session,
+        browsing_context,
+        ExtensionAgentCapability::ProposeTypedAction,
+    );
+    let access = evaluate_extension_access(&access_request, grant);
+    if access != ExtensionAccessDecision::Allow {
+        return ExtensionProposalDecision::ExtensionAccessDenied(access);
+    }
+    ExtensionProposalDecision::ActionPolicy(evaluate(request, context))
 }
 
 /// Evaluate a typed browser action against one explicit policy context.
