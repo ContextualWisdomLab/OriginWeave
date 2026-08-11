@@ -9,8 +9,8 @@ commands, side-panel, bookmarks, history, real browser-click, and
 restart-persistence behavior. It also executes the controlled Agent Task fixture
 with extensions disabled in a fresh profile, verifies browser-computed role/name
 for the controlled action targets, performs real WebDriver input and click
-operations, verifies the observable post-condition, and proves profile cleanup
-without treating page content as instruction or authority.
+operations, verifies the observable post-condition, and records bounded runtime
+resource evidence without treating page content as instruction or authority.
 """
 
 from __future__ import annotations
@@ -41,6 +41,8 @@ REQUEST_TIMEOUT_SECONDS = 5.0
 STARTUP_TIMEOUT_SECONDS = 20.0
 FIXTURE_TIMEOUT_SECONDS = 20.0
 MAX_WEBDRIVER_RESPONSE_BYTES = 1_048_576
+MAX_PROC_STATUS_CHARACTERS = 65_536
+MAX_U64 = (1 << 64) - 1
 W3C_ELEMENT_KEY = "element-6066-11e4-a52e-4f735466cecf"
 PATH_TOKEN_CHARACTERS = frozenset(string.ascii_letters + string.digits + "-_.")
 
@@ -200,6 +202,43 @@ def _get_element_semantics(
     if not isinstance(role, str) or not isinstance(label, str):
         raise RuntimeError("WebDriver returned malformed element semantics")
     return role, label
+
+
+def _parse_linux_proc_status_rss_bytes(status_text: str) -> int:
+    """Parse exactly one positive Linux ``VmRSS`` kB field into bounded bytes."""
+
+    rss_values: list[int] = []
+    for line in status_text.splitlines():
+        if not line.startswith("VmRSS:"):
+            continue
+        fields = line.split()
+        if len(fields) != 3 or fields[0] != "VmRSS:" or fields[2] != "kB":
+            raise ValueError("malformed Linux VmRSS field")
+        raw_kibibytes = fields[1]
+        if not raw_kibibytes.isascii() or not raw_kibibytes.isdigit():
+            raise ValueError("malformed Linux VmRSS value")
+        kibibytes = int(raw_kibibytes, 10)
+        if kibibytes <= 0:
+            raise ValueError("Linux VmRSS must be positive")
+        if kibibytes > MAX_U64 // 1024:
+            raise OverflowError("Linux VmRSS exceeds u64 byte range")
+        rss_values.append(kibibytes * 1024)
+    if len(rss_values) != 1:
+        raise ValueError("Linux proc status must contain exactly one VmRSS field")
+    return rss_values[0]
+
+
+def _sample_linux_process_rss_bytes(process_id: int) -> int:
+    """Read one attributed Linux process RSS through a bounded ``/proc`` status file."""
+
+    if isinstance(process_id, bool) or not isinstance(process_id, int) or process_id <= 0:
+        raise ValueError("invalid Linux process identifier")
+    status_path = pathlib.Path("/proc") / str(process_id) / "status"
+    with status_path.open("r", encoding="utf-8", errors="strict") as status_file:
+        status_text = status_file.read(MAX_PROC_STATUS_CHARACTERS + 1)
+    if len(status_text) > MAX_PROC_STATUS_CHARACTERS:
+        raise RuntimeError("Linux proc status exceeded the bounded text limit")
+    return _parse_linux_proc_status_rss_bytes(status_text)
 
 
 def _wait_for_extension_evidence(
@@ -472,7 +511,7 @@ def _run_agent_task_browser_pass(
     fixture_url: str,
     profile_dir: str,
 ) -> dict[str, Any]:
-    """Execute one synthetic Agent Task through real WebDriver input in pinned Chrome."""
+    """Execute one synthetic Agent Task and measure bounded real-browser evidence."""
 
     started = time.monotonic()
     driver_port = _free_loopback_port()
@@ -517,15 +556,22 @@ def _run_agent_task_browser_pass(
         capabilities = session.get("capabilities", {})
         if not isinstance(raw_session_id, str):
             raise RuntimeError("ChromeDriver did not return an Agent Task session id")
+        if not isinstance(capabilities, dict):
+            raise RuntimeError("ChromeDriver Agent Task capabilities are malformed")
         session_id = _path_token(raw_session_id, "session identifier")
-        browser_version = (
-            capabilities.get("browserVersion") if isinstance(capabilities, dict) else None
-        )
+        browser_version = capabilities.get("browserVersion")
+        browser_process_id = capabilities.get("goog:processID")
         if browser_version != PINNED_CHROME_VERSION:
             raise RuntimeError(
                 f"unexpected Agent Task Chrome version: expected {PINNED_CHROME_VERSION}, "
                 f"got {browser_version!r}"
             )
+        if (
+            isinstance(browser_process_id, bool)
+            or not isinstance(browser_process_id, int)
+            or browser_process_id <= 0
+        ):
+            raise RuntimeError("ChromeDriver did not return a valid browser process id")
 
         _json_request(
             driver_port,
@@ -541,18 +587,6 @@ def _run_agent_task_browser_pass(
         )
         if input_role != "textbox" or input_name != "Task text":
             raise RuntimeError("Agent Task input semantic evidence mismatch")
-        _json_request(
-            driver_port,
-            "POST",
-            _element_command_path(session_id, input_element, "/clear"),
-            {},
-        )
-        _json_request(
-            driver_port,
-            "POST",
-            _element_command_path(session_id, input_element, "/value"),
-            {"text": AGENT_TASK_INPUT_VALUE, "value": list(AGENT_TASK_INPUT_VALUE)},
-        )
         submit_element = _find_element(
             driver_port,
             session_id,
@@ -565,12 +599,44 @@ def _run_agent_task_browser_pass(
         )
         if submit_role != "button" or submit_name != "Submit task":
             raise RuntimeError("Agent Task submit semantic evidence mismatch")
+        semantic_observation = {
+            "input": {"role": input_role, "name": input_name},
+            "submit": {"role": submit_role, "name": submit_name},
+        }
+        semantic_observation_bytes = len(
+            json.dumps(
+                semantic_observation,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            ).encode("utf-8")
+        )
+        if semantic_observation_bytes <= 0:
+            raise RuntimeError("Agent Task semantic observation was empty")
+
+        action_started = time.monotonic()
+        _json_request(
+            driver_port,
+            "POST",
+            _element_command_path(session_id, input_element, "/clear"),
+            {},
+        )
+        _json_request(
+            driver_port,
+            "POST",
+            _element_command_path(session_id, input_element, "/value"),
+            {"text": AGENT_TASK_INPUT_VALUE, "value": list(AGENT_TASK_INPUT_VALUE)},
+        )
         _json_request(
             driver_port,
             "POST",
             _element_command_path(session_id, submit_element, "/click"),
             {},
         )
+        action_latency_ms = round((time.monotonic() - action_started) * 1000, 3)
+        if action_latency_ms <= 0:
+            raise RuntimeError("Agent Task measured a non-positive action latency")
+
         result_element = _find_element(driver_port, session_id, "#task-result")
         state = _json_request(
             driver_port,
@@ -586,6 +652,10 @@ def _run_agent_task_browser_pass(
             raise RuntimeError(f"Agent Task state post-condition failed: {state!r}")
         if text != AGENT_TASK_INPUT_VALUE:
             raise RuntimeError("Agent Task result did not match the synthetic typed value")
+        browser_process_rss_bytes = _sample_linux_process_rss_bytes(browser_process_id)
+        task_duration_ms = round((time.monotonic() - started) * 1000, 3)
+        if task_duration_ms <= 0:
+            raise RuntimeError("Agent Task measured a non-positive task duration")
         return {
             "browser_version": browser_version,
             "post_condition": True,
@@ -593,7 +663,11 @@ def _run_agent_task_browser_pass(
             "input_semantics_verified": True,
             "submit_semantics_verified": True,
             "extensions_disabled": True,
-            "duration_ms": round((time.monotonic() - started) * 1000),
+            "browser_process_rss_bytes": browser_process_rss_bytes,
+            "semantic_observation_bytes": semantic_observation_bytes,
+            "action_latency_ms": action_latency_ms,
+            "task_duration_ms": task_duration_ms,
+            "duration_ms": round(task_duration_ms),
         }
     finally:
         if session_id is not None:
@@ -645,6 +719,10 @@ def _run_agent_task_trial(
         "input_semantics_verified": result["input_semantics_verified"],
         "submit_semantics_verified": result["submit_semantics_verified"],
         "extensions_disabled": result["extensions_disabled"],
+        "browser_process_rss_bytes": result["browser_process_rss_bytes"],
+        "semantic_observation_bytes": result["semantic_observation_bytes"],
+        "action_latency_ms": result["action_latency_ms"],
+        "task_duration_ms": result["task_duration_ms"],
         "profile_cleaned": profile_cleaned,
         "duration_ms": round((time.monotonic() - trial_started) * 1000),
     }
@@ -773,6 +851,14 @@ def main() -> int:
             and trial.get("submit_semantics_verified") is True
             and trial.get("extensions_disabled") is True
             and trial.get("profile_cleaned") is True
+            and isinstance(trial.get("browser_process_rss_bytes"), int)
+            and trial["browser_process_rss_bytes"] > 0
+            and isinstance(trial.get("semantic_observation_bytes"), int)
+            and trial["semantic_observation_bytes"] > 0
+            and isinstance(trial.get("action_latency_ms"), (int, float))
+            and trial["action_latency_ms"] > 0
+            and isinstance(trial.get("task_duration_ms"), (int, float))
+            and trial["task_duration_ms"] >= trial["action_latency_ms"]
             for trial in agent_task_trials
             if trial.get("passed") is True
         )
