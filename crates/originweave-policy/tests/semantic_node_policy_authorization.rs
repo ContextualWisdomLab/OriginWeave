@@ -189,10 +189,7 @@ fn semantic_node_policy_authorization_errors_are_credential_free() {
             DenialReason::UnexpectedSecretMaterial,
             "unexpected secret material",
         ),
-        (
-            DenialReason::ForbiddenRisk,
-            "risk class is not delegable",
-        ),
+        (DenialReason::ForbiddenRisk, "risk class is not delegable"),
         (
             DenialReason::ApprovalScopeMismatch,
             "approval scope does not match",
