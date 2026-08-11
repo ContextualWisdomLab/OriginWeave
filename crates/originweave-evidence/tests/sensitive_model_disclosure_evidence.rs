@@ -18,8 +18,8 @@ fn valid_input() -> SensitiveModelDisclosureEvidenceInput {
 }
 
 #[test]
-fn records_exact_model_route_policy_without_protected_values()
--> Result<(), SensitiveEvidenceError> {
+fn records_exact_model_route_policy_without_protected_values() -> Result<(), SensitiveEvidenceError>
+{
     let evidence = SensitiveModelDisclosureEvidence::try_from(valid_input())?;
 
     assert_eq!(evidence.request_id(), "request-42");
