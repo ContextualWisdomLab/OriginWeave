@@ -17,20 +17,20 @@ File existence alone is never sufficient. An artifact can exist and still be sta
 
 | Documentation family | Fitness | Current evidence / remaining boundary |
 |---|---|---|
-| PRD | **PRESENT-CURRENT on this branch / protected-main follow-up required** | Protected-main requirements remain distinct from active evidence. #37 is the bounded-HTTP replacement; #45→#46→#53→#55 narrows sensitive-handle authority without creating the trusted broker; #47→#50→#54 narrows resolution freshness through socket use; #40→#52→#57→#58 provides browser authority/semantic prerequisites; #43→#56→#59→#60→#61 plus #49 provide active MV3 compatibility evidence only. |
-| TRD | **PRESENT-CURRENT on this branch / protected-main follow-up required** | One protected-main implementation state is kept separate from volatile active/non-shipped evidence. Value objects, fixtures and compatibility tests do not imply deployed services, browser adapters or completed runtime paths. |
-| Root Architecture | **PRESENT-CURRENT** | The Chromium compatibility kernel plus Rust authority-bearing control plane remains correct. #47/#50/#54 refine ADR 0004; #45/#46/#53/#55 refine ADR 0007; #40/#52/#57/#58 refine browser observation/action boundaries; #43/#49/#56/#59/#60/#61 remain compatibility work under issue #27. No later lane introduces a new trust domain, persistence owner or deployed component. |
+| PRD | **PRESENT-CURRENT on this branch / protected-main follow-up required** | Protected-main requirements remain distinct from active evidence. #37 is the bounded-HTTP replacement; #45→#46→#53→#55 narrows sensitive-handle authority without creating the trusted broker; #47→#50→#54 narrows resolution freshness through socket use; #40→#52→#57→#58 provides browser authority/semantic prerequisites; #43→#56→#59→#60→#61 plus #49 provide active MV3 compatibility evidence; #62/#63 prove extension-proposal isolation without widening Agent/secret approval authority; and #64/#65 plus #51→#66 add outcome, controlled-fixture and resource-measurement prerequisites without completing the real Chromium runtime. |
+| TRD | **PRESENT-CURRENT on this branch / protected-main follow-up required** | One protected-main implementation state is kept separate from volatile active/non-shipped evidence. Value objects, fixtures, bounded Linux samplers and compatibility tests do not imply deployed services, Chromium process attribution, browser adapters or completed runtime paths. |
+| Root Architecture | **PRESENT-CURRENT** | The Chromium compatibility kernel plus Rust authority-bearing control plane remains correct. #47/#50/#54 refine ADR 0004; #45/#46/#53/#55 refine ADR 0007; #40/#52/#57/#58 refine browser observation/action boundaries; #62/#63 exercise the existing extension/policy separation; #64/#65 and #51→#66 refine evidence/fixture/resource prerequisites; #43/#49/#56/#59/#60/#61 remain compatibility work under issue #27. None introduces a new trust domain, persistence owner or deployed component. |
 | ADR index/lifecycle | **PRESENT-CURRENT on this branch** | Accepted ADRs remain distinct from Proposed decisions. ADR 0013 separates MV3 compatibility from Agent authority; ADR 0014 governs architecture-decision lifecycle. Their branch presence or later integration cannot silently promote them to Accepted. |
-| Individual ADRs | **SUFFICIENT BY LIFECYCLE** | Existing Accepted decisions cover current material trust boundaries. #59/#60/#61 refine compatibility evidence and do not independently justify new ADRs. |
-| UML / control-flow diagrams | **PRESENT-CURRENT with one legitimate deferral** | Component, network authority, observation/action, delegated-task state, deployment, evidence, secret-fill, approval, resource-pressure/GPU fallback and hourly automation flows exist. `uml/extension-authority.md` closes the permission-vs-Agent-authority gap. Detailed real-Chromium adapter/input/post-condition UML remains deferred until issue #28 executable contracts stabilize. |
-| Conceptual ERD/domain model | **PRESENT-CURRENT** | The ERD remains explicitly conceptual until a real persistence owner/schema exists. #45/#46/#47/#48/#50/#51/#52/#53/#54/#55/#56/#57/#58/#59/#60/#61 add no OriginWeave-owned durable store. Manufacturing tables for in-memory state, value objects, query/action-target primitives or compatibility fixtures would be false architecture. |
-| Traceability | **PRESENT-CURRENT on this branch** | Uses explicit protected-main, active-PR, partial, accepted-architecture, planned, research-only, superseded and out-of-scope maturity vocabulary. Volatile exact-head evidence lives in the dated maturity appendix, now through #61. |
-| Threat model / Security | **PRESENT-CURRENT with implementation follow-up** | Untrusted content, network, secret, provenance and extension risks are covered. Active browser semantics remain descriptive until policy and execution. #59/#60/#61 mutate only controlled compatibility state and add no Agent authority. |
-| Test strategy / quality gates | **PRESENT-CURRENT** | Exact owned production function/line/region/branch coverage, rustdoc and realistic boundary testing are explicit. Active compatibility work uses exact RED→GREEN evidence, pinned real Chromium and repeated trials rather than source-text claims alone. |
-| Operability / incident response | **PRESENT-CURRENT** | Failure, readiness, quarantine, cleanup and recovery concepts exist. The active fixture lanes add no daemon/service or persistence owner, so new SLO/RPO/RTO claims would be fabricated. |
-| API / protocol contracts | **PRESENT-CURRENT as target contracts** | #52 is an internal semantic-observation value API, #57 a bounded typed-query API, and #58 an authority-bound action-target bridge; none is a BiDi/CDP/WebMCP wire protocol, browser input executor, business-risk classification, policy approval or post-condition proof. |
-| Release / rollback / provenance | **PRESENT-CURRENT** | Release remains bound to one exact integrated protected head. Active stacks #40→#52→#57→#58, #47→#50→#54, #45→#46→#53→#55, and #43→#56→#59→#60→#61 plus parallel #49 preserve dependency order; predecessor-head success cannot satisfy a later head. |
-| Data governance / privacy | **PRESENT-CURRENT architecture / PARTIAL runtime** | Purpose-bound policy/evidence foundations exist. Authenticated workload identity, durable trusted-broker storage, protected-value resolution/fill, KMS, cross-process transactionality, compensation, retention and model-disclosure lifecycle remain open under issue #10. |
+| Individual ADRs | **SUFFICIENT BY LIFECYCLE** | Existing Accepted and Proposed decisions cover current material trust boundaries. #62–#66 refine or test existing authority, evidence, fixture and resource boundaries and do not independently justify manufacturing a new ADR. |
+| UML / control-flow diagrams | **PRESENT-CURRENT with one legitimate deferral** | Component, network authority, observation/action, delegated-task state, deployment, evidence, secret-fill, approval, resource-pressure/GPU fallback and hourly automation flows exist. `uml/extension-authority.md` closes the permission-vs-Agent-authority gap. Detailed real-Chromium adapter/input/post-condition/process-attribution UML remains deferred until issue #28 executable contracts stabilize. |
+| Conceptual ERD/domain model | **PRESENT-CURRENT** | The ERD remains explicitly conceptual until a real persistence owner/schema exists. Current active #45–#66 value, policy, freshness, compatibility, fixture, evidence and resource slices add no OriginWeave-owned durable store. Manufacturing tables for in-memory state, value objects, browser fixtures or process samples would be false architecture. |
+| Traceability | **PRESENT-CURRENT on this branch** | Uses explicit protected-main, active-PR, partial, accepted-architecture, planned, research-only, superseded and out-of-scope maturity vocabulary. Volatile exact-head evidence lives in the dated maturity appendix, now through #66. |
+| Threat model / Security | **PRESENT-CURRENT with implementation follow-up** | Untrusted content, network, secret, provenance and extension risks are covered. #62/#63 prove extension proposal permission cannot replace Agent policy or R3 approval; #64 does not turn caller timestamps into trusted causality; #65's hostile page content remains a controlled untrusted fixture; #66 does not infer process ownership from caller-supplied PIDs. |
+| Test strategy / quality gates | **PRESENT-CURRENT** | Exact owned production function/line/region/branch coverage, rustdoc and realistic boundary testing are explicit. Active work uses exact RED→GREEN evidence, pinned real Chromium where browser behavior is claimed, and fail-closed OS sampling contracts rather than source-text or self-reported claims alone. |
+| Operability / incident response | **PRESENT-CURRENT** | Failure, readiness, quarantine, cleanup and recovery concepts exist. Current fixture/value/sampler lanes add no daemon/service or persistence owner, so new SLO/RPO/RTO claims would be fabricated. |
+| API / protocol contracts | **PRESENT-CURRENT as target contracts** | #52 is an internal semantic-observation value API, #57 a bounded typed-query API, #58 an authority-bound action-target bridge, and #64 an outcome-evidence value boundary. None is a BiDi/CDP/WebMCP wire adapter, native browser input executor, trusted-clock source, business-risk classifier or post-condition observer. |
+| Release / rollback / provenance | **PRESENT-CURRENT** | Release remains bound to one exact integrated protected head. Active stacks #40→#52→#57→#58, #47→#50→#54, #45→#46→#53→#55, #43→#56→#59→#60→#61 plus parallel #49, and #51→#66 preserve dependency order; #62/#63/#64/#65 are direct-main prerequisites. Predecessor-head success cannot satisfy a later head. |
+| Data governance / privacy | **PRESENT-CURRENT architecture / PARTIAL runtime** | Purpose-bound policy/evidence foundations exist. #62/#63 prove that proposal authority cannot manufacture secret authority or approval, but authenticated workload identity, durable trusted-broker storage, protected-value resolution/fill, KMS, cross-process transactionality, compensation, retention and model-disclosure lifecycle remain open under issue #10. |
 | Standards / doctoring | **PRESENT-CURRENT with continuous watch** | Primary browser/protocol/standards evidence and APA 7 references distinguish living/vendor/experimental material from final normative standards. Exact browser release evidence stays pinned to executable Chromium evidence rather than documentation alone. |
 
 ## 3. Reconciliation findings
@@ -102,11 +102,11 @@ Active #48 provides a bounded freshness primitive for already verified revocatio
 
 **Resolution:** this is not OCSP/CRL acquisition, signature/path validation, cache operation or an unrevoked-certificate claim. No fictitious revocation-service topology is added.
 
-### 3.10 Browser task telemetry
+### 3.10 Browser task telemetry and process-set RSS
 
-Active #51 provides bounded RSS, observation-byte, action-latency and task-duration values but performs no OS/Chromium sampling.
+Active #51 validates bounded RSS, observation-byte, action-latency and task-duration values and now samples one explicitly supplied Linux PID through strict `/proc/<pid>/status` `VmRSS` parsing. Stacked #66 extends this to a bounded explicit process set: at most 256 unique nonzero caller-owned PIDs, checked aggregate addition, and fail-closed sampling when any member cannot be measured.
 
-**Resolution:** value-object availability cannot be promoted to measured runtime evidence or GPU/local-model evidence.
+**Resolution:** OS sampling is now real for caller-supplied Linux PIDs, but Chromium process discovery, same-task attribution, browser child-process/cgroup walking, GPU/VRAM, JS heap and cross-platform sampling remain unimplemented. A changing RSS value is runtime state, so correctness tests validate the sampling contract rather than assuming two sequential reads are byte-identical.
 
 ### 3.11 Semantic observation authority
 
@@ -144,6 +144,30 @@ Active #61 gives the page main world and the MV3 content script the same JavaScr
 
 **Resolution:** this is a bounded compatibility proof, not a trusted page-content channel, arbitrary JavaScript bridge or Agent capability.
 
+### 3.17 Extension proposal authority and secret approval composition
+
+Active #62/#63 exercise two sides of one architectural separator. #62 first proves the exact extension/session/context `ProposeTypedAction` grant is present and then requires ordinary Agent policy to reject origin/capability/instruction/secret widening. #63 gives the Agent context its independent `FillSecret` capability and broker-handle delivery request, but still requires the ordinary high-risk result `RequireApproval(RiskClass::R3)`.
+
+**Resolution:** extension proposal permission can neither mint Agent capability/origin/secret authority nor manufacture approval. These are regression proofs over existing boundaries, not a secret broker, browser adapter, approval service or new trust domain. Proposed ADR 0013 already captures the relevant permission-vs-Agent-authority decision.
+
+### 3.18 Verified action-outcome ordering
+
+Active #64 makes a successful action-outcome value require existing verified provenance plus one caller-supplied monotonic dispatch timestamp and an observation timestamp that is not earlier. An earlier observation fails closed as `PostConditionPredatesDispatch`; equality is allowed for coarse monotonic clocks.
+
+**Resolution:** temporal ordering prevents packaging a pre-dispatch observation as later success evidence, but it does not prove trusted clock provenance, actual browser dispatch, target linkage, causal effect or that a real browser reached the declared state. #64 is not a browser dispatcher or post-condition observer.
+
+### 3.19 Controlled Agent Task fixture
+
+Active #65 supplies a deterministic synthetic local web fixture with a labelled semantic input, submit control, same-document post-condition and explicitly hidden/untrusted prompt-injection text. The fixture contains no credential collection surface and requires no live third-party site.
+
+**Resolution:** the fixture makes the future real Chromium vertical slice reproducible without turning a third-party site into a test dependency. It is not a browser adapter, semantic extractor, input dispatcher, policy engine, trusted clock, process-attribution source or proof of real Chromium execution.
+
+### 3.20 Bounded browser process-set resource evidence
+
+Active #51→#66 establishes two distinct layers: #51 owns single explicitly supplied Linux PID sampling and the bounded telemetry value boundary; #66 owns bounded duplicate-safe aggregation/sampling over an exact caller-owned PID set. #66's exact current contract rejects empty, zero-PID, duplicate, oversized and overflow states and fails closed if any member cannot be sampled.
+
+**Resolution:** aggregate resource measurement must not silently undercount a known caller-owned process set, but process membership remains an external attribution responsibility. The implementation does not discover Chromium PIDs, prove process ancestry/task ownership, walk cgroups, sample GPU/VRAM or create a durable telemetry store.
+
 ## 4. Durable product decisions captured by the canonical graph
 
 1. OriginWeave is **Browse. Act. Prove.**: an enterprise agentic web runtime and provenance-native browser platform, not Selenium-style automation.
@@ -169,7 +193,7 @@ Active #61 gives the page main world and the MV3 content script the same JavaScr
 21. In-memory sensitive-handle primitives may narrow replay/revocation risk without claiming the durable trusted broker exists.
 22. A validated DNS answer is not sufficient socket authority indefinitely; resolution-to-socket use requires bounded trusted-monotonic freshness.
 23. Revocation-material freshness, cryptographic validity, acquisition/cache operation and an unrevoked claim remain separate evidence authorities.
-24. Browser telemetry values and actual OS/Chromium measurement adapters are separate maturity claims.
+24. Browser telemetry values, OS process sampling and Chromium/task process attribution are separate maturity claims.
 25. Semantic observation provenance and advertised node-local actions are descriptive evidence and never execution authority.
 26. Semantic relationships remain bounded within exact session/context/origin/document authority.
 27. Sensitive-handle audience must ultimately derive from authenticated workload/service identity.
@@ -177,6 +201,10 @@ Active #61 gives the page main world and the MV3 content script the same JavaScr
 29. Semantic query success is neither selector authority nor permission to execute an advertised action.
 30. Semantic action-target binding preserves exact node authority but remains separate from business-risk classification, policy approval, dispatch and observed success.
 31. Update migration, restart persistence, injection and isolated-world behavior are separate compatibility claims and must retain distinct executable evidence.
+32. Extension proposal authority never substitutes for Agent capability, origin/secret authority or independent high-risk approval.
+33. Verified action-success evidence must not predate dispatch, while trusted clock provenance, browser dispatch, target linkage and causality remain separate authorities.
+34. A controlled hostile page fixture is reproducible test infrastructure, not evidence that a real Chromium adapter exists.
+35. Resource aggregation over known PIDs does not establish Chromium process discovery or task attribution.
 
 ## 5. Architecture views legitimately deferred
 
@@ -194,7 +222,7 @@ Chromium MV3 permission
 -> deterministic policy
 ```
 
-Compatibility evidence cannot substitute for Agent-authority evidence, or vice versa.
+Compatibility evidence cannot substitute for Agent-authority evidence, or vice versa. #62/#63 executable composition tests strengthen this existing view without changing its architecture.
 
 ### 5.2 Network freshness sequence — reconcile after #47 → #50 → #54 integrates
 
@@ -225,11 +253,11 @@ isolated profile/context
 -> teardown/recovery
 ```
 
-#40/#52/#57/#58 make the authority/value boundaries concrete but do not yet establish browser I/O, typed business policy, native input or post-condition proof. Freezing temporary protocol fields into authoritative UML before those executable contracts exist would create false architecture.
+#40/#52/#57/#58 make identifier/semantic/action-target authority concrete; #64 makes ordered verified outcome packaging concrete; #65 supplies a controlled hostile target application; and #51→#66 narrows resource measurement. None yet establishes the real Chromium transport/semantic extraction/native input/post-condition observer/trusted clock/process attribution chain. Freezing temporary protocol fields into authoritative UML before those executable contracts exist would create false architecture.
 
 ### 5.4 Trusted sensitive-data broker — deferred until issue #10 establishes a real runtime boundary
 
-Protected-main policy/evidence plus #45→#46→#53→#55 do not justify inventing a broker process, durable database, KMS topology, authenticated service-identity mechanism or browser-fill adapter. Add physical ERD/component/transaction views only when executable ownership exists.
+Protected-main policy/evidence plus #45→#46→#53→#55 and composition regressions #62/#63 do not justify inventing a broker process, durable database, KMS topology, authenticated service-identity mechanism or browser-fill adapter. Add physical ERD/component/transaction views only when executable ownership exists.
 
 ## 6. Completion criteria
 
