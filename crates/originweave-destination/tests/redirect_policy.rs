@@ -220,13 +220,7 @@ fn redirect_guard_rejects_https_downgrade_cycles_and_excess_hops() {
         )
         .expect("first and only redirect");
     assert_eq!(
-        limited.authorize_redirect(
-            target,
-            digest(DIGEST_C),
-            &resolution,
-            CURRENT_TIME,
-            &grants,
-        ),
+        limited.authorize_redirect(target, digest(DIGEST_C), &resolution, CURRENT_TIME, &grants,),
         Err(RedirectError::RedirectLimitExceeded)
     );
 }
