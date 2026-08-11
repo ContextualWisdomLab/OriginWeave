@@ -125,12 +125,9 @@ pub fn evaluate_model_fallback(
         ModelRouteAvailability::Unavailable => {
             match (&request.fallback_route, &scope.fallback_route) {
                 (None, None) => ModelFallbackDecision::PrimaryUnavailableNoReviewedFallback,
-                (Some(_), None) | (None, Some(_)) => {
-                    ModelFallbackDecision::FallbackPolicyMismatch
-                }
+                (Some(_), None) | (None, Some(_)) => ModelFallbackDecision::FallbackPolicyMismatch,
                 (Some(fallback_request), Some(fallback_scope)) => {
-                    let fallback_decision =
-                        evaluate_model_route(fallback_request, fallback_scope);
+                    let fallback_decision = evaluate_model_route(fallback_request, fallback_scope);
                     if fallback_decision == ModelRouteDecision::Authorized {
                         ModelFallbackDecision::ReviewedFallbackAuthorized
                     } else {
