@@ -51,7 +51,8 @@ fn authorized_action() -> Result<PolicyAuthorizedSemanticNodeAction, String> {
         SecretDelivery::None,
         ActionIntentDigest::parse(VALID_INTENT).map_err(|error| format!("{error:?}"))?,
     );
-    let binding = SemanticNodeActionBinding::new(target, request).map_err(|error| error.to_string())?;
+    let binding =
+        SemanticNodeActionBinding::new(target, request).map_err(|error| error.to_string())?;
     let context = PolicyContext::new(
         SessionMode::AgentTask,
         ExecutionPurpose::UserDelegatedTask,
@@ -79,10 +80,7 @@ fn dispatch_callback_runs_only_after_exact_browser_revalidation() -> Result<(), 
             DocumentEpoch::new(3).map_err(|error| error.to_string())?,
             |binding| {
                 called.set(true);
-                (
-                    binding.target().action(),
-                    binding.request().action(),
-                )
+                (binding.target().action(), binding.request().action())
             },
         )
         .map_err(|error| error.to_string())?;
