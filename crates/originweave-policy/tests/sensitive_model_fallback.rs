@@ -185,11 +185,7 @@ fn fallback_must_exist_on_both_request_and_trusted_scope() {
     let request_primary = primary_request();
     let request_only = ModelFallbackRequest::new(
         request_primary.clone(),
-        availability(
-            &request_primary,
-            ModelRouteAvailability::Unavailable,
-            101,
-        ),
+        availability(&request_primary, ModelRouteAvailability::Unavailable, 101),
     )
     .with_fallback(fallback_request());
     let no_fallback_scope = ModelFallbackScope::new(primary_scope());
