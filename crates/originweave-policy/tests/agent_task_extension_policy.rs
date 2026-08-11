@@ -22,11 +22,11 @@ fn context(value: u64) -> BrowsingContextId {
 
 #[test]
 fn empty_agent_task_extension_policy_denies_every_extension() {
-    let policy = AgentTaskExtensionPolicy::new([]);
+    let policy = AgentTaskExtensionPolicy::new([], 10, 20);
     let extension = extension_id("abcdefghijklmnopabcdefghijklmnop");
 
     assert_eq!(
-        evaluate_agent_task_extension(&extension, &policy),
+        evaluate_agent_task_extension(&extension, &policy, 15),
         AgentTaskExtensionDecision::DenyNotManaged
     );
 }
@@ -35,25 +35,75 @@ fn empty_agent_task_extension_policy_denies_every_extension() {
 fn managed_agent_task_extension_policy_allows_only_exact_identifiers() {
     let allowed = extension_id("abcdefghijklmnopabcdefghijklmnop");
     let other = extension_id("bcdefghijklmnopabcdefghijklmnopa");
-    let policy = AgentTaskExtensionPolicy::new([allowed.clone(), allowed.clone()]);
+    let policy = AgentTaskExtensionPolicy::new([allowed.clone(), allowed.clone()], 10, 20);
 
     assert_eq!(
-        evaluate_agent_task_extension(&allowed, &policy),
+        evaluate_agent_task_extension(&allowed, &policy, 10),
         AgentTaskExtensionDecision::AllowManagedExtension
     );
     assert_eq!(
-        evaluate_agent_task_extension(&other, &policy),
+        evaluate_agent_task_extension(&other, &policy, 19),
         AgentTaskExtensionDecision::DenyNotManaged
+    );
+}
+
+#[test]
+fn managed_agent_task_extension_policy_fails_closed_outside_its_validity_window() {
+    let extension = extension_id("abcdefghijklmnopabcdefghijklmnop");
+    let policy = AgentTaskExtensionPolicy::new([extension.clone()], 10, 20);
+
+    assert_eq!(
+        evaluate_agent_task_extension(&extension, &policy, 9),
+        AgentTaskExtensionDecision::DenyPolicyNotYetValid
+    );
+    assert_eq!(
+        evaluate_agent_task_extension(&extension, &policy, 20),
+        AgentTaskExtensionDecision::DenyPolicyExpired
+    );
+    assert_eq!(
+        evaluate_agent_task_extension(&extension, &policy, u64::MAX),
+        AgentTaskExtensionDecision::DenyPolicyExpired
+    );
+}
+
+#[test]
+fn invalid_managed_extension_policy_window_fails_closed_before_membership() {
+    let extension = extension_id("abcdefghijklmnopabcdefghijklmnop");
+    let reversed = AgentTaskExtensionPolicy::new([extension.clone()], 20, 10);
+    let empty = AgentTaskExtensionPolicy::new([extension.clone()], 20, 20);
+
+    assert_eq!(
+        evaluate_agent_task_extension(&extension, &reversed, 15),
+        AgentTaskExtensionDecision::DenyInvalidPolicyWindow
+    );
+    assert_eq!(
+        evaluate_agent_task_extension(&extension, &empty, 20),
+        AgentTaskExtensionDecision::DenyInvalidPolicyWindow
+    );
+}
+
+#[test]
+fn maximum_timestamp_window_remains_half_open_without_overflow() {
+    let extension = extension_id("abcdefghijklmnopabcdefghijklmnop");
+    let policy = AgentTaskExtensionPolicy::new([extension.clone()], u64::MAX - 1, u64::MAX);
+
+    assert_eq!(
+        evaluate_agent_task_extension(&extension, &policy, u64::MAX - 1),
+        AgentTaskExtensionDecision::AllowManagedExtension
+    );
+    assert_eq!(
+        evaluate_agent_task_extension(&extension, &policy, u64::MAX),
+        AgentTaskExtensionDecision::DenyPolicyExpired
     );
 }
 
 #[test]
 fn managed_agent_task_extension_admission_does_not_mint_agent_capability() {
     let extension = extension_id("abcdefghijklmnopabcdefghijklmnop");
-    let policy = AgentTaskExtensionPolicy::new([extension.clone()]);
+    let policy = AgentTaskExtensionPolicy::new([extension.clone()], 10, 20);
 
     assert_eq!(
-        evaluate_agent_task_extension(&extension, &policy),
+        evaluate_agent_task_extension(&extension, &policy, 15),
         AgentTaskExtensionDecision::AllowManagedExtension
     );
 
