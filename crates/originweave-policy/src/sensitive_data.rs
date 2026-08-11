@@ -4,7 +4,7 @@
 //! protected value itself, performs no I/O, and grants no authority from ambient
 //! session, network, repository, or model state.
 
-use std::collections::BTreeSet;
+use std::sync::Arc;
 
 use originweave_core::Origin;
 
@@ -171,8 +171,6 @@ pub enum HandleUseDecision {
     Expired,
     /// The bounded use count has already been consumed or reserved.
     UseLimitReached,
-    /// The in-process reservation identity space is exhausted and no safe identity can be issued.
-    ReservationIdentityExhausted,
 }
 
 /// Reason that authoritative in-process handle state was revoked.
@@ -263,13 +261,22 @@ impl HandleUseRequest {
 /// Opaque in-process identity for one unsettled sensitive-handle use reservation.
 ///
 /// This is not the sensitive-value handle and carries no protected value or
-/// authority fields. It exists only so a trusted broker can settle the exact
-/// reservation that it previously created instead of decrementing a shared count
-/// ambiguously. Reservation identities are never reused within one state value.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// authority fields. Each returned token and the corresponding state entry retain
+/// the same allocation-bound identity. A surviving stale token therefore keeps its
+/// allocation alive, so a later reservation cannot alias it even after compensation.
+/// The token is intentionally in-process-only, non-serializable, and non-copyable.
+#[derive(Debug)]
 pub struct SensitiveHandleUseReservation {
-    sequence: u64,
+    identity: Arc<[u8; 1]>,
 }
+
+impl PartialEq for SensitiveHandleUseReservation {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.identity, &other.identity)
+    }
+}
+
+impl Eq for SensitiveHandleUseReservation {}
 
 /// In-process authoritative use-count, reservation-settlement, and revocation state
 /// for one opaque sensitive-value handle scope.
@@ -293,8 +300,7 @@ pub struct SensitiveHandleUseState {
     scope: SensitiveValueHandleScope,
     reserved_uses: u32,
     completed_uses: u32,
-    outstanding_reservations: BTreeSet<SensitiveHandleUseReservation>,
-    next_reservation_sequence: Option<u64>,
+    outstanding_reservations: Vec<SensitiveHandleUseReservation>,
     revocation_reason: Option<HandleRevocationReason>,
 }
 
@@ -306,8 +312,7 @@ impl SensitiveHandleUseState {
             scope,
             reserved_uses: 0,
             completed_uses: 0,
-            outstanding_reservations: BTreeSet::new(),
-            next_reservation_sequence: Some(1),
+            outstanding_reservations: Vec::new(),
             revocation_reason: None,
         }
     }
@@ -377,9 +382,10 @@ impl SensitiveHandleUseState {
     ///
     /// The returned reservation is caller-unforgeable only to the extent that this
     /// state object itself is protected by the trusted broker. It carries no secret
-    /// data. Reservation identities never recycle, including after compensation,
-    /// so a stale settlement token cannot affect a later use. Exhausting the local
-    /// identity sequence fails closed without consuming capacity.
+    /// data and no caller-controlled identifier. The state retains a second strong
+    /// reference to the same allocation while the reservation is outstanding. If a
+    /// settled token survives, its allocation remains live and therefore cannot be
+    /// reused by a later reservation.
     pub fn reserve_tracked_use(
         &mut self,
         authority: SensitiveDataAuthority,
@@ -390,14 +396,13 @@ impl SensitiveHandleUseState {
         if decision != HandleUseDecision::Authorized {
             return Err(decision);
         }
-        let Some(sequence) = self.next_reservation_sequence else {
-            return Err(HandleUseDecision::ReservationIdentityExhausted);
-        };
-        self.next_reservation_sequence = sequence.checked_add(1);
-        let reservation = SensitiveHandleUseReservation { sequence };
-        let _ = self.outstanding_reservations.insert(reservation);
+        let identity = Arc::new([0_u8]);
+        self.outstanding_reservations
+            .push(SensitiveHandleUseReservation {
+                identity: Arc::clone(&identity),
+            });
         self.reserved_uses += 1;
-        Ok(reservation)
+        Ok(SensitiveHandleUseReservation { identity })
     }
 
     /// Mark one exact tracked reservation as a completed, permanently consumed use.
@@ -407,8 +412,13 @@ impl SensitiveHandleUseState {
     /// recheck and must call this only after the protected value was actually
     /// disclosed. Returns `false` for an unknown, stale, compensated, or already
     /// committed reservation and leaves all counters unchanged.
-    pub fn commit_reservation(&mut self, reservation: SensitiveHandleUseReservation) -> bool {
-        if self.outstanding_reservations.remove(&reservation) {
+    pub fn commit_reservation(&mut self, reservation: &SensitiveHandleUseReservation) -> bool {
+        if let Some(index) = self
+            .outstanding_reservations
+            .iter()
+            .position(|candidate| candidate == reservation)
+        {
+            self.outstanding_reservations.swap_remove(index);
             self.completed_uses += 1;
             true
         } else {
@@ -423,8 +433,13 @@ impl SensitiveHandleUseState {
     /// outstanding identity and restores one unit of capacity. Unknown, stale,
     /// committed, or already compensated identities return `false` without
     /// changing state. Revocation does not block cleanup compensation.
-    pub fn compensate_reservation(&mut self, reservation: SensitiveHandleUseReservation) -> bool {
-        if self.outstanding_reservations.remove(&reservation) {
+    pub fn compensate_reservation(&mut self, reservation: &SensitiveHandleUseReservation) -> bool {
+        if let Some(index) = self
+            .outstanding_reservations
+            .iter()
+            .position(|candidate| candidate == reservation)
+        {
+            self.outstanding_reservations.swap_remove(index);
             self.reserved_uses -= 1;
             true
         } else {
@@ -482,34 +497,5 @@ pub fn evaluate_handle_use(
         HandleUseDecision::UseLimitReached
     } else {
         HandleUseDecision::Authorized
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #![allow(clippy::expect_used)]
-
-    use super::*;
-
-    #[test]
-    fn exhausted_reservation_identity_fails_closed_without_consuming_capacity() {
-        let authority = SensitiveDataAuthority::new(
-            "tenant_alpha",
-            "task_alpha",
-            "field_alpha",
-            "purpose_alpha",
-            Origin::parse("https://example.com").expect("unit-test origin must parse"),
-            DataClassification::PersonalData,
-        );
-        let scope = SensitiveValueHandleScope::new(authority.clone(), "adapter_alpha", 2_000, 2);
-        let mut state = SensitiveHandleUseState::new(scope);
-        state.next_reservation_sequence = None;
-
-        assert_eq!(
-            state.reserve_tracked_use(authority, "adapter_alpha", 1_999),
-            Err(HandleUseDecision::ReservationIdentityExhausted)
-        );
-        assert_eq!(state.reserved_uses(), 0);
-        assert_eq!(state.outstanding_reservations(), 0);
     }
 }
