@@ -11,6 +11,9 @@
 
 const MEBIBYTE_BYTES: u64 = 1_048_576;
 
+/// Maximum number of explicitly attributed browser processes in one RSS sample set.
+pub const MAX_BROWSER_PROCESS_SET_SIZE: usize = 256;
+
 const fn bytes_to_mebibytes_ceil(bytes: u64) -> u64 {
     let whole_mebibytes = bytes / MEBIBYTE_BYTES;
     if bytes.is_multiple_of(MEBIBYTE_BYTES) {
@@ -402,6 +405,14 @@ pub enum BrowserTaskTelemetryError {
 pub enum BrowserRssSampleError {
     /// Process identifiers are one-based and zero was supplied.
     InvalidProcessId,
+    /// No browser process was supplied to a process-set measurement.
+    EmptyProcessSet,
+    /// A process identifier appeared more than once and would be double-counted.
+    DuplicateProcessId,
+    /// The caller supplied more process identifiers than the bounded set permits.
+    ProcessSetTooLarge,
+    /// Summing bounded process resident-set sizes would overflow `u64`.
+    ProcessSetRssOverflow,
     /// The process status file could not be read at the sampling boundary.
     ProcessStatusUnavailable,
     /// The Linux process status did not contain a resident-set-size field.
@@ -416,6 +427,51 @@ pub enum BrowserRssSampleError {
     VmRssOverflow,
     /// The current operating system does not expose Linux `/proc` process status.
     UnsupportedPlatform,
+}
+
+fn validate_browser_process_set_size(process_count: usize) -> Result<(), BrowserRssSampleError> {
+    if process_count == 0 {
+        return Err(BrowserRssSampleError::EmptyProcessSet);
+    }
+    if process_count > MAX_BROWSER_PROCESS_SET_SIZE {
+        return Err(BrowserRssSampleError::ProcessSetTooLarge);
+    }
+    Ok(())
+}
+
+fn validate_browser_process_ids(process_ids: &[u32]) -> Result<(), BrowserRssSampleError> {
+    for (index, process_id) in process_ids.iter().copied().enumerate() {
+        if process_id == 0 {
+            return Err(BrowserRssSampleError::InvalidProcessId);
+        }
+        if process_ids[..index].contains(&process_id) {
+            return Err(BrowserRssSampleError::DuplicateProcessId);
+        }
+    }
+    Ok(())
+}
+
+/// Aggregate exact caller-supplied process RSS samples without double-counting.
+///
+/// The input is deliberately an explicit bounded process set rather than a
+/// discovered browser tree. Process identifiers must be nonzero and unique,
+/// and byte totals use checked addition so an overflow cannot be misreported as
+/// a smaller task. This function does not prove that any process belongs to
+/// Chromium or to the same Agent Task.
+pub fn aggregate_browser_process_rss_samples(
+    samples: &[(u32, u64)],
+) -> Result<u64, BrowserRssSampleError> {
+    validate_browser_process_set_size(samples.len())?;
+    let process_ids: Vec<u32> = samples.iter().map(|(process_id, _rss_bytes)| *process_id).collect();
+    validate_browser_process_ids(&process_ids)?;
+
+    let mut total_rss_bytes = 0_u64;
+    for (_process_id, rss_bytes) in samples {
+        total_rss_bytes = total_rss_bytes
+            .checked_add(*rss_bytes)
+            .ok_or(BrowserRssSampleError::ProcessSetRssOverflow)?;
+    }
+    Ok(total_rss_bytes)
 }
 
 /// Parse Linux `/proc/<pid>/status` and return the exact `VmRSS` value in bytes.
@@ -481,6 +537,36 @@ pub fn sample_linux_process_rss_bytes(process_id: u32) -> Result<u64, BrowserRss
     #[cfg(not(target_os = "linux"))]
     {
         let _ = process_id;
+        Err(BrowserRssSampleError::UnsupportedPlatform)
+    }
+}
+
+/// Sample the aggregate RSS of one explicit bounded Linux process set.
+///
+/// The caller owns process discovery and attribution. This function validates
+/// the complete supplied set before any operating-system read, samples every
+/// exact member, fails closed if any member cannot be sampled, and returns no
+/// partial total. It does not walk child processes or cgroups and does not prove
+/// that the supplied identifiers belong to Chromium or to the same Agent Task.
+pub fn sample_linux_process_set_rss_bytes(
+    process_ids: &[u32],
+) -> Result<u64, BrowserRssSampleError> {
+    validate_browser_process_set_size(process_ids.len())?;
+    validate_browser_process_ids(process_ids)?;
+
+    #[cfg(target_os = "linux")]
+    {
+        let mut samples = Vec::with_capacity(process_ids.len());
+        for process_id in process_ids {
+            let rss_bytes = sample_linux_process_rss_bytes(*process_id)?;
+            samples.push((*process_id, rss_bytes));
+        }
+        aggregate_browser_process_rss_samples(&samples)
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = process_ids;
         Err(BrowserRssSampleError::UnsupportedPlatform)
     }
 }
