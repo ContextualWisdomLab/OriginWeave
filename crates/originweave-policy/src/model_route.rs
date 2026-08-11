@@ -344,3 +344,67 @@ pub fn evaluate_model_invocation(
         ModelInvocationDecision::Authorized
     }
 }
+
+/// Result of composing an explicit full-field disclosure with a reviewed model invocation.
+///
+/// This decision authorizes only the metadata composition boundary. It carries no protected field
+/// bytes and does not authenticate or invoke a provider, resolve an opaque handle, validate model
+/// output, enforce retention, or prove that a non-model execution path was unavailable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ModelDisclosureDecision {
+    /// The exact full-field disclosure and reviewed model invocation both authorize the same field authority.
+    Authorized,
+    /// Sensitive-data policy did not explicitly authorize complete-field disclosure.
+    DisclosureNotAuthorized(DisclosureDecision),
+    /// The disclosure authority and model invocation belong to different exact authority tuples.
+    AuthorityMismatch,
+    /// Model-route or invocation policy denied the otherwise full-field-authorized request.
+    InvocationDenied(ModelInvocationDecision),
+}
+
+/// Compose full-field sensitive-data disclosure with one exact reviewed model invocation.
+///
+/// Full-field disclosure is evaluated first so every weaker, approval-pending, malformed, or denied
+/// sensitive-data outcome remains non-authorizing for raw model input. The disclosure request must
+/// then carry the same complete [`SensitiveDataAuthority`] as the model invocation request; this
+/// prevents independently valid policy metadata for different tenant/task/field/purpose/destination/
+/// classification authorities from being combined. Only after those boundaries pass is the existing
+/// route/context/prompt/schema/token/expiry evaluator consulted. `trusted_time` must come from the
+/// same authoritative time domain as the reviewed invocation policy expiry.
+///
+/// An [`ModelDisclosureDecision::Authorized`] result still does not carry or disclose protected
+/// bytes. A trusted broker must independently prove that full-field model disclosure is necessary,
+/// authenticate the runtime/provider, resolve the value inside its transaction boundary, execute only
+/// the authorized route, validate output, and enforce retention/export policy.
+#[must_use]
+pub fn evaluate_full_field_model_disclosure(
+    disclosure_request: &SensitiveDataRequest,
+    disclosure_scope: &DisclosureScope,
+    invocation_request: &ModelInvocationRequest,
+    invocation_scope: &ModelInvocationScope,
+    trusted_time: u64,
+) -> ModelDisclosureDecision {
+    let disclosure_decision = evaluate_disclosure(disclosure_request, disclosure_scope);
+    if disclosure_decision != DisclosureDecision::FullFieldDisclosure {
+        return ModelDisclosureDecision::DisclosureNotAuthorized(disclosure_decision);
+    }
+
+    let invocation_authority_decision = evaluate_disclosure(
+        disclosure_request,
+        &DisclosureScope::new(
+            invocation_request.route.authority.clone(),
+            DisclosureDecision::FullFieldDisclosure,
+        ),
+    );
+    if invocation_authority_decision != DisclosureDecision::FullFieldDisclosure {
+        return ModelDisclosureDecision::AuthorityMismatch;
+    }
+
+    let invocation_decision =
+        evaluate_model_invocation(invocation_request, invocation_scope, trusted_time);
+    if invocation_decision == ModelInvocationDecision::Authorized {
+        ModelDisclosureDecision::Authorized
+    } else {
+        ModelDisclosureDecision::InvocationDenied(invocation_decision)
+    }
+}
