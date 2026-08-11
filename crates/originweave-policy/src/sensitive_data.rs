@@ -441,7 +441,8 @@ impl SensitiveHandleUseState {
         }
         if !authority.is_complete() || authority != self.scope.authority {
             HandleUseDecision::ScopeMismatch
-        } else if !authority_identifier_is_valid(audience_id) || audience_id != self.scope.audience_id
+        } else if !authority_identifier_is_valid(audience_id)
+            || audience_id != self.scope.audience_id
         {
             HandleUseDecision::AudienceMismatch
         } else if now_epoch_seconds >= self.scope.expires_at_epoch_seconds {
