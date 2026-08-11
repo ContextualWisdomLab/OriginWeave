@@ -50,7 +50,10 @@ fn route_scope(authority: SensitiveDataAuthority) -> ModelRouteScope {
     )
 }
 
-fn invocation_request(authority: SensitiveDataAuthority, provider_id: &str) -> ModelInvocationRequest {
+fn invocation_request(
+    authority: SensitiveDataAuthority,
+    provider_id: &str,
+) -> ModelInvocationRequest {
     ModelInvocationRequest::new(
         route_request(authority, provider_id),
         "case-resolution-prompt-v1",
@@ -129,12 +132,9 @@ fn disclosure_authority_cannot_be_composed_with_another_tasks_valid_invocation()
     let disclosed_authority = authority("task-42");
     let invocation_authority = authority("task-99");
     let disclosure_request = SensitiveDataRequest::new(disclosed_authority.clone());
-    let disclosure_scope = DisclosureScope::new(
-        disclosed_authority,
-        DisclosureDecision::FullFieldDisclosure,
-    );
-    let invocation_request =
-        invocation_request(invocation_authority.clone(), "provider-private");
+    let disclosure_scope =
+        DisclosureScope::new(disclosed_authority, DisclosureDecision::FullFieldDisclosure);
+    let invocation_request = invocation_request(invocation_authority.clone(), "provider-private");
     let invocation_scope = invocation_scope(invocation_authority);
 
     assert_eq!(
