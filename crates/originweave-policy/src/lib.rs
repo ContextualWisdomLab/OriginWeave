@@ -7,8 +7,10 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+mod model_route;
 mod sensitive_data;
 
+pub use model_route::{ModelRouteDecision, ModelRouteRequest, ModelRouteScope, evaluate_model_route};
 pub use sensitive_data::{
     DataClassification, DisclosureDecision, DisclosureScope, HandleRevocationReason,
     HandleUseDecision, HandleUseRequest, SensitiveDataAuthority, SensitiveDataRequest,
