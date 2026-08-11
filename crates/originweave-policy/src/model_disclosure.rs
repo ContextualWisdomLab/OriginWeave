@@ -97,7 +97,9 @@ pub fn evaluate_full_field_model_disclosure(
         InvocationDisclosureDecision::DisclosureNotAuthorized(decision) => {
             ModelDisclosureDecision::DisclosureNotAuthorized(decision)
         }
-        InvocationDisclosureDecision::AuthorityMismatch => ModelDisclosureDecision::AuthorityMismatch,
+        InvocationDisclosureDecision::AuthorityMismatch => {
+            ModelDisclosureDecision::AuthorityMismatch
+        }
         InvocationDisclosureDecision::InvocationDenied(decision) => {
             ModelDisclosureDecision::InvocationDenied(decision)
         }
