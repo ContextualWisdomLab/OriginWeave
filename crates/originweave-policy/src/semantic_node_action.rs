@@ -54,6 +54,33 @@ impl PolicyAuthorizedSemanticNodeAction {
             current_epoch,
         )
     }
+
+    /// Revalidate exact browser authority and immediately invoke one adapter dispatch callback.
+    ///
+    /// The supplied session, context, origin, and document epoch must be trusted adapter state
+    /// sampled for the action that is about to be dispatched. The callback is never invoked when
+    /// that state no longer matches the semantic-node binding. A successful callback invocation
+    /// does not authenticate the adapter, grant destination, secret, or approval authority, or
+    /// prove the action's post-condition; those remain separate execution boundaries.
+    pub fn dispatch_if_current<R, F>(
+        &self,
+        current_session: BrowserSessionId,
+        current_context: BrowsingContextId,
+        current_origin: &Origin,
+        current_epoch: DocumentEpoch,
+        dispatch: F,
+    ) -> Result<R, NodeHandleError>
+    where
+        F: FnOnce(&SemanticNodeActionBinding) -> R,
+    {
+        self.validate_current(
+            current_session,
+            current_context,
+            current_origin,
+            current_epoch,
+        )?;
+        Ok(dispatch(&self.binding))
+    }
 }
 
 /// A fail-closed outcome that did not produce a policy-authorized semantic-node action.
