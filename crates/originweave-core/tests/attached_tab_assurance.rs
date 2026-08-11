@@ -15,11 +15,11 @@ fn attached_human_tab_with_extension_influence_is_explicitly_reduced_assurance()
 }
 
 #[test]
-fn attached_human_tab_without_extension_influence_has_no_extension_reduction() {
+fn attached_human_tab_without_known_extension_influence_has_no_extension_reduction() {
     assert_eq!(
         classify_reduced_assurance(
             BrowserAttachmentKind::AttachedHumanTab,
-            ExtensionInfluenceEvidence::NoExtensionInfluence,
+            ExtensionInfluenceEvidence::NoKnownExtensionInfluence,
         ),
         None
     );
