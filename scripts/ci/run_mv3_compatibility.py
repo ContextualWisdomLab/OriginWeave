@@ -43,6 +43,7 @@ FIXTURE_TIMEOUT_SECONDS = 20.0
 MAX_WEBDRIVER_RESPONSE_BYTES = 1_048_576
 MAX_PROC_STATUS_CHARACTERS = 65_536
 MAX_BROWSER_PROCESS_TREE_SIZE = 256
+MAX_PROC_PROCESS_SCAN_SIZE = 32_768
 MAX_U64 = (1 << 64) - 1
 W3C_ELEMENT_KEY = "element-6066-11e4-a52e-4f735466cecf"
 PATH_TOKEN_CHARACTERS = frozenset(string.ascii_letters + string.digits + "-_.")
@@ -229,6 +230,35 @@ def _parse_linux_proc_status_rss_bytes(status_text: str) -> int:
     return rss_values[0]
 
 
+def _parse_linux_proc_status_process_identity(status_text: str) -> tuple[int, int]:
+    """Parse exactly one positive ``Pid`` and one non-negative ``PPid`` from status."""
+
+    parsed: dict[str, int] = {}
+    for line in status_text.splitlines():
+        if not (line.startswith("Pid:") or line.startswith("PPid:")):
+            continue
+        fields = line.split()
+        if len(fields) != 2 or fields[0] not in {"Pid:", "PPid:"}:
+            raise ValueError("malformed Linux process identity field")
+        label = fields[0]
+        if label in parsed:
+            raise ValueError("duplicate Linux process identity field")
+        raw_process_id = fields[1]
+        if not raw_process_id.isascii() or not raw_process_id.isdigit():
+            raise ValueError("malformed Linux process identity value")
+        parsed[label] = int(raw_process_id, 10)
+
+    if set(parsed) != {"Pid:", "PPid:"}:
+        raise ValueError("Linux proc status must contain exactly one Pid and PPid")
+    process_id = parsed["Pid:"]
+    parent_process_id = parsed["PPid:"]
+    if process_id <= 0:
+        raise ValueError("Linux process identifier must be positive")
+    if parent_process_id < 0:
+        raise ValueError("Linux parent process identifier must be non-negative")
+    return process_id, parent_process_id
+
+
 def _sample_linux_process_rss_bytes(process_id: int) -> int:
     """Read one attributed Linux process RSS through a bounded ``/proc`` status file."""
 
@@ -242,27 +272,45 @@ def _sample_linux_process_rss_bytes(process_id: int) -> int:
     return _parse_linux_proc_status_rss_bytes(status_text)
 
 
-def _parse_linux_children_process_ids(children_text: str) -> tuple[int, ...]:
-    """Parse one bounded Linux ``children`` list into unique positive process IDs."""
+def _snapshot_linux_process_parent_ids() -> dict[int, int]:
+    """Read one bounded best-effort Linux PID/PPID snapshot from process status files."""
 
-    fields = children_text.split()
-    if len(fields) > MAX_BROWSER_PROCESS_TREE_SIZE:
-        raise ValueError("Linux child process list exceeded the bounded process-tree size")
-    process_ids: list[int] = []
-    seen: set[int] = set()
-    for field in fields:
-        if not field.isascii() or not field.isdigit():
-            raise ValueError("malformed Linux child process identifier")
-        process_id = int(field, 10)
-        if process_id <= 0 or process_id in seen:
-            raise ValueError("Linux child process identifiers must be unique and positive")
-        seen.add(process_id)
-        process_ids.append(process_id)
-    return tuple(process_ids)
+    proc_root = pathlib.Path("/proc")
+    process_entries: list[tuple[int, pathlib.Path]] = []
+    for entry in proc_root.iterdir():
+        raw_process_id = entry.name
+        if not raw_process_id.isascii() or not raw_process_id.isdigit():
+            continue
+        process_id = int(raw_process_id, 10)
+        if process_id <= 0:
+            continue
+        process_entries.append((process_id, entry))
+        if len(process_entries) > MAX_PROC_PROCESS_SCAN_SIZE:
+            raise RuntimeError("Linux proc process scan exceeded the bounded entry limit")
+
+    parent_ids: dict[int, int] = {}
+    for expected_process_id, entry in sorted(process_entries):
+        status_path = entry / "status"
+        try:
+            with status_path.open("r", encoding="utf-8", errors="strict") as status_file:
+                status_text = status_file.read(MAX_PROC_STATUS_CHARACTERS + 1)
+        except FileNotFoundError:
+            continue
+        if len(status_text) > MAX_PROC_STATUS_CHARACTERS:
+            raise RuntimeError("Linux proc status exceeded the bounded text limit")
+        process_id, parent_process_id = _parse_linux_proc_status_process_identity(
+            status_text
+        )
+        if process_id != expected_process_id:
+            raise RuntimeError("Linux proc status identity did not match its directory")
+        if process_id in parent_ids:
+            raise RuntimeError("Linux proc process snapshot contained a duplicate PID")
+        parent_ids[process_id] = parent_process_id
+    return parent_ids
 
 
 def _discover_linux_process_tree_ids(root_process_id: int) -> tuple[int, ...]:
-    """Discover one bounded root-plus-descendant Linux process tree from ``/proc``."""
+    """Discover one bounded root-plus-descendant process set from a PID/PPID snapshot."""
 
     if (
         isinstance(root_process_id, bool)
@@ -271,35 +319,25 @@ def _discover_linux_process_tree_ids(root_process_id: int) -> tuple[int, ...]:
     ):
         raise ValueError("invalid Linux root process identifier")
 
-    discovered: list[int] = []
-    queued: list[int] = [root_process_id]
-    known: set[int] = {root_process_id}
-    while queued:
-        process_id = queued.pop(0)
-        discovered.append(process_id)
-        if len(discovered) > MAX_BROWSER_PROCESS_TREE_SIZE:
-            raise ValueError("Linux process tree exceeded the bounded process-tree size")
+    parent_ids = _snapshot_linux_process_parent_ids()
+    if root_process_id not in parent_ids:
+        raise RuntimeError("Linux process snapshot did not contain the browser root PID")
 
-        children_path = (
-            pathlib.Path("/proc")
-            / str(process_id)
-            / "task"
-            / str(process_id)
-            / "children"
+    discovered = [root_process_id]
+    known = {root_process_id}
+    while True:
+        children = sorted(
+            process_id
+            for process_id, parent_process_id in parent_ids.items()
+            if parent_process_id in known and process_id not in known
         )
-        with children_path.open("r", encoding="utf-8", errors="strict") as children_file:
-            children_text = children_file.read(MAX_PROC_STATUS_CHARACTERS + 1)
-        if len(children_text) > MAX_PROC_STATUS_CHARACTERS:
-            raise RuntimeError("Linux proc children exceeded the bounded text limit")
-        children = _parse_linux_children_process_ids(children_text)
-        for child_process_id in children:
-            if child_process_id in known:
-                raise ValueError("Linux process tree contained a duplicate process identifier")
+        if not children:
+            break
+        for process_id in children:
             if len(known) >= MAX_BROWSER_PROCESS_TREE_SIZE:
                 raise ValueError("Linux process tree exceeded the bounded process-tree size")
-            known.add(child_process_id)
-            queued.append(child_process_id)
-
+            known.add(process_id)
+            discovered.append(process_id)
     return tuple(discovered)
 
 
