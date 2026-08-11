@@ -35,12 +35,8 @@ fn empty_agent_task_extension_policy_denies_every_extension() {
 fn managed_agent_task_extension_policy_allows_only_exact_identifiers() {
     let allowed = extension_id("abcdefghijklmnopabcdefghijklmnop");
     let other = extension_id("bcdefghijklmnopabcdefghijklmnopa");
-    let policy = AgentTaskExtensionPolicy::new(
-        session(31),
-        [allowed.clone(), allowed.clone()],
-        10,
-        20,
-    );
+    let policy =
+        AgentTaskExtensionPolicy::new(session(31), [allowed.clone(), allowed.clone()], 10, 20);
 
     assert_eq!(
         evaluate_agent_task_extension(&allowed, &policy, session(31), 10),
@@ -110,12 +106,8 @@ fn invalid_managed_extension_policy_window_fails_closed_before_membership() {
 #[test]
 fn maximum_timestamp_window_remains_half_open_without_overflow() {
     let extension = extension_id("abcdefghijklmnopabcdefghijklmnop");
-    let policy = AgentTaskExtensionPolicy::new(
-        session(31),
-        [extension.clone()],
-        u64::MAX - 1,
-        u64::MAX,
-    );
+    let policy =
+        AgentTaskExtensionPolicy::new(session(31), [extension.clone()], u64::MAX - 1, u64::MAX);
 
     assert_eq!(
         evaluate_agent_task_extension(&extension, &policy, session(31), u64::MAX - 1),
