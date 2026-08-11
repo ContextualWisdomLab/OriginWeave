@@ -462,7 +462,10 @@ pub fn aggregate_browser_process_rss_samples(
     samples: &[(u32, u64)],
 ) -> Result<u64, BrowserRssSampleError> {
     validate_browser_process_set_size(samples.len())?;
-    let process_ids: Vec<u32> = samples.iter().map(|(process_id, _rss_bytes)| *process_id).collect();
+    let process_ids: Vec<u32> = samples
+        .iter()
+        .map(|(process_id, _rss_bytes)| *process_id)
+        .collect();
     validate_browser_process_ids(&process_ids)?;
 
     let mut total_rss_bytes = 0_u64;
