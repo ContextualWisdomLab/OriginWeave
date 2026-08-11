@@ -109,11 +109,9 @@ fn unavailable_primary_without_reviewed_fallback_fails_closed() {
 
 #[test]
 fn fallback_must_exist_on_both_request_and_trusted_scope() {
-    let request_only = ModelFallbackRequest::new(
-        primary_request(),
-        ModelRouteAvailability::Unavailable,
-    )
-    .with_fallback(fallback_request());
+    let request_only =
+        ModelFallbackRequest::new(primary_request(), ModelRouteAvailability::Unavailable)
+            .with_fallback(fallback_request());
     let no_fallback_scope = ModelFallbackScope::new(primary_scope());
     assert_eq!(
         evaluate_model_fallback(&request_only, &no_fallback_scope),
