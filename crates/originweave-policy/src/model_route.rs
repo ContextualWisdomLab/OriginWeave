@@ -1,4 +1,4 @@
-//! Exact provider/model/region/retention/training/subprocessor route admission for sensitive-data workflows.
+//! Exact provider/model/region/retention/training/subprocessor/export route admission for sensitive-data workflows.
 //!
 //! This module evaluates route metadata only. An [`ModelRouteDecision::Authorized`] result does
 //! not authorize disclosure of a protected value, authenticate a provider, prove the provider's
@@ -12,6 +12,7 @@ use crate::sensitive_data::{
 };
 
 const MAX_ROUTE_IDENTIFIER_BYTES: usize = 128;
+const DEFAULT_EXPORT_POLICY_ID: &str = "no-export";
 
 /// Result of comparing one requested model route with its exact sensitive-data route authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -20,7 +21,7 @@ pub enum ModelRouteDecision {
     Authorized,
     /// The sensitive-data authority is malformed or does not match the route scope.
     AuthorityMismatch,
-    /// Provider/model/region/retention/training/subprocessor metadata is malformed or mismatched.
+    /// Provider/model/region/retention/training/subprocessor/export metadata is malformed or mismatched.
     RouteMismatch,
 }
 
@@ -34,10 +35,14 @@ pub struct ModelRouteRequest {
     retention_policy_id: String,
     training_policy_id: String,
     subprocessor_policy_id: String,
+    export_policy_id: String,
 }
 
 impl ModelRouteRequest {
-    /// Build a requested model route without granting disclosure authority.
+    /// Build a requested model route that is explicitly non-exporting.
+    ///
+    /// Call [`Self::new_with_export_policy`] when a workflow requests a separately governed
+    /// export behavior. Neither constructor grants protected-value disclosure authority.
     #[must_use]
     pub fn new(
         authority: SensitiveDataAuthority,
@@ -48,6 +53,34 @@ impl ModelRouteRequest {
         training_policy_id: &str,
         subprocessor_policy_id: &str,
     ) -> Self {
+        Self::new_with_export_policy(
+            authority,
+            provider_id,
+            model_id,
+            region_id,
+            retention_policy_id,
+            training_policy_id,
+            subprocessor_policy_id,
+            DEFAULT_EXPORT_POLICY_ID,
+        )
+    }
+
+    /// Build a requested model route with one explicit export-policy identifier.
+    ///
+    /// The identifier describes policy intent only. Matching an export-policy identifier does not
+    /// execute an export or grant access to protected bytes; the later broker/export boundary must
+    /// independently authorize and enforce the actual destination and value form.
+    #[must_use]
+    pub fn new_with_export_policy(
+        authority: SensitiveDataAuthority,
+        provider_id: &str,
+        model_id: &str,
+        region_id: &str,
+        retention_policy_id: &str,
+        training_policy_id: &str,
+        subprocessor_policy_id: &str,
+        export_policy_id: &str,
+    ) -> Self {
         Self {
             authority,
             provider_id: provider_id.to_owned(),
@@ -56,6 +89,7 @@ impl ModelRouteRequest {
             retention_policy_id: retention_policy_id.to_owned(),
             training_policy_id: training_policy_id.to_owned(),
             subprocessor_policy_id: subprocessor_policy_id.to_owned(),
+            export_policy_id: export_policy_id.to_owned(),
         }
     }
 
@@ -66,6 +100,7 @@ impl ModelRouteRequest {
             && route_identifier_is_valid(&self.retention_policy_id)
             && route_identifier_is_valid(&self.training_policy_id)
             && route_identifier_is_valid(&self.subprocessor_policy_id)
+            && route_identifier_is_valid(&self.export_policy_id)
     }
 }
 
@@ -79,13 +114,15 @@ pub struct ModelRouteScope {
     retention_policy_id: String,
     training_policy_id: String,
     subprocessor_policy_id: String,
+    export_policy_id: String,
 }
 
 impl ModelRouteScope {
-    /// Build a route scope from trusted policy metadata.
+    /// Build a non-exporting route scope from trusted policy metadata.
     ///
     /// Route identifiers are validated when the scope is evaluated so malformed policy state
     /// remains fail-closed rather than becoming authority merely because request and scope match.
+    /// Call [`Self::new_with_export_policy`] when policy explicitly governs another export mode.
     #[must_use]
     pub fn new(
         authority: SensitiveDataAuthority,
@@ -96,6 +133,33 @@ impl ModelRouteScope {
         training_policy_id: &str,
         subprocessor_policy_id: &str,
     ) -> Self {
+        Self::new_with_export_policy(
+            authority,
+            provider_id,
+            model_id,
+            region_id,
+            retention_policy_id,
+            training_policy_id,
+            subprocessor_policy_id,
+            DEFAULT_EXPORT_POLICY_ID,
+        )
+    }
+
+    /// Build a route scope with one explicit export-policy identifier.
+    ///
+    /// This is route metadata only. The eventual export path must separately verify protected-value
+    /// disclosure, destination authority, retention, and any required human or dual-control approval.
+    #[must_use]
+    pub fn new_with_export_policy(
+        authority: SensitiveDataAuthority,
+        provider_id: &str,
+        model_id: &str,
+        region_id: &str,
+        retention_policy_id: &str,
+        training_policy_id: &str,
+        subprocessor_policy_id: &str,
+        export_policy_id: &str,
+    ) -> Self {
         Self {
             authority,
             provider_id: provider_id.to_owned(),
@@ -104,6 +168,7 @@ impl ModelRouteScope {
             retention_policy_id: retention_policy_id.to_owned(),
             training_policy_id: training_policy_id.to_owned(),
             subprocessor_policy_id: subprocessor_policy_id.to_owned(),
+            export_policy_id: export_policy_id.to_owned(),
         }
     }
 
@@ -114,6 +179,7 @@ impl ModelRouteScope {
             && route_identifier_is_valid(&self.retention_policy_id)
             && route_identifier_is_valid(&self.training_policy_id)
             && route_identifier_is_valid(&self.subprocessor_policy_id)
+            && route_identifier_is_valid(&self.export_policy_id)
     }
 }
 
@@ -130,11 +196,12 @@ fn route_identifier_is_valid(identifier: &str) -> bool {
 ///
 /// The existing sensitive-data disclosure comparator is reused only to validate that request and
 /// scope carry the same complete [`SensitiveDataAuthority`]. Route admission then independently
-/// requires valid, exact provider, model, region, retention-policy, training-policy, and reviewed
-/// subprocessor-policy identifiers. Keeping retention, training, and subprocessor authority
-/// distinct prevents one permitted provider contract dimension from silently authorizing another.
-/// All route identifiers use bounded 1–128 byte ASCII policy tokens containing alphanumeric
-/// characters plus `.`, `_`, `:`, and `-`.
+/// requires valid, exact provider, model, region, retention-policy, training-policy, reviewed
+/// subprocessor-policy, and export-policy identifiers. Keeping retention, training, subprocessor,
+/// and export authority distinct prevents one permitted provider contract dimension from silently
+/// authorizing another. The compatibility constructor defaults export policy to `no-export`, so an
+/// omitted export choice never widens route authority. All route identifiers use bounded 1–128 byte
+/// ASCII policy tokens containing alphanumeric characters plus `.`, `_`, `:`, and `-`.
 #[must_use]
 pub fn evaluate_model_route(
     request: &ModelRouteRequest,
@@ -159,6 +226,7 @@ pub fn evaluate_model_route(
         || request.retention_policy_id != scope.retention_policy_id
         || request.training_policy_id != scope.training_policy_id
         || request.subprocessor_policy_id != scope.subprocessor_policy_id
+        || request.export_policy_id != scope.export_policy_id
     {
         ModelRouteDecision::RouteMismatch
     } else {
