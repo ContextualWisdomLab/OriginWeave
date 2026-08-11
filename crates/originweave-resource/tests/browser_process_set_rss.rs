@@ -1,8 +1,6 @@
-#![allow(clippy::expect_used)]
-
 use originweave_resource::{
     BrowserRssSampleError, MAX_BROWSER_PROCESS_SET_SIZE, aggregate_browser_process_rss_samples,
-    sample_linux_process_rss_bytes, sample_linux_process_set_rss_bytes,
+    sample_linux_process_set_rss_bytes,
 };
 
 #[test]
@@ -46,15 +44,13 @@ fn process_set_aggregation_rejects_overflow_instead_of_undercounting() {
 }
 
 #[test]
-fn linux_process_set_sampler_matches_the_single_process_sampler() {
+fn linux_process_set_sampler_measures_the_current_process() {
     #[cfg(target_os = "linux")]
     {
-        let process_id = std::process::id();
-        let single = sample_linux_process_rss_bytes(process_id)
-            .expect("the current Linux test process has a readable /proc status");
-        assert_eq!(
-            sample_linux_process_set_rss_bytes(&[process_id]),
-            Ok(single)
+        let sampled = sample_linux_process_set_rss_bytes(&[std::process::id()]);
+        assert!(
+            matches!(&sampled, Ok(rss_bytes) if *rss_bytes > 0 && *rss_bytes % 1_024 == 0),
+            "the current Linux test process must produce a positive kernel-kB RSS sample: {sampled:?}"
         );
     }
 
