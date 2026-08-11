@@ -6,6 +6,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Added
 
+- Fail-closed managed extension admission for isolated Agent Task profiles: an empty policy admits no extension, only exact canonical `ExtensionId` allow-list membership is accepted, duplicate entries cannot widen authority, and successful profile admission remains separate from `ExtensionAgentGrant` capability.
 - Explicit reduced-assurance classification for attached human tabs when trusted adapter evidence says an existing extension can influence page state; the narrow rule does not detect extensions, prove extension absence, grant Agent authority, or turn an unclassified context into high-assurance evidence.
 - Rust workspace for independently reusable core, policy, destination, network, TLS, resource, and evidence modules.
 - Canonical HTTPS and loopback-origin boundary with case-normalized schemes and hosts, default-port normalization, IPv4/IPv6 handling, browser-special numeric-host rejection, and explicit malformed-input errors.
