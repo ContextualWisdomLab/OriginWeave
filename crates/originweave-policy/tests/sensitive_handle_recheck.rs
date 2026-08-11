@@ -24,6 +24,17 @@ fn authority(destination: &str) -> SensitiveDataAuthority {
     )
 }
 
+fn authority_with_tenant(tenant_id: &str) -> SensitiveDataAuthority {
+    SensitiveDataAuthority::new(
+        tenant_id,
+        TASK,
+        FIELD,
+        PURPOSE,
+        Origin::parse(DESTINATION).expect("test origin must be valid"),
+        DataClassification::PersonalData,
+    )
+}
+
 fn scope(max_uses: u32) -> SensitiveValueHandleScope {
     SensitiveValueHandleScope::new(authority(DESTINATION), AUDIENCE, 2_000, max_uses)
 }
@@ -88,12 +99,20 @@ fn recheck_revalidates_scope_audience_and_expiry() {
         HandleUseDecision::ScopeMismatch
     );
     assert_eq!(
+        state.recheck_reservation(&reservation, authority_with_tenant(""), AUDIENCE, 1_999),
+        HandleUseDecision::ScopeMismatch
+    );
+    assert_eq!(
         state.recheck_reservation(
             &reservation,
             authority(DESTINATION),
             "other_browser_adapter",
             1_999,
         ),
+        HandleUseDecision::AudienceMismatch
+    );
+    assert_eq!(
+        state.recheck_reservation(&reservation, authority(DESTINATION), "", 1_999),
         HandleUseDecision::AudienceMismatch
     );
     assert_eq!(
