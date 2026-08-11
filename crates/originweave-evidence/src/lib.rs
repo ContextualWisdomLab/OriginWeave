@@ -257,6 +257,7 @@ fn redact_all_values(values: BTreeMap<String, String>) -> BTreeMap<String, Strin
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProvenanceRecord {
     source_url: String,
+    source_origin: Origin,
     source_locator: String,
     source_hash: String,
     source_kind: EvidenceSourceKind,
@@ -277,9 +278,9 @@ impl ProvenanceRecord {
         {
             return Err(EvidenceError::LimitExceeded);
         }
-        if !valid_source_url(source_url) {
+        let Some(source_origin) = parse_source_origin(source_url) else {
             return Err(EvidenceError::InvalidSourceUrl);
-        }
+        };
         if source_locator.is_empty() {
             return Err(EvidenceError::EmptyLocator);
         }
@@ -288,6 +289,7 @@ impl ProvenanceRecord {
         }
         Ok(Self {
             source_url: source_url.to_owned(),
+            source_origin,
             source_locator: source_locator.to_owned(),
             source_hash: source_hash.to_owned(),
             source_kind,
@@ -299,6 +301,10 @@ impl ProvenanceRecord {
     #[must_use]
     pub fn source_url(&self) -> &str {
         &self.source_url
+    }
+
+    pub(crate) const fn source_origin(&self) -> &Origin {
+        &self.source_origin
     }
 
     /// Return the channel-specific evidence locator.
@@ -326,26 +332,28 @@ impl ProvenanceRecord {
     }
 }
 
-fn valid_source_url(source_url: &str) -> bool {
+fn parse_source_origin(source_url: &str) -> Option<Origin> {
     if source_url.is_empty()
         || source_url
             .chars()
             .any(|character| character.is_control() || character.is_whitespace())
         || source_url.contains(['?', '#', '\\'])
     {
-        return false;
+        return None;
     }
-    let Some((scheme, remainder)) = source_url.split_once("://") else {
-        return false;
+    let (scheme, remainder) = source_url.split_once("://")?;
+    let authority_end = match remainder.find('/') {
+        Some(index) => index,
+        None => remainder.len(),
     };
-    let authority_end = remainder.find('/').unwrap_or(remainder.len());
     let authority = &remainder[..authority_end];
     let origin_text = format!("{scheme}://{authority}");
-    if Origin::parse(&origin_text).is_err() {
-        return false;
-    }
+    let origin = Origin::parse(&origin_text).ok()?;
     let path = &remainder[authority_end..];
-    path.is_empty() || validate_path(path).is_ok()
+    if !path.is_empty() && validate_path(path).is_err() {
+        return None;
+    }
+    Some(origin)
 }
 
 fn valid_sha256(source_hash: &str) -> bool {
