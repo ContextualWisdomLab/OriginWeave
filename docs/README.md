@@ -13,6 +13,7 @@
 - [Product and decision traceability](traceability/README.md)
 - [Documentation fitness assessment](DOCUMENTATION_FITNESS.md)
 - [Dated active-PR maturity evidence (2026-08-10)](evidence/2026-08-10-active-pr-maturity.md)
+- [Active-PR maturity delta (2026-08-11)](evidence/2026-08-11-active-pr-maturity-delta.md)
 - [Threat model](THREAT_MODEL.md)
 - [Product-wide test strategy](TEST_STRATEGY.md)
 - [Operability and incident-response baseline](OPERABILITY.md)
