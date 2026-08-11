@@ -95,6 +95,7 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
             "MAX_BROWSER_PROCESS_TREE_SIZE",
             "MAX_PROC_PROCESS_SCAN_SIZE",
             "_parse_linux_proc_status_process_identity",
+            "_parse_linux_proc_status_optional_rss_bytes",
             "_snapshot_linux_process_evidence",
             "_discover_linux_process_tree_ids",
             "_sample_linux_process_set_rss_bytes",
@@ -140,6 +141,25 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
             30: (20, 300),
         }
         self.assertEqual(sample((10, 20, 30), evidence), 400)
+
+    def test_optional_linux_rss_parser_separates_absence_from_ambiguity(self) -> None:
+        """Snapshot parsing may tolerate absence, never malformed or duplicate VmRSS."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_optional_rss_contract")
+        parser = namespace["_parse_linux_proc_status_optional_rss_bytes"]
+        self.assertIsNone(parser("Name:\tchrome\n"))
+        self.assertIsNone(parser("Name:\tchrome\nVmRSS:\t0 kB\n"))
+        self.assertEqual(parser("Name:\tchrome\nVmRSS:\t123 kB\n"), 123 * 1024)
+        for malformed in (
+            "VmRSS:\t123 MB\n",
+            "VmRSS:\t123 kB extra\n",
+            "VmRSS:\tnot-a-number kB\n",
+            "VmRSS:\t123 kB\nVmRSS:\t124 kB\n",
+            "VmRSS:\t18446744073709551616 kB\n",
+        ):
+            with self.subTest(malformed=malformed):
+                with self.assertRaises((ValueError, OverflowError)):
+                    parser(malformed)
 
     def test_linux_rss_parser_is_strict_and_overflow_safe(self) -> None:
         """Runner-side RSS evidence must not accept ambiguous proc status input."""
