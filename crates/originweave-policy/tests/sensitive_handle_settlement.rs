@@ -43,7 +43,7 @@ fn compensating_exact_failed_reservation_restores_capacity_without_replay() {
         Err(HandleUseDecision::UseLimitReached)
     );
 
-    assert!(state.compensate_reservation(first));
+    assert!(state.compensate_reservation(&first));
     assert_eq!(state.reserved_uses(), 0);
     assert_eq!(state.outstanding_reservations(), 0);
     assert_eq!(state.completed_uses(), 0);
@@ -52,7 +52,7 @@ fn compensating_exact_failed_reservation_restores_capacity_without_replay() {
         .reserve_tracked_use(authority(DESTINATION), AUDIENCE, 1_999)
         .expect("compensation must restore one use of capacity");
     assert_ne!(replacement, first);
-    assert!(!state.compensate_reservation(first));
+    assert!(!state.compensate_reservation(&first));
     assert_eq!(state.reserved_uses(), 1);
     assert_eq!(state.outstanding_reservations(), 1);
 }
@@ -64,12 +64,12 @@ fn committed_reservation_remains_consumed_and_cannot_be_compensated() {
         .reserve_tracked_use(authority(DESTINATION), AUDIENCE, 1_999)
         .expect("reservation must be authorized");
 
-    assert!(state.commit_reservation(reservation));
+    assert!(state.commit_reservation(&reservation));
     assert_eq!(state.reserved_uses(), 1);
     assert_eq!(state.outstanding_reservations(), 0);
     assert_eq!(state.completed_uses(), 1);
-    assert!(!state.commit_reservation(reservation));
-    assert!(!state.compensate_reservation(reservation));
+    assert!(!state.commit_reservation(&reservation));
+    assert!(!state.compensate_reservation(&reservation));
     assert_eq!(
         state.reserve_tracked_use(authority(DESTINATION), AUDIENCE, 1_999),
         Err(HandleUseDecision::UseLimitReached)
@@ -87,10 +87,10 @@ fn settlement_is_identity_bound_when_multiple_reservations_are_outstanding() {
         .expect("second reservation must be authorized");
 
     assert_ne!(first, second);
-    assert!(state.compensate_reservation(first));
+    assert!(state.compensate_reservation(&first));
     assert_eq!(state.reserved_uses(), 1);
     assert_eq!(state.outstanding_reservations(), 1);
-    assert!(state.commit_reservation(second));
+    assert!(state.commit_reservation(&second));
     assert_eq!(state.reserved_uses(), 1);
     assert_eq!(state.outstanding_reservations(), 0);
     assert_eq!(state.completed_uses(), 1);
@@ -121,7 +121,7 @@ fn revocation_does_not_prevent_compensating_an_undisclosed_reservation() {
         .expect("reservation must be authorized before revocation");
 
     assert!(state.revoke(HandleRevocationReason::SessionTerminated));
-    assert!(state.compensate_reservation(reservation));
+    assert!(state.compensate_reservation(&reservation));
     assert_eq!(state.reserved_uses(), 0);
     assert_eq!(state.completed_uses(), 0);
     assert_eq!(state.outstanding_reservations(), 0);
