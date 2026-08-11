@@ -119,7 +119,12 @@ fn prompt_and_output_schema_contracts_are_exact() {
 
 #[test]
 fn token_budgets_must_be_nonzero_and_within_reviewed_maxima() {
-    for candidate in [request(0, 1_024), request(4_096, 0), request(8_193, 1_024), request(4_096, 2_049)] {
+    for candidate in [
+        request(0, 1_024),
+        request(4_096, 0),
+        request(8_193, 1_024),
+        request(4_096, 2_049),
+    ] {
         assert_eq!(
             evaluate_model_invocation(&candidate, &scope(8_192, 2_048)),
             ModelInvocationDecision::InvocationPolicyMismatch
