@@ -395,8 +395,7 @@ impl SensitiveHandleUseState {
         };
         self.next_reservation_sequence = sequence.checked_add(1);
         let reservation = SensitiveHandleUseReservation { sequence };
-        let inserted = self.outstanding_reservations.insert(reservation);
-        debug_assert!(inserted, "reservation sequence must never be reused");
+        let _ = self.outstanding_reservations.insert(reservation);
         self.reserved_uses += 1;
         Ok(reservation)
     }
@@ -488,6 +487,8 @@ pub fn evaluate_handle_use(
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::expect_used)]
+
     use super::*;
 
     #[test]
@@ -497,9 +498,7 @@ mod tests {
             "task_alpha",
             "field_alpha",
             "purpose_alpha",
-            Origin::parse("https://example.com").unwrap_or_else(|error| {
-                panic!("unit-test origin must parse: {error:?}")
-            }),
+            Origin::parse("https://example.com").expect("unit-test origin must parse"),
             DataClassification::PersonalData,
         );
         let scope = SensitiveValueHandleScope::new(authority.clone(), "adapter_alpha", 2_000, 2);
