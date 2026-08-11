@@ -8,10 +8,15 @@
 #![deny(missing_docs)]
 
 mod action_outcome;
+mod browser_task_interruption;
 mod sensitive_access;
 
 pub use action_outcome::{
     PostConditionKind, VerifiedActionOutcomeError, VerifiedActionOutcomeEvidence,
+};
+pub use browser_task_interruption::{
+    BrowserTaskInterruptionEvidence, BrowserTaskInterruptionKind, ExternalEffectDisposition,
+    RetryDisposition,
 };
 pub use sensitive_access::{
     MAX_SENSITIVE_FIELD_COUNT, MAX_SENSITIVE_IDENTIFIER_BYTES, SensitiveAccessClass,
