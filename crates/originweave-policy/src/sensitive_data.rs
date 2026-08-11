@@ -415,8 +415,12 @@ impl SensitiveHandleUseState {
     /// transaction or locking boundary that guards value disclosure. Revocation is
     /// checked before reservation membership and request detail so a revoked state
     /// does not disclose whether a foreign or stale reservation would otherwise match.
-    /// A use-limit check is intentionally omitted: the outstanding reservation has
-    /// already consumed its bounded use capacity.
+    /// An outstanding reservation also proves that this immutable state scope passed
+    /// authority and audience validation when it was admitted; recheck therefore
+    /// validates the caller-supplied authority and audience without duplicating
+    /// unreachable scope-validation branches. A use-limit check is intentionally
+    /// omitted because the outstanding reservation already consumed its bounded use
+    /// capacity.
     #[must_use]
     pub fn recheck_reservation(
         &self,
@@ -435,14 +439,9 @@ impl SensitiveHandleUseState {
         {
             return HandleUseDecision::ReservationNotOutstanding;
         }
-        if !authority.is_complete()
-            || !self.scope.authority.is_complete()
-            || authority != self.scope.authority
-        {
+        if !authority.is_complete() || authority != self.scope.authority {
             HandleUseDecision::ScopeMismatch
-        } else if !authority_identifier_is_valid(audience_id)
-            || !authority_identifier_is_valid(&self.scope.audience_id)
-            || audience_id != self.scope.audience_id
+        } else if !authority_identifier_is_valid(audience_id) || audience_id != self.scope.audience_id
         {
             HandleUseDecision::AudienceMismatch
         } else if now_epoch_seconds >= self.scope.expires_at_epoch_seconds {
