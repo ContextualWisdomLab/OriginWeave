@@ -78,7 +78,7 @@ def _path_token(value: str, label: str) -> str:
 
 
 def _webdriver_path(session_id: str, suffix: str) -> str:
-    """Build one bounded ChromeDriver path from a validated session identifier."""
+    """Build a bounded ChromeDriver path from a validated session identifier."""
 
     safe_session = _path_token(session_id, "session identifier")
     if suffix and not suffix.startswith("/"):
@@ -230,6 +230,29 @@ def _parse_linux_proc_status_rss_bytes(status_text: str) -> int:
     return rss_values[0]
 
 
+def _parse_linux_proc_status_optional_rss_bytes(status_text: str) -> int | None:
+    """Parse optional Linux ``VmRSS`` without normalizing malformed evidence."""
+
+    rss_lines = [line for line in status_text.splitlines() if line.startswith("VmRSS:")]
+    if not rss_lines:
+        return None
+    if len(rss_lines) != 1:
+        raise ValueError("Linux proc status must contain at most one VmRSS field")
+
+    fields = rss_lines[0].split()
+    if len(fields) != 3 or fields[0] != "VmRSS:" or fields[2] != "kB":
+        raise ValueError("malformed Linux VmRSS field")
+    raw_kibibytes = fields[1]
+    if not raw_kibibytes.isascii() or not raw_kibibytes.isdigit():
+        raise ValueError("malformed Linux VmRSS value")
+    kibibytes = int(raw_kibibytes, 10)
+    if kibibytes == 0:
+        return None
+    if kibibytes > MAX_U64 // 1024:
+        raise OverflowError("Linux VmRSS exceeds u64 byte range")
+    return kibibytes * 1024
+
+
 def _parse_linux_proc_status_process_identity(status_text: str) -> tuple[int, int]:
     """Parse exactly one positive ``Pid`` and one non-negative ``PPid`` from status."""
 
@@ -305,13 +328,7 @@ def _snapshot_linux_process_evidence() -> dict[int, tuple[int, int | None]]:
             raise RuntimeError("Linux proc status identity did not match its directory")
         if process_id in process_evidence:
             raise RuntimeError("Linux proc process snapshot contained a duplicate PID")
-        try:
-            rss_bytes: int | None = _parse_linux_proc_status_rss_bytes(status_text)
-        except ValueError as exc:
-            if "VmRSS must be positive" in str(exc) or "exactly one VmRSS" in str(exc):
-                rss_bytes = None
-            else:
-                raise
+        rss_bytes = _parse_linux_proc_status_optional_rss_bytes(status_text)
         process_evidence[process_id] = (parent_process_id, rss_bytes)
     return process_evidence
 
