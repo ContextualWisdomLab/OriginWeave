@@ -58,7 +58,10 @@ fn node_action_binding_preserves_node_target_and_business_request() -> Result<()
     let observed = observation()?;
     let target = SemanticNodeActionTarget::from_observation(&observed, NodeActionKind::Click)
         .map_err(|error| error.to_string())?;
-    let request = action_request(origin("https://app.example")?, origin("https://next.example")?)?;
+    let request = action_request(
+        origin("https://app.example")?,
+        origin("https://next.example")?,
+    )?;
 
     let binding = SemanticNodeActionBinding::new(target.clone(), request.clone())
         .map_err(|error| error.to_string())?;
@@ -73,7 +76,10 @@ fn node_action_binding_rejects_request_from_another_document_origin() -> Result<
     let observed = observation()?;
     let target = SemanticNodeActionTarget::from_observation(&observed, NodeActionKind::Click)
         .map_err(|error| error.to_string())?;
-    let request = action_request(origin("https://other.example")?, origin("https://next.example")?)?;
+    let request = action_request(
+        origin("https://other.example")?,
+        origin("https://next.example")?,
+    )?;
 
     assert_eq!(
         SemanticNodeActionBinding::new(target, request).err(),
@@ -83,15 +89,16 @@ fn node_action_binding_rejects_request_from_another_document_origin() -> Result<
 }
 
 #[test]
-fn node_action_binding_does_not_conflate_source_node_with_navigation_target() -> Result<(), String> {
+fn node_action_binding_does_not_conflate_source_node_with_navigation_target() -> Result<(), String>
+{
     let observed = observation()?;
     let target = SemanticNodeActionTarget::from_observation(&observed, NodeActionKind::Click)
         .map_err(|error| error.to_string())?;
     let destination = origin("https://destination.example")?;
     let request = action_request(origin("https://app.example")?, destination.clone())?;
 
-    let binding = SemanticNodeActionBinding::new(target, request)
-        .map_err(|error| error.to_string())?;
+    let binding =
+        SemanticNodeActionBinding::new(target, request).map_err(|error| error.to_string())?;
 
     assert_eq!(binding.request().target_origin(), &destination);
     Ok(())
@@ -102,9 +109,12 @@ fn node_action_binding_revalidates_exact_browser_authority_before_dispatch() -> 
     let observed = observation()?;
     let target = SemanticNodeActionTarget::from_observation(&observed, NodeActionKind::Click)
         .map_err(|error| error.to_string())?;
-    let request = action_request(origin("https://app.example")?, origin("https://next.example")?)?;
-    let binding = SemanticNodeActionBinding::new(target, request)
-        .map_err(|error| error.to_string())?;
+    let request = action_request(
+        origin("https://app.example")?,
+        origin("https://next.example")?,
+    )?;
+    let binding =
+        SemanticNodeActionBinding::new(target, request).map_err(|error| error.to_string())?;
     let observed_epoch = DocumentEpoch::new(3).map_err(|error| error.to_string())?;
     let current_epoch = DocumentEpoch::new(4).map_err(|error| error.to_string())?;
 
