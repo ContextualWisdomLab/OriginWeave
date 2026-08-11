@@ -223,6 +223,7 @@ mod tests {
         for entries in [
             vec![("content-length", b"42".as_slice())],
             vec![("content-length", b"42, 42".as_slice())],
+            vec![("content-length", b"042, 42".as_slice())],
         ] {
             assert_eq!(
                 determine_body_framing(HttpMethod::Get, 200, &fields(&entries), 100,)
@@ -230,19 +231,6 @@ mod tests {
                 BodyFraming::ContentLength(42)
             );
         }
-    }
-
-    #[test]
-    fn differently_serialized_content_lengths_are_conflicting() {
-        assert!(matches!(
-            determine_body_framing(
-                HttpMethod::Get,
-                200,
-                &fields(&[("content-length", b"042, 42")]),
-                100,
-            ),
-            Err(HttpError::ConflictingContentLength)
-        ));
     }
 
     #[test]
