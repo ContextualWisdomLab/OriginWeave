@@ -4,6 +4,8 @@
 //! protected value itself, performs no I/O, and grants no authority from ambient
 //! session, network, repository, or model state.
 
+use std::collections::BTreeSet;
+
 use originweave_core::Origin;
 
 const MAX_AUTHORITY_IDENTIFIER_BYTES: usize = 128;
@@ -167,8 +169,10 @@ pub enum HandleUseDecision {
     AudienceMismatch,
     /// The handle is no longer valid at the supplied trusted time.
     Expired,
-    /// The bounded use count has already been consumed.
+    /// The bounded use count has already been consumed or reserved.
     UseLimitReached,
+    /// The in-process reservation identity space is exhausted and no safe identity can be issued.
+    ReservationIdentityExhausted,
 }
 
 /// Reason that authoritative in-process handle state was revoked.
@@ -256,25 +260,41 @@ impl HandleUseRequest {
     }
 }
 
-/// In-process authoritative use-count and revocation state for one opaque sensitive-value handle scope.
+/// Opaque in-process identity for one unsettled sensitive-handle use reservation.
 ///
-/// This value removes the caller-supplied prior-use count from the reservation
-/// operation. A successful reservation compares the exact authority, exact
-/// non-transferable audience, trusted time, expiry, revocation state, and current
-/// count and then increments the count while the caller holds an exclusive mutable
-/// borrow of this state. Denied reservations never consume a use.
+/// This is not the sensitive-value handle and carries no protected value or
+/// authority fields. It exists only so a trusted broker can settle the exact
+/// reservation that it previously created instead of decrementing a shared count
+/// ambiguously. Reservation identities are never reused within one state value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SensitiveHandleUseReservation {
+    sequence: u64,
+}
+
+/// In-process authoritative use-count, reservation-settlement, and revocation state
+/// for one opaque sensitive-value handle scope.
+///
+/// The state supports two reservation modes. [`Self::reserve_use`] retains the
+/// earlier conservative behavior and immediately consumes a use without offering
+/// compensation. [`Self::reserve_tracked_use`] creates an identity-bound unsettled
+/// reservation that a trusted broker must later commit after disclosure or
+/// compensate only when it has authoritative proof that no disclosure occurred.
+/// Denied reservations never consume capacity.
 ///
 /// This is a policy-state primitive, not the trusted broker itself. It contains
 /// neither the opaque handle token nor protected data and provides no authenticated
 /// workload identity, durable or cross-process transaction, value resolution,
-/// compensation, or persistence. A shared or durable broker must derive the
-/// audience from authenticated caller identity, place the state behind its own
-/// transactional or locking boundary, persist lifecycle state, and recheck it
-/// before disclosure.
+/// persistence, or proof that compensation is truthful. A shared or durable broker
+/// must derive audience from authenticated caller identity, place reserve/recheck/
+/// disclose/settle behind its own transactional or locking boundary, persist
+/// lifecycle state, and recheck authority immediately before disclosure.
 #[derive(Debug, PartialEq, Eq)]
 pub struct SensitiveHandleUseState {
     scope: SensitiveValueHandleScope,
     reserved_uses: u32,
+    completed_uses: u32,
+    outstanding_reservations: BTreeSet<SensitiveHandleUseReservation>,
+    next_reservation_sequence: Option<u64>,
     revocation_reason: Option<HandleRevocationReason>,
 }
 
@@ -285,14 +305,29 @@ impl SensitiveHandleUseState {
         Self {
             scope,
             reserved_uses: 0,
+            completed_uses: 0,
+            outstanding_reservations: BTreeSet::new(),
+            next_reservation_sequence: Some(1),
             revocation_reason: None,
         }
     }
 
-    /// Return the number of uses already reserved through this state value.
+    /// Return uses that are either permanently consumed or currently reserved.
     #[must_use]
     pub const fn reserved_uses(&self) -> u32 {
         self.reserved_uses
+    }
+
+    /// Return uses known to have completed or been conservatively consumed.
+    #[must_use]
+    pub const fn completed_uses(&self) -> u32 {
+        self.completed_uses
+    }
+
+    /// Return the number of tracked reservations awaiting commit or compensation.
+    #[must_use]
+    pub fn outstanding_reservations(&self) -> usize {
+        self.outstanding_reservations.len()
     }
 
     /// Return the first authoritative revocation reason, if this state was revoked.
@@ -305,6 +340,8 @@ impl SensitiveHandleUseState {
     ///
     /// Returns `true` only for the state transition from active to revoked. A
     /// later duplicate call is a no-op and cannot rewrite the original reason.
+    /// Existing tracked reservations remain settleable so a broker can record a
+    /// completed disclosure or compensate a failed pre-disclosure attempt.
     pub fn revoke(&mut self, reason: HandleRevocationReason) -> bool {
         if self.revocation_reason.is_some() {
             false
@@ -314,16 +351,90 @@ impl SensitiveHandleUseState {
         }
     }
 
-    /// Reserve one use from the current authoritative count when policy permits it.
+    /// Reserve and immediately consume one use when policy permits it.
     ///
-    /// The audience must be derived by the trusted broker from authenticated caller
-    /// identity, and the supplied time must come from the broker's trusted clock.
-    /// Revocation is authoritative and is checked before later request details so a
-    /// revoked handle cannot expose whether a different scope, audience, expiry, or
-    /// use-limit condition would otherwise have matched. Every denial leaves the
-    /// authoritative count unchanged.
+    /// This compatibility path is deliberately non-compensatable. Callers that
+    /// need pre-disclosure rollback must use [`Self::reserve_tracked_use`] and
+    /// settle the returned identity explicitly. Revocation is checked before
+    /// later request details, and every denial leaves the authoritative count
+    /// unchanged.
     pub fn reserve_use(
         &mut self,
+        authority: SensitiveDataAuthority,
+        audience_id: &str,
+        now_epoch_seconds: u64,
+    ) -> HandleUseDecision {
+        let decision = self.evaluate_reservation(authority, audience_id, now_epoch_seconds);
+        if decision != HandleUseDecision::Authorized {
+            return decision;
+        }
+        self.reserved_uses += 1;
+        self.completed_uses += 1;
+        HandleUseDecision::Authorized
+    }
+
+    /// Reserve one identity-bound use without yet claiming that disclosure completed.
+    ///
+    /// The returned reservation is caller-unforgeable only to the extent that this
+    /// state object itself is protected by the trusted broker. It carries no secret
+    /// data. Reservation identities never recycle, including after compensation,
+    /// so a stale settlement token cannot affect a later use. Exhausting the local
+    /// identity sequence fails closed without consuming capacity.
+    pub fn reserve_tracked_use(
+        &mut self,
+        authority: SensitiveDataAuthority,
+        audience_id: &str,
+        now_epoch_seconds: u64,
+    ) -> Result<SensitiveHandleUseReservation, HandleUseDecision> {
+        let decision = self.evaluate_reservation(authority, audience_id, now_epoch_seconds);
+        if decision != HandleUseDecision::Authorized {
+            return Err(decision);
+        }
+        let Some(sequence) = self.next_reservation_sequence else {
+            return Err(HandleUseDecision::ReservationIdentityExhausted);
+        };
+        self.next_reservation_sequence = sequence.checked_add(1);
+        let reservation = SensitiveHandleUseReservation { sequence };
+        let inserted = self.outstanding_reservations.insert(reservation);
+        debug_assert!(inserted, "reservation sequence must never be reused");
+        self.reserved_uses += 1;
+        Ok(reservation)
+    }
+
+    /// Mark one exact tracked reservation as a completed, permanently consumed use.
+    ///
+    /// This method records settlement only; it does not authorize disclosure. A
+    /// trusted broker must already have performed the required immediate authority
+    /// recheck and must call this only after the protected value was actually
+    /// disclosed. Returns `false` for an unknown, stale, compensated, or already
+    /// committed reservation and leaves all counters unchanged.
+    pub fn commit_reservation(&mut self, reservation: SensitiveHandleUseReservation) -> bool {
+        if self.outstanding_reservations.remove(&reservation) {
+            self.completed_uses += 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Release one exact tracked reservation after authoritative pre-disclosure failure.
+    ///
+    /// A trusted broker may call this only when it knows the protected value did
+    /// not cross the disclosure boundary. Compensation removes only the supplied
+    /// outstanding identity and restores one unit of capacity. Unknown, stale,
+    /// committed, or already compensated identities return `false` without
+    /// changing state. Revocation does not block cleanup compensation.
+    pub fn compensate_reservation(&mut self, reservation: SensitiveHandleUseReservation) -> bool {
+        if self.outstanding_reservations.remove(&reservation) {
+            self.reserved_uses -= 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn evaluate_reservation(
+        &self,
         authority: SensitiveDataAuthority,
         audience_id: &str,
         now_epoch_seconds: u64,
@@ -337,12 +448,7 @@ impl SensitiveHandleUseState {
             now_epoch_seconds,
             self.reserved_uses,
         );
-        let decision = evaluate_handle_use(&request, &self.scope);
-        if decision != HandleUseDecision::Authorized {
-            return decision;
-        }
-        self.reserved_uses += 1;
-        HandleUseDecision::Authorized
+        evaluate_handle_use(&request, &self.scope)
     }
 }
 
@@ -377,5 +483,34 @@ pub fn evaluate_handle_use(
         HandleUseDecision::UseLimitReached
     } else {
         HandleUseDecision::Authorized
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn exhausted_reservation_identity_fails_closed_without_consuming_capacity() {
+        let authority = SensitiveDataAuthority::new(
+            "tenant_alpha",
+            "task_alpha",
+            "field_alpha",
+            "purpose_alpha",
+            Origin::parse("https://example.com").unwrap_or_else(|error| {
+                panic!("unit-test origin must parse: {error:?}")
+            }),
+            DataClassification::PersonalData,
+        );
+        let scope = SensitiveValueHandleScope::new(authority.clone(), "adapter_alpha", 2_000, 2);
+        let mut state = SensitiveHandleUseState::new(scope);
+        state.next_reservation_sequence = None;
+
+        assert_eq!(
+            state.reserve_tracked_use(authority, "adapter_alpha", 1_999),
+            Err(HandleUseDecision::ReservationIdentityExhausted)
+        );
+        assert_eq!(state.reserved_uses(), 0);
+        assert_eq!(state.outstanding_reservations(), 0);
     }
 }
