@@ -6,6 +6,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Added
 
+- Exact sensitive-data model-route admission that binds the complete existing sensitive authority to bounded provider, model, region, and retention-policy identifiers while remaining explicitly separate from protected-value disclosure, provider authentication, runtime region attestation, model invocation, and fallback selection.
 - In-process authoritative sensitive-handle use reservation and first-revocation-wins lifecycle state that owns the bounded use count, records task-completion/policy-change/key-rotation/session-termination/suspicious-use revocation causes, blocks all future reservations after revocation, increments only after exact scope/classification/expiry/use-limit authorization, and leaves denied reservations unconsumed; this is a policy primitive only and does not claim durable broker storage, protected-value resolution, or cross-process transactionality.
 - Rust workspace for independently reusable core, policy, destination, network, TLS, resource, and evidence modules.
 - Canonical HTTPS and loopback-origin boundary with case-normalized schemes and hosts, default-port normalization, IPv4/IPv6 handling, browser-special numeric-host rejection, and explicit malformed-input errors.
