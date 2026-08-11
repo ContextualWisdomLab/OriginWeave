@@ -182,11 +182,7 @@ mod tests {
     #[test]
     fn no_content_semantics_do_not_apply_body_size_budget_to_content_length_metadata() {
         for (method, status) in [(HttpMethod::Head, 200), (HttpMethod::Get, 304)] {
-            for metadata in [
-                b"1001".as_slice(),
-                b"18446744073709551616",
-                b"000, 0",
-            ] {
+            for metadata in [b"1001".as_slice(), b"18446744073709551616", b"000, 0"] {
                 assert_eq!(
                     determine_body_framing(
                         method,
