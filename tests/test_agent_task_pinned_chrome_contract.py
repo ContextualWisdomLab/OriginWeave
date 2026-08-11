@@ -93,12 +93,15 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
         runner = RUNNER.read_text(encoding="utf-8")
         for expected in (
             "MAX_BROWSER_PROCESS_TREE_SIZE",
-            "_parse_linux_children_process_ids",
+            "MAX_PROC_PROCESS_SCAN_SIZE",
+            "_parse_linux_proc_status_process_identity",
+            "_snapshot_linux_process_parent_ids",
             "_discover_linux_process_tree_ids",
             "_sample_linux_process_set_rss_bytes",
         ):
             with self.subTest(expected=expected):
                 self.assertIn(expected, namespace)
+        self.assertNotIn("_parse_linux_children_process_ids", namespace)
         for expected in (
             '"chromium_process_count"',
             '"chromium_process_set_rss_bytes"',
@@ -124,23 +127,23 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
                 with self.assertRaises((ValueError, OverflowError)):
                     parser(malformed)
 
-    def test_linux_children_parser_is_bounded_unique_and_positive(self) -> None:
-        """Process-tree discovery must reject ambiguous or unbounded kernel child lists."""
+    def test_linux_status_identity_parser_is_strict_and_positive(self) -> None:
+        """Parent-map discovery must parse one unambiguous process identity per status."""
 
-        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_children_contract")
-        parser = namespace["_parse_linux_children_process_ids"]
-        limit = namespace["MAX_BROWSER_PROCESS_TREE_SIZE"]
-        self.assertEqual(parser(""), ())
-        self.assertEqual(parser("12 34\n"), (12, 34))
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_parent_map_contract")
+        parser = namespace["_parse_linux_proc_status_process_identity"]
+        self.assertEqual(parser("Name:\tchrome\nPid:\t34\nPPid:\t12\n"), (34, 12))
+        self.assertEqual(parser("Name:\tinit\nPid:\t1\nPPid:\t0\n"), (1, 0))
         for malformed in (
-            "0\n",
-            "12 12\n",
-            "12 child\n",
-            "-1\n",
-            "12 34 trailing!\n",
-            " ".join(str(index) for index in range(1, limit + 2)),
+            "Name:\tchrome\nPid:\t34\n",
+            "Name:\tchrome\nPPid:\t12\n",
+            "Pid:\t0\nPPid:\t12\n",
+            "Pid:\t34\nPPid:\t-1\n",
+            "Pid:\tchild\nPPid:\t12\n",
+            "Pid:\t34\nPid:\t35\nPPid:\t12\n",
+            "Pid:\t34\nPPid:\t12\nPPid:\t13\n",
         ):
-            with self.subTest(malformed=malformed[:120]):
+            with self.subTest(malformed=malformed):
                 with self.assertRaises(ValueError):
                     parser(malformed)
 
