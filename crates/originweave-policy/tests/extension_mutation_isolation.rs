@@ -148,6 +148,126 @@ fn explicit_extension_grant_cannot_turn_crawler_mode_into_mutation_authority() {
 }
 
 #[test]
+fn explicit_extension_grant_cannot_pair_agent_task_with_public_crawl_purpose() {
+    let grant = action_proposal_grant();
+    assert_extension_can_propose(&grant);
+
+    let site = origin("https://public.example");
+    let context = PolicyContext::new(
+        SessionMode::AgentTask,
+        ExecutionPurpose::PublicCrawl,
+        BTreeSet::from([Capability::Observe]),
+        BTreeSet::from([site.clone()]),
+        BTreeSet::new(),
+        RobotsDecision::Allowed,
+        ApprovalEvidence::None,
+    );
+    let proposed = ActionRequest::new(
+        ActionKind::Observe,
+        site.clone(),
+        site,
+        InstructionSource::User,
+        SecretDelivery::None,
+        intent(),
+    );
+
+    assert_eq!(
+        evaluate(&proposed, &context),
+        Decision::Deny(DenialReason::ModePurposeMismatch)
+    );
+}
+
+#[test]
+fn explicit_extension_grant_cannot_bypass_disallowed_robots_policy() {
+    let grant = action_proposal_grant();
+    assert_extension_can_propose(&grant);
+
+    let site = origin("https://public.example");
+    let context = PolicyContext::new(
+        SessionMode::Crawler,
+        ExecutionPurpose::PublicCrawl,
+        BTreeSet::from([Capability::Observe]),
+        BTreeSet::from([site.clone()]),
+        BTreeSet::new(),
+        RobotsDecision::Disallowed,
+        ApprovalEvidence::None,
+    );
+    let proposed = ActionRequest::new(
+        ActionKind::Observe,
+        site.clone(),
+        site,
+        InstructionSource::User,
+        SecretDelivery::None,
+        intent(),
+    );
+
+    assert_eq!(
+        evaluate(&proposed, &context),
+        Decision::Deny(DenialReason::RobotsDisallowed)
+    );
+}
+
+#[test]
+fn explicit_extension_grant_cannot_bypass_unknown_robots_policy() {
+    let grant = action_proposal_grant();
+    assert_extension_can_propose(&grant);
+
+    let site = origin("https://public.example");
+    let context = PolicyContext::new(
+        SessionMode::Crawler,
+        ExecutionPurpose::PublicCrawl,
+        BTreeSet::from([Capability::Observe]),
+        BTreeSet::from([site.clone()]),
+        BTreeSet::new(),
+        RobotsDecision::Unknown,
+        ApprovalEvidence::None,
+    );
+    let proposed = ActionRequest::new(
+        ActionKind::Observe,
+        site.clone(),
+        site,
+        InstructionSource::User,
+        SecretDelivery::None,
+        intent(),
+    );
+
+    assert_eq!(
+        evaluate(&proposed, &context),
+        Decision::Deny(DenialReason::RobotsUnknown)
+    );
+}
+
+#[test]
+fn explicit_extension_grant_cannot_bypass_missing_robots_policy() {
+    let grant = action_proposal_grant();
+    assert_extension_can_propose(&grant);
+
+    let site = origin("https://public.example");
+    let context = PolicyContext::new(
+        SessionMode::Crawler,
+        ExecutionPurpose::PublicCrawl,
+        BTreeSet::from([Capability::Observe]),
+        BTreeSet::from([site.clone()]),
+        BTreeSet::new(),
+        RobotsDecision::NotApplicable,
+        ApprovalEvidence::None,
+    );
+    let proposed = ActionRequest::new(
+        ActionKind::Observe,
+        site.clone(),
+        site,
+        InstructionSource::User,
+        SecretDelivery::None,
+        intent(),
+    );
+
+    assert_eq!(
+        evaluate(&proposed, &context),
+        Decision::Deny(DenialReason::RobotsNotApplicable)
+    );
+}
+
+#[test]
 fn explicit_extension_grant_cannot_delegate_forbidden_r5_action() {
     let grant = action_proposal_grant();
     assert_extension_can_propose(&grant);
