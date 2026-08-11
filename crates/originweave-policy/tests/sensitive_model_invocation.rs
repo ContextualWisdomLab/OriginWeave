@@ -1,11 +1,11 @@
 #![allow(clippy::expect_used)]
 
-//! Fail-closed prompt, output-schema, token-budget, and expiry contracts for sensitive model use.
+//! Fail-closed prompt, output-schema, token-budget, expiry, and context-isolation contracts for sensitive model use.
 //!
 //! Route admission is a prerequisite, not disclosure authority. This contract additionally binds
-//! one reviewed prompt contract, one reviewed output schema, finite input/output token budgets, and
-//! one exclusive invocation-policy expiry before a trusted broker/orchestrator may consider a model
-//! invocation.
+//! one reviewed prompt contract, one reviewed output schema, finite input/output token budgets, one
+//! exclusive invocation-policy expiry, and an explicit absence of unrelated conversation history
+//! before a trusted broker/orchestrator may consider a model invocation.
 
 use originweave_core::Origin;
 use originweave_policy::{
@@ -50,12 +50,21 @@ fn route_scope() -> ModelRouteScope {
 }
 
 fn request(input_tokens: u32, output_tokens: u32) -> ModelInvocationRequest {
+    request_with_unrelated_history(input_tokens, output_tokens, 0)
+}
+
+fn request_with_unrelated_history(
+    input_tokens: u32,
+    output_tokens: u32,
+    unrelated_history_items: u32,
+) -> ModelInvocationRequest {
     ModelInvocationRequest::new(
         route_request("provider-private"),
         "case-resolution-prompt-v1",
         "customer-email-summary-v1",
         input_tokens,
         output_tokens,
+        unrelated_history_items,
     )
 }
 
@@ -75,7 +84,7 @@ fn scope(
 }
 
 #[test]
-fn exact_route_prompt_schema_bounded_tokens_and_fresh_policy_are_authorized() {
+fn exact_route_prompt_schema_bounded_tokens_fresh_policy_and_isolated_context_are_authorized() {
     assert_eq!(
         evaluate_model_invocation(&request(4_096, 1_024), &scope(8_192, 2_048, 1_000), 999),
         ModelInvocationDecision::Authorized
@@ -83,13 +92,14 @@ fn exact_route_prompt_schema_bounded_tokens_and_fresh_policy_are_authorized() {
 }
 
 #[test]
-fn route_denial_remains_distinct_from_invocation_policy_mismatch_or_expiry() {
+fn route_denial_remains_distinct_from_invocation_policy_mismatch_expiry_or_history() {
     let request = ModelInvocationRequest::new(
         route_request("provider-other"),
         "case-resolution-prompt-v1",
         "customer-email-summary-v1",
         4_096,
         1_024,
+        1,
     );
 
     assert_eq!(
@@ -106,6 +116,7 @@ fn prompt_and_output_schema_contracts_are_exact() {
         "customer-email-summary-v1",
         4_096,
         1_024,
+        0,
     );
     let wrong_schema = ModelInvocationRequest::new(
         route_request("provider-private"),
@@ -113,6 +124,7 @@ fn prompt_and_output_schema_contracts_are_exact() {
         "different-schema-v2",
         4_096,
         1_024,
+        0,
     );
 
     for candidate in [wrong_prompt, wrong_schema] {
@@ -157,6 +169,7 @@ fn malformed_prompt_or_schema_policy_identifiers_fail_closed() {
                 "customer-email-summary-v1",
                 4_096,
                 1_024,
+                0,
             ),
             ModelInvocationRequest::new(
                 route_request("provider-private"),
@@ -164,6 +177,7 @@ fn malformed_prompt_or_schema_policy_identifiers_fail_closed() {
                 malformed,
                 4_096,
                 1_024,
+                0,
             ),
         ];
         for candidate in candidates {
@@ -216,6 +230,20 @@ fn invocation_policy_expiry_is_exclusive_and_fail_closed() {
         evaluate_model_invocation(&request(4_096, 1_024), &policy, u64::MAX),
         ModelInvocationDecision::InvocationExpired
     );
+}
+
+#[test]
+fn unrelated_conversation_history_is_never_admitted_for_sensitive_model_disclosure() {
+    for unrelated_history_items in [1, 2, u32::MAX] {
+        assert_eq!(
+            evaluate_model_invocation(
+                &request_with_unrelated_history(4_096, 1_024, unrelated_history_items),
+                &scope(8_192, 2_048, 1_000),
+                999,
+            ),
+            ModelInvocationDecision::UnrelatedConversationHistoryDenied
+        );
+    }
 }
 
 #[test]
