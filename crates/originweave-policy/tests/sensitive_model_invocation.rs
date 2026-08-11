@@ -1,10 +1,11 @@
 #![allow(clippy::expect_used)]
 
-//! Fail-closed prompt, output-schema, and token-budget contracts for sensitive model use.
+//! Fail-closed prompt, output-schema, token-budget, and expiry contracts for sensitive model use.
 //!
 //! Route admission is a prerequisite, not disclosure authority. This contract additionally binds
-//! one reviewed prompt contract, one reviewed output schema, and finite input/output token budgets
-//! before a trusted broker/orchestrator may consider a model invocation.
+//! one reviewed prompt contract, one reviewed output schema, finite input/output token budgets, and
+//! one exclusive invocation-policy expiry before a trusted broker/orchestrator may consider a model
+//! invocation.
 
 use originweave_core::Origin;
 use originweave_policy::{
@@ -58,26 +59,31 @@ fn request(input_tokens: u32, output_tokens: u32) -> ModelInvocationRequest {
     )
 }
 
-fn scope(maximum_input_tokens: u32, maximum_output_tokens: u32) -> ModelInvocationScope {
+fn scope(
+    maximum_input_tokens: u32,
+    maximum_output_tokens: u32,
+    valid_until: u64,
+) -> ModelInvocationScope {
     ModelInvocationScope::new(
         route_scope(),
         "case-resolution-prompt-v1",
         "customer-email-summary-v1",
         maximum_input_tokens,
         maximum_output_tokens,
+        valid_until,
     )
 }
 
 #[test]
-fn exact_route_prompt_schema_and_bounded_tokens_are_authorized() {
+fn exact_route_prompt_schema_bounded_tokens_and_fresh_policy_are_authorized() {
     assert_eq!(
-        evaluate_model_invocation(&request(4_096, 1_024), &scope(8_192, 2_048)),
+        evaluate_model_invocation(&request(4_096, 1_024), &scope(8_192, 2_048, 1_000), 999),
         ModelInvocationDecision::Authorized
     );
 }
 
 #[test]
-fn route_denial_remains_distinct_from_invocation_policy_mismatch() {
+fn route_denial_remains_distinct_from_invocation_policy_mismatch_or_expiry() {
     let request = ModelInvocationRequest::new(
         route_request("provider-other"),
         "case-resolution-prompt-v1",
@@ -87,7 +93,7 @@ fn route_denial_remains_distinct_from_invocation_policy_mismatch() {
     );
 
     assert_eq!(
-        evaluate_model_invocation(&request, &scope(8_192, 2_048)),
+        evaluate_model_invocation(&request, &scope(8_192, 2_048, 1), 1_000),
         ModelInvocationDecision::RouteDenied(ModelRouteDecision::RouteMismatch)
     );
 }
@@ -111,7 +117,7 @@ fn prompt_and_output_schema_contracts_are_exact() {
 
     for candidate in [wrong_prompt, wrong_schema] {
         assert_eq!(
-            evaluate_model_invocation(&candidate, &scope(8_192, 2_048)),
+            evaluate_model_invocation(&candidate, &scope(8_192, 2_048, 1_000), 999),
             ModelInvocationDecision::InvocationPolicyMismatch
         );
     }
@@ -126,14 +132,14 @@ fn token_budgets_must_be_nonzero_and_within_reviewed_maxima() {
         request(4_096, 2_049),
     ] {
         assert_eq!(
-            evaluate_model_invocation(&candidate, &scope(8_192, 2_048)),
+            evaluate_model_invocation(&candidate, &scope(8_192, 2_048, 1_000), 999),
             ModelInvocationDecision::InvocationPolicyMismatch
         );
     }
 
-    for malformed_scope in [scope(0, 2_048), scope(8_192, 0)] {
+    for malformed_scope in [scope(0, 2_048, 1_000), scope(8_192, 0, 1_000)] {
         assert_eq!(
-            evaluate_model_invocation(&request(4_096, 1_024), &malformed_scope),
+            evaluate_model_invocation(&request(4_096, 1_024), &malformed_scope, 999),
             ModelInvocationDecision::InvocationPolicyMismatch
         );
     }
@@ -162,7 +168,7 @@ fn malformed_prompt_or_schema_policy_identifiers_fail_closed() {
         ];
         for candidate in candidates {
             assert_eq!(
-                evaluate_model_invocation(&candidate, &scope(8_192, 2_048)),
+                evaluate_model_invocation(&candidate, &scope(8_192, 2_048, 1_000), 999),
                 ModelInvocationDecision::InvocationPolicyMismatch
             );
         }
@@ -174,6 +180,7 @@ fn malformed_prompt_or_schema_policy_identifiers_fail_closed() {
                 "customer-email-summary-v1",
                 8_192,
                 2_048,
+                1_000,
             ),
             ModelInvocationScope::new(
                 route_scope(),
@@ -181,13 +188,48 @@ fn malformed_prompt_or_schema_policy_identifiers_fail_closed() {
                 malformed,
                 8_192,
                 2_048,
+                1_000,
             ),
         ];
         for malformed_scope in scopes {
             assert_eq!(
-                evaluate_model_invocation(&request(4_096, 1_024), &malformed_scope),
+                evaluate_model_invocation(&request(4_096, 1_024), &malformed_scope, 999),
                 ModelInvocationDecision::InvocationPolicyMismatch
             );
         }
     }
+}
+
+#[test]
+fn invocation_policy_expiry_is_exclusive_and_fail_closed() {
+    let policy = scope(8_192, 2_048, 1_000);
+
+    assert_eq!(
+        evaluate_model_invocation(&request(4_096, 1_024), &policy, 999),
+        ModelInvocationDecision::Authorized
+    );
+    assert_eq!(
+        evaluate_model_invocation(&request(4_096, 1_024), &policy, 1_000),
+        ModelInvocationDecision::InvocationExpired
+    );
+    assert_eq!(
+        evaluate_model_invocation(&request(4_096, 1_024), &policy, u64::MAX),
+        ModelInvocationDecision::InvocationExpired
+    );
+}
+
+#[test]
+fn zero_expiry_is_invalid_but_maximum_epoch_remains_representable() {
+    assert_eq!(
+        evaluate_model_invocation(&request(4_096, 1_024), &scope(8_192, 2_048, 0), 0),
+        ModelInvocationDecision::InvocationPolicyMismatch
+    );
+    assert_eq!(
+        evaluate_model_invocation(
+            &request(4_096, 1_024),
+            &scope(8_192, 2_048, u64::MAX),
+            u64::MAX - 1,
+        ),
+        ModelInvocationDecision::Authorized
+    );
 }
