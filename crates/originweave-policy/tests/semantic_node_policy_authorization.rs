@@ -139,11 +139,72 @@ fn policy_authorized_semantic_node_action_still_revalidates_browser_authority() 
 
 #[test]
 fn semantic_node_policy_authorization_errors_are_credential_free() {
-    assert_eq!(
-        SemanticNodePolicyAuthorizationError::Denied(DenialReason::UntrustedInstructionSource)
-            .to_string(),
-        "semantic node action denied by deterministic policy: untrusted instruction source"
-    );
+    let denial_cases = [
+        (
+            DenialReason::HumanModeNotAgentControlled,
+            "human mode is not agent controlled",
+        ),
+        (
+            DenialReason::ModePurposeMismatch,
+            "execution mode and purpose mismatch",
+        ),
+        (
+            DenialReason::UntrustedInstructionSource,
+            "untrusted instruction source",
+        ),
+        (
+            DenialReason::MissingCapability(Capability::Navigate),
+            "required capability is missing",
+        ),
+        (
+            DenialReason::OriginNotReadable,
+            "target origin is not readable",
+        ),
+        (
+            DenialReason::CrawlerMutation,
+            "crawler mutation is forbidden",
+        ),
+        (
+            DenialReason::CrossOriginMutation,
+            "cross-origin mutation is forbidden",
+        ),
+        (
+            DenialReason::OriginNotWritable,
+            "target origin is not writable",
+        ),
+        (
+            DenialReason::RobotsDisallowed,
+            "robots policy disallows the crawl",
+        ),
+        (DenialReason::RobotsUnknown, "robots policy is unknown"),
+        (
+            DenialReason::RobotsNotApplicable,
+            "robots policy was not evaluated",
+        ),
+        (
+            DenialReason::SecretBrokerRequired,
+            "secret broker handle is required",
+        ),
+        (
+            DenialReason::UnexpectedSecretMaterial,
+            "unexpected secret material",
+        ),
+        (
+            DenialReason::ForbiddenRisk,
+            "risk class is not delegable",
+        ),
+        (
+            DenialReason::ApprovalScopeMismatch,
+            "approval scope does not match",
+        ),
+    ];
+
+    for (reason, expected_reason) in denial_cases {
+        assert_eq!(
+            SemanticNodePolicyAuthorizationError::Denied(reason).to_string(),
+            format!("semantic node action denied by deterministic policy: {expected_reason}")
+        );
+    }
     assert_eq!(
         SemanticNodePolicyAuthorizationError::ApprovalRequired(RiskClass::R4).to_string(),
         "semantic node action requires R4 approval before policy authorization"

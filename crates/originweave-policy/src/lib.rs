@@ -7,8 +7,12 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+mod semantic_node_action;
 mod sensitive_data;
 
+pub use semantic_node_action::{
+    PolicyAuthorizedSemanticNodeAction, SemanticNodePolicyAuthorizationError,
+};
 pub use sensitive_data::{
     DataClassification, DisclosureDecision, DisclosureScope, HandleUseDecision, HandleUseRequest,
     SensitiveDataAuthority, SensitiveDataRequest, SensitiveValueHandleScope, evaluate_disclosure,
