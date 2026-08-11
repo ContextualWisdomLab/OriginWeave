@@ -97,6 +97,30 @@ fn settlement_is_identity_bound_when_multiple_reservations_are_outstanding() {
 }
 
 #[test]
+fn reservation_token_cannot_settle_a_different_state() {
+    let mut first_state = SensitiveHandleUseState::new(scope(1));
+    let mut second_state = SensitiveHandleUseState::new(scope(1));
+    let first = first_state
+        .reserve_tracked_use(authority(DESTINATION), AUDIENCE, 1_999)
+        .expect("first-state reservation must be authorized");
+    let second = second_state
+        .reserve_tracked_use(authority(DESTINATION), AUDIENCE, 1_999)
+        .expect("second-state reservation must be authorized");
+
+    assert!(!second_state.commit_reservation(&first));
+    assert!(!second_state.compensate_reservation(&first));
+    assert_eq!(second_state.reserved_uses(), 1);
+    assert_eq!(second_state.completed_uses(), 0);
+    assert_eq!(second_state.outstanding_reservations(), 1);
+
+    assert!(first_state.compensate_reservation(&first));
+    assert!(second_state.commit_reservation(&second));
+    assert_eq!(first_state.reserved_uses(), 0);
+    assert_eq!(second_state.completed_uses(), 1);
+    assert_eq!(second_state.outstanding_reservations(), 0);
+}
+
+#[test]
 fn denied_or_revoked_state_never_creates_tracked_reservation() {
     let mut state = SensitiveHandleUseState::new(scope(2));
 
