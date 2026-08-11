@@ -31,7 +31,7 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
 
     def test_dependency_stacks_are_explicit_and_non_shipped(self) -> None:
         """Current browser, network, sensitive and compatibility stacks stay active-only."""
-        for pr_number in (52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62):
+        for pr_number in (52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66):
             with self.subTest(pr_number=pr_number):
                 row = active_pr_row(self.maturity, pr_number)
                 self.assertIn("**IMPLEMENTED_ON_ACTIVE_PR**", row)
@@ -42,6 +42,7 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
             "#45 → #46 → #53 → #55",
             "#40→#52→#57→#58",
             "#43→#56→#59→#60→#61",
+            "#51→#66",
         ):
             with self.subTest(stack=stack):
                 self.assertIn(stack, self.fitness)
@@ -131,10 +132,58 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, row)
-        self.assertIn("CI run `31436078746`", row)
-        self.assertIn("Security Scan run `31436078045`", row)
-        self.assertIn("SAST Semgrep run `31436078163`", row)
+        self.assertIn("CI run `31436844685`", row)
+        self.assertIn("Security Scan run `31436844615`", row)
+        self.assertIn("SAST Semgrep run `31436844646`", row)
         self.assertNotIn("IMPLEMENTED_ON_PROTECTED_MAIN", row)
+
+    def test_latest_agent_task_and_secret_composition_evidence_remains_partial(self) -> None:
+        """Newest active slices must not be promoted into a complete browser or broker runtime."""
+        secret_approval = active_pr_row(self.maturity, 63)
+        for marker in (
+            "ProposeTypedAction",
+            "RequireApproval(RiskClass::R3)",
+            "no secret broker",
+        ):
+            with self.subTest(pr_number=63, marker=marker):
+                self.assertIn(marker, secret_approval)
+
+        action_outcome = active_pr_row(self.maturity, 64)
+        for marker in (
+            "PostConditionPredatesDispatch",
+            "monotonic",
+            "not a browser dispatcher",
+        ):
+            with self.subTest(pr_number=64, marker=marker):
+                self.assertIn(marker, action_outcome)
+
+        controlled_fixture = active_pr_row(self.maturity, 65)
+        for marker in (
+            "controlled",
+            "prompt-injection",
+            "not a browser adapter",
+        ):
+            with self.subTest(pr_number=65, marker=marker):
+                self.assertIn(marker, controlled_fixture)
+
+        process_set = active_pr_row(self.maturity, 66)
+        for marker in (
+            "process-set RSS",
+            "duplicate",
+            "does not discover Chromium PIDs",
+        ):
+            with self.subTest(pr_number=66, marker=marker):
+                self.assertIn(marker, process_set)
+
+        for marker in (
+            "#62/#63",
+            "#64",
+            "#65",
+            "#51→#66",
+            "real Chromium",
+        ):
+            with self.subTest(fitness_marker=marker):
+                self.assertIn(marker, self.fitness)
 
     def test_erd_stays_conceptual_without_persistence_owner(self) -> None:
         """Active in-memory/value primitives must not manufacture a physical data model."""
