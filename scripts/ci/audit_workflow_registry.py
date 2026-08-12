@@ -294,13 +294,18 @@ def audit_workflow_registry(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def _read_payload(path: pathlib.Path) -> dict[str, Any]:
-    """Read one bounded UTF-8 JSON audit input document."""
+    """Read at most four mebibytes of UTF-8 JSON without trusting stale metadata."""
 
-    if path.stat().st_size > _MAX_INPUT_BYTES:
+    try:
+        with path.open("rb") as source:
+            content = source.read(_MAX_INPUT_BYTES + 1)
+    except OSError as error:
+        raise WorkflowAuditError("input is not readable UTF-8 JSON") from error
+    if len(content) > _MAX_INPUT_BYTES:
         raise WorkflowAuditError("input exceeds the four-mebibyte audit bound")
     try:
-        parsed = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        parsed = json.loads(content.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError) as error:
         raise WorkflowAuditError("input is not readable UTF-8 JSON") from error
     return _require_mapping(parsed, "payload")
 
