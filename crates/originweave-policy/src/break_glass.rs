@@ -221,6 +221,25 @@ impl BreakGlassApproverBinding {
     }
 }
 
+/// One coherent caller-supplied identity snapshot for a break-glass evaluation.
+///
+/// The actor and approver bindings must be derived from the same authoritative decision context.
+/// Grouping them prevents callers from accidentally evaluating actor and approver metadata as
+/// unrelated parameters, but does not authenticate either identity or verify approval records.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BreakGlassIdentityBindings {
+    actor: BreakGlassActorBinding,
+    approvers: BreakGlassApproverBinding,
+}
+
+impl BreakGlassIdentityBindings {
+    /// Bind the beneficiary actor and approver identities into one evaluation input.
+    #[must_use]
+    pub const fn new(actor: BreakGlassActorBinding, approvers: BreakGlassApproverBinding) -> Self {
+        Self { actor, approvers }
+    }
+}
+
 /// Local policy ceiling for one break-glass validity interval.
 ///
 /// The maximum uses the same trusted time units as the scope and evaluation time. A zero maximum is
@@ -371,21 +390,20 @@ pub enum SensitiveBreakGlassDecision {
 /// [`DisclosureDecision::HumanApprovalRequired`] or [`DisclosureDecision::DualControlRequired`]
 /// result reaches the exceptional controls.
 ///
-/// `actor_binding`, `approver_binding`, and `trusted_time` must be supplied by a trusted runtime. The
-/// approver binding must be derived from the same authoritative approval records represented by the
-/// scope approval evidence. Time must use the same domain and units as the scope and
-/// [`BreakGlassValidityPolicy`]. Even an [`SensitiveBreakGlassDecision::Authorized`] result is
-/// metadata-only: a trusted broker must authenticate the current caller and approvers, verify the
-/// approval records, revalidate policy/lifecycle immediately before disclosure, execute monitoring,
-/// emit durable audit evidence, and ensure post-event review occurs.
+/// `identity_bindings` and `trusted_time` must be supplied by a trusted runtime. The approver binding
+/// must be derived from the same authoritative approval records represented by the scope approval
+/// evidence. Time must use the same domain and units as the scope and [`BreakGlassValidityPolicy`].
+/// Even an [`SensitiveBreakGlassDecision::Authorized`] result is metadata-only: a trusted broker must
+/// authenticate the current caller and approvers, verify the approval records, revalidate
+/// policy/lifecycle immediately before disclosure, execute monitoring, emit durable audit evidence,
+/// and ensure post-event review occurs.
 #[must_use]
 pub fn evaluate_sensitive_break_glass(
     disclosure_request: &SensitiveDataRequest,
     disclosure_scope: &DisclosureScope,
     break_glass_request: &SensitiveBreakGlassRequest,
     break_glass_scope: &SensitiveBreakGlassScope,
-    actor_binding: &BreakGlassActorBinding,
-    approver_binding: &BreakGlassApproverBinding,
+    identity_bindings: &BreakGlassIdentityBindings,
     validity_policy: &BreakGlassValidityPolicy,
     trusted_time: u64,
 ) -> SensitiveBreakGlassDecision {
@@ -402,10 +420,10 @@ pub fn evaluate_sensitive_break_glass(
     if !break_glass_scope.is_valid() {
         return SensitiveBreakGlassDecision::InvalidScope;
     }
-    if !actor_binding.is_valid() {
+    if !identity_bindings.actor.is_valid() {
         return SensitiveBreakGlassDecision::InvalidActorBinding;
     }
-    if !approver_binding.is_valid() {
+    if !identity_bindings.approvers.is_valid() {
         return SensitiveBreakGlassDecision::InvalidApproverBinding;
     }
     if !validity_policy.is_valid() {
@@ -416,7 +434,7 @@ pub fn evaluate_sensitive_break_glass(
     {
         return SensitiveBreakGlassDecision::AuthorityMismatch;
     }
-    if !actor_binding.matches() {
+    if !identity_bindings.actor.matches() {
         return SensitiveBreakGlassDecision::ActorMismatch;
     }
     if break_glass_request.reason_id != break_glass_scope.reason_id {
@@ -438,10 +456,16 @@ pub fn evaluate_sensitive_break_glass(
     if !break_glass_scope.approval.satisfies(approval_requirement) {
         return SensitiveBreakGlassDecision::ApprovalInsufficient;
     }
-    if !approver_binding.matches_approval(&break_glass_scope.approval) {
+    if !identity_bindings
+        .approvers
+        .matches_approval(&break_glass_scope.approval)
+    {
         return SensitiveBreakGlassDecision::ApproverBindingMismatch;
     }
-    if !approver_binding.is_independent_from(actor_binding) {
+    if !identity_bindings
+        .approvers
+        .is_independent_from(&identity_bindings.actor)
+    {
         return SensitiveBreakGlassDecision::ApproverIndependenceRequired;
     }
     if !break_glass_scope.heightened_monitoring {
