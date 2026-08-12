@@ -259,6 +259,18 @@ class WorkflowRegistryAuditTests(unittest.TestCase):
                 with self.assertRaises(self.audit.WorkflowAuditError):
                     self.audit.audit_workflow_registry(payload)
 
+    def test_deleted_and_disabled_fork_states_are_inactive_non_candidates(self) -> None:
+        """Every documented inactive REST state remains valid but never actionable."""
+
+        for state in ("deleted", "disabled_fork"):
+            with self.subTest(state=state):
+                evidence = self.audit.audit_workflow_registry(
+                    _payload(_workflow(20, ".github/workflows/legacy.yml", state))
+                )
+                record = evidence["workflow_records"][0]
+                self.assertEqual(record["classification"], "disabled_orphan_repository_workflow")
+                self.assertFalse(record["disable_candidate"])
+
     def test_malformed_case_encoded_and_traversal_paths_fail_closed(self) -> None:
         """Ambiguous workflow paths must never become disable recommendations."""
 
@@ -281,6 +293,16 @@ class WorkflowRegistryAuditTests(unittest.TestCase):
         payload = _payload(
             _workflow(9, ".github/workflows/ci.yml", "active"),
             _workflow(9, ".github/workflows/legacy.yml", "active"),
+        )
+        with self.assertRaises(self.audit.WorkflowAuditError):
+            self.audit.audit_workflow_registry(payload)
+
+    def test_distinct_workflow_ids_cannot_reuse_the_same_registry_path(self) -> None:
+        """Duplicate paths cannot create ambiguous disable-candidate evidence."""
+
+        payload = _payload(
+            _workflow(31, ".github/workflows/orphan.yml", "active"),
+            _workflow(32, ".github/workflows/orphan.yml", "active"),
         )
         with self.assertRaises(self.audit.WorkflowAuditError):
             self.audit.audit_workflow_registry(payload)
