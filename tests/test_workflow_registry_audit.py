@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import importlib.util
+import io
+import json
 import pathlib
+import types
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -66,6 +69,34 @@ def _payload(*workflows: dict) -> dict:
             },
         ],
     }
+
+
+class _GrowingAuditInput:
+    """Model an input that grows after a stale metadata check."""
+
+    def __init__(self, maximum_input_bytes: int) -> None:
+        self._content = json.dumps(
+            {"padding": "x" * maximum_input_bytes}, separators=(",", ":")
+        ).encode("utf-8")
+
+    def stat(self):
+        """Return deliberately stale metadata claiming one byte."""
+
+        return types.SimpleNamespace(st_size=1)
+
+    def read_text(self, encoding: str):
+        """Expose the post-check oversized content to the legacy reader."""
+
+        if encoding != "utf-8":
+            raise AssertionError("unexpected encoding")
+        return self._content.decode("utf-8")
+
+    def open(self, mode: str):
+        """Expose the same content through a bounded binary reader."""
+
+        if mode != "rb":
+            raise AssertionError("unexpected mode")
+        return io.BytesIO(self._content)
 
 
 class WorkflowRegistryAuditTests(unittest.TestCase):
@@ -187,6 +218,13 @@ class WorkflowRegistryAuditTests(unittest.TestCase):
         payload["registry_pages"][1]["workflows"].clear()
         with self.assertRaises(self.audit.WorkflowAuditError):
             self.audit.audit_workflow_registry(payload)
+
+    def test_input_size_bound_applies_to_bytes_read_not_stale_metadata(self) -> None:
+        """A growing or replaced input cannot bypass the four-mebibyte read bound."""
+
+        source = _GrowingAuditInput(self.audit._MAX_INPUT_BYTES)
+        with self.assertRaises(self.audit.WorkflowAuditError):
+            self.audit._read_payload(source)
 
     def test_permission_and_transient_http_failures_fail_closed(self) -> None:
         """403/404/5xx exports are evidence gaps, not empty successful pages."""
