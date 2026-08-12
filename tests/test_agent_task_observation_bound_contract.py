@@ -46,6 +46,37 @@ class AgentTaskObservationBoundContractTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             helper("not-an-observation")
 
+    def test_semantic_locator_text_is_utf8_bounded_before_comparison(self) -> None:
+        """One hostile computed role/name must not consume the whole WebDriver response budget."""
+
+        self.assertIn("MAX_AGENT_TASK_SEMANTIC_TEXT_BYTES", self.namespace)
+        self.assertIn("_validate_agent_task_semantic_text", self.namespace)
+        maximum = self.namespace["MAX_AGENT_TASK_SEMANTIC_TEXT_BYTES"]
+        helper = self.namespace["_validate_agent_task_semantic_text"]
+
+        self.assertIsInstance(maximum, int)
+        self.assertGreater(maximum, 0)
+        self.assertLessEqual(
+            maximum, self.namespace["MAX_AGENT_TASK_SEMANTIC_OBSERVATION_BYTES"]
+        )
+        exact = "é" * (maximum // 2)
+        oversized = exact + "é"
+        self.assertEqual(helper(exact, "accessible name"), exact)
+        with self.assertRaises(ValueError):
+            helper(oversized, "accessible name")
+        with self.assertRaises(TypeError):
+            helper(7, "accessible name")
+
+        runner = RUNNER.read_text(encoding="utf-8")
+        self.assertIn(
+            '_validate_agent_task_semantic_text(role, "role")',
+            runner,
+        )
+        self.assertIn(
+            '_validate_agent_task_semantic_text(label, "accessible name")',
+            runner,
+        )
+
     def test_real_agent_task_path_uses_the_bounded_measurement_helper(self) -> None:
         """The real controlled browser pass must not bypass the bounded helper."""
 
