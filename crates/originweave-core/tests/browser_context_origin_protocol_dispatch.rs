@@ -41,10 +41,10 @@ fn runtime_metadata(adapter_version: &str) -> BrowserProtocolRuntimeMetadata<'_>
 }
 
 fn origin(value: &str) -> Result<Origin, Box<dyn Error>> {
-    Origin::parse(value).map_err(|error| {
+    Origin::parse(value).map_err(|_| {
         Box::new(io::Error::new(
             io::ErrorKind::InvalidInput,
-            error.to_string(),
+            "invalid controlled origin fixture",
         )) as Box<dyn Error>
     })
 }
@@ -73,7 +73,7 @@ fn exact_current_origin_and_protocol_metadata_gate_one_dispatch_call() -> Result
     let session = registry.register_session("webdriver-session")?;
     let context = registry.register_context(session, "top-level-context")?;
     let expected_origin = origin("https://app.example")?;
-    registry.bind_context_origin(session, context, expected_origin.clone())?;
+    registry.bind_context_origin(session, context, &expected_origin)?;
     reset_dispatch_marker();
 
     let result = descriptor.dispatch_if_context_origin_current(
@@ -102,7 +102,7 @@ fn origin_mismatch_or_unbound_origin_fails_before_dispatch() -> Result<(), Box<d
     let context = registry.register_context(session, "top-level-context")?;
     let expected_origin = origin("https://app.example")?;
     let other_origin = origin("https://other.example")?;
-    registry.bind_context_origin(session, context, expected_origin.clone())?;
+    registry.bind_context_origin(session, context, &expected_origin)?;
 
     reset_dispatch_marker();
     assert_eq!(
@@ -149,7 +149,7 @@ fn protocol_mismatch_after_origin_revalidation_still_prevents_dispatch()
     let session = registry.register_session("webdriver-session")?;
     let context = registry.register_context(session, "top-level-context")?;
     let expected_origin = origin("https://app.example")?;
-    registry.bind_context_origin(session, context, expected_origin.clone())?;
+    registry.bind_context_origin(session, context, &expected_origin)?;
     reset_dispatch_marker();
 
     assert_eq!(
