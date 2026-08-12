@@ -50,7 +50,7 @@ fn cdp_capability_is_not_inferred_from_protocol_kind() -> Result<(), Box<dyn Err
 #[test]
 fn malformed_or_ambiguous_metadata_fails_closed() {
     let valid_capabilities = [BrowserProtocolCapability::Navigation];
-    let invalid_adapter_versions = ["", " ", "bidi version", "bidi/version", "---"];
+    let invalid_adapter_versions = ["", " ", "bidi version", "bidi/version", "---", "비디"];
     for adapter_version in invalid_adapter_versions {
         assert_eq!(
             BrowserProtocolAdapterDescriptor::new(
@@ -63,7 +63,14 @@ fn malformed_or_ambiguous_metadata_fails_closed() {
         );
     }
 
-    let invalid_browser_revisions = ["", " ", "chromium revision", "chromium/revision", "---"];
+    let invalid_browser_revisions = [
+        "",
+        " ",
+        "chromium revision",
+        "chromium/revision",
+        "---",
+        "크로미움",
+    ];
     for browser_revision in invalid_browser_revisions {
         assert_eq!(
             BrowserProtocolAdapterDescriptor::new(
