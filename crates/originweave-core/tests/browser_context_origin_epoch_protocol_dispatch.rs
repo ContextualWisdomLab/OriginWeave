@@ -117,20 +117,98 @@ fn same_origin_new_document_epoch_fails_before_protocol_dispatch() -> Result<(),
     registry.bind_context_origin(session, context, &expected_origin)?;
     reset_dispatch_marker();
 
+    let result = descriptor.dispatch_if_context_origin_epoch_current(
+        &registry,
+        target,
+        ORIGINWEAVE_PROTOCOL_VERSION,
+        runtime_metadata(),
+        BrowserProtocolCapability::TypedInput,
+        successful_dispatch as DispatchFn,
+    );
+    let error = match result {
+        Err(error) => error,
+        Ok(_) => {
+            return Err(Box::new(io::Error::other(
+                "stale document epoch unexpectedly dispatched",
+            )))
+        }
+    };
+
     assert_eq!(
-        descriptor.dispatch_if_context_origin_epoch_current(
-            &registry,
-            target,
-            ORIGINWEAVE_PROTOCOL_VERSION,
-            runtime_metadata(),
-            BrowserProtocolCapability::TypedInput,
-            successful_dispatch as DispatchFn,
-        ),
-        Err(BrowserContextProtocolDispatchError::DocumentEpochMismatch {
+        error,
+        BrowserContextProtocolDispatchError::DocumentEpochMismatch {
             expected: observed_epoch,
             current: current_epoch,
-        })
+        }
     );
+    assert_eq!(
+        error.to_string(),
+        "browser document epoch 2 no longer matches observed epoch 1"
+    );
+    assert!(error.source().is_none());
+    assert!(!dispatch_was_called());
+    Ok(())
+}
+
+#[test]
+fn epoch_dispatch_preserves_authority_and_protocol_failures_before_callback()
+-> Result<(), Box<dyn Error>> {
+    let descriptor = descriptor()?;
+    let mut registry = BrowserAuthorityRegistry::new();
+    let session = registry.register_session("webdriver-session")?;
+    let context = registry.register_context(session, "top-level-context")?;
+    let current_origin = origin("https://app.example")?;
+    let other_origin = origin("https://other.example")?;
+    let expected_epoch = registry.bind_context_origin(session, context, &current_origin)?;
+
+    let wrong_origin_target = BrowserContextOriginEpochDispatchTarget::new(
+        BrowserContextOriginDispatchTarget::new(
+            BrowserContextDispatchTarget::new(session, context),
+            &other_origin,
+        ),
+        expected_epoch,
+    );
+    reset_dispatch_marker();
+    let authority_result = descriptor.dispatch_if_context_origin_epoch_current(
+        &registry,
+        wrong_origin_target,
+        ORIGINWEAVE_PROTOCOL_VERSION,
+        runtime_metadata(),
+        BrowserProtocolCapability::TypedInput,
+        successful_dispatch as DispatchFn,
+    );
+    assert!(matches!(
+        authority_result,
+        Err(BrowserContextProtocolDispatchError::BrowserAuthority(_))
+    ));
+    assert!(!dispatch_was_called());
+
+    let current_target = BrowserContextOriginEpochDispatchTarget::new(
+        BrowserContextOriginDispatchTarget::new(
+            BrowserContextDispatchTarget::new(session, context),
+            &current_origin,
+        ),
+        expected_epoch,
+    );
+    let drifted_runtime = BrowserProtocolRuntimeMetadata::new(
+        BrowserProtocolKind::WebDriverBiDi,
+        "originweave-bidi-v2",
+        PROTOCOL_REVISION,
+        BROWSER_REVISION,
+    );
+    reset_dispatch_marker();
+    let protocol_result = descriptor.dispatch_if_context_origin_epoch_current(
+        &registry,
+        current_target,
+        ORIGINWEAVE_PROTOCOL_VERSION,
+        drifted_runtime,
+        BrowserProtocolCapability::TypedInput,
+        successful_dispatch as DispatchFn,
+    );
+    assert!(matches!(
+        protocol_result,
+        Err(BrowserContextProtocolDispatchError::ProtocolValidation(_))
+    ));
     assert!(!dispatch_was_called());
     Ok(())
 }
