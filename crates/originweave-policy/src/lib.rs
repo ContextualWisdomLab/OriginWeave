@@ -28,6 +28,7 @@ pub struct AgentTaskExtensionPolicy {
     managed_extensions: BTreeSet<ExtensionId>,
     valid_from: u64,
     valid_until: u64,
+    maximum_window: u64,
 }
 
 impl AgentTaskExtensionPolicy {
@@ -35,13 +36,20 @@ impl AgentTaskExtensionPolicy {
     ///
     /// Duplicate identifiers collapse to one exact managed identity. An empty
     /// iterator therefore represents the default policy that admits no extension.
-    /// `valid_from` is inclusive and `valid_until` is exclusive. Both values are
-    /// opaque timestamps in the same caller-defined trusted time domain that will
-    /// be supplied to [`evaluate_agent_task_extension`]. This constructor does not
-    /// authenticate policy provenance or attest a clock; an invalid or empty
-    /// validity window is retained so evaluation can fail closed deterministically.
+    /// `valid_from` is inclusive and `valid_until` is exclusive. `maximum_window`
+    /// is the reviewed local ceiling for that interval. All three values are opaque
+    /// timestamps or durations in the same caller-defined trusted time domain and
+    /// units supplied to [`evaluate_agent_task_extension`]. This constructor does
+    /// not authenticate policy provenance or attest a clock; an invalid, empty, or
+    /// overlong validity window is retained so evaluation can fail closed
+    /// deterministically.
     #[must_use]
-    pub fn new<I>(managed_extensions: I, valid_from: u64, valid_until: u64) -> Self
+    pub fn new<I>(
+        managed_extensions: I,
+        valid_from: u64,
+        valid_until: u64,
+        maximum_window: u64,
+    ) -> Self
     where
         I: IntoIterator<Item = ExtensionId>,
     {
@@ -49,6 +57,7 @@ impl AgentTaskExtensionPolicy {
             managed_extensions: managed_extensions.into_iter().collect(),
             valid_from,
             valid_until,
+            maximum_window,
         }
     }
 }
@@ -60,8 +69,10 @@ pub enum AgentTaskExtensionDecision {
     AllowManagedExtension,
     /// The extension identity is absent from the managed allow-list.
     DenyNotManaged,
-    /// The configured policy validity window is empty or reversed.
+    /// The configured validity window is empty/reversed or its local ceiling is zero.
     DenyInvalidPolicyWindow,
+    /// The configured policy validity interval exceeds the reviewed local maximum.
+    DenyPolicyWindowExceedsMaximum,
     /// The trusted evaluation time precedes the policy validity window.
     DenyPolicyNotYetValid,
     /// The trusted evaluation time is at or beyond the policy expiry boundary.
@@ -72,19 +83,24 @@ pub enum AgentTaskExtensionDecision {
 ///
 /// This pure boundary answers only whether the exact canonical extension may be
 /// present in the caller's managed Agent Task profile at `trusted_time`.
-/// `trusted_time`, [`AgentTaskExtensionPolicy::new`] `valid_from`, and `valid_until`
-/// must use the same caller-attested time domain; this function does not read or
-/// attest a clock. The validity window is half-open: `valid_from <= trusted_time <
-/// valid_until`. Chromium permissions, installation state, native messaging, and
-/// [`originweave_core::ExtensionAgentGrant`] remain separate authorities.
+/// `trusted_time`, [`AgentTaskExtensionPolicy::new`] `valid_from`, `valid_until`,
+/// and `maximum_window` must use one caller-attested time domain and compatible
+/// units; this function does not read or attest a clock. The validity window is
+/// half-open (`valid_from <= trusted_time < valid_until`) and must not exceed the
+/// reviewed local maximum. Chromium permissions, installation state, native
+/// messaging, and [`originweave_core::ExtensionAgentGrant`] remain separate
+/// authorities.
 #[must_use]
 pub fn evaluate_agent_task_extension(
     extension_id: &ExtensionId,
     policy: &AgentTaskExtensionPolicy,
     trusted_time: u64,
 ) -> AgentTaskExtensionDecision {
-    if policy.valid_from >= policy.valid_until {
+    if policy.valid_from >= policy.valid_until || policy.maximum_window == 0 {
         return AgentTaskExtensionDecision::DenyInvalidPolicyWindow;
+    }
+    if policy.valid_until - policy.valid_from > policy.maximum_window {
+        return AgentTaskExtensionDecision::DenyPolicyWindowExceedsMaximum;
     }
     if trusted_time < policy.valid_from {
         return AgentTaskExtensionDecision::DenyPolicyNotYetValid;
