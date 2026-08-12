@@ -7,6 +7,10 @@ use originweave_core::{
 };
 
 fn observation() -> Result<SemanticNodeObservation, String> {
+    observation_with_enabled(true)
+}
+
+fn observation_with_enabled(enabled: bool) -> Result<SemanticNodeObservation, String> {
     let handle = ObservedNodeHandle::new(
         BrowserSessionId::new(7).map_err(|error| error.to_string())?,
         BrowsingContextId::new(11).map_err(|error| error.to_string())?,
@@ -23,10 +27,10 @@ fn observation() -> Result<SemanticNodeObservation, String> {
         role: "button".to_owned(),
         accessible_name: "Save draft".to_owned(),
         visible_text: Some("Save draft".to_owned()),
-        enabled: true,
+        enabled,
         visible: true,
         selected: None,
-        supported_actions: BTreeSet::from([NodeActionKind::Click]),
+        supported_actions: BTreeSet::from([NodeActionKind::Click, NodeActionKind::ScrollIntoView]),
         evidence_channels: BTreeSet::from([ObservationChannel::Accessibility]),
     })
     .map_err(|error| error.to_string())
@@ -50,6 +54,26 @@ fn unsupported_node_action_fails_closed_without_minting_authority() -> Result<()
         SemanticNodeActionTarget::from_observation(&observed, NodeActionKind::TypeText).err(),
         Some(SemanticNodeActionTargetError::UnsupportedAction)
     );
+    Ok(())
+}
+
+#[test]
+fn disabled_interactive_node_action_fails_closed() -> Result<(), String> {
+    let observed = observation_with_enabled(false)?;
+    assert_eq!(
+        SemanticNodeActionTarget::from_observation(&observed, NodeActionKind::Click).err(),
+        Some(SemanticNodeActionTargetError::NodeNotEnabled)
+    );
+    Ok(())
+}
+
+#[test]
+fn disabled_node_can_still_be_targeted_for_scroll_only() -> Result<(), String> {
+    let observed = observation_with_enabled(false)?;
+    let target =
+        SemanticNodeActionTarget::from_observation(&observed, NodeActionKind::ScrollIntoView)
+            .map_err(|error| error.to_string())?;
+    assert_eq!(target.action(), NodeActionKind::ScrollIntoView);
     Ok(())
 }
 
@@ -180,5 +204,9 @@ fn node_action_target_error_is_stable_and_credential_free() {
     assert_eq!(
         SemanticNodeActionTargetError::UnsupportedAction.to_string(),
         "semantic node action is not advertised by the observation"
+    );
+    assert_eq!(
+        SemanticNodeActionTargetError::NodeNotEnabled.to_string(),
+        "semantic node is not enabled for the requested action"
     );
 }
