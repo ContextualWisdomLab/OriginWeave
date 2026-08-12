@@ -2,8 +2,9 @@
 
 //! Credential-free audit contract for one actual sensitive-data break-glass disclosure.
 //!
-//! The receipt records bounded authority, approval, validity, monitoring, and review metadata. It
-//! deliberately has no protected-value, opaque-handle, credential, prompt, or provider-token field.
+//! The receipt records bounded authority, approval, validity, monitoring, review, and retention
+//! metadata. It deliberately has no protected-value, opaque-handle, credential, prompt, or
+//! provider-token field.
 
 use originweave_core::Origin;
 use originweave_evidence::{
@@ -18,6 +19,7 @@ const MAXIMUM_WINDOW: u64 = 100;
 const DECISION_TIME: u64 = 120;
 const DISCLOSURE_TIME: u64 = 150;
 const REVIEW_DUE_TIME: u64 = 250;
+const RETENTION_DEADLINE_TIME: u64 = 1_000;
 
 fn valid_input() -> SensitiveBreakGlassEvidenceInput {
     SensitiveBreakGlassEvidenceInput {
@@ -45,6 +47,7 @@ fn valid_input() -> SensitiveBreakGlassEvidenceInput {
         monitoring_reference: "monitoring-session-42".to_owned(),
         post_event_review_reference: "review-record-42".to_owned(),
         post_event_review_due_epoch_seconds: REVIEW_DUE_TIME,
+        retention_deadline_epoch_seconds: RETENTION_DEADLINE_TIME,
     }
 }
 
@@ -93,6 +96,10 @@ fn valid_break_glass_disclosure_builds_a_complete_credential_free_receipt() {
     assert_eq!(
         evidence.post_event_review_due_epoch_seconds(),
         REVIEW_DUE_TIME
+    );
+    assert_eq!(
+        evidence.retention_deadline_epoch_seconds(),
+        RETENTION_DEADLINE_TIME
     );
 
     let debug = format!("{evidence:?}");
@@ -304,6 +311,13 @@ fn validity_window_and_event_lifecycle_are_fail_closed() {
     review_not_after_disclosure.post_event_review_due_epoch_seconds = DISCLOSURE_TIME;
     assert_eq!(
         SensitiveBreakGlassEvidence::try_from(review_not_after_disclosure),
+        Err(SensitiveBreakGlassEvidenceError::InvalidLifecycle)
+    );
+
+    let mut retention_not_after_review = valid_input();
+    retention_not_after_review.retention_deadline_epoch_seconds = REVIEW_DUE_TIME;
+    assert_eq!(
+        SensitiveBreakGlassEvidence::try_from(retention_not_after_review),
         Err(SensitiveBreakGlassEvidenceError::InvalidLifecycle)
     );
 }
