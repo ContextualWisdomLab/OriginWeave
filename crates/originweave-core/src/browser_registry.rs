@@ -146,6 +146,35 @@ impl BrowserAuthorityRegistry {
         self.current_epoch(browsing_context)
     }
 
+    /// Bind the canonical origin observed for the exact current browser document.
+    ///
+    /// This boundary lets a trusted browser adapter establish current document-origin state before
+    /// semantic-node discovery begins. The supplied session must own the context. Rebinding the
+    /// same canonical origin in the same document epoch is idempotent, while a different origin
+    /// fails closed until [`Self::advance_document`] rotates the document epoch and clears the old
+    /// binding. The returned epoch is descriptive immediate-use state, not reusable capability.
+    ///
+    /// This method does not authenticate the adapter, derive an origin from Chromium, authorize a
+    /// destination or action, or prove that any browser I/O occurred.
+    pub fn bind_context_origin(
+        &mut self,
+        browser_session: BrowserSessionId,
+        browsing_context: BrowsingContextId,
+        origin: &Origin,
+    ) -> Result<DocumentEpoch, BrowserRegistryError> {
+        let epoch = self.current_context_epoch(browser_session, browsing_context)?;
+        match self.context_origin.get(&browsing_context) {
+            Some(expected_origin) if expected_origin != origin => {
+                return Err(BrowserRegistryError::OriginChangedWithoutDocumentAdvance);
+            }
+            Some(_expected_origin) => {}
+            None => {
+                self.context_origin.insert(browsing_context, origin.clone());
+            }
+        }
+        Ok(epoch)
+    }
+
     /// Advance a browsing context to the next document epoch and invalidate old node bindings.
     ///
     /// Call this whenever navigation or document replacement invalidates actionable node identity.
