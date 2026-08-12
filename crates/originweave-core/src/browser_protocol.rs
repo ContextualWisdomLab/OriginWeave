@@ -294,7 +294,7 @@ impl BrowserProtocolAdapterDescriptor {
     ///
     /// Validation is intentionally ordered and fail closed: the exact
     /// OriginWeave Protocol generation is checked first, then the caller-supplied
-    /// runtime protocol family, then the supplied runtime protocol/browser
+    /// runtime protocol family, runtime adapter version, protocol/browser
     /// revisions, and finally the required adapter capability. Success returns
     /// a non-cloneable value that a later trusted transport can consume as proof
     /// that these metadata prerequisites were checked together. It is not
@@ -304,6 +304,7 @@ impl BrowserProtocolAdapterDescriptor {
         &self,
         required_originweave_protocol_version: OriginWeaveProtocolVersion,
         runtime_kind: BrowserProtocolKind,
+        runtime_adapter_version: &str,
         runtime_protocol_revision: &str,
         runtime_browser_revision: &str,
         required_capability: BrowserProtocolCapability,
@@ -315,6 +316,12 @@ impl BrowserProtocolAdapterDescriptor {
                 descriptor_kind: self.kind,
                 runtime_kind,
             });
+        }
+        if !metadata_token_is_valid(runtime_adapter_version) {
+            return Err(BrowserProtocolUseValidationError::InvalidAdapterVersion);
+        }
+        if self.adapter_version != runtime_adapter_version {
+            return Err(BrowserProtocolUseValidationError::AdapterVersionMismatch);
         }
         self.require_runtime_revisions(runtime_protocol_revision, runtime_browser_revision)
             .map_err(BrowserProtocolUseValidationError::RuntimeRevision)?;
@@ -499,6 +506,10 @@ pub enum BrowserProtocolUseValidationError {
         /// Browser protocol family reported by the runtime transport.
         runtime_kind: BrowserProtocolKind,
     },
+    /// The runtime adapter-version token was malformed.
+    InvalidAdapterVersion,
+    /// The runtime adapter version differs from the pinned descriptor version.
+    AdapterVersionMismatch,
     /// The supplied runtime protocol or browser revision is invalid or has drifted.
     RuntimeRevision(BrowserProtocolRuntimeRequirementError),
     /// The descriptor does not explicitly declare the required capability.
@@ -511,6 +522,11 @@ impl fmt::Display for BrowserProtocolUseValidationError {
             Self::ProtocolVersion(error) => error.fmt(formatter),
             Self::ProtocolKindMismatch { .. } => formatter
                 .write_str("runtime browser protocol kind does not match the pinned adapter kind"),
+            Self::InvalidAdapterVersion => formatter
+                .write_str("runtime browser adapter version must be a bounded ASCII metadata token"),
+            Self::AdapterVersionMismatch => formatter.write_str(
+                "runtime browser adapter version does not match the pinned adapter version",
+            ),
             Self::RuntimeRevision(error) => error.fmt(formatter),
             Self::Capability(error) => error.fmt(formatter),
         }
@@ -521,7 +537,9 @@ impl std::error::Error for BrowserProtocolUseValidationError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::ProtocolVersion(error) => Some(error),
-            Self::ProtocolKindMismatch { .. } => None,
+            Self::ProtocolKindMismatch { .. }
+            | Self::InvalidAdapterVersion
+            | Self::AdapterVersionMismatch => None,
             Self::RuntimeRevision(error) => Some(error),
             Self::Capability(error) => Some(error),
         }
