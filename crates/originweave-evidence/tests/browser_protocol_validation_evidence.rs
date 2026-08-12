@@ -25,6 +25,7 @@ fn records_exact_metadata_from_one_validated_browser_protocol_use() -> Result<()
     let validated = descriptor.validate_use(
         ORIGINWEAVE_PROTOCOL_VERSION,
         BrowserProtocolKind::WebDriverBiDi,
+        ADAPTER_VERSION,
         PROTOCOL_REVISION,
         BROWSER_REVISION,
         BrowserProtocolCapability::SemanticObservation,
@@ -50,18 +51,21 @@ fn records_exact_metadata_from_one_validated_browser_protocol_use() -> Result<()
 #[test]
 fn evidence_is_owned_audit_metadata_not_reusable_validation_authority() -> Result<(), Box<dyn Error>>
 {
+    let cdp_adapter_version = "originweave-cdp-v1";
+    let cdp_protocol_revision = "cdp-1-3-r1639810";
     let descriptor = BrowserProtocolAdapterDescriptor::new(
         BrowserProtocolKind::ChromeDevToolsProtocol,
         ORIGINWEAVE_PROTOCOL_VERSION,
-        "originweave-cdp-v1",
-        "cdp-1-3-r1639810",
+        cdp_adapter_version,
+        cdp_protocol_revision,
         BROWSER_REVISION,
         &[BrowserProtocolCapability::NetworkObservation],
     )?;
     let validated = descriptor.validate_use(
         ORIGINWEAVE_PROTOCOL_VERSION,
         BrowserProtocolKind::ChromeDevToolsProtocol,
-        "cdp-1-3-r1639810",
+        cdp_adapter_version,
+        cdp_protocol_revision,
         BROWSER_REVISION,
         BrowserProtocolCapability::NetworkObservation,
     )?;
