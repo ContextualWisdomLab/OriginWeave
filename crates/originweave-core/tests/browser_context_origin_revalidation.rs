@@ -46,9 +46,11 @@ fn current_context_origin_revalidation_fails_closed_on_mismatch() -> Result<(), 
         registry.require_context_origin(session, context, &second),
         Err(BrowserRegistryError::OriginChangedWithoutDocumentAdvance)
     );
-    assert!(registry
-        .require_context_origin(session, context, &first)
-        .is_ok());
+    assert!(
+        registry
+            .require_context_origin(session, context, &first)
+            .is_ok()
+    );
     Ok(())
 }
 
