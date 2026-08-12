@@ -5,9 +5,10 @@
 use originweave_core::Origin;
 use originweave_policy::{
     BreakGlassActorBinding, BreakGlassApprovalEvidence, BreakGlassApproverBinding,
-    BreakGlassValidityPolicy, DataClassification, DisclosureDecision, DisclosureScope,
-    SensitiveBreakGlassDecision, SensitiveBreakGlassRequest, SensitiveBreakGlassScope,
-    SensitiveDataAuthority, SensitiveDataRequest, evaluate_sensitive_break_glass,
+    BreakGlassIdentityBindings, BreakGlassValidityPolicy, DataClassification, DisclosureDecision,
+    DisclosureScope, SensitiveBreakGlassDecision, SensitiveBreakGlassRequest,
+    SensitiveBreakGlassScope, SensitiveDataAuthority, SensitiveDataRequest,
+    evaluate_sensitive_break_glass,
 };
 
 const VALID_FROM: u64 = 100;
@@ -44,7 +45,10 @@ fn evaluate(
         true,
         true,
     );
-    let actor = BreakGlassActorBinding::new(ACTOR_ID, ACTOR_ID);
+    let identities = BreakGlassIdentityBindings::new(
+        BreakGlassActorBinding::new(ACTOR_ID, ACTOR_ID),
+        approvers,
+    );
     let validity = BreakGlassValidityPolicy::new(VALID_UNTIL - VALID_FROM);
 
     evaluate_sensitive_break_glass(
@@ -52,8 +56,7 @@ fn evaluate(
         &disclosure_scope,
         &request,
         &scope,
-        &actor,
-        &approvers,
+        &identities,
         &validity,
         TRUSTED_TIME,
     )
