@@ -381,8 +381,7 @@ fn validate_approval_set(
     let valid = match mode {
         SensitiveBreakGlassApprovalMode::Human => approval_references.len() == 1,
         SensitiveBreakGlassApprovalMode::DualControl => {
-            approval_references.len() == 2
-                && approval_references[0] != approval_references[1]
+            approval_references.len() == 2 && approval_references[0] != approval_references[1]
         }
     };
     if !valid {
