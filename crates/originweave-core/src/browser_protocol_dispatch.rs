@@ -123,10 +123,16 @@ impl fmt::Display for BrowserContextProtocolDispatchError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::BrowserAuthority(error) => {
-                write!(formatter, "browser context authority denied protocol dispatch: {error}")
+                write!(
+                    formatter,
+                    "browser context authority denied protocol dispatch: {error}"
+                )
             }
             Self::ProtocolValidation(error) => {
-                write!(formatter, "browser protocol validation denied context dispatch: {error}")
+                write!(
+                    formatter,
+                    "browser protocol validation denied context dispatch: {error}"
+                )
             }
         }
     }
