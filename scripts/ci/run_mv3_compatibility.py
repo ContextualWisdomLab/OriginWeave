@@ -7,11 +7,11 @@ can load the controlled MV3 fixture and repeatedly exercise service-worker,
 content-script, storage, declarative-net-request, tabs, windows, scripting,
 commands, side-panel, bookmarks, history, real browser-click, and
 restart-persistence behavior. It also executes the controlled Agent Task fixture
-with extensions disabled in a fresh profile, verifies browser-computed role/name
-for the controlled action targets, performs real WebDriver input and click
-operations, verifies the observable post-condition, proves the controlled action
-preserves its loaded URL, and records bounded runtime resource evidence without
-treating page content as instruction or authority.
+with extensions disabled in a fresh profile, locates the controlled action
+targets by exact browser-computed role/name evidence, performs real WebDriver
+input and click operations, verifies the observable post-condition, proves the
+controlled action preserves its loaded URL, and records bounded runtime resource
+evidence without treating page content as instruction or authority.
 """
 
 from __future__ import annotations
@@ -45,6 +45,7 @@ MAX_WEBDRIVER_RESPONSE_BYTES = 1_048_576
 MAX_PROC_STATUS_CHARACTERS = 65_536
 MAX_BROWSER_PROCESS_TREE_SIZE = 256
 MAX_PROC_PROCESS_SCAN_SIZE = 32_768
+MAX_SEMANTIC_LOCATOR_CANDIDATES = 128
 MAX_U64 = (1 << 64) - 1
 W3C_ELEMENT_KEY = "element-6066-11e4-a52e-4f735466cecf"
 PATH_TOKEN_CHARACTERS = frozenset(string.ascii_letters + string.digits + "-_.")
@@ -205,6 +206,47 @@ def _get_element_semantics(
     if not isinstance(role, str) or not isinstance(label, str):
         raise RuntimeError("WebDriver returned malformed element semantics")
     return role, label
+
+
+def _find_element_by_accessible_role_name(
+    driver_port: int,
+    session_id: str,
+    role: str,
+    accessible_name: str,
+) -> str:
+    """Find exactly one controlled element by browser-computed role and name."""
+
+    found = _json_request(
+        driver_port,
+        "POST",
+        _webdriver_path(session_id, "/elements"),
+        {"using": "css selector", "value": "*"},
+    )
+    elements = found.get("value")
+    if not isinstance(elements, list):
+        raise RuntimeError("WebDriver did not return a semantic locator candidate list")
+    if len(elements) > MAX_SEMANTIC_LOCATOR_CANDIDATES:
+        raise RuntimeError("semantic locator exceeded bounded candidate limit")
+
+    matches: list[str] = []
+    for element in elements:
+        element_id = element.get(W3C_ELEMENT_KEY) if isinstance(element, dict) else None
+        if not isinstance(element_id, str):
+            raise RuntimeError("WebDriver returned malformed semantic locator candidate")
+        safe_element = _path_token(element_id, "element identifier")
+        candidate_role, candidate_name = _get_element_semantics(
+            driver_port,
+            session_id,
+            safe_element,
+        )
+        if candidate_role == role and candidate_name == accessible_name:
+            matches.append(safe_element)
+            if len(matches) > 1:
+                raise RuntimeError("semantic locator returned multiple exact matches")
+
+    if not matches:
+        raise RuntimeError("semantic locator returned no exact match")
+    return matches[0]
 
 
 def _parse_linux_proc_status_rss_bytes(status_text: str) -> int:
@@ -741,7 +783,12 @@ def _run_agent_task_browser_pass(
         if initial_url != fixture_url:
             raise RuntimeError("Agent Task did not load the requested fixture URL")
 
-        input_element = _find_element(driver_port, session_id, "#task-text")
+        input_element = _find_element_by_accessible_role_name(
+            driver_port,
+            session_id,
+            "textbox",
+            "Task text",
+        )
         input_role, input_name = _get_element_semantics(
             driver_port,
             session_id,
@@ -749,10 +796,11 @@ def _run_agent_task_browser_pass(
         )
         if input_role != "textbox" or input_name != "Task text":
             raise RuntimeError("Agent Task input semantic evidence mismatch")
-        submit_element = _find_element(
+        submit_element = _find_element_by_accessible_role_name(
             driver_port,
             session_id,
-            "#agent-task-form button[type=submit]",
+            "button",
+            "Submit task",
         )
         submit_role, submit_name = _get_element_semantics(
             driver_port,
