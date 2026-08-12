@@ -15,6 +15,7 @@
 - [Dated active-PR maturity evidence (2026-08-10)](evidence/2026-08-10-active-pr-maturity.md)
 - [Active-PR maturity delta (2026-08-11)](evidence/2026-08-11-active-pr-maturity-delta.md)
 - [Active-PR maturity closure (2026-08-11)](evidence/2026-08-11-active-pr-maturity-closure.md)
+- [Browser protocol active-PR evidence (2026-08-12)](evidence/2026-08-12-browser-protocol-active-pr-evidence.md)
 - [Threat model](THREAT_MODEL.md)
 - [Product-wide test strategy](TEST_STRATEGY.md)
 - [Operability and incident-response baseline](OPERABILITY.md)
