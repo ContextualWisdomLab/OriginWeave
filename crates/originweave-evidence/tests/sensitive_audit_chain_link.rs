@@ -183,15 +183,42 @@ fn sequence_overflow_fails_before_next_link_can_be_admitted() {
 #[test]
 fn public_errors_are_stable_and_source_free() {
     let cases = [
-        (SensitiveAuditChainLinkError::InvalidIdentifier, "invalid sensitive audit chain identifier"),
-        (SensitiveAuditChainLinkError::InvalidDigest, "invalid sensitive audit chain digest"),
-        (SensitiveAuditChainLinkError::InvalidSequence, "invalid sensitive audit chain sequence"),
-        (SensitiveAuditChainLinkError::UnexpectedPreviousDigest, "genesis sensitive audit chain link has a previous digest"),
-        (SensitiveAuditChainLinkError::MissingPreviousDigest, "non-genesis sensitive audit chain link is missing its previous digest"),
-        (SensitiveAuditChainLinkError::ChainContextMismatch, "sensitive audit chain context mismatch"),
-        (SensitiveAuditChainLinkError::SequenceDiscontinuity, "sensitive audit chain sequence is not contiguous"),
-        (SensitiveAuditChainLinkError::PreviousDigestMismatch, "sensitive audit chain previous digest mismatch"),
-        (SensitiveAuditChainLinkError::SequenceOverflow, "sensitive audit chain sequence overflow"),
+        (
+            SensitiveAuditChainLinkError::InvalidIdentifier,
+            "invalid sensitive audit chain identifier",
+        ),
+        (
+            SensitiveAuditChainLinkError::InvalidDigest,
+            "invalid sensitive audit chain digest",
+        ),
+        (
+            SensitiveAuditChainLinkError::InvalidSequence,
+            "invalid sensitive audit chain sequence",
+        ),
+        (
+            SensitiveAuditChainLinkError::UnexpectedPreviousDigest,
+            "genesis sensitive audit chain link has a previous digest",
+        ),
+        (
+            SensitiveAuditChainLinkError::MissingPreviousDigest,
+            "non-genesis sensitive audit chain link is missing its previous digest",
+        ),
+        (
+            SensitiveAuditChainLinkError::ChainContextMismatch,
+            "sensitive audit chain context mismatch",
+        ),
+        (
+            SensitiveAuditChainLinkError::SequenceDiscontinuity,
+            "sensitive audit chain sequence is not contiguous",
+        ),
+        (
+            SensitiveAuditChainLinkError::PreviousDigestMismatch,
+            "sensitive audit chain previous digest mismatch",
+        ),
+        (
+            SensitiveAuditChainLinkError::SequenceOverflow,
+            "sensitive audit chain sequence overflow",
+        ),
     ];
 
     for (error, expected) in cases {
