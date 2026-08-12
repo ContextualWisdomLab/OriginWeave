@@ -9,8 +9,9 @@ commands, side-panel, bookmarks, history, real browser-click, and
 restart-persistence behavior. It also executes the controlled Agent Task fixture
 with extensions disabled in a fresh profile, verifies browser-computed role/name
 for the controlled action targets, performs real WebDriver input and click
-operations, verifies the observable post-condition, and records bounded runtime
-resource evidence without treating page content as instruction or authority.
+operations, verifies the observable post-condition, proves the controlled action
+preserves its loaded URL, and records bounded runtime resource evidence without
+treating page content as instruction or authority.
 """
 
 from __future__ import annotations
@@ -78,7 +79,7 @@ def _path_token(value: str, label: str) -> str:
 
 
 def _webdriver_path(session_id: str, suffix: str) -> str:
-    """Build a bounded ChromeDriver path from a validated session identifier."""
+    """Build one bounded ChromeDriver path from a validated session identifier."""
 
     safe_session = _path_token(session_id, "session identifier")
     if suffix and not suffix.startswith("/"):
@@ -732,6 +733,14 @@ def _run_agent_task_browser_pass(
             _webdriver_path(session_id, "/url"),
             {"url": fixture_url},
         )
+        initial_url = _json_request(
+            driver_port,
+            "GET",
+            _webdriver_path(session_id, "/url"),
+        ).get("value")
+        if initial_url != fixture_url:
+            raise RuntimeError("Agent Task did not load the requested fixture URL")
+
         input_element = _find_element(driver_port, session_id, "#task-text")
         input_role, input_name = _get_element_semantics(
             driver_port,
@@ -790,6 +799,15 @@ def _run_agent_task_browser_pass(
         if action_latency_ms <= 0:
             raise RuntimeError("Agent Task measured a non-positive action latency")
 
+        post_submit_url = _json_request(
+            driver_port,
+            "GET",
+            _webdriver_path(session_id, "/url"),
+        ).get("value")
+        url_unchanged = post_submit_url == initial_url
+        if not url_unchanged:
+            raise RuntimeError("Agent Task URL changed during submission")
+
         result_element = _find_element(driver_port, session_id, "#task-result")
         state = _json_request(
             driver_port,
@@ -824,6 +842,7 @@ def _run_agent_task_browser_pass(
             "browser_version": browser_version,
             "post_condition": True,
             "input_echo_verified": True,
+            "url_unchanged": url_unchanged,
             "input_semantics_verified": True,
             "submit_semantics_verified": True,
             "extensions_disabled": True,
@@ -882,6 +901,7 @@ def _run_agent_task_trial(
         "browser_version": result["browser_version"],
         "post_condition": result["post_condition"],
         "input_echo_verified": result["input_echo_verified"],
+        "url_unchanged": result["url_unchanged"],
         "input_semantics_verified": result["input_semantics_verified"],
         "submit_semantics_verified": result["submit_semantics_verified"],
         "extensions_disabled": result["extensions_disabled"],
@@ -1017,6 +1037,7 @@ def main() -> int:
         agent_task_surfaces_complete = all(
             trial.get("post_condition") is True
             and trial.get("input_echo_verified") is True
+            and trial.get("url_unchanged") is True
             and trial.get("input_semantics_verified") is True
             and trial.get("submit_semantics_verified") is True
             and trial.get("extensions_disabled") is True
