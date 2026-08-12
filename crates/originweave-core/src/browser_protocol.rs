@@ -52,8 +52,8 @@ impl BrowserProtocolAdapterDescriptor {
     /// separate bounded ASCII metadata tokens. This prevents an OriginWeave
     /// adapter release from being mistaken for the WebDriver BiDi/CDP revision
     /// or the pinned browser build it was validated against. The declared
-    /// capability list must be non-empty and duplicate-free so the descriptor
-    /// has one canonical interpretation.
+    /// capability list must be non-empty and duplicate-free and is normalized
+    /// into one stable order so caller ordering cannot change descriptor identity.
     pub fn new(
         kind: BrowserProtocolKind,
         adapter_version: &str,
@@ -81,6 +81,7 @@ impl BrowserProtocolAdapterDescriptor {
             }
             canonical_capabilities.push(*capability);
         }
+        canonical_capabilities.sort_unstable_by_key(|capability| capability_rank(*capability));
 
         Ok(Self {
             kind,
@@ -125,6 +126,15 @@ impl BrowserProtocolAdapterDescriptor {
     #[must_use]
     pub fn supports(&self, capability: BrowserProtocolCapability) -> bool {
         self.capabilities.contains(&capability)
+    }
+}
+
+const fn capability_rank(capability: BrowserProtocolCapability) -> u8 {
+    match capability {
+        BrowserProtocolCapability::Navigation => 0,
+        BrowserProtocolCapability::SemanticObservation => 1,
+        BrowserProtocolCapability::TypedInput => 2,
+        BrowserProtocolCapability::NetworkObservation => 3,
     }
 }
 
