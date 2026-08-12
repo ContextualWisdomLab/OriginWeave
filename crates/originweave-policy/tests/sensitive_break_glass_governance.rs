@@ -50,10 +50,8 @@ fn evaluate(
 ) -> SensitiveBreakGlassDecision {
     let exact_authority = authority();
     let disclosure_request = SensitiveDataRequest::new(exact_authority.clone());
-    let disclosure_scope = DisclosureScope::new(
-        exact_authority,
-        DisclosureDecision::HumanApprovalRequired,
-    );
+    let disclosure_scope =
+        DisclosureScope::new(exact_authority, DisclosureDecision::HumanApprovalRequired);
 
     evaluate_sensitive_break_glass(
         &disclosure_request,
