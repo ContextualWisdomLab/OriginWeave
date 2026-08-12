@@ -3,7 +3,7 @@
 //! Fail-closed policy contract for exceptional sensitive-data break-glass access.
 //!
 //! Break-glass does not turn a denied or ordinarily authorized disclosure into a new authority.
-//! It may authorize only an existing human-approval or dual-control disclosure decision after
+//! It may authorize only an existing human-approval or dual-control sensitive-data decision after
 //! exact authority/reason binding, bounded freshness, explicit approval, heightened monitoring,
 //! and mandatory post-event review all succeed. The values below carry policy metadata only and
 //! never contain protected field bytes.
@@ -11,9 +11,10 @@
 use originweave_core::Origin;
 use originweave_policy::{
     BreakGlassActorBinding, BreakGlassApprovalEvidence, BreakGlassApproverBinding,
-    BreakGlassValidityPolicy, DataClassification, DisclosureDecision, DisclosureScope,
-    SensitiveBreakGlassDecision, SensitiveBreakGlassRequest, SensitiveBreakGlassScope,
-    SensitiveDataAuthority, SensitiveDataRequest, evaluate_sensitive_break_glass,
+    BreakGlassIdentityBindings, BreakGlassValidityPolicy, DataClassification, DisclosureDecision,
+    DisclosureScope, SensitiveBreakGlassDecision, SensitiveBreakGlassRequest,
+    SensitiveBreakGlassScope, SensitiveDataAuthority, SensitiveDataRequest,
+    evaluate_sensitive_break_glass,
 };
 
 const VALID_FROM: u64 = 100;
@@ -51,7 +52,10 @@ fn evaluate_with_approvers(
     let exact_authority = authority("task-42");
     let disclosure_request = SensitiveDataRequest::new(exact_authority.clone());
     let disclosure_scope = DisclosureScope::new(exact_authority, disclosure_decision);
-    let actor_binding = BreakGlassActorBinding::new(ACTOR_ID, ACTOR_ID);
+    let identity_bindings = BreakGlassIdentityBindings::new(
+        BreakGlassActorBinding::new(ACTOR_ID, ACTOR_ID),
+        approver_binding,
+    );
     let validity_policy = BreakGlassValidityPolicy::new(MAXIMUM_WINDOW);
 
     evaluate_sensitive_break_glass(
@@ -59,8 +63,7 @@ fn evaluate_with_approvers(
         &disclosure_scope,
         &break_glass_request,
         &break_glass_scope,
-        &actor_binding,
-        &approver_binding,
+        &identity_bindings,
         &validity_policy,
         trusted_time,
     )
