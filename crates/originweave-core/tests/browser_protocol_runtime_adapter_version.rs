@@ -1,9 +1,8 @@
 use std::error::Error;
 
 use originweave_core::{
-    BrowserProtocolAdapterDescriptor, BrowserProtocolAdapterVersionRequirementError,
-    BrowserProtocolCapability, BrowserProtocolKind, BrowserProtocolUseValidationError,
-    OriginWeaveProtocolVersion,
+    BrowserProtocolAdapterDescriptor, BrowserProtocolCapability, BrowserProtocolKind,
+    BrowserProtocolUseValidationError, OriginWeaveProtocolVersion,
 };
 
 const ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion =
@@ -45,19 +44,25 @@ fn runtime_adapter_version_mismatch_precedes_revision_and_capability_checks()
 -> Result<(), Box<dyn Error>> {
     let descriptor = descriptor()?;
 
-    assert_eq!(
-        descriptor.validate_use(
-            ORIGINWEAVE_PROTOCOL_VERSION,
-            BrowserProtocolKind::WebDriverBiDi,
-            "originweave-bidi-v2",
-            "runtime revision with spaces",
-            "browser/revision",
-            BrowserProtocolCapability::NetworkObservation,
-        ),
-        Err(BrowserProtocolUseValidationError::AdapterVersion(
-            BrowserProtocolAdapterVersionRequirementError::AdapterVersionMismatch,
-        ))
+    let error = descriptor.validate_use(
+        ORIGINWEAVE_PROTOCOL_VERSION,
+        BrowserProtocolKind::WebDriverBiDi,
+        "originweave-bidi-v2",
+        "runtime revision with spaces",
+        "browser/revision",
+        BrowserProtocolCapability::NetworkObservation,
     );
+
+    assert_eq!(
+        error,
+        Err(BrowserProtocolUseValidationError::AdapterVersionMismatch)
+    );
+    let error = error.err().ok_or("expected adapter version mismatch")?;
+    assert_eq!(
+        error.to_string(),
+        "runtime browser adapter version does not match the pinned adapter version"
+    );
+    assert!(error.source().is_none());
     Ok(())
 }
 
@@ -66,18 +71,24 @@ fn malformed_runtime_adapter_version_fails_closed_before_revision_checks()
 -> Result<(), Box<dyn Error>> {
     let descriptor = descriptor()?;
 
-    assert_eq!(
-        descriptor.validate_use(
-            ORIGINWEAVE_PROTOCOL_VERSION,
-            BrowserProtocolKind::WebDriverBiDi,
-            "runtime adapter/version",
-            "runtime revision with spaces",
-            "browser/revision",
-            BrowserProtocolCapability::NetworkObservation,
-        ),
-        Err(BrowserProtocolUseValidationError::AdapterVersion(
-            BrowserProtocolAdapterVersionRequirementError::InvalidAdapterVersion,
-        ))
+    let error = descriptor.validate_use(
+        ORIGINWEAVE_PROTOCOL_VERSION,
+        BrowserProtocolKind::WebDriverBiDi,
+        "runtime adapter/version",
+        "runtime revision with spaces",
+        "browser/revision",
+        BrowserProtocolCapability::NetworkObservation,
     );
+
+    assert_eq!(
+        error,
+        Err(BrowserProtocolUseValidationError::InvalidAdapterVersion)
+    );
+    let error = error.err().ok_or("expected invalid adapter version")?;
+    assert_eq!(
+        error.to_string(),
+        "runtime browser adapter version must be a bounded ASCII metadata token"
+    );
+    assert!(error.source().is_none());
     Ok(())
 }
