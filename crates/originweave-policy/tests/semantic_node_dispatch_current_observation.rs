@@ -75,18 +75,36 @@ fn authorized_action() -> Result<PolicyAuthorizedSemanticNodeAction, String> {
         .map_err(|error| error.to_string())
 }
 
+fn dispatch_action(
+    authorized: &PolicyAuthorizedSemanticNodeAction,
+    current: &SemanticNodeObservation,
+    called: &Cell<bool>,
+    adapter_should_fail: bool,
+) -> Result<Result<(NodeActionKind, ActionKind), &'static str>, SemanticNodeActionTargetError> {
+    authorized.dispatch_if_current_observation(current, |binding| {
+        called.set(true);
+        if adapter_should_fail {
+            Err("adapter failed")
+        } else {
+            Ok((binding.target().action(), binding.request().action()))
+        }
+    })
+}
+
 #[test]
 fn exact_current_semantic_observation_reaches_dispatch() -> Result<(), String> {
     let authorized = authorized_action()?;
     let current = observation(17, true, BTreeSet::from([NodeActionKind::Click]))?;
+    let called = Cell::new(false);
 
-    let result = authorized
-        .dispatch_if_current_observation(&current, |binding| {
-            (binding.target().action(), binding.request().action())
-        })
-        .map_err(|error| error.to_string())?;
+    let adapter_result =
+        dispatch_action(&authorized, &current, &called, false).map_err(|error| error.to_string())?;
 
-    assert_eq!(result, (NodeActionKind::Click, ActionKind::Navigate));
+    assert_eq!(
+        adapter_result,
+        Ok((NodeActionKind::Click, ActionKind::Navigate))
+    );
+    assert!(called.get());
     Ok(())
 }
 
@@ -96,8 +114,7 @@ fn newly_disabled_node_never_reaches_dispatch() -> Result<(), String> {
     let current = observation(17, false, BTreeSet::from([NodeActionKind::Click]))?;
     let called = Cell::new(false);
 
-    let error = authorized
-        .dispatch_if_current_observation(&current, |_binding| called.set(true))
+    let error = dispatch_action(&authorized, &current, &called, false)
         .err()
         .ok_or_else(|| "disabled current observation unexpectedly dispatched".to_owned())?;
 
@@ -112,8 +129,7 @@ fn removed_action_never_reaches_dispatch() -> Result<(), String> {
     let current = observation(17, true, BTreeSet::from([NodeActionKind::ScrollIntoView]))?;
     let called = Cell::new(false);
 
-    let error = authorized
-        .dispatch_if_current_observation(&current, |_binding| called.set(true))
+    let error = dispatch_action(&authorized, &current, &called, false)
         .err()
         .ok_or_else(|| "removed semantic action unexpectedly dispatched".to_owned())?;
 
@@ -128,8 +144,7 @@ fn different_same_document_node_never_reaches_dispatch() -> Result<(), String> {
     let current = observation(18, true, BTreeSet::from([NodeActionKind::Click]))?;
     let called = Cell::new(false);
 
-    let error = authorized
-        .dispatch_if_current_observation(&current, |_binding| called.set(true))
+    let error = dispatch_action(&authorized, &current, &called, false)
         .err()
         .ok_or_else(|| "different semantic node unexpectedly dispatched".to_owned())?;
 
@@ -145,13 +160,12 @@ fn different_same_document_node_never_reaches_dispatch() -> Result<(), String> {
 fn adapter_failure_remains_separate_after_semantic_revalidation() -> Result<(), String> {
     let authorized = authorized_action()?;
     let current = observation(17, true, BTreeSet::from([NodeActionKind::Click]))?;
+    let called = Cell::new(false);
 
-    let adapter_result = authorized
-        .dispatch_if_current_observation(&current, |_binding| -> Result<(), &'static str> {
-            Err("adapter failed")
-        })
-        .map_err(|error| error.to_string())?;
+    let adapter_result =
+        dispatch_action(&authorized, &current, &called, true).map_err(|error| error.to_string())?;
 
     assert_eq!(adapter_result, Err("adapter failed"));
+    assert!(called.get());
     Ok(())
 }
