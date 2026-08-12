@@ -1,9 +1,9 @@
 use std::{cell::Cell, error::Error};
 
 use originweave_core::{
-    dispatch_browser_protocol_if_runtime_matches, BrowserProtocolAdapterDescriptor,
-    BrowserProtocolCapability, BrowserProtocolKind, BrowserProtocolUseValidationError,
-    OriginWeaveProtocolVersion, ValidatedBrowserProtocolUse,
+    BrowserProtocolAdapterDescriptor, BrowserProtocolCapability, BrowserProtocolKind,
+    BrowserProtocolUseValidationError, OriginWeaveProtocolVersion, ValidatedBrowserProtocolUse,
+    dispatch_browser_protocol_if_runtime_matches,
 };
 
 const ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion =
