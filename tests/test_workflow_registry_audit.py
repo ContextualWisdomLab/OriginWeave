@@ -244,6 +244,21 @@ class WorkflowRegistryAuditTests(unittest.TestCase):
         with self.assertRaises(self.audit.WorkflowAuditError):
             self.audit.audit_workflow_registry(payload)
 
+    def test_impossible_observation_timestamps_fail_closed(self) -> None:
+        """Syntactically shaped but impossible UTC times are not valid audit evidence."""
+
+        for observed_at in (
+            "2026-02-30T00:00:00Z",
+            "2026-08-12T24:00:00Z",
+            "2026-08-12T23:60:00Z",
+            "2026-08-12T23:59:60Z",
+        ):
+            with self.subTest(observed_at=observed_at):
+                payload = _payload(_workflow(1, ".github/workflows/ci.yml", "active"))
+                payload["observed_at"] = observed_at
+                with self.assertRaises(self.audit.WorkflowAuditError):
+                    self.audit.audit_workflow_registry(payload)
+
     def test_malformed_case_encoded_and_traversal_paths_fail_closed(self) -> None:
         """Ambiguous workflow paths must never become disable recommendations."""
 
