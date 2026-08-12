@@ -178,6 +178,37 @@ fn capability_set_must_be_nonempty_and_canonical() {
 }
 
 #[test]
+fn capability_order_does_not_change_descriptor_identity() -> Result<(), Box<dyn Error>> {
+    let forward = BrowserProtocolAdapterDescriptor::new(
+        BrowserProtocolKind::WebDriverBiDi,
+        BIDI_ADAPTER_VERSION,
+        BIDI_PROTOCOL_REVISION,
+        BROWSER_REVISION,
+        &[
+            BrowserProtocolCapability::Navigation,
+            BrowserProtocolCapability::SemanticObservation,
+            BrowserProtocolCapability::TypedInput,
+            BrowserProtocolCapability::NetworkObservation,
+        ],
+    )?;
+    let reverse = BrowserProtocolAdapterDescriptor::new(
+        BrowserProtocolKind::WebDriverBiDi,
+        BIDI_ADAPTER_VERSION,
+        BIDI_PROTOCOL_REVISION,
+        BROWSER_REVISION,
+        &[
+            BrowserProtocolCapability::NetworkObservation,
+            BrowserProtocolCapability::TypedInput,
+            BrowserProtocolCapability::SemanticObservation,
+            BrowserProtocolCapability::Navigation,
+        ],
+    )?;
+
+    assert_eq!(forward, reverse);
+    Ok(())
+}
+
+#[test]
 fn descriptor_errors_are_stable_and_source_free() {
     let cases = [
         (
