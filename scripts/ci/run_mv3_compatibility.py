@@ -1010,6 +1010,28 @@ def _run_agent_task_trial(
     }
 
 
+def _is_no_such_window_runtime_error(error: RuntimeError) -> bool:
+    """Recognize only structured ChromeDriver no-such-window failure evidence."""
+
+    message = str(error)
+    direct_prefix = "WebDriver error: "
+    if message.startswith(direct_prefix):
+        code, separator, _detail = message[len(direct_prefix) :].partition(":")
+        return bool(separator) and code.strip().casefold() == "no such window"
+
+    http_prefix = "WebDriver HTTP 404: "
+    if not message.startswith(http_prefix):
+        return False
+    try:
+        payload = json.loads(message[len(http_prefix) :])
+    except json.JSONDecodeError:
+        return False
+    if not isinstance(payload, dict):
+        return False
+    value = payload.get("value")
+    return isinstance(value, dict) and value.get("error") == "no such window"
+
+
 def _force_close_agent_task_context(driver_port: int, session_id: str) -> bool:
     """Close only the current browsing context and require no-such-window evidence."""
 
@@ -1033,7 +1055,7 @@ def _force_close_agent_task_context(driver_port: int, session_id: str) -> bool:
             _webdriver_path(session_id, "/url"),
         )
     except RuntimeError as exc:
-        if "no such window" in str(exc).lower():
+        if _is_no_such_window_runtime_error(exc):
             return True
         raise
     raise RuntimeError("Agent Task context remained usable after forced close")
