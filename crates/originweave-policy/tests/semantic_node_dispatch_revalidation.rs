@@ -67,6 +67,22 @@ fn authorized_action() -> Result<PolicyAuthorizedSemanticNodeAction, String> {
         .map_err(|error| error.to_string())
 }
 
+fn dispatch_unit_callback(
+    authorized: &PolicyAuthorizedSemanticNodeAction,
+    document_epoch: u64,
+    called: &Cell<bool>,
+) -> Result<(), String> {
+    authorized
+        .dispatch_if_current(
+            BrowserSessionId::new(7).map_err(|error| error.to_string())?,
+            BrowsingContextId::new(11).map_err(|error| error.to_string())?,
+            &origin("https://app.example")?,
+            DocumentEpoch::new(document_epoch).map_err(|error| error.to_string())?,
+            |_binding| called.set(true),
+        )
+        .map_err(|error| error.to_string())
+}
+
 #[test]
 fn dispatch_callback_runs_only_after_exact_browser_revalidation() -> Result<(), String> {
     let authorized = authorized_action()?;
@@ -95,19 +111,15 @@ fn stale_browser_authority_never_reaches_dispatch_callback() -> Result<(), Strin
     let authorized = authorized_action()?;
     let called = Cell::new(false);
 
-    let error = authorized
-        .dispatch_if_current(
-            BrowserSessionId::new(7).map_err(|error| error.to_string())?,
-            BrowsingContextId::new(11).map_err(|error| error.to_string())?,
-            &origin("https://app.example")?,
-            DocumentEpoch::new(4).map_err(|error| error.to_string())?,
-            |_binding| called.set(true),
-        )
+    dispatch_unit_callback(&authorized, 3, &called)?;
+    assert!(called.replace(false));
+
+    let error = dispatch_unit_callback(&authorized, 4, &called)
         .err()
         .ok_or_else(|| "stale browser authority unexpectedly reached dispatch".to_owned())?;
 
     assert!(!called.get());
-    assert!(error.to_string().contains("stale"));
+    assert!(error.contains("stale"));
     Ok(())
 }
 
