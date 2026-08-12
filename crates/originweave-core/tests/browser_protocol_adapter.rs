@@ -59,7 +59,8 @@ fn cdp_capability_is_not_inferred_from_protocol_kind() -> Result<(), Box<dyn Err
 }
 
 #[test]
-fn required_capability_fails_closed_without_side_effectful_fallback() -> Result<(), Box<dyn Error>> {
+fn required_capability_fails_closed_without_side_effectful_fallback() -> Result<(), Box<dyn Error>>
+{
     let descriptor = BrowserProtocolAdapterDescriptor::new(
         BrowserProtocolKind::WebDriverBiDi,
         BIDI_ADAPTER_VERSION,
@@ -74,9 +75,11 @@ fn required_capability_fails_closed_without_side_effectful_fallback() -> Result<
     );
     assert_eq!(
         descriptor.require_capability(BrowserProtocolCapability::NetworkObservation),
-        Err(BrowserProtocolCapabilityRequirementError::UnsupportedCapability(
-            BrowserProtocolCapability::NetworkObservation,
-        ))
+        Err(
+            BrowserProtocolCapabilityRequirementError::UnsupportedCapability(
+                BrowserProtocolCapability::NetworkObservation,
+            )
+        )
     );
     Ok(())
 }
