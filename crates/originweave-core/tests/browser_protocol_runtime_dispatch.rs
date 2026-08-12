@@ -3,7 +3,6 @@ use std::{cell::Cell, error::Error};
 use originweave_core::{
     BrowserProtocolAdapterDescriptor, BrowserProtocolCapability, BrowserProtocolKind,
     BrowserProtocolUseValidationError, OriginWeaveProtocolVersion, ValidatedBrowserProtocolUse,
-    dispatch_browser_protocol_if_runtime_matches,
 };
 
 const ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion =
@@ -56,8 +55,7 @@ fn exact_runtime_validation_hands_single_use_proof_to_dispatch() -> Result<(), B
     let descriptor = descriptor()?;
     reset_dispatch_marker();
 
-    let dispatch_result = dispatch_browser_protocol_if_runtime_matches(
-        &descriptor,
+    let dispatch_result = descriptor.dispatch_if_runtime_matches(
         ORIGINWEAVE_PROTOCOL_VERSION,
         BrowserProtocolKind::WebDriverBiDi,
         ADAPTER_VERSION,
@@ -83,8 +81,7 @@ fn runtime_mismatch_prevents_dispatch_callback() -> Result<(), Box<dyn Error>> {
     let descriptor = descriptor()?;
     reset_dispatch_marker();
 
-    let result = dispatch_browser_protocol_if_runtime_matches(
-        &descriptor,
+    let result = descriptor.dispatch_if_runtime_matches(
         ORIGINWEAVE_PROTOCOL_VERSION,
         BrowserProtocolKind::WebDriverBiDi,
         "originweave-bidi-v2",
@@ -107,8 +104,7 @@ fn adapter_callback_failure_remains_separate_after_validation() -> Result<(), Bo
     let descriptor = descriptor()?;
     reset_dispatch_marker();
 
-    let dispatch_result = dispatch_browser_protocol_if_runtime_matches(
-        &descriptor,
+    let dispatch_result = descriptor.dispatch_if_runtime_matches(
         ORIGINWEAVE_PROTOCOL_VERSION,
         BrowserProtocolKind::WebDriverBiDi,
         ADAPTER_VERSION,
