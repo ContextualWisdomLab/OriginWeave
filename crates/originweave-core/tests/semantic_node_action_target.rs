@@ -209,4 +209,8 @@ fn node_action_target_error_is_stable_and_credential_free() {
         SemanticNodeActionTargetError::NodeNotEnabled.to_string(),
         "semantic node is not enabled for the requested action"
     );
+    assert_eq!(
+        SemanticNodeActionTargetError::ObservationAuthorityMismatch.to_string(),
+        "current semantic observation does not match the action target"
+    );
 }
