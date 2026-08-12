@@ -1,0 +1,16 @@
+# Browser protocol active-PR evidence — 2026-08-12
+
+This dated appendix extends the canonical active-PR maturity reconciliation beyond the 2026-08-11 closure. It is **volatile branch evidence**, not protected-main truth. Any recorded head, prerequisite, review, check, or base movement invalidates the affected row until it is refetched.
+
+The durable architecture decision remains **Proposed ADR 0107**. Nothing in this appendix promotes that ADR to Accepted, authenticates a browser adapter, or claims the first real Chromium vertical slice is complete.
+
+| PR | Exact active head | Exact prerequisite/base | Capability maturity | Exact-current evidence | Truth boundary |
+| --- | --- | --- | --- | --- | --- |
+| #107 `feat(core): fail closed on unsupported browser protocol capabilities` | `72efca6acccc66409a9c38cf57e7f4279b2d8c3a` | #106 `7a3e8f4689a8b3c0344a250f45ec06995473d21f` | `IMPLEMENTED_ON_ACTIVE_PR` | CI `31564417535` success; Manifest V3 Compatibility `31564417533` success; no formal reviews or inline review threads returned; mergeable against the exact prerequisite | `BrowserProtocolAdapterDescriptor::require_capability` fails closed when a capability is not explicitly declared. It does not prove that BiDi/CDP transport implements the declared capability, authenticate an adapter, select a fallback protocol, or grant browser/Agent authority. |
+| #108 `feat(core): bind browser adapters to OriginWeave protocol version` | `ea45a91230e003babc33fff08acb9ada4b07957a` | #107 `72efca6acccc66409a9c38cf57e7f4279b2d8c3a` | `IMPLEMENTED_ON_ACTIVE_PR` | CI `31565621081` success; Rust contracts `94016710356` success; Production coverage `94016710349` exact function/line/region/branch success; Manifest V3 Compatibility `31565621018` success; CodeRabbit exact-head status success; no formal reviews or inline review threads returned; mergeable against the exact prerequisite | The descriptor carries one exact OriginWeave protocol generation and rejects version mismatch. Current pre-alpha generation is the already documented `originweave/0.1`. This does not serialize/parse an OriginWeave wire envelope, negotiate compatibility, invoke BiDi/CDP, authenticate the adapter, or grant browser/Agent authority. |
+
+## Reconciliation consequence
+
+The documentation graph remains **DESIGN-SUFFICIENT / PROTECTED-MAIN-PARTIAL**. PRs #107 and #108 refine the browser-protocol contract already anticipated by Proposed ADR 0107 and the versioned API contract; they do not introduce a new deployed trust domain or an OriginWeave-owned durable persistence schema. The conceptual/logical ERD therefore remains the truthful data-model artifact.
+
+For the first real Chromium Agent Task, a later trusted adapter still has to bind the exact OriginWeave protocol generation and required capability to authenticated, pinned browser-protocol execution immediately before use, then compose that execution with session/context/origin/document-epoch authority, semantic observation/query, deterministic policy, real input, observed post-condition, recovery and resource evidence. Until that executable composition is integrated and revalidated on protected `main`, active branch evidence must not be described as shipped behavior or release readiness.
