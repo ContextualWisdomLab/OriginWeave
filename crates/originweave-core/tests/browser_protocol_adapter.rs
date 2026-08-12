@@ -5,8 +5,8 @@ use std::error::Error;
 use originweave_core::{
     BrowserProtocolAdapterDescriptor, BrowserProtocolCapability,
     BrowserProtocolCapabilityRequirementError, BrowserProtocolDescriptorError, BrowserProtocolKind,
-    BrowserProtocolVersionRequirementError, OriginWeaveProtocolVersion,
-    MAX_BROWSER_PROTOCOL_METADATA_BYTES,
+    BrowserProtocolVersionRequirementError, MAX_BROWSER_PROTOCOL_METADATA_BYTES,
+    OriginWeaveProtocolVersion,
 };
 
 const CURRENT_ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion =
@@ -127,10 +127,12 @@ fn required_originweave_protocol_version_fails_closed() -> Result<(), Box<dyn Er
     );
     assert_eq!(
         descriptor.require_originweave_protocol_version(FUTURE_ORIGINWEAVE_PROTOCOL_VERSION),
-        Err(BrowserProtocolVersionRequirementError::ProtocolVersionMismatch {
-            required: FUTURE_ORIGINWEAVE_PROTOCOL_VERSION,
-            actual: CURRENT_ORIGINWEAVE_PROTOCOL_VERSION,
-        })
+        Err(
+            BrowserProtocolVersionRequirementError::ProtocolVersionMismatch {
+                required: FUTURE_ORIGINWEAVE_PROTOCOL_VERSION,
+                actual: CURRENT_ORIGINWEAVE_PROTOCOL_VERSION,
+            }
+        )
     );
     Ok(())
 }
