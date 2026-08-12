@@ -8,6 +8,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 - Rust workspace for independently reusable core, policy, destination, network, TLS, resource, and evidence modules.
 - Versioned browser-protocol adapter metadata that distinguishes WebDriver BiDi from pinned CDP, binds bounded adapter/browser revision tokens to an explicit duplicate-free capability set, normalizes capability-set identity independently of caller ordering, and exposes typed fail-closed capability requirements without granting browser, action, network, or secret authority by protocol kind alone.
+- Canonical OriginWeave protocol-version parsing for exact `originweave/<major>.<minor>` syntax, with typed fail-closed rejection of malformed, ambiguous, overflowed, or noncanonical serialized generations; parsing does not negotiate compatibility or grant adapter authority.
 - Canonical HTTPS and loopback-origin boundary with case-normalized schemes and hosts, default-port normalization, IPv4/IPv6 handling, browser-special numeric-host rejection, and explicit malformed-input errors.
 - Typed browser actions, capabilities, risk classes, execution modes, robots decisions, secret-delivery contracts, immutable canonical action-intent digests, and intent-bound approval scopes.
 - Deterministic fail-closed policy evaluation for untrusted instructions, origin grants, crawler restrictions, execution-mode and purpose consistency, approvals, and brokered secrets.
