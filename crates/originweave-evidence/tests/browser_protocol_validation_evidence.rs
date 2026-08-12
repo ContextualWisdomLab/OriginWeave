@@ -48,7 +48,8 @@ fn records_exact_metadata_from_one_validated_browser_protocol_use() -> Result<()
 }
 
 #[test]
-fn evidence_is_owned_audit_metadata_not_reusable_validation_authority() -> Result<(), Box<dyn Error>> {
+fn evidence_is_owned_audit_metadata_not_reusable_validation_authority() -> Result<(), Box<dyn Error>>
+{
     let descriptor = BrowserProtocolAdapterDescriptor::new(
         BrowserProtocolKind::ChromeDevToolsProtocol,
         ORIGINWEAVE_PROTOCOL_VERSION,
