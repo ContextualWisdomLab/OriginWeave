@@ -48,6 +48,7 @@ MAX_BROWSER_PROCESS_TREE_SIZE = 256
 MAX_PROC_PROCESS_SCAN_SIZE = 32_768
 MAX_SEMANTIC_LOCATOR_CANDIDATES = 128
 MAX_AGENT_TASK_STRUCTURED_VALUE_BYTES = 4_096
+MAX_AGENT_TASK_SEMANTIC_OBSERVATION_BYTES = 4_096
 MAX_U64 = (1 << 64) - 1
 W3C_ELEMENT_KEY = "element-6066-11e4-a52e-4f735466cecf"
 PATH_TOKEN_CHARACTERS = frozenset(string.ascii_letters + string.digits + "-_.")
@@ -82,7 +83,7 @@ def _path_token(value: str, label: str) -> str:
 
 
 def _webdriver_path(session_id: str, suffix: str) -> str:
-    """Build one bounded ChromeDriver path from a validated session identifier."""
+    """Build a bounded ChromeDriver path from a validated session identifier."""
 
     safe_session = _path_token(session_id, "session identifier")
     if suffix and not suffix.startswith("/"):
@@ -262,6 +263,24 @@ def _hash_agent_task_structured_value(value: str) -> str:
     if len(encoded) > MAX_AGENT_TASK_STRUCTURED_VALUE_BYTES:
         raise ValueError("Agent Task structured value exceeded the bounded text contract")
     return "sha256:" + hashlib.sha256(encoded).hexdigest()
+
+
+def _measure_agent_task_semantic_observation_bytes(observation: dict[str, Any]) -> int:
+    """Measure one non-empty semantic observation under the canonical evidence bound."""
+
+    if not isinstance(observation, dict):
+        raise TypeError("Agent Task semantic observation must be an object")
+    if not observation:
+        raise ValueError("Agent Task semantic observation must not be empty")
+    encoded = json.dumps(
+        observation,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    if len(encoded) > MAX_AGENT_TASK_SEMANTIC_OBSERVATION_BYTES:
+        raise ValueError("Agent Task semantic observation exceeded the bounded evidence contract")
+    return len(encoded)
 
 
 def _parse_linux_proc_status_rss_bytes(status_text: str) -> int:
@@ -828,16 +847,9 @@ def _run_agent_task_browser_pass(
             "input": {"role": input_role, "name": input_name},
             "submit": {"role": submit_role, "name": submit_name},
         }
-        semantic_observation_bytes = len(
-            json.dumps(
-                semantic_observation,
-                ensure_ascii=False,
-                separators=(",", ":"),
-                sort_keys=True,
-            ).encode("utf-8")
+        semantic_observation_bytes = _measure_agent_task_semantic_observation_bytes(
+            semantic_observation
         )
-        if semantic_observation_bytes <= 0:
-            raise RuntimeError("Agent Task semantic observation was empty")
 
         action_started = time.monotonic()
         _json_request(
@@ -1136,7 +1148,9 @@ def main() -> int:
             and isinstance(trial.get("chromium_process_set_rss_bytes"), int)
             and trial["chromium_process_set_rss_bytes"] > 0
             and isinstance(trial.get("semantic_observation_bytes"), int)
-            and trial["semantic_observation_bytes"] > 0
+            and 0
+            < trial["semantic_observation_bytes"]
+            <= MAX_AGENT_TASK_SEMANTIC_OBSERVATION_BYTES
             and isinstance(trial.get("action_latency_ms"), (int, float))
             and trial["action_latency_ms"] > 0
             and isinstance(trial.get("task_duration_ms"), (int, float))
