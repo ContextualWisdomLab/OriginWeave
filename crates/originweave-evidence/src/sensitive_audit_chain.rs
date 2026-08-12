@@ -168,10 +168,11 @@ impl SensitiveAuditChainLink {
         append_length_delimited(&mut preimage, self.audit_stream_id.as_bytes());
         let sequence = self.sequence_number.to_string();
         append_length_delimited(&mut preimage, sequence.as_bytes());
-        append_length_delimited(
-            &mut preimage,
-            self.previous_chain_digest.as_deref().unwrap_or_default().as_bytes(),
-        );
+        let previous_digest = match self.previous_chain_digest.as_deref() {
+            Some(digest) => digest.as_bytes(),
+            None => &[],
+        };
+        append_length_delimited(&mut preimage, previous_digest);
         append_length_delimited(&mut preimage, self.payload_digest.as_bytes());
         preimage
     }
