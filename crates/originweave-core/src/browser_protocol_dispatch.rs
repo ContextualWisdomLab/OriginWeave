@@ -1,6 +1,9 @@
+use std::fmt;
+
 use crate::{
-    BrowserProtocolAdapterDescriptor, BrowserProtocolCapability, BrowserProtocolKind,
-    BrowserProtocolUseValidationError, OriginWeaveProtocolVersion, ValidatedBrowserProtocolUse,
+    BrowserAuthorityRegistry, BrowserProtocolAdapterDescriptor, BrowserProtocolCapability,
+    BrowserProtocolKind, BrowserProtocolUseValidationError, BrowserRegistryError, BrowserSessionId,
+    BrowsingContextId, DocumentEpoch, OriginWeaveProtocolVersion, ValidatedBrowserProtocolUse,
 };
 
 /// Current runtime metadata sampled from the browser-protocol adapter about to perform I/O.
@@ -67,5 +70,73 @@ impl BrowserProtocolAdapterDescriptor {
             required_capability,
         )?;
         Ok(dispatch(validated))
+    }
+
+    /// Revalidate exact browser session/context ownership and runtime metadata before dispatch.
+    ///
+    /// The registry check occurs first and returns its current document epoch. The exact protocol
+    /// generation, runtime protocol family, adapter version, upstream/browser revisions, and
+    /// required capability are then validated before `dispatch` can run. The callback receives the
+    /// non-cloneable protocol-use proof plus the registry epoch sampled for this immediate use.
+    ///
+    /// This is a composition prerequisite, not complete browser-action authority. In particular,
+    /// typed input still requires separate current origin/document/node and deterministic policy
+    /// authorization, while navigation still requires destination/network/TLS/HTTP authority.
+    /// The caller remains responsible for sampling runtime metadata from the adapter about to
+    /// perform I/O and for preventing registry mutation across its larger execution transaction.
+    pub fn dispatch_if_context_current<R, F>(
+        &self,
+        authority_registry: &BrowserAuthorityRegistry,
+        browser_session: BrowserSessionId,
+        browsing_context: BrowsingContextId,
+        required_originweave_protocol_version: OriginWeaveProtocolVersion,
+        runtime_metadata: BrowserProtocolRuntimeMetadata<'_>,
+        required_capability: BrowserProtocolCapability,
+        dispatch: F,
+    ) -> Result<R, BrowserContextProtocolDispatchError>
+    where
+        F: FnOnce(ValidatedBrowserProtocolUse, DocumentEpoch) -> R,
+    {
+        let current_epoch = authority_registry
+            .current_context_epoch(browser_session, browsing_context)
+            .map_err(BrowserContextProtocolDispatchError::BrowserAuthority)?;
+        self.dispatch_if_runtime_matches(
+            required_originweave_protocol_version,
+            runtime_metadata,
+            required_capability,
+            |validated| dispatch(validated, current_epoch),
+        )
+        .map_err(BrowserContextProtocolDispatchError::ProtocolValidation)
+    }
+}
+
+/// Failure to compose current browser context ownership with protocol validation before dispatch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BrowserContextProtocolDispatchError {
+    /// The supplied browser session/context pair is not current in the authority registry.
+    BrowserAuthority(BrowserRegistryError),
+    /// The current browser-protocol metadata or required capability failed validation.
+    ProtocolValidation(BrowserProtocolUseValidationError),
+}
+
+impl fmt::Display for BrowserContextProtocolDispatchError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::BrowserAuthority(error) => {
+                write!(formatter, "browser context authority denied protocol dispatch: {error}")
+            }
+            Self::ProtocolValidation(error) => {
+                write!(formatter, "browser protocol validation denied context dispatch: {error}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for BrowserContextProtocolDispatchError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::BrowserAuthority(error) => Some(error),
+            Self::ProtocolValidation(error) => Some(error),
+        }
     }
 }
