@@ -60,15 +60,38 @@ impl SemanticNodeActionTarget {
             current_epoch,
         )
     }
+
+    /// Revalidate this target against one freshly observed exact semantic node.
+    ///
+    /// The caller is responsible for obtaining the current observation from a trusted adapter
+    /// immediately before use. This check prevents an older target from ignoring changed node
+    /// identity, supported-action, or enabled-state evidence.
+    pub fn validate_current_observation(
+        &self,
+        current_observation: &SemanticNodeObservation,
+    ) -> Result<(), SemanticNodeActionTargetError> {
+        if current_observation.handle() != &self.handle {
+            return Err(SemanticNodeActionTargetError::ObservationAuthorityMismatch);
+        }
+        if !current_observation.supported_actions().contains(&self.action) {
+            return Err(SemanticNodeActionTargetError::UnsupportedAction);
+        }
+        if self.action != NodeActionKind::ScrollIntoView && !current_observation.is_enabled() {
+            return Err(SemanticNodeActionTargetError::NodeNotEnabled);
+        }
+        Ok(())
+    }
 }
 
-/// A bounded validation failure when deriving one semantic node action target.
+/// A bounded validation failure when deriving or revalidating one semantic node action target.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SemanticNodeActionTargetError {
     /// The requested action was not advertised by the semantic observation.
     UnsupportedAction,
     /// The observation reported the target disabled for an interactive action.
     NodeNotEnabled,
+    /// The current observation describes a different OriginWeave-owned node authority.
+    ObservationAuthorityMismatch,
 }
 
 impl fmt::Display for SemanticNodeActionTargetError {
@@ -79,6 +102,9 @@ impl fmt::Display for SemanticNodeActionTargetError {
             }
             Self::NodeNotEnabled => {
                 formatter.write_str("semantic node is not enabled for the requested action")
+            }
+            Self::ObservationAuthorityMismatch => {
+                formatter.write_str("current semantic observation does not match the action target")
             }
         }
     }
