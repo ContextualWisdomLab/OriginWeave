@@ -99,10 +99,7 @@ fn verifier_rejects_scope_mismatch_before_claiming_set_completeness() {
     )];
 
     for (field, expected_error) in [
-        (
-            "request",
-            SensitiveDeletionReceiptSetError::RequestMismatch,
-        ),
+        ("request", SensitiveDeletionReceiptSetError::RequestMismatch),
         ("tenant", SensitiveDeletionReceiptSetError::TenantMismatch),
         (
             "retention",
