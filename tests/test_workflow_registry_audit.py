@@ -43,6 +43,7 @@ def _payload(*workflows: dict) -> dict:
         "expected_default_branch_sha": DEFAULT_SHA,
         "observed_default_branch_sha": DEFAULT_SHA,
         "observed_at": OBSERVED_AT,
+        "reported_total_count": len(workflows),
         "protected_workflow_paths": [
             ".github/workflows/ci.yml",
             ".github/workflows/hourly-product-development.yml",
@@ -100,6 +101,7 @@ class WorkflowRegistryAuditTests(unittest.TestCase):
         self.assertEqual(evidence["schema_version"], 1)
         self.assertEqual(evidence["default_branch_sha"], DEFAULT_SHA)
         self.assertEqual(evidence["observed_at"], OBSERVED_AT)
+        self.assertEqual(evidence["reported_total_count"], 6)
         self.assertFalse(evidence["mutation_performed"])
         self.assertEqual(
             evidence["pagination_receipts"],
@@ -167,6 +169,24 @@ class WorkflowRegistryAuditTests(unittest.TestCase):
                 mutate(payload)
                 with self.assertRaises(self.audit.WorkflowAuditError):
                     self.audit.audit_workflow_registry(payload)
+
+    def test_reported_total_count_must_match_the_complete_unique_inventory(self) -> None:
+        """A falsely terminated export cannot hide records behind a complete-looking page."""
+
+        for reported_total_count in (-1, True, 0, 2):
+            with self.subTest(reported_total_count=reported_total_count):
+                payload = _payload(_workflow(1, ".github/workflows/ci.yml", "active"))
+                payload["reported_total_count"] = reported_total_count
+                with self.assertRaises(self.audit.WorkflowAuditError):
+                    self.audit.audit_workflow_registry(payload)
+
+        payload = _payload(
+            _workflow(1, ".github/workflows/ci.yml", "active"),
+            _workflow(2, ".github/workflows/orphan.yml", "active"),
+        )
+        payload["registry_pages"][1]["workflows"].clear()
+        with self.assertRaises(self.audit.WorkflowAuditError):
+            self.audit.audit_workflow_registry(payload)
 
     def test_permission_and_transient_http_failures_fail_closed(self) -> None:
         """403/404/5xx exports are evidence gaps, not empty successful pages."""
