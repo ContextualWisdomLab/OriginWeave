@@ -56,10 +56,7 @@ fn empty_oversized_and_punctuation_only_reviewers_fail_closed() {
     let oversized = "a".repeat(129);
     for reviewer_id in ["", oversized.as_str(), "---"] {
         assert_eq!(
-            SensitiveBreakGlassReviewEvidence::try_from_receipt(
-                &receipt(),
-                input(reviewer_id),
-            ),
+            SensitiveBreakGlassReviewEvidence::try_from_receipt(&receipt(), input(reviewer_id),),
             Err(SensitiveBreakGlassReviewEvidenceError::InvalidIdentifier)
         );
     }
