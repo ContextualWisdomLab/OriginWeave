@@ -1,7 +1,7 @@
 use std::{cell::Cell, error::Error};
 
 use originweave_core::{
-    BrowserAuthorityRegistry, BrowserContextProtocolDispatchError,
+    BrowserAuthorityRegistry, BrowserContextDispatchTarget, BrowserContextProtocolDispatchError,
     BrowserProtocolAdapterDescriptor, BrowserProtocolCapability, BrowserProtocolKind,
     BrowserProtocolRuntimeMetadata, BrowserProtocolUseValidationError, BrowserRegistryError,
     BrowserSessionId, BrowsingContextId, DocumentEpoch, OriginWeaveProtocolVersion,
@@ -41,6 +41,13 @@ fn runtime_metadata(adapter_version: &str) -> BrowserProtocolRuntimeMetadata<'_>
     )
 }
 
+fn target(
+    browser_session: BrowserSessionId,
+    browsing_context: BrowsingContextId,
+) -> BrowserContextDispatchTarget {
+    BrowserContextDispatchTarget::new(browser_session, browsing_context)
+}
+
 fn reset_dispatch_marker() {
     DISPATCH_CALLED.with(|called| called.set(false));
 }
@@ -58,6 +65,17 @@ fn successful_dispatch(
 }
 
 #[test]
+fn context_dispatch_target_preserves_requested_ids_without_granting_authority() -> Result<(), Box<dyn Error>> {
+    let session = BrowserSessionId::new(7)?;
+    let context = BrowsingContextId::new(11)?;
+    let target = target(session, context);
+
+    assert_eq!(target.browser_session(), session);
+    assert_eq!(target.browsing_context(), context);
+    Ok(())
+}
+
+#[test]
 fn exact_context_and_runtime_metadata_gate_one_dispatch_call() -> Result<(), Box<dyn Error>> {
     let descriptor = descriptor()?;
     let mut registry = BrowserAuthorityRegistry::new();
@@ -67,8 +85,7 @@ fn exact_context_and_runtime_metadata_gate_one_dispatch_call() -> Result<(), Box
 
     let result = descriptor.dispatch_if_context_current(
         &registry,
-        session,
-        context,
+        target(session, context),
         ORIGINWEAVE_PROTOCOL_VERSION,
         runtime_metadata(ADAPTER_VERSION),
         BrowserProtocolCapability::Navigation,
@@ -82,8 +99,7 @@ fn exact_context_and_runtime_metadata_gate_one_dispatch_call() -> Result<(), Box
     reset_dispatch_marker();
     let next = descriptor.dispatch_if_context_current(
         &registry,
-        session,
-        context,
+        target(session, context),
         ORIGINWEAVE_PROTOCOL_VERSION,
         runtime_metadata(ADAPTER_VERSION),
         BrowserProtocolCapability::Navigation,
@@ -105,8 +121,7 @@ fn cross_session_context_reuse_fails_before_dispatch() -> Result<(), Box<dyn Err
 
     let result = descriptor.dispatch_if_context_current(
         &registry,
-        attacker,
-        context,
+        target(attacker, context),
         ORIGINWEAVE_PROTOCOL_VERSION,
         runtime_metadata(ADAPTER_VERSION),
         BrowserProtocolCapability::Navigation,
@@ -139,8 +154,7 @@ fn unknown_session_or_context_fails_before_dispatch() -> Result<(), Box<dyn Erro
     assert_eq!(
         descriptor.dispatch_if_context_current(
             &registry,
-            unknown_session,
-            context,
+            target(unknown_session, context),
             ORIGINWEAVE_PROTOCOL_VERSION,
             runtime_metadata(ADAPTER_VERSION),
             BrowserProtocolCapability::Navigation,
@@ -155,8 +169,7 @@ fn unknown_session_or_context_fails_before_dispatch() -> Result<(), Box<dyn Erro
     assert_eq!(
         descriptor.dispatch_if_context_current(
             &registry,
-            session,
-            unknown_context,
+            target(session, unknown_context),
             ORIGINWEAVE_PROTOCOL_VERSION,
             runtime_metadata(ADAPTER_VERSION),
             BrowserProtocolCapability::Navigation,
@@ -181,8 +194,7 @@ fn protocol_mismatch_after_context_validation_still_prevents_dispatch() -> Resul
 
     let result = descriptor.dispatch_if_context_current(
         &registry,
-        session,
-        context,
+        target(session, context),
         ORIGINWEAVE_PROTOCOL_VERSION,
         runtime_metadata("originweave-bidi-v2"),
         BrowserProtocolCapability::Navigation,
