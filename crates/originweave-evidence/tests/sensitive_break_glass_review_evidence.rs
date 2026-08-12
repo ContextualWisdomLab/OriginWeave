@@ -118,7 +118,10 @@ fn late_policy_violation_is_recorded_before_retention_expiry() {
         SensitiveBreakGlassReviewOutcome::PolicyViolation
     );
     assert_eq!(evidence.finding_count(), 2);
-    assert_eq!(evidence.remediation_reference(), Some("remediation-ticket-42"));
+    assert_eq!(
+        evidence.remediation_reference(),
+        Some("remediation-ticket-42")
+    );
 }
 
 #[test]
