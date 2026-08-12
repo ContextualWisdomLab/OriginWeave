@@ -92,20 +92,22 @@ fn trusted_checkpoint_can_verify_a_longer_valid_history() {
 #[test]
 fn checkpoint_rejects_wrong_tenant_or_stream() {
     let history = valid_history();
-    let wrong_tenant = SensitiveAuditChainCheckpoint::try_from(SensitiveAuditChainCheckpointInput {
-        tenant_id: "tenant-beta".to_owned(),
-        audit_stream_id: "sensitive-audit-v1".to_owned(),
-        sequence_number: 2,
-        chain_digest: history[1].chain_digest().to_owned(),
-    })
-    .expect("alternate bounded tenant should be syntactically valid");
-    let wrong_stream = SensitiveAuditChainCheckpoint::try_from(SensitiveAuditChainCheckpointInput {
-        tenant_id: "tenant-alpha".to_owned(),
-        audit_stream_id: "sensitive-audit-v2".to_owned(),
-        sequence_number: 2,
-        chain_digest: history[1].chain_digest().to_owned(),
-    })
-    .expect("alternate bounded stream should be syntactically valid");
+    let wrong_tenant =
+        SensitiveAuditChainCheckpoint::try_from(SensitiveAuditChainCheckpointInput {
+            tenant_id: "tenant-beta".to_owned(),
+            audit_stream_id: "sensitive-audit-v1".to_owned(),
+            sequence_number: 2,
+            chain_digest: history[1].chain_digest().to_owned(),
+        })
+        .expect("alternate bounded tenant should be syntactically valid");
+    let wrong_stream =
+        SensitiveAuditChainCheckpoint::try_from(SensitiveAuditChainCheckpointInput {
+            tenant_id: "tenant-alpha".to_owned(),
+            audit_stream_id: "sensitive-audit-v2".to_owned(),
+            sequence_number: 2,
+            chain_digest: history[1].chain_digest().to_owned(),
+        })
+        .expect("alternate bounded stream should be syntactically valid");
 
     assert_eq!(
         verify_sensitive_audit_chain_checkpoint(&history, &wrong_tenant),
@@ -185,38 +187,34 @@ fn invalid_history_fails_before_checkpoint_comparison() {
 
 #[test]
 fn checkpoint_input_validation_is_bounded_and_fail_closed() {
-    let invalid_identifier = SensitiveAuditChainCheckpoint::try_from(
-        SensitiveAuditChainCheckpointInput {
+    let invalid_identifier =
+        SensitiveAuditChainCheckpoint::try_from(SensitiveAuditChainCheckpointInput {
             tenant_id: "---".to_owned(),
             audit_stream_id: "sensitive-audit-v1".to_owned(),
             sequence_number: 1,
             chain_digest: PLACEHOLDER_DIGEST.to_owned(),
-        },
-    );
-    let invalid_stream = SensitiveAuditChainCheckpoint::try_from(
-        SensitiveAuditChainCheckpointInput {
+        });
+    let invalid_stream =
+        SensitiveAuditChainCheckpoint::try_from(SensitiveAuditChainCheckpointInput {
             tenant_id: "tenant-alpha".to_owned(),
             audit_stream_id: "---".to_owned(),
             sequence_number: 1,
             chain_digest: PLACEHOLDER_DIGEST.to_owned(),
-        },
-    );
-    let invalid_sequence = SensitiveAuditChainCheckpoint::try_from(
-        SensitiveAuditChainCheckpointInput {
+        });
+    let invalid_sequence =
+        SensitiveAuditChainCheckpoint::try_from(SensitiveAuditChainCheckpointInput {
             tenant_id: "tenant-alpha".to_owned(),
             audit_stream_id: "sensitive-audit-v1".to_owned(),
             sequence_number: 0,
             chain_digest: PLACEHOLDER_DIGEST.to_owned(),
-        },
-    );
-    let invalid_digest = SensitiveAuditChainCheckpoint::try_from(
-        SensitiveAuditChainCheckpointInput {
+        });
+    let invalid_digest =
+        SensitiveAuditChainCheckpoint::try_from(SensitiveAuditChainCheckpointInput {
             tenant_id: "tenant-alpha".to_owned(),
             audit_stream_id: "sensitive-audit-v1".to_owned(),
             sequence_number: 1,
             chain_digest: "sha256:ABC".to_owned(),
-        },
-    );
+        });
 
     assert_eq!(
         invalid_identifier,
@@ -230,7 +228,10 @@ fn checkpoint_input_validation_is_bounded_and_fail_closed() {
         invalid_sequence,
         Err(SensitiveAuditChainLinkError::InvalidSequence)
     );
-    assert_eq!(invalid_digest, Err(SensitiveAuditChainLinkError::InvalidDigest));
+    assert_eq!(
+        invalid_digest,
+        Err(SensitiveAuditChainLinkError::InvalidDigest)
+    );
 }
 
 #[test]
