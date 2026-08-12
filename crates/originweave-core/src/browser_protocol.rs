@@ -141,9 +141,7 @@ impl BrowserProtocolAdapterDescriptor {
         if self.supports(capability) {
             Ok(())
         } else {
-            Err(BrowserProtocolCapabilityRequirementError::UnsupportedCapability(
-                capability,
-            ))
+            Err(BrowserProtocolCapabilityRequirementError::UnsupportedCapability(capability))
         }
     }
 }
