@@ -2,7 +2,7 @@ use std::fmt;
 
 use originweave_core::{
     BrowserSessionId, BrowsingContextId, DocumentEpoch, NodeHandleError, Origin, PolicyContext,
-    RiskClass, SemanticNodeActionBinding,
+    RiskClass, SemanticNodeActionBinding, SemanticNodeActionTargetError, SemanticNodeObservation,
 };
 
 use crate::{Decision, DenialReason, evaluate};
@@ -79,6 +79,27 @@ impl PolicyAuthorizedSemanticNodeAction {
             current_origin,
             current_epoch,
         )?;
+        Ok(dispatch(&self.binding))
+    }
+
+    /// Revalidate one fresh semantic observation and immediately invoke the dispatch callback.
+    ///
+    /// The caller must obtain `current_observation` from a trusted browser adapter immediately
+    /// before the side effect. The callback is not invoked when the observation describes a
+    /// different OriginWeave-owned node, no longer advertises the selected node-local action, or
+    /// reports the node disabled for an action that requires enabled state. This method does not
+    /// obtain or authenticate the observation and does not prove execution success.
+    pub fn dispatch_if_current_observation<R, F>(
+        &self,
+        current_observation: &SemanticNodeObservation,
+        dispatch: F,
+    ) -> Result<R, SemanticNodeActionTargetError>
+    where
+        F: FnOnce(&SemanticNodeActionBinding) -> R,
+    {
+        self.binding
+            .target()
+            .validate_current_observation(current_observation)?;
         Ok(dispatch(&self.binding))
     }
 }
