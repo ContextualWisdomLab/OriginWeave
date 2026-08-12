@@ -34,7 +34,8 @@ pub use sensitive_break_glass_review::{
 };
 pub use sensitive_deletion::{
     SensitiveDeletionCause, SensitiveDeletionReceipt, SensitiveDeletionReceiptInput,
-    SensitiveDeletionTarget,
+    SensitiveDeletionReceiptSetError, SensitiveDeletionRequirement, SensitiveDeletionTarget,
+    verify_sensitive_deletion_receipt_set,
 };
 
 use std::collections::BTreeMap;

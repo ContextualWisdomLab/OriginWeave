@@ -5,6 +5,8 @@
 //! perform deletion, authenticate the storage owner, retain the deleted value, or make an opaque
 //! verification reference independently trustworthy.
 
+use std::collections::BTreeSet;
+
 use super::{MAX_SENSITIVE_IDENTIFIER_BYTES, SensitiveEvidenceError};
 
 /// Declared storage-copy class whose deletion or cryptographic unavailability was verified.
@@ -28,6 +30,32 @@ pub enum SensitiveDeletionTarget {
     TemporaryFile,
     /// A backup-resident copy governed by a separate backup lifecycle.
     BackupCopy,
+}
+
+/// Exact credential-free copy declaration that must be represented by one deletion receipt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SensitiveDeletionRequirement {
+    target: SensitiveDeletionTarget,
+    target_reference: String,
+    storage_scope_id: String,
+}
+
+impl SensitiveDeletionRequirement {
+    /// Validate one exact declared copy without retaining any protected value.
+    pub fn new(
+        target: SensitiveDeletionTarget,
+        target_reference: &str,
+        storage_scope_id: &str,
+    ) -> Result<Self, SensitiveEvidenceError> {
+        if !valid_identifier(target_reference) || !valid_identifier(storage_scope_id) {
+            return Err(SensitiveEvidenceError::InvalidIdentifier);
+        }
+        Ok(Self {
+            target,
+            target_reference: target_reference.to_owned(),
+            storage_scope_id: storage_scope_id.to_owned(),
+        })
+    }
 }
 
 /// Declared lifecycle cause for deleting or making a sensitive-data copy unavailable.
@@ -184,6 +212,85 @@ impl SensitiveDeletionReceipt {
     pub const fn verification_epoch_seconds(&self) -> u64 {
         self.verification_epoch_seconds
     }
+}
+
+/// Failure returned when declared deletion requirements and supplied receipts are not complete.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SensitiveDeletionReceiptSetError {
+    /// At least one receipt belongs to another deletion request.
+    RequestMismatch,
+    /// At least one receipt belongs to another tenant.
+    TenantMismatch,
+    /// At least one receipt uses another retention policy.
+    RetentionPolicyMismatch,
+    /// No exact-copy requirements were declared.
+    EmptyRequirementSet,
+    /// The same exact-copy requirement was declared more than once.
+    DuplicateRequirement,
+    /// At least one declared exact copy has no receipt.
+    MissingReceipt,
+    /// At least one receipt names an exact copy that was not declared.
+    UnexpectedReceipt,
+    /// More than one receipt names the same exact declared copy.
+    DuplicateReceipt,
+}
+
+/// Verify that every exact declared sensitive-data copy has exactly one matching deletion receipt.
+///
+/// This comparison is credential-free and deliberately does not discover copies, authenticate
+/// storage owners, perform deletion, or prove that the caller's requirement set is exhaustive.
+pub fn verify_sensitive_deletion_receipt_set(
+    receipts: &[SensitiveDeletionReceipt],
+    request_id: &str,
+    tenant_id: &str,
+    retention_policy_id: &str,
+    requirements: &[SensitiveDeletionRequirement],
+) -> Result<(), SensitiveDeletionReceiptSetError> {
+    if requirements.is_empty() {
+        return Err(SensitiveDeletionReceiptSetError::EmptyRequirementSet);
+    }
+
+    let mut required_copies = BTreeSet::new();
+    for requirement in requirements {
+        let key = (
+            requirement.target,
+            requirement.target_reference.as_str(),
+            requirement.storage_scope_id.as_str(),
+        );
+        if !required_copies.insert(key) {
+            return Err(SensitiveDeletionReceiptSetError::DuplicateRequirement);
+        }
+    }
+
+    let mut received_copies = BTreeSet::new();
+    for receipt in receipts {
+        if receipt.request_id() != request_id {
+            return Err(SensitiveDeletionReceiptSetError::RequestMismatch);
+        }
+        if receipt.tenant_id() != tenant_id {
+            return Err(SensitiveDeletionReceiptSetError::TenantMismatch);
+        }
+        if receipt.retention_policy_id() != retention_policy_id {
+            return Err(SensitiveDeletionReceiptSetError::RetentionPolicyMismatch);
+        }
+
+        let key = (
+            receipt.target(),
+            receipt.target_reference(),
+            receipt.storage_scope_id(),
+        );
+        if !required_copies.contains(&key) {
+            return Err(SensitiveDeletionReceiptSetError::UnexpectedReceipt);
+        }
+        if !received_copies.insert(key) {
+            return Err(SensitiveDeletionReceiptSetError::DuplicateReceipt);
+        }
+    }
+
+    if received_copies.len() != required_copies.len() {
+        return Err(SensitiveDeletionReceiptSetError::MissingReceipt);
+    }
+    Ok(())
 }
 
 fn valid_identifier(value: &str) -> bool {
