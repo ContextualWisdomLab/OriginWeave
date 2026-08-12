@@ -40,6 +40,44 @@ impl<'a> BrowserProtocolRuntimeMetadata<'a> {
     }
 }
 
+/// Exact OriginWeave browser session/context requested for one immediate protocol dispatch.
+///
+/// This value only keeps the two identifiers together so a caller cannot accidentally reorder or
+/// independently substitute them at the dispatch boundary. Constructing or copying it does not
+/// prove that either identifier is registered, current, or authorized; the authority registry must
+/// validate the pair immediately before protocol metadata validation and callback invocation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct BrowserContextDispatchTarget {
+    browser_session: BrowserSessionId,
+    browsing_context: BrowsingContextId,
+}
+
+impl BrowserContextDispatchTarget {
+    /// Group one OriginWeave browser session and browsing context for immediate dispatch checking.
+    #[must_use]
+    pub const fn new(
+        browser_session: BrowserSessionId,
+        browsing_context: BrowsingContextId,
+    ) -> Self {
+        Self {
+            browser_session,
+            browsing_context,
+        }
+    }
+
+    /// Return the OriginWeave browser session requested for this dispatch.
+    #[must_use]
+    pub const fn browser_session(self) -> BrowserSessionId {
+        self.browser_session
+    }
+
+    /// Return the OriginWeave browsing context requested for this dispatch.
+    #[must_use]
+    pub const fn browsing_context(self) -> BrowsingContextId {
+        self.browsing_context
+    }
+}
+
 impl BrowserProtocolAdapterDescriptor {
     /// Validate current browser-protocol metadata and immediately invoke one dispatch callback.
     ///
@@ -87,8 +125,7 @@ impl BrowserProtocolAdapterDescriptor {
     pub fn dispatch_if_context_current<R, F>(
         &self,
         authority_registry: &BrowserAuthorityRegistry,
-        browser_session: BrowserSessionId,
-        browsing_context: BrowsingContextId,
+        target: BrowserContextDispatchTarget,
         required_originweave_protocol_version: OriginWeaveProtocolVersion,
         runtime_metadata: BrowserProtocolRuntimeMetadata<'_>,
         required_capability: BrowserProtocolCapability,
@@ -98,7 +135,7 @@ impl BrowserProtocolAdapterDescriptor {
         F: FnOnce(ValidatedBrowserProtocolUse, DocumentEpoch) -> R,
     {
         let current_epoch = authority_registry
-            .current_context_epoch(browser_session, browsing_context)
+            .current_context_epoch(target.browser_session(), target.browsing_context())
             .map_err(BrowserContextProtocolDispatchError::BrowserAuthority)?;
         self.dispatch_if_runtime_matches(
             required_originweave_protocol_version,
