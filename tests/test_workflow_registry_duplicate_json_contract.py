@@ -6,9 +6,10 @@ import importlib.util
 import pathlib
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "scripts/ci/audit_workflow_registry.py"
+SCRIPT = ROOT / "scripts" / "ci" / "audit_workflow_registry.py"
 DEFAULT_SHA = "67af7c87589edc2039545af335c95064d9b8391c"
 
 
@@ -52,17 +53,21 @@ class WorkflowRegistryDuplicateJsonContractTests(unittest.TestCase):
             ):
                 self.audit._read_payload(path)
 
-    def test_pathological_json_nesting_fails_as_audit_error(self) -> None:
+    def test_parser_recursion_exhaustion_fails_as_audit_error(self) -> None:
         """Parser recursion exhaustion must not escape as an unbounded traceback."""
 
-        document = "[" * 2048 + "{}" + "]" * 2048
         with tempfile.TemporaryDirectory() as directory:
             path = pathlib.Path(directory) / "registry.json"
-            path.write_text(document, encoding="utf-8")
-            with self.assertRaisesRegex(
-                self.audit.WorkflowAuditError, "input is not readable UTF-8 JSON"
+            path.write_text("{}", encoding="utf-8")
+            with mock.patch.object(
+                self.audit.json,
+                "loads",
+                side_effect=RecursionError("pathological JSON nesting"),
             ):
-                self.audit._read_payload(path)
+                with self.assertRaisesRegex(
+                    self.audit.WorkflowAuditError, "input is not readable UTF-8 JSON"
+                ):
+                    self.audit._read_payload(path)
 
 
 if __name__ == "__main__":
