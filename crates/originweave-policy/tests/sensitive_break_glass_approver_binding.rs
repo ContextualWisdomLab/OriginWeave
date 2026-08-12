@@ -45,10 +45,8 @@ fn evaluate(
         true,
         true,
     );
-    let identities = BreakGlassIdentityBindings::new(
-        BreakGlassActorBinding::new(ACTOR_ID, ACTOR_ID),
-        approvers,
-    );
+    let identities =
+        BreakGlassIdentityBindings::new(BreakGlassActorBinding::new(ACTOR_ID, ACTOR_ID), approvers);
     let validity = BreakGlassValidityPolicy::new(VALID_UNTIL - VALID_FROM);
 
     evaluate_sensitive_break_glass(
