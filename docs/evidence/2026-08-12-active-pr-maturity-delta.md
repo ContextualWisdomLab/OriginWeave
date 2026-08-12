@@ -1,0 +1,30 @@
+# Active pull-request maturity delta — 2026-08-12
+
+- **Protected-main anchor:** `67af7c87589edc2039545af335c95064d9b8391c`
+- **Canonical documentation verdict:** **DESIGN-SUFFICIENT / PROTECTED-MAIN-PARTIAL**
+- **Supersedes volatile evidence only:** the #103 maturity row and the #73-through-#103 scope boundary in `2026-08-11-active-pr-maturity-closure.md`
+- **Extends exact-current evidence through:** PR #104
+
+Protected `main` remains the only shipped-code authority. This dated delta updates only volatile active-PR evidence that changed after the prior closure appendix. It does not promote active work to protected-main truth, change an ADR status, invent a deployed service, or introduce an OriginWeave-owned physical persistence schema. A moved head or prerequisite immediately makes the corresponding exact evidence historical.
+
+## Changed exact-current lanes
+
+| PR | Scope | Maturity | Exact evidence / authority boundary |
+|---|---|---|---|
+| #103 | Same-call current semantic-state revalidation before a policy-authorized adapter callback | **IMPLEMENTED_ON_ACTIVE_PR** | Exact current head `c4c32d4305d6485a5e9f2bf202316b216d95f71f`, stacked on exact #102 head `c751865412d5642357203f917f16c6c2bbd12324`. Test-only head `64bc330d801dcaddad29cb907fce68a9de367afa` established the missing dispatch-composition boundary. Production head `2bf613a1d185f6d6dbdc6ede23ebad710d067103` then exposed one generic-monomorphization coverage gap. The current head routes success and semantic rejection through one shared typed helper and applies only the required canonical formatting follow-up. CI `31556233043`, Rust contracts job `93989132459`, and Production coverage job `93989132433` all succeeded with exact owned production function/line/region/branch coverage. The callback remains a trusted-adapter integration boundary: this branch does not obtain/authenticate a browser observation, execute Chromium by itself, authorize later network/secret boundaries, or prove a post-condition. |
+| #104 | Structured extracted-value digest bound to one exact node plus verified node/network provenance | **IMPLEMENTED_ON_ACTIVE_PR** | Exact current head `dcca443f7d483b08579ab335ad9346ce13eeffdb`, stacked on exact #99 head `8ec18b8701104cf3f3764334601c69c1497297b9`. Formatting-only test head `bb6b2fa09998084ee638ee715ecef6bb0b7e8163` established the valid production-boundary RED in CI `31556648278`. Production head `63530aa203dccd94c7a4144186da5208353db5c6` then exposed an exact coverage omission limited to the new public error-display paths; coverage artifact `9126295264` localized those misses. Head `139ab7d3ce66245b83b5c7d1245a654387431af9` added one focused source-free error-contract regression, and current head `dcca443f7d483b08579ab335ad9346ce13eeffdb` adds only the required truthful Unreleased changelog entry. Exact-current CI `31557511767`, Rust contracts job `93992815562`, and Production coverage job `93992815603` all succeeded with repository contracts, formatting, locked workspace/all-target checks, tests, strict Clippy, rustdoc, and exact owned production function/line/region/branch coverage. `StructuredValueEvidence` carries a bounded field identifier, lowercase SHA-256 value digest, exact OriginWeave-owned node handle, verified DOM/accessibility provenance, and verified network-response provenance; both provenance records must match the node's canonical origin. It carries no raw extracted value and does not authenticate the runtime sources or prove locator truth. |
+
+## Documentation-fitness reconciliation
+
+The repository-wide verdict remains **DESIGN-SUFFICIENT / PROTECTED-MAIN-PARTIAL**.
+
+- **ADR:** no new ADR is warranted solely by #103 or #104. Both refine the already documented browser-authority/evidence architecture without creating a new deployed trust domain, binding protocol, or persistence owner. Proposed ADR 0013/0014 lifecycle status is unchanged.
+- **PRD/TRD/Architecture:** the existing contracts already require current semantic state to be revalidated immediately before side effect and evidence to preserve exact source authority without raw sensitive values. #104 makes the structured-value evidence boundary executable by binding an exact node to same-origin verified node/network provenance, but the trusted runtime still owns extraction, source authentication, digest derivation, and timing.
+- **UML:** existing browser/authority/evidence diagrams remain sufficient for these value and composition primitives. The still-missing production sequence is the real Chromium adapter obtaining a fresh bounded semantic observation, policy-authorizing and revalidating it, executing real input, observing the exact post-condition, extracting the structured value, deriving node/network provenance, constructing the evidence bundle, and performing cleanup/recovery.
+- **ERD/data model:** #103 and #104 add no OriginWeave-owned durable state, migrations, physical cardinality, or rollback record. The conceptual/logical model remains the truthful artifact. Creating physical semantic-observation or structured-value-evidence tables now would be invented architecture.
+- **Security/Test/Release:** both exact active heads are branch-local GREEN evidence only. Their success is not protected-main integration, release acceptance, or independent approval, and their stacked prerequisites remain separate authorities.
+- **Traceability:** current volatile active evidence now extends through #104. Closed duplicate #98 remains excluded because #78 owns the narrower raw extension-message trust boundary. The earlier #103 `PARTIAL` row is superseded by the exact-current GREEN evidence above.
+
+## Truth boundary
+
+`IMPLEMENTED_ON_ACTIVE_PR` does not mean shipped. Current semantic-state revalidation is not browser execution. A structured-value evidence bundle is not the extraction process, source authentication, or proof that arbitrary locator text identifies the exact real node/network response. No active PR changes protected-main maturity until dependency-ordered integration and fresh protected-main acceptance establish it.
