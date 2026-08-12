@@ -3,7 +3,8 @@ use std::fmt;
 use crate::{
     BrowserAuthorityRegistry, BrowserProtocolAdapterDescriptor, BrowserProtocolCapability,
     BrowserProtocolKind, BrowserProtocolUseValidationError, BrowserRegistryError, BrowserSessionId,
-    BrowsingContextId, DocumentEpoch, OriginWeaveProtocolVersion, ValidatedBrowserProtocolUse,
+    BrowsingContextId, DocumentEpoch, Origin, OriginWeaveProtocolVersion,
+    ValidatedBrowserProtocolUse,
 };
 
 /// Current runtime metadata sampled from the browser-protocol adapter about to perform I/O.
@@ -136,6 +137,48 @@ impl BrowserProtocolAdapterDescriptor {
     {
         let current_epoch = authority_registry
             .current_context_epoch(target.browser_session(), target.browsing_context())
+            .map_err(BrowserContextProtocolDispatchError::BrowserAuthority)?;
+        self.dispatch_if_runtime_matches(
+            required_originweave_protocol_version,
+            runtime_metadata,
+            required_capability,
+            |validated| dispatch(validated, current_epoch),
+        )
+        .map_err(BrowserContextProtocolDispatchError::ProtocolValidation)
+    }
+
+    /// Revalidate exact browser session/context/origin authority and protocol metadata before I/O.
+    ///
+    /// The registry first proves that `expected_origin` is the canonical origin currently bound to
+    /// the supplied browser session and browsing context and returns that document's current epoch.
+    /// Only then are the exact protocol generation, runtime protocol family, adapter version,
+    /// upstream/browser revisions, and required capability validated. `dispatch` receives both the
+    /// non-cloneable protocol-use proof and the epoch sampled by that origin revalidation.
+    ///
+    /// This method does not derive the origin from Chromium, authenticate the adapter process,
+    /// authorize a destination/network/TLS/HTTP operation, grant Agent capability or approval, or
+    /// prove a post-condition. The caller must obtain `expected_origin` and `runtime_metadata` from
+    /// the trusted adapter about to perform I/O and prevent intervening registry mutation across its
+    /// larger execution transaction.
+    pub fn dispatch_if_context_origin_current<R, F>(
+        &self,
+        authority_registry: &BrowserAuthorityRegistry,
+        target: BrowserContextDispatchTarget,
+        expected_origin: &Origin,
+        required_originweave_protocol_version: OriginWeaveProtocolVersion,
+        runtime_metadata: BrowserProtocolRuntimeMetadata<'_>,
+        required_capability: BrowserProtocolCapability,
+        dispatch: F,
+    ) -> Result<R, BrowserContextProtocolDispatchError>
+    where
+        F: FnOnce(ValidatedBrowserProtocolUse, DocumentEpoch) -> R,
+    {
+        let current_epoch = authority_registry
+            .require_context_origin(
+                target.browser_session(),
+                target.browsing_context(),
+                expected_origin,
+            )
             .map_err(BrowserContextProtocolDispatchError::BrowserAuthority)?;
         self.dispatch_if_runtime_matches(
             required_originweave_protocol_version,
