@@ -63,7 +63,7 @@ fn valid_break_glass_disclosure_builds_a_complete_credential_free_receipt() {
     assert_eq!(evidence.purpose_id(), "incident-response");
     assert_eq!(
         evidence.destination().as_str(),
-        "https://support-console.example:443"
+        "https://support-console.example"
     );
     assert_eq!(
         evidence.classification(),
