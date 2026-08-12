@@ -2,8 +2,8 @@ use originweave_core::{
     BrowserSessionId, BrowsingContextId, DocumentEpoch, ObservedNodeHandle, Origin,
 };
 use originweave_evidence::{
-    EvidenceSourceKind, MAX_STRUCTURED_FIELD_NAME_BYTES, ProvenanceRecord,
-    StructuredValueEvidence, StructuredValueEvidenceError, VerificationResult,
+    EvidenceSourceKind, MAX_STRUCTURED_FIELD_NAME_BYTES, ProvenanceRecord, StructuredValueEvidence,
+    StructuredValueEvidenceError, VerificationResult,
 };
 
 const VALID_VALUE_HASH: &str =
