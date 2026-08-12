@@ -52,7 +52,8 @@ fn validated_use_binds_all_required_adapter_metadata() -> Result<(), Box<dyn Err
 }
 
 #[test]
-fn protocol_generation_mismatch_precedes_runtime_and_capability_checks() -> Result<(), Box<dyn Error>> {
+fn protocol_generation_mismatch_precedes_runtime_and_capability_checks()
+-> Result<(), Box<dyn Error>> {
     let descriptor = descriptor()?;
     let wrong_generation = OriginWeaveProtocolVersion::new(0, 2);
 
