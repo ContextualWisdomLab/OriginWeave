@@ -36,10 +36,7 @@ fn valid_input() -> SensitiveBreakGlassEvidenceInput {
         policy_version: "sensitive-policy-v7".to_owned(),
         reason_id: "incident-ticket-42".to_owned(),
         approval_mode: SensitiveBreakGlassApprovalMode::DualControl,
-        approval_references: vec![
-            "approval-human-1".to_owned(),
-            "approval-human-2".to_owned(),
-        ],
+        approval_references: vec!["approval-human-1".to_owned(), "approval-human-2".to_owned()],
         valid_from_epoch_seconds: VALID_FROM,
         valid_until_epoch_seconds: VALID_UNTIL,
         maximum_window_seconds: MAXIMUM_WINDOW,
@@ -92,10 +89,7 @@ fn valid_break_glass_disclosure_builds_a_complete_credential_free_receipt() {
     assert_eq!(evidence.decision_epoch_seconds(), DECISION_TIME);
     assert_eq!(evidence.disclosure_epoch_seconds(), DISCLOSURE_TIME);
     assert_eq!(evidence.monitoring_reference(), "monitoring-session-42");
-    assert_eq!(
-        evidence.post_event_review_reference(),
-        "review-record-42"
-    );
+    assert_eq!(evidence.post_event_review_reference(), "review-record-42");
     assert_eq!(
         evidence.post_event_review_due_epoch_seconds(),
         REVIEW_DUE_TIME
@@ -177,10 +171,7 @@ fn malformed_identifiers_and_field_sets_fail_closed() {
     );
 
     let mut duplicate_fields = valid_input();
-    duplicate_fields.field_ids = vec![
-        "customer-address".to_owned(),
-        "customer-address".to_owned(),
-    ];
+    duplicate_fields.field_ids = vec!["customer-address".to_owned(), "customer-address".to_owned()];
     assert_eq!(
         SensitiveBreakGlassEvidence::try_from(duplicate_fields),
         Err(SensitiveBreakGlassEvidenceError::InvalidFieldSet)
