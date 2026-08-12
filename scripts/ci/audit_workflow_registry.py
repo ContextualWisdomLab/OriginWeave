@@ -78,6 +78,14 @@ def _validate_observed_at(value: Any) -> str:
     return text
 
 
+def _validate_reported_total_count(value: Any) -> int:
+    """Return the nonnegative total reported by the first GitHub API page."""
+
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise WorkflowAuditError("reported_total_count must be a nonnegative integer")
+    return value
+
+
 def _validate_workflow_path(value: Any, field_name: str) -> str:
     """Return one unambiguous GitHub workflow registry path."""
 
@@ -240,6 +248,9 @@ def audit_workflow_registry(payload: dict[str, Any]) -> dict[str, Any]:
     if expected_sha != observed_sha:
         raise WorkflowAuditError("protected default branch moved during collection")
     observed_at = _validate_observed_at(document.get("observed_at"))
+    reported_total_count = _validate_reported_total_count(
+        document.get("reported_total_count")
+    )
 
     protected_paths = _validated_path_set(
         document.get("protected_workflow_paths"), "protected_workflow_paths"
@@ -252,6 +263,10 @@ def audit_workflow_registry(payload: dict[str, Any]) -> dict[str, Any]:
         raise WorkflowAuditError("protected and active-PR path ownership overlaps")
 
     raw_workflows, receipts = _validate_pages(document.get("registry_pages"))
+    if len(raw_workflows) != reported_total_count:
+        raise WorkflowAuditError(
+            "reported_total_count does not match paginated workflow records"
+        )
     seen_ids: set[int] = set()
     records = [
         _validate_workflow_record(
@@ -271,6 +286,7 @@ def audit_workflow_registry(payload: dict[str, Any]) -> dict[str, Any]:
         "schema_version": _SCHEMA_VERSION,
         "default_branch_sha": observed_sha,
         "observed_at": observed_at,
+        "reported_total_count": reported_total_count,
         "mutation_performed": False,
         "pagination_receipts": receipts,
         "workflow_records": records,
