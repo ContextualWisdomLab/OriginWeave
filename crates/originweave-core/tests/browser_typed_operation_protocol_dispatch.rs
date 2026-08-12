@@ -95,11 +95,7 @@ fn typed_operation_dispatch_derives_the_required_capability() -> Result<(), Box<
         runtime_metadata(),
         BrowserProtocolOperation::DispatchTypedInput,
         |validated: ValidatedBrowserProtocolUse, operation, epoch: DocumentEpoch| {
-            (
-                operation,
-                validated.capability(),
-                epoch.value(),
-            )
+            (operation, validated.capability(), epoch.value())
         },
     )?;
 
