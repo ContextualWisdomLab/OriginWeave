@@ -40,6 +40,7 @@ pub enum BrowserProtocolCapability {
 pub struct BrowserProtocolAdapterDescriptor {
     kind: BrowserProtocolKind,
     adapter_version: String,
+    protocol_revision: String,
     browser_revision: String,
     capabilities: Vec<BrowserProtocolCapability>,
 }
@@ -47,17 +48,24 @@ pub struct BrowserProtocolAdapterDescriptor {
 impl BrowserProtocolAdapterDescriptor {
     /// Construct one explicit adapter descriptor.
     ///
-    /// Version and revision strings are bounded ASCII metadata tokens. The
-    /// declared capability list must be non-empty and duplicate-free so the
-    /// descriptor has one canonical interpretation.
+    /// Adapter version, upstream protocol revision, and browser revision are
+    /// separate bounded ASCII metadata tokens. This prevents an OriginWeave
+    /// adapter release from being mistaken for the WebDriver BiDi/CDP revision
+    /// or the pinned browser build it was validated against. The declared
+    /// capability list must be non-empty and duplicate-free so the descriptor
+    /// has one canonical interpretation.
     pub fn new(
         kind: BrowserProtocolKind,
         adapter_version: &str,
+        protocol_revision: &str,
         browser_revision: &str,
         capabilities: &[BrowserProtocolCapability],
     ) -> Result<Self, BrowserProtocolDescriptorError> {
         if !metadata_token_is_valid(adapter_version) {
             return Err(BrowserProtocolDescriptorError::InvalidAdapterVersion);
+        }
+        if !metadata_token_is_valid(protocol_revision) {
+            return Err(BrowserProtocolDescriptorError::InvalidProtocolRevision);
         }
         if !metadata_token_is_valid(browser_revision) {
             return Err(BrowserProtocolDescriptorError::InvalidBrowserRevision);
@@ -77,6 +85,7 @@ impl BrowserProtocolAdapterDescriptor {
         Ok(Self {
             kind,
             adapter_version: adapter_version.to_owned(),
+            protocol_revision: protocol_revision.to_owned(),
             browser_revision: browser_revision.to_owned(),
             capabilities: canonical_capabilities,
         })
@@ -88,10 +97,16 @@ impl BrowserProtocolAdapterDescriptor {
         self.kind
     }
 
-    /// Return the bounded adapter-version metadata token.
+    /// Return the bounded OriginWeave adapter-version metadata token.
     #[must_use]
     pub fn adapter_version(&self) -> &str {
         &self.adapter_version
+    }
+
+    /// Return the bounded upstream browser-protocol revision metadata token.
+    #[must_use]
+    pub fn protocol_revision(&self) -> &str {
+        &self.protocol_revision
     }
 
     /// Return the bounded pinned browser-revision metadata token.
@@ -128,6 +143,8 @@ fn metadata_token_is_valid(value: &str) -> bool {
 pub enum BrowserProtocolDescriptorError {
     /// The adapter-version token was empty, oversized, non-ASCII, or malformed.
     InvalidAdapterVersion,
+    /// The upstream protocol-revision token was empty, oversized, non-ASCII, or malformed.
+    InvalidProtocolRevision,
     /// The browser-revision token was empty, oversized, non-ASCII, or malformed.
     InvalidBrowserRevision,
     /// The adapter declared no supported browser capability.
@@ -142,6 +159,8 @@ impl fmt::Display for BrowserProtocolDescriptorError {
             Self::InvalidAdapterVersion => formatter.write_str(
                 "browser protocol adapter version must be a bounded ASCII metadata token",
             ),
+            Self::InvalidProtocolRevision => formatter
+                .write_str("browser protocol revision must be a bounded ASCII metadata token"),
             Self::InvalidBrowserRevision => {
                 formatter.write_str("browser revision must be a bounded ASCII metadata token")
             }
