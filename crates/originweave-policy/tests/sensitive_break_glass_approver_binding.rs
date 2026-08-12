@@ -143,18 +143,20 @@ fn malformed_approver_identity_fails_closed() {
 
 #[test]
 fn approver_binding_shape_must_match_the_supplied_approval_evidence() {
-    for (approval, approvers) in [
+    for (decision, approval, approvers) in [
         (
+            DisclosureDecision::HumanApprovalRequired,
             BreakGlassApprovalEvidence::human("approval-human-1"),
             BreakGlassApproverBinding::dual_control("support-approver-7", "security-approver-9"),
         ),
         (
+            DisclosureDecision::DualControlRequired,
             BreakGlassApprovalEvidence::dual_control("approval-human-1", "approval-human-2"),
             BreakGlassApproverBinding::human("support-approver-7"),
         ),
     ] {
         assert_eq!(
-            evaluate(DisclosureDecision::DualControlRequired, approval, approvers),
+            evaluate(decision, approval, approvers),
             SensitiveBreakGlassDecision::ApproverBindingMismatch
         );
     }
