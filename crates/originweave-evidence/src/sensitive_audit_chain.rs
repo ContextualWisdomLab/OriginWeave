@@ -1,10 +1,12 @@
 //! Deterministic credential-free linkage metadata for sensitive audit evidence.
 //!
-//! This module deliberately does not persist evidence or compute a cryptographic digest. It gives
-//! a durable evidence owner a canonical hash preimage plus exact tenant, stream, sequence, and
-//! previous-digest continuity checks before that owner hashes, signs, stores, or exports a record.
+//! This module deliberately does not persist evidence. It gives a durable evidence owner a
+//! canonical hash preimage plus exact tenant, stream, sequence, previous-digest continuity, and
+//! deterministic SHA-256 verification before that owner signs, stores, or exports a record.
 
 use std::fmt;
+
+use sha2::{Digest, Sha256};
 
 use super::{MAX_SENSITIVE_IDENTIFIER_BYTES, valid_sha256};
 
@@ -27,13 +29,15 @@ pub struct SensitiveAuditChainLinkInput {
     pub chain_digest: String,
 }
 
-/// Validation failure while constructing or extending a sensitive-audit chain.
+/// Validation failure while constructing, verifying, or extending a sensitive-audit chain.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SensitiveAuditChainLinkError {
     /// A tenant or audit-stream identifier was empty, oversized, or ambiguous.
     InvalidIdentifier,
     /// A payload, previous-link, or current-link digest was not canonical lowercase SHA-256.
     InvalidDigest,
+    /// The recorded current-link digest did not equal SHA-256 of its exact canonical preimage.
+    ChainDigestMismatch,
     /// A sequence number was zero.
     InvalidSequence,
     /// A sequence-one genesis link carried a previous-chain digest.
@@ -55,6 +59,9 @@ impl fmt::Display for SensitiveAuditChainLinkError {
         formatter.write_str(match self {
             Self::InvalidIdentifier => "invalid sensitive audit chain identifier",
             Self::InvalidDigest => "invalid sensitive audit chain digest",
+            Self::ChainDigestMismatch => {
+                "sensitive audit chain digest does not match its canonical preimage"
+            }
             Self::InvalidSequence => "invalid sensitive audit chain sequence",
             Self::UnexpectedPreviousDigest => {
                 "genesis sensitive audit chain link has a previous digest"
@@ -159,7 +166,7 @@ impl SensitiveAuditChainLink {
         &self.chain_digest
     }
 
-    /// Build the canonical domain-separated preimage that an external hash/signature owner hashes.
+    /// Build the canonical domain-separated preimage hashed by the chain-link verifier or signer.
     ///
     /// The preimage includes tenant, stream, sequence, predecessor digest, and payload digest in a
     /// fixed order. Each field is decimal-length-delimited, and the current `chain_digest` is
@@ -178,6 +185,28 @@ impl SensitiveAuditChainLink {
         append_length_delimited(&mut preimage, previous_digest);
         append_length_delimited(&mut preimage, self.payload_digest.as_bytes());
         preimage
+    }
+
+    /// Compute the canonical lowercase SHA-256 identifier for this link's exact hash preimage.
+    ///
+    /// This deterministic digest does not authenticate a signer, make storage append-only, or
+    /// prevent an authorized storage owner from rewriting and rehashing an entire history.
+    #[must_use]
+    pub fn computed_chain_digest(&self) -> String {
+        let digest = Sha256::digest(self.canonical_hash_preimage());
+        format!("sha256:{digest:x}")
+    }
+
+    /// Verify that the recorded chain digest equals SHA-256 of the exact canonical preimage.
+    ///
+    /// Success proves only deterministic preimage-to-digest consistency. It does not authenticate
+    /// the record, persist it, verify a signature, provide atomic append semantics, or prevent a
+    /// storage authority from replacing and rehashing an entire history.
+    pub fn verify_chain_digest(&self) -> Result<(), SensitiveAuditChainLinkError> {
+        if self.computed_chain_digest() != self.chain_digest {
+            return Err(SensitiveAuditChainLinkError::ChainDigestMismatch);
+        }
+        Ok(())
     }
 
     /// Validate and return the exact contiguous successor to this link.
