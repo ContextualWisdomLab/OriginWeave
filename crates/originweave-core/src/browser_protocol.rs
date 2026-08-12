@@ -363,9 +363,8 @@ impl fmt::Display for BrowserProtocolRuntimeRequirementError {
             Self::InvalidProtocolRevision => formatter.write_str(
                 "runtime browser protocol revision must be a bounded ASCII metadata token",
             ),
-            Self::InvalidBrowserRevision => {
-                formatter.write_str("runtime browser revision must be a bounded ASCII metadata token")
-            }
+            Self::InvalidBrowserRevision => formatter
+                .write_str("runtime browser revision must be a bounded ASCII metadata token"),
             Self::ProtocolRevisionMismatch => formatter.write_str(
                 "runtime browser protocol revision does not match the pinned adapter revision",
             ),
