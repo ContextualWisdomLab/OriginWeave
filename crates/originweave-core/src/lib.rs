@@ -10,6 +10,7 @@
 
 mod browser_protocol;
 mod browser_protocol_dispatch;
+mod browser_protocol_operation;
 mod browser_registry;
 #[cfg(test)]
 mod browser_registry_coverage;
@@ -27,6 +28,7 @@ pub use browser_protocol_dispatch::{
     BrowserContextOriginEpochDispatchTarget, BrowserContextProtocolDispatchError,
     BrowserProtocolRuntimeMetadata,
 };
+pub use browser_protocol_operation::BrowserProtocolOperation;
 pub use browser_registry::{
     BrowserAuthorityRegistry, BrowserRegistryError, MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES,
 };
