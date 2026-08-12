@@ -7,9 +7,9 @@
 
 use originweave_core::Origin;
 use originweave_evidence::{
-    SensitiveAccessClass, SensitiveAccessOutcome, SensitiveBreakGlassApprovalMode,
-    SensitiveBreakGlassEvidence, SensitiveBreakGlassEvidenceError,
-    SensitiveBreakGlassEvidenceInput,
+    MAX_SENSITIVE_FIELD_COUNT, SensitiveAccessClass, SensitiveAccessOutcome,
+    SensitiveBreakGlassApprovalMode, SensitiveBreakGlassEvidence,
+    SensitiveBreakGlassEvidenceError, SensitiveBreakGlassEvidenceInput,
 };
 
 const VALID_FROM: u64 = 100;
@@ -155,7 +155,7 @@ fn approval_mode_requires_the_exact_bounded_approval_set() {
 }
 
 #[test]
-fn malformed_identifiers_and_field_sets_fail_closed() {
+fn malformed_identifiers_fail_closed_at_required_and_approval_positions() {
     let mut invalid_reason = valid_input();
     invalid_reason.reason_id = "---".to_owned();
     assert_eq!(
@@ -168,6 +168,53 @@ fn malformed_identifiers_and_field_sets_fail_closed() {
     assert_eq!(
         SensitiveBreakGlassEvidence::try_from(invalid_monitoring),
         Err(SensitiveBreakGlassEvidenceError::InvalidIdentifier)
+    );
+
+    let mut empty_identifier = valid_input();
+    empty_identifier.request_id.clear();
+    assert_eq!(
+        SensitiveBreakGlassEvidence::try_from(empty_identifier),
+        Err(SensitiveBreakGlassEvidenceError::InvalidIdentifier)
+    );
+
+    let mut oversized_identifier = valid_input();
+    oversized_identifier.decision_id = "a".repeat(129);
+    assert_eq!(
+        SensitiveBreakGlassEvidence::try_from(oversized_identifier),
+        Err(SensitiveBreakGlassEvidenceError::InvalidIdentifier)
+    );
+
+    let mut invalid_approval_reference = valid_input();
+    invalid_approval_reference.approval_references[0] = "approval reference with spaces".to_owned();
+    assert_eq!(
+        SensitiveBreakGlassEvidence::try_from(invalid_approval_reference),
+        Err(SensitiveBreakGlassEvidenceError::InvalidIdentifier)
+    );
+}
+
+#[test]
+fn empty_oversized_invalid_and_duplicate_field_sets_fail_closed() {
+    let mut empty_fields = valid_input();
+    empty_fields.field_ids.clear();
+    assert_eq!(
+        SensitiveBreakGlassEvidence::try_from(empty_fields),
+        Err(SensitiveBreakGlassEvidenceError::InvalidFieldSet)
+    );
+
+    let mut oversized_fields = valid_input();
+    oversized_fields.field_ids = (0..=MAX_SENSITIVE_FIELD_COUNT)
+        .map(|index| format!("customer-field-{index}"))
+        .collect();
+    assert_eq!(
+        SensitiveBreakGlassEvidence::try_from(oversized_fields),
+        Err(SensitiveBreakGlassEvidenceError::InvalidFieldSet)
+    );
+
+    let mut invalid_field = valid_input();
+    invalid_field.field_ids = vec!["---".to_owned()];
+    assert_eq!(
+        SensitiveBreakGlassEvidence::try_from(invalid_field),
+        Err(SensitiveBreakGlassEvidenceError::InvalidFieldSet)
     );
 
     let mut duplicate_fields = valid_input();
@@ -218,10 +265,24 @@ fn validity_window_and_event_lifecycle_are_fail_closed() {
         Err(SensitiveBreakGlassEvidenceError::WindowExceedsMaximum)
     );
 
+    let mut zero_decision_time = valid_input();
+    zero_decision_time.decision_epoch_seconds = 0;
+    assert_eq!(
+        SensitiveBreakGlassEvidence::try_from(zero_decision_time),
+        Err(SensitiveBreakGlassEvidenceError::InvalidLifecycle)
+    );
+
     let mut decision_before_window = valid_input();
     decision_before_window.decision_epoch_seconds = VALID_FROM - 1;
     assert_eq!(
         SensitiveBreakGlassEvidence::try_from(decision_before_window),
+        Err(SensitiveBreakGlassEvidenceError::InvalidLifecycle)
+    );
+
+    let mut decision_at_expiry = valid_input();
+    decision_at_expiry.decision_epoch_seconds = VALID_UNTIL;
+    assert_eq!(
+        SensitiveBreakGlassEvidence::try_from(decision_at_expiry),
         Err(SensitiveBreakGlassEvidenceError::InvalidLifecycle)
     );
 
