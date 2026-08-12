@@ -10,10 +10,10 @@
 
 use originweave_core::Origin;
 use originweave_policy::{
-    BreakGlassActorBinding, BreakGlassApprovalEvidence, BreakGlassValidityPolicy,
-    DataClassification, DisclosureDecision, DisclosureScope, SensitiveBreakGlassDecision,
-    SensitiveBreakGlassRequest, SensitiveBreakGlassScope, SensitiveDataAuthority,
-    SensitiveDataRequest, evaluate_sensitive_break_glass,
+    BreakGlassActorBinding, BreakGlassApprovalEvidence, BreakGlassApproverBinding,
+    BreakGlassValidityPolicy, DataClassification, DisclosureDecision, DisclosureScope,
+    SensitiveBreakGlassDecision, SensitiveBreakGlassRequest, SensitiveBreakGlassScope,
+    SensitiveDataAuthority, SensitiveDataRequest, evaluate_sensitive_break_glass,
 };
 
 const VALID_FROM: u64 = 100;
@@ -33,10 +33,19 @@ fn authority(task_id: &str) -> SensitiveDataAuthority {
     )
 }
 
-fn evaluate(
+fn default_approvers(disclosure_decision: DisclosureDecision) -> BreakGlassApproverBinding {
+    if disclosure_decision == DisclosureDecision::DualControlRequired {
+        BreakGlassApproverBinding::dual_control("support-approver-7", "security-approver-9")
+    } else {
+        BreakGlassApproverBinding::human("support-approver-7")
+    }
+}
+
+fn evaluate_with_approvers(
     disclosure_decision: DisclosureDecision,
     break_glass_request: SensitiveBreakGlassRequest,
     break_glass_scope: SensitiveBreakGlassScope,
+    approver_binding: BreakGlassApproverBinding,
     trusted_time: u64,
 ) -> SensitiveBreakGlassDecision {
     let exact_authority = authority("task-42");
@@ -51,7 +60,24 @@ fn evaluate(
         &break_glass_request,
         &break_glass_scope,
         &actor_binding,
+        &approver_binding,
         &validity_policy,
+        trusted_time,
+    )
+}
+
+fn evaluate(
+    disclosure_decision: DisclosureDecision,
+    break_glass_request: SensitiveBreakGlassRequest,
+    break_glass_scope: SensitiveBreakGlassScope,
+    trusted_time: u64,
+) -> SensitiveBreakGlassDecision {
+    let approver_binding = default_approvers(disclosure_decision);
+    evaluate_with_approvers(
+        disclosure_decision,
+        break_glass_request,
+        break_glass_scope,
+        approver_binding,
         trusted_time,
     )
 }
@@ -142,10 +168,11 @@ fn dual_control_break_glass_requires_two_distinct_approvals() {
 #[test]
 fn dual_control_evidence_satisfies_the_single_human_approval_gate() {
     assert_eq!(
-        evaluate(
+        evaluate_with_approvers(
             DisclosureDecision::HumanApprovalRequired,
             request(),
             dual_scope(),
+            BreakGlassApproverBinding::dual_control("support-approver-7", "security-approver-9"),
             TRUSTED_TIME,
         ),
         SensitiveBreakGlassDecision::Authorized
