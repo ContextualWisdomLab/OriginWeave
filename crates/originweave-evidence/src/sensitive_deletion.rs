@@ -97,7 +97,10 @@ impl TryFrom<SensitiveDeletionReceiptInput> for SensitiveDeletionReceipt {
             input.retention_policy_id.as_str(),
             input.verification_reference.as_str(),
         ];
-        if identifiers.into_iter().any(|value| !valid_identifier(value)) {
+        if identifiers
+            .into_iter()
+            .any(|value| !valid_identifier(value))
+        {
             return Err(SensitiveEvidenceError::InvalidIdentifier);
         }
         if input.deletion_epoch_seconds == 0
