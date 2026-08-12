@@ -216,6 +216,6 @@ fn context_protocol_dispatch_errors_preserve_typed_sources() {
     assert!(protocol.source().is_some());
     assert_eq!(
         protocol.to_string(),
-        "browser protocol validation denied context dispatch: runtime browser protocol adapter version does not match the pinned descriptor version"
+        "browser protocol validation denied context dispatch: runtime browser adapter version does not match the pinned adapter version"
     );
 }
