@@ -106,12 +106,7 @@ fn managed_extension_policy_window_cannot_exceed_local_maximum() {
 #[test]
 fn maximum_timestamp_window_remains_half_open_without_overflow() {
     let extension = extension_id("abcdefghijklmnopabcdefghijklmnop");
-    let policy = AgentTaskExtensionPolicy::new(
-        [extension.clone()],
-        u64::MAX - 1,
-        u64::MAX,
-        1,
-    );
+    let policy = AgentTaskExtensionPolicy::new([extension.clone()], u64::MAX - 1, u64::MAX, 1);
 
     assert_eq!(
         evaluate_agent_task_extension(&extension, &policy, u64::MAX - 1),
