@@ -313,8 +313,19 @@ def audit_workflow_registry(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _reject_duplicate_object_members(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """Return one JSON object or fail closed when a member name is repeated."""
+
+    result: dict[str, Any] = {}
+    for name, value in pairs:
+        if name in result:
+            raise WorkflowAuditError("input contains a duplicate JSON object member")
+        result[name] = value
+    return result
+
+
 def _read_payload(path: pathlib.Path) -> dict[str, Any]:
-    """Read at most four mebibytes of UTF-8 JSON without trusting stale metadata."""
+    """Read at most four mebibytes of unambiguous UTF-8 JSON audit evidence."""
 
     try:
         with path.open("rb") as source:
@@ -324,7 +335,10 @@ def _read_payload(path: pathlib.Path) -> dict[str, Any]:
     if len(content) > _MAX_INPUT_BYTES:
         raise WorkflowAuditError("input exceeds the four-mebibyte audit bound")
     try:
-        parsed = json.loads(content.decode("utf-8"))
+        parsed = json.loads(
+            content.decode("utf-8"),
+            object_pairs_hook=_reject_duplicate_object_members,
+        )
     except (UnicodeError, json.JSONDecodeError) as error:
         raise WorkflowAuditError("input is not readable UTF-8 JSON") from error
     return _require_mapping(parsed, "payload")
