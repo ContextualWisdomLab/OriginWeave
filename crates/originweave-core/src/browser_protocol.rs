@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, str::FromStr};
 
 /// Maximum UTF-8 byte length for browser protocol adapter metadata tokens.
 pub const MAX_BROWSER_PROTOCOL_METADATA_BYTES: usize = 128;
@@ -41,6 +41,53 @@ impl fmt::Display for OriginWeaveProtocolVersion {
         write!(formatter, "originweave/{}.{}", self.major, self.minor)
     }
 }
+
+impl FromStr for OriginWeaveProtocolVersion {
+    type Err = OriginWeaveProtocolVersionParseError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        let Some(remainder) = value.strip_prefix("originweave/") else {
+            return Err(OriginWeaveProtocolVersionParseError::InvalidFormat);
+        };
+        let Some((major_text, minor_text)) = remainder.split_once('.') else {
+            return Err(OriginWeaveProtocolVersionParseError::InvalidFormat);
+        };
+        if minor_text.contains('.') {
+            return Err(OriginWeaveProtocolVersionParseError::InvalidFormat);
+        }
+        let Ok(major) = major_text.parse::<u16>() else {
+            return Err(OriginWeaveProtocolVersionParseError::InvalidFormat);
+        };
+        let Ok(minor) = minor_text.parse::<u16>() else {
+            return Err(OriginWeaveProtocolVersionParseError::InvalidFormat);
+        };
+
+        let version = Self::new(major, minor);
+        if version.to_string() != value {
+            return Err(OriginWeaveProtocolVersionParseError::InvalidFormat);
+        }
+        Ok(version)
+    }
+}
+
+/// Failure to parse a canonical serialized OriginWeave Protocol generation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OriginWeaveProtocolVersionParseError {
+    /// The value did not use the exact canonical `originweave/<major>.<minor>` syntax.
+    InvalidFormat,
+}
+
+impl fmt::Display for OriginWeaveProtocolVersionParseError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidFormat => formatter.write_str(
+                "OriginWeave protocol version must use canonical originweave/<major>.<minor> syntax",
+            ),
+        }
+    }
+}
+
+impl std::error::Error for OriginWeaveProtocolVersionParseError {}
 
 /// Browser automation protocol family used by one versioned adapter.
 ///
