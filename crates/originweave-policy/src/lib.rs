@@ -7,12 +7,17 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+mod break_glass;
 mod model_disclosure;
 mod model_fallback;
 mod model_output;
 mod model_route;
 mod sensitive_data;
 
+pub use break_glass::{
+    BreakGlassApprovalEvidence, SensitiveBreakGlassDecision, SensitiveBreakGlassRequest,
+    SensitiveBreakGlassScope, evaluate_sensitive_break_glass,
+};
 pub use model_disclosure::{
     ModelDisclosureAlternative, ModelDisclosureDecision, ModelDisclosureNecessity,
     evaluate_full_field_model_disclosure,
