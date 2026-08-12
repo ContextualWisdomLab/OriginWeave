@@ -93,7 +93,10 @@ impl TryFrom<SensitiveAuditChainLinkInput> for SensitiveAuditChainLink {
         if input.sequence_number == 0 {
             return Err(SensitiveAuditChainLinkError::InvalidSequence);
         }
-        match (input.sequence_number, input.previous_chain_digest.as_deref()) {
+        match (
+            input.sequence_number,
+            input.previous_chain_digest.as_deref(),
+        ) {
             (1, Some(_)) => return Err(SensitiveAuditChainLinkError::UnexpectedPreviousDigest),
             (1, None) => {}
             (_, None) => return Err(SensitiveAuditChainLinkError::MissingPreviousDigest),
