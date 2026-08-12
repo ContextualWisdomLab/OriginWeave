@@ -26,10 +26,8 @@ fn evaluate(
 ) -> SensitiveBreakGlassDecision {
     let exact_authority = authority();
     let disclosure_request = SensitiveDataRequest::new(exact_authority.clone());
-    let disclosure_scope = DisclosureScope::new(
-        exact_authority,
-        DisclosureDecision::DualControlRequired,
-    );
+    let disclosure_scope =
+        DisclosureScope::new(exact_authority, DisclosureDecision::DualControlRequired);
 
     evaluate_sensitive_break_glass(
         &disclosure_request,
@@ -67,14 +65,8 @@ fn empty_and_oversized_break_glass_reasons_fail_closed() {
 #[test]
 fn either_invalid_dual_control_approval_identifier_fails_closed() {
     for approval in [
-        BreakGlassApprovalEvidence::dual_control(
-            "approval id with spaces",
-            "approval-human-2",
-        ),
-        BreakGlassApprovalEvidence::dual_control(
-            "approval-human-1",
-            "approval id with spaces",
-        ),
+        BreakGlassApprovalEvidence::dual_control("approval id with spaces", "approval-human-2"),
+        BreakGlassApprovalEvidence::dual_control("approval-human-1", "approval id with spaces"),
     ] {
         let scope = SensitiveBreakGlassScope::new(
             authority(),
