@@ -44,10 +44,7 @@ fn runtime_revision_drift_fails_closed() -> Result<(), Box<dyn Error>> {
         Err(BrowserProtocolRuntimeRequirementError::BrowserRevisionMismatch)
     );
     assert_eq!(
-        descriptor.require_runtime_revisions(
-            "webdriver-bidi-wd-2026-07-01",
-            "chromium-r1639811"
-        ),
+        descriptor.require_runtime_revisions("webdriver-bidi-wd-2026-07-01", "chromium-r1639811"),
         Err(BrowserProtocolRuntimeRequirementError::ProtocolRevisionMismatch)
     );
     Ok(())
