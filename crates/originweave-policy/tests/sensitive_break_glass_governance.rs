@@ -55,7 +55,7 @@ fn evaluate(
         DisclosureScope::new(exact_authority, DisclosureDecision::HumanApprovalRequired);
     let identity_bindings = BreakGlassIdentityBindings::new(
         actor_binding,
-        BreakGlassApproverBinding::human("support-approver-7"),
+        BreakGlassApproverBinding::human("approval-human-1", "support-approver-7"),
     );
 
     evaluate_sensitive_break_glass(
