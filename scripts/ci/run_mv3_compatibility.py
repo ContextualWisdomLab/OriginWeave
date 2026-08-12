@@ -1010,6 +1010,216 @@ def _run_agent_task_trial(
     }
 
 
+def _force_close_agent_task_context(driver_port: int, session_id: str) -> bool:
+    """Close only the current browsing context and require no-such-window evidence."""
+
+    closed = _json_request(
+        driver_port,
+        "DELETE",
+        _webdriver_path(session_id, "/window"),
+    )
+    surviving_contexts = closed.get("value")
+    if not isinstance(surviving_contexts, list):
+        raise RuntimeError("Agent Task forced-close returned malformed surviving contexts")
+    if not surviving_contexts:
+        raise RuntimeError("Agent Task forced-close left no surviving browsing context")
+    if any(not isinstance(handle, str) or not handle for handle in surviving_contexts):
+        raise RuntimeError("Agent Task forced-close returned invalid surviving context")
+
+    try:
+        _json_request(
+            driver_port,
+            "GET",
+            _webdriver_path(session_id, "/url"),
+        )
+    except RuntimeError as exc:
+        if "no such window" in str(exc).lower():
+            return True
+        raise
+    raise RuntimeError("Agent Task context remained usable after forced close")
+
+
+def _run_agent_task_forced_close_browser_pass(
+    chrome_bin: pathlib.Path,
+    chromedriver_bin: pathlib.Path,
+    fixture_url: str,
+    profile_dir: str,
+) -> dict[str, Any]:
+    """Force-close a disposable real context while preserving the WebDriver session."""
+
+    driver_port = _free_loopback_port()
+    session_id: str | None = None
+    driver = subprocess.Popen(
+        [str(chromedriver_bin), f"--port={driver_port}", "--allowed-ips=127.0.0.1"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    try:
+        _wait_for_driver(driver_port)
+        session = _json_request(
+            driver_port,
+            "POST",
+            "/session",
+            {
+                "capabilities": {
+                    "alwaysMatch": {
+                        "browserName": "chrome",
+                        "goog:chromeOptions": {
+                            "binary": str(chrome_bin),
+                            "args": [
+                                "--headless=new",
+                                "--no-first-run",
+                                "--disable-default-apps",
+                                "--disable-component-update",
+                                "--disable-sync",
+                                "--disable-dev-shm-usage",
+                                "--no-sandbox",
+                                "--disable-extensions",
+                                f"--user-data-dir={profile_dir}",
+                            ],
+                        },
+                    }
+                }
+            },
+        ).get("value", {})
+        if not isinstance(session, dict):
+            raise RuntimeError("ChromeDriver forced-close session response is malformed")
+        raw_session_id = session.get("sessionId")
+        capabilities = session.get("capabilities", {})
+        if not isinstance(raw_session_id, str):
+            raise RuntimeError("ChromeDriver did not return a forced-close session id")
+        if not isinstance(capabilities, dict):
+            raise RuntimeError("ChromeDriver forced-close capabilities are malformed")
+        session_id = _path_token(raw_session_id, "session identifier")
+        browser_version = capabilities.get("browserVersion")
+        if browser_version != PINNED_CHROME_VERSION:
+            raise RuntimeError(
+                f"unexpected forced-close Chrome version: expected {PINNED_CHROME_VERSION}, "
+                f"got {browser_version!r}"
+            )
+
+        survivor_context = _json_request(
+            driver_port,
+            "GET",
+            _webdriver_path(session_id, "/window"),
+        ).get("value")
+        if not isinstance(survivor_context, str):
+            raise RuntimeError("ChromeDriver did not return the survivor context handle")
+        survivor_context = _path_token(survivor_context, "window handle")
+
+        created = _json_request(
+            driver_port,
+            "POST",
+            _webdriver_path(session_id, "/window/new"),
+            {"type": "tab"},
+        ).get("value", {})
+        if not isinstance(created, dict):
+            raise RuntimeError("ChromeDriver returned malformed disposable context evidence")
+        disposable_context = created.get("handle")
+        if not isinstance(disposable_context, str):
+            raise RuntimeError("ChromeDriver did not return a disposable context handle")
+        disposable_context = _path_token(disposable_context, "window handle")
+        if disposable_context == survivor_context:
+            raise RuntimeError("ChromeDriver reused the survivor context as disposable context")
+
+        _json_request(
+            driver_port,
+            "POST",
+            _webdriver_path(session_id, "/window"),
+            {"handle": disposable_context},
+        )
+        _json_request(
+            driver_port,
+            "POST",
+            _webdriver_path(session_id, "/url"),
+            {"url": fixture_url},
+        )
+        loaded_url = _json_request(
+            driver_port,
+            "GET",
+            _webdriver_path(session_id, "/url"),
+        ).get("value")
+        if loaded_url != fixture_url:
+            raise RuntimeError("Agent Task forced-close probe did not load its fixture URL")
+
+        forced_close_detected = _force_close_agent_task_context(driver_port, session_id)
+        if not forced_close_detected:
+            raise RuntimeError("Agent Task forced-close probe did not detect the close")
+
+        _json_request(
+            driver_port,
+            "POST",
+            _webdriver_path(session_id, "/window"),
+            {"handle": survivor_context},
+        )
+        surviving_url = _json_request(
+            driver_port,
+            "GET",
+            _webdriver_path(session_id, "/url"),
+        ).get("value")
+        if not isinstance(surviving_url, str):
+            raise RuntimeError("Agent Task survivor context was not usable after forced close")
+
+        return {
+            "browser_version": browser_version,
+            "forced_close_detected": forced_close_detected,
+            "session_survived": True,
+        }
+    finally:
+        if session_id is not None:
+            with contextlib.suppress(Exception):
+                _json_request(
+                    driver_port,
+                    "DELETE",
+                    _webdriver_path(session_id, ""),
+                    {},
+                )
+        driver.terminate()
+        try:
+            driver.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            driver.kill()
+            driver.wait(timeout=5)
+
+
+def _run_agent_task_forced_close_trial(
+    chrome_bin: pathlib.Path,
+    chromedriver_bin: pathlib.Path,
+    fixture_url: str,
+    trial_number: int,
+) -> dict[str, Any]:
+    """Run one forced-close probe and prove its isolated browser profile is removed."""
+
+    trial_started = time.monotonic()
+    profile_path: pathlib.Path
+    with tempfile.TemporaryDirectory(
+        prefix=f"originweave-agent-task-forced-close-{trial_number}-"
+    ) as profile_dir:
+        profile_path = pathlib.Path(profile_dir)
+        result = _run_agent_task_forced_close_browser_pass(
+            chrome_bin,
+            chromedriver_bin,
+            fixture_url,
+            profile_dir,
+        )
+    profile_cleaned = not profile_path.exists()
+    if not profile_cleaned:
+        raise RuntimeError(
+            f"Agent Task forced-close profile cleanup failed in trial {trial_number}"
+        )
+
+    return {
+        "trial_number": trial_number,
+        "passed": True,
+        "browser_version": result["browser_version"],
+        "forced_close_detected": result["forced_close_detected"],
+        "session_survived": result["session_survived"],
+        "profile_cleaned": profile_cleaned,
+        "duration_ms": round((time.monotonic() - trial_started) * 1000),
+    }
+
+
 def _start_fixture_server(
     directory: pathlib.Path,
 ) -> tuple[http.server.ThreadingHTTPServer, threading.Thread]:
@@ -1122,6 +1332,26 @@ def main() -> int:
                     }
                 )
 
+        forced_close_trials: list[dict[str, Any]] = []
+        for trial_number in range(1, AGENT_TASK_REPEATABILITY_TRIALS + 1):
+            try:
+                forced_close_trials.append(
+                    _run_agent_task_forced_close_trial(
+                        chrome_bin,
+                        chromedriver_bin,
+                        agent_task_url,
+                        trial_number,
+                    )
+                )
+            except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+                forced_close_trials.append(
+                    {
+                        "trial_number": trial_number,
+                        "passed": False,
+                        "failure_type": type(exc).__name__,
+                    }
+                )
+
         agent_task_successful_trials = sum(
             1 for trial in agent_task_trials if trial.get("passed") is True
         )
@@ -1158,6 +1388,16 @@ def main() -> int:
             for trial in agent_task_trials
             if trial.get("passed") is True
         )
+        forced_close_successful_trials = sum(
+            1 for trial in forced_close_trials if trial.get("passed") is True
+        )
+        forced_close_surfaces_complete = all(
+            trial.get("forced_close_detected") is True
+            and trial.get("session_survived") is True
+            and trial.get("profile_cleaned") is True
+            for trial in forced_close_trials
+            if trial.get("passed") is True
+        )
 
         evidence = {
             "chrome_version": PINNED_CHROME_VERSION,
@@ -1177,6 +1417,11 @@ def main() -> int:
                 "successful_trials": agent_task_successful_trials,
                 "trial_pass_rate": agent_task_trial_pass_rate,
                 "trial_results": agent_task_trials,
+                "forced_close": {
+                    "repeatability_trials": AGENT_TASK_REPEATABILITY_TRIALS,
+                    "successful_trials": forced_close_successful_trials,
+                    "trial_results": forced_close_trials,
+                },
             },
             "duration_ms": round((time.monotonic() - started) * 1000),
         }
@@ -1196,6 +1441,15 @@ def main() -> int:
             )
         if not agent_task_surfaces_complete:
             raise RuntimeError("Agent Task repeatability surfaces were incomplete")
+        if (
+            forced_close_successful_trials != AGENT_TASK_REPEATABILITY_TRIALS
+            or not forced_close_surfaces_complete
+        ):
+            raise RuntimeError(
+                "Agent Task forced-close recovery gate failed: "
+                f"{forced_close_successful_trials}/{AGENT_TASK_REPEATABILITY_TRIALS} "
+                "trials passed"
+            )
         return 0
     finally:
         _stop_fixture_server(agent_task_server, agent_task_thread)
