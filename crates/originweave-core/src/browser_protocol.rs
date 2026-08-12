@@ -127,6 +127,25 @@ impl BrowserProtocolAdapterDescriptor {
     pub fn supports(&self, capability: BrowserProtocolCapability) -> bool {
         self.capabilities.contains(&capability)
     }
+
+    /// Require one explicitly declared adapter capability before later use.
+    ///
+    /// This method never infers support from the browser protocol family. An
+    /// absent capability fails closed with a typed error so a caller cannot
+    /// silently fall back to another upstream protocol or a raw browser escape
+    /// hatch merely because the selected adapter lacks the requested surface.
+    pub fn require_capability(
+        &self,
+        capability: BrowserProtocolCapability,
+    ) -> Result<(), BrowserProtocolCapabilityRequirementError> {
+        if self.supports(capability) {
+            Ok(())
+        } else {
+            Err(BrowserProtocolCapabilityRequirementError::UnsupportedCapability(
+                capability,
+            ))
+        }
+    }
 }
 
 const fn capability_rank(capability: BrowserProtocolCapability) -> u8 {
@@ -135,6 +154,15 @@ const fn capability_rank(capability: BrowserProtocolCapability) -> u8 {
         BrowserProtocolCapability::SemanticObservation => 1,
         BrowserProtocolCapability::TypedInput => 2,
         BrowserProtocolCapability::NetworkObservation => 3,
+    }
+}
+
+fn capability_name(capability: BrowserProtocolCapability) -> &'static str {
+    match capability {
+        BrowserProtocolCapability::Navigation => "navigation",
+        BrowserProtocolCapability::SemanticObservation => "semantic-observation",
+        BrowserProtocolCapability::TypedInput => "typed-input",
+        BrowserProtocolCapability::NetworkObservation => "network-observation",
     }
 }
 
@@ -147,6 +175,27 @@ fn metadata_token_is_valid(value: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
         && value.bytes().any(|byte| byte.is_ascii_alphanumeric())
 }
+
+/// Failure to require one browser protocol capability from an adapter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BrowserProtocolCapabilityRequirementError {
+    /// The adapter did not explicitly declare the required capability.
+    UnsupportedCapability(BrowserProtocolCapability),
+}
+
+impl fmt::Display for BrowserProtocolCapabilityRequirementError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::UnsupportedCapability(capability) => write!(
+                formatter,
+                "browser protocol adapter does not declare required {} capability",
+                capability_name(*capability)
+            ),
+        }
+    }
+}
+
+impl std::error::Error for BrowserProtocolCapabilityRequirementError {}
 
 /// Failure to construct canonical browser protocol adapter metadata.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
