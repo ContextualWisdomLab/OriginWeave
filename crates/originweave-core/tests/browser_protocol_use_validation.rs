@@ -150,3 +150,24 @@ fn validation_errors_preserve_stable_typed_sources() {
         );
     }
 }
+
+#[test]
+fn runtime_protocol_kind_mismatch_precedes_revision_and_capability_checks()
+-> Result<(), Box<dyn Error>> {
+    let descriptor = descriptor()?;
+
+    assert_eq!(
+        descriptor.validate_use(
+            ORIGINWEAVE_PROTOCOL_VERSION,
+            BrowserProtocolKind::ChromeDevToolsProtocol,
+            "runtime revision with spaces",
+            "browser/revision",
+            BrowserProtocolCapability::NetworkObservation,
+        ),
+        Err(BrowserProtocolUseValidationError::ProtocolKindMismatch {
+            descriptor_kind: BrowserProtocolKind::WebDriverBiDi,
+            runtime_kind: BrowserProtocolKind::ChromeDevToolsProtocol,
+        })
+    );
+    Ok(())
+}
