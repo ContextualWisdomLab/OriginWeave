@@ -15,9 +15,9 @@ mod model_route;
 mod sensitive_data;
 
 pub use break_glass::{
-    BreakGlassActorBinding, BreakGlassApprovalEvidence, BreakGlassValidityPolicy,
-    SensitiveBreakGlassDecision, SensitiveBreakGlassRequest, SensitiveBreakGlassScope,
-    evaluate_sensitive_break_glass,
+    BreakGlassActorBinding, BreakGlassApprovalEvidence, BreakGlassApproverBinding,
+    BreakGlassValidityPolicy, SensitiveBreakGlassDecision, SensitiveBreakGlassRequest,
+    SensitiveBreakGlassScope, evaluate_sensitive_break_glass,
 };
 pub use model_disclosure::{
     ModelDisclosureAlternative, ModelDisclosureDecision, ModelDisclosureNecessity,
