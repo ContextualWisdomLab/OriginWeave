@@ -65,7 +65,8 @@ fn successful_dispatch(
 }
 
 #[test]
-fn context_dispatch_target_preserves_requested_ids_without_granting_authority() -> Result<(), Box<dyn Error>> {
+fn context_dispatch_target_preserves_requested_ids_without_granting_authority()
+-> Result<(), Box<dyn Error>> {
     let session = BrowserSessionId::new(7)?;
     let context = BrowsingContextId::new(11)?;
     let target = target(session, context);
