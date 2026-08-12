@@ -15,7 +15,8 @@ mod browser_registry_coverage;
 mod contracts;
 
 pub use browser_protocol::{
-    BrowserProtocolAdapterDescriptor, BrowserProtocolCapability, BrowserProtocolDescriptorError,
+    BrowserProtocolAdapterDescriptor, BrowserProtocolCapability,
+    BrowserProtocolCapabilityRequirementError, BrowserProtocolDescriptorError,
     BrowserProtocolKind, MAX_BROWSER_PROTOCOL_METADATA_BYTES,
 };
 pub use browser_registry::{
