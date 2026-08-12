@@ -2,7 +2,8 @@ use std::{cell::Cell, error::Error};
 
 use originweave_core::{
     BrowserProtocolAdapterDescriptor, BrowserProtocolCapability, BrowserProtocolKind,
-    BrowserProtocolUseValidationError, OriginWeaveProtocolVersion, ValidatedBrowserProtocolUse,
+    BrowserProtocolRuntimeMetadata, BrowserProtocolUseValidationError, OriginWeaveProtocolVersion,
+    ValidatedBrowserProtocolUse,
 };
 
 const ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion =
@@ -27,6 +28,15 @@ fn descriptor() -> Result<BrowserProtocolAdapterDescriptor, Box<dyn Error>> {
         BROWSER_REVISION,
         &[BrowserProtocolCapability::Navigation],
     )?)
+}
+
+fn runtime_metadata(adapter_version: &str) -> BrowserProtocolRuntimeMetadata<'_> {
+    BrowserProtocolRuntimeMetadata::new(
+        BrowserProtocolKind::WebDriverBiDi,
+        adapter_version,
+        PROTOCOL_REVISION,
+        BROWSER_REVISION,
+    )
 }
 
 fn reset_dispatch_marker() {
@@ -57,10 +67,7 @@ fn exact_runtime_validation_hands_single_use_proof_to_dispatch() -> Result<(), B
 
     let dispatch_result = descriptor.dispatch_if_runtime_matches(
         ORIGINWEAVE_PROTOCOL_VERSION,
-        BrowserProtocolKind::WebDriverBiDi,
-        ADAPTER_VERSION,
-        PROTOCOL_REVISION,
-        BROWSER_REVISION,
+        runtime_metadata(ADAPTER_VERSION),
         BrowserProtocolCapability::Navigation,
         successful_dispatch as DispatchFn,
     )?;
@@ -83,10 +90,7 @@ fn runtime_mismatch_prevents_dispatch_callback() -> Result<(), Box<dyn Error>> {
 
     let result = descriptor.dispatch_if_runtime_matches(
         ORIGINWEAVE_PROTOCOL_VERSION,
-        BrowserProtocolKind::WebDriverBiDi,
-        "originweave-bidi-v2",
-        PROTOCOL_REVISION,
-        BROWSER_REVISION,
+        runtime_metadata("originweave-bidi-v2"),
         BrowserProtocolCapability::Navigation,
         successful_dispatch as DispatchFn,
     );
@@ -106,10 +110,7 @@ fn adapter_callback_failure_remains_separate_after_validation() -> Result<(), Bo
 
     let dispatch_result = descriptor.dispatch_if_runtime_matches(
         ORIGINWEAVE_PROTOCOL_VERSION,
-        BrowserProtocolKind::WebDriverBiDi,
-        ADAPTER_VERSION,
-        PROTOCOL_REVISION,
-        BROWSER_REVISION,
+        runtime_metadata(ADAPTER_VERSION),
         BrowserProtocolCapability::Navigation,
         failing_dispatch as DispatchFn,
     )?;
