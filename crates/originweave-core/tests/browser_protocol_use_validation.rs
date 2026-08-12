@@ -32,6 +32,7 @@ fn validated_use_binds_all_required_adapter_metadata() -> Result<(), Box<dyn Err
     let descriptor = descriptor()?;
     let validated = descriptor.validate_use(
         ORIGINWEAVE_PROTOCOL_VERSION,
+        BrowserProtocolKind::WebDriverBiDi,
         PROTOCOL_REVISION,
         BROWSER_REVISION,
         BrowserProtocolCapability::Navigation,
@@ -61,6 +62,7 @@ fn protocol_generation_mismatch_precedes_runtime_and_capability_checks()
     assert_eq!(
         descriptor.validate_use(
             wrong_generation,
+            BrowserProtocolKind::ChromeDevToolsProtocol,
             "runtime revision with spaces",
             "browser/revision",
             BrowserProtocolCapability::NetworkObservation,
@@ -76,12 +78,42 @@ fn protocol_generation_mismatch_precedes_runtime_and_capability_checks()
 }
 
 #[test]
+fn runtime_protocol_kind_mismatch_precedes_revision_and_capability_checks()
+-> Result<(), Box<dyn Error>> {
+    let descriptor = descriptor()?;
+
+    let error = descriptor.validate_use(
+        ORIGINWEAVE_PROTOCOL_VERSION,
+        BrowserProtocolKind::ChromeDevToolsProtocol,
+        "runtime revision with spaces",
+        "browser/revision",
+        BrowserProtocolCapability::NetworkObservation,
+    );
+
+    assert_eq!(
+        error,
+        Err(BrowserProtocolUseValidationError::ProtocolKindMismatch {
+            descriptor_kind: BrowserProtocolKind::WebDriverBiDi,
+            runtime_kind: BrowserProtocolKind::ChromeDevToolsProtocol,
+        })
+    );
+    let error = error.err().ok_or("expected protocol kind mismatch")?;
+    assert_eq!(
+        error.to_string(),
+        "runtime browser protocol kind does not match the pinned adapter kind"
+    );
+    assert!(error.source().is_none());
+    Ok(())
+}
+
+#[test]
 fn runtime_revision_validation_precedes_capability_check() -> Result<(), Box<dyn Error>> {
     let descriptor = descriptor()?;
 
     assert_eq!(
         descriptor.validate_use(
             ORIGINWEAVE_PROTOCOL_VERSION,
+            BrowserProtocolKind::WebDriverBiDi,
             "webdriver-bidi-wd-2026-07-01",
             BROWSER_REVISION,
             BrowserProtocolCapability::NetworkObservation,
@@ -100,6 +132,7 @@ fn undeclared_capability_cannot_produce_validated_use() -> Result<(), Box<dyn Er
     assert_eq!(
         descriptor.validate_use(
             ORIGINWEAVE_PROTOCOL_VERSION,
+            BrowserProtocolKind::WebDriverBiDi,
             PROTOCOL_REVISION,
             BROWSER_REVISION,
             BrowserProtocolCapability::NetworkObservation,
@@ -149,25 +182,4 @@ fn validation_errors_preserve_stable_typed_sources() {
             Some(expected)
         );
     }
-}
-
-#[test]
-fn runtime_protocol_kind_mismatch_precedes_revision_and_capability_checks()
--> Result<(), Box<dyn Error>> {
-    let descriptor = descriptor()?;
-
-    assert_eq!(
-        descriptor.validate_use(
-            ORIGINWEAVE_PROTOCOL_VERSION,
-            BrowserProtocolKind::ChromeDevToolsProtocol,
-            "runtime revision with spaces",
-            "browser/revision",
-            BrowserProtocolCapability::NetworkObservation,
-        ),
-        Err(BrowserProtocolUseValidationError::ProtocolKindMismatch {
-            descriptor_kind: BrowserProtocolKind::WebDriverBiDi,
-            runtime_kind: BrowserProtocolKind::ChromeDevToolsProtocol,
-        })
-    );
-    Ok(())
 }
