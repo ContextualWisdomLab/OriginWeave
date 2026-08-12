@@ -339,7 +339,7 @@ def _read_payload(path: pathlib.Path) -> dict[str, Any]:
             content.decode("utf-8"),
             object_pairs_hook=_reject_duplicate_object_members,
         )
-    except (UnicodeError, json.JSONDecodeError) as error:
+    except (UnicodeError, json.JSONDecodeError, RecursionError) as error:
         raise WorkflowAuditError("input is not readable UTF-8 JSON") from error
     return _require_mapping(parsed, "payload")
 
