@@ -1,4 +1,4 @@
-"""Reject ambiguous duplicate-key JSON in workflow registry audit inputs."""
+"""Reject ambiguous or pathological JSON in workflow registry audit inputs."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ def _load_module():
 
 
 class WorkflowRegistryDuplicateJsonContractTests(unittest.TestCase):
-    """Require duplicate object names to fail before semantic audit validation."""
+    """Require ambiguous or pathological JSON to fail as bounded audit errors."""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -49,6 +49,18 @@ class WorkflowRegistryDuplicateJsonContractTests(unittest.TestCase):
             path.write_text(document, encoding="utf-8")
             with self.assertRaisesRegex(
                 self.audit.WorkflowAuditError, "duplicate JSON object member"
+            ):
+                self.audit._read_payload(path)
+
+    def test_pathological_json_nesting_fails_as_audit_error(self) -> None:
+        """Parser recursion exhaustion must not escape as an unbounded traceback."""
+
+        document = "[" * 2048 + "{}" + "]" * 2048
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "registry.json"
+            path.write_text(document, encoding="utf-8")
+            with self.assertRaisesRegex(
+                self.audit.WorkflowAuditError, "input is not readable UTF-8 JSON"
             ):
                 self.audit._read_payload(path)
 
