@@ -17,9 +17,9 @@ mod contracts;
 pub use browser_protocol::{
     BrowserProtocolAdapterDescriptor, BrowserProtocolCapability,
     BrowserProtocolCapabilityRequirementError, BrowserProtocolDescriptorError, BrowserProtocolKind,
-    BrowserProtocolRuntimeRequirementError, BrowserProtocolVersionRequirementError,
-    MAX_BROWSER_PROTOCOL_METADATA_BYTES, OriginWeaveProtocolVersion,
-    OriginWeaveProtocolVersionParseError,
+    BrowserProtocolRuntimeRequirementError, BrowserProtocolUseValidationError,
+    BrowserProtocolVersionRequirementError, MAX_BROWSER_PROTOCOL_METADATA_BYTES,
+    OriginWeaveProtocolVersion, OriginWeaveProtocolVersionParseError, ValidatedBrowserProtocolUse,
 };
 pub use browser_registry::{
     BrowserAuthorityRegistry, BrowserRegistryError, MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES,
