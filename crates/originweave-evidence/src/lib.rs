@@ -499,4 +499,5 @@ fn valid_structured_field_name(field_name: &str) -> bool {
     field_name
         .bytes()
         .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+        && field_name.bytes().any(|byte| byte.is_ascii_alphanumeric())
 }
