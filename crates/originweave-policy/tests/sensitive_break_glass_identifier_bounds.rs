@@ -5,9 +5,10 @@
 use originweave_core::Origin;
 use originweave_policy::{
     BreakGlassActorBinding, BreakGlassApprovalEvidence, BreakGlassApproverBinding,
-    BreakGlassValidityPolicy, DataClassification, DisclosureDecision, DisclosureScope,
-    SensitiveBreakGlassDecision, SensitiveBreakGlassRequest, SensitiveBreakGlassScope,
-    SensitiveDataAuthority, SensitiveDataRequest, evaluate_sensitive_break_glass,
+    BreakGlassIdentityBindings, BreakGlassValidityPolicy, DataClassification, DisclosureDecision,
+    DisclosureScope, SensitiveBreakGlassDecision, SensitiveBreakGlassRequest,
+    SensitiveBreakGlassScope, SensitiveDataAuthority, SensitiveDataRequest,
+    evaluate_sensitive_break_glass,
 };
 
 fn authority() -> SensitiveDataAuthority {
@@ -29,9 +30,10 @@ fn evaluate(
     let disclosure_request = SensitiveDataRequest::new(exact_authority.clone());
     let disclosure_scope =
         DisclosureScope::new(exact_authority, DisclosureDecision::DualControlRequired);
-    let actor_binding = BreakGlassActorBinding::new("support-operator-42", "support-operator-42");
-    let approver_binding =
-        BreakGlassApproverBinding::dual_control("support-approver-7", "security-approver-9");
+    let identity_bindings = BreakGlassIdentityBindings::new(
+        BreakGlassActorBinding::new("support-operator-42", "support-operator-42"),
+        BreakGlassApproverBinding::dual_control("support-approver-7", "security-approver-9"),
+    );
     let validity_policy = BreakGlassValidityPolicy::new(100);
 
     evaluate_sensitive_break_glass(
@@ -39,8 +41,7 @@ fn evaluate(
         &disclosure_scope,
         &request,
         &scope,
-        &actor_binding,
-        &approver_binding,
+        &identity_bindings,
         &validity_policy,
         150,
     )
