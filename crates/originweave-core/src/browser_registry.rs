@@ -118,6 +118,34 @@ impl BrowserAuthorityRegistry {
             .ok_or(BrowserRegistryError::UnknownBrowsingContext)
     }
 
+    /// Return the current document epoch only when the supplied session owns the context.
+    ///
+    /// This is an immediate-use registry check for trusted browser adapters. It proves only that
+    /// the OriginWeave session/context pair is currently registered together and returns the
+    /// registry's current document epoch. It does not authenticate a browser process, authorize an
+    /// origin or action, or make the returned epoch a reusable browser capability.
+    pub fn current_context_epoch(
+        &self,
+        browser_session: BrowserSessionId,
+        browsing_context: BrowsingContextId,
+    ) -> Result<DocumentEpoch, BrowserRegistryError> {
+        if !self.known_sessions.contains(&browser_session) {
+            return Err(BrowserRegistryError::UnknownBrowserSession);
+        }
+        let expected_session = self
+            .context_session
+            .get(&browsing_context)
+            .copied()
+            .ok_or(BrowserRegistryError::UnknownBrowsingContext)?;
+        if expected_session != browser_session {
+            return Err(BrowserRegistryError::ContextSessionMismatch {
+                expected: expected_session,
+                actual: browser_session,
+            });
+        }
+        self.current_epoch(browsing_context)
+    }
+
     /// Advance a browsing context to the next document epoch and invalidate old node bindings.
     ///
     /// Call this whenever navigation or document replacement invalidates actionable node identity.
