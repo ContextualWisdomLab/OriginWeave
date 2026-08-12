@@ -100,24 +100,62 @@ fn dual_control_requires_two_distinct_non_beneficiary_approver_identities() {
         SensitiveBreakGlassDecision::InvalidApproverBinding
     );
 
+    for approvers in [
+        BreakGlassApproverBinding::dual_control(ACTOR_ID, "security-approver-9"),
+        BreakGlassApproverBinding::dual_control("support-approver-7", ACTOR_ID),
+    ] {
+        assert_eq!(
+            evaluate(
+                DisclosureDecision::DualControlRequired,
+                BreakGlassApprovalEvidence::dual_control("approval-human-1", "approval-human-2"),
+                approvers,
+            ),
+            SensitiveBreakGlassDecision::ApproverIndependenceRequired
+        );
+    }
+}
+
+#[test]
+fn malformed_approver_identity_fails_closed() {
     assert_eq!(
         evaluate(
-            DisclosureDecision::DualControlRequired,
-            BreakGlassApprovalEvidence::dual_control("approval-human-1", "approval-human-2"),
-            BreakGlassApproverBinding::dual_control("support-approver-7", ACTOR_ID),
+            DisclosureDecision::HumanApprovalRequired,
+            BreakGlassApprovalEvidence::human("approval-human-1"),
+            BreakGlassApproverBinding::human("approver id with spaces"),
         ),
-        SensitiveBreakGlassDecision::ApproverIndependenceRequired
+        SensitiveBreakGlassDecision::InvalidApproverBinding
     );
+
+    for approvers in [
+        BreakGlassApproverBinding::dual_control("approver id with spaces", "security-approver-9"),
+        BreakGlassApproverBinding::dual_control("support-approver-7", "approver id with spaces"),
+    ] {
+        assert_eq!(
+            evaluate(
+                DisclosureDecision::DualControlRequired,
+                BreakGlassApprovalEvidence::dual_control("approval-human-1", "approval-human-2"),
+                approvers,
+            ),
+            SensitiveBreakGlassDecision::InvalidApproverBinding
+        );
+    }
 }
 
 #[test]
 fn approver_binding_shape_must_match_the_supplied_approval_evidence() {
-    assert_eq!(
-        evaluate(
-            DisclosureDecision::DualControlRequired,
+    for (approval, approvers) in [
+        (
+            BreakGlassApprovalEvidence::human("approval-human-1"),
+            BreakGlassApproverBinding::dual_control("support-approver-7", "security-approver-9"),
+        ),
+        (
             BreakGlassApprovalEvidence::dual_control("approval-human-1", "approval-human-2"),
             BreakGlassApproverBinding::human("support-approver-7"),
         ),
-        SensitiveBreakGlassDecision::ApproverBindingMismatch
-    );
+    ] {
+        assert_eq!(
+            evaluate(DisclosureDecision::DualControlRequired, approval, approvers),
+            SensitiveBreakGlassDecision::ApproverBindingMismatch
+        );
+    }
 }
