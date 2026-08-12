@@ -73,7 +73,10 @@ impl SemanticNodeActionTarget {
         if current_observation.handle() != &self.handle {
             return Err(SemanticNodeActionTargetError::ObservationAuthorityMismatch);
         }
-        if !current_observation.supported_actions().contains(&self.action) {
+        if !current_observation
+            .supported_actions()
+            .contains(&self.action)
+        {
             return Err(SemanticNodeActionTargetError::UnsupportedAction);
         }
         if self.action != NodeActionKind::ScrollIntoView && !current_observation.is_enabled() {
