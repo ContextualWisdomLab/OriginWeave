@@ -4,10 +4,10 @@
 
 use originweave_core::Origin;
 use originweave_policy::{
-    BreakGlassApprovalEvidence, BreakGlassValidityPolicy, DataClassification, DisclosureDecision,
-    DisclosureScope, SensitiveBreakGlassDecision, SensitiveBreakGlassRequest,
-    SensitiveBreakGlassScope, SensitiveDataAuthority, SensitiveDataRequest,
-    evaluate_sensitive_break_glass,
+    BreakGlassActorBinding, BreakGlassApprovalEvidence, BreakGlassValidityPolicy,
+    DataClassification, DisclosureDecision, DisclosureScope, SensitiveBreakGlassDecision,
+    SensitiveBreakGlassRequest, SensitiveBreakGlassScope, SensitiveDataAuthority,
+    SensitiveDataRequest, evaluate_sensitive_break_glass,
 };
 
 const VALID_FROM: u64 = 100;
@@ -26,11 +26,11 @@ fn authority() -> SensitiveDataAuthority {
     )
 }
 
-fn request(actor_id: &str) -> SensitiveBreakGlassRequest {
-    SensitiveBreakGlassRequest::new(authority(), "incident-ticket-42").for_actor(actor_id)
+fn request() -> SensitiveBreakGlassRequest {
+    SensitiveBreakGlassRequest::new(authority(), "incident-ticket-42")
 }
 
-fn scope(actor_id: &str, valid_from: u64, valid_until: u64) -> SensitiveBreakGlassScope {
+fn scope(valid_from: u64, valid_until: u64) -> SensitiveBreakGlassScope {
     SensitiveBreakGlassScope::new(
         authority(),
         "incident-ticket-42",
@@ -40,12 +40,12 @@ fn scope(actor_id: &str, valid_from: u64, valid_until: u64) -> SensitiveBreakGla
         true,
         true,
     )
-    .for_actor(actor_id)
 }
 
 fn evaluate(
     request: SensitiveBreakGlassRequest,
     scope: SensitiveBreakGlassScope,
+    actor_binding: BreakGlassActorBinding,
     validity_policy: BreakGlassValidityPolicy,
 ) -> SensitiveBreakGlassDecision {
     let exact_authority = authority();
@@ -58,6 +58,7 @@ fn evaluate(
         &disclosure_scope,
         &request,
         &scope,
+        &actor_binding,
         &validity_policy,
         TRUSTED_TIME,
     )
@@ -67,8 +68,9 @@ fn evaluate(
 fn exact_actor_and_reviewed_short_window_are_authorized() {
     assert_eq!(
         evaluate(
-            request("support-operator-42"),
-            scope("support-operator-42", VALID_FROM, VALID_UNTIL),
+            request(),
+            scope(VALID_FROM, VALID_UNTIL),
+            BreakGlassActorBinding::new("support-operator-42", "support-operator-42"),
             BreakGlassValidityPolicy::new(MAXIMUM_WINDOW),
         ),
         SensitiveBreakGlassDecision::Authorized
@@ -79,8 +81,9 @@ fn exact_actor_and_reviewed_short_window_are_authorized() {
 fn break_glass_actor_identity_is_non_transferable() {
     assert_eq!(
         evaluate(
-            request("support-operator-42"),
-            scope("support-operator-other", VALID_FROM, VALID_UNTIL),
+            request(),
+            scope(VALID_FROM, VALID_UNTIL),
+            BreakGlassActorBinding::new("support-operator-42", "support-operator-other"),
             BreakGlassValidityPolicy::new(MAXIMUM_WINDOW),
         ),
         SensitiveBreakGlassDecision::ActorMismatch
@@ -88,24 +91,26 @@ fn break_glass_actor_identity_is_non_transferable() {
 }
 
 #[test]
-fn malformed_request_or_scope_actor_identity_fails_closed() {
+fn malformed_actor_binding_fails_closed() {
     assert_eq!(
         evaluate(
-            request(""),
-            scope("support-operator-42", VALID_FROM, VALID_UNTIL),
+            request(),
+            scope(VALID_FROM, VALID_UNTIL),
+            BreakGlassActorBinding::new("", "support-operator-42"),
             BreakGlassValidityPolicy::new(MAXIMUM_WINDOW),
         ),
-        SensitiveBreakGlassDecision::InvalidRequest
+        SensitiveBreakGlassDecision::InvalidActorBinding
     );
 
     let oversized_actor = "a".repeat(129);
     assert_eq!(
         evaluate(
-            request("support-operator-42"),
-            scope(oversized_actor.as_str(), VALID_FROM, VALID_UNTIL),
+            request(),
+            scope(VALID_FROM, VALID_UNTIL),
+            BreakGlassActorBinding::new("support-operator-42", oversized_actor.as_str()),
             BreakGlassValidityPolicy::new(MAXIMUM_WINDOW),
         ),
-        SensitiveBreakGlassDecision::InvalidScope
+        SensitiveBreakGlassDecision::InvalidActorBinding
     );
 }
 
@@ -113,8 +118,9 @@ fn malformed_request_or_scope_actor_identity_fails_closed() {
 fn invalid_or_overlong_break_glass_windows_fail_closed() {
     assert_eq!(
         evaluate(
-            request("support-operator-42"),
-            scope("support-operator-42", VALID_FROM, VALID_UNTIL),
+            request(),
+            scope(VALID_FROM, VALID_UNTIL),
+            BreakGlassActorBinding::new("support-operator-42", "support-operator-42"),
             BreakGlassValidityPolicy::new(0),
         ),
         SensitiveBreakGlassDecision::InvalidValidityPolicy
@@ -122,8 +128,9 @@ fn invalid_or_overlong_break_glass_windows_fail_closed() {
 
     assert_eq!(
         evaluate(
-            request("support-operator-42"),
-            scope("support-operator-42", VALID_FROM, VALID_UNTIL + 1),
+            request(),
+            scope(VALID_FROM, VALID_UNTIL + 1),
+            BreakGlassActorBinding::new("support-operator-42", "support-operator-42"),
             BreakGlassValidityPolicy::new(MAXIMUM_WINDOW),
         ),
         SensitiveBreakGlassDecision::ValidityWindowTooLong
