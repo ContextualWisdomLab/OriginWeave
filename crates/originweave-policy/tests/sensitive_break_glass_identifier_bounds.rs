@@ -4,9 +4,10 @@
 
 use originweave_core::Origin;
 use originweave_policy::{
-    BreakGlassApprovalEvidence, DataClassification, DisclosureDecision, DisclosureScope,
-    SensitiveBreakGlassDecision, SensitiveBreakGlassRequest, SensitiveBreakGlassScope,
-    SensitiveDataAuthority, SensitiveDataRequest, evaluate_sensitive_break_glass,
+    BreakGlassActorBinding, BreakGlassApprovalEvidence, BreakGlassValidityPolicy,
+    DataClassification, DisclosureDecision, DisclosureScope, SensitiveBreakGlassDecision,
+    SensitiveBreakGlassRequest, SensitiveBreakGlassScope, SensitiveDataAuthority,
+    SensitiveDataRequest, evaluate_sensitive_break_glass,
 };
 
 fn authority() -> SensitiveDataAuthority {
@@ -28,12 +29,17 @@ fn evaluate(
     let disclosure_request = SensitiveDataRequest::new(exact_authority.clone());
     let disclosure_scope =
         DisclosureScope::new(exact_authority, DisclosureDecision::DualControlRequired);
+    let actor_binding =
+        BreakGlassActorBinding::new("support-operator-42", "support-operator-42");
+    let validity_policy = BreakGlassValidityPolicy::new(100);
 
     evaluate_sensitive_break_glass(
         &disclosure_request,
         &disclosure_scope,
         &request,
         &scope,
+        &actor_binding,
+        &validity_policy,
         150,
     )
 }

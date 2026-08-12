@@ -10,14 +10,17 @@
 
 use originweave_core::Origin;
 use originweave_policy::{
-    BreakGlassApprovalEvidence, DataClassification, DisclosureDecision, DisclosureScope,
-    SensitiveBreakGlassDecision, SensitiveBreakGlassRequest, SensitiveBreakGlassScope,
-    SensitiveDataAuthority, SensitiveDataRequest, evaluate_sensitive_break_glass,
+    BreakGlassActorBinding, BreakGlassApprovalEvidence, BreakGlassValidityPolicy,
+    DataClassification, DisclosureDecision, DisclosureScope, SensitiveBreakGlassDecision,
+    SensitiveBreakGlassRequest, SensitiveBreakGlassScope, SensitiveDataAuthority,
+    SensitiveDataRequest, evaluate_sensitive_break_glass,
 };
 
 const VALID_FROM: u64 = 100;
 const VALID_UNTIL: u64 = 200;
 const TRUSTED_TIME: u64 = 150;
+const ACTOR_ID: &str = "support-operator-42";
+const MAXIMUM_WINDOW: u64 = VALID_UNTIL - VALID_FROM;
 
 fn authority(task_id: &str) -> SensitiveDataAuthority {
     SensitiveDataAuthority::new(
@@ -39,12 +42,16 @@ fn evaluate(
     let exact_authority = authority("task-42");
     let disclosure_request = SensitiveDataRequest::new(exact_authority.clone());
     let disclosure_scope = DisclosureScope::new(exact_authority, disclosure_decision);
+    let actor_binding = BreakGlassActorBinding::new(ACTOR_ID, ACTOR_ID);
+    let validity_policy = BreakGlassValidityPolicy::new(MAXIMUM_WINDOW);
 
     evaluate_sensitive_break_glass(
         &disclosure_request,
         &disclosure_scope,
         &break_glass_request,
         &break_glass_scope,
+        &actor_binding,
+        &validity_policy,
         trusted_time,
     )
 }

@@ -2,10 +2,10 @@
 //!
 //! Break-glass is not a reusable role or an alternative disclosure authority. This module permits
 //! only an existing human-approval or dual-control sensitive-data decision to proceed after exact
-//! authority and reason binding, a bounded half-open validity window, sufficient approval evidence,
-//! heightened monitoring, and mandatory post-event review are all explicit. The types carry policy
-//! metadata only; they never carry protected values, authenticate identities, read a clock, execute
-//! monitoring, persist evidence, or perform a review.
+//! authority, actor, and reason binding, a locally bounded half-open validity window, sufficient
+//! approval evidence, heightened monitoring, and mandatory post-event review are all explicit. The
+//! types carry policy metadata only; they never carry protected values, authenticate identities,
+//! read a clock, execute monitoring, persist evidence, or perform a review.
 
 use crate::sensitive_data::{
     DisclosureDecision, DisclosureScope, SensitiveDataAuthority, SensitiveDataRequest,
@@ -103,6 +103,60 @@ enum BreakGlassApprovalRequirement {
     DualControl,
 }
 
+/// Caller-supplied actor identity binding for one break-glass evaluation.
+///
+/// `current_actor_id` identifies the currently authenticated actor according to the trusted caller;
+/// `approved_actor_id` identifies the actor covered by the exceptional approval. Both values use a
+/// bounded credential-free identifier grammar and must match exactly. Constructing this value does
+/// not authenticate either identity or prove that the caller derived them from a trusted source.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BreakGlassActorBinding {
+    current_actor_id: String,
+    approved_actor_id: String,
+}
+
+impl BreakGlassActorBinding {
+    /// Build one exact current-actor to approved-actor binding.
+    #[must_use]
+    pub fn new(current_actor_id: &str, approved_actor_id: &str) -> Self {
+        Self {
+            current_actor_id: current_actor_id.to_owned(),
+            approved_actor_id: approved_actor_id.to_owned(),
+        }
+    }
+
+    fn is_valid(&self) -> bool {
+        break_glass_identifier_is_valid(&self.current_actor_id)
+            && break_glass_identifier_is_valid(&self.approved_actor_id)
+    }
+
+    fn matches(&self) -> bool {
+        self.current_actor_id == self.approved_actor_id
+    }
+}
+
+/// Local policy ceiling for one break-glass validity interval.
+///
+/// The maximum uses the same trusted time units as the scope and evaluation time. A zero maximum is
+/// invalid. This value is explicit policy input; it does not select a time unit, read a clock, attest
+/// clock provenance, or prove that an arbitrary caller supplied the reviewed local ceiling.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BreakGlassValidityPolicy {
+    maximum_window: u64,
+}
+
+impl BreakGlassValidityPolicy {
+    /// Build a local maximum accepted break-glass validity window.
+    #[must_use]
+    pub const fn new(maximum_window: u64) -> Self {
+        Self { maximum_window }
+    }
+
+    fn is_valid(self) -> bool {
+        self.maximum_window > 0
+    }
+}
+
 /// One requested exceptional disclosure without protected field bytes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SensitiveBreakGlassRequest {
@@ -190,14 +244,22 @@ pub enum SensitiveBreakGlassDecision {
     DisclosureNotApprovalGated(DisclosureDecision),
     /// Request or scope authority differed from the ordinary disclosure authority.
     AuthorityMismatch,
+    /// Current or approved actor identity metadata was malformed or outside the bounded grammar.
+    InvalidActorBinding,
+    /// The currently authenticated actor differed from the actor covered by the approval.
+    ActorMismatch,
     /// Requested and approved break-glass reason identifiers differed.
     ReasonMismatch,
     /// Request reason metadata was malformed or outside the bounded grammar.
     InvalidRequest,
     /// Scope reason or approval metadata was malformed or internally inconsistent.
     InvalidScope,
+    /// The local maximum validity window was zero and therefore unusable.
+    InvalidValidityPolicy,
     /// The exceptional-access validity interval was empty or reversed.
     InvalidValidityWindow,
+    /// The exceptional-access validity interval exceeded the reviewed local maximum.
+    ValidityWindowTooLong,
     /// Trusted evaluation time was before the approved validity interval.
     NotYetValid,
     /// Trusted evaluation time was at or after the exclusive validity deadline.
@@ -217,7 +279,8 @@ pub enum SensitiveBreakGlassDecision {
 /// [`DisclosureDecision::HumanApprovalRequired`] or [`DisclosureDecision::DualControlRequired`]
 /// result reaches the exceptional controls.
 ///
-/// `trusted_time` must come from the same trusted time domain that issued the scope interval. Even an
+/// `actor_binding` and `trusted_time` must be supplied by a trusted runtime. The time must use the
+/// same domain and units as the scope and [`BreakGlassValidityPolicy`]. Even an
 /// [`SensitiveBreakGlassDecision::Authorized`] result is metadata-only: a trusted broker must
 /// authenticate the current caller and approvers, revalidate policy/lifecycle immediately before
 /// disclosure, execute monitoring, emit durable audit evidence, and ensure post-event review occurs.
@@ -227,6 +290,8 @@ pub fn evaluate_sensitive_break_glass(
     disclosure_scope: &DisclosureScope,
     break_glass_request: &SensitiveBreakGlassRequest,
     break_glass_scope: &SensitiveBreakGlassScope,
+    actor_binding: &BreakGlassActorBinding,
+    validity_policy: &BreakGlassValidityPolicy,
     trusted_time: u64,
 ) -> SensitiveBreakGlassDecision {
     let disclosure_decision = evaluate_disclosure(disclosure_request, disclosure_scope);
@@ -242,16 +307,30 @@ pub fn evaluate_sensitive_break_glass(
     if !break_glass_scope.is_valid() {
         return SensitiveBreakGlassDecision::InvalidScope;
     }
+    if !actor_binding.is_valid() {
+        return SensitiveBreakGlassDecision::InvalidActorBinding;
+    }
+    if !validity_policy.is_valid() {
+        return SensitiveBreakGlassDecision::InvalidValidityPolicy;
+    }
     if !break_glass_request.matches_disclosure_request(disclosure_request)
         || !break_glass_scope.matches_disclosure_request(disclosure_request)
     {
         return SensitiveBreakGlassDecision::AuthorityMismatch;
+    }
+    if !actor_binding.matches() {
+        return SensitiveBreakGlassDecision::ActorMismatch;
     }
     if break_glass_request.reason_id != break_glass_scope.reason_id {
         return SensitiveBreakGlassDecision::ReasonMismatch;
     }
     if break_glass_scope.valid_from >= break_glass_scope.valid_until {
         return SensitiveBreakGlassDecision::InvalidValidityWindow;
+    }
+    if break_glass_scope.valid_until - break_glass_scope.valid_from
+        > validity_policy.maximum_window
+    {
+        return SensitiveBreakGlassDecision::ValidityWindowTooLong;
     }
     if trusted_time < break_glass_scope.valid_from {
         return SensitiveBreakGlassDecision::NotYetValid;
