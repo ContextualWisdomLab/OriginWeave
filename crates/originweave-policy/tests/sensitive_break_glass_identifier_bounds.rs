@@ -32,7 +32,12 @@ fn evaluate(
         DisclosureScope::new(exact_authority, DisclosureDecision::DualControlRequired);
     let identity_bindings = BreakGlassIdentityBindings::new(
         BreakGlassActorBinding::new("support-operator-42", "support-operator-42"),
-        BreakGlassApproverBinding::dual_control("support-approver-7", "security-approver-9"),
+        BreakGlassApproverBinding::dual_control(
+            "approval-human-1",
+            "support-approver-7",
+            "approval-human-2",
+            "security-approver-9",
+        ),
     );
     let validity_policy = BreakGlassValidityPolicy::new(100);
 
