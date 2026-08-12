@@ -153,6 +153,23 @@ fn generic_constructor_cannot_bypass_node_identity_binding() {
 }
 
 #[test]
+fn node_state_common_validation_fails_before_node_identity_binding() {
+    let target_node = node(17);
+    let error = VerifiedActionOutcomeEvidence::new_node_state(
+        ActionKind::Submit,
+        target_node.clone(),
+        intent(),
+        DISPATCHED_AT_MILLISECONDS,
+        OBSERVED_AT_MILLISECONDS,
+        target_node,
+        provenance(VerificationResult::Unverified),
+    )
+    .expect_err("unverified node-state provenance must fail before identity checks");
+
+    assert_eq!(error, VerifiedActionOutcomeError::PostConditionNotVerified);
+}
+
+#[test]
 fn node_state_post_condition_provenance_must_match_the_action_target_origin() {
     let target_node = node(17);
     let error = VerifiedActionOutcomeEvidence::new_node_state(
