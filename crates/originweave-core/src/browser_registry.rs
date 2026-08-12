@@ -329,8 +329,9 @@ impl fmt::Display for BrowserRegistryError {
                 expected.value(),
                 actual.value()
             ),
-            Self::ContextOriginNotBound => formatter
-                .write_str("browsing context has no canonical origin bound for the current document"),
+            Self::ContextOriginNotBound => formatter.write_str(
+                "browsing context has no canonical origin bound for the current document",
+            ),
             Self::OriginChangedWithoutDocumentAdvance => formatter
                 .write_str("browsing context origin changed without advancing the document epoch"),
             Self::IdentifierSpaceExhausted => {
