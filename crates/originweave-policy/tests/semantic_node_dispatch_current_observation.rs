@@ -97,8 +97,8 @@ fn exact_current_semantic_observation_reaches_dispatch() -> Result<(), String> {
     let current = observation(17, true, BTreeSet::from([NodeActionKind::Click]))?;
     let called = Cell::new(false);
 
-    let adapter_result =
-        dispatch_action(&authorized, &current, &called, false).map_err(|error| error.to_string())?;
+    let adapter_result = dispatch_action(&authorized, &current, &called, false)
+        .map_err(|error| error.to_string())?;
 
     assert_eq!(
         adapter_result,
