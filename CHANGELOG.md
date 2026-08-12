@@ -47,6 +47,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 ### Security
 
 - Raw page content cannot become a trusted instruction.
+- Controlled Agent Task compatibility evidence is machine-checked to contain only the reviewed `input` and `submit` browser-computed role/name fields before bounded measurement, preventing unreviewed page text or instruction-like fields from silently entering that evidence object.
 - Raw secrets are rejected and secret-capable actions require an opaque broker handle.
 - Crawler mode is read-only, must pair with the public-crawl purpose, and fails closed without an applicable robots-policy decision.
 - State-changing actions are same-origin by default.
