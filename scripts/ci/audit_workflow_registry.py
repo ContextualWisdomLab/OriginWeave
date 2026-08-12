@@ -182,7 +182,9 @@ def _classify_workflow(
     """Classify one registry record using exact path ownership, never display name."""
 
     if path in protected_paths:
-        return "present_repository_workflow"
+        if state == "active":
+            return "present_repository_workflow"
+        return "disabled_present_repository_workflow"
     if path in active_pr_paths:
         return "active_pr_owned_workflow"
     if path.startswith(_REPOSITORY_WORKFLOW_PREFIX):
