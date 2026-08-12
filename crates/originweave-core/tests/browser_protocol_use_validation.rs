@@ -1,9 +1,10 @@
 use std::error::Error;
 
 use originweave_core::{
-    BrowserProtocolAdapterDescriptor, BrowserProtocolCapability, BrowserProtocolKind,
-    BrowserProtocolUseValidationError, BrowserProtocolVersionRequirementError,
-    OriginWeaveProtocolVersion,
+    BrowserProtocolAdapterDescriptor, BrowserProtocolCapability,
+    BrowserProtocolCapabilityRequirementError, BrowserProtocolKind,
+    BrowserProtocolRuntimeRequirementError, BrowserProtocolUseValidationError,
+    BrowserProtocolVersionRequirementError, OriginWeaveProtocolVersion,
 };
 
 const ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion =
@@ -86,7 +87,7 @@ fn runtime_revision_validation_precedes_capability_check() -> Result<(), Box<dyn
             BrowserProtocolCapability::NetworkObservation,
         ),
         Err(BrowserProtocolUseValidationError::RuntimeRevision(
-            originweave_core::BrowserProtocolRuntimeRequirementError::ProtocolRevisionMismatch,
+            BrowserProtocolRuntimeRequirementError::ProtocolRevisionMismatch,
         ))
     );
     Ok(())
@@ -104,10 +105,48 @@ fn undeclared_capability_cannot_produce_validated_use() -> Result<(), Box<dyn Er
             BrowserProtocolCapability::NetworkObservation,
         ),
         Err(BrowserProtocolUseValidationError::Capability(
-            originweave_core::BrowserProtocolCapabilityRequirementError::UnsupportedCapability(
+            BrowserProtocolCapabilityRequirementError::UnsupportedCapability(
                 BrowserProtocolCapability::NetworkObservation,
             ),
         ))
     );
     Ok(())
+}
+
+#[test]
+fn validation_errors_preserve_stable_typed_sources() {
+    let wrong_generation = OriginWeaveProtocolVersion::new(0, 2);
+    let cases = [
+        (
+            BrowserProtocolUseValidationError::ProtocolVersion(
+                BrowserProtocolVersionRequirementError::ProtocolVersionMismatch {
+                    required: wrong_generation,
+                    actual: ORIGINWEAVE_PROTOCOL_VERSION,
+                },
+            ),
+            "browser protocol adapter targets originweave/0.1 but originweave/0.2 is required",
+        ),
+        (
+            BrowserProtocolUseValidationError::RuntimeRevision(
+                BrowserProtocolRuntimeRequirementError::ProtocolRevisionMismatch,
+            ),
+            "runtime browser protocol revision does not match the pinned adapter revision",
+        ),
+        (
+            BrowserProtocolUseValidationError::Capability(
+                BrowserProtocolCapabilityRequirementError::UnsupportedCapability(
+                    BrowserProtocolCapability::NetworkObservation,
+                ),
+            ),
+            "browser protocol adapter does not declare required network-observation capability",
+        ),
+    ];
+
+    for (error, expected) in cases {
+        assert_eq!(error.to_string(), expected);
+        assert_eq!(
+            error.source().map(ToString::to_string).as_deref(),
+            Some(expected)
+        );
+    }
 }
