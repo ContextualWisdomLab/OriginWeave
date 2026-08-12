@@ -6,7 +6,7 @@ import importlib.util
 import pathlib
 import tempfile
 import unittest
-from unittest import mock
+import unittest.mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "ci" / "audit_workflow_registry.py"
@@ -59,7 +59,7 @@ class WorkflowRegistryDuplicateJsonContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = pathlib.Path(directory) / "registry.json"
             path.write_text("{}", encoding="utf-8")
-            with mock.patch.object(
+            with unittest.mock.patch.object(
                 self.audit.json,
                 "loads",
                 side_effect=RecursionError("pathological JSON nesting"),
