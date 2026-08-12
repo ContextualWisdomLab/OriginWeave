@@ -16,13 +16,16 @@ pub struct SemanticNodeActionTarget {
 }
 
 impl SemanticNodeActionTarget {
-    /// Construct a target only when the observation advertised the requested node-local action.
+    /// Construct a target only when the observation advertises a currently coherent node action.
     pub fn from_observation(
         observation: &SemanticNodeObservation,
         action: NodeActionKind,
     ) -> Result<Self, SemanticNodeActionTargetError> {
         if !observation.supported_actions().contains(&action) {
             return Err(SemanticNodeActionTargetError::UnsupportedAction);
+        }
+        if action != NodeActionKind::ScrollIntoView && !observation.is_enabled() {
+            return Err(SemanticNodeActionTargetError::NodeNotEnabled);
         }
         Ok(Self {
             handle: observation.handle().clone(),
@@ -64,6 +67,8 @@ impl SemanticNodeActionTarget {
 pub enum SemanticNodeActionTargetError {
     /// The requested action was not advertised by the semantic observation.
     UnsupportedAction,
+    /// The observation reported the target disabled for an interactive action.
+    NodeNotEnabled,
 }
 
 impl fmt::Display for SemanticNodeActionTargetError {
@@ -71,6 +76,9 @@ impl fmt::Display for SemanticNodeActionTargetError {
         match self {
             Self::UnsupportedAction => {
                 formatter.write_str("semantic node action is not advertised by the observation")
+            }
+            Self::NodeNotEnabled => {
+                formatter.write_str("semantic node is not enabled for the requested action")
             }
         }
     }
