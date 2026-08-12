@@ -106,7 +106,7 @@ fn malformed_field_identifiers_fail_closed() -> Result<(), String> {
         VerificationResult::Verified,
     )?;
 
-    for field_name in ["", "task status", "task/status"] {
+    for field_name in ["", "---", "task status", "task/status"] {
         let error = StructuredValueEvidence::new(
             field_name,
             VALID_VALUE_HASH,
