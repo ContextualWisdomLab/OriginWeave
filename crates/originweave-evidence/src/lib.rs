@@ -8,11 +8,16 @@
 #![deny(missing_docs)]
 
 mod sensitive_access;
+mod sensitive_break_glass;
 
 pub use sensitive_access::{
     MAX_SENSITIVE_FIELD_COUNT, MAX_SENSITIVE_IDENTIFIER_BYTES, SensitiveAccessClass,
     SensitiveAccessEvidence, SensitiveAccessEvidenceInput, SensitiveAccessOutcome,
     SensitiveEvidenceError,
+};
+pub use sensitive_break_glass::{
+    SensitiveBreakGlassApprovalMode, SensitiveBreakGlassEvidence,
+    SensitiveBreakGlassEvidenceError, SensitiveBreakGlassEvidenceInput,
 };
 
 use std::collections::BTreeMap;
