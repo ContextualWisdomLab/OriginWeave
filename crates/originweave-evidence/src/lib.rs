@@ -21,7 +21,7 @@ pub use sensitive_access::{
 
 use std::collections::BTreeMap;
 
-use originweave_core::Origin;
+use originweave_core::{ObservedNodeHandle, Origin};
 
 const REDACTED: &str = "[REDACTED]";
 
@@ -37,6 +37,8 @@ pub const MAX_METADATA_NAME_BYTES: usize = 256;
 pub const MAX_METADATA_VALUE_BYTES: usize = 8_192;
 /// Maximum source URL or source-locator size retained in provenance metadata.
 pub const MAX_PROVENANCE_TEXT_BYTES: usize = 8_192;
+/// Maximum byte length of one structured extracted-field identifier.
+pub const MAX_STRUCTURED_FIELD_NAME_BYTES: usize = 128;
 
 /// An HTTP method recorded for network evidence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -364,4 +366,137 @@ fn valid_sha256(source_hash: &str) -> bool {
         && hex_digest
             .bytes()
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+/// A credential-safe proof bundle for one extracted structured value.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StructuredValueEvidence {
+    field_name: String,
+    value_hash: String,
+    source_node: ObservedNodeHandle,
+    node_provenance: ProvenanceRecord,
+    network_provenance: ProvenanceRecord,
+}
+
+impl StructuredValueEvidence {
+    /// Bind one structured field digest to exact node and network provenance.
+    pub fn new(
+        field_name: &str,
+        value_hash: &str,
+        source_node: ObservedNodeHandle,
+        node_provenance: ProvenanceRecord,
+        network_provenance: ProvenanceRecord,
+    ) -> Result<Self, StructuredValueEvidenceError> {
+        if !valid_structured_field_name(field_name) {
+            return Err(StructuredValueEvidenceError::InvalidFieldName);
+        }
+        if !valid_sha256(value_hash) {
+            return Err(StructuredValueEvidenceError::InvalidValueHash);
+        }
+        if node_provenance.verification_result() != VerificationResult::Verified {
+            return Err(StructuredValueEvidenceError::NodeProvenanceNotVerified);
+        }
+        if !matches!(
+            node_provenance.source_kind(),
+            EvidenceSourceKind::DomTree | EvidenceSourceKind::AccessibilityTree
+        ) {
+            return Err(StructuredValueEvidenceError::NodeProvenanceKindMismatch);
+        }
+        if network_provenance.verification_result() != VerificationResult::Verified {
+            return Err(StructuredValueEvidenceError::NetworkProvenanceNotVerified);
+        }
+        if network_provenance.source_kind() != EvidenceSourceKind::NetworkResponse {
+            return Err(StructuredValueEvidenceError::NetworkProvenanceKindMismatch);
+        }
+        if node_provenance.source_origin() != source_node.origin()
+            || network_provenance.source_origin() != source_node.origin()
+        {
+            return Err(StructuredValueEvidenceError::SourceOriginMismatch);
+        }
+        Ok(Self {
+            field_name: field_name.to_owned(),
+            value_hash: value_hash.to_owned(),
+            source_node,
+            node_provenance,
+            network_provenance,
+        })
+    }
+
+    /// Return the bounded structured field identifier.
+    #[must_use]
+    pub fn field_name(&self) -> &str {
+        &self.field_name
+    }
+
+    /// Return the lowercase SHA-256 digest of the canonical extracted value bytes.
+    #[must_use]
+    pub fn value_hash(&self) -> &str {
+        &self.value_hash
+    }
+
+    /// Return the exact OriginWeave-owned source node.
+    #[must_use]
+    pub const fn source_node(&self) -> &ObservedNodeHandle {
+        &self.source_node
+    }
+
+    /// Return the independently verified DOM/accessibility provenance for the source node.
+    #[must_use]
+    pub const fn node_provenance(&self) -> &ProvenanceRecord {
+        &self.node_provenance
+    }
+
+    /// Return the independently verified network provenance associated with the value.
+    #[must_use]
+    pub const fn network_provenance(&self) -> &ProvenanceRecord {
+        &self.network_provenance
+    }
+}
+
+/// A fail-closed reason why structured extraction evidence could not be constructed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StructuredValueEvidenceError {
+    /// The structured field identifier was empty, oversized, or contained unsupported bytes.
+    InvalidFieldName,
+    /// The value digest was not a canonical lowercase SHA-256 identifier.
+    InvalidValueHash,
+    /// The node provenance did not carry independent verified status.
+    NodeProvenanceNotVerified,
+    /// The node provenance was not a DOM or accessibility observation.
+    NodeProvenanceKindMismatch,
+    /// The network provenance did not carry independent verified status.
+    NetworkProvenanceNotVerified,
+    /// The network provenance was not a structured network-response observation.
+    NetworkProvenanceKindMismatch,
+    /// Node or network provenance belonged to a different canonical origin than the source node.
+    SourceOriginMismatch,
+}
+
+impl std::fmt::Display for StructuredValueEvidenceError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::InvalidFieldName => "invalid structured field name",
+            Self::InvalidValueHash => "invalid structured value hash",
+            Self::NodeProvenanceNotVerified => "node provenance is not verified",
+            Self::NodeProvenanceKindMismatch => {
+                "node provenance is not DOM or accessibility evidence"
+            }
+            Self::NetworkProvenanceNotVerified => "network provenance is not verified",
+            Self::NetworkProvenanceKindMismatch => {
+                "network provenance is not network-response evidence"
+            }
+            Self::SourceOriginMismatch => "provenance origin does not match source node origin",
+        })
+    }
+}
+
+impl std::error::Error for StructuredValueEvidenceError {}
+
+fn valid_structured_field_name(field_name: &str) -> bool {
+    if field_name.is_empty() || field_name.len() > MAX_STRUCTURED_FIELD_NAME_BYTES {
+        return false;
+    }
+    field_name
+        .bytes()
+        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
 }
