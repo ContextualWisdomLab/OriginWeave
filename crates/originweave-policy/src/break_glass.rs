@@ -2,10 +2,10 @@
 //!
 //! Break-glass is not a reusable role or an alternative disclosure authority. This module permits
 //! only an existing human-approval or dual-control sensitive-data decision to proceed after exact
-//! authority, actor, and reason binding, a locally bounded half-open validity window, sufficient
-//! approval evidence, heightened monitoring, and mandatory post-event review are all explicit. The
-//! types carry policy metadata only; they never carry protected values, authenticate identities,
-//! read a clock, execute monitoring, persist evidence, or perform a review.
+//! authority, actor, approver, and reason binding, a locally bounded half-open validity window,
+//! sufficient approval evidence, heightened monitoring, and mandatory post-event review are all
+//! explicit. The types carry policy metadata only; they never carry protected values, authenticate
+//! identities, read a clock, execute monitoring, persist evidence, or perform a review.
 
 use crate::sensitive_data::{
     DisclosureDecision, DisclosureScope, SensitiveDataAuthority, SensitiveDataRequest,
@@ -135,6 +135,92 @@ impl BreakGlassActorBinding {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum BreakGlassApproverKind {
+    Human(String),
+    DualControl {
+        first_approver_id: String,
+        second_approver_id: String,
+    },
+}
+
+/// Caller-supplied approver identities bound to break-glass approval references.
+///
+/// These identifiers are credential-free policy metadata. They must be derived by a trusted approval
+/// service from the same authoritative approval records represented by [`BreakGlassApprovalEvidence`].
+/// Exact identity inequality prevents the approved beneficiary from approving their own break-glass
+/// access and prevents one identity from satisfying both sides of dual control. This value does not
+/// authenticate an approver, verify a signature, or prove organizational-role separation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BreakGlassApproverBinding {
+    kind: BreakGlassApproverKind,
+}
+
+impl BreakGlassApproverBinding {
+    /// Bind one human approver identity to human approval evidence.
+    #[must_use]
+    pub fn human(approver_id: &str) -> Self {
+        Self {
+            kind: BreakGlassApproverKind::Human(approver_id.to_owned()),
+        }
+    }
+
+    /// Bind two distinct approver identities to dual-control approval evidence.
+    #[must_use]
+    pub fn dual_control(first_approver_id: &str, second_approver_id: &str) -> Self {
+        Self {
+            kind: BreakGlassApproverKind::DualControl {
+                first_approver_id: first_approver_id.to_owned(),
+                second_approver_id: second_approver_id.to_owned(),
+            },
+        }
+    }
+
+    fn is_valid(&self) -> bool {
+        match &self.kind {
+            BreakGlassApproverKind::Human(approver_id) => {
+                break_glass_identifier_is_valid(approver_id)
+            }
+            BreakGlassApproverKind::DualControl {
+                first_approver_id,
+                second_approver_id,
+            } => {
+                break_glass_identifier_is_valid(first_approver_id)
+                    && break_glass_identifier_is_valid(second_approver_id)
+                    && first_approver_id != second_approver_id
+            }
+        }
+    }
+
+    fn matches_approval(&self, approval: &BreakGlassApprovalEvidence) -> bool {
+        matches!(
+            (&self.kind, &approval.kind),
+            (
+                BreakGlassApproverKind::Human(_),
+                BreakGlassApprovalKind::Human(_)
+            ) | (
+                BreakGlassApproverKind::DualControl { .. },
+                BreakGlassApprovalKind::DualControl { .. }
+            )
+        )
+    }
+
+    fn is_independent_from(&self, actor_binding: &BreakGlassActorBinding) -> bool {
+        match &self.kind {
+            BreakGlassApproverKind::Human(approver_id) => {
+                approver_id != &actor_binding.current_actor_id
+            }
+            BreakGlassApproverKind::DualControl {
+                first_approver_id,
+                second_approver_id,
+            } => {
+                first_approver_id != &actor_binding.current_actor_id
+                    && second_approver_id != &actor_binding.current_actor_id
+            }
+        }
+    }
+}
+
 /// Local policy ceiling for one break-glass validity interval.
 ///
 /// The maximum uses the same trusted time units as the scope and evaluation time. A zero maximum is
@@ -248,6 +334,12 @@ pub enum SensitiveBreakGlassDecision {
     InvalidActorBinding,
     /// The currently authenticated actor differed from the actor covered by the approval.
     ActorMismatch,
+    /// Approver identity metadata was malformed, duplicated, or outside the bounded grammar.
+    InvalidApproverBinding,
+    /// Approver binding cardinality differed from the supplied approval evidence shape.
+    ApproverBindingMismatch,
+    /// An approver identity matched the beneficiary actor receiving exceptional access.
+    ApproverIndependenceRequired,
     /// Requested and approved break-glass reason identifiers differed.
     ReasonMismatch,
     /// Request reason metadata was malformed or outside the bounded grammar.
@@ -279,11 +371,13 @@ pub enum SensitiveBreakGlassDecision {
 /// [`DisclosureDecision::HumanApprovalRequired`] or [`DisclosureDecision::DualControlRequired`]
 /// result reaches the exceptional controls.
 ///
-/// `actor_binding` and `trusted_time` must be supplied by a trusted runtime. The time must use the
-/// same domain and units as the scope and [`BreakGlassValidityPolicy`]. Even an
-/// [`SensitiveBreakGlassDecision::Authorized`] result is metadata-only: a trusted broker must
-/// authenticate the current caller and approvers, revalidate policy/lifecycle immediately before
-/// disclosure, execute monitoring, emit durable audit evidence, and ensure post-event review occurs.
+/// `actor_binding`, `approver_binding`, and `trusted_time` must be supplied by a trusted runtime. The
+/// approver binding must be derived from the same authoritative approval records represented by the
+/// scope approval evidence. Time must use the same domain and units as the scope and
+/// [`BreakGlassValidityPolicy`]. Even an [`SensitiveBreakGlassDecision::Authorized`] result is
+/// metadata-only: a trusted broker must authenticate the current caller and approvers, verify the
+/// approval records, revalidate policy/lifecycle immediately before disclosure, execute monitoring,
+/// emit durable audit evidence, and ensure post-event review occurs.
 #[must_use]
 pub fn evaluate_sensitive_break_glass(
     disclosure_request: &SensitiveDataRequest,
@@ -291,6 +385,7 @@ pub fn evaluate_sensitive_break_glass(
     break_glass_request: &SensitiveBreakGlassRequest,
     break_glass_scope: &SensitiveBreakGlassScope,
     actor_binding: &BreakGlassActorBinding,
+    approver_binding: &BreakGlassApproverBinding,
     validity_policy: &BreakGlassValidityPolicy,
     trusted_time: u64,
 ) -> SensitiveBreakGlassDecision {
@@ -309,6 +404,9 @@ pub fn evaluate_sensitive_break_glass(
     }
     if !actor_binding.is_valid() {
         return SensitiveBreakGlassDecision::InvalidActorBinding;
+    }
+    if !approver_binding.is_valid() {
+        return SensitiveBreakGlassDecision::InvalidApproverBinding;
     }
     if !validity_policy.is_valid() {
         return SensitiveBreakGlassDecision::InvalidValidityPolicy;
@@ -339,6 +437,12 @@ pub fn evaluate_sensitive_break_glass(
     }
     if !break_glass_scope.approval.satisfies(approval_requirement) {
         return SensitiveBreakGlassDecision::ApprovalInsufficient;
+    }
+    if !approver_binding.matches_approval(&break_glass_scope.approval) {
+        return SensitiveBreakGlassDecision::ApproverBindingMismatch;
+    }
+    if !approver_binding.is_independent_from(actor_binding) {
+        return SensitiveBreakGlassDecision::ApproverIndependenceRequired;
     }
     if !break_glass_scope.heightened_monitoring {
         return SensitiveBreakGlassDecision::HeightenedMonitoringRequired;
