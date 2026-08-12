@@ -137,40 +137,61 @@ impl BreakGlassActorBinding {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum BreakGlassApproverKind {
-    Human(String),
+    Human {
+        approval_id: String,
+        approver_id: String,
+    },
     DualControl {
+        first_approval_id: String,
         first_approver_id: String,
+        second_approval_id: String,
         second_approver_id: String,
     },
 }
 
-/// Caller-supplied approver identities bound to break-glass approval references.
+/// Caller-supplied approval-reference to approver-identity bindings.
 ///
 /// These identifiers are credential-free policy metadata. They must be derived by a trusted approval
 /// service from the same authoritative approval records represented by [`BreakGlassApprovalEvidence`].
-/// Exact identity inequality prevents the approved beneficiary from approving their own break-glass
-/// access and prevents one identity from satisfying both sides of dual control. This value does not
-/// authenticate an approver, verify a signature, or prove organizational-role separation.
+/// Exact reference matching prevents an approver identity from being detached from the approval
+/// reference it is asserted to own. Exact identity inequality prevents the approved beneficiary from
+/// approving their own break-glass access and prevents one identity from satisfying both sides of
+/// dual control. This value does not authenticate an approver, verify a signature, or prove
+/// organizational-role separation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BreakGlassApproverBinding {
     kind: BreakGlassApproverKind,
 }
 
 impl BreakGlassApproverBinding {
-    /// Bind one human approver identity to human approval evidence.
+    /// Bind one human approver identity to one exact human-approval reference.
     #[must_use]
-    pub fn human(approver_id: &str) -> Self {
+    pub fn human(approval_id: &str, approver_id: &str) -> Self {
         Self {
-            kind: BreakGlassApproverKind::Human(approver_id.to_owned()),
+            kind: BreakGlassApproverKind::Human {
+                approval_id: approval_id.to_owned(),
+                approver_id: approver_id.to_owned(),
+            },
         }
     }
 
-    /// Bind two distinct approver identities to dual-control approval evidence.
+    /// Bind two distinct approver identities to two distinct dual-control approval references.
+    ///
+    /// The two reference/identity pairs are set-like: presenting the same two pairs in the opposite
+    /// order does not change authorization. Each identity nevertheless remains attached to its exact
+    /// reference.
     #[must_use]
-    pub fn dual_control(first_approver_id: &str, second_approver_id: &str) -> Self {
+    pub fn dual_control(
+        first_approval_id: &str,
+        first_approver_id: &str,
+        second_approval_id: &str,
+        second_approver_id: &str,
+    ) -> Self {
         Self {
             kind: BreakGlassApproverKind::DualControl {
+                first_approval_id: first_approval_id.to_owned(),
                 first_approver_id: first_approver_id.to_owned(),
+                second_approval_id: second_approval_id.to_owned(),
                 second_approver_id: second_approver_id.to_owned(),
             },
         }
@@ -178,41 +199,62 @@ impl BreakGlassApproverBinding {
 
     fn is_valid(&self) -> bool {
         match &self.kind {
-            BreakGlassApproverKind::Human(approver_id) => {
-                break_glass_identifier_is_valid(approver_id)
+            BreakGlassApproverKind::Human {
+                approval_id,
+                approver_id,
+            } => {
+                break_glass_identifier_is_valid(approval_id)
+                    && break_glass_identifier_is_valid(approver_id)
             }
             BreakGlassApproverKind::DualControl {
+                first_approval_id,
                 first_approver_id,
+                second_approval_id,
                 second_approver_id,
             } => {
-                break_glass_identifier_is_valid(first_approver_id)
+                break_glass_identifier_is_valid(first_approval_id)
+                    && break_glass_identifier_is_valid(first_approver_id)
+                    && break_glass_identifier_is_valid(second_approval_id)
                     && break_glass_identifier_is_valid(second_approver_id)
+                    && first_approval_id != second_approval_id
                     && first_approver_id != second_approver_id
             }
         }
     }
 
     fn matches_approval(&self, approval: &BreakGlassApprovalEvidence) -> bool {
-        matches!(
-            (&self.kind, &approval.kind),
+        match (&self.kind, &approval.kind) {
             (
-                BreakGlassApproverKind::Human(_),
-                BreakGlassApprovalKind::Human(_)
-            ) | (
-                BreakGlassApproverKind::DualControl { .. },
-                BreakGlassApprovalKind::DualControl { .. }
-            )
-        )
+                BreakGlassApproverKind::Human { approval_id, .. },
+                BreakGlassApprovalKind::Human(expected_approval_id),
+            ) => approval_id == expected_approval_id,
+            (
+                BreakGlassApproverKind::DualControl {
+                    first_approval_id,
+                    second_approval_id,
+                    ..
+                },
+                BreakGlassApprovalKind::DualControl {
+                    first_approval_id: expected_first,
+                    second_approval_id: expected_second,
+                },
+            ) => {
+                (first_approval_id == expected_first && second_approval_id == expected_second)
+                    || (first_approval_id == expected_second && second_approval_id == expected_first)
+            }
+            _ => false,
+        }
     }
 
     fn is_independent_from(&self, actor_binding: &BreakGlassActorBinding) -> bool {
         match &self.kind {
-            BreakGlassApproverKind::Human(approver_id) => {
+            BreakGlassApproverKind::Human { approver_id, .. } => {
                 approver_id != &actor_binding.current_actor_id
             }
             BreakGlassApproverKind::DualControl {
                 first_approver_id,
                 second_approver_id,
+                ..
             } => {
                 first_approver_id != &actor_binding.current_actor_id
                     && second_approver_id != &actor_binding.current_actor_id
@@ -353,9 +395,9 @@ pub enum SensitiveBreakGlassDecision {
     InvalidActorBinding,
     /// The currently authenticated actor differed from the actor covered by the approval.
     ActorMismatch,
-    /// Approver identity metadata was malformed, duplicated, or outside the bounded grammar.
+    /// Approver or bound approval-reference metadata was malformed, duplicated, or out of bounds.
     InvalidApproverBinding,
-    /// Approver binding cardinality differed from the supplied approval evidence shape.
+    /// Approver binding shape or exact approval references differed from supplied approval evidence.
     ApproverBindingMismatch,
     /// An approver identity matched the beneficiary actor receiving exceptional access.
     ApproverIndependenceRequired,
@@ -392,8 +434,9 @@ pub enum SensitiveBreakGlassDecision {
 ///
 /// `identity_bindings` and `trusted_time` must be supplied by a trusted runtime. The approver binding
 /// must be derived from the same authoritative approval records represented by the scope approval
-/// evidence. Time must use the same domain and units as the scope and [`BreakGlassValidityPolicy`].
-/// Even an [`SensitiveBreakGlassDecision::Authorized`] result is metadata-only: a trusted broker must
+/// evidence and binds each supplied approver identity to an exact approval reference. Time must use
+/// the same domain and units as the scope and [`BreakGlassValidityPolicy`]. Even an
+/// [`SensitiveBreakGlassDecision::Authorized`] result is metadata-only: a trusted broker must
 /// authenticate the current caller and approvers, verify the approval records, revalidate
 /// policy/lifecycle immediately before disclosure, execute monitoring, emit durable audit evidence,
 /// and ensure post-event review occurs.
