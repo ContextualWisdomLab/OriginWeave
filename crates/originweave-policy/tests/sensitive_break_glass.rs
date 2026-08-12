@@ -36,9 +36,14 @@ fn authority(task_id: &str) -> SensitiveDataAuthority {
 
 fn default_approvers(disclosure_decision: DisclosureDecision) -> BreakGlassApproverBinding {
     if disclosure_decision == DisclosureDecision::DualControlRequired {
-        BreakGlassApproverBinding::dual_control("support-approver-7", "security-approver-9")
+        BreakGlassApproverBinding::dual_control(
+            "approval-human-1",
+            "support-approver-7",
+            "approval-human-2",
+            "security-approver-9",
+        )
     } else {
-        BreakGlassApproverBinding::human("support-approver-7")
+        BreakGlassApproverBinding::human("approval-human-1", "support-approver-7")
     }
 }
 
@@ -175,7 +180,12 @@ fn dual_control_evidence_satisfies_the_single_human_approval_gate() {
             DisclosureDecision::HumanApprovalRequired,
             request(),
             dual_scope(),
-            BreakGlassApproverBinding::dual_control("support-approver-7", "security-approver-9"),
+            BreakGlassApproverBinding::dual_control(
+                "approval-human-1",
+                "support-approver-7",
+                "approval-human-2",
+                "security-approver-9",
+            ),
             TRUSTED_TIME,
         ),
         SensitiveBreakGlassDecision::Authorized
