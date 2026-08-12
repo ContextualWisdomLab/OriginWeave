@@ -5,9 +5,14 @@ use std::error::Error;
 use originweave_core::{
     BrowserProtocolAdapterDescriptor, BrowserProtocolCapability,
     BrowserProtocolCapabilityRequirementError, BrowserProtocolDescriptorError, BrowserProtocolKind,
+    BrowserProtocolVersionRequirementError, OriginWeaveProtocolVersion,
     MAX_BROWSER_PROTOCOL_METADATA_BYTES,
 };
 
+const CURRENT_ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion =
+    OriginWeaveProtocolVersion::new(0, 1);
+const FUTURE_ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion =
+    OriginWeaveProtocolVersion::new(0, 2);
 const BIDI_ADAPTER_VERSION: &str = "originweave-bidi-v1";
 const BIDI_PROTOCOL_REVISION: &str = "webdriver-bidi-wd-2026-06-01";
 const CDP_ADAPTER_VERSION: &str = "originweave-cdp-v1";
@@ -15,9 +20,24 @@ const CDP_PROTOCOL_REVISION: &str = "cdp-browser-r1639810";
 const BROWSER_REVISION: &str = "chromium-r1639810";
 
 #[test]
+fn originweave_protocol_version_is_explicit_and_canonical() {
+    assert_eq!(CURRENT_ORIGINWEAVE_PROTOCOL_VERSION.major(), 0);
+    assert_eq!(CURRENT_ORIGINWEAVE_PROTOCOL_VERSION.minor(), 1);
+    assert_eq!(
+        CURRENT_ORIGINWEAVE_PROTOCOL_VERSION.to_string(),
+        "originweave/0.1"
+    );
+    assert_ne!(
+        CURRENT_ORIGINWEAVE_PROTOCOL_VERSION,
+        FUTURE_ORIGINWEAVE_PROTOCOL_VERSION
+    );
+}
+
+#[test]
 fn webdriver_bidi_descriptor_is_explicit_and_capability_bounded() -> Result<(), Box<dyn Error>> {
     let descriptor = BrowserProtocolAdapterDescriptor::new(
         BrowserProtocolKind::WebDriverBiDi,
+        CURRENT_ORIGINWEAVE_PROTOCOL_VERSION,
         BIDI_ADAPTER_VERSION,
         BIDI_PROTOCOL_REVISION,
         BROWSER_REVISION,
@@ -29,6 +49,10 @@ fn webdriver_bidi_descriptor_is_explicit_and_capability_bounded() -> Result<(), 
     )?;
 
     assert_eq!(descriptor.kind(), BrowserProtocolKind::WebDriverBiDi);
+    assert_eq!(
+        descriptor.originweave_protocol_version(),
+        CURRENT_ORIGINWEAVE_PROTOCOL_VERSION
+    );
     assert_eq!(descriptor.adapter_version(), BIDI_ADAPTER_VERSION);
     assert_eq!(descriptor.protocol_revision(), BIDI_PROTOCOL_REVISION);
     assert_eq!(descriptor.browser_revision(), BROWSER_REVISION);
@@ -44,6 +68,7 @@ fn webdriver_bidi_descriptor_is_explicit_and_capability_bounded() -> Result<(), 
 fn cdp_capability_is_not_inferred_from_protocol_kind() -> Result<(), Box<dyn Error>> {
     let descriptor = BrowserProtocolAdapterDescriptor::new(
         BrowserProtocolKind::ChromeDevToolsProtocol,
+        CURRENT_ORIGINWEAVE_PROTOCOL_VERSION,
         CDP_ADAPTER_VERSION,
         CDP_PROTOCOL_REVISION,
         BROWSER_REVISION,
@@ -63,6 +88,7 @@ fn required_capability_fails_closed_without_side_effectful_fallback() -> Result<
 {
     let descriptor = BrowserProtocolAdapterDescriptor::new(
         BrowserProtocolKind::WebDriverBiDi,
+        CURRENT_ORIGINWEAVE_PROTOCOL_VERSION,
         BIDI_ADAPTER_VERSION,
         BIDI_PROTOCOL_REVISION,
         BROWSER_REVISION,
@@ -85,6 +111,31 @@ fn required_capability_fails_closed_without_side_effectful_fallback() -> Result<
 }
 
 #[test]
+fn required_originweave_protocol_version_fails_closed() -> Result<(), Box<dyn Error>> {
+    let descriptor = BrowserProtocolAdapterDescriptor::new(
+        BrowserProtocolKind::WebDriverBiDi,
+        CURRENT_ORIGINWEAVE_PROTOCOL_VERSION,
+        BIDI_ADAPTER_VERSION,
+        BIDI_PROTOCOL_REVISION,
+        BROWSER_REVISION,
+        &[BrowserProtocolCapability::Navigation],
+    )?;
+
+    assert_eq!(
+        descriptor.require_originweave_protocol_version(CURRENT_ORIGINWEAVE_PROTOCOL_VERSION),
+        Ok(())
+    );
+    assert_eq!(
+        descriptor.require_originweave_protocol_version(FUTURE_ORIGINWEAVE_PROTOCOL_VERSION),
+        Err(BrowserProtocolVersionRequirementError::ProtocolVersionMismatch {
+            required: FUTURE_ORIGINWEAVE_PROTOCOL_VERSION,
+            actual: CURRENT_ORIGINWEAVE_PROTOCOL_VERSION,
+        })
+    );
+    Ok(())
+}
+
+#[test]
 fn malformed_or_ambiguous_metadata_fails_closed() {
     let valid_capabilities = [BrowserProtocolCapability::Navigation];
     let invalid_adapter_versions = ["", " ", "bidi version", "bidi/version", "---", "비디"];
@@ -92,6 +143,7 @@ fn malformed_or_ambiguous_metadata_fails_closed() {
         assert_eq!(
             BrowserProtocolAdapterDescriptor::new(
                 BrowserProtocolKind::WebDriverBiDi,
+                CURRENT_ORIGINWEAVE_PROTOCOL_VERSION,
                 adapter_version,
                 BIDI_PROTOCOL_REVISION,
                 BROWSER_REVISION,
@@ -113,6 +165,7 @@ fn malformed_or_ambiguous_metadata_fails_closed() {
         assert_eq!(
             BrowserProtocolAdapterDescriptor::new(
                 BrowserProtocolKind::WebDriverBiDi,
+                CURRENT_ORIGINWEAVE_PROTOCOL_VERSION,
                 BIDI_ADAPTER_VERSION,
                 protocol_revision,
                 BROWSER_REVISION,
@@ -134,6 +187,7 @@ fn malformed_or_ambiguous_metadata_fails_closed() {
         assert_eq!(
             BrowserProtocolAdapterDescriptor::new(
                 BrowserProtocolKind::WebDriverBiDi,
+                CURRENT_ORIGINWEAVE_PROTOCOL_VERSION,
                 BIDI_ADAPTER_VERSION,
                 BIDI_PROTOCOL_REVISION,
                 browser_revision,
@@ -147,6 +201,7 @@ fn malformed_or_ambiguous_metadata_fails_closed() {
     assert_eq!(
         BrowserProtocolAdapterDescriptor::new(
             BrowserProtocolKind::WebDriverBiDi,
+            CURRENT_ORIGINWEAVE_PROTOCOL_VERSION,
             &oversized,
             BIDI_PROTOCOL_REVISION,
             BROWSER_REVISION,
@@ -157,6 +212,7 @@ fn malformed_or_ambiguous_metadata_fails_closed() {
     assert_eq!(
         BrowserProtocolAdapterDescriptor::new(
             BrowserProtocolKind::WebDriverBiDi,
+            CURRENT_ORIGINWEAVE_PROTOCOL_VERSION,
             BIDI_ADAPTER_VERSION,
             &oversized,
             BROWSER_REVISION,
@@ -167,6 +223,7 @@ fn malformed_or_ambiguous_metadata_fails_closed() {
     assert_eq!(
         BrowserProtocolAdapterDescriptor::new(
             BrowserProtocolKind::WebDriverBiDi,
+            CURRENT_ORIGINWEAVE_PROTOCOL_VERSION,
             BIDI_ADAPTER_VERSION,
             BIDI_PROTOCOL_REVISION,
             &oversized,
@@ -181,6 +238,7 @@ fn capability_set_must_be_nonempty_and_canonical() {
     assert_eq!(
         BrowserProtocolAdapterDescriptor::new(
             BrowserProtocolKind::WebDriverBiDi,
+            CURRENT_ORIGINWEAVE_PROTOCOL_VERSION,
             BIDI_ADAPTER_VERSION,
             BIDI_PROTOCOL_REVISION,
             BROWSER_REVISION,
@@ -192,6 +250,7 @@ fn capability_set_must_be_nonempty_and_canonical() {
     assert_eq!(
         BrowserProtocolAdapterDescriptor::new(
             BrowserProtocolKind::WebDriverBiDi,
+            CURRENT_ORIGINWEAVE_PROTOCOL_VERSION,
             BIDI_ADAPTER_VERSION,
             BIDI_PROTOCOL_REVISION,
             BROWSER_REVISION,
@@ -208,6 +267,7 @@ fn capability_set_must_be_nonempty_and_canonical() {
 fn capability_order_does_not_change_descriptor_identity() -> Result<(), Box<dyn Error>> {
     let forward = BrowserProtocolAdapterDescriptor::new(
         BrowserProtocolKind::WebDriverBiDi,
+        CURRENT_ORIGINWEAVE_PROTOCOL_VERSION,
         BIDI_ADAPTER_VERSION,
         BIDI_PROTOCOL_REVISION,
         BROWSER_REVISION,
@@ -220,6 +280,7 @@ fn capability_order_does_not_change_descriptor_identity() -> Result<(), Box<dyn 
     )?;
     let reverse = BrowserProtocolAdapterDescriptor::new(
         BrowserProtocolKind::WebDriverBiDi,
+        CURRENT_ORIGINWEAVE_PROTOCOL_VERSION,
         BIDI_ADAPTER_VERSION,
         BIDI_PROTOCOL_REVISION,
         BROWSER_REVISION,
@@ -292,4 +353,18 @@ fn capability_requirement_errors_are_stable_and_source_free() {
         assert_eq!(error.to_string(), expected);
         assert!(error.source().is_none());
     }
+}
+
+#[test]
+fn protocol_version_requirement_error_is_stable_and_source_free() {
+    let error = BrowserProtocolVersionRequirementError::ProtocolVersionMismatch {
+        required: FUTURE_ORIGINWEAVE_PROTOCOL_VERSION,
+        actual: CURRENT_ORIGINWEAVE_PROTOCOL_VERSION,
+    };
+
+    assert_eq!(
+        error.to_string(),
+        "browser protocol adapter targets originweave/0.1 but originweave/0.2 is required"
+    );
+    assert!(error.source().is_none());
 }
