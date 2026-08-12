@@ -190,10 +190,12 @@ impl BrowserProtocolAdapterDescriptor {
         if self.originweave_protocol_version == required {
             Ok(())
         } else {
-            Err(BrowserProtocolVersionRequirementError::ProtocolVersionMismatch {
-                required,
-                actual: self.originweave_protocol_version,
-            })
+            Err(
+                BrowserProtocolVersionRequirementError::ProtocolVersionMismatch {
+                    required,
+                    actual: self.originweave_protocol_version,
+                },
+            )
         }
     }
 
