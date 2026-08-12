@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::io;
 
 use originweave_core::{
     BrowserAuthorityRegistry, BrowserRegistryError, BrowserSessionId, BrowsingContextId,
@@ -6,11 +7,13 @@ use originweave_core::{
 };
 
 fn first_origin() -> Result<Origin, Box<dyn Error>> {
-    Ok(Origin::parse("http://127.0.0.1:43127")?)
+    Origin::parse("http://127.0.0.1:43127")
+        .map_err(|_error| io::Error::other("controlled first origin must be valid").into())
 }
 
 fn second_origin() -> Result<Origin, Box<dyn Error>> {
-    Ok(Origin::parse("http://localhost:43127")?)
+    Origin::parse("http://localhost:43127")
+        .map_err(|_error| io::Error::other("controlled second origin must be valid").into())
 }
 
 #[test]
