@@ -29,8 +29,7 @@ fn evaluate(
     let disclosure_request = SensitiveDataRequest::new(exact_authority.clone());
     let disclosure_scope =
         DisclosureScope::new(exact_authority, DisclosureDecision::DualControlRequired);
-    let actor_binding =
-        BreakGlassActorBinding::new("support-operator-42", "support-operator-42");
+    let actor_binding = BreakGlassActorBinding::new("support-operator-42", "support-operator-42");
     let validity_policy = BreakGlassValidityPolicy::new(100);
 
     evaluate_sensitive_break_glass(

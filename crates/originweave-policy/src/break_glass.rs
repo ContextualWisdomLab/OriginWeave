@@ -327,8 +327,7 @@ pub fn evaluate_sensitive_break_glass(
     if break_glass_scope.valid_from >= break_glass_scope.valid_until {
         return SensitiveBreakGlassDecision::InvalidValidityWindow;
     }
-    if break_glass_scope.valid_until - break_glass_scope.valid_from
-        > validity_policy.maximum_window
+    if break_glass_scope.valid_until - break_glass_scope.valid_from > validity_policy.maximum_window
     {
         return SensitiveBreakGlassDecision::ValidityWindowTooLong;
     }
