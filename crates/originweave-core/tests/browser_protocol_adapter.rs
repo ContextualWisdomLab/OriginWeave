@@ -3,8 +3,9 @@
 use std::error::Error;
 
 use originweave_core::{
-    BrowserProtocolAdapterDescriptor, BrowserProtocolCapability, BrowserProtocolDescriptorError,
-    BrowserProtocolKind, MAX_BROWSER_PROTOCOL_METADATA_BYTES,
+    BrowserProtocolAdapterDescriptor, BrowserProtocolCapability,
+    BrowserProtocolCapabilityRequirementError, BrowserProtocolDescriptorError, BrowserProtocolKind,
+    MAX_BROWSER_PROTOCOL_METADATA_BYTES,
 };
 
 const BIDI_ADAPTER_VERSION: &str = "originweave-bidi-v1";
@@ -54,6 +55,29 @@ fn cdp_capability_is_not_inferred_from_protocol_kind() -> Result<(), Box<dyn Err
     assert!(!descriptor.supports(BrowserProtocolCapability::Navigation));
     assert!(!descriptor.supports(BrowserProtocolCapability::SemanticObservation));
     assert!(!descriptor.supports(BrowserProtocolCapability::TypedInput));
+    Ok(())
+}
+
+#[test]
+fn required_capability_fails_closed_without_side_effectful_fallback() -> Result<(), Box<dyn Error>> {
+    let descriptor = BrowserProtocolAdapterDescriptor::new(
+        BrowserProtocolKind::WebDriverBiDi,
+        BIDI_ADAPTER_VERSION,
+        BIDI_PROTOCOL_REVISION,
+        BROWSER_REVISION,
+        &[BrowserProtocolCapability::Navigation],
+    )?;
+
+    assert_eq!(
+        descriptor.require_capability(BrowserProtocolCapability::Navigation),
+        Ok(())
+    );
+    assert_eq!(
+        descriptor.require_capability(BrowserProtocolCapability::NetworkObservation),
+        Err(BrowserProtocolCapabilityRequirementError::UnsupportedCapability(
+            BrowserProtocolCapability::NetworkObservation,
+        ))
+    );
     Ok(())
 }
 
@@ -234,6 +258,34 @@ fn descriptor_errors_are_stable_and_source_free() {
     ];
 
     for (error, expected) in cases {
+        assert_eq!(error.to_string(), expected);
+        assert!(error.source().is_none());
+    }
+}
+
+#[test]
+fn capability_requirement_errors_are_stable_and_source_free() {
+    let cases = [
+        (
+            BrowserProtocolCapability::Navigation,
+            "browser protocol adapter does not declare required navigation capability",
+        ),
+        (
+            BrowserProtocolCapability::SemanticObservation,
+            "browser protocol adapter does not declare required semantic-observation capability",
+        ),
+        (
+            BrowserProtocolCapability::TypedInput,
+            "browser protocol adapter does not declare required typed-input capability",
+        ),
+        (
+            BrowserProtocolCapability::NetworkObservation,
+            "browser protocol adapter does not declare required network-observation capability",
+        ),
+    ];
+
+    for (capability, expected) in cases {
+        let error = BrowserProtocolCapabilityRequirementError::UnsupportedCapability(capability);
         assert_eq!(error.to_string(), expected);
         assert!(error.source().is_none());
     }
