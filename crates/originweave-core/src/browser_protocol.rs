@@ -522,8 +522,9 @@ impl fmt::Display for BrowserProtocolUseValidationError {
             Self::ProtocolVersion(error) => error.fmt(formatter),
             Self::ProtocolKindMismatch { .. } => formatter
                 .write_str("runtime browser protocol kind does not match the pinned adapter kind"),
-            Self::InvalidAdapterVersion => formatter
-                .write_str("runtime browser adapter version must be a bounded ASCII metadata token"),
+            Self::InvalidAdapterVersion => formatter.write_str(
+                "runtime browser adapter version must be a bounded ASCII metadata token",
+            ),
             Self::AdapterVersionMismatch => formatter.write_str(
                 "runtime browser adapter version does not match the pinned adapter version",
             ),
