@@ -46,6 +46,19 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
             with self.subTest(expected=expected):
                 self.assertIn(expected, runner)
 
+    def test_agent_task_submission_preserves_the_loaded_url(self) -> None:
+        """Submission must prove that the controlled action did not navigate away."""
+
+        runner = RUNNER.read_text(encoding="utf-8")
+        for expected in (
+            "initial_url",
+            "post_submit_url",
+            "url_unchanged",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, runner)
+        self.assertIn("Agent Task URL changed during submission", runner)
+
     def test_agent_task_observes_computed_role_and_name_before_action(self) -> None:
         """Real-browser evidence must bind the controlled targets to semantic role/name."""
 
