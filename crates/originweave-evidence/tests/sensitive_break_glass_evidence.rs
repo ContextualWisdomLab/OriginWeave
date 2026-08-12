@@ -8,8 +8,8 @@
 use originweave_core::Origin;
 use originweave_evidence::{
     MAX_SENSITIVE_FIELD_COUNT, SensitiveAccessClass, SensitiveAccessOutcome,
-    SensitiveBreakGlassApprovalMode, SensitiveBreakGlassEvidence,
-    SensitiveBreakGlassEvidenceError, SensitiveBreakGlassEvidenceInput,
+    SensitiveBreakGlassApprovalMode, SensitiveBreakGlassEvidence, SensitiveBreakGlassEvidenceError,
+    SensitiveBreakGlassEvidenceInput,
 };
 
 const VALID_FROM: u64 = 100;
