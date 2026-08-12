@@ -79,6 +79,41 @@ impl BrowserContextDispatchTarget {
     }
 }
 
+/// Exact browser context plus the canonical origin expected immediately before protocol dispatch.
+///
+/// Grouping these values keeps one authority target explicit while avoiding a long positional
+/// argument list at the dispatch boundary. Construction does not prove that the context is current
+/// or that the origin is bound; [`BrowserProtocolAdapterDescriptor::dispatch_if_context_origin_current`]
+/// performs those fail-closed checks immediately before protocol validation and callback execution.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct BrowserContextOriginDispatchTarget<'a> {
+    context: BrowserContextDispatchTarget,
+    expected_origin: &'a Origin,
+}
+
+impl<'a> BrowserContextOriginDispatchTarget<'a> {
+    /// Group one browser context target with its freshly sampled canonical origin.
+    #[must_use]
+    pub const fn new(context: BrowserContextDispatchTarget, expected_origin: &'a Origin) -> Self {
+        Self {
+            context,
+            expected_origin,
+        }
+    }
+
+    /// Return the exact browser session/context pair requested for dispatch.
+    #[must_use]
+    pub const fn context(self) -> BrowserContextDispatchTarget {
+        self.context
+    }
+
+    /// Return the canonical origin expected to remain current for the dispatch.
+    #[must_use]
+    pub const fn expected_origin(self) -> &'a Origin {
+        self.expected_origin
+    }
+}
+
 impl BrowserProtocolAdapterDescriptor {
     /// Validate current browser-protocol metadata and immediately invoke one dispatch callback.
     ///
@@ -149,22 +184,21 @@ impl BrowserProtocolAdapterDescriptor {
 
     /// Revalidate exact browser session/context/origin authority and protocol metadata before I/O.
     ///
-    /// The registry first proves that `expected_origin` is the canonical origin currently bound to
-    /// the supplied browser session and browsing context and returns that document's current epoch.
-    /// Only then are the exact protocol generation, runtime protocol family, adapter version,
-    /// upstream/browser revisions, and required capability validated. `dispatch` receives both the
-    /// non-cloneable protocol-use proof and the epoch sampled by that origin revalidation.
+    /// The registry first proves that `target.expected_origin()` is the canonical origin currently
+    /// bound to the supplied browser session and browsing context and returns that document's
+    /// current epoch. Only then are the exact protocol generation, runtime protocol family, adapter
+    /// version, upstream/browser revisions, and required capability validated. `dispatch` receives
+    /// both the non-cloneable protocol-use proof and the epoch sampled by that origin revalidation.
     ///
     /// This method does not derive the origin from Chromium, authenticate the adapter process,
     /// authorize a destination/network/TLS/HTTP operation, grant Agent capability or approval, or
-    /// prove a post-condition. The caller must obtain `expected_origin` and `runtime_metadata` from
-    /// the trusted adapter about to perform I/O and prevent intervening registry mutation across its
-    /// larger execution transaction.
+    /// prove a post-condition. The caller must construct `target` from the origin freshly sampled
+    /// from the trusted adapter about to perform I/O, sample `runtime_metadata` from that same
+    /// adapter, and prevent intervening registry mutation across its larger execution transaction.
     pub fn dispatch_if_context_origin_current<R, F>(
         &self,
         authority_registry: &BrowserAuthorityRegistry,
-        target: BrowserContextDispatchTarget,
-        expected_origin: &Origin,
+        target: BrowserContextOriginDispatchTarget<'_>,
         required_originweave_protocol_version: OriginWeaveProtocolVersion,
         runtime_metadata: BrowserProtocolRuntimeMetadata<'_>,
         required_capability: BrowserProtocolCapability,
@@ -173,11 +207,12 @@ impl BrowserProtocolAdapterDescriptor {
     where
         F: FnOnce(ValidatedBrowserProtocolUse, DocumentEpoch) -> R,
     {
+        let context = target.context();
         let current_epoch = authority_registry
             .require_context_origin(
-                target.browser_session(),
-                target.browsing_context(),
-                expected_origin,
+                context.browser_session(),
+                context.browsing_context(),
+                target.expected_origin(),
             )
             .map_err(BrowserContextProtocolDispatchError::BrowserAuthority)?;
         self.dispatch_if_runtime_matches(
