@@ -240,7 +240,8 @@ impl BreakGlassApproverBinding {
                 },
             ) => {
                 (first_approval_id == expected_first && second_approval_id == expected_second)
-                    || (first_approval_id == expected_second && second_approval_id == expected_first)
+                    || (first_approval_id == expected_second
+                        && second_approval_id == expected_first)
             }
             _ => false,
         }
