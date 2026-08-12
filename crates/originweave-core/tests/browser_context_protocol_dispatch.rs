@@ -4,7 +4,8 @@ use originweave_core::{
     BrowserAuthorityRegistry, BrowserContextProtocolDispatchError,
     BrowserProtocolAdapterDescriptor, BrowserProtocolCapability, BrowserProtocolKind,
     BrowserProtocolRuntimeMetadata, BrowserProtocolUseValidationError, BrowserRegistryError,
-    DocumentEpoch, OriginWeaveProtocolVersion, ValidatedBrowserProtocolUse,
+    BrowserSessionId, BrowsingContextId, DocumentEpoch, OriginWeaveProtocolVersion,
+    ValidatedBrowserProtocolUse,
 };
 
 const ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion =
@@ -126,6 +127,50 @@ fn cross_session_context_reuse_fails_before_dispatch() -> Result<(), Box<dyn Err
 }
 
 #[test]
+fn unknown_session_or_context_fails_before_dispatch() -> Result<(), Box<dyn Error>> {
+    let descriptor = descriptor()?;
+    let mut registry = BrowserAuthorityRegistry::new();
+    let session = registry.register_session("webdriver-session")?;
+    let context = registry.register_context(session, "top-level-context")?;
+    let unknown_session = BrowserSessionId::new(999)?;
+    let unknown_context = BrowsingContextId::new(999)?;
+
+    reset_dispatch_marker();
+    assert_eq!(
+        descriptor.dispatch_if_context_current(
+            &registry,
+            unknown_session,
+            context,
+            ORIGINWEAVE_PROTOCOL_VERSION,
+            runtime_metadata(ADAPTER_VERSION),
+            BrowserProtocolCapability::Navigation,
+            successful_dispatch as DispatchFn,
+        ),
+        Err(BrowserContextProtocolDispatchError::BrowserAuthority(
+            BrowserRegistryError::UnknownBrowserSession
+        ))
+    );
+    assert!(!dispatch_was_called());
+
+    assert_eq!(
+        descriptor.dispatch_if_context_current(
+            &registry,
+            session,
+            unknown_context,
+            ORIGINWEAVE_PROTOCOL_VERSION,
+            runtime_metadata(ADAPTER_VERSION),
+            BrowserProtocolCapability::Navigation,
+            successful_dispatch as DispatchFn,
+        ),
+        Err(BrowserContextProtocolDispatchError::BrowserAuthority(
+            BrowserRegistryError::UnknownBrowsingContext
+        ))
+    );
+    assert!(!dispatch_was_called());
+    Ok(())
+}
+
+#[test]
 fn protocol_mismatch_after_context_validation_still_prevents_dispatch() -> Result<(), Box<dyn Error>>
 {
     let descriptor = descriptor()?;
@@ -152,4 +197,25 @@ fn protocol_mismatch_after_context_validation_still_prevents_dispatch() -> Resul
     );
     assert!(!dispatch_was_called());
     Ok(())
+}
+
+#[test]
+fn context_protocol_dispatch_errors_preserve_typed_sources() {
+    let authority = BrowserContextProtocolDispatchError::BrowserAuthority(
+        BrowserRegistryError::UnknownBrowsingContext,
+    );
+    assert!(authority.source().is_some());
+    assert_eq!(
+        authority.to_string(),
+        "browser context authority denied protocol dispatch: browsing context is not registered in this authority registry"
+    );
+
+    let protocol = BrowserContextProtocolDispatchError::ProtocolValidation(
+        BrowserProtocolUseValidationError::AdapterVersionMismatch,
+    );
+    assert!(protocol.source().is_some());
+    assert_eq!(
+        protocol.to_string(),
+        "browser protocol validation denied context dispatch: runtime browser protocol adapter version does not match the pinned descriptor version"
+    );
 }
