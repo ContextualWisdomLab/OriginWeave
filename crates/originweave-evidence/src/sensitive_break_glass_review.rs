@@ -96,9 +96,7 @@ impl SensitiveBreakGlassReviewEvidence {
         input: SensitiveBreakGlassReviewEvidenceInput,
     ) -> Result<Self, SensitiveBreakGlassReviewEvidenceError> {
         validate_identifiers(&input)?;
-        if input.reviewer_id == receipt.actor_id()
-            || input.reviewer_id == receipt.approved_actor_id()
-        {
+        if input.reviewer_id == receipt.actor_id() {
             return Err(SensitiveBreakGlassReviewEvidenceError::ReviewerConflict);
         }
         if input.completed_epoch_seconds <= receipt.disclosure_epoch_seconds()
