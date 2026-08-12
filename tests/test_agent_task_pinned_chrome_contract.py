@@ -97,6 +97,61 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
         self.assertNotIn('_find_element(driver_port, session_id, "#task-text")', runner)
         self.assertNotIn('_find_element(driver_port, session_id, "#submit-task")', runner)
 
+    def test_semantic_role_name_locator_fails_closed_on_ambiguous_candidates(self) -> None:
+        """Exact semantic discovery must reject zero, duplicate, malformed, and oversized sets."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_locator_behavior")
+        locate = namespace["_find_element_by_accessible_role_name"]
+        element_key = namespace["W3C_ELEMENT_KEY"]
+        candidate_limit = namespace["MAX_SEMANTIC_LOCATOR_CANDIDATES"]
+
+        def install_candidates(
+            candidate_ids: list[str],
+            semantics: dict[str, tuple[str, str]],
+        ) -> None:
+            locate.__globals__["_json_request"] = lambda *_args, **_kwargs: {
+                "value": [{element_key: candidate_id} for candidate_id in candidate_ids]
+            }
+            locate.__globals__["_get_element_semantics"] = (
+                lambda _port, _session, candidate_id: semantics[candidate_id]
+            )
+
+        install_candidates(
+            ["candidate-a", "candidate-b"],
+            {
+                "candidate-a": ("button", "Other"),
+                "candidate-b": ("button", "Submit task"),
+            },
+        )
+        self.assertEqual(locate(4444, "session-a", "button", "Submit task"), "candidate-b")
+
+        install_candidates(["candidate-a"], {"candidate-a": ("button", "Other")})
+        with self.assertRaisesRegex(RuntimeError, "no exact match"):
+            locate(4444, "session-a", "button", "Submit task")
+
+        install_candidates(
+            ["candidate-a", "candidate-b"],
+            {
+                "candidate-a": ("button", "Submit task"),
+                "candidate-b": ("button", "Submit task"),
+            },
+        )
+        with self.assertRaisesRegex(RuntimeError, "multiple exact matches"):
+            locate(4444, "session-a", "button", "Submit task")
+
+        install_candidates(
+            [f"candidate-{index}" for index in range(candidate_limit + 1)],
+            {},
+        )
+        with self.assertRaisesRegex(RuntimeError, "bounded candidate limit"):
+            locate(4444, "session-a", "button", "Submit task")
+
+        locate.__globals__["_json_request"] = lambda *_args, **_kwargs: {
+            "value": [{"not-an-element-id": "candidate-a"}]
+        }
+        with self.assertRaisesRegex(RuntimeError, "malformed semantic locator candidate"):
+            locate(4444, "session-a", "button", "Submit task")
+
     def test_agent_task_records_real_bounded_resource_evidence(self) -> None:
         """The real task must report measured browser/runtime resource evidence."""
 
