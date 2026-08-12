@@ -316,3 +316,42 @@ fn provenance_from_another_origin_cannot_prove_the_node_value() -> Result<(), St
     );
     Ok(())
 }
+
+#[test]
+fn structured_value_errors_are_stable_and_source_free() {
+    let cases = [
+        (
+            StructuredValueEvidenceError::InvalidFieldName,
+            "invalid structured field name",
+        ),
+        (
+            StructuredValueEvidenceError::InvalidValueHash,
+            "invalid structured value hash",
+        ),
+        (
+            StructuredValueEvidenceError::NodeProvenanceNotVerified,
+            "node provenance is not verified",
+        ),
+        (
+            StructuredValueEvidenceError::NodeProvenanceKindMismatch,
+            "node provenance is not DOM or accessibility evidence",
+        ),
+        (
+            StructuredValueEvidenceError::NetworkProvenanceNotVerified,
+            "network provenance is not verified",
+        ),
+        (
+            StructuredValueEvidenceError::NetworkProvenanceKindMismatch,
+            "network provenance is not network-response evidence",
+        ),
+        (
+            StructuredValueEvidenceError::SourceOriginMismatch,
+            "provenance origin does not match source node origin",
+        ),
+    ];
+
+    for (error, expected_message) in cases {
+        assert_eq!(error.to_string(), expected_message);
+        assert!(std::error::Error::source(&error).is_none());
+    }
+}
