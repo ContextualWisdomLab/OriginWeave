@@ -7,7 +7,8 @@
 //! SHA-256/signature service can make append-only sequencing independently verifiable.
 
 use originweave_evidence::{
-    SensitiveAuditChainLink, SensitiveAuditChainLinkError, SensitiveAuditChainLinkInput,
+    MAX_SENSITIVE_IDENTIFIER_BYTES, SensitiveAuditChainLink, SensitiveAuditChainLinkError,
+    SensitiveAuditChainLinkInput,
 };
 
 const FIRST_PAYLOAD_DIGEST: &str =
@@ -127,6 +128,32 @@ fn malformed_identifiers_and_digests_fail_closed() {
             Err(SensitiveAuditChainLinkError::InvalidDigest)
         );
     }
+
+    let mut invalid_chain_digest = genesis_input();
+    invalid_chain_digest.chain_digest = "sha256:not-a-digest".to_owned();
+    assert_eq!(
+        SensitiveAuditChainLink::try_from(invalid_chain_digest),
+        Err(SensitiveAuditChainLinkError::InvalidDigest)
+    );
+
+    let mut invalid_previous_digest = next_input();
+    invalid_previous_digest.previous_chain_digest = Some("sha256:not-a-digest".to_owned());
+    assert_eq!(
+        SensitiveAuditChainLink::try_from(invalid_previous_digest),
+        Err(SensitiveAuditChainLinkError::InvalidDigest)
+    );
+}
+
+#[test]
+fn next_link_rejects_malformed_candidate_before_continuity_checks() {
+    let genesis = SensitiveAuditChainLink::try_from(genesis_input()).expect("valid genesis link");
+    let mut malformed = next_input();
+    malformed.audit_stream_id = "x".repeat(MAX_SENSITIVE_IDENTIFIER_BYTES + 1);
+
+    assert_eq!(
+        genesis.try_next(malformed),
+        Err(SensitiveAuditChainLinkError::InvalidIdentifier)
+    );
 }
 
 #[test]
