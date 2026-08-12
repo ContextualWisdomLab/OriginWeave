@@ -6,9 +6,7 @@
 
 use std::fmt;
 
-use crate::{
-    MAX_SENSITIVE_IDENTIFIER_BYTES, SensitiveBreakGlassEvidence,
-};
+use crate::{MAX_SENSITIVE_IDENTIFIER_BYTES, SensitiveBreakGlassEvidence};
 
 /// Bounded outcome of one completed break-glass post-event review.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -50,12 +48,8 @@ impl fmt::Display for SensitiveBreakGlassReviewEvidenceError {
             Self::ReviewerConflict => {
                 "sensitive break-glass reviewer conflicts with disclosed actor"
             }
-            Self::InvalidCompletionTime => {
-                "invalid sensitive break-glass review completion time"
-            }
-            Self::InvalidOutcomeEvidence => {
-                "invalid sensitive break-glass review outcome evidence"
-            }
+            Self::InvalidCompletionTime => "invalid sensitive break-glass review completion time",
+            Self::InvalidOutcomeEvidence => "invalid sensitive break-glass review outcome evidence",
         })
     }
 }
@@ -114,13 +108,12 @@ impl SensitiveBreakGlassReviewEvidence {
         }
         validate_outcome(&input)?;
 
-        let timeliness = if input.completed_epoch_seconds
-            <= receipt.post_event_review_due_epoch_seconds()
-        {
-            SensitiveBreakGlassReviewTimeliness::OnTime
-        } else {
-            SensitiveBreakGlassReviewTimeliness::Late
-        };
+        let timeliness =
+            if input.completed_epoch_seconds <= receipt.post_event_review_due_epoch_seconds() {
+                SensitiveBreakGlassReviewTimeliness::OnTime
+            } else {
+                SensitiveBreakGlassReviewTimeliness::Late
+            };
 
         Ok(Self {
             request_id: receipt.request_id().to_owned(),
