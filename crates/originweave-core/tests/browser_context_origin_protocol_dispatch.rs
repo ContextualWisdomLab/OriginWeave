@@ -1,10 +1,11 @@
 use std::{cell::Cell, error::Error, io};
 
 use originweave_core::{
-    BrowserAuthorityRegistry, BrowserContextDispatchTarget, BrowserContextProtocolDispatchError,
-    BrowserProtocolAdapterDescriptor, BrowserProtocolCapability, BrowserProtocolKind,
-    BrowserProtocolRuntimeMetadata, BrowserProtocolUseValidationError, BrowserRegistryError,
-    DocumentEpoch, Origin, OriginWeaveProtocolVersion, ValidatedBrowserProtocolUse,
+    BrowserAuthorityRegistry, BrowserContextDispatchTarget, BrowserContextOriginDispatchTarget,
+    BrowserContextProtocolDispatchError, BrowserProtocolAdapterDescriptor,
+    BrowserProtocolCapability, BrowserProtocolKind, BrowserProtocolRuntimeMetadata,
+    BrowserProtocolUseValidationError, BrowserRegistryError, DocumentEpoch, Origin,
+    OriginWeaveProtocolVersion, ValidatedBrowserProtocolUse,
 };
 
 const ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion =
@@ -78,8 +79,10 @@ fn exact_current_origin_and_protocol_metadata_gate_one_dispatch_call() -> Result
 
     let result = descriptor.dispatch_if_context_origin_current(
         &registry,
-        BrowserContextDispatchTarget::new(session, context),
-        &expected_origin,
+        BrowserContextOriginDispatchTarget::new(
+            BrowserContextDispatchTarget::new(session, context),
+            &expected_origin,
+        ),
         ORIGINWEAVE_PROTOCOL_VERSION,
         runtime_metadata(ADAPTER_VERSION),
         BrowserProtocolCapability::SemanticObservation,
@@ -108,8 +111,10 @@ fn origin_mismatch_or_unbound_origin_fails_before_dispatch() -> Result<(), Box<d
     assert_eq!(
         descriptor.dispatch_if_context_origin_current(
             &registry,
-            BrowserContextDispatchTarget::new(session, context),
-            &other_origin,
+            BrowserContextOriginDispatchTarget::new(
+                BrowserContextDispatchTarget::new(session, context),
+                &other_origin,
+            ),
             ORIGINWEAVE_PROTOCOL_VERSION,
             runtime_metadata(ADAPTER_VERSION),
             BrowserProtocolCapability::SemanticObservation,
@@ -126,8 +131,10 @@ fn origin_mismatch_or_unbound_origin_fails_before_dispatch() -> Result<(), Box<d
     assert_eq!(
         descriptor.dispatch_if_context_origin_current(
             &registry,
-            BrowserContextDispatchTarget::new(session, context),
-            &expected_origin,
+            BrowserContextOriginDispatchTarget::new(
+                BrowserContextDispatchTarget::new(session, context),
+                &expected_origin,
+            ),
             ORIGINWEAVE_PROTOCOL_VERSION,
             runtime_metadata(ADAPTER_VERSION),
             BrowserProtocolCapability::SemanticObservation,
@@ -155,8 +162,10 @@ fn protocol_mismatch_after_origin_revalidation_still_prevents_dispatch()
     assert_eq!(
         descriptor.dispatch_if_context_origin_current(
             &registry,
-            BrowserContextDispatchTarget::new(session, context),
-            &expected_origin,
+            BrowserContextOriginDispatchTarget::new(
+                BrowserContextDispatchTarget::new(session, context),
+                &expected_origin,
+            ),
             ORIGINWEAVE_PROTOCOL_VERSION,
             runtime_metadata("originweave-bidi-v2"),
             BrowserProtocolCapability::SemanticObservation,
