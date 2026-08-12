@@ -145,10 +145,7 @@ fn generic_constructor_cannot_bypass_node_identity_binding() {
     )
     .expect_err("node-state success must require exact node authority");
 
-    assert_eq!(
-        error,
-        VerifiedActionOutcomeError::NodeStateTargetRequired
-    );
+    assert_eq!(error, VerifiedActionOutcomeError::NodeStateTargetRequired);
     assert_eq!(
         error.to_string(),
         "node-state post-condition requires the exact governed action target node"
