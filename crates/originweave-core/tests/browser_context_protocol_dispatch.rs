@@ -1,10 +1,10 @@
 use std::{cell::Cell, error::Error};
 
 use originweave_core::{
-    BrowserAuthorityRegistry, BrowserContextProtocolDispatchError, BrowserProtocolAdapterDescriptor,
-    BrowserProtocolCapability, BrowserProtocolKind, BrowserProtocolRuntimeMetadata,
-    BrowserProtocolUseValidationError, BrowserRegistryError, DocumentEpoch,
-    OriginWeaveProtocolVersion, ValidatedBrowserProtocolUse,
+    BrowserAuthorityRegistry, BrowserContextProtocolDispatchError,
+    BrowserProtocolAdapterDescriptor, BrowserProtocolCapability, BrowserProtocolKind,
+    BrowserProtocolRuntimeMetadata, BrowserProtocolUseValidationError, BrowserRegistryError,
+    DocumentEpoch, OriginWeaveProtocolVersion, ValidatedBrowserProtocolUse,
 };
 
 const ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion =
@@ -75,10 +75,7 @@ fn exact_context_and_runtime_metadata_gate_one_dispatch_call() -> Result<(), Box
     )?;
 
     assert!(dispatch_was_called());
-    assert_eq!(
-        result,
-        Ok((1, BrowserProtocolCapability::Navigation))
-    );
+    assert_eq!(result, Ok((1, BrowserProtocolCapability::Navigation)));
 
     registry.advance_document(context)?;
     reset_dispatch_marker();
@@ -129,7 +126,8 @@ fn cross_session_context_reuse_fails_before_dispatch() -> Result<(), Box<dyn Err
 }
 
 #[test]
-fn protocol_mismatch_after_context_validation_still_prevents_dispatch() -> Result<(), Box<dyn Error>> {
+fn protocol_mismatch_after_context_validation_still_prevents_dispatch() -> Result<(), Box<dyn Error>>
+{
     let descriptor = descriptor()?;
     let mut registry = BrowserAuthorityRegistry::new();
     let session = registry.register_session("webdriver-session")?;
