@@ -7,12 +7,19 @@ use originweave_core::{
     BrowserProtocolKind, MAX_BROWSER_PROTOCOL_METADATA_BYTES,
 };
 
+const BIDI_ADAPTER_VERSION: &str = "originweave-bidi-v1";
+const BIDI_PROTOCOL_REVISION: &str = "webdriver-bidi-wd-2026-06-01";
+const CDP_ADAPTER_VERSION: &str = "originweave-cdp-v1";
+const CDP_PROTOCOL_REVISION: &str = "cdp-browser-r1639810";
+const BROWSER_REVISION: &str = "chromium-r1639810";
+
 #[test]
 fn webdriver_bidi_descriptor_is_explicit_and_capability_bounded() -> Result<(), Box<dyn Error>> {
     let descriptor = BrowserProtocolAdapterDescriptor::new(
         BrowserProtocolKind::WebDriverBiDi,
-        "bidi-2026-06-29",
-        "chromium-r1639810",
+        BIDI_ADAPTER_VERSION,
+        BIDI_PROTOCOL_REVISION,
+        BROWSER_REVISION,
         &[
             BrowserProtocolCapability::Navigation,
             BrowserProtocolCapability::SemanticObservation,
@@ -21,8 +28,9 @@ fn webdriver_bidi_descriptor_is_explicit_and_capability_bounded() -> Result<(), 
     )?;
 
     assert_eq!(descriptor.kind(), BrowserProtocolKind::WebDriverBiDi);
-    assert_eq!(descriptor.adapter_version(), "bidi-2026-06-29");
-    assert_eq!(descriptor.browser_revision(), "chromium-r1639810");
+    assert_eq!(descriptor.adapter_version(), BIDI_ADAPTER_VERSION);
+    assert_eq!(descriptor.protocol_revision(), BIDI_PROTOCOL_REVISION);
+    assert_eq!(descriptor.browser_revision(), BROWSER_REVISION);
     assert_eq!(descriptor.capability_count(), 3);
     assert!(descriptor.supports(BrowserProtocolCapability::Navigation));
     assert!(descriptor.supports(BrowserProtocolCapability::SemanticObservation));
@@ -35,11 +43,13 @@ fn webdriver_bidi_descriptor_is_explicit_and_capability_bounded() -> Result<(), 
 fn cdp_capability_is_not_inferred_from_protocol_kind() -> Result<(), Box<dyn Error>> {
     let descriptor = BrowserProtocolAdapterDescriptor::new(
         BrowserProtocolKind::ChromeDevToolsProtocol,
-        "cdp-150",
-        "chromium-r1639810",
+        CDP_ADAPTER_VERSION,
+        CDP_PROTOCOL_REVISION,
+        BROWSER_REVISION,
         &[BrowserProtocolCapability::NetworkObservation],
     )?;
 
+    assert_eq!(descriptor.protocol_revision(), CDP_PROTOCOL_REVISION);
     assert!(descriptor.supports(BrowserProtocolCapability::NetworkObservation));
     assert!(!descriptor.supports(BrowserProtocolCapability::Navigation));
     assert!(!descriptor.supports(BrowserProtocolCapability::SemanticObservation));
@@ -56,10 +66,32 @@ fn malformed_or_ambiguous_metadata_fails_closed() {
             BrowserProtocolAdapterDescriptor::new(
                 BrowserProtocolKind::WebDriverBiDi,
                 adapter_version,
-                "chromium-r1639810",
+                BIDI_PROTOCOL_REVISION,
+                BROWSER_REVISION,
                 &valid_capabilities,
             ),
             Err(BrowserProtocolDescriptorError::InvalidAdapterVersion)
+        );
+    }
+
+    let invalid_protocol_revisions = [
+        "",
+        " ",
+        "webdriver bidi",
+        "webdriver/bidi",
+        "---",
+        "프로토콜",
+    ];
+    for protocol_revision in invalid_protocol_revisions {
+        assert_eq!(
+            BrowserProtocolAdapterDescriptor::new(
+                BrowserProtocolKind::WebDriverBiDi,
+                BIDI_ADAPTER_VERSION,
+                protocol_revision,
+                BROWSER_REVISION,
+                &valid_capabilities,
+            ),
+            Err(BrowserProtocolDescriptorError::InvalidProtocolRevision)
         );
     }
 
@@ -75,7 +107,8 @@ fn malformed_or_ambiguous_metadata_fails_closed() {
         assert_eq!(
             BrowserProtocolAdapterDescriptor::new(
                 BrowserProtocolKind::WebDriverBiDi,
-                "bidi-2026-06-29",
+                BIDI_ADAPTER_VERSION,
+                BIDI_PROTOCOL_REVISION,
                 browser_revision,
                 &valid_capabilities,
             ),
@@ -88,7 +121,8 @@ fn malformed_or_ambiguous_metadata_fails_closed() {
         BrowserProtocolAdapterDescriptor::new(
             BrowserProtocolKind::WebDriverBiDi,
             &oversized,
-            "chromium-r1639810",
+            BIDI_PROTOCOL_REVISION,
+            BROWSER_REVISION,
             &valid_capabilities,
         ),
         Err(BrowserProtocolDescriptorError::InvalidAdapterVersion)
@@ -96,7 +130,18 @@ fn malformed_or_ambiguous_metadata_fails_closed() {
     assert_eq!(
         BrowserProtocolAdapterDescriptor::new(
             BrowserProtocolKind::WebDriverBiDi,
-            "bidi-2026-06-29",
+            BIDI_ADAPTER_VERSION,
+            &oversized,
+            BROWSER_REVISION,
+            &valid_capabilities,
+        ),
+        Err(BrowserProtocolDescriptorError::InvalidProtocolRevision)
+    );
+    assert_eq!(
+        BrowserProtocolAdapterDescriptor::new(
+            BrowserProtocolKind::WebDriverBiDi,
+            BIDI_ADAPTER_VERSION,
+            BIDI_PROTOCOL_REVISION,
             &oversized,
             &valid_capabilities,
         ),
@@ -109,8 +154,9 @@ fn capability_set_must_be_nonempty_and_canonical() {
     assert_eq!(
         BrowserProtocolAdapterDescriptor::new(
             BrowserProtocolKind::WebDriverBiDi,
-            "bidi-2026-06-29",
-            "chromium-r1639810",
+            BIDI_ADAPTER_VERSION,
+            BIDI_PROTOCOL_REVISION,
+            BROWSER_REVISION,
             &[],
         ),
         Err(BrowserProtocolDescriptorError::EmptyCapabilities)
@@ -119,8 +165,9 @@ fn capability_set_must_be_nonempty_and_canonical() {
     assert_eq!(
         BrowserProtocolAdapterDescriptor::new(
             BrowserProtocolKind::WebDriverBiDi,
-            "bidi-2026-06-29",
-            "chromium-r1639810",
+            BIDI_ADAPTER_VERSION,
+            BIDI_PROTOCOL_REVISION,
+            BROWSER_REVISION,
             &[
                 BrowserProtocolCapability::Navigation,
                 BrowserProtocolCapability::Navigation,
@@ -136,6 +183,10 @@ fn descriptor_errors_are_stable_and_source_free() {
         (
             BrowserProtocolDescriptorError::InvalidAdapterVersion,
             "browser protocol adapter version must be a bounded ASCII metadata token",
+        ),
+        (
+            BrowserProtocolDescriptorError::InvalidProtocolRevision,
+            "browser protocol revision must be a bounded ASCII metadata token",
         ),
         (
             BrowserProtocolDescriptorError::InvalidBrowserRevision,
