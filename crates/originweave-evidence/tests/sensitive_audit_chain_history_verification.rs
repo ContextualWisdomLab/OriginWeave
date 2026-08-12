@@ -12,10 +12,8 @@ use originweave_evidence::{
     verify_sensitive_audit_chain_history,
 };
 
-const PAYLOAD_ONE: &str =
-    "sha256:1111111111111111111111111111111111111111111111111111111111111111";
-const PAYLOAD_TWO: &str =
-    "sha256:2222222222222222222222222222222222222222222222222222222222222222";
+const PAYLOAD_ONE: &str = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
+const PAYLOAD_TWO: &str = "sha256:2222222222222222222222222222222222222222222222222222222222222222";
 const PAYLOAD_THREE: &str =
     "sha256:3333333333333333333333333333333333333333333333333333333333333333";
 const PLACEHOLDER_DIGEST: &str =
@@ -69,10 +67,7 @@ fn complete_history_verifies_from_genesis_through_final_link() {
     let history = valid_history();
 
     assert_eq!(verify_sensitive_audit_chain_history(&history), Ok(()));
-    assert_eq!(
-        verify_sensitive_audit_chain_history(&history[..1]),
-        Ok(())
-    );
+    assert_eq!(verify_sensitive_audit_chain_history(&history[..1]), Ok(()));
 }
 
 #[test]
