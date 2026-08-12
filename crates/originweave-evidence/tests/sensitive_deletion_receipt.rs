@@ -37,7 +37,10 @@ fn receipt_records_only_bounded_deletion_metadata() {
     assert_eq!(receipt.storage_scope_id(), "primary-store");
     assert_eq!(receipt.retention_policy_id(), "retention-30d-v1");
     assert_eq!(receipt.verification_reference(), "delete-proof-001");
-    assert_eq!(receipt.target(), SensitiveDeletionTarget::AuthoritativeRecord);
+    assert_eq!(
+        receipt.target(),
+        SensitiveDeletionTarget::AuthoritativeRecord
+    );
     assert_eq!(receipt.cause(), SensitiveDeletionCause::RetentionExpired);
     assert_eq!(receipt.deletion_epoch_seconds(), 1_786_000_000);
     assert_eq!(receipt.verification_epoch_seconds(), 1_786_000_001);
