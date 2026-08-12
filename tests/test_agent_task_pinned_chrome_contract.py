@@ -78,6 +78,25 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
             with self.subTest(expected=expected):
                 self.assertIn(expected, runner)
 
+    def test_agent_task_locates_controlled_targets_by_exact_role_and_name(self) -> None:
+        """The controlled task must discover targets semantically rather than by fixture CSS."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_semantic_locator")
+        runner = RUNNER.read_text(encoding="utf-8")
+        self.assertIn("_find_element_by_accessible_role_name", namespace)
+        for expected in (
+            "MAX_SEMANTIC_LOCATOR_CANDIDATES",
+            '"/elements"',
+            '"css selector"',
+            '"*"',
+            '"semantic locator returned no exact match"',
+            '"semantic locator returned multiple exact matches"',
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, runner)
+        self.assertNotIn('_find_element(driver_port, session_id, "#task-text")', runner)
+        self.assertNotIn('_find_element(driver_port, session_id, "#submit-task")', runner)
+
     def test_agent_task_records_real_bounded_resource_evidence(self) -> None:
         """The real task must report measured browser/runtime resource evidence."""
 
