@@ -57,7 +57,8 @@ fn context_origin_change_requires_document_rotation() -> Result<(), Box<dyn Erro
 }
 
 #[test]
-fn context_origin_binding_rejects_cross_session_and_unknown_authority() -> Result<(), Box<dyn Error>> {
+fn context_origin_binding_rejects_cross_session_and_unknown_authority() -> Result<(), Box<dyn Error>>
+{
     let mut registry = BrowserAuthorityRegistry::new();
     let owner = registry.register_session("owner-session")?;
     let attacker = registry.register_session("attacker-session")?;
