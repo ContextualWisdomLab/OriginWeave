@@ -289,6 +289,87 @@ impl BrowserProtocolAdapterDescriptor {
             Err(BrowserProtocolCapabilityRequirementError::UnsupportedCapability(capability))
         }
     }
+
+    /// Validate all adapter metadata prerequisites for one immediate browser operation.
+    ///
+    /// Validation is intentionally ordered and fail closed: the exact
+    /// OriginWeave Protocol generation is checked first, then the supplied
+    /// runtime protocol/browser revisions, then the required adapter
+    /// capability. Success returns a non-cloneable value that a later trusted
+    /// transport can consume as proof that these metadata prerequisites were
+    /// checked together. It is not browser or Agent authority and does not
+    /// authenticate the caller supplying runtime revision evidence.
+    pub fn validate_use(
+        &self,
+        required_originweave_protocol_version: OriginWeaveProtocolVersion,
+        runtime_protocol_revision: &str,
+        runtime_browser_revision: &str,
+        required_capability: BrowserProtocolCapability,
+    ) -> Result<ValidatedBrowserProtocolUse, BrowserProtocolUseValidationError> {
+        self.require_originweave_protocol_version(required_originweave_protocol_version)
+            .map_err(BrowserProtocolUseValidationError::ProtocolVersion)?;
+        self.require_runtime_revisions(runtime_protocol_revision, runtime_browser_revision)
+            .map_err(BrowserProtocolUseValidationError::RuntimeRevision)?;
+        self.require_capability(required_capability)
+            .map_err(BrowserProtocolUseValidationError::Capability)?;
+
+        Ok(ValidatedBrowserProtocolUse {
+            descriptor: self.clone(),
+            capability: required_capability,
+        })
+    }
+}
+
+/// Snapshot proving that one descriptor passed all browser-protocol metadata checks for one use.
+///
+/// Only [`BrowserProtocolAdapterDescriptor::validate_use`] can construct this
+/// value. It intentionally does not implement `Clone`: a future trusted browser
+/// transport can consume the value by ownership at the operation boundary
+/// rather than treating it as reusable ambient authority. The value still does
+/// not authenticate an adapter or attest that supplied runtime metadata came
+/// from the running browser process.
+#[derive(Debug, PartialEq, Eq)]
+pub struct ValidatedBrowserProtocolUse {
+    descriptor: BrowserProtocolAdapterDescriptor,
+    capability: BrowserProtocolCapability,
+}
+
+impl ValidatedBrowserProtocolUse {
+    /// Return the validated browser protocol family.
+    #[must_use]
+    pub const fn kind(&self) -> BrowserProtocolKind {
+        self.descriptor.kind
+    }
+
+    /// Return the validated OriginWeave Protocol generation.
+    #[must_use]
+    pub const fn originweave_protocol_version(&self) -> OriginWeaveProtocolVersion {
+        self.descriptor.originweave_protocol_version
+    }
+
+    /// Return the validated bounded adapter-version metadata token.
+    #[must_use]
+    pub fn adapter_version(&self) -> &str {
+        &self.descriptor.adapter_version
+    }
+
+    /// Return the validated bounded upstream protocol-revision metadata token.
+    #[must_use]
+    pub fn protocol_revision(&self) -> &str {
+        &self.descriptor.protocol_revision
+    }
+
+    /// Return the validated bounded browser-revision metadata token.
+    #[must_use]
+    pub fn browser_revision(&self) -> &str {
+        &self.descriptor.browser_revision
+    }
+
+    /// Return the exact adapter capability validated for this use.
+    #[must_use]
+    pub const fn capability(&self) -> BrowserProtocolCapability {
+        self.capability
+    }
 }
 
 const fn capability_rank(capability: BrowserProtocolCapability) -> u8 {
@@ -397,6 +478,37 @@ impl fmt::Display for BrowserProtocolCapabilityRequirementError {
 }
 
 impl std::error::Error for BrowserProtocolCapabilityRequirementError {}
+
+/// Failure to validate all browser-protocol metadata prerequisites for one use.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BrowserProtocolUseValidationError {
+    /// The descriptor targets the wrong OriginWeave Protocol generation.
+    ProtocolVersion(BrowserProtocolVersionRequirementError),
+    /// The supplied runtime protocol or browser revision is invalid or has drifted.
+    RuntimeRevision(BrowserProtocolRuntimeRequirementError),
+    /// The descriptor does not explicitly declare the required capability.
+    Capability(BrowserProtocolCapabilityRequirementError),
+}
+
+impl fmt::Display for BrowserProtocolUseValidationError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ProtocolVersion(error) => error.fmt(formatter),
+            Self::RuntimeRevision(error) => error.fmt(formatter),
+            Self::Capability(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl std::error::Error for BrowserProtocolUseValidationError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::ProtocolVersion(error) => Some(error),
+            Self::RuntimeRevision(error) => Some(error),
+            Self::Capability(error) => Some(error),
+        }
+    }
+}
 
 /// Failure to construct canonical browser protocol adapter metadata.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
