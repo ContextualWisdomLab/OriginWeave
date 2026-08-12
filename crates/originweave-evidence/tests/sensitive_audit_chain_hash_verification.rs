@@ -61,11 +61,13 @@ fn payload_change_changes_computed_digest_and_invalidates_replayed_digest() {
         .expect("valid original chain link");
     let mut changed = genesis_input(EXPECTED_CHAIN_DIGEST);
     changed.payload_digest =
-        "sha256:2222222222222222222222222222222222222222222222222222222222222222"
-            .to_owned();
+        "sha256:2222222222222222222222222222222222222222222222222222222222222222".to_owned();
     let changed = SensitiveAuditChainLink::try_from(changed).expect("valid changed payload link");
 
-    assert_ne!(changed.computed_chain_digest(), original.computed_chain_digest());
+    assert_ne!(
+        changed.computed_chain_digest(),
+        original.computed_chain_digest()
+    );
     assert_eq!(
         changed.verify_chain_digest(),
         Err(SensitiveAuditChainLinkError::ChainDigestMismatch)
