@@ -130,7 +130,7 @@ fn same_origin_new_document_epoch_fails_before_protocol_dispatch() -> Result<(),
         Ok(_) => {
             return Err(Box::new(io::Error::other(
                 "stale document epoch unexpectedly dispatched",
-            )))
+            )));
         }
     };
 
