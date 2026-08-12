@@ -122,6 +122,32 @@ class AgentTaskForcedCloseContractTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "timeout"):
             force_close(4444, "session-a")
 
+    def test_forced_close_rejects_untyped_error_containing_no_such_window_text(self) -> None:
+        """Incidental error text must not be promoted into structured close evidence."""
+
+        force_close = runpy.run_path(
+            str(RUNNER), run_name="agent_task_forced_close_spoofed_text"
+        )["_force_close_agent_task_context"]
+
+        def spoofed_text_request(
+            _driver_port: int,
+            method: str,
+            path: str,
+            _payload: object | None = None,
+            **_kwargs: object,
+        ) -> dict[str, object]:
+            if method == "DELETE" and path.endswith("/window"):
+                return {"value": ["survivor-context"]}
+            if method == "GET" and path.endswith("/url"):
+                raise RuntimeError(
+                    "WebDriver transport timeout; diagnostic contained: no such window"
+                )
+            raise AssertionError(f"unexpected request: {method} {path}")
+
+        force_close.__globals__["_json_request"] = spoofed_text_request
+        with self.assertRaisesRegex(RuntimeError, "transport timeout"):
+            force_close(4444, "session-a")
+
     def test_browser_pass_creates_and_selects_disposable_context(self) -> None:
         """The real probe must preserve a session by closing only a second context."""
 
