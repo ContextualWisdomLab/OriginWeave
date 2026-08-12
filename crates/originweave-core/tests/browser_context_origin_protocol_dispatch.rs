@@ -66,7 +66,8 @@ fn successful_dispatch(
 }
 
 #[test]
-fn exact_current_origin_and_protocol_metadata_gate_one_dispatch_call() -> Result<(), Box<dyn Error>> {
+fn exact_current_origin_and_protocol_metadata_gate_one_dispatch_call() -> Result<(), Box<dyn Error>>
+{
     let descriptor = descriptor()?;
     let mut registry = BrowserAuthorityRegistry::new();
     let session = registry.register_session("webdriver-session")?;
