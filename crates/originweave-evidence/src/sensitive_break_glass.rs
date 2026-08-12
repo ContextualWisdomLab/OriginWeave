@@ -1,9 +1,9 @@
 //! Credential-free audit metadata for one actual sensitive-data break-glass disclosure.
 //!
-//! This module records bounded authority, approval, timing, monitoring, and review correlation. It
-//! does not carry protected values or opaque handles, prove that policy authorization occurred,
-//! authenticate identities, verify signatures, execute monitoring, complete a review, or persist
-//! evidence.
+//! This module records bounded authority, approval, timing, monitoring, review, and retention
+//! correlation. It does not carry protected values or opaque handles, prove that policy
+//! authorization occurred, authenticate identities, verify signatures, execute monitoring,
+//! complete a review, persist evidence, or enforce deletion.
 
 use std::collections::BTreeSet;
 use std::fmt;
@@ -41,7 +41,7 @@ pub enum SensitiveBreakGlassEvidenceError {
     InvalidValidityWindow,
     /// The validity interval exceeded the explicit local maximum.
     WindowExceedsMaximum,
-    /// Decision, disclosure, or review timestamps had impossible ordering.
+    /// Decision, disclosure, review, or retention timestamps had impossible ordering.
     InvalidLifecycle,
 }
 
@@ -119,6 +119,8 @@ pub struct SensitiveBreakGlassEvidenceInput {
     pub post_event_review_reference: String,
     /// Deadline after disclosure by which post-event review must occur.
     pub post_event_review_due_epoch_seconds: u64,
+    /// Deadline after review by which this evidence must be deleted or re-authorized.
+    pub retention_deadline_epoch_seconds: u64,
 }
 
 /// Immutable credential-free receipt for one actual break-glass disclosure.
@@ -147,6 +149,7 @@ pub struct SensitiveBreakGlassEvidence {
     monitoring_reference: String,
     post_event_review_reference: String,
     post_event_review_due_epoch_seconds: u64,
+    retention_deadline_epoch_seconds: u64,
 }
 
 impl TryFrom<SensitiveBreakGlassEvidenceInput> for SensitiveBreakGlassEvidence {
@@ -189,6 +192,7 @@ impl TryFrom<SensitiveBreakGlassEvidenceInput> for SensitiveBreakGlassEvidence {
             monitoring_reference: input.monitoring_reference,
             post_event_review_reference: input.post_event_review_reference,
             post_event_review_due_epoch_seconds: input.post_event_review_due_epoch_seconds,
+            retention_deadline_epoch_seconds: input.retention_deadline_epoch_seconds,
         })
     }
 }
@@ -331,6 +335,12 @@ impl SensitiveBreakGlassEvidence {
     pub const fn post_event_review_due_epoch_seconds(&self) -> u64 {
         self.post_event_review_due_epoch_seconds
     }
+
+    /// Return the evidence-retention deadline.
+    #[must_use]
+    pub const fn retention_deadline_epoch_seconds(&self) -> u64 {
+        self.retention_deadline_epoch_seconds
+    }
 }
 
 fn validate_identifiers(
@@ -424,6 +434,7 @@ fn validate_lifecycle(
         || input.disclosure_epoch_seconds < input.decision_epoch_seconds
         || input.disclosure_epoch_seconds >= input.valid_until_epoch_seconds
         || input.post_event_review_due_epoch_seconds <= input.disclosure_epoch_seconds
+        || input.retention_deadline_epoch_seconds <= input.post_event_review_due_epoch_seconds
     {
         return Err(SensitiveBreakGlassEvidenceError::InvalidLifecycle);
     }
