@@ -1,6 +1,9 @@
 #![allow(clippy::expect_used)]
 
-use originweave_core::{ActionIntentDigest, ActionKind, Origin};
+use originweave_core::{
+    ActionIntentDigest, ActionKind, BrowserSessionId, BrowsingContextId, DocumentEpoch,
+    ObservedNodeHandle, Origin,
+};
 use originweave_evidence::{
     EvidenceSourceKind, PostConditionKind, ProvenanceRecord, VerificationResult,
     VerifiedActionOutcomeError, VerifiedActionOutcomeEvidence,
@@ -19,6 +22,17 @@ fn intent() -> ActionIntentDigest {
 
 fn origin() -> Origin {
     Origin::parse("https://app.example").expect("valid test origin")
+}
+
+fn node(node_id: u64) -> ObservedNodeHandle {
+    ObservedNodeHandle::new(
+        BrowserSessionId::new(7).expect("valid browser session"),
+        BrowsingContextId::new(11).expect("valid browsing context"),
+        origin(),
+        DocumentEpoch::new(13).expect("valid document epoch"),
+        node_id,
+    )
+    .expect("valid observed node")
 }
 
 fn provenance(result: VerificationResult) -> ProvenanceRecord {
@@ -203,4 +217,46 @@ fn post_condition_kinds_cover_first_browser_vertical_slice_evidence() {
 
         assert_eq!(evidence.post_condition(), kind);
     }
+}
+
+#[test]
+fn node_state_success_binds_the_exact_action_target_node() {
+    let target_node = node(17);
+    let evidence = VerifiedActionOutcomeEvidence::new_node_state(
+        ActionKind::Submit,
+        target_node.clone(),
+        intent(),
+        DISPATCHED_AT_MILLISECONDS,
+        OBSERVED_AT_MILLISECONDS,
+        target_node.clone(),
+        provenance(VerificationResult::Verified),
+    )
+    .expect("the exact observed target node should prove its node-state post-condition");
+
+    assert_eq!(evidence.target_origin(), target_node.origin());
+    assert_eq!(evidence.target_node(), Some(&target_node));
+    assert_eq!(
+        evidence.post_condition(),
+        PostConditionKind::NodeStateChanged
+    );
+}
+
+#[test]
+fn same_origin_different_node_cannot_prove_node_state_success() {
+    let error = VerifiedActionOutcomeEvidence::new_node_state(
+        ActionKind::Submit,
+        node(17),
+        intent(),
+        DISPATCHED_AT_MILLISECONDS,
+        OBSERVED_AT_MILLISECONDS,
+        node(18),
+        provenance(VerificationResult::Verified),
+    )
+    .expect_err("a different same-origin node must not prove the action target changed");
+
+    assert_eq!(error, VerifiedActionOutcomeError::PostConditionNodeMismatch);
+    assert_eq!(
+        error.to_string(),
+        "node-state post-condition must observe the exact governed action target node"
+    );
 }
