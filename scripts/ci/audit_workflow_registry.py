@@ -10,6 +10,7 @@ receipt so a later authorized operator can review immutable workflow IDs safely.
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import pathlib
 import re
@@ -24,7 +25,12 @@ _TIMESTAMP_PATTERN = re.compile(
 )
 _REPOSITORY_WORKFLOW_PREFIX = ".github/workflows/"
 _DYNAMIC_WORKFLOW_PREFIX = "dynamic/"
-_DISABLED_STATES = {"disabled_inactivity", "disabled_manually"}
+_DISABLED_STATES = {
+    "deleted",
+    "disabled_fork",
+    "disabled_inactivity",
+    "disabled_manually",
+}
 _ALLOWED_STATES = {"active", *_DISABLED_STATES}
 
 
@@ -75,6 +81,12 @@ def _validate_observed_at(value: Any) -> str:
     text = _require_nonempty_string(value, "observed_at", 20)
     if _TIMESTAMP_PATTERN.fullmatch(text) is None:
         raise WorkflowAuditError("observed_at must use YYYY-MM-DDTHH:MM:SSZ")
+    try:
+        datetime.datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        raise WorkflowAuditError(
+            "observed_at must be a valid UTC calendar timestamp"
+        ) from None
     return text
 
 
@@ -186,6 +198,7 @@ def _validate_workflow_record(
     raw_record: dict[str, Any],
     record_index: int,
     seen_ids: set[int],
+    seen_paths: set[str],
     protected_paths: set[str],
     active_pr_paths: set[str],
     default_branch_sha: str,
@@ -206,6 +219,9 @@ def _validate_workflow_record(
     path = _validate_workflow_path(
         raw_record.get("path"), f"workflow record {workflow_id} path"
     )
+    if path in seen_paths:
+        raise WorkflowAuditError(f"workflow record {workflow_id} reuses a path")
+    seen_paths.add(path)
     state = _require_nonempty_string(
         raw_record.get("state"), f"workflow record {workflow_id} state", 64
     )
@@ -268,11 +284,13 @@ def audit_workflow_registry(payload: dict[str, Any]) -> dict[str, Any]:
             "reported_total_count does not match paginated workflow records"
         )
     seen_ids: set[int] = set()
+    seen_paths: set[str] = set()
     records = [
         _validate_workflow_record(
             raw_record,
             record_index,
             seen_ids,
+            seen_paths,
             protected_paths,
             active_pr_paths,
             observed_sha,
