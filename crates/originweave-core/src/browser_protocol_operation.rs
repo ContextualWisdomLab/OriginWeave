@@ -55,11 +55,7 @@ impl BrowserProtocolAdapterDescriptor {
         dispatch: F,
     ) -> Result<R, BrowserContextProtocolDispatchError>
     where
-        F: FnOnce(
-            ValidatedBrowserProtocolUse,
-            BrowserProtocolOperation,
-            DocumentEpoch,
-        ) -> R,
+        F: FnOnce(ValidatedBrowserProtocolUse, BrowserProtocolOperation, DocumentEpoch) -> R,
     {
         self.dispatch_if_context_origin_epoch_current(
             authority_registry,
