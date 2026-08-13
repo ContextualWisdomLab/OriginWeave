@@ -224,7 +224,7 @@ fn import_bounded_secret(
         | VpnSecret::Ikev2PresharedKey(raw)
         | VpnSecret::Ikev2Password(raw) => raw,
     };
-    if raw.is_empty() || raw.len() > MAX_SECRET_BYTES {
+    if raw.len() > MAX_SECRET_BYTES {
         return Err(ProfileError::InvalidSecret);
     }
     importer
@@ -608,11 +608,12 @@ mod tests {
     #[test]
     fn wireguard_profile_imports_secrets_and_preserves_connectivity_intent() {
         let mut importer = RecordingImporter::default();
-        let result = import_wireguard_profile(wireguard_profile(), &mut importer);
+        let result = import_wireguard_profile(wireguard_profile(), &mut importer)
+            .expect("controlled WireGuard fixture must parse");
         assert_eq!(importer.kinds, vec!["wg-private", "wg-psk"]);
-        assert!(
-            matches!(result, Ok(WireGuardProfile { mtu: Some(1420), listen_port: Some(51820), ref peers, .. }) if peers.len() == 1)
-        );
+        assert_eq!(result.mtu, Some(1420));
+        assert_eq!(result.listen_port, Some(51820));
+        assert_eq!(result.peers.len(), 1);
     }
 
     #[test]
@@ -713,25 +714,32 @@ mod tests {
     #[test]
     fn ikev2_psk_and_eap_profiles_are_secret_safe() {
         let mut psk_importer = RecordingImporter::default();
-        let psk = parse_ikev2_profile(ikev2_psk_profile(), &mut psk_importer);
+        let psk = parse_ikev2_profile(ikev2_psk_profile(), &mut psk_importer)
+            .expect("controlled IKEv2 PSK fixture must parse");
         assert_eq!(psk_importer.kinds, vec!["ike-psk"]);
-        assert!(matches!(
-            psk,
-            Ok(Ikev2Profile {
-                mobike: true,
-                fragmentation: false,
-                dpd_seconds: 30,
-                rekey_seconds: 3600,
-                authentication: Ikev2Authentication::PresharedKey(_),
-                ..
-            })
-        ));
+        assert!(psk.mobike);
+        assert!(!psk.fragmentation);
+        assert_eq!(psk.dpd_seconds, 30);
+        assert_eq!(psk.rekey_seconds, 3600);
+        assert_eq!(
+            psk.authentication,
+            Ikev2Authentication::PresharedKey(SecretReference("secret://ike-psk/1".to_owned()))
+        );
 
         let mut eap_importer = RecordingImporter::default();
-        let eap = parse_ikev2_profile(ikev2_eap_profile(), &mut eap_importer);
+        let eap = parse_ikev2_profile(ikev2_eap_profile(), &mut eap_importer)
+            .expect("controlled IKEv2 EAP fixture must parse");
         assert_eq!(eap_importer.kinds, vec!["ike-password"]);
-        assert!(
-            matches!(eap, Ok(Ikev2Profile { mobike: true, fragmentation: true, dpd_seconds: 30, rekey_seconds: 3600, authentication: Ikev2Authentication::Eap { ref username, .. }, .. }) if username == "alice")
+        assert!(eap.mobike);
+        assert!(eap.fragmentation);
+        assert_eq!(eap.dpd_seconds, 30);
+        assert_eq!(eap.rekey_seconds, 3600);
+        assert_eq!(
+            eap.authentication,
+            Ikev2Authentication::Eap {
+                username: "alice".to_owned(),
+                password: SecretReference("secret://ike-password/1".to_owned()),
+            }
         );
     }
 
