@@ -90,6 +90,27 @@ class AgentTaskBrowserCrashRecoveryContractTests(unittest.TestCase):
         self.assertEqual(signalled, [(12, signal.SIGKILL)])
         self.assertEqual(closed, [12])
 
+    def test_signal_boundary_handles_exit_before_pidfd_signal(self) -> None:
+        """A target that exits after pidfd open must become a bounded not-signalled result."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_browser_crash_esrch")
+        signal_identity = namespace["_signal_linux_process_identity"]
+        closed: list[int] = []
+
+        signal_identity.__globals__["_read_linux_proc_stat_process_identity"] = (
+            lambda _process_id: (777, 42)
+        )
+        signal_identity.__globals__["os"].pidfd_open = lambda _process_id, _flags=0: 12
+
+        def exited_before_signal(*_args: object, **_kwargs: object) -> None:
+            raise ProcessLookupError("process exited before pidfd signal")
+
+        signal_identity.__globals__["signal"].pidfd_send_signal = exited_before_signal
+        signal_identity.__globals__["os"].close = closed.append
+
+        self.assertFalse(signal_identity((777, 42), signal.SIGKILL))
+        self.assertEqual(closed, [12])
+
     def test_crash_driver_cleanup_is_idempotent_after_driver_exit(self) -> None:
         """A browser crash may end ChromeDriver before cleanup without a second signal."""
 
