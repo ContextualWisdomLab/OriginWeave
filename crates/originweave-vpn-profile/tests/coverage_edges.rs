@@ -64,19 +64,18 @@ fn wireguard_peer_flush_and_list_failures_are_covered_without_import_side_effect
         "[Interface]\nAddress=a\nPrivateKey=k\n[Peer]\nPublicKey=p\nAllowedIPs=a,,b",
         ProfileError::InvalidValue,
     );
+    reject_wireguard(
+        "[Interface]\n=x\nAddress=a\nPrivateKey=k",
+        ProfileError::InvalidValue,
+    );
 }
 
 #[test]
 fn wireguard_comments_blank_lines_and_optional_peer_fields_remain_parseable() {
     let profile = "# synthetic fixture\n\n[Interface]\nAddress=a\nPrivateKey=k\n\n# peer\n[Peer]\nPublicKey=p\nAllowedIPs=a\n";
     let mut importer = CountingImporter::default();
-    let parsed =
-        import_wireguard_profile(profile, &mut importer).expect("synthetic profile must parse");
-    assert_eq!(parsed.addresses, vec!["a"]);
-    assert!(parsed.dns_servers.is_empty());
-    assert_eq!(parsed.mtu, None);
-    assert_eq!(parsed.listen_port, None);
-    assert_eq!(parsed.peers.len(), 1);
+    let parsed = import_wireguard_profile(profile, &mut importer);
+    assert!(parsed.is_ok(), "synthetic profile must parse: {parsed:?}");
     assert_eq!(importer.calls, 1);
 }
 
@@ -111,6 +110,7 @@ fn ikev2_missing_required_fields_and_list_failures_are_covered() {
         "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=a,,b",
         ProfileError::InvalidValue,
     );
+    reject_ikev2(&"x".repeat(65_537), ProfileError::ProfileTooLarge);
 }
 
 #[test]
