@@ -67,15 +67,22 @@ fn rejected_ikev2_profile_does_not_import_preshared_key() {
 #[test]
 fn valid_wireguard_profile_imports_only_after_complete_validation() {
     let mut importer = RecordingImporter::default();
-    let profile = import_wireguard_profile(valid_wireguard_profile(), &mut importer).unwrap();
+    let result = import_wireguard_profile(valid_wireguard_profile(), &mut importer);
 
+    assert!(matches!(
+        result,
+        Ok(profile)
+            if profile.addresses.len() == 2
+                && profile.addresses.first().is_some_and(|value| value == "10.0.0.2/32")
+                && profile.addresses.get(1).is_some_and(|value| value == "fd00::2/128")
+                && profile.dns_servers.len() == 1
+                && profile.dns_servers.first().is_some_and(|value| value == "1.1.1.1")
+                && profile.mtu == Some(1420)
+                && profile.listen_port == Some(51820)
+                && profile.peers.len() == 1
+                && profile.peers.first().is_some_and(|peer| peer.persistent_keepalive_seconds == Some(25))
+    ));
     assert_eq!(importer.calls, 2);
-    assert_eq!(profile.addresses, vec!["10.0.0.2/32", "fd00::2/128"]);
-    assert_eq!(profile.dns_servers, vec!["1.1.1.1"]);
-    assert_eq!(profile.mtu, Some(1420));
-    assert_eq!(profile.listen_port, Some(51820));
-    assert_eq!(profile.peers.len(), 1);
-    assert_eq!(profile.peers[0].persistent_keepalive_seconds, Some(25));
 }
 
 #[test]
@@ -183,18 +190,22 @@ fn wireguard_rejects_list_and_secret_resource_overflow_before_external_import() 
 #[test]
 fn valid_ikev2_profiles_import_only_after_complete_validation() {
     let mut psk_importer = RecordingImporter::default();
-    let psk = parse_ikev2_profile(valid_ikev2_psk_profile(), &mut psk_importer).unwrap();
+    assert!(matches!(
+        parse_ikev2_profile(valid_ikev2_psk_profile(), &mut psk_importer),
+        Ok(profile)
+            if profile.dpd_seconds == 30
+                && profile.rekey_seconds == 3600
+                && profile.mobike
+                && !profile.fragmentation
+    ));
     assert_eq!(psk_importer.calls, 1);
-    assert_eq!(psk.dpd_seconds, 30);
-    assert_eq!(psk.rekey_seconds, 3600);
-    assert!(psk.mobike);
-    assert!(!psk.fragmentation);
 
     let mut eap_importer = RecordingImporter::default();
-    let eap = parse_ikev2_profile(valid_ikev2_eap_profile(), &mut eap_importer).unwrap();
+    assert!(matches!(
+        parse_ikev2_profile(valid_ikev2_eap_profile(), &mut eap_importer),
+        Ok(profile) if profile.mobike && profile.fragmentation
+    ));
     assert_eq!(eap_importer.calls, 1);
-    assert!(eap.mobike);
-    assert!(eap.fragmentation);
 }
 
 #[test]
@@ -298,10 +309,8 @@ fn string_owned_secret_references_cover_valid_and_invalid_bounds() {
         SecretReference::new("x".repeat(513)),
         Err(ProfileError::InvalidSecretReference)
     );
-    assert_eq!(
-        SecretReference::new("secret://integration".to_owned())
-            .unwrap()
-            .as_str(),
-        "secret://integration"
-    );
+    assert!(matches!(
+        SecretReference::new("secret://integration".to_owned()),
+        Ok(reference) if reference.as_str() == "secret://integration"
+    ));
 }
