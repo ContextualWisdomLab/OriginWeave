@@ -6,6 +6,7 @@ import pathlib
 import runpy
 import signal
 import unittest
+from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 RUNNER = ROOT / "scripts" / "ci" / "run_mv3_compatibility.py"
@@ -110,6 +111,25 @@ class AgentTaskBrowserCrashRecoveryContractTests(unittest.TestCase):
 
         self.assertFalse(signal_identity((777, 42), signal.SIGKILL))
         self.assertEqual(closed, [12])
+
+    def test_proc_stat_identity_treats_read_time_esrch_as_process_exit(self) -> None:
+        """A process disappearing while procfs is read must become bounded absence."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_browser_crash_proc_esrch")
+        read_identity = namespace["_read_linux_proc_stat_process_identity"]
+
+        class VanishedStat:
+            def __enter__(self) -> "VanishedStat":
+                return self
+
+            def __exit__(self, *_args: object) -> None:
+                return None
+
+            def read(self, _limit: int) -> str:
+                raise ProcessLookupError("process exited during proc stat read")
+
+        with mock.patch.object(pathlib.Path, "open", return_value=VanishedStat()):
+            self.assertIsNone(read_identity(777))
 
     def test_crash_driver_cleanup_is_idempotent_after_driver_exit(self) -> None:
         """A browser crash may end ChromeDriver before cleanup without a second signal."""
