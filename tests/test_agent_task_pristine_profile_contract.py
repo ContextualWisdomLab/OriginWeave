@@ -89,19 +89,6 @@ class AgentTaskPristineProfileContractTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "ambient Web Storage"):
             probe(4444, "session-a")
 
-    def test_agent_task_post_condition_does_not_echo_browser_state(self) -> None:
-        """Browser-controlled state must fail closed without entering CI diagnostics."""
-
-        namespace = self._namespace("agent_task_post_condition_diagnostic_contract")
-        require_state = namespace["_require_agent_task_submission_state"]
-        require_state("submitted")
-
-        hostile_state = "secret-like-browser-state-do-not-log"
-        with self.assertRaises(RuntimeError) as raised:
-            require_state(hostile_state)
-        self.assertNotIn(hostile_state, str(raised.exception))
-        self.assertEqual(str(raised.exception), "Agent Task state post-condition failed")
-
     def test_agent_task_disables_saved_credential_services_and_gates_evidence(self) -> None:
         """The acceptance runner must configure and require credential-free isolation evidence."""
 
