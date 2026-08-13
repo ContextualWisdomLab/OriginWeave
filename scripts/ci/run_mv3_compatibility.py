@@ -457,7 +457,7 @@ def _read_linux_proc_stat_process_identity(process_id: int) -> tuple[int, int] |
     try:
         with stat_path.open("r", encoding="utf-8", errors="strict") as stat_file:
             stat_text = stat_file.read(MAX_PROC_STAT_CHARACTERS + 1)
-    except FileNotFoundError:
+    except (FileNotFoundError, ProcessLookupError):
         return None
     if len(stat_text) > MAX_PROC_STAT_CHARACTERS:
         raise RuntimeError("Linux proc stat exceeded the bounded text limit")
