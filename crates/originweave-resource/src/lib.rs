@@ -448,6 +448,9 @@ pub fn parse_linux_proc_status_rss_bytes(status: &str) -> Result<u64, BrowserRss
         if unit != "kB" {
             return Err(BrowserRssSampleError::UnsupportedVmRssUnit);
         }
+        if !raw_value.bytes().all(|byte| byte.is_ascii_digit()) {
+            return Err(BrowserRssSampleError::InvalidVmRss);
+        }
         let parsed = raw_value
             .parse::<u64>()
             .map_err(|_error| BrowserRssSampleError::InvalidVmRss)?;
