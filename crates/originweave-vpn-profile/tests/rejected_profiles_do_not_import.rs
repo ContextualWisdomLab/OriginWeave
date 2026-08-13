@@ -162,9 +162,7 @@ fn wireguard_exercises_both_peer_limit_rejection_boundaries() {
 
 #[test]
 fn wireguard_rejects_list_and_secret_resource_overflow_before_external_import() {
-    let list = std::iter::repeat_n("a", 257)
-        .collect::<Vec<_>>()
-        .join(",");
+    let list = std::iter::repeat_n("a", 257).collect::<Vec<_>>().join(",");
     let profile = format!("[Interface]\nAddress={list}\nPrivateKey=k");
     let mut importer = RecordingImporter::default();
     assert_eq!(
