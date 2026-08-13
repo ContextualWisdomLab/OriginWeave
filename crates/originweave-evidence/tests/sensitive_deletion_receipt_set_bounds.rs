@@ -2,14 +2,16 @@
 
 //! Resource bounds for exact sensitive-data deletion receipt-set verification.
 //!
-//! The verifier must reject oversized caller-supplied sets before building internal indexes or
-//! evaluating duplicate/unexpected entries. This keeps untrusted lifecycle inventory size from
-//! becoming unbounded CPU or memory work at the deterministic evidence boundary.
+//! The verifier must reject oversized caller-supplied sets and scope identifiers before building
+//! internal indexes or evaluating duplicate/unexpected entries. This keeps untrusted lifecycle
+//! inventory size and comparison work from becoming unbounded CPU or memory work at the
+//! deterministic evidence boundary.
 
 use originweave_evidence::{
-    MAX_SENSITIVE_DELETION_RECEIPT_SET_ENTRIES, SensitiveDeletionCause, SensitiveDeletionReceipt,
-    SensitiveDeletionReceiptInput, SensitiveDeletionReceiptSetError, SensitiveDeletionRequirement,
-    SensitiveDeletionTarget, verify_sensitive_deletion_receipt_set,
+    MAX_SENSITIVE_DELETION_RECEIPT_SET_ENTRIES, MAX_SENSITIVE_IDENTIFIER_BYTES,
+    SensitiveDeletionCause, SensitiveDeletionReceipt, SensitiveDeletionReceiptInput,
+    SensitiveDeletionReceiptSetError, SensitiveDeletionRequirement, SensitiveDeletionTarget,
+    verify_sensitive_deletion_receipt_set,
 };
 
 fn requirement(index: usize) -> SensitiveDeletionRequirement {
@@ -72,4 +74,27 @@ fn verifier_rejects_receipt_sets_over_the_resource_ceiling_before_entry_checks()
         ),
         Err(SensitiveDeletionReceiptSetError::TooManyReceipts)
     );
+}
+
+#[test]
+fn verifier_rejects_oversized_scope_identifiers_before_entry_checks() {
+    let requirements = [requirement(0)];
+    let oversized = "a".repeat(MAX_SENSITIVE_IDENTIFIER_BYTES + 1);
+
+    for (request_id, tenant_id, retention_policy_id) in [
+        (oversized.as_str(), "tenant-alpha", "retention-30d-v1"),
+        ("delete-request-001", oversized.as_str(), "retention-30d-v1"),
+        ("delete-request-001", "tenant-alpha", oversized.as_str()),
+    ] {
+        assert_eq!(
+            verify_sensitive_deletion_receipt_set(
+                &[],
+                request_id,
+                tenant_id,
+                retention_policy_id,
+                &requirements,
+            ),
+            Err(SensitiveDeletionReceiptSetError::InvalidScopeIdentifier)
+        );
+    }
 }
