@@ -36,7 +36,7 @@ impl SecretReference {
 }
 
 /// The only raw-secret vocabulary that can cross the trusted importer boundary.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Eq, PartialEq)]
 pub enum VpnSecret<'a> {
     /// WireGuard interface `PrivateKey`.
     WireGuardPrivateKey(&'a str),
