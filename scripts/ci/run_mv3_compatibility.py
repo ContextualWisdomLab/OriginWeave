@@ -397,7 +397,6 @@ def _parse_linux_proc_status_process_identity(status_text: str) -> tuple[int, in
         if not raw_process_id.isascii() or not raw_process_id.isdigit():
             raise ValueError("malformed Linux process identity value")
         parsed[label] = int(raw_process_id, 10)
-
     if set(parsed) != {"Pid:", "PPid:"}:
         raise ValueError("Linux proc status must contain exactly one Pid and PPid")
     process_id = parsed["Pid:"]
@@ -501,7 +500,10 @@ def _signal_linux_process_identity(
     try:
         if _read_linux_proc_stat_process_identity(process_id) != expected_identity:
             return False
-        pidfd_send_signal(pidfd, signal_number)
+        try:
+            pidfd_send_signal(pidfd, signal_number)
+        except ProcessLookupError:
+            return False
         return True
     finally:
         os.close(pidfd)
@@ -1811,6 +1813,20 @@ def _run_agent_task_forced_close_trial(
     }
 
 
+def _stop_crashed_driver(driver: subprocess.Popen[Any]) -> None:
+    """Reap ChromeDriver without re-signalling a child that already exited."""
+
+    if driver.poll() is not None:
+        driver.wait(timeout=5)
+        return
+    driver.terminate()
+    try:
+        driver.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        driver.kill()
+        driver.wait(timeout=5)
+
+
 def _run_agent_task_browser_crash_browser_pass(
     chrome_bin: pathlib.Path,
     chromedriver_bin: pathlib.Path,
@@ -1942,12 +1958,7 @@ def _run_agent_task_browser_crash_browser_pass(
                     _webdriver_path(session_id, ""),
                     {},
                 )
-        driver.terminate()
-        try:
-            driver.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            driver.kill()
-            driver.wait(timeout=5)
+        _stop_crashed_driver(driver)
 
     if (
         browser_process_id is None
