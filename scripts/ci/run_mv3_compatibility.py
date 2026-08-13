@@ -723,26 +723,49 @@ def _run_restart_trial(
     fixture_url: str,
     trial_number: int,
 ) -> dict[str, Any]:
-    """Run one independent initial/restart pair and return credential-free evidence."""
+    """Run one independent initial/restart pair and retain cleanup evidence on failure."""
 
     trial_started = time.monotonic()
+    profile_path: pathlib.Path
+    initial: dict[str, Any] | None = None
+    restarted: dict[str, Any] | None = None
+    failure_type: str | None = None
     with tempfile.TemporaryDirectory(
         prefix=f"originweave-mv3-trial-{trial_number}-"
     ) as profile_dir:
-        initial = _run_browser_pass(
-            chrome_bin,
-            chromedriver_bin,
-            fixture_url,
-            profile_dir,
-            "initialized",
-        )
-        restarted = _run_browser_pass(
-            chrome_bin,
-            chromedriver_bin,
-            fixture_url,
-            profile_dir,
-            "persisted",
-        )
+        profile_path = pathlib.Path(profile_dir)
+        try:
+            initial = _run_browser_pass(
+                chrome_bin,
+                chromedriver_bin,
+                fixture_url,
+                profile_dir,
+                "initialized",
+            )
+            restarted = _run_browser_pass(
+                chrome_bin,
+                chromedriver_bin,
+                fixture_url,
+                profile_dir,
+                "persisted",
+            )
+        except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+            failure_type = type(exc).__name__
+    profile_cleaned = not profile_path.exists()
+    if not profile_cleaned:
+        raise RuntimeError(f"Manifest V3 profile cleanup failed in trial {trial_number}")
+
+    duration_ms = round((time.monotonic() - trial_started) * 1000)
+    if failure_type is not None:
+        return {
+            "trial_number": trial_number,
+            "passed": False,
+            "failure_type": failure_type,
+            "profile_cleaned": True,
+            "duration_ms": duration_ms,
+        }
+    if initial is None or restarted is None:
+        raise RuntimeError("Manifest V3 restart trial returned incomplete browser evidence")
 
     initial_count = int(initial["worker_start_count"])
     restarted_count = int(restarted["worker_start_count"])
@@ -777,7 +800,8 @@ def _run_restart_trial(
                 "storage_persistence": restarted["storage_persistence"],
             },
         ],
-        "duration_ms": round((time.monotonic() - trial_started) * 1000),
+        "profile_cleaned": True,
+        "duration_ms": duration_ms,
     }
 
 
@@ -1412,6 +1436,9 @@ def main() -> int:
             1 for trial in trial_results if trial.get("passed") is True
         )
         trial_pass_rate = successful_trials / REPEATABILITY_TRIALS
+        mv3_profiles_cleaned = all(
+            trial.get("profile_cleaned") is True for trial in trial_results
+        )
         successful_results = [
             trial for trial in trial_results if trial.get("passed") is True
         ]
@@ -1540,6 +1567,7 @@ def main() -> int:
             "repeatability_trials": REPEATABILITY_TRIALS,
             "successful_trials": successful_trials,
             "trial_pass_rate": trial_pass_rate,
+            "profiles_cleaned": mv3_profiles_cleaned,
             "surfaces": common_surfaces,
             "trial_results": trial_results,
             "browser_passes": (
@@ -1564,6 +1592,8 @@ def main() -> int:
             "duration_ms": round((time.monotonic() - started) * 1000),
         }
         print(json.dumps(evidence, sort_keys=True))
+        if not mv3_profiles_cleaned:
+            raise RuntimeError("Manifest V3 profile cleanup gate failed")
         if successful_trials != REPEATABILITY_TRIALS:
             raise RuntimeError(
                 "Manifest V3 repeatability gate failed: "
