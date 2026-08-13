@@ -55,7 +55,13 @@ Proposed ADR files are reviewable target architecture without becoming Accepted 
 | [0013](0013-manifest-v3-extension-authority.md) | Manifest V3 compatibility and extension-to-Agent authority | Proposed | Chromium extension compatibility evidence, profile separation, extension grants, native-messaging boundary and release claims |
 | [0014](0014-architecture-decision-governance.md) | Architecture decision acceptance governance | Proposed | ADR lifecycle authority, reviewer eligibility, solo-maintainer hold and re-enablement conditions |
 
-ADR 0013 and ADR 0014 exist only on this documentation branch until it integrates. After integration, this subsection remains historical provenance rather than an active-PR claim; both decisions remain Proposed until a later policy-compliant change explicitly changes their lifecycle.
+### Proposed feature decisions introduced by active implementation lanes
+
+| ADR | Decision | Status | Governs |
+|---|---|---|---|
+| [0015](0015-vpn-profile-authority.md) | Keep VPN profile parsing secret-safe and non-privileged | Proposed | WireGuard and IKEv2 profile normalization, opaque secret import, and privileged-adapter separation |
+
+ADR 0013 and ADR 0014 exist only on their documentation branch until it integrates. After integration, that subsection remains historical provenance rather than an active-PR claim; both decisions remain Proposed until a later policy-compliant change explicitly changes their lifecycle. ADR 0015 likewise remains branch-local Proposed architecture until its feature lane integrates; neither file presence nor implementation on the active branch makes it protected-main or shipped truth.
 
 Other active feature PRs may contain additional Proposed ADRs. Those files are not part of this canonical documentation line until integrated or deliberately reconciled here. Historical PR checks, stale branch state, or chat decisions never transfer ADR acceptance across a changed head.
 
