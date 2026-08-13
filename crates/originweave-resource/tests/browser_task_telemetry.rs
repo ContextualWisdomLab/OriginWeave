@@ -113,6 +113,7 @@ fn linux_proc_status_parser_rejects_missing_duplicate_malformed_and_overflow_val
         "VmRSS:\n",
         "VmRSS: many kB\n",
         "VmRSS: +1 kB\n",
+        "VmRSS: 18446744073709551616 kB\n",
         "VmRSS: 10\n",
         "VmRSS: 10 kB extra\n",
     ] {
