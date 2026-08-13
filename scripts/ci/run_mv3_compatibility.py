@@ -397,6 +397,7 @@ def _parse_linux_proc_status_process_identity(status_text: str) -> tuple[int, in
         if not raw_process_id.isascii() or not raw_process_id.isdigit():
             raise ValueError("malformed Linux process identity value")
         parsed[label] = int(raw_process_id, 10)
+
     if set(parsed) != {"Pid:", "PPid:"}:
         raise ValueError("Linux proc status must contain exactly one Pid and PPid")
     process_id = parsed["Pid:"]
