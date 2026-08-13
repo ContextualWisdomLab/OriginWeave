@@ -9,6 +9,9 @@ use std::collections::BTreeSet;
 
 use super::{MAX_SENSITIVE_IDENTIFIER_BYTES, SensitiveEvidenceError};
 
+/// Maximum number of declared copies or receipts verified in one deletion-set evaluation.
+pub const MAX_SENSITIVE_DELETION_RECEIPT_SET_ENTRIES: usize = 256;
+
 /// Declared storage-copy class whose deletion or cryptographic unavailability was verified.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SensitiveDeletionTarget {
@@ -217,6 +220,10 @@ impl SensitiveDeletionReceipt {
 /// Failure returned when declared deletion requirements and supplied receipts are not complete.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SensitiveDeletionReceiptSetError {
+    /// The caller supplied more declared-copy requirements than one evaluation may process.
+    TooManyRequirements,
+    /// The caller supplied more deletion receipts than one evaluation may process.
+    TooManyReceipts,
     /// At least one receipt belongs to another deletion request.
     RequestMismatch,
     /// At least one receipt belongs to another tenant.
@@ -239,6 +246,7 @@ pub enum SensitiveDeletionReceiptSetError {
 ///
 /// This comparison is credential-free and deliberately does not discover copies, authenticate
 /// storage owners, perform deletion, or prove that the caller's requirement set is exhaustive.
+/// Both caller-supplied sets are bounded before any index allocation or entry-level validation.
 pub fn verify_sensitive_deletion_receipt_set(
     receipts: &[SensitiveDeletionReceipt],
     request_id: &str,
@@ -246,6 +254,12 @@ pub fn verify_sensitive_deletion_receipt_set(
     retention_policy_id: &str,
     requirements: &[SensitiveDeletionRequirement],
 ) -> Result<(), SensitiveDeletionReceiptSetError> {
+    if requirements.len() > MAX_SENSITIVE_DELETION_RECEIPT_SET_ENTRIES {
+        return Err(SensitiveDeletionReceiptSetError::TooManyRequirements);
+    }
+    if receipts.len() > MAX_SENSITIVE_DELETION_RECEIPT_SET_ENTRIES {
+        return Err(SensitiveDeletionReceiptSetError::TooManyReceipts);
+    }
     if requirements.is_empty() {
         return Err(SensitiveDeletionReceiptSetError::EmptyRequirementSet);
     }
