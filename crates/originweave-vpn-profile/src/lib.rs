@@ -731,9 +731,7 @@ mod tests {
                 false,
                 30,
                 3600,
-                Ikev2Authentication::PresharedKey(SecretReference(
-                    "secret://ike-psk/1".to_owned()
-                )),
+                Ikev2Authentication::PresharedKey(SecretReference("secret://ike-psk/1".to_owned())),
             ))
         );
 
