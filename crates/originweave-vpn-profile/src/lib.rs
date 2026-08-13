@@ -325,10 +325,8 @@ pub fn import_wireguard_profile(
                 "MTU" => set_once(&mut mtu, parse_u16(value)?)?,
                 "ListenPort" => set_once(&mut listen_port, parse_u16(value)?)?,
                 "PrivateKey" => {
-                    let secret = import_bounded_secret(
-                        importer,
-                        VpnSecret::WireGuardPrivateKey(value),
-                    )?;
+                    let secret =
+                        import_bounded_secret(importer, VpnSecret::WireGuardPrivateKey(value))?;
                     set_once(&mut private_key, secret)?;
                 }
                 "PreUp" | "PostUp" | "PreDown" | "PostDown" | "SaveConfig" | "Table" => {
@@ -356,10 +354,7 @@ pub fn import_wireguard_profile(
                         set_once(&mut current.allowed_ips, split_bounded_list(value)?)?;
                     }
                     "PersistentKeepalive" => {
-                        set_once(
-                            &mut current.persistent_keepalive_seconds,
-                            parse_u16(value)?,
-                        )?;
+                        set_once(&mut current.persistent_keepalive_seconds, parse_u16(value)?)?;
                     }
                     _ => return Err(ProfileError::UnsupportedAuthority),
                 }
@@ -549,7 +544,10 @@ mod tests {
                 VpnSecret::Ikev2Password(_) => "ike-password",
             };
             self.kinds.push(kind);
-            Ok(SecretReference(format!("secret://{kind}/{}", self.kinds.len())))
+            Ok(SecretReference(format!(
+                "secret://{kind}/{}",
+                self.kinds.len()
+            )))
         }
     }
 
@@ -567,8 +565,14 @@ mod tests {
 
     #[test]
     fn secret_reference_is_bounded_and_borrowable() {
-        assert_eq!(SecretReference::new("secret://one").map(|value| value.as_str().to_owned()), Ok("secret://one".to_owned()));
-        assert_eq!(SecretReference::new(""), Err(ProfileError::InvalidSecretReference));
+        assert_eq!(
+            SecretReference::new("secret://one").map(|value| value.as_str().to_owned()),
+            Ok("secret://one".to_owned())
+        );
+        assert_eq!(
+            SecretReference::new(""),
+            Err(ProfileError::InvalidSecretReference)
+        );
         assert_eq!(
             SecretReference::new("x".repeat(MAX_SECRET_REFERENCE_BYTES + 1)),
             Err(ProfileError::InvalidSecretReference)
@@ -580,15 +584,28 @@ mod tests {
         let mut importer = RecordingImporter::default();
         let result = import_wireguard_profile(wireguard_profile(), &mut importer);
         assert_eq!(importer.kinds, vec!["wg-private", "wg-psk"]);
-        assert!(matches!(result, Ok(WireGuardProfile { mtu: Some(1420), listen_port: Some(51820), ref peers, .. }) if peers.len() == 1));
+        assert!(
+            matches!(result, Ok(WireGuardProfile { mtu: Some(1420), listen_port: Some(51820), ref peers, .. }) if peers.len() == 1)
+        );
     }
 
     #[test]
     fn wireguard_rejects_host_authority_and_structural_ambiguity() {
-        for key in ["PreUp", "PostUp", "PreDown", "PostDown", "SaveConfig", "Table", "Unknown"] {
+        for key in [
+            "PreUp",
+            "PostUp",
+            "PreDown",
+            "PostDown",
+            "SaveConfig",
+            "Table",
+            "Unknown",
+        ] {
             let profile = format!("[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n{key}=x\n");
             let mut importer = RecordingImporter::default();
-            assert_eq!(import_wireguard_profile(&profile, &mut importer), Err(ProfileError::UnsupportedAuthority));
+            assert_eq!(
+                import_wireguard_profile(&profile, &mut importer),
+                Err(ProfileError::UnsupportedAuthority)
+            );
         }
         for profile in [
             "PrivateKey=k",
@@ -626,16 +643,33 @@ mod tests {
             "[Interface]\nAddress=a\nPrivateKey=k\n[Peer]\nPublicKey=p\nAllowedIPs=a\nPersistentKeepalive=nope",
         ] {
             let mut importer = RecordingImporter::default();
-            assert_eq!(import_wireguard_profile(profile, &mut importer), Err(ProfileError::InvalidValue));
+            assert_eq!(
+                import_wireguard_profile(profile, &mut importer),
+                Err(ProfileError::InvalidValue)
+            );
         }
-        let list = std::iter::repeat_n("a", MAX_LIST_ITEMS + 1).collect::<Vec<_>>().join(",");
+        let list = std::iter::repeat_n("a", MAX_LIST_ITEMS + 1)
+            .collect::<Vec<_>>()
+            .join(",");
         let profile = format!("[Interface]\nAddress={list}\nPrivateKey=k");
-        assert_eq!(import_wireguard_profile(&profile, &mut RecordingImporter::default()), Err(ProfileError::TooManyItems));
+        assert_eq!(
+            import_wireguard_profile(&profile, &mut RecordingImporter::default()),
+            Err(ProfileError::TooManyItems)
+        );
         let secret = "x".repeat(MAX_SECRET_BYTES + 1);
         let profile = format!("[Interface]\nAddress=a\nPrivateKey={secret}");
-        assert_eq!(import_wireguard_profile(&profile, &mut RecordingImporter::default()), Err(ProfileError::InvalidSecret));
-        let mut importer = RecordingImporter { kinds: Vec::new(), fail: true };
-        assert_eq!(import_wireguard_profile("[Interface]\nAddress=a\nPrivateKey=k", &mut importer), Err(ProfileError::SecretImportFailed));
+        assert_eq!(
+            import_wireguard_profile(&profile, &mut RecordingImporter::default()),
+            Err(ProfileError::InvalidSecret)
+        );
+        let mut importer = RecordingImporter {
+            kinds: Vec::new(),
+            fail: true,
+        };
+        assert_eq!(
+            import_wireguard_profile("[Interface]\nAddress=a\nPrivateKey=k", &mut importer),
+            Err(ProfileError::SecretImportFailed)
+        );
     }
 
     #[test]
@@ -644,7 +678,10 @@ mod tests {
         for _ in 0..=MAX_PEERS {
             profile.push_str("[Peer]\nPublicKey=p\nAllowedIPs=a\n");
         }
-        assert_eq!(import_wireguard_profile(&profile, &mut RecordingImporter::default()), Err(ProfileError::TooManyItems));
+        assert_eq!(
+            import_wireguard_profile(&profile, &mut RecordingImporter::default()),
+            Err(ProfileError::TooManyItems)
+        );
     }
 
     #[test]
@@ -652,12 +689,24 @@ mod tests {
         let mut psk_importer = RecordingImporter::default();
         let psk = parse_ikev2_profile(ikev2_psk_profile(), &mut psk_importer);
         assert_eq!(psk_importer.kinds, vec!["ike-psk"]);
-        assert!(matches!(psk, Ok(Ikev2Profile { mobike: true, fragmentation: false, dpd_seconds: 30, rekey_seconds: 3600, authentication: Ikev2Authentication::PresharedKey(_), .. })));
+        assert!(matches!(
+            psk,
+            Ok(Ikev2Profile {
+                mobike: true,
+                fragmentation: false,
+                dpd_seconds: 30,
+                rekey_seconds: 3600,
+                authentication: Ikev2Authentication::PresharedKey(_),
+                ..
+            })
+        ));
 
         let mut eap_importer = RecordingImporter::default();
         let eap = parse_ikev2_profile(ikev2_eap_profile(), &mut eap_importer);
         assert_eq!(eap_importer.kinds, vec!["ike-password"]);
-        assert!(matches!(eap, Ok(Ikev2Profile { mobike: true, fragmentation: true, dpd_seconds: 30, rekey_seconds: 3600, authentication: Ikev2Authentication::Eap { ref username, .. }, .. }) if username == "alice"));
+        assert!(
+            matches!(eap, Ok(Ikev2Profile { mobike: true, fragmentation: true, dpd_seconds: 30, rekey_seconds: 3600, authentication: Ikev2Authentication::Eap { ref username, .. }, .. }) if username == "alice")
+        );
     }
 
     #[test]
@@ -702,17 +751,44 @@ mod tests {
         ] {
             assert!(parse_ikev2_profile(profile, &mut RecordingImporter::default()).is_err());
         }
-        let mut importer = RecordingImporter { kinds: Vec::new(), fail: true };
-        assert_eq!(parse_ikev2_profile(ikev2_psk_profile(), &mut importer), Err(ProfileError::SecretImportFailed));
+        let mut importer = RecordingImporter {
+            kinds: Vec::new(),
+            fail: true,
+        };
+        assert_eq!(
+            parse_ikev2_profile(ikev2_psk_profile(), &mut importer),
+            Err(ProfileError::SecretImportFailed)
+        );
     }
 
     #[test]
     fn top_level_detection_dispatches_and_rejects_unknown_profiles() {
-        assert!(matches!(parse_vpn_profile(wireguard_profile(), &mut RecordingImporter::default()), Ok(VpnProfile::WireGuard(_))));
-        assert!(matches!(parse_vpn_profile(ikev2_psk_profile(), &mut RecordingImporter::default()), Ok(VpnProfile::Ikev2(_))));
-        assert_eq!(parse_vpn_profile("[Other]\nA=B", &mut RecordingImporter::default()), Err(ProfileError::UnsupportedProfile));
-        assert_eq!(parse_vpn_profile("", &mut RecordingImporter::default()), Err(ProfileError::UnsupportedProfile));
-        assert_eq!(parse_vpn_profile("# only comment", &mut RecordingImporter::default()), Err(ProfileError::UnsupportedProfile));
-        assert_eq!(parse_vpn_profile(&"x".repeat(MAX_PROFILE_BYTES + 1), &mut RecordingImporter::default()), Err(ProfileError::ProfileTooLarge));
+        assert!(matches!(
+            parse_vpn_profile(wireguard_profile(), &mut RecordingImporter::default()),
+            Ok(VpnProfile::WireGuard(_))
+        ));
+        assert!(matches!(
+            parse_vpn_profile(ikev2_psk_profile(), &mut RecordingImporter::default()),
+            Ok(VpnProfile::Ikev2(_))
+        ));
+        assert_eq!(
+            parse_vpn_profile("[Other]\nA=B", &mut RecordingImporter::default()),
+            Err(ProfileError::UnsupportedProfile)
+        );
+        assert_eq!(
+            parse_vpn_profile("", &mut RecordingImporter::default()),
+            Err(ProfileError::UnsupportedProfile)
+        );
+        assert_eq!(
+            parse_vpn_profile("# only comment", &mut RecordingImporter::default()),
+            Err(ProfileError::UnsupportedProfile)
+        );
+        assert_eq!(
+            parse_vpn_profile(
+                &"x".repeat(MAX_PROFILE_BYTES + 1),
+                &mut RecordingImporter::default()
+            ),
+            Err(ProfileError::ProfileTooLarge)
+        );
     }
 }
