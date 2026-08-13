@@ -1,6 +1,6 @@
 use originweave_vpn_profile::{
-    import_wireguard_profile, parse_ikev2_profile, ProfileError, SecretReference, VpnSecret,
-    VpnSecretImporter,
+    ProfileError, SecretReference, VpnSecret, VpnSecretImporter, import_wireguard_profile,
+    parse_ikev2_profile,
 };
 
 #[derive(Default)]
@@ -9,10 +9,7 @@ struct RecordingImporter {
 }
 
 impl VpnSecretImporter for RecordingImporter {
-    fn import_secret(
-        &mut self,
-        _secret: VpnSecret<'_>,
-    ) -> Result<SecretReference, ProfileError> {
+    fn import_secret(&mut self, _secret: VpnSecret<'_>) -> Result<SecretReference, ProfileError> {
         self.calls += 1;
         SecretReference::new(format!("secret://test/{}", self.calls))
     }
