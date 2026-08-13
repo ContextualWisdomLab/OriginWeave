@@ -416,7 +416,7 @@ pub fn verify_sensitive_deletion_receipt_set_with_commitment(
         .iter()
         .map(|requirement| {
             (
-                requirement.target,
+                deletion_target_token(requirement.target),
                 requirement.target_reference.as_str(),
                 requirement.storage_scope_id.as_str(),
             )
@@ -428,8 +428,8 @@ pub fn verify_sensitive_deletion_receipt_set_with_commitment(
     append_length_delimited(&mut preimage, retention_policy_id.as_bytes());
     let declared_copy_count = requirements.len().to_string();
     append_length_delimited(&mut preimage, declared_copy_count.as_bytes());
-    for (target, target_reference, storage_scope_id) in ordered_requirements {
-        append_length_delimited(&mut preimage, deletion_target_token(target));
+    for (target_token, target_reference, storage_scope_id) in ordered_requirements {
+        append_length_delimited(&mut preimage, target_token);
         append_length_delimited(&mut preimage, target_reference.as_bytes());
         append_length_delimited(&mut preimage, storage_scope_id.as_bytes());
     }
