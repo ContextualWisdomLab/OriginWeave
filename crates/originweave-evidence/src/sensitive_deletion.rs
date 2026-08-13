@@ -8,7 +8,12 @@
 use std::collections::BTreeSet;
 use std::fmt;
 
+use sha2::{Digest, Sha256};
+
 use super::{MAX_SENSITIVE_IDENTIFIER_BYTES, SensitiveEvidenceError};
+
+const DELETION_INVENTORY_COMMITMENT_DOMAIN: &[u8] =
+    b"originweave-sensitive-deletion-inventory-v1\0";
 
 /// Maximum number of declared copies or receipts verified in one deletion-set evaluation.
 pub const MAX_SENSITIVE_DELETION_RECEIPT_SET_ENTRIES: usize = 256;
@@ -265,6 +270,53 @@ impl fmt::Display for SensitiveDeletionReceiptSetError {
 
 impl std::error::Error for SensitiveDeletionReceiptSetError {}
 
+/// Credential-free commitment to the exact caller-declared inventory that passed verification.
+///
+/// The commitment retains bounded request-scope identifiers, declared-copy count, and a
+/// deterministic SHA-256 digest. It does not retain target references or storage-scope identifiers,
+/// discover undeclared copies, prove inventory exhaustiveness, authenticate a storage owner, or
+/// make the digest an authenticated signature or durable record.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SensitiveDeletionReceiptSetCommitment {
+    request_id: String,
+    tenant_id: String,
+    retention_policy_id: String,
+    declared_copy_count: usize,
+    inventory_digest: String,
+}
+
+impl SensitiveDeletionReceiptSetCommitment {
+    /// Return the deletion request whose verified inventory produced this commitment.
+    #[must_use]
+    pub fn request_id(&self) -> &str {
+        &self.request_id
+    }
+
+    /// Return the tenant whose verified inventory produced this commitment.
+    #[must_use]
+    pub fn tenant_id(&self) -> &str {
+        &self.tenant_id
+    }
+
+    /// Return the retention policy bound to the verified inventory.
+    #[must_use]
+    pub fn retention_policy_id(&self) -> &str {
+        &self.retention_policy_id
+    }
+
+    /// Return the number of exact declared copies bound into the commitment.
+    #[must_use]
+    pub const fn declared_copy_count(&self) -> usize {
+        self.declared_copy_count
+    }
+
+    /// Return the lowercase SHA-256 digest of the canonical declared-copy inventory preimage.
+    #[must_use]
+    pub fn inventory_digest(&self) -> &str {
+        &self.inventory_digest
+    }
+}
+
 /// Verify that every exact declared sensitive-data copy has exactly one matching deletion receipt.
 ///
 /// This comparison is credential-free and deliberately does not discover copies, authenticate
@@ -335,6 +387,81 @@ pub fn verify_sensitive_deletion_receipt_set(
         return Err(SensitiveDeletionReceiptSetError::MissingReceipt);
     }
     Ok(())
+}
+
+/// Verify an exact deletion receipt set and commit to the declared inventory that passed.
+///
+/// Verification runs before commitment construction, so no commitment is returned for malformed,
+/// incomplete, cross-scope, duplicate, unexpected, or oversized input. The SHA-256 digest is a
+/// deterministic commitment to the bounded caller-supplied inventory and request scope, not proof
+/// that the inventory enumerates every real copy and not an authenticated signature. Target
+/// references and storage-scope identifiers are hashed into the commitment but are not retained by
+/// the returned value; callers must still treat the digest as potentially linkable metadata.
+pub fn verify_sensitive_deletion_receipt_set_with_commitment(
+    receipts: &[SensitiveDeletionReceipt],
+    request_id: &str,
+    tenant_id: &str,
+    retention_policy_id: &str,
+    requirements: &[SensitiveDeletionRequirement],
+) -> Result<SensitiveDeletionReceiptSetCommitment, SensitiveDeletionReceiptSetError> {
+    verify_sensitive_deletion_receipt_set(
+        receipts,
+        request_id,
+        tenant_id,
+        retention_policy_id,
+        requirements,
+    )?;
+
+    let ordered_requirements = requirements
+        .iter()
+        .map(|requirement| {
+            (
+                requirement.target,
+                requirement.target_reference.as_str(),
+                requirement.storage_scope_id.as_str(),
+            )
+        })
+        .collect::<BTreeSet<_>>();
+    let mut preimage = DELETION_INVENTORY_COMMITMENT_DOMAIN.to_vec();
+    append_length_delimited(&mut preimage, request_id.as_bytes());
+    append_length_delimited(&mut preimage, tenant_id.as_bytes());
+    append_length_delimited(&mut preimage, retention_policy_id.as_bytes());
+    let declared_copy_count = requirements.len().to_string();
+    append_length_delimited(&mut preimage, declared_copy_count.as_bytes());
+    for (target, target_reference, storage_scope_id) in ordered_requirements {
+        append_length_delimited(&mut preimage, deletion_target_token(target));
+        append_length_delimited(&mut preimage, target_reference.as_bytes());
+        append_length_delimited(&mut preimage, storage_scope_id.as_bytes());
+    }
+    let digest = Sha256::digest(preimage);
+
+    Ok(SensitiveDeletionReceiptSetCommitment {
+        request_id: request_id.to_owned(),
+        tenant_id: tenant_id.to_owned(),
+        retention_policy_id: retention_policy_id.to_owned(),
+        declared_copy_count: requirements.len(),
+        inventory_digest: format!("{digest:x}"),
+    })
+}
+
+const fn deletion_target_token(target: SensitiveDeletionTarget) -> &'static [u8] {
+    match target {
+        SensitiveDeletionTarget::AuthoritativeRecord => b"authoritative_record",
+        SensitiveDeletionTarget::DerivedArtifact => b"derived_artifact",
+        SensitiveDeletionTarget::ModelArtifact => b"model_artifact",
+        SensitiveDeletionTarget::ExportArtifact => b"export_artifact",
+        SensitiveDeletionTarget::CacheCopy => b"cache_copy",
+        SensitiveDeletionTarget::SearchIndexEntry => b"search_index_entry",
+        SensitiveDeletionTarget::VectorIndexEntry => b"vector_index_entry",
+        SensitiveDeletionTarget::TemporaryFile => b"temporary_file",
+        SensitiveDeletionTarget::BackupCopy => b"backup_copy",
+    }
+}
+
+fn append_length_delimited(output: &mut Vec<u8>, value: &[u8]) {
+    output.extend_from_slice(value.len().to_string().as_bytes());
+    output.push(b':');
+    output.extend_from_slice(value);
 }
 
 fn valid_identifier(value: &str) -> bool {
