@@ -6,6 +6,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Added
 
+- Controlled pinned-Chromium Agent Task success now binds the ChromeDriver browser PID to its Linux `/proc/<pid>/stat` start-time identity and fails closed unless that exact root process terminates after session/driver shutdown; PID reuse counts only as termination of the original identity, and this does not yet prove termination of every Chromium descendant or process ownership outside the controlled runner.
 - Failed ordinary and forced-close Agent Task browser trials now retain credential-free temporary-profile cleanup evidence after bounded browser errors, and separate aggregate compatibility gates require cleanup proof from every trial rather than filtering unsuccessful trials out; this does not attest adversarial filesystem erasure, process termination, or arbitrary browser recovery.
 - Failed Manifest V3 restart trials now retain credential-free temporary-profile cleanup evidence after bounded browser errors, successful trials record the same cleanup fact, and an aggregate compatibility gate requires teardown proof from every MV3 trial before repeatability acceptance without retaining exception messages; this does not attest adversarial filesystem erasure, browser-process termination, or cleanup outside the controlled temporary profile.
 - Rust workspace for independently reusable core, policy, destination, network, TLS, resource, and evidence modules.
