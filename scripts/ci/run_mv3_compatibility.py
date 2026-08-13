@@ -502,6 +502,77 @@ def _wait_for_linux_process_identity_exit(
         time.sleep(min(0.05, remaining_seconds))
 
 
+def _read_linux_process_identity_set(
+    process_ids: tuple[int, ...],
+) -> tuple[tuple[int, int], ...]:
+    """Bind one bounded sampled process set to exact Linux PID/start-time identities."""
+
+    if not process_ids or len(process_ids) > MAX_BROWSER_PROCESS_TREE_SIZE:
+        raise ValueError("invalid Linux process identity-set size")
+    if len(set(process_ids)) != len(process_ids):
+        raise ValueError("Linux process identity-set PIDs must be unique")
+
+    identities: list[tuple[int, int]] = []
+    for process_id in process_ids:
+        if isinstance(process_id, bool) or not isinstance(process_id, int) or process_id <= 0:
+            raise ValueError("invalid Linux process identifier")
+        identity = _read_linux_proc_stat_process_identity(process_id)
+        if identity is None:
+            raise RuntimeError("Linux Chromium process disappeared before shutdown identity capture")
+        identities.append(identity)
+    return tuple(identities)
+
+
+def _wait_for_linux_process_identity_set_exit(
+    process_identities: tuple[tuple[int, int], ...],
+    *,
+    timeout_seconds: float = PROCESS_EXIT_TIMEOUT_SECONDS,
+) -> bool:
+    """Wait under one shared deadline for every exact sampled process identity to exit."""
+
+    if not process_identities or len(process_identities) > MAX_BROWSER_PROCESS_TREE_SIZE:
+        raise ValueError("invalid Linux process identity-set size")
+    process_ids: list[int] = []
+    expected: dict[int, tuple[int, int]] = {}
+    for identity in process_identities:
+        if not isinstance(identity, tuple) or len(identity) != 2:
+            raise ValueError("invalid Linux process identity")
+        process_id, start_time_ticks = identity
+        if isinstance(process_id, bool) or not isinstance(process_id, int) or process_id <= 0:
+            raise ValueError("invalid Linux process identifier")
+        if (
+            isinstance(start_time_ticks, bool)
+            or not isinstance(start_time_ticks, int)
+            or start_time_ticks <= 0
+        ):
+            raise ValueError("invalid Linux process start time")
+        if process_id in expected:
+            raise ValueError("Linux process identity-set PIDs must be unique")
+        process_ids.append(process_id)
+        expected[process_id] = identity
+    if (
+        isinstance(timeout_seconds, bool)
+        or not isinstance(timeout_seconds, (int, float))
+        or timeout_seconds < 0
+        or not math.isfinite(timeout_seconds)
+    ):
+        raise ValueError("invalid Linux process-set exit timeout")
+
+    deadline = time.monotonic() + float(timeout_seconds)
+    while True:
+        live_identity_found = False
+        for process_id in process_ids:
+            current_identity = _read_linux_proc_stat_process_identity(process_id)
+            if current_identity == expected[process_id]:
+                live_identity_found = True
+        if not live_identity_found:
+            return True
+        remaining_seconds = deadline - time.monotonic()
+        if remaining_seconds <= 0:
+            return False
+        time.sleep(min(0.05, remaining_seconds))
+
+
 def _sample_linux_process_rss_bytes(process_id: int) -> int:
     """Read one attributed Linux process RSS through a bounded ``/proc`` status file."""
 
@@ -917,6 +988,7 @@ def _run_agent_task_browser_pass(
     session_id: str | None = None
     browser_process_id: int | None = None
     browser_process_start_time_ticks: int | None = None
+    chromium_process_identities: tuple[tuple[int, int], ...] | None = None
     browser_failure_type: str | None = None
     result: dict[str, Any] | None = None
     driver = subprocess.Popen(
@@ -1099,6 +1171,9 @@ def _run_agent_task_browser_pass(
             browser_process_id,
             process_evidence,
         )
+        chromium_process_identities = _read_linux_process_identity_set(
+            chromium_process_ids
+        )
         browser_process_rss_bytes = _sample_linux_process_rss_bytes(browser_process_id)
         chromium_process_set_rss_bytes = _sample_linux_process_set_rss_bytes(
             chromium_process_ids,
@@ -1164,9 +1239,17 @@ def _run_agent_task_browser_pass(
         }
     if result is None:
         raise RuntimeError("Agent Task browser pass returned no result after shutdown")
+    if chromium_process_identities is None:
+        raise RuntimeError("Agent Task Chromium process identities were not captured")
+    chromium_process_set_terminated = _wait_for_linux_process_identity_set_exit(
+        chromium_process_identities
+    )
     if not browser_process_terminated:
         raise RuntimeError("Agent Task browser process did not terminate")
+    if not chromium_process_set_terminated:
+        raise RuntimeError("Agent Task Chromium process set did not terminate")
     result["browser_process_terminated"] = True
+    result["chromium_process_set_terminated"] = True
     return result
 
 
@@ -1249,6 +1332,7 @@ def _run_agent_task_trial(
         "browser_process_terminated": result["browser_process_terminated"],
         "chromium_process_count": result["chromium_process_count"],
         "chromium_process_set_rss_bytes": result["chromium_process_set_rss_bytes"],
+        "chromium_process_set_terminated": result["chromium_process_set_terminated"],
         "semantic_observation_bytes": result["semantic_observation_bytes"],
         "action_latency_ms": result["action_latency_ms"],
         "task_duration_ms": result["task_duration_ms"],
@@ -1674,6 +1758,7 @@ def main() -> int:
             and trial.get("extensions_disabled") is True
             and trial.get("profile_cleaned") is True
             and trial.get("browser_process_terminated") is True
+            and trial.get("chromium_process_set_terminated") is True
             and isinstance(trial.get("browser_process_rss_bytes"), int)
             and trial["browser_process_rss_bytes"] > 0
             and isinstance(trial.get("chromium_process_count"), int)
