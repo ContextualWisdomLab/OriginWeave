@@ -27,12 +27,30 @@ fn receipt(
     target_reference: &str,
     storage_scope_id: &str,
 ) -> SensitiveDeletionReceipt {
+    receipt_for_scope(
+        target,
+        target_reference,
+        storage_scope_id,
+        "delete-request-001",
+        "tenant-alpha",
+        "retention-30d-v1",
+    )
+}
+
+fn receipt_for_scope(
+    target: SensitiveDeletionTarget,
+    target_reference: &str,
+    storage_scope_id: &str,
+    request_id: &str,
+    tenant_id: &str,
+    retention_policy_id: &str,
+) -> SensitiveDeletionReceipt {
     SensitiveDeletionReceipt::try_from(SensitiveDeletionReceiptInput {
-        request_id: "delete-request-001".to_owned(),
-        tenant_id: "tenant-alpha".to_owned(),
+        request_id: request_id.to_owned(),
+        tenant_id: tenant_id.to_owned(),
         target_reference: target_reference.to_owned(),
         storage_scope_id: storage_scope_id.to_owned(),
-        retention_policy_id: "retention-30d-v1".to_owned(),
+        retention_policy_id: retention_policy_id.to_owned(),
         verification_reference: format!("proof-{target_reference}"),
         target,
         cause: SensitiveDeletionCause::TenantDeletion,
@@ -136,6 +154,49 @@ fn commitment_changes_when_the_declared_inventory_changes() {
     .expect("second complete inventory should verify");
 
     assert_ne!(first.inventory_digest(), second.inventory_digest());
+}
+
+#[test]
+fn commitment_digest_binds_request_tenant_and_retention_scope() {
+    let requirement = requirement(
+        SensitiveDeletionTarget::AuthoritativeRecord,
+        "record:customer:17",
+        "primary-store",
+    );
+    let scopes = [
+        ("delete-request-001", "tenant-alpha", "retention-30d-v1"),
+        ("delete-request-002", "tenant-alpha", "retention-30d-v1"),
+        ("delete-request-001", "tenant-beta", "retention-30d-v1"),
+        ("delete-request-001", "tenant-alpha", "retention-90d-v2"),
+    ];
+    let commitments = scopes.map(|(request_id, tenant_id, retention_policy_id)| {
+        let scoped_receipt = receipt_for_scope(
+            SensitiveDeletionTarget::AuthoritativeRecord,
+            "record:customer:17",
+            "primary-store",
+            request_id,
+            tenant_id,
+            retention_policy_id,
+        );
+        verify_sensitive_deletion_receipt_set_with_commitment(
+            &[scoped_receipt],
+            request_id,
+            tenant_id,
+            retention_policy_id,
+            std::slice::from_ref(&requirement),
+        )
+        .expect("matching bounded request scope should verify")
+    });
+
+    for left in 0..commitments.len() {
+        for right in (left + 1)..commitments.len() {
+            assert_ne!(
+                commitments[left].inventory_digest(),
+                commitments[right].inventory_digest(),
+                "request, tenant, and retention scope must contribute to the digest"
+            );
+        }
+    }
 }
 
 #[test]
