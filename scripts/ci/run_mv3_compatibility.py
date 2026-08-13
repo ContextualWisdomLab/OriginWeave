@@ -1934,22 +1934,14 @@ def _run_agent_task_browser_crash_browser_pass(
         if not _signal_linux_process_identity(browser_process_identity, signal.SIGKILL):
             raise RuntimeError("Agent Task browser process identity changed before crash signal")
 
-        deadline = time.monotonic() + PROCESS_EXIT_TIMEOUT_SECONDS
-        while True:
-            try:
-                _json_request(
-                    driver_port,
-                    "GET",
-                    _webdriver_path(session_id, "/url"),
-                    timeout=1.0,
-                )
-            except (OSError, RuntimeError, json.JSONDecodeError):
-                browser_process_crash_detected = True
-                break
-            remaining_seconds = deadline - time.monotonic()
-            if remaining_seconds <= 0:
-                raise RuntimeError("Agent Task browser remained usable after SIGKILL")
-            time.sleep(min(0.05, remaining_seconds))
+        if not _wait_for_linux_process_identity_exit(
+            browser_process_id,
+            browser_process_start_time_ticks,
+        ):
+            raise RuntimeError(
+                "Agent Task browser process survived the crash-signal deadline"
+            )
+        browser_process_crash_detected = True
     finally:
         if session_id is not None:
             with contextlib.suppress(Exception):
