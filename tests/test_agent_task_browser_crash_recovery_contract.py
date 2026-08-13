@@ -90,6 +90,31 @@ class AgentTaskBrowserCrashRecoveryContractTests(unittest.TestCase):
         self.assertEqual(signalled, [(12, signal.SIGKILL)])
         self.assertEqual(closed, [12])
 
+    def test_crash_driver_cleanup_is_idempotent_after_driver_exit(self) -> None:
+        """A browser crash may end ChromeDriver before cleanup without a second signal."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_browser_crash_cleanup")
+        cleanup = namespace["_stop_crashed_driver"]
+        events: list[object] = []
+
+        class ExitedDriver:
+            def poll(self) -> int:
+                events.append("poll")
+                return 0
+
+            def terminate(self) -> None:
+                raise AssertionError("already-exited ChromeDriver must not be re-signalled")
+
+            def wait(self, *, timeout: int) -> int:
+                events.append(("wait", timeout))
+                return 0
+
+            def kill(self) -> None:
+                raise AssertionError("already-exited ChromeDriver must not be killed")
+
+        cleanup(ExitedDriver())
+        self.assertEqual(events, ["poll", ("wait", 5)])
+
     def test_crash_lane_is_required_for_success_evidence(self) -> None:
         """The real-browser evidence must retain deterministic crash and teardown proof."""
 
