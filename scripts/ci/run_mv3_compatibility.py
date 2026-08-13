@@ -1025,23 +1025,40 @@ def _run_agent_task_trial(
     fixture_url: str,
     trial_number: int,
 ) -> dict[str, Any]:
-    """Run one isolated Agent Task browser trial and prove its profile is removed."""
+    """Run one isolated Agent Task trial and retain cleanup evidence on failure."""
 
     trial_started = time.monotonic()
     profile_path: pathlib.Path
+    result: dict[str, Any] | None = None
+    failure_type: str | None = None
     with tempfile.TemporaryDirectory(
         prefix=f"originweave-agent-task-trial-{trial_number}-"
     ) as profile_dir:
         profile_path = pathlib.Path(profile_dir)
-        result = _run_agent_task_browser_pass(
-            chrome_bin,
-            chromedriver_bin,
-            fixture_url,
-            profile_dir,
-        )
+        try:
+            result = _run_agent_task_browser_pass(
+                chrome_bin,
+                chromedriver_bin,
+                fixture_url,
+                profile_dir,
+            )
+        except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+            failure_type = type(exc).__name__
     profile_cleaned = not profile_path.exists()
     if not profile_cleaned:
         raise RuntimeError(f"Agent Task profile cleanup failed in trial {trial_number}")
+
+    duration_ms = round((time.monotonic() - trial_started) * 1000)
+    if failure_type is not None:
+        return {
+            "trial_number": trial_number,
+            "passed": False,
+            "failure_type": failure_type,
+            "profile_cleaned": True,
+            "duration_ms": duration_ms,
+        }
+    if result is None:
+        raise RuntimeError("Agent Task browser pass returned no result")
 
     return {
         "trial_number": trial_number,
@@ -1068,8 +1085,8 @@ def _run_agent_task_trial(
         "semantic_observation_bytes": result["semantic_observation_bytes"],
         "action_latency_ms": result["action_latency_ms"],
         "task_duration_ms": result["task_duration_ms"],
-        "profile_cleaned": profile_cleaned,
-        "duration_ms": round((time.monotonic() - trial_started) * 1000),
+        "profile_cleaned": True,
+        "duration_ms": duration_ms,
     }
 
 
@@ -1443,6 +1460,9 @@ def main() -> int:
         agent_task_trial_pass_rate = (
             agent_task_successful_trials / AGENT_TASK_REPEATABILITY_TRIALS
         )
+        agent_task_profiles_cleaned = all(
+            trial.get("profile_cleaned") is True for trial in agent_task_trials
+        )
         agent_task_isolation_complete = all(
             trial.get("profile_pristine_before_launch") is True
             and trial.get("ambient_cookies_absent") is True
@@ -1511,6 +1531,7 @@ def main() -> int:
                 "repeatability_trials": AGENT_TASK_REPEATABILITY_TRIALS,
                 "successful_trials": agent_task_successful_trials,
                 "trial_pass_rate": agent_task_trial_pass_rate,
+                "profiles_cleaned": agent_task_profiles_cleaned,
                 "isolation_complete": agent_task_isolation_complete,
                 "trial_results": agent_task_trials,
                 "forced_close": {
@@ -1529,6 +1550,8 @@ def main() -> int:
             )
         if not common_surfaces or not all(common_surfaces.values()):
             raise RuntimeError("Manifest V3 repeatability surfaces were incomplete")
+        if not agent_task_profiles_cleaned:
+            raise RuntimeError("Agent Task profile cleanup gate failed")
         if agent_task_successful_trials != AGENT_TASK_REPEATABILITY_TRIALS:
             raise RuntimeError(
                 "Agent Task repeatability gate failed: "
