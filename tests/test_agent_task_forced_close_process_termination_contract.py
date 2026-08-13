@@ -25,8 +25,7 @@ class AgentTaskForcedCloseProcessTerminationContractTests(unittest.TestCase):
             "_read_linux_proc_stat_process_identity",
             "_snapshot_linux_process_evidence",
             "_read_linux_process_identity_set",
-            "_wait_for_linux_process_identity_exit",
-            "_wait_for_linux_process_identity_set_exit",
+            "_wait_for_linux_process_teardown",
             '"browser_process_terminated"',
             '"chromium_process_set_terminated"',
         ):
@@ -85,12 +84,10 @@ class AgentTaskForcedCloseProcessTerminationContractTests(unittest.TestCase):
                 self.assertIn(expected, browser_pass)
 
         shutdown = browser_pass.index("driver.wait(timeout=5)")
-        root_wait = browser_pass.index("_wait_for_linux_process_identity_exit(")
-        set_wait = browser_pass.index("_wait_for_linux_process_identity_set_exit(")
+        teardown_wait = browser_pass.index("_wait_for_linux_process_teardown(")
         failure_return = browser_pass.index("if browser_failure_type is not None:")
-        self.assertLess(shutdown, root_wait)
-        self.assertLess(root_wait, failure_return)
-        self.assertLess(set_wait, failure_return)
+        self.assertLess(shutdown, teardown_wait)
+        self.assertLess(teardown_wait, failure_return)
 
     def test_forced_close_trial_preserves_failure_process_set_teardown_evidence(self) -> None:
         """False root/set teardown evidence must survive the trial failure envelope."""
