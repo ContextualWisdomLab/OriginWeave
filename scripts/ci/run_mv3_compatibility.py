@@ -21,6 +21,7 @@ import hashlib
 import http.client
 import http.server
 import json
+import math
 import os
 import pathlib
 import socket
@@ -42,8 +43,10 @@ AGENT_TASK_INPUT_VALUE = "originweave controlled input"
 REQUEST_TIMEOUT_SECONDS = 5.0
 STARTUP_TIMEOUT_SECONDS = 20.0
 FIXTURE_TIMEOUT_SECONDS = 20.0
+PROCESS_EXIT_TIMEOUT_SECONDS = 5.0
 MAX_WEBDRIVER_RESPONSE_BYTES = 1_048_576
 MAX_PROC_STATUS_CHARACTERS = 65_536
+MAX_PROC_STAT_CHARACTERS = 65_536
 MAX_BROWSER_PROCESS_TREE_SIZE = 256
 MAX_PROC_PROCESS_SCAN_SIZE = 32_768
 MAX_SEMANTIC_LOCATOR_CANDIDATES = 128
@@ -403,6 +406,96 @@ def _parse_linux_proc_status_process_identity(status_text: str) -> tuple[int, in
     if parent_process_id < 0:
         raise ValueError("Linux parent process identifier must be non-negative")
     return process_id, parent_process_id
+
+
+def _parse_linux_proc_stat_process_identity(stat_text: str) -> tuple[int, int]:
+    """Parse one Linux proc-stat PID/start-time identity without trusting ``comm`` text."""
+
+    if not isinstance(stat_text, str) or not stat_text:
+        raise ValueError("Linux proc stat must be non-empty text")
+    command_open = stat_text.find(" (")
+    command_close = stat_text.rfind(") ")
+    if command_open <= 0 or command_close <= command_open + 2:
+        raise ValueError("malformed Linux proc stat process identity")
+
+    raw_process_id = stat_text[:command_open]
+    if not raw_process_id.isascii() or not raw_process_id.isdigit():
+        raise ValueError("malformed Linux proc stat process identifier")
+    process_id = int(raw_process_id, 10)
+    if process_id <= 0:
+        raise ValueError("Linux proc stat process identifier must be positive")
+
+    command_text = stat_text[command_open + 2 : command_close]
+    if not command_text:
+        raise ValueError("Linux proc stat command must not be empty")
+    suffix_fields = stat_text[command_close + 2 :].split()
+    if len(suffix_fields) < 20 or len(suffix_fields[0]) != 1:
+        raise ValueError("Linux proc stat does not contain field 22 start time")
+
+    raw_start_time_ticks = suffix_fields[19]
+    if not raw_start_time_ticks.isascii() or not raw_start_time_ticks.isdigit():
+        raise ValueError("malformed Linux proc stat start time")
+    start_time_ticks = int(raw_start_time_ticks, 10)
+    if start_time_ticks <= 0:
+        raise ValueError("Linux proc stat start time must be positive")
+    if start_time_ticks > MAX_U64:
+        raise OverflowError("Linux proc stat start time exceeds u64 range")
+    return process_id, start_time_ticks
+
+
+def _read_linux_proc_stat_process_identity(process_id: int) -> tuple[int, int] | None:
+    """Read one bounded Linux PID/start-time identity, returning absence after exit."""
+
+    if isinstance(process_id, bool) or not isinstance(process_id, int) or process_id <= 0:
+        raise ValueError("invalid Linux process identifier")
+    stat_path = pathlib.Path("/proc") / str(process_id) / "stat"
+    try:
+        with stat_path.open("r", encoding="utf-8", errors="strict") as stat_file:
+            stat_text = stat_file.read(MAX_PROC_STAT_CHARACTERS + 1)
+    except FileNotFoundError:
+        return None
+    if len(stat_text) > MAX_PROC_STAT_CHARACTERS:
+        raise RuntimeError("Linux proc stat exceeded the bounded text limit")
+    identity = _parse_linux_proc_stat_process_identity(stat_text)
+    if identity[0] != process_id:
+        raise RuntimeError("Linux proc stat identity did not match its directory")
+    return identity
+
+
+def _wait_for_linux_process_identity_exit(
+    process_id: int,
+    start_time_ticks: int,
+    *,
+    timeout_seconds: float = PROCESS_EXIT_TIMEOUT_SECONDS,
+) -> bool:
+    """Wait boundedly until the exact PID/start-time identity exits or is reused."""
+
+    if isinstance(process_id, bool) or not isinstance(process_id, int) or process_id <= 0:
+        raise ValueError("invalid Linux process identifier")
+    if (
+        isinstance(start_time_ticks, bool)
+        or not isinstance(start_time_ticks, int)
+        or start_time_ticks <= 0
+    ):
+        raise ValueError("invalid Linux process start time")
+    if (
+        isinstance(timeout_seconds, bool)
+        or not isinstance(timeout_seconds, (int, float))
+        or timeout_seconds < 0
+        or not math.isfinite(timeout_seconds)
+    ):
+        raise ValueError("invalid Linux process-exit timeout")
+
+    deadline = time.monotonic() + float(timeout_seconds)
+    expected_identity = (process_id, start_time_ticks)
+    while True:
+        current_identity = _read_linux_proc_stat_process_identity(process_id)
+        if current_identity is None or current_identity != expected_identity:
+            return True
+        remaining_seconds = deadline - time.monotonic()
+        if remaining_seconds <= 0:
+            return False
+        time.sleep(min(0.05, remaining_seconds))
 
 
 def _sample_linux_process_rss_bytes(process_id: int) -> int:
@@ -818,6 +911,9 @@ def _run_agent_task_browser_pass(
     started = time.monotonic()
     driver_port = _free_loopback_port()
     session_id: str | None = None
+    browser_process_id: int | None = None
+    browser_process_start_time_ticks: int | None = None
+    result: dict[str, Any] | None = None
     driver = subprocess.Popen(
         [str(chromedriver_bin), f"--port={driver_port}", "--allowed-ips=127.0.0.1"],
         stdout=subprocess.DEVNULL,
@@ -878,6 +974,10 @@ def _run_agent_task_browser_pass(
             or browser_process_id <= 0
         ):
             raise RuntimeError("ChromeDriver did not return a valid browser process id")
+        browser_process_identity = _read_linux_proc_stat_process_identity(browser_process_id)
+        if browser_process_identity is None:
+            raise RuntimeError("Agent Task browser process identity disappeared after launch")
+        browser_process_start_time_ticks = browser_process_identity[1]
 
         _json_request(
             driver_port,
@@ -1003,7 +1103,7 @@ def _run_agent_task_browser_pass(
         task_duration_ms = round((time.monotonic() - started) * 1000, 3)
         if task_duration_ms <= 0:
             raise RuntimeError("Agent Task measured a non-positive task duration")
-        return {
+        result = {
             "browser_version": browser_version,
             "post_condition": True,
             "input_echo_verified": True,
@@ -1041,6 +1141,18 @@ def _run_agent_task_browser_pass(
         except subprocess.TimeoutExpired:
             driver.kill()
             driver.wait(timeout=5)
+
+    if result is None:
+        raise RuntimeError("Agent Task browser pass returned no result after shutdown")
+    if browser_process_id is None or browser_process_start_time_ticks is None:
+        raise RuntimeError("Agent Task browser process identity was not captured")
+    if not _wait_for_linux_process_identity_exit(
+        browser_process_id,
+        browser_process_start_time_ticks,
+    ):
+        raise RuntimeError("Agent Task browser process did not terminate")
+    result["browser_process_terminated"] = True
+    return result
 
 
 def _run_agent_task_trial(
@@ -1104,6 +1216,7 @@ def _run_agent_task_trial(
             "saved_credential_services_disabled"
         ],
         "browser_process_rss_bytes": result["browser_process_rss_bytes"],
+        "browser_process_terminated": result["browser_process_terminated"],
         "chromium_process_count": result["chromium_process_count"],
         "chromium_process_set_rss_bytes": result["chromium_process_set_rss_bytes"],
         "semantic_observation_bytes": result["semantic_observation_bytes"],
@@ -1530,6 +1643,7 @@ def main() -> int:
             and trial["structured_value_sha256"].startswith("sha256:")
             and trial.get("extensions_disabled") is True
             and trial.get("profile_cleaned") is True
+            and trial.get("browser_process_terminated") is True
             and isinstance(trial.get("browser_process_rss_bytes"), int)
             and trial["browser_process_rss_bytes"] > 0
             and isinstance(trial.get("chromium_process_count"), int)
