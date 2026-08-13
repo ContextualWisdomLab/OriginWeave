@@ -431,6 +431,10 @@ def _parse_linux_proc_stat_process_identity(stat_text: str) -> tuple[int, int]:
     suffix_fields = stat_text[command_close + 2 :].split()
     if len(suffix_fields) < 20 or len(suffix_fields[0]) != 1:
         raise ValueError("Linux proc stat does not contain field 22 start time")
+    for raw_field in suffix_fields[1:]:
+        unsigned_field = raw_field[1:] if raw_field[:1] in {"+", "-"} else raw_field
+        if not unsigned_field or not unsigned_field.isascii() or not unsigned_field.isdigit():
+            raise ValueError("malformed Linux proc stat numeric field")
 
     raw_start_time_ticks = suffix_fields[19]
     if not raw_start_time_ticks.isascii() or not raw_start_time_ticks.isdigit():
