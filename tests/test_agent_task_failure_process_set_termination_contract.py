@@ -26,7 +26,7 @@ class AgentTaskFailureProcessSetTerminationContractTests(unittest.TestCase):
         for expected in (
             "if chromium_process_identities is not None:",
             "chromium_process_set_terminated = _wait_for_linux_process_identity_set_exit(",
-            '"chromium_process_set_terminated": chromium_process_set_terminated',
+            'failure_evidence["chromium_process_set_terminated"]',
         ):
             with self.subTest(expected=expected):
                 self.assertIn(expected, browser_pass)
