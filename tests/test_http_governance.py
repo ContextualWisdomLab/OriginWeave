@@ -86,7 +86,7 @@ class HttpGovernanceTests(unittest.TestCase):
             "COPILOT_GITHUB_TOKEN": "forbidden model credential",
         }
         combined = "\n".join(
-            path.read_text(encoding="utf-8") for path in sorted(SOURCE.glob("*.rs"))
+            path.read_text(encoding="utf-8") for path in sorted(SOURCE.rglob("*.rs"))
         )
         for token, authority in forbidden.items():
             self.assertNotIn(token, combined, authority)
@@ -108,7 +108,7 @@ class HttpGovernanceTests(unittest.TestCase):
         self.assertIn("#![forbid(unsafe_code)]", lib)
         self.assertIn("#![deny(missing_docs)]", lib)
         combined = "\n".join(
-            path.read_text(encoding="utf-8") for path in sorted(SOURCE.glob("*.rs"))
+            path.read_text(encoding="utf-8") for path in sorted(SOURCE.rglob("*.rs"))
         )
         self.assertNotIn("unsafe {", combined)
         self.assertNotIn("unsafe fn", combined)
