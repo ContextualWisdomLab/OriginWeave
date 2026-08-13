@@ -1291,25 +1291,42 @@ def _run_agent_task_forced_close_trial(
     fixture_url: str,
     trial_number: int,
 ) -> dict[str, Any]:
-    """Run one forced-close probe and prove its isolated browser profile is removed."""
+    """Run one forced-close trial and retain cleanup evidence on failure."""
 
     trial_started = time.monotonic()
     profile_path: pathlib.Path
+    result: dict[str, Any] | None = None
+    failure_type: str | None = None
     with tempfile.TemporaryDirectory(
         prefix=f"originweave-agent-task-forced-close-{trial_number}-"
     ) as profile_dir:
         profile_path = pathlib.Path(profile_dir)
-        result = _run_agent_task_forced_close_browser_pass(
-            chrome_bin,
-            chromedriver_bin,
-            fixture_url,
-            profile_dir,
-        )
+        try:
+            result = _run_agent_task_forced_close_browser_pass(
+                chrome_bin,
+                chromedriver_bin,
+                fixture_url,
+                profile_dir,
+            )
+        except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+            failure_type = type(exc).__name__
     profile_cleaned = not profile_path.exists()
     if not profile_cleaned:
         raise RuntimeError(
             f"Agent Task forced-close profile cleanup failed in trial {trial_number}"
         )
+
+    duration_ms = round((time.monotonic() - trial_started) * 1000)
+    if failure_type is not None:
+        return {
+            "trial_number": trial_number,
+            "passed": False,
+            "failure_type": failure_type,
+            "profile_cleaned": True,
+            "duration_ms": duration_ms,
+        }
+    if result is None:
+        raise RuntimeError("Agent Task forced-close browser pass returned no result")
 
     return {
         "trial_number": trial_number,
@@ -1317,8 +1334,8 @@ def _run_agent_task_forced_close_trial(
         "browser_version": result["browser_version"],
         "forced_close_detected": result["forced_close_detected"],
         "session_survived": result["session_survived"],
-        "profile_cleaned": profile_cleaned,
-        "duration_ms": round((time.monotonic() - trial_started) * 1000),
+        "profile_cleaned": True,
+        "duration_ms": duration_ms,
     }
 
 
@@ -1506,6 +1523,9 @@ def main() -> int:
         forced_close_successful_trials = sum(
             1 for trial in forced_close_trials if trial.get("passed") is True
         )
+        forced_close_profiles_cleaned = all(
+            trial.get("profile_cleaned") is True for trial in forced_close_trials
+        )
         forced_close_surfaces_complete = all(
             trial.get("forced_close_detected") is True
             and trial.get("session_survived") is True
@@ -1537,6 +1557,7 @@ def main() -> int:
                 "forced_close": {
                     "repeatability_trials": AGENT_TASK_REPEATABILITY_TRIALS,
                     "successful_trials": forced_close_successful_trials,
+                    "profiles_cleaned": forced_close_profiles_cleaned,
                     "trial_results": forced_close_trials,
                 },
             },
@@ -1562,6 +1583,8 @@ def main() -> int:
             raise RuntimeError("Agent Task isolation gate failed")
         if not agent_task_surfaces_complete:
             raise RuntimeError("Agent Task repeatability surfaces were incomplete")
+        if not forced_close_profiles_cleaned:
+            raise RuntimeError("Agent Task forced-close profile cleanup gate failed")
         if (
             forced_close_successful_trials != AGENT_TASK_REPEATABILITY_TRIALS
             or not forced_close_surfaces_complete
