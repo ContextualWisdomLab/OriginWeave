@@ -44,7 +44,7 @@ Every requirement uses **exactly one** status from this table. Implementation ev
 | **Proposed** | Product direction still requiring a dedicated reviewed decision or sufficient implementation evidence. |
 | **Open** | A decision or acceptance criterion is intentionally unresolved. |
 
-Only `Implemented` may describe shipped behavior. An Accepted ADR is design authority, not implementation proof.
+Only `Implemented` may describe shipped behavior. An Accepted ADR is design authority, not implementation proof. Active PR implementation evidence may be named in the evidence column, but it does not change a requirement to `Implemented` until the applicable behavior reaches protected `main`.
 
 ## 4. Problem statement
 
@@ -84,10 +84,10 @@ The status applies to the **whole named product surface**, not to every implemen
 |---|---|---|---|
 | **OriginWeave Browser** | Chromium-compatible interactive distribution with governed agent entry points | Planned | No protected-main branded browser distribution yet |
 | **OriginWeave Runtime** | Headless/embedded governed web-task runtime | Planned | Rust authority kernels exist; browser integration remains incomplete |
-| **OriginWeave Observe** | Structured observation from tools, structured data, network, accessibility, DOM/layout and visual fallback | Planned | Session/context/node-authority foundations are on protected main; semantic browser observation adapter is incomplete |
-| **OriginWeave Capture** | Schema-bound extraction, crawler controls, downloads and WARC/PROV-oriented capture | Planned | Evidence foundations exist; complete capture runtime not shipped |
+| **OriginWeave Observe** | Structured observation from tools, structured data, network, accessibility, DOM/layout and visual fallback | Planned | Session/context/node-authority foundations are on protected main; active PR #52 adds a bounded authority-bound semantic-observation value primitive with explicit evidence-channel provenance, but it is not a browser observation adapter and remains non-shipped |
+| **OriginWeave Capture** | Schema-bound extraction, crawler controls, downloads and WARC/PROV-oriented capture | Planned | Evidence foundations and partial real-Chromium extension compatibility evidence exist; complete capture runtime is not shipped |
 | **OriginWeave Governor** | CPU, RAM, GPU, VRAM, admission and model/browser priority governance | Accepted architecture | Deterministic resource-budget and CPU-worker admission foundations are implemented; platform telemetry/scheduling adapters remain incomplete |
-| **OriginWeave Policy** | Capability, origin, purpose, risk, crawler, approval and sensitive-data authority | Accepted architecture | Capability/origin/purpose/risk/crawler/approval foundations are implemented; purpose-bound sensitive-data policy is active work in PR #33 and the trusted broker remains planned |
+| **OriginWeave Policy** | Capability, origin, purpose, risk, crawler, approval and sensitive-data authority | Accepted architecture | Capability/origin/purpose/risk/crawler/approval and purpose-bound sensitive-data policy foundations are implemented on protected main; trusted sensitive-data broker/storage/lifecycle remain planned under issue #10 |
 | **OriginWeave Evidence** | Credential-free evidence, provenance and task-trail contracts | Accepted architecture | Credential-free network evidence and purpose-bound sensitive-access receipts are implemented; complete Evidence Trail, WARC/PROV adapters and durable enterprise storage remain planned |
 | **OriginWeave Protocol** | Stable browser-agent protocol independent of one upstream automation standard | Planned | Contract documented; implementation pending |
 | **OriginWeave SDK** | Typed client libraries and adapters | Planned | Not a shipped product surface |
@@ -163,7 +163,7 @@ planner identifies field + purpose + destination
 -> disclosure receipt records metadata without protected value
 ```
 
-The full journey is target architecture until the sensitive policy, trusted broker, browser-fill path, and post-condition/evidence path are all protected-main integrated. Implemented subcomponents do not make this whole sequence shipped.
+The full journey is target architecture until the trusted broker, browser-fill path, and post-condition/evidence path are all protected-main integrated. The purpose-bound sensitive-data policy foundation and access-evidence primitives are already on protected main; those implemented subcomponents do not make the complete broker journey shipped.
 
 ### 8.4 Enterprise crawler
 
@@ -183,7 +183,7 @@ public-crawl purpose
 | ID | Requirement | Status | Implementation evidence / note |
 |---|---|---|---|
 | PRD-COMP-001 | Chromium is the compatibility kernel; OriginWeave does not reimplement Blink or V8 | Accepted architecture | ADR 0001 |
-| PRD-COMP-002 | Maintain a Manifest V3 compatibility matrix and representative extension test farm | Planned | Issue #27 / release-specific evidence required |
+| PRD-COMP-002 | Maintain a Manifest V3 compatibility matrix and representative extension test farm | Planned | Partial protected-main pinned-Chromium evidence covers service worker, content script, storage, DNR, tabs, windows, scripting, commands, side panel, bookmarks, history, restart and repeatability; active PR #43 adds bounded real downloads evidence; issue #27 still owns the complete matrix/release acceptance |
 | PRD-COMP-003 | Chromium-specific integrations remain behind versioned adapters | Planned | Adapter strategy ADR 0107 |
 | PRD-COMP-004 | Headless runtime remains independently usable without the interactive browser UI | Planned | Modular architecture target |
 
@@ -191,11 +191,11 @@ public-crawl purpose
 
 | ID | Requirement | Status | Implementation evidence / note |
 |---|---|---|---|
-| PRD-OBS-001 | Autonomous observations can carry explicit browser-session, browsing-context, canonical-origin and document-epoch authority | Implemented | `ObservedNodeHandle`, `BrowserSessionId`, `BrowsingContextId` and `DocumentEpoch` on protected main via #17; real browser adapter remains planned |
-| PRD-OBS-002 | Actionable semantic-node handles are invalidated by relevant document-epoch changes at the action linearization boundary | Accepted architecture | Core exact-authority validation exists; adapter lifecycle/mutation invalidation and atomic dispatch evidence remain planned |
-| PRD-OBS-003 | Observation prefers typed/structured evidence before accessibility/DOM/layout and bounded visual fallback | Accepted architecture | ADR 0103 |
+| PRD-OBS-001 | Autonomous observations can carry explicit browser-session, browsing-context, canonical-origin and document-epoch authority | Implemented | `ObservedNodeHandle`, `BrowserSessionId`, `BrowsingContextId` and `DocumentEpoch` are on protected main under Accepted ADR 0010; real browser adapter remains planned |
+| PRD-OBS-002 | Actionable semantic-node handles are invalidated by relevant document-epoch changes at the action linearization boundary | Accepted architecture | Core exact-authority validation exists; adapter lifecycle/mutation invalidation and atomic dispatch evidence remain planned; active PR #40 owns the bounded protocol-ID registry and remains non-shipped evidence |
+| PRD-OBS-003 | Observation prefers typed/structured evidence before accessibility/DOM/layout and bounded visual fallback | Accepted architecture | ADR 0103; active PR #52 adds a bounded `SemanticNodeObservation` value contract bound to `ObservedNodeHandle`, typed node-local action descriptors and explicit non-empty evidence-channel provenance. It is not a browser observation adapter and remains active/non-shipped evidence |
 | PRD-OBS-004 | Observation can use bounded incremental updates rather than full repeated snapshots | Planned | Adapter-specific design needed |
-| PRD-OBS-005 | Source channel and trust/provenance remain explicit | Accepted architecture | Evidence model foundations exist |
+| PRD-OBS-005 | Source channel and trust/provenance remain explicit | Accepted architecture | Evidence model foundations exist; active PR #52 fails closed when a semantic observation has no contributing evidence channel, while channel identity itself grants no execution authority |
 
 ### 9.3 Typed action execution
 
@@ -215,8 +215,8 @@ public-crawl purpose
 | PRD-NET-002 | Resolution snapshots are bounded, origin-bound and fail closed on unapproved expansion | Implemented | `originweave-destination` |
 | PRD-NET-003 | Direct transport connects only to approved canonical sockets and verifies `peer_addr` | Implemented | `originweave-network` |
 | PRD-NET-004 | TLS authenticates service identity over the exact governed transport with explicit roots/time | Implemented | `originweave-tls` |
-| PRD-NET-005 | Proxy/PAC route authority is explicit and never ambient | Implemented | Protected-main route-authority foundation from #20; PAC evaluation, proxy transport and CONNECT remain planned |
-| PRD-NET-006 | Bounded HTTP semantics operate over authenticated governed transport | Planned | Active PR #11 is not shipped evidence |
+| PRD-NET-005 | Proxy/PAC route authority is explicit and never ambient | Implemented | Protected-main route-authority foundation; PAC evaluation, proxy transport and CONNECT remain planned |
+| PRD-NET-006 | Bounded HTTP semantics operate over authenticated governed transport | Planned | Current implementation evidence is active replacement PR #37; it is not protected-main truth. Historical PR #11 is predecessor lineage and must not be used as current implementation evidence |
 | PRD-NET-007 | Real Chromium navigation proves end-to-end consumption of every shipped authority layer | Planned | Issue #28 / release acceptance requirement |
 
 ### 9.5 Secret and sensitive-data authority
@@ -224,8 +224,8 @@ public-crawl purpose
 | ID | Requirement | Status | Implementation evidence / note |
 |---|---|---|---|
 | PRD-DATA-001 | Raw secret values never enter model-visible context | Accepted architecture | ADR 0104; trusted browser/broker runtime path not fully shipped |
-| PRD-DATA-002 | Sensitive disclosure binds tenant/task/field/purpose/destination/classification | Planned | Active replacement PR #33; no active-PR evidence counts as protected-main implementation |
-| PRD-DATA-003 | Trusted broker owns expiry, revocation, atomic use reservation and resolution | Planned | Broker implementation pending under issue #10 |
+| PRD-DATA-002 | Sensitive disclosure binds tenant/task/field/purpose/destination/classification | Implemented | Protected-main purpose-bound sensitive-data policy kernel governed by Accepted ADR 0007; this status does not claim broker/storage/value resolution |
+| PRD-DATA-003 | Trusted broker owns expiry, revocation, atomic use reservation and resolution | Planned | Broker/storage/lifecycle implementation pending under issue #10 |
 | PRD-DATA-004 | Privacy controls use purpose-bound authorization, encryption, retention and audit rather than blanket masking | Accepted architecture | `DATA_GOVERNANCE.md` |
 | PRD-DATA-005 | Model disclosure additionally binds provider/model/region/retention policy | Planned | Requires orchestrator/provider integration |
 
@@ -238,7 +238,7 @@ public-crawl purpose
 | PRD-EVD-003 | Evidence Trail links source, model judgement, policy, approval, action and verified outcome as distinct authorities | Planned | Conceptual ERD/provenance ADR; complete trail is not shipped |
 | PRD-EVD-004 | **Origin Map** provides buyer-visible provenance exploration | Proposed | UX/product-design work still required |
 | PRD-EVD-005 | WARC and PROV are separate interoperability/export adapters | Accepted architecture | ADR 0106 |
-| PRD-EVD-006 | Sensitive-access evidence records authority without protected value | Implemented | Protected-main purpose-bound sensitive-access receipts via #31 |
+| PRD-EVD-006 | Sensitive-access evidence records authority without protected value | Implemented | Protected-main purpose-bound sensitive-access receipts |
 
 ### 9.7 Resource governance
 
@@ -246,7 +246,7 @@ public-crawl purpose
 |---|---|---|---|
 | PRD-RES-001 | Deterministic resource budgets produce cumulative mitigations | Implemented | `originweave-resource` foundations |
 | PRD-RES-002 | Browser/human correctness outranks optional model throughput | Accepted architecture | ADR 0105 |
-| PRD-RES-003 | CPU worker saturation participates in deterministic new-work admission | Implemented | Protected-main `ResourceSnapshot`/`ResourceGovernor` CPU-worker admission via #30; platform worker telemetry/actuation remains adapter work |
+| PRD-RES-003 | CPU worker saturation participates in deterministic new-work admission | Implemented | Protected-main `ResourceSnapshot`/`ResourceGovernor` CPU-worker admission; platform worker telemetry/actuation remains adapter work |
 | PRD-RES-004 | Platform adapters report bounded CPU/RAM/GPU/VRAM/network/storage telemetry | Planned | Platform integration required |
 | PRD-RES-005 | Constrained GPU systems shrink/offload/pause model work before sacrificing governed browser correctness | Accepted architecture | ADR 0105 |
 
@@ -264,10 +264,10 @@ public-crawl purpose
 
 | ID | Requirement | Status | Implementation evidence / note |
 |---|---|---|---|
-| PRD-EXT-001 | Manifest V3 remains the extension compatibility baseline | Accepted architecture | Official Chrome platform baseline |
-| PRD-EXT-002 | Upstream extension APIs are preserved where possible | Accepted architecture | Chromium-kernel strategy |
-| PRD-EXT-003 | Extension access to agent authority requires separate signed policy grant | Planned | Issue #27 / enterprise-runtime integration |
-| PRD-EXT-004 | Compatibility tests cover install/update, worker lifecycle, scripts, storage, DNR, messaging, download, side panel and isolation | Planned | Issue #27 / release-specific suite |
+| PRD-EXT-001 | Manifest V3 remains the extension compatibility baseline | Accepted architecture | Official Chrome platform baseline; real pinned-Chromium evidence exists on protected main |
+| PRD-EXT-002 | Upstream extension APIs are preserved where possible | Accepted architecture | Chromium-kernel strategy; current protected-main compatibility lane exercises multiple real MV3 APIs |
+| PRD-EXT-003 | Extension access to agent authority requires separate signed policy grant | Planned | Protected-main extension authority foundation exists, but the complete managed-extension/native-messaging/enterprise runtime contract remains open under issue #27; Proposed ADR 0013 does not itself make this shipped |
+| PRD-EXT-004 | Compatibility tests cover install/update, worker lifecycle, scripts, storage, DNR, messaging, download, side panel and isolation | Planned | Protected-main suite already covers worker/content/storage/DNR/tabs/windows/scripting/commands/side panel/bookmarks/history/restart/repeatability; active PR #43 adds downloads; install/update/native messaging/enterprise isolation and release-wide matrix remain open under issue #27 |
 
 ### 9.10 Crawler and capture policy
 
