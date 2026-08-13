@@ -917,6 +917,7 @@ def _run_agent_task_browser_pass(
     session_id: str | None = None
     browser_process_id: int | None = None
     browser_process_start_time_ticks: int | None = None
+    browser_failure_type: str | None = None
     result: dict[str, Any] | None = None
     driver = subprocess.Popen(
         [str(chromedriver_bin), f"--port={driver_port}", "--allowed-ips=127.0.0.1"],
@@ -1130,6 +1131,10 @@ def _run_agent_task_browser_pass(
             "task_duration_ms": task_duration_ms,
             "duration_ms": round(task_duration_ms),
         }
+    except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+        browser_failure_type = type(exc).__name__
+        if browser_process_id is None or browser_process_start_time_ticks is None:
+            raise
     finally:
         if session_id is not None:
             with contextlib.suppress(Exception):
@@ -1146,14 +1151,20 @@ def _run_agent_task_browser_pass(
             driver.kill()
             driver.wait(timeout=5)
 
-    if result is None:
-        raise RuntimeError("Agent Task browser pass returned no result after shutdown")
     if browser_process_id is None or browser_process_start_time_ticks is None:
         raise RuntimeError("Agent Task browser process identity was not captured")
-    if not _wait_for_linux_process_identity_exit(
+    browser_process_terminated = _wait_for_linux_process_identity_exit(
         browser_process_id,
         browser_process_start_time_ticks,
-    ):
+    )
+    if browser_failure_type is not None:
+        return {
+            "failure_type": browser_failure_type,
+            "browser_process_terminated": browser_process_terminated,
+        }
+    if result is None:
+        raise RuntimeError("Agent Task browser pass returned no result after shutdown")
+    if not browser_process_terminated:
         raise RuntimeError("Agent Task browser process did not terminate")
     result["browser_process_terminated"] = True
     return result
@@ -1199,6 +1210,21 @@ def _run_agent_task_trial(
         }
     if result is None:
         raise RuntimeError("Agent Task browser pass returned no result")
+    returned_failure_type = result.get("failure_type")
+    if returned_failure_type is not None:
+        if not isinstance(returned_failure_type, str) or not returned_failure_type:
+            raise RuntimeError("Agent Task browser pass returned invalid failure evidence")
+        browser_process_terminated = result.get("browser_process_terminated")
+        if not isinstance(browser_process_terminated, bool):
+            raise RuntimeError("Agent Task browser pass returned invalid teardown evidence")
+        return {
+            "trial_number": trial_number,
+            "passed": False,
+            "failure_type": returned_failure_type,
+            "browser_process_terminated": browser_process_terminated,
+            "profile_cleaned": True,
+            "duration_ms": duration_ms,
+        }
 
     return {
         "trial_number": trial_number,
