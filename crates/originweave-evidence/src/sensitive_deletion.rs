@@ -6,6 +6,7 @@
 //! verification reference independently trustworthy.
 
 use std::collections::BTreeSet;
+use std::fmt;
 
 use super::{MAX_SENSITIVE_IDENTIFIER_BYTES, SensitiveEvidenceError};
 
@@ -241,6 +242,25 @@ pub enum SensitiveDeletionReceiptSetError {
     /// More than one receipt names the same exact declared copy.
     DuplicateReceipt,
 }
+
+impl fmt::Display for SensitiveDeletionReceiptSetError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::TooManyRequirements => "too many sensitive deletion requirements",
+            Self::TooManyReceipts => "too many sensitive deletion receipts",
+            Self::RequestMismatch => "sensitive deletion request mismatch",
+            Self::TenantMismatch => "sensitive deletion tenant mismatch",
+            Self::RetentionPolicyMismatch => "sensitive deletion retention policy mismatch",
+            Self::EmptyRequirementSet => "empty sensitive deletion requirement set",
+            Self::DuplicateRequirement => "duplicate sensitive deletion requirement",
+            Self::MissingReceipt => "missing sensitive deletion receipt",
+            Self::UnexpectedReceipt => "unexpected sensitive deletion receipt",
+            Self::DuplicateReceipt => "duplicate sensitive deletion receipt",
+        })
+    }
+}
+
+impl std::error::Error for SensitiveDeletionReceiptSetError {}
 
 /// Verify that every exact declared sensitive-data copy has exactly one matching deletion receipt.
 ///
