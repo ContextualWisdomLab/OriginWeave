@@ -17,7 +17,10 @@ impl VpnSecretImporter for CountingImporter {
 
 fn reject_wireguard(profile: &str, expected: ProfileError) {
     let mut importer = CountingImporter::default();
-    assert_eq!(import_wireguard_profile(profile, &mut importer), Err(expected));
+    assert_eq!(
+        import_wireguard_profile(profile, &mut importer),
+        Err(expected)
+    );
     assert_eq!(importer.calls, 0);
 }
 
@@ -67,7 +70,8 @@ fn wireguard_peer_flush_and_list_failures_are_covered_without_import_side_effect
 fn wireguard_comments_blank_lines_and_optional_peer_fields_remain_parseable() {
     let profile = "# synthetic fixture\n\n[Interface]\nAddress=a\nPrivateKey=k\n\n# peer\n[Peer]\nPublicKey=p\nAllowedIPs=a\n";
     let mut importer = CountingImporter::default();
-    let parsed = import_wireguard_profile(profile, &mut importer).expect("synthetic profile must parse");
+    let parsed =
+        import_wireguard_profile(profile, &mut importer).expect("synthetic profile must parse");
     assert_eq!(parsed.addresses, vec!["a"]);
     assert!(parsed.dns_servers.is_empty());
     assert_eq!(parsed.mtu, None);
@@ -111,10 +115,7 @@ fn ikev2_missing_required_fields_and_list_failures_are_covered() {
 
 #[test]
 fn ikev2_section_and_authentication_conflicts_take_both_fail_closed_paths() {
-    reject_ikev2(
-        "[IKEv2]\n[Other]\nServer=s",
-        ProfileError::MalformedLine,
-    );
+    reject_ikev2("[IKEv2]\n[Other]\nServer=s", ProfileError::MalformedLine);
     reject_ikev2(
         "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nPassword=p\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=a",
         ProfileError::InvalidValue,
