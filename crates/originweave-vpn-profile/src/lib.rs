@@ -215,7 +215,7 @@ fn bounded_value(value: &str) -> Result<&str, ProfileError> {
 }
 
 fn import_bounded_secret(
-    importer: &mut impl VpnSecretImporter,
+    importer: &mut dyn VpnSecretImporter,
     secret: VpnSecret<'_>,
 ) -> Result<SecretReference, ProfileError> {
     let raw = match secret {
@@ -289,7 +289,7 @@ fn parse_assignment(line: &str) -> Result<(&str, &str), ProfileError> {
 /// `PostUp`, `PreDown`, `PostDown`, `SaveConfig`, and `Table` are explicitly rejected.
 pub fn import_wireguard_profile(
     profile: &str,
-    importer: &mut impl VpnSecretImporter,
+    importer: &mut dyn VpnSecretImporter,
 ) -> Result<WireGuardProfile, ProfileError> {
     let mut validator = ValidationImporter;
     import_wireguard_profile_once(profile, &mut validator)?;
@@ -298,7 +298,7 @@ pub fn import_wireguard_profile(
 
 fn import_wireguard_profile_once(
     profile: &str,
-    importer: &mut impl VpnSecretImporter,
+    importer: &mut dyn VpnSecretImporter,
 ) -> Result<WireGuardProfile, ProfileError> {
     bounded_profile(profile)?;
 
@@ -414,7 +414,7 @@ const ALLOWED_IKEV2_PROPOSALS: [&str; 3] = [
 /// raw PSK/password material with opaque references before returning.
 pub fn parse_ikev2_profile(
     profile: &str,
-    importer: &mut impl VpnSecretImporter,
+    importer: &mut dyn VpnSecretImporter,
 ) -> Result<Ikev2Profile, ProfileError> {
     let mut validator = ValidationImporter;
     parse_ikev2_profile_once(profile, &mut validator)?;
@@ -423,7 +423,7 @@ pub fn parse_ikev2_profile(
 
 fn parse_ikev2_profile_once(
     profile: &str,
-    importer: &mut impl VpnSecretImporter,
+    importer: &mut dyn VpnSecretImporter,
 ) -> Result<Ikev2Profile, ProfileError> {
     bounded_profile(profile)?;
 
@@ -532,7 +532,7 @@ fn parse_ikev2_profile_once(
 /// Detect the bounded profile family and normalize it through the same secret importer.
 pub fn parse_vpn_profile(
     profile: &str,
-    importer: &mut impl VpnSecretImporter,
+    importer: &mut dyn VpnSecretImporter,
 ) -> Result<VpnProfile, ProfileError> {
     bounded_profile(profile)?;
     let first = profile_lines(profile)
