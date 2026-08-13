@@ -5,7 +5,7 @@ This is a release/CI evidence runner, not a product browser adapter. It uses the
 W3C WebDriver HTTP protocol only to prove that a real Chrome for Testing build
 can load the controlled MV3 fixture and repeatedly exercise service-worker,
 content-script, storage, declarative-net-request, tabs, windows, scripting,
-commands, side-panel, bookmarks, history, real browser-click, and
+commands, side-panel, bookmarks, history, real-browser-click, and
 restart-persistence behavior. It also executes the controlled Agent Task fixture
 with extensions disabled in a fresh profile, locates the controlled action
 targets by exact browser-computed role/name evidence, performs real WebDriver
@@ -1232,18 +1232,25 @@ def _run_agent_task_browser_pass(
         browser_process_id,
         browser_process_start_time_ticks,
     )
+    chromium_process_set_terminated: bool | None = None
+    if chromium_process_identities is not None:
+        chromium_process_set_terminated = _wait_for_linux_process_identity_set_exit(
+            chromium_process_identities
+        )
     if browser_failure_type is not None:
-        return {
+        failure_evidence: dict[str, Any] = {
             "failure_type": browser_failure_type,
             "browser_process_terminated": browser_process_terminated,
         }
+        if chromium_process_set_terminated is not None:
+            failure_evidence["chromium_process_set_terminated"] = (
+                chromium_process_set_terminated
+            )
+        return failure_evidence
     if result is None:
         raise RuntimeError("Agent Task browser pass returned no result after shutdown")
-    if chromium_process_identities is None:
+    if chromium_process_set_terminated is None:
         raise RuntimeError("Agent Task Chromium process identities were not captured")
-    chromium_process_set_terminated = _wait_for_linux_process_identity_set_exit(
-        chromium_process_identities
-    )
     if not browser_process_terminated:
         raise RuntimeError("Agent Task browser process did not terminate")
     if not chromium_process_set_terminated:
@@ -1300,7 +1307,7 @@ def _run_agent_task_trial(
         browser_process_terminated = result.get("browser_process_terminated")
         if not isinstance(browser_process_terminated, bool):
             raise RuntimeError("Agent Task browser pass returned invalid teardown evidence")
-        return {
+        failure_evidence: dict[str, Any] = {
             "trial_number": trial_number,
             "passed": False,
             "failure_type": returned_failure_type,
@@ -1308,6 +1315,16 @@ def _run_agent_task_trial(
             "profile_cleaned": True,
             "duration_ms": duration_ms,
         }
+        if "chromium_process_set_terminated" in result:
+            chromium_process_set_terminated = result["chromium_process_set_terminated"]
+            if not isinstance(chromium_process_set_terminated, bool):
+                raise RuntimeError(
+                    "Agent Task browser pass returned invalid process-set teardown evidence"
+                )
+            failure_evidence["chromium_process_set_terminated"] = (
+                chromium_process_set_terminated
+            )
+        return failure_evidence
 
     return {
         "trial_number": trial_number,
