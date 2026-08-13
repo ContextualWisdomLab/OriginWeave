@@ -84,6 +84,10 @@ Proposed ADRs are reviewable architecture memory, not shipped behavior and not a
 - [ADR 0013: Manifest V3 compatibility and extension-to-Agent authority](adr/0013-manifest-v3-extension-authority.md)
 - [ADR 0014: Architecture decision acceptance governance](adr/0014-architecture-decision-governance.md)
 
-The second group exists only on this documentation branch until the branch integrates. After integration, the heading remains useful historical provenance; it does not promote either ADR from Proposed to Accepted and it does not claim that the described runtime capability is implemented.
+### Proposed feature decisions introduced by active implementation lanes
+
+- [ADR 0015: Keep VPN profile parsing secret-safe and non-privileged](adr/0015-vpn-profile-authority.md)
+
+The documentation-reconciliation group exists only on its documentation branch until that branch integrates. After integration, its heading remains useful historical provenance; it does not promote either ADR from Proposed to Accepted and it does not claim that the described runtime capability is implemented. The active-feature group likewise records branch-local Proposed architecture only; ADR 0015 does not become protected-main or shipped truth until normal integration and acceptance evidence exist.
 
 See the [ADR index](adr/README.md) for status rules, required decision structure, supersession rules, and active feature ADRs. The index and each ADR's own status metadata must agree; a PR body, chat transcript, automation prompt, or stale issue reference cannot change ADR status.
