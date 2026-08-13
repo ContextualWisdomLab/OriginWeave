@@ -188,6 +188,14 @@ impl WireGuardPeerBuilder {
     }
 }
 
+struct ValidationImporter;
+
+impl VpnSecretImporter for ValidationImporter {
+    fn import_secret(&mut self, _secret: VpnSecret<'_>) -> Result<SecretReference, ProfileError> {
+        Ok(SecretReference("secret://validation".to_owned()))
+    }
+}
+
 fn bounded_profile(profile: &str) -> Result<(), ProfileError> {
     if profile.is_empty() {
         return Err(ProfileError::UnsupportedProfile);
@@ -280,6 +288,15 @@ fn parse_assignment(line: &str) -> Result<(&str, &str), ProfileError> {
 /// `PrivateKey` and `PresharedKey` values cross only [`VpnSecretImporter`]. `PreUp`,
 /// `PostUp`, `PreDown`, `PostDown`, `SaveConfig`, and `Table` are explicitly rejected.
 pub fn import_wireguard_profile(
+    profile: &str,
+    importer: &mut impl VpnSecretImporter,
+) -> Result<WireGuardProfile, ProfileError> {
+    let mut validator = ValidationImporter;
+    import_wireguard_profile_once(profile, &mut validator)?;
+    import_wireguard_profile_once(profile, importer)
+}
+
+fn import_wireguard_profile_once(
     profile: &str,
     importer: &mut impl VpnSecretImporter,
 ) -> Result<WireGuardProfile, ProfileError> {
@@ -396,6 +413,15 @@ const ALLOWED_IKEV2_PROPOSALS: [&str; 3] = [
 /// and `RekeySeconds`. The function validates a modern proposal allow-list and replaces
 /// raw PSK/password material with opaque references before returning.
 pub fn parse_ikev2_profile(
+    profile: &str,
+    importer: &mut impl VpnSecretImporter,
+) -> Result<Ikev2Profile, ProfileError> {
+    let mut validator = ValidationImporter;
+    parse_ikev2_profile_once(profile, &mut validator)?;
+    parse_ikev2_profile_once(profile, importer)
+}
+
+fn parse_ikev2_profile_once(
     profile: &str,
     importer: &mut impl VpnSecretImporter,
 ) -> Result<Ikev2Profile, ProfileError> {
