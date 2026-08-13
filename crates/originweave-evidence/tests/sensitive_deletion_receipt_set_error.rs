@@ -17,6 +17,10 @@ fn receipt_set_failures_are_standard_non_leaking_errors() {
             "too many sensitive deletion receipts",
         ),
         (
+            SensitiveDeletionReceiptSetError::InvalidScopeIdentifier,
+            "invalid sensitive deletion scope identifier",
+        ),
+        (
             SensitiveDeletionReceiptSetError::RequestMismatch,
             "sensitive deletion request mismatch",
         ),

@@ -225,6 +225,8 @@ pub enum SensitiveDeletionReceiptSetError {
     TooManyRequirements,
     /// The caller supplied more deletion receipts than one evaluation may process.
     TooManyReceipts,
+    /// A caller-supplied request, tenant, or retention-policy identifier is invalid or oversized.
+    InvalidScopeIdentifier,
     /// At least one receipt belongs to another deletion request.
     RequestMismatch,
     /// At least one receipt belongs to another tenant.
@@ -248,6 +250,7 @@ impl fmt::Display for SensitiveDeletionReceiptSetError {
         formatter.write_str(match self {
             Self::TooManyRequirements => "too many sensitive deletion requirements",
             Self::TooManyReceipts => "too many sensitive deletion receipts",
+            Self::InvalidScopeIdentifier => "invalid sensitive deletion scope identifier",
             Self::RequestMismatch => "sensitive deletion request mismatch",
             Self::TenantMismatch => "sensitive deletion tenant mismatch",
             Self::RetentionPolicyMismatch => "sensitive deletion retention policy mismatch",
@@ -266,7 +269,8 @@ impl std::error::Error for SensitiveDeletionReceiptSetError {}
 ///
 /// This comparison is credential-free and deliberately does not discover copies, authenticate
 /// storage owners, perform deletion, or prove that the caller's requirement set is exhaustive.
-/// Both caller-supplied sets are bounded before any index allocation or entry-level validation.
+/// Caller-supplied set sizes and scope identifiers are bounded before internal index allocation or
+/// entry-level validation.
 pub fn verify_sensitive_deletion_receipt_set(
     receipts: &[SensitiveDeletionReceipt],
     request_id: &str,
@@ -279,6 +283,12 @@ pub fn verify_sensitive_deletion_receipt_set(
     }
     if receipts.len() > MAX_SENSITIVE_DELETION_RECEIPT_SET_ENTRIES {
         return Err(SensitiveDeletionReceiptSetError::TooManyReceipts);
+    }
+    if !valid_identifier(request_id)
+        || !valid_identifier(tenant_id)
+        || !valid_identifier(retention_policy_id)
+    {
+        return Err(SensitiveDeletionReceiptSetError::InvalidScopeIdentifier);
     }
     if requirements.is_empty() {
         return Err(SensitiveDeletionReceiptSetError::EmptyRequirementSet);
