@@ -1,0 +1,109 @@
+"""Contract for PID-safe browser-process crash evidence in the Agent Task lane."""
+
+from __future__ import annotations
+
+import pathlib
+import runpy
+import signal
+import unittest
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+RUNNER = ROOT / "scripts" / "ci" / "run_mv3_compatibility.py"
+
+
+class AgentTaskBrowserCrashRecoveryContractTests(unittest.TestCase):
+    """Require controlled browser-process interruption without PID-reuse races."""
+
+    def test_runner_exposes_pidfd_crash_boundary(self) -> None:
+        """The Linux browser crash probe must use a PID-safe signalling boundary."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_browser_crash_contract")
+        for expected in (
+            "_signal_linux_process_identity",
+            "_run_agent_task_browser_crash_browser_pass",
+            "_run_agent_task_browser_crash_trial",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, namespace)
+
+    def test_signal_boundary_rejects_pid_reuse_before_open(self) -> None:
+        """A reused PID must never receive the crash signal."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_browser_crash_reuse")
+        signal_identity = namespace["_signal_linux_process_identity"]
+        opened: list[int] = []
+        signalled: list[tuple[int, int]] = []
+
+        signal_identity.__globals__["_read_linux_proc_stat_process_identity"] = (
+            lambda _process_id: (777, 99)
+        )
+        signal_identity.__globals__["os"].pidfd_open = lambda process_id, _flags=0: opened.append(process_id) or 12
+        signal_identity.__globals__["signal"].pidfd_send_signal = (
+            lambda pidfd, sig, *_args, **_kwargs: signalled.append((pidfd, sig))
+        )
+        signal_identity.__globals__["os"].close = lambda _fd: None
+
+        self.assertFalse(signal_identity((777, 42), signal.SIGKILL))
+        self.assertEqual(opened, [])
+        self.assertEqual(signalled, [])
+
+    def test_signal_boundary_rechecks_identity_after_pidfd_open(self) -> None:
+        """The process identity must still match after the race-free handle is opened."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_browser_crash_post_open")
+        signal_identity = namespace["_signal_linux_process_identity"]
+        identities = iter(((777, 42), (777, 99)))
+        signalled: list[tuple[int, int]] = []
+        closed: list[int] = []
+
+        signal_identity.__globals__["_read_linux_proc_stat_process_identity"] = (
+            lambda _process_id: next(identities)
+        )
+        signal_identity.__globals__["os"].pidfd_open = lambda _process_id, _flags=0: 12
+        signal_identity.__globals__["signal"].pidfd_send_signal = (
+            lambda pidfd, sig, *_args, **_kwargs: signalled.append((pidfd, sig))
+        )
+        signal_identity.__globals__["os"].close = closed.append
+
+        self.assertFalse(signal_identity((777, 42), signal.SIGKILL))
+        self.assertEqual(signalled, [])
+        self.assertEqual(closed, [12])
+
+    def test_signal_boundary_targets_only_exact_open_identity(self) -> None:
+        """Exact identity proof must send one signal through the opened pidfd and close it."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_browser_crash_exact")
+        signal_identity = namespace["_signal_linux_process_identity"]
+        signalled: list[tuple[int, int]] = []
+        closed: list[int] = []
+
+        signal_identity.__globals__["_read_linux_proc_stat_process_identity"] = (
+            lambda _process_id: (777, 42)
+        )
+        signal_identity.__globals__["os"].pidfd_open = lambda _process_id, _flags=0: 12
+        signal_identity.__globals__["signal"].pidfd_send_signal = (
+            lambda pidfd, sig, *_args, **_kwargs: signalled.append((pidfd, sig))
+        )
+        signal_identity.__globals__["os"].close = closed.append
+
+        self.assertTrue(signal_identity((777, 42), signal.SIGKILL))
+        self.assertEqual(signalled, [(12, signal.SIGKILL)])
+        self.assertEqual(closed, [12])
+
+    def test_crash_lane_is_required_for_success_evidence(self) -> None:
+        """The real-browser evidence must retain deterministic crash and teardown proof."""
+
+        runner = RUNNER.read_text(encoding="utf-8")
+        for expected in (
+            '"browser_crash"',
+            '"browser_process_crash_detected"',
+            '"browser_process_terminated"',
+            '"chromium_process_set_terminated"',
+            "Agent Task browser-crash recovery gate failed",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, runner)
+
+
+if __name__ == "__main__":
+    unittest.main()
