@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pathlib
+import re
 import tomllib
 import unittest
 
@@ -53,6 +54,18 @@ class VpnProfileContractTests(unittest.TestCase):
         ):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, source)
+
+    def test_raw_secret_vocabulary_is_not_automatically_debuggable(self) -> None:
+        """A derived Debug implementation must not copy raw credentials into diagnostics."""
+
+        source = (CRATE / "src" / "lib.rs").read_text(encoding="utf-8")
+        declaration = re.search(
+            r"#\[derive\((?P<traits>[^)]*)\)\]\s*pub enum VpnSecret",
+            source,
+        )
+        self.assertIsNotNone(declaration)
+        assert declaration is not None
+        self.assertNotIn("Debug", declaration.group("traits").split(", "))
 
     def test_vpn_profile_decision_and_primary_source_doctoring_are_present(self) -> None:
         """The route and credential authority change requires an ADR and APA evidence."""
