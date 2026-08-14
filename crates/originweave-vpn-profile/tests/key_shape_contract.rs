@@ -26,7 +26,10 @@ fn profile(private_key: &str, public_key: &str, preshared_key: Option<&str>) -> 
 fn assert_invalid_without_import(private_key: &str, public_key: &str, preshared_key: Option<&str>) {
     let mut importer = CountingImporter::default();
     assert_eq!(
-        import_wireguard_profile(&profile(private_key, public_key, preshared_key), &mut importer),
+        import_wireguard_profile(
+            &profile(private_key, public_key, preshared_key),
+            &mut importer,
+        ),
         Err(ProfileError::InvalidValue)
     );
     assert_eq!(importer.0, 0, "invalid key reached the caller importer");
@@ -78,7 +81,10 @@ fn canonical_32_byte_wireguard_keys_remain_accepted() {
         &profile(VALID_KEY, VALID_KEY, Some(VALID_KEY)),
         &mut importer,
     );
-    assert!(parsed.is_ok(), "canonical WireGuard keys must parse: {parsed:?}");
+    assert!(
+        parsed.is_ok(),
+        "canonical WireGuard keys must parse: {parsed:?}"
+    );
     assert_eq!(importer.0, 2);
     if let Ok(profile) = parsed {
         assert_eq!(profile.peers[0].public_key, VALID_KEY);
