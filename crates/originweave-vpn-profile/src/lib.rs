@@ -333,7 +333,6 @@ fn validate_gateway_host(value: &str) -> Result<&str, ProfileError> {
 }
 
 fn validate_ike_identity(value: &str) -> Result<&str, ProfileError> {
-    let value = bounded_value(value)?;
     if value.chars().any(char::is_control) {
         return Err(ProfileError::InvalidValue);
     }
@@ -351,7 +350,6 @@ fn parse_nonzero_udp_port(value: &str) -> Result<u16, ProfileError> {
 }
 
 fn validate_wireguard_endpoint(value: &str) -> Result<&str, ProfileError> {
-    let value = bounded_value(value)?;
     if let Some(bracketed) = value.strip_prefix('[') {
         let (host, port) = bracketed
             .split_once("]:")
