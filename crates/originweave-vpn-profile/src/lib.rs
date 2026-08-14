@@ -161,6 +161,27 @@ pub enum ProfileError {
     SecretImportFailed,
 }
 
+impl std::fmt::Display for ProfileError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let message = match self {
+            Self::ProfileTooLarge => "profile exceeds the bounded size",
+            Self::UnsupportedProfile => "profile format is unsupported",
+            Self::MalformedLine => "profile contains a malformed line",
+            Self::UnsupportedAuthority => "profile requests unsupported authority",
+            Self::DuplicateField => "profile field is duplicated",
+            Self::MissingField => "profile is missing a required field",
+            Self::InvalidValue => "profile field value is invalid",
+            Self::TooManyItems => "profile contains too many items",
+            Self::InvalidSecret => "profile secret is invalid",
+            Self::InvalidSecretReference => "secret reference is invalid",
+            Self::SecretImportFailed => "secret import failed",
+        };
+        formatter.write_str(message)
+    }
+}
+
+impl std::error::Error for ProfileError {}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum WireGuardSection {
     Interface,
