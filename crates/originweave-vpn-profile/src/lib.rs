@@ -459,10 +459,16 @@ fn validate_wireguard_endpoint(value: &str) -> Result<&str, ProfileError> {
 }
 
 fn parse_u16(value: &str) -> Result<u16, ProfileError> {
+    if !value.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(ProfileError::InvalidValue);
+    }
     value.parse::<u16>().map_err(|_| ProfileError::InvalidValue)
 }
 
 fn parse_u32(value: &str) -> Result<u32, ProfileError> {
+    if !value.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(ProfileError::InvalidValue);
+    }
     value.parse::<u32>().map_err(|_| ProfileError::InvalidValue)
 }
 
