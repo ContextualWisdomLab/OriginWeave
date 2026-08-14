@@ -24,8 +24,9 @@ impl fmt::Display for BudgetError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::ZeroLimit => formatter.write_str("resource budget limits must be nonzero"),
-            Self::SoftExceedsHard => formatter
-                .write_str("resource budget soft limits must not exceed hard limits"),
+            Self::SoftExceedsHard => {
+                formatter.write_str("resource budget soft limits must not exceed hard limits")
+            }
         }
     }
 }
