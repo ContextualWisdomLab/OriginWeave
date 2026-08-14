@@ -211,7 +211,10 @@ fn reconstruction_rejects_malformed_scope_count_and_digest() {
     ];
 
     for (input, expected) in cases {
-        assert_eq!(SensitiveDeletionReceiptSetCommitment::try_from(input), Err(expected));
+        assert_eq!(
+            SensitiveDeletionReceiptSetCommitment::try_from(input),
+            Err(expected)
+        );
     }
 }
 
