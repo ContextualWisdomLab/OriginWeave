@@ -52,13 +52,22 @@ pub enum VpnSecret<'a> {
 /// Trusted boundary that moves raw profile credentials into a secret store.
 ///
 /// Profile entry points complete a side-effect-free validation pass before calling the
-/// real importer. A later importer failure can nevertheless occur after earlier secrets
-/// were already stored during the second pass. Because those earlier references are not
-/// returned on failure, importer implementations own cleanup of partial imports, for
-/// example through transactional staging or expiry, until this trait exposes disposal.
+/// real importer. During the import pass, OriginWeave journals every successful opaque
+/// reference. If a later import fails, every journaled reference is offered back to the
+/// importer for disposal in reverse order before the failure is returned. Importers that
+/// persist secrets must override [`VpnSecretImporter::discard_secret`]; the default fails
+/// closed so missing cleanup authority cannot be mistaken for successful rollback.
 pub trait VpnSecretImporter {
     /// Import one borrowed secret and return only an opaque reference.
     fn import_secret(&mut self, secret: VpnSecret<'_>) -> Result<SecretReference, ProfileError>;
+
+    /// Discard one previously imported opaque reference during failed-profile rollback.
+    ///
+    /// The default intentionally fails closed. Persistent importers must implement
+    /// disposal or provide equivalent transactional behavior behind this hook.
+    fn discard_secret(&mut self, _reference: &SecretReference) -> Result<(), ProfileError> {
+        Err(ProfileError::SecretCleanupFailed)
+    }
 }
 
 /// Normalized VPN profile intent for a privileged platform adapter.
@@ -166,6 +175,8 @@ pub enum ProfileError {
     InvalidSecretReference,
     /// The trusted secret importer rejected a secret.
     SecretImportFailed,
+    /// Rollback of one or more already imported secret references failed.
+    SecretCleanupFailed,
 }
 
 impl std::fmt::Display for ProfileError {
@@ -182,6 +193,7 @@ impl std::fmt::Display for ProfileError {
             Self::InvalidSecret => "profile secret is invalid",
             Self::InvalidSecretReference => "secret reference is invalid",
             Self::SecretImportFailed => "secret import failed",
+            Self::SecretCleanupFailed => "secret cleanup failed",
         };
         formatter.write_str(message)
     }
@@ -261,6 +273,7 @@ fn validate_wireguard_key(value: &str) -> Result<&str, ProfileError> {
 
 fn import_bounded_secret(
     importer: &mut dyn VpnSecretImporter,
+    imported: &mut Vec<SecretReference>,
     secret: VpnSecret<'_>,
 ) -> Result<SecretReference, ProfileError> {
     let raw = match secret {
@@ -278,9 +291,29 @@ fn import_bounded_secret(
     ) {
         validate_wireguard_key(raw)?;
     }
-    importer
+    let reference = importer
         .import_secret(secret)
-        .map_err(|_| ProfileError::SecretImportFailed)
+        .map_err(|_| ProfileError::SecretImportFailed)?;
+    imported.push(reference.clone());
+    Ok(reference)
+}
+
+fn rollback_imports<T>(
+    importer: &mut dyn VpnSecretImporter,
+    imported: &[SecretReference],
+    error: ProfileError,
+) -> Result<T, ProfileError> {
+    let mut cleanup_failed = false;
+    for reference in imported.iter().rev() {
+        if importer.discard_secret(reference).is_err() {
+            cleanup_failed = true;
+        }
+    }
+    if cleanup_failed {
+        Err(ProfileError::SecretCleanupFailed)
+    } else {
+        Err(error)
+    }
 }
 
 fn split_bounded_list(value: &str) -> Result<Vec<String>, ProfileError> {
@@ -479,13 +512,20 @@ pub fn import_wireguard_profile(
     importer: &mut dyn VpnSecretImporter,
 ) -> Result<WireGuardProfile, ProfileError> {
     let mut validator = ValidationImporter;
-    import_wireguard_profile_once(profile, &mut validator)?;
-    import_wireguard_profile_once(profile, importer)
+    let mut validation_imports = Vec::new();
+    import_wireguard_profile_once(profile, &mut validator, &mut validation_imports)?;
+
+    let mut imported = Vec::new();
+    match import_wireguard_profile_once(profile, importer, &mut imported) {
+        Ok(profile) => Ok(profile),
+        Err(error) => rollback_imports(importer, &imported, error),
+    }
 }
 
 fn import_wireguard_profile_once(
     profile: &str,
     importer: &mut dyn VpnSecretImporter,
+    imported: &mut Vec<SecretReference>,
 ) -> Result<WireGuardProfile, ProfileError> {
     bounded_profile(profile)?;
 
@@ -533,8 +573,11 @@ fn import_wireguard_profile_once(
                 "MTU" => set_once(&mut mtu, parse_u16(value)?)?,
                 "ListenPort" => set_once(&mut listen_port, parse_u16(value)?)?,
                 "PrivateKey" => {
-                    let secret =
-                        import_bounded_secret(importer, VpnSecret::WireGuardPrivateKey(value))?;
+                    let secret = import_bounded_secret(
+                        importer,
+                        imported,
+                        VpnSecret::WireGuardPrivateKey(value),
+                    )?;
                     set_once(&mut private_key, secret)?;
                 }
                 "PreUp" | "PostUp" | "PreDown" | "PostDown" | "SaveConfig" | "Table" => {
@@ -554,6 +597,7 @@ fn import_wireguard_profile_once(
                     "PresharedKey" => {
                         let secret = import_bounded_secret(
                             importer,
+                            imported,
                             VpnSecret::WireGuardPresharedKey(value),
                         )?;
                         set_once(&mut current.preshared_key, secret)?;
@@ -617,13 +661,20 @@ pub fn parse_ikev2_profile(
     importer: &mut dyn VpnSecretImporter,
 ) -> Result<Ikev2Profile, ProfileError> {
     let mut validator = ValidationImporter;
-    parse_ikev2_profile_once(profile, &mut validator)?;
-    parse_ikev2_profile_once(profile, importer)
+    let mut validation_imports = Vec::new();
+    parse_ikev2_profile_once(profile, &mut validator, &mut validation_imports)?;
+
+    let mut imported = Vec::new();
+    match parse_ikev2_profile_once(profile, importer, &mut imported) {
+        Ok(profile) => Ok(profile),
+        Err(error) => rollback_imports(importer, &imported, error),
+    }
 }
 
 fn parse_ikev2_profile_once(
     profile: &str,
     importer: &mut dyn VpnSecretImporter,
+    imported: &mut Vec<SecretReference>,
 ) -> Result<Ikev2Profile, ProfileError> {
     bounded_profile(profile)?;
 
@@ -661,11 +712,16 @@ fn parse_ikev2_profile_once(
             "Auth" => set_once(&mut auth_kind, value.to_owned())?,
             "Username" => set_once(&mut username, validate_ike_identity(value)?.to_owned())?,
             "Psk" => {
-                let secret = import_bounded_secret(importer, VpnSecret::Ikev2PresharedKey(value))?;
+                let secret = import_bounded_secret(
+                    importer,
+                    imported,
+                    VpnSecret::Ikev2PresharedKey(value),
+                )?;
                 set_once(&mut psk, secret)?;
             }
             "Password" => {
-                let secret = import_bounded_secret(importer, VpnSecret::Ikev2Password(value))?;
+                let secret =
+                    import_bounded_secret(importer, imported, VpnSecret::Ikev2Password(value))?;
                 set_once(&mut password, secret)?;
             }
             "Proposal" => {
