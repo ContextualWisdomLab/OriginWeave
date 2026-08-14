@@ -295,13 +295,16 @@ fn split_bounded_list(value: &str) -> Result<Vec<String>, ProfileError> {
 }
 
 fn validate_ip_network(value: &str) -> Result<(), ProfileError> {
-    let (address, prefix) = value.split_once('/').ok_or(ProfileError::InvalidValue)?;
+    let (address, prefix_text) = value.split_once('/').ok_or(ProfileError::InvalidValue)?;
     let address = address
         .parse::<std::net::IpAddr>()
         .map_err(|_| ProfileError::InvalidValue)?;
-    let prefix = prefix
+    let prefix = prefix_text
         .parse::<u8>()
         .map_err(|_| ProfileError::InvalidValue)?;
+    if prefix_text != prefix.to_string() {
+        return Err(ProfileError::InvalidValue);
+    }
     let maximum_prefix = match address {
         std::net::IpAddr::V4(_) => 32,
         std::net::IpAddr::V6(_) => 128,
@@ -325,6 +328,26 @@ fn split_network_list(value: &str) -> Result<Vec<String>, ProfileError> {
         validate_ip_network(item)?;
     }
     Ok(items)
+}
+
+fn split_wireguard_allowed_ips(value: &str) -> Result<Vec<String>, ProfileError> {
+    split_bounded_list(value)?
+        .into_iter()
+        .map(|item| {
+            if item.contains('/') {
+                validate_ip_network(&item)?;
+                return Ok(item);
+            }
+            let address = item
+                .parse::<std::net::IpAddr>()
+                .map_err(|_| ProfileError::InvalidValue)?;
+            let prefix = match address {
+                std::net::IpAddr::V4(_) => 32,
+                std::net::IpAddr::V6(_) => 128,
+            };
+            Ok(format!("{address}/{prefix}"))
+        })
+        .collect()
 }
 
 fn split_ip_address_list(value: &str) -> Result<Vec<String>, ProfileError> {
@@ -526,7 +549,10 @@ fn import_wireguard_profile_once(
                         )?;
                     }
                     "AllowedIPs" => {
-                        set_once(&mut current.allowed_ips, split_network_list(value)?)?;
+                        set_once(
+                            &mut current.allowed_ips,
+                            split_wireguard_allowed_ips(value)?,
+                        )?;
                     }
                     "PersistentKeepalive" => {
                         set_once(&mut current.persistent_keepalive_seconds, parse_u16(value)?)?;
@@ -949,8 +975,8 @@ mod tests {
             "[IKEv2]\nServer=s\nAuth=eap\nUsername=u\nPassword=p\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
             "[IKEv2]\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
             "[IKEv2]\nServer=s\nAuth=psk\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
-            "[IKEv2]\nServer=s\nAuth=eap\nPassword=p\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
-            "[IKEv2]\nServer=s\nAuth=eap\nUsername=u\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
+            "[IKEv2]\nServer=s\nAuth=eap\nPassword=p\nProposal=aes256gcm16-prfsha256-ecp256\nTrafficSelectors=10.0.0.0/8",
+            "[IKEv2]\nServer=s\nAuth=eap\nUsername=u\nProposal=aes256gcm16-prfsha256-ecp256\nTrafficSelectors=10.0.0.0/8",
             "[IKEv2]\nServer=s\nServer=t\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
             "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8\nDpdSeconds=0",
             "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8\nRekeySeconds=299",
