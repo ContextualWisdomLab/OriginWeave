@@ -124,3 +124,40 @@ fn ikev2_identity_rejects_ascii_control_characters_before_secret_import() {
     assert_ikev2_invalid_without_import("vpn.example", "RemoteId=remote\u{1}id\n");
     assert_ikev2_invalid_without_import("vpn.example", "LocalId=local\u{7f}id\n");
 }
+
+#[test]
+fn ikev2_identity_fields_are_explicitly_bounded_before_secret_import() {
+    let overlong_identity = "a".repeat(254);
+    assert_ikev2_invalid_without_import(
+        "vpn.example",
+        &format!("RemoteId={overlong_identity}\n"),
+    );
+    assert_ikev2_invalid_without_import(
+        "vpn.example",
+        &format!("LocalId={overlong_identity}\n"),
+    );
+
+    let profile = format!(
+        "[IKEv2]\nServer=vpn.example\nAuth=eap\nUsername={overlong_identity}\nPassword=p\nProposal=aes256gcm16-prfsha256-ecp256\nTrafficSelectors=10.0.0.0/8\n"
+    );
+    let mut importer = CountingImporter::default();
+    assert_eq!(
+        parse_ikev2_profile(&profile, &mut importer),
+        Err(ProfileError::InvalidValue)
+    );
+    assert_eq!(importer.0, 0, "invalid username reached caller importer");
+}
+
+#[test]
+fn ikev2_optional_negotiation_extensions_default_to_disabled() {
+    let mut importer = CountingImporter::default();
+    let profile = parse_ikev2_profile(&ikev2_profile("vpn.example", ""), &mut importer)
+        .expect("canonical IKEv2 profile should normalize");
+
+    assert!(!profile.mobike, "MOBIKE requires explicit profile opt-in");
+    assert!(
+        !profile.fragmentation,
+        "IKEv2 fragmentation requires explicit profile opt-in"
+    );
+    assert_eq!(importer.0, 1);
+}
