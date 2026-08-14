@@ -15,7 +15,10 @@ impl VpnSecretImporter for CountingImporter {
 
 fn assert_wg_error(profile: &str, expected: ProfileError) {
     let mut importer = CountingImporter::default();
-    assert_eq!(import_wireguard_profile(profile, &mut importer), Err(expected));
+    assert_eq!(
+        import_wireguard_profile(profile, &mut importer),
+        Err(expected)
+    );
     assert_eq!(importer.0, 0);
 }
 
@@ -88,7 +91,8 @@ fn wireguard_peer_flush_and_required_field_edges_are_covered() {
 
 #[test]
 fn ikev2_duplicate_variants_cover_every_singleton_storage_type() {
-    let suffix = "Auth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8\n";
+    let suffix =
+        "Auth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8\n";
     for prefix in [
         "Server=a\nServer=b\n",
         "Server=a\nRemoteId=a\nRemoteId=b\n",
