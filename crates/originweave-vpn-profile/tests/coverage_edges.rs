@@ -3,6 +3,8 @@ use originweave_vpn_profile::{
     parse_ikev2_profile,
 };
 
+const VALID_WIREGUARD_KEY: &str = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+
 #[derive(Default)]
 struct CountingImporter {
     calls: usize,
@@ -13,6 +15,10 @@ impl VpnSecretImporter for CountingImporter {
         self.calls += 1;
         SecretReference::new(format!("secret://coverage/{}", self.calls))
     }
+}
+
+fn canonical_wireguard(profile: &str) -> String {
+    profile.replace("<wg-key>", VALID_WIREGUARD_KEY)
 }
 
 fn reject_wireguard(profile: &str, expected: ProfileError) {
@@ -33,48 +39,61 @@ fn reject_ikev2(profile: &str, expected: ProfileError) {
 #[test]
 fn wireguard_duplicate_singletons_fail_before_external_secret_import() {
     for profile in [
-        "[Interface]\nAddress=10.0.0.2/32\nDNS=1.1.1.1\nDNS=8.8.8.8\nPrivateKey=k",
-        "[Interface]\nAddress=10.0.0.2/32\nMTU=1400\nMTU=1500\nPrivateKey=k",
-        "[Interface]\nAddress=10.0.0.2/32\nListenPort=51820\nListenPort=51821\nPrivateKey=k",
-        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\nPrivateKey=q",
-        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n[Peer]\nPublicKey=p\nPresharedKey=s\nPresharedKey=t\nAllowedIPs=10.0.0.0/8",
-        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n[Peer]\nPublicKey=p\nEndpoint=vpn.example:51820\nEndpoint=vpn.example:51821\nAllowedIPs=10.0.0.0/8",
-        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n[Peer]\nPublicKey=p\nAllowedIPs=10.0.0.0/8\nAllowedIPs=192.168.0.0/16",
-        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n[Peer]\nPublicKey=p\nAllowedIPs=10.0.0.0/8\nPersistentKeepalive=25\nPersistentKeepalive=30",
+        "[Interface]\nAddress=10.0.0.2/32\nDNS=1.1.1.1\nDNS=8.8.8.8\nPrivateKey=<wg-key>",
+        "[Interface]\nAddress=10.0.0.2/32\nMTU=1400\nMTU=1500\nPrivateKey=<wg-key>",
+        "[Interface]\nAddress=10.0.0.2/32\nListenPort=51820\nListenPort=51821\nPrivateKey=<wg-key>",
+        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=<wg-key>\nPrivateKey=<wg-key>",
+        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=<wg-key>\n[Peer]\nPublicKey=<wg-key>\nPresharedKey=<wg-key>\nPresharedKey=<wg-key>\nAllowedIPs=10.0.0.0/8",
+        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=<wg-key>\n[Peer]\nPublicKey=<wg-key>\nEndpoint=vpn.example:51820\nEndpoint=vpn.example:51821\nAllowedIPs=10.0.0.0/8",
+        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=<wg-key>\n[Peer]\nPublicKey=<wg-key>\nAllowedIPs=10.0.0.0/8\nAllowedIPs=192.168.0.0/16",
+        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=<wg-key>\n[Peer]\nPublicKey=<wg-key>\nAllowedIPs=10.0.0.0/8\nPersistentKeepalive=25\nPersistentKeepalive=30",
     ] {
-        reject_wireguard(profile, ProfileError::DuplicateField);
+        reject_wireguard(
+            &canonical_wireguard(profile),
+            ProfileError::DuplicateField,
+        );
     }
 }
 
 #[test]
 fn wireguard_peer_flush_and_list_failures_are_covered_without_import_side_effects() {
     reject_wireguard(
-        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n[Peer]\nAllowedIPs=10.0.0.0/8\n[Peer]\nPublicKey=p\nAllowedIPs=10.0.0.0/8",
+        &canonical_wireguard(
+            "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=<wg-key>\n[Peer]\nAllowedIPs=10.0.0.0/8\n[Peer]\nPublicKey=<wg-key>\nAllowedIPs=10.0.0.0/8",
+        ),
         ProfileError::MissingField,
     );
     reject_wireguard(
-        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n[Peer]\nPublicKey=p\n[Peer]\nPublicKey=q\nAllowedIPs=10.0.0.0/8",
+        &canonical_wireguard(
+            "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=<wg-key>\n[Peer]\nPublicKey=<wg-key>\n[Peer]\nPublicKey=<wg-key>\nAllowedIPs=10.0.0.0/8",
+        ),
         ProfileError::MissingField,
     );
     reject_wireguard(
-        "[Interface]\nAddress=10.0.0.2/32\nDNS=1.1.1.1,,8.8.8.8\nPrivateKey=k",
+        &canonical_wireguard(
+            "[Interface]\nAddress=10.0.0.2/32\nDNS=1.1.1.1,,8.8.8.8\nPrivateKey=<wg-key>",
+        ),
         ProfileError::InvalidValue,
     );
     reject_wireguard(
-        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n[Peer]\nPublicKey=p\nAllowedIPs=10.0.0.0/8,,192.168.0.0/16",
+        &canonical_wireguard(
+            "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=<wg-key>\n[Peer]\nPublicKey=<wg-key>\nAllowedIPs=10.0.0.0/8,,192.168.0.0/16",
+        ),
         ProfileError::InvalidValue,
     );
     reject_wireguard(
-        "[Interface]\n=x\nAddress=10.0.0.2/32\nPrivateKey=k",
+        &canonical_wireguard("[Interface]\n=x\nAddress=10.0.0.2/32\nPrivateKey=<wg-key>"),
         ProfileError::InvalidValue,
     );
 }
 
 #[test]
 fn wireguard_comments_blank_lines_and_optional_peer_fields_remain_parseable() {
-    let profile = "# synthetic fixture\n\n[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n\n# peer\n[Peer]\nPublicKey=p\nAllowedIPs=10.0.0.0/8\n";
+    let profile = canonical_wireguard(
+        "# synthetic fixture\n\n[Interface]\nAddress=10.0.0.2/32\nPrivateKey=<wg-key>\n\n# peer\n[Peer]\nPublicKey=<wg-key>\nAllowedIPs=10.0.0.0/8\n",
+    );
     let mut importer = CountingImporter::default();
-    let parsed = import_wireguard_profile(profile, &mut importer);
+    let parsed = import_wireguard_profile(&profile, &mut importer);
     assert!(parsed.is_ok(), "synthetic profile must parse: {parsed:?}");
     assert_eq!(importer.calls, 1);
 }
