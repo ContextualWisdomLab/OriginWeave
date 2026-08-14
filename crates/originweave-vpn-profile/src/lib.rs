@@ -354,8 +354,7 @@ fn validate_wireguard_endpoint(value: &str) -> Result<&str, ProfileError> {
     let value = bounded_value(value)?;
     if let Some(bracketed) = value.strip_prefix('[') {
         let (host, port) = bracketed
-            .split_once("]: ")
-            .or_else(|| bracketed.split_once("]:"))
+            .split_once("]:")
             .ok_or(ProfileError::InvalidValue)?;
         host.parse::<std::net::Ipv6Addr>()
             .map_err(|_| ProfileError::InvalidValue)?;
