@@ -128,14 +128,8 @@ fn ikev2_identity_rejects_ascii_control_characters_before_secret_import() {
 #[test]
 fn ikev2_identity_fields_are_explicitly_bounded_before_secret_import() {
     let overlong_identity = "a".repeat(254);
-    assert_ikev2_invalid_without_import(
-        "vpn.example",
-        &format!("RemoteId={overlong_identity}\n"),
-    );
-    assert_ikev2_invalid_without_import(
-        "vpn.example",
-        &format!("LocalId={overlong_identity}\n"),
-    );
+    assert_ikev2_invalid_without_import("vpn.example", &format!("RemoteId={overlong_identity}\n"));
+    assert_ikev2_invalid_without_import("vpn.example", &format!("LocalId={overlong_identity}\n"));
 
     let profile = format!(
         "[IKEv2]\nServer=vpn.example\nAuth=eap\nUsername={overlong_identity}\nPassword=p\nProposal=aes256gcm16-prfsha256-ecp256\nTrafficSelectors=10.0.0.0/8\n"
