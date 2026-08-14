@@ -88,6 +88,8 @@ pub enum EvidenceError {
     LimitExceeded,
     /// A source locator was empty.
     EmptyLocator,
+    /// A source locator contained a control character.
+    InvalidLocator,
     /// A source digest was not a lowercase SHA-256 identifier.
     InvalidHash,
     /// A source URL was missing or contained unsafe characters.
@@ -100,6 +102,7 @@ impl std::fmt::Display for EvidenceError {
             Self::InvalidPath => "network evidence path is invalid",
             Self::LimitExceeded => "network evidence exceeds a configured limit",
             Self::EmptyLocator => "evidence source locator must not be empty",
+            Self::InvalidLocator => "evidence source locator contains a control character",
             Self::InvalidHash => "evidence source hash must be canonical lowercase SHA-256",
             Self::InvalidSourceUrl => "evidence source URL is invalid",
         })
@@ -292,6 +295,9 @@ impl ProvenanceRecord {
         }
         if source_locator.is_empty() {
             return Err(EvidenceError::EmptyLocator);
+        }
+        if source_locator.chars().any(char::is_control) {
+            return Err(EvidenceError::InvalidLocator);
         }
         if !valid_sha256(source_hash) {
             return Err(EvidenceError::InvalidHash);
