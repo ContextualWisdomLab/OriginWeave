@@ -851,8 +851,7 @@ mod tests {
             kinds: Vec::new(),
             fail: true,
         };
-        let profile =
-            format!("[Interface]\nAddress=10.0.0.2/32\nPrivateKey={VALID_WIREGUARD_KEY}");
+        let profile = format!("[Interface]\nAddress=10.0.0.2/32\nPrivateKey={VALID_WIREGUARD_KEY}");
         assert_eq!(
             import_wireguard_profile(&profile, &mut importer),
             Err(ProfileError::SecretImportFailed)
@@ -1013,6 +1012,18 @@ mod tests {
                     "[Interface]\nAddress=10.0.0.2/32\nPrivateKey={VALID_WIREGUARD_KEY}\n[Peer]\nPublicKey={VALID_WIREGUARD_KEY}\nAllowedIPs=10.0.0.0/8\nPersistentKeepalive=10\nPersistentKeepalive=20\n"
                 ),
                 ProfileError::DuplicateField,
+            ),
+            (
+                format!(
+                    "[Interface]\nAddress=10.0.0.2/32\nListenPort=not-a-number\nPrivateKey={VALID_WIREGUARD_KEY}\n"
+                ),
+                ProfileError::InvalidValue,
+            ),
+            (
+                format!(
+                    "[Interface]\nAddress=10.0.0.2/32\nPrivateKey={VALID_WIREGUARD_KEY}\n[Peer]\nPersistentKeepalive=not-a-number\nPublicKey={VALID_WIREGUARD_KEY}\nAllowedIPs=10.0.0.0/8\n"
+                ),
+                ProfileError::InvalidValue,
             ),
             (
                 format!(
