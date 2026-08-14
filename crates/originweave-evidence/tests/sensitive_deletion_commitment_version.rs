@@ -11,10 +11,10 @@ use std::error::Error;
 
 use originweave_evidence::{
     SENSITIVE_DELETION_INVENTORY_COMMITMENT_VERSION, SensitiveDeletionCause,
-    SensitiveDeletionPersistedCommitment, SensitiveDeletionPersistedCommitmentError,
-    SensitiveDeletionPersistedCommitmentInput, SensitiveDeletionReceipt,
-    SensitiveDeletionReceiptInput, SensitiveDeletionRequirement, SensitiveDeletionTarget,
-    verify_persisted_sensitive_deletion_inventory_commitment,
+    SensitiveDeletionInventoryCommitmentError, SensitiveDeletionPersistedCommitment,
+    SensitiveDeletionPersistedCommitmentError, SensitiveDeletionPersistedCommitmentInput,
+    SensitiveDeletionReceipt, SensitiveDeletionReceiptInput, SensitiveDeletionRequirement,
+    SensitiveDeletionTarget, verify_persisted_sensitive_deletion_inventory_commitment,
     verify_sensitive_deletion_receipt_set_with_persisted_commitment,
 };
 
@@ -144,6 +144,38 @@ fn reconstruction_rejects_unsupported_versions_before_other_metadata() {
             Err(SensitiveDeletionPersistedCommitmentError::UnsupportedCommitmentVersion)
         );
     }
+}
+
+#[test]
+fn supported_version_preserves_bounded_commitment_validation_errors() {
+    let input = SensitiveDeletionPersistedCommitmentInput {
+        commitment_version: SENSITIVE_DELETION_INVENTORY_COMMITMENT_VERSION,
+        request_id: "bad request".to_owned(),
+        tenant_id: TENANT_ID.to_owned(),
+        retention_policy_id: RETENTION_POLICY_ID.to_owned(),
+        declared_copy_count: 1,
+        inventory_digest: "0".repeat(64),
+    };
+    let error = SensitiveDeletionPersistedCommitment::try_from(input)
+        .expect_err("supported version must still apply bounded commitment validation");
+
+    assert_eq!(
+        error,
+        SensitiveDeletionPersistedCommitmentError::InvalidCommitment(
+            SensitiveDeletionInventoryCommitmentError::InvalidScopeIdentifier
+        )
+    );
+    assert_eq!(
+        error.to_string(),
+        "invalid persisted sensitive deletion commitment: invalid sensitive deletion commitment scope identifier"
+    );
+    assert_eq!(
+        error
+            .source()
+            .expect("wrapped commitment validation error should remain in the source chain")
+            .to_string(),
+        "invalid sensitive deletion commitment scope identifier"
+    );
 }
 
 #[test]
