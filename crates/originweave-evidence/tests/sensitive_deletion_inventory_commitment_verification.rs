@@ -283,8 +283,8 @@ fn verifier_binds_exact_expected_request_tenant_and_retention_scope() {
 
 #[test]
 fn verifier_rejects_empty_duplicate_and_oversized_declared_inventory() {
-    let (requirement, receipt) = one_copy();
-    let commitment = emitted_commitment(std::slice::from_ref(&requirement), &[receipt]);
+    let (declared_requirement, receipt) = one_copy();
+    let commitment = emitted_commitment(std::slice::from_ref(&declared_requirement), &[receipt]);
 
     assert_eq!(
         verify_sensitive_deletion_inventory_commitment(
@@ -302,7 +302,7 @@ fn verifier_rejects_empty_duplicate_and_oversized_declared_inventory() {
             REQUEST_ID,
             TENANT_ID,
             RETENTION_POLICY_ID,
-            &[requirement.clone(), requirement.clone()],
+            &[declared_requirement.clone(), declared_requirement.clone()],
         ),
         Err(SensitiveDeletionInventoryCommitmentError::DuplicateRequirement)
     );
