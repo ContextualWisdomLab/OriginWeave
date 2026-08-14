@@ -5,7 +5,10 @@ use originweave_evidence::EvidenceError;
 #[test]
 fn evidence_error_has_stable_credential_safe_standard_error_contract() {
     let cases = [
-        (EvidenceError::InvalidPath, "network evidence path is invalid"),
+        (
+            EvidenceError::InvalidPath,
+            "network evidence path is invalid",
+        ),
         (
             EvidenceError::LimitExceeded,
             "network evidence exceeds a configured limit",
