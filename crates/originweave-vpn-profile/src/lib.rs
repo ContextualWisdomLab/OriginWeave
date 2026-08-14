@@ -265,7 +265,7 @@ fn split_bounded_list(value: &str) -> Result<Vec<String>, ProfileError> {
 }
 
 fn validate_ip_network(value: &str) -> Result<(), ProfileError> {
-    let (address, prefix) = bounded_value(value)?
+    let (address, prefix) = value
         .split_once('/')
         .ok_or(ProfileError::InvalidValue)?;
     let address = address
@@ -285,7 +285,7 @@ fn validate_ip_network(value: &str) -> Result<(), ProfileError> {
 }
 
 fn validate_ip_address(value: &str) -> Result<(), ProfileError> {
-    bounded_value(value)?
+    value
         .parse::<std::net::IpAddr>()
         .map(|_| ())
         .map_err(|_| ProfileError::InvalidValue)
@@ -308,19 +308,19 @@ fn split_ip_address_list(value: &str) -> Result<Vec<String>, ProfileError> {
 }
 
 fn parse_u16(value: &str) -> Result<u16, ProfileError> {
-    bounded_value(value)?
+    value
         .parse::<u16>()
         .map_err(|_| ProfileError::InvalidValue)
 }
 
 fn parse_u32(value: &str) -> Result<u32, ProfileError> {
-    bounded_value(value)?
+    value
         .parse::<u32>()
         .map_err(|_| ProfileError::InvalidValue)
 }
 
 fn parse_boolean(value: &str) -> Result<bool, ProfileError> {
-    match bounded_value(value)? {
+    match value {
         "true" => Ok(true),
         "false" => Ok(false),
         _ => Err(ProfileError::InvalidValue),
@@ -419,7 +419,7 @@ fn import_wireguard_profile_once(
                 let current = peer.as_mut().ok_or(ProfileError::MalformedLine)?;
                 match key {
                     "PublicKey" => {
-                        set_once(&mut current.public_key, bounded_value(value)?.to_owned())?;
+                        set_once(&mut current.public_key, value.to_owned())?;
                     }
                     "PresharedKey" => {
                         let secret = import_bounded_secret(
@@ -429,7 +429,7 @@ fn import_wireguard_profile_once(
                         set_once(&mut current.preshared_key, secret)?;
                     }
                     "Endpoint" => {
-                        set_once(&mut current.endpoint, bounded_value(value)?.to_owned())?;
+                        set_once(&mut current.endpoint, value.to_owned())?;
                     }
                     "AllowedIPs" => {
                         set_once(&mut current.allowed_ips, split_network_list(value)?)?;
@@ -519,11 +519,11 @@ fn parse_ikev2_profile_once(
         }
         let (key, value) = parse_assignment(line)?;
         match key {
-            "Server" => set_once(&mut server, bounded_value(value)?.to_owned())?,
-            "RemoteId" => set_once(&mut remote_id, bounded_value(value)?.to_owned())?,
-            "LocalId" => set_once(&mut local_id, bounded_value(value)?.to_owned())?,
-            "Auth" => set_once(&mut auth_kind, bounded_value(value)?.to_owned())?,
-            "Username" => set_once(&mut username, bounded_value(value)?.to_owned())?,
+            "Server" => set_once(&mut server, value.to_owned())?,
+            "RemoteId" => set_once(&mut remote_id, value.to_owned())?,
+            "LocalId" => set_once(&mut local_id, value.to_owned())?,
+            "Auth" => set_once(&mut auth_kind, value.to_owned())?,
+            "Username" => set_once(&mut username, value.to_owned())?,
             "Psk" => {
                 let secret = import_bounded_secret(importer, VpnSecret::Ikev2PresharedKey(value))?;
                 set_once(&mut psk, secret)?;
@@ -533,7 +533,7 @@ fn parse_ikev2_profile_once(
                 set_once(&mut password, secret)?;
             }
             "Proposal" => {
-                let candidate = bounded_value(value)?;
+                let candidate = value;
                 if !ALLOWED_IKEV2_PROPOSALS.contains(&candidate) {
                     return Err(ProfileError::InvalidValue);
                 }
