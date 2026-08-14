@@ -1295,15 +1295,22 @@ def _run_agent_task_browser_pass(
 
     if browser_process_id is None or browser_process_start_time_ticks is None:
         raise RuntimeError("Agent Task browser process identity was not captured")
-    browser_process_terminated = _wait_for_linux_process_identity_exit(
-        browser_process_id,
-        browser_process_start_time_ticks,
+    full_process_set_captured = chromium_process_identities is not None
+    teardown_identities = (
+        chromium_process_identities
+        if chromium_process_identities is not None
+        else ((browser_process_id, browser_process_start_time_ticks),)
     )
-    chromium_process_set_terminated: bool | None = None
-    if chromium_process_identities is not None:
-        chromium_process_set_terminated = _wait_for_linux_process_identity_set_exit(
-            chromium_process_identities
+    browser_process_terminated, observed_process_set_terminated = (
+        _wait_for_linux_process_teardown(
+            browser_process_id,
+            browser_process_start_time_ticks,
+            teardown_identities,
         )
+    )
+    chromium_process_set_terminated: bool | None = (
+        observed_process_set_terminated if full_process_set_captured else None
+    )
     if browser_failure_type is not None:
         failure_evidence: dict[str, Any] = {
             "failure_type": browser_failure_type,
