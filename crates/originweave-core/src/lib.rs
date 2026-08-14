@@ -503,6 +503,18 @@ pub enum ActionIntentDigestError {
     InvalidFormat,
 }
 
+impl fmt::Display for ActionIntentDigestError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidFormat => formatter.write_str(
+                "action intent digest must be sha256 followed by 64 lowercase hexadecimal digits",
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ActionIntentDigestError {}
+
 /// The browser execution mode that owns an action.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SessionMode {
