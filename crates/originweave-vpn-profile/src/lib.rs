@@ -851,9 +851,7 @@ mod tests {
             kinds: Vec::new(),
             fail: true,
         };
-        let profile = format!(
-            "[Interface]\nAddress=10.0.0.2/32\nPrivateKey={VALID_WIREGUARD_KEY}"
-        );
+        let profile = format!("[Interface]\nAddress=10.0.0.2/32\nPrivateKey={VALID_WIREGUARD_KEY}");
         assert_eq!(
             import_wireguard_profile(&profile, &mut importer),
             Err(ProfileError::SecretImportFailed)
@@ -862,9 +860,8 @@ mod tests {
 
     #[test]
     fn wireguard_enforces_peer_bound() {
-        let mut profile = format!(
-            "[Interface]\nAddress=10.0.0.2/32\nPrivateKey={VALID_WIREGUARD_KEY}\n"
-        );
+        let mut profile =
+            format!("[Interface]\nAddress=10.0.0.2/32\nPrivateKey={VALID_WIREGUARD_KEY}\n");
         for _ in 0..=MAX_PEERS {
             profile.push_str("[Peer]\n");
             profile.push_str(&format!("PublicKey={VALID_WIREGUARD_KEY}\n"));
