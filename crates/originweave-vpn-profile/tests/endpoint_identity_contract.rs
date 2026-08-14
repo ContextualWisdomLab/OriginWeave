@@ -60,11 +60,13 @@ fn wireguard_endpoint_requires_host_and_nonzero_udp_port_before_secret_import() 
         ":51820",
         "vpn.example:0",
         "vpn.example:65536",
+        "vpn.example:+51820",
         "https://vpn.example:51820",
         "[not-ip]:51820",
         "[2001:db8::1]",
         "2001:db8::1:51820",
         "[2001:db8::1]:0",
+        "[2001:db8::1]:+51820",
         "[2001:db8::1]: 51820",
     ] {
         assert_wireguard_invalid_without_import(endpoint);
