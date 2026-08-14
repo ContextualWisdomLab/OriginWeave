@@ -100,6 +100,7 @@ class ChromeDriverExitRaceCleanupTests(unittest.TestCase):
         self.assertEqual(driver.kill_calls, 0)
         self.assertEqual(len(driver.wait_timeouts), 1)
         self.assertGreaterEqual(driver.wait_timeouts[0], 0.0)
+        self.assertLessEqual(driver.wait_timeouts[0], 5.0)
 
     def test_exit_before_kill_is_reaped_without_leaking_process_lookup(self) -> None:
         """An ESRCH from KILL must still finish the bounded reap path."""
@@ -112,6 +113,7 @@ class ChromeDriverExitRaceCleanupTests(unittest.TestCase):
         self.assertEqual(driver.kill_calls, 1)
         self.assertEqual(len(driver.wait_timeouts), 2)
         self.assertGreaterEqual(driver.wait_timeouts[1], 0.0)
+        self.assertLessEqual(driver.wait_timeouts[0], 5.0)
         self.assertLessEqual(driver.wait_timeouts[1], driver.wait_timeouts[0])
 
     def test_unexpected_signal_error_propagates(self) -> None:
@@ -127,7 +129,7 @@ class ChromeDriverExitRaceCleanupTests(unittest.TestCase):
 
         runner = RUNNER.read_text(encoding="utf-8")
         boundaries = (
-            ("def _run_browser_pass(", "\ndef _run_trial("),
+            ("def _run_browser_pass(", "\ndef _run_restart_trial("),
             ("def _run_agent_task_browser_pass(", "\ndef _run_agent_task_trial("),
             (
                 "def _run_agent_task_forced_close_browser_pass(",
