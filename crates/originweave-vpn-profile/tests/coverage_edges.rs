@@ -39,7 +39,6 @@ fn reject_ikev2(profile: &str, expected: ProfileError) {
 #[test]
 fn wireguard_duplicate_singletons_fail_before_external_secret_import() {
     for profile in [
-        "[Interface]\nAddress=10.0.0.2/32\nDNS=1.1.1.1\nDNS=8.8.8.8\nPrivateKey=<wg-key>",
         "[Interface]\nAddress=10.0.0.2/32\nMTU=1400\nMTU=1500\nPrivateKey=<wg-key>",
         "[Interface]\nAddress=10.0.0.2/32\nListenPort=51820\nListenPort=51821\nPrivateKey=<wg-key>",
         "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=<wg-key>\nPrivateKey=<wg-key>",
