@@ -156,9 +156,8 @@ fn wireguard_duplicate_and_numeric_variants_cover_each_storage_type() {
 #[test]
 fn wireguard_exercises_both_peer_limit_rejection_boundaries() {
     for peer_count in [65usize, 66usize] {
-        let mut profile = format!(
-            "[Interface]\nAddress=10.0.0.2/32\nPrivateKey={VALID_WIREGUARD_KEY}\n"
-        );
+        let mut profile =
+            format!("[Interface]\nAddress=10.0.0.2/32\nPrivateKey={VALID_WIREGUARD_KEY}\n");
         for _ in 0..peer_count {
             profile.push_str(&format!(
                 "[Peer]\nPublicKey={VALID_WIREGUARD_KEY}\nAllowedIPs=10.0.0.0/8\n"
