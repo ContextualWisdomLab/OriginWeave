@@ -108,6 +108,11 @@ def _validate_workflow_path(value: Any, field_name: str) -> str:
     if any(segment in {"", ".", ".."} for segment in segments):
         raise WorkflowAuditError(f"{field_name} contains an ambiguous path segment")
     if path.startswith(_REPOSITORY_WORKFLOW_PREFIX):
+        workflow_name = path[len(_REPOSITORY_WORKFLOW_PREFIX) :]
+        if "/" in workflow_name or not workflow_name.endswith((".yml", ".yaml")):
+            raise WorkflowAuditError(
+                f"{field_name} must name one direct .yml or .yaml workflow file"
+            )
         return path
     if path.startswith(_DYNAMIC_WORKFLOW_PREFIX):
         return path
