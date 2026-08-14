@@ -6,6 +6,10 @@
 
 These diagrams visualize governing boundaries; they do not imply that every planned adapter is already shipped. Labels use `implemented`, `active`, or `planned` where implementation status matters.
 
+## Focused authority views
+
+- [Manifest V3 extension compatibility and Agent authority](extension-authority.md)
+
 ## 1. Component and bounded-context view
 
 ```mermaid
