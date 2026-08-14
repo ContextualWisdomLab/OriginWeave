@@ -100,6 +100,22 @@ fn ikev2_server_rejects_url_and_port_authority_before_secret_import() {
 }
 
 #[test]
+fn ikev2_server_rejects_every_dns_hostname_boundary_before_secret_import() {
+    let overlong_host = "a".repeat(254);
+    let overlong_label = format!("{}.example", "a".repeat(64));
+    for server in [
+        overlong_host.as_str(),
+        ".example",
+        overlong_label.as_str(),
+        "-vpn.example",
+        "vpn-.example",
+        "vpn\u{1}example",
+    ] {
+        assert_ikev2_invalid_without_import(server, "");
+    }
+}
+
+#[test]
 fn ikev2_identity_rejects_ascii_control_characters_before_secret_import() {
     assert_ikev2_invalid_without_import("vpn.example", "RemoteId=remote\u{1}id\n");
     assert_ikev2_invalid_without_import("vpn.example", "LocalId=local\u{7f}id\n");
