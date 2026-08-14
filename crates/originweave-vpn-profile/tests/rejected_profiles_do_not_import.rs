@@ -3,6 +3,8 @@ use originweave_vpn_profile::{
     import_wireguard_profile, parse_ikev2_profile, parse_vpn_profile,
 };
 
+const VALID_WIREGUARD_KEY: &str = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+
 #[derive(Default)]
 struct RecordingImporter {
     calls: usize,
@@ -29,7 +31,7 @@ impl VpnSecretImporter for RecordingImporter {
 }
 
 fn valid_wireguard_profile() -> &'static str {
-    "[Interface]\nAddress=10.0.0.2/32,fd00::2/128\nDNS=1.1.1.1\nMTU=1420\nListenPort=51820\nPrivateKey=raw-private\n[Peer]\nPublicKey=public-one\nPresharedKey=raw-psk\nEndpoint=vpn.example:51820\nAllowedIPs=0.0.0.0/0,::/0\nPersistentKeepalive=25\n"
+    "[Interface]\nAddress=10.0.0.2/32,fd00::2/128\nDNS=1.1.1.1\nMTU=1420\nListenPort=51820\nPrivateKey=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\n[Peer]\nPublicKey=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\nPresharedKey=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\nEndpoint=vpn.example:51820\nAllowedIPs=0.0.0.0/0,::/0\nPersistentKeepalive=25\n"
 }
 
 fn valid_ikev2_psk_profile() -> &'static str {
@@ -43,7 +45,7 @@ fn valid_ikev2_eap_profile() -> &'static str {
 #[test]
 fn rejected_wireguard_profile_does_not_import_private_key() {
     let mut importer = RecordingImporter::default();
-    let profile = "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=raw-private\nPostUp=forbidden\n";
+    let profile = "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\nPostUp=forbidden\n";
 
     assert_eq!(
         import_wireguard_profile(profile, &mut importer),
@@ -154,9 +156,13 @@ fn wireguard_duplicate_and_numeric_variants_cover_each_storage_type() {
 #[test]
 fn wireguard_exercises_both_peer_limit_rejection_boundaries() {
     for peer_count in [65usize, 66usize] {
-        let mut profile = String::from("[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n");
+        let mut profile = format!(
+            "[Interface]\nAddress=10.0.0.2/32\nPrivateKey={VALID_WIREGUARD_KEY}\n"
+        );
         for _ in 0..peer_count {
-            profile.push_str("[Peer]\nPublicKey=p\nAllowedIPs=10.0.0.0/8\n");
+            profile.push_str(&format!(
+                "[Peer]\nPublicKey={VALID_WIREGUARD_KEY}\nAllowedIPs=10.0.0.0/8\n"
+            ));
         }
         let mut importer = RecordingImporter::default();
         assert_eq!(
