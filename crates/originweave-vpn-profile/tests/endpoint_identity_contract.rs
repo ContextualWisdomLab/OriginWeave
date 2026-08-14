@@ -70,7 +70,7 @@ fn wireguard_endpoint_accepts_hostname_ipv4_and_bracketed_ipv6_shapes() {
         let mut importer = CountingImporter::default();
         let profile = import_wireguard_profile(&wireguard_profile(endpoint), &mut importer)
             .expect("reviewed endpoint shape should normalize");
-        assert_eq!(profile.peers()[0].endpoint(), Some(endpoint));
+        assert_eq!(profile.peers[0].endpoint.as_deref(), Some(endpoint));
         assert_eq!(importer.0, 1);
     }
 }
