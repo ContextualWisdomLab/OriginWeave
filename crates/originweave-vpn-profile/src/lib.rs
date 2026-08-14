@@ -426,6 +426,9 @@ fn validate_ike_identity(value: &str) -> Result<&str, ProfileError> {
 }
 
 fn parse_nonzero_udp_port(value: &str) -> Result<u16, ProfileError> {
+    if value.is_empty() || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(ProfileError::InvalidValue);
+    }
     let port = value
         .parse::<u16>()
         .map_err(|_| ProfileError::InvalidValue)?;
