@@ -3,6 +3,8 @@ use originweave_vpn_profile::{
     parse_ikev2_profile,
 };
 
+const VALID_WIREGUARD_KEY: &str = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+
 #[derive(Default)]
 struct CountingImporter {
     calls: usize,
@@ -68,10 +70,12 @@ fn ikev2_rejects_invalid_traffic_selector_syntax_before_secret_import() {
 
 #[test]
 fn representative_ipv4_and_ipv6_network_syntax_remains_accepted() {
-    let wireguard = "[Interface]\nAddress=10.0.0.2/32,fd00::2/128\nDNS=1.1.1.1,2606:4700:4700::1111\nPrivateKey=k\n[Peer]\nPublicKey=p\nAllowedIPs=0.0.0.0/0,::/0\n";
+    let wireguard = format!(
+        "[Interface]\nAddress=10.0.0.2/32,fd00::2/128\nDNS=1.1.1.1,2606:4700:4700::1111\nPrivateKey={VALID_WIREGUARD_KEY}\n[Peer]\nPublicKey={VALID_WIREGUARD_KEY}\nAllowedIPs=0.0.0.0/0,::/0\n"
+    );
     let mut wireguard_importer = CountingImporter::default();
     assert!(
-        import_wireguard_profile(wireguard, &mut wireguard_importer).is_ok(),
+        import_wireguard_profile(&wireguard, &mut wireguard_importer).is_ok(),
         "representative WireGuard network syntax must remain accepted"
     );
     assert_eq!(wireguard_importer.calls, 1);
