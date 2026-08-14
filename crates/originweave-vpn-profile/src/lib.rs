@@ -512,7 +512,7 @@ fn import_wireguard_profile_once(
         let (key, value) = parse_assignment(line)?;
         match section {
             Some(WireGuardSection::Interface) => match key {
-                "Address" => set_once(&mut addresses, split_network_list(value)?)?,
+                "Address" => set_once(&mut addresses, split_wireguard_allowed_ips(value)?)?,
                 "DNS" => set_once(&mut dns_servers, split_ip_address_list(value)?)?,
                 "MTU" => set_once(&mut mtu, parse_u16(value)?)?,
                 "ListenPort" => set_once(&mut listen_port, parse_u16(value)?)?,
