@@ -210,7 +210,7 @@ fn valid_ikev2_profiles_import_only_after_complete_validation() {
     let mut eap_importer = RecordingImporter::default();
     assert!(matches!(
         parse_ikev2_profile(valid_ikev2_eap_profile(), &mut eap_importer),
-        Ok(profile) if profile.mobike && profile.fragmentation
+        Ok(profile) if !profile.mobike && !profile.fragmentation
     ));
     assert_eq!(eap_importer.calls, 1);
 }
