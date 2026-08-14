@@ -32,7 +32,10 @@ fn assert_wireguard_invalid_without_import(endpoint: &str) {
         Err(ProfileError::InvalidValue),
         "invalid WireGuard endpoint was accepted: {endpoint:?}"
     );
-    assert_eq!(importer.0, 0, "invalid endpoint reached the caller importer");
+    assert_eq!(
+        importer.0, 0,
+        "invalid endpoint reached the caller importer"
+    );
 }
 
 fn assert_ikev2_invalid_without_import(server: &str, identity_lines: &str) {
@@ -42,7 +45,10 @@ fn assert_ikev2_invalid_without_import(server: &str, identity_lines: &str) {
         Err(ProfileError::InvalidValue),
         "invalid IKEv2 endpoint or identity was accepted"
     );
-    assert_eq!(importer.0, 0, "invalid IKEv2 metadata reached the caller importer");
+    assert_eq!(
+        importer.0, 0,
+        "invalid IKEv2 metadata reached the caller importer"
+    );
 }
 
 #[test]
