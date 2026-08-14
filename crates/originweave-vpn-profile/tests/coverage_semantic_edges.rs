@@ -122,9 +122,14 @@ fn wireguard_post_key_validation_errors_remain_fail_closed() {
 fn wireguard_scalar_syntax_errors_fail_before_import() {
     for profile in [
         "[Interface]\nAddress=10.0.0.2/32\nMTU=not-a-number\nPrivateKey=k\n".to_owned(),
+        "[Interface]\nAddress=10.0.0.2/32\nMTU=+1400\nPrivateKey=k\n".to_owned(),
         "[Interface]\nAddress=10.0.0.2/32\nListenPort=not-a-number\nPrivateKey=k\n".to_owned(),
+        "[Interface]\nAddress=10.0.0.2/32\nListenPort=+51820\nPrivateKey=k\n".to_owned(),
         canonical_wireguard(
             "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=<wg-key>\n[Peer]\nPersistentKeepalive=not-a-number\nPublicKey=<wg-key>\nAllowedIPs=10.0.0.0/8\n",
+        ),
+        canonical_wireguard(
+            "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=<wg-key>\n[Peer]\nPersistentKeepalive=+25\nPublicKey=<wg-key>\nAllowedIPs=10.0.0.0/8\n",
         ),
     ] {
         assert_wg_error(&profile, ProfileError::InvalidValue);
@@ -193,7 +198,9 @@ fn ikev2_missing_and_cross_field_edges_fail_before_import() {
 fn ikev2_field_specific_scalar_syntax_errors_fail_before_import() {
     for profile in [
         "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8\nFragmentation=yes\n",
+        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8\nDpdSeconds=+30\n",
         "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8\nRekeySeconds=nope\n",
+        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8\nRekeySeconds=+3600\n",
     ] {
         assert_ike_error(profile, ProfileError::InvalidValue);
     }
