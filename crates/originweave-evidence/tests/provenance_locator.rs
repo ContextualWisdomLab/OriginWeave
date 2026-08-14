@@ -1,4 +1,6 @@
-use originweave_evidence::{EvidenceError, EvidenceSourceKind, ProvenanceRecord, VerificationResult};
+use originweave_evidence::{
+    EvidenceError, EvidenceSourceKind, ProvenanceRecord, VerificationResult,
+};
 
 const VALID_HASH: &str = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
