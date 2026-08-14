@@ -413,12 +413,12 @@ pub enum NodeHandleError {
     BrowsingContextMismatch {
         /// Context that originally produced the node handle.
         observed: BrowsingContextId,
-        /// Context currently active for the requested action.
+        /// Context currently active in the browser context.
         current: BrowsingContextId,
     },
     /// The browser context is now at a different canonical origin.
     OriginMismatch,
-    /// The browser context is now at a different document epoch.
+    /// The node handle belongs to an older document lifetime.
     StaleDocumentEpoch {
         /// Epoch that originally produced the node handle.
         observed: DocumentEpoch,
@@ -507,7 +507,7 @@ impl fmt::Display for ActionIntentDigestError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidFormat => formatter.write_str(
-                "action intent digest must be sha256 followed by 64 lowercase hexadecimal digits",
+                "action intent digest must be sha256: followed by 64 lowercase hexadecimal digits",
             ),
         }
     }
