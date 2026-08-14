@@ -97,6 +97,30 @@ fn wireguard_peer_flush_and_required_field_edges_are_covered() {
 }
 
 #[test]
+fn wireguard_post_key_validation_errors_remain_fail_closed() {
+    for (profile, expected) in [
+        (
+            canonical_wireguard(
+                "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=<wg-key>\n[Peer]\nPublicKey=<wg-key>\nAllowedIPs=10.0.0.0/8\nUnknown=x\n",
+            ),
+            ProfileError::UnsupportedAuthority,
+        ),
+        (
+            canonical_wireguard(
+                "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=<wg-key>\n[Peer]\nAllowedIPs=10.0.0.0/8\n",
+            ),
+            ProfileError::MissingField,
+        ),
+        (
+            canonical_wireguard("[Interface]\nPrivateKey=<wg-key>\n"),
+            ProfileError::MissingField,
+        ),
+    ] {
+        assert_wg_error(&profile, expected);
+    }
+}
+
+#[test]
 fn wireguard_scalar_syntax_errors_fail_before_import() {
     assert_wg_error(
         "[Interface]\nAddress=10.0.0.2/32\nMTU=not-a-number\nPrivateKey=k\n",
