@@ -354,8 +354,7 @@ fn validate_wireguard_endpoint(value: &str) -> Result<&str, ProfileError> {
     let value = bounded_value(value)?;
     if let Some(bracketed) = value.strip_prefix('[') {
         let (host, port) = bracketed
-            .split_once("]: ")
-            .or_else(|| bracketed.split_once("]:"))
+            .split_once("]:")
             .ok_or(ProfileError::InvalidValue)?;
         host.parse::<std::net::Ipv6Addr>()
             .map_err(|_| ProfileError::InvalidValue)?;
@@ -706,15 +705,48 @@ mod tests {
     }
 
     fn wireguard_profile() -> &'static str {
-        "# controlled fixture\n[Interface]\nAddress = 10.0.0.2/32, fd00::2/128\nDNS = 1.1.1.1\nMTU = 1420\nListenPort = 51820\nPrivateKey = raw-private\n\n[Peer]\nPublicKey = public-one\nPresharedKey = raw-psk\nEndpoint = vpn.example:51820\nAllowedIPs = 0.0.0.0/0, ::/0\nPersistentKeepalive = 25\n"
+        "# controlled fixture\
+[Interface]\
+Address = 10.0.0.2/32, fd00::2/128\
+DNS = 1.1.1.1\
+MTU = 1420\
+ListenPort = 51820\
+PrivateKey = raw-private\
+\
+[Peer]\
+PublicKey = public-one\
+PresharedKey = raw-psk\
+Endpoint = vpn.example:51820\
+AllowedIPs = 0.0.0.0/0, ::/0\
+PersistentKeepalive = 25\
+"
     }
 
     fn ikev2_psk_profile() -> &'static str {
-        "[IKEv2]\nServer = vpn.example\nRemoteId = vpn.example\nLocalId = client@example\nAuth = psk\nPsk = raw-psk\nProposal = aes256gcm16-prfsha384-ecp384\nTrafficSelectors = 10.0.0.0/8, fd00::/8\nMobike = true\nFragmentation = false\nDpdSeconds = 30\nRekeySeconds = 3600\n"
+        "[IKEv2]\
+Server = vpn.example\
+RemoteId = vpn.example\
+LocalId = client@example\
+Auth = psk\
+Psk = raw-psk\
+Proposal = aes256gcm16-prfsha384-ecp384\
+TrafficSelectors = 10.0.0.0/8, fd00::/8\
+Mobike = true\
+Fragmentation = false\
+DpdSeconds = 30\
+RekeySeconds = 3600\
+"
     }
 
     fn ikev2_eap_profile() -> &'static str {
-        "[IKEv2]\nServer=vpn.example\nAuth=eap\nUsername=alice\nPassword=raw-password\nProposal=aes256gcm16-prfsha256-ecp256\nTrafficSelectors=0.0.0.0/0\n"
+        "[IKEv2]\
+Server=vpn.example\
+Auth=eap\
+Username=alice\
+Password=raw-password\
+Proposal=aes256gcm16-prfsha256-ecp256\
+TrafficSelectors=0.0.0.0/0\
+"
     }
 
     #[test]
@@ -755,7 +787,11 @@ mod tests {
             "Table",
             "Unknown",
         ] {
-            let profile = format!("[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n{key}=x\n");
+            let profile = format!("[Interface]\\
+Address=10.0.0.2/32\\
+PrivateKey=k\\
+{key}=x\\
+");
             let mut importer = RecordingImporter::default();
             assert_eq!(
                 import_wireguard_profile(&profile, &mut importer),
@@ -764,9 +800,15 @@ mod tests {
         }
         for profile in [
             "PrivateKey=k",
-            "[Peer]\nPublicKey=k\nAllowedIPs=0.0.0.0/0",
-            "[Interface]\n[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k",
-            "[Interface]\nbroken",
+            "[Peer]\\
+PublicKey=k\\
+AllowedIPs=0.0.0.0/0",
+            "[Interface]\\
+[Interface]\\
+Address=10.0.0.2/32\\
+PrivateKey=k",
+            "[Interface]\\
+broken",
         ] {
             let mut importer = RecordingImporter::default();
             assert!(import_wireguard_profile(profile, &mut importer).is_err());
@@ -776,13 +818,38 @@ mod tests {
     #[test]
     fn wireguard_requires_interface_and_peer_fields_and_rejects_duplicates() {
         for profile in [
-            "[Interface]\nPrivateKey=k",
-            "[Interface]\nAddress=10.0.0.2/32",
-            "[Interface]\nAddress=10.0.0.2/32\nAddress=10.0.0.3/32\nPrivateKey=k",
-            "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n[Peer]\nAllowedIPs=10.0.0.0/8",
-            "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n[Peer]\nPublicKey=p",
-            "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n[Peer]\nPublicKey=p\nAllowedIPs=10.0.0.0/8\nPublicKey=q",
-            "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n[Peer]\nPublicKey=p\nAllowedIPs=10.0.0.0/8\nNope=x",
+            "[Interface]\\
+PrivateKey=k",
+            "[Interface]\\
+Address=10.0.0.2/32",
+            "[Interface]\\
+Address=10.0.0.2/32\\
+Address=10.0.0.3/32\\
+PrivateKey=k",
+            "[Interface]\\
+Address=10.0.0.2/32\\
+PrivateKey=k\\
+[Peer]\\
+AllowedIPs=10.0.0.0/8",
+            "[Interface]\\
+Address=10.0.0.2/32\\
+PrivateKey=k\\
+[Peer]\\
+PublicKey=p",
+            "[Interface]\\
+Address=10.0.0.2/32\\
+PrivateKey=k\\
+[Peer]\\
+PublicKey=p\\
+AllowedIPs=10.0.0.0/8\\
+PublicKey=q",
+            "[Interface]\\
+Address=10.0.0.2/32\\
+PrivateKey=k\\
+[Peer]\\
+PublicKey=p\\
+AllowedIPs=10.0.0.0/8\\
+Nope=x",
         ] {
             let mut importer = RecordingImporter::default();
             assert!(import_wireguard_profile(profile, &mut importer).is_err());
@@ -792,10 +859,24 @@ mod tests {
     #[test]
     fn wireguard_rejects_invalid_numbers_lists_limits_and_secret_failures() {
         for profile in [
-            "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\nMTU=nope",
-            "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\nListenPort=nope",
-            "[Interface]\nAddress=10.0.0.2/32,,10.0.0.3/32\nPrivateKey=k",
-            "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n[Peer]\nPublicKey=p\nAllowedIPs=10.0.0.0/8\nPersistentKeepalive=nope",
+            "[Interface]\\
+Address=10.0.0.2/32\\
+PrivateKey=k\\
+MTU=nope",
+            "[Interface]\\
+Address=10.0.0.2/32\\
+PrivateKey=k\\
+ListenPort=nope",
+            "[Interface]\\
+Address=10.0.0.2/32,,10.0.0.3/32\\
+PrivateKey=k",
+            "[Interface]\\
+Address=10.0.0.2/32\\
+PrivateKey=k\\
+[Peer]\\
+PublicKey=p\\
+AllowedIPs=10.0.0.0/8\\
+PersistentKeepalive=nope",
         ] {
             let mut importer = RecordingImporter::default();
             assert_eq!(
@@ -806,13 +887,17 @@ mod tests {
         let list = std::iter::repeat_n("10.0.0.2/32", MAX_LIST_ITEMS + 1)
             .collect::<Vec<_>>()
             .join(",");
-        let profile = format!("[Interface]\nAddress={list}\nPrivateKey=k");
+        let profile = format!("[Interface]\\
+Address={list}\\
+PrivateKey=k");
         assert_eq!(
             import_wireguard_profile(&profile, &mut RecordingImporter::default()),
             Err(ProfileError::TooManyItems)
         );
         let secret = "x".repeat(MAX_SECRET_BYTES + 1);
-        let profile = format!("[Interface]\nAddress=10.0.0.2/32\nPrivateKey={secret}");
+        let profile = format!("[Interface]\\
+Address=10.0.0.2/32\\
+PrivateKey={secret}");
         assert_eq!(
             import_wireguard_profile(&profile, &mut RecordingImporter::default()),
             Err(ProfileError::InvalidSecret)
@@ -823,7 +908,9 @@ mod tests {
         };
         assert_eq!(
             import_wireguard_profile(
-                "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k",
+                "[Interface]\\
+Address=10.0.0.2/32\\
+PrivateKey=k",
                 &mut importer,
             ),
             Err(ProfileError::SecretImportFailed)
@@ -832,9 +919,15 @@ mod tests {
 
     #[test]
     fn wireguard_enforces_peer_bound() {
-        let mut profile = String::from("[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n");
+        let mut profile = String::from("[Interface]\\
+Address=10.0.0.2/32\\
+PrivateKey=k\\
+");
         for _ in 0..=MAX_PEERS {
-            profile.push_str("[Peer]\nPublicKey=p\nAllowedIPs=10.0.0.0/8\n");
+            profile.push_str("[Peer]\\
+PublicKey=p\\
+AllowedIPs=10.0.0.0/8\\
+");
         }
         assert_eq!(
             import_wireguard_profile(&profile, &mut RecordingImporter::default()),
@@ -895,9 +988,26 @@ mod tests {
     #[test]
     fn ikev2_rejects_unknown_authority_bad_proposals_and_bad_booleans() {
         for profile in [
-            "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=des-md5-modp768\nTrafficSelectors=10.0.0.0/8",
-            "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8\nMobike=yes",
-            "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8\nExec=x",
+            "[IKEv2]\\
+Server=s\\
+Auth=psk\\
+Psk=k\\
+Proposal=des-md5-modp768\\
+TrafficSelectors=10.0.0.0/8",
+            "[IKEv2]\\
+Server=s\\
+Auth=psk\\
+Psk=k\\
+Proposal=aes256gcm16-prfsha384-ecp384\\
+TrafficSelectors=10.0.0.0/8\\
+Mobike=yes",
+            "[IKEv2]\\
+Server=s\\
+Auth=psk\\
+Psk=k\\
+Proposal=aes256gcm16-prfsha384-ecp384\\
+TrafficSelectors=10.0.0.0/8\\
+Exec=x",
         ] {
             assert!(parse_ikev2_profile(profile, &mut RecordingImporter::default()).is_err());
         }
@@ -906,18 +1016,84 @@ mod tests {
     #[test]
     fn ikev2_rejects_auth_conflicts_missing_fields_duplicates_and_bad_timers() {
         for profile in [
-            "[IKEv2]\nServer=s\nAuth=unknown\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
-            "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nUsername=u\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
-            "[IKEv2]\nServer=s\nAuth=eap\nUsername=u\nPassword=p\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
-            "[IKEv2]\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
-            "[IKEv2]\nServer=s\nAuth=psk\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
-            "[IKEv2]\nServer=s\nAuth=eap\nPassword=p\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
-            "[IKEv2]\nServer=s\nAuth=eap\nUsername=u\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
-            "[IKEv2]\nServer=s\nServer=t\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
-            "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8\nDpdSeconds=0",
-            "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8\nRekeySeconds=299",
-            "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8\nDpdSeconds=400\nRekeySeconds=400",
-            "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8\nDpdSeconds=nope",
+            "[IKEv2]\\
+Server=s\\
+Auth=unknown\\
+Proposal=aes256gcm16-prfsha384-ecp384\\
+TrafficSelectors=10.0.0.0/8",
+            "[IKEv2]\\
+Server=s\\
+Auth=psk\\
+Psk=k\\
+Username=u\\
+Proposal=aes256gcm16-prfsha384-ecp384\\
+TrafficSelectors=10.0.0.0/8",
+            "[IKEv2]\\
+Server=s\\
+Auth=eap\\
+Username=u\\
+Password=p\\
+Psk=k\\
+Proposal=aes256gcm16-prfsha384-ecp384\\
+TrafficSelectors=10.0.0.0/8",
+            "[IKEv2]\\
+Auth=psk\\
+Psk=k\\
+Proposal=aes256gcm16-prfsha384-ecp384\\
+TrafficSelectors=10.0.0.0/8",
+            "[IKEv2]\\
+Server=s\\
+Auth=psk\\
+Proposal=aes256gcm16-prfsha384-ecp384\\
+TrafficSelectors=10.0.0.0/8",
+            "[IKEv2]\\
+Server=s\\
+Auth=eap\\
+Password=p\\
+Proposal=aes256gcm16-prfsha384-ecp384\\
+TrafficSelectors=10.0.0.0/8",
+            "[IKEv2]\\
+Server=s\\
+Auth=eap\\
+Username=u\\
+Proposal=aes256gcm16-prfsha384-ecp384\\
+TrafficSelectors=10.0.0.0/8",
+            "[IKEv2]\\
+Server=s\\
+Server=t\\
+Auth=psk\\
+Psk=k\\
+Proposal=aes256gcm16-prfsha384-ecp384\\
+TrafficSelectors=10.0.0.0/8",
+            "[IKEv2]\\
+Server=s\\
+Auth=psk\\
+Psk=k\\
+Proposal=aes256gcm16-prfsha384-ecp384\\
+TrafficSelectors=10.0.0.0/8\\
+DpdSeconds=0",
+            "[IKEv2]\\
+Server=s\\
+Auth=psk\\
+Psk=k\\
+Proposal=aes256gcm16-prfsha384-ecp384\\
+TrafficSelectors=10.0.0.0/8\\
+RekeySeconds=299",
+            "[IKEv2]\\
+Server=s\\
+Auth=psk\\
+Psk=k\\
+Proposal=aes256gcm16-prfsha384-ecp384\\
+TrafficSelectors=10.0.0.0/8\\
+DpdSeconds=400\\
+RekeySeconds=400",
+            "[IKEv2]\\
+Server=s\\
+Auth=psk\\
+Psk=k\\
+Proposal=aes256gcm16-prfsha384-ecp384\\
+TrafficSelectors=10.0.0.0/8\\
+DpdSeconds=nope",
         ] {
             assert!(parse_ikev2_profile(profile, &mut RecordingImporter::default()).is_err());
         }
@@ -927,10 +1103,14 @@ mod tests {
     fn ikev2_rejects_structure_and_import_failures() {
         for profile in [
             "Server=s",
-            "[IKEv2]\n[IKEv2]",
-            "[Other]\nServer=s",
-            "[IKEv2]\nbroken",
-            "[IKEv2]\nServer=",
+            "[IKEv2]\\
+[IKEv2]",
+            "[Other]\\
+Server=s",
+            "[IKEv2]\\
+broken",
+            "[IKEv2]\\
+Server=",
         ] {
             assert!(parse_ikev2_profile(profile, &mut RecordingImporter::default()).is_err());
         }
@@ -947,7 +1127,8 @@ mod tests {
     #[test]
     fn top_level_detection_dispatches_and_rejects_unknown_profiles() {
         assert_eq!(
-            parse_vpn_profile("[Other]\nA=B", &mut RecordingImporter::default()),
+            parse_vpn_profile("[Other]\\
+A=B", &mut RecordingImporter::default()),
             Err(ProfileError::UnsupportedProfile)
         );
         assert_eq!(
