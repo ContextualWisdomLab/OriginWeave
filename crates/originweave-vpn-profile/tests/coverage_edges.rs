@@ -33,14 +33,14 @@ fn reject_ikev2(profile: &str, expected: ProfileError) {
 #[test]
 fn wireguard_duplicate_singletons_fail_before_external_secret_import() {
     for profile in [
-        "[Interface]\nAddress=a\nDNS=1.1.1.1\nDNS=8.8.8.8\nPrivateKey=k",
-        "[Interface]\nAddress=a\nMTU=1400\nMTU=1500\nPrivateKey=k",
-        "[Interface]\nAddress=a\nListenPort=51820\nListenPort=51821\nPrivateKey=k",
-        "[Interface]\nAddress=a\nPrivateKey=k\nPrivateKey=q",
-        "[Interface]\nAddress=a\nPrivateKey=k\n[Peer]\nPublicKey=p\nPresharedKey=s\nPresharedKey=t\nAllowedIPs=a",
-        "[Interface]\nAddress=a\nPrivateKey=k\n[Peer]\nPublicKey=p\nEndpoint=vpn.example:51820\nEndpoint=vpn.example:51821\nAllowedIPs=a",
-        "[Interface]\nAddress=a\nPrivateKey=k\n[Peer]\nPublicKey=p\nAllowedIPs=a\nAllowedIPs=b",
-        "[Interface]\nAddress=a\nPrivateKey=k\n[Peer]\nPublicKey=p\nAllowedIPs=a\nPersistentKeepalive=25\nPersistentKeepalive=30",
+        "[Interface]\nAddress=10.0.0.2/32\nDNS=1.1.1.1\nDNS=8.8.8.8\nPrivateKey=k",
+        "[Interface]\nAddress=10.0.0.2/32\nMTU=1400\nMTU=1500\nPrivateKey=k",
+        "[Interface]\nAddress=10.0.0.2/32\nListenPort=51820\nListenPort=51821\nPrivateKey=k",
+        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\nPrivateKey=q",
+        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n[Peer]\nPublicKey=p\nPresharedKey=s\nPresharedKey=t\nAllowedIPs=10.0.0.0/8",
+        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n[Peer]\nPublicKey=p\nEndpoint=vpn.example:51820\nEndpoint=vpn.example:51821\nAllowedIPs=10.0.0.0/8",
+        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n[Peer]\nPublicKey=p\nAllowedIPs=10.0.0.0/8\nAllowedIPs=192.168.0.0/16",
+        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n[Peer]\nPublicKey=p\nAllowedIPs=10.0.0.0/8\nPersistentKeepalive=25\nPersistentKeepalive=30",
     ] {
         reject_wireguard(profile, ProfileError::DuplicateField);
     }
@@ -49,30 +49,30 @@ fn wireguard_duplicate_singletons_fail_before_external_secret_import() {
 #[test]
 fn wireguard_peer_flush_and_list_failures_are_covered_without_import_side_effects() {
     reject_wireguard(
-        "[Interface]\nAddress=a\nPrivateKey=k\n[Peer]\nAllowedIPs=a\n[Peer]\nPublicKey=p\nAllowedIPs=a",
+        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n[Peer]\nAllowedIPs=10.0.0.0/8\n[Peer]\nPublicKey=p\nAllowedIPs=10.0.0.0/8",
         ProfileError::MissingField,
     );
     reject_wireguard(
-        "[Interface]\nAddress=a\nPrivateKey=k\n[Peer]\nPublicKey=p\n[Peer]\nPublicKey=q\nAllowedIPs=a",
+        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n[Peer]\nPublicKey=p\n[Peer]\nPublicKey=q\nAllowedIPs=10.0.0.0/8",
         ProfileError::MissingField,
     );
     reject_wireguard(
-        "[Interface]\nAddress=a\nDNS=1.1.1.1,,8.8.8.8\nPrivateKey=k",
+        "[Interface]\nAddress=10.0.0.2/32\nDNS=1.1.1.1,,8.8.8.8\nPrivateKey=k",
         ProfileError::InvalidValue,
     );
     reject_wireguard(
-        "[Interface]\nAddress=a\nPrivateKey=k\n[Peer]\nPublicKey=p\nAllowedIPs=a,,b",
+        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n[Peer]\nPublicKey=p\nAllowedIPs=10.0.0.0/8,,192.168.0.0/16",
         ProfileError::InvalidValue,
     );
     reject_wireguard(
-        "[Interface]\n=x\nAddress=a\nPrivateKey=k",
+        "[Interface]\n=x\nAddress=10.0.0.2/32\nPrivateKey=k",
         ProfileError::InvalidValue,
     );
 }
 
 #[test]
 fn wireguard_comments_blank_lines_and_optional_peer_fields_remain_parseable() {
-    let profile = "# synthetic fixture\n\n[Interface]\nAddress=a\nPrivateKey=k\n\n# peer\n[Peer]\nPublicKey=p\nAllowedIPs=a\n";
+    let profile = "# synthetic fixture\n\n[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n\n# peer\n[Peer]\nPublicKey=p\nAllowedIPs=10.0.0.0/8\n";
     let mut importer = CountingImporter::default();
     let parsed = import_wireguard_profile(profile, &mut importer);
     assert!(parsed.is_ok(), "synthetic profile must parse: {parsed:?}");
@@ -82,16 +82,16 @@ fn wireguard_comments_blank_lines_and_optional_peer_fields_remain_parseable() {
 #[test]
 fn ikev2_duplicate_singletons_fail_before_external_secret_import() {
     for profile in [
-        "[IKEv2]\nServer=s\nRemoteId=r\nRemoteId=q\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=a",
-        "[IKEv2]\nServer=s\nLocalId=l\nLocalId=q\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=a",
-        "[IKEv2]\nServer=s\nAuth=psk\nAuth=eap\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=a",
-        "[IKEv2]\nServer=s\nAuth=eap\nUsername=u\nUsername=v\nPassword=p\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=a",
-        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nPsk=q\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=a",
-        "[IKEv2]\nServer=s\nAuth=eap\nUsername=u\nPassword=p\nPassword=q\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=a",
-        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nProposal=aes256gcm16-prfsha256-ecp256\nTrafficSelectors=a",
-        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=a\nTrafficSelectors=b",
-        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=a\nFragmentation=true\nFragmentation=false",
-        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=a\nRekeySeconds=3600\nRekeySeconds=7200",
+        "[IKEv2]\nServer=s\nRemoteId=r\nRemoteId=q\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
+        "[IKEv2]\nServer=s\nLocalId=l\nLocalId=q\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
+        "[IKEv2]\nServer=s\nAuth=psk\nAuth=eap\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
+        "[IKEv2]\nServer=s\nAuth=eap\nUsername=u\nUsername=v\nPassword=p\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
+        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nPsk=q\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
+        "[IKEv2]\nServer=s\nAuth=eap\nUsername=u\nPassword=p\nPassword=q\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
+        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nProposal=aes256gcm16-prfsha256-ecp256\nTrafficSelectors=10.0.0.0/8",
+        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8\nTrafficSelectors=192.168.0.0/16",
+        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8\nFragmentation=true\nFragmentation=false",
+        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8\nRekeySeconds=3600\nRekeySeconds=7200",
     ] {
         reject_ikev2(profile, ProfileError::DuplicateField);
     }
@@ -100,14 +100,14 @@ fn ikev2_duplicate_singletons_fail_before_external_secret_import() {
 #[test]
 fn ikev2_missing_required_fields_and_list_failures_are_covered() {
     for profile in [
-        "[IKEv2]\nServer=s\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=a",
-        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nTrafficSelectors=a",
+        "[IKEv2]\nServer=s\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
+        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nTrafficSelectors=10.0.0.0/8",
         "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384",
     ] {
         reject_ikev2(profile, ProfileError::MissingField);
     }
     reject_ikev2(
-        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=a,,b",
+        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8,,192.168.0.0/16",
         ProfileError::InvalidValue,
     );
     reject_ikev2(&"x".repeat(65_537), ProfileError::ProfileTooLarge);
@@ -117,11 +117,11 @@ fn ikev2_missing_required_fields_and_list_failures_are_covered() {
 fn ikev2_section_and_authentication_conflicts_take_both_fail_closed_paths() {
     reject_ikev2("[IKEv2]\n[Other]\nServer=s", ProfileError::MalformedLine);
     reject_ikev2(
-        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nPassword=p\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=a",
+        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nPassword=p\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
         ProfileError::InvalidValue,
     );
     reject_ikev2(
-        "[IKEv2]\nServer=s\nAuth=eap\nUsername=u\nPassword=p\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=a",
+        "[IKEv2]\nServer=s\nAuth=eap\nUsername=u\nPassword=p\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
         ProfileError::InvalidValue,
     );
 }
