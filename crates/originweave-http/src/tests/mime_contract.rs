@@ -34,6 +34,25 @@ fn supplied_mime_parsing_normalizes_essence_and_parameters() {
 }
 
 #[test]
+fn essence_constructor_rejects_parameter_injection() {
+    assert_eq!(
+        MimeType::from_essence("text", "plain")
+            .expect("reviewed essence")
+            .essence(),
+        "text/plain"
+    );
+    for (type_name, subtype_name) in [
+        ("text; charset=utf-8", "plain"),
+        ("text", "plain; charset=utf-8"),
+    ] {
+        assert!(matches!(
+            MimeType::from_essence(type_name, subtype_name),
+            Err(HttpError::InvalidMimeType)
+        ));
+    }
+}
+
+#[test]
 fn quoted_parameter_escapes_are_bounded_and_deterministic() {
     let parsed =
         MimeType::parse(b"application/example; note=\"a\\\"b\\\\c\"").expect("quoted parameter");
