@@ -77,6 +77,40 @@ class AgentTaskBrowserCrashExactExitDetectionContractTests(unittest.TestCase):
                 child.kill()
             child.wait(timeout=5)
 
+    def test_pidfd_termination_does_not_credit_signal_delivery_as_exit(self) -> None:
+        """A successfully delivered non-terminating signal is not termination evidence."""
+
+        namespace = runpy.run_path(
+            str(RUNNER),
+            run_name="agent_task_browser_crash_nonterminating_signal_contract",
+        )
+        signal_and_wait = namespace[
+            "_signal_and_wait_for_linux_process_identity_termination"
+        ]
+        read_identity = namespace["_read_linux_proc_stat_process_identity"]
+
+        child = subprocess.Popen(
+            [sys.executable, "-c", "import time; time.sleep(60)"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        try:
+            identity = read_identity(child.pid)
+            self.assertIsNotNone(identity)
+            assert identity is not None
+
+            self.assertFalse(
+                signal_and_wait(identity, signal.SIGCONT, timeout_seconds=0.05)
+            )
+            self.assertIsNone(
+                child.poll(),
+                "signal delivery without process exit must not be credited as termination",
+            )
+        finally:
+            with contextlib.suppress(ProcessLookupError):
+                child.kill()
+            child.wait(timeout=5)
+
     def test_pidfd_termination_refuses_stale_identity_without_signalling(self) -> None:
         """A stale PID/start-time identity must never signal the current process owner."""
 
