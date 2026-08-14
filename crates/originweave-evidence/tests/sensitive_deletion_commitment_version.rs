@@ -99,17 +99,16 @@ fn emitted_commitment_exposes_and_round_trips_the_persisted_wire_version() {
         SENSITIVE_DELETION_INVENTORY_COMMITMENT_VERSION
     );
 
-    let reconstructed = SensitiveDeletionPersistedCommitment::try_from(
-        SensitiveDeletionPersistedCommitmentInput {
+    let reconstructed =
+        SensitiveDeletionPersistedCommitment::try_from(SensitiveDeletionPersistedCommitmentInput {
             commitment_version: emitted.commitment_version(),
             request_id: emitted.request_id().to_owned(),
             tenant_id: emitted.tenant_id().to_owned(),
             retention_policy_id: emitted.retention_policy_id().to_owned(),
             declared_copy_count: emitted.declared_copy_count(),
             inventory_digest: emitted.inventory_digest().to_owned(),
-        },
-    )
-    .expect("supported persisted commitment version should reconstruct");
+        })
+        .expect("supported persisted commitment version should reconstruct");
 
     assert_eq!(reconstructed, emitted);
     assert_eq!(
