@@ -235,6 +235,23 @@ fn bounded_value(value: &str) -> Result<&str, ProfileError> {
     Ok(value)
 }
 
+fn validate_wireguard_key(value: &str) -> Result<&str, ProfileError> {
+    let bytes = value.as_bytes();
+    if bytes.len() != 44 || bytes[43] != b'=' {
+        return Err(ProfileError::InvalidValue);
+    }
+    if !bytes[..43]
+        .iter()
+        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'+' | b'/'))
+    {
+        return Err(ProfileError::InvalidValue);
+    }
+    if !matches!(bytes[42], b'A' | b'Q' | b'g' | b'w') {
+        return Err(ProfileError::InvalidValue);
+    }
+    Ok(value)
+}
+
 fn import_bounded_secret(
     importer: &mut dyn VpnSecretImporter,
     secret: VpnSecret<'_>,
@@ -247,6 +264,12 @@ fn import_bounded_secret(
     };
     if raw.len() > MAX_SECRET_BYTES {
         return Err(ProfileError::InvalidSecret);
+    }
+    if matches!(
+        secret,
+        VpnSecret::WireGuardPrivateKey(_) | VpnSecret::WireGuardPresharedKey(_)
+    ) {
+        validate_wireguard_key(raw)?;
     }
     importer
         .import_secret(secret)
@@ -477,7 +500,10 @@ fn import_wireguard_profile_once(
                 let current = peer.get_or_insert_default();
                 match key {
                     "PublicKey" => {
-                        set_once(&mut current.public_key, value.to_owned())?;
+                        set_once(
+                            &mut current.public_key,
+                            validate_wireguard_key(value)?.to_owned(),
+                        )?;
                     }
                     "PresharedKey" => {
                         let secret = import_bounded_secret(
@@ -674,6 +700,8 @@ pub fn parse_vpn_profile(
 mod tests {
     use super::*;
 
+    const VALID_WIREGUARD_KEY: &str = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+
     #[derive(Default)]
     struct RecordingImporter {
         kinds: Vec<&'static str>,
@@ -702,8 +730,10 @@ mod tests {
         }
     }
 
-    fn wireguard_profile() -> &'static str {
-        "# controlled fixture\n[Interface]\nAddress = 10.0.0.2/32, fd00::2/128\nDNS = 1.1.1.1\nMTU = 1420\nListenPort = 51820\nPrivateKey = raw-private\n\n[Peer]\nPublicKey = public-one\nPresharedKey = raw-psk\nEndpoint = vpn.example:51820\nAllowedIPs = 0.0.0.0/0, ::/0\nPersistentKeepalive = 25\n"
+    fn wireguard_profile() -> String {
+        format!(
+            "# controlled fixture\n[Interface]\nAddress = 10.0.0.2/32, fd00::2/128\nDNS = 1.1.1.1\nMTU = 1420\nListenPort = 51820\nPrivateKey = {VALID_WIREGUARD_KEY}\n\n[Peer]\nPublicKey = {VALID_WIREGUARD_KEY}\nPresharedKey = {VALID_WIREGUARD_KEY}\nEndpoint = vpn.example:51820\nAllowedIPs = 0.0.0.0/0, ::/0\nPersistentKeepalive = 25\n"
+        )
     }
 
     fn ikev2_psk_profile() -> &'static str {
@@ -733,7 +763,8 @@ mod tests {
     #[test]
     fn wireguard_profile_imports_secrets_and_preserves_connectivity_intent() {
         let mut importer = RecordingImporter::default();
-        let result = import_wireguard_profile(wireguard_profile(), &mut importer);
+        let profile = wireguard_profile();
+        let result = import_wireguard_profile(&profile, &mut importer);
         assert_eq!(importer.kinds, vec!["wg-private", "wg-psk"]);
         assert_eq!(
             result.map(|profile| (profile.mtu, profile.listen_port, profile.peers.len())),
@@ -752,7 +783,9 @@ mod tests {
             "Table",
             "Unknown",
         ] {
-            let profile = format!("[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n{key}=x\n");
+            let profile = format!(
+                "[Interface]\nAddress=10.0.0.2/32\nPrivateKey={VALID_WIREGUARD_KEY}\n{key}=x\n"
+            );
             let mut importer = RecordingImporter::default();
             assert_eq!(
                 import_wireguard_profile(&profile, &mut importer),
@@ -803,7 +836,7 @@ mod tests {
         let list = std::iter::repeat_n("10.0.0.2/32", MAX_LIST_ITEMS + 1)
             .collect::<Vec<_>>()
             .join(",");
-        let profile = format!("[Interface]\nAddress={list}\nPrivateKey=k");
+        let profile = format!("[Interface]\nAddress={list}\nPrivateKey={VALID_WIREGUARD_KEY}");
         assert_eq!(
             import_wireguard_profile(&profile, &mut RecordingImporter::default()),
             Err(ProfileError::TooManyItems)
@@ -818,20 +851,24 @@ mod tests {
             kinds: Vec::new(),
             fail: true,
         };
+        let profile = format!(
+            "[Interface]\nAddress=10.0.0.2/32\nPrivateKey={VALID_WIREGUARD_KEY}"
+        );
         assert_eq!(
-            import_wireguard_profile(
-                "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k",
-                &mut importer,
-            ),
+            import_wireguard_profile(&profile, &mut importer),
             Err(ProfileError::SecretImportFailed)
         );
     }
 
     #[test]
     fn wireguard_enforces_peer_bound() {
-        let mut profile = String::from("[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n");
+        let mut profile = format!(
+            "[Interface]\nAddress=10.0.0.2/32\nPrivateKey={VALID_WIREGUARD_KEY}\n"
+        );
         for _ in 0..=MAX_PEERS {
-            profile.push_str("[Peer]\nPublicKey=p\nAllowedIPs=10.0.0.0/8\n");
+            profile.push_str("[Peer]\n");
+            profile.push_str(&format!("PublicKey={VALID_WIREGUARD_KEY}\n"));
+            profile.push_str("AllowedIPs=10.0.0.0/8\n");
         }
         assert_eq!(
             import_wireguard_profile(&profile, &mut RecordingImporter::default()),
