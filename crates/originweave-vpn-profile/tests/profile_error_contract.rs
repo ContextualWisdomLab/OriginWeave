@@ -39,6 +39,7 @@ fn profile_error_is_a_standard_error_with_stable_nonsecret_display() {
             "secret reference is invalid",
         ),
         (ProfileError::SecretImportFailed, "secret import failed"),
+        (ProfileError::SecretCleanupFailed, "secret cleanup failed"),
     ];
 
     for (error, expected) in cases {
