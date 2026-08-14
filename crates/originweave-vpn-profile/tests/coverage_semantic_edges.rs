@@ -136,3 +136,13 @@ fn ikev2_missing_and_cross_field_edges_fail_before_import() {
         assert_eq!(importer.0, 0);
     }
 }
+
+#[test]
+fn ikev2_field_specific_scalar_syntax_errors_fail_before_import() {
+    for profile in [
+        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8\nFragmentation=yes\n",
+        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8\nRekeySeconds=nope\n",
+    ] {
+        assert_ike_error(profile, ProfileError::InvalidValue);
+    }
+}
