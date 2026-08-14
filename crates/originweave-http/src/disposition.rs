@@ -154,7 +154,7 @@ pub(crate) fn parse_redirect_metadata(
     status_code: u16,
     fields: &FieldBlock,
 ) -> Result<Option<RedirectMetadata>, HttpError> {
-    if !matches!(status_code, 300 | 301 | 302 | 303 | 305 | 307 | 308) {
+    if !matches!(status_code, 300 | 301 | 302 | 303 | 307 | 308) {
         return Ok(None);
     }
     let values = fields.values("location");
