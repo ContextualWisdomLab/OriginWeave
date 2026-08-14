@@ -107,6 +107,59 @@ impl BrowserAuthorityRegistry {
         })
     }
 
+    /// Retire one browsing context and all registry-local authority derived from it.
+    ///
+    /// Retirement removes external lookup state, the current document epoch and origin, and every
+    /// node binding owned by the context. Monotonic context and node identifiers are never reused.
+    /// This revokes only OriginWeave registry-local authority; it does not prove that an external
+    /// browser context or process has terminated.
+    pub fn remove_context(
+        &mut self,
+        browsing_context: BrowsingContextId,
+    ) -> Result<(), BrowserRegistryError> {
+        if self.context_session.remove(&browsing_context).is_none() {
+            return Err(BrowserRegistryError::UnknownBrowsingContext);
+        }
+        self.context_by_external
+            .retain(|_key, context| *context != browsing_context);
+        self.context_epoch.remove(&browsing_context);
+        self.context_origin.remove(&browsing_context);
+        self.node_by_external
+            .retain(|(context, _epoch, _external), _node_id| *context != browsing_context);
+        Ok(())
+    }
+
+    /// Retire one browser session and every registered context and node binding beneath it.
+    ///
+    /// Retirement removes only registry-local authority and external lookup state. Session,
+    /// context, and node identifiers remain strictly monotonic so a later registration of the same
+    /// opaque browser identifier cannot revive stale authority. External process termination is a
+    /// separate adapter responsibility.
+    pub fn remove_session(
+        &mut self,
+        browser_session: BrowserSessionId,
+    ) -> Result<(), BrowserRegistryError> {
+        if !self.known_sessions.remove(&browser_session) {
+            return Err(BrowserRegistryError::UnknownBrowserSession);
+        }
+        self.session_by_external
+            .retain(|_external, session| *session != browser_session);
+        self.context_by_external
+            .retain(|(session, _external), _context| *session != browser_session);
+        self.context_session
+            .retain(|_context, session| *session != browser_session);
+
+        let live_contexts = &self.context_session;
+        self.context_epoch
+            .retain(|context, _epoch| live_contexts.contains_key(context));
+        self.context_origin
+            .retain(|context, _origin| live_contexts.contains_key(context));
+        self.node_by_external.retain(
+            |(context, _epoch, _external), _node_id| live_contexts.contains_key(context),
+        );
+        Ok(())
+    }
+
     /// Return the currently active document epoch for a known browsing context.
     pub fn current_epoch(
         &self,
