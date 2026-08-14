@@ -57,3 +57,19 @@ fn repeated_wireguard_addresses_share_the_global_list_bound_before_import() {
     );
     assert_eq!(importer.calls, 0);
 }
+
+#[test]
+fn repeated_wireguard_dns_fields_share_the_global_list_bound_before_import() {
+    let mut profile = String::from("[Interface]\n");
+    for _ in 0..257 {
+        profile.push_str("DNS=1.1.1.1\n");
+    }
+    profile.push_str(&format!("PrivateKey={VALID_WIREGUARD_KEY}\n"));
+    let mut importer = RecordingImporter::default();
+
+    assert_eq!(
+        import_wireguard_profile(&profile, &mut importer),
+        Err(ProfileError::TooManyItems)
+    );
+    assert_eq!(importer.calls, 0);
+}
