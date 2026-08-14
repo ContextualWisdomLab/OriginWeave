@@ -37,8 +37,10 @@ fn provenance_locator_preserves_printable_channel_specific_syntax() {
         VALID_HASH,
         EvidenceSourceKind::DomTree,
         VerificationResult::Verified,
-    )
-    .expect("printable channel-specific locator");
+    );
 
-    assert_eq!(record.source_locator(), source_locator);
+    assert_eq!(
+        record.as_ref().map(|record| record.source_locator()),
+        Ok(source_locator)
+    );
 }
