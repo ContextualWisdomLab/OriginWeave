@@ -640,6 +640,29 @@ def _wait_for_linux_process_teardown(
         time.sleep(min(0.05, remaining_seconds))
 
 
+def _terminate_chromedriver_process(driver: subprocess.Popen[str]) -> None:
+    """Terminate and reap ChromeDriver under one deadline despite normal exit races."""
+
+    deadline = time.monotonic() + PROCESS_EXIT_TIMEOUT_SECONDS
+    try:
+        driver.terminate()
+    except ProcessLookupError:
+        driver.wait(timeout=max(0.0, deadline - time.monotonic()))
+        return
+
+    try:
+        driver.wait(timeout=max(0.0, deadline - time.monotonic()))
+        return
+    except subprocess.TimeoutExpired:
+        pass
+
+    try:
+        driver.kill()
+    except ProcessLookupError:
+        pass
+    driver.wait(timeout=max(0.0, deadline - time.monotonic()))
+
+
 def _sample_linux_process_rss_bytes(process_id: int) -> int:
     """Read one attributed Linux process RSS through a bounded ``/proc`` status file."""
 
@@ -944,12 +967,7 @@ def _run_browser_pass(
                     _webdriver_path(session_id, ""),
                     {},
                 )
-        driver.terminate()
-        try:
-            driver.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            driver.kill()
-            driver.wait(timeout=5)
+        _terminate_chromedriver_process(driver)
 
 
 def _run_restart_trial(
@@ -1286,12 +1304,7 @@ def _run_agent_task_browser_pass(
                     _webdriver_path(session_id, ""),
                     {},
                 )
-        driver.terminate()
-        try:
-            driver.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            driver.kill()
-            driver.wait(timeout=5)
+        _terminate_chromedriver_process(driver)
 
     if browser_process_id is None or browser_process_start_time_ticks is None:
         raise RuntimeError("Agent Task browser process identity was not captured")
@@ -1648,12 +1661,7 @@ def _run_agent_task_forced_close_browser_pass(
                     _webdriver_path(session_id, ""),
                     {},
                 )
-        driver.terminate()
-        try:
-            driver.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            driver.kill()
-            driver.wait(timeout=5)
+        _terminate_chromedriver_process(driver)
 
     if browser_process_id is None or browser_process_start_time_ticks is None:
         raise RuntimeError("Agent Task forced-close browser process identity was not captured")
