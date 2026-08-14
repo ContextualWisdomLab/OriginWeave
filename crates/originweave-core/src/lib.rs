@@ -410,7 +410,7 @@ pub enum NodeHandleError {
     BrowsingContextMismatch {
         /// Context that originally produced the node handle.
         observed: BrowsingContextId,
-        /// Context currently active for the browser context.
+        /// Context currently active for the requested action.
         current: BrowsingContextId,
     },
     /// The browser context is now at a different canonical origin.
@@ -1208,10 +1208,12 @@ pub enum NativeMessagingFrameError {
 impl fmt::Display for NativeMessagingFrameError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::MissingLengthPrefix => formatter
-                .write_str("native messaging frame is missing its 32-bit length prefix"),
-            Self::PayloadTooLarge => formatter
-                .write_str("native messaging payload exceeds the direction-specific limit"),
+            Self::MissingLengthPrefix => {
+                formatter.write_str("native messaging frame is missing its 32-bit length prefix")
+            }
+            Self::PayloadTooLarge => {
+                formatter.write_str("native messaging payload exceeds the direction-specific limit")
+            }
             Self::LengthMismatch => {
                 formatter.write_str("native messaging frame length does not match its prefix")
             }
@@ -1261,8 +1263,7 @@ pub fn decode_native_messaging_frame(
         return Err(NativeMessagingFrameError::MissingLengthPrefix);
     }
 
-    let advertised_length =
-        u32::from_ne_bytes([frame[0], frame[1], frame[2], frame[3]]) as usize;
+    let advertised_length = u32::from_ne_bytes([frame[0], frame[1], frame[2], frame[3]]) as usize;
     if advertised_length > native_messaging_payload_limit(direction) {
         return Err(NativeMessagingFrameError::PayloadTooLarge);
     }
