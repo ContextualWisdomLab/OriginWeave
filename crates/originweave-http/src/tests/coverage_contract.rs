@@ -96,7 +96,7 @@ fn redirect_metadata_rejects_oversized_non_utf8_and_invalid_authorities() {
     ));
 
     let query_only =
-        parse_redirect_metadata(305, &fields(&[("location", b"https://example.com?next=1")]))
+        parse_redirect_metadata(300, &fields(&[("location", b"https://example.com?next=1")]))
             .expect("valid absolute redirect")
             .expect("metadata");
     assert!(!query_only.is_relative());
