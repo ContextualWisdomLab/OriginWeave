@@ -99,7 +99,7 @@ fn wireguard_external_import_failures_remain_typed_after_validation() {
     let mut second = RecordingImporter::failing_on(2);
     assert_eq!(
         import_wireguard_profile(valid_wireguard_profile(), &mut second),
-        Err(ProfileError::SecretImportFailed)
+        Err(ProfileError::SecretCleanupFailed)
     );
     assert_eq!(second.calls, 2);
 }
