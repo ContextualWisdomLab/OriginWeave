@@ -60,12 +60,14 @@ class VpnProfileContractTests(unittest.TestCase):
 
         source = (CRATE / "src" / "lib.rs").read_text(encoding="utf-8")
         declaration = re.search(
-            r"#\[derive\((?P<traits>[^)]*)\)\]\s*pub enum VpnSecret",
+            r"#\[derive\((?P<traits>[^)]*)\)\]\s*(?:///[^\n]*\n\s*)*pub enum VpnSecret",
             source,
+            re.DOTALL,
         )
         self.assertIsNotNone(declaration)
         assert declaration is not None
-        self.assertNotIn("Debug", declaration.group("traits").split(", "))
+        traits = {trait.strip() for trait in declaration.group("traits").split(",")}
+        self.assertNotIn("Debug", traits)
 
     def test_vpn_profile_decision_and_primary_source_doctoring_are_present(self) -> None:
         """The route and credential authority change requires an ADR and APA evidence."""
