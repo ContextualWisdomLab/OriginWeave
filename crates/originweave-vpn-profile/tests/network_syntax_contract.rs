@@ -41,6 +41,8 @@ fn wireguard_rejects_invalid_interface_network_syntax_before_secret_import() {
         "[Interface]\nAddress=999.1.1.1/24\nPrivateKey=k",
         "[Interface]\nAddress=10.0.0.2/33\nPrivateKey=k",
         "[Interface]\nAddress=2001:db8::2/129\nPrivateKey=k",
+        "[Interface]\nAddress=10.0.0.2/+32\nPrivateKey=k",
+        "[Interface]\nAddress=10.0.0.2/032\nPrivateKey=k",
         "[Interface]\nAddress=10.0.0.2/32\nDNS=999.1.1.1\nPrivateKey=k",
         "[Interface]\nAddress=10.0.0.2\nPrivateKey=k",
     ] {
@@ -50,9 +52,16 @@ fn wireguard_rejects_invalid_interface_network_syntax_before_secret_import() {
 
 #[test]
 fn wireguard_rejects_invalid_allowed_ip_syntax_before_secret_import() {
-    for allowed_ips in ["999.0.0.0/8", "10.0.0.0/33", "2001:db8::/129"] {
+    for allowed_ips in [
+        "999.0.0.0/8",
+        "10.0.0.0/33",
+        "2001:db8::/129",
+        "not-an-ip",
+        "10.0.0.0/+8",
+        "10.0.0.0/08",
+    ] {
         let profile = format!(
-            "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n[Peer]\nPublicKey=p\nAllowedIPs={allowed_ips}"
+            "[Interface]\nAddress=10.0.0.2/32\nPrivateKey={VALID_WIREGUARD_KEY}\n[Peer]\nPublicKey={VALID_WIREGUARD_KEY}\nAllowedIPs={allowed_ips}"
         );
         reject_wireguard(&profile);
     }
@@ -78,7 +87,14 @@ fn wireguard_prefixless_allowed_ips_normalize_to_host_routes() {
 
 #[test]
 fn ikev2_rejects_invalid_traffic_selector_syntax_before_secret_import() {
-    for selector in ["999.0.0.0/8", "10.0.0.0/33", "2001:db8::/129", "10.0.0.0"] {
+    for selector in [
+        "999.0.0.0/8",
+        "10.0.0.0/33",
+        "2001:db8::/129",
+        "10.0.0.0",
+        "10.0.0.0/+8",
+        "10.0.0.0/08",
+    ] {
         let profile = format!(
             "[IKEv2]\nServer=vpn.example\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors={selector}"
         );
