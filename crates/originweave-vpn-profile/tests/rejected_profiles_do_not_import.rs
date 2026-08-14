@@ -107,12 +107,12 @@ fn wireguard_structure_and_bounds_fail_before_external_import() {
     for profile in [
         "# comment only",
         "PrivateKey=k",
-        "[Peer]\nPublicKey=p\nAllowedIPs=a",
-        "[Interface]\n[Interface]\nAddress=a\nPrivateKey=k",
+        "[Peer]\nPublicKey=p\nAllowedIPs=10.0.0.0/8",
+        "[Interface]\n[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k",
         "[Interface]\nbroken",
         "[Interface]\nAddress=\nPrivateKey=k",
-        "[Interface]\nAddress=a\nPrivateKey=k\nUnknown=x",
-        "[Interface]\nAddress=a\nPrivateKey=k\n[Peer]\nPublicKey=p\nAllowedIPs=a\nUnknown=x",
+        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\nUnknown=x",
+        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n[Peer]\nPublicKey=p\nAllowedIPs=10.0.0.0/8\nUnknown=x",
     ] {
         let mut importer = RecordingImporter::default();
         assert!(import_wireguard_profile(profile, &mut importer).is_err());
@@ -137,13 +137,13 @@ fn wireguard_structure_and_bounds_fail_before_external_import() {
 #[test]
 fn wireguard_duplicate_and_numeric_variants_cover_each_storage_type() {
     for profile in [
-        "[Interface]\nAddress=a\nAddress=b\nPrivateKey=k",
-        "[Interface]\nAddress=a\nPrivateKey=k\nPrivateKey=q",
-        "[Interface]\nAddress=a\nPrivateKey=k\nMTU=1400\nMTU=1500",
-        "[Interface]\nAddress=a\nPrivateKey=k\nListenPort=nope",
-        "[Interface]\nAddress=a\nPrivateKey=k\n[Peer]\nPublicKey=p\nAllowedIPs=a\nPersistentKeepalive=nope",
-        "[Interface]\nAddress=a,,b\nPrivateKey=k",
-        "[Interface]\nAddress=a\nPrivateKey=k\n[Peer]\nPublicKey=p\nPublicKey=q\nAllowedIPs=a",
+        "[Interface]\nAddress=10.0.0.2/32\nAddress=10.0.0.3/32\nPrivateKey=k",
+        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\nPrivateKey=q",
+        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\nMTU=1400\nMTU=1500",
+        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\nListenPort=nope",
+        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n[Peer]\nPublicKey=p\nAllowedIPs=10.0.0.0/8\nPersistentKeepalive=nope",
+        "[Interface]\nAddress=10.0.0.2/32,,10.0.0.3/32\nPrivateKey=k",
+        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n[Peer]\nPublicKey=p\nPublicKey=q\nAllowedIPs=10.0.0.0/8",
     ] {
         let mut importer = RecordingImporter::default();
         assert!(import_wireguard_profile(profile, &mut importer).is_err());
@@ -154,9 +154,9 @@ fn wireguard_duplicate_and_numeric_variants_cover_each_storage_type() {
 #[test]
 fn wireguard_exercises_both_peer_limit_rejection_boundaries() {
     for peer_count in [65usize, 66usize] {
-        let mut profile = String::from("[Interface]\nAddress=a\nPrivateKey=k\n");
+        let mut profile = String::from("[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n");
         for _ in 0..peer_count {
-            profile.push_str("[Peer]\nPublicKey=p\nAllowedIPs=a\n");
+            profile.push_str("[Peer]\nPublicKey=p\nAllowedIPs=10.0.0.0/8\n");
         }
         let mut importer = RecordingImporter::default();
         assert_eq!(
@@ -169,7 +169,9 @@ fn wireguard_exercises_both_peer_limit_rejection_boundaries() {
 
 #[test]
 fn wireguard_rejects_list_and_secret_resource_overflow_before_external_import() {
-    let list = std::iter::repeat_n("a", 257).collect::<Vec<_>>().join(",");
+    let list = std::iter::repeat_n("10.0.0.2/32", 257)
+        .collect::<Vec<_>>()
+        .join(",");
     let profile = format!("[Interface]\nAddress={list}\nPrivateKey=k");
     let mut importer = RecordingImporter::default();
     assert_eq!(
@@ -179,7 +181,7 @@ fn wireguard_rejects_list_and_secret_resource_overflow_before_external_import() 
     assert_eq!(importer.calls, 0);
 
     let secret = "x".repeat(4_097);
-    let profile = format!("[Interface]\nAddress=a\nPrivateKey={secret}");
+    let profile = format!("[Interface]\nAddress=10.0.0.2/32\nPrivateKey={secret}");
     assert_eq!(
         import_wireguard_profile(&profile, &mut importer),
         Err(ProfileError::InvalidSecret)
@@ -235,10 +237,10 @@ fn ikev2_structure_authority_and_duplicate_variants_fail_before_import() {
         "[IKEv2]\n[IKEv2]",
         "[IKEv2]\nbroken",
         "[IKEv2]\nServer=",
-        "[IKEv2]\nServer=s\nServer=t\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=a",
-        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=a\nMobike=true\nMobike=false",
-        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=a\nDpdSeconds=30\nDpdSeconds=31",
-        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=a\nExec=x",
+        "[IKEv2]\nServer=s\nServer=t\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
+        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8\nMobike=true\nMobike=false",
+        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8\nDpdSeconds=30\nDpdSeconds=31",
+        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8\nExec=x",
     ] {
         let mut importer = RecordingImporter::default();
         assert!(parse_ikev2_profile(profile, &mut importer).is_err());
@@ -249,16 +251,16 @@ fn ikev2_structure_authority_and_duplicate_variants_fail_before_import() {
 #[test]
 fn ikev2_authentication_conflicts_and_timer_short_circuit_paths_fail_closed() {
     for profile in [
-        "[IKEv2]\nServer=s\nAuth=unknown\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=a",
-        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nUsername=u\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=a",
-        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nPassword=p\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=a",
-        "[IKEv2]\nServer=s\nAuth=eap\nUsername=u\nPassword=p\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=a",
-        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=des-md5-modp768\nTrafficSelectors=a",
-        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=a\nMobike=yes",
-        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=a\nDpdSeconds=0",
-        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=a\nRekeySeconds=299",
-        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=a\nDpdSeconds=400\nRekeySeconds=400",
-        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=a\nDpdSeconds=nope",
+        "[IKEv2]\nServer=s\nAuth=unknown\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
+        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nUsername=u\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
+        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nPassword=p\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
+        "[IKEv2]\nServer=s\nAuth=eap\nUsername=u\nPassword=p\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
+        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=des-md5-modp768\nTrafficSelectors=10.0.0.0/8",
+        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8\nMobike=yes",
+        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8\nDpdSeconds=0",
+        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8\nRekeySeconds=299",
+        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8\nDpdSeconds=400\nRekeySeconds=400",
+        "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8\nDpdSeconds=nope",
     ] {
         let mut importer = RecordingImporter::default();
         assert!(parse_ikev2_profile(profile, &mut importer).is_err());
