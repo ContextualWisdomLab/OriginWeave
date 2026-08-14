@@ -63,7 +63,7 @@ The PRD/TRD/Architecture/ADR/UML/ERD/data-governance/traceability/security/opera
 
 ## Proposed architecture decisions
 
-Proposed ADRs are reviewable architecture memory, not shipped behavior and not automatically Accepted because their files are present in a branch or later reach protected `main`. The provenance headings below distinguish the protected-main baseline from decisions introduced by this documentation reconciliation without changing either decision's lifecycle status.
+Proposed ADRs are reviewable architecture memory, not shipped behavior and not automatically Accepted because their files are present in a branch or later reach protected `main`. The provenance headings below distinguish the protected-main baseline from decisions introduced by active feature work and documentation reconciliation without changing any decision's lifecycle status.
 
 ### Protected-main baseline proposed decisions
 
@@ -78,6 +78,13 @@ Proposed ADRs are reviewable architecture memory, not shipped behavior and not a
 - [ADR 0107: Browser protocol adapter strategy](adr/0107-browser-protocol-adapter-strategy.md)
 - [ADR 0108: Crawler policy](adr/0108-crawler-policy.md)
 - [ADR 0109: Hourly automation secret ordering and operational closure](adr/0109-hourly-automation-operational-closure.md)
+
+### Proposed feature decisions carried by this branch
+
+- [ADR 0011: Bounded HTTP/1.1 semantics over authenticated TLS](adr/0011-bounded-http11-semantics.md)
+- [ADR 0012: Bounded HTTP/1.1 reason-phrase diagnostics](adr/0012-http-reason-phrase-diagnostics.md)
+
+These two decisions remain active-branch evidence until this HTTP replacement integrates; indexing them makes their Proposed lifecycle discoverable without promoting either decision to protected-main implementation truth.
 
 ### Proposed decisions introduced by this documentation reconciliation
 
