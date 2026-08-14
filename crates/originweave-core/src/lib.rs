@@ -1064,6 +1064,8 @@ pub fn evaluate_extension_access(
     ExtensionAccessDecision::Allow
 }
 
+const MAX_NATIVE_MESSAGING_HOST_NAME_BYTES: usize = 256;
+
 /// A canonical Chrome native-messaging host name admitted to OriginWeave policy.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct NativeMessagingHostName {
@@ -1078,6 +1080,7 @@ impl NativeMessagingHostName {
     /// cannot lead, trail, or appear consecutively.
     pub fn parse(input: &str) -> Result<Self, NativeMessagingHostNameError> {
         if input.is_empty()
+            || input.len() > MAX_NATIVE_MESSAGING_HOST_NAME_BYTES
             || input.starts_with('.')
             || input.ends_with('.')
             || input.contains("..")
