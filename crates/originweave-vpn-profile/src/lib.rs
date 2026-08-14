@@ -497,7 +497,6 @@ fn profile_lines(profile: &str) -> impl Iterator<Item = &str> {
         .map(str::trim)
         .filter(|line| !line.is_empty() && !line.starts_with('#'))
 }
-
 fn parse_assignment(line: &str) -> Result<(&str, &str), ProfileError> {
     let (key, value) = line.split_once('=').ok_or(ProfileError::MalformedLine)?;
     Ok((bounded_value(key)?, bounded_value(value)?))
@@ -712,11 +711,8 @@ fn parse_ikev2_profile_once(
             "Auth" => set_once(&mut auth_kind, value.to_owned())?,
             "Username" => set_once(&mut username, validate_ike_identity(value)?.to_owned())?,
             "Psk" => {
-                let secret = import_bounded_secret(
-                    importer,
-                    imported,
-                    VpnSecret::Ikev2PresharedKey(value),
-                )?;
+                let secret =
+                    import_bounded_secret(importer, imported, VpnSecret::Ikev2PresharedKey(value))?;
                 set_once(&mut psk, secret)?;
             }
             "Password" => {
