@@ -31,6 +31,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Documentation fitness now treats numbered active-PR examples as dated assessment evidence and explicitly defers current PR/issue inventory to live GitHub state, preventing old branch examples from being presented as current implementation truth.
 - Separated logical origin authority from resolved network destination authority; an origin grant no longer implies permission to connect to every resolver result.
 - Separated resolved-address authorization from direct transport evidence; an approved IP now becomes a usable stream only after the operating system reports the exact requested IP and port.
 - Separated exact TCP peer proof from authenticated TLS service identity; an observed peer becomes an authenticated HTTPS stream only after explicit-root, fixed-time, SAN-bound WebPKI verification over that same stream.
