@@ -58,7 +58,7 @@ Add an independently reusable `originweave-vpn-profile` Rust crate with three pu
 
 Raw WireGuard `PrivateKey` and `PresharedKey` values, IKEv2 preshared keys, and IKEv2 EAP passwords cross one caller-supplied `VpnSecretImporter` boundary and are replaced by bounded opaque `SecretReference` values. Normalized profile types never retain those raw credentials.
 
-The WireGuard parser rejects `PreUp`, `PostUp`, `PreDown`, `PostDown`, `SaveConfig`, `Table`, and every unknown key. It never invokes a command or mutates routing. Endpoint and allowed-IP data remain descriptive intent; they do not authorize a destination or route. This interchange contract requires explicit IP/CIDR syntax for network lists rather than silently inventing a host prefix.
+The WireGuard parser rejects `PreUp`, `PostUp`, `PreDown`, `PostDown`, `SaveConfig`, `Table`, and every unknown key. It never invokes a command or mutates routing. WireGuard interface `Address` and peer `AllowedIPs` accept either explicit CIDR or a bare IP host shorthand; bare IPv4/IPv6 values normalize deterministically to `/32` or `/128`. Provider-neutral IKEv2 traffic selectors remain explicit CIDR, and no parsed network data authorizes a destination or route.
 
 The provider-neutral IKEv2 parser accepts only bounded gateway, identity, username, authentication, proposal, traffic-selector, extension, and liveness/rekey fields. Remote identity, local identity, and EAP username are each capped at 253 bytes and reject control characters. Missing `Mobike` and `Fragmentation` values normalize to `false`; an adapter may negotiate either extension only after explicit profile opt-in. Unknown keys and contradictory authentication material fail closed.
 
@@ -79,7 +79,7 @@ This slice does **not** implement WireGuard tunneling, IKEv2 exchanges, IPsec, k
 - The strict IKEv2 format is OriginWeave's provider-neutral interchange contract, not an assertion that vendor-specific Apple, NetworkManager, strongSwan, or Windows profile files are interchangeable.
 - Unknown or vendor-specific fields fail closed and require an explicit future adapter or ADR.
 - The parser intentionally cannot reproduce wg-quick scripts or implicit route-table behavior.
-- Network lists require explicit CIDR notation; a bare address is rejected instead of being silently converted to `/32` or `/128`.
+- Provider-neutral IKEv2 traffic selectors require explicit CIDR; WireGuard bare-IP shorthand is accepted only as a host route and does not grant routing authority.
 - Importer implementations must currently own cleanup of partial second-pass secret imports because the trait does not expose rollback/disposal.
 
 ## Failure and degraded behavior
