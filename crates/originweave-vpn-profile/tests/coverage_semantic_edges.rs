@@ -122,10 +122,16 @@ fn wireguard_post_key_validation_errors_remain_fail_closed() {
 
 #[test]
 fn wireguard_scalar_syntax_errors_fail_before_import() {
-    assert_wg_error(
-        "[Interface]\nAddress=10.0.0.2/32\nMTU=not-a-number\nPrivateKey=k\n",
-        ProfileError::InvalidValue,
-    );
+    for profile in [
+        "[Interface]\nAddress=10.0.0.2/32\nMTU=not-a-number\nPrivateKey=k\n".to_owned(),
+        "[Interface]\nAddress=10.0.0.2/32\nListenPort=not-a-number\nPrivateKey=k\n"
+            .to_owned(),
+        canonical_wireguard(
+            "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=<wg-key>\n[Peer]\nPersistentKeepalive=not-a-number\nPublicKey=<wg-key>\nAllowedIPs=10.0.0.0/8\n",
+        ),
+    ] {
+        assert_wg_error(&profile, ProfileError::InvalidValue);
+    }
 }
 
 #[test]
