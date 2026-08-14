@@ -50,12 +50,30 @@ fn wireguard_rejects_invalid_interface_network_syntax_before_secret_import() {
 
 #[test]
 fn wireguard_rejects_invalid_allowed_ip_syntax_before_secret_import() {
-    for allowed_ips in ["999.0.0.0/8", "10.0.0.0/33", "2001:db8::/129", "10.0.0.0"] {
+    for allowed_ips in ["999.0.0.0/8", "10.0.0.0/33", "2001:db8::/129"] {
         let profile = format!(
             "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n[Peer]\nPublicKey=p\nAllowedIPs={allowed_ips}"
         );
         reject_wireguard(&profile);
     }
+}
+
+#[test]
+fn wireguard_prefixless_allowed_ips_normalize_to_host_routes() {
+    let profile = format!(
+        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey={VALID_WIREGUARD_KEY}\n[Peer]\nPublicKey={VALID_WIREGUARD_KEY}\nAllowedIPs=192.0.2.7,2001:db8::7\n"
+    );
+    let mut importer = CountingImporter::default();
+    let normalized = import_wireguard_profile(&profile, &mut importer);
+
+    assert!(matches!(
+        normalized,
+        Ok(profile)
+            if profile.peers.first().is_some_and(|peer| {
+                peer.allowed_ips == ["192.0.2.7/32", "2001:db8::7/128"]
+            })
+    ));
+    assert_eq!(importer.calls, 1);
 }
 
 #[test]
