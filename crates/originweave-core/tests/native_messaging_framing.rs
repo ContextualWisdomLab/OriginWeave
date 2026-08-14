@@ -57,7 +57,10 @@ fn native_messaging_encoder_rejects_oversized_host_payload_before_framing() {
 #[test]
 fn native_messaging_decoder_rejects_missing_oversized_and_mismatched_lengths() {
     assert_eq!(
-        decode_native_messaging_frame(NativeMessagingFrameDirection::HostToBrowser, &[0, 0, 0]),
+        decode_native_messaging_frame(
+            NativeMessagingFrameDirection::HostToBrowser,
+            &[0, 0, 0],
+        ),
         Err(NativeMessagingFrameError::MissingLengthPrefix)
     );
 
@@ -82,7 +85,10 @@ fn native_messaging_decoder_rejects_missing_oversized_and_mismatched_lengths() {
     let mut short_frame = Vec::from(4_u32.to_ne_bytes());
     short_frame.extend_from_slice(b"abc");
     assert_eq!(
-        decode_native_messaging_frame(NativeMessagingFrameDirection::HostToBrowser, &short_frame),
+        decode_native_messaging_frame(
+            NativeMessagingFrameDirection::HostToBrowser,
+            &short_frame,
+        ),
         Err(NativeMessagingFrameError::LengthMismatch)
     );
 
