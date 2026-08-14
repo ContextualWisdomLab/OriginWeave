@@ -41,7 +41,12 @@ fn wireguard_interface_accumulates_repeated_address_and_dns_fields() -> Result<(
 fn repeated_wireguard_addresses_share_the_global_list_bound_before_import() {
     let mut profile = String::from("[Interface]\n");
     for index in 0..257 {
-        profile.push_str(&format!("Address=10.{}.{}.{}\n", index / 65_536, (index / 256) % 256, index % 256));
+        profile.push_str(&format!(
+            "Address=10.{}.{}.{}\n",
+            index / 65_536,
+            (index / 256) % 256,
+            index % 256
+        ));
     }
     profile.push_str(&format!("PrivateKey={VALID_WIREGUARD_KEY}\n"));
     let mut importer = RecordingImporter::default();
