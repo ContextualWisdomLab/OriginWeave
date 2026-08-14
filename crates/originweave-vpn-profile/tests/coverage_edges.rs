@@ -48,10 +48,7 @@ fn wireguard_duplicate_singletons_fail_before_external_secret_import() {
         "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=<wg-key>\n[Peer]\nPublicKey=<wg-key>\nAllowedIPs=10.0.0.0/8\nAllowedIPs=192.168.0.0/16",
         "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=<wg-key>\n[Peer]\nPublicKey=<wg-key>\nAllowedIPs=10.0.0.0/8\nPersistentKeepalive=25\nPersistentKeepalive=30",
     ] {
-        reject_wireguard(
-            &canonical_wireguard(profile),
-            ProfileError::DuplicateField,
-        );
+        reject_wireguard(&canonical_wireguard(profile), ProfileError::DuplicateField);
     }
 }
 
