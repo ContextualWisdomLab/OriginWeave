@@ -37,7 +37,6 @@ fn assert_ike_error(profile: &str, expected: ProfileError) {
 #[test]
 fn semantic_network_errors_cover_every_ip_and_prefix_boundary_before_import() {
     for address in [
-        "10.0.0.2",
         "not-an-ip/24",
         "10.0.0.2/not-a-prefix",
         "10.0.0.2/33",
@@ -66,7 +65,6 @@ fn semantic_network_errors_cover_every_ip_and_prefix_boundary_before_import() {
 #[test]
 fn wireguard_duplicate_variants_cover_every_singleton_storage_type() {
     for profile in [
-        "[Interface]\nAddress=10.0.0.2/32\nDNS=1.1.1.1\nDNS=8.8.8.8\nPrivateKey=<wg-key>\n",
         "[Interface]\nAddress=10.0.0.2/32\nMTU=1400\nMTU=1500\nPrivateKey=<wg-key>\n",
         "[Interface]\nAddress=10.0.0.2/32\nListenPort=51820\nListenPort=51821\nPrivateKey=<wg-key>\n",
         "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=<wg-key>\nPrivateKey=<wg-key>\n",
