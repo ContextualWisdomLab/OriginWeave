@@ -13,8 +13,9 @@ use originweave_evidence::{
     SENSITIVE_DELETION_INVENTORY_COMMITMENT_VERSION, SensitiveDeletionCause,
     SensitiveDeletionInventoryCommitmentError, SensitiveDeletionPersistedCommitment,
     SensitiveDeletionPersistedCommitmentError, SensitiveDeletionPersistedCommitmentInput,
-    SensitiveDeletionReceipt, SensitiveDeletionReceiptInput, SensitiveDeletionRequirement,
-    SensitiveDeletionTarget, verify_persisted_sensitive_deletion_inventory_commitment,
+    SensitiveDeletionReceipt, SensitiveDeletionReceiptInput, SensitiveDeletionReceiptSetError,
+    SensitiveDeletionRequirement, SensitiveDeletionTarget,
+    verify_persisted_sensitive_deletion_inventory_commitment,
     verify_sensitive_deletion_receipt_set_with_persisted_commitment,
 };
 
@@ -120,6 +121,26 @@ fn emitted_commitment_exposes_and_round_trips_the_persisted_wire_version() {
             &[requirements[1].clone(), requirements[0].clone()],
         ),
         Ok(())
+    );
+}
+
+#[test]
+fn invalid_receipt_sets_do_not_emit_versioned_persisted_commitments() {
+    let declared = requirement(
+        SensitiveDeletionTarget::AuthoritativeRecord,
+        "record:customer:missing",
+        "primary-store",
+    );
+
+    assert_eq!(
+        verify_sensitive_deletion_receipt_set_with_persisted_commitment(
+            &[],
+            REQUEST_ID,
+            TENANT_ID,
+            RETENTION_POLICY_ID,
+            &[declared],
+        ),
+        Err(SensitiveDeletionReceiptSetError::MissingReceipt)
     );
 }
 
