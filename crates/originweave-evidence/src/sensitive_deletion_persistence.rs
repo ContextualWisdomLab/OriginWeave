@@ -1,0 +1,188 @@
+//! Explicit wire-version envelope for persisted deletion inventory commitments.
+//!
+//! The in-process commitment value remains source-compatible for callers that already construct or
+//! verify it. This module adds a separate durable boundary that records the canonicalization version
+//! before reconstructing that bounded value, so future wire-format changes cannot silently
+//! reinterpret stored evidence.
+
+use std::fmt;
+
+use super::{
+    SensitiveDeletionInventoryCommitmentError, SensitiveDeletionReceipt,
+    SensitiveDeletionReceiptSetCommitment, SensitiveDeletionReceiptSetCommitmentInput,
+    SensitiveDeletionReceiptSetError, SensitiveDeletionRequirement,
+    verify_sensitive_deletion_inventory_commitment,
+    verify_sensitive_deletion_receipt_set_with_commitment,
+};
+
+/// Current durable wire version for sensitive deletion inventory commitments.
+pub const SENSITIVE_DELETION_INVENTORY_COMMITMENT_VERSION: u16 = 1;
+
+/// Unvalidated durable metadata for one versioned sensitive deletion inventory commitment.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SensitiveDeletionPersistedCommitmentInput {
+    /// Explicit durable wire and canonicalization version.
+    pub commitment_version: u16,
+    /// Deletion request identifier recorded with the commitment.
+    pub request_id: String,
+    /// Tenant identifier recorded with the commitment.
+    pub tenant_id: String,
+    /// Retention or lifecycle-policy identifier recorded with the commitment.
+    pub retention_policy_id: String,
+    /// Number of exact caller-declared copies represented by the commitment.
+    pub declared_copy_count: usize,
+    /// Lowercase 64-character SHA-256 digest of the canonical inventory preimage.
+    pub inventory_digest: String,
+}
+
+/// Failure returned when a versioned persisted deletion commitment cannot be reconstructed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SensitiveDeletionPersistedCommitmentError {
+    /// The durable envelope uses a wire version unsupported by this OriginWeave build.
+    UnsupportedCommitmentVersion,
+    /// The version is supported, but the enclosed commitment metadata is invalid.
+    InvalidCommitment(SensitiveDeletionInventoryCommitmentError),
+}
+
+impl fmt::Display for SensitiveDeletionPersistedCommitmentError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::UnsupportedCommitmentVersion => {
+                formatter.write_str("unsupported persisted sensitive deletion commitment version")
+            }
+            Self::InvalidCommitment(error) => {
+                write!(formatter, "invalid persisted sensitive deletion commitment: {error}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for SensitiveDeletionPersistedCommitmentError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::UnsupportedCommitmentVersion => None,
+            Self::InvalidCommitment(error) => Some(error),
+        }
+    }
+}
+
+/// Versioned durable envelope around one structurally validated deletion inventory commitment.
+///
+/// The envelope authenticates nothing by itself. Storage owners must protect persisted metadata
+/// with their own integrity and access controls; this value only prevents silent interpretation of
+/// a stored digest under an unknown canonicalization version.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SensitiveDeletionPersistedCommitment {
+    commitment_version: u16,
+    commitment: SensitiveDeletionReceiptSetCommitment,
+}
+
+impl TryFrom<SensitiveDeletionPersistedCommitmentInput> for SensitiveDeletionPersistedCommitment {
+    type Error = SensitiveDeletionPersistedCommitmentError;
+
+    fn try_from(input: SensitiveDeletionPersistedCommitmentInput) -> Result<Self, Self::Error> {
+        if input.commitment_version != SENSITIVE_DELETION_INVENTORY_COMMITMENT_VERSION {
+            return Err(SensitiveDeletionPersistedCommitmentError::UnsupportedCommitmentVersion);
+        }
+
+        let commitment = SensitiveDeletionReceiptSetCommitment::try_from(
+            SensitiveDeletionReceiptSetCommitmentInput {
+                request_id: input.request_id,
+                tenant_id: input.tenant_id,
+                retention_policy_id: input.retention_policy_id,
+                declared_copy_count: input.declared_copy_count,
+                inventory_digest: input.inventory_digest,
+            },
+        )
+        .map_err(SensitiveDeletionPersistedCommitmentError::InvalidCommitment)?;
+
+        Ok(Self {
+            commitment_version: input.commitment_version,
+            commitment,
+        })
+    }
+}
+
+impl SensitiveDeletionPersistedCommitment {
+    /// Return the durable wire and canonicalization version.
+    #[must_use]
+    pub const fn commitment_version(&self) -> u16 {
+        self.commitment_version
+    }
+
+    /// Return the deletion request bound to the enclosed commitment.
+    #[must_use]
+    pub fn request_id(&self) -> &str {
+        self.commitment.request_id()
+    }
+
+    /// Return the tenant bound to the enclosed commitment.
+    #[must_use]
+    pub fn tenant_id(&self) -> &str {
+        self.commitment.tenant_id()
+    }
+
+    /// Return the retention policy bound to the enclosed commitment.
+    #[must_use]
+    pub fn retention_policy_id(&self) -> &str {
+        self.commitment.retention_policy_id()
+    }
+
+    /// Return the exact declared-copy count bound to the enclosed commitment.
+    #[must_use]
+    pub const fn declared_copy_count(&self) -> usize {
+        self.commitment.declared_copy_count()
+    }
+
+    /// Return the canonical lowercase SHA-256 inventory digest.
+    #[must_use]
+    pub fn inventory_digest(&self) -> &str {
+        self.commitment.inventory_digest()
+    }
+}
+
+/// Verify an exact deletion receipt set and return a versioned durable commitment envelope.
+///
+/// Exact receipt-set verification completes before an envelope is emitted. The version describes
+/// only this crate's canonical wire semantics; it is not an authenticity or persistence guarantee.
+pub fn verify_sensitive_deletion_receipt_set_with_persisted_commitment(
+    receipts: &[SensitiveDeletionReceipt],
+    request_id: &str,
+    tenant_id: &str,
+    retention_policy_id: &str,
+    requirements: &[SensitiveDeletionRequirement],
+) -> Result<SensitiveDeletionPersistedCommitment, SensitiveDeletionReceiptSetError> {
+    let commitment = verify_sensitive_deletion_receipt_set_with_commitment(
+        receipts,
+        request_id,
+        tenant_id,
+        retention_policy_id,
+        requirements,
+    )?;
+
+    Ok(SensitiveDeletionPersistedCommitment {
+        commitment_version: SENSITIVE_DELETION_INVENTORY_COMMITMENT_VERSION,
+        commitment,
+    })
+}
+
+/// Verify a reconstructed versioned commitment against exact expected scope and inventory.
+///
+/// Reconstruction already rejects unsupported wire versions. This verifier delegates exact scope,
+/// count, duplicate-inventory, and canonical digest checks to the existing bounded commitment
+/// authority; success does not authenticate persistence or prove inventory exhaustiveness.
+pub fn verify_persisted_sensitive_deletion_inventory_commitment(
+    commitment: &SensitiveDeletionPersistedCommitment,
+    request_id: &str,
+    tenant_id: &str,
+    retention_policy_id: &str,
+    requirements: &[SensitiveDeletionRequirement],
+) -> Result<(), SensitiveDeletionInventoryCommitmentError> {
+    verify_sensitive_deletion_inventory_commitment(
+        &commitment.commitment,
+        request_id,
+        tenant_id,
+        retention_policy_id,
+        requirements,
+    )
+}
