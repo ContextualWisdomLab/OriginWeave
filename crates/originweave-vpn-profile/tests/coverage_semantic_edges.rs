@@ -134,6 +134,16 @@ fn wireguard_scalar_syntax_errors_fail_before_import() {
 }
 
 #[test]
+fn wireguard_forbidden_interface_authority_variants_are_exhaustive() {
+    for key in ["PreDown", "PostDown", "SaveConfig", "Table", "Unknown"] {
+        let profile = format!(
+            "[Interface]\nAddress=10.0.0.2/32\nPrivateKey={VALID_WIREGUARD_KEY}\n{key}=x\n"
+        );
+        assert_wg_error(&profile, ProfileError::UnsupportedAuthority);
+    }
+}
+
+#[test]
 fn ikev2_duplicate_variants_cover_every_singleton_storage_type() {
     let suffix =
         "Auth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8\n";
