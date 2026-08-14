@@ -3,6 +3,8 @@ use originweave_vpn_profile::{
     parse_ikev2_profile,
 };
 
+const VALID_WIREGUARD_KEY: &str = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+
 #[derive(Default)]
 struct CountingImporter(usize);
 
@@ -15,7 +17,7 @@ impl VpnSecretImporter for CountingImporter {
 
 fn wireguard_profile(endpoint: &str) -> String {
     format!(
-        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n[Peer]\nPublicKey=p\nEndpoint={endpoint}\nAllowedIPs=10.0.0.0/8\n"
+        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey={VALID_WIREGUARD_KEY}\n[Peer]\nPublicKey={VALID_WIREGUARD_KEY}\nEndpoint={endpoint}\nAllowedIPs=10.0.0.0/8\n"
     )
 }
 
