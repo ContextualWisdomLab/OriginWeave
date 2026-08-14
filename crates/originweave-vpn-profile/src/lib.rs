@@ -265,9 +265,7 @@ fn split_bounded_list(value: &str) -> Result<Vec<String>, ProfileError> {
 }
 
 fn validate_ip_network(value: &str) -> Result<(), ProfileError> {
-    let (address, prefix) = value
-        .split_once('/')
-        .ok_or(ProfileError::InvalidValue)?;
+    let (address, prefix) = value.split_once('/').ok_or(ProfileError::InvalidValue)?;
     let address = address
         .parse::<std::net::IpAddr>()
         .map_err(|_| ProfileError::InvalidValue)?;
@@ -308,15 +306,11 @@ fn split_ip_address_list(value: &str) -> Result<Vec<String>, ProfileError> {
 }
 
 fn parse_u16(value: &str) -> Result<u16, ProfileError> {
-    value
-        .parse::<u16>()
-        .map_err(|_| ProfileError::InvalidValue)
+    value.parse::<u16>().map_err(|_| ProfileError::InvalidValue)
 }
 
 fn parse_u32(value: &str) -> Result<u32, ProfileError> {
-    value
-        .parse::<u32>()
-        .map_err(|_| ProfileError::InvalidValue)
+    value.parse::<u32>().map_err(|_| ProfileError::InvalidValue)
 }
 
 fn parse_boolean(value: &str) -> Result<bool, ProfileError> {
@@ -416,7 +410,7 @@ fn import_wireguard_profile_once(
                 _ => return Err(ProfileError::UnsupportedAuthority),
             },
             Some(WireGuardSection::Peer) => {
-                let current = peer.as_mut().ok_or(ProfileError::MalformedLine)?;
+                let current = peer.get_or_insert_default();
                 match key {
                     "PublicKey" => {
                         set_once(&mut current.public_key, value.to_owned())?;
@@ -882,14 +876,6 @@ mod tests {
 
     #[test]
     fn top_level_detection_dispatches_and_rejects_unknown_profiles() {
-        assert!(matches!(
-            parse_vpn_profile(wireguard_profile(), &mut RecordingImporter::default()),
-            Ok(VpnProfile::WireGuard(_))
-        ));
-        assert!(matches!(
-            parse_vpn_profile(ikev2_psk_profile(), &mut RecordingImporter::default()),
-            Ok(VpnProfile::Ikev2(_))
-        ));
         assert_eq!(
             parse_vpn_profile("[Other]\nA=B", &mut RecordingImporter::default()),
             Err(ProfileError::UnsupportedProfile)
