@@ -79,6 +79,7 @@ fn wireguard_peer_flush_and_required_field_edges_are_covered() {
     for profile in [
         "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n[Peer]\nAllowedIPs=10.0.0.0/8\n[Peer]\nPublicKey=q\nAllowedIPs=192.0.2.0/24\n",
         "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n[Peer]\nPublicKey=p\n[Peer]\nPublicKey=q\nAllowedIPs=192.0.2.0/24\n",
+        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n[Peer]\nAllowedIPs=10.0.0.0/8\n",
         "[Interface]\nPrivateKey=k\n",
         "[Interface]\nAddress=10.0.0.2/32\n",
         "[Interface]\n=x\nAddress=10.0.0.2/32\nPrivateKey=k\n",
@@ -87,6 +88,14 @@ fn wireguard_peer_flush_and_required_field_edges_are_covered() {
         assert!(import_wireguard_profile(profile, &mut importer).is_err());
         assert_eq!(importer.0, 0);
     }
+}
+
+#[test]
+fn wireguard_scalar_syntax_errors_fail_before_import() {
+    assert_wg_error(
+        "[Interface]\nAddress=10.0.0.2/32\nMTU=not-a-number\nPrivateKey=k\n",
+        ProfileError::InvalidValue,
+    );
 }
 
 #[test]
