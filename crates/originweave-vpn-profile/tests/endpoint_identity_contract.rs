@@ -143,10 +143,9 @@ fn ikev2_identity_fields_are_explicitly_bounded_before_secret_import() {
 }
 
 #[test]
-fn ikev2_optional_negotiation_extensions_default_to_disabled() {
+fn ikev2_optional_negotiation_extensions_default_to_disabled() -> Result<(), ProfileError> {
     let mut importer = CountingImporter::default();
-    let profile = parse_ikev2_profile(&ikev2_profile("vpn.example", ""), &mut importer)
-        .expect("canonical IKEv2 profile should normalize");
+    let profile = parse_ikev2_profile(&ikev2_profile("vpn.example", ""), &mut importer)?;
 
     assert!(!profile.mobike, "MOBIKE requires explicit profile opt-in");
     assert!(
@@ -154,4 +153,5 @@ fn ikev2_optional_negotiation_extensions_default_to_disabled() {
         "IKEv2 fragmentation requires explicit profile opt-in"
     );
     assert_eq!(importer.0, 1);
+    Ok(())
 }
