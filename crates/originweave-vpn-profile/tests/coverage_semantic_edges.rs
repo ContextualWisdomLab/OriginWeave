@@ -3,6 +3,8 @@ use originweave_vpn_profile::{
     parse_ikev2_profile,
 };
 
+const VALID_WIREGUARD_KEY: &str = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+
 #[derive(Default)]
 struct CountingImporter(usize);
 
@@ -11,6 +13,10 @@ impl VpnSecretImporter for CountingImporter {
         self.0 += 1;
         SecretReference::new(format!("secret://coverage/{}", self.0))
     }
+}
+
+fn canonical_wireguard(profile: &str) -> String {
+    profile.replace("<wg-key>", VALID_WIREGUARD_KEY)
 }
 
 fn assert_wg_error(profile: &str, expected: ProfileError) {
@@ -60,17 +66,17 @@ fn semantic_network_errors_cover_every_ip_and_prefix_boundary_before_import() {
 #[test]
 fn wireguard_duplicate_variants_cover_every_singleton_storage_type() {
     for profile in [
-        "[Interface]\nAddress=10.0.0.2/32\nDNS=1.1.1.1\nDNS=8.8.8.8\nPrivateKey=k\n",
-        "[Interface]\nAddress=10.0.0.2/32\nMTU=1400\nMTU=1500\nPrivateKey=k\n",
-        "[Interface]\nAddress=10.0.0.2/32\nListenPort=51820\nListenPort=51821\nPrivateKey=k\n",
-        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\nPrivateKey=q\n",
-        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n[Peer]\nPublicKey=p\nPublicKey=q\nAllowedIPs=10.0.0.0/8\n",
-        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n[Peer]\nPublicKey=p\nPresharedKey=a\nPresharedKey=b\nAllowedIPs=10.0.0.0/8\n",
-        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n[Peer]\nPublicKey=p\nEndpoint=vpn.example:51820\nEndpoint=vpn2.example:51820\nAllowedIPs=10.0.0.0/8\n",
-        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n[Peer]\nPublicKey=p\nAllowedIPs=10.0.0.0/8\nAllowedIPs=192.0.2.0/24\n",
-        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=k\n[Peer]\nPublicKey=p\nAllowedIPs=10.0.0.0/8\nPersistentKeepalive=10\nPersistentKeepalive=20\n",
+        "[Interface]\nAddress=10.0.0.2/32\nDNS=1.1.1.1\nDNS=8.8.8.8\nPrivateKey=<wg-key>\n",
+        "[Interface]\nAddress=10.0.0.2/32\nMTU=1400\nMTU=1500\nPrivateKey=<wg-key>\n",
+        "[Interface]\nAddress=10.0.0.2/32\nListenPort=51820\nListenPort=51821\nPrivateKey=<wg-key>\n",
+        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=<wg-key>\nPrivateKey=<wg-key>\n",
+        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=<wg-key>\n[Peer]\nPublicKey=<wg-key>\nPublicKey=<wg-key>\nAllowedIPs=10.0.0.0/8\n",
+        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=<wg-key>\n[Peer]\nPublicKey=<wg-key>\nPresharedKey=<wg-key>\nPresharedKey=<wg-key>\nAllowedIPs=10.0.0.0/8\n",
+        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=<wg-key>\n[Peer]\nPublicKey=<wg-key>\nEndpoint=vpn.example:51820\nEndpoint=vpn2.example:51820\nAllowedIPs=10.0.0.0/8\n",
+        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=<wg-key>\n[Peer]\nPublicKey=<wg-key>\nAllowedIPs=10.0.0.0/8\nAllowedIPs=192.0.2.0/24\n",
+        "[Interface]\nAddress=10.0.0.2/32\nPrivateKey=<wg-key>\n[Peer]\nPublicKey=<wg-key>\nAllowedIPs=10.0.0.0/8\nPersistentKeepalive=10\nPersistentKeepalive=20\n",
     ] {
-        assert_wg_error(profile, ProfileError::DuplicateField);
+        assert_wg_error(&canonical_wireguard(profile), ProfileError::DuplicateField);
     }
 }
 
