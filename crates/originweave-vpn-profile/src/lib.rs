@@ -851,7 +851,8 @@ mod tests {
             kinds: Vec::new(),
             fail: true,
         };
-        let profile = format!("[Interface]\nAddress=10.0.0.2/32\nPrivateKey={VALID_WIREGUARD_KEY}");
+        let profile =
+            format!("[Interface]\nAddress=10.0.0.2/32\nPrivateKey={VALID_WIREGUARD_KEY}");
         assert_eq!(
             import_wireguard_profile(&profile, &mut importer),
             Err(ProfileError::SecretImportFailed)
@@ -942,8 +943,8 @@ mod tests {
             "[IKEv2]\nServer=s\nAuth=eap\nUsername=u\nPassword=p\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
             "[IKEv2]\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
             "[IKEv2]\nServer=s\nAuth=psk\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
-            "[IKEv2]\nServer=s\nAuth=eap\nPassword=p\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
-            "[IKEv2]\nServer=s\nAuth=eap\nUsername=u\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
+            "[IKEv2]\nServer=s\nAuth=eap\nPassword=p\nProposal=aes256gcm16-prfsha384-ecp256\nTrafficSelectors=10.0.0.0/8",
+            "[IKEv2]\nServer=s\nAuth=eap\nUsername=u\nProposal=aes256gcm16-prfsha384-ecp256\nTrafficSelectors=10.0.0.0/8",
             "[IKEv2]\nServer=s\nServer=t\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
             "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8\nDpdSeconds=0",
             "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8\nRekeySeconds=299",
@@ -996,5 +997,46 @@ mod tests {
             ),
             Err(ProfileError::ProfileTooLarge)
         );
+    }
+
+    #[test]
+    fn wireguard_post_key_validation_fail_closed_edges_are_covered() {
+        for (profile, expected) in [
+            (
+                format!(
+                    "[Interface]\nAddress=10.0.0.2/32\nListenPort=51820\nListenPort=51821\nPrivateKey={VALID_WIREGUARD_KEY}\n"
+                ),
+                ProfileError::DuplicateField,
+            ),
+            (
+                format!(
+                    "[Interface]\nAddress=10.0.0.2/32\nPrivateKey={VALID_WIREGUARD_KEY}\n[Peer]\nPublicKey={VALID_WIREGUARD_KEY}\nAllowedIPs=10.0.0.0/8\nPersistentKeepalive=10\nPersistentKeepalive=20\n"
+                ),
+                ProfileError::DuplicateField,
+            ),
+            (
+                format!(
+                    "[Interface]\nAddress=10.0.0.2/32\nPrivateKey={VALID_WIREGUARD_KEY}\n[Peer]\nPublicKey={VALID_WIREGUARD_KEY}\nAllowedIPs=10.0.0.0/8\nUnknown=x\n"
+                ),
+                ProfileError::UnsupportedAuthority,
+            ),
+            (
+                format!(
+                    "[Interface]\nAddress=10.0.0.2/32\nPrivateKey={VALID_WIREGUARD_KEY}\n[Peer]\nAllowedIPs=10.0.0.0/8\n"
+                ),
+                ProfileError::MissingField,
+            ),
+            (
+                format!("[Interface]\nPrivateKey={VALID_WIREGUARD_KEY}\n"),
+                ProfileError::MissingField,
+            ),
+        ] {
+            let mut importer = RecordingImporter::default();
+            assert_eq!(
+                import_wireguard_profile(&profile, &mut importer),
+                Err(expected)
+            );
+            assert!(importer.kinds.is_empty());
+        }
     }
 }
