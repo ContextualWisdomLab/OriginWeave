@@ -497,6 +497,7 @@ fn profile_lines(profile: &str) -> impl Iterator<Item = &str> {
         .map(str::trim)
         .filter(|line| !line.is_empty() && !line.starts_with('#'))
 }
+
 fn parse_assignment(line: &str) -> Result<(&str, &str), ProfileError> {
     let (key, value) = line.split_once('=').ok_or(ProfileError::MalformedLine)?;
     Ok((bounded_value(key)?, bounded_value(value)?))
