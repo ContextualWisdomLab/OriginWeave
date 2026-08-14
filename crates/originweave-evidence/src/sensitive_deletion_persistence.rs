@@ -51,7 +51,10 @@ impl fmt::Display for SensitiveDeletionPersistedCommitmentError {
                 formatter.write_str("unsupported persisted sensitive deletion commitment version")
             }
             Self::InvalidCommitment(error) => {
-                write!(formatter, "invalid persisted sensitive deletion commitment: {error}")
+                write!(
+                    formatter,
+                    "invalid persisted sensitive deletion commitment: {error}"
+                )
             }
         }
     }
