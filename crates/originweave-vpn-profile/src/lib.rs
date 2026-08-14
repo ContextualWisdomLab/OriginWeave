@@ -13,6 +13,7 @@ const MAX_SECRET_REFERENCE_BYTES: usize = 512;
 const MAX_SECRET_BYTES: usize = 4_096;
 const MAX_PEERS: usize = 64;
 const MAX_LIST_ITEMS: usize = 256;
+const MAX_IKE_IDENTITY_BYTES: usize = 253;
 
 /// A bounded opaque reference to a secret stored outside the normalized profile.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -49,6 +50,12 @@ pub enum VpnSecret<'a> {
 }
 
 /// Trusted boundary that moves raw profile credentials into a secret store.
+///
+/// Profile entry points complete a side-effect-free validation pass before calling the
+/// real importer. A later importer failure can nevertheless occur after earlier secrets
+/// were already stored during the second pass. Because those earlier references are not
+/// returned on failure, importer implementations own cleanup of partial imports, for
+/// example through transactional staging or expiry, until this trait exposes disposal.
 pub trait VpnSecretImporter {
     /// Import one borrowed secret and return only an opaque reference.
     fn import_secret(&mut self, secret: VpnSecret<'_>) -> Result<SecretReference, ProfileError>;
@@ -356,7 +363,7 @@ fn validate_gateway_host(value: &str) -> Result<&str, ProfileError> {
 }
 
 fn validate_ike_identity(value: &str) -> Result<&str, ProfileError> {
-    if value.chars().any(char::is_control) {
+    if value.len() > MAX_IKE_IDENTITY_BYTES || value.chars().any(char::is_control) {
         return Err(ProfileError::InvalidValue);
     }
     Ok(value)
@@ -610,7 +617,7 @@ fn parse_ikev2_profile_once(
             "RemoteId" => set_once(&mut remote_id, validate_ike_identity(value)?.to_owned())?,
             "LocalId" => set_once(&mut local_id, validate_ike_identity(value)?.to_owned())?,
             "Auth" => set_once(&mut auth_kind, value.to_owned())?,
-            "Username" => set_once(&mut username, value.to_owned())?,
+            "Username" => set_once(&mut username, validate_ike_identity(value)?.to_owned())?,
             "Psk" => {
                 let secret = import_bounded_secret(importer, VpnSecret::Ikev2PresharedKey(value))?;
                 set_once(&mut psk, secret)?;
@@ -673,8 +680,8 @@ fn parse_ikev2_profile_once(
         authentication,
         proposal: proposal.ok_or(ProfileError::MissingField)?,
         traffic_selectors: traffic_selectors.ok_or(ProfileError::MissingField)?,
-        mobike: mobike.unwrap_or(true),
-        fragmentation: fragmentation.unwrap_or(true),
+        mobike: mobike.unwrap_or(false),
+        fragmentation: fragmentation.unwrap_or(false),
         dpd_seconds,
         rekey_seconds,
     })
@@ -911,8 +918,8 @@ mod tests {
                 )
             }),
             Ok((
-                true,
-                true,
+                false,
+                false,
                 30,
                 3600,
                 Ikev2Authentication::Eap {
