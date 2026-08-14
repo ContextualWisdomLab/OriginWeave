@@ -154,9 +154,8 @@ impl BrowserAuthorityRegistry {
             .retain(|context, _epoch| live_contexts.contains_key(context));
         self.context_origin
             .retain(|context, _origin| live_contexts.contains_key(context));
-        self.node_by_external.retain(
-            |(context, _epoch, _external), _node_id| live_contexts.contains_key(context),
-        );
+        self.node_by_external
+            .retain(|(context, _epoch, _external), _node_id| live_contexts.contains_key(context));
         Ok(())
     }
 
