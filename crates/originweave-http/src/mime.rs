@@ -67,7 +67,12 @@ impl MimeType {
 
     /// Construct one parameter-free MIME type from reviewed ASCII tokens.
     pub fn from_essence(type_name: &str, subtype_name: &str) -> Result<Self, HttpError> {
-        Self::parse(format!("{type_name}/{subtype_name}").as_bytes())
+        let parsed = Self::parse(format!("{type_name}/{subtype_name}").as_bytes())?;
+        if parsed.parameters.is_empty() {
+            Ok(parsed)
+        } else {
+            Err(HttpError::InvalidMimeType)
+        }
     }
 
     /// Return the lowercase top-level type token.
