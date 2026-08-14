@@ -410,7 +410,7 @@ pub enum NodeHandleError {
     BrowsingContextMismatch {
         /// Context that originally produced the node handle.
         observed: BrowsingContextId,
-        /// Context currently active for the requested action.
+        /// Context currently active for the browser context.
         current: BrowsingContextId,
     },
     /// The browser context is now at a different canonical origin.
@@ -1180,4 +1180,95 @@ pub fn evaluate_native_messaging_access(
         return NativeMessagingAccessDecision::DenyHostMismatch;
     }
     NativeMessagingAccessDecision::Allow
+}
+
+const HOST_TO_BROWSER_NATIVE_MESSAGING_LIMIT: usize = 1_048_576;
+const BROWSER_TO_HOST_NATIVE_MESSAGING_LIMIT: usize = 67_108_864;
+
+/// Direction of one Chrome native-messaging frame.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeMessagingFrameDirection {
+    /// A frame written by a native host for delivery to the browser.
+    HostToBrowser,
+    /// A frame written by the browser for delivery to a native host.
+    BrowserToHost,
+}
+
+/// Failure to encode or decode a bounded Chrome native-messaging frame.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeMessagingFrameError {
+    /// Fewer than four bytes were available for the native-endian length prefix.
+    MissingLengthPrefix,
+    /// The advertised or supplied payload exceeds the limit for its direction.
+    PayloadTooLarge,
+    /// The complete frame length differs from the advertised payload length.
+    LengthMismatch,
+}
+
+impl fmt::Display for NativeMessagingFrameError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MissingLengthPrefix => formatter
+                .write_str("native messaging frame is missing its 32-bit length prefix"),
+            Self::PayloadTooLarge => formatter
+                .write_str("native messaging payload exceeds the direction-specific limit"),
+            Self::LengthMismatch => {
+                formatter.write_str("native messaging frame length does not match its prefix")
+            }
+        }
+    }
+}
+
+impl std::error::Error for NativeMessagingFrameError {}
+
+/// Return Chrome's payload ceiling for one native-messaging direction.
+#[must_use]
+pub const fn native_messaging_payload_limit(direction: NativeMessagingFrameDirection) -> usize {
+    match direction {
+        NativeMessagingFrameDirection::HostToBrowser => HOST_TO_BROWSER_NATIVE_MESSAGING_LIMIT,
+        NativeMessagingFrameDirection::BrowserToHost => BROWSER_TO_HOST_NATIVE_MESSAGING_LIMIT,
+    }
+}
+
+/// Encode one complete native-messaging frame with a native-endian 32-bit length prefix.
+///
+/// The payload is rejected before allocation when it exceeds the direction-specific
+/// Chrome limit. The returned bytes are framing only and carry no trust or Agent authority.
+pub fn encode_native_messaging_frame(
+    direction: NativeMessagingFrameDirection,
+    payload: &[u8],
+) -> Result<Vec<u8>, NativeMessagingFrameError> {
+    if payload.len() > native_messaging_payload_limit(direction) {
+        return Err(NativeMessagingFrameError::PayloadTooLarge);
+    }
+
+    let payload_length = payload.len() as u32;
+    let mut frame = Vec::with_capacity(payload.len() + 4);
+    frame.extend_from_slice(&payload_length.to_ne_bytes());
+    frame.extend_from_slice(payload);
+    Ok(frame)
+}
+
+/// Decode one complete bounded native-messaging frame without allocating its payload.
+///
+/// Oversized advertised lengths are rejected before payload slicing. The frame must
+/// contain exactly the advertised payload bytes; truncation and trailing data fail closed.
+pub fn decode_native_messaging_frame(
+    direction: NativeMessagingFrameDirection,
+    frame: &[u8],
+) -> Result<&[u8], NativeMessagingFrameError> {
+    if frame.len() < 4 {
+        return Err(NativeMessagingFrameError::MissingLengthPrefix);
+    }
+
+    let advertised_length =
+        u32::from_ne_bytes([frame[0], frame[1], frame[2], frame[3]]) as usize;
+    if advertised_length > native_messaging_payload_limit(direction) {
+        return Err(NativeMessagingFrameError::PayloadTooLarge);
+    }
+    if frame.len() != advertised_length + 4 {
+        return Err(NativeMessagingFrameError::LengthMismatch);
+    }
+
+    Ok(&frame[4..])
 }
