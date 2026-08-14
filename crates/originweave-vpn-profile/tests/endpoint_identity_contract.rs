@@ -61,6 +61,7 @@ fn wireguard_endpoint_requires_host_and_nonzero_udp_port_before_secret_import() 
         "[2001:db8::1]",
         "2001:db8::1:51820",
         "[2001:db8::1]:0",
+        "[2001:db8::1]: 51820",
     ] {
         assert_wireguard_invalid_without_import(endpoint);
     }
@@ -74,9 +75,14 @@ fn wireguard_endpoint_accepts_hostname_ipv4_and_bracketed_ipv6_shapes() {
         "[2001:db8::1]:51820",
     ] {
         let mut importer = CountingImporter::default();
-        let profile = import_wireguard_profile(&wireguard_profile(endpoint), &mut importer)
-            .expect("reviewed endpoint shape should normalize");
-        assert_eq!(profile.peers[0].endpoint.as_deref(), Some(endpoint));
+        let result = import_wireguard_profile(&wireguard_profile(endpoint), &mut importer);
+        assert!(
+            result.is_ok(),
+            "reviewed endpoint shape should normalize: {endpoint:?}"
+        );
+        if let Ok(profile) = result {
+            assert_eq!(profile.peers[0].endpoint.as_deref(), Some(endpoint));
+        }
         assert_eq!(importer.0, 1);
     }
 }
