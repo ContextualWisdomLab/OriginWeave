@@ -305,6 +305,73 @@ fn split_ip_address_list(value: &str) -> Result<Vec<String>, ProfileError> {
     Ok(items)
 }
 
+fn validate_dns_hostname(value: &str) -> bool {
+    value.len() <= 253
+        && value.split('.').all(|label| {
+            !label.is_empty()
+                && label.len() <= 63
+                && !label.starts_with('-')
+                && !label.ends_with('-')
+                && label
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+        })
+}
+
+fn validate_gateway_host(value: &str) -> Result<&str, ProfileError> {
+    let value = bounded_value(value)?;
+    if value
+        .chars()
+        .any(|character| character.is_control() || character.is_whitespace())
+    {
+        return Err(ProfileError::InvalidValue);
+    }
+    if value.parse::<std::net::IpAddr>().is_ok() || validate_dns_hostname(value) {
+        return Ok(value);
+    }
+    Err(ProfileError::InvalidValue)
+}
+
+fn validate_ike_identity(value: &str) -> Result<&str, ProfileError> {
+    let value = bounded_value(value)?;
+    if value.chars().any(char::is_control) {
+        return Err(ProfileError::InvalidValue);
+    }
+    Ok(value)
+}
+
+fn parse_nonzero_udp_port(value: &str) -> Result<u16, ProfileError> {
+    let port = value
+        .parse::<u16>()
+        .map_err(|_| ProfileError::InvalidValue)?;
+    if port == 0 {
+        return Err(ProfileError::InvalidValue);
+    }
+    Ok(port)
+}
+
+fn validate_wireguard_endpoint(value: &str) -> Result<&str, ProfileError> {
+    let value = bounded_value(value)?;
+    if let Some(bracketed) = value.strip_prefix('[') {
+        let (host, port) = bracketed
+            .split_once("]: ")
+            .or_else(|| bracketed.split_once("]:"))
+            .ok_or(ProfileError::InvalidValue)?;
+        host.parse::<std::net::Ipv6Addr>()
+            .map_err(|_| ProfileError::InvalidValue)?;
+        parse_nonzero_udp_port(port)?;
+        return Ok(value);
+    }
+
+    let (host, port) = value.rsplit_once(':').ok_or(ProfileError::InvalidValue)?;
+    if host.contains(':') {
+        return Err(ProfileError::InvalidValue);
+    }
+    validate_gateway_host(host)?;
+    parse_nonzero_udp_port(port)?;
+    Ok(value)
+}
+
 fn parse_u16(value: &str) -> Result<u16, ProfileError> {
     value.parse::<u16>().map_err(|_| ProfileError::InvalidValue)
 }
@@ -423,7 +490,10 @@ fn import_wireguard_profile_once(
                         set_once(&mut current.preshared_key, secret)?;
                     }
                     "Endpoint" => {
-                        set_once(&mut current.endpoint, value.to_owned())?;
+                        set_once(
+                            &mut current.endpoint,
+                            validate_wireguard_endpoint(value)?.to_owned(),
+                        )?;
                     }
                     "AllowedIPs" => {
                         set_once(&mut current.allowed_ips, split_network_list(value)?)?;
@@ -513,9 +583,9 @@ fn parse_ikev2_profile_once(
         }
         let (key, value) = parse_assignment(line)?;
         match key {
-            "Server" => set_once(&mut server, value.to_owned())?,
-            "RemoteId" => set_once(&mut remote_id, value.to_owned())?,
-            "LocalId" => set_once(&mut local_id, value.to_owned())?,
+            "Server" => set_once(&mut server, validate_gateway_host(value)?.to_owned())?,
+            "RemoteId" => set_once(&mut remote_id, validate_ike_identity(value)?.to_owned())?,
+            "LocalId" => set_once(&mut local_id, validate_ike_identity(value)?.to_owned())?,
             "Auth" => set_once(&mut auth_kind, value.to_owned())?,
             "Username" => set_once(&mut username, value.to_owned())?,
             "Psk" => {
