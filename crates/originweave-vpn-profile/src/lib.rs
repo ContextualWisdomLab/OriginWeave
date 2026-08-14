@@ -446,6 +446,18 @@ fn set_once<T>(slot: &mut Option<T>, value: T) -> Result<(), ProfileError> {
     Ok(())
 }
 
+fn extend_bounded_list(
+    slot: &mut Option<Vec<String>>,
+    mut values: Vec<String>,
+) -> Result<(), ProfileError> {
+    let current = slot.get_or_insert_default();
+    if current.len() + values.len() > MAX_LIST_ITEMS {
+        return Err(ProfileError::TooManyItems);
+    }
+    current.append(&mut values);
+    Ok(())
+}
+
 fn profile_lines(profile: &str) -> impl Iterator<Item = &str> {
     profile
         .lines()
@@ -512,8 +524,12 @@ fn import_wireguard_profile_once(
         let (key, value) = parse_assignment(line)?;
         match section {
             Some(WireGuardSection::Interface) => match key {
-                "Address" => set_once(&mut addresses, split_wireguard_allowed_ips(value)?)?,
-                "DNS" => set_once(&mut dns_servers, split_ip_address_list(value)?)?,
+                "Address" => {
+                    extend_bounded_list(&mut addresses, split_wireguard_allowed_ips(value)?)?;
+                }
+                "DNS" => {
+                    extend_bounded_list(&mut dns_servers, split_ip_address_list(value)?)?;
+                }
                 "MTU" => set_once(&mut mtu, parse_u16(value)?)?,
                 "ListenPort" => set_once(&mut listen_port, parse_u16(value)?)?,
                 "PrivateKey" => {
