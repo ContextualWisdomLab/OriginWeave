@@ -25,11 +25,9 @@ fn network_path_redirects_do_not_lose_their_authority() {
 
 #[test]
 fn deprecated_use_proxy_status_does_not_create_redirect_metadata() {
-    let metadata = parse_redirect_metadata(
-        305,
-        &fields(&[("location", b"https://proxy.example/path")]),
-    )
-    .expect("deprecated status must not be treated as malformed");
+    let metadata =
+        parse_redirect_metadata(305, &fields(&[("location", b"https://proxy.example/path")]))
+            .expect("deprecated status must not be treated as malformed");
 
     assert_eq!(metadata, None);
 }
