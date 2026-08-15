@@ -67,6 +67,12 @@ class WorkflowRegistryUnicodePresentationTests(unittest.TestCase):
                 with self.assertRaises(self.audit.WorkflowAuditError):
                     self.audit.audit_workflow_registry(payload)
 
+    def test_unpaired_unicode_surrogate_fails_with_stable_audit_error(self) -> None:
+        """Malformed Unicode scalar input must fail through the public audit error contract."""
+
+        with self.assertRaises(self.audit.WorkflowAuditError):
+            self.audit.audit_workflow_registry(_payload(name="legacy\ud800workflow"))
+
     def test_printable_unicode_workflow_name_remains_valid(self) -> None:
         """Ordinary printable Unicode labels remain usable as non-authoritative display text."""
 
