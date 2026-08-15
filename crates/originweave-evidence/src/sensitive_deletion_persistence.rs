@@ -106,6 +106,19 @@ impl TryFrom<SensitiveDeletionPersistedCommitmentInput> for SensitiveDeletionPer
     }
 }
 
+impl From<&SensitiveDeletionPersistedCommitment> for SensitiveDeletionPersistedCommitmentInput {
+    fn from(commitment: &SensitiveDeletionPersistedCommitment) -> Self {
+        Self {
+            commitment_version: commitment.commitment_version(),
+            request_id: commitment.request_id().to_owned(),
+            tenant_id: commitment.tenant_id().to_owned(),
+            retention_policy_id: commitment.retention_policy_id().to_owned(),
+            declared_copy_count: commitment.declared_copy_count(),
+            inventory_digest: commitment.inventory_digest().to_owned(),
+        }
+    }
+}
+
 impl SensitiveDeletionPersistedCommitment {
     /// Return the durable wire and canonicalization version.
     #[must_use]
