@@ -16,4 +16,11 @@ mod contracts;
 pub use browser_registry::{
     BrowserAuthorityRegistry, BrowserRegistryError, MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES,
 };
-pub use contracts::*;
+pub use contracts::{
+    ActionIntentDigest, ActionIntentDigestError, ActionKind, ActionRequest, ApprovalEvidence,
+    ApprovalScope, BrowserSessionId, BrowsingContextId, Capability, DocumentEpoch,
+    ExecutionPurpose, ExtensionAccessDecision, ExtensionAccessRequest, ExtensionAgentCapability,
+    ExtensionAgentGrant, ExtensionId, ExtensionIdError, InstructionSource, NodeHandleError,
+    ObservedNodeHandle, Origin, OriginError, PolicyContext, RiskClass, RobotsDecision,
+    SecretDelivery, SessionMode, evaluate_extension_access,
+};
