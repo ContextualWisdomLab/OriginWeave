@@ -234,6 +234,7 @@ fn connection_plan_rejects_socket_port_that_changes_default_origin() -> Result<(
         "socket port 8080 does not match canonical origin port 80"
     );
     assert!(error.source().is_none());
+    assert_eq!(error.attempt_count(), None);
     Ok(())
 }
 
