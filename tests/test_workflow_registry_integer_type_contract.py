@@ -45,7 +45,7 @@ def _payload() -> dict:
 
 
 class WorkflowRegistryIntegerTypeContractTests(unittest.TestCase):
-    """Reject Python booleans where the evidence schema requires integers."""
+    """Reject ambiguous JSON scalar types where the evidence schema requires integers."""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -64,6 +64,14 @@ class WorkflowRegistryIntegerTypeContractTests(unittest.TestCase):
 
         payload = _payload()
         payload["registry_pages"][0]["page"] = True
+        with self.assertRaises(self.audit.WorkflowAuditError):
+            self.audit.audit_workflow_registry(payload)
+
+    def test_float_http_status_code_is_rejected(self) -> None:
+        """JSON 200.0 must not masquerade as the required integer HTTP status code 200."""
+
+        payload = _payload()
+        payload["registry_pages"][0]["status_code"] = 200.0
         with self.assertRaises(self.audit.WorkflowAuditError):
             self.audit.audit_workflow_registry(payload)
 
