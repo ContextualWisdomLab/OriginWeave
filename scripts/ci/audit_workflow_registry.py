@@ -351,6 +351,12 @@ def _reject_nonstandard_json_constant(value: str) -> Any:
     raise json.JSONDecodeError("non-standard JSON numeric constant", value, 0)
 
 
+def _reject_json_floating_point(value: str) -> Any:
+    """Reject floating-point numbers outside the schema-v1 evidence grammar."""
+
+    raise json.JSONDecodeError("floating-point JSON numeric literal is unsupported", value, 0)
+
+
 def _parse_bounded_json_integer(value: str) -> int:
     """Parse one decimal JSON integer within the audit evidence digit budget."""
 
@@ -375,6 +381,7 @@ def _read_payload(path: pathlib.Path) -> dict[str, Any]:
             content.decode("utf-8"),
             object_pairs_hook=_reject_duplicate_object_members,
             parse_constant=_reject_nonstandard_json_constant,
+            parse_float=_reject_json_floating_point,
             parse_int=_parse_bounded_json_integer,
         )
     except (UnicodeError, json.JSONDecodeError, RecursionError) as error:
