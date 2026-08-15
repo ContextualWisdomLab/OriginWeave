@@ -184,3 +184,46 @@ fn fresh_resolution_still_requires_valid_connection_parameters() -> Result<(), S
     assert!(matches!(result, Err(NetworkError::InvalidPort)));
     Ok(())
 }
+
+#[test]
+fn connection_plan_rejects_socket_port_that_changes_default_origin() -> Result<(), String> {
+    let snapshot = fresh_loopback_snapshot()?;
+    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8080);
+
+    let result = FreshConnectionPlan::new(
+        &snapshot,
+        Duration::from_secs(12),
+        socket,
+        Duration::from_secs(1),
+        1,
+    );
+
+    assert!(result.is_err(), "socket port must remain bound to origin");
+    Ok(())
+}
+
+#[test]
+fn connection_plan_rejects_socket_port_that_changes_explicit_origin() -> Result<(), String> {
+    let origin = Origin::parse("http://localhost:8080")
+        .map_err(|error| format!("explicit-port origin fixture is invalid: {error:?}"))?;
+    let snapshot = FreshResolutionSnapshot::approve(
+        origin,
+        [IpAddr::V4(Ipv4Addr::LOCALHOST)],
+        &DestinationPolicy::from_allowed_classes([AddressClass::Loopback]),
+        Duration::from_secs(10),
+        Duration::from_secs(5),
+    )
+    .map_err(|error| format!("fresh explicit-port snapshot is invalid: {error}"))?;
+    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8081);
+
+    let result = FreshConnectionPlan::new(
+        &snapshot,
+        Duration::from_secs(12),
+        socket,
+        Duration::from_secs(1),
+        1,
+    );
+
+    assert!(result.is_err(), "socket port must remain bound to origin");
+    Ok(())
+}
