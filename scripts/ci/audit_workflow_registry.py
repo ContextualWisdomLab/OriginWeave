@@ -48,6 +48,17 @@ def _require_mapping(value: Any, field_name: str) -> dict[str, Any]:
     return value
 
 
+def _require_exact_fields(
+    value: Any, field_name: str, expected_fields: set[str]
+) -> dict[str, Any]:
+    """Return a mapping whose member names exactly match this schema boundary."""
+
+    mapping = _require_mapping(value, field_name)
+    if set(mapping).difference(expected_fields):
+        raise WorkflowAuditError(f"{field_name} contains an unsupported field")
+    return mapping
+
+
 def _require_list(value: Any, field_name: str) -> list[Any]:
     """Return a list or fail with a stable field-specific diagnostic."""
 
@@ -154,7 +165,11 @@ def _validate_pages(value: Any) -> tuple[list[dict[str, Any]], list[dict[str, An
     workflows: list[dict[str, Any]] = []
     receipts: list[dict[str, Any]] = []
     for index, raw_page in enumerate(raw_pages):
-        page = _require_mapping(raw_page, f"registry_pages[{index}]")
+        page = _require_exact_fields(
+            raw_page,
+            f"registry_pages[{index}]",
+            {"page", "status_code", "has_next", "workflows"},
+        )
         expected_page = index + 1
         page_number = page.get("page")
         if (
@@ -231,6 +246,11 @@ def _validate_workflow_record(
 ) -> dict[str, Any]:
     """Validate and classify one exported GitHub Actions workflow record."""
 
+    raw_record = _require_exact_fields(
+        raw_record,
+        f"workflow record {record_index}",
+        {"id", "name", "path", "state"},
+    )
     workflow_id = raw_record.get("id")
     if isinstance(workflow_id, bool) or not isinstance(workflow_id, int):
         raise WorkflowAuditError(f"workflow record {record_index} has an invalid id")
@@ -278,7 +298,20 @@ def audit_workflow_registry(payload: dict[str, Any]) -> dict[str, Any]:
     workflow; a later authorized operator must independently refetch every candidate.
     """
 
-    document = _require_mapping(payload, "payload")
+    document = _require_exact_fields(
+        payload,
+        "payload",
+        {
+            "schema_version",
+            "expected_default_branch_sha",
+            "observed_default_branch_sha",
+            "observed_at",
+            "reported_total_count",
+            "protected_workflow_paths",
+            "active_pr_workflow_paths",
+            "registry_pages",
+        },
+    )
     schema_version = document.get("schema_version")
     if (
         isinstance(schema_version, bool)
