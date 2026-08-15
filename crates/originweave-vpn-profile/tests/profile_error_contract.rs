@@ -56,6 +56,7 @@ fn secret_reference_rejects_log_injection_and_ambiguous_whitespace() {
         "\u{202e}secret://tenant/item",
         " secret://tenant/item",
         "secret://tenant/item ",
+        "secret://tenant/item id",
     ] {
         assert_eq!(
             SecretReference::new(reference),
@@ -63,9 +64,10 @@ fn secret_reference_rejects_log_injection_and_ambiguous_whitespace() {
         );
     }
 
-    assert_eq!(
-        SecretReference::new("secret://tenant/item")
-            .map(|reference| reference.as_str().to_owned()),
-        Ok("secret://tenant/item".to_owned())
-    );
+    for reference in ["secret://tenant/item", "secret://tenant/키"] {
+        assert_eq!(
+            SecretReference::new(reference).map(|value| value.as_str().to_owned()),
+            Ok(reference.to_owned())
+        );
+    }
 }
