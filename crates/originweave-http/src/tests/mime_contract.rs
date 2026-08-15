@@ -200,7 +200,11 @@ fn short_html_signatures_require_tag_termination() {
         assert_eq!(observed.risk_class(), ContentRiskClass::Passive);
     }
 
-    for content in [b"<a href=\"/\">link</a>".as_slice(), b"<b>bold</b>", b"<p paragraph>text</p>"] {
+    for content in [
+        b"<a href=\"/\">link</a>".as_slice(),
+        b"<b>bold</b>",
+        b"<p paragraph>text</p>",
+    ] {
         let observed = classify_observed_mime(content, None);
         assert_eq!(observed.mime_type().essence(), "text/html");
         assert_eq!(observed.risk_class(), ContentRiskClass::ActiveOrScriptable);
