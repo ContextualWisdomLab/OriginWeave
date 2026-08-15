@@ -257,8 +257,26 @@ fn hex_value(byte: u8) -> u8 {
     }
 }
 
-fn trailer_field_error(_error: FieldSyntaxError) -> HttpError {
-    HttpError::InvalidTrailerSection
+fn trailer_field_error(error: FieldSyntaxError) -> HttpError {
+    match error {
+        FieldSyntaxError::NameTooLarge {
+            byte_count,
+            maximum_bytes,
+        } => HttpError::ResponseFieldNameTooLarge {
+            byte_count,
+            maximum_bytes,
+        },
+        FieldSyntaxError::ValueTooLarge {
+            byte_count,
+            maximum_bytes,
+        } => HttpError::ResponseFieldValueTooLarge {
+            byte_count,
+            maximum_bytes,
+        },
+        FieldSyntaxError::InvalidName | FieldSyntaxError::InvalidValue => {
+            HttpError::InvalidTrailerSection
+        }
+    }
 }
 
 #[cfg(test)]
