@@ -30,7 +30,7 @@ pub struct SensitiveDeletionPersistedCommitmentInput {
     /// Retention or lifecycle-policy identifier recorded with the commitment.
     pub retention_policy_id: String,
     /// Number of exact caller-declared copies represented by the commitment.
-    pub declared_copy_count: usize,
+    pub declared_copy_count: u16,
     /// Lowercase 64-character SHA-256 digest of the canonical inventory preimage.
     pub inventory_digest: String,
 }
@@ -93,7 +93,7 @@ impl TryFrom<SensitiveDeletionPersistedCommitmentInput> for SensitiveDeletionPer
                 request_id: input.request_id,
                 tenant_id: input.tenant_id,
                 retention_policy_id: input.retention_policy_id,
-                declared_copy_count: input.declared_copy_count,
+                declared_copy_count: usize::from(input.declared_copy_count),
                 inventory_digest: input.inventory_digest,
             },
         )
@@ -133,8 +133,9 @@ impl SensitiveDeletionPersistedCommitment {
 
     /// Return the exact declared-copy count bound to the enclosed commitment.
     #[must_use]
-    pub const fn declared_copy_count(&self) -> usize {
-        self.commitment.declared_copy_count()
+    pub fn declared_copy_count(&self) -> u16 {
+        u16::try_from(self.commitment.declared_copy_count())
+            .unwrap_or(MAX_SENSITIVE_DELETION_RECEIPT_SET_ENTRIES as u16)
     }
 
     /// Return the canonical lowercase SHA-256 inventory digest.
