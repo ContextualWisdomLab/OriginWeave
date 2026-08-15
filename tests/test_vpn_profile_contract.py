@@ -101,14 +101,22 @@ class VpnProfileContractTests(unittest.TestCase):
         self.assertIn("reverse-order rollback", doctoring)
 
     def test_vpn_profile_decision_and_primary_source_doctoring_are_present(self) -> None:
-        """The route and credential authority change requires an ADR and APA evidence."""
+        """The route and credential authority change requires indexed APA evidence."""
 
-        self.assertTrue(
-            (ROOT / "docs" / "adr" / "0015-vpn-profile-authority.md").is_file()
+        adr_path = ROOT / "docs" / "adr" / "0015-vpn-profile-authority.md"
+        doctoring_path = ROOT / "docs" / "doctoring" / "vpn-profile-support.md"
+        self.assertTrue(adr_path.is_file())
+        self.assertTrue(doctoring_path.is_file())
+
+        documentation_index = (ROOT / "docs" / "README.md").read_text(
+            encoding="utf-8"
         )
-        self.assertTrue(
-            (ROOT / "docs" / "doctoring" / "vpn-profile-support.md").is_file()
+        doctoring_index = (ROOT / "docs" / "doctoring.md").read_text(
+            encoding="utf-8"
         )
+        link = "doctoring/vpn-profile-support.md"
+        self.assertIn(link, documentation_index)
+        self.assertIn(link, doctoring_index)
 
 
 if __name__ == "__main__":
