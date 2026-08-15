@@ -117,13 +117,13 @@ fn mime_classifier_exercises_every_html_signature_and_plain_text_byte_class() {
         "<div",
         "<font",
         "<table",
-        "<a",
+        "<a>",
         "<style",
         "<title",
-        "<b",
+        "<b>",
         "<body",
         "<br",
-        "<p",
+        "<p>",
         "<!--",
     ] {
         let observed = classify_observed_mime(signature.as_bytes(), None);
