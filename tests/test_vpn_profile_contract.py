@@ -69,6 +69,37 @@ class VpnProfileContractTests(unittest.TestCase):
         traits = {trait.strip() for trait in declaration.group("traits").split(",")}
         self.assertNotIn("Debug", traits)
 
+    def test_secret_cleanup_authority_is_documented_consistently(self) -> None:
+        """ADR and doctoring must describe the implemented reverse-order rollback hook."""
+
+        source = (CRATE / "src" / "lib.rs").read_text(encoding="utf-8")
+        adr = (
+            ROOT / "docs" / "adr" / "0015-vpn-profile-authority.md"
+        ).read_text(encoding="utf-8")
+        doctoring = (
+            ROOT / "docs" / "doctoring" / "vpn-profile-support.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("fn discard_secret", source)
+        self.assertIn("rollback_imports", source)
+        for stale_claim in (
+            "Until disposal is represented in the trait",
+            "trait does not expose rollback/disposal",
+            "must currently own cleanup of partial second-pass secret imports",
+            "directly to the trusted secret importer",
+        ):
+            with self.subTest(stale_claim=stale_claim):
+                self.assertNotIn(stale_claim, adr + doctoring)
+        for required_claim in (
+            "discard_secret",
+            "reverse order",
+            "SecretCleanupFailed",
+        ):
+            with self.subTest(required_claim=required_claim):
+                self.assertIn(required_claim, adr)
+        self.assertIn("side-effect-free validation pass", doctoring)
+        self.assertIn("reverse-order rollback", doctoring)
+
     def test_vpn_profile_decision_and_primary_source_doctoring_are_present(self) -> None:
         """The route and credential authority change requires an ADR and APA evidence."""
 
