@@ -24,6 +24,7 @@
 - [Product roadmap](product-roadmap.md)
 - [Research and standards](doctoring.md)
   - [Browser and Agent protocol standards evidence](doctoring/browser-agent-protocols.md)
+  - [VPN profile support standards evidence](doctoring/vpn-profile-support.md)
 - [Current product-baseline standards addendum](doctoring/product-documentation-baseline.md)
 - [Quality gates](quality-gates.md)
 - [Security policy](../SECURITY.md)
