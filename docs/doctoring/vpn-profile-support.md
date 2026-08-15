@@ -6,9 +6,9 @@ This note records the external standards boundary used by `originweave-vpn-profi
 
 WireGuard's official quick-start documentation describes `wg setconf` configuration and `wg-quick` as an automation layer around ordinary interface and route setup. The official project description also separates WireGuard's cryptographic tunnel configuration from key distribution and ordinary route management. OriginWeave therefore treats interface/peer connectivity data as descriptive intent while refusing to inherit shell or route authority from profile text.
 
-For imported WireGuard/wg-quick-style text, the crate accepts bounded interface and peer connectivity fields and routes raw `PrivateKey` and `PresharedKey` material directly to the trusted secret importer. It rejects `PreUp`, `PostUp`, `PreDown`, `PostDown`, `SaveConfig`, and `Table`. The normalized result cannot execute those directives and does not itself create interfaces or routes.
+For imported WireGuard/wg-quick-style text, the crate accepts bounded interface and peer connectivity fields and completes a side-effect-free validation pass before raw `PrivateKey` or `PresharedKey` material reaches the caller-supplied trusted secret importer. During the real import pass, OriginWeave journals every returned opaque reference. If a later import or profile-construction step fails, it invokes `discard_secret` for those references in reverse order. Successful reverse-order rollback preserves the original typed failure; any cleanup failure returns `SecretCleanupFailed` so incomplete cleanup cannot be mistaken for a clean rejection. The parser rejects `PreUp`, `PostUp`, `PreDown`, `PostDown`, `SaveConfig`, and `Table`. The normalized result cannot execute those directives and does not itself create interfaces or routes.
 
-Primary source:
+Primary sources:
 
 WireGuard. (n.d.). *Quick start*. https://www.wireguard.com/quickstart/
 
@@ -22,7 +22,7 @@ RFC 4555 defines MOBIKE as an IKEv2 mobility and multihoming extension. Enabling
 
 RFC 7383 defines encrypted IKEv2 message fragmentation after negotiation. The normalized `Fragmentation` flag likewise records adapter intent and does not imply that the parser fragments packets.
 
-The first OriginWeave IKEv2 profile format is intentionally provider-neutral and strict. It carries gateway and IKE identities, authentication mode, one modern allow-listed proposal, bounded traffic selectors, MOBIKE/fragmentation booleans, and liveness/rekey timing. Raw PSK and EAP password material is immediately replaced by opaque secret references. Vendor-native Apple, Windows, NetworkManager, and strongSwan file formats are not silently treated as equivalent.
+The first OriginWeave IKEv2 profile format is intentionally provider-neutral and strict. It carries gateway and IKE identities, authentication mode, one modern allow-listed proposal, bounded traffic selectors, MOBIKE/fragmentation booleans, and liveness/rekey timing. As with WireGuard, a complete side-effect-free validation pass precedes caller-visible secret import. Raw PSK and EAP password material is replaced by opaque references, successful references are journaled, and later failure triggers reverse-order rollback through `discard_secret`. Vendor-native Apple, Windows, NetworkManager, and strongSwan file formats are not silently treated as equivalent.
 
 Primary sources:
 
@@ -34,4 +34,4 @@ Smyslov, V. (2014). *Internet key exchange protocol version 2 (IKEv2) message fr
 
 ## OriginWeave authority boundary
 
-The parser owns only bounded syntax validation, normalization, and secret replacement. A future privileged adapter remains responsible for operating-system installation, route/DNS changes, tunnel creation, IKE/IPsec negotiation, certificate handling, and teardown. Before any remote connection, OriginWeave destination/network policy must independently authorize the gateway; a value appearing in a VPN profile is never itself network authority.
+The parser owns only bounded syntax and semantic validation, normalization, secret replacement, and compensating cleanup orchestration. `discard_secret` is a cleanup hook over opaque references, not proof of an atomic secret-store transaction; `SecretCleanupFailed` requires trusted-store reconciliation. A future privileged adapter remains responsible for operating-system installation, route/DNS changes, tunnel creation, IKE/IPsec negotiation, certificate handling, and teardown. Before any remote connection, OriginWeave destination/network policy must independently authorize the gateway; a value appearing in a VPN profile is never itself network authority.
