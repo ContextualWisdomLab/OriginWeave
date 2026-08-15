@@ -91,7 +91,10 @@ fn supported_mcp_tools_map_to_exact_originweave_actions() -> Result<(), Box<dyn 
         let call = validate(tool_name)?;
         assert_eq!(call.tool_name(), tool_name);
         assert_eq!(call.action_kind(), expected_action);
-        assert_eq!(call.action_kind().required_capability(), expected_capability);
+        assert_eq!(
+            call.action_kind().required_capability(),
+            expected_capability
+        );
         assert_eq!(call.action_kind().risk_class(), expected_risk);
     }
     Ok(())
@@ -158,10 +161,7 @@ fn mcp_route_rejects_unbounded_malformed_and_unmapped_tool_names() {
         );
     }
 
-    assert_eq!(
-        validate(&at_limit),
-        Err(McpToolBoundaryError::UnknownTool)
-    );
+    assert_eq!(validate(&at_limit), Err(McpToolBoundaryError::UnknownTool));
     assert_eq!(
         validate("originweave.legal_consent"),
         Err(McpToolBoundaryError::UnknownTool)
