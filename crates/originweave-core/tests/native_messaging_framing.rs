@@ -2,7 +2,8 @@ use std::error::Error;
 
 use originweave_core::{
     NativeMessagingFrameDirection, NativeMessagingFrameError, decode_native_messaging_frame,
-    decode_native_messaging_text_frame, encode_native_messaging_frame, native_messaging_payload_limit,
+    decode_native_messaging_text_frame, encode_native_messaging_frame,
+    native_messaging_payload_limit,
 };
 
 const HOST_TO_BROWSER_LIMIT: usize = 1_048_576;
@@ -36,12 +37,11 @@ fn native_messaging_frame_round_trip_uses_native_u32_byte_length() -> Result<(),
 }
 
 #[test]
-fn native_messaging_text_frame_accepts_utf8_and_rejects_invalid_text() -> Result<(), Box<dyn Error>> {
+fn native_messaging_text_frame_accepts_utf8_and_rejects_invalid_text() -> Result<(), Box<dyn Error>>
+{
     let utf8_payload = "{\"message\":\"안녕 👋\"}".as_bytes();
-    let utf8_frame = encode_native_messaging_frame(
-        NativeMessagingFrameDirection::HostToBrowser,
-        utf8_payload,
-    )?;
+    let utf8_frame =
+        encode_native_messaging_frame(NativeMessagingFrameDirection::HostToBrowser, utf8_payload)?;
     assert_eq!(
         decode_native_messaging_text_frame(
             NativeMessagingFrameDirection::HostToBrowser,
@@ -50,10 +50,8 @@ fn native_messaging_text_frame_accepts_utf8_and_rejects_invalid_text() -> Result
         "{\"message\":\"안녕 👋\"}"
     );
 
-    let invalid_utf8_frame = encode_native_messaging_frame(
-        NativeMessagingFrameDirection::HostToBrowser,
-        &[0xff],
-    )?;
+    let invalid_utf8_frame =
+        encode_native_messaging_frame(NativeMessagingFrameDirection::HostToBrowser, &[0xff])?;
     assert_eq!(
         decode_native_messaging_text_frame(
             NativeMessagingFrameDirection::HostToBrowser,
