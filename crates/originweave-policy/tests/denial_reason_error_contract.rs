@@ -11,24 +11,12 @@ fn assert_source_free(error: &(dyn Error + 'static)) {
 fn denial_reasons_expose_stable_standard_error_contracts() {
     let cases = [
         (
-            DenialReason::HumanMode,
-            "human mode does not permit agent execution",
+            DenialReason::HumanModeNotAgentControlled,
+            "human mode does not grant autonomous agent control",
         ),
         (
             DenialReason::ModePurposeMismatch,
             "session mode and execution purpose are incompatible",
-        ),
-        (
-            DenialReason::CrawlerMutationForbidden,
-            "crawler mode forbids state-mutating actions",
-        ),
-        (
-            DenialReason::RobotsDenied,
-            "robots policy denies this crawl action",
-        ),
-        (
-            DenialReason::RobotsUnknown,
-            "robots policy is unknown for this crawl action",
         ),
         (
             DenialReason::UntrustedInstructionSource,
@@ -43,12 +31,28 @@ fn denial_reasons_expose_stable_standard_error_contracts() {
             "target origin is not readable under the current policy",
         ),
         (
-            DenialReason::OriginNotWritable,
-            "target origin is not writable under the current policy",
+            DenialReason::CrawlerMutation,
+            "crawler mode forbids state-mutating actions",
         ),
         (
             DenialReason::CrossOriginMutation,
             "cross-origin mutation requires separately authorized source and target origins",
+        ),
+        (
+            DenialReason::OriginNotWritable,
+            "target origin is not writable under the current policy",
+        ),
+        (
+            DenialReason::RobotsDisallowed,
+            "robots policy denies this public crawl",
+        ),
+        (
+            DenialReason::RobotsUnknown,
+            "robots policy is unknown for this public crawl",
+        ),
+        (
+            DenialReason::RobotsNotApplicable,
+            "public crawl requires an applicable robots policy decision",
         ),
         (
             DenialReason::SecretBrokerRequired,
@@ -59,12 +63,12 @@ fn denial_reasons_expose_stable_standard_error_contracts() {
             "non-secret action cannot carry secret material",
         ),
         (
-            DenialReason::SecretNotAllowedForPurpose,
-            "crawler and public-crawl purposes cannot use secret material",
+            DenialReason::ForbiddenRisk,
+            "action risk class is not delegable",
         ),
         (
-            DenialReason::LegalConsentForbidden,
-            "legal consent cannot be delegated to an agent",
+            DenialReason::ApprovalScopeMismatch,
+            "approval evidence does not authorize this action scope",
         ),
     ];
 
