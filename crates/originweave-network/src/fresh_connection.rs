@@ -144,9 +144,11 @@ impl FreshConnectionPlan {
 
 #[cfg(test)]
 mod tests {
+    use std::error::Error;
+
     use originweave_core::Origin;
 
-    use super::effective_origin_port;
+    use super::{NetworkError, effective_origin_port};
 
     #[test]
     fn effective_origin_port_covers_default_and_explicit_authorities() {
@@ -161,5 +163,20 @@ mod tests {
             let actual_port = Origin::parse(origin).map(|parsed| effective_origin_port(&parsed));
             assert_eq!(actual_port.ok(), Some(expected_port));
         }
+    }
+
+    #[test]
+    fn origin_port_mismatch_error_is_deterministic_and_source_free() {
+        let error = NetworkError::OriginPortMismatch {
+            requested_port: 8080,
+            expected_port: 80,
+        };
+
+        assert_eq!(
+            error.to_string(),
+            "socket port 8080 does not match canonical origin port 80"
+        );
+        assert!(error.source().is_none());
+        assert_eq!(error.attempt_count(), None);
     }
 }
