@@ -184,17 +184,17 @@ fn compatibility_connect_path_expires_from_real_monotonic_elapsed_time() -> Resu
 #[test]
 fn fresh_resolution_still_requires_valid_connection_parameters() -> Result<(), String> {
     let snapshot = fresh_default_loopback_snapshot()?;
-    let invalid_socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
+    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 80);
 
-    let result = FreshConnectionPlan::new(
-        &snapshot,
-        Duration::from_secs(12),
-        invalid_socket,
-        Duration::from_secs(1),
-        1,
-    );
+    let result = FreshConnectionPlan::new(&snapshot, Duration::from_secs(12), socket, Duration::ZERO, 1);
 
-    assert!(matches!(result, Err(NetworkError::InvalidPort)));
+    assert!(matches!(
+        result,
+        Err(NetworkError::InvalidConnectTimeout {
+            connect_timeout,
+            ..
+        }) if connect_timeout == Duration::ZERO
+    ));
     Ok(())
 }
 
