@@ -955,6 +955,18 @@ pub enum ExtensionIdError {
     InvalidExtensionId,
 }
 
+impl fmt::Display for ExtensionIdError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidExtensionId => formatter.write_str(
+                "extension identifier must be exactly 32 lowercase characters from a through p",
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ExtensionIdError {}
+
 /// An OriginWeave Agent capability that a browser extension may request explicitly.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ExtensionAgentCapability {
