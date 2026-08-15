@@ -220,8 +220,7 @@ impl VerifiedActionOutcomeEvidence {
     /// Return the caller-selected maximum accepted dispatch-to-observation delay.
     #[must_use]
     pub const fn maximum_observation_delay_milliseconds(&self) -> u64 {
-        self.observation
-            .maximum_observation_delay_milliseconds()
+        self.observation.maximum_observation_delay_milliseconds()
     }
 
     /// Return the exact provenance record that verified the post-condition.
