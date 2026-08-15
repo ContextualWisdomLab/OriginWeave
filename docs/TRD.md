@@ -17,25 +17,28 @@ This TRD defines technical invariants for OriginWeave without describing planned
 - **Proposed** — a candidate design that still needs a dedicated reviewed decision or implementation proof.
 - **Open** — deliberately unresolved.
 
-Pull-request code is not treated as Implemented until it reaches protected `main` and required acceptance evidence is re-established there.
+Pull-request code is not treated as Implemented until it reaches protected `main` and required acceptance evidence is re-established there. Active-PR implementation may be recorded in a separate evidence note, but it never creates a composite implementation status.
 
 ## 2. Current protected-main implementation inventory
 
-The current reusable Rust control plane is intentionally smaller than the final browser product.
+The current reusable Rust control plane is intentionally smaller than the final browser product. The status column describes protected `main` only; active PR evidence is kept in the final column.
 
-| Module | Current responsibility | Status |
-|---|---|---|
-| `originweave-core` | Canonical origin, typed actions, purpose/mode, capabilities, risk, secret-delivery and approval contracts. | **Implemented** |
-| `originweave-policy` | Pure fail-closed action-policy evaluation. | **Implemented** |
-| `originweave-destination` | Resolved-address classification, origin-bound snapshots, connection pinning, rebinding and redirect authority. | **Implemented** |
-| `originweave-network` | Direct single-address TCP connection plan and exact operating-system peer verification. | **Implemented** |
-| `originweave-tls` | WebPKI service identity over the already verified TCP stream. | **Implemented** |
-| `originweave-resource` | Deterministic resource budgets and cumulative mitigation plans. | **Implemented** |
-| `originweave-evidence` | Value-redacted network evidence and provenance foundations. | **Implemented** |
-| Browser/session/observation/action adapters | Chromium/BiDi/CDP integration and node-lifetime enforcement. | **Planned / active development** |
-| HTTP/proxy/PAC execution | Bounded HTTP and explicit route execution beyond pure foundations. | **Planned / active development** |
-| Secret broker persistence/runtime | Atomic opaque-handle lifecycle and trusted fill. | **Planned / active development** |
-| WARC/PROV persistence | Durable capture and provenance serialization. | **Planned** |
+| Module / boundary | Current responsibility | Protected-main status | Active/non-shipped evidence |
+|---|---|---|---|
+| `originweave-core` | Canonical origin, typed actions, purpose/mode, capabilities, risk, secret-delivery, approval, session/context/document/node authority values. | **Implemented** | PR #40 builds a protocol-ID registry on top of these values; it is not protected-main truth |
+| `originweave-policy` | Pure fail-closed action policy including purpose-bound sensitive-data authority. | **Implemented** | Trusted broker/runtime lifecycle remains separate planned work under issue #10 |
+| `originweave-destination` | Resolved-address classification, origin-bound snapshots, route authority, connection pinning, rebinding and redirect authority. | **Implemented** | PAC evaluation/proxy transport/CONNECT are still Planned |
+| `originweave-network` | Direct single-address TCP connection plan and exact operating-system peer verification. | **Implemented** | — |
+| `originweave-tls` | WebPKI service identity over the already verified TCP stream. | **Implemented** | — |
+| `originweave-resource` | Deterministic resource budgets, CPU-worker admission and cumulative mitigation plans. | **Implemented** | Platform telemetry/actuation remains Planned |
+| `originweave-evidence` | Value-redacted network evidence, provenance foundations and sensitive-access evidence primitives. | **Implemented** | Complete durable Evidence Trail/WARC/PROV persistence remains Planned |
+| Browser/session protocol registry | Bind raw BiDi/CDP identifiers to OriginWeave session/context/document authority. | **Planned** | Active PR #40; core lifetime value contracts are already Implemented under ADR 0010 |
+| Semantic observation/action browser adapters | Chromium/BiDi/CDP observation, node lifecycle, typed input and post-condition verification. | **Planned** | Issue #28 |
+| Bounded HTTP execution | HTTP/1.1 semantics over authenticated governed transport. | **Planned** | Active replacement PR #37; historical PR #11 is predecessor lineage, not current evidence |
+| Proxy/PAC execution | Evaluate authorized route selection and perform governed proxy/CONNECT transport. | **Planned** | Protected-main route-authority value foundation already exists |
+| Sensitive-data broker persistence/runtime | Atomic opaque-handle lifecycle, revocation/reservation, value resolution and trusted fill. | **Planned** | Protected-main policy/evidence foundations exist; issue #10 owns complete runtime lifecycle |
+| Manifest V3 compatibility program | Real pinned-Chromium extension compatibility and release matrix. | **Planned** | Protected main already contains partial real-browser evidence; active PR #43 adds downloads evidence |
+| WARC/PROV persistence | Durable capture and provenance serialization. | **Planned** | — |
 
 ## 3. Architectural invariants
 
@@ -69,7 +72,7 @@ A **logical origin** is not a **resolved destination** decision. A resolved addr
 
 ### TRD-INV-003 — Untrusted page content
 
-Browser content, rendered text, hidden text, comments, ads, WebMCP output, network bodies, downloads, and model-produced summaries are data. They cannot mutate system policy, expand capabilities, authorize destinations, reveal secrets, or redefine the user's goal.
+Browser content, rendered text, hidden text, comments, ads, WebMCP output, network bodies, downloads, extension messages, and model-produced summaries are data. They cannot mutate system policy, expand capabilities, authorize destinations, reveal secrets, or redefine the user's goal.
 
 ### TRD-INV-004 — Secret separation
 
@@ -87,23 +90,23 @@ A typed action may be attempted only after exact current authority is validated.
 
 ### Assist Mode
 
-**Accepted architecture; Planned adapter path.** Reversible/read behavior may be automated. Irreversible or externally visible state changes re-enter the risk/approval pipeline.
+**Accepted architecture.** Reversible/read behavior may be automated. Irreversible or externally visible state changes re-enter the risk/approval pipeline. The browser adapter path remains Planned.
 
 ### Agent Task Mode
 
-**Accepted architecture; Planned adapter path.** Each delegated task receives an isolated or explicitly attached browser context, scoped capabilities, origins, secrets, policy and resource budgets. The unrestricted default human profile is not ambient task authority.
+**Accepted architecture.** Each delegated task receives an isolated or explicitly attached browser context, scoped capabilities, origins, secrets, policy and resource budgets. The unrestricted default human profile is not ambient task authority. Complete browser adapter/session integration remains Planned.
 
 ### Crawler Mode
 
-**Accepted architecture; policy foundation Implemented.** Crawler actions are read-only. Robots evidence, rate controls, purpose, privacy, retention and legal/contract policy are distinct checks.
+**Accepted architecture.** The read-only crawler policy foundation is Implemented, while the complete crawler runtime is Planned. Robots evidence, rate controls, purpose, privacy, retention and legal/contract policy are distinct checks.
 
 ## 5. Identifier and lifetime contracts
 
 ### 5.1 Core identifiers
 
-Durable identifiers introduced by adapters must be opaque and nonzero/nonempty. External browser identifiers are translated through scoped registries instead of becoming the core authority value directly.
+Protected-main core contracts already define opaque browser-session, browsing-context, document-epoch and observed-node authority values governed by Accepted ADR 0010. External browser identifiers must be translated through scoped registries instead of becoming core authority directly. The protocol-ID registry is active PR #40 evidence until protected integration.
 
-Planned browser-lifetime tuple:
+Required browser-lifetime tuple:
 
 ```text
 browser_session_id
@@ -117,7 +120,7 @@ An actionable node reference is valid only when every component matches the live
 
 ### 5.2 Document epochs
 
-Navigation, document replacement, or another adapter-defined actionable-document lifetime change rotates `document_epoch`. A stale node reference must fail deterministically before input dispatch.
+Navigation, document replacement, or another adapter-defined actionable-document lifetime change rotates `document_epoch`. A stale node reference must fail deterministically before input dispatch. Core exact-authority validation is Implemented; real browser lifecycle invalidation/linearized dispatch remains adapter work.
 
 ### 5.3 Idempotency
 
@@ -145,7 +148,7 @@ The pure destination crate itself does no DNS lookup.
 
 ### 6.3 Route/proxy authority
 
-**Accepted architecture; active development.** Direct routing is the default. Proxy and PAC-selected routes require explicit authority. A proxy is an intermediate authority and never replaces final-target authorization. Ambient environment proxy variables cannot silently change the governed route.
+**Protected-main status: Implemented for route-authority foundations. Proxy/PAC execution: Planned.** Direct routing is the default. Proxy and PAC-selected routes require explicit authority. A proxy is an intermediate authority and never replaces final-target authorization. Ambient environment proxy variables cannot silently change the governed route. PAC evaluation, proxy transport and CONNECT require separate execution evidence before release claims.
 
 ### 6.4 Direct transport
 
@@ -157,7 +160,9 @@ The pure destination crate itself does no DNS lookup.
 
 ### 6.6 HTTP semantics
 
-**Accepted architecture; active development.** HTTP processing must consume an authenticated governed connection and define:
+**Protected-main status: Planned.** Active replacement PR #37 implements bounded HTTP/1.1 semantics but remains non-shipped evidence until protected integration. Historical PR #11 is predecessor lineage and is not current implementation evidence.
+
+HTTP processing must consume an authenticated governed connection and define:
 
 - supported methods and caller-controlled fields;
 - syntax/framing rules;
@@ -200,7 +205,7 @@ Raw HTML is not the default model payload.
 
 ## 8. Action architecture
 
-Standard action vocabulary is **Accepted architecture / Planned runtime integration**:
+The standard action vocabulary is **Accepted architecture**; complete real-browser runtime integration remains Planned:
 
 ```text
 navigate
@@ -241,7 +246,7 @@ The adapter declares an observable post-condition contract, such as URL change, 
 
 ### 9.1 Purpose-bound authority
 
-**Active development.** Protected disclosure authority is represented as one value object/scoped record containing tenant, task, field, business purpose, canonical destination and data classification. Reclassification requires newly valid authority.
+**Implemented policy foundation.** Protected disclosure authority binds tenant, task, field, business purpose, canonical destination and data classification under Accepted ADR 0007. This implementation does not imply that trusted value storage, opaque-handle resolution, revocation or browser fill are complete.
 
 ### 9.2 Opaque handle broker
 
@@ -256,15 +261,17 @@ The adapter declares an observable post-condition contract, such as URL change, 
 - value resolution/fill;
 - compensation/recovery after reserved-but-failed use.
 
+Issue #10 owns the broader broker/storage/lifecycle completion.
+
 ### 9.3 Evidence
 
-Access/disclosure evidence records identifiers, scope, decision, approval reference, policy version and lifecycle times without carrying the protected value.
+Protected-main evidence primitives can record purpose-bound sensitive-access authority without carrying the protected value. Complete broker-use receipts must remain aligned with the runtime lifecycle once that broker exists.
 
 ## 10. Resource-governor requirements
 
 ### 10.1 Deterministic kernel
 
-**Implemented foundation.** `originweave-resource` validates budgets and produces a cumulative mitigation plan. It does not sample the operating system or directly schedule processes.
+**Implemented.** `originweave-resource` validates budgets, includes CPU-worker admission state, and produces a cumulative mitigation plan. It does not sample the operating system or directly schedule processes.
 
 ### 10.2 Adapter telemetry
 
@@ -276,7 +283,7 @@ Access/disclosure evidence records identifiers, scope, decision, approval refere
 
 ### 10.4 Constrained GPU
 
-**Accepted architecture / Planned implementation.** Rendering and local model inference use phase scheduling where necessary. The mitigation ladder can shrink model batches, release inference caches, offload to CPU, pause the task and reject admission before foreground rendering is sacrificed.
+**Accepted architecture.** Rendering and local model inference use phase scheduling where necessary. The implementation of platform GPU telemetry/scheduling remains Planned. The mitigation ladder can shrink model batches, release inference caches, offload to CPU, pause the task and reject admission before foreground rendering is sacrificed.
 
 ## 11. Evidence and provenance requirements
 
@@ -310,7 +317,7 @@ Generic network evidence retains bounded names and canonical locators while valu
 
 ### WebDriver BiDi
 
-**Planned.** WebDriver BiDi is an evolving W3C adapter contract. Its session/user-context/browsing-context identifiers are translated into OriginWeave-scoped internal identities. Protocol evolution is isolated behind versioned adapter tests.
+**Planned.** WebDriver BiDi is an evolving W3C adapter contract. Its session/user-context/browsing-context identifiers are translated into OriginWeave-scoped internal identities. Core lifetime authority is already Implemented; active PR #40 is non-shipped registry implementation evidence.
 
 ### Chrome DevTools Protocol
 
@@ -318,7 +325,7 @@ Generic network evidence retains bounded names and canonical locators while valu
 
 ### WebMCP
 
-**Planned / experimental external dependency.** **WebMCP** can provide typed page tools. Tool schemas and outputs remain untrusted page-originated data and cannot grant OriginWeave authority.
+**Planned.** **WebMCP** is an experimental external dependency that can provide typed page tools. Tool schemas and outputs remain untrusted page-originated data and cannot grant OriginWeave authority.
 
 ### Model Context Protocol
 
@@ -330,9 +337,9 @@ Generic network evidence retains bounded names and canonical locators while valu
 
 ## 13. Manifest V3 extension requirements
 
-**Accepted architecture / Planned compatibility program.** OriginWeave preserves Chromium's extension implementation rather than rebuilding Chrome APIs in Rust. Agent authority remains separate from ordinary extension permissions. A future signed policy registry controls which extensions may observe or propose agent actions.
+The complete compatibility program is **Planned** under issue #27, while partial real-browser evidence exists on protected main. OriginWeave preserves Chromium's extension implementation rather than rebuilding Chrome APIs in Rust. Agent authority remains separate from ordinary extension permissions. Proposed ADR 0013 documents this separation but is not Accepted design authority until reviewed/integrated accordingly.
 
-Compatibility acceptance includes installation/update, extension service-worker lifecycle, content scripts, storage, scripting, DNR, native messaging, downloads, side panel, restart persistence and explicit task-mode isolation.
+Protected-main pinned-Chromium evidence currently exercises service-worker lifecycle, content scripts, storage, declarativeNetRequest, tabs, windows, scripting, commands, side panel, bookmarks, history, restart persistence and repeatability. Active PR #43 adds a bounded real `chrome.downloads` path and allowlisted download-stage failure evidence. Installation/update, native messaging, managed-extension/enterprise policy, broader isolation, Web Store and release-wide compatibility remain outside the current protected-main claim.
 
 ## 14. Prompt-injection and model boundary
 
@@ -386,6 +393,7 @@ Long-running tasks and external model calls require cancellation semantics that 
 - Node/action validation occurs immediately before execution to close stale-state races.
 - Sensitive-handle use becomes atomic in the trusted broker.
 - Migration/release/automation writer leases prevent competing repository writers.
+- Repository-scoped collision-sensitive identifiers such as ADR numbers, migration IDs and protocol/schema versions are reserved across protected main plus active work before allocation.
 - Platform compute pools avoid avoidable oversubscription between Chromium, Rust and model runtimes.
 
 ## 17. Persistence and data naming
@@ -407,7 +415,7 @@ network_exchange
 download_artifact
 ```
 
-The conceptual model is defined in [`erd/README.md`](erd/README.md). Adapters may use WARC/object storage/relational stores independently; cross-service application database access is not an integration contract.
+The conceptual model is defined in [`erd/README.md`](erd/README.md). Adapters may use WARC/object storage/relational stores independently; cross-service application database access is not an integration contract. Conceptual ERD entities are not evidence that a physical relational schema exists.
 
 ## 18. Security and enterprise controls
 
@@ -423,11 +431,15 @@ Product UI targets WCAG 2.2 AA / ISO/IEC 40500:2025-aligned evidence. Approval, 
 
 ### Implemented kernels
 
-Require deterministic unit/property/integration tests for canonicalization, classification, rebinding, redirects, direct peers, TLS identity, policy, resources and evidence.
+Require deterministic unit/property/integration tests for canonicalization, classification, rebinding, redirects, route authority, direct peers, TLS identity, policy, session/node authority values, resources and evidence.
 
 ### Browser vertical slice
 
-Requires real browser integration tests covering isolated contexts, stale nodes, iframes/shadow DOM where supported, origin changes, typed actions, post-conditions, crashes, cancellations and governed real network composition.
+Requires real browser integration tests covering isolated contexts, protocol-ID registry binding, stale nodes, iframes/shadow DOM where supported, origin changes, typed actions, post-conditions, crashes, cancellations and governed real network composition.
+
+### Manifest V3 compatibility
+
+Maintain pinned real-Chromium evidence for every claimed extension surface, with restart/repeatability and bounded failure diagnostics. Compatibility evidence and Agent-authority evidence are independent: neither can substitute for the other.
 
 ### Security
 
@@ -482,4 +494,4 @@ A material change to any of the following must update the authoritative document
 - enterprise privacy/security/tenancy contract;
 - release acceptance or rollback semantics.
 
-If a decision is not implemented, the documentation must retain `Planned`, `Proposed`, or `Open` status rather than silently describe it as shipped.
+If a decision is not implemented, the documentation must retain `Planned`, `Proposed`, or `Open` status rather than silently describe it as shipped. Active PR evidence remains explicitly non-shipped until protected integration and exact acceptance evidence exist.
