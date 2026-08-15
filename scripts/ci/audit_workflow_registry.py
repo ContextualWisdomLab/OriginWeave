@@ -344,6 +344,12 @@ def _reject_duplicate_object_members(pairs: list[tuple[str, Any]]) -> dict[str, 
     return result
 
 
+def _reject_nonstandard_json_constant(value: str) -> Any:
+    """Reject numeric constants that standards-conforming JSON does not define."""
+
+    raise json.JSONDecodeError("non-standard JSON numeric constant", value, 0)
+
+
 def _read_payload(path: pathlib.Path) -> dict[str, Any]:
     """Read at most four mebibytes of unambiguous UTF-8 JSON audit evidence."""
 
@@ -358,6 +364,7 @@ def _read_payload(path: pathlib.Path) -> dict[str, Any]:
         parsed = json.loads(
             content.decode("utf-8"),
             object_pairs_hook=_reject_duplicate_object_members,
+            parse_constant=_reject_nonstandard_json_constant,
         )
     except (UnicodeError, json.JSONDecodeError, RecursionError) as error:
         raise WorkflowAuditError("input is not readable UTF-8 JSON") from error
