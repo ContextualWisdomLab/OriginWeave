@@ -188,6 +188,26 @@ fn signature_table_classifies_active_archival_image_text_and_binary_content() {
 }
 
 #[test]
+fn short_html_signatures_require_tag_termination() {
+    for content in [
+        b"<article>not an anchor signature</article>".as_slice(),
+        b"<audio>not an anchor signature</audio>",
+        b"<basefont>not a bold signature</basefont>",
+        b"<picture>not a paragraph signature</picture>",
+    ] {
+        let observed = classify_observed_mime(content, None);
+        assert_eq!(observed.mime_type().essence(), "text/plain");
+        assert_eq!(observed.risk_class(), ContentRiskClass::Passive);
+    }
+
+    for content in [b"<a href=\"/\">link</a>".as_slice(), b"<b>bold</b>", b"<p paragraph>text</p>"] {
+        let observed = classify_observed_mime(content, None);
+        assert_eq!(observed.mime_type().essence(), "text/html");
+        assert_eq!(observed.risk_class(), ContentRiskClass::ActiveOrScriptable);
+    }
+}
+
+#[test]
 fn active_mime_aliases_share_the_same_downstream_risk_class() {
     for essence in [
         "text/html",
