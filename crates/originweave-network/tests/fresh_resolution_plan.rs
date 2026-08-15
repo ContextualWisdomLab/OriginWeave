@@ -1,4 +1,4 @@
-use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpListener};
 use std::thread;
 use std::time::Duration;
 
@@ -218,6 +218,39 @@ fn connection_plan_rejects_socket_port_that_changes_default_origin() -> Result<(
     );
 
     assert!(matches!(result, Err(NetworkError::InvalidPort)));
+    Ok(())
+}
+
+#[test]
+fn connection_plan_enforces_default_https_port_for_ipv6_origin() -> Result<(), String> {
+    let origin = Origin::parse("https://[::1]")
+        .map_err(|error| format!("default HTTPS IPv6 origin fixture is invalid: {error:?}"))?;
+    let snapshot = FreshResolutionSnapshot::approve(
+        origin,
+        [IpAddr::V6(Ipv6Addr::LOCALHOST)],
+        &DestinationPolicy::from_allowed_classes([AddressClass::Loopback]),
+        Duration::from_secs(10),
+        Duration::from_secs(5),
+    )
+    .map_err(|error| format!("fresh HTTPS IPv6 snapshot is invalid: {error}"))?;
+
+    let authorized = FreshConnectionPlan::new(
+        &snapshot,
+        Duration::from_secs(12),
+        SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), 443),
+        Duration::from_secs(1),
+        1,
+    );
+    assert!(authorized.is_ok());
+
+    let wrong_port = FreshConnectionPlan::new(
+        &snapshot,
+        Duration::from_secs(12),
+        SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), 444),
+        Duration::from_secs(1),
+        1,
+    );
+    assert!(matches!(wrong_port, Err(NetworkError::InvalidPort)));
     Ok(())
 }
 
