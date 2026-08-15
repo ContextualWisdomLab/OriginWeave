@@ -259,11 +259,11 @@ impl fmt::Display for OriginError {
             Self::InvalidAuthority => {
                 formatter.write_str("origin authority is malformed or ambiguous")
             }
-            Self::AmbiguousNumericHost => formatter.write_str(
-                "origin host uses an ambiguous browser-style numeric address spelling",
-            ),
-            Self::InvalidPort => formatter
-                .write_str("origin port must be a nonzero numeric value within 1..=65535"),
+            Self::AmbiguousNumericHost => formatter
+                .write_str("origin host uses an ambiguous browser-style numeric address spelling"),
+            Self::InvalidPort => {
+                formatter.write_str("origin port must be a nonzero numeric value within 1..=65535")
+            }
         }
     }
 }
@@ -446,7 +446,7 @@ pub enum NodeHandleError {
     BrowsingContextMismatch {
         /// Context that originally produced the node handle.
         observed: BrowsingContextId,
-        /// Context currently active for the requested action.
+        /// Context currently active in the browser context.
         current: BrowsingContextId,
     },
     /// The browser context is now at a different canonical origin.
