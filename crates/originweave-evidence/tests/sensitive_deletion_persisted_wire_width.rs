@@ -23,8 +23,10 @@ fn persisted_declared_copy_count_is_fixed_width_and_still_bounded() {
 
     assert_eq!(
         SensitiveDeletionPersistedCommitment::try_from(input),
-        Err(SensitiveDeletionPersistedCommitmentError::InvalidCommitment(
-            SensitiveDeletionInventoryCommitmentError::InvalidDeclaredCopyCount,
-        ))
+        Err(
+            SensitiveDeletionPersistedCommitmentError::InvalidCommitment(
+                SensitiveDeletionInventoryCommitmentError::InvalidDeclaredCopyCount,
+            )
+        )
     );
 }
