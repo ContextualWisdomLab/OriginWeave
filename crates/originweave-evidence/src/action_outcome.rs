@@ -121,10 +121,12 @@ impl VerifiedActionOutcomeEvidence {
         }
         let elapsed_milliseconds = observed_at_milliseconds - dispatched_at_milliseconds;
         if elapsed_milliseconds > maximum_observation_delay_milliseconds {
-            return Err(VerifiedActionOutcomeError::PostConditionObservationExpired {
-                elapsed_milliseconds,
-                maximum_observation_delay_milliseconds,
-            });
+            return Err(
+                VerifiedActionOutcomeError::PostConditionObservationExpired {
+                    elapsed_milliseconds,
+                    maximum_observation_delay_milliseconds,
+                },
+            );
         }
         Ok(Self {
             action,
