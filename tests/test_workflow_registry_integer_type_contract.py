@@ -75,6 +75,22 @@ class WorkflowRegistryIntegerTypeContractTests(unittest.TestCase):
         with self.assertRaises(self.audit.WorkflowAuditError):
             self.audit.audit_workflow_registry(payload)
 
+    def test_workflow_id_above_unsigned_64_bit_range_is_rejected(self) -> None:
+        """Audit evidence must not preserve a workflow ID wider than the reviewed u64 bound."""
+
+        payload = _payload()
+        payload["reported_total_count"] = 1
+        payload["registry_pages"][0]["workflows"] = [
+            {
+                "id": 18_446_744_073_709_551_616,
+                "name": "oversized-id",
+                "path": ".github/workflows/oversized-id.yml",
+                "state": "active",
+            }
+        ]
+        with self.assertRaises(self.audit.WorkflowAuditError):
+            self.audit.audit_workflow_registry(payload)
+
 
 if __name__ == "__main__":
     unittest.main()
