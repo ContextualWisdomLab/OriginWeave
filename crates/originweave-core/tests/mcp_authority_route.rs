@@ -1,10 +1,10 @@
 use std::error::Error;
 
-use originweave_core::ActionKind;
 use originweave_core::mcp::{
     MAX_MCP_TOOL_NAME_BYTES, MCP_PROTOCOL_VERSION, MCP_TOOLS_CALL_METHOD, McpToolBoundaryError,
     ValidatedMcpToolCall,
 };
+use originweave_core::{ActionKind, Capability, RiskClass};
 
 fn validate(tool_name: &str) -> Result<ValidatedMcpToolCall, McpToolBoundaryError> {
     ValidatedMcpToolCall::new(
@@ -19,34 +19,80 @@ fn validate(tool_name: &str) -> Result<ValidatedMcpToolCall, McpToolBoundaryErro
 #[test]
 fn supported_mcp_tools_map_to_exact_originweave_actions() -> Result<(), Box<dyn Error>> {
     let cases = [
-        ("originweave.observe", ActionKind::Observe),
-        ("originweave.extract", ActionKind::Extract),
-        ("originweave.navigate", ActionKind::Navigate),
-        ("originweave.download", ActionKind::Download),
-        ("originweave.draft", ActionKind::Draft),
-        ("originweave.submit", ActionKind::Submit),
-        ("originweave.upload", ActionKind::Upload),
-        ("originweave.fill_secret", ActionKind::FillSecret),
-        ("originweave.purchase", ActionKind::Purchase),
-        ("originweave.delete", ActionKind::Delete),
+        (
+            "originweave.observe",
+            ActionKind::Observe,
+            Capability::Observe,
+            RiskClass::R0,
+        ),
+        (
+            "originweave.extract",
+            ActionKind::Extract,
+            Capability::Extract,
+            RiskClass::R0,
+        ),
+        (
+            "originweave.navigate",
+            ActionKind::Navigate,
+            Capability::Navigate,
+            RiskClass::R1,
+        ),
+        (
+            "originweave.download",
+            ActionKind::Download,
+            Capability::Download,
+            RiskClass::R1,
+        ),
+        (
+            "originweave.draft",
+            ActionKind::Draft,
+            Capability::Draft,
+            RiskClass::R2,
+        ),
+        (
+            "originweave.submit",
+            ActionKind::Submit,
+            Capability::Submit,
+            RiskClass::R3,
+        ),
+        (
+            "originweave.upload",
+            ActionKind::Upload,
+            Capability::Upload,
+            RiskClass::R3,
+        ),
+        (
+            "originweave.fill_secret",
+            ActionKind::FillSecret,
+            Capability::FillSecret,
+            RiskClass::R3,
+        ),
+        (
+            "originweave.purchase",
+            ActionKind::Purchase,
+            Capability::Purchase,
+            RiskClass::R4,
+        ),
+        (
+            "originweave.delete",
+            ActionKind::Delete,
+            Capability::Delete,
+            RiskClass::R4,
+        ),
         (
             "originweave.manage_permission",
             ActionKind::ManagePermission,
+            Capability::ManagePermission,
+            RiskClass::R4,
         ),
     ];
 
-    for (tool_name, expected_action) in cases {
+    for (tool_name, expected_action, expected_capability, expected_risk) in cases {
         let call = validate(tool_name)?;
         assert_eq!(call.tool_name(), tool_name);
         assert_eq!(call.action_kind(), expected_action);
-        assert_eq!(
-            call.action_kind().required_capability(),
-            expected_action.required_capability()
-        );
-        assert_eq!(
-            call.action_kind().risk_class(),
-            expected_action.risk_class()
-        );
+        assert_eq!(call.action_kind().required_capability(), expected_capability);
+        assert_eq!(call.action_kind().risk_class(), expected_risk);
     }
     Ok(())
 }
@@ -97,6 +143,7 @@ fn mcp_route_rejects_protocol_header_body_and_method_drift() {
 
 #[test]
 fn mcp_route_rejects_unbounded_malformed_and_unmapped_tool_names() {
+    let at_limit = "x".repeat(MAX_MCP_TOOL_NAME_BYTES);
     let oversized = "x".repeat(MAX_MCP_TOOL_NAME_BYTES + 1);
     for tool_name in [
         "",
@@ -111,6 +158,10 @@ fn mcp_route_rejects_unbounded_malformed_and_unmapped_tool_names() {
         );
     }
 
+    assert_eq!(
+        validate(&at_limit),
+        Err(McpToolBoundaryError::UnknownTool)
+    );
     assert_eq!(
         validate("originweave.legal_consent"),
         Err(McpToolBoundaryError::UnknownTool)
