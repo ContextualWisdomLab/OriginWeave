@@ -207,18 +207,14 @@ impl SensitiveDeletionPersistedCommitment {
         }
 
         let mut cursor = PERSISTED_COMMITMENT_WIRE_DOMAIN.len();
-        let commitment_version = parse_canonical_wire_u16(read_persisted_wire_field(
-            wire,
-            &mut cursor,
-        )?)?;
+        let commitment_version =
+            parse_canonical_wire_u16(read_persisted_wire_field(wire, &mut cursor)?)?;
         let request_id = parse_persisted_wire_text(read_persisted_wire_field(wire, &mut cursor)?)?;
         let tenant_id = parse_persisted_wire_text(read_persisted_wire_field(wire, &mut cursor)?)?;
         let retention_policy_id =
             parse_persisted_wire_text(read_persisted_wire_field(wire, &mut cursor)?)?;
-        let declared_copy_count = parse_canonical_wire_u16(read_persisted_wire_field(
-            wire,
-            &mut cursor,
-        )?)?;
+        let declared_copy_count =
+            parse_canonical_wire_u16(read_persisted_wire_field(wire, &mut cursor)?)?;
         let inventory_digest =
             parse_persisted_wire_text(read_persisted_wire_field(wire, &mut cursor)?)?;
 
@@ -262,9 +258,9 @@ fn read_persisted_wire_field<'a>(
         return Err(SensitiveDeletionPersistedCommitmentError::InvalidWireEncoding);
     }
 
-    let field_length = length_bytes.iter().fold(0usize, |value, byte| {
-        value * 10 + usize::from(*byte - b'0')
-    });
+    let field_length = length_bytes
+        .iter()
+        .fold(0usize, |value, byte| value * 10 + usize::from(*byte - b'0'));
     let field_start = *cursor + delimiter_offset + 1;
     if field_length > wire.len().saturating_sub(field_start) {
         return Err(SensitiveDeletionPersistedCommitmentError::InvalidWireEncoding);
@@ -284,9 +280,9 @@ fn parse_canonical_wire_u16(
     {
         return Err(SensitiveDeletionPersistedCommitmentError::InvalidWireEncoding);
     }
-    let value = field.iter().fold(0u32, |value, byte| {
-        value * 10 + u32::from(*byte - b'0')
-    });
+    let value = field
+        .iter()
+        .fold(0u32, |value, byte| value * 10 + u32::from(*byte - b'0'));
     u16::try_from(value).map_err(|_| SensitiveDeletionPersistedCommitmentError::InvalidWireEncoding)
 }
 
