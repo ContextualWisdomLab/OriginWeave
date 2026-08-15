@@ -132,10 +132,12 @@ impl SensitiveDeletionPersistedCommitment {
     }
 
     /// Return the exact declared-copy count bound to the enclosed commitment.
+    ///
+    /// Construction limits this value to at most 256, so conversion to the
+    /// fixed-width persisted representation is lossless.
     #[must_use]
-    pub fn declared_copy_count(&self) -> u16 {
-        u16::try_from(self.commitment.declared_copy_count())
-            .unwrap_or(MAX_SENSITIVE_DELETION_RECEIPT_SET_ENTRIES as u16)
+    pub const fn declared_copy_count(&self) -> u16 {
+        self.commitment.declared_copy_count() as u16
     }
 
     /// Return the canonical lowercase SHA-256 inventory digest.
