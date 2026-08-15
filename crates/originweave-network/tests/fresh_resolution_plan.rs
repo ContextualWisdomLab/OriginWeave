@@ -7,7 +7,7 @@ use originweave_core::Origin;
 use originweave_destination::{
     AddressClass, DestinationError, DestinationPolicy, FreshResolutionSnapshot,
 };
-use originweave_network::{FreshConnectionPlan, NetworkError};
+use originweave_network::{FreshConnectionPlan, MAX_CONNECTION_ATTEMPTS, NetworkError};
 
 fn fresh_loopback_snapshot_for_port(port: u16) -> Result<FreshResolutionSnapshot, String> {
     let origin = Origin::parse(&format!("http://localhost:{port}"))
@@ -187,20 +187,74 @@ fn fresh_resolution_still_requires_valid_connection_parameters() -> Result<(), S
     let snapshot = fresh_default_loopback_snapshot()?;
     let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 80);
 
-    let result = FreshConnectionPlan::new(
+    let zero_timeout = FreshConnectionPlan::new(
         &snapshot,
         Duration::from_secs(12),
         socket,
         Duration::ZERO,
         1,
     );
-
     assert!(matches!(
-        result,
+        zero_timeout,
         Err(NetworkError::InvalidConnectTimeout {
             connect_timeout,
             ..
         }) if connect_timeout == Duration::ZERO
+    ));
+
+    let zero_attempts = FreshConnectionPlan::new(
+        &snapshot,
+        Duration::from_secs(12),
+        socket,
+        Duration::from_secs(1),
+        0,
+    );
+    assert!(matches!(
+        zero_attempts,
+        Err(NetworkError::InvalidAttemptCount {
+            attempt_count: 0,
+            ..
+        })
+    ));
+
+    let excessive_attempts = FreshConnectionPlan::new(
+        &snapshot,
+        Duration::from_secs(12),
+        socket,
+        Duration::from_secs(1),
+        MAX_CONNECTION_ATTEMPTS + 1,
+    );
+    assert!(matches!(
+        excessive_attempts,
+        Err(NetworkError::InvalidAttemptCount {
+            attempt_count,
+            maximum_attempts: MAX_CONNECTION_ATTEMPTS,
+        }) if attempt_count == MAX_CONNECTION_ATTEMPTS + 1
+    ));
+    Ok(())
+}
+
+#[test]
+fn fresh_resolution_rejects_noncanonical_mapped_socket() -> Result<(), String> {
+    let snapshot = fresh_default_loopback_snapshot()?;
+    let mapped_loopback = Ipv6Addr::new(0, 0, 0, 0, 0, 0xffff, 0x7f00, 1);
+    let socket = SocketAddr::new(IpAddr::V6(mapped_loopback), 80);
+
+    let result = FreshConnectionPlan::new(
+        &snapshot,
+        Duration::from_secs(12),
+        socket,
+        Duration::from_secs(1),
+        1,
+    );
+
+    assert!(matches!(
+        result,
+        Err(NetworkError::NonCanonicalSocketAddress {
+            socket_address,
+            canonical_address,
+        }) if socket_address == socket
+            && canonical_address == IpAddr::V4(Ipv4Addr::LOCALHOST)
     ));
     Ok(())
 }
