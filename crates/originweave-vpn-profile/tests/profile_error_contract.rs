@@ -1,4 +1,4 @@
-use originweave_vpn_profile::ProfileError;
+use originweave_vpn_profile::{ProfileError, SecretReference};
 
 fn assert_standard_error<T: std::error::Error + Send + Sync + 'static>() {}
 
@@ -46,4 +46,26 @@ fn profile_error_is_a_standard_error_with_stable_nonsecret_display() {
         assert_eq!(error.to_string(), expected);
         assert!(std::error::Error::source(&error).is_none());
     }
+}
+
+#[test]
+fn secret_reference_rejects_log_injection_and_ambiguous_whitespace() {
+    for reference in [
+        "secret://tenant/item\nforged-log-line",
+        "secret://tenant/item\tforged-column",
+        "\u{202e}secret://tenant/item",
+        " secret://tenant/item",
+        "secret://tenant/item ",
+    ] {
+        assert_eq!(
+            SecretReference::new(reference),
+            Err(ProfileError::InvalidSecretReference)
+        );
+    }
+
+    assert_eq!(
+        SecretReference::new("secret://tenant/item")
+            .map(|reference| reference.as_str().to_owned()),
+        Ok("secret://tenant/item".to_owned())
+    );
 }
