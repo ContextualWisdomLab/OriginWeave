@@ -16,6 +16,8 @@ fn provenance_rejects_control_and_invisible_formatting_characters_in_source_loca
         "body\u{00ad}forged-record",
         "body\u{061c}forged-record",
         "body\u{200b}forged-record",
+        "body\u{2028}forged-record",
+        "body\u{2029}forged-record",
         "body\u{202e}forged-record",
         "body\u{2066}forged-record",
         "body\u{2060}forged-record",
