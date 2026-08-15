@@ -243,9 +243,9 @@ fn read_persisted_wire_field<'a>(
     wire: &'a [u8],
     cursor: &mut usize,
 ) -> Result<&'a [u8], SensitiveDeletionPersistedCommitmentError> {
-    let remaining = wire
-        .get(*cursor..)
-        .ok_or(SensitiveDeletionPersistedCommitmentError::InvalidWireEncoding)?;
+    // The cursor starts immediately after the already-validated domain separator and is updated
+    // only to a field end that has been proven to lie within `wire` below.
+    let remaining = &wire[*cursor..];
     let Some(delimiter_offset) = remaining.iter().position(|byte| *byte == b':') else {
         return Err(SensitiveDeletionPersistedCommitmentError::InvalidWireEncoding);
     };
