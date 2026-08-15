@@ -7,7 +7,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 ### Added
 
 - Rust workspace for independently reusable core, policy, destination, network, TLS, resource, and evidence modules.
-- Bounded Chrome native-messaging framing with native-endian 32-bit byte lengths, direction-specific 1 MiB host-to-browser and 64 MiB browser-to-host payload ceilings, and fail-closed rejection of oversized, truncated, or trailing frame data without granting Agent authority.
+- Bounded Chrome native-messaging framing with native-endian 32-bit byte lengths, direction-specific 1 MiB host-to-browser and 64 MiB browser-to-host payload ceilings, fail-closed rejection of oversized, truncated, or trailing frame data, and explicit UTF-8 payload validation before framed bytes can be treated as native-messaging text, without granting Agent authority or claiming JSON trust.
 - Canonical HTTPS and loopback-origin boundary with case-normalized schemes and hosts, default-port normalization, IPv4/IPv6 handling, browser-special numeric-host rejection, and explicit malformed-input errors.
 - Typed browser actions, capabilities, risk classes, execution modes, robots decisions, secret-delivery contracts, immutable canonical action-intent digests, and intent-bound approval scopes.
 - Deterministic fail-closed policy evaluation for untrusted instructions, origin grants, crawler restrictions, execution-mode and purpose consistency, approvals, and brokered secrets.
