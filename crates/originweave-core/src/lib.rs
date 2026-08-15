@@ -422,7 +422,7 @@ pub enum NodeHandleError {
     StaleDocumentEpoch {
         /// Epoch that originally produced the node handle.
         observed: DocumentEpoch,
-        /// Epoch currently active for the requested action.
+        /// Epoch currently active in the browser context.
         current: DocumentEpoch,
     },
 }
