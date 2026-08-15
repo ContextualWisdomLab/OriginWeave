@@ -53,6 +53,29 @@ class WorkflowRegistryDuplicateJsonContractTests(unittest.TestCase):
             ):
                 self.audit._read_payload(path)
 
+    def test_nonstandard_nan_constant_fails_closed(self) -> None:
+        """Python's permissive NaN token must not be accepted as JSON evidence."""
+
+        document = (
+            '{"schema_version":1,'
+            f'"expected_default_branch_sha":"{DEFAULT_SHA}",'
+            f'"observed_default_branch_sha":"{DEFAULT_SHA}",'
+            '"observed_at":"2026-08-12T00:00:00Z",'
+            '"reported_total_count":0,'
+            '"protected_workflow_paths":[],'
+            '"active_pr_workflow_paths":[],'
+            '"registry_pages":[{"page":1,"status_code":200,'
+            '"has_next":false,"workflows":[]}],'
+            '"unexpected":NaN}'
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "registry.json"
+            path.write_text(document, encoding="utf-8")
+            with self.assertRaisesRegex(
+                self.audit.WorkflowAuditError, "input is not readable UTF-8 JSON"
+            ):
+                self.audit._read_payload(path)
+
     def test_parser_recursion_exhaustion_fails_as_audit_error(self) -> None:
         """Parser recursion exhaustion must not escape as an unbounded traceback."""
 
