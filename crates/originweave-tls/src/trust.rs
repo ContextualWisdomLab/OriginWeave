@@ -146,3 +146,17 @@ pub(crate) fn sha256_identifier(bytes: &[u8]) -> String {
     }
     identifier
 }
+
+#[cfg(test)]
+mod tests {
+    use super::canonical_u64_bytes;
+
+    #[test]
+    fn trust_bundle_hash_lengths_use_fixed_eight_byte_encoding() {
+        assert_eq!(canonical_u64_bytes(1), [0, 0, 0, 0, 0, 0, 0, 1]);
+        assert_eq!(
+            canonical_u64_bytes(0x0102_0304),
+            [0, 0, 0, 0, 1, 2, 3, 4]
+        );
+    }
+}
