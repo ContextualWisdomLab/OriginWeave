@@ -128,7 +128,7 @@ impl NetworkEvidence {
         query: BTreeMap<String, String>,
     ) -> Result<Self, EvidenceError> {
         validate_path(path)?;
-        validate_metadata(&headers, MAX_HEADER_COUNT)?;
+        validate_header_metadata(&headers)?;
         validate_metadata(&query, MAX_QUERY_FIELD_COUNT)?;
         Ok(Self {
             method,
@@ -168,6 +168,38 @@ impl NetworkEvidence {
     pub const fn query(&self) -> &BTreeMap<String, String> {
         &self.query
     }
+}
+
+fn validate_header_metadata(values: &BTreeMap<String, String>) -> Result<(), EvidenceError> {
+    validate_metadata(values, MAX_HEADER_COUNT)?;
+    if values
+        .keys()
+        .any(|name| !name.bytes().all(is_http_field_name_byte))
+    {
+        return Err(EvidenceError::LimitExceeded);
+    }
+    Ok(())
+}
+
+const fn is_http_field_name_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric()
+        || matches!(
+            byte,
+            b'!' | b'#'
+                | b'$'
+                | b'%'
+                | b'&'
+                | b'\''
+                | b'*'
+                | b'+'
+                | b'-'
+                | b'.'
+                | b'^'
+                | b'_'
+                | b'`'
+                | b'|'
+                | b'~'
+        )
 }
 
 fn validate_metadata(
