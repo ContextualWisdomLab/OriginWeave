@@ -1,9 +1,30 @@
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
+use originweave_core::Origin;
 use originweave_destination::{DestinationError, FreshResolutionSnapshot};
 
 use crate::connection::{ConnectionPlan, DirectTcpConnection, NetworkError};
+
+fn effective_origin_port(origin: &Origin) -> u16 {
+    let default_port = match origin.scheme() {
+        "https" => 443,
+        _ => 80,
+    };
+    let authority = &origin.as_str()[origin.scheme().len() + 3..];
+    let explicit_port = if authority.starts_with('[') {
+        authority.rsplit_once("]:").map(|(_, port)| port)
+    } else {
+        authority.rsplit_once(':').map(|(_, port)| port)
+    };
+
+    match explicit_port {
+        Some(port) => port.bytes().fold(0_u16, |value, digit| {
+            value * 10 + u16::from(digit - b'0')
+        }),
+        None => default_port,
+    }
+}
 
 /// A single-use direct connection plan authorized by a fresh resolution window.
 ///
@@ -36,6 +57,9 @@ impl FreshConnectionPlan {
                 socket_address,
                 source,
             })?;
+        if socket_address.port() != effective_origin_port(resolution.origin()) {
+            return Err(NetworkError::InvalidPort);
+        }
         let connection_plan = ConnectionPlan::new(
             resolution.resolution_snapshot(),
             socket_address,
@@ -111,5 +135,29 @@ impl FreshConnectionPlan {
                 source,
             })?;
         self.connection_plan.connect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use originweave_core::Origin;
+
+    use super::effective_origin_port;
+
+    #[test]
+    fn effective_origin_port_covers_default_and_explicit_authorities() {
+        let fixtures = [
+            ("http://localhost", 80),
+            ("https://example.com", 443),
+            ("http://localhost:8080", 8080),
+            ("http://[::1]:8443", 8443),
+        ];
+
+        for (origin, expected_port) in fixtures {
+            let parsed = Origin::parse(origin).unwrap_or_else(|error| {
+                panic!("valid origin fixture {origin} must parse: {error:?}")
+            });
+            assert_eq!(effective_origin_port(&parsed), expected_port);
+        }
     }
 }
