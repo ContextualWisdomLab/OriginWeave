@@ -147,6 +147,19 @@ fn persisted_commitment_wire_parser_rejects_every_noncanonical_integer_form() {
             "integer encoding must fail closed: {version:?}"
         );
     }
+
+    let invalid_count = wire_with_fields(&[
+        b"1",
+        b"delete-request-export-001",
+        b"tenant-alpha",
+        b"retention-30d-v1",
+        b"x",
+        b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    ]);
+    assert_eq!(
+        SensitiveDeletionPersistedCommitment::from_canonical_wire_bytes(&invalid_count),
+        Err(SensitiveDeletionPersistedCommitmentError::InvalidWireEncoding),
+    );
 }
 
 #[test]
@@ -157,7 +170,7 @@ fn persisted_commitment_wire_parser_rejects_wrong_domain_oversize_and_invalid_ut
     let mut oversized = WIRE_DOMAIN.to_vec();
     oversized.resize(10_000, b'x');
 
-    let invalid_utf8 = wire_with_fields(&[
+    let invalid_utf8_request = wire_with_fields(&[
         b"1",
         &[0xff],
         b"tenant-alpha",
@@ -165,11 +178,63 @@ fn persisted_commitment_wire_parser_rejects_wrong_domain_oversize_and_invalid_ut
         b"256",
         b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     ]);
+    let invalid_utf8_tenant = wire_with_fields(&[
+        b"1",
+        b"delete-request-export-001",
+        &[0xff],
+        b"retention-30d-v1",
+        b"256",
+        b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    ]);
+    let invalid_utf8_policy = wire_with_fields(&[
+        b"1",
+        b"delete-request-export-001",
+        b"tenant-alpha",
+        &[0xff],
+        b"256",
+        b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    ]);
+    let invalid_utf8_digest = wire_with_fields(&[
+        b"1",
+        b"delete-request-export-001",
+        b"tenant-alpha",
+        b"retention-30d-v1",
+        b"256",
+        &[0xff],
+    ]);
 
-    for hostile_wire in [&wrong_domain[..], &oversized[..], &invalid_utf8[..]] {
+    for hostile_wire in [
+        &wrong_domain[..],
+        &oversized[..],
+        &invalid_utf8_request[..],
+        &invalid_utf8_tenant[..],
+        &invalid_utf8_policy[..],
+        &invalid_utf8_digest[..],
+    ] {
         assert_eq!(
             SensitiveDeletionPersistedCommitment::from_canonical_wire_bytes(hostile_wire),
             Err(SensitiveDeletionPersistedCommitmentError::InvalidWireEncoding),
+        );
+    }
+}
+
+#[test]
+fn persisted_commitment_wire_parser_rejects_each_missing_field_boundary() {
+    let complete_fields: [&[u8]; 6] = [
+        b"1",
+        b"delete-request-export-001",
+        b"tenant-alpha",
+        b"retention-30d-v1",
+        b"256",
+        b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    ];
+
+    for included_field_count in 1..6 {
+        let wire = wire_with_fields(&complete_fields[..included_field_count]);
+        assert_eq!(
+            SensitiveDeletionPersistedCommitment::from_canonical_wire_bytes(&wire),
+            Err(SensitiveDeletionPersistedCommitmentError::InvalidWireEncoding),
+            "wire missing field after index {included_field_count} must fail closed"
         );
     }
 }
