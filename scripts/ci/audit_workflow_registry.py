@@ -148,7 +148,12 @@ def _validate_pages(value: Any) -> tuple[list[dict[str, Any]], list[dict[str, An
     for index, raw_page in enumerate(raw_pages):
         page = _require_mapping(raw_page, f"registry_pages[{index}]")
         expected_page = index + 1
-        if page.get("page") != expected_page:
+        page_number = page.get("page")
+        if (
+            isinstance(page_number, bool)
+            or not isinstance(page_number, int)
+            or page_number != expected_page
+        ):
             raise WorkflowAuditError("registry_pages must be contiguous and start at page 1")
         if page.get("status_code") != 200:
             raise WorkflowAuditError(
@@ -259,7 +264,12 @@ def audit_workflow_registry(payload: dict[str, Any]) -> dict[str, Any]:
     """
 
     document = _require_mapping(payload, "payload")
-    if document.get("schema_version") != _SCHEMA_VERSION:
+    schema_version = document.get("schema_version")
+    if (
+        isinstance(schema_version, bool)
+        or not isinstance(schema_version, int)
+        or schema_version != _SCHEMA_VERSION
+    ):
         raise WorkflowAuditError("unsupported schema_version")
 
     expected_sha = _validate_sha(
