@@ -1,5 +1,3 @@
-#![allow(clippy::expect_used)]
-
 use std::error::Error;
 
 use originweave_core::{
@@ -23,22 +21,18 @@ fn native_messaging_payload_limits_are_direction_specific() {
 }
 
 #[test]
-fn native_messaging_frame_round_trip_uses_native_u32_byte_length() {
+fn native_messaging_frame_round_trip_uses_native_u32_byte_length() -> Result<(), Box<dyn Error>> {
     let payload = b"{}";
 
     for direction in [
         NativeMessagingFrameDirection::HostToBrowser,
         NativeMessagingFrameDirection::BrowserToHost,
     ] {
-        let frame = encode_native_messaging_frame(direction, payload)
-            .expect("small native messaging payload must be frameable");
+        let frame = encode_native_messaging_frame(direction, payload)?;
         assert_eq!(&frame[..4], &2_u32.to_ne_bytes());
-        assert_eq!(
-            decode_native_messaging_frame(direction, &frame)
-                .expect("freshly encoded native messaging frame must decode"),
-            payload
-        );
+        assert_eq!(decode_native_messaging_frame(direction, &frame)?, payload);
     }
+    Ok(())
 }
 
 #[test]
