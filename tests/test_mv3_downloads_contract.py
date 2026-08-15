@@ -107,24 +107,34 @@ class ManifestV3DownloadsContractTests(unittest.TestCase):
                 self.assertEqual(
                     runner._safe_surface_value("downloadsDiagnostic", token), token
                 )
-        for raw in ("/tmp/private/download.txt", "Error: secret browser failure"):
-            with self.subTest(raw=raw):
-                self.assertEqual(
-                    runner._safe_surface_value("downloadsDiagnostic", raw), "unexpected"
-                )
 
-        error = runner.CompatibilitySurfaceError(
+        approved_error = runner.CompatibilitySurfaceError(
             {
                 "downloads": "missing",
                 "downloadsDiagnostic": "download-source-rejected",
             }
         )
-        evidence = runner._failure_evidence(error)
+        approved_evidence = runner._failure_evidence(approved_error)
         self.assertEqual(
-            evidence["observed"]["downloadsDiagnostic"], "download-source-rejected"
+            approved_evidence["observed"]["downloadsDiagnostic"],
+            "download-source-rejected",
         )
-        self.assertNotIn("/tmp/private", repr(evidence))
-        self.assertNotIn("secret browser failure", repr(evidence))
+
+        raw_download_path = str(ROOT / "private" / "download.txt")
+        raw_browser_error = "Error: secret browser failure"
+        for raw in (raw_download_path, raw_browser_error):
+            with self.subTest(raw=raw):
+                error = runner.CompatibilitySurfaceError(
+                    {
+                        "downloads": "missing",
+                        "downloadsDiagnostic": raw,
+                    }
+                )
+                evidence = runner._failure_evidence(error)
+                self.assertEqual(
+                    evidence["observed"]["downloadsDiagnostic"], "unexpected"
+                )
+                self.assertNotIn(raw, repr(evidence))
 
     def test_runner_collects_download_diagnostic_from_fixture_dataset(self) -> None:
         """The WebDriver evidence script must collect the bounded fixture diagnostic field."""
