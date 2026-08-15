@@ -5,7 +5,7 @@ use originweave_evidence::{
 const VALID_HASH: &str = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
 #[test]
-fn provenance_rejects_control_characters_in_source_locator() {
+fn provenance_rejects_control_and_invisible_formatting_characters_in_source_locator() {
     for source_locator in [
         "body\nforged-record",
         "body\rforged-record",
@@ -13,6 +13,13 @@ fn provenance_rejects_control_characters_in_source_locator() {
         "body\u{0000}forged-record",
         "body\u{001b}[31mforged-record",
         "body\u{007f}forged-record",
+        "body\u{00ad}forged-record",
+        "body\u{061c}forged-record",
+        "body\u{200b}forged-record",
+        "body\u{202e}forged-record",
+        "body\u{2066}forged-record",
+        "body\u{2060}forged-record",
+        "body\u{feff}forged-record",
     ] {
         assert_eq!(
             ProvenanceRecord::new(
