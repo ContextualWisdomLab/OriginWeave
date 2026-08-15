@@ -25,13 +25,8 @@ fn network_evidence_rejects_non_token_http_header_field_names() {
         "bad\\name",
     ] {
         let headers = BTreeMap::from([(header_name.to_owned(), "discarded".to_owned())]);
-        let result = NetworkEvidence::capture(
-            HttpMethod::Get,
-            origin(),
-            "/",
-            headers,
-            BTreeMap::new(),
-        );
+        let result =
+            NetworkEvidence::capture(HttpMethod::Get, origin(), "/", headers, BTreeMap::new());
 
         assert_eq!(
             result,
@@ -54,6 +49,12 @@ fn network_evidence_keeps_header_token_grammar_separate_from_query_names() {
     )
     .expect("valid HTTP token field-name and independent query name");
 
-    assert_eq!(evidence.headers().get(header_name), Some(&"[REDACTED]".to_owned()));
-    assert_eq!(evidence.query().get(query_name), Some(&"[REDACTED]".to_owned()));
+    assert_eq!(
+        evidence.headers().get(header_name),
+        Some(&"[REDACTED]".to_owned())
+    );
+    assert_eq!(
+        evidence.query().get(query_name),
+        Some(&"[REDACTED]".to_owned())
+    );
 }
