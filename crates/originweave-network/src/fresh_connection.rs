@@ -145,7 +145,7 @@ mod tests {
     use super::effective_origin_port;
 
     #[test]
-    fn effective_origin_port_covers_default_and_explicit_authorities() {
+    fn effective_origin_port_covers_default_and_explicit_authorities() -> Result<(), String> {
         let fixtures = [
             ("http://localhost", 80),
             ("https://example.com", 443),
@@ -154,10 +154,10 @@ mod tests {
         ];
 
         for (origin, expected_port) in fixtures {
-            let parsed = Origin::parse(origin).unwrap_or_else(|error| {
-                panic!("valid origin fixture {origin} must parse: {error:?}")
-            });
+            let parsed = Origin::parse(origin)
+                .map_err(|error| format!("valid origin fixture {origin} must parse: {error:?}"))?;
             assert_eq!(effective_origin_port(&parsed), expected_port);
         }
+        Ok(())
     }
 }
