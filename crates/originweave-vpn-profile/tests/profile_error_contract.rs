@@ -53,6 +53,7 @@ fn secret_reference_rejects_log_injection_and_ambiguous_whitespace() {
     for reference in [
         "secret://tenant/item\nforged-log-line",
         "secret://tenant/item\tforged-column",
+        "secret://tenant/item\u{1b}forged-terminal-sequence",
         "\u{202e}secret://tenant/item",
         " secret://tenant/item",
         "secret://tenant/item ",
