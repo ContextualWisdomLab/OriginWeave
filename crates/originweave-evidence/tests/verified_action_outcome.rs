@@ -5,8 +5,8 @@ use originweave_core::{
     ObservedNodeHandle, Origin,
 };
 use originweave_evidence::{
-    EvidenceSourceKind, PostConditionKind, ProvenanceRecord, VerificationResult,
-    VerifiedActionOutcomeError, VerifiedActionOutcomeEvidence,
+    EvidenceSourceKind, PostConditionKind, PostConditionObservation, ProvenanceRecord,
+    VerificationResult, VerifiedActionOutcomeError, VerifiedActionOutcomeEvidence,
 };
 
 const VALID_INTENT: &str =
@@ -15,6 +15,7 @@ const VALID_SOURCE_HASH: &str =
     "sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
 const DISPATCHED_AT_MILLISECONDS: u64 = 1_000;
 const OBSERVED_AT_MILLISECONDS: u64 = 1_025;
+const MAXIMUM_OBSERVATION_DELAY_MILLISECONDS: u64 = 250;
 
 fn intent() -> ActionIntentDigest {
     ActionIntentDigest::parse(VALID_INTENT).expect("valid intent digest")
@@ -50,25 +51,35 @@ fn provenance_at(source_url: &str, result: VerificationResult) -> ProvenanceReco
     .expect("valid provenance")
 }
 
+fn observation() -> PostConditionObservation {
+    PostConditionObservation::new(
+        DISPATCHED_AT_MILLISECONDS,
+        OBSERVED_AT_MILLISECONDS,
+        MAXIMUM_OBSERVATION_DELAY_MILLISECONDS,
+    )
+    .expect("valid bounded observation window")
+}
+
 #[test]
 fn verified_non_node_post_condition_can_create_action_success_evidence() {
     let target = origin();
+    let observation = observation();
     let evidence = VerifiedActionOutcomeEvidence::new(
         ActionKind::Submit,
         target.clone(),
         intent(),
         PostConditionKind::UrlChanged,
-        DISPATCHED_AT_MILLISECONDS,
-        OBSERVED_AT_MILLISECONDS,
+        observation,
         provenance(VerificationResult::Verified),
     )
     .expect("verified non-node post-condition should admit success evidence");
 
     assert_eq!(evidence.action(), ActionKind::Submit);
     assert_eq!(evidence.target_origin(), &target);
+    assert_eq!(evidence.target_node(), None);
     assert_eq!(evidence.intent_digest(), &intent());
     assert_eq!(evidence.post_condition(), PostConditionKind::UrlChanged);
-    assert_eq!(evidence.target_node(), None);
+    assert_eq!(evidence.observation(), observation);
     assert_eq!(
         evidence.dispatched_at_milliseconds(),
         DISPATCHED_AT_MILLISECONDS
@@ -78,6 +89,10 @@ fn verified_non_node_post_condition_can_create_action_success_evidence() {
         OBSERVED_AT_MILLISECONDS
     );
     assert_eq!(
+        evidence.maximum_observation_delay_milliseconds(),
+        MAXIMUM_OBSERVATION_DELAY_MILLISECONDS
+    );
+    assert_eq!(
         evidence.provenance().verification_result(),
         VerificationResult::Verified
     );
@@ -85,14 +100,14 @@ fn verified_non_node_post_condition_can_create_action_success_evidence() {
 
 #[test]
 fn unverified_or_rejected_post_condition_cannot_be_recorded_as_success() {
+    let observation = observation();
     for result in [VerificationResult::Unverified, VerificationResult::Rejected] {
         let error = VerifiedActionOutcomeEvidence::new(
             ActionKind::Submit,
             origin(),
             intent(),
             PostConditionKind::UrlChanged,
-            DISPATCHED_AT_MILLISECONDS,
-            OBSERVED_AT_MILLISECONDS,
+            observation,
             provenance(result),
         )
         .expect_err("non-verified post-condition must fail closed");
@@ -108,16 +123,8 @@ fn unverified_or_rejected_post_condition_cannot_be_recorded_as_success() {
 
 #[test]
 fn post_condition_observation_cannot_predate_action_dispatch() {
-    let error = VerifiedActionOutcomeEvidence::new(
-        ActionKind::Submit,
-        origin(),
-        intent(),
-        PostConditionKind::UrlChanged,
-        2_000,
-        1_999,
-        provenance(VerificationResult::Verified),
-    )
-    .expect_err("pre-dispatch observation cannot prove action success");
+    let error = PostConditionObservation::new(2_000, 1_999, MAXIMUM_OBSERVATION_DELAY_MILLISECONDS)
+        .expect_err("pre-dispatch observation cannot prove action success");
 
     assert_eq!(
         error,
@@ -133,14 +140,47 @@ fn post_condition_observation_cannot_predate_action_dispatch() {
 }
 
 #[test]
+fn zero_observation_delay_budget_is_rejected() {
+    let error =
+        PostConditionObservation::new(DISPATCHED_AT_MILLISECONDS, OBSERVED_AT_MILLISECONDS, 0)
+            .expect_err("successful action evidence requires a positive observation delay budget");
+
+    assert_eq!(
+        error,
+        VerifiedActionOutcomeError::ZeroObservationDelayBudget
+    );
+    assert_eq!(
+        error.to_string(),
+        "post-condition observation delay budget must be greater than zero"
+    );
+}
+
+#[test]
+fn post_condition_observation_cannot_outlive_delay_budget() {
+    let error = PostConditionObservation::new(5_000, 5_251, MAXIMUM_OBSERVATION_DELAY_MILLISECONDS)
+        .expect_err("stale observation cannot prove action success");
+
+    assert_eq!(
+        error,
+        VerifiedActionOutcomeError::PostConditionObservationExpired {
+            elapsed_milliseconds: 251,
+            maximum_observation_delay_milliseconds: MAXIMUM_OBSERVATION_DELAY_MILLISECONDS,
+        }
+    );
+    assert_eq!(
+        error.to_string(),
+        "post-condition observation delay 251 ms exceeds the configured maximum of 250 ms"
+    );
+}
+
+#[test]
 fn generic_constructor_cannot_bypass_node_identity_binding() {
     let error = VerifiedActionOutcomeEvidence::new(
         ActionKind::Submit,
         origin(),
         intent(),
         PostConditionKind::NodeStateChanged,
-        DISPATCHED_AT_MILLISECONDS,
-        OBSERVED_AT_MILLISECONDS,
+        observation(),
         provenance(VerificationResult::Verified),
     )
     .expect_err("node-state success must require exact node authority");
@@ -159,8 +199,7 @@ fn node_state_common_validation_fails_before_node_identity_binding() {
         ActionKind::Submit,
         target_node.clone(),
         intent(),
-        DISPATCHED_AT_MILLISECONDS,
-        OBSERVED_AT_MILLISECONDS,
+        observation(),
         target_node,
         provenance(VerificationResult::Unverified),
     )
@@ -176,8 +215,7 @@ fn node_state_post_condition_provenance_must_match_the_action_target_origin() {
         ActionKind::Submit,
         target_node.clone(),
         intent(),
-        DISPATCHED_AT_MILLISECONDS,
-        OBSERVED_AT_MILLISECONDS,
+        observation(),
         target_node,
         provenance_at(
             "https://attacker.example/receipt",
@@ -203,8 +241,7 @@ fn node_state_origin_comparison_uses_canonical_origin_semantics() {
         ActionKind::Submit,
         target_node.clone(),
         intent(),
-        DISPATCHED_AT_MILLISECONDS,
-        OBSERVED_AT_MILLISECONDS,
+        observation(),
         target_node,
         provenance_at(
             "https://APP.EXAMPLE:443/receipt",
@@ -218,16 +255,18 @@ fn node_state_origin_comparison_uses_canonical_origin_semantics() {
 
 #[test]
 fn same_monotonic_tick_is_allowed_for_coarse_clock_sources() {
+    let observation =
+        PostConditionObservation::new(4_000, 4_000, MAXIMUM_OBSERVATION_DELAY_MILLISECONDS)
+            .expect("coarse monotonic clocks may observe within the dispatch tick");
     let evidence = VerifiedActionOutcomeEvidence::new(
         ActionKind::Submit,
         origin(),
         intent(),
         PostConditionKind::NetworkMutationObserved,
-        4_000,
-        4_000,
+        observation,
         provenance(VerificationResult::Verified),
     )
-    .expect("coarse monotonic clocks may observe within the dispatch tick");
+    .expect("verified same-tick observation should admit success evidence");
 
     assert_eq!(evidence.dispatched_at_milliseconds(), 4_000);
     assert_eq!(evidence.observed_at_milliseconds(), 4_000);
@@ -235,6 +274,7 @@ fn same_monotonic_tick_is_allowed_for_coarse_clock_sources() {
 
 #[test]
 fn non_node_post_condition_kinds_remain_supported() {
+    let observation = observation();
     for kind in [
         PostConditionKind::UrlChanged,
         PostConditionKind::DialogStateChanged,
@@ -245,8 +285,7 @@ fn non_node_post_condition_kinds_remain_supported() {
             origin(),
             intent(),
             kind,
-            DISPATCHED_AT_MILLISECONDS,
-            OBSERVED_AT_MILLISECONDS,
+            observation,
             provenance(VerificationResult::Verified),
         )
         .expect("supported non-node post-condition should admit verified evidence");
@@ -259,12 +298,12 @@ fn non_node_post_condition_kinds_remain_supported() {
 #[test]
 fn node_state_success_binds_the_exact_action_target_node() {
     let target_node = node(17);
+    let observation = observation();
     let evidence = VerifiedActionOutcomeEvidence::new_node_state(
         ActionKind::Submit,
         target_node.clone(),
         intent(),
-        DISPATCHED_AT_MILLISECONDS,
-        OBSERVED_AT_MILLISECONDS,
+        observation,
         target_node.clone(),
         provenance(VerificationResult::Verified),
     )
@@ -276,6 +315,11 @@ fn node_state_success_binds_the_exact_action_target_node() {
         evidence.post_condition(),
         PostConditionKind::NodeStateChanged
     );
+    assert_eq!(evidence.observation(), observation);
+    assert_eq!(
+        evidence.maximum_observation_delay_milliseconds(),
+        MAXIMUM_OBSERVATION_DELAY_MILLISECONDS
+    );
 }
 
 #[test]
@@ -284,8 +328,7 @@ fn same_origin_different_node_cannot_prove_node_state_success() {
         ActionKind::Submit,
         node(17),
         intent(),
-        DISPATCHED_AT_MILLISECONDS,
-        OBSERVED_AT_MILLISECONDS,
+        observation(),
         node(18),
         provenance(VerificationResult::Verified),
     )
