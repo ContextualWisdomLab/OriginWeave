@@ -116,9 +116,9 @@ fn valid_tool_name(tool_name: &str) -> bool {
     if tool_name.is_empty() || tool_name.len() > MAX_MCP_TOOL_NAME_BYTES {
         return false;
     }
-    tool_name.bytes().all(|byte| {
-        byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.')
-    })
+    tool_name
+        .bytes()
+        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.'))
 }
 
 fn map_tool(tool_name: &str) -> Result<(&'static str, ActionKind), McpToolBoundaryError> {
