@@ -155,7 +155,7 @@ mod tests {
 
         for (origin, expected_port) in fixtures {
             let actual_port = Origin::parse(origin).map(|parsed| effective_origin_port(&parsed));
-            assert!(matches!(actual_port, Ok(port) if port == expected_port));
+            assert_eq!(actual_port.ok(), Some(expected_port));
         }
     }
 }
