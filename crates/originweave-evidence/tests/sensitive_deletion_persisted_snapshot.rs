@@ -95,7 +95,10 @@ fn persisted_commitment_canonical_wire_rejects_ambiguous_or_trailing_encodings()
     let wire = commitment.canonical_wire_bytes();
 
     let mut leading_zero_length = wire.clone();
-    leading_zero_length.splice(WIRE_DOMAIN.len()..WIRE_DOMAIN.len() + 1, b"01".iter().copied());
+    leading_zero_length.splice(
+        WIRE_DOMAIN.len()..WIRE_DOMAIN.len() + 1,
+        b"01".iter().copied(),
+    );
 
     let mut trailing_bytes = wire.clone();
     trailing_bytes.extend_from_slice(b"junk");
