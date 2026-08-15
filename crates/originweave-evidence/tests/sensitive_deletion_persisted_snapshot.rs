@@ -6,10 +6,14 @@
 //! serializing a validated commitment. The production authority therefore owns conversion back to
 //! the exact versioned wire input that it accepts during reconstruction.
 
+use std::error::Error;
+
 use originweave_evidence::{
     SENSITIVE_DELETION_INVENTORY_COMMITMENT_VERSION, SensitiveDeletionPersistedCommitment,
-    SensitiveDeletionPersistedCommitmentInput,
+    SensitiveDeletionPersistedCommitmentError, SensitiveDeletionPersistedCommitmentInput,
 };
+
+const WIRE_DOMAIN: &[u8] = b"originweave-sensitive-deletion-persisted-commitment\0";
 
 fn persisted_commitment() -> SensitiveDeletionPersistedCommitment {
     SensitiveDeletionPersistedCommitment::try_from(SensitiveDeletionPersistedCommitmentInput {
@@ -21,6 +25,27 @@ fn persisted_commitment() -> SensitiveDeletionPersistedCommitment {
         inventory_digest: "a".repeat(64),
     })
     .expect("bounded supported persisted commitment should reconstruct")
+}
+
+fn wire_with_fields(fields: &[&[u8]]) -> Vec<u8> {
+    let mut wire = WIRE_DOMAIN.to_vec();
+    for field in fields {
+        wire.extend_from_slice(field.len().to_string().as_bytes());
+        wire.push(b':');
+        wire.extend_from_slice(field);
+    }
+    wire
+}
+
+fn complete_wire_with_version(version: &[u8]) -> Vec<u8> {
+    wire_with_fields(&[
+        version,
+        b"delete-request-export-001",
+        b"tenant-alpha",
+        b"retention-30d-v1",
+        b"256",
+        b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    ])
 }
 
 #[test]
@@ -70,8 +95,7 @@ fn persisted_commitment_canonical_wire_rejects_ambiguous_or_trailing_encodings()
     let wire = commitment.canonical_wire_bytes();
 
     let mut leading_zero_length = wire.clone();
-    let domain_length = b"originweave-sensitive-deletion-persisted-commitment\0".len();
-    leading_zero_length.splice(domain_length..domain_length + 1, b"01".iter().copied());
+    leading_zero_length.splice(WIRE_DOMAIN.len()..WIRE_DOMAIN.len() + 1, b"01".iter().copied());
 
     let mut trailing_bytes = wire.clone();
     trailing_bytes.extend_from_slice(b"junk");
@@ -84,4 +108,103 @@ fn persisted_commitment_canonical_wire_rejects_ambiguous_or_trailing_encodings()
             "hostile wire encoding must fail closed: {hostile_wire:?}"
         );
     }
+}
+
+#[test]
+fn persisted_commitment_wire_parser_rejects_every_noncanonical_length_form() {
+    for suffix in [
+        b"1".as_slice(),
+        b":1".as_slice(),
+        b"0000:1".as_slice(),
+        b"x:1".as_slice(),
+    ] {
+        let mut wire = WIRE_DOMAIN.to_vec();
+        wire.extend_from_slice(suffix);
+        assert_eq!(
+            SensitiveDeletionPersistedCommitment::from_canonical_wire_bytes(&wire),
+            Err(SensitiveDeletionPersistedCommitmentError::InvalidWireEncoding),
+            "length encoding must fail closed: {suffix:?}"
+        );
+    }
+}
+
+#[test]
+fn persisted_commitment_wire_parser_rejects_every_noncanonical_integer_form() {
+    for version in [
+        b"".as_slice(),
+        b"123456".as_slice(),
+        b"01".as_slice(),
+        b"x".as_slice(),
+        b"65536".as_slice(),
+    ] {
+        let wire = complete_wire_with_version(version);
+        assert_eq!(
+            SensitiveDeletionPersistedCommitment::from_canonical_wire_bytes(&wire),
+            Err(SensitiveDeletionPersistedCommitmentError::InvalidWireEncoding),
+            "integer encoding must fail closed: {version:?}"
+        );
+    }
+}
+
+#[test]
+fn persisted_commitment_wire_parser_rejects_wrong_domain_oversize_and_invalid_utf8() {
+    let mut wrong_domain = persisted_commitment().canonical_wire_bytes();
+    wrong_domain[0] = b'X';
+
+    let mut oversized = WIRE_DOMAIN.to_vec();
+    oversized.resize(10_000, b'x');
+
+    let invalid_utf8 = wire_with_fields(&[
+        b"1",
+        &[0xff],
+        b"tenant-alpha",
+        b"retention-30d-v1",
+        b"256",
+        b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    ]);
+
+    for hostile_wire in [&wrong_domain[..], &oversized[..], &invalid_utf8[..]] {
+        assert_eq!(
+            SensitiveDeletionPersistedCommitment::from_canonical_wire_bytes(hostile_wire),
+            Err(SensitiveDeletionPersistedCommitmentError::InvalidWireEncoding),
+        );
+    }
+}
+
+#[test]
+fn persisted_commitment_wire_parser_preserves_typed_version_and_metadata_errors() {
+    let unsupported = complete_wire_with_version(b"2");
+    assert_eq!(
+        SensitiveDeletionPersistedCommitment::from_canonical_wire_bytes(&unsupported),
+        Err(SensitiveDeletionPersistedCommitmentError::UnsupportedCommitmentVersion),
+    );
+
+    let empty_request = wire_with_fields(&[
+        b"1",
+        b"",
+        b"tenant-alpha",
+        b"retention-30d-v1",
+        b"256",
+        b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    ]);
+    assert!(matches!(
+        SensitiveDeletionPersistedCommitment::from_canonical_wire_bytes(&empty_request),
+        Err(SensitiveDeletionPersistedCommitmentError::InvalidCommitment(_))
+    ));
+}
+
+#[test]
+fn invalid_wire_error_is_deterministic_and_source_free() {
+    let error = SensitiveDeletionPersistedCommitment::from_canonical_wire_bytes(b"not-originweave")
+        .expect_err("non-OriginWeave wire bytes must fail closed");
+
+    assert_eq!(
+        error,
+        SensitiveDeletionPersistedCommitmentError::InvalidWireEncoding
+    );
+    assert_eq!(
+        error.to_string(),
+        "persisted sensitive deletion commitment wire encoding is invalid"
+    );
+    assert!(error.source().is_none());
 }
