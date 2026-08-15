@@ -19,6 +19,7 @@ from typing import Any
 
 _SCHEMA_VERSION = 1
 _MAX_INPUT_BYTES = 4 * 1024 * 1024
+_MAX_JSON_INTEGER_DIGITS = 20
 _SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 _TIMESTAMP_PATTERN = re.compile(
     r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
@@ -350,6 +351,15 @@ def _reject_nonstandard_json_constant(value: str) -> Any:
     raise json.JSONDecodeError("non-standard JSON numeric constant", value, 0)
 
 
+def _parse_bounded_json_integer(value: str) -> int:
+    """Parse one decimal JSON integer within the audit evidence digit budget."""
+
+    digits = value[1:] if value.startswith("-") else value
+    if len(digits) > _MAX_JSON_INTEGER_DIGITS:
+        raise json.JSONDecodeError("JSON integer literal exceeds digit bound", value, 0)
+    return int(value)
+
+
 def _read_payload(path: pathlib.Path) -> dict[str, Any]:
     """Read at most four mebibytes of unambiguous UTF-8 JSON audit evidence."""
 
@@ -365,6 +375,7 @@ def _read_payload(path: pathlib.Path) -> dict[str, Any]:
             content.decode("utf-8"),
             object_pairs_hook=_reject_duplicate_object_members,
             parse_constant=_reject_nonstandard_json_constant,
+            parse_int=_parse_bounded_json_integer,
         )
     except (UnicodeError, json.JSONDecodeError, RecursionError) as error:
         raise WorkflowAuditError("input is not readable UTF-8 JSON") from error
