@@ -8,11 +8,16 @@
 
 #![forbid(unsafe_code)]
 
-const MAX_PROFILE_BYTES: usize = 65_536;
-const MAX_SECRET_REFERENCE_BYTES: usize = 512;
-const MAX_SECRET_BYTES: usize = 4_096;
-const MAX_PEERS: usize = 64;
-const MAX_LIST_ITEMS: usize = 256;
+/// Maximum UTF-8 byte length accepted for one VPN profile.
+pub const MAX_PROFILE_BYTES: usize = 65_536;
+/// Maximum UTF-8 byte length accepted for one opaque secret reference.
+pub const MAX_SECRET_REFERENCE_BYTES: usize = 512;
+/// Maximum UTF-8 byte length accepted for one raw secret at the importer boundary.
+pub const MAX_SECRET_BYTES: usize = 4_096;
+/// Maximum number of peers accepted in one WireGuard profile.
+pub const MAX_PEERS: usize = 64;
+/// Maximum number of entries accepted in one comma-separated profile list.
+pub const MAX_LIST_ITEMS: usize = 256;
 const MAX_IKE_IDENTITY_BYTES: usize = 253;
 
 /// A bounded opaque reference to a secret stored outside the normalized profile.
