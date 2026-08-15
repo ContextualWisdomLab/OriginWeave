@@ -155,7 +155,12 @@ def _validate_pages(value: Any) -> tuple[list[dict[str, Any]], list[dict[str, An
             or page_number != expected_page
         ):
             raise WorkflowAuditError("registry_pages must be contiguous and start at page 1")
-        if page.get("status_code") != 200:
+        status_code = page.get("status_code")
+        if (
+            isinstance(status_code, bool)
+            or not isinstance(status_code, int)
+            or status_code != 200
+        ):
             raise WorkflowAuditError(
                 f"registry page {expected_page} did not return HTTP 200"
             )
