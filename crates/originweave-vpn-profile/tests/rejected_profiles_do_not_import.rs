@@ -1,7 +1,7 @@
 use originweave_vpn_profile::{
-    MAX_LIST_ITEMS, MAX_PEERS, MAX_PROFILE_BYTES, MAX_SECRET_BYTES,
-    MAX_SECRET_REFERENCE_BYTES, ProfileError, SecretReference, VpnProfile, VpnSecret,
-    VpnSecretImporter, import_wireguard_profile, parse_ikev2_profile, parse_vpn_profile,
+    MAX_LIST_ITEMS, MAX_PEERS, MAX_PROFILE_BYTES, MAX_SECRET_BYTES, MAX_SECRET_REFERENCE_BYTES,
+    ProfileError, SecretReference, VpnProfile, VpnSecret, VpnSecretImporter,
+    import_wireguard_profile, parse_ikev2_profile, parse_vpn_profile,
 };
 
 const VALID_WIREGUARD_KEY: &str = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
