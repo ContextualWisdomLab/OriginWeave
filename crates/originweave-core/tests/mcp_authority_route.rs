@@ -29,15 +29,24 @@ fn supported_mcp_tools_map_to_exact_originweave_actions() -> Result<(), Box<dyn 
         ("originweave.fill_secret", ActionKind::FillSecret),
         ("originweave.purchase", ActionKind::Purchase),
         ("originweave.delete", ActionKind::Delete),
-        ("originweave.manage_permission", ActionKind::ManagePermission),
+        (
+            "originweave.manage_permission",
+            ActionKind::ManagePermission,
+        ),
     ];
 
     for (tool_name, expected_action) in cases {
         let call = validate(tool_name)?;
         assert_eq!(call.tool_name(), tool_name);
         assert_eq!(call.action_kind(), expected_action);
-        assert_eq!(call.action_kind().required_capability(), expected_action.required_capability());
-        assert_eq!(call.action_kind().risk_class(), expected_action.risk_class());
+        assert_eq!(
+            call.action_kind().required_capability(),
+            expected_action.required_capability()
+        );
+        assert_eq!(
+            call.action_kind().risk_class(),
+            expected_action.risk_class()
+        );
     }
     Ok(())
 }
@@ -89,8 +98,17 @@ fn mcp_route_rejects_protocol_header_body_and_method_drift() {
 #[test]
 fn mcp_route_rejects_unbounded_malformed_and_unmapped_tool_names() {
     let oversized = "x".repeat(MAX_MCP_TOOL_NAME_BYTES + 1);
-    for tool_name in ["", "originweave legal", "originweave/observe", "originweave.관찰", &oversized] {
-        assert_eq!(validate(tool_name), Err(McpToolBoundaryError::InvalidToolName));
+    for tool_name in [
+        "",
+        "originweave legal",
+        "originweave/observe",
+        "originweave.관찰",
+        &oversized,
+    ] {
+        assert_eq!(
+            validate(tool_name),
+            Err(McpToolBoundaryError::InvalidToolName)
+        );
     }
 
     assert_eq!(
