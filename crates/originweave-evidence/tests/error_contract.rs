@@ -19,7 +19,7 @@ fn evidence_error_has_stable_credential_safe_standard_error_contract() {
         ),
         (
             EvidenceError::InvalidLocator,
-            "evidence source locator contains a control character",
+            "evidence source locator contains a disallowed control or formatting character",
         ),
         (
             EvidenceError::InvalidHash,
