@@ -2,7 +2,7 @@ use std::error::Error;
 
 use originweave_core::{
     NativeMessagingFrameDirection, NativeMessagingFrameError, decode_native_messaging_frame,
-    encode_native_messaging_frame, native_messaging_payload_limit,
+    decode_native_messaging_text_frame, encode_native_messaging_frame, native_messaging_payload_limit,
 };
 
 const HOST_TO_BROWSER_LIMIT: usize = 1_048_576;
@@ -32,6 +32,42 @@ fn native_messaging_frame_round_trip_uses_native_u32_byte_length() -> Result<(),
         assert_eq!(&frame[..4], &2_u32.to_ne_bytes());
         assert_eq!(decode_native_messaging_frame(direction, &frame)?, payload);
     }
+    Ok(())
+}
+
+#[test]
+fn native_messaging_text_frame_accepts_utf8_and_rejects_invalid_text() -> Result<(), Box<dyn Error>> {
+    let utf8_payload = "{\"message\":\"안녕 👋\"}".as_bytes();
+    let utf8_frame = encode_native_messaging_frame(
+        NativeMessagingFrameDirection::HostToBrowser,
+        utf8_payload,
+    )?;
+    assert_eq!(
+        decode_native_messaging_text_frame(
+            NativeMessagingFrameDirection::HostToBrowser,
+            &utf8_frame,
+        )?,
+        "{\"message\":\"안녕 👋\"}"
+    );
+
+    let invalid_utf8_frame = encode_native_messaging_frame(
+        NativeMessagingFrameDirection::HostToBrowser,
+        &[0xff],
+    )?;
+    assert_eq!(
+        decode_native_messaging_text_frame(
+            NativeMessagingFrameDirection::HostToBrowser,
+            &invalid_utf8_frame,
+        ),
+        Err(NativeMessagingFrameError::InvalidUtf8Payload)
+    );
+    assert_eq!(
+        decode_native_messaging_text_frame(
+            NativeMessagingFrameDirection::HostToBrowser,
+            &[0, 0, 0],
+        ),
+        Err(NativeMessagingFrameError::MissingLengthPrefix)
+    );
     Ok(())
 }
 
@@ -102,6 +138,10 @@ fn native_messaging_frame_errors_are_stable_and_source_free() {
         (
             NativeMessagingFrameError::LengthMismatch,
             "native messaging frame length does not match its prefix",
+        ),
+        (
+            NativeMessagingFrameError::InvalidUtf8Payload,
+            "native messaging payload is not valid UTF-8",
         ),
     ] {
         assert_eq!(error.to_string(), message);
