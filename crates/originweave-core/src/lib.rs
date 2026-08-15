@@ -446,7 +446,7 @@ pub enum NodeHandleError {
     BrowsingContextMismatch {
         /// Context that originally produced the node handle.
         observed: BrowsingContextId,
-        /// Context currently active in the browser context.
+        /// Context currently active for the requested action.
         current: BrowsingContextId,
     },
     /// The browser context is now at a different canonical origin.
