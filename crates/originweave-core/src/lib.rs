@@ -1125,6 +1125,18 @@ impl NativeMessagingHostGrant {
             host_name,
         }
     }
+
+    /// Return the extension identity granted native-messaging access.
+    #[must_use]
+    pub const fn extension_id(&self) -> &ExtensionId {
+        &self.extension_id
+    }
+
+    /// Return the exact native-messaging host identity in this grant.
+    #[must_use]
+    pub const fn host_name(&self) -> &NativeMessagingHostName {
+        &self.host_name
+    }
 }
 
 /// One extension request to connect to an exact native-messaging host.
@@ -1142,6 +1154,18 @@ impl NativeMessagingAccessRequest {
             extension_id,
             host_name,
         }
+    }
+
+    /// Return the extension identity requesting native-messaging access.
+    #[must_use]
+    pub const fn extension_id(&self) -> &ExtensionId {
+        &self.extension_id
+    }
+
+    /// Return the exact native-messaging host identity requested.
+    #[must_use]
+    pub const fn host_name(&self) -> &NativeMessagingHostName {
+        &self.host_name
     }
 }
 
