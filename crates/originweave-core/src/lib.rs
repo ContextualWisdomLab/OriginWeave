@@ -1203,6 +1203,8 @@ pub enum NativeMessagingFrameError {
     PayloadTooLarge,
     /// The complete frame length differs from the advertised payload length.
     LengthMismatch,
+    /// The framed payload is not valid UTF-8 text.
+    InvalidUtf8Payload,
 }
 
 impl fmt::Display for NativeMessagingFrameError {
@@ -1216,6 +1218,9 @@ impl fmt::Display for NativeMessagingFrameError {
             }
             Self::LengthMismatch => {
                 formatter.write_str("native messaging frame length does not match its prefix")
+            }
+            Self::InvalidUtf8Payload => {
+                formatter.write_str("native messaging payload is not valid UTF-8")
             }
         }
     }
@@ -1272,4 +1277,16 @@ pub fn decode_native_messaging_frame(
     }
 
     Ok(&frame[4..])
+}
+
+/// Decode one bounded native-messaging frame and validate its payload as UTF-8 text.
+///
+/// This validates only framing and UTF-8 encoding. JSON syntax, message provenance, and
+/// any Agent authority remain separate fail-closed boundaries for a later adapter.
+pub fn decode_native_messaging_text_frame(
+    direction: NativeMessagingFrameDirection,
+    frame: &[u8],
+) -> Result<&str, NativeMessagingFrameError> {
+    let payload = decode_native_messaging_frame(direction, frame)?;
+    std::str::from_utf8(payload).map_err(|_error| NativeMessagingFrameError::InvalidUtf8Payload)
 }
