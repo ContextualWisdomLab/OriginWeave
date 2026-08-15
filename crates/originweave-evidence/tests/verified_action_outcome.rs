@@ -12,6 +12,7 @@ const VALID_SOURCE_HASH: &str =
     "sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
 const DISPATCHED_AT_MILLISECONDS: u64 = 1_000;
 const OBSERVED_AT_MILLISECONDS: u64 = 1_025;
+const MAXIMUM_OBSERVATION_DELAY_MILLISECONDS: u64 = 250;
 
 fn intent() -> ActionIntentDigest {
     ActionIntentDigest::parse(VALID_INTENT).expect("valid intent digest")
@@ -42,6 +43,7 @@ fn verified_post_condition_can_create_action_success_evidence() {
         PostConditionKind::NodeStateChanged,
         DISPATCHED_AT_MILLISECONDS,
         OBSERVED_AT_MILLISECONDS,
+        MAXIMUM_OBSERVATION_DELAY_MILLISECONDS,
         provenance(VerificationResult::Verified),
     )
     .expect("verified post-condition should admit success evidence");
@@ -62,6 +64,10 @@ fn verified_post_condition_can_create_action_success_evidence() {
         OBSERVED_AT_MILLISECONDS
     );
     assert_eq!(
+        evidence.maximum_observation_delay_milliseconds(),
+        MAXIMUM_OBSERVATION_DELAY_MILLISECONDS
+    );
+    assert_eq!(
         evidence.provenance().verification_result(),
         VerificationResult::Verified
     );
@@ -77,6 +83,7 @@ fn unverified_or_rejected_post_condition_cannot_be_recorded_as_success() {
             PostConditionKind::NodeStateChanged,
             DISPATCHED_AT_MILLISECONDS,
             OBSERVED_AT_MILLISECONDS,
+            MAXIMUM_OBSERVATION_DELAY_MILLISECONDS,
             provenance(result),
         )
         .expect_err("non-verified post-condition must fail closed");
@@ -99,6 +106,7 @@ fn post_condition_observation_cannot_predate_action_dispatch() {
         PostConditionKind::NodeStateChanged,
         2_000,
         1_999,
+        MAXIMUM_OBSERVATION_DELAY_MILLISECONDS,
         provenance(VerificationResult::Verified),
     )
     .expect_err("pre-dispatch observation cannot prove action success");
@@ -117,6 +125,54 @@ fn post_condition_observation_cannot_predate_action_dispatch() {
 }
 
 #[test]
+fn zero_observation_delay_budget_is_rejected() {
+    let error = VerifiedActionOutcomeEvidence::new(
+        ActionKind::Submit,
+        origin(),
+        intent(),
+        PostConditionKind::NodeStateChanged,
+        DISPATCHED_AT_MILLISECONDS,
+        OBSERVED_AT_MILLISECONDS,
+        0,
+        provenance(VerificationResult::Verified),
+    )
+    .expect_err("successful action evidence requires a positive observation delay budget");
+
+    assert_eq!(error, VerifiedActionOutcomeError::ZeroObservationDelayBudget);
+    assert_eq!(
+        error.to_string(),
+        "post-condition observation delay budget must be greater than zero"
+    );
+}
+
+#[test]
+fn post_condition_observation_cannot_outlive_delay_budget() {
+    let error = VerifiedActionOutcomeEvidence::new(
+        ActionKind::Submit,
+        origin(),
+        intent(),
+        PostConditionKind::NodeStateChanged,
+        5_000,
+        5_251,
+        MAXIMUM_OBSERVATION_DELAY_MILLISECONDS,
+        provenance(VerificationResult::Verified),
+    )
+    .expect_err("stale observation cannot prove action success");
+
+    assert_eq!(
+        error,
+        VerifiedActionOutcomeError::PostConditionObservationExpired {
+            elapsed_milliseconds: 251,
+            maximum_observation_delay_milliseconds: MAXIMUM_OBSERVATION_DELAY_MILLISECONDS,
+        }
+    );
+    assert_eq!(
+        error.to_string(),
+        "post-condition observation delay 251 ms exceeds the configured maximum of 250 ms"
+    );
+}
+
+#[test]
 fn same_monotonic_tick_is_allowed_for_coarse_clock_sources() {
     let evidence = VerifiedActionOutcomeEvidence::new(
         ActionKind::Submit,
@@ -125,6 +181,7 @@ fn same_monotonic_tick_is_allowed_for_coarse_clock_sources() {
         PostConditionKind::NetworkMutationObserved,
         4_000,
         4_000,
+        MAXIMUM_OBSERVATION_DELAY_MILLISECONDS,
         provenance(VerificationResult::Verified),
     )
     .expect("coarse monotonic clocks may observe within the dispatch tick");
@@ -148,6 +205,7 @@ fn post_condition_kinds_cover_first_browser_vertical_slice_evidence() {
             kind,
             DISPATCHED_AT_MILLISECONDS,
             OBSERVED_AT_MILLISECONDS,
+            MAXIMUM_OBSERVATION_DELAY_MILLISECONDS,
             provenance(VerificationResult::Verified),
         )
         .expect("supported post-condition should admit verified evidence");
