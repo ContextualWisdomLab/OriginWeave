@@ -20,6 +20,24 @@ pub const MCP_TOOLS_CALL_METHOD: &str = "tools/call";
 /// Maximum accepted MCP tool-name length in bytes.
 pub const MAX_MCP_TOOL_NAME_BYTES: usize = 128;
 
+/// The complete explicit MCP tool-to-action mapping accepted by this boundary.
+const MCP_TOOL_ACTION_MAP: &[(&str, ActionKind)] = &[
+    ("originweave.observe", ActionKind::Observe),
+    ("originweave.extract", ActionKind::Extract),
+    ("originweave.navigate", ActionKind::Navigate),
+    ("originweave.download", ActionKind::Download),
+    ("originweave.draft", ActionKind::Draft),
+    ("originweave.submit", ActionKind::Submit),
+    ("originweave.upload", ActionKind::Upload),
+    ("originweave.fill_secret", ActionKind::FillSecret),
+    ("originweave.purchase", ActionKind::Purchase),
+    ("originweave.delete", ActionKind::Delete),
+    (
+        "originweave.manage_permission",
+        ActionKind::ManagePermission,
+    ),
+];
+
 /// A deterministic failure while validating untrusted MCP routing metadata.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum McpToolBoundaryError {
@@ -122,22 +140,9 @@ fn valid_tool_name(tool_name: &str) -> bool {
 }
 
 fn map_tool(tool_name: &str) -> Result<(&'static str, ActionKind), McpToolBoundaryError> {
-    let mapped = match tool_name {
-        "originweave.observe" => ("originweave.observe", ActionKind::Observe),
-        "originweave.extract" => ("originweave.extract", ActionKind::Extract),
-        "originweave.navigate" => ("originweave.navigate", ActionKind::Navigate),
-        "originweave.download" => ("originweave.download", ActionKind::Download),
-        "originweave.draft" => ("originweave.draft", ActionKind::Draft),
-        "originweave.submit" => ("originweave.submit", ActionKind::Submit),
-        "originweave.upload" => ("originweave.upload", ActionKind::Upload),
-        "originweave.fill_secret" => ("originweave.fill_secret", ActionKind::FillSecret),
-        "originweave.purchase" => ("originweave.purchase", ActionKind::Purchase),
-        "originweave.delete" => ("originweave.delete", ActionKind::Delete),
-        "originweave.manage_permission" => (
-            "originweave.manage_permission",
-            ActionKind::ManagePermission,
-        ),
-        _ => return Err(McpToolBoundaryError::UnknownTool),
-    };
-    Ok(mapped)
+    MCP_TOOL_ACTION_MAP
+        .iter()
+        .copied()
+        .find(|(mapped_name, _)| *mapped_name == tool_name)
+        .ok_or(McpToolBoundaryError::UnknownTool)
 }
