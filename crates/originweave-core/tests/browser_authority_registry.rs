@@ -1,5 +1,3 @@
-#![allow(clippy::expect_used)]
-
 use std::error::Error;
 
 use originweave_core::{
@@ -7,8 +5,8 @@ use originweave_core::{
     MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES, NodeHandleError, Origin,
 };
 
-fn loopback_origin() -> Origin {
-    Origin::parse("http://127.0.0.1:43127").expect("valid loopback fixture origin")
+fn loopback_origin() -> Result<Origin, Box<dyn Error>> {
+    Ok(Origin::parse("http://127.0.0.1:43127")?)
 }
 
 #[test]
@@ -92,7 +90,7 @@ fn document_rotation_invalidates_old_external_node_bindings() -> Result<(), Box<
     let mut registry = BrowserAuthorityRegistry::new();
     let session = registry.register_session("webdriver-session")?;
     let context = registry.register_context(session, "top-level-context")?;
-    let origin = loopback_origin();
+    let origin = loopback_origin()?;
 
     let first = registry.bind_node(session, context, &origin, "backend-node-17")?;
     let same = registry.bind_node(session, context, &origin, "backend-node-17")?;
@@ -115,12 +113,61 @@ fn document_rotation_invalidates_old_external_node_bindings() -> Result<(), Box<
 }
 
 #[test]
+fn retired_context_and_session_authority_cannot_be_reused() -> Result<(), Box<dyn Error>> {
+    let mut registry = BrowserAuthorityRegistry::new();
+    let session = registry.register_session("webdriver-session")?;
+    let context = registry.register_context(session, "top-level-context")?;
+    let origin = loopback_origin()?;
+    let first_node = registry.bind_node(session, context, &origin, "backend-node-17")?;
+
+    registry.remove_context(context)?;
+    assert_eq!(
+        registry.current_epoch(context),
+        Err(BrowserRegistryError::UnknownBrowsingContext)
+    );
+    assert_eq!(
+        registry.bind_node(session, context, &origin, "backend-node-17"),
+        Err(BrowserRegistryError::UnknownBrowsingContext)
+    );
+    assert_eq!(
+        registry.remove_context(context),
+        Err(BrowserRegistryError::UnknownBrowsingContext)
+    );
+
+    let replacement_context = registry.register_context(session, "top-level-context")?;
+    assert_ne!(replacement_context, context);
+    let replacement_node =
+        registry.bind_node(session, replacement_context, &origin, "backend-node-17")?;
+    assert_ne!(replacement_node.node_id(), first_node.node_id());
+
+    registry.remove_session(session)?;
+    assert_eq!(
+        registry.register_context(session, "after-session-retirement"),
+        Err(BrowserRegistryError::UnknownBrowserSession)
+    );
+    assert_eq!(
+        registry.current_epoch(replacement_context),
+        Err(BrowserRegistryError::UnknownBrowsingContext)
+    );
+    assert_eq!(
+        registry.remove_session(session),
+        Err(BrowserRegistryError::UnknownBrowserSession)
+    );
+
+    let replacement_session = registry.register_session("webdriver-session")?;
+    assert_ne!(replacement_session, session);
+    let next_context = registry.register_context(replacement_session, "top-level-context")?;
+    assert_ne!(next_context, replacement_context);
+    Ok(())
+}
+
+#[test]
 fn context_cannot_be_reused_by_another_session() -> Result<(), Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
     let owner = registry.register_session("owner-session")?;
     let attacker = registry.register_session("attacker-session")?;
     let context = registry.register_context(owner, "shared-looking-context")?;
-    let origin = loopback_origin();
+    let origin = loopback_origin()?;
 
     assert_eq!(
         registry.bind_node(attacker, context, &origin, "node"),
@@ -137,9 +184,8 @@ fn context_origin_cannot_change_without_document_rotation() -> Result<(), Box<dy
     let mut registry = BrowserAuthorityRegistry::new();
     let session = registry.register_session("webdriver-session")?;
     let context = registry.register_context(session, "top-level-context")?;
-    let first_origin = loopback_origin();
-    let second_origin =
-        Origin::parse("http://localhost:43127").expect("valid loopback fixture origin");
+    let first_origin = loopback_origin()?;
+    let second_origin = Origin::parse("http://localhost:43127")?;
 
     registry.bind_node(session, context, &first_origin, "backend-node-17")?;
     assert_eq!(
@@ -183,7 +229,7 @@ fn authority_identifier_capacity_is_bounded_and_testable() -> Result<(), Box<dyn
         Err(BrowserRegistryError::IdentifierSpaceExhausted)
     );
 
-    let origin = loopback_origin();
+    let origin = loopback_origin()?;
     assert!(
         registry
             .bind_node(session, context, &origin, "node-one")
@@ -208,7 +254,7 @@ fn unknown_internal_authority_is_rejected_before_node_binding() -> Result<(), Bo
 
     let known = registry.register_session("known-session")?;
     let context = registry.register_context(known, "known-context")?;
-    let origin = loopback_origin();
+    let origin = loopback_origin()?;
     assert_eq!(
         registry.bind_node(unknown, context, &origin, "node"),
         Err(BrowserRegistryError::UnknownBrowserSession)
