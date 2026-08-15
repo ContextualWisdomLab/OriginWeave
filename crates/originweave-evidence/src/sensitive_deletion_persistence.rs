@@ -8,15 +8,20 @@
 use std::fmt;
 
 use super::{
-    SensitiveDeletionInventoryCommitmentError, SensitiveDeletionReceipt,
-    SensitiveDeletionReceiptSetCommitment, SensitiveDeletionReceiptSetCommitmentInput,
-    SensitiveDeletionReceiptSetError, SensitiveDeletionRequirement,
-    verify_sensitive_deletion_inventory_commitment,
+    MAX_SENSITIVE_IDENTIFIER_BYTES, SensitiveDeletionInventoryCommitmentError,
+    SensitiveDeletionReceipt, SensitiveDeletionReceiptSetCommitment,
+    SensitiveDeletionReceiptSetCommitmentInput, SensitiveDeletionReceiptSetError,
+    SensitiveDeletionRequirement, verify_sensitive_deletion_inventory_commitment,
     verify_sensitive_deletion_receipt_set_with_commitment,
 };
 
 const PERSISTED_COMMITMENT_WIRE_DOMAIN: &[u8] =
     b"originweave-sensitive-deletion-persisted-commitment\0";
+const MAX_PERSISTED_COMMITMENT_WIRE_BYTES: usize = PERSISTED_COMMITMENT_WIRE_DOMAIN.len()
+    + 3 * (4 + MAX_SENSITIVE_IDENTIFIER_BYTES)
+    + 2 * 7
+    + 3
+    + 64;
 
 /// Current durable wire version for sensitive deletion inventory commitments.
 pub const SENSITIVE_DELETION_INVENTORY_COMMITMENT_VERSION: u16 = 1;
@@ -41,6 +46,8 @@ pub struct SensitiveDeletionPersistedCommitmentInput {
 /// Failure returned when a versioned persisted deletion commitment cannot be reconstructed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SensitiveDeletionPersistedCommitmentError {
+    /// Canonical wire bytes were malformed, ambiguous, oversized, or not valid UTF-8 metadata.
+    InvalidWireEncoding,
     /// The durable envelope uses a wire version unsupported by this OriginWeave build.
     UnsupportedCommitmentVersion,
     /// The version is supported, but the enclosed commitment metadata is invalid.
@@ -50,6 +57,8 @@ pub enum SensitiveDeletionPersistedCommitmentError {
 impl fmt::Display for SensitiveDeletionPersistedCommitmentError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::InvalidWireEncoding => formatter
+                .write_str("persisted sensitive deletion commitment wire encoding is invalid"),
             Self::UnsupportedCommitmentVersion => {
                 formatter.write_str("unsupported persisted sensitive deletion commitment version")
             }
@@ -66,7 +75,7 @@ impl fmt::Display for SensitiveDeletionPersistedCommitmentError {
 impl std::error::Error for SensitiveDeletionPersistedCommitmentError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::UnsupportedCommitmentVersion => None,
+            Self::InvalidWireEncoding | Self::UnsupportedCommitmentVersion => None,
             Self::InvalidCommitment(error) => Some(error),
         }
     }
@@ -182,12 +191,111 @@ impl SensitiveDeletionPersistedCommitment {
         append_persisted_wire_field(&mut output, self.inventory_digest().as_bytes());
         output
     }
+
+    /// Parse one exact canonical wire representation produced by [`Self::canonical_wire_bytes`].
+    ///
+    /// Parsing is bounded before field scanning, rejects alternate length or integer spellings,
+    /// rejects trailing bytes, and then reuses the ordinary structural commitment validator. This
+    /// prevents a persistence adapter from implementing a second, more permissive wire grammar.
+    pub fn from_canonical_wire_bytes(
+        wire: &[u8],
+    ) -> Result<Self, SensitiveDeletionPersistedCommitmentError> {
+        if wire.len() > MAX_PERSISTED_COMMITMENT_WIRE_BYTES
+            || !wire.starts_with(PERSISTED_COMMITMENT_WIRE_DOMAIN)
+        {
+            return Err(SensitiveDeletionPersistedCommitmentError::InvalidWireEncoding);
+        }
+
+        let mut cursor = PERSISTED_COMMITMENT_WIRE_DOMAIN.len();
+        let commitment_version = parse_canonical_wire_u16(read_persisted_wire_field(
+            wire,
+            &mut cursor,
+        )?)?;
+        let request_id = parse_persisted_wire_text(read_persisted_wire_field(wire, &mut cursor)?)?;
+        let tenant_id = parse_persisted_wire_text(read_persisted_wire_field(wire, &mut cursor)?)?;
+        let retention_policy_id =
+            parse_persisted_wire_text(read_persisted_wire_field(wire, &mut cursor)?)?;
+        let declared_copy_count = parse_canonical_wire_u16(read_persisted_wire_field(
+            wire,
+            &mut cursor,
+        )?)?;
+        let inventory_digest =
+            parse_persisted_wire_text(read_persisted_wire_field(wire, &mut cursor)?)?;
+
+        if cursor != wire.len() {
+            return Err(SensitiveDeletionPersistedCommitmentError::InvalidWireEncoding);
+        }
+
+        Self::try_from(SensitiveDeletionPersistedCommitmentInput {
+            commitment_version,
+            request_id,
+            tenant_id,
+            retention_policy_id,
+            declared_copy_count,
+            inventory_digest,
+        })
+    }
 }
 
 fn append_persisted_wire_field(output: &mut Vec<u8>, value: &[u8]) {
     output.extend_from_slice(value.len().to_string().as_bytes());
     output.push(b':');
     output.extend_from_slice(value);
+}
+
+fn read_persisted_wire_field<'a>(
+    wire: &'a [u8],
+    cursor: &mut usize,
+) -> Result<&'a [u8], SensitiveDeletionPersistedCommitmentError> {
+    let remaining = wire
+        .get(*cursor..)
+        .ok_or(SensitiveDeletionPersistedCommitmentError::InvalidWireEncoding)?;
+    let Some(delimiter_offset) = remaining.iter().position(|byte| *byte == b':') else {
+        return Err(SensitiveDeletionPersistedCommitmentError::InvalidWireEncoding);
+    };
+    let length_bytes = &remaining[..delimiter_offset];
+    if length_bytes.is_empty()
+        || length_bytes.len() > 3
+        || (length_bytes.len() > 1 && length_bytes[0] == b'0')
+        || !length_bytes.iter().all(u8::is_ascii_digit)
+    {
+        return Err(SensitiveDeletionPersistedCommitmentError::InvalidWireEncoding);
+    }
+
+    let field_length = length_bytes.iter().fold(0usize, |value, byte| {
+        value * 10 + usize::from(*byte - b'0')
+    });
+    let field_start = *cursor + delimiter_offset + 1;
+    if field_length > wire.len().saturating_sub(field_start) {
+        return Err(SensitiveDeletionPersistedCommitmentError::InvalidWireEncoding);
+    }
+    let field_end = field_start + field_length;
+    *cursor = field_end;
+    Ok(&wire[field_start..field_end])
+}
+
+fn parse_canonical_wire_u16(
+    field: &[u8],
+) -> Result<u16, SensitiveDeletionPersistedCommitmentError> {
+    if field.is_empty()
+        || field.len() > 5
+        || (field.len() > 1 && field[0] == b'0')
+        || !field.iter().all(u8::is_ascii_digit)
+    {
+        return Err(SensitiveDeletionPersistedCommitmentError::InvalidWireEncoding);
+    }
+    let value = field.iter().fold(0u32, |value, byte| {
+        value * 10 + u32::from(*byte - b'0')
+    });
+    u16::try_from(value).map_err(|_| SensitiveDeletionPersistedCommitmentError::InvalidWireEncoding)
+}
+
+fn parse_persisted_wire_text(
+    field: &[u8],
+) -> Result<String, SensitiveDeletionPersistedCommitmentError> {
+    std::str::from_utf8(field)
+        .map(str::to_owned)
+        .map_err(|_| SensitiveDeletionPersistedCommitmentError::InvalidWireEncoding)
 }
 
 /// Verify an exact deletion receipt set and return a versioned durable commitment envelope.
