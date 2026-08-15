@@ -10,6 +10,7 @@
 mod browser_registry;
 #[cfg(test)]
 mod browser_registry_coverage;
+mod contract_errors;
 mod contracts;
 
 pub use browser_registry::{
