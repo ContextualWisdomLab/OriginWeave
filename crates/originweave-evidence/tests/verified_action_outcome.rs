@@ -107,12 +107,8 @@ fn unverified_or_rejected_post_condition_cannot_be_recorded_as_success() {
 
 #[test]
 fn post_condition_observation_cannot_predate_action_dispatch() {
-    let error = PostConditionObservation::new(
-        2_000,
-        1_999,
-        MAXIMUM_OBSERVATION_DELAY_MILLISECONDS,
-    )
-    .expect_err("pre-dispatch observation cannot prove action success");
+    let error = PostConditionObservation::new(2_000, 1_999, MAXIMUM_OBSERVATION_DELAY_MILLISECONDS)
+        .expect_err("pre-dispatch observation cannot prove action success");
 
     assert_eq!(
         error,
@@ -129,12 +125,9 @@ fn post_condition_observation_cannot_predate_action_dispatch() {
 
 #[test]
 fn zero_observation_delay_budget_is_rejected() {
-    let error = PostConditionObservation::new(
-        DISPATCHED_AT_MILLISECONDS,
-        OBSERVED_AT_MILLISECONDS,
-        0,
-    )
-    .expect_err("successful action evidence requires a positive observation delay budget");
+    let error =
+        PostConditionObservation::new(DISPATCHED_AT_MILLISECONDS, OBSERVED_AT_MILLISECONDS, 0)
+            .expect_err("successful action evidence requires a positive observation delay budget");
 
     assert_eq!(
         error,
@@ -148,12 +141,8 @@ fn zero_observation_delay_budget_is_rejected() {
 
 #[test]
 fn post_condition_observation_cannot_outlive_delay_budget() {
-    let error = PostConditionObservation::new(
-        5_000,
-        5_251,
-        MAXIMUM_OBSERVATION_DELAY_MILLISECONDS,
-    )
-    .expect_err("stale observation cannot prove action success");
+    let error = PostConditionObservation::new(5_000, 5_251, MAXIMUM_OBSERVATION_DELAY_MILLISECONDS)
+        .expect_err("stale observation cannot prove action success");
 
     assert_eq!(
         error,
@@ -170,12 +159,9 @@ fn post_condition_observation_cannot_outlive_delay_budget() {
 
 #[test]
 fn same_monotonic_tick_is_allowed_for_coarse_clock_sources() {
-    let observation = PostConditionObservation::new(
-        4_000,
-        4_000,
-        MAXIMUM_OBSERVATION_DELAY_MILLISECONDS,
-    )
-    .expect("coarse monotonic clocks may observe within the dispatch tick");
+    let observation =
+        PostConditionObservation::new(4_000, 4_000, MAXIMUM_OBSERVATION_DELAY_MILLISECONDS)
+            .expect("coarse monotonic clocks may observe within the dispatch tick");
     let evidence = VerifiedActionOutcomeEvidence::new(
         ActionKind::Submit,
         origin(),
