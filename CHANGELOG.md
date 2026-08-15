@@ -63,6 +63,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - TLS accepts only an already verified direct stream, never a hostname or new socket, and requires the TLS origin to match the transport-authority origin exactly.
 - DNS TLS identity requires an applicable subjectAltName and never falls back to Common Name; literal IPv4 and IPv6 origins require exact IP subjectAltName entries.
 - TLS uses an explicit immutable trust-root bundle and fixed verification time, and permits only TLS 1.2 and TLS 1.3.
+- TLS trust-bundle policy identifiers must contain at least one ASCII alphanumeric character; punctuation-only labels are rejected while `.`, `_`, `:`, and `-` remain permitted.
 - TLS resumption, 0-RTT, secret extraction, key logging, client certificates, certificate compression, and dangerous custom verifier hooks are disabled in the first slice.
 - The operating-system peer is rechecked before, during, and after the deadline-bound TLS handshake.
 - ALPN selection is restricted to the caller's bounded allow-list, while absence is either explicitly recorded or rejected by policy.
