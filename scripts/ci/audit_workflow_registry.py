@@ -20,6 +20,7 @@ from typing import Any
 _SCHEMA_VERSION = 1
 _MAX_INPUT_BYTES = 4 * 1024 * 1024
 _MAX_JSON_INTEGER_DIGITS = 20
+_MAX_WORKFLOW_ID = (1 << 64) - 1
 _SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 _TIMESTAMP_PATTERN = re.compile(
     r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
@@ -227,7 +228,9 @@ def _validate_workflow_record(
     workflow_id = raw_record.get("id")
     if isinstance(workflow_id, bool) or not isinstance(workflow_id, int):
         raise WorkflowAuditError(f"workflow record {record_index} has an invalid id")
-    if workflow_id <= 0 or workflow_id in seen_ids:
+    if workflow_id <= 0 or workflow_id > _MAX_WORKFLOW_ID:
+        raise WorkflowAuditError(f"workflow record {record_index} has an invalid id")
+    if workflow_id in seen_ids:
         raise WorkflowAuditError(f"workflow record {record_index} reuses an id")
     seen_ids.add(workflow_id)
 
