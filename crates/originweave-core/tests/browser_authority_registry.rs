@@ -115,6 +115,55 @@ fn document_rotation_invalidates_old_external_node_bindings() -> Result<(), Box<
 }
 
 #[test]
+fn retired_context_and_session_authority_cannot_be_reused() -> Result<(), Box<dyn Error>> {
+    let mut registry = BrowserAuthorityRegistry::new();
+    let session = registry.register_session("webdriver-session")?;
+    let context = registry.register_context(session, "top-level-context")?;
+    let origin = loopback_origin();
+    let first_node = registry.bind_node(session, context, &origin, "backend-node-17")?;
+
+    registry.remove_context(context)?;
+    assert_eq!(
+        registry.current_epoch(context),
+        Err(BrowserRegistryError::UnknownBrowsingContext)
+    );
+    assert_eq!(
+        registry.bind_node(session, context, &origin, "backend-node-17"),
+        Err(BrowserRegistryError::UnknownBrowsingContext)
+    );
+    assert_eq!(
+        registry.remove_context(context),
+        Err(BrowserRegistryError::UnknownBrowsingContext)
+    );
+
+    let replacement_context = registry.register_context(session, "top-level-context")?;
+    assert_ne!(replacement_context, context);
+    let replacement_node =
+        registry.bind_node(session, replacement_context, &origin, "backend-node-17")?;
+    assert_ne!(replacement_node.node_id(), first_node.node_id());
+
+    registry.remove_session(session)?;
+    assert_eq!(
+        registry.register_context(session, "after-session-retirement"),
+        Err(BrowserRegistryError::UnknownBrowserSession)
+    );
+    assert_eq!(
+        registry.current_epoch(replacement_context),
+        Err(BrowserRegistryError::UnknownBrowsingContext)
+    );
+    assert_eq!(
+        registry.remove_session(session),
+        Err(BrowserRegistryError::UnknownBrowserSession)
+    );
+
+    let replacement_session = registry.register_session("webdriver-session")?;
+    assert_ne!(replacement_session, session);
+    let next_context = registry.register_context(replacement_session, "top-level-context")?;
+    assert_ne!(next_context, replacement_context);
+    Ok(())
+}
+
+#[test]
 fn context_cannot_be_reused_by_another_session() -> Result<(), Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
     let owner = registry.register_session("owner-session")?;
