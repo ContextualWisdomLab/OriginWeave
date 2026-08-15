@@ -51,7 +51,7 @@ fn public_validation_errors_have_stable_operator_messages() {
     );
     assert_eq!(
         ActionIntentDigestError::InvalidFormat.to_string(),
-        "action intent digest must be sha256 followed by 64 lowercase hexadecimal digits"
+        "action intent digest must be sha256: followed by 64 lowercase hexadecimal digits"
     );
     assert_eq!(
         ExtensionIdError::InvalidExtensionId.to_string(),
