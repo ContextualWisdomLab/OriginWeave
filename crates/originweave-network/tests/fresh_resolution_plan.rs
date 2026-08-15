@@ -1,3 +1,4 @@
+use std::error::Error;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpListener};
 use std::thread;
 use std::time::Duration;
@@ -216,8 +217,23 @@ fn connection_plan_rejects_socket_port_that_changes_default_origin() -> Result<(
         Duration::from_secs(1),
         1,
     );
+    let error = match result {
+        Err(error) => error,
+        Ok(_plan) => return Err("origin-port drift unexpectedly produced a connection plan".into()),
+    };
 
-    assert!(matches!(result, Err(NetworkError::InvalidPort)));
+    assert!(matches!(
+        &error,
+        NetworkError::OriginPortMismatch {
+            requested_port,
+            expected_port,
+        } if *requested_port == 8080 && *expected_port == 80
+    ));
+    assert_eq!(
+        error.to_string(),
+        "socket port 8080 does not match canonical origin port 80"
+    );
+    assert!(error.source().is_none());
     Ok(())
 }
 
@@ -250,7 +266,13 @@ fn connection_plan_enforces_default_https_port_for_ipv6_origin() -> Result<(), S
         Duration::from_secs(1),
         1,
     );
-    assert!(matches!(wrong_port, Err(NetworkError::InvalidPort)));
+    assert!(matches!(
+        wrong_port,
+        Err(NetworkError::OriginPortMismatch {
+            requested_port: 444,
+            expected_port: 443,
+        })
+    ));
     Ok(())
 }
 
@@ -276,6 +298,12 @@ fn connection_plan_rejects_socket_port_that_changes_explicit_origin() -> Result<
         1,
     );
 
-    assert!(matches!(result, Err(NetworkError::InvalidPort)));
+    assert!(matches!(
+        result,
+        Err(NetworkError::OriginPortMismatch {
+            requested_port: 8081,
+            expected_port: 8080,
+        })
+    ));
     Ok(())
 }
