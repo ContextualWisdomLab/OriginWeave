@@ -8,8 +8,6 @@
 #![deny(missing_docs)]
 
 mod browser_registry;
-#[cfg(test)]
-mod browser_registry_coverage;
 mod contracts;
 
 pub use browser_registry::{
