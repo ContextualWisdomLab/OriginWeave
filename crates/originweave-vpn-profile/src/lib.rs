@@ -25,10 +25,25 @@ const MAX_IKE_IDENTITY_BYTES: usize = 253;
 pub struct SecretReference(String);
 
 impl SecretReference {
-    /// Create a bounded non-empty opaque reference returned by a trusted secret store.
+    /// Create a bounded non-empty opaque reference free of whitespace and control formatting.
     pub fn new(reference: impl Into<String>) -> Result<Self, ProfileError> {
         let reference = reference.into();
-        if reference.is_empty() || reference.len() > MAX_SECRET_REFERENCE_BYTES {
+        if reference.is_empty()
+            || reference.len() > MAX_SECRET_REFERENCE_BYTES
+            || reference.chars().any(|character| {
+                character.is_whitespace()
+                    || character.is_control()
+                    || matches!(
+                        character,
+                        '\u{00ad}'
+                            | '\u{061c}'
+                            | '\u{200b}'..='\u{200f}'
+                            | '\u{202a}'..='\u{202e}'
+                            | '\u{2060}'..='\u{206f}'
+                            | '\u{feff}'
+                    )
+            })
+        {
             return Err(ProfileError::InvalidSecretReference);
         }
         Ok(Self(reference))
