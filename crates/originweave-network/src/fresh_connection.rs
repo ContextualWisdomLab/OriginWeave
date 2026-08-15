@@ -57,8 +57,12 @@ impl FreshConnectionPlan {
                 socket_address,
                 source,
             })?;
-        if socket_address.port() != effective_origin_port(resolution.origin()) {
-            return Err(NetworkError::InvalidPort);
+        let expected_port = effective_origin_port(resolution.origin());
+        if socket_address.port() != expected_port {
+            return Err(NetworkError::OriginPortMismatch {
+                requested_port: socket_address.port(),
+                expected_port,
+            });
         }
         let connection_plan = ConnectionPlan::new(
             resolution.resolution_snapshot(),
