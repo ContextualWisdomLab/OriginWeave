@@ -54,7 +54,12 @@ fn native_messaging_requires_an_explicit_exact_extension_and_host_grant() {
     let other_host = host_name("com.contextualwisdom.other_host");
     let grant = NativeMessagingHostGrant::new(allowed_extension.clone(), allowed_host.clone());
 
+    assert_eq!(grant.extension_id(), &allowed_extension);
+    assert_eq!(grant.host_name(), &allowed_host);
+
     let exact = NativeMessagingAccessRequest::new(allowed_extension.clone(), allowed_host.clone());
+    assert_eq!(exact.extension_id(), &allowed_extension);
+    assert_eq!(exact.host_name(), &allowed_host);
     assert_eq!(
         evaluate_native_messaging_access(&exact, Some(&grant)),
         NativeMessagingAccessDecision::Allow
