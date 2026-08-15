@@ -237,6 +237,39 @@ pub enum OriginError {
     InvalidPort,
 }
 
+impl fmt::Display for OriginError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MissingScheme => {
+                formatter.write_str("origin must include a scheme followed by ://")
+            }
+            Self::UnsupportedScheme => formatter.write_str("origin scheme must be http or https"),
+            Self::InsecureRemoteOrigin => formatter.write_str(
+                "remote HTTP origins are forbidden; use HTTPS or a loopback HTTP origin",
+            ),
+            Self::MissingAuthority => {
+                formatter.write_str("origin must include a non-empty authority after the scheme")
+            }
+            Self::UserInfoNotAllowed => {
+                formatter.write_str("origin authority must not contain user information")
+            }
+            Self::PathNotAllowed => {
+                formatter.write_str("origin must not contain a path, query, or fragment")
+            }
+            Self::InvalidAuthority => {
+                formatter.write_str("origin authority is malformed or ambiguous")
+            }
+            Self::AmbiguousNumericHost => formatter.write_str(
+                "origin host uses an ambiguous browser-style numeric address spelling",
+            ),
+            Self::InvalidPort => formatter
+                .write_str("origin port must be a nonzero numeric value within 1..=65535"),
+        }
+    }
+}
+
+impl std::error::Error for OriginError {}
+
 /// A nonzero identity for one active browser automation session.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BrowserSessionId(u64);
