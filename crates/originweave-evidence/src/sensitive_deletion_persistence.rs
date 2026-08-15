@@ -15,6 +15,9 @@ use super::{
     verify_sensitive_deletion_receipt_set_with_commitment,
 };
 
+const PERSISTED_COMMITMENT_WIRE_DOMAIN: &[u8] =
+    b"originweave-sensitive-deletion-persisted-commitment\0";
+
 /// Current durable wire version for sensitive deletion inventory commitments.
 pub const SENSITIVE_DELETION_INVENTORY_COMMITMENT_VERSION: u16 = 1;
 
@@ -158,6 +161,33 @@ impl SensitiveDeletionPersistedCommitment {
     pub fn inventory_digest(&self) -> &str {
         self.commitment.inventory_digest()
     }
+
+    /// Encode the validated commitment into deterministic architecture-independent wire bytes.
+    ///
+    /// The wire form starts with a domain separator and then length-delimits, in order, the wire
+    /// version, request, tenant, retention policy, declared-copy count, and inventory digest. This
+    /// makes field boundaries and integer text representation explicit for durable signing,
+    /// hashing, or cross-process storage. The bytes are not authenticated by this method and still
+    /// require an external integrity and access-control boundary.
+    #[must_use]
+    pub fn canonical_wire_bytes(&self) -> Vec<u8> {
+        let mut output = PERSISTED_COMMITMENT_WIRE_DOMAIN.to_vec();
+        let commitment_version = self.commitment_version().to_string();
+        let declared_copy_count = self.declared_copy_count().to_string();
+        append_persisted_wire_field(&mut output, commitment_version.as_bytes());
+        append_persisted_wire_field(&mut output, self.request_id().as_bytes());
+        append_persisted_wire_field(&mut output, self.tenant_id().as_bytes());
+        append_persisted_wire_field(&mut output, self.retention_policy_id().as_bytes());
+        append_persisted_wire_field(&mut output, declared_copy_count.as_bytes());
+        append_persisted_wire_field(&mut output, self.inventory_digest().as_bytes());
+        output
+    }
+}
+
+fn append_persisted_wire_field(output: &mut Vec<u8>, value: &[u8]) {
+    output.extend_from_slice(value.len().to_string().as_bytes());
+    output.push(b':');
+    output.extend_from_slice(value);
 }
 
 /// Verify an exact deletion receipt set and return a versioned durable commitment envelope.
