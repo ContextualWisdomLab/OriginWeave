@@ -1,6 +1,7 @@
 use originweave_vpn_profile::{
-    ProfileError, SecretReference, VpnProfile, VpnSecret, VpnSecretImporter,
-    import_wireguard_profile, parse_ikev2_profile, parse_vpn_profile,
+    MAX_LIST_ITEMS, MAX_PEERS, MAX_PROFILE_BYTES, MAX_SECRET_BYTES,
+    MAX_SECRET_REFERENCE_BYTES, ProfileError, SecretReference, VpnProfile, VpnSecret,
+    VpnSecretImporter, import_wireguard_profile, parse_ikev2_profile, parse_vpn_profile,
 };
 
 const VALID_WIREGUARD_KEY: &str = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
@@ -30,8 +31,14 @@ impl VpnSecretImporter for RecordingImporter {
     }
 }
 
-fn valid_wireguard_profile() -> &'static str {
-    "[Interface]\nAddress=10.0.0.2/32,fd00::2/128\nDNS=1.1.1.1\nMTU=1420\nListenPort=51820\nPrivateKey=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\n[Peer]\nPublicKey=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\nPresharedKey=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\nEndpoint=vpn.example:51820\nAllowedIPs=0.0.0.0/0,::/0\nPersistentKeepalive=25\n"
+fn valid_wireguard_profile() -> String {
+    format!(
+        "[Interface]\nAddress=10.0.0.2/32,fd00::2/128\nDNS=1.1.1.1\nMTU=1420\n\
+         ListenPort=51820\nPrivateKey={VALID_WIREGUARD_KEY}\n[Peer]\n\
+         PublicKey={VALID_WIREGUARD_KEY}\nPresharedKey={VALID_WIREGUARD_KEY}\n\
+         Endpoint=vpn.example:51820\nAllowedIPs=0.0.0.0/0,::/0\n\
+         PersistentKeepalive=25\n"
+    )
 }
 
 fn valid_ikev2_psk_profile() -> &'static str {
@@ -69,7 +76,7 @@ fn rejected_ikev2_profile_does_not_import_preshared_key() {
 #[test]
 fn valid_wireguard_profile_imports_only_after_complete_validation() {
     let mut importer = RecordingImporter::default();
-    let result = import_wireguard_profile(valid_wireguard_profile(), &mut importer);
+    let result = import_wireguard_profile(&valid_wireguard_profile(), &mut importer);
 
     assert!(matches!(
         result,
@@ -91,14 +98,14 @@ fn valid_wireguard_profile_imports_only_after_complete_validation() {
 fn wireguard_external_import_failures_remain_typed_after_validation() {
     let mut first = RecordingImporter::failing_on(1);
     assert_eq!(
-        import_wireguard_profile(valid_wireguard_profile(), &mut first),
+        import_wireguard_profile(&valid_wireguard_profile(), &mut first),
         Err(ProfileError::SecretImportFailed)
     );
     assert_eq!(first.calls, 1);
 
     let mut second = RecordingImporter::failing_on(2);
     assert_eq!(
-        import_wireguard_profile(valid_wireguard_profile(), &mut second),
+        import_wireguard_profile(&valid_wireguard_profile(), &mut second),
         Err(ProfileError::SecretCleanupFailed)
     );
     assert_eq!(second.calls, 2);
@@ -128,7 +135,7 @@ fn wireguard_structure_and_bounds_fail_before_external_import() {
     );
     assert_eq!(importer.calls, 0);
 
-    let oversized = "x".repeat(65_537);
+    let oversized = "x".repeat(MAX_PROFILE_BYTES + 1);
     assert_eq!(
         import_wireguard_profile(&oversized, &mut importer),
         Err(ProfileError::ProfileTooLarge)
@@ -155,7 +162,7 @@ fn wireguard_duplicate_and_numeric_variants_cover_each_storage_type() {
 
 #[test]
 fn wireguard_exercises_both_peer_limit_rejection_boundaries() {
-    for peer_count in [65usize, 66usize] {
+    for peer_count in [MAX_PEERS + 1, MAX_PEERS + 2] {
         let mut profile =
             format!("[Interface]\nAddress=10.0.0.2/32\nPrivateKey={VALID_WIREGUARD_KEY}\n");
         for _ in 0..peer_count {
@@ -174,7 +181,7 @@ fn wireguard_exercises_both_peer_limit_rejection_boundaries() {
 
 #[test]
 fn wireguard_rejects_list_and_secret_resource_overflow_before_external_import() {
-    let list = std::iter::repeat_n("10.0.0.2/32", 257)
+    let list = std::iter::repeat_n("10.0.0.2/32", MAX_LIST_ITEMS + 1)
         .collect::<Vec<_>>()
         .join(",");
     let profile = format!("[Interface]\nAddress={list}\nPrivateKey=k");
@@ -185,7 +192,7 @@ fn wireguard_rejects_list_and_secret_resource_overflow_before_external_import() 
     );
     assert_eq!(importer.calls, 0);
 
-    let secret = "x".repeat(4_097);
+    let secret = "x".repeat(MAX_SECRET_BYTES + 1);
     let profile = format!("[Interface]\nAddress=10.0.0.2/32\nPrivateKey={secret}");
     assert_eq!(
         import_wireguard_profile(&profile, &mut importer),
@@ -277,7 +284,7 @@ fn ikev2_authentication_conflicts_and_timer_short_circuit_paths_fail_closed() {
 fn top_level_detection_dispatches_without_ambient_import_authority() {
     let mut wg = RecordingImporter::default();
     assert!(matches!(
-        parse_vpn_profile(valid_wireguard_profile(), &mut wg),
+        parse_vpn_profile(&valid_wireguard_profile(), &mut wg),
         Ok(VpnProfile::WireGuard(_))
     ));
     assert_eq!(wg.calls, 2);
@@ -300,7 +307,7 @@ fn top_level_detection_dispatches_without_ambient_import_authority() {
 
     let mut importer = RecordingImporter::default();
     assert_eq!(
-        parse_vpn_profile(&"x".repeat(65_537), &mut importer),
+        parse_vpn_profile(&"x".repeat(MAX_PROFILE_BYTES + 1), &mut importer),
         Err(ProfileError::ProfileTooLarge)
     );
     assert_eq!(importer.calls, 0);
@@ -313,7 +320,7 @@ fn string_owned_secret_references_cover_valid_and_invalid_bounds() {
         Err(ProfileError::InvalidSecretReference)
     );
     assert_eq!(
-        SecretReference::new("x".repeat(513)),
+        SecretReference::new("x".repeat(MAX_SECRET_REFERENCE_BYTES + 1)),
         Err(ProfileError::InvalidSecretReference)
     );
     assert!(matches!(
