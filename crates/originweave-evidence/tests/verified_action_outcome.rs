@@ -138,7 +138,10 @@ fn zero_observation_delay_budget_is_rejected() {
     )
     .expect_err("successful action evidence requires a positive observation delay budget");
 
-    assert_eq!(error, VerifiedActionOutcomeError::ZeroObservationDelayBudget);
+    assert_eq!(
+        error,
+        VerifiedActionOutcomeError::ZeroObservationDelayBudget
+    );
     assert_eq!(
         error.to_string(),
         "post-condition observation delay budget must be greater than zero"
