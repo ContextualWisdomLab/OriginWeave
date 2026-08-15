@@ -61,7 +61,13 @@ def _require_nonempty_string(value: Any, field_name: str, maximum: int) -> str:
 
     if not isinstance(value, str):
         raise WorkflowAuditError(f"{field_name} must be a string")
-    if not value or value != value.strip() or len(value.encode("utf-8")) > maximum:
+    if not value or value != value.strip():
+        raise WorkflowAuditError(f"{field_name} is invalid")
+    try:
+        encoded_length = len(value.encode("utf-8"))
+    except UnicodeEncodeError:
+        raise WorkflowAuditError(f"{field_name} is invalid") from None
+    if encoded_length > maximum:
         raise WorkflowAuditError(f"{field_name} is invalid")
     if any(not character.isprintable() for character in value):
         raise WorkflowAuditError(f"{field_name} contains a control character")
