@@ -65,6 +65,11 @@ fn secret_reference_rejects_log_injection_and_ambiguous_whitespace() {
         );
     }
 
+    assert_eq!(
+        SecretReference::new("secret://tenant/item\u{1b}owned-string".to_owned()),
+        Err(ProfileError::InvalidSecretReference)
+    );
+
     for reference in ["secret://tenant/item", "secret://tenant/키"] {
         assert_eq!(
             SecretReference::new(reference).map(|value| value.as_str().to_owned()),
