@@ -50,6 +50,13 @@ class ManifestV3DownloadsContractTests(unittest.TestCase):
                 self.assertIn(expected, worker)
         self.assertNotIn('chrome.runtime.getURL("download.txt")', worker)
 
+    def test_restart_pair_never_overwrites_the_previous_controlled_download(self) -> None:
+        """Restart evidence must not race Chrome while replacing the first pass's file."""
+
+        worker = (FIXTURE / "service_worker.js").read_text(encoding="utf-8")
+        self.assertIn('conflictAction: "uniquify"', worker)
+        self.assertNotIn('conflictAction: "overwrite"', worker)
+
     def test_download_failures_emit_only_bounded_stage_diagnostics(self) -> None:
         """Fixture diagnostics must name a reviewed stage without retaining raw browser errors."""
 
