@@ -186,7 +186,13 @@ fn fresh_resolution_still_requires_valid_connection_parameters() -> Result<(), S
     let snapshot = fresh_default_loopback_snapshot()?;
     let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 80);
 
-    let result = FreshConnectionPlan::new(&snapshot, Duration::from_secs(12), socket, Duration::ZERO, 1);
+    let result = FreshConnectionPlan::new(
+        &snapshot,
+        Duration::from_secs(12),
+        socket,
+        Duration::ZERO,
+        1,
+    );
 
     assert!(matches!(
         result,
