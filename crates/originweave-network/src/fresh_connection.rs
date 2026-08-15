@@ -19,9 +19,9 @@ fn effective_origin_port(origin: &Origin) -> u16 {
     };
 
     match explicit_port {
-        Some(port) => port.bytes().fold(0_u16, |value, digit| {
-            value * 10 + u16::from(digit - b'0')
-        }),
+        Some(port) => port
+            .bytes()
+            .fold(0_u16, |value, digit| value * 10 + u16::from(digit - b'0')),
         None => default_port,
     }
 }
