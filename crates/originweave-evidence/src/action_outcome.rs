@@ -30,6 +30,15 @@ pub enum VerifiedActionOutcomeError {
         /// Monotonic timestamp recorded when the post-condition was observed.
         observed_at_milliseconds: u64,
     },
+    /// The caller supplied no positive freshness budget for the observation.
+    ZeroObservationDelayBudget,
+    /// The verified observation arrived after the caller-selected freshness budget.
+    PostConditionObservationExpired {
+        /// Elapsed time between dispatch and the verified observation.
+        elapsed_milliseconds: u64,
+        /// Maximum dispatch-to-observation delay accepted by the caller's policy.
+        maximum_observation_delay_milliseconds: u64,
+    },
 }
 
 impl Display for VerifiedActionOutcomeError {
@@ -44,60 +53,124 @@ impl Display for VerifiedActionOutcomeError {
                 formatter,
                 "post-condition observation at {observed_at_milliseconds} ms predates action dispatch at {dispatched_at_milliseconds} ms"
             ),
+            Self::ZeroObservationDelayBudget => formatter
+                .write_str("post-condition observation delay budget must be greater than zero"),
+            Self::PostConditionObservationExpired {
+                elapsed_milliseconds,
+                maximum_observation_delay_milliseconds,
+            } => write!(
+                formatter,
+                "post-condition observation delay {elapsed_milliseconds} ms exceeds the configured maximum of {maximum_observation_delay_milliseconds} ms"
+            ),
         }
     }
 }
 
 impl Error for VerifiedActionOutcomeError {}
 
-/// Credential-safe evidence that a typed action completed its verified post-condition.
+/// A caller-bounded monotonic observation window for one action post-condition.
 ///
-/// Construction is intentionally fail-closed: a command acknowledgement, an
-/// unverified observation, rejected provenance, or an observation timestamp
-/// earlier than the action dispatch cannot be represented by this type as
-/// successful action completion. Equal dispatch and observation timestamps are
-/// permitted because a bounded adapter may use a coarse monotonic clock.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct VerifiedActionOutcomeEvidence {
-    action: ActionKind,
-    target_origin: Origin,
-    intent_digest: ActionIntentDigest,
-    post_condition: PostConditionKind,
+/// Construction fails closed when an observation predates dispatch, when the
+/// freshness budget is zero, or when the observation arrives after that budget.
+/// Dispatch and observation timestamps must come from the same monotonic clock
+/// domain; equal values are allowed for coarse clocks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PostConditionObservation {
     dispatched_at_milliseconds: u64,
     observed_at_milliseconds: u64,
-    provenance: ProvenanceRecord,
+    maximum_observation_delay_milliseconds: u64,
 }
 
-impl VerifiedActionOutcomeEvidence {
-    /// Create successful action evidence from verified, temporally ordered provenance.
-    ///
-    /// Both timestamps must come from the same monotonic clock domain. The
-    /// observation may share the dispatch tick, but it may never predate it.
+impl PostConditionObservation {
+    /// Validate one monotonic post-condition observation against its freshness budget.
     pub fn new(
-        action: ActionKind,
-        target_origin: Origin,
-        intent_digest: ActionIntentDigest,
-        post_condition: PostConditionKind,
         dispatched_at_milliseconds: u64,
         observed_at_milliseconds: u64,
-        provenance: ProvenanceRecord,
+        maximum_observation_delay_milliseconds: u64,
     ) -> Result<Self, VerifiedActionOutcomeError> {
-        if provenance.verification_result() != VerificationResult::Verified {
-            return Err(VerifiedActionOutcomeError::PostConditionNotVerified);
-        }
         if observed_at_milliseconds < dispatched_at_milliseconds {
             return Err(VerifiedActionOutcomeError::PostConditionPredatesDispatch {
                 dispatched_at_milliseconds,
                 observed_at_milliseconds,
             });
         }
+        if maximum_observation_delay_milliseconds == 0 {
+            return Err(VerifiedActionOutcomeError::ZeroObservationDelayBudget);
+        }
+        let elapsed_milliseconds = observed_at_milliseconds - dispatched_at_milliseconds;
+        if elapsed_milliseconds > maximum_observation_delay_milliseconds {
+            return Err(
+                VerifiedActionOutcomeError::PostConditionObservationExpired {
+                    elapsed_milliseconds,
+                    maximum_observation_delay_milliseconds,
+                },
+            );
+        }
+        Ok(Self {
+            dispatched_at_milliseconds,
+            observed_at_milliseconds,
+            maximum_observation_delay_milliseconds,
+        })
+    }
+
+    /// Return the monotonic timestamp recorded when action dispatch began.
+    #[must_use]
+    pub const fn dispatched_at_milliseconds(self) -> u64 {
+        self.dispatched_at_milliseconds
+    }
+
+    /// Return the monotonic timestamp recorded when the post-condition was observed.
+    #[must_use]
+    pub const fn observed_at_milliseconds(self) -> u64 {
+        self.observed_at_milliseconds
+    }
+
+    /// Return the caller-selected maximum accepted dispatch-to-observation delay.
+    #[must_use]
+    pub const fn maximum_observation_delay_milliseconds(self) -> u64 {
+        self.maximum_observation_delay_milliseconds
+    }
+}
+
+/// Credential-safe evidence that a typed action completed its verified post-condition.
+///
+/// Construction is intentionally fail-closed: a command acknowledgement,
+/// unverified or rejected provenance, or an invalid temporal observation cannot
+/// be represented by this type as successful action completion.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerifiedActionOutcomeEvidence {
+    action: ActionKind,
+    target_origin: Origin,
+    intent_digest: ActionIntentDigest,
+    post_condition: PostConditionKind,
+    observation: PostConditionObservation,
+    provenance: ProvenanceRecord,
+}
+
+impl VerifiedActionOutcomeEvidence {
+    /// Create successful action evidence from verified, temporally bounded provenance.
+    ///
+    /// The observation has already established caller-selected freshness and
+    /// monotonic ordering. This constructor does not independently prove clock
+    /// provenance, browser dispatch, or causal attribution between the action
+    /// and the observed post-condition.
+    pub fn new(
+        action: ActionKind,
+        target_origin: Origin,
+        intent_digest: ActionIntentDigest,
+        post_condition: PostConditionKind,
+        observation: PostConditionObservation,
+        provenance: ProvenanceRecord,
+    ) -> Result<Self, VerifiedActionOutcomeError> {
+        if provenance.verification_result() != VerificationResult::Verified {
+            return Err(VerifiedActionOutcomeError::PostConditionNotVerified);
+        }
         Ok(Self {
             action,
             target_origin,
             intent_digest,
             post_condition,
-            dispatched_at_milliseconds,
-            observed_at_milliseconds,
+            observation,
             provenance,
         })
     }
@@ -126,16 +199,28 @@ impl VerifiedActionOutcomeEvidence {
         self.post_condition
     }
 
+    /// Return the validated monotonic observation window for this post-condition.
+    #[must_use]
+    pub const fn observation(&self) -> PostConditionObservation {
+        self.observation
+    }
+
     /// Return the monotonic timestamp recorded when action dispatch began.
     #[must_use]
     pub const fn dispatched_at_milliseconds(&self) -> u64 {
-        self.dispatched_at_milliseconds
+        self.observation.dispatched_at_milliseconds()
     }
 
     /// Return the monotonic timestamp recorded when the post-condition was observed.
     #[must_use]
     pub const fn observed_at_milliseconds(&self) -> u64 {
-        self.observed_at_milliseconds
+        self.observation.observed_at_milliseconds()
+    }
+
+    /// Return the caller-selected maximum accepted dispatch-to-observation delay.
+    #[must_use]
+    pub const fn maximum_observation_delay_milliseconds(&self) -> u64 {
+        self.observation.maximum_observation_delay_milliseconds()
     }
 
     /// Return the exact provenance record that verified the post-condition.

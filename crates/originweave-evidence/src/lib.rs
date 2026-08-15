@@ -12,7 +12,8 @@ mod browser_task_interruption;
 mod sensitive_access;
 
 pub use action_outcome::{
-    PostConditionKind, VerifiedActionOutcomeError, VerifiedActionOutcomeEvidence,
+    PostConditionKind, PostConditionObservation, VerifiedActionOutcomeError,
+    VerifiedActionOutcomeEvidence,
 };
 pub use browser_task_interruption::{
     BrowserTaskInterruptionEvidence, BrowserTaskInterruptionKind, ExternalEffectDisposition,
