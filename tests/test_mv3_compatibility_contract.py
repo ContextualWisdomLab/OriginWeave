@@ -268,6 +268,8 @@ class ManifestV3CompatibilityContractTests(unittest.TestCase):
             "not claim 100% Chrome extension compatibility",
             "Chrome for Developers",
             "Google Chrome Labs",
+            "chrome.downloads",
+            "https://developer.chrome.com/docs/extensions/reference/api/downloads",
         ):
             with self.subTest(expected=expected):
                 self.assertIn(expected, doctoring)
