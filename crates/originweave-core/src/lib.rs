@@ -1063,3 +1063,55 @@ pub fn evaluate_extension_access(
     }
     ExtensionAccessDecision::Allow
 }
+
+/// Why a Chrome extension permission cannot authorize an OriginWeave Agent action.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChromePermissionAuthorityError {
+    /// The permission names a reviewed Chrome compatibility surface, not Agent authority.
+    CompatibilitySurfaceOnly,
+    /// The permission is not a reviewed Chrome surface and still grants no Agent capability.
+    UnrecognizedPermission,
+}
+
+const REVIEWED_CHROME_COMPATIBILITY_PERMISSIONS: &[&str] = &[
+    "bookmarks",
+    "declarativeNetRequest",
+    "declarativeNetRequestWithHostAccess",
+    "downloads",
+    "history",
+    "scripting",
+    "sidePanel",
+    "storage",
+    "tabs",
+];
+
+/// Refuse to treat a Chrome extension permission as OriginWeave Agent authority.
+///
+/// A successful `chrome.downloads` compatibility proof, or any other reviewed
+/// Chrome permission, never becomes [`Capability::Download`] or any other Agent
+/// capability. Adapters must keep Manifest V3 evidence and Agent grants separate
+/// and call this boundary before exposing a typed action to policy.
+pub fn chrome_permission_authorizes_agent_action(
+    permission: &str,
+    action: ActionKind,
+) -> Result<(), ChromePermissionAuthorityError> {
+    let _action = action;
+    if !is_exact_chrome_permission_token(permission) {
+        return Err(ChromePermissionAuthorityError::UnrecognizedPermission);
+    }
+    if REVIEWED_CHROME_COMPATIBILITY_PERMISSIONS.contains(&permission) {
+        return Err(ChromePermissionAuthorityError::CompatibilitySurfaceOnly);
+    }
+    Err(ChromePermissionAuthorityError::UnrecognizedPermission)
+}
+
+fn is_exact_chrome_permission_token(permission: &str) -> bool {
+    let mut characters = permission.chars();
+    let Some(first) = characters.next() else {
+        return false;
+    };
+    first.is_ascii_lowercase()
+        && permission
+            .chars()
+            .all(|character| character.is_ascii_alphabetic())
+}

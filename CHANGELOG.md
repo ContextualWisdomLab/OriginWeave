@@ -6,6 +6,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Added
 
+- Fail-closed `chrome_permission_authorizes_agent_action` boundary so a Chrome `downloads` permission, or any other reviewed Chrome compatibility permission, cannot authorize `Capability::Download` or any other Agent action.
 - Rust workspace for independently reusable core, policy, destination, network, TLS, resource, and evidence modules.
 - Canonical HTTPS and loopback-origin boundary with case-normalized schemes and hosts, default-port normalization, IPv4/IPv6 handling, browser-special numeric-host rejection, and explicit malformed-input errors.
 - Typed browser actions, capabilities, risk classes, execution modes, robots decisions, secret-delivery contracts, immutable canonical action-intent digests, and intent-bound approval scopes.

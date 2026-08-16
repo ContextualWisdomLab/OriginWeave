@@ -17,6 +17,7 @@ This dossier records the current executable composition evidence for that separa
 Protected `main` already provides:
 
 - exact extension/session/context-scoped `ExtensionAgentGrant` evaluation;
+- `chrome_permission_authorizes_agent_action`, which refuses Chrome `downloads` and other reviewed compatibility permissions as Agent `Download` or any other Agent action;
 - a distinction between `ObserveCurrentContext` and `ProposeTypedAction` extension capabilities;
 - deterministic Agent policy evaluation for typed actions;
 - fail-closed treatment of `InstructionSource::WebContent`;

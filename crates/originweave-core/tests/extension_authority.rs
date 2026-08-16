@@ -1,8 +1,9 @@
 #![allow(clippy::expect_used)]
 
 use originweave_core::{
-    BrowserSessionId, BrowsingContextId, ExtensionAccessDecision, ExtensionAccessRequest,
-    ExtensionAgentCapability, ExtensionAgentGrant, ExtensionId, evaluate_extension_access,
+    ActionKind, BrowserSessionId, BrowsingContextId, ChromePermissionAuthorityError,
+    ExtensionAccessDecision, ExtensionAccessRequest, ExtensionAgentCapability, ExtensionAgentGrant,
+    ExtensionId, chrome_permission_authorizes_agent_action, evaluate_extension_access,
 };
 
 fn extension_id(value: &str) -> ExtensionId {
@@ -143,4 +144,39 @@ fn explicit_grant_can_authorize_multiple_bounded_agent_capabilities() {
             ExtensionAccessDecision::Allow
         );
     }
+}
+
+#[test]
+fn chrome_downloads_permission_cannot_authorize_agent_download() {
+    assert_eq!(
+        chrome_permission_authorizes_agent_action("downloads", ActionKind::Download),
+        Err(ChromePermissionAuthorityError::CompatibilitySurfaceOnly)
+    );
+    assert_eq!(
+        chrome_permission_authorizes_agent_action("bookmarks", ActionKind::Download),
+        Err(ChromePermissionAuthorityError::CompatibilitySurfaceOnly)
+    );
+    assert_eq!(
+        chrome_permission_authorizes_agent_action("history", ActionKind::Download),
+        Err(ChromePermissionAuthorityError::CompatibilitySurfaceOnly)
+    );
+    assert_eq!(
+        chrome_permission_authorizes_agent_action("DOWNLOADS", ActionKind::Download),
+        Err(ChromePermissionAuthorityError::UnrecognizedPermission)
+    );
+    assert_eq!(
+        chrome_permission_authorizes_agent_action("", ActionKind::Download),
+        Err(ChromePermissionAuthorityError::UnrecognizedPermission)
+    );
+    assert_eq!(
+        chrome_permission_authorizes_agent_action(
+            "downloads\nhttps://example.invalid",
+            ActionKind::Navigate
+        ),
+        Err(ChromePermissionAuthorityError::UnrecognizedPermission)
+    );
+    assert_eq!(
+        chrome_permission_authorizes_agent_action("cookies", ActionKind::Download),
+        Err(ChromePermissionAuthorityError::UnrecognizedPermission)
+    );
 }

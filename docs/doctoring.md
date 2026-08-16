@@ -8,6 +8,10 @@ This document records external evidence that changes OriginWeave architecture, t
 
 The 1 June 2026 WebDriver BiDi Working Draft defines a bidirectional remote-control protocol, events, commands, and user contexts. Because it remains a W3C Working Draft, OriginWeave places BiDi behind a versioned adapter and Web Platform Tests-derived contract tests rather than make it the internal authority model.
 
+### Chrome extension permission versus Agent capability
+
+The current Chrome Extensions Downloads API documents the `downloads` manifest permission and `chrome.downloads` methods that initiate, monitor, search, and inspect downloads. That living vendor reference is API semantics for Chromium compatibility only. OriginWeave therefore refuses to convert a Chrome `downloads` permission—or any other reviewed Chrome compatibility permission—into Agent `Download` capability or any other Agent capability. A later pinned-Chromium downloads fixture may prove that the API works; it still cannot mint Agent filesystem or download authority.
+
 ### Browser origin equivalence
 
 The WHATWG URL host parser and Chromium canonicalizer classify shortened decimal, integer, hexadecimal, legacy octal-looking, and mixed-component numeric hosts as IPv4 or broken IPv4 candidates rather than ordinary DNS names. Chromium's regression suite includes values such as `192`, `0xC0a80001`, `030052000001`, and mixed hexadecimal components. A non-final empty `0x` component can participate in Chromium's multi-part IPv4 truncation behavior, but a final `0x` label does not produce an IPv4 number because stripping its prefix leaves no digits; it remains a domain label. Chromium also warns that broken IP-like hosts must not be connected because another resolver could accept them. OriginWeave therefore admits only canonical dotted-decimal IPv4 into its policy origin type, rejects browser-special numeric spellings before DNS validation, and preserves final non-numeric DNS labels such as `0x`.
@@ -97,6 +101,8 @@ Amazon Web Services. (n.d.). *Set up the Amazon EKS Pod Identity Agent*. Retriev
 Autio, C., Schwartz, R., Dunietz, J., Jain, S., Stanley, M., Tabassi, E., Hall, P., & Roberts, K. (2024). *Artificial intelligence risk management framework: Generative artificial intelligence profile* (NIST AI 600-1). National Institute of Standards and Technology. https://doi.org/10.6028/NIST.AI.600-1
 
 Bonica, R., Cotton, M., Haberman, B., & Vegoda, L. (2017). *Updates to the special-purpose IP address registries* (RFC 8190). Internet Engineering Task Force. https://doi.org/10.17487/RFC8190
+
+Chrome for Developers. (n.d.). *chrome.downloads*. Google. Retrieved August 16, 2026, from https://developer.chrome.com/docs/extensions/reference/api/downloads
 
 Chromium Authors. (n.d.). *Proxy support in Chrome* [Source documentation]. Chromium. https://chromium.googlesource.com/chromium/src/+/a3e71ebfa307d8760eb68b777e2998a869940092/net/docs/proxy.md
 
