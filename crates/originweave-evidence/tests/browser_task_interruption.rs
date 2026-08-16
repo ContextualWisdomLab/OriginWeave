@@ -14,11 +14,10 @@ fn browser_authority() -> Result<(BrowserSessionId, BrowsingContextId, DocumentE
 
 #[test]
 fn interruption_before_external_effect_is_retryable_after_complete_cleanup() -> Result<(), String> {
-    let (session_id, context_id, document_epoch) = browser_authority()?;
+    let browser_authority = browser_authority()?;
+    let (session_id, context_id, document_epoch) = browser_authority;
     let evidence = BrowserTaskInterruptionEvidence::new(
-        session_id,
-        context_id,
-        document_epoch,
+        browser_authority,
         BrowserTaskInterruptionKind::RendererCrash,
         ExternalEffectDisposition::InterruptedBeforeExternalEffect,
         true,
@@ -47,11 +46,8 @@ fn interruption_before_external_effect_is_retryable_after_complete_cleanup() -> 
 
 #[test]
 fn ambiguous_external_effect_requires_quarantine_even_after_cleanup() -> Result<(), String> {
-    let (session_id, context_id, document_epoch) = browser_authority()?;
     let evidence = BrowserTaskInterruptionEvidence::new(
-        session_id,
-        context_id,
-        document_epoch,
+        browser_authority()?,
         BrowserTaskInterruptionKind::BrowserProcessExit,
         ExternalEffectDisposition::MayHaveCommitted,
         true,
@@ -69,11 +65,8 @@ fn ambiguous_external_effect_requires_quarantine_even_after_cleanup() -> Result<
 
 #[test]
 fn forced_context_close_is_recorded_without_inventing_external_effect() -> Result<(), String> {
-    let (session_id, context_id, document_epoch) = browser_authority()?;
     let evidence = BrowserTaskInterruptionEvidence::new(
-        session_id,
-        context_id,
-        document_epoch,
+        browser_authority()?,
         BrowserTaskInterruptionKind::ForcedContextClose,
         ExternalEffectDisposition::InterruptedBeforeExternalEffect,
         true,
@@ -91,12 +84,10 @@ fn forced_context_close_is_recorded_without_inventing_external_effect() -> Resul
 
 #[test]
 fn incomplete_cleanup_requires_quarantine_even_before_an_external_effect() -> Result<(), String> {
-    let (session_id, context_id, document_epoch) = browser_authority()?;
+    let browser_authority = browser_authority()?;
     for evidence in [
         BrowserTaskInterruptionEvidence::new(
-            session_id,
-            context_id,
-            document_epoch,
+            browser_authority,
             BrowserTaskInterruptionKind::RendererCrash,
             ExternalEffectDisposition::InterruptedBeforeExternalEffect,
             false,
@@ -104,9 +95,7 @@ fn incomplete_cleanup_requires_quarantine_even_before_an_external_effect() -> Re
             true,
         ),
         BrowserTaskInterruptionEvidence::new(
-            session_id,
-            context_id,
-            document_epoch,
+            browser_authority,
             BrowserTaskInterruptionKind::RendererCrash,
             ExternalEffectDisposition::InterruptedBeforeExternalEffect,
             true,
@@ -114,9 +103,7 @@ fn incomplete_cleanup_requires_quarantine_even_before_an_external_effect() -> Re
             true,
         ),
         BrowserTaskInterruptionEvidence::new(
-            session_id,
-            context_id,
-            document_epoch,
+            browser_authority,
             BrowserTaskInterruptionKind::RendererCrash,
             ExternalEffectDisposition::InterruptedBeforeExternalEffect,
             true,

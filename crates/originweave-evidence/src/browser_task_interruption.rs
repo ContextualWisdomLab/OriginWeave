@@ -49,17 +49,20 @@ pub struct BrowserTaskInterruptionEvidence {
 
 impl BrowserTaskInterruptionEvidence {
     /// Create one interruption evidence value bound to exact browser authority.
+    ///
+    /// `browser_authority` is the exact `(browser session, browsing context, document epoch)`
+    /// tuple observed by the trusted runtime; callers must not infer any element from ambient
+    /// browser state.
     #[must_use]
     pub const fn new(
-        browser_session_id: BrowserSessionId,
-        browsing_context_id: BrowsingContextId,
-        document_epoch: DocumentEpoch,
+        browser_authority: (BrowserSessionId, BrowsingContextId, DocumentEpoch),
         interruption_kind: BrowserTaskInterruptionKind,
         external_effect_disposition: ExternalEffectDisposition,
         browser_context_closed: bool,
         resources_reclaimed: bool,
         evidence_finalized: bool,
     ) -> Self {
+        let (browser_session_id, browsing_context_id, document_epoch) = browser_authority;
         Self {
             browser_session_id,
             browsing_context_id,
