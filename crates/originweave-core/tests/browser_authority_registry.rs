@@ -46,7 +46,7 @@ fn public_default_and_error_contracts_are_usable_from_an_adapter() -> Result<(),
     let cases = [
         (
             BrowserRegistryError::InvalidExternalIdentifier,
-            "external browser identifier must contain 1 to 512 UTF-8 bytes".to_owned(),
+            "external browser identifier must contain 1 to 512 UTF-8 bytes without control or whitespace characters".to_owned(),
         ),
         (
             BrowserRegistryError::UnknownBrowserSession,
@@ -214,6 +214,27 @@ fn external_identifiers_are_bounded_without_assuming_protocol_syntax() -> Result
 
     let unicode = registry.register_session("세션-opaque-✓")?;
     assert!(unicode.value() > 0);
+
+    assert_eq!(
+        registry.register_session(" "),
+        Err(BrowserRegistryError::InvalidExternalIdentifier)
+    );
+    assert_eq!(
+        registry.register_session("webdriver-session\n"),
+        Err(BrowserRegistryError::InvalidExternalIdentifier)
+    );
+    assert_eq!(
+        registry.register_session("webdriver-session\u{0000}"),
+        Err(BrowserRegistryError::InvalidExternalIdentifier)
+    );
+
+    let session = registry.register_session("webdriver-session")?;
+    let context = registry.register_context(session, "top-level-context")?;
+    let origin = loopback_origin();
+    assert_eq!(
+        registry.bind_node(session, context, &origin, "backend-node-17\n"),
+        Err(BrowserRegistryError::InvalidExternalIdentifier)
+    );
     Ok(())
 }
 

@@ -39,6 +39,22 @@ fn remote_node_reference_requires_a_usable_shared_id() {
 }
 
 #[test]
+fn remote_node_reference_rejects_whitespace_and_control_injection() {
+    assert_eq!(
+        WebDriverBiDiRemoteNodeReference::new("node", Some(" ")),
+        Err(WebDriverBiDiRemoteNodeReferenceError::InvalidSharedId)
+    );
+    assert_eq!(
+        WebDriverBiDiRemoteNodeReference::new("node", Some("shared-node-42\n")),
+        Err(WebDriverBiDiRemoteNodeReferenceError::InvalidSharedId)
+    );
+    assert_eq!(
+        WebDriverBiDiRemoteNodeReference::new("node", Some("shared-node-42\u{0000}")),
+        Err(WebDriverBiDiRemoteNodeReferenceError::InvalidSharedId)
+    );
+}
+
+#[test]
 fn remote_node_reference_reuses_the_registry_identifier_budget() -> Result<(), Box<dyn Error>> {
     let maximum = "n".repeat(MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES);
     let reference = WebDriverBiDiRemoteNodeReference::new("node", Some(&maximum))?;

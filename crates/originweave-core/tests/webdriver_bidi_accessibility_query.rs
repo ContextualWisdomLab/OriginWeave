@@ -64,6 +64,46 @@ fn missing_or_empty_accessibility_locator_fields_fail_closed() {
 }
 
 #[test]
+fn accessibility_role_rejects_whitespace_and_control_injection() {
+    assert_eq!(
+        WebDriverBiDiAccessibilityQuery::new(Some("text box"), None, 1),
+        Err(WebDriverBiDiAccessibilityQueryError::InvalidRole)
+    );
+    assert_eq!(
+        WebDriverBiDiAccessibilityQuery::new(Some("button\n"), None, 1),
+        Err(WebDriverBiDiAccessibilityQueryError::InvalidRole)
+    );
+    assert_eq!(
+        WebDriverBiDiAccessibilityQuery::new(Some("button\u{0000}"), None, 1),
+        Err(WebDriverBiDiAccessibilityQueryError::InvalidRole)
+    );
+}
+
+#[test]
+fn accessibility_name_rejects_control_injection_and_whitespace_only_values() {
+    assert_eq!(
+        WebDriverBiDiAccessibilityQuery::new(None, Some("Submit\ntask"), 1),
+        Err(WebDriverBiDiAccessibilityQueryError::InvalidName)
+    );
+    assert_eq!(
+        WebDriverBiDiAccessibilityQuery::new(None, Some("Submit\u{0000}task"), 1),
+        Err(WebDriverBiDiAccessibilityQueryError::InvalidName)
+    );
+    assert_eq!(
+        WebDriverBiDiAccessibilityQuery::new(None, Some("   "), 1),
+        Err(WebDriverBiDiAccessibilityQueryError::InvalidName)
+    );
+}
+
+#[test]
+fn accessibility_name_keeps_ordinary_spaces_and_multibyte_text() -> Result<(), Box<dyn Error>> {
+    let query = WebDriverBiDiAccessibilityQuery::new(Some("textbox"), Some("작업 텍스트"), 1)?;
+    assert_eq!(query.role(), Some("textbox"));
+    assert_eq!(query.name(), Some("작업 텍스트"));
+    Ok(())
+}
+
+#[test]
 fn accessibility_locator_text_is_bounded_by_utf8_bytes() -> Result<(), Box<dyn Error>> {
     let maximum_role = "r".repeat(MAX_BROWSER_ACCESSIBILITY_QUERY_ROLE_BYTES);
     let maximum_name = "n".repeat(MAX_BROWSER_ACCESSIBILITY_QUERY_NAME_BYTES);
@@ -125,6 +165,8 @@ fn accessibility_query_error_contract_is_source_free() {
         WebDriverBiDiAccessibilityQueryError::EmptyRole,
         WebDriverBiDiAccessibilityQueryError::RoleTooLong,
         WebDriverBiDiAccessibilityQueryError::EmptyName,
+        WebDriverBiDiAccessibilityQueryError::InvalidRole,
+        WebDriverBiDiAccessibilityQueryError::InvalidName,
         WebDriverBiDiAccessibilityQueryError::NameTooLong,
         WebDriverBiDiAccessibilityQueryError::InvalidNodeCount,
         WebDriverBiDiAccessibilityQueryError::ResultNodeCountExceeded,
