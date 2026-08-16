@@ -162,10 +162,15 @@ impl FreshConnectionPlan {
 #[cfg(test)]
 mod tests {
     use std::error::Error;
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+    use std::time::{Duration, Instant};
 
     use originweave_core::Origin;
+    use originweave_destination::{
+        AddressClass, DestinationError, DestinationPolicy, FreshResolutionSnapshot,
+    };
 
-    use super::{NetworkError, effective_origin_port};
+    use super::{FreshConnectionPlan, NetworkError, effective_origin_port};
 
     #[test]
     fn effective_origin_port_covers_default_and_explicit_authorities() {
@@ -180,6 +185,44 @@ mod tests {
             let actual_port = Origin::parse(origin).map(|parsed| effective_origin_port(&parsed));
             assert_eq!(actual_port.ok(), Some(expected_port));
         }
+    }
+
+    #[test]
+    fn compatibility_anchor_includes_time_spent_before_plan_completion() -> Result<(), String> {
+        let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9);
+        let origin = Origin::parse("http://localhost:9")
+            .map_err(|error| format!("loopback origin fixture is invalid: {error:?}"))?;
+        let snapshot = FreshResolutionSnapshot::approve(
+            origin,
+            [IpAddr::V4(Ipv4Addr::LOCALHOST)],
+            &DestinationPolicy::from_allowed_classes([AddressClass::Loopback]),
+            Duration::from_secs(10),
+            Duration::from_millis(1),
+        )
+        .map_err(|error| format!("short-lived snapshot is invalid: {error}"))?;
+        let authorization_started_at = Instant::now()
+            .checked_sub(Duration::from_millis(5))
+            .ok_or_else(|| "process monotonic clock cannot represent the test interval".to_owned())?;
+
+        let plan = FreshConnectionPlan::new_with_authorization_instant(
+            &snapshot,
+            Duration::from_secs(10),
+            socket,
+            Duration::from_secs(1),
+            1,
+            authorization_started_at,
+        )
+        .map_err(|error| format!("authorize short-lived connection plan: {error}"))?;
+
+        let result = plan.connect();
+        assert!(matches!(
+            result,
+            Err(NetworkError::DestinationNotApproved {
+                source: DestinationError::ResolutionApprovalExpired { .. },
+                ..
+            })
+        ));
+        Ok(())
     }
 
     #[test]
