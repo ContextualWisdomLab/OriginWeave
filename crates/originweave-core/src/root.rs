@@ -15,4 +15,5 @@ mod native_messaging_manifest;
 pub use native_messaging_manifest::{
     MAX_NATIVE_MESSAGING_ALLOWED_ORIGINS, NativeMessagingHostManifest,
     NativeMessagingHostManifestAccessDecision, NativeMessagingHostManifestError,
+    NativeMessagingHostPlatform,
 };
