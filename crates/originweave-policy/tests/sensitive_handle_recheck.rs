@@ -1,5 +1,7 @@
 #![allow(clippy::expect_used)]
 
+use std::cell::Cell;
+
 use originweave_core::Origin;
 use originweave_policy::{
     DataClassification, HandleRevocationReason, HandleUseDecision, SensitiveDataAuthority,
@@ -12,6 +14,10 @@ const FIELD: &str = "shipping_address";
 const PURPOSE: &str = "fulfill_order";
 const DESTINATION: &str = "https://shipping.example";
 const AUDIENCE: &str = "trusted_browser_adapter";
+
+thread_local! {
+    static DISPATCH_COUNT: Cell<u32> = const { Cell::new(0) };
+}
 
 fn authority(destination: &str) -> SensitiveDataAuthority {
     SensitiveDataAuthority::new(
@@ -39,6 +45,19 @@ fn scope(max_uses: u32) -> SensitiveValueHandleScope {
     SensitiveValueHandleScope::new(authority(DESTINATION), AUDIENCE, 2_000, max_uses)
 }
 
+fn record_disclosure() -> &'static str {
+    DISPATCH_COUNT.set(DISPATCH_COUNT.get() + 1);
+    "disclosure-attempted"
+}
+
+fn reset_dispatch_count() {
+    DISPATCH_COUNT.set(0);
+}
+
+fn dispatch_count() -> u32 {
+    DISPATCH_COUNT.get()
+}
+
 #[test]
 fn outstanding_reservation_can_be_rechecked_without_consuming_another_use() {
     let mut state = SensitiveHandleUseState::new(scope(1));
@@ -52,6 +71,54 @@ fn outstanding_reservation_can_be_rechecked_without_consuming_another_use() {
         HandleUseDecision::Authorized
     );
     assert_eq!(state.reserved_uses(), 1);
+    assert_eq!(state.outstanding_reservations(), 1);
+}
+
+#[test]
+fn current_reservation_gates_one_same_call_disclosure_callback() {
+    let mut state = SensitiveHandleUseState::new(scope(1));
+    let reservation = state
+        .reserve_tracked_use(authority(DESTINATION), AUDIENCE, 1_900)
+        .expect("reservation must be authorized");
+    reset_dispatch_count();
+
+    let result = state
+        .dispatch_if_reservation_current(
+            &reservation,
+            authority(DESTINATION),
+            AUDIENCE,
+            1_999,
+            record_disclosure as fn() -> &'static str,
+        )
+        .expect("current reservation must permit callback dispatch");
+
+    assert_eq!(result, "disclosure-attempted");
+    assert_eq!(dispatch_count(), 1);
+    assert_eq!(state.reserved_uses(), 1);
+    assert_eq!(state.completed_uses(), 0);
+    assert_eq!(state.outstanding_reservations(), 1);
+}
+
+#[test]
+fn denied_reservation_never_invokes_disclosure_callback() {
+    let mut state = SensitiveHandleUseState::new(scope(1));
+    let reservation = state
+        .reserve_tracked_use(authority(DESTINATION), AUDIENCE, 1_900)
+        .expect("reservation must be authorized");
+    reset_dispatch_count();
+
+    let result = state.dispatch_if_reservation_current(
+        &reservation,
+        authority(DESTINATION),
+        AUDIENCE,
+        2_000,
+        record_disclosure as fn() -> &'static str,
+    );
+
+    assert_eq!(result, Err(HandleUseDecision::Expired));
+    assert_eq!(dispatch_count(), 0);
+    assert_eq!(state.reserved_uses(), 1);
+    assert_eq!(state.completed_uses(), 0);
     assert_eq!(state.outstanding_reservations(), 1);
 }
 
