@@ -13,7 +13,7 @@ pub use legacy_contracts::*;
 
 mod native_messaging_manifest;
 pub use native_messaging_manifest::{
-    MAX_NATIVE_MESSAGING_ALLOWED_ORIGINS, NativeMessagingHostManifest,
-    NativeMessagingHostManifestAccessDecision, NativeMessagingHostManifestError,
-    NativeMessagingHostPlatform,
+    MAX_NATIVE_MESSAGING_ALLOWED_ORIGINS, MAX_NATIVE_MESSAGING_EXECUTABLE_PATH_BYTES,
+    NativeMessagingHostManifest, NativeMessagingHostManifestAccessDecision,
+    NativeMessagingHostManifestError, NativeMessagingHostPlatform,
 };

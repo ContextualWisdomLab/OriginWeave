@@ -18,6 +18,13 @@ use crate::{ExtensionId, NativeMessagingAccessRequest, NativeMessagingHostName};
 /// manifest from turning policy admission into unbounded allocation or comparison work.
 pub const MAX_NATIVE_MESSAGING_ALLOWED_ORIGINS: usize = 256;
 
+/// Maximum UTF-8 byte length accepted for one declared native-host executable path.
+///
+/// This 32 KiB value is an OriginWeave allocation safety budget, not a Chrome or operating-
+/// system path-validity limit. Runtime adapters remain responsible for platform-native path
+/// resolution, canonicalization, ownership, and executable identity checks.
+pub const MAX_NATIVE_MESSAGING_EXECUTABLE_PATH_BYTES: usize = 32 * 1024;
+
 /// Operating-system path semantics used by one native-messaging host manifest.
 ///
 /// Chrome requires absolute native-host paths on Linux and macOS, while Windows also allows
@@ -54,8 +61,9 @@ impl NativeMessagingHostManifest {
     /// `interface_type` must be exactly `stdio`. Linux and macOS executable paths must be
     /// absolute, matching Chrome's native-messaging contract; Windows relative paths remain
     /// relative and must be resolved by a trusted runtime adapter against the authenticated
-    /// manifest directory. Empty paths and embedded NUL bytes are rejected on every platform.
-    /// Every allowed origin must be exactly `chrome-extension://<canonical-extension-id>/`;
+    /// manifest directory. Empty paths, embedded NUL bytes, and paths exceeding the
+    /// OriginWeave allocation budget are rejected before storage on every platform. Every
+    /// allowed origin must be exactly `chrome-extension://<canonical-extension-id>/`;
     /// alternate schemes, wildcards, suffix paths, query strings, fragments, and
     /// non-canonical extension identities are rejected rather than normalized. The raw list
     /// is bounded before deduplication.
@@ -145,6 +153,9 @@ fn validate_executable_path(
     if executable_path.is_empty() || executable_path.contains('\0') {
         return Err(NativeMessagingHostManifestError::InvalidExecutablePath);
     }
+    if executable_path.len() > MAX_NATIVE_MESSAGING_EXECUTABLE_PATH_BYTES {
+        return Err(NativeMessagingHostManifestError::ExecutablePathTooLong);
+    }
     if platform != NativeMessagingHostPlatform::Windows && !executable_path.starts_with('/') {
         return Err(NativeMessagingHostManifestError::RelativeExecutablePathUnsupported);
     }
@@ -180,6 +191,8 @@ pub enum NativeMessagingHostManifestError {
     UnsupportedInterfaceType,
     /// The manifest executable-path text was empty or contained an embedded NUL byte.
     InvalidExecutablePath,
+    /// The manifest executable-path text exceeded the OriginWeave allocation safety budget.
+    ExecutablePathTooLong,
     /// A non-Windows manifest used a relative executable path.
     RelativeExecutablePathUnsupported,
     /// The manifest did not explicitly allow any extension origin.
@@ -197,6 +210,9 @@ impl fmt::Display for NativeMessagingHostManifestError {
                 .write_str("native messaging host manifest interface type must be stdio"),
             Self::InvalidExecutablePath => formatter
                 .write_str("native messaging host manifest contains an invalid executable path"),
+            Self::ExecutablePathTooLong => formatter.write_str(
+                "native messaging host manifest executable path exceeds the OriginWeave safety budget",
+            ),
             Self::RelativeExecutablePathUnsupported => formatter
                 .write_str("native messaging host executable path must be absolute on this platform"),
             Self::MissingAllowedOrigin => formatter.write_str(
