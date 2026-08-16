@@ -34,8 +34,8 @@ pub use browser_protocol_operation::{
     WEBDRIVER_BIDI_LOCATE_NODES_METHOD, WEBDRIVER_BIDI_NODE_REMOTE_VALUE_TYPE,
     WEBDRIVER_BIDI_QUERY_INCLUDE_SHADOW_TREE, WEBDRIVER_BIDI_QUERY_MAX_DOM_DEPTH,
     WEBDRIVER_BIDI_QUERY_MAX_OBJECT_DEPTH, WebDriverBiDiAccessibilityQuery,
-    WebDriverBiDiAccessibilityQueryError, WebDriverBiDiRemoteNodeReference,
-    WebDriverBiDiRemoteNodeReferenceError,
+    WebDriverBiDiAccessibilityQueryError, WebDriverBiDiLocateNodesAdmissionError,
+    WebDriverBiDiRemoteNodeReference, WebDriverBiDiRemoteNodeReferenceError,
 };
 pub use browser_registry::{
     BrowserAuthorityRegistry, BrowserRegistryError, MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES,

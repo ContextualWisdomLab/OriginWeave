@@ -4,9 +4,10 @@ use std::error::Error;
 
 use originweave_core::{
     BrowserAuthorityRegistry, BrowserContextDispatchTarget, BrowserContextOriginDispatchTarget,
-    BrowserContextOriginEpochDispatchTarget, BrowserRegistryError, DocumentEpoch, Origin,
-    WebDriverBiDiAccessibilityQuery, WebDriverBiDiAccessibilityQueryError,
-    WebDriverBiDiLocateNodesAdmissionError, WebDriverBiDiRemoteNodeReferenceError,
+    BrowserContextOriginEpochDispatchTarget, BrowserRegistryError, BrowserSessionId,
+    BrowsingContextId, DocumentEpoch, Origin, WebDriverBiDiAccessibilityQuery,
+    WebDriverBiDiAccessibilityQueryError, WebDriverBiDiLocateNodesAdmissionError,
+    WebDriverBiDiRemoteNodeReferenceError,
 };
 
 fn controlled_origin() -> Origin {
@@ -30,8 +31,8 @@ fn current_target<'a>(
 }
 
 #[test]
-fn locate_nodes_result_binds_admitted_shared_ids_to_current_authority()
--> Result<(), Box<dyn Error>> {
+fn locate_nodes_result_binds_admitted_shared_ids_to_current_authority() -> Result<(), Box<dyn Error>>
+{
     let mut registry = BrowserAuthorityRegistry::new();
     let expected_origin = controlled_origin();
     let target = current_target(&mut registry, &expected_origin)?;
@@ -117,6 +118,67 @@ fn stale_document_epoch_fails_before_locate_nodes_binding() -> Result<(), Box<dy
                 current: current_epoch,
             }
         )
+    );
+    Ok(())
+}
+
+#[test]
+fn exhausted_node_identifier_space_fails_after_remote_value_admission() -> Result<(), Box<dyn Error>>
+{
+    let mut registry = BrowserAuthorityRegistry::with_identifier_limit(1);
+    let expected_origin = controlled_origin();
+    let target = current_target(&mut registry, &expected_origin)?;
+    let query = WebDriverBiDiAccessibilityQuery::new(Some("button"), None, 2)?;
+
+    assert_eq!(
+        query.bind_current_nodes(
+            &mut registry,
+            target,
+            &[
+                ("node", Some("shared-submit")),
+                ("node", Some("shared-extra")),
+            ],
+        ),
+        Err(WebDriverBiDiLocateNodesAdmissionError::BrowserAuthority(
+            BrowserRegistryError::IdentifierSpaceExhausted
+        ))
+    );
+    Ok(())
+}
+
+#[test]
+fn empty_locate_nodes_result_is_valid_when_the_document_is_current() -> Result<(), Box<dyn Error>> {
+    let mut registry = BrowserAuthorityRegistry::new();
+    let expected_origin = controlled_origin();
+    let target = current_target(&mut registry, &expected_origin)?;
+    let query = WebDriverBiDiAccessibilityQuery::new(Some("button"), None, 1)?;
+
+    let handles = query.bind_current_nodes(&mut registry, target, &[])?;
+    assert!(handles.is_empty());
+    Ok(())
+}
+
+#[test]
+fn unknown_browser_session_fails_before_locate_nodes_binding() -> Result<(), Box<dyn Error>> {
+    let mut registry = BrowserAuthorityRegistry::new();
+    let expected_origin = controlled_origin();
+    let target = BrowserContextOriginEpochDispatchTarget::new(
+        BrowserContextOriginDispatchTarget::new(
+            BrowserContextDispatchTarget::new(
+                BrowserSessionId::new(99).expect("nonzero fixture session"),
+                BrowsingContextId::new(7).expect("nonzero fixture context"),
+            ),
+            &expected_origin,
+        ),
+        DocumentEpoch::new(1).expect("nonzero fixture epoch"),
+    );
+    let query = WebDriverBiDiAccessibilityQuery::new(Some("button"), None, 1)?;
+
+    assert_eq!(
+        query.bind_current_nodes(&mut registry, target, &[("node", Some("shared-submit"))]),
+        Err(WebDriverBiDiLocateNodesAdmissionError::BrowserAuthority(
+            BrowserRegistryError::UnknownBrowserSession
+        ))
     );
     Ok(())
 }

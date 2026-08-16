@@ -4,8 +4,9 @@ use std::fmt::{Display, Formatter};
 use crate::{
     BrowserAuthorityRegistry, BrowserContextOriginEpochDispatchTarget,
     BrowserContextProtocolDispatchError, BrowserProtocolAdapterDescriptor,
-    BrowserProtocolCapability, BrowserProtocolRuntimeMetadata, DocumentEpoch,
-    MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES, OriginWeaveProtocolVersion, ValidatedBrowserProtocolUse,
+    BrowserProtocolCapability, BrowserProtocolRuntimeMetadata, BrowserRegistryError, DocumentEpoch,
+    MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES, ObservedNodeHandle, OriginWeaveProtocolVersion,
+    ValidatedBrowserProtocolUse,
 };
 
 /// Exact WebDriver BiDi method used by the bounded accessibility-query contract.
@@ -208,6 +209,127 @@ impl WebDriverBiDiAccessibilityQuery {
             return Err(WebDriverBiDiAccessibilityQueryError::ResultNodeCountExceeded);
         }
         Ok(())
+    }
+
+    /// Admit one untrusted `locateNodes` result against the exact current document authority.
+    ///
+    /// The registry first proves that `target` still names the current session, browsing context,
+    /// canonical origin, and document epoch. Only then is the returned item count checked against
+    /// this query's budget. Each item must be an exact `node` remote value with a usable shared
+    /// identifier; those identifiers are translated through the registry into
+    /// [`ObservedNodeHandle`] values bound to that same current authority.
+    ///
+    /// This method performs no browser I/O, does not authenticate Chromium, and does not grant
+    /// policy, destination, or typed-input authority. A later action must still revalidate the
+    /// returned handles immediately before use.
+    pub fn bind_current_nodes(
+        &self,
+        authority_registry: &mut BrowserAuthorityRegistry,
+        target: BrowserContextOriginEpochDispatchTarget<'_>,
+        items: &[(&str, Option<&str>)],
+    ) -> Result<Vec<ObservedNodeHandle>, WebDriverBiDiLocateNodesAdmissionError> {
+        let context_origin = target.context_origin();
+        let context = context_origin.context();
+        let current_epoch = authority_registry
+            .require_context_origin(
+                context.browser_session(),
+                context.browsing_context(),
+                context_origin.expected_origin(),
+            )
+            .map_err(WebDriverBiDiLocateNodesAdmissionError::BrowserAuthority)?;
+        if current_epoch != target.expected_epoch() {
+            return Err(
+                WebDriverBiDiLocateNodesAdmissionError::DocumentEpochMismatch {
+                    expected: target.expected_epoch(),
+                    current: current_epoch,
+                },
+            );
+        }
+        self.validate_result_count(items.len())
+            .map_err(WebDriverBiDiLocateNodesAdmissionError::Query)?;
+
+        let mut references = Vec::new();
+        for (remote_type, shared_id) in items {
+            references.push(
+                WebDriverBiDiRemoteNodeReference::new(remote_type, *shared_id)
+                    .map_err(WebDriverBiDiLocateNodesAdmissionError::RemoteNode)?,
+            );
+        }
+
+        let mut handles = Vec::new();
+        for reference in references {
+            handles.push(
+                authority_registry
+                    .bind_node(
+                        context.browser_session(),
+                        context.browsing_context(),
+                        context_origin.expected_origin(),
+                        reference.shared_id(),
+                    )
+                    .map_err(WebDriverBiDiLocateNodesAdmissionError::BrowserAuthority)?,
+            );
+        }
+        Ok(handles)
+    }
+}
+
+/// Fail-closed errors for admitting an untrusted `locateNodes` result into current node authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WebDriverBiDiLocateNodesAdmissionError {
+    /// The untrusted result violated this query's reviewed locator or result-count contract.
+    Query(WebDriverBiDiAccessibilityQueryError),
+    /// One result item was not an admissible node remote value.
+    RemoteNode(WebDriverBiDiRemoteNodeReferenceError),
+    /// The observed document epoch no longer matches the registry's current document.
+    DocumentEpochMismatch {
+        /// The document epoch that produced the observation being bound.
+        expected: DocumentEpoch,
+        /// The document epoch currently active in the registry.
+        current: DocumentEpoch,
+    },
+    /// The supplied browser session, context, or origin is not current in the registry.
+    BrowserAuthority(BrowserRegistryError),
+}
+
+impl Display for WebDriverBiDiLocateNodesAdmissionError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Query(error) => {
+                write!(
+                    formatter,
+                    "accessibility query rejected locateNodes admission: {error}"
+                )
+            }
+            Self::RemoteNode(error) => {
+                write!(
+                    formatter,
+                    "remote node reference rejected locateNodes admission: {error}"
+                )
+            }
+            Self::DocumentEpochMismatch { expected, current } => write!(
+                formatter,
+                "browser document epoch {} no longer matches observed epoch {}",
+                current.value(),
+                expected.value()
+            ),
+            Self::BrowserAuthority(error) => {
+                write!(
+                    formatter,
+                    "browser authority denied locateNodes admission: {error}"
+                )
+            }
+        }
+    }
+}
+
+impl Error for WebDriverBiDiLocateNodesAdmissionError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::Query(error) => Some(error),
+            Self::RemoteNode(error) => Some(error),
+            Self::DocumentEpochMismatch { .. } => None,
+            Self::BrowserAuthority(error) => Some(error),
+        }
     }
 }
 
