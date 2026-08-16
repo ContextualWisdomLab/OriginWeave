@@ -1,0 +1,111 @@
+use std::error::Error;
+
+use originweave_core::{
+    MAX_BROWSER_ACCESSIBILITY_QUERY_NAME_BYTES, MAX_BROWSER_ACCESSIBILITY_QUERY_NODE_COUNT,
+    MAX_BROWSER_ACCESSIBILITY_QUERY_ROLE_BYTES, WEBDRIVER_BIDI_LOCATE_NODES_METHOD,
+    WebDriverBiDiAccessibilityQuery, WebDriverBiDiAccessibilityQueryError,
+};
+
+#[test]
+fn accessibility_query_exposes_exact_bidi_method_and_locator_contract() -> Result<(), Box<dyn Error>> {
+    let query = WebDriverBiDiAccessibilityQuery::new(
+        Some("textbox"),
+        Some("Task text"),
+        32,
+    )?;
+
+    assert_eq!(query.method(), WEBDRIVER_BIDI_LOCATE_NODES_METHOD);
+    assert_eq!(query.method(), "browsingContext.locateNodes");
+    assert_eq!(query.locator_type(), "accessibility");
+    assert_eq!(query.role(), Some("textbox"));
+    assert_eq!(query.name(), Some("Task text"));
+    assert_eq!(query.max_node_count(), 32);
+    Ok(())
+}
+
+#[test]
+fn role_only_and_name_only_queries_are_valid() -> Result<(), Box<dyn Error>> {
+    let role_only = WebDriverBiDiAccessibilityQuery::new(Some("button"), None, 1)?;
+    assert_eq!(role_only.role(), Some("button"));
+    assert_eq!(role_only.name(), None);
+
+    let name_only = WebDriverBiDiAccessibilityQuery::new(None, Some("Submit task"), 1)?;
+    assert_eq!(name_only.role(), None);
+    assert_eq!(name_only.name(), Some("Submit task"));
+    Ok(())
+}
+
+#[test]
+fn missing_or_empty_accessibility_locator_fields_fail_closed() {
+    assert_eq!(
+        WebDriverBiDiAccessibilityQuery::new(None, None, 1),
+        Err(WebDriverBiDiAccessibilityQueryError::MissingLocatorValue)
+    );
+    assert_eq!(
+        WebDriverBiDiAccessibilityQuery::new(Some(""), None, 1),
+        Err(WebDriverBiDiAccessibilityQueryError::EmptyRole)
+    );
+    assert_eq!(
+        WebDriverBiDiAccessibilityQuery::new(None, Some(""), 1),
+        Err(WebDriverBiDiAccessibilityQueryError::EmptyName)
+    );
+}
+
+#[test]
+fn accessibility_locator_text_is_bounded_by_utf8_bytes() -> Result<(), Box<dyn Error>> {
+    let maximum_role = "r".repeat(MAX_BROWSER_ACCESSIBILITY_QUERY_ROLE_BYTES);
+    let maximum_name = "n".repeat(MAX_BROWSER_ACCESSIBILITY_QUERY_NAME_BYTES);
+    let query = WebDriverBiDiAccessibilityQuery::new(
+        Some(&maximum_role),
+        Some(&maximum_name),
+        MAX_BROWSER_ACCESSIBILITY_QUERY_NODE_COUNT,
+    )?;
+    assert_eq!(query.role(), Some(maximum_role.as_str()));
+    assert_eq!(query.name(), Some(maximum_name.as_str()));
+
+    let overlong_role = "r".repeat(MAX_BROWSER_ACCESSIBILITY_QUERY_ROLE_BYTES + 1);
+    assert_eq!(
+        WebDriverBiDiAccessibilityQuery::new(Some(&overlong_role), None, 1),
+        Err(WebDriverBiDiAccessibilityQueryError::RoleTooLong)
+    );
+
+    let overlong_name = "n".repeat(MAX_BROWSER_ACCESSIBILITY_QUERY_NAME_BYTES + 1);
+    assert_eq!(
+        WebDriverBiDiAccessibilityQuery::new(None, Some(&overlong_name), 1),
+        Err(WebDriverBiDiAccessibilityQueryError::NameTooLong)
+    );
+    Ok(())
+}
+
+#[test]
+fn accessibility_query_node_count_is_finite_and_nonzero() {
+    assert_eq!(
+        WebDriverBiDiAccessibilityQuery::new(Some("button"), None, 0),
+        Err(WebDriverBiDiAccessibilityQueryError::InvalidNodeCount)
+    );
+    assert_eq!(
+        WebDriverBiDiAccessibilityQuery::new(
+            Some("button"),
+            None,
+            MAX_BROWSER_ACCESSIBILITY_QUERY_NODE_COUNT + 1,
+        ),
+        Err(WebDriverBiDiAccessibilityQueryError::InvalidNodeCount)
+    );
+}
+
+#[test]
+fn accessibility_query_error_contract_is_source_free() {
+    let errors = [
+        WebDriverBiDiAccessibilityQueryError::MissingLocatorValue,
+        WebDriverBiDiAccessibilityQueryError::EmptyRole,
+        WebDriverBiDiAccessibilityQueryError::RoleTooLong,
+        WebDriverBiDiAccessibilityQueryError::EmptyName,
+        WebDriverBiDiAccessibilityQueryError::NameTooLong,
+        WebDriverBiDiAccessibilityQueryError::InvalidNodeCount,
+    ];
+
+    for error in errors {
+        assert!(error.source().is_none());
+        assert!(!error.to_string().is_empty());
+    }
+}
