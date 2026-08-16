@@ -62,23 +62,37 @@ fn typed_input_target<'a>(
 }
 
 #[test]
-fn typed_operations_map_to_exact_transport_capabilities() {
-    assert_eq!(
-        BrowserProtocolOperation::Navigate.required_capability(),
-        BrowserProtocolCapability::Navigation
-    );
-    assert_eq!(
-        BrowserProtocolOperation::ObserveSemantics.required_capability(),
-        BrowserProtocolCapability::SemanticObservation
-    );
-    assert_eq!(
-        BrowserProtocolOperation::DispatchTypedInput.required_capability(),
-        BrowserProtocolCapability::TypedInput
-    );
-    assert_eq!(
-        BrowserProtocolOperation::ObserveNetwork.required_capability(),
-        BrowserProtocolCapability::NetworkObservation
-    );
+fn buyer_visible_operations_map_to_exact_transport_capabilities() {
+    let expected = [
+        (
+            BrowserProtocolOperation::Navigate,
+            BrowserProtocolCapability::Navigation,
+        ),
+        (
+            BrowserProtocolOperation::QueryNodes,
+            BrowserProtocolCapability::SemanticObservation,
+        ),
+        (
+            BrowserProtocolOperation::ClickNode,
+            BrowserProtocolCapability::TypedInput,
+        ),
+        (
+            BrowserProtocolOperation::TypeText,
+            BrowserProtocolCapability::TypedInput,
+        ),
+        (
+            BrowserProtocolOperation::WaitForState,
+            BrowserProtocolCapability::SemanticObservation,
+        ),
+        (
+            BrowserProtocolOperation::ObserveNetwork,
+            BrowserProtocolCapability::NetworkObservation,
+        ),
+    ];
+
+    for (operation, capability) in expected {
+        assert_eq!(operation.required_capability(), capability);
+    }
 }
 
 #[test]
@@ -93,7 +107,7 @@ fn typed_operation_dispatch_derives_the_required_capability() -> Result<(), Box<
         target,
         ORIGINWEAVE_PROTOCOL_VERSION,
         runtime_metadata(),
-        BrowserProtocolOperation::DispatchTypedInput,
+        BrowserProtocolOperation::TypeText,
         |validated: ValidatedBrowserProtocolUse, operation, epoch: DocumentEpoch| {
             (operation, validated.capability(), epoch.value())
         },
@@ -102,7 +116,7 @@ fn typed_operation_dispatch_derives_the_required_capability() -> Result<(), Box<
     assert_eq!(
         result,
         (
-            BrowserProtocolOperation::DispatchTypedInput,
+            BrowserProtocolOperation::TypeText,
             BrowserProtocolCapability::TypedInput,
             1,
         )
@@ -123,7 +137,7 @@ fn unsupported_typed_operation_fails_before_dispatch_callback() -> Result<(), Bo
         target,
         ORIGINWEAVE_PROTOCOL_VERSION,
         runtime_metadata(),
-        BrowserProtocolOperation::DispatchTypedInput,
+        BrowserProtocolOperation::ClickNode,
         |_validated, _operation, _epoch| dispatch_called.set(true),
     );
 
