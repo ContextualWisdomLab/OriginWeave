@@ -92,7 +92,7 @@ No persistent database migration is introduced. A release can roll back the Chro
 
 ## Open follow-ups
 
-- Complete issue #27's compatibility matrix and production isolation acceptance. Origin-bound `ExtensionAgentGrant` evaluation is the next protected-main candidate for the origin/resource-scope rule; expiry and task binding remain open.
+- Complete issue #27's compatibility matrix and production isolation acceptance. Exclusive trusted-time expiry on origin-bound `ExtensionAgentGrant` evaluation is the next protected-main candidate; task identity binding remains open.
 - Define managed-extension identity/update semantics.
 - Implement the native-messaging allow-list/process boundary before claiming support.
 - Integrate the complete Agent Task browser vertical slice under issue #28.

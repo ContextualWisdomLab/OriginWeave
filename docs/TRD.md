@@ -25,7 +25,7 @@ The current reusable Rust control plane is intentionally smaller than the final 
 
 | Module / boundary | Current responsibility | Protected-main status | Active/non-shipped evidence |
 |---|---|---|---|
-| `originweave-core` | Canonical origin, typed actions, purpose/mode, capabilities, risk, secret-delivery, approval, session/context/document/node authority values. | **Implemented** | Active origin-bound `ExtensionAgentGrant` evaluation adds canonical-origin matching to the existing extension/session/context grant; it is not protected-main truth until merge |
+| `originweave-core` | Canonical origin, typed actions, purpose/mode, capabilities, risk, secret-delivery, approval, session/context/document/node authority values. | **Implemented** | Active origin-bound `ExtensionAgentGrant` evaluation adds canonical-origin matching and exclusive trusted-time expiry; it is not protected-main truth until merge |
 | `originweave-policy` | Pure fail-closed action policy including purpose-bound sensitive-data authority. | **Implemented** | Trusted broker/runtime lifecycle remains separate planned work under issue #10 |
 | `originweave-destination` | Resolved-address classification, origin-bound snapshots, route authority, connection pinning, rebinding and redirect authority. | **Implemented** | PAC evaluation/proxy transport/CONNECT are still Planned |
 | `originweave-network` | Direct single-address TCP connection plan and exact operating-system peer verification. | **Implemented** | — |

@@ -54,7 +54,7 @@ The exact head has successful CI, exact owned production coverage, Security Scan
 
 **Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
 
-The current origin-binding slice requires `ExtensionAgentGrant` and `ExtensionAccessRequest` to carry the same canonical origin. A same-session, same-context request for `https://other.example` or `https://app.example:8443` against a grant for `https://app.example` is `DenyOriginMismatch`. This does not install an extension, parse Chrome messages, bind expiry or task identity, or mint Agent capabilities from Manifest V3 permissions.
+The current origin-binding slice requires `ExtensionAgentGrant` and `ExtensionAccessRequest` to carry the same canonical origin. A same-session, same-context request for `https://other.example` or `https://app.example:8443` against a grant for `https://app.example` is `DenyOriginMismatch`. Exclusive trusted-time expiry is evaluated after that origin match: `now >= expires_at` is `DenyExpired`. This does not install an extension, parse Chrome messages, bind task identity, or mint Agent capabilities from Manifest V3 permissions.
 
 ## 4. Security interpretation
 

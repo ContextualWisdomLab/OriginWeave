@@ -968,17 +968,19 @@ pub struct ExtensionAgentGrant {
     browser_session: BrowserSessionId,
     browsing_context: BrowsingContextId,
     origin: Origin,
+    expires_at_epoch_seconds: u64,
     capabilities: BTreeSet<ExtensionAgentCapability>,
 }
 
 impl ExtensionAgentGrant {
-    /// Build an exact extension-to-Agent grant for one session, context, and origin.
+    /// Build an exact extension-to-Agent grant for one session, context, origin, and exclusive expiry.
     #[must_use]
     pub fn new<I>(
         extension_id: ExtensionId,
         browser_session: BrowserSessionId,
         browsing_context: BrowsingContextId,
         origin: Origin,
+        expires_at_epoch_seconds: u64,
         capabilities: I,
     ) -> Self
     where
@@ -989,6 +991,7 @@ impl ExtensionAgentGrant {
             browser_session,
             browsing_context,
             origin,
+            expires_at_epoch_seconds,
             capabilities: capabilities.into_iter().collect(),
         }
     }
@@ -1001,17 +1004,22 @@ pub struct ExtensionAccessRequest {
     browser_session: BrowserSessionId,
     browsing_context: BrowsingContextId,
     origin: Origin,
+    now_epoch_seconds: u64,
     capability: ExtensionAgentCapability,
 }
 
 impl ExtensionAccessRequest {
     /// Build one exact extension capability request without granting authority.
+    ///
+    /// `now_epoch_seconds` must be trusted evaluation time supplied by the host,
+    /// not a page, extension, or model clock.
     #[must_use]
     pub const fn new(
         extension_id: ExtensionId,
         browser_session: BrowserSessionId,
         browsing_context: BrowsingContextId,
         origin: Origin,
+        now_epoch_seconds: u64,
         capability: ExtensionAgentCapability,
     ) -> Self {
         Self {
@@ -1019,6 +1027,7 @@ impl ExtensionAccessRequest {
             browser_session,
             browsing_context,
             origin,
+            now_epoch_seconds,
             capability,
         }
     }
@@ -1027,7 +1036,7 @@ impl ExtensionAccessRequest {
 /// Result of evaluating an extension request against one explicit Agent grant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExtensionAccessDecision {
-    /// The exact extension, session, context, and capability are explicitly granted.
+    /// The exact extension, session, context, origin, unexpired grant, and capability are explicitly granted.
     Allow,
     /// No explicit extension-to-Agent grant was supplied.
     DenyMissingGrant,
@@ -1039,6 +1048,8 @@ pub enum ExtensionAccessDecision {
     DenyBrowsingContextMismatch,
     /// The request belongs to a different canonical origin than the grant.
     DenyOriginMismatch,
+    /// Trusted evaluation time is at or after the grant's exclusive expiry.
+    DenyExpired,
     /// The extension grant does not contain the requested OriginWeave capability.
     DenyCapabilityNotGranted,
 }
@@ -1048,7 +1059,8 @@ pub enum ExtensionAccessDecision {
 /// A Chrome extension permission, installation state, or page capability is never
 /// consulted here. A future Chromium adapter must construct a host-originated
 /// [`ExtensionAgentGrant`] explicitly and re-evaluate the exact session, context,
-/// and canonical origin at the boundary where Agent authority would otherwise cross.
+/// canonical origin, and exclusive expiry at the boundary where Agent authority
+/// would otherwise cross.
 #[must_use]
 pub fn evaluate_extension_access(
     request: &ExtensionAccessRequest,
@@ -1068,6 +1080,9 @@ pub fn evaluate_extension_access(
     }
     if request.origin != grant.origin {
         return ExtensionAccessDecision::DenyOriginMismatch;
+    }
+    if request.now_epoch_seconds >= grant.expires_at_epoch_seconds {
+        return ExtensionAccessDecision::DenyExpired;
     }
     if !grant.capabilities.contains(&request.capability) {
         return ExtensionAccessDecision::DenyCapabilityNotGranted;
