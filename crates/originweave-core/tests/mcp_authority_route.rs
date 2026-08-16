@@ -2,7 +2,7 @@ use std::error::Error;
 
 use originweave_core::mcp::{
     MAX_MCP_TOOL_NAME_BYTES, MCP_PROTOCOL_VERSION, MCP_TOOLS_CALL_METHOD, McpToolBoundaryError,
-    ValidatedMcpToolCall,
+    ValidatedMcpToolCall, supported_mcp_tools,
 };
 use originweave_core::{ActionKind, Capability, RiskClass};
 
@@ -97,6 +97,51 @@ fn supported_mcp_tools_map_to_exact_originweave_actions() -> Result<(), Box<dyn 
         );
         assert_eq!(call.action_kind().risk_class(), expected_risk);
     }
+    Ok(())
+}
+
+#[test]
+fn mcp_tool_catalog_is_deterministic_complete_and_action_unambiguous() -> Result<(), Box<dyn Error>> {
+    let expected = [
+        ("originweave.observe", ActionKind::Observe),
+        ("originweave.extract", ActionKind::Extract),
+        ("originweave.navigate", ActionKind::Navigate),
+        ("originweave.download", ActionKind::Download),
+        ("originweave.draft", ActionKind::Draft),
+        ("originweave.submit", ActionKind::Submit),
+        ("originweave.upload", ActionKind::Upload),
+        ("originweave.fill_secret", ActionKind::FillSecret),
+        ("originweave.purchase", ActionKind::Purchase),
+        ("originweave.delete", ActionKind::Delete),
+        ("originweave.manage_permission", ActionKind::ManagePermission),
+    ];
+    let catalog = supported_mcp_tools();
+
+    assert_eq!(catalog.len(), expected.len());
+    for (entry, (expected_name, expected_action)) in catalog.iter().zip(expected) {
+        assert_eq!(entry.tool_name(), expected_name);
+        assert_eq!(entry.action_kind(), expected_action);
+        assert_eq!(
+            entry.required_capability(),
+            expected_action.required_capability()
+        );
+        assert_eq!(entry.risk_class(), expected_action.risk_class());
+
+        let call = validate(entry.tool_name())?;
+        assert_eq!(call.action_kind(), entry.action_kind());
+    }
+
+    for (index, entry) in catalog.iter().enumerate() {
+        for other in &catalog[index + 1..] {
+            assert_ne!(entry.tool_name(), other.tool_name());
+            assert_ne!(entry.action_kind(), other.action_kind());
+        }
+    }
+    assert!(
+        catalog
+            .iter()
+            .all(|entry| entry.action_kind() != ActionKind::LegalConsent)
+    );
     Ok(())
 }
 
