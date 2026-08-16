@@ -58,3 +58,42 @@ fn network_evidence_keeps_header_token_grammar_separate_from_query_names() {
         Some(&"[REDACTED]".to_owned())
     );
 }
+
+#[test]
+fn network_evidence_rejects_invisible_query_field_names() {
+    for query_name in [
+        "filter\u{202e}status",
+        "filter\u{200b}status",
+        "filter\u{00ad}status",
+        "filter\u{2066}status",
+        "\u{feff}filter",
+    ] {
+        let query = BTreeMap::from([(query_name.to_owned(), "discarded".to_owned())]);
+        let result =
+            NetworkEvidence::capture(HttpMethod::Get, origin(), "/search", BTreeMap::new(), query);
+
+        assert_eq!(
+            result,
+            Err(EvidenceError::LimitExceeded),
+            "query_name={query_name:?}"
+        );
+    }
+}
+
+#[test]
+fn network_evidence_preserves_printable_unicode_query_names() {
+    let query_name = "필터:상태";
+    let evidence = NetworkEvidence::capture(
+        HttpMethod::Get,
+        origin(),
+        "/search",
+        BTreeMap::new(),
+        BTreeMap::from([(query_name.to_owned(), "discarded".to_owned())]),
+    )
+    .expect("printable Unicode query field name");
+
+    assert_eq!(
+        evidence.query().get(query_name),
+        Some(&"[REDACTED]".to_owned())
+    );
+}
