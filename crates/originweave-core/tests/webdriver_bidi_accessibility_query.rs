@@ -7,12 +7,9 @@ use originweave_core::{
 };
 
 #[test]
-fn accessibility_query_exposes_exact_bidi_method_and_locator_contract() -> Result<(), Box<dyn Error>> {
-    let query = WebDriverBiDiAccessibilityQuery::new(
-        Some("textbox"),
-        Some("Task text"),
-        32,
-    )?;
+fn accessibility_query_exposes_exact_bidi_method_and_locator_contract() -> Result<(), Box<dyn Error>>
+{
+    let query = WebDriverBiDiAccessibilityQuery::new(Some("textbox"), Some("Task text"), 32)?;
 
     assert_eq!(query.method(), WEBDRIVER_BIDI_LOCATE_NODES_METHOD);
     assert_eq!(query.method(), "browsingContext.locateNodes");
