@@ -101,7 +101,8 @@ fn supported_mcp_tools_map_to_exact_originweave_actions() -> Result<(), Box<dyn 
 }
 
 #[test]
-fn mcp_tool_catalog_is_deterministic_complete_and_action_unambiguous() -> Result<(), Box<dyn Error>> {
+fn mcp_tool_catalog_is_deterministic_complete_and_action_unambiguous() -> Result<(), Box<dyn Error>>
+{
     let expected = [
         ("originweave.observe", ActionKind::Observe),
         ("originweave.extract", ActionKind::Extract),
@@ -113,7 +114,10 @@ fn mcp_tool_catalog_is_deterministic_complete_and_action_unambiguous() -> Result
         ("originweave.fill_secret", ActionKind::FillSecret),
         ("originweave.purchase", ActionKind::Purchase),
         ("originweave.delete", ActionKind::Delete),
-        ("originweave.manage_permission", ActionKind::ManagePermission),
+        (
+            "originweave.manage_permission",
+            ActionKind::ManagePermission,
+        ),
     ];
     let catalog = supported_mcp_tools();
 
