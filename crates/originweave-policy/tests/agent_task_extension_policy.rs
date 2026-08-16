@@ -69,6 +69,37 @@ fn managed_agent_task_extension_policy_is_not_reusable_across_sessions() {
 }
 
 #[test]
+fn mismatched_session_cannot_probe_policy_window_state() {
+    let extension = extension_id("abcdefghijklmnopabcdefghijklmnop");
+    let current_session = session(37);
+
+    let invalid = AgentTaskExtensionPolicy::new(session(31), [extension.clone()], 20, 10, 10);
+    assert_eq!(
+        evaluate_agent_task_extension(&extension, &invalid, current_session, 15),
+        AgentTaskExtensionDecision::DenySessionMismatch
+    );
+
+    let overlong = AgentTaskExtensionPolicy::new(session(31), [extension.clone()], 10, 21, 10);
+    assert_eq!(
+        evaluate_agent_task_extension(&extension, &overlong, current_session, 15),
+        AgentTaskExtensionDecision::DenySessionMismatch
+    );
+
+    let not_yet_valid =
+        AgentTaskExtensionPolicy::new(session(31), [extension.clone()], 10, 20, 10);
+    assert_eq!(
+        evaluate_agent_task_extension(&extension, &not_yet_valid, current_session, 9),
+        AgentTaskExtensionDecision::DenySessionMismatch
+    );
+
+    let expired = AgentTaskExtensionPolicy::new(session(31), [extension.clone()], 10, 20, 10);
+    assert_eq!(
+        evaluate_agent_task_extension(&extension, &expired, current_session, 20),
+        AgentTaskExtensionDecision::DenySessionMismatch
+    );
+}
+
+#[test]
 fn managed_agent_task_extension_policy_fails_closed_outside_its_validity_window() {
     let extension = extension_id("abcdefghijklmnopabcdefghijklmnop");
     let policy = AgentTaskExtensionPolicy::new(session(31), [extension.clone()], 10, 20, 10);
