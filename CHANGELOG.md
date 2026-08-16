@@ -30,6 +30,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Proposed product-wide target-architecture ADRs for the Rust control plane, isolated execution modes, typed actions, semantic observation/stale-node authority, prompt-injection and secret separation, resource-governor priority, provenance evidence, browser/protocol adapters, crawler policy, and hourly automation operational closure; these remain Proposed rather than shipped claims until protected review and merge.
 - Pinned real-Chromium Manifest V3 compatibility evidence for a controlled history add/read/delete lifecycle confined to the ephemeral loopback fixture profile, with cleanup verification and no OriginWeave Agent history-authority claim.
 - Pinned real-Chromium Manifest V3 update-migration evidence using a trial-local unpacked-extension copy, a controlled `1.0.0` to `1.0.1` transition, persisted profile state, and explicit schema migration without modifying the checked-in fixture or granting Agent authority.
+- Pinned real-Chromium Manifest V3 content-script isolated-world evidence that requires the page main world and extension isolated world to retain distinct JavaScript globals while sharing only a controlled DOM sentinel.
 
 ### Changed
 
