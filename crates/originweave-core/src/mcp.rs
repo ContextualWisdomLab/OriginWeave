@@ -9,7 +9,7 @@
 
 use std::fmt;
 
-use crate::ActionKind;
+use crate::{ActionKind, Capability, RiskClass};
 
 /// MCP protocol generation accepted by this stateless adapter boundary.
 pub const MCP_PROTOCOL_VERSION: &str = "2026-07-28";
@@ -20,23 +20,101 @@ pub const MCP_TOOLS_CALL_METHOD: &str = "tools/call";
 /// Maximum accepted MCP tool-name length in bytes.
 pub const MAX_MCP_TOOL_NAME_BYTES: usize = 128;
 
-/// The complete explicit MCP tool-to-action mapping accepted by this boundary.
-const MCP_TOOL_ACTION_MAP: &[(&str, ActionKind)] = &[
-    ("originweave.observe", ActionKind::Observe),
-    ("originweave.extract", ActionKind::Extract),
-    ("originweave.navigate", ActionKind::Navigate),
-    ("originweave.download", ActionKind::Download),
-    ("originweave.draft", ActionKind::Draft),
-    ("originweave.submit", ActionKind::Submit),
-    ("originweave.upload", ActionKind::Upload),
-    ("originweave.fill_secret", ActionKind::FillSecret),
-    ("originweave.purchase", ActionKind::Purchase),
-    ("originweave.delete", ActionKind::Delete),
-    (
-        "originweave.manage_permission",
-        ActionKind::ManagePermission,
-    ),
+/// One deterministic MCP tool descriptor derived from OriginWeave's reviewed action registry.
+///
+/// The descriptor is discovery metadata only. It does not grant capabilities, origin access,
+/// approval, secret access, or any other authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct McpToolCatalogEntry {
+    tool_name: &'static str,
+    action_kind: ActionKind,
+}
+
+impl McpToolCatalogEntry {
+    /// Return the canonical MCP tool name exposed by this registry entry.
+    #[must_use]
+    pub const fn tool_name(&self) -> &'static str {
+        self.tool_name
+    }
+
+    /// Return the typed OriginWeave action represented by this registry entry.
+    #[must_use]
+    pub const fn action_kind(&self) -> ActionKind {
+        self.action_kind
+    }
+
+    /// Return the capability required by the represented action.
+    #[must_use]
+    pub const fn required_capability(&self) -> Capability {
+        self.action_kind.required_capability()
+    }
+
+    /// Return the risk class assigned to the represented action.
+    #[must_use]
+    pub const fn risk_class(&self) -> RiskClass {
+        self.action_kind.risk_class()
+    }
+}
+
+/// The complete explicit MCP tool-to-action registry accepted by this boundary.
+///
+/// Order is deterministic so adapters can derive stable discovery output from this single
+/// reviewed registry rather than maintaining a second mapping that could drift from routing.
+const MCP_TOOL_CATALOG: &[McpToolCatalogEntry] = &[
+    McpToolCatalogEntry {
+        tool_name: "originweave.observe",
+        action_kind: ActionKind::Observe,
+    },
+    McpToolCatalogEntry {
+        tool_name: "originweave.extract",
+        action_kind: ActionKind::Extract,
+    },
+    McpToolCatalogEntry {
+        tool_name: "originweave.navigate",
+        action_kind: ActionKind::Navigate,
+    },
+    McpToolCatalogEntry {
+        tool_name: "originweave.download",
+        action_kind: ActionKind::Download,
+    },
+    McpToolCatalogEntry {
+        tool_name: "originweave.draft",
+        action_kind: ActionKind::Draft,
+    },
+    McpToolCatalogEntry {
+        tool_name: "originweave.submit",
+        action_kind: ActionKind::Submit,
+    },
+    McpToolCatalogEntry {
+        tool_name: "originweave.upload",
+        action_kind: ActionKind::Upload,
+    },
+    McpToolCatalogEntry {
+        tool_name: "originweave.fill_secret",
+        action_kind: ActionKind::FillSecret,
+    },
+    McpToolCatalogEntry {
+        tool_name: "originweave.purchase",
+        action_kind: ActionKind::Purchase,
+    },
+    McpToolCatalogEntry {
+        tool_name: "originweave.delete",
+        action_kind: ActionKind::Delete,
+    },
+    McpToolCatalogEntry {
+        tool_name: "originweave.manage_permission",
+        action_kind: ActionKind::ManagePermission,
+    },
 ];
+
+/// Return the deterministic reviewed MCP tool catalog.
+///
+/// Adapters may use this slice to derive discovery responses. Serialization, pagination, cache
+/// policy, transport I/O, and authorization remain outside this stateless registry boundary.
+#[must_use]
+pub const fn supported_mcp_tools() -> &'static [McpToolCatalogEntry] {
+    MCP_TOOL_CATALOG
+}
 
 /// A deterministic failure while validating untrusted MCP routing metadata.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -140,9 +218,9 @@ fn valid_tool_name(tool_name: &str) -> bool {
 }
 
 fn map_tool(tool_name: &str) -> Result<(&'static str, ActionKind), McpToolBoundaryError> {
-    MCP_TOOL_ACTION_MAP
+    MCP_TOOL_CATALOG
         .iter()
-        .copied()
-        .find(|(mapped_name, _)| *mapped_name == tool_name)
+        .find(|entry| entry.tool_name == tool_name)
+        .map(|entry| (entry.tool_name, entry.action_kind))
         .ok_or(McpToolBoundaryError::UnknownTool)
 }
