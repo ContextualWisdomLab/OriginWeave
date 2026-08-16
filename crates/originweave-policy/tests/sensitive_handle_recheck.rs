@@ -1,7 +1,5 @@
 #![allow(clippy::expect_used)]
 
-use std::cell::Cell;
-
 use originweave_core::Origin;
 use originweave_policy::{
     DataClassification, HandleRevocationReason, HandleUseDecision, SensitiveDataAuthority,
@@ -41,6 +39,14 @@ fn scope(max_uses: u32) -> SensitiveValueHandleScope {
     SensitiveValueHandleScope::new(authority(DESTINATION), AUDIENCE, 2_000, max_uses)
 }
 
+fn disclosure_marker() -> &'static str {
+    "disclosure-attempted"
+}
+
+fn must_not_dispatch() -> &'static str {
+    panic!("denied reservation invoked the disclosure callback")
+}
+
 #[test]
 fn outstanding_reservation_can_be_rechecked_without_consuming_another_use() {
     let mut state = SensitiveHandleUseState::new(scope(1));
@@ -63,7 +69,6 @@ fn current_reservation_gates_one_same_call_disclosure_callback() {
     let reservation = state
         .reserve_tracked_use(authority(DESTINATION), AUDIENCE, 1_900)
         .expect("reservation must be authorized");
-    let callback_count = Cell::new(0_u32);
 
     let result = state
         .dispatch_if_reservation_current(
@@ -71,15 +76,11 @@ fn current_reservation_gates_one_same_call_disclosure_callback() {
             authority(DESTINATION),
             AUDIENCE,
             1_999,
-            || {
-                callback_count.set(callback_count.get() + 1);
-                "disclosure-attempted"
-            },
+            disclosure_marker as fn() -> &'static str,
         )
         .expect("current reservation must permit callback dispatch");
 
     assert_eq!(result, "disclosure-attempted");
-    assert_eq!(callback_count.get(), 1);
     assert_eq!(state.reserved_uses(), 1);
     assert_eq!(state.completed_uses(), 0);
     assert_eq!(state.outstanding_reservations(), 1);
@@ -91,21 +92,16 @@ fn denied_reservation_never_invokes_disclosure_callback() {
     let reservation = state
         .reserve_tracked_use(authority(DESTINATION), AUDIENCE, 1_900)
         .expect("reservation must be authorized");
-    let callback_count = Cell::new(0_u32);
 
     let result = state.dispatch_if_reservation_current(
         &reservation,
         authority(DESTINATION),
         AUDIENCE,
         2_000,
-        || {
-            callback_count.set(callback_count.get() + 1);
-            "must-not-run"
-        },
+        must_not_dispatch as fn() -> &'static str,
     );
 
     assert_eq!(result, Err(HandleUseDecision::Expired));
-    assert_eq!(callback_count.get(), 0);
     assert_eq!(state.reserved_uses(), 1);
     assert_eq!(state.completed_uses(), 0);
     assert_eq!(state.outstanding_reservations(), 1);
