@@ -342,28 +342,28 @@ def _exercise_real_click(driver_port: int, session_id: str) -> str:
 
 
 def _teardown_driver_process(driver: subprocess.Popen[str]) -> Exception | None:
-    """Best-effort reap ChromeDriver while preserving the first reviewed process error."""
+    """Best-effort reap ChromeDriver while preserving reviewed process failures."""
 
-    teardown_error: Exception | None = None
     try:
         driver.terminate()
-    except OSError as error:
-        teardown_error = error
-
-    if teardown_error is None:
+    except OSError as terminate_error:
         try:
+            driver.kill()
             driver.wait(timeout=5)
-            return None
-        except subprocess.TimeoutExpired as error:
-            teardown_error = error
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+        return terminate_error
 
     try:
-        driver.kill()
         driver.wait(timeout=5)
-    except (OSError, subprocess.TimeoutExpired) as error:
-        if teardown_error is None:
-            teardown_error = error
-    return teardown_error
+        return None
+    except subprocess.TimeoutExpired:
+        try:
+            driver.kill()
+            driver.wait(timeout=5)
+        except (OSError, subprocess.TimeoutExpired) as fallback_error:
+            return fallback_error
+        return None
 
 
 def _run_browser_pass(
@@ -566,7 +566,7 @@ def _pinned_workspace_binary(
     """Authorize only the exact non-symlink executable provisioned under the workspace.
 
     Environment variables remain compatibility inputs for the workflow, but they
-    cannot redirect execution.  The release lane has one reviewed path for each
+    cannot redirect execution. The release lane has one reviewed path for each
     pinned Chrome-for-Testing artifact, and any other executable fails closed.
     """
 
