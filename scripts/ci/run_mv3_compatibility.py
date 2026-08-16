@@ -444,8 +444,7 @@ def _run_browser_pass(
         )
         if browser_version != PINNED_CHROME_VERSION:
             raise RuntimeError(
-                f"unexpected Chrome version: expected {PINNED_CHROME_VERSION}, "
-                f"got {browser_version!r}"
+                f"unexpected Chrome version; expected {PINNED_CHROME_VERSION}"
             )
 
         _json_request(
