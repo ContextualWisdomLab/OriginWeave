@@ -4,7 +4,10 @@ use std::time::{Duration, Instant};
 use originweave_core::Origin;
 use originweave_destination::{DestinationError, FreshResolutionSnapshot};
 
-use crate::connection::{ConnectionPlan, DirectTcpConnection, NetworkError};
+use crate::connection::{
+    ConnectionPlan, DirectTcpConnection, MAX_CONNECT_TIMEOUT, MAX_CONNECTION_ATTEMPTS,
+    NetworkError,
+};
 
 fn effective_origin_port(origin: &Origin) -> u16 {
     let default_port = match origin.scheme() {
@@ -53,6 +56,18 @@ impl FreshConnectionPlan {
     ) -> Result<Self, NetworkError> {
         if socket_address.port() == 0 {
             return Err(NetworkError::InvalidPort);
+        }
+        if connect_timeout.is_zero() || connect_timeout > MAX_CONNECT_TIMEOUT {
+            return Err(NetworkError::InvalidConnectTimeout {
+                connect_timeout,
+                maximum_timeout: MAX_CONNECT_TIMEOUT,
+            });
+        }
+        if maximum_attempts == 0 || maximum_attempts > MAX_CONNECTION_ATTEMPTS {
+            return Err(NetworkError::InvalidAttemptCount {
+                attempt_count: maximum_attempts,
+                maximum_attempts: MAX_CONNECTION_ATTEMPTS,
+            });
         }
         let fresh_evidence = resolution
             .authorize_connection(socket_address.ip(), current_time)
