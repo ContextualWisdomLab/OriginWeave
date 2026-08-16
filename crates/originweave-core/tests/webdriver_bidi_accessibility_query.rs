@@ -2,10 +2,10 @@ use std::error::Error;
 
 use originweave_core::{
     MAX_BROWSER_ACCESSIBILITY_QUERY_NAME_BYTES, MAX_BROWSER_ACCESSIBILITY_QUERY_NODE_COUNT,
-    MAX_BROWSER_ACCESSIBILITY_QUERY_ROLE_BYTES, WEBDRIVER_BIDI_LOCATE_NODES_METHOD,
-    WEBDRIVER_BIDI_QUERY_INCLUDE_SHADOW_TREE, WEBDRIVER_BIDI_QUERY_MAX_DOM_DEPTH,
-    WEBDRIVER_BIDI_QUERY_MAX_OBJECT_DEPTH, WebDriverBiDiAccessibilityQuery,
-    WebDriverBiDiAccessibilityQueryError,
+    MAX_BROWSER_ACCESSIBILITY_QUERY_ROLE_BYTES, UNICODE_PROTOCOL_FORMAT_INJECTION_CHARS,
+    WEBDRIVER_BIDI_LOCATE_NODES_METHOD, WEBDRIVER_BIDI_QUERY_INCLUDE_SHADOW_TREE,
+    WEBDRIVER_BIDI_QUERY_MAX_DOM_DEPTH, WEBDRIVER_BIDI_QUERY_MAX_OBJECT_DEPTH,
+    WebDriverBiDiAccessibilityQuery, WebDriverBiDiAccessibilityQueryError,
 };
 
 #[test]
@@ -81,22 +81,18 @@ fn accessibility_role_rejects_whitespace_and_control_injection() {
 
 #[test]
 fn accessibility_locator_text_rejects_unicode_format_and_bidi_overrides() {
-    assert_eq!(
-        WebDriverBiDiAccessibilityQuery::new(Some("button\u{200B}"), None, 1),
-        Err(WebDriverBiDiAccessibilityQueryError::InvalidRole)
-    );
-    assert_eq!(
-        WebDriverBiDiAccessibilityQuery::new(Some("button\u{202E}"), None, 1),
-        Err(WebDriverBiDiAccessibilityQueryError::InvalidRole)
-    );
-    assert_eq!(
-        WebDriverBiDiAccessibilityQuery::new(None, Some("Submit\u{200B}task"), 1),
-        Err(WebDriverBiDiAccessibilityQueryError::InvalidName)
-    );
-    assert_eq!(
-        WebDriverBiDiAccessibilityQuery::new(None, Some("Submit\u{202E}task"), 1),
-        Err(WebDriverBiDiAccessibilityQueryError::InvalidName)
-    );
+    for character in UNICODE_PROTOCOL_FORMAT_INJECTION_CHARS {
+        let role = format!("button{character}");
+        let name = format!("Submit{character}task");
+        assert_eq!(
+            WebDriverBiDiAccessibilityQuery::new(Some(&role), None, 1),
+            Err(WebDriverBiDiAccessibilityQueryError::InvalidRole)
+        );
+        assert_eq!(
+            WebDriverBiDiAccessibilityQuery::new(None, Some(&name), 1),
+            Err(WebDriverBiDiAccessibilityQueryError::InvalidName)
+        );
+    }
 }
 
 #[test]

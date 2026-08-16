@@ -38,7 +38,9 @@ pub use browser_protocol_operation::{
     WebDriverBiDiQueryNodesAdmissionError, WebDriverBiDiRemoteNodeReference,
     WebDriverBiDiRemoteNodeReferenceError,
 };
+pub(crate) use browser_registry::contains_disallowed_protocol_text;
 pub use browser_registry::{
     BrowserAuthorityRegistry, BrowserRegistryError, MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES,
+    UNICODE_PROTOCOL_FORMAT_INJECTION_CHARS,
 };
 pub use contracts::*;

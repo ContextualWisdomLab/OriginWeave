@@ -46,7 +46,7 @@ fn public_default_and_error_contracts_are_usable_from_an_adapter() -> Result<(),
     let cases = [
         (
             BrowserRegistryError::InvalidExternalIdentifier,
-            "external browser identifier must contain 1 to 512 UTF-8 bytes without control or whitespace characters".to_owned(),
+            "external browser identifier must contain 1 to 512 UTF-8 bytes without control, whitespace, or Unicode format characters".to_owned(),
         ),
         (
             BrowserRegistryError::UnknownBrowserSession,

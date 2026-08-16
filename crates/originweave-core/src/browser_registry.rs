@@ -6,6 +6,35 @@ use crate::{BrowserSessionId, BrowsingContextId, DocumentEpoch, ObservedNodeHand
 /// Maximum UTF-8 byte length of an opaque browser-protocol identifier retained by the registry.
 pub const MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES: usize = 512;
 
+/// Invisible and bidirectional Unicode format characters rejected in protocol text.
+///
+/// These code points are Default_Ignorable or bidirectional format controls. They can hide or
+/// reorder locator and identifier text without being `char::is_control` or `char::is_whitespace`.
+/// The reviewed set is a local fail-closed policy for OriginWeave protocol admission, not a claim
+/// that every Unicode format character is forbidden by WebDriver BiDi or WAI-ARIA.
+pub const UNICODE_PROTOCOL_FORMAT_INJECTION_CHARS: &[char] = &[
+    '\u{00AD}', '\u{061C}', '\u{180E}', '\u{200B}', '\u{200C}', '\u{200D}', '\u{200E}', '\u{200F}',
+    '\u{202A}', '\u{202B}', '\u{202C}', '\u{202D}', '\u{202E}', '\u{2060}', '\u{2061}', '\u{2062}',
+    '\u{2063}', '\u{2064}', '\u{2066}', '\u{2067}', '\u{2068}', '\u{2069}', '\u{206A}', '\u{206B}',
+    '\u{206C}', '\u{206D}', '\u{206E}', '\u{206F}', '\u{FEFF}',
+];
+
+/// Return whether protocol text contains a control, whitespace, or reviewed format character.
+///
+/// When `allow_ordinary_space` is true, U+0020 may appear so accessible names can keep ordinary
+/// spaces. Every other whitespace character, every control, and every reviewed format character
+/// still fail closed.
+pub(crate) fn contains_disallowed_protocol_text(value: &str, allow_ordinary_space: bool) -> bool {
+    value.chars().any(|character| {
+        if allow_ordinary_space && character == ' ' {
+            return false;
+        }
+        character.is_control()
+            || character.is_whitespace()
+            || UNICODE_PROTOCOL_FORMAT_INJECTION_CHARS.contains(&character)
+    })
+}
+
 /// Default maximum number of authority identifiers allocated per registry namespace.
 const DEFAULT_MAX_BROWSER_AUTHORITY_IDENTIFIERS: u64 = 1_000_000;
 
@@ -338,7 +367,7 @@ impl Default for BrowserAuthorityRegistry {
 /// A fail-closed error produced while translating external browser identifiers into local authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BrowserRegistryError {
-    /// An external identifier was empty, contained control or whitespace, or exceeded the reviewed byte bound.
+    /// An external identifier was empty, contained control, whitespace, or Unicode format text, or exceeded the reviewed byte bound.
     InvalidExternalIdentifier,
     /// The supplied OriginWeave browser session is not registered in this registry.
     UnknownBrowserSession,
@@ -367,7 +396,7 @@ impl fmt::Display for BrowserRegistryError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidExternalIdentifier => formatter.write_str(
-                "external browser identifier must contain 1 to 512 UTF-8 bytes without control or whitespace characters",
+                "external browser identifier must contain 1 to 512 UTF-8 bytes without control, whitespace, or Unicode format characters",
             ),
             Self::UnknownBrowserSession => {
                 formatter.write_str("browser session is not registered in this authority registry")
@@ -404,9 +433,7 @@ impl std::error::Error for BrowserRegistryError {}
 fn validate_external_identifier(identifier: &str) -> Result<(), BrowserRegistryError> {
     if identifier.is_empty()
         || identifier.len() > MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES
-        || identifier
-            .chars()
-            .any(|character| character.is_control() || character.is_whitespace())
+        || contains_disallowed_protocol_text(identifier, false)
     {
         return Err(BrowserRegistryError::InvalidExternalIdentifier);
     }

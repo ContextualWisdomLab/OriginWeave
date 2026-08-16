@@ -1,8 +1,9 @@
 use std::error::Error;
 
 use originweave_core::{
-    MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES, WEBDRIVER_BIDI_NODE_REMOTE_VALUE_TYPE,
-    WebDriverBiDiRemoteNodeReference, WebDriverBiDiRemoteNodeReferenceError,
+    MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES, UNICODE_PROTOCOL_FORMAT_INJECTION_CHARS,
+    WEBDRIVER_BIDI_NODE_REMOTE_VALUE_TYPE, WebDriverBiDiRemoteNodeReference,
+    WebDriverBiDiRemoteNodeReferenceError,
 };
 
 #[test]
@@ -40,14 +41,13 @@ fn remote_node_reference_requires_a_usable_shared_id() {
 
 #[test]
 fn remote_node_reference_rejects_unicode_format_and_bidi_overrides() {
-    assert_eq!(
-        WebDriverBiDiRemoteNodeReference::new("node", Some("shared-node-42\u{200B}")),
-        Err(WebDriverBiDiRemoteNodeReferenceError::InvalidSharedId)
-    );
-    assert_eq!(
-        WebDriverBiDiRemoteNodeReference::new("node", Some("shared-node-42\u{202E}")),
-        Err(WebDriverBiDiRemoteNodeReferenceError::InvalidSharedId)
-    );
+    for character in UNICODE_PROTOCOL_FORMAT_INJECTION_CHARS {
+        let shared_id = format!("shared-node-42{character}");
+        assert_eq!(
+            WebDriverBiDiRemoteNodeReference::new("node", Some(&shared_id)),
+            Err(WebDriverBiDiRemoteNodeReferenceError::InvalidSharedId)
+        );
+    }
 }
 
 #[test]
