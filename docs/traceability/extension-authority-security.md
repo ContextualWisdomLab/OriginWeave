@@ -2,15 +2,15 @@
 
 - **Documentation status:** Active-PR evidence dossier
 - **Canonical owner:** PR #44 (`docs: reconcile architecture documentation fitness`)
-- **Protected-main baseline:** `67af7c87589edc2039545af335c95064d9b8391c`
+- **Protected-main baseline:** `0c376acf059be9ddddddfbde1d0189e4f39ef014`
 - **Capability maturity:** **PARTIAL**
 - **Governing decision:** Proposed ADR 0013 separates Manifest V3 compatibility from OriginWeave Agent authority.
 
 ## 1. Why this dossier exists
 
-Manifest V3 compatibility and OriginWeave Agent authority are intentionally different evidence domains. A Chromium extension may possess Chrome permissions and may be explicitly granted a narrow OriginWeave extension capability without receiving Agent origin grants, Agent action capability, instruction trust, secret-delivery authority, approval, or protected-value access.
+Manifest V3 compatibility and OriginWeave Agent authority are intentionally different evidence domains. A Chromium extension may possess Chrome permissions and may be explicitly granted a narrow OriginWeave extension capability without receiving Agent origin grants, Agent action capability, instruction trust, secret-delivery authority, approval, protected-value access, or ambient native-process authority.
 
-This dossier records the current executable composition evidence for that separation. It does not promote active pull requests to protected-main shipped truth and it does not claim the trusted sensitive-data broker from issue #10 is complete.
+This dossier records current executable composition evidence for that separation. It does not promote active pull requests to protected-main shipped truth and it does not claim the trusted sensitive-data broker from issue #10 or the native-host process adapter from issue #27 is complete.
 
 ## 2. Protected-main authority
 
@@ -32,7 +32,7 @@ These foundations are **IMPLEMENTED_ON_PROTECTED_MAIN**. They do not by themselv
 
 **Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
 
-Exact head `a57873b3688984711918be17aadd348ed9fb12a9` proves that, after an extension is genuinely allowed to `ProposeTypedAction`:
+Exact current head `e7265a86d63c9e5f047ed6d32c3988b01e53fa13` proves that, after an extension is genuinely allowed to `ProposeTypedAction`:
 
 1. a proposed navigation outside the Agent readable-origin grant is still denied;
 2. proposal permission cannot supply the missing Agent `Navigate` capability;
@@ -46,13 +46,33 @@ The branch adds no production API and no extension runtime. It is compositional 
 
 **Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
 
-Exact head `e83749acd1cf5a0b778ba38eb9d6ed5a9bd1e68f` deliberately keeps only the distinct approval-composition proof after duplicate regressions were removed in favor of PR #62 ownership. It proves that, after the same exact proposal grant is admitted and the Agent context independently possesses `FillSecret` plus exact readable/writable origin authority, broker-handle `FillSecret` still reaches the ordinary R3 approval boundary rather than becoming implicitly allowed.
+Exact current head `a4595c393f459f57bfe2199ace44271f246751c4` deliberately keeps only the distinct approval-composition proof after duplicate regressions were removed in favor of PR #62 ownership. It proves that, after the same exact proposal grant is admitted and the Agent context independently possesses `FillSecret` plus exact readable/writable origin authority, broker-handle `FillSecret` still reaches the ordinary R3 approval boundary rather than becoming implicitly allowed.
 
-The exact head has successful CI, exact owned production coverage, Security Scan, SAST and CodeRabbit status and is Ready for review. It has no raw secret bytes and does not create approval evidence, a broker, browser-fill adapter, protected-value store, KMS path, authenticated workload identity, persistence owner, or release claim.
+This lane adds no broker, browser-fill adapter, protected-value store, KMS path, authenticated workload identity, persistence owner, or approval evidence.
+
+### PR #82 — exact extension-to-native-host authority
+
+**Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
+
+Exact current head `427d2f32431139dc7ed59e60df00fd9d0c4eeba0` provides bounded native-host names plus exact extension-ID/host-name grants and request identity getters. Chrome `nativeMessaging` permission remains separate from OriginWeave Agent authority. The lane does not parse an installed host manifest, read operating-system registration, launch a process, frame stdio, or trust native-host output.
+
+### PR #154 — bounded native-messaging framing
+
+**Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
+
+Exact current head `d2e1ae8d654703b76897db202980fec82d26babc`, stacked on #82, bounds native-endian message framing with direction-specific payload ceilings, exact frame length, and UTF-8 text validation before later JSON/untrusted-observation handling. It does not prove host-manifest installation, process ownership, sandboxing, stdio provenance, or Agent authority.
+
+### PR #169 — validated host-manifest authority
+
+**Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
+
+Current Draft head `6d85f1a15e1501f48ce2d12d560323a36b38719b`, stacked on #154, adds test-first host-manifest authority. It accepts only exact `stdio`, requires a non-empty bounded raw `allowed_origins` list, validates exact canonical `chrome-extension://<id>/` origins without wildcard or suffix normalization, collapses duplicate exact origins without widening authority, and allows only an exact host plus explicitly listed extension identity.
+
+The implementation intentionally treats caller-supplied validated manifest fields as one authority input only. It does not read JSON/filesystem/registry state, canonicalize or attest executable paths, prove installer/OS ownership, spawn/sandbox/supervise a host process, authenticate the stdio peer, parse/trust host JSON, expose protected values, or grant Agent actions. Those remain separately reviewed runtime boundaries.
 
 ## 4. Security interpretation
 
-The executable authority chain is intentionally non-transitive:
+The executable authority chains are intentionally non-transitive:
 
 ```text
 Chromium extension permission
@@ -66,14 +86,29 @@ Chromium extension permission
 -/> protected-value resolution
 ```
 
-A future real extension adapter must preserve these separations. Chrome permissions and extension proposal grants are inputs to policy composition, never ambient authority that bypasses the deterministic Agent policy or the sensitive-data broker boundary.
+and:
+
+```text
+Chrome nativeMessaging permission
+-> exact extension/host grant
+-> validated exact host-manifest allow-list
+-> bounded native-messaging framing
+-/> installed-host ownership
+-/> process identity / sandbox authority
+-/> trusted message provenance
+-/> Agent authority
+-/> protected-value access
+```
+
+A future real extension/native-host adapter must preserve these separations. Chrome permissions, extension grants, host-manifest fields, and framed native bytes are inputs to explicit policy/provenance composition, never ambient authority that bypasses deterministic Agent or sensitive-data controls.
 
 ## 5. Remaining issue #27 / #10 boundary
 
 This dossier does **not** close issue #27 or issue #10. Remaining material work includes, among other accepted requirements:
 
+- trusted platform-specific native-host registration discovery and ownership/path validation;
+- process sandboxing, lifecycle supervision, authenticated stdio peer attribution, crash recovery, and untrusted-message handling;
 - real managed-extension allow-list and enterprise policy integration;
-- native-messaging host boundary and process isolation;
 - complete supported-capability release matrix and regression gate;
 - authenticated workload/service identity for sensitive-data broker audience;
 - protected-value resolution/fill outside model-visible context;
@@ -82,4 +117,4 @@ This dossier does **not** close issue #27 or issue #10. Remaining material work 
 
 ## 6. Documentation fitness consequence
 
-The existing ADR/PRD/TRD/Architecture/UML/ERD graph remains **DESIGN-SUFFICIENT / PROTECTED-MAIN-PARTIAL**. PRs #62 and #63 narrow distinct executable extension-authority evidence gaps without introducing a new trust domain, deployment component, persistence entity, database schema, or independent architecture decision. Proposed ADR 0013 remains Proposed until its own lifecycle authority changes.
+The existing ADR/PRD/TRD/Architecture/UML/ERD graph remains **DESIGN-SUFFICIENT / PROTECTED-MAIN-PARTIAL**. PRs #62, #63, #82, #154, and #169 narrow distinct executable extension/native-messaging authority gaps without introducing an OriginWeave-owned database schema or a new architectural trust domain beyond Proposed ADR 0013. ADR 0013 remains Proposed until its own lifecycle authority changes.
