@@ -40,6 +40,23 @@ class WorkflowAuditError(ValueError):
     """Report malformed, incomplete, stale, or ambiguous registry evidence."""
 
 
+class WorkflowAuditHttpStatusError(WorkflowAuditError):
+    """Report one collected non-200 page with bounded retry guidance.
+
+    The auditor still fails closed for every non-200 response. The ``retryable``
+    flag only tells the external collector whether recollecting the page can be a
+    safe bounded response to throttling or a server-side failure. Permission and
+    absence responses remain non-retryable because this offline evidence lacks the
+    trusted response headers needed to reinterpret them as transient conditions.
+    """
+
+    def __init__(self, page_number: int, status_code: int) -> None:
+        super().__init__(f"registry page {page_number} did not return HTTP 200")
+        self.page_number = page_number
+        self.status_code = status_code
+        self.retryable = status_code == 429 or 500 <= status_code <= 599
+
+
 def _require_mapping(value: Any, field_name: str) -> dict[str, Any]:
     """Return a mapping or fail with a stable field-specific diagnostic."""
 
@@ -179,14 +196,12 @@ def _validate_pages(value: Any) -> tuple[list[dict[str, Any]], list[dict[str, An
         ):
             raise WorkflowAuditError("registry_pages must be contiguous and start at page 1")
         status_code = page.get("status_code")
-        if (
-            isinstance(status_code, bool)
-            or not isinstance(status_code, int)
-            or status_code != 200
-        ):
+        if isinstance(status_code, bool) or not isinstance(status_code, int):
             raise WorkflowAuditError(
                 f"registry page {expected_page} did not return HTTP 200"
             )
+        if status_code != 200:
+            raise WorkflowAuditHttpStatusError(expected_page, status_code)
         has_next = page.get("has_next")
         if not isinstance(has_next, bool):
             raise WorkflowAuditError(f"registry page {expected_page} lacks has_next")
