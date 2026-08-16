@@ -216,9 +216,10 @@ fn validate_metadata(
             name.is_empty()
                 || name.len() > MAX_METADATA_NAME_BYTES
                 || value.len() > MAX_METADATA_VALUE_BYTES
-                || name
-                    .chars()
-                    .any(|character| character.is_control() || character.is_whitespace())
+                || name.chars().any(|character| {
+                    character.is_whitespace()
+                        || disallowed_evidence_presentation_character(character)
+                })
         })
     {
         return Err(EvidenceError::LimitExceeded);
@@ -332,7 +333,7 @@ impl ProvenanceRecord {
         }
         if source_locator
             .chars()
-            .any(disallowed_provenance_locator_character)
+            .any(disallowed_evidence_presentation_character)
         {
             return Err(EvidenceError::InvalidLocator);
         }
@@ -379,7 +380,7 @@ impl ProvenanceRecord {
     }
 }
 
-fn disallowed_provenance_locator_character(character: char) -> bool {
+fn disallowed_evidence_presentation_character(character: char) -> bool {
     let code_point = character as u32;
     character.is_control()
         || matches!(
