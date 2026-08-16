@@ -139,14 +139,14 @@ async function exerciseDownload(sender) {
 async function exerciseBookmarkMutation(sender) {
   const sourceUrl = sender?.tab?.url;
   if (typeof sourceUrl !== "string") {
-    return false;
+    return { ready: false, diagnostic: "bookmark-source-rejected" };
   }
 
   let parsed;
   try {
     parsed = new URL(sourceUrl);
   } catch (_error) {
-    return false;
+    return { ready: false, diagnostic: "bookmark-source-rejected" };
   }
   if (
     parsed.protocol !== "http:" ||
@@ -155,40 +155,50 @@ async function exerciseBookmarkMutation(sender) {
     parsed.username !== "" ||
     parsed.password !== ""
   ) {
-    return false;
+    return { ready: false, diagnostic: "bookmark-source-rejected" };
   }
 
   const title = "OriginWeave MV3 compatibility bookmark";
   let bookmarkId;
   try {
     const created = await chrome.bookmarks.create({ title, url: sourceUrl });
-    if (typeof created?.id !== "string" || created.id.length === 0) {
-      return false;
+    const createdId = created?.id;
+    if (typeof createdId !== "string" || createdId.length === 0) {
+      return { ready: false, diagnostic: "bookmark-create-rejected" };
     }
-    bookmarkId = created.id;
+    bookmarkId = createdId;
   } catch (_error) {
-    return false;
+    return { ready: false, diagnostic: "bookmark-create-rejected" };
   }
 
+  let diagnostic = "bookmark-get-missing";
   let bookmarkMutationReady = false;
   try {
     const nodes = await chrome.bookmarks.get(bookmarkId);
-    bookmarkMutationReady =
-      Array.isArray(nodes) &&
-      nodes.length === 1 &&
-      nodes[0]?.id === bookmarkId &&
-      nodes[0]?.title === title &&
-      nodes[0]?.url === sourceUrl;
+    if (!Array.isArray(nodes) || nodes.length !== 1) {
+      diagnostic = "bookmark-get-missing";
+    } else if (nodes[0]?.id !== bookmarkId) {
+      diagnostic = "bookmark-id-mismatch";
+    } else if (nodes[0]?.title !== title) {
+      diagnostic = "bookmark-title-mismatch";
+    } else if (nodes[0]?.url !== sourceUrl) {
+      diagnostic = "bookmark-url-mismatch";
+    } else {
+      diagnostic = "bookmark-complete-ready";
+      bookmarkMutationReady = true;
+    }
   } catch (_error) {
+    diagnostic = "bookmark-get-missing";
     bookmarkMutationReady = false;
   } finally {
     try {
       await chrome.bookmarks.remove(bookmarkId);
     } catch (_error) {
+      diagnostic = "bookmark-remove-rejected";
       bookmarkMutationReady = false;
     }
   }
-  return bookmarkMutationReady;
+  return { ready: bookmarkMutationReady, diagnostic };
 }
 
 async function exerciseHistoryMutation(sender) {
@@ -277,8 +287,8 @@ async function exerciseCoreApis(sender) {
   const sidePanelOptions = await chrome.sidePanel.getOptions({ tabId });
   const sidePanelReady = sidePanelOptions?.path === "side_panel.html";
 
-  const bookmarkMutationReady = await exerciseBookmarkMutation(sender);
-  const bookmarksReady = bookmarkMutationReady;
+  const bookmarkResult = await exerciseBookmarkMutation(sender);
+  const bookmarksReady = bookmarkResult.ready;
 
   const historyMutationReady = await exerciseHistoryMutation(sender);
   const historyReady = historyMutationReady;
@@ -293,6 +303,7 @@ async function exerciseCoreApis(sender) {
     commands: commandsReady ? "ready" : "missing",
     sidePanel: sidePanelReady ? "ready" : "missing",
     bookmarks: bookmarksReady ? "ready" : "missing",
+    bookmarksDiagnostic: bookmarkResult.diagnostic,
     history: historyReady ? "ready" : "missing",
     downloads: downloadsReady ? "ready" : "missing",
     downloadsDiagnostic: downloadResult.diagnostic,
@@ -336,6 +347,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         commands: "missing",
         sidePanel: "missing",
         bookmarks: "missing",
+        bookmarksDiagnostic: "bookmark-not-evaluated",
         history: "missing",
         downloads: "missing",
         downloadsDiagnostic: "download-not-evaluated",
