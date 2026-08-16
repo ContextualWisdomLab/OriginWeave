@@ -28,7 +28,12 @@ pub use browser_protocol_dispatch::{
     BrowserContextOriginEpochDispatchTarget, BrowserContextProtocolDispatchError,
     BrowserProtocolRuntimeMetadata,
 };
-pub use browser_protocol_operation::BrowserProtocolOperation;
+pub use browser_protocol_operation::{
+    BrowserProtocolOperation, WebDriverBiDiAccessibilityQuery,
+    WebDriverBiDiAccessibilityQueryError, MAX_BROWSER_ACCESSIBILITY_QUERY_NAME_BYTES,
+    MAX_BROWSER_ACCESSIBILITY_QUERY_NODE_COUNT, MAX_BROWSER_ACCESSIBILITY_QUERY_ROLE_BYTES,
+    WEBDRIVER_BIDI_LOCATE_NODES_METHOD,
+};
 pub use browser_registry::{
     BrowserAuthorityRegistry, BrowserRegistryError, MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES,
 };
