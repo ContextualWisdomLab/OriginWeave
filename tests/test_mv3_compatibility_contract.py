@@ -6,6 +6,7 @@ import json
 import pathlib
 import runpy
 import unittest
+import unittest.mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "mv3_basic"
@@ -178,6 +179,63 @@ class ManifestV3CompatibilityContractTests(unittest.TestCase):
             RuntimeError("secret-token https://example.invalid /home/runner/private")
         )
         self.assertEqual(generic, {"failure_kind": "runtime_error"})
+
+    def test_webdriver_errors_do_not_retain_raw_response_payloads(self) -> None:
+        """WebDriver protocol failures must stay useful without copying raw browser text."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="mv3_contract")
+        json_request = namespace["_json_request"]
+        http_module = namespace["http"]
+
+        class FakeResponse:
+            def __init__(self, status: int, body: bytes) -> None:
+                self.status = status
+                self.body = body
+
+            def read(self, _limit: int) -> bytes:
+                return self.body
+
+        class FakeConnection:
+            def __init__(self, response: FakeResponse) -> None:
+                self.response = response
+
+            def request(self, *_args: object, **_kwargs: object) -> None:
+                return None
+
+            def getresponse(self) -> FakeResponse:
+                return self.response
+
+            def close(self) -> None:
+                return None
+
+        raw_secret = "secret-token /home/runner/private https://example.invalid"
+        cases = (
+            FakeResponse(500, raw_secret.encode("utf-8")),
+            FakeResponse(
+                200,
+                json.dumps(
+                    {
+                        "value": {
+                            "error": "unknown error",
+                            "message": raw_secret,
+                        }
+                    }
+                ).encode("utf-8"),
+            ),
+        )
+        for response in cases:
+            with self.subTest(status=response.status):
+                with unittest.mock.patch.object(
+                    http_module.client,
+                    "HTTPConnection",
+                    return_value=FakeConnection(response),
+                ):
+                    with self.assertRaises(RuntimeError) as raised:
+                        json_request(9515, "GET", "/status")
+                rendered = str(raised.exception)
+                self.assertNotIn("secret-token", rendered)
+                self.assertNotIn("/home/runner/private", rendered)
+                self.assertNotIn("example.invalid", rendered)
 
     def test_workflow_runs_the_real_browser_lane_without_model_credentials(self) -> None:
         """Compatibility evidence must execute Chromium and never require LLM secrets."""
