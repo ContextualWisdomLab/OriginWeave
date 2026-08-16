@@ -350,8 +350,11 @@ def _teardown_driver_process(driver: subprocess.Popen[str]) -> Exception | None:
         try:
             driver.kill()
             driver.wait(timeout=5)
-        except (OSError, subprocess.TimeoutExpired):
-            pass
+        except (OSError, subprocess.TimeoutExpired) as fallback_error:
+            terminate_error.add_note(
+                "bounded ChromeDriver kill fallback also failed: "
+                f"{type(fallback_error).__name__}"
+            )
         return terminate_error
 
     try:
