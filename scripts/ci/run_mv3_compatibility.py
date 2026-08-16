@@ -29,6 +29,12 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 FIXTURE = ROOT / "tests" / "fixtures" / "mv3_basic"
 PINNED_CHROME_VERSION = "150.0.7871.129"
 PINNED_CHROME_REVISION = "r1639810"
+PINNED_CHROME_RELATIVE_PATH = pathlib.PurePosixPath(
+    ".mv3-browser/chrome-linux64/chrome"
+)
+PINNED_CHROMEDRIVER_RELATIVE_PATH = pathlib.PurePosixPath(
+    ".mv3-browser/chromedriver-linux64/chromedriver"
+)
 INITIAL_EXTENSION_VERSION = "1.0.0"
 UPDATED_EXTENSION_VERSION = "1.0.1"
 REPEATABILITY_TRIALS = 3
@@ -181,7 +187,13 @@ def _json_request(
     *,
     timeout: float = REQUEST_TIMEOUT_SECONDS,
 ) -> dict[str, Any]:
-    """Issue one bounded JSON request to the fixed loopback ChromeDriver authority."""
+    """Issue one bounded JSON request to the fixed loopback ChromeDriver authority.
+
+    Recoverable HTTP/1.1 parser failures, including a malformed status-line or an
+    incomplete message body, become `RuntimeError("WebDriver transport protocol
+    failure")` so trial evidence can record a classified outcome without retaining
+    raw transport text.
+    """
 
     if not 1 <= driver_port <= 65_535:
         raise ValueError("invalid ChromeDriver port")
@@ -193,19 +205,21 @@ def _json_request(
     body = None if payload is None else json.dumps(payload).encode("utf-8")
     connection = http.client.HTTPConnection("127.0.0.1", driver_port, timeout=timeout)
     try:
-        connection.request(
-            method,
-            path,
-            body=body,
-            headers={"Content-Type": "application/json"},
-        )
-        response = connection.getresponse()
-        raw = response.read(MAX_WEBDRIVER_RESPONSE_BYTES + 1)
+        try:
+            connection.request(
+                method,
+                path,
+                body=body,
+                headers={"Content-Type": "application/json"},
+            )
+            response = connection.getresponse()
+            raw = response.read(MAX_WEBDRIVER_RESPONSE_BYTES + 1)
+        except http.client.HTTPException:
+            raise RuntimeError("WebDriver transport protocol failure") from None
         if len(raw) > MAX_WEBDRIVER_RESPONSE_BYTES:
             raise RuntimeError("WebDriver response exceeded the bounded JSON limit")
         if response.status >= 400:
-            detail = raw.decode("utf-8", errors="replace")
-            raise RuntimeError(f"WebDriver HTTP {response.status}: {detail}")
+            raise RuntimeError(f"WebDriver HTTP {response.status} error")
     finally:
         connection.close()
 
@@ -214,24 +228,24 @@ def _json_request(
         raise RuntimeError("WebDriver returned a non-object JSON payload")
     value = decoded.get("value")
     if isinstance(value, dict) and value.get("error"):
-        raise RuntimeError(f"WebDriver error: {value.get('error')}: {value.get('message')}")
+        raise RuntimeError("WebDriver returned a protocol error")
     return decoded
 
 
 def _wait_for_driver(driver_port: int) -> None:
-    """Wait for the exact local ChromeDriver process to become ready."""
+    """Wait for local ChromeDriver readiness while retaining only a safe failure class."""
 
     deadline = time.monotonic() + STARTUP_TIMEOUT_SECONDS
-    last_error: Exception | None = None
+    last_failure_kind = "not_observed"
     while time.monotonic() < deadline:
         try:
             status = _json_request(driver_port, "GET", "/status", timeout=1.0)
             if status.get("value", {}).get("ready") is True:
                 return
         except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
-            last_error = exc
+            last_failure_kind = str(_failure_evidence(exc)["failure_kind"])
         time.sleep(0.1)
-    raise RuntimeError(f"ChromeDriver did not become ready: {last_error}")
+    raise RuntimeError(f"ChromeDriver did not become ready ({last_failure_kind})")
 
 
 def _execute(driver_port: int, session_id: str, script: str) -> Any:
@@ -332,7 +346,7 @@ return {
 
 
 def _exercise_real_click(driver_port: int, session_id: str) -> str:
-    """Use the WebDriver element-click command and verify the DOM post-condition."""
+    """Use the WebDriver element-click command and classify DOM post-condition mismatches."""
 
     found = _json_request(
         driver_port,
@@ -367,7 +381,7 @@ def _exercise_real_click(driver_port: int, session_id: str) -> str:
         _webdriver_path(session_id, f"/element/{safe_output}/text"),
     ).get("value")
     if text != "clicked":
-        raise RuntimeError(f"real click post-condition failed: {text!r}")
+        raise RuntimeError("real click post-condition mismatch")
     return str(text)
 
 
@@ -395,6 +409,34 @@ def _set_fixture_version(extension_dir: pathlib.Path, version: str) -> None:
         json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
+
+
+def _teardown_driver_process(driver: subprocess.Popen[str]) -> Exception | None:
+    """Best-effort reap ChromeDriver while preserving reviewed process failures."""
+
+    try:
+        driver.terminate()
+    except OSError as terminate_error:
+        try:
+            driver.kill()
+            driver.wait(timeout=5)
+        except (OSError, subprocess.TimeoutExpired) as fallback_error:
+            terminate_error.add_note(
+                "bounded ChromeDriver kill fallback also failed: "
+                f"{type(fallback_error).__name__}"
+            )
+        return terminate_error
+
+    try:
+        driver.wait(timeout=5)
+        return None
+    except subprocess.TimeoutExpired:
+        try:
+            driver.kill()
+            driver.wait(timeout=5)
+        except (OSError, subprocess.TimeoutExpired) as fallback_error:
+            return fallback_error
+        return None
 
 
 def _run_browser_pass(
@@ -465,8 +507,7 @@ def _run_browser_pass(
         )
         if browser_version != PINNED_CHROME_VERSION:
             raise RuntimeError(
-                f"unexpected Chrome version: expected {PINNED_CHROME_VERSION}, "
-                f"got {browser_version!r}"
+                f"unexpected Chrome version; expected {PINNED_CHROME_VERSION}"
             )
 
         _json_request(
@@ -521,16 +562,13 @@ def _run_browser_pass(
                 except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as error:
                     cleanup_error = error
         finally:
-            driver.terminate()
-            try:
-                driver.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                driver.kill()
-                driver.wait(timeout=5)
+            teardown_error = _teardown_driver_process(driver)
         if cleanup_error is not None:
             raise WebDriverSessionCleanupError(
                 "WebDriver session cleanup failed after bounded process teardown"
             ) from cleanup_error
+        if teardown_error is not None:
+            raise teardown_error
 
 
 def _run_restart_trial(
@@ -638,15 +676,66 @@ def _run_restart_trial(
     }
 
 
+def _pinned_workspace_binary(
+    env_name: str,
+    relative_path: pathlib.PurePosixPath,
+    label: str,
+    *,
+    root: pathlib.Path = ROOT,
+) -> pathlib.Path:
+    """Authorize only the exact non-symlink executable provisioned under the workspace.
+
+    Environment variables remain compatibility inputs for the workflow, but they
+    cannot redirect execution. The release lane has one reviewed path for each
+    pinned Chrome-for-Testing artifact, and any other executable fails closed.
+    """
+
+    if relative_path.is_absolute() or ".." in relative_path.parts:
+        raise SystemExit(f"{label} pinned workspace path is invalid")
+
+    trusted_root = pathlib.Path(os.path.abspath(root))
+    expected = pathlib.Path(os.path.abspath(trusted_root.joinpath(*relative_path.parts)))
+    configured = os.environ.get(env_name)
+    if configured:
+        configured_path = pathlib.Path(configured)
+        if not configured_path.is_absolute():
+            raise SystemExit(f"{env_name} must name the pinned workspace executable")
+        if pathlib.Path(os.path.abspath(configured_path)) != expected:
+            raise SystemExit(f"{env_name} must name the pinned workspace executable")
+
+    current = expected
+    while current != trusted_root:
+        if current.is_symlink():
+            raise SystemExit(f"{label} pinned workspace executable path contains a symlink")
+        parent = current.parent
+        if parent == current:
+            raise SystemExit(f"{label} pinned workspace executable escaped the workspace")
+        current = parent
+
+    try:
+        expected.relative_to(trusted_root)
+    except ValueError as exc:
+        raise SystemExit(f"{label} pinned workspace executable escaped the workspace") from exc
+    if not expected.is_file():
+        raise SystemExit(f"{label} pinned workspace executable is missing")
+    if not os.access(expected, os.X_OK):
+        raise SystemExit(f"{label} pinned workspace executable is not executable")
+    return expected
+
+
 def main() -> int:
     """Run three independent restart/update trials and emit bounded repeatability evidence."""
 
-    chrome_bin = pathlib.Path(os.environ.get("CHROME_BIN", ""))
-    chromedriver_bin = pathlib.Path(os.environ.get("CHROMEDRIVER_BIN", ""))
-    if not chrome_bin.is_file():
-        raise SystemExit("CHROME_BIN must point to the pinned Chrome for Testing executable")
-    if not chromedriver_bin.is_file():
-        raise SystemExit("CHROMEDRIVER_BIN must point to the matching pinned ChromeDriver")
+    chrome_bin = _pinned_workspace_binary(
+        "CHROME_BIN",
+        PINNED_CHROME_RELATIVE_PATH,
+        "Chrome for Testing",
+    )
+    chromedriver_bin = _pinned_workspace_binary(
+        "CHROMEDRIVER_BIN",
+        PINNED_CHROMEDRIVER_RELATIVE_PATH,
+        "ChromeDriver",
+    )
     if not (FIXTURE / "manifest.json").is_file():
         raise SystemExit("MV3 fixture manifest is missing")
 
