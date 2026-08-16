@@ -42,6 +42,10 @@ For history compatibility specifically, the current official Chrome Extensions A
 
 For downloads compatibility specifically, the current official Chrome Extensions API documents the `downloads` manifest permission and the `chrome.downloads` methods that initiate, monitor, search, and inspect downloads. This living vendor reference establishes API semantics only. Active PR #43 exercises one controlled loopback payload through pinned Chromium and retains only allow-listed stage diagnostics. That proof is not Agent filesystem authority, general download persistence, unsafe-filename handling, or a release claim that every `chrome.downloads` method works.
 
+## Click post-condition diagnostic boundary
+
+W3C WebDriver Get Element Text returns rendered element text. That value is page-controlled data. The compatibility runner compares the fixture output against the exact expected `clicked` token and, on mismatch, retains only the classified message `real click post-condition mismatch`. Raw element text must not enter exception text or trial evidence.
+
 ## Update-migration evidence boundary
 
 Restart persistence and extension update migration are separate compatibility claims. A successful restart proves only that state survives a new browser process. The active update-migration lane additionally uses a trial-local copy of the checked-in fixture, preserves the same extension path and ephemeral profile across passes, changes only the controlled manifest version from `1.0.0` to `1.0.1`, observes `chrome.runtime.getManifest().version`, and requires the fixture schema marker to migrate from version 1 to version 2. The checked-in fixture is not rewritten by the test. This establishes one deterministic unpacked-extension version transition; it does not establish Chrome Web Store update behavior, enterprise rollout semantics, downgrade behavior, or arbitrary third-party extension migration safety.
@@ -73,3 +77,5 @@ Chrome for Developers. (n.d.). *Manifest file format*. Google. Retrieved August 
 Bynens, M. (2023, June 12). *Chrome for Testing*. Chrome for Developers. https://developer.chrome.com/docs/automation-and-testing/chrome-for-testing
 
 Google Chrome Labs. (2026, July 21). *Chrome for Testing availability*. https://googlechromelabs.github.io/chrome-for-testing/
+
+World Wide Web Consortium. (2018, June 5). *WebDriver* (W3C Recommendation). https://www.w3.org/TR/2018/REC-webdriver1-20180605/

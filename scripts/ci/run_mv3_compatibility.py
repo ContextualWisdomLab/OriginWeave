@@ -303,7 +303,7 @@ return {
 
 
 def _exercise_real_click(driver_port: int, session_id: str) -> str:
-    """Use the WebDriver element-click command and verify the DOM post-condition."""
+    """Use the WebDriver element-click command and classify DOM post-condition mismatches."""
 
     found = _json_request(
         driver_port,
