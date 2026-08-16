@@ -71,6 +71,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Evidence capture enforces count and byte bounds and rejects credential-bearing source URLs, query strings, fragments, controls, whitespace, malformed percent escapes, encoded separators, dot segments, and backslash paths.
 - Provenance source locators reject control characters and reviewed invisible Unicode formatting characters so credential-free evidence cannot forge line-oriented audit or log presentation.
 - Reject malformed HTTP header field names at the credential-safe network-evidence boundary while keeping query-name syntax independent.
+- Network evidence query field names reject control and reviewed invisible Unicode formatting characters while preserving printable Unicode names and keeping query syntax distinct from HTTP token grammar.
 - Hard RAM and VRAM pressure pauses the active agent and rejects new admission; hard VRAM pressure also offloads a resident local model.
 - The hourly product agent has no Git metadata or repository authority. A separate post-verification publisher opens one PR and cannot approve or merge it.
 - The unprivileged OpenCode user is restricted to loopback egress during model execution, preventing runner-wide allow-listed endpoints from becoming direct source-exfiltration channels.
