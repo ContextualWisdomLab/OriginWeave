@@ -124,7 +124,7 @@ async function exerciseDownload(sender) {
     downloadId = await chrome.downloads.download({
       url,
       filename: "originweave-mv3/download.txt",
-      conflictAction: "overwrite",
+      conflictAction: "uniquify",
       saveAs: false,
     });
   } catch (_error) {
