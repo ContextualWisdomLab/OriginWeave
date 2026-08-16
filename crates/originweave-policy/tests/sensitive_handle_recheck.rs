@@ -1,5 +1,7 @@
 #![allow(clippy::expect_used)]
 
+use std::cell::Cell;
+
 use originweave_core::Origin;
 use originweave_policy::{
     DataClassification, HandleRevocationReason, HandleUseDecision, SensitiveDataAuthority,
@@ -52,6 +54,60 @@ fn outstanding_reservation_can_be_rechecked_without_consuming_another_use() {
         HandleUseDecision::Authorized
     );
     assert_eq!(state.reserved_uses(), 1);
+    assert_eq!(state.outstanding_reservations(), 1);
+}
+
+#[test]
+fn current_reservation_gates_one_same_call_disclosure_callback() {
+    let mut state = SensitiveHandleUseState::new(scope(1));
+    let reservation = state
+        .reserve_tracked_use(authority(DESTINATION), AUDIENCE, 1_900)
+        .expect("reservation must be authorized");
+    let callback_count = Cell::new(0_u32);
+
+    let result = state
+        .dispatch_if_reservation_current(
+            &reservation,
+            authority(DESTINATION),
+            AUDIENCE,
+            1_999,
+            || {
+                callback_count.set(callback_count.get() + 1);
+                "disclosure-attempted"
+            },
+        )
+        .expect("current reservation must permit callback dispatch");
+
+    assert_eq!(result, "disclosure-attempted");
+    assert_eq!(callback_count.get(), 1);
+    assert_eq!(state.reserved_uses(), 1);
+    assert_eq!(state.completed_uses(), 0);
+    assert_eq!(state.outstanding_reservations(), 1);
+}
+
+#[test]
+fn denied_reservation_never_invokes_disclosure_callback() {
+    let mut state = SensitiveHandleUseState::new(scope(1));
+    let reservation = state
+        .reserve_tracked_use(authority(DESTINATION), AUDIENCE, 1_900)
+        .expect("reservation must be authorized");
+    let callback_count = Cell::new(0_u32);
+
+    let result = state.dispatch_if_reservation_current(
+        &reservation,
+        authority(DESTINATION),
+        AUDIENCE,
+        2_000,
+        || {
+            callback_count.set(callback_count.get() + 1);
+            "must-not-run"
+        },
+    );
+
+    assert_eq!(result, Err(HandleUseDecision::Expired));
+    assert_eq!(callback_count.get(), 0);
+    assert_eq!(state.reserved_uses(), 1);
+    assert_eq!(state.completed_uses(), 0);
     assert_eq!(state.outstanding_reservations(), 1);
 }
 
