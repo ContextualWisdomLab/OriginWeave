@@ -106,6 +106,19 @@ fn accessibility_query_node_count_is_finite_and_nonzero() {
 }
 
 #[test]
+fn accessibility_query_revalidates_returned_node_count() -> Result<(), Box<dyn Error>> {
+    let query = WebDriverBiDiAccessibilityQuery::new(Some("button"), None, 2)?;
+
+    assert_eq!(query.validate_result_count(0), Ok(()));
+    assert_eq!(query.validate_result_count(2), Ok(()));
+    assert_eq!(
+        query.validate_result_count(3),
+        Err(WebDriverBiDiAccessibilityQueryError::ResultNodeCountExceeded)
+    );
+    Ok(())
+}
+
+#[test]
 fn accessibility_query_error_contract_is_source_free() {
     let errors = [
         WebDriverBiDiAccessibilityQueryError::MissingLocatorValue,
@@ -114,6 +127,7 @@ fn accessibility_query_error_contract_is_source_free() {
         WebDriverBiDiAccessibilityQueryError::EmptyName,
         WebDriverBiDiAccessibilityQueryError::NameTooLong,
         WebDriverBiDiAccessibilityQueryError::InvalidNodeCount,
+        WebDriverBiDiAccessibilityQueryError::ResultNodeCountExceeded,
     ];
 
     for error in errors {
