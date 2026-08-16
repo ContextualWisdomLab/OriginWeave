@@ -129,7 +129,7 @@ fn untrusted_non_node_item_fails_before_registry_binding() -> Result<(), Box<dyn
     let query = WebDriverBiDiAccessibilityQuery::new(Some("button"), None, 1)?;
 
     assert_eq!(
-        query.bind_current_nodes(&mut registry, target, &[("object", Some("shared-submit"))],)
+        query.bind_current_nodes(&mut registry, target, &[("object", Some("shared-submit"))]),
         Err(WebDriverBiDiLocateNodesAdmissionError::RemoteNode(
             WebDriverBiDiRemoteNodeReferenceError::UnexpectedRemoteType
         ))
