@@ -21,6 +21,7 @@ _SCHEMA_VERSION = 1
 _MAX_INPUT_BYTES = 4 * 1024 * 1024
 _MAX_JSON_INTEGER_DIGITS = 20
 _MAX_WORKFLOW_ID = (1 << 64) - 1
+_MAX_RETRY_AFTER_SECONDS = 3600
 _SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 _TIMESTAMP_PATTERN = re.compile(
     r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
@@ -47,16 +48,24 @@ class WorkflowAuditHttpStatusError(WorkflowAuditError):
     The auditor still fails closed for every non-200 response. The ``retryable``
     flag only tells the external collector whether recollecting the page can be a
     safe bounded response to a reviewed throttling or transient server condition.
-    Permission, absence, and protocol/capability failures remain non-retryable because
-    this offline evidence lacks trusted response headers or stronger context that
-    could safely reinterpret them as transient conditions.
+    A collected 403 remains non-retryable unless the collector also retained one
+    bounded ``Retry-After`` delay; the delay is guidance for recollection only and
+    never converts failed registry evidence into success.
     """
 
-    def __init__(self, page_number: int, status_code: int) -> None:
+    def __init__(
+        self,
+        page_number: int,
+        status_code: int,
+        retry_after_seconds: int | None = None,
+    ) -> None:
         super().__init__(f"registry page {page_number} did not return HTTP 200")
         self.page_number = page_number
         self.status_code = status_code
-        self.retryable = status_code in _RETRYABLE_HTTP_STATUSES
+        self.retry_after_seconds = retry_after_seconds
+        self.retryable = status_code in _RETRYABLE_HTTP_STATUSES or (
+            status_code == 403 and retry_after_seconds is not None
+        )
 
 
 def _require_mapping(value: Any, field_name: str) -> dict[str, Any]:
@@ -136,6 +145,21 @@ def _validate_reported_total_count(value: Any) -> int:
     return value
 
 
+def _validate_retry_after_seconds(value: Any) -> int:
+    """Return one bounded Retry-After delay for a failed collection page."""
+
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or value < 0
+        or value > _MAX_RETRY_AFTER_SECONDS
+    ):
+        raise WorkflowAuditError(
+            "retry_after_seconds must be an integer from 0 through 3600"
+        )
+    return value
+
+
 def _validate_workflow_path(value: Any, field_name: str) -> str:
     """Return one unambiguous GitHub workflow registry path."""
 
@@ -187,7 +211,7 @@ def _validate_pages(value: Any) -> tuple[list[dict[str, Any]], list[dict[str, An
         page = _require_exact_fields(
             raw_page,
             f"registry_pages[{index}]",
-            {"page", "status_code", "has_next", "workflows"},
+            {"page", "status_code", "retry_after_seconds", "has_next", "workflows"},
         )
         expected_page = index + 1
         page_number = page.get("page")
@@ -197,13 +221,20 @@ def _validate_pages(value: Any) -> tuple[list[dict[str, Any]], list[dict[str, An
             or page_number != expected_page
         ):
             raise WorkflowAuditError("registry_pages must be contiguous and start at page 1")
+        retry_after_seconds = None
+        if "retry_after_seconds" in page:
+            retry_after_seconds = _validate_retry_after_seconds(
+                page.get("retry_after_seconds")
+            )
         status_code = page.get("status_code")
         if isinstance(status_code, bool) or not isinstance(status_code, int):
             raise WorkflowAuditError(
                 f"registry page {expected_page} did not return HTTP 200"
             )
         if status_code != 200:
-            raise WorkflowAuditHttpStatusError(expected_page, status_code)
+            raise WorkflowAuditHttpStatusError(
+                expected_page, status_code, retry_after_seconds
+            )
         has_next = page.get("has_next")
         if not isinstance(has_next, bool):
             raise WorkflowAuditError(f"registry page {expected_page} lacks has_next")
