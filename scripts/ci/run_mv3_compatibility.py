@@ -61,6 +61,7 @@ SURFACE_EVIDENCE_KEYS = (
     "commands",
     "sidePanel",
     "bookmarks",
+    "bookmarksDiagnostic",
     "history",
     "downloads",
     "downloadsDiagnostic",
@@ -91,6 +92,19 @@ DOWNLOAD_DIAGNOSTIC_VALUES = frozenset(
         "download-timeout",
         "download-complete-ready",
         "download-not-evaluated",
+    }
+)
+BOOKMARK_DIAGNOSTIC_VALUES = frozenset(
+    {
+        "bookmark-source-rejected",
+        "bookmark-create-rejected",
+        "bookmark-get-missing",
+        "bookmark-id-mismatch",
+        "bookmark-title-mismatch",
+        "bookmark-url-mismatch",
+        "bookmark-remove-rejected",
+        "bookmark-complete-ready",
+        "bookmark-not-evaluated",
     }
 )
 EXTENSION_VERSION_EVIDENCE_VALUES = frozenset(
@@ -128,6 +142,8 @@ def _safe_surface_value(key: str, value: str) -> str:
         return value if value.isdecimal() and len(value) <= 20 else "invalid"
     if key == "downloadsDiagnostic":
         return value if value in DOWNLOAD_DIAGNOSTIC_VALUES else "unexpected"
+    if key == "bookmarksDiagnostic":
+        return value if value in BOOKMARK_DIAGNOSTIC_VALUES else "unexpected"
     if key == "extensionVersion":
         return value if value in EXTENSION_VERSION_EVIDENCE_VALUES else "unexpected"
     return value if value in SURFACE_EVIDENCE_VALUES else "unexpected"
@@ -301,6 +317,8 @@ return {
   commands: document.documentElement.dataset.originweaveCommands || "missing",
   sidePanel: document.documentElement.dataset.originweaveSidePanel || "missing",
   bookmarks: document.documentElement.dataset.originweaveBookmarks || "missing",
+  bookmarksDiagnostic:
+    document.documentElement.dataset.originweaveBookmarksDiagnostic || "bookmark-not-evaluated",
   history: document.documentElement.dataset.originweaveHistory || "missing",
   downloads: document.documentElement.dataset.originweaveDownloads || "missing",
   downloadsDiagnostic:
@@ -323,6 +341,7 @@ return {
         "commands": "ready",
         "sidePanel": "ready",
         "bookmarks": "ready",
+        "bookmarksDiagnostic": "bookmark-complete-ready",
         "history": "ready",
         "downloads": "ready",
         "downloadsDiagnostic": "download-complete-ready",
