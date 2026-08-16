@@ -33,6 +33,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 - Classified Manifest V3 bookmark create/get/remove failures as allow-listed stage tokens so raw Chrome bookmark errors and fixture titles cannot enter runner evidence.
 - Recorded the current Chrome Extensions `chrome.bookmarks` primary reference in APA 7th form and stated that the active bookmark-mutation lane proves one controlled loopback lifecycle in pinned Chromium, not Agent bookmark authority.
+- Classified Manifest V3 WebDriver HTTP/1.1 parser failures as a fixed transport-protocol token so a malformed status-line or incomplete message body cannot enter runner exception text.
 - Classified Manifest V3 real-click post-condition failures as a fixed mismatch token so page-controlled WebDriver text cannot enter runner exception text.
 - Recorded the current Chrome Extensions `chrome.downloads` primary reference in APA 7th form and stated that the active downloads lane proves one controlled loopback payload in pinned Chromium, not Agent filesystem authority.
 - Separated logical origin authority from resolved network destination authority; an origin grant no longer implies permission to connect to every resolver result.

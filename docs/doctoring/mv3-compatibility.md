@@ -46,6 +46,10 @@ For history compatibility specifically, the current official Chrome Extensions A
 
 For downloads compatibility specifically, the current official Chrome Extensions API documents the `downloads` manifest permission and the `chrome.downloads` methods that initiate, monitor, search, and inspect downloads. This living vendor reference establishes API semantics only. Active PR #43 exercises one controlled loopback payload through pinned Chromium and retains only allow-listed stage diagnostics. That proof is not Agent filesystem authority, general download persistence, unsafe-filename handling, or a release claim that every `chrome.downloads` method works.
 
+## WebDriver transport-protocol diagnostic boundary
+
+RFC 9112 requires a well-formed HTTP/1.1 status-line and a message body that matches the announced framing. W3C WebDriver sends commands over that HTTP transport. When ChromeDriver returns a malformed status-line or an incomplete body, the compatibility runner raises only `WebDriver transport protocol failure`. Raw status-line text, partial body bytes, paths, URLs, or tokens must not enter exception text or trial evidence. This classification lets `main` record the failure in `trial_results` instead of aborting the compatibility run with an unclassified parser exception.
+
 ## Click post-condition diagnostic boundary
 
 W3C WebDriver Get Element Text returns rendered element text. That value is page-controlled data. The compatibility runner compares the fixture output against the exact expected `clicked` token and, on mismatch, retains only the classified message `real click post-condition mismatch`. Raw element text must not enter exception text or trial evidence.
@@ -83,5 +87,7 @@ Chrome for Developers. (n.d.). *Manifest file format*. Google. Retrieved August 
 Bynens, M. (2023, June 12). *Chrome for Testing*. Chrome for Developers. https://developer.chrome.com/docs/automation-and-testing/chrome-for-testing
 
 Google Chrome Labs. (2026, July 21). *Chrome for Testing availability*. https://googlechromelabs.github.io/chrome-for-testing/
+
+Fielding, R., Nottingham, M., & Reschke, J. (Eds.). (2022). *HTTP/1.1* (RFC 9112). Internet Engineering Task Force. https://doi.org/10.17487/RFC9112
 
 World Wide Web Consortium. (2018, June 5). *WebDriver* (W3C Recommendation). https://www.w3.org/TR/2018/REC-webdriver1-20180605/
