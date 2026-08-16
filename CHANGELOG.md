@@ -60,6 +60,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Every redirect rechecks target-origin authority, target-bound resolution, HTTPS downgrade, complete-target cycle state, and hop capacity before policy state changes.
 - Direct TCP plans reject port zero, zero or excessive timeouts, excessive attempts, unapproved IPs, non-canonical IPv4-mapped IPv6 sockets, and IPv6 flow or scope metadata not represented in destination authority before connection I/O.
 - Fresh-resolution direct TCP plans require the requested socket port to equal the canonical origin's effective HTTP or HTTPS port, preventing same-IP authority from widening to a different service.
+- Fresh-resolution direct TCP plans reject socket port zero before consulting resolution or origin-port state, preserving `InvalidPort` for malformed input instead of misclassifying it as an authority mismatch.
 - Direct connection code accepts only an explicit `SocketAddr`, never a hostname, and does not read proxy environment variables.
 - Established streams are discarded when peer inspection fails or the observed remote IP or port differs from the approved socket.
 - TLS accepts only an already verified direct stream, never a hostname or new socket, and requires the TLS origin to match the transport-authority origin exactly.
