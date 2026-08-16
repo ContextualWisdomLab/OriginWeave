@@ -28,10 +28,13 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Authoritative product documentation graph spanning PRD, TRD, ADR lifecycle/index, product-wide UML, conceptual ERD, requirement/decision traceability, threat modeling, product-wide test strategy, operability, API/protocol, release/rollback, and current primary-source standards doctoring, with machine-checkable repository contracts that keep conversation-derived future work distinct from protected-main implementation claims.
 - Purpose-bound data-governance and privacy baseline that rejects both blanket masking and ambient raw-value propagation, defines field-scoped just-in-time disclosure, opaque-handle/trusted-broker boundaries, model/provider/region policy, retention/deletion/residency/break-glass controls, truthful CSAP/SOC 2 readiness language, and machine-checkable documentation contracts without inventing an OriginWeave-owned production database.
 - Proposed product-wide target-architecture ADRs for the Rust control plane, isolated execution modes, typed actions, semantic observation/stale-node authority, prompt-injection and secret separation, resource-governor priority, provenance evidence, browser/protocol adapters, crawler policy, and hourly automation operational closure; these remain Proposed rather than shipped claims until protected review and merge.
-- Pinned real-Chromium Manifest V3 compatibility evidence for a controlled history add/read/delete lifecycle confined to the ephemeral loopback fixture profile, with cleanup verification and no OriginWeave Agent history-authority claim.
 
 ### Changed
 
+- Classified a mismatched Chrome `browserVersion` capability as an expected-only diagnostic so browser-reported capability text cannot enter Manifest V3 runner exception output.
+- Classified Manifest V3 WebDriver HTTP/1.1 parser failures as a fixed transport-protocol token so a malformed status-line or incomplete message body cannot enter runner exception text.
+- Classified Manifest V3 real-click post-condition failures as a fixed mismatch token so page-controlled WebDriver text cannot enter runner exception text.
+- Recorded the current Chrome Extensions `chrome.downloads` primary reference in APA 7th form and stated that the active downloads lane proves one controlled loopback payload in pinned Chromium, not Agent filesystem authority.
 - Separated logical origin authority from resolved network destination authority; an origin grant no longer implies permission to connect to every resolver result.
 - Separated resolved-address authorization from direct transport evidence; an approved IP now becomes a usable stream only after the operating system reports the exact requested IP and port.
 - Separated exact TCP peer proof from authenticated TLS service identity; an observed peer becomes an authenticated HTTPS stream only after explicit-root, fixed-time, SAN-bound WebPKI verification over that same stream.
