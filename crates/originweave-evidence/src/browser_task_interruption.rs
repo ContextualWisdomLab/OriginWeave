@@ -1,3 +1,5 @@
+use originweave_core::{BrowserSessionId, BrowsingContextId, DocumentEpoch};
+
 /// Browser/runtime interruption category recorded for one Agent Task.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum BrowserTaskInterruptionKind {
@@ -29,10 +31,15 @@ pub enum RetryDisposition {
 
 /// Credential-free recovery evidence for an interrupted browser task.
 ///
-/// The value records caller-supplied facts only. It does not detect browser crashes,
-/// prove cleanup, reconcile external effects, or dispatch a retry by itself.
+/// The value binds caller-supplied interruption and cleanup facts to one exact OriginWeave
+/// browser session, browsing context, and document epoch. It does not authenticate the browser
+/// adapter, prove that the identified browser authority experienced the interruption, detect
+/// crashes, prove cleanup, reconcile external effects, or dispatch a retry by itself.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BrowserTaskInterruptionEvidence {
+    browser_session_id: BrowserSessionId,
+    browsing_context_id: BrowsingContextId,
+    document_epoch: DocumentEpoch,
     interruption_kind: BrowserTaskInterruptionKind,
     external_effect_disposition: ExternalEffectDisposition,
     browser_context_closed: bool,
@@ -41,9 +48,12 @@ pub struct BrowserTaskInterruptionEvidence {
 }
 
 impl BrowserTaskInterruptionEvidence {
-    /// Create one interruption evidence value from trusted runtime observations.
+    /// Create one interruption evidence value bound to exact browser authority.
     #[must_use]
     pub const fn new(
+        browser_session_id: BrowserSessionId,
+        browsing_context_id: BrowsingContextId,
+        document_epoch: DocumentEpoch,
         interruption_kind: BrowserTaskInterruptionKind,
         external_effect_disposition: ExternalEffectDisposition,
         browser_context_closed: bool,
@@ -51,12 +61,33 @@ impl BrowserTaskInterruptionEvidence {
         evidence_finalized: bool,
     ) -> Self {
         Self {
+            browser_session_id,
+            browsing_context_id,
+            document_epoch,
             interruption_kind,
             external_effect_disposition,
             browser_context_closed,
             resources_reclaimed,
             evidence_finalized,
         }
+    }
+
+    /// Return the exact OriginWeave browser session bound to the interruption.
+    #[must_use]
+    pub const fn browser_session_id(&self) -> BrowserSessionId {
+        self.browser_session_id
+    }
+
+    /// Return the exact OriginWeave browsing context bound to the interruption.
+    #[must_use]
+    pub const fn browsing_context_id(&self) -> BrowsingContextId {
+        self.browsing_context_id
+    }
+
+    /// Return the exact OriginWeave document epoch bound to the interruption.
+    #[must_use]
+    pub const fn document_epoch(&self) -> DocumentEpoch {
+        self.document_epoch
     }
 
     /// Return the recorded interruption category.
