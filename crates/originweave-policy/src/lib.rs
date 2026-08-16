@@ -12,6 +12,7 @@ mod model_fallback;
 mod model_output;
 mod model_route;
 mod sensitive_data;
+mod sensitive_handle_dispatch;
 
 pub use model_disclosure::{
     ModelDisclosureAlternative, ModelDisclosureDecision, ModelDisclosureNecessity,
