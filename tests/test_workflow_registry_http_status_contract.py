@@ -69,6 +69,29 @@ class WorkflowRegistryHttpStatusContractTests(unittest.TestCase):
                 ):
                     self.audit.audit_workflow_registry(_payload(status_code))
 
+    def test_http_failures_expose_safe_retryability_without_becoming_success(self) -> None:
+        """Only throttling/server failures should tell a collector that retry is safe."""
+
+        for status_code, retryable in (
+            (403, False),
+            (404, False),
+            (429, True),
+            (500, True),
+            (502, True),
+            (503, True),
+            (504, True),
+        ):
+            with self.subTest(status_code=status_code):
+                with self.assertRaises(self.audit.WorkflowAuditHttpStatusError) as raised:
+                    self.audit.audit_workflow_registry(_payload(status_code))
+                error = raised.exception
+                self.assertEqual(error.page_number, 1)
+                self.assertEqual(error.status_code, status_code)
+                self.assertEqual(error.retryable, retryable)
+                self.assertEqual(
+                    str(error), "registry page 1 did not return HTTP 200"
+                )
+
     def test_boolean_status_is_not_accepted_as_integer_200(self) -> None:
         """Python's bool-as-int relationship must not create synthetic HTTP success."""
 
