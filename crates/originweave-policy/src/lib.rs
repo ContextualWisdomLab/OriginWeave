@@ -95,11 +95,12 @@ pub enum AgentTaskExtensionDecision {
 /// and `maximum_window` must use one caller-attested time domain and compatible
 /// units; this function does not read or attest a clock. The validity window is
 /// half-open (`valid_from <= trusted_time < valid_until`) and must not exceed the
-/// reviewed local maximum. The current session is checked before allow-list
-/// membership so a policy cannot be replayed across OriginWeave browser sessions
-/// or used there as an extension-membership oracle. This does not attest Chromium
-/// profile identity. Chromium permissions, installation state, native messaging,
-/// and [`originweave_core::ExtensionAgentGrant`] remain separate authorities.
+/// reviewed local maximum. The current session is checked before policy-window
+/// or allow-list evaluation so a policy cannot be replayed across OriginWeave
+/// browser sessions or used there as a policy-state or extension-membership
+/// oracle. This does not attest Chromium profile identity. Chromium permissions,
+/// installation state, native messaging, and [`originweave_core::ExtensionAgentGrant`]
+/// remain separate authorities.
 #[must_use]
 pub fn evaluate_agent_task_extension(
     extension_id: &ExtensionId,
@@ -107,6 +108,9 @@ pub fn evaluate_agent_task_extension(
     current_session: BrowserSessionId,
     trusted_time: u64,
 ) -> AgentTaskExtensionDecision {
+    if policy.browser_session != current_session {
+        return AgentTaskExtensionDecision::DenySessionMismatch;
+    }
     if policy.valid_from >= policy.valid_until || policy.maximum_window == 0 {
         return AgentTaskExtensionDecision::DenyInvalidPolicyWindow;
     }
@@ -118,9 +122,6 @@ pub fn evaluate_agent_task_extension(
     }
     if trusted_time >= policy.valid_until {
         return AgentTaskExtensionDecision::DenyPolicyExpired;
-    }
-    if policy.browser_session != current_session {
-        return AgentTaskExtensionDecision::DenySessionMismatch;
     }
     if policy.managed_extensions.contains(extension_id) {
         AgentTaskExtensionDecision::AllowManagedExtension
