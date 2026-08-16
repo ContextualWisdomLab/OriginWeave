@@ -12,6 +12,10 @@ The 1 June 2026 WebDriver BiDi Working Draft defines a bidirectional remote-cont
 
 The current Chrome Extensions Downloads API documents the `downloads` manifest permission and `chrome.downloads` methods that initiate, monitor, search, and inspect downloads. That living vendor reference is API semantics only. OriginWeave treats a successful controlled loopback download in pinned Chromium as compatibility evidence for one declared surface, not as Agent filesystem authority, general download persistence, or a claim that every Downloads method is supported.
 
+### Manifest V3 bookmarks compatibility
+
+The current Chrome Extensions Bookmarks API documents the `bookmarks` manifest permission and Promise-returning `chrome.bookmarks.create`, `chrome.bookmarks.get`, and `chrome.bookmarks.remove` methods. Bookmark node identifiers are strings unique within one browser profile. That living vendor reference is API semantics only. OriginWeave treats one controlled loopback create → get → remove lifecycle plus allow-listed stage diagnostics as compatibility evidence, not as Agent bookmark capability or ambient human-profile bookmark authority.
+
 ### Manifest V3 click post-condition diagnostics
 
 W3C WebDriver Get Element Text returns the rendered text content of a located element. That value is page-controlled data, not a trusted diagnostic token. The Manifest V3 compatibility runner therefore compares the fixture output against the exact expected `clicked` token and, on mismatch, raises only the classified message `real click post-condition mismatch`. Raw element text must not enter exception text, trial evidence, or logs.
@@ -105,6 +109,8 @@ Amazon Web Services. (n.d.). *Set up the Amazon EKS Pod Identity Agent*. Retriev
 Autio, C., Schwartz, R., Dunietz, J., Jain, S., Stanley, M., Tabassi, E., Hall, P., & Roberts, K. (2024). *Artificial intelligence risk management framework: Generative artificial intelligence profile* (NIST AI 600-1). National Institute of Standards and Technology. https://doi.org/10.6028/NIST.AI.600-1
 
 Bonica, R., Cotton, M., Haberman, B., & Vegoda, L. (2017). *Updates to the special-purpose IP address registries* (RFC 8190). Internet Engineering Task Force. https://doi.org/10.17487/RFC8190
+
+Chrome for Developers. (n.d.). *chrome.bookmarks*. Google. Retrieved August 16, 2026, from https://developer.chrome.com/docs/extensions/reference/api/bookmarks
 
 Chrome for Developers. (n.d.). *chrome.downloads*. Google. Retrieved August 16, 2026, from https://developer.chrome.com/docs/extensions/reference/api/downloads
 

@@ -339,7 +339,7 @@ Generic network evidence retains bounded names and canonical locators while valu
 
 The complete compatibility program is **Planned** under issue #27, while partial real-browser evidence exists on protected main. OriginWeave preserves Chromium's extension implementation rather than rebuilding Chrome APIs in Rust. Agent authority remains separate from ordinary extension permissions. Proposed ADR 0013 documents this separation but is not Accepted design authority until reviewed/integrated accordingly.
 
-Protected-main pinned-Chromium evidence currently exercises service-worker lifecycle, content scripts, storage, declarativeNetRequest, tabs, windows, scripting, commands, side panel, bookmarks, history, restart persistence and repeatability. Active PR #43 adds a bounded real `chrome.downloads` path and allowlisted download-stage failure evidence. Installation/update, native messaging, managed-extension/enterprise policy, broader isolation, Web Store and release-wide compatibility remain outside the current protected-main claim.
+Protected-main pinned-Chromium evidence currently exercises service-worker lifecycle, content scripts, storage, declarativeNetRequest, tabs, windows, scripting, commands, side panel, bookmarks, history, restart persistence and repeatability. Active PR #43 adds a bounded real `chrome.downloads` path and allowlisted download-stage failure evidence. Active PR #56 adds a bounded `chrome.bookmarks` create/get/remove lifecycle with allow-listed stage diagnostics. Installation/update, native messaging, managed-extension/enterprise policy, broader isolation, Web Store and release-wide compatibility remain outside the current protected-main claim.
 
 ## 14. Prompt-injection and model boundary
 

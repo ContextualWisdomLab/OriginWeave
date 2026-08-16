@@ -183,7 +183,7 @@ public-crawl purpose
 | ID | Requirement | Status | Implementation evidence / note |
 |---|---|---|---|
 | PRD-COMP-001 | Chromium is the compatibility kernel; OriginWeave does not reimplement Blink or V8 | Accepted architecture | ADR 0001 |
-| PRD-COMP-002 | Maintain a Manifest V3 compatibility matrix and representative extension test farm | Planned | Partial protected-main pinned-Chromium evidence covers service worker, content script, storage, DNR, tabs, windows, scripting, commands, side panel, bookmarks, history, restart and repeatability; active PR #43 adds bounded real downloads evidence; issue #27 still owns the complete matrix/release acceptance |
+| PRD-COMP-002 | Maintain a Manifest V3 compatibility matrix and representative extension test farm | Planned | Partial protected-main pinned-Chromium evidence covers service worker, content script, storage, DNR, tabs, windows, scripting, commands, side panel, bookmarks, history, restart and repeatability; active PR #43 adds bounded real downloads evidence; active PR #56 adds bounded bookmark mutation with allow-listed stage diagnostics; issue #27 still owns the complete matrix/release acceptance |
 | PRD-COMP-003 | Chromium-specific integrations remain behind versioned adapters | Planned | Adapter strategy ADR 0107 |
 | PRD-COMP-004 | Headless runtime remains independently usable without the interactive browser UI | Planned | Modular architecture target |
 
@@ -267,7 +267,7 @@ public-crawl purpose
 | PRD-EXT-001 | Manifest V3 remains the extension compatibility baseline | Accepted architecture | Official Chrome platform baseline; real pinned-Chromium evidence exists on protected main |
 | PRD-EXT-002 | Upstream extension APIs are preserved where possible | Accepted architecture | Chromium-kernel strategy; current protected-main compatibility lane exercises multiple real MV3 APIs |
 | PRD-EXT-003 | Extension access to agent authority requires separate signed policy grant | Planned | Protected-main extension authority foundation exists, but the complete managed-extension/native-messaging/enterprise runtime contract remains open under issue #27; Proposed ADR 0013 does not itself make this shipped |
-| PRD-EXT-004 | Compatibility tests cover install/update, worker lifecycle, scripts, storage, DNR, messaging, download, side panel and isolation | Planned | Protected-main suite already covers worker/content/storage/DNR/tabs/windows/scripting/commands/side panel/bookmarks/history/restart/repeatability; active PR #43 adds downloads; install/update/native messaging/enterprise isolation and release-wide matrix remain open under issue #27 |
+| PRD-EXT-004 | Compatibility tests cover install/update, worker lifecycle, scripts, storage, DNR, messaging, download, side panel and isolation | Planned | Protected-main suite already covers worker/content/storage/DNR/tabs/windows/scripting/commands/side panel/bookmarks/history/restart/repeatability; active PR #43 adds downloads; active PR #56 adds bookmark create/get/remove diagnostics; install/update/native messaging/enterprise isolation and release-wide matrix remain open under issue #27 |
 
 ### 9.10 Crawler and capture policy
 
