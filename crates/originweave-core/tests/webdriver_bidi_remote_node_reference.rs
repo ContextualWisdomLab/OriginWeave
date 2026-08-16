@@ -39,6 +39,18 @@ fn remote_node_reference_requires_a_usable_shared_id() {
 }
 
 #[test]
+fn remote_node_reference_rejects_unicode_format_and_bidi_overrides() {
+    assert_eq!(
+        WebDriverBiDiRemoteNodeReference::new("node", Some("shared-node-42\u{200B}")),
+        Err(WebDriverBiDiRemoteNodeReferenceError::InvalidSharedId)
+    );
+    assert_eq!(
+        WebDriverBiDiRemoteNodeReference::new("node", Some("shared-node-42\u{202E}")),
+        Err(WebDriverBiDiRemoteNodeReferenceError::InvalidSharedId)
+    );
+}
+
+#[test]
 fn remote_node_reference_rejects_whitespace_and_control_injection() {
     assert_eq!(
         WebDriverBiDiRemoteNodeReference::new("node", Some(" ")),

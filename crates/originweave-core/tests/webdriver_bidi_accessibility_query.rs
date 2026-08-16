@@ -80,6 +80,26 @@ fn accessibility_role_rejects_whitespace_and_control_injection() {
 }
 
 #[test]
+fn accessibility_locator_text_rejects_unicode_format_and_bidi_overrides() {
+    assert_eq!(
+        WebDriverBiDiAccessibilityQuery::new(Some("button\u{200B}"), None, 1),
+        Err(WebDriverBiDiAccessibilityQueryError::InvalidRole)
+    );
+    assert_eq!(
+        WebDriverBiDiAccessibilityQuery::new(Some("button\u{202E}"), None, 1),
+        Err(WebDriverBiDiAccessibilityQueryError::InvalidRole)
+    );
+    assert_eq!(
+        WebDriverBiDiAccessibilityQuery::new(None, Some("Submit\u{200B}task"), 1),
+        Err(WebDriverBiDiAccessibilityQueryError::InvalidName)
+    );
+    assert_eq!(
+        WebDriverBiDiAccessibilityQuery::new(None, Some("Submit\u{202E}task"), 1),
+        Err(WebDriverBiDiAccessibilityQueryError::InvalidName)
+    );
+}
+
+#[test]
 fn accessibility_name_rejects_control_injection_and_whitespace_only_values() {
     assert_eq!(
         WebDriverBiDiAccessibilityQuery::new(None, Some("Submit\ntask"), 1),

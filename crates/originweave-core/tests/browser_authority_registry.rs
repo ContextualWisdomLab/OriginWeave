@@ -227,6 +227,14 @@ fn external_identifiers_are_bounded_without_assuming_protocol_syntax() -> Result
         registry.register_session("webdriver-session\u{0000}"),
         Err(BrowserRegistryError::InvalidExternalIdentifier)
     );
+    assert_eq!(
+        registry.register_session("webdriver-session\u{200B}"),
+        Err(BrowserRegistryError::InvalidExternalIdentifier)
+    );
+    assert_eq!(
+        registry.register_session("webdriver-session\u{202E}"),
+        Err(BrowserRegistryError::InvalidExternalIdentifier)
+    );
 
     let session = registry.register_session("webdriver-session")?;
     let context = registry.register_context(session, "top-level-context")?;
