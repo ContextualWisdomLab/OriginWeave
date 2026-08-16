@@ -38,7 +38,7 @@ Primary sources: Chrome for Developers, *WebMCP*; *WebMCP tool security*; *Agent
 
 The Model Context Protocol project released specification version `2026-07-28` on 28 July 2026. That release moved the protocol core toward stateless request/response operation and removed the earlier protocol-session assumptions described by previous releases. OriginWeave therefore keeps durable browser state in explicit OriginWeave application handles and exposes MCP only as a high-level adapter to the Rust runtime. MCP clients or servers do not connect models directly to Chromium/CDP authority.
 
-The same release added explicit cache hints for cacheable result families, including `tools/list`: `ttlMs` expresses freshness lifetime and `cacheScope` expresses whether reuse is private or shareable. OriginWeave's first typed `tools/list` result therefore chooses the conservative boundary `ttlMs = 0` and private scope, derives the page directly from the reviewed tool catalog, and emits no continuation cursor for the current fixed single-page catalog. These metadata choices do not grant tool authority and do not claim JSON-RPC serialization, transport caching, OAuth, or a general pagination implementation.
+The same specification requires every Result to carry `resultType`, using `complete` for a terminal result, and adds explicit cache hints for cacheable result families including `tools/list`: `ttlMs` expresses freshness lifetime and `cacheScope` expresses whether reuse is private or shareable. OriginWeave's first typed `tools/list` result therefore binds `resultType = complete`, chooses the conservative boundary `ttlMs = 0` and private scope, derives the page directly from the reviewed tool catalog, and emits no continuation cursor for the current fixed single-page catalog. These metadata choices do not grant tool authority and do not claim JSON-RPC serialization, transport caching, OAuth, or a general pagination implementation.
 
 Primary sources: Model Context Protocol, *2026-07-28 Specification* and the maintainers' official release announcement.
 
@@ -53,7 +53,7 @@ The main [`docs/doctoring.md`](../doctoring.md) records the stable W3C PROV-O Re
 3. Keep WebDriver BiDi's Working Draft status visible in compatibility claims.
 4. Keep WebMCP experimental/optional and propagate untrusted-content semantics.
 5. Keep MCP browser state application-level rather than equating protocol transport/session metadata with browser authority.
-6. Bind MCP cacheable-list metadata to reviewed typed results; default to zero freshness and private scope unless a separate reviewed policy proves broader reuse safe.
+6. Bind mandatory MCP result disposition and cacheable-list metadata to reviewed typed results; use a complete terminal result with zero freshness and private scope unless a separate reviewed policy proves broader semantics safe.
 7. Test Manifest V3 compatibility and extension-to-Agent authority isolation as separate evidence classes.
 8. Treat WARC/PROV as provenance representations, not policy or truth escalation.
 
