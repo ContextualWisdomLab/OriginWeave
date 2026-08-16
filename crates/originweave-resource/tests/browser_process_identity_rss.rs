@@ -10,6 +10,10 @@ fn proc_stat_with_start_time(start_time_ticks: u64) -> String {
     )
 }
 
+fn proc_stat_for_pid(process_id: u32, start_time_ticks: u64) -> String {
+    proc_stat_with_start_time(start_time_ticks).replacen("42 ", &format!("{process_id} "), 1)
+}
+
 #[test]
 fn proc_stat_parser_extracts_start_time_after_complex_comm() {
     assert_eq!(
@@ -33,6 +37,29 @@ fn proc_stat_parser_rejects_missing_or_malformed_start_time() {
 }
 
 #[test]
+fn proc_stat_parser_rejects_hostile_structure_and_numeric_fields() {
+    let invalid_cases = [
+        "42 (unterminated S 1 2 3".to_owned(),
+        "42)  (misordered S 1 2 3".to_owned(),
+        " (chrome) S 1 2 3".to_owned(),
+        "x (chrome) S 1 2 3".to_owned(),
+        proc_stat_with_start_time(1).replacen("42 ", "4294967296 ", 1),
+        proc_stat_with_start_time(1).replacen("42 ", "0 ", 1),
+        "42 (chrome) ".to_owned(),
+        "42 (chrome) S 1 2 3".to_owned(),
+        proc_stat_with_start_time(1).replace(" 1 999", " 18446744073709551616 999"),
+    ];
+
+    for stat in invalid_cases {
+        assert_eq!(
+            parse_linux_proc_stat_start_time_ticks(&stat),
+            Err(BrowserRssSampleError::InvalidProcessStat),
+            "unexpectedly accepted stat record: {stat:?}"
+        );
+    }
+}
+
+#[test]
 fn process_identity_binds_pid_to_kernel_start_time() -> Result<(), BrowserRssSampleError> {
     let identity = LinuxProcessIdentity::new(42, 987_654)?;
     assert_eq!(identity.process_id(), 42);
@@ -45,6 +72,14 @@ fn process_identity_binds_pid_to_kernel_start_time() -> Result<(), BrowserRssSam
         verify_linux_process_identity(identity, &proc_stat_with_start_time(987_655)),
         Err(BrowserRssSampleError::ProcessIdentityChanged)
     );
+    assert_eq!(
+        verify_linux_process_identity(identity, &proc_stat_for_pid(43, 987_654)),
+        Err(BrowserRssSampleError::ProcessIdentityChanged)
+    );
+    assert_eq!(
+        verify_linux_process_identity(identity, "malformed"),
+        Err(BrowserRssSampleError::InvalidProcessStat)
+    );
     Ok(())
 }
 
@@ -52,6 +87,10 @@ fn process_identity_binds_pid_to_kernel_start_time() -> Result<(), BrowserRssSam
 fn process_identity_rejects_zero_pid() {
     assert_eq!(
         LinuxProcessIdentity::new(0, 1),
+        Err(BrowserRssSampleError::InvalidProcessId)
+    );
+    assert_eq!(
+        read_linux_process_identity(0),
         Err(BrowserRssSampleError::InvalidProcessId)
     );
 }
@@ -66,6 +105,11 @@ fn linux_identity_sampler_rejects_pid_reuse_and_samples_current_process() -> Res
             .map_err(|error| format!("sample current process identity: {error:?}"))?;
         assert!(rss_bytes > 0);
         assert_eq!(rss_bytes % 1_024, 0);
+        assert_eq!(
+            sample_linux_process_identity_set_rss_bytes(&[identity])
+                .map_err(|error| format!("sample current identity set: {error:?}"))?,
+            rss_bytes
+        );
 
         let stale = LinuxProcessIdentity::new(
             identity.process_id(),
@@ -79,6 +123,25 @@ fn linux_identity_sampler_rejects_pid_reuse_and_samples_current_process() -> Res
         assert_eq!(
             sample_linux_process_identity_set_rss_bytes(&[stale]),
             Err(BrowserRssSampleError::ProcessIdentityChanged)
+        );
+        assert_eq!(
+            sample_linux_process_identity_set_rss_bytes(&[]),
+            Err(BrowserRssSampleError::EmptyProcessSet)
+        );
+        assert_eq!(
+            sample_linux_process_identity_set_rss_bytes(&[identity, identity]),
+            Err(BrowserRssSampleError::DuplicateProcessId)
+        );
+
+        let absent = LinuxProcessIdentity::new(u32::MAX, 1)
+            .map_err(|error| format!("construct absent process identity: {error:?}"))?;
+        assert_eq!(
+            read_linux_process_identity(u32::MAX),
+            Err(BrowserRssSampleError::ProcessStatUnavailable)
+        );
+        assert_eq!(
+            sample_linux_process_identity_rss_bytes(absent),
+            Err(BrowserRssSampleError::ProcessStatusUnavailable)
         );
     }
 
