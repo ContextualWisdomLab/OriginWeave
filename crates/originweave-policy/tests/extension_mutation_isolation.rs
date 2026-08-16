@@ -4,8 +4,9 @@
 //!
 //! OriginWeave does not yet implement an adapter that converts an extension proposal into an
 //! [`ActionRequest`]. These regressions therefore prove two independent fail-closed boundaries:
-//! the exact extension/session/context grant permits only `ProposeTypedAction`, while an ordinary
-//! user-sourced action request remains subject to the core policy decision shown in each test.
+//! the exact extension/session/context/origin/unexpired grant permits only `ProposeTypedAction`,
+//! while an ordinary user-sourced action request remains subject to the core policy decision
+//! shown in each test.
 
 use std::collections::BTreeSet;
 
@@ -20,6 +21,9 @@ use originweave_policy::{Decision, DenialReason, evaluate};
 
 const VALID_INTENT: &str =
     "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+const EXTENSION_ORIGIN: &str = "https://extension.example";
+const UNEXPIRED_NOW_EPOCH_SECONDS: u64 = 1_700_000_000;
+const UNEXPIRED_EXPIRES_AT_EPOCH_SECONDS: u64 = 1_700_000_600;
 
 fn extension_id() -> ExtensionId {
     ExtensionId::parse("abcdefghijklmnopabcdefghijklmnop").expect("valid extension id")
@@ -46,6 +50,8 @@ fn action_proposal_grant() -> ExtensionAgentGrant {
         extension_id(),
         browser_session(),
         browsing_context(),
+        origin(EXTENSION_ORIGIN),
+        UNEXPIRED_EXPIRES_AT_EPOCH_SECONDS,
         [ExtensionAgentCapability::ProposeTypedAction],
     )
 }
@@ -55,6 +61,8 @@ fn assert_proposal_grant_is_independently_allowed(grant: &ExtensionAgentGrant) {
         extension_id(),
         browser_session(),
         browsing_context(),
+        origin(EXTENSION_ORIGIN),
+        UNEXPIRED_NOW_EPOCH_SECONDS,
         ExtensionAgentCapability::ProposeTypedAction,
     );
     assert_eq!(
