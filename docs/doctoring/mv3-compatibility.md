@@ -22,7 +22,7 @@ This matrix separates protected-main executable evidence from active, non-shippe
 | `declarativeNetRequest` | **PROTECTED_MAIN** | Controlled local rule blocks its fixture request in pinned Chromium. | No claim for every DNR rule/action combination. |
 | `tabs`, `windows`, `scripting`, `commands`, `sidePanel` | **PROTECTED_MAIN** | Each declared API is exercised in real Chromium and required by the repeatability gate. | Chrome API permission does not become Agent capability. |
 | Bookmarks read compatibility | **PROTECTED_MAIN** | Protected-main fixture exercises the declared bookmarks surface. | Ambient human-profile bookmark authority is not granted. |
-| Bookmarks create/read/delete lifecycle | **ACTIVE_PR #56** | Controlled synthetic bookmark is created, read back, and removed in the ephemeral compatibility profile. | Compatibility only; no Agent bookmark capability. |
+| Bookmarks create/read/delete lifecycle | **ACTIVE_PR #56** | Controlled synthetic bookmark is created, read back, and removed in the ephemeral compatibility profile, with allow-listed stage diagnostics. | Compatibility only; no Agent bookmark capability. |
 | History read compatibility | **PROTECTED_MAIN** | Protected-main fixture exercises bounded history search in the isolated profile. | No model-visible browsing-history content or default-profile access. |
 | History add/read/delete lifecycle | **ACTIVE_PR #59** | Controlled synthetic loopback visit is added, exactly read back, deleted in `finally`, and required to be absent afterward. | Compatibility only; no Agent history capability. |
 | Downloads | **ACTIVE_PR #43** | Controlled loopback payload is downloaded and validated through pinned Chromium. | No general download persistence, unsafe filename, or Agent filesystem authority claim. |
@@ -33,6 +33,10 @@ This matrix separates protected-main executable evidence from active, non-shippe
 | Google-only services, proprietary codecs, DRM, Web Store licensing | **OUT_OF_SCOPE FOR COMPATIBILITY CLAIM** | Deliberately excluded from the open compatibility claim. | Chromium/API compatibility must not be conflated with Google service or licensing equivalence. |
 
 The release-quality capability matrix must remain coupled to executable evidence. Adding a row to documentation never creates support; declaring a new supported capability must first add a realistic regression test and pinned-Chromium proof. Conversely, if a declared protected-main capability regresses, the release gate must fail rather than silently downgrading the matrix.
+
+## Bookmarks API primary evidence
+
+For bookmark compatibility specifically, the current official Chrome Extensions API documents the `bookmarks` manifest permission and Promise-returning `chrome.bookmarks.create`, `chrome.bookmarks.get`, and `chrome.bookmarks.remove` methods. Bookmark node identifiers are strings unique within one browser profile. This living vendor reference establishes API semantics only. Active PR #56 exercises one controlled loopback create → get → remove lifecycle through pinned Chromium and retains only allow-listed stage diagnostics. That proof is not Agent bookmark capability, ambient human-profile bookmark authority, or a release claim that every `chrome.bookmarks` method works.
 
 ## History API primary evidence
 
@@ -71,6 +75,8 @@ Chrome for Developers. (2023, May 2). *Extension service worker basics*. Google.
 Chrome for Developers. (2023, May 2). *The extension service worker lifecycle*. Google. https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle
 
 Chrome for Developers. (n.d.). *chrome.declarativeNetRequest*. Google. Retrieved August 9, 2026, from https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequest
+
+Chrome for Developers. (n.d.). *chrome.bookmarks*. Google. Retrieved August 16, 2026, from https://developer.chrome.com/docs/extensions/reference/api/bookmarks
 
 Chrome for Developers. (n.d.). *chrome.downloads*. Google. Retrieved August 16, 2026, from https://developer.chrome.com/docs/extensions/reference/api/downloads
 
