@@ -166,7 +166,7 @@ Observation should prefer the most structured trustworthy source available:
 4. accessibility tree combined with DOM and layout;
 5. screenshot or vision fallback for canvas and inaccessible custom interfaces.
 
-Raw HTML is not the default model input. Full snapshots are followed by incremental semantic diffs, versioned by document epoch. Node references become invalid after navigation or epoch change.
+Raw HTML is not the default model input. Full snapshots are followed by incremental semantic diffs, versioned by document epoch. Node references become invalid after navigation or epoch change. An untrusted WebDriver BiDi `locateNodes` result becomes an `ObservedNodeHandle` only after the adapter proves `QueryNodes` / `SemanticObservation` and the exact current session, browsing context, canonical origin, and document epoch still match. That control-plane composition does not perform browser I/O or authorize typed input.
 
 ## 8. Action lifecycle
 

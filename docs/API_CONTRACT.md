@@ -227,6 +227,8 @@ Queries the OriginWeave semantic observation contract; callers do not need to sy
 
 Query predicates may include role, accessible name, state, structured field, source channel and scoped layout attributes. Results contain opaque semantic-node handles bound to the current session/context/origin/document epoch.
 
+The first Rust control-plane slice admits an untrusted WebDriver BiDi `locateNodes` result only after the adapter proves `QueryNodes` / `SemanticObservation` on the exact current session, browsing context, canonical origin, and document epoch. That composition still performs no browser I/O and does not authorize typed input.
+
 ## 14. Action operations
 
 ### `browser.act`
