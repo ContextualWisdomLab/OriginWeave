@@ -31,6 +31,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Classified a mismatched Chrome `browserVersion` capability as an expected-only diagnostic so browser-reported capability text cannot enter Manifest V3 runner exception output.
 - Classified Manifest V3 bookmark create/get/remove failures as allow-listed stage tokens so raw Chrome bookmark errors and fixture titles cannot enter runner evidence.
 - Recorded the current Chrome Extensions `chrome.bookmarks` primary reference in APA 7th form and stated that the active bookmark-mutation lane proves one controlled loopback lifecycle in pinned Chromium, not Agent bookmark authority.
 - Classified Manifest V3 WebDriver HTTP/1.1 parser failures as a fixed transport-protocol token so a malformed status-line or incomplete message body cannot enter runner exception text.
