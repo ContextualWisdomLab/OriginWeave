@@ -73,10 +73,15 @@ fn secret_reference_rejects_log_injection_and_ambiguous_whitespace() {
         );
     }
 
-    assert_eq!(
-        SecretReference::new("secret://tenant/item\u{1b}owned-string".to_owned()),
-        Err(ProfileError::InvalidSecretReference)
-    );
+    for reference in [
+        "secret://tenant/item\u{1b}owned-string".to_owned(),
+        "\u{00ad}secret://tenant/owned-string".to_owned(),
+    ] {
+        assert_eq!(
+            SecretReference::new(reference),
+            Err(ProfileError::InvalidSecretReference)
+        );
+    }
 
     for reference in ["secret://tenant/item", "secret://tenant/키"] {
         assert_eq!(
@@ -84,4 +89,10 @@ fn secret_reference_rejects_log_injection_and_ambiguous_whitespace() {
             Ok(reference.to_owned())
         );
     }
+
+    let owned_reference = "secret://tenant/owned-item".to_owned();
+    assert_eq!(
+        SecretReference::new(owned_reference.clone()).map(|value| value.as_str().to_owned()),
+        Ok(owned_reference)
+    );
 }
