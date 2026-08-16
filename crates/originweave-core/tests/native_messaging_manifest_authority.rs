@@ -3,9 +3,10 @@
 use std::error::Error;
 
 use originweave_core::{
-    ExtensionId, MAX_NATIVE_MESSAGING_ALLOWED_ORIGINS, NativeMessagingAccessRequest,
-    NativeMessagingHostManifest, NativeMessagingHostManifestAccessDecision,
-    NativeMessagingHostManifestError, NativeMessagingHostName, NativeMessagingHostPlatform,
+    ExtensionId, MAX_NATIVE_MESSAGING_ALLOWED_ORIGINS, MAX_NATIVE_MESSAGING_EXECUTABLE_PATH_BYTES,
+    NativeMessagingAccessRequest, NativeMessagingHostManifest,
+    NativeMessagingHostManifestAccessDecision, NativeMessagingHostManifestError,
+    NativeMessagingHostName, NativeMessagingHostPlatform,
 };
 
 const ALLOWED_EXTENSION: &str = "abcdefghijklmnopabcdefghijklmnop";
@@ -113,6 +114,35 @@ fn manifest_enforces_platform_specific_executable_path_shape() -> Result<(), Box
 }
 
 #[test]
+fn manifest_bounds_executable_path_before_storage() -> Result<(), Box<dyn Error>> {
+    let host = host_name("com.contextualwisdom.originweave");
+    let allowed_origin = extension_origin(ALLOWED_EXTENSION);
+    let exact_limit = "a".repeat(MAX_NATIVE_MESSAGING_EXECUTABLE_PATH_BYTES);
+    let one_over = "a".repeat(MAX_NATIVE_MESSAGING_EXECUTABLE_PATH_BYTES + 1);
+
+    let accepted = NativeMessagingHostManifest::parse(
+        host.clone(),
+        NativeMessagingHostPlatform::Windows,
+        &exact_limit,
+        "stdio",
+        &[allowed_origin.as_str()],
+    )?;
+    assert_eq!(accepted.executable_path().len(), exact_limit.len());
+
+    assert_eq!(
+        NativeMessagingHostManifest::parse(
+            host,
+            NativeMessagingHostPlatform::Windows,
+            &one_over,
+            "stdio",
+            &[allowed_origin.as_str()],
+        ),
+        Err(NativeMessagingHostManifestError::ExecutablePathTooLong)
+    );
+    Ok(())
+}
+
+#[test]
 fn manifest_rejects_non_stdio_empty_and_oversized_allowlists() {
     let host = host_name("com.contextualwisdom.originweave");
     let allowed_origin = extension_origin(ALLOWED_EXTENSION);
@@ -188,6 +218,10 @@ fn manifest_error_messages_are_deterministic_and_source_free() {
         (
             NativeMessagingHostManifestError::InvalidExecutablePath,
             "native messaging host manifest contains an invalid executable path",
+        ),
+        (
+            NativeMessagingHostManifestError::ExecutablePathTooLong,
+            "native messaging host manifest executable path exceeds the OriginWeave safety budget",
         ),
         (
             NativeMessagingHostManifestError::RelativeExecutablePathUnsupported,
