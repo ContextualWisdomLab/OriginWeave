@@ -6,6 +6,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Added
 
+- Raw extension-message typed-action proposals are constructed internally as `InstructionSource::WebContent` before ordinary action-policy evaluation, so extension-produced message content cannot mint human or enterprise instruction trust.
 - Exact extension typed-action proposal composition that requires the matching extension/session/context `ProposeTypedAction` grant before ordinary unchanged action-policy evaluation; extension transport cannot manufacture instruction trust, Agent capability or origin authority, secret approval, browser execution, or verified success.
 - Rust workspace for independently reusable core, policy, destination, network, TLS, resource, and evidence modules.
 - Canonical HTTPS and loopback-origin boundary with case-normalized schemes and hosts, default-port normalization, IPv4/IPv6 handling, browser-special numeric-host rejection, and explicit malformed-input errors.
