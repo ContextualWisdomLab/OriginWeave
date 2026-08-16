@@ -61,7 +61,7 @@ class WorkflowRegistryHttpStatusContractTests(unittest.TestCase):
     def test_permission_absence_rate_limit_and_server_errors_fail_closed(self) -> None:
         """A non-200 page must never be interpreted as a complete registry snapshot."""
 
-        for status_code in (403, 404, 429, 500, 502, 503, 504):
+        for status_code in (403, 404, 429, 500, 501, 502, 503, 504, 505):
             with self.subTest(status_code=status_code):
                 with self.assertRaisesRegex(
                     self.audit.WorkflowAuditError,
@@ -70,16 +70,18 @@ class WorkflowRegistryHttpStatusContractTests(unittest.TestCase):
                     self.audit.audit_workflow_registry(_payload(status_code))
 
     def test_http_failures_expose_safe_retryability_without_becoming_success(self) -> None:
-        """Only throttling/server failures should tell a collector that retry is safe."""
+        """Only reviewed transient statuses should advertise bounded recollection."""
 
         for status_code, retryable in (
             (403, False),
             (404, False),
             (429, True),
             (500, True),
+            (501, False),
             (502, True),
             (503, True),
             (504, True),
+            (505, False),
         ):
             with self.subTest(status_code=status_code):
                 with self.assertRaises(self.audit.WorkflowAuditHttpStatusError) as raised:
