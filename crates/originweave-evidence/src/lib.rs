@@ -11,7 +11,8 @@ mod action_outcome;
 mod sensitive_access;
 
 pub use action_outcome::{
-    PostConditionKind, VerifiedActionOutcomeError, VerifiedActionOutcomeEvidence,
+    PostConditionKind, PostConditionObservation, VerifiedActionOutcomeError,
+    VerifiedActionOutcomeEvidence,
 };
 pub use sensitive_access::{
     MAX_SENSITIVE_FIELD_COUNT, MAX_SENSITIVE_IDENTIFIER_BYTES, SensitiveAccessClass,
