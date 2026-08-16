@@ -38,6 +38,8 @@ pub enum WebDriverBiDiAccessibilityQueryError {
     NameTooLong,
     /// The requested node count was zero or exceeded the local result budget.
     InvalidNodeCount,
+    /// The untrusted adapter returned more nodes than the reviewed request budget allowed.
+    ResultNodeCountExceeded,
 }
 
 impl Display for WebDriverBiDiAccessibilityQueryError {
@@ -49,6 +51,9 @@ impl Display for WebDriverBiDiAccessibilityQueryError {
             Self::EmptyName => "accessibility query name must not be empty",
             Self::NameTooLong => "accessibility query name exceeds the local byte budget",
             Self::InvalidNodeCount => "accessibility query node count is outside the local budget",
+            Self::ResultNodeCountExceeded => {
+                "accessibility query result exceeds the requested node budget"
+            }
         };
         formatter.write_str(message)
     }
@@ -65,8 +70,8 @@ impl Error for WebDriverBiDiAccessibilityQueryError {}
 ///
 /// The first slice also fixes WebDriver BiDi serialization to zero DOM depth, zero object depth,
 /// and no shadow-tree expansion. Those settings intentionally minimize the remote-value surface a
-/// future transport adapter may request; they do not themselves parse, validate, or authorize any
-/// returned node.
+/// future transport adapter may request. The adapter must additionally revalidate the returned
+/// node count against this exact query before it retains or normalizes any returned node data.
 ///
 /// Construction grants no browser session, context, origin, semantic-node, policy, capability, or
 /// network authority and performs no browser I/O. A trusted adapter must still bind the query to an
@@ -161,6 +166,21 @@ impl WebDriverBiDiAccessibilityQuery {
     #[must_use]
     pub const fn max_node_count(&self) -> u16 {
         self.max_node_count
+    }
+
+    /// Revalidate an untrusted `locateNodes` result count against this exact request budget.
+    ///
+    /// A conforming browser is expected to honor `maxNodeCount`, but an adapter boundary must not
+    /// treat that expectation as resource authority. Zero through the requested maximum are valid;
+    /// any larger returned array fails closed before later node normalization or retention.
+    pub fn validate_result_count(
+        &self,
+        returned_node_count: usize,
+    ) -> Result<(), WebDriverBiDiAccessibilityQueryError> {
+        if returned_node_count > usize::from(self.max_node_count) {
+            return Err(WebDriverBiDiAccessibilityQueryError::ResultNodeCountExceeded);
+        }
+        Ok(())
     }
 }
 
