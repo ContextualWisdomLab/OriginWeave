@@ -2,7 +2,7 @@
 
 use originweave_core::{
     BrowserSessionId, BrowsingContextId, ExtensionAccessDecision, ExtensionAccessRequest,
-    ExtensionAgentCapability, ExtensionAgentGrant, ExtensionId, evaluate_extension_access,
+    ExtensionAgentCapability, ExtensionAgentGrant, ExtensionId, Origin, evaluate_extension_access,
 };
 
 fn extension_id(value: &str) -> ExtensionId {
@@ -15,6 +15,10 @@ fn session(value: u64) -> BrowserSessionId {
 
 fn context(value: u64) -> BrowsingContextId {
     BrowsingContextId::new(value).expect("nonzero browsing context")
+}
+
+fn origin(value: &str) -> Origin {
+    Origin::parse(value).expect("canonical origin")
 }
 
 #[test]
@@ -43,10 +47,12 @@ fn extension_id_accepts_only_canonical_chromium_extension_ids() {
 fn extension_agent_access_requires_an_explicit_exact_grant() {
     let allowed_extension = extension_id("abcdefghijklmnopabcdefghijklmnop");
     let other_extension = extension_id("bcdefghijklmnopabcdefghijklmnopa");
+    let granted_origin = origin("https://app.example");
     let grant = ExtensionAgentGrant::new(
         allowed_extension.clone(),
         session(7),
         context(11),
+        granted_origin.clone(),
         [ExtensionAgentCapability::ObserveCurrentContext],
     );
 
@@ -54,6 +60,7 @@ fn extension_agent_access_requires_an_explicit_exact_grant() {
         allowed_extension.clone(),
         session(7),
         context(11),
+        granted_origin.clone(),
         ExtensionAgentCapability::ObserveCurrentContext,
     );
     assert_eq!(
@@ -68,6 +75,7 @@ fn extension_agent_access_requires_an_explicit_exact_grant() {
         other_extension,
         session(7),
         context(11),
+        granted_origin.clone(),
         ExtensionAgentCapability::ObserveCurrentContext,
     );
     assert_eq!(
@@ -79,6 +87,7 @@ fn extension_agent_access_requires_an_explicit_exact_grant() {
         allowed_extension.clone(),
         session(8),
         context(11),
+        granted_origin.clone(),
         ExtensionAgentCapability::ObserveCurrentContext,
     );
     assert_eq!(
@@ -87,24 +96,51 @@ fn extension_agent_access_requires_an_explicit_exact_grant() {
     );
 
     let wrong_context = ExtensionAccessRequest::new(
-        allowed_extension,
+        allowed_extension.clone(),
         session(7),
         context(12),
+        granted_origin.clone(),
         ExtensionAgentCapability::ObserveCurrentContext,
     );
     assert_eq!(
         evaluate_extension_access(&wrong_context, Some(&grant)),
         ExtensionAccessDecision::DenyBrowsingContextMismatch
     );
+
+    let wrong_origin = ExtensionAccessRequest::new(
+        allowed_extension.clone(),
+        session(7),
+        context(11),
+        origin("https://other.example"),
+        ExtensionAgentCapability::ObserveCurrentContext,
+    );
+    assert_eq!(
+        evaluate_extension_access(&wrong_origin, Some(&grant)),
+        ExtensionAccessDecision::DenyOriginMismatch
+    );
+
+    let wrong_port = ExtensionAccessRequest::new(
+        allowed_extension,
+        session(7),
+        context(11),
+        origin("https://app.example:8443"),
+        ExtensionAgentCapability::ObserveCurrentContext,
+    );
+    assert_eq!(
+        evaluate_extension_access(&wrong_port, Some(&grant)),
+        ExtensionAccessDecision::DenyOriginMismatch
+    );
 }
 
 #[test]
 fn chrome_permissions_never_imply_originweave_agent_capabilities() {
     let id = extension_id("abcdefghijklmnopabcdefghijklmnop");
+    let granted_origin = origin("https://mail.example");
     let grant = ExtensionAgentGrant::new(
         id.clone(),
         session(3),
         context(5),
+        granted_origin.clone(),
         [ExtensionAgentCapability::ObserveCurrentContext],
     );
 
@@ -112,6 +148,7 @@ fn chrome_permissions_never_imply_originweave_agent_capabilities() {
         id,
         session(3),
         context(5),
+        granted_origin,
         ExtensionAgentCapability::ProposeTypedAction,
     );
     assert_eq!(
@@ -123,10 +160,12 @@ fn chrome_permissions_never_imply_originweave_agent_capabilities() {
 #[test]
 fn explicit_grant_can_authorize_multiple_bounded_agent_capabilities() {
     let id = extension_id("abcdefghijklmnopabcdefghijklmnop");
+    let granted_origin = origin("http://127.0.0.1:8080");
     let grant = ExtensionAgentGrant::new(
         id.clone(),
         session(13),
         context(17),
+        granted_origin.clone(),
         [
             ExtensionAgentCapability::ObserveCurrentContext,
             ExtensionAgentCapability::ProposeTypedAction,
@@ -137,7 +176,13 @@ fn explicit_grant_can_authorize_multiple_bounded_agent_capabilities() {
         ExtensionAgentCapability::ObserveCurrentContext,
         ExtensionAgentCapability::ProposeTypedAction,
     ] {
-        let request = ExtensionAccessRequest::new(id.clone(), session(13), context(17), capability);
+        let request = ExtensionAccessRequest::new(
+            id.clone(),
+            session(13),
+            context(17),
+            granted_origin.clone(),
+            capability,
+        );
         assert_eq!(
             evaluate_extension_access(&request, Some(&grant)),
             ExtensionAccessDecision::Allow

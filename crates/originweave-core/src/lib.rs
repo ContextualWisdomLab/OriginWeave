@@ -967,16 +967,18 @@ pub struct ExtensionAgentGrant {
     extension_id: ExtensionId,
     browser_session: BrowserSessionId,
     browsing_context: BrowsingContextId,
+    origin: Origin,
     capabilities: BTreeSet<ExtensionAgentCapability>,
 }
 
 impl ExtensionAgentGrant {
-    /// Build an exact extension-to-Agent grant for one browser session and context.
+    /// Build an exact extension-to-Agent grant for one session, context, and origin.
     #[must_use]
     pub fn new<I>(
         extension_id: ExtensionId,
         browser_session: BrowserSessionId,
         browsing_context: BrowsingContextId,
+        origin: Origin,
         capabilities: I,
     ) -> Self
     where
@@ -986,6 +988,7 @@ impl ExtensionAgentGrant {
             extension_id,
             browser_session,
             browsing_context,
+            origin,
             capabilities: capabilities.into_iter().collect(),
         }
     }
@@ -997,6 +1000,7 @@ pub struct ExtensionAccessRequest {
     extension_id: ExtensionId,
     browser_session: BrowserSessionId,
     browsing_context: BrowsingContextId,
+    origin: Origin,
     capability: ExtensionAgentCapability,
 }
 
@@ -1007,12 +1011,14 @@ impl ExtensionAccessRequest {
         extension_id: ExtensionId,
         browser_session: BrowserSessionId,
         browsing_context: BrowsingContextId,
+        origin: Origin,
         capability: ExtensionAgentCapability,
     ) -> Self {
         Self {
             extension_id,
             browser_session,
             browsing_context,
+            origin,
             capability,
         }
     }
@@ -1031,6 +1037,8 @@ pub enum ExtensionAccessDecision {
     DenyBrowserSessionMismatch,
     /// The request belongs to a different independently navigable browser context.
     DenyBrowsingContextMismatch,
+    /// The request belongs to a different canonical origin than the grant.
+    DenyOriginMismatch,
     /// The extension grant does not contain the requested OriginWeave capability.
     DenyCapabilityNotGranted,
 }
@@ -1039,8 +1047,8 @@ pub enum ExtensionAccessDecision {
 ///
 /// A Chrome extension permission, installation state, or page capability is never
 /// consulted here. A future Chromium adapter must construct a host-originated
-/// [`ExtensionAgentGrant`] explicitly and re-evaluate the exact session/context
-/// request at the boundary where Agent authority would otherwise cross.
+/// [`ExtensionAgentGrant`] explicitly and re-evaluate the exact session, context,
+/// and canonical origin at the boundary where Agent authority would otherwise cross.
 #[must_use]
 pub fn evaluate_extension_access(
     request: &ExtensionAccessRequest,
@@ -1057,6 +1065,9 @@ pub fn evaluate_extension_access(
     }
     if request.browsing_context != grant.browsing_context {
         return ExtensionAccessDecision::DenyBrowsingContextMismatch;
+    }
+    if request.origin != grant.origin {
+        return ExtensionAccessDecision::DenyOriginMismatch;
     }
     if !grant.capabilities.contains(&request.capability) {
         return ExtensionAccessDecision::DenyCapabilityNotGranted;
