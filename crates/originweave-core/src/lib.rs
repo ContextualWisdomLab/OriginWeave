@@ -23,6 +23,7 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+mod browser_authority_registry;
 mod browser_protocol;
 mod browser_protocol_dispatch;
 mod browser_protocol_operation;
@@ -31,6 +32,7 @@ mod browser_registry;
 mod browser_registry_coverage;
 mod contracts;
 
+pub use browser_authority_registry::BrowserAuthorityRegistry;
 pub use browser_protocol::{
     BrowserProtocolAdapterDescriptor, BrowserProtocolCapability,
     BrowserProtocolCapabilityRequirementError, BrowserProtocolDescriptorError, BrowserProtocolKind,
@@ -55,7 +57,7 @@ pub use browser_protocol_operation::{
 };
 pub(crate) use browser_registry::contains_disallowed_protocol_text;
 pub use browser_registry::{
-    BrowserAuthorityRegistry, BrowserRegistryError, MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES,
+    BrowserRegistryError, MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES,
     UNICODE_PROTOCOL_FORMAT_INJECTION_CHARS,
 };
 pub use contracts::*;
