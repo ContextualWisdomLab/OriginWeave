@@ -292,6 +292,63 @@ impl DocumentEpoch {
     pub const fn value(self) -> u64 {
         self.0
     }
+
+    /// Rotate the epoch when a same-document mutation can change actionable identity.
+    ///
+    /// Re-observe the current document and use the new handle. Do not reuse a
+    /// handle emitted at the previous epoch after a relevant mutation.
+    pub const fn after_same_document_mutation(
+        self,
+        mutation: SameDocumentMutationKind,
+    ) -> Result<Self, NodeHandleError> {
+        if !mutation.requires_epoch_increment() {
+            return Ok(self);
+        }
+        match self.0.checked_add(1) {
+            Some(next) => Self::new(next),
+            None => Err(NodeHandleError::DocumentEpochOverflow),
+        }
+    }
+}
+
+/// A same-document lifecycle event that may invalidate actionable node handles.
+///
+/// This is a control-plane decision input. It does not observe the live DOM,
+/// accessibility tree, or browser process.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SameDocumentMutationKind {
+    /// The previously observed target node was removed from the document.
+    TargetRemoved,
+    /// The previously observed target was replaced by a different node.
+    TargetReplaced,
+    /// The target's actionable role, accessible name, or actionability changed.
+    RoleOrNameChanged,
+    /// A relevant accessibility-tree invalidation changed the target's meaning.
+    AccessibilityTreeInvalidated,
+    /// A nested frame document was replaced while the parent document remained.
+    FrameDocumentReplaced,
+    /// A subtree mutation replaced the observed actionable target.
+    ActionableSubtreeReplaced,
+    /// A reviewed non-semantic change that cannot affect any emitted handle.
+    NonSemanticUnrelated,
+}
+
+impl SameDocumentMutationKind {
+    /// Return whether this mutation must increment the document epoch.
+    ///
+    /// Uncertainty must use a relevant variant so the old handle cannot be reused.
+    #[must_use]
+    pub const fn requires_epoch_increment(self) -> bool {
+        match self {
+            Self::NonSemanticUnrelated => false,
+            Self::TargetRemoved
+            | Self::TargetReplaced
+            | Self::RoleOrNameChanged
+            | Self::AccessibilityTreeInvalidated
+            | Self::FrameDocumentReplaced
+            | Self::ActionableSubtreeReplaced => true,
+        }
+    }
 }
 
 /// A node identity bound to the exact session, context, origin, and document that produced it.
@@ -422,6 +479,8 @@ pub enum NodeHandleError {
         /// Epoch currently active in the browser context.
         current: DocumentEpoch,
     },
+    /// Incrementing the document epoch would wrap the identifier space.
+    DocumentEpochOverflow,
 }
 
 impl fmt::Display for NodeHandleError {
@@ -456,6 +515,9 @@ impl fmt::Display for NodeHandleError {
                 observed.value(),
                 current.value()
             ),
+            Self::DocumentEpochOverflow => {
+                formatter.write_str("document epoch cannot wrap after a same-document mutation")
+            }
         }
     }
 }

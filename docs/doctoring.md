@@ -8,6 +8,8 @@ This document records external evidence that changes OriginWeave architecture, t
 
 The 1 June 2026 WebDriver BiDi Working Draft defines a bidirectional remote-control protocol, events, commands, and user contexts. Because it remains a W3C Working Draft, OriginWeave places BiDi behind a versioned adapter and Web Platform Tests-derived contract tests rather than make it the internal authority model.
 
+WebDriver reports `stale element reference` when a previously referenced node is no longer attached to the active document. That is necessary but not sufficient for OriginWeave: a single-page checkout can replace a labelled field, change its accessible name, or swap a nested frame document while the node remains attached or a similar selector still matches. The WHATWG DOM Standard defines mutation records for attribute, character-data, and child-list changes. WAI-ARIA 1.2 defines role, accessible name, and state as the user-visible action semantics an agent must not confuse after mutation. OriginWeave therefore rotates `DocumentEpoch` from an explicit `SameDocumentMutationKind` before a handle may be reused. The Rust decision function does not claim live MutationObserver or BiDi event consumption.
+
 ### Browser origin equivalence
 
 The WHATWG URL host parser and Chromium canonicalizer classify shortened decimal, integer, hexadecimal, legacy octal-looking, and mixed-component numeric hosts as IPv4 or broken IPv4 candidates rather than ordinary DNS names. Chromium's regression suite includes values such as `192`, `0xC0a80001`, `030052000001`, and mixed hexadecimal components. A non-final empty `0x` component can participate in Chromium's multi-part IPv4 truncation behavior, but a final `0x` label does not produce an IPv4 number because stripping its prefix leaves no digits; it remains a domain label. Chromium also warns that broken IP-like hosts must not be connected because another resolver could accept them. OriginWeave therefore admits only canonical dotted-decimal IPv4 into its policy origin type, rejects browser-special numeric spellings before DNS validation, and preserves final non-numeric DNS labels such as `0x`.
@@ -150,9 +152,15 @@ The Rust Project Developers. (2026). *Ipv6Addr in std::net* (Rust 1.97.1) [Softw
 
 The Rust Project Developers. (2026). *TcpStream in std::net* (Rust 1.97.1) [Software documentation]. https://doc.rust-lang.org/stable/std/net/struct.TcpStream.html
 
+Web Hypertext Application Technology Working Group. (2026). *DOM standard*. https://dom.spec.whatwg.org/
+
 Web Hypertext Application Technology Working Group. (2026). *URL standard*. https://url.spec.whatwg.org/
 
 World Wide Web Consortium. (2013). *PROV-O: The PROV ontology*. https://www.w3.org/TR/prov-o/
+
+World Wide Web Consortium. (2023, June 6). *Accessible Rich Internet Applications (WAI-ARIA) 1.2* (W3C Recommendation). https://www.w3.org/TR/wai-aria-1.2/
+
+World Wide Web Consortium. (2026). *WebDriver*. Retrieved August 16, 2026, from https://www.w3.org/TR/webdriver2/
 
 World Wide Web Consortium. (2026, June 1). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260601/
 

@@ -75,7 +75,9 @@ Owns stable value contracts without I/O:
 - `InstructionSource` and `SecretDelivery`;
 - `RiskClass`, `Capability`, and `ActionKind`;
 - exact action, target-origin, and intent-bound `ApprovalScope` and `ApprovalEvidence`;
-- `ActionRequest` and `PolicyContext`.
+- `ActionRequest` and `PolicyContext`;
+- session-, context-, origin-, and epoch-bound `ObservedNodeHandle` values;
+- `SameDocumentMutationKind` decisions that rotate `DocumentEpoch` when a same-document mutation can change actionable identity.
 
 ### `originweave-policy`
 
@@ -166,7 +168,7 @@ Observation should prefer the most structured trustworthy source available:
 4. accessibility tree combined with DOM and layout;
 5. screenshot or vision fallback for canvas and inaccessible custom interfaces.
 
-Raw HTML is not the default model input. Full snapshots are followed by incremental semantic diffs, versioned by document epoch. Node references become invalid after navigation or epoch change.
+Raw HTML is not the default model input. Full snapshots are followed by incremental semantic diffs, versioned by document epoch. Node references become invalid after navigation or after a relevant same-document mutation rotates the epoch.
 
 ## 8. Action lifecycle
 

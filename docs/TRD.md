@@ -120,7 +120,7 @@ An actionable node reference is valid only when every component matches the live
 
 ### 5.2 Document epochs
 
-Navigation, document replacement, or another adapter-defined actionable-document lifetime change rotates `document_epoch`. A stale node reference must fail deterministically before input dispatch. Core exact-authority validation is Implemented; real browser lifecycle invalidation/linearized dispatch remains adapter work.
+Navigation, document replacement, or another adapter-defined actionable-document lifetime change rotates `document_epoch`. Core `SameDocumentMutationKind` is Implemented for the control-plane decision: target removal/replacement, role/name change, accessibility-tree invalidation, frame-document replacement, and actionable subtree replacement increment the epoch; a reviewed non-semantic mutation may preserve it; overflow fails closed. A stale node reference must fail deterministically before input dispatch. Real browser lifecycle observation and linearized dispatch remain adapter work.
 
 ### 5.3 Idempotency
 
