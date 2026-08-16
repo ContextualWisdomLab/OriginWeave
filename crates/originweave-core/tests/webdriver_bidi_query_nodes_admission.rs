@@ -9,8 +9,9 @@ use originweave_core::{
     BrowserProtocolCapabilityRequirementError, BrowserProtocolKind, BrowserProtocolOperation,
     BrowserProtocolRuntimeMetadata, BrowserProtocolUseValidationError, BrowserSessionId,
     BrowsingContextId, DocumentEpoch, ObservedNodeHandle, Origin, OriginWeaveProtocolVersion,
-    WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesAdmissionError,
-    WebDriverBiDiQueryNodesAdmissionError, WebDriverBiDiRemoteNodeReferenceError,
+    ValidatedBrowserProtocolUse, WebDriverBiDiAccessibilityQuery,
+    WebDriverBiDiLocateNodesAdmissionError, WebDriverBiDiQueryNodesAdmissionError,
+    WebDriverBiDiRemoteNodeReferenceError,
 };
 
 const ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion =
@@ -173,6 +174,60 @@ fn typed_input_only_adapter_cannot_admit_query_nodes() -> Result<(), Box<dyn Err
                 ),
             ),
         ))
+    );
+    Ok(())
+}
+
+fn protocol_use_proof(
+    descriptor: &BrowserProtocolAdapterDescriptor,
+    capability: BrowserProtocolCapability,
+) -> Result<ValidatedBrowserProtocolUse, Box<dyn Error>> {
+    Ok(descriptor.validate_use(
+        ORIGINWEAVE_PROTOCOL_VERSION,
+        BrowserProtocolKind::WebDriverBiDi,
+        ADAPTER_VERSION,
+        PROTOCOL_REVISION,
+        BROWSER_REVISION,
+        capability,
+    )?)
+}
+
+#[test]
+fn bind_current_nodes_rejects_typed_input_and_navigation_protocol_proofs()
+-> Result<(), Box<dyn Error>> {
+    let typed_input = descriptor(&[BrowserProtocolCapability::TypedInput])?;
+    let navigation = descriptor(&[BrowserProtocolCapability::Navigation])?;
+    let mut registry = BrowserAuthorityRegistry::new();
+    let expected_origin = controlled_origin();
+    let target = current_target(&mut registry, &expected_origin)?;
+    let query = WebDriverBiDiAccessibilityQuery::new(Some("button"), None, 1)?;
+    let items = [("node", Some("shared-submit"))];
+
+    assert_eq!(
+        query.bind_current_nodes(
+            protocol_use_proof(&typed_input, BrowserProtocolCapability::TypedInput)?,
+            &mut registry,
+            target,
+            &items,
+        ),
+        Err(
+            WebDriverBiDiLocateNodesAdmissionError::UnsupportedCapability(
+                BrowserProtocolCapability::TypedInput
+            )
+        )
+    );
+    assert_eq!(
+        query.bind_current_nodes(
+            protocol_use_proof(&navigation, BrowserProtocolCapability::Navigation)?,
+            &mut registry,
+            target,
+            &items,
+        ),
+        Err(
+            WebDriverBiDiLocateNodesAdmissionError::UnsupportedCapability(
+                BrowserProtocolCapability::Navigation
+            )
+        )
     );
     Ok(())
 }
