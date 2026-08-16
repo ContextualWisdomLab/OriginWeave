@@ -1,7 +1,7 @@
 # Manifest V3 compatibility evidence baseline
 
 - **Status:** Active implementation evidence for issue #27
-- **Reviewed:** 2026-08-11
+- **Reviewed:** 2026-08-16
 - **Pinned browser:** Chrome for Testing `150.0.7871.129`, Chromium revision `r1639810`
 
 OriginWeave uses Chromium as its compatibility kernel, so browser-extension compatibility must be demonstrated with executable Chromium evidence rather than inferred from architecture alone. The protected-main lane exercises a controlled unpacked Manifest V3 extension against one exact Chrome for Testing build and proves service-worker, content-script, storage, declarative-network-request, tabs, windows, scripting, commands, side-panel, bookmarks/history read compatibility, restart persistence, repeatability, and one real WebDriver click/post-condition. Active stacked compatibility work adds downloads, bounded bookmark/history mutation, profile isolation, explicit extension update/version-migration evidence, and an exact content-script isolated-world check. OriginWeave does **not claim 100% Chrome extension compatibility**.
@@ -38,6 +38,10 @@ The release-quality capability matrix must remain coupled to executable evidence
 
 For history compatibility specifically, the current official Chrome Extensions API documents the `history` manifest permission and Promise-returning `chrome.history.addUrl`, `chrome.history.search`, and `chrome.history.deleteUrl` methods. This living vendor reference establishes API semantics only. OriginWeave release evidence continues to depend on the exact pinned Chromium fixture and exact-head CI result rather than inferring compatibility from documentation.
 
+## Downloads API primary evidence
+
+For downloads compatibility specifically, the current official Chrome Extensions API documents the `downloads` manifest permission and the `chrome.downloads` methods that initiate, monitor, search, and inspect downloads. This living vendor reference establishes API semantics only. Active PR #43 exercises one controlled loopback payload through pinned Chromium and retains only allow-listed stage diagnostics. That proof is not Agent filesystem authority, general download persistence, unsafe-filename handling, or a release claim that every `chrome.downloads` method works.
+
 ## Update-migration evidence boundary
 
 Restart persistence and extension update migration are separate compatibility claims. A successful restart proves only that state survives a new browser process. The active update-migration lane additionally uses a trial-local copy of the checked-in fixture, preserves the same extension path and ephemeral profile across passes, changes only the controlled manifest version from `1.0.0` to `1.0.1`, observes `chrome.runtime.getManifest().version`, and requires the fixture schema marker to migrate from version 1 to version 2. The checked-in fixture is not rewritten by the test. This establishes one deterministic unpacked-extension version transition; it does not establish Chrome Web Store update behavior, enterprise rollout semantics, downgrade behavior, or arbitrary third-party extension migration safety.
@@ -59,6 +63,8 @@ Chrome for Developers. (2023, May 2). *Extension service worker basics*. Google.
 Chrome for Developers. (2023, May 2). *The extension service worker lifecycle*. Google. https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle
 
 Chrome for Developers. (n.d.). *chrome.declarativeNetRequest*. Google. Retrieved August 9, 2026, from https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequest
+
+Chrome for Developers. (n.d.). *chrome.downloads*. Google. Retrieved August 16, 2026, from https://developer.chrome.com/docs/extensions/reference/api/downloads
 
 Chrome for Developers. (n.d.). *chrome.history*. Google. Retrieved August 11, 2026, from https://developer.chrome.com/docs/extensions/reference/api/history
 
