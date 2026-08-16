@@ -6,7 +6,7 @@ import pathlib
 import runpy
 import tempfile
 import unittest
-from unittest import mock
+import unittest.mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 RUNNER = ROOT / "scripts" / "ci" / "run_mv3_compatibility.py"
@@ -103,8 +103,10 @@ class ManifestV3SessionCleanupExceptionTests(unittest.TestCase):
             extension_dir = trial_dir / "extension"
             extension_dir.mkdir()
             with (
-                mock.patch.object(globals_["subprocess"], "Popen", return_value=fake_driver),
-                mock.patch.dict(
+                unittest.mock.patch.object(
+                    globals_["subprocess"], "Popen", return_value=fake_driver
+                ),
+                unittest.mock.patch.dict(
                     globals_,
                     {
                         "_free_loopback_port": lambda: 43123,
