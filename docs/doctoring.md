@@ -12,6 +12,10 @@ The 1 June 2026 WebDriver BiDi Working Draft defines a bidirectional remote-cont
 
 The current Chrome Extensions Downloads API documents the `downloads` manifest permission and `chrome.downloads` methods that initiate, monitor, search, and inspect downloads. That living vendor reference is API semantics only. OriginWeave treats a successful controlled loopback download in pinned Chromium as compatibility evidence for one declared surface, not as Agent filesystem authority, general download persistence, or a claim that every Downloads method is supported.
 
+### Manifest V3 WebDriver transport-protocol diagnostics
+
+RFC 9112 defines the HTTP/1.1 status-line and the requirement that a message body match the announced framing. A malformed status-line or an incomplete body is a recoverable parser failure, not a trusted diagnostic payload. W3C WebDriver carries commands over that HTTP transport. The Manifest V3 compatibility runner therefore converts `http.client.HTTPException` subclasses such as `BadStatusLine` and `IncompleteRead` into the classified message `WebDriver transport protocol failure`. Raw status-line text, partial body bytes, paths, URLs, or tokens must not enter exception text, trial evidence, or logs.
+
 ### Manifest V3 click post-condition diagnostics
 
 W3C WebDriver Get Element Text returns the rendered text content of a located element. That value is page-controlled data, not a trusted diagnostic token. The Manifest V3 compatibility runner therefore compares the fixture output against the exact expected `clicked` token and, on mismatch, raises only the classified message `real click post-condition mismatch`. Raw element text must not enter exception text, trial evidence, or logs.
@@ -123,6 +127,8 @@ Eddy, W. M. (Ed.). (2022). *Transmission Control Protocol (TCP)* (RFC 9293). Int
 Evtimov, I., Zharmagambetov, A., Grattafiori, A., Guo, C., & Chaudhuri, K. (2025). *WASP: Benchmarking web agent security against prompt injection attacks*. arXiv. https://doi.org/10.48550/arXiv.2504.18575
 
 Fielding, R., Nottingham, M., & Reschke, J. (2022). *HTTP semantics* (RFC 9110). Internet Engineering Task Force. https://doi.org/10.17487/RFC9110
+
+Fielding, R., Nottingham, M., & Reschke, J. (Eds.). (2022). *HTTP/1.1* (RFC 9112). Internet Engineering Task Force. https://doi.org/10.17487/RFC9112
 
 Fugu Team, Sakana AI. (2026). *Sakana Fugu technical report* [Technical report]. arXiv. https://doi.org/10.48550/arXiv.2606.21228
 
