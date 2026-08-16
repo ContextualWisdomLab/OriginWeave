@@ -18,33 +18,58 @@ use crate::{ExtensionId, NativeMessagingAccessRequest, NativeMessagingHostName};
 /// manifest from turning policy admission into unbounded allocation or comparison work.
 pub const MAX_NATIVE_MESSAGING_ALLOWED_ORIGINS: usize = 256;
 
+/// Operating-system path semantics used by one native-messaging host manifest.
+///
+/// Chrome requires absolute native-host paths on Linux and macOS, while Windows also allows
+/// paths relative to the manifest directory. OriginWeave records the platform explicitly so
+/// later runtime adapters cannot reinterpret a validated path under different semantics.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeMessagingHostPlatform {
+    /// Linux native-messaging host-manifest semantics.
+    Linux,
+    /// macOS native-messaging host-manifest semantics.
+    MacOs,
+    /// Windows native-messaging host-manifest semantics.
+    Windows,
+}
+
 /// Validated authority-bearing fields from one Chrome native-messaging host manifest.
 ///
-/// The record contains only the exact host identity and exact Chromium extension identities
-/// named by the manifest's `allowed_origins`. Possessing this value is not proof of manifest
-/// installation, executable ownership, process identity, message provenance, or Agent
+/// The record contains the exact host identity, declared executable-path text and platform,
+/// plus exact Chromium extension identities named by the manifest's `allowed_origins`.
+/// Possessing this value is not proof of manifest installation, path canonicalization,
+/// executable existence or ownership, process identity, message provenance, or Agent
 /// authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeMessagingHostManifest {
     host_name: NativeMessagingHostName,
+    platform: NativeMessagingHostPlatform,
+    executable_path: String,
     allowed_extensions: BTreeSet<ExtensionId>,
 }
 
 impl NativeMessagingHostManifest {
     /// Validate the authority-bearing host-manifest fields without widening them.
     ///
-    /// `interface_type` must be exactly `stdio`. Every allowed origin must be exactly
-    /// `chrome-extension://<canonical-extension-id>/`; alternate schemes, wildcards,
-    /// suffix paths, query strings, fragments, and non-canonical extension identities are
-    /// rejected rather than normalized. The raw list is bounded before deduplication.
+    /// `interface_type` must be exactly `stdio`. Linux and macOS executable paths must be
+    /// absolute, matching Chrome's native-messaging contract; Windows relative paths remain
+    /// relative and must be resolved by a trusted runtime adapter against the authenticated
+    /// manifest directory. Empty paths and embedded NUL bytes are rejected on every platform.
+    /// Every allowed origin must be exactly `chrome-extension://<canonical-extension-id>/`;
+    /// alternate schemes, wildcards, suffix paths, query strings, fragments, and
+    /// non-canonical extension identities are rejected rather than normalized. The raw list
+    /// is bounded before deduplication.
     pub fn parse(
         host_name: NativeMessagingHostName,
+        platform: NativeMessagingHostPlatform,
+        executable_path: &str,
         interface_type: &str,
         allowed_origins: &[&str],
     ) -> Result<Self, NativeMessagingHostManifestError> {
         if interface_type != "stdio" {
             return Err(NativeMessagingHostManifestError::UnsupportedInterfaceType);
         }
+        validate_executable_path(platform, executable_path)?;
         if allowed_origins.is_empty() {
             return Err(NativeMessagingHostManifestError::MissingAllowedOrigin);
         }
@@ -59,6 +84,8 @@ impl NativeMessagingHostManifest {
 
         Ok(Self {
             host_name,
+            platform,
+            executable_path: executable_path.to_owned(),
             allowed_extensions,
         })
     }
@@ -67,6 +94,22 @@ impl NativeMessagingHostManifest {
     #[must_use]
     pub const fn host_name(&self) -> &NativeMessagingHostName {
         &self.host_name
+    }
+
+    /// Return the platform whose path semantics were used to validate the manifest.
+    #[must_use]
+    pub const fn platform(&self) -> NativeMessagingHostPlatform {
+        self.platform
+    }
+
+    /// Return the exact executable-path text declared by the manifest.
+    ///
+    /// Windows relative paths are intentionally not resolved here because safe resolution
+    /// requires the authenticated manifest location. The returned path therefore carries no
+    /// filesystem-existence, canonicalization, ownership, or process-identity claim.
+    #[must_use]
+    pub fn executable_path(&self) -> &str {
+        &self.executable_path
     }
 
     /// Return the number of distinct exact extension identities explicitly allowed.
@@ -93,6 +136,19 @@ impl NativeMessagingHostManifest {
         }
         NativeMessagingHostManifestAccessDecision::Allow
     }
+}
+
+fn validate_executable_path(
+    platform: NativeMessagingHostPlatform,
+    executable_path: &str,
+) -> Result<(), NativeMessagingHostManifestError> {
+    if executable_path.is_empty() || executable_path.contains('\0') {
+        return Err(NativeMessagingHostManifestError::InvalidExecutablePath);
+    }
+    if platform != NativeMessagingHostPlatform::Windows && !executable_path.starts_with('/') {
+        return Err(NativeMessagingHostManifestError::RelativeExecutablePathUnsupported);
+    }
+    Ok(())
 }
 
 fn parse_extension_origin(origin: &str) -> Result<ExtensionId, NativeMessagingHostManifestError> {
@@ -122,6 +178,10 @@ pub enum NativeMessagingHostManifestAccessDecision {
 pub enum NativeMessagingHostManifestError {
     /// The manifest interface type was not exactly Chrome's `stdio` value.
     UnsupportedInterfaceType,
+    /// The manifest executable-path text was empty or contained an embedded NUL byte.
+    InvalidExecutablePath,
+    /// A non-Windows manifest used a relative executable path.
+    RelativeExecutablePathUnsupported,
     /// The manifest did not explicitly allow any extension origin.
     MissingAllowedOrigin,
     /// The raw allowed-origin list exceeded the OriginWeave admission safety budget.
@@ -135,6 +195,10 @@ impl fmt::Display for NativeMessagingHostManifestError {
         match self {
             Self::UnsupportedInterfaceType => formatter
                 .write_str("native messaging host manifest interface type must be stdio"),
+            Self::InvalidExecutablePath => formatter
+                .write_str("native messaging host manifest contains an invalid executable path"),
+            Self::RelativeExecutablePathUnsupported => formatter
+                .write_str("native messaging host executable path must be absolute on this platform"),
             Self::MissingAllowedOrigin => formatter.write_str(
                 "native messaging host manifest must allow at least one exact extension origin",
             ),
