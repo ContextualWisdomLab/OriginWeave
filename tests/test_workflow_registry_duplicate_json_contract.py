@@ -99,6 +99,28 @@ class WorkflowRegistryDuplicateJsonContractTests(unittest.TestCase):
             ):
                 self.audit._read_payload(path)
 
+    def test_negative_zero_integer_literal_fails_closed(self) -> None:
+        """Lexical negative zero must not collapse into canonical count zero."""
+
+        document = (
+            '{"schema_version":1,'
+            f'"expected_default_branch_sha":"{DEFAULT_SHA}",'
+            f'"observed_default_branch_sha":"{DEFAULT_SHA}",'
+            '"observed_at":"2026-08-12T00:00:00Z",'
+            '"reported_total_count":-0,'
+            '"protected_workflow_paths":[],'
+            '"active_pr_workflow_paths":[],'
+            '"registry_pages":[{"page":1,"status_code":200,'
+            '"has_next":false,"workflows":[]}]}'
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "registry.json"
+            path.write_text(document, encoding="utf-8")
+            with self.assertRaisesRegex(
+                self.audit.WorkflowAuditError, "input is not readable UTF-8 JSON"
+            ):
+                self.audit._read_payload(path)
+
     def test_floating_point_numeric_literals_fail_closed(self) -> None:
         """Schema-v1 evidence rejects every floating-point JSON number at parse time."""
 
