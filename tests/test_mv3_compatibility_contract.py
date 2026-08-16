@@ -237,6 +237,36 @@ class ManifestV3CompatibilityContractTests(unittest.TestCase):
                 self.assertNotIn("/home/runner/private", rendered)
                 self.assertNotIn("example.invalid", rendered)
 
+    def test_chromedriver_startup_timeout_does_not_retain_raw_last_error(self) -> None:
+        """Startup timeout diagnostics must classify transient errors without copying raw text."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="mv3_contract")
+        wait_for_driver = namespace["_wait_for_driver"]
+        time_module = namespace["time"]
+        raw_error = "secret-token /home/runner/private https://example.invalid"
+
+        with (
+            unittest.mock.patch.dict(
+                wait_for_driver.__globals__,
+                {"_json_request": unittest.mock.Mock(side_effect=OSError(raw_error))},
+            ),
+            unittest.mock.patch.object(
+                time_module,
+                "monotonic",
+                side_effect=(0.0, 0.0, 99.0),
+            ),
+            unittest.mock.patch.object(time_module, "sleep", return_value=None),
+        ):
+            with self.assertRaises(RuntimeError) as raised:
+                wait_for_driver(9515)
+
+        rendered = str(raised.exception)
+        self.assertIn("ChromeDriver did not become ready", rendered)
+        self.assertIn("io_error", rendered)
+        self.assertNotIn("secret-token", rendered)
+        self.assertNotIn("/home/runner/private", rendered)
+        self.assertNotIn("example.invalid", rendered)
+
     def test_workflow_runs_the_real_browser_lane_without_model_credentials(self) -> None:
         """Compatibility evidence must execute Chromium and never require LLM secrets."""
 
