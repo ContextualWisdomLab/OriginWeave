@@ -400,8 +400,10 @@ def _reject_json_floating_point(value: str) -> Any:
 
 
 def _parse_bounded_json_integer(value: str) -> int:
-    """Parse one decimal JSON integer within the audit evidence digit budget."""
+    """Parse one canonical decimal JSON integer within the evidence digit budget."""
 
+    if value == "-0":
+        raise json.JSONDecodeError("negative-zero JSON integer is unsupported", value, 0)
     digits = value[1:] if value.startswith("-") else value
     if len(digits) > _MAX_JSON_INTEGER_DIGITS:
         raise json.JSONDecodeError("JSON integer literal exceeds digit bound", value, 0)
