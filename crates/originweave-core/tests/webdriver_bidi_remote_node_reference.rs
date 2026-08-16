@@ -9,7 +9,10 @@ use originweave_core::{
 fn remote_node_reference_requires_exact_node_type_and_shared_id() -> Result<(), Box<dyn Error>> {
     let reference = WebDriverBiDiRemoteNodeReference::new("node", Some("shared-node-42"))?;
 
-    assert_eq!(reference.remote_type(), WEBDRIVER_BIDI_NODE_REMOTE_VALUE_TYPE);
+    assert_eq!(
+        reference.remote_type(),
+        WEBDRIVER_BIDI_NODE_REMOTE_VALUE_TYPE
+    );
     assert_eq!(reference.remote_type(), "node");
     assert_eq!(reference.shared_id(), "shared-node-42");
     Ok(())

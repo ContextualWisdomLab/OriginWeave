@@ -46,7 +46,7 @@ The main [`docs/doctoring.md`](../doctoring.md) records the stable W3C PROV-O Re
 
 ## Product consequences
 
-1. Version adapter contracts independently from OriginWeave session/context/action/evidence types.
+1. Version adapter contracts independently from OriginWeave session/context/action/evidence types. Admit a BiDi `script.NodeRemoteValue` only as an untrusted transport handle when its type is exactly `node` and a usable `sharedId` is present; do not treat a realm-local `handle` or a missing shared identifier as OriginWeave node authority.
 2. Pin exact Chromium/CDP compatibility evidence at release time.
 3. Keep WebDriver BiDi's Working Draft status visible in compatibility claims.
 4. Keep WebMCP experimental/optional and propagate untrusted-content semantics.

@@ -5,7 +5,7 @@ use crate::{
     BrowserAuthorityRegistry, BrowserContextOriginEpochDispatchTarget,
     BrowserContextProtocolDispatchError, BrowserProtocolAdapterDescriptor,
     BrowserProtocolCapability, BrowserProtocolRuntimeMetadata, DocumentEpoch,
-    OriginWeaveProtocolVersion, ValidatedBrowserProtocolUse,
+    MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES, OriginWeaveProtocolVersion, ValidatedBrowserProtocolUse,
 };
 
 /// Exact WebDriver BiDi method used by the bounded accessibility-query contract.
@@ -181,6 +181,93 @@ impl WebDriverBiDiAccessibilityQuery {
             return Err(WebDriverBiDiAccessibilityQueryError::ResultNodeCountExceeded);
         }
         Ok(())
+    }
+}
+
+/// Exact WebDriver BiDi remote-value type admitted as a later node handle.
+pub const WEBDRIVER_BIDI_NODE_REMOTE_VALUE_TYPE: &str = "node";
+
+/// Fail-closed validation errors for one untrusted WebDriver BiDi node remote value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WebDriverBiDiRemoteNodeReferenceError {
+    /// The remote value type was not the exact `node` type.
+    UnexpectedRemoteType,
+    /// The remote value omitted `sharedId`.
+    MissingSharedId,
+    /// The shared identifier was empty or exceeded the local UTF-8 byte budget.
+    InvalidSharedId,
+}
+
+impl Display for WebDriverBiDiRemoteNodeReferenceError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        let message = match self {
+            Self::UnexpectedRemoteType => {
+                "remote node reference type must be the exact node remote value"
+            }
+            Self::MissingSharedId => "remote node reference requires a shared id",
+            Self::InvalidSharedId => {
+                "remote node reference shared id is empty or exceeds the local byte budget"
+            }
+        };
+        formatter.write_str(message)
+    }
+}
+
+impl Error for WebDriverBiDiRemoteNodeReferenceError {}
+
+/// Bounded admission of one untrusted WebDriver BiDi `script.NodeRemoteValue`.
+///
+/// The 1 June 2026 WebDriver BiDi Working Draft returns `script.NodeRemoteValue` items from
+/// `browsingContext.locateNodes`. Those values have a required `type` of `node` and an optional
+/// `sharedId`. OriginWeave admits a result item only when the type is exactly `node` and a
+/// non-empty `sharedId` fits the same UTF-8 identifier budget used by browser session and context
+/// identifiers.
+///
+/// Requiring `sharedId` is a local fail-closed policy: the Working Draft permits omitting it, but a
+/// later typed-input adapter cannot refer to the same node across realms without that shared
+/// identity. Construction grants no session, context, origin, document-epoch, semantic-node,
+/// policy, or network authority and performs no browser I/O. The admitted value remains an
+/// untrusted transport handle until a separately reviewed authority boundary binds it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WebDriverBiDiRemoteNodeReference {
+    shared_id: String,
+}
+
+impl WebDriverBiDiRemoteNodeReference {
+    /// Admit one untrusted locateNodes remote value as a later node handle.
+    ///
+    /// The remote type is checked first so a non-node value cannot be retained even when it carries
+    /// a well-formed shared identifier. A missing shared identifier is distinct from an empty or
+    /// over-budget identifier so callers can distinguish protocol omission from local
+    /// resource-budget rejection.
+    pub fn new(
+        remote_type: &str,
+        shared_id: Option<&str>,
+    ) -> Result<Self, WebDriverBiDiRemoteNodeReferenceError> {
+        if remote_type != WEBDRIVER_BIDI_NODE_REMOTE_VALUE_TYPE {
+            return Err(WebDriverBiDiRemoteNodeReferenceError::UnexpectedRemoteType);
+        }
+        let Some(shared_id) = shared_id else {
+            return Err(WebDriverBiDiRemoteNodeReferenceError::MissingSharedId);
+        };
+        if shared_id.is_empty() || shared_id.len() > MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES {
+            return Err(WebDriverBiDiRemoteNodeReferenceError::InvalidSharedId);
+        }
+        Ok(Self {
+            shared_id: shared_id.to_owned(),
+        })
+    }
+
+    /// Return the exact admitted WebDriver BiDi remote-value type.
+    #[must_use]
+    pub const fn remote_type(&self) -> &'static str {
+        WEBDRIVER_BIDI_NODE_REMOTE_VALUE_TYPE
+    }
+
+    /// Return the exact shared node identifier admitted from the remote value.
+    #[must_use]
+    pub fn shared_id(&self) -> &str {
+        &self.shared_id
     }
 }
 
