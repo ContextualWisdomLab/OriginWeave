@@ -186,6 +186,19 @@ class ManifestV3SessionCleanupExceptionTests(unittest.TestCase):
         self.assertTrue(fake_driver.killed)
         self.assertEqual(fake_driver.wait_calls, 2)
 
+    def test_successful_kill_after_terminate_error_is_normal_cleanup(self) -> None:
+        """A recoverable terminate error must not fail cleanup after bounded kill succeeds."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="mv3_teardown_contract")
+        fake_driver = _FakeDriver(terminate_error=OSError("terminate failed"))
+
+        error = namespace["_teardown_driver_process"](fake_driver)
+
+        self.assertIsNone(error)
+        self.assertTrue(fake_driver.terminated)
+        self.assertTrue(fake_driver.killed)
+        self.assertEqual(fake_driver.wait_calls, 1)
+
     def test_failed_kill_fallback_is_recorded_on_the_primary_teardown_error(self) -> None:
         """A secondary fallback failure must not disappear while the first error stays causal."""
 
