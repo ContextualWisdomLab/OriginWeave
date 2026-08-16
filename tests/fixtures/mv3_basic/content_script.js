@@ -30,6 +30,8 @@
   document.documentElement.dataset.originweaveCommands = response?.commands ?? "missing";
   document.documentElement.dataset.originweaveSidePanel = response?.sidePanel ?? "missing";
   document.documentElement.dataset.originweaveBookmarks = response?.bookmarks ?? "missing";
+  document.documentElement.dataset.originweaveBookmarksDiagnostic =
+    response?.bookmarksDiagnostic ?? "bookmark-not-evaluated";
   document.documentElement.dataset.originweaveHistory = response?.history ?? "missing";
   document.documentElement.dataset.originweaveDownloads = response?.downloads ?? "missing";
   document.documentElement.dataset.originweaveDownloadsDiagnostic =
