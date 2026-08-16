@@ -8,6 +8,10 @@ This document records external evidence that changes OriginWeave architecture, t
 
 The 1 June 2026 WebDriver BiDi Working Draft defines a bidirectional remote-control protocol, events, commands, and user contexts. Because it remains a W3C Working Draft, OriginWeave places BiDi behind a versioned adapter and Web Platform Tests-derived contract tests rather than make it the internal authority model.
 
+### Native-messaging manifest authority
+
+Chrome's current native-messaging documentation defines the host manifest as a separate configuration boundary containing an exact host `name`, executable `path`, interface `type`, and extension `allowed_origins`. The only documented interface type is `stdio`, and `allowed_origins` does not permit wildcard extension origins. Chrome starts the native host as a separate process and communicates through standard input and standard output. OriginWeave therefore treats validated host-manifest identity as one explicit authority input rather than as proof of installation, executable ownership, process identity, message provenance, or Agent authority. The first manifest contract accepts only exact `stdio`, exact canonical `chrome-extension://<id>/` origins, and a bounded raw allow-list before deduplication; process registration, path ownership, spawning, sandboxing, and authenticated stdio remain separate boundaries.
+
 ### Browser origin equivalence
 
 The WHATWG URL host parser and Chromium canonicalizer classify shortened decimal, integer, hexadecimal, legacy octal-looking, and mixed-component numeric hosts as IPv4 or broken IPv4 candidates rather than ordinary DNS names. Chromium's regression suite includes values such as `192`, `0xC0a80001`, `030052000001`, and mixed hexadecimal components. A non-final empty `0x` component can participate in Chromium's multi-part IPv4 truncation behavior, but a final `0x` label does not produce an IPv4 number because stripping its prefix leaves no digits; it remains a domain label. Chromium also warns that broken IP-like hosts must not be connected because another resolver could accept them. OriginWeave therefore admits only canonical dotted-decimal IPv4 into its policy origin type, rejects browser-special numeric spellings before DNS validation, and preserves final non-numeric DNS labels such as `0x`.
@@ -115,6 +119,8 @@ Evtimov, I., Zharmagambetov, A., Grattafiori, A., Guo, C., & Chaudhuri, K. (2025
 Fielding, R., Nottingham, M., & Reschke, J. (2022). *HTTP semantics* (RFC 9110). Internet Engineering Task Force. https://doi.org/10.17487/RFC9110
 
 Fugu Team, Sakana AI. (2026). *Sakana Fugu technical report* [Technical report]. arXiv. https://doi.org/10.48550/arXiv.2606.21228
+
+Google. (2023, February 27). *Native messaging*. Chrome for Developers. https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging
 
 Huston, G., & Buraglio, N. (2024). *Expanding the IPv6 documentation space* (RFC 9637). Internet Engineering Task Force. https://doi.org/10.17487/RFC9637
 
