@@ -211,7 +211,12 @@ impl WebDriverBiDiAccessibilityQuery {
 
     /// Admit one untrusted `locateNodes` result against the exact current document authority.
     ///
-    /// The registry first proves that `target` still names the current session, browsing context,
+    /// The caller must transfer a non-cloneable [`ValidatedBrowserProtocolUse`] whose capability is
+    /// exactly [`BrowserProtocolCapability::SemanticObservation`]. Navigation and TypedInput proofs
+    /// fail closed before the registry is consulted, so those adapters cannot mint observation
+    /// handles. The proof is consumed by ownership and cannot be reused for a later bind.
+    ///
+    /// The registry then proves that `target` still names the current session, browsing context,
     /// canonical origin, and document epoch. Only then is the returned item count checked against
     /// this query's budget. Each item must be an exact `node` remote value with a usable shared
     /// identifier; those identifiers are translated through the registry into
@@ -222,10 +227,19 @@ impl WebDriverBiDiAccessibilityQuery {
     /// returned handles immediately before use.
     pub fn bind_current_nodes(
         &self,
+        validated: ValidatedBrowserProtocolUse,
         authority_registry: &mut BrowserAuthorityRegistry,
         target: BrowserContextOriginEpochDispatchTarget<'_>,
         items: &[(&str, Option<&str>)],
     ) -> Result<Vec<ObservedNodeHandle>, WebDriverBiDiLocateNodesAdmissionError> {
+        if validated.capability() != BrowserProtocolCapability::SemanticObservation {
+            return Err(
+                WebDriverBiDiLocateNodesAdmissionError::UnsupportedCapability(
+                    validated.capability(),
+                ),
+            );
+        }
+        let _consumed_query_nodes_proof = validated;
         let context_origin = target.context_origin();
         let context = context_origin.context();
         let current_epoch = authority_registry
@@ -324,6 +338,8 @@ pub enum WebDriverBiDiLocateNodesAdmissionError {
     },
     /// The supplied browser session, context, or origin is not current in the registry.
     BrowserAuthority(BrowserRegistryError),
+    /// The consumed protocol-use proof was not SemanticObservation.
+    UnsupportedCapability(BrowserProtocolCapability),
 }
 
 impl Display for WebDriverBiDiLocateNodesAdmissionError {
@@ -353,6 +369,18 @@ impl Display for WebDriverBiDiLocateNodesAdmissionError {
                     "browser authority denied locateNodes admission: {error}"
                 )
             }
+            Self::UnsupportedCapability(capability) => {
+                let name = match capability {
+                    BrowserProtocolCapability::Navigation => "Navigation",
+                    BrowserProtocolCapability::SemanticObservation => "SemanticObservation",
+                    BrowserProtocolCapability::TypedInput => "TypedInput",
+                    BrowserProtocolCapability::NetworkObservation => "NetworkObservation",
+                };
+                write!(
+                    formatter,
+                    "locateNodes admission requires a SemanticObservation protocol-use proof, not {name}"
+                )
+            }
         }
     }
 }
@@ -364,6 +392,7 @@ impl Error for WebDriverBiDiLocateNodesAdmissionError {
             Self::RemoteNode(error) => Some(error),
             Self::DocumentEpochMismatch { .. } => None,
             Self::BrowserAuthority(error) => Some(error),
+            Self::UnsupportedCapability(_) => None,
         }
     }
 }
@@ -532,12 +561,13 @@ impl BrowserProtocolAdapterDescriptor {
 
     /// Admit one untrusted `locateNodes` result only after QueryNodes protocol proof.
     ///
-    /// The same-call boundary first consumes a non-cloneable protocol-use proof for
+    /// The same-call boundary first obtains a non-cloneable protocol-use proof for
     /// [`BrowserProtocolOperation::QueryNodes`], which derives
-    /// [`BrowserProtocolCapability::SemanticObservation`]. Only then may
-    /// [`WebDriverBiDiAccessibilityQuery::bind_current_nodes`] translate admitted `sharedId`
-    /// values into [`ObservedNodeHandle`] values on the exact current session, browsing
-    /// context, canonical origin, and document epoch.
+    /// [`BrowserProtocolCapability::SemanticObservation`]. That proof is transferred by
+    /// ownership into [`WebDriverBiDiAccessibilityQuery::bind_current_nodes`], which refuses
+    /// any other capability before translating admitted `sharedId` values into
+    /// [`ObservedNodeHandle`] values on the exact current session, browsing context, canonical
+    /// origin, and document epoch.
     ///
     /// This method performs no browser I/O, does not authenticate Chromium, and does not grant
     /// policy, destination, or typed-input authority. A later action must still revalidate the
@@ -551,17 +581,18 @@ impl BrowserProtocolAdapterDescriptor {
         query: &WebDriverBiDiAccessibilityQuery,
         items: &[(&str, Option<&str>)],
     ) -> Result<Vec<ObservedNodeHandle>, WebDriverBiDiQueryNodesAdmissionError> {
-        self.dispatch_operation_if_context_origin_epoch_current(
-            authority_registry,
-            target,
-            required_originweave_protocol_version,
-            runtime_metadata,
-            BrowserProtocolOperation::QueryNodes,
-            |_validated, _operation, _epoch| (),
-        )
-        .map_err(WebDriverBiDiQueryNodesAdmissionError::ProtocolDispatch)?;
+        let validated = self
+            .dispatch_operation_if_context_origin_epoch_current(
+                authority_registry,
+                target,
+                required_originweave_protocol_version,
+                runtime_metadata,
+                BrowserProtocolOperation::QueryNodes,
+                |validated, _operation, _epoch| validated,
+            )
+            .map_err(WebDriverBiDiQueryNodesAdmissionError::ProtocolDispatch)?;
         query
-            .bind_current_nodes(authority_registry, target, items)
+            .bind_current_nodes(validated, authority_registry, target, items)
             .map_err(WebDriverBiDiQueryNodesAdmissionError::LocateNodes)
     }
 }

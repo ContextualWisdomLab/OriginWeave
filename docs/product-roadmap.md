@@ -70,7 +70,7 @@ Delivered document-node authority foundation:
 - a nonzero `BrowsingContextId` for one independently navigable browser context inside that session;
 - a nonzero `DocumentEpoch` identity for one observed document lifetime inside that context;
 - an `ObservedNodeHandle` bound to the exact browser session, browsing context, canonical origin, document epoch, and nonzero adapter-local node identifier;
-- same-call QueryNodes admission that consumes a SemanticObservation protocol-use proof before translating admitted `locateNodes` `sharedId` values into those handles;
+- same-call QueryNodes admission that transfers a SemanticObservation protocol-use proof by ownership into `bind_current_nodes` before translating admitted `locateNodes` `sharedId` values into those handles;
 - deterministic rejection of cross-session, cross-context, cross-origin, or stale-document node reuse before a future browser adapter performs an action;
 - reusable core contracts without Chromium, WebDriver, selector, script-execution, network, storage, or secret dependencies.
 

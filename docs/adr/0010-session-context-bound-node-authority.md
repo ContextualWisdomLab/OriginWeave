@@ -30,7 +30,7 @@ The numeric identifiers are internal opaque registry identities. They are not ra
 - The Rust core stays independent of Chromium, WebDriver, selectors, script execution, network access, storage, credentials, and model providers.
 - Future WebDriver BiDi and CDP adapters must own external-to-internal identity translation, registry lifecycle, epoch rotation, and immediate pre-action validation.
 - A valid handle proves only observation authority. It does not grant a browser capability, origin permission, resolved-destination authority, transport authority, approval, or successful post-condition.
-- QueryNodes admission consumes a non-cloneable SemanticObservation protocol-use proof before translating an admitted `locateNodes` `sharedId` into an `ObservedNodeHandle`. Navigation-only or TypedInput-only adapters cannot mint observation handles.
+- QueryNodes admission transfers a non-cloneable SemanticObservation protocol-use proof by ownership into `bind_current_nodes` before translating an admitted `locateNodes` `sharedId` into an `ObservedNodeHandle`. Navigation or TypedInput proofs fail closed and cannot mint observation handles.
 
 ## References
 

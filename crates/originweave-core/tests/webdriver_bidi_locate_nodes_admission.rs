@@ -4,11 +4,19 @@ use std::error::Error;
 
 use originweave_core::{
     BrowserAuthorityRegistry, BrowserContextDispatchTarget, BrowserContextOriginDispatchTarget,
-    BrowserContextOriginEpochDispatchTarget, BrowserRegistryError, BrowserSessionId,
-    BrowsingContextId, DocumentEpoch, Origin, WebDriverBiDiAccessibilityQuery,
+    BrowserContextOriginEpochDispatchTarget, BrowserProtocolAdapterDescriptor,
+    BrowserProtocolCapability, BrowserProtocolKind, BrowserRegistryError, BrowserSessionId,
+    BrowsingContextId, DocumentEpoch, Origin, OriginWeaveProtocolVersion,
+    ValidatedBrowserProtocolUse, WebDriverBiDiAccessibilityQuery,
     WebDriverBiDiAccessibilityQueryError, WebDriverBiDiLocateNodesAdmissionError,
     WebDriverBiDiRemoteNodeReferenceError,
 };
+
+const ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion =
+    OriginWeaveProtocolVersion::new(0, 1);
+const ADAPTER_VERSION: &str = "originweave-bidi-v1";
+const PROTOCOL_REVISION: &str = "webdriver-bidi-wd-2026-06-01";
+const BROWSER_REVISION: &str = "chromium-r1639810";
 
 fn controlled_origin() -> Origin {
     Origin::parse("https://app.example").expect("valid controlled fixture origin")
@@ -30,6 +38,25 @@ fn current_target<'a>(
     ))
 }
 
+fn semantic_observation_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn Error>> {
+    let descriptor = BrowserProtocolAdapterDescriptor::new(
+        BrowserProtocolKind::WebDriverBiDi,
+        ORIGINWEAVE_PROTOCOL_VERSION,
+        ADAPTER_VERSION,
+        PROTOCOL_REVISION,
+        BROWSER_REVISION,
+        &[BrowserProtocolCapability::SemanticObservation],
+    )?;
+    Ok(descriptor.validate_use(
+        ORIGINWEAVE_PROTOCOL_VERSION,
+        BrowserProtocolKind::WebDriverBiDi,
+        ADAPTER_VERSION,
+        PROTOCOL_REVISION,
+        BROWSER_REVISION,
+        BrowserProtocolCapability::SemanticObservation,
+    )?)
+}
+
 #[test]
 fn locate_nodes_result_binds_admitted_shared_ids_to_current_authority() -> Result<(), Box<dyn Error>>
 {
@@ -39,6 +66,7 @@ fn locate_nodes_result_binds_admitted_shared_ids_to_current_authority() -> Resul
     let query = WebDriverBiDiAccessibilityQuery::new(Some("textbox"), Some("Task text"), 2)?;
 
     let handles = query.bind_current_nodes(
+        semantic_observation_proof()?,
         &mut registry,
         target,
         &[
@@ -77,6 +105,7 @@ fn over_budget_locate_nodes_result_fails_before_node_binding() -> Result<(), Box
 
     assert_eq!(
         query.bind_current_nodes(
+            semantic_observation_proof()?,
             &mut registry,
             target,
             &[
@@ -108,6 +137,7 @@ fn stale_document_epoch_fails_before_locate_nodes_binding() -> Result<(), Box<dy
     assert_ne!(current_epoch, stale_target.expected_epoch());
     assert_eq!(
         query.bind_current_nodes(
+            semantic_observation_proof()?,
             &mut registry,
             stale_target,
             &[("node", Some("shared-submit"))],
@@ -132,6 +162,7 @@ fn exhausted_node_identifier_space_fails_after_remote_value_admission() -> Resul
 
     assert_eq!(
         query.bind_current_nodes(
+            semantic_observation_proof()?,
             &mut registry,
             target,
             &[
@@ -153,7 +184,7 @@ fn empty_locate_nodes_result_is_valid_when_the_document_is_current() -> Result<(
     let target = current_target(&mut registry, &expected_origin)?;
     let query = WebDriverBiDiAccessibilityQuery::new(Some("button"), None, 1)?;
 
-    let handles = query.bind_current_nodes(&mut registry, target, &[])?;
+    let handles = query.bind_current_nodes(semantic_observation_proof()?, &mut registry, target, &[])?;
     assert!(handles.is_empty());
     Ok(())
 }
@@ -175,7 +206,12 @@ fn unknown_browser_session_fails_before_locate_nodes_binding() -> Result<(), Box
     let query = WebDriverBiDiAccessibilityQuery::new(Some("button"), None, 1)?;
 
     assert_eq!(
-        query.bind_current_nodes(&mut registry, target, &[("node", Some("shared-submit"))]),
+        query.bind_current_nodes(
+            semantic_observation_proof()?,
+            &mut registry,
+            target,
+            &[("node", Some("shared-submit"))],
+        ),
         Err(WebDriverBiDiLocateNodesAdmissionError::BrowserAuthority(
             BrowserRegistryError::UnknownBrowserSession
         ))
@@ -191,7 +227,12 @@ fn untrusted_non_node_item_fails_before_registry_binding() -> Result<(), Box<dyn
     let query = WebDriverBiDiAccessibilityQuery::new(Some("button"), None, 1)?;
 
     assert_eq!(
-        query.bind_current_nodes(&mut registry, target, &[("object", Some("shared-submit"))]),
+        query.bind_current_nodes(
+            semantic_observation_proof()?,
+            &mut registry,
+            target,
+            &[("object", Some("shared-submit"))],
+        ),
         Err(WebDriverBiDiLocateNodesAdmissionError::RemoteNode(
             WebDriverBiDiRemoteNodeReferenceError::UnexpectedRemoteType
         ))
@@ -214,6 +255,18 @@ fn locate_nodes_admission_error_contract_is_source_aware() {
         WebDriverBiDiLocateNodesAdmissionError::BrowserAuthority(
             BrowserRegistryError::UnknownBrowserSession,
         ),
+        WebDriverBiDiLocateNodesAdmissionError::UnsupportedCapability(
+            BrowserProtocolCapability::TypedInput,
+        ),
+        WebDriverBiDiLocateNodesAdmissionError::UnsupportedCapability(
+            BrowserProtocolCapability::Navigation,
+        ),
+        WebDriverBiDiLocateNodesAdmissionError::UnsupportedCapability(
+            BrowserProtocolCapability::SemanticObservation,
+        ),
+        WebDriverBiDiLocateNodesAdmissionError::UnsupportedCapability(
+            BrowserProtocolCapability::NetworkObservation,
+        ),
     ];
 
     for error in errors {
@@ -223,4 +276,17 @@ fn locate_nodes_admission_error_contract_is_source_aware() {
     assert!(errors[1].source().is_some());
     assert!(errors[2].source().is_none());
     assert!(errors[3].source().is_some());
+    assert!(errors[4].source().is_none());
+    assert!(errors[4]
+        .to_string()
+        .contains("SemanticObservation protocol-use proof, not TypedInput"));
+    assert!(errors[5]
+        .to_string()
+        .contains("not Navigation"));
+    assert!(errors[6]
+        .to_string()
+        .contains("not SemanticObservation"));
+    assert!(errors[7]
+        .to_string()
+        .contains("not NetworkObservation"));
 }
