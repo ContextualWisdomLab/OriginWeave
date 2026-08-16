@@ -87,6 +87,10 @@ class CompatibilitySurfaceError(RuntimeError):
         super().__init__("Manifest V3 fixture surfaces did not converge")
 
 
+class WebDriverSessionCleanupError(RuntimeError):
+    """Report a reviewed WebDriver session-delete failure after process teardown."""
+
+
 class QuietFixtureHandler(http.server.SimpleHTTPRequestHandler):
     """Serve only the controlled local fixture without noisy access logging."""
 
@@ -451,15 +455,24 @@ def _run_browser_pass(
             },
         }
     finally:
-        if session_id is not None:
-            with contextlib.suppress(Exception):
-                _json_request(
-                    driver_port,
-                    "DELETE",
-                    _webdriver_path(session_id, ""),
-                    {},
-                )
-        _terminate_process_group(driver)
+        cleanup_error: Exception | None = None
+        try:
+            if session_id is not None:
+                try:
+                    _json_request(
+                        driver_port,
+                        "DELETE",
+                        _webdriver_path(session_id, ""),
+                        {},
+                    )
+                except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as error:
+                    cleanup_error = error
+        finally:
+            _terminate_process_group(driver)
+        if cleanup_error is not None:
+            raise WebDriverSessionCleanupError(
+                "WebDriver session cleanup failed after bounded process teardown"
+            ) from cleanup_error
 
 
 def _run_restart_trial(
