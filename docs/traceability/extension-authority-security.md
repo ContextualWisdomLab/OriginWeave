@@ -2,7 +2,7 @@
 
 - **Documentation status:** Active-PR evidence dossier
 - **Canonical owner:** PR #44 (`docs: reconcile architecture documentation fitness`)
-- **Protected-main baseline:** `0c376acf059be9ddddddfbde1d0189e4f39ef014`
+- **Protected-main baseline:** `67af7c87589edc2039545af335c95064d9b8391c`
 - **Capability maturity:** **PARTIAL**
 - **Governing decision:** Proposed ADR 0013 separates Manifest V3 compatibility from OriginWeave Agent authority.
 
@@ -28,23 +28,15 @@ These foundations are **IMPLEMENTED_ON_PROTECTED_MAIN**. They do not by themselv
 
 ## 3. Active executable evidence
 
-### PR #175 — Chrome permission cannot mint Agent action authority
-
-**Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
-
-Exact head `f6c089b8faae015c5b8845296af7cdc3ddcd0c65` adds the fail-closed `chrome_permission_authorizes_agent_action` boundary. Reviewed Chrome compatibility permissions such as `downloads`, `bookmarks`, `history`, `storage`, `tabs`, `scripting`, `sidePanel`, `declarativeNetRequest`, and `declarativeNetRequestWithHostAccess` are classified as compatibility surfaces only; malformed, case-shifted, or unrecognized tokens remain unrecognized. The function never returns successful Agent authorization, so Manifest V3 compatibility evidence cannot mint `Capability::Download` or another Agent action.
-
-This is active-PR evidence only. Until PR #175 integrates into protected `main`, the function must not be listed as a protected-main capability.
-
 ### PR #62 — proposal authority cannot widen Agent, instruction, or secret-material authority
 
 **Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
 
-Exact head `e7265a86d63c9e5f047ed6d32c3988b01e53fa13` proves that, after an extension is genuinely allowed to `ProposeTypedAction`:
+Exact head `a57873b3688984711918be17aadd348ed9fb12a9` proves that, after an extension is genuinely allowed to `ProposeTypedAction`:
 
 1. a proposed navigation outside the Agent readable-origin grant is still denied;
 2. proposal permission cannot supply the missing Agent `Navigate` capability;
-3. extension-produced `WebContent` cannot become a trusted policy instruction;
+3. extension-produced untrusted content remains rejected as instruction authority;
 4. `FillSecret` with `SecretDelivery::RawValue` remains denied as `SecretBrokerRequired`; and
 5. secret material attached to a non-secret action remains denied as `UnexpectedSecretMaterial`.
 
@@ -54,9 +46,15 @@ The branch adds no production API and no extension runtime. It is compositional 
 
 **Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
 
-Exact head `a4595c393f459f57bfe2199ace44271f246751c4` deliberately keeps only the distinct approval-composition proof after duplicate regressions were removed in favor of PR #62 ownership. It proves that, after the same exact proposal grant is admitted and the Agent context independently possesses `FillSecret` plus exact readable/writable origin authority, broker-handle `FillSecret` still reaches the ordinary R3 approval boundary rather than becoming implicitly allowed.
+Exact head `e83749acd1cf5a0b778ba38eb9d6ed5a9bd1e68f` deliberately keeps only the distinct approval-composition proof after duplicate regressions were removed in favor of PR #62 ownership. It proves that, after the same exact proposal grant is admitted and the Agent context independently possesses `FillSecret` plus exact readable/writable origin authority, broker-handle `FillSecret` still reaches the ordinary R3 approval boundary rather than becoming implicitly allowed.
 
-The exact head has successful CI, exact owned production coverage, Security Scan, and SAST evidence and is Ready for review. It has no raw secret bytes and does not create approval evidence, a broker, browser-fill adapter, protected-value store, KMS path, authenticated workload identity, persistence owner, or release claim.
+The exact head has successful CI, exact owned production coverage, Security Scan, SAST and CodeRabbit status and is Ready for review. It has no raw secret bytes and does not create approval evidence, a broker, browser-fill adapter, protected-value store, KMS path, authenticated workload identity, persistence owner, or release claim.
+
+### Origin-bound extension grant evaluation
+
+**Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
+
+The current origin-binding slice requires `ExtensionAgentGrant` and `ExtensionAccessRequest` to carry the same canonical origin. A same-session, same-context request for `https://other.example` or `https://app.example:8443` against a grant for `https://app.example` is `DenyOriginMismatch`. Exclusive trusted-time expiry is evaluated after that origin match: `now >= expires_at` is `DenyExpired`. This does not install an extension, parse Chrome messages, bind task identity, or mint Agent capabilities from Manifest V3 permissions.
 
 ## 4. Security interpretation
 
@@ -90,4 +88,4 @@ This dossier does **not** close issue #27 or issue #10. Remaining material work 
 
 ## 6. Documentation fitness consequence
 
-The existing ADR/PRD/TRD/Architecture/UML/ERD graph remains **DESIGN-SUFFICIENT / PROTECTED-MAIN-PARTIAL**. PRs #62, #63, and #175 narrow distinct executable extension-authority evidence gaps without introducing a new trust domain, deployment component, persistence entity, database schema, or independent architecture decision. Proposed ADR 0013 remains Proposed until its own lifecycle authority changes.
+The existing ADR/PRD/TRD/Architecture/UML/ERD graph remains **DESIGN-SUFFICIENT / PROTECTED-MAIN-PARTIAL**. PRs #62 and #63 narrow distinct executable extension-authority evidence gaps without introducing a new trust domain, deployment component, persistence entity, database schema, or independent architecture decision. Proposed ADR 0013 remains Proposed until its own lifecycle authority changes.
