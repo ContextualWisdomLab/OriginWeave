@@ -51,6 +51,9 @@ impl FreshConnectionPlan {
         connect_timeout: Duration,
         maximum_attempts: u8,
     ) -> Result<Self, NetworkError> {
+        if socket_address.port() == 0 {
+            return Err(NetworkError::InvalidPort);
+        }
         let fresh_evidence = resolution
             .authorize_connection(socket_address.ip(), current_time)
             .map_err(|source| NetworkError::DestinationNotApproved {
