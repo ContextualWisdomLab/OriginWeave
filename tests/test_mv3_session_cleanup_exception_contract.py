@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pathlib
 import runpy
-import signal
+import subprocess
 import tempfile
 import unittest
 import unittest.mock
@@ -18,23 +18,49 @@ class _UnexpectedCleanupFailure(Exception):
 
 
 class _FakeDriver:
-    """Model an isolated ChromeDriver process-group leader without launching it."""
+    """Record process cleanup without launching ChromeDriver."""
 
-    def __init__(self) -> None:
-        self.pid = 4242
-        self.wait_timeouts: list[float] = []
+    def __init__(
+        self,
+        *,
+        terminate_error: OSError | None = None,
+        kill_error: OSError | None = None,
+        wait_timeout_once: bool = False,
+    ) -> None:
+        self.terminated = False
+        self.killed = False
+        self.terminate_error = terminate_error
+        self.kill_error = kill_error
+        self.wait_timeout_once = wait_timeout_once
+        self.wait_calls = 0
+
+    def terminate(self) -> None:
+        """Record the graceful process-termination fallback."""
+
+        self.terminated = True
+        if self.terminate_error is not None:
+            raise self.terminate_error
+
+    def kill(self) -> None:
+        """Record the bounded hard-kill fallback when requested."""
+
+        self.killed = True
+        if self.kill_error is not None:
+            raise self.kill_error
 
     def wait(self, timeout: float) -> int:
-        """Model an immediately reaped process while recording the bounded timeout."""
+        """Model either an immediately reaped process or one bounded timeout."""
 
         if timeout <= 0:
             raise AssertionError("timeout must remain positive")
-        self.wait_timeouts.append(timeout)
+        self.wait_calls += 1
+        if self.wait_timeout_once and self.wait_calls == 1:
+            raise subprocess.TimeoutExpired("controlled-chromedriver", timeout)
         return 0
 
 
 class ManifestV3SessionCleanupExceptionTests(unittest.TestCase):
-    """Unexpected cleanup failures must remain visible after process-group teardown."""
+    """Unexpected cleanup failures must remain visible after process teardown."""
 
     @staticmethod
     def _surfaces() -> dict[str, str]:
@@ -62,9 +88,7 @@ class ManifestV3SessionCleanupExceptionTests(unittest.TestCase):
         self,
         cleanup_failure: Exception,
         fake_driver: _FakeDriver,
-        *,
-        killpg_side_effect: Exception | None = None,
-    ) -> tuple[object, object, object, object]:
+    ) -> tuple[object, object]:
         """Run the production browser-pass boundary with controlled cleanup failures."""
 
         namespace = runpy.run_path(str(RUNNER), run_name="mv3_cleanup_contract")
@@ -100,10 +124,7 @@ class ManifestV3SessionCleanupExceptionTests(unittest.TestCase):
             with (
                 unittest.mock.patch.object(
                     globals_["subprocess"], "Popen", return_value=fake_driver
-                ) as popen,
-                unittest.mock.patch.object(
-                    globals_["os"], "killpg", side_effect=killpg_side_effect
-                ) as kill_process_group,
+                ),
                 unittest.mock.patch.dict(
                     globals_,
                     {
@@ -126,39 +147,76 @@ class ManifestV3SessionCleanupExceptionTests(unittest.TestCase):
                         "initialized",
                     )
                 except Exception as error:  # noqa: BLE001 - return exact boundary error.
-                    return namespace, error, popen, kill_process_group
+                    return namespace, error
         raise AssertionError("cleanup failure unexpectedly became success")
 
     def test_unreviewed_session_cleanup_exception_is_not_silently_suppressed(self) -> None:
-        """A new exception class must propagate after bounded process-group cleanup."""
+        """A new exception class must propagate while ChromeDriver is still terminated."""
 
         fake_driver = _FakeDriver()
         expected = _UnexpectedCleanupFailure("must not be normalized")
-        _namespace, error, popen, kill_process_group = self._run_with_cleanup_failure(
-            expected,
-            fake_driver,
-        )
+        _namespace, error = self._run_with_cleanup_failure(expected, fake_driver)
 
         self.assertIs(error, expected)
-        _, popen_kwargs = popen.call_args
-        self.assertIs(popen_kwargs.get("start_new_session"), True)
-        kill_process_group.assert_called_once_with(fake_driver.pid, signal.SIGTERM)
-        self.assertEqual(fake_driver.wait_timeouts, [5])
+        self.assertTrue(fake_driver.terminated)
+        self.assertFalse(fake_driver.killed)
 
-    def test_reviewed_cleanup_error_survives_process_group_signal_failure(self) -> None:
-        """A later process-group signal error must not replace a reviewed session failure."""
+    def test_reviewed_session_cleanup_error_survives_teardown_failure(self) -> None:
+        """The causal session failure must not be replaced by a later terminate error."""
 
-        fake_driver = _FakeDriver()
+        fake_driver = _FakeDriver(terminate_error=OSError("terminate failed"))
         session_error = RuntimeError("session delete failed")
-        namespace, error, _popen, kill_process_group = self._run_with_cleanup_failure(
-            session_error,
-            fake_driver,
-            killpg_side_effect=PermissionError("process-group signal denied"),
-        )
+        namespace, error = self._run_with_cleanup_failure(session_error, fake_driver)
 
         self.assertIsInstance(error, namespace["WebDriverSessionCleanupError"])
         self.assertIs(error.__cause__, session_error)
-        kill_process_group.assert_called_once_with(fake_driver.pid, signal.SIGTERM)
+        self.assertTrue(fake_driver.terminated)
+        self.assertTrue(fake_driver.killed)
+
+    def test_successful_kill_after_wait_timeout_is_normal_cleanup(self) -> None:
+        """A bounded wait timeout must remain a successful fallback when kill reaps the process."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="mv3_teardown_contract")
+        fake_driver = _FakeDriver(wait_timeout_once=True)
+
+        error = namespace["_teardown_driver_process"](fake_driver)
+
+        self.assertIsNone(error)
+        self.assertTrue(fake_driver.terminated)
+        self.assertTrue(fake_driver.killed)
+        self.assertEqual(fake_driver.wait_calls, 2)
+
+    def test_successful_kill_after_terminate_error_is_normal_cleanup(self) -> None:
+        """A recoverable terminate error must not fail cleanup after bounded kill succeeds."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="mv3_teardown_contract")
+        fake_driver = _FakeDriver(terminate_error=OSError("terminate failed"))
+
+        error = namespace["_teardown_driver_process"](fake_driver)
+
+        self.assertIsNone(error)
+        self.assertTrue(fake_driver.terminated)
+        self.assertTrue(fake_driver.killed)
+        self.assertEqual(fake_driver.wait_calls, 1)
+
+    def test_failed_kill_fallback_is_recorded_on_the_primary_teardown_error(self) -> None:
+        """A secondary fallback failure must not disappear while the first error stays causal."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="mv3_teardown_contract")
+        terminate_error = OSError("terminate failed")
+        fake_driver = _FakeDriver(
+            terminate_error=terminate_error,
+            kill_error=PermissionError("kill denied"),
+        )
+
+        error = namespace["_teardown_driver_process"](fake_driver)
+
+        self.assertIs(error, terminate_error)
+        self.assertTrue(fake_driver.killed)
+        self.assertIn(
+            "bounded ChromeDriver kill fallback also failed: PermissionError",
+            getattr(error, "__notes__", []),
+        )
 
 
 if __name__ == "__main__":

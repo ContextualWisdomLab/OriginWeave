@@ -2,26 +2,15 @@
 
 from __future__ import annotations
 
-import importlib.util
 import pathlib
+import runpy
 import signal
 import tempfile
 import unittest
-from unittest import mock
+import unittest.mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-RUNNER_PATH = ROOT / "scripts" / "ci" / "run_mv3_compatibility.py"
-
-
-def _load_runner():
-    """Load the compatibility runner without executing its command-line entry point."""
-
-    spec = importlib.util.spec_from_file_location("originweave_mv3_runner", RUNNER_PATH)
-    if spec is None or spec.loader is None:
-        raise RuntimeError("unable to load MV3 compatibility runner")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+RUNNER = ROOT / "scripts" / "ci" / "run_mv3_compatibility.py"
 
 
 class ManifestV3EphemeralProfileContractTests(unittest.TestCase):
@@ -30,7 +19,9 @@ class ManifestV3EphemeralProfileContractTests(unittest.TestCase):
     def test_restart_trial_uses_empty_profile_then_deletes_it(self) -> None:
         """A trial must start empty, reuse only its own profile, then remove it."""
 
-        runner = _load_runner()
+        namespace = runpy.run_path(str(RUNNER), run_name="mv3_ephemeral_profile_contract")
+        run_restart_trial = namespace["_run_restart_trial"]
+        globals_ = run_restart_trial.__globals__
         observed_profiles: list[pathlib.Path] = []
         call_count = 0
 
@@ -51,18 +42,22 @@ class ManifestV3EphemeralProfileContractTests(unittest.TestCase):
                 )
             else:
                 self.assertEqual(profile_path, observed_profiles[0])
-                self.assertTrue(profile_path.joinpath("profile-created-by-browser").is_file())
+                self.assertTrue(
+                    profile_path.joinpath("profile-created-by-browser").is_file()
+                )
             observed_profiles.append(profile_path)
             call_count += 1
             return {
-                "browser_version": runner.PINNED_CHROME_VERSION,
+                "browser_version": namespace["PINNED_CHROME_VERSION"],
                 "worker_start_count": call_count,
                 "storage_persistence": expected_storage_persistence,
                 "surfaces": {"fixture": True},
             }
 
-        with mock.patch.object(runner, "_run_browser_pass", side_effect=fake_browser_pass):
-            result = runner._run_restart_trial(
+        with unittest.mock.patch.dict(
+            globals_, {"_run_browser_pass": fake_browser_pass}
+        ):
+            result = run_restart_trial(
                 pathlib.Path("/unused/chrome"),
                 pathlib.Path("/unused/chromedriver"),
                 "http://127.0.0.1/fixture",
@@ -78,23 +73,31 @@ class ManifestV3EphemeralProfileContractTests(unittest.TestCase):
     def test_browser_pass_owns_and_terminates_the_chromedriver_process_group(self) -> None:
         """Failure cleanup must signal the isolated driver group, not only its leader."""
 
-        runner = _load_runner()
-        driver = mock.Mock()
+        namespace = runpy.run_path(str(RUNNER), run_name="mv3_process_group_contract")
+        run_browser_pass = namespace["_run_browser_pass"]
+        globals_ = run_browser_pass.__globals__
+        driver = unittest.mock.Mock()
         driver.pid = 4242
         driver.wait.return_value = 0
 
         with tempfile.TemporaryDirectory(prefix="originweave-mv3-cleanup-") as profile_dir:
             with (
-                mock.patch.object(runner.subprocess, "Popen", return_value=driver) as popen,
-                mock.patch.object(
-                    runner,
-                    "_wait_for_driver",
-                    side_effect=RuntimeError("controlled startup failure"),
+                unittest.mock.patch.object(
+                    globals_["subprocess"], "Popen", return_value=driver
+                ) as popen,
+                unittest.mock.patch.dict(
+                    globals_,
+                    {
+                        "_free_loopback_port": lambda: 43123,
+                        "_wait_for_driver": unittest.mock.Mock(
+                            side_effect=RuntimeError("controlled startup failure")
+                        ),
+                    },
                 ),
-                mock.patch.object(runner.os, "killpg") as kill_process_group,
+                unittest.mock.patch.object(globals_["os"], "killpg") as kill_process_group,
             ):
                 with self.assertRaisesRegex(RuntimeError, "controlled startup failure"):
-                    runner._run_browser_pass(
+                    run_browser_pass(
                         pathlib.Path("/unused/chrome"),
                         pathlib.Path("/unused/chromedriver"),
                         "http://127.0.0.1/fixture",

@@ -6,6 +6,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Added
 
+- Bound explicit extension-to-Agent grants to exclusive trusted-time expiry in addition to extension identity, session, browsing context, and canonical origin, so a same-origin grant cannot be reused at or after the deadline.
+- Bound explicit extension-to-Agent grants to the exact canonical origin in addition to extension identity, session, and browsing context, so a same-session navigation or port change cannot reuse the grant.
 - Rust workspace for independently reusable core, policy, destination, network, TLS, resource, and evidence modules.
 - Canonical HTTPS and loopback-origin boundary with case-normalized schemes and hosts, default-port normalization, IPv4/IPv6 handling, browser-special numeric-host rejection, and explicit malformed-input errors.
 - Typed browser actions, capabilities, risk classes, execution modes, robots decisions, secret-delivery contracts, immutable canonical action-intent digests, and intent-bound approval scopes.
@@ -31,6 +33,11 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Treated a failed graceful ChromeDriver termination as recoverable when the bounded hard-kill fallback successfully reaps the process, while preserving unrecovered fallback failures as teardown errors.
+- Classified a mismatched Chrome `browserVersion` capability as an expected-only diagnostic so browser-reported capability text cannot enter Manifest V3 runner exception output.
+- Classified Manifest V3 WebDriver HTTP/1.1 parser failures as a fixed transport-protocol token so a malformed status-line or incomplete message body cannot enter runner exception text.
+- Classified Manifest V3 real-click post-condition failures as a fixed mismatch token so page-controlled WebDriver text cannot enter runner exception text.
+- Recorded the current Chrome Extensions `chrome.downloads` primary reference in APA 7th form and stated that the active downloads lane proves one controlled loopback payload in pinned Chromium, not Agent filesystem authority.
 - Separated logical origin authority from resolved network destination authority; an origin grant no longer implies permission to connect to every resolver result.
 - Separated resolved-address authorization from direct transport evidence; an approved IP now becomes a usable stream only after the operating system reports the exact requested IP and port.
 - Separated exact TCP peer proof from authenticated TLS service identity; an observed peer becomes an authenticated HTTPS stream only after explicit-root, fixed-time, SAN-bound WebPKI verification over that same stream.
