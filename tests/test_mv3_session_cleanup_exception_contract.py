@@ -148,7 +148,7 @@ class ManifestV3SessionCleanupExceptionTests(unittest.TestCase):
                     )
                 except Exception as error:  # noqa: BLE001 - return exact boundary error.
                     return namespace, error
-        self.fail("cleanup failure unexpectedly became success")
+        raise AssertionError("cleanup failure unexpectedly became success")
 
     def test_unreviewed_session_cleanup_exception_is_not_silently_suppressed(self) -> None:
         """A new exception class must propagate while ChromeDriver is still terminated."""
