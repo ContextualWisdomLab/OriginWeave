@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pathlib
 import runpy
+import subprocess
 import tempfile
 import unittest
 import unittest.mock
@@ -19,10 +20,17 @@ class _UnexpectedCleanupFailure(Exception):
 class _FakeDriver:
     """Record process cleanup without launching ChromeDriver."""
 
-    def __init__(self, *, terminate_error: OSError | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        terminate_error: OSError | None = None,
+        wait_timeout_once: bool = False,
+    ) -> None:
         self.terminated = False
         self.killed = False
         self.terminate_error = terminate_error
+        self.wait_timeout_once = wait_timeout_once
+        self.wait_calls = 0
 
     def terminate(self) -> None:
         """Record the graceful process-termination fallback."""
@@ -37,10 +45,13 @@ class _FakeDriver:
         self.killed = True
 
     def wait(self, timeout: float) -> int:
-        """Model an immediately reaped process."""
+        """Model either an immediately reaped process or one bounded timeout."""
 
         if timeout <= 0:
             raise AssertionError("timeout must remain positive")
+        self.wait_calls += 1
+        if self.wait_timeout_once and self.wait_calls == 1:
+            raise subprocess.TimeoutExpired("controlled-chromedriver", timeout)
         return 0
 
 
@@ -131,7 +142,7 @@ class ManifestV3SessionCleanupExceptionTests(unittest.TestCase):
                         profile_dir,
                         "initialized",
                     )
-                except Exception as error:  # noqa: BLE001 - the test returns the exact boundary error.
+                except Exception as error:  # noqa: BLE001 - return exact boundary error.
                     return namespace, error
         self.fail("cleanup failure unexpectedly became success")
 
@@ -157,6 +168,19 @@ class ManifestV3SessionCleanupExceptionTests(unittest.TestCase):
         self.assertIs(error.__cause__, session_error)
         self.assertTrue(fake_driver.terminated)
         self.assertTrue(fake_driver.killed)
+
+    def test_successful_kill_after_wait_timeout_is_normal_cleanup(self) -> None:
+        """A bounded wait timeout must remain a successful fallback when kill reaps the process."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="mv3_teardown_contract")
+        fake_driver = _FakeDriver(wait_timeout_once=True)
+
+        error = namespace["_teardown_driver_process"](fake_driver)
+
+        self.assertIsNone(error)
+        self.assertTrue(fake_driver.terminated)
+        self.assertTrue(fake_driver.killed)
+        self.assertEqual(fake_driver.wait_calls, 2)
 
 
 if __name__ == "__main__":
