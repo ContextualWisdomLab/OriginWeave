@@ -11,7 +11,6 @@ restart-persistence behavior.
 
 from __future__ import annotations
 
-import contextlib
 import http.client
 import http.server
 import json
@@ -84,6 +83,10 @@ class CompatibilitySurfaceError(RuntimeError):
             if key in observed
         }
         super().__init__("Manifest V3 fixture surfaces did not converge")
+
+
+class WebDriverSessionCleanupError(RuntimeError):
+    """Report a reviewed WebDriver session-delete failure after process teardown."""
 
 
 class QuietFixtureHandler(http.server.SimpleHTTPRequestHandler):
@@ -436,20 +439,29 @@ def _run_browser_pass(
             },
         }
     finally:
-        if session_id is not None:
-            with contextlib.suppress(Exception):
-                _json_request(
-                    driver_port,
-                    "DELETE",
-                    _webdriver_path(session_id, ""),
-                    {},
-                )
-        driver.terminate()
+        cleanup_error: Exception | None = None
         try:
-            driver.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            driver.kill()
-            driver.wait(timeout=5)
+            if session_id is not None:
+                try:
+                    _json_request(
+                        driver_port,
+                        "DELETE",
+                        _webdriver_path(session_id, ""),
+                        {},
+                    )
+                except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as error:
+                    cleanup_error = error
+        finally:
+            driver.terminate()
+            try:
+                driver.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                driver.kill()
+                driver.wait(timeout=5)
+        if cleanup_error is not None:
+            raise WebDriverSessionCleanupError(
+                "WebDriver session cleanup failed after bounded process teardown"
+            ) from cleanup_error
 
 
 def _run_restart_trial(
