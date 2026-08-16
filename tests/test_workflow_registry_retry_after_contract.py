@@ -23,7 +23,7 @@ def _load_module():
 
 
 def _payload(status_code: int, retry_after_seconds: object = None) -> dict:
-    """Build one failed collection page with optional bounded retry guidance."""
+    """Build one collection page with optional bounded retry guidance."""
 
     page = {
         "page": 1,
@@ -97,6 +97,15 @@ class WorkflowRegistryRetryAfterContractTests(unittest.TestCase):
                     "retry_after_seconds must be an integer from 0 through 3600",
                 ):
                     self.audit.audit_workflow_registry(_payload(429, value))
+
+    def test_success_page_rejects_retry_after_guidance(self) -> None:
+        """Successful registry evidence must not silently retain retry-only metadata."""
+
+        with self.assertRaisesRegex(
+            self.audit.WorkflowAuditError,
+            "retry_after_seconds is only valid for a failed registry page",
+        ):
+            self.audit.audit_workflow_registry(_payload(200, 30))
 
 
 if __name__ == "__main__":
