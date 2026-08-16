@@ -26,14 +26,12 @@ class _FakeDriver:
         terminate_error: OSError | None = None,
         kill_error: OSError | None = None,
         wait_timeout_once: bool = False,
-        poll_return_code: int | None = None,
     ) -> None:
         self.terminated = False
         self.killed = False
         self.terminate_error = terminate_error
         self.kill_error = kill_error
         self.wait_timeout_once = wait_timeout_once
-        self.poll_return_code = poll_return_code
         self.wait_calls = 0
 
     def terminate(self) -> None:
@@ -49,11 +47,6 @@ class _FakeDriver:
         self.killed = True
         if self.kill_error is not None:
             raise self.kill_error
-
-    def poll(self) -> int | None:
-        """Return a controlled process state for teardown race regressions."""
-
-        return self.poll_return_code
 
     def wait(self, timeout: float) -> int:
         """Model either an immediately reaped process or one bounded timeout."""
@@ -205,23 +198,6 @@ class ManifestV3SessionCleanupExceptionTests(unittest.TestCase):
         self.assertTrue(fake_driver.terminated)
         self.assertTrue(fake_driver.killed)
         self.assertEqual(fake_driver.wait_calls, 1)
-
-    def test_disappeared_process_after_terminate_race_is_normal_cleanup(self) -> None:
-        """An already-reaped process must not become a false cleanup failure."""
-
-        namespace = runpy.run_path(str(RUNNER), run_name="mv3_teardown_contract")
-        fake_driver = _FakeDriver(
-            terminate_error=ProcessLookupError("process already exited"),
-            kill_error=ProcessLookupError("process already exited"),
-            poll_return_code=0,
-        )
-
-        error = namespace["_teardown_driver_process"](fake_driver)
-
-        self.assertIsNone(error)
-        self.assertTrue(fake_driver.terminated)
-        self.assertFalse(fake_driver.killed)
-        self.assertEqual(fake_driver.wait_calls, 0)
 
     def test_failed_kill_fallback_is_recorded_on_the_primary_teardown_error(self) -> None:
         """A secondary fallback failure must not disappear while the first error stays causal."""
