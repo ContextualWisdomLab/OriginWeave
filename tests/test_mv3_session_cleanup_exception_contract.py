@@ -24,11 +24,13 @@ class _FakeDriver:
         self,
         *,
         terminate_error: OSError | None = None,
+        kill_error: OSError | None = None,
         wait_timeout_once: bool = False,
     ) -> None:
         self.terminated = False
         self.killed = False
         self.terminate_error = terminate_error
+        self.kill_error = kill_error
         self.wait_timeout_once = wait_timeout_once
         self.wait_calls = 0
 
@@ -43,6 +45,8 @@ class _FakeDriver:
         """Record the bounded hard-kill fallback when requested."""
 
         self.killed = True
+        if self.kill_error is not None:
+            raise self.kill_error
 
     def wait(self, timeout: float) -> int:
         """Model either an immediately reaped process or one bounded timeout."""
@@ -181,6 +185,25 @@ class ManifestV3SessionCleanupExceptionTests(unittest.TestCase):
         self.assertTrue(fake_driver.terminated)
         self.assertTrue(fake_driver.killed)
         self.assertEqual(fake_driver.wait_calls, 2)
+
+    def test_failed_kill_fallback_is_recorded_on_the_primary_teardown_error(self) -> None:
+        """A secondary fallback failure must not disappear while the first error stays causal."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="mv3_teardown_contract")
+        terminate_error = OSError("terminate failed")
+        fake_driver = _FakeDriver(
+            terminate_error=terminate_error,
+            kill_error=PermissionError("kill denied"),
+        )
+
+        error = namespace["_teardown_driver_process"](fake_driver)
+
+        self.assertIs(error, terminate_error)
+        self.assertTrue(fake_driver.killed)
+        self.assertIn(
+            "bounded ChromeDriver kill fallback also failed: PermissionError",
+            getattr(error, "__notes__", []),
+        )
 
 
 if __name__ == "__main__":
