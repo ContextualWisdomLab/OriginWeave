@@ -338,7 +338,7 @@ def _exercise_real_click(driver_port: int, session_id: str) -> str:
         _webdriver_path(session_id, f"/element/{safe_output}/text"),
     ).get("value")
     if text != "clicked":
-        raise RuntimeError(f"real click post-condition failed: {text!r}")
+        raise RuntimeError("real click post-condition mismatch")
     return str(text)
 
 
