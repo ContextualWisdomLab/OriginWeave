@@ -34,6 +34,7 @@ _DISABLED_STATES = {
     "disabled_manually",
 }
 _ALLOWED_STATES = {"active", *_DISABLED_STATES}
+_RETRYABLE_HTTP_STATUSES = {429, 500, 502, 503, 504}
 
 
 class WorkflowAuditError(ValueError):
@@ -45,16 +46,17 @@ class WorkflowAuditHttpStatusError(WorkflowAuditError):
 
     The auditor still fails closed for every non-200 response. The ``retryable``
     flag only tells the external collector whether recollecting the page can be a
-    safe bounded response to throttling or a server-side failure. Permission and
-    absence responses remain non-retryable because this offline evidence lacks the
-    trusted response headers needed to reinterpret them as transient conditions.
+    safe bounded response to a reviewed throttling or transient server condition.
+    Permission, absence, and protocol/capability failures remain non-retryable because
+    this offline evidence lacks trusted response headers or stronger context that
+    could safely reinterpret them as transient conditions.
     """
 
     def __init__(self, page_number: int, status_code: int) -> None:
         super().__init__(f"registry page {page_number} did not return HTTP 200")
         self.page_number = page_number
         self.status_code = status_code
-        self.retryable = status_code == 429 or 500 <= status_code <= 599
+        self.retryable = status_code in _RETRYABLE_HTTP_STATUSES
 
 
 def _require_mapping(value: Any, field_name: str) -> dict[str, Any]:
