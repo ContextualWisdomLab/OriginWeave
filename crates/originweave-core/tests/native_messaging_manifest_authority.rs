@@ -25,7 +25,8 @@ fn extension_origin(value: &str) -> String {
 }
 
 #[test]
-fn manifest_binds_stdio_host_path_and_exact_allowed_extension_origins() -> Result<(), Box<dyn Error>> {
+fn manifest_binds_stdio_host_path_and_exact_allowed_extension_origins() -> Result<(), Box<dyn Error>>
+{
     let host = host_name("com.contextualwisdom.originweave");
     let allowed_origin = extension_origin(ALLOWED_EXTENSION);
     let manifest = NativeMessagingHostManifest::parse(
