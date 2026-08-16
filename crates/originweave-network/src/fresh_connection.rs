@@ -202,7 +202,9 @@ mod tests {
         .map_err(|error| format!("short-lived snapshot is invalid: {error}"))?;
         let authorization_started_at = Instant::now()
             .checked_sub(Duration::from_millis(5))
-            .ok_or_else(|| "process monotonic clock cannot represent the test interval".to_owned())?;
+            .ok_or_else(|| {
+                "process monotonic clock cannot represent the test interval".to_owned()
+            })?;
 
         let plan = FreshConnectionPlan::new_with_authorization_instant(
             &snapshot,
