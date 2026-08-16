@@ -2,7 +2,9 @@
 
 use originweave_core::{
     BrowserSessionId, BrowsingContextId, ExtensionAccessDecision, ExtensionAccessRequest,
-    ExtensionAgentCapability, ExtensionAgentGrant, ExtensionId, evaluate_extension_access,
+    ExtensionAgentCapability, ExtensionAgentGrant, ExtensionId, ManagedExtensionAdmission,
+    ManagedExtensionPolicy, ManagedExtensionPolicyError, admit_agent_task_extension,
+    evaluate_extension_access,
 };
 
 fn extension_id(value: &str) -> ExtensionId {
@@ -143,4 +145,93 @@ fn explicit_grant_can_authorize_multiple_bounded_agent_capabilities() {
             ExtensionAccessDecision::Allow
         );
     }
+}
+
+#[test]
+fn agent_task_defaults_to_no_managed_extension_admission() {
+    let policy = ManagedExtensionPolicy::from_exact_lists(&[], &[]).expect("empty policy");
+    let admitted = admit_agent_task_extension("abcdefghijklmnopabcdefghijklmnop", &policy);
+    assert_eq!(admitted, ManagedExtensionAdmission::DeniedByDefault);
+}
+
+#[test]
+fn chrome_force_installed_token_is_not_an_extension_identity() {
+    let policy = ManagedExtensionPolicy::from_exact_lists(&[], &[]).expect("empty policy");
+    assert_eq!(
+        admit_agent_task_extension("force_installed", &policy),
+        ManagedExtensionAdmission::DeniedInvalidIdentity
+    );
+    assert_eq!(
+        admit_agent_task_extension("*", &policy),
+        ManagedExtensionAdmission::DeniedInvalidIdentity
+    );
+}
+
+#[test]
+fn managed_allow_list_admits_compatibility_surface_only() {
+    let allowed = "abcdefghijklmnopabcdefghijklmnop";
+    let other = "bcdefghijklmnopabcdefghijklmnopa";
+    let policy = ManagedExtensionPolicy::from_exact_lists(&[allowed], &[]).expect("allow list");
+
+    assert_eq!(
+        admit_agent_task_extension(allowed, &policy),
+        ManagedExtensionAdmission::CompatibilitySurfaceOnly
+    );
+    assert_eq!(
+        admit_agent_task_extension(other, &policy),
+        ManagedExtensionAdmission::DeniedByDefault
+    );
+}
+
+#[test]
+fn managed_block_list_wins_over_an_allow_list_hit() {
+    let blocked = "abcdefghijklmnopabcdefghijklmnop";
+    let policy = ManagedExtensionPolicy::from_exact_lists(&[], &[blocked]).expect("block list");
+    assert_eq!(
+        admit_agent_task_extension(blocked, &policy),
+        ManagedExtensionAdmission::DeniedBlocked
+    );
+}
+
+#[test]
+fn contradictory_allow_and_block_lists_fail_closed() {
+    let same = "abcdefghijklmnopabcdefghijklmnop";
+    assert_eq!(
+        ManagedExtensionPolicy::from_exact_lists(&[same], &[same]),
+        Err(ManagedExtensionPolicyError::AllowAndBlockOverlap)
+    );
+}
+
+#[test]
+fn invalid_managed_policy_identities_fail_closed() {
+    assert_eq!(
+        ManagedExtensionPolicy::from_exact_lists(&["FORCE_INSTALLED"], &[]),
+        Err(ManagedExtensionPolicyError::InvalidExtensionId)
+    );
+    assert_eq!(
+        ManagedExtensionPolicy::from_exact_lists(&[], &["*"]),
+        Err(ManagedExtensionPolicyError::InvalidExtensionId)
+    );
+}
+
+#[test]
+fn managed_admission_never_mints_an_extension_agent_grant() {
+    let allowed = extension_id("abcdefghijklmnopabcdefghijklmnop");
+    let policy =
+        ManagedExtensionPolicy::from_exact_lists(&[allowed.as_str()], &[]).expect("allow list");
+    assert_eq!(
+        admit_agent_task_extension(allowed.as_str(), &policy),
+        ManagedExtensionAdmission::CompatibilitySurfaceOnly
+    );
+
+    let request = ExtensionAccessRequest::new(
+        allowed,
+        session(3),
+        context(5),
+        ExtensionAgentCapability::ObserveCurrentContext,
+    );
+    assert_eq!(
+        evaluate_extension_access(&request, None),
+        ExtensionAccessDecision::DenyMissingGrant
+    );
 }

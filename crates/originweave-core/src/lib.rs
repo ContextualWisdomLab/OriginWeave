@@ -1063,3 +1063,92 @@ pub fn evaluate_extension_access(
     }
     ExtensionAccessDecision::Allow
 }
+
+/// Host-managed Agent Task extension admission policy.
+///
+/// Chromium `ExtensionSettings` and force-install lists are operator input only.
+/// Constructed admission never becomes an [`ExtensionAgentGrant`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ManagedExtensionPolicy {
+    allow_list: BTreeSet<ExtensionId>,
+    block_list: BTreeSet<ExtensionId>,
+}
+
+impl ManagedExtensionPolicy {
+    /// Build an exact allow/block policy from canonical Chromium extension identifiers.
+    ///
+    /// Empty lists are valid and mean Agent Task Mode default-deny. The same
+    /// identifier may not appear on both lists. Chrome `installation_mode`
+    /// tokens such as `force_installed` are rejected because they are not
+    /// extension identities.
+    pub fn from_exact_lists(
+        allow_list: &[&str],
+        block_list: &[&str],
+    ) -> Result<Self, ManagedExtensionPolicyError> {
+        let allow_list = parse_managed_extension_id_set(allow_list)?;
+        let block_list = parse_managed_extension_id_set(block_list)?;
+        if allow_list.intersection(&block_list).next().is_some() {
+            return Err(ManagedExtensionPolicyError::AllowAndBlockOverlap);
+        }
+        Ok(Self {
+            allow_list,
+            block_list,
+        })
+    }
+}
+
+fn parse_managed_extension_id_set(
+    values: &[&str],
+) -> Result<BTreeSet<ExtensionId>, ManagedExtensionPolicyError> {
+    let mut identifiers = BTreeSet::new();
+    for value in values {
+        let identifier = ExtensionId::parse(value)
+            .map_err(|_| ManagedExtensionPolicyError::InvalidExtensionId)?;
+        identifiers.insert(identifier);
+    }
+    Ok(identifiers)
+}
+
+/// Why a host-managed Agent Task extension policy could not be constructed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ManagedExtensionPolicyError {
+    /// An identifier was not a canonical 32-character Chromium extension id.
+    InvalidExtensionId,
+    /// The same extension appeared on both the allow-list and the block-list.
+    AllowAndBlockOverlap,
+}
+
+/// Agent Task Mode admission for one extension under host-managed policy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ManagedExtensionAdmission {
+    /// Agent Task Mode default: the extension is not on the managed allow-list.
+    DeniedByDefault,
+    /// The identifier was not a canonical Chromium extension id.
+    DeniedInvalidIdentity,
+    /// The extension is explicitly blocked for Agent Task profiles.
+    DeniedBlocked,
+    /// The extension may load as a Chromium compatibility surface only.
+    CompatibilitySurfaceOnly,
+}
+
+/// Admit one extension into an Agent Task profile without minting Agent authority.
+///
+/// Chrome `installation_mode` tokens such as `force_installed` are not extension
+/// identities and cannot admit an extension. A successful compatibility-surface
+/// admission is not an [`ExtensionAgentGrant`].
+#[must_use]
+pub fn admit_agent_task_extension(
+    extension_id: &str,
+    policy: &ManagedExtensionPolicy,
+) -> ManagedExtensionAdmission {
+    let Ok(identifier) = ExtensionId::parse(extension_id) else {
+        return ManagedExtensionAdmission::DeniedInvalidIdentity;
+    };
+    if policy.block_list.contains(&identifier) {
+        return ManagedExtensionAdmission::DeniedBlocked;
+    }
+    if policy.allow_list.contains(&identifier) {
+        return ManagedExtensionAdmission::CompatibilitySurfaceOnly;
+    }
+    ManagedExtensionAdmission::DeniedByDefault
+}

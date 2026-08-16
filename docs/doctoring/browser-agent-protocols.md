@@ -16,7 +16,7 @@ Primary source: World Wide Web Consortium, *WebDriver BiDi*.
 
 Chrome's current manifest documentation identifies Manifest V3 as the current extension manifest format and the supported `manifest_version` value. OriginWeave therefore tests its declared extension compatibility against a pinned real Chromium/Chrome-for-Testing build and publishes evidence by exact capability. This is a compatibility target, not a claim of universal Chrome/Web Store/Google-service/codec/DRM equivalence.
 
-A Chrome extension permission remains separate from an OriginWeave Agent capability. Passing MV3 compatibility tests does not prove Agent-authority isolation, and a correct extension-grant kernel does not prove a real Chrome extension API works.
+A Chrome extension permission remains separate from an OriginWeave Agent capability. Passing MV3 compatibility tests does not prove Agent-authority isolation, and a correct extension-grant kernel does not prove a real Chrome extension API works. Chrome Enterprise `ExtensionSettings` installation modes, including `force_installed`, remain Chromium install policy and are not OriginWeave Agent grants.
 
 Primary source: Chrome for Developers, *Manifest file format* and *Manifest Version*.
 
@@ -56,7 +56,11 @@ The main [`docs/doctoring.md`](../doctoring.md) records the stable W3C PROV-O Re
 
 ## References — APA 7th
 
+Chromium Authors. (n.d.). *Extension settings full description*. Chromium. Retrieved August 16, 2026, from https://www.chromium.org/administrators/policy-list-3/extension-settings-full/
+
 Chrome DevTools Protocol. (n.d.). *Chrome DevTools Protocol—Latest (tip-of-tree)*. Retrieved August 10, 2026, from https://chromedevtools.github.io/devtools-protocol/tot/
+
+Google. (n.d.). *Configure ExtensionSettings policy*. Chrome Enterprise and Education Help. Retrieved August 16, 2026, from https://support.google.com/chrome/a/answer/9867568
 
 Google Chrome Developers. (n.d.). *Manifest file format*. Chrome for Developers. Retrieved August 10, 2026, from https://developer.chrome.com/docs/extensions/reference/manifest
 

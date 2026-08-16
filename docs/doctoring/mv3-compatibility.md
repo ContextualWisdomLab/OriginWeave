@@ -28,11 +28,15 @@ This matrix separates protected-main executable evidence from active, non-shippe
 | Downloads | **ACTIVE_PR #43** | Controlled loopback payload is downloaded and validated through pinned Chromium. | No general download persistence, unsafe filename, or Agent filesystem authority claim. |
 | Per-trial Agent Task profile isolation | **ACTIVE_PR #49** | Compatibility trials use isolated ephemeral profiles rather than ambient human state. | Full production Agent Task browser orchestration remains issue #28 work. |
 | Extension update/version migration | **ACTIVE_PR #60** | Trial-local extension copy transitions `1.0.0` → `1.0.1` on the same ephemeral profile; versioned storage state is required to migrate and real pinned-Chromium evidence reports the update-migration surface. | No Chrome Web Store updater, enterprise deployment channel, arbitrary downgrade, or protected-main release claim. |
-| Managed enterprise extension policy | **PLANNED** | No protected-main executable compatibility proof yet. | Do not infer managed-policy support from Chromium ancestry alone. |
+| Managed enterprise extension policy | **PLANNED** | OriginWeave now evaluates a host-managed Agent Task allow/block list of canonical extension identifiers. That control-plane kernel is not pinned-Chromium proof that Chrome applied `ExtensionSettings` or `force_installed` inside a real browser profile. | Do not infer Chromium managed-policy compatibility from ancestry or from OriginWeave admission. Chrome `force_installed` is not an OriginWeave Agent grant. |
 | Native messaging | **PLANNED / SECURITY-GATED** | No compatibility claim. | Future support requires an explicit host-managed allow-list and process boundary. |
 | Google-only services, proprietary codecs, DRM, Web Store licensing | **OUT_OF_SCOPE FOR COMPATIBILITY CLAIM** | Deliberately excluded from the open compatibility claim. | Chromium/API compatibility must not be conflated with Google service or licensing equivalence. |
 
 The release-quality capability matrix must remain coupled to executable evidence. Adding a row to documentation never creates support; declaring a new supported capability must first add a realistic regression test and pinned-Chromium proof. Conversely, if a declared protected-main capability regresses, the release gate must fail rather than silently downgrading the matrix.
+
+## Managed-policy authority boundary
+
+Chrome Enterprise `ExtensionSettings` installation modes (`allowed`, `blocked`, `force_installed`, `normal_installed`, `removed`) authorize Chromium install/remove behavior only. OriginWeave Agent Task Mode separately default-denies extensions unless a host-managed allow-list names the exact canonical identifier, and an explicit block-list wins. Compatibility-surface admission never becomes an `ExtensionAgentGrant`. The Chromium compatibility row remains Planned until a pinned-Chromium fixture proves that Chrome honored the enterprise policy document.
 
 ## History API primary evidence
 
@@ -67,3 +71,7 @@ Chrome for Developers. (n.d.). *Manifest file format*. Google. Retrieved August 
 Bynens, M. (2023, June 12). *Chrome for Testing*. Chrome for Developers. https://developer.chrome.com/docs/automation-and-testing/chrome-for-testing
 
 Google Chrome Labs. (2026, July 21). *Chrome for Testing availability*. https://googlechromelabs.github.io/chrome-for-testing/
+
+Chromium Authors. (n.d.). *Extension settings full description*. Chromium. Retrieved August 16, 2026, from https://www.chromium.org/administrators/policy-list-3/extension-settings-full/
+
+Google. (n.d.). *Configure ExtensionSettings policy*. Chrome Enterprise and Education Help. Retrieved August 16, 2026, from https://support.google.com/chrome/a/answer/9867568

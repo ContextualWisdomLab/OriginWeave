@@ -72,7 +72,7 @@ A future real extension adapter must preserve these separations. Chrome permissi
 
 This dossier does **not** close issue #27 or issue #10. Remaining material work includes, among other accepted requirements:
 
-- real managed-extension allow-list and enterprise policy integration;
+- pinned-Chromium `ExtensionSettings` / force-install fixture (the host-managed Agent Task allow/block admission kernel is now implemented and still does not mint an `ExtensionAgentGrant`);
 - native-messaging host boundary and process isolation;
 - complete supported-capability release matrix and regression gate;
 - authenticated workload/service identity for sensitive-data broker audience;

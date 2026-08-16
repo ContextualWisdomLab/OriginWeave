@@ -34,6 +34,8 @@ sequenceDiagram
     Observe-->>Agent: bounded untrusted observation + provenance
     Note over Ext,Agent: Extension content cannot become trusted goal or policy.
 
+    Admin->>Grant: admit exact extension id on host-managed Agent Task allow-list
+    Note over Grant: Chrome force_installed is not an Agent grant.
     Admin->>Grant: issue explicit OriginWeave extension grant for bounded session/context/capability/origin
     Ext->>Grant: request OriginWeave interaction
     Grant->>Grant: verify extension identity, managed policy, session/context, capability, origin, expiry

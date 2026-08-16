@@ -8,6 +8,10 @@ This document records external evidence that changes OriginWeave architecture, t
 
 The 1 June 2026 WebDriver BiDi Working Draft defines a bidirectional remote-control protocol, events, commands, and user contexts. Because it remains a W3C Working Draft, OriginWeave places BiDi behind a versioned adapter and Web Platform Tests-derived contract tests rather than make it the internal authority model.
 
+### Managed Agent Task extension admission
+
+Chrome Enterprise `ExtensionSettings` controls Chromium installation modes such as `allowed`, `blocked`, `force_installed`, `normal_installed`, and `removed`. Those modes are browser-install policy. They do not mint OriginWeave Agent capabilities, origin grants, approvals, or secret authority. OriginWeave therefore evaluates a separate host-managed allow/block list of canonical 32-character Chromium extension identifiers for Agent Task Mode. Empty policy default-denies. A block-list hit wins. Chrome tokens such as `force_installed` and the `*` default key are not extension identities. Compatibility-surface admission still requires an independent `ExtensionAgentGrant` before any Agent observation or action request can succeed. This kernel is not a pinned-Chromium proof that Chrome applied `ExtensionSettings` inside a real browser profile.
+
 ### Browser origin equivalence
 
 The WHATWG URL host parser and Chromium canonicalizer classify shortened decimal, integer, hexadecimal, legacy octal-looking, and mixed-component numeric hosts as IPv4 or broken IPv4 candidates rather than ordinary DNS names. Chromium's regression suite includes values such as `192`, `0xC0a80001`, `030052000001`, and mixed hexadecimal components. A non-final empty `0x` component can participate in Chromium's multi-part IPv4 truncation behavior, but a final `0x` label does not produce an IPv4 number because stripping its prefix leaves no digits; it remains a domain label. Chromium also warns that broken IP-like hosts must not be connected because another resolver could accept them. OriginWeave therefore admits only canonical dotted-decimal IPv4 into its policy origin type, rejects browser-special numeric spellings before DNS validation, and preserves final non-numeric DNS labels such as `0x`.
@@ -98,6 +102,8 @@ Autio, C., Schwartz, R., Dunietz, J., Jain, S., Stanley, M., Tabassi, E., Hall, 
 
 Bonica, R., Cotton, M., Haberman, B., & Vegoda, L. (2017). *Updates to the special-purpose IP address registries* (RFC 8190). Internet Engineering Task Force. https://doi.org/10.17487/RFC8190
 
+Chromium Authors. (n.d.). *Extension settings full description*. Chromium. Retrieved August 16, 2026, from https://www.chromium.org/administrators/policy-list-3/extension-settings-full/
+
 Chromium Authors. (n.d.). *Proxy support in Chrome* [Source documentation]. Chromium. https://chromium.googlesource.com/chromium/src/+/a3e71ebfa307d8760eb68b777e2998a869940092/net/docs/proxy.md
 
 Chromium Authors. (2026). *URL canonicalizer unit tests* [Source code]. Chromium. https://chromium.googlesource.com/chromium/src/+/446d05d21720f0b3505ec21057b3e9f909784262/url/url_canon_unittest.cc
@@ -115,6 +121,8 @@ Evtimov, I., Zharmagambetov, A., Grattafiori, A., Guo, C., & Chaudhuri, K. (2025
 Fielding, R., Nottingham, M., & Reschke, J. (2022). *HTTP semantics* (RFC 9110). Internet Engineering Task Force. https://doi.org/10.17487/RFC9110
 
 Fugu Team, Sakana AI. (2026). *Sakana Fugu technical report* [Technical report]. arXiv. https://doi.org/10.48550/arXiv.2606.21228
+
+Google. (n.d.). *Configure ExtensionSettings policy*. Chrome Enterprise and Education Help. Retrieved August 16, 2026, from https://support.google.com/chrome/a/answer/9867568
 
 Huston, G., & Buraglio, N. (2024). *Expanding the IPv6 documentation space* (RFC 9637). Internet Engineering Task Force. https://doi.org/10.17487/RFC9637
 

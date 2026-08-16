@@ -93,7 +93,7 @@ No persistent database migration is introduced. A release can roll back the Chro
 ## Open follow-ups
 
 - Complete issue #27's compatibility matrix and production isolation acceptance.
-- Define managed-extension identity/update semantics.
+- Finish managed-extension update/version semantics after the host-managed Agent Task allow/block admission kernel. Chrome `ExtensionSettings` / `force_installed` remain Chromium install policy, not Agent grants.
 - Implement the native-messaging allow-list/process boundary before claiming support.
 - Integrate the complete Agent Task browser vertical slice under issue #28.
 - Reconcile PRD/TRD/traceability from protected-main evidence as compatibility slices integrate.
