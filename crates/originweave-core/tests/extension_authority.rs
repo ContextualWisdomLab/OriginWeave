@@ -1,9 +1,11 @@
 #![allow(clippy::expect_used)]
 
 use originweave_core::{
-    ActionKind, BrowserSessionId, BrowsingContextId, ChromePermissionAuthorityError,
-    ExtensionAccessDecision, ExtensionAccessRequest, ExtensionAgentCapability, ExtensionAgentGrant,
-    ExtensionId, chrome_permission_authorizes_agent_action, evaluate_extension_access,
+    BrowserSessionId, BrowsingContextId, ExtensionAccessDecision, ExtensionAccessRequest,
+    ExtensionAgentCapability, ExtensionAgentGrant, ExtensionId, evaluate_extension_access,
+};
+use originweave_core::{
+    ActionKind, ChromePermissionAuthorityError, chrome_permission_authorizes_agent_action,
 };
 
 fn extension_id(value: &str) -> ExtensionId {
