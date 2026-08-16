@@ -28,6 +28,12 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 FIXTURE = ROOT / "tests" / "fixtures" / "mv3_basic"
 PINNED_CHROME_VERSION = "150.0.7871.129"
 PINNED_CHROME_REVISION = "r1639810"
+PINNED_CHROME_RELATIVE_PATH = pathlib.PurePosixPath(
+    ".mv3-browser/chrome-linux64/chrome"
+)
+PINNED_CHROMEDRIVER_RELATIVE_PATH = pathlib.PurePosixPath(
+    ".mv3-browser/chromedriver-linux64/chromedriver"
+)
 REPEATABILITY_TRIALS = 3
 REQUEST_TIMEOUT_SECONDS = 5.0
 STARTUP_TIMEOUT_SECONDS = 20.0
@@ -528,15 +534,66 @@ def _run_restart_trial(
     }
 
 
+def _pinned_workspace_binary(
+    env_name: str,
+    relative_path: pathlib.PurePosixPath,
+    label: str,
+    *,
+    root: pathlib.Path = ROOT,
+) -> pathlib.Path:
+    """Authorize only the exact non-symlink executable provisioned under the workspace.
+
+    Environment variables remain compatibility inputs for the workflow, but they
+    cannot redirect execution.  The release lane has one reviewed path for each
+    pinned Chrome-for-Testing artifact, and any other executable fails closed.
+    """
+
+    if relative_path.is_absolute() or ".." in relative_path.parts:
+        raise SystemExit(f"{label} pinned workspace path is invalid")
+
+    trusted_root = pathlib.Path(os.path.abspath(root))
+    expected = pathlib.Path(os.path.abspath(trusted_root.joinpath(*relative_path.parts)))
+    configured = os.environ.get(env_name)
+    if configured:
+        configured_path = pathlib.Path(configured)
+        if not configured_path.is_absolute():
+            raise SystemExit(f"{env_name} must name the pinned workspace executable")
+        if pathlib.Path(os.path.abspath(configured_path)) != expected:
+            raise SystemExit(f"{env_name} must name the pinned workspace executable")
+
+    current = expected
+    while current != trusted_root:
+        if current.is_symlink():
+            raise SystemExit(f"{label} pinned workspace executable path contains a symlink")
+        parent = current.parent
+        if parent == current:
+            raise SystemExit(f"{label} pinned workspace executable escaped the workspace")
+        current = parent
+
+    try:
+        expected.relative_to(trusted_root)
+    except ValueError as exc:
+        raise SystemExit(f"{label} pinned workspace executable escaped the workspace") from exc
+    if not expected.is_file():
+        raise SystemExit(f"{label} pinned workspace executable is missing")
+    if not os.access(expected, os.X_OK):
+        raise SystemExit(f"{label} pinned workspace executable is not executable")
+    return expected
+
+
 def main() -> int:
     """Run three independent restart trials and emit bounded repeatability evidence."""
 
-    chrome_bin = pathlib.Path(os.environ.get("CHROME_BIN", ""))
-    chromedriver_bin = pathlib.Path(os.environ.get("CHROMEDRIVER_BIN", ""))
-    if not chrome_bin.is_file():
-        raise SystemExit("CHROME_BIN must point to the pinned Chrome for Testing executable")
-    if not chromedriver_bin.is_file():
-        raise SystemExit("CHROMEDRIVER_BIN must point to the matching pinned ChromeDriver")
+    chrome_bin = _pinned_workspace_binary(
+        "CHROME_BIN",
+        PINNED_CHROME_RELATIVE_PATH,
+        "Chrome for Testing",
+    )
+    chromedriver_bin = _pinned_workspace_binary(
+        "CHROMEDRIVER_BIN",
+        PINNED_CHROMEDRIVER_RELATIVE_PATH,
+        "ChromeDriver",
+    )
     if not (FIXTURE / "manifest.json").is_file():
         raise SystemExit("MV3 fixture manifest is missing")
 
