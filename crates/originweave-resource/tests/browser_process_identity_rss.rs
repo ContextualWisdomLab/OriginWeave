@@ -25,7 +25,9 @@ fn proc_stat_parser_rejects_missing_or_malformed_start_time() {
         Err(BrowserRssSampleError::InvalidProcessStat)
     );
     assert_eq!(
-        parse_linux_proc_stat_start_time_ticks(&proc_stat_with_start_time(0).replace(" 0 999", " nope 999")),
+        parse_linux_proc_stat_start_time_ticks(
+            &proc_stat_with_start_time(0).replace(" 0 999", " nope 999")
+        ),
         Err(BrowserRssSampleError::InvalidProcessStat)
     );
 }
