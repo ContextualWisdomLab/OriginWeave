@@ -341,6 +341,31 @@ def _exercise_real_click(driver_port: int, session_id: str) -> str:
     return str(text)
 
 
+def _teardown_driver_process(driver: subprocess.Popen[str]) -> Exception | None:
+    """Best-effort reap ChromeDriver while preserving the first reviewed process error."""
+
+    teardown_error: Exception | None = None
+    try:
+        driver.terminate()
+    except OSError as error:
+        teardown_error = error
+
+    if teardown_error is None:
+        try:
+            driver.wait(timeout=5)
+            return None
+        except subprocess.TimeoutExpired as error:
+            teardown_error = error
+
+    try:
+        driver.kill()
+        driver.wait(timeout=5)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        if teardown_error is None:
+            teardown_error = error
+    return teardown_error
+
+
 def _run_browser_pass(
     chrome_bin: pathlib.Path,
     chromedriver_bin: pathlib.Path,
@@ -458,16 +483,13 @@ def _run_browser_pass(
                 except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as error:
                     cleanup_error = error
         finally:
-            driver.terminate()
-            try:
-                driver.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                driver.kill()
-                driver.wait(timeout=5)
+            teardown_error = _teardown_driver_process(driver)
         if cleanup_error is not None:
             raise WebDriverSessionCleanupError(
                 "WebDriver session cleanup failed after bounded process teardown"
             ) from cleanup_error
+        if teardown_error is not None:
+            raise teardown_error
 
 
 def _run_restart_trial(
