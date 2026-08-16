@@ -3,7 +3,9 @@ use std::time::Duration;
 
 use originweave_core::Origin;
 use originweave_destination::{AddressClass, DestinationPolicy, FreshResolutionSnapshot};
-use originweave_network::{FreshConnectionPlan, NetworkError};
+use originweave_network::{
+    FreshConnectionPlan, MAX_CONNECT_TIMEOUT, MAX_CONNECTION_ATTEMPTS, NetworkError,
+};
 
 fn loopback_snapshot() -> Result<FreshResolutionSnapshot, String> {
     let origin = Origin::parse("http://localhost")
@@ -40,29 +42,36 @@ fn malformed_connection_settings_fail_before_origin_port_authority() -> Result<(
     let snapshot = loopback_snapshot()?;
     let wrong_port_socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 81);
 
-    let invalid_timeout = FreshConnectionPlan::new(
-        &snapshot,
-        Duration::from_secs(12),
-        wrong_port_socket,
+    for invalid_timeout in [
         Duration::ZERO,
-        1,
-    );
-    assert!(matches!(
-        invalid_timeout,
-        Err(NetworkError::InvalidConnectTimeout { .. })
-    ));
+        MAX_CONNECT_TIMEOUT.saturating_add(Duration::from_nanos(1)),
+    ] {
+        let result = FreshConnectionPlan::new(
+            &snapshot,
+            Duration::from_secs(12),
+            wrong_port_socket,
+            invalid_timeout,
+            1,
+        );
+        assert!(matches!(
+            result,
+            Err(NetworkError::InvalidConnectTimeout { .. })
+        ));
+    }
 
-    let invalid_attempt_count = FreshConnectionPlan::new(
-        &snapshot,
-        Duration::from_secs(12),
-        wrong_port_socket,
-        Duration::from_secs(1),
-        0,
-    );
-    assert!(matches!(
-        invalid_attempt_count,
-        Err(NetworkError::InvalidAttemptCount { .. })
-    ));
+    for invalid_attempt_count in [0, MAX_CONNECTION_ATTEMPTS + 1] {
+        let result = FreshConnectionPlan::new(
+            &snapshot,
+            Duration::from_secs(12),
+            wrong_port_socket,
+            Duration::from_secs(1),
+            invalid_attempt_count,
+        );
+        assert!(matches!(
+            result,
+            Err(NetworkError::InvalidAttemptCount { .. })
+        ));
+    }
     Ok(())
 }
 
@@ -71,28 +80,35 @@ fn malformed_connection_settings_fail_before_resolution_membership() -> Result<(
     let snapshot = loopback_snapshot()?;
     let unapproved_socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 2)), 80);
 
-    let invalid_timeout = FreshConnectionPlan::new(
-        &snapshot,
-        Duration::from_secs(12),
-        unapproved_socket,
+    for invalid_timeout in [
         Duration::ZERO,
-        1,
-    );
-    assert!(matches!(
-        invalid_timeout,
-        Err(NetworkError::InvalidConnectTimeout { .. })
-    ));
+        MAX_CONNECT_TIMEOUT.saturating_add(Duration::from_nanos(1)),
+    ] {
+        let result = FreshConnectionPlan::new(
+            &snapshot,
+            Duration::from_secs(12),
+            unapproved_socket,
+            invalid_timeout,
+            1,
+        );
+        assert!(matches!(
+            result,
+            Err(NetworkError::InvalidConnectTimeout { .. })
+        ));
+    }
 
-    let invalid_attempt_count = FreshConnectionPlan::new(
-        &snapshot,
-        Duration::from_secs(12),
-        unapproved_socket,
-        Duration::from_secs(1),
-        0,
-    );
-    assert!(matches!(
-        invalid_attempt_count,
-        Err(NetworkError::InvalidAttemptCount { .. })
-    ));
+    for invalid_attempt_count in [0, MAX_CONNECTION_ATTEMPTS + 1] {
+        let result = FreshConnectionPlan::new(
+            &snapshot,
+            Duration::from_secs(12),
+            unapproved_socket,
+            Duration::from_secs(1),
+            invalid_attempt_count,
+        );
+        assert!(matches!(
+            result,
+            Err(NetworkError::InvalidAttemptCount { .. })
+        ));
+    }
     Ok(())
 }
