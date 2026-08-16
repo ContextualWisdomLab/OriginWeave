@@ -6,13 +6,14 @@ use originweave_core::{
     BrowserAuthorityRegistry, BrowserContextDispatchTarget, BrowserContextOriginDispatchTarget,
     BrowserContextOriginEpochDispatchTarget, BrowserProtocolAdapterDescriptor,
     BrowserProtocolCapability, BrowserProtocolKind, BrowserRegistryError, BrowserSessionId,
-    BrowsingContextId, DocumentEpoch, NodeHandleError, ObservedNodeHandle, Origin,
-    OriginWeaveProtocolVersion, ValidatedBrowserProtocolUse, WebDriverBiDiAccessibilityQuery,
-    WebDriverBiDiLocateNodesAdmissionError, WebDriverBiDiRemoteNodeReferenceError,
-    MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES,
+    BrowsingContextId, DocumentEpoch, MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES, NodeHandleError,
+    ObservedNodeHandle, Origin, OriginWeaveProtocolVersion, ValidatedBrowserProtocolUse,
+    WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesAdmissionError,
+    WebDriverBiDiRemoteNodeReferenceError,
 };
 
-const ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion = OriginWeaveProtocolVersion::new(0, 1);
+const ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion =
+    OriginWeaveProtocolVersion::new(0, 1);
 const ADAPTER_VERSION: &str = "originweave-bidi-v1";
 const PROTOCOL_REVISION: &str = "webdriver-bidi-wd-2026-06-01";
 const BROWSER_REVISION: &str = "chromium-r1639810";
@@ -185,7 +186,8 @@ fn retired_context_and_session_authority_cannot_be_reused() -> Result<(), Box<dy
     let session = registry.register_session("webdriver-session")?;
     let context = registry.register_context(session, "top-level-context")?;
     let origin = loopback_origin();
-    let first_node = bind_observed_node(&mut registry, session, context, &origin, "backend-node-17")?;
+    let first_node =
+        bind_observed_node(&mut registry, session, context, &origin, "backend-node-17")?;
 
     registry.remove_context(context)?;
     assert_eq!(
@@ -264,9 +266,21 @@ fn context_origin_cannot_change_without_document_rotation() -> Result<(), Box<dy
     let second_origin =
         Origin::parse("http://localhost:43127").expect("valid loopback fixture origin");
 
-    bind_observed_node(&mut registry, session, context, &first_origin, "backend-node-17")?;
+    bind_observed_node(
+        &mut registry,
+        session,
+        context,
+        &first_origin,
+        "backend-node-17",
+    )?;
     assert_eq!(
-        bind_observed_node(&mut registry, session, context, &second_origin, "backend-node-18"),
+        bind_observed_node(
+            &mut registry,
+            session,
+            context,
+            &second_origin,
+            "backend-node-18"
+        ),
         Err(WebDriverBiDiLocateNodesAdmissionError::BrowserAuthority(
             BrowserRegistryError::OriginChangedWithoutDocumentAdvance
         ))
