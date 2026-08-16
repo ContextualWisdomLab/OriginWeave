@@ -4,6 +4,21 @@
 //! browser protocol/identifier boundaries in focused modules so browser
 //! adapters can evolve without turning raw CDP or WebDriver metadata into
 //! OriginWeave authority.
+//!
+//! Raw adapter-local node identifiers must not be mintable through the public
+//! registry API. Public callers must enter through the reviewed semantic-node
+//! admission path instead:
+//!
+//! ```compile_fail
+//! use originweave_core::{BrowserAuthorityRegistry, Origin};
+//!
+//! let mut registry = BrowserAuthorityRegistry::new();
+//! let session = registry.register_session("webdriver-session")?;
+//! let context = registry.register_context(session, "top-level-context")?;
+//! let origin = Origin::parse("http://127.0.0.1:43127")?;
+//! let _handle = registry.bind_node(session, context, &origin, "backend-node-17")?;
+//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! ```
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
