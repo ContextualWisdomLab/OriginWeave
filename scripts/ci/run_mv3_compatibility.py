@@ -303,7 +303,7 @@ return {
 
 
 def _exercise_real_click(driver_port: int, session_id: str) -> str:
-    """Use the WebDriver element-click command and verify the DOM post-condition."""
+    """Use the WebDriver element-click command and classify DOM post-condition mismatches."""
 
     found = _json_request(
         driver_port,
@@ -338,7 +338,7 @@ def _exercise_real_click(driver_port: int, session_id: str) -> str:
         _webdriver_path(session_id, f"/element/{safe_output}/text"),
     ).get("value")
     if text != "clicked":
-        raise RuntimeError(f"real click post-condition failed: {text!r}")
+        raise RuntimeError("real click post-condition mismatch")
     return str(text)
 
 

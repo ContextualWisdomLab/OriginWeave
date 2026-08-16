@@ -12,6 +12,10 @@ The 1 June 2026 WebDriver BiDi Working Draft defines a bidirectional remote-cont
 
 The current Chrome Extensions Downloads API documents the `downloads` manifest permission and `chrome.downloads` methods that initiate, monitor, search, and inspect downloads. That living vendor reference is API semantics only. OriginWeave treats a successful controlled loopback download in pinned Chromium as compatibility evidence for one declared surface, not as Agent filesystem authority, general download persistence, or a claim that every Downloads method is supported.
 
+### Manifest V3 click post-condition diagnostics
+
+W3C WebDriver Get Element Text returns the rendered text content of a located element. That value is page-controlled data, not a trusted diagnostic token. The Manifest V3 compatibility runner therefore compares the fixture output against the exact expected `clicked` token and, on mismatch, raises only the classified message `real click post-condition mismatch`. Raw element text must not enter exception text, trial evidence, or logs.
+
 ### Browser origin equivalence
 
 The WHATWG URL host parser and Chromium canonicalizer classify shortened decimal, integer, hexadecimal, legacy octal-looking, and mixed-component numeric hosts as IPv4 or broken IPv4 candidates rather than ordinary DNS names. Chromium's regression suite includes values such as `192`, `0xC0a80001`, `030052000001`, and mixed hexadecimal components. A non-final empty `0x` component can participate in Chromium's multi-part IPv4 truncation behavior, but a final `0x` label does not produce an IPv4 number because stripping its prefix leaves no digits; it remains a domain label. Chromium also warns that broken IP-like hosts must not be connected because another resolver could accept them. OriginWeave therefore admits only canonical dotted-decimal IPv4 into its policy origin type, rejects browser-special numeric spellings before DNS validation, and preserves final non-numeric DNS labels such as `0x`.
@@ -159,6 +163,8 @@ The Rust Project Developers. (2026). *TcpStream in std::net* (Rust 1.97.1) [Soft
 Web Hypertext Application Technology Working Group. (2026). *URL standard*. https://url.spec.whatwg.org/
 
 World Wide Web Consortium. (2013). *PROV-O: The PROV ontology*. https://www.w3.org/TR/prov-o/
+
+World Wide Web Consortium. (2018, June 5). *WebDriver* (W3C Recommendation). https://www.w3.org/TR/2018/REC-webdriver1-20180605/
 
 World Wide Web Consortium. (2026, June 1). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260601/
 
