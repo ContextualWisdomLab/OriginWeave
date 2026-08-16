@@ -46,7 +46,7 @@ The main [`docs/doctoring.md`](../doctoring.md) records the stable W3C PROV-O Re
 
 ## Product consequences
 
-1. Version adapter contracts independently from OriginWeave session/context/action/evidence types. Admit a BiDi `script.NodeRemoteValue` only as an untrusted transport handle when its type is exactly `node` and a usable `sharedId` is present; do not treat a realm-local `handle` or a missing shared identifier as OriginWeave node authority.
+1. Version adapter contracts independently from OriginWeave session/context/action/evidence types. Admit a BiDi `script.NodeRemoteValue` only as an untrusted transport handle when its type is exactly `node` and a usable control-free `sharedId` is present; do not treat a realm-local `handle`, a missing shared identifier, or control/whitespace-bearing protocol text as OriginWeave node authority. Treat an accessibility-query role as one exact WAI-ARIA token, not a whitespace-separated fallback list.
 2. Pin exact Chromium/CDP compatibility evidence at release time.
 3. Keep WebDriver BiDi's Working Draft status visible in compatibility claims.
 4. Keep WebMCP experimental/optional and propagate untrusted-content semantics.
@@ -74,6 +74,10 @@ Model Context Protocol. (2026). *Model Context Protocol specification (2026-07-2
 
 World Wide Web Consortium. (2013). *PROV-O: The PROV ontology*. https://www.w3.org/TR/prov-o/
 
+World Wide Web Consortium. (2023, June 6). *Accessible Rich Internet Applications (WAI-ARIA) 1.2*. https://www.w3.org/TR/2023/REC-wai-aria-1.2-20230606/
+
 World Wide Web Consortium. (2026, June 1). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260601/
+
+World Wide Web Consortium. (2026, August 5). *Accessible name and description computation 1.2* (W3C Working Draft). https://www.w3.org/TR/2026/WD-accname-1.2-20260805/
 
 International Organization for Standardization. (2017). *Information and documentation—WARC file format* (ISO Standard No. 28500:2017). https://www.iso.org/standard/68004.html

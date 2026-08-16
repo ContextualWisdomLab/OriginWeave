@@ -34,6 +34,10 @@ pub enum WebDriverBiDiAccessibilityQueryError {
     RoleTooLong,
     /// An explicitly supplied accessible name was empty.
     EmptyName,
+    /// The accessibility role contained whitespace or a control character.
+    InvalidRole,
+    /// The accessible name contained a control character or only whitespace.
+    InvalidName,
     /// The accessible name exceeded the local UTF-8 byte budget.
     NameTooLong,
     /// The requested node count was zero or exceeded the local result budget.
@@ -49,6 +53,12 @@ impl Display for WebDriverBiDiAccessibilityQueryError {
             Self::EmptyRole => "accessibility query role must not be empty",
             Self::RoleTooLong => "accessibility query role exceeds the local byte budget",
             Self::EmptyName => "accessibility query name must not be empty",
+            Self::InvalidRole => {
+                "accessibility query role must not contain whitespace or control characters"
+            }
+            Self::InvalidName => {
+                "accessibility query name must not contain control characters or only whitespace"
+            }
             Self::NameTooLong => "accessibility query name exceeds the local byte budget",
             Self::InvalidNodeCount => "accessibility query node count is outside the local budget",
             Self::ResultNodeCountExceeded => {
@@ -65,8 +75,10 @@ impl Error for WebDriverBiDiAccessibilityQueryError {}
 ///
 /// This value captures only the reviewed `browsingContext.locateNodes` accessibility-locator
 /// parameters needed by the first Chromium observation slice. It accepts an exact role, an exact
-/// accessible name, or both, together with a finite result count. Text budgets are OriginWeave
-/// resource limits rather than claims about upstream protocol maxima.
+/// accessible name, or both, together with a finite result count. Roles are exact tokens and
+/// therefore reject whitespace and controls. Accessible names may contain ordinary spaces but
+/// reject controls and whitespace-only values. Text budgets are OriginWeave resource limits rather
+/// than claims about upstream protocol maxima.
 ///
 /// The first slice also fixes WebDriver BiDi serialization to zero DOM depth, zero object depth,
 /// and no shadow-tree expansion. Those settings intentionally minimize the remote-value surface a
@@ -88,7 +100,10 @@ impl WebDriverBiDiAccessibilityQuery {
     ///
     /// Explicit empty values fail closed rather than being treated as absent. Role and name limits
     /// are measured in UTF-8 bytes so later serialization cannot exceed the reviewed local budget
-    /// through multi-byte text. At least one selector value and one result slot are required.
+    /// through multi-byte text. Roles are exact WAI-ARIA tokens, so whitespace and control
+    /// characters fail closed instead of becoming fallback-role lists. Accessible names may contain
+    /// ordinary spaces but not controls or whitespace-only values. At least one selector value and
+    /// one result slot are required.
     pub fn new(
         role: Option<&str>,
         name: Option<&str>,
@@ -97,11 +112,23 @@ impl WebDriverBiDiAccessibilityQuery {
         if role.is_some_and(str::is_empty) {
             return Err(WebDriverBiDiAccessibilityQueryError::EmptyRole);
         }
+        if role.is_some_and(|value| {
+            value
+                .chars()
+                .any(|character| character.is_control() || character.is_whitespace())
+        }) {
+            return Err(WebDriverBiDiAccessibilityQueryError::InvalidRole);
+        }
         if role.is_some_and(|value| value.len() > MAX_BROWSER_ACCESSIBILITY_QUERY_ROLE_BYTES) {
             return Err(WebDriverBiDiAccessibilityQueryError::RoleTooLong);
         }
         if name.is_some_and(str::is_empty) {
             return Err(WebDriverBiDiAccessibilityQueryError::EmptyName);
+        }
+        if name.is_some_and(|value| {
+            value.chars().any(char::is_control) || value.chars().all(char::is_whitespace)
+        }) {
+            return Err(WebDriverBiDiAccessibilityQueryError::InvalidName);
         }
         if name.is_some_and(|value| value.len() > MAX_BROWSER_ACCESSIBILITY_QUERY_NAME_BYTES) {
             return Err(WebDriverBiDiAccessibilityQueryError::NameTooLong);
@@ -194,7 +221,7 @@ pub enum WebDriverBiDiRemoteNodeReferenceError {
     UnexpectedRemoteType,
     /// The remote value omitted `sharedId`.
     MissingSharedId,
-    /// The shared identifier was empty or exceeded the local UTF-8 byte budget.
+    /// The shared identifier was empty, contained control or whitespace, or exceeded the local budget.
     InvalidSharedId,
 }
 
@@ -206,7 +233,7 @@ impl Display for WebDriverBiDiRemoteNodeReferenceError {
             }
             Self::MissingSharedId => "remote node reference requires a shared id",
             Self::InvalidSharedId => {
-                "remote node reference shared id is empty or exceeds the local byte budget"
+                "remote node reference shared id is empty, contains control or whitespace, or exceeds the local byte budget"
             }
         };
         formatter.write_str(message)
@@ -221,7 +248,7 @@ impl Error for WebDriverBiDiRemoteNodeReferenceError {}
 /// `browsingContext.locateNodes`. Those values have a required `type` of `node` and an optional
 /// `sharedId`. OriginWeave admits a result item only when the type is exactly `node` and a
 /// non-empty `sharedId` fits the same UTF-8 identifier budget used by browser session and context
-/// identifiers.
+/// identifiers and contains no control or whitespace characters.
 ///
 /// Requiring `sharedId` is a local fail-closed policy: the Working Draft permits omitting it, but a
 /// later typed-input adapter cannot refer to the same node across realms without that shared
@@ -250,7 +277,12 @@ impl WebDriverBiDiRemoteNodeReference {
         let Some(shared_id) = shared_id else {
             return Err(WebDriverBiDiRemoteNodeReferenceError::MissingSharedId);
         };
-        if shared_id.is_empty() || shared_id.len() > MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES {
+        if shared_id.is_empty()
+            || shared_id.len() > MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES
+            || shared_id
+                .chars()
+                .any(|character| character.is_control() || character.is_whitespace())
+        {
             return Err(WebDriverBiDiRemoteNodeReferenceError::InvalidSharedId);
         }
         Ok(Self {

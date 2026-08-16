@@ -338,7 +338,7 @@ impl Default for BrowserAuthorityRegistry {
 /// A fail-closed error produced while translating external browser identifiers into local authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BrowserRegistryError {
-    /// An external identifier was empty or exceeded the reviewed byte bound.
+    /// An external identifier was empty, contained control or whitespace, or exceeded the reviewed byte bound.
     InvalidExternalIdentifier,
     /// The supplied OriginWeave browser session is not registered in this registry.
     UnknownBrowserSession,
@@ -366,9 +366,9 @@ pub enum BrowserRegistryError {
 impl fmt::Display for BrowserRegistryError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidExternalIdentifier => {
-                formatter.write_str("external browser identifier must contain 1 to 512 UTF-8 bytes")
-            }
+            Self::InvalidExternalIdentifier => formatter.write_str(
+                "external browser identifier must contain 1 to 512 UTF-8 bytes without control or whitespace characters",
+            ),
             Self::UnknownBrowserSession => {
                 formatter.write_str("browser session is not registered in this authority registry")
             }
@@ -402,7 +402,12 @@ impl fmt::Display for BrowserRegistryError {
 impl std::error::Error for BrowserRegistryError {}
 
 fn validate_external_identifier(identifier: &str) -> Result<(), BrowserRegistryError> {
-    if identifier.is_empty() || identifier.len() > MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES {
+    if identifier.is_empty()
+        || identifier.len() > MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES
+        || identifier
+            .chars()
+            .any(|character| character.is_control() || character.is_whitespace())
+    {
         return Err(BrowserRegistryError::InvalidExternalIdentifier);
     }
     Ok(())

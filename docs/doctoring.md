@@ -8,7 +8,9 @@ This document records external evidence that changes OriginWeave architecture, t
 
 The 1 June 2026 WebDriver BiDi Working Draft defines a bidirectional remote-control protocol, events, commands, and user contexts. Because it remains a W3C Working Draft, OriginWeave places BiDi behind a versioned adapter and Web Platform Tests-derived contract tests rather than make it the internal authority model.
 
-The same Working Draft defines `script.NodeRemoteValue` with a required `type` of `node` and an optional `sharedId`, and `browsingContext.locateNodes` returns a list of those remote values. A `script.SharedReference` is the protocol's node identity across realms; when both `handle` and `sharedId` are present, the protocol respects only `sharedId`. OriginWeave therefore admits a `locateNodes` result item only when the remote type is exactly `node` and a non-empty `sharedId` fits the same UTF-8 identifier budget used by browser session and context identifiers. Requiring `sharedId` is a local fail-closed policy, not a claim that the Working Draft makes the field mandatory. The admitted value is an untrusted transport handle, not an OriginWeave session, context, origin, or document-epoch node identity.
+The same Working Draft defines `script.NodeRemoteValue` with a required `type` of `node` and an optional `sharedId`, and `browsingContext.locateNodes` returns a list of those remote values. A `script.SharedReference` is the protocol's node identity across realms; when both `handle` and `sharedId` are present, the protocol respects only `sharedId`. OriginWeave therefore admits a `locateNodes` result item only when the remote type is exactly `node` and a non-empty `sharedId` fits the same UTF-8 identifier budget used by browser session and context identifiers and contains no control or whitespace characters. Requiring `sharedId` and rejecting control or whitespace is a local fail-closed policy, not a claim that the Working Draft makes those fields mandatory or forbids whitespace. The admitted value is an untrusted transport handle, not an OriginWeave session, context, origin, or document-epoch node identity.
+
+WAI-ARIA 1.2 defines host-language `role` values as a token list: user agents split on whitespace and use the first matching non-abstract role. OriginWeave's first `locateNodes` accessibility query asks for one exact role, so a role containing whitespace or a control character is rejected rather than interpreted as a fallback-role list. Accessible Name and Description Computation 1.2, a W3C Working Draft as of 5 August 2026, treats accessible names as ordinary strings that may contain spaces and treats whitespace-only `aria-roledescription` values as absent. OriginWeave therefore keeps ordinary spaces in accessible-name locators, rejects control characters that would become protocol-text injection, and rejects whitespace-only names as non-selectors.
 
 ### Browser origin equivalence
 
@@ -156,7 +158,11 @@ Web Hypertext Application Technology Working Group. (2026). *URL standard*. http
 
 World Wide Web Consortium. (2013). *PROV-O: The PROV ontology*. https://www.w3.org/TR/prov-o/
 
+World Wide Web Consortium. (2023, June 6). *Accessible Rich Internet Applications (WAI-ARIA) 1.2*. https://www.w3.org/TR/2023/REC-wai-aria-1.2-20230606/
+
 World Wide Web Consortium. (2026, June 1). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260601/
+
+World Wide Web Consortium. (2026, August 5). *Accessible name and description computation 1.2* (W3C Working Draft). https://www.w3.org/TR/2026/WD-accname-1.2-20260805/
 
 Xu, J., Sun, Q., Schwendeman, P., Nielsen, S., Cetin, E., & Tang, Y. (2025). *TRINITY: An evolved LLM coordinator* [Preprint]. arXiv. https://doi.org/10.48550/arXiv.2512.04695
 
