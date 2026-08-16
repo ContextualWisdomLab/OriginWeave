@@ -88,6 +88,8 @@ pub enum EvidenceError {
     LimitExceeded,
     /// A source locator was empty.
     EmptyLocator,
+    /// A source locator contained a disallowed control or invisible formatting character.
+    InvalidLocator,
     /// A source digest was not a lowercase SHA-256 identifier.
     InvalidHash,
     /// A source URL was missing or contained unsafe characters.
@@ -100,6 +102,9 @@ impl std::fmt::Display for EvidenceError {
             Self::InvalidPath => "network evidence path is invalid",
             Self::LimitExceeded => "network evidence exceeds a configured limit",
             Self::EmptyLocator => "evidence source locator must not be empty",
+            Self::InvalidLocator => {
+                "evidence source locator contains a disallowed control or formatting character"
+            }
             Self::InvalidHash => "evidence source hash must be canonical lowercase SHA-256",
             Self::InvalidSourceUrl => "evidence source URL is invalid",
         })
@@ -325,6 +330,12 @@ impl ProvenanceRecord {
         if source_locator.is_empty() {
             return Err(EvidenceError::EmptyLocator);
         }
+        if source_locator
+            .chars()
+            .any(disallowed_provenance_locator_character)
+        {
+            return Err(EvidenceError::InvalidLocator);
+        }
         if !valid_sha256(source_hash) {
             return Err(EvidenceError::InvalidHash);
         }
@@ -366,6 +377,15 @@ impl ProvenanceRecord {
     pub const fn verification_result(&self) -> VerificationResult {
         self.verification_result
     }
+}
+
+fn disallowed_provenance_locator_character(character: char) -> bool {
+    let code_point = character as u32;
+    character.is_control()
+        || matches!(
+            code_point,
+            0x00ad | 0x061c | 0x200b..=0x200f | 0x2028..=0x202e | 0x2060..=0x206f | 0xfeff
+        )
 }
 
 fn valid_source_url(source_url: &str) -> bool {
