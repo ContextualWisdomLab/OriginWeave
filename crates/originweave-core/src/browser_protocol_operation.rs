@@ -16,6 +16,12 @@ pub const MAX_BROWSER_ACCESSIBILITY_QUERY_ROLE_BYTES: usize = 64;
 pub const MAX_BROWSER_ACCESSIBILITY_QUERY_NAME_BYTES: usize = 512;
 /// Maximum number of nodes one bounded accessibility query may request.
 pub const MAX_BROWSER_ACCESSIBILITY_QUERY_NODE_COUNT: u16 = 128;
+/// Fixed DOM serialization depth for the first bounded BiDi node-query slice.
+pub const WEBDRIVER_BIDI_QUERY_MAX_DOM_DEPTH: u16 = 0;
+/// Fixed object serialization depth for the first bounded BiDi node-query slice.
+pub const WEBDRIVER_BIDI_QUERY_MAX_OBJECT_DEPTH: u16 = 0;
+/// Fixed shadow-tree serialization mode for the first bounded BiDi node-query slice.
+pub const WEBDRIVER_BIDI_QUERY_INCLUDE_SHADOW_TREE: &str = "none";
 
 /// Fail-closed validation errors for one bounded WebDriver BiDi accessibility query.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,6 +62,11 @@ impl Error for WebDriverBiDiAccessibilityQueryError {}
 /// parameters needed by the first Chromium observation slice. It accepts an exact role, an exact
 /// accessible name, or both, together with a finite result count. Text budgets are OriginWeave
 /// resource limits rather than claims about upstream protocol maxima.
+///
+/// The first slice also fixes WebDriver BiDi serialization to zero DOM depth, zero object depth,
+/// and no shadow-tree expansion. Those settings intentionally minimize the remote-value surface a
+/// future transport adapter may request; they do not themselves parse, validate, or authorize any
+/// returned node.
 ///
 /// Construction grants no browser session, context, origin, semantic-node, policy, capability, or
 /// network authority and performs no browser I/O. A trusted adapter must still bind the query to an
@@ -114,6 +125,24 @@ impl WebDriverBiDiAccessibilityQuery {
     #[must_use]
     pub const fn locator_type(&self) -> &'static str {
         "accessibility"
+    }
+
+    /// Return the fixed maximum DOM serialization depth for returned remote nodes.
+    #[must_use]
+    pub const fn serialization_max_dom_depth(&self) -> u16 {
+        WEBDRIVER_BIDI_QUERY_MAX_DOM_DEPTH
+    }
+
+    /// Return the fixed maximum object serialization depth for returned remote nodes.
+    #[must_use]
+    pub const fn serialization_max_object_depth(&self) -> u16 {
+        WEBDRIVER_BIDI_QUERY_MAX_OBJECT_DEPTH
+    }
+
+    /// Return the fixed shadow-tree serialization mode for returned remote nodes.
+    #[must_use]
+    pub const fn serialization_include_shadow_tree(&self) -> &'static str {
+        WEBDRIVER_BIDI_QUERY_INCLUDE_SHADOW_TREE
     }
 
     /// Return the exact optional accessibility role requested by the caller.
