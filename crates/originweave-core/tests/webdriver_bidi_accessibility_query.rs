@@ -3,7 +3,9 @@ use std::error::Error;
 use originweave_core::{
     MAX_BROWSER_ACCESSIBILITY_QUERY_NAME_BYTES, MAX_BROWSER_ACCESSIBILITY_QUERY_NODE_COUNT,
     MAX_BROWSER_ACCESSIBILITY_QUERY_ROLE_BYTES, WEBDRIVER_BIDI_LOCATE_NODES_METHOD,
-    WebDriverBiDiAccessibilityQuery, WebDriverBiDiAccessibilityQueryError,
+    WEBDRIVER_BIDI_QUERY_INCLUDE_SHADOW_TREE, WEBDRIVER_BIDI_QUERY_MAX_DOM_DEPTH,
+    WEBDRIVER_BIDI_QUERY_MAX_OBJECT_DEPTH, WebDriverBiDiAccessibilityQuery,
+    WebDriverBiDiAccessibilityQueryError,
 };
 
 #[test]
@@ -17,6 +19,19 @@ fn accessibility_query_exposes_exact_bidi_method_and_locator_contract() -> Resul
     assert_eq!(query.role(), Some("textbox"));
     assert_eq!(query.name(), Some("Task text"));
     assert_eq!(query.max_node_count(), 32);
+    Ok(())
+}
+
+#[test]
+fn accessibility_query_fixes_minimal_serialization_options() -> Result<(), Box<dyn Error>> {
+    let query = WebDriverBiDiAccessibilityQuery::new(Some("textbox"), None, 8)?;
+
+    assert_eq!(WEBDRIVER_BIDI_QUERY_MAX_DOM_DEPTH, 0);
+    assert_eq!(WEBDRIVER_BIDI_QUERY_MAX_OBJECT_DEPTH, 0);
+    assert_eq!(WEBDRIVER_BIDI_QUERY_INCLUDE_SHADOW_TREE, "none");
+    assert_eq!(query.serialization_max_dom_depth(), 0);
+    assert_eq!(query.serialization_max_object_depth(), 0);
+    assert_eq!(query.serialization_include_shadow_tree(), "none");
     Ok(())
 }
 
