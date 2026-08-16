@@ -184,7 +184,8 @@ fn empty_locate_nodes_result_is_valid_when_the_document_is_current() -> Result<(
     let target = current_target(&mut registry, &expected_origin)?;
     let query = WebDriverBiDiAccessibilityQuery::new(Some("button"), None, 1)?;
 
-    let handles = query.bind_current_nodes(semantic_observation_proof()?, &mut registry, target, &[])?;
+    let handles =
+        query.bind_current_nodes(semantic_observation_proof()?, &mut registry, target, &[])?;
     assert!(handles.is_empty());
     Ok(())
 }
@@ -277,16 +278,12 @@ fn locate_nodes_admission_error_contract_is_source_aware() {
     assert!(errors[2].source().is_none());
     assert!(errors[3].source().is_some());
     assert!(errors[4].source().is_none());
-    assert!(errors[4]
-        .to_string()
-        .contains("SemanticObservation protocol-use proof, not TypedInput"));
-    assert!(errors[5]
-        .to_string()
-        .contains("not Navigation"));
-    assert!(errors[6]
-        .to_string()
-        .contains("not SemanticObservation"));
-    assert!(errors[7]
-        .to_string()
-        .contains("not NetworkObservation"));
+    assert!(
+        errors[4]
+            .to_string()
+            .contains("SemanticObservation protocol-use proof, not TypedInput")
+    );
+    assert!(errors[5].to_string().contains("not Navigation"));
+    assert!(errors[6].to_string().contains("not SemanticObservation"));
+    assert!(errors[7].to_string().contains("not NetworkObservation"));
 }
