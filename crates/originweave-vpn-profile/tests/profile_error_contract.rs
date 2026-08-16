@@ -74,6 +74,7 @@ fn secret_reference_rejects_log_injection_and_ambiguous_whitespace() {
     }
 
     for reference in [
+        "secret://tenant/owned item".to_owned(),
         "secret://tenant/item\u{1b}owned-string".to_owned(),
         "\u{00ad}secret://tenant/owned-string".to_owned(),
     ] {
