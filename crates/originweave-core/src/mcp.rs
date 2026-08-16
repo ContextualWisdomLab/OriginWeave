@@ -258,7 +258,9 @@ impl ValidatedMcpToolCall {
     /// Routing integrity is intentionally narrower than authorization. A
     /// successful value proves only that the untrusted protocol version,
     /// routing metadata, body method, and body tool name agree with one
-    /// explicitly supported mapping.
+    /// explicitly supported mapping. Each untrusted tool name is shape-validated
+    /// before cross-field comparison so malformed or oversized names cannot
+    /// bypass the bounded routing syntax through mismatch handling.
     pub fn new(
         protocol_version: &str,
         routing_method: &str,
@@ -269,14 +271,14 @@ impl ValidatedMcpToolCall {
         if protocol_version != MCP_PROTOCOL_VERSION {
             return Err(McpToolBoundaryError::UnsupportedProtocolVersion);
         }
+        if !valid_tool_name(routing_tool_name) || !valid_tool_name(body_tool_name) {
+            return Err(McpToolBoundaryError::InvalidToolName);
+        }
         if routing_method != body_method || routing_tool_name != body_tool_name {
             return Err(McpToolBoundaryError::HeaderBodyMismatch);
         }
         if routing_method != MCP_TOOLS_CALL_METHOD {
             return Err(McpToolBoundaryError::UnsupportedMethod);
-        }
-        if !valid_tool_name(routing_tool_name) {
-            return Err(McpToolBoundaryError::InvalidToolName);
         }
 
         let (tool_name, action_kind) = map_tool(routing_tool_name)?;
