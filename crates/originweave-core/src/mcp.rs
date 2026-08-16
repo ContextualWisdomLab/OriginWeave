@@ -116,6 +116,76 @@ pub const fn supported_mcp_tools() -> &'static [McpToolCatalogEntry] {
     MCP_TOOL_CATALOG
 }
 
+/// Cache-sharing scope for an MCP cacheable list result.
+///
+/// OriginWeave currently exposes only the conservative private scope. A transport adapter must
+/// serialize this as MCP's `"private"` cache scope and must not widen it without a separately
+/// reviewed policy that proves the returned catalog is safe to share across callers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum McpCacheScope {
+    /// The result may be cached only for the current caller's private context.
+    Private,
+}
+
+/// One typed MCP `tools/list` page derived from the reviewed tool catalog.
+///
+/// This value is discovery metadata only. It does not grant any tool capability or action
+/// authority. The initial contract is deliberately a single private page with zero freshness so
+/// adapters cannot accidentally share or reuse discovery metadata beyond the current request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct McpToolsListPage {
+    tools: &'static [McpToolCatalogEntry],
+    ttl_ms: u64,
+    cache_scope: McpCacheScope,
+    next_cursor: Option<&'static str>,
+}
+
+impl McpToolsListPage {
+    /// Return the deterministic reviewed tool entries in this page.
+    #[must_use]
+    pub const fn tools(&self) -> &'static [McpToolCatalogEntry] {
+        self.tools
+    }
+
+    /// Return the MCP freshness lifetime in milliseconds.
+    ///
+    /// The current conservative contract is zero, so clients must treat the result as
+    /// immediately stale rather than reusing it for a later request.
+    #[must_use]
+    pub const fn ttl_ms(&self) -> u64 {
+        self.ttl_ms
+    }
+
+    /// Return the MCP cache-sharing scope for this page.
+    #[must_use]
+    pub const fn cache_scope(&self) -> McpCacheScope {
+        self.cache_scope
+    }
+
+    /// Return the opaque continuation cursor when another page exists.
+    ///
+    /// The current fixed catalog is emitted as one complete page, so this is always `None`.
+    #[must_use]
+    pub const fn next_cursor(&self) -> Option<&'static str> {
+        self.next_cursor
+    }
+}
+
+/// Build the conservative typed MCP `tools/list` result for the reviewed catalog.
+///
+/// This function does not perform transport serialization, authorization, or pagination. It
+/// binds the catalog to explicit zero-TTL/private cache hints so adapters cannot invent a broader
+/// cache policy independently from this reviewed boundary.
+#[must_use]
+pub const fn mcp_tools_list_page() -> McpToolsListPage {
+    McpToolsListPage {
+        tools: MCP_TOOL_CATALOG,
+        ttl_ms: 0,
+        cache_scope: McpCacheScope::Private,
+        next_cursor: None,
+    }
+}
+
 /// A deterministic failure while validating untrusted MCP routing metadata.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum McpToolBoundaryError {
