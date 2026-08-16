@@ -116,6 +116,17 @@ pub const fn supported_mcp_tools() -> &'static [McpToolCatalogEntry] {
     MCP_TOOL_CATALOG
 }
 
+/// Protocol disposition carried by a typed MCP result.
+///
+/// OriginWeave currently constructs only terminal results at this boundary. A transport adapter
+/// must serialize [`Self::Complete`] as MCP's `"complete"` result type and must not omit or
+/// reinterpret the required protocol field.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum McpResultType {
+    /// The request completed and this value contains the final result.
+    Complete,
+}
+
 /// Cache-sharing scope for an MCP cacheable list result.
 ///
 /// OriginWeave currently exposes only the conservative private scope. A transport adapter must
@@ -130,10 +141,12 @@ pub enum McpCacheScope {
 /// One typed MCP `tools/list` page derived from the reviewed tool catalog.
 ///
 /// This value is discovery metadata only. It does not grant any tool capability or action
-/// authority. The initial contract is deliberately a single private page with zero freshness so
-/// adapters cannot accidentally share or reuse discovery metadata beyond the current request.
+/// authority. The initial contract is deliberately one complete private page with zero freshness
+/// so adapters cannot omit MCP's required result disposition or accidentally share or reuse
+/// discovery metadata beyond the current request.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct McpToolsListPage {
+    result_type: McpResultType,
     tools: &'static [McpToolCatalogEntry],
     ttl_ms: u64,
     cache_scope: McpCacheScope,
@@ -141,6 +154,12 @@ pub struct McpToolsListPage {
 }
 
 impl McpToolsListPage {
+    /// Return the mandatory MCP result disposition for this list page.
+    #[must_use]
+    pub const fn result_type(&self) -> McpResultType {
+        self.result_type
+    }
+
     /// Return the deterministic reviewed tool entries in this page.
     #[must_use]
     pub const fn tools(&self) -> &'static [McpToolCatalogEntry] {
@@ -174,11 +193,13 @@ impl McpToolsListPage {
 /// Build the conservative typed MCP `tools/list` result for the reviewed catalog.
 ///
 /// This function does not perform transport serialization, authorization, or pagination. It
-/// binds the catalog to explicit zero-TTL/private cache hints so adapters cannot invent a broader
-/// cache policy independently from this reviewed boundary.
+/// binds the catalog to the mandatory complete result disposition plus explicit zero-TTL/private
+/// cache hints so adapters cannot invent broader protocol or cache semantics independently from
+/// this reviewed boundary.
 #[must_use]
 pub const fn mcp_tools_list_page() -> McpToolsListPage {
     McpToolsListPage {
+        result_type: McpResultType::Complete,
         tools: MCP_TOOL_CATALOG,
         ttl_ms: 0,
         cache_scope: McpCacheScope::Private,
