@@ -2,9 +2,7 @@
 
 use std::collections::BTreeSet;
 
-use originweave_core::mcp::{
-    MCP_PROTOCOL_VERSION, MCP_TOOLS_CALL_METHOD, ValidatedMcpToolCall,
-};
+use originweave_core::mcp::{MCP_PROTOCOL_VERSION, MCP_TOOLS_CALL_METHOD, ValidatedMcpToolCall};
 use originweave_core::{
     ActionIntentDigest, ActionKind, ActionRequest, ApprovalEvidence, Capability, ExecutionPurpose,
     InstructionSource, Origin, PolicyContext, RobotsDecision, SecretDelivery, SessionMode,
