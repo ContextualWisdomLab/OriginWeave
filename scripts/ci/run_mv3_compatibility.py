@@ -203,19 +203,21 @@ def _json_request(
 
 
 def _wait_for_driver(driver_port: int) -> None:
-    """Wait for the exact local ChromeDriver process to become ready."""
+    """Wait for local ChromeDriver readiness while retaining only a safe failure class."""
 
     deadline = time.monotonic() + STARTUP_TIMEOUT_SECONDS
-    last_error: Exception | None = None
+    last_failure_kind = "not_observed"
     while time.monotonic() < deadline:
         try:
             status = _json_request(driver_port, "GET", "/status", timeout=1.0)
             if status.get("value", {}).get("ready") is True:
                 return
         except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
-            last_error = exc
+            last_failure_kind = str(_failure_evidence(exc)["failure_kind"])
         time.sleep(0.1)
-    raise RuntimeError(f"ChromeDriver did not become ready: {last_error}")
+    raise RuntimeError(
+        f"ChromeDriver did not become ready ({last_failure_kind})"
+    )
 
 
 def _execute(driver_port: int, session_id: str, script: str) -> Any:
