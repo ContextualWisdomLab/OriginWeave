@@ -30,10 +30,15 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Proposed product-wide target-architecture ADRs for the Rust control plane, isolated execution modes, typed actions, semantic observation/stale-node authority, prompt-injection and secret separation, resource-governor priority, provenance evidence, browser/protocol adapters, crawler policy, and hourly automation operational closure; these remain Proposed rather than shipped claims until protected review and merge.
 - Pinned real-Chromium Manifest V3 compatibility evidence for a controlled history add/read/delete lifecycle confined to the ephemeral loopback fixture profile, with cleanup verification and no OriginWeave Agent history-authority claim.
 - Pinned real-Chromium Manifest V3 update-migration evidence using a trial-local unpacked-extension copy, a controlled `1.0.0` to `1.0.1` transition, persisted profile state, and explicit schema migration without modifying the checked-in fixture or granting Agent authority.
-- Pinned real-Chromium Manifest V3 content-script isolated-world evidence that requires the page main world and extension isolated world to retain distinct JavaScript globals while sharing only a controlled DOM sentinel.
 
 ### Changed
 
+- Classified a mismatched Chrome `browserVersion` capability as an expected-only diagnostic so browser-reported capability text cannot enter Manifest V3 runner exception output.
+- Classified Manifest V3 bookmark create/get/remove failures as allow-listed stage tokens so raw Chrome bookmark errors and fixture titles cannot enter runner evidence.
+- Recorded the current Chrome Extensions `chrome.bookmarks` primary reference in APA 7th form and stated that the active bookmark-mutation lane proves one controlled loopback lifecycle in pinned Chromium, not Agent bookmark authority.
+- Classified Manifest V3 WebDriver HTTP/1.1 parser failures as a fixed transport-protocol token so a malformed status-line or incomplete message body cannot enter runner exception text.
+- Classified Manifest V3 real-click post-condition failures as a fixed mismatch token so page-controlled WebDriver text cannot enter runner exception text.
+- Recorded the current Chrome Extensions `chrome.downloads` primary reference in APA 7th form and stated that the active downloads lane proves one controlled loopback payload in pinned Chromium, not Agent filesystem authority.
 - Separated logical origin authority from resolved network destination authority; an origin grant no longer implies permission to connect to every resolver result.
 - Separated resolved-address authorization from direct transport evidence; an approved IP now becomes a usable stream only after the operating system reports the exact requested IP and port.
 - Separated exact TCP peer proof from authenticated TLS service identity; an observed peer becomes an authenticated HTTPS stream only after explicit-root, fixed-time, SAN-bound WebPKI verification over that same stream.

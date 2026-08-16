@@ -1,7 +1,7 @@
 # Manifest V3 compatibility evidence baseline
 
 - **Status:** Active implementation evidence for issue #27
-- **Reviewed:** 2026-08-11
+- **Reviewed:** 2026-08-16
 - **Pinned browser:** Chrome for Testing `150.0.7871.129`, Chromium revision `r1639810`
 
 OriginWeave uses Chromium as its compatibility kernel, so browser-extension compatibility must be demonstrated with executable Chromium evidence rather than inferred from architecture alone. The protected-main lane exercises a controlled unpacked Manifest V3 extension against one exact Chrome for Testing build and proves service-worker, content-script, storage, declarative-network-request, tabs, windows, scripting, commands, side-panel, bookmarks/history read compatibility, restart persistence, repeatability, and one real WebDriver click/post-condition. Active stacked compatibility work adds downloads, bounded bookmark/history mutation, profile isolation, explicit extension update/version-migration evidence, and an exact content-script isolated-world check. OriginWeave does **not claim 100% Chrome extension compatibility**.
@@ -22,7 +22,7 @@ This matrix separates protected-main executable evidence from active, non-shippe
 | `declarativeNetRequest` | **PROTECTED_MAIN** | Controlled local rule blocks its fixture request in pinned Chromium. | No claim for every DNR rule/action combination. |
 | `tabs`, `windows`, `scripting`, `commands`, `sidePanel` | **PROTECTED_MAIN** | Each declared API is exercised in real Chromium and required by the repeatability gate. | Chrome API permission does not become Agent capability. |
 | Bookmarks read compatibility | **PROTECTED_MAIN** | Protected-main fixture exercises the declared bookmarks surface. | Ambient human-profile bookmark authority is not granted. |
-| Bookmarks create/read/delete lifecycle | **ACTIVE_PR #56** | Controlled synthetic bookmark is created, read back, and removed in the ephemeral compatibility profile. | Compatibility only; no Agent bookmark capability. |
+| Bookmarks create/read/delete lifecycle | **ACTIVE_PR #56** | Controlled synthetic bookmark is created, read back, and removed in the ephemeral compatibility profile, with allow-listed stage diagnostics. | Compatibility only; no Agent bookmark capability. |
 | History read compatibility | **PROTECTED_MAIN** | Protected-main fixture exercises bounded history search in the isolated profile. | No model-visible browsing-history content or default-profile access. |
 | History add/read/delete lifecycle | **ACTIVE_PR #59** | Controlled synthetic loopback visit is added, exactly read back, deleted in `finally`, and required to be absent afterward. | Compatibility only; no Agent history capability. |
 | Downloads | **ACTIVE_PR #43** | Controlled loopback payload is downloaded and validated through pinned Chromium. | No general download persistence, unsafe filename, or Agent filesystem authority claim. |
@@ -34,9 +34,25 @@ This matrix separates protected-main executable evidence from active, non-shippe
 
 The release-quality capability matrix must remain coupled to executable evidence. Adding a row to documentation never creates support; declaring a new supported capability must first add a realistic regression test and pinned-Chromium proof. Conversely, if a declared protected-main capability regresses, the release gate must fail rather than silently downgrading the matrix.
 
+## Bookmarks API primary evidence
+
+For bookmark compatibility specifically, the current official Chrome Extensions API documents the `bookmarks` manifest permission and Promise-returning `chrome.bookmarks.create`, `chrome.bookmarks.get`, and `chrome.bookmarks.remove` methods. Bookmark node identifiers are strings unique within one browser profile. This living vendor reference establishes API semantics only. Active PR #56 exercises one controlled loopback create → get → remove lifecycle through pinned Chromium and retains only allow-listed stage diagnostics. That proof is not Agent bookmark capability, ambient human-profile bookmark authority, or a release claim that every `chrome.bookmarks` method works.
+
 ## History API primary evidence
 
 For history compatibility specifically, the current official Chrome Extensions API documents the `history` manifest permission and Promise-returning `chrome.history.addUrl`, `chrome.history.search`, and `chrome.history.deleteUrl` methods. This living vendor reference establishes API semantics only. OriginWeave release evidence continues to depend on the exact pinned Chromium fixture and exact-head CI result rather than inferring compatibility from documentation.
+
+## Downloads API primary evidence
+
+For downloads compatibility specifically, the current official Chrome Extensions API documents the `downloads` manifest permission and the `chrome.downloads` methods that initiate, monitor, search, and inspect downloads. This living vendor reference establishes API semantics only. Active PR #43 exercises one controlled loopback payload through pinned Chromium and retains only allow-listed stage diagnostics. That proof is not Agent filesystem authority, general download persistence, unsafe-filename handling, or a release claim that every `chrome.downloads` method works.
+
+## WebDriver transport-protocol diagnostic boundary
+
+RFC 9112 requires a well-formed HTTP/1.1 status-line and a message body that matches the announced framing. W3C WebDriver sends commands over that HTTP transport. When ChromeDriver returns a malformed status-line or an incomplete body, the compatibility runner raises only `WebDriver transport protocol failure`. Raw status-line text, partial body bytes, paths, URLs, or tokens must not enter exception text or trial evidence. This classification lets `main` record the failure in `trial_results` instead of aborting the compatibility run with an unclassified parser exception.
+
+## Click post-condition diagnostic boundary
+
+W3C WebDriver Get Element Text returns rendered element text. That value is page-controlled data. The compatibility runner compares the fixture output against the exact expected `clicked` token and, on mismatch, retains only the classified message `real click post-condition mismatch`. Raw element text must not enter exception text or trial evidence.
 
 ## Update-migration evidence boundary
 
@@ -60,6 +76,10 @@ Chrome for Developers. (2023, May 2). *The extension service worker lifecycle*. 
 
 Chrome for Developers. (n.d.). *chrome.declarativeNetRequest*. Google. Retrieved August 9, 2026, from https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequest
 
+Chrome for Developers. (n.d.). *chrome.bookmarks*. Google. Retrieved August 16, 2026, from https://developer.chrome.com/docs/extensions/reference/api/bookmarks
+
+Chrome for Developers. (n.d.). *chrome.downloads*. Google. Retrieved August 16, 2026, from https://developer.chrome.com/docs/extensions/reference/api/downloads
+
 Chrome for Developers. (n.d.). *chrome.history*. Google. Retrieved August 11, 2026, from https://developer.chrome.com/docs/extensions/reference/api/history
 
 Chrome for Developers. (n.d.). *Manifest file format*. Google. Retrieved August 9, 2026, from https://developer.chrome.com/docs/extensions/reference/manifest
@@ -67,3 +87,7 @@ Chrome for Developers. (n.d.). *Manifest file format*. Google. Retrieved August 
 Bynens, M. (2023, June 12). *Chrome for Testing*. Chrome for Developers. https://developer.chrome.com/docs/automation-and-testing/chrome-for-testing
 
 Google Chrome Labs. (2026, July 21). *Chrome for Testing availability*. https://googlechromelabs.github.io/chrome-for-testing/
+
+Fielding, R., Nottingham, M., & Reschke, J. (Eds.). (2022). *HTTP/1.1* (RFC 9112). Internet Engineering Task Force. https://doi.org/10.17487/RFC9112
+
+World Wide Web Consortium. (2018, June 5). *WebDriver* (W3C Recommendation). https://www.w3.org/TR/2018/REC-webdriver1-20180605/

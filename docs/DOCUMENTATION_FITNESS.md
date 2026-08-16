@@ -55,7 +55,7 @@ Protected main already proves a pinned-Chromium baseline for service worker, con
 
 - #43: controlled downloads;
 - #49: per-trial ephemeral profile isolation;
-- #56: bookmark create/read/delete cleanup;
+- #56: bookmark create/read/delete cleanup with allow-listed stage diagnostics;
 - #59: history add/read/delete/absence verification;
 - #60: trial-local unpacked-extension `1.0.0` → `1.0.1` update with explicit schema migration; and
 - #61: real content-script isolated-world evidence in which the page main world retains a `page` sentinel while the content script independently retains an `extension` sentinel.

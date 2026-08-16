@@ -1,13 +1,7 @@
 "use strict";
 
 (async () => {
-  window.originweaveWorldSentinel = "extension";
-  await new Promise((resolve) => setTimeout(resolve, 75));
-  const pageWorldSentinel = document.documentElement.dataset.originweavePageWorld;
-  document.documentElement.dataset.originweaveContentScript =
-    window.originweaveWorldSentinel === "extension" && pageWorldSentinel === "page"
-      ? "ready"
-      : "missing";
+  document.documentElement.dataset.originweaveContentScript = "ready";
 
   const previous = await chrome.storage.local.get("originweave_content");
   const storagePersisted = previous.originweave_content === "ready";
@@ -36,6 +30,8 @@
   document.documentElement.dataset.originweaveCommands = response?.commands ?? "missing";
   document.documentElement.dataset.originweaveSidePanel = response?.sidePanel ?? "missing";
   document.documentElement.dataset.originweaveBookmarks = response?.bookmarks ?? "missing";
+  document.documentElement.dataset.originweaveBookmarksDiagnostic =
+    response?.bookmarksDiagnostic ?? "bookmark-not-evaluated";
   document.documentElement.dataset.originweaveHistory = response?.history ?? "missing";
   document.documentElement.dataset.originweaveDownloads = response?.downloads ?? "missing";
   document.documentElement.dataset.originweaveDownloadsDiagnostic =
