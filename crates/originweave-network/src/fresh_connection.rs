@@ -5,8 +5,7 @@ use originweave_core::Origin;
 use originweave_destination::{DestinationError, FreshResolutionSnapshot};
 
 use crate::connection::{
-    ConnectionPlan, DirectTcpConnection, MAX_CONNECT_TIMEOUT, MAX_CONNECTION_ATTEMPTS,
-    NetworkError,
+    ConnectionPlan, DirectTcpConnection, MAX_CONNECT_TIMEOUT, MAX_CONNECTION_ATTEMPTS, NetworkError,
 };
 
 fn effective_origin_port(origin: &Origin) -> u16 {
