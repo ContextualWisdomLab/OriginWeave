@@ -13,6 +13,8 @@ use originweave_policy::{Decision, evaluate};
 
 const VALID_INTENT: &str =
     "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+const UNEXPIRED_NOW_EPOCH_SECONDS: u64 = 1_700_000_000;
+const UNEXPIRED_EXPIRES_AT_EPOCH_SECONDS: u64 = 1_700_000_600;
 
 fn extension_id() -> ExtensionId {
     ExtensionId::parse("abcdefghijklmnopabcdefghijklmnop").expect("valid extension id")
@@ -39,6 +41,8 @@ fn action_proposal_grant() -> ExtensionAgentGrant {
         extension_id(),
         browser_session(),
         browsing_context(),
+        origin(),
+        UNEXPIRED_EXPIRES_AT_EPOCH_SECONDS,
         [ExtensionAgentCapability::ProposeTypedAction],
     )
 }
@@ -48,6 +52,8 @@ fn assert_extension_can_propose(grant: &ExtensionAgentGrant) {
         extension_id(),
         browser_session(),
         browsing_context(),
+        origin(),
+        UNEXPIRED_NOW_EPOCH_SECONDS,
         ExtensionAgentCapability::ProposeTypedAction,
     );
     assert_eq!(
