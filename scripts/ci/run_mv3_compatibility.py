@@ -352,7 +352,7 @@ def _exercise_real_click(driver_port: int, session_id: str) -> str:
 
 
 def _teardown_driver_process(driver: subprocess.Popen[str]) -> Exception | None:
-    """Best-effort reap ChromeDriver while preserving reviewed process failures."""
+    """Best-effort reap ChromeDriver while preserving unrecovered process failures."""
 
     try:
         driver.terminate()
@@ -365,7 +365,8 @@ def _teardown_driver_process(driver: subprocess.Popen[str]) -> Exception | None:
                 "bounded ChromeDriver kill fallback also failed: "
                 f"{type(fallback_error).__name__}"
             )
-        return terminate_error
+            return terminate_error
+        return None
 
     try:
         driver.wait(timeout=5)
