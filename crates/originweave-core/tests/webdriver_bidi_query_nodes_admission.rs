@@ -8,7 +8,7 @@ use originweave_core::{
     BrowserProtocolAdapterDescriptor, BrowserProtocolCapability,
     BrowserProtocolCapabilityRequirementError, BrowserProtocolKind, BrowserProtocolOperation,
     BrowserProtocolRuntimeMetadata, BrowserProtocolUseValidationError, BrowserSessionId,
-    BrowsingContextId, DocumentEpoch, Origin, OriginWeaveProtocolVersion,
+    BrowsingContextId, DocumentEpoch, ObservedNodeHandle, Origin, OriginWeaveProtocolVersion,
     WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesAdmissionError,
     WebDriverBiDiQueryNodesAdmissionError, WebDriverBiDiRemoteNodeReferenceError,
 };
@@ -67,7 +67,7 @@ fn admit_query_nodes<'a>(
     target: BrowserContextOriginEpochDispatchTarget<'a>,
     query: &WebDriverBiDiAccessibilityQuery,
     items: &[(&str, Option<&str>)],
-) -> Result<Vec<originweave_core::ObservedNodeHandle>, WebDriverBiDiQueryNodesAdmissionError> {
+) -> Result<Vec<ObservedNodeHandle>, WebDriverBiDiQueryNodesAdmissionError> {
     descriptor.admit_query_nodes(
         registry,
         target,
@@ -79,8 +79,8 @@ fn admit_query_nodes<'a>(
 }
 
 #[test]
-fn query_nodes_admission_requires_semantic_observation_and_binds_current_handles(
-) -> Result<(), Box<dyn Error>> {
+fn query_nodes_admission_requires_semantic_observation_and_binds_current_handles()
+-> Result<(), Box<dyn Error>> {
     let descriptor = descriptor(&[BrowserProtocolCapability::SemanticObservation])?;
     let mut registry = BrowserAuthorityRegistry::new();
     let expected_origin = controlled_origin();
@@ -178,8 +178,8 @@ fn typed_input_only_adapter_cannot_admit_query_nodes() -> Result<(), Box<dyn Err
 }
 
 #[test]
-fn query_nodes_admission_rejects_control_bearing_and_omitted_shared_ids() -> Result<(), Box<dyn Error>>
-{
+fn query_nodes_admission_rejects_control_bearing_and_omitted_shared_ids()
+-> Result<(), Box<dyn Error>> {
     let descriptor = descriptor(&[BrowserProtocolCapability::SemanticObservation])?;
     let mut registry = BrowserAuthorityRegistry::new();
     let expected_origin = controlled_origin();

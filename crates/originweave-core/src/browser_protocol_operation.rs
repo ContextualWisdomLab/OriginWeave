@@ -273,6 +273,43 @@ impl WebDriverBiDiAccessibilityQuery {
     }
 }
 
+/// Fail-closed errors for QueryNodes admission that requires SemanticObservation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WebDriverBiDiQueryNodesAdmissionError {
+    /// Protocol metadata or the QueryNodes capability failed before node admission.
+    ProtocolDispatch(BrowserContextProtocolDispatchError),
+    /// The untrusted `locateNodes` result failed current-authority admission.
+    LocateNodes(WebDriverBiDiLocateNodesAdmissionError),
+}
+
+impl Display for WebDriverBiDiQueryNodesAdmissionError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ProtocolDispatch(error) => {
+                write!(
+                    formatter,
+                    "QueryNodes protocol dispatch rejected locateNodes admission: {error}"
+                )
+            }
+            Self::LocateNodes(error) => {
+                write!(
+                    formatter,
+                    "QueryNodes current-authority admission rejected locateNodes result: {error}"
+                )
+            }
+        }
+    }
+}
+
+impl Error for WebDriverBiDiQueryNodesAdmissionError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::ProtocolDispatch(error) => Some(error),
+            Self::LocateNodes(error) => Some(error),
+        }
+    }
+}
+
 /// Fail-closed errors for admitting an untrusted `locateNodes` result into current node authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WebDriverBiDiLocateNodesAdmissionError {
@@ -495,5 +532,40 @@ impl BrowserProtocolAdapterDescriptor {
             operation.required_capability(),
             |validated, epoch| dispatch(validated, operation, epoch),
         )
+    }
+
+    /// Admit one untrusted `locateNodes` result only after QueryNodes protocol proof.
+    ///
+    /// The same-call boundary first consumes a non-cloneable protocol-use proof for
+    /// [`BrowserProtocolOperation::QueryNodes`], which derives
+    /// [`BrowserProtocolCapability::SemanticObservation`]. Only then may
+    /// [`WebDriverBiDiAccessibilityQuery::bind_current_nodes`] translate admitted `sharedId`
+    /// values into [`ObservedNodeHandle`] values on the exact current session, browsing
+    /// context, canonical origin, and document epoch.
+    ///
+    /// This method performs no browser I/O, does not authenticate Chromium, and does not grant
+    /// policy, destination, or typed-input authority. A later action must still revalidate the
+    /// returned handles immediately before use.
+    pub fn admit_query_nodes(
+        &self,
+        authority_registry: &mut BrowserAuthorityRegistry,
+        target: BrowserContextOriginEpochDispatchTarget<'_>,
+        required_originweave_protocol_version: OriginWeaveProtocolVersion,
+        runtime_metadata: BrowserProtocolRuntimeMetadata<'_>,
+        query: &WebDriverBiDiAccessibilityQuery,
+        items: &[(&str, Option<&str>)],
+    ) -> Result<Vec<ObservedNodeHandle>, WebDriverBiDiQueryNodesAdmissionError> {
+        self.dispatch_operation_if_context_origin_epoch_current(
+            authority_registry,
+            target,
+            required_originweave_protocol_version,
+            runtime_metadata,
+            BrowserProtocolOperation::QueryNodes,
+            |_validated, _operation, _epoch| (),
+        )
+        .map_err(WebDriverBiDiQueryNodesAdmissionError::ProtocolDispatch)?;
+        query
+            .bind_current_nodes(authority_registry, target, items)
+            .map_err(WebDriverBiDiQueryNodesAdmissionError::LocateNodes)
     }
 }
