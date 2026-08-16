@@ -85,8 +85,7 @@ fn mismatched_session_cannot_probe_policy_window_state() {
         AgentTaskExtensionDecision::DenySessionMismatch
     );
 
-    let not_yet_valid =
-        AgentTaskExtensionPolicy::new(session(31), [extension.clone()], 10, 20, 10);
+    let not_yet_valid = AgentTaskExtensionPolicy::new(session(31), [extension.clone()], 10, 20, 10);
     assert_eq!(
         evaluate_agent_task_extension(&extension, &not_yet_valid, current_session, 9),
         AgentTaskExtensionDecision::DenySessionMismatch
