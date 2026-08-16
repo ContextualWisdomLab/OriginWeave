@@ -166,7 +166,13 @@ def _json_request(
     *,
     timeout: float = REQUEST_TIMEOUT_SECONDS,
 ) -> dict[str, Any]:
-    """Issue one bounded JSON request to the fixed loopback ChromeDriver authority."""
+    """Issue one bounded JSON request to the fixed loopback ChromeDriver authority.
+
+    Recoverable HTTP/1.1 parser failures, including a malformed status-line or an
+    incomplete message body, become `RuntimeError("WebDriver transport protocol
+    failure")` so trial evidence can record a classified outcome without retaining
+    raw transport text.
+    """
 
     if not 1 <= driver_port <= 65_535:
         raise ValueError("invalid ChromeDriver port")
@@ -178,14 +184,17 @@ def _json_request(
     body = None if payload is None else json.dumps(payload).encode("utf-8")
     connection = http.client.HTTPConnection("127.0.0.1", driver_port, timeout=timeout)
     try:
-        connection.request(
-            method,
-            path,
-            body=body,
-            headers={"Content-Type": "application/json"},
-        )
-        response = connection.getresponse()
-        raw = response.read(MAX_WEBDRIVER_RESPONSE_BYTES + 1)
+        try:
+            connection.request(
+                method,
+                path,
+                body=body,
+                headers={"Content-Type": "application/json"},
+            )
+            response = connection.getresponse()
+            raw = response.read(MAX_WEBDRIVER_RESPONSE_BYTES + 1)
+        except http.client.HTTPException:
+            raise RuntimeError("WebDriver transport protocol failure") from None
         if len(raw) > MAX_WEBDRIVER_RESPONSE_BYTES:
             raise RuntimeError("WebDriver response exceeded the bounded JSON limit")
         if response.status >= 400:
