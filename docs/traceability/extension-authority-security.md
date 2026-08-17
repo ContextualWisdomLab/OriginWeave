@@ -2,7 +2,7 @@
 
 - **Documentation status:** Active-PR evidence dossier
 - **Canonical owner:** PR #44 (`docs: reconcile architecture documentation fitness`)
-- **Protected-main baseline:** `0c376acf059be9ddddddfbde1d0189e4f39ef014`
+- **Protected-main baseline:** `0841d2ab3d8b5e60a03c0a8e818cf438e2716829`
 - **Capability maturity:** **PARTIAL**
 - **Governing decision:** Proposed ADR 0013 separates Manifest V3 compatibility from OriginWeave Agent authority.
 
@@ -50,23 +50,29 @@ Exact current head `a4595c393f459f57bfe2199ace44271f246751c4` deliberately keeps
 
 This lane adds no broker, browser-fill adapter, protected-value store, KMS path, authenticated workload identity, persistence owner, or approval evidence.
 
+### Origin-bound extension grant evaluation
+
+**Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
+
+The current origin-binding slice requires `ExtensionAgentGrant` and `ExtensionAccessRequest` to carry the same canonical origin. A same-session, same-context request for `https://other.example` or `https://app.example:8443` against a grant for `https://app.example` is `DenyOriginMismatch`. Exclusive trusted-time expiry is evaluated after that origin match: `now >= expires_at` is `DenyExpired`. This does not install an extension, parse Chrome messages, bind task identity, or mint Agent capabilities from Manifest V3 permissions.
+
 ### PR #82 — exact extension-to-native-host authority
 
 **Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
 
-Exact current head `427d2f32431139dc7ed59e60df00fd9d0c4eeba0` provides bounded native-host names plus exact extension-ID/host-name grants and request identity getters. Chrome `nativeMessaging` permission remains separate from OriginWeave Agent authority. The lane does not parse an installed host manifest, read operating-system registration, launch a process, frame stdio, or trust native-host output.
+Exact current head `ad1ece96eee7209d27d7fe87001832c412ec71f1` provides bounded native-host names plus exact extension-ID/host-name grants and request identity getters. Chrome `nativeMessaging` permission remains separate from OriginWeave Agent authority. The lane does not parse an installed host manifest, read operating-system registration, launch a process, frame stdio, or trust native-host output.
 
 ### PR #154 — bounded native-messaging framing
 
 **Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
 
-Exact current head `d2e1ae8d654703b76897db202980fec82d26babc`, stacked on #82, bounds native-endian message framing with direction-specific payload ceilings, exact frame length, and UTF-8 text validation before later JSON/untrusted-observation handling. It does not prove host-manifest installation, process ownership, sandboxing, stdio provenance, or Agent authority.
+Exact current head `276e0d46408da57556a360c6cc2883a632312fea`, stacked on #82, preserves current extension authority while bounding native-endian message framing with direction-specific payload ceilings, exact frame length, and UTF-8 text validation before later JSON/untrusted-observation handling. It does not prove host-manifest installation, process ownership, sandboxing, stdio provenance, or Agent authority.
 
 ### PR #169 — validated host-manifest authority
 
 **Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
 
-Current Draft head `6d85f1a15e1501f48ce2d12d560323a36b38719b`, stacked on #154, adds test-first host-manifest authority. It accepts only exact `stdio`, requires a non-empty bounded raw `allowed_origins` list, validates exact canonical `chrome-extension://<id>/` origins without wildcard or suffix normalization, collapses duplicate exact origins without widening authority, and allows only an exact host plus explicitly listed extension identity.
+This Draft, stacked on #154, adds test-first host-manifest authority. It accepts only exact `stdio`, requires a non-empty bounded raw `allowed_origins` list, validates exact canonical `chrome-extension://<id>/` origins without wildcard or suffix normalization, collapses duplicate exact origins without widening authority, bounds executable-path allocation, preserves platform-specific path semantics, and allows only an exact host plus explicitly listed extension identity.
 
 The implementation intentionally treats caller-supplied validated manifest fields as one authority input only. It does not read JSON/filesystem/registry state, canonicalize or attest executable paths, prove installer/OS ownership, spawn/sandbox/supervise a host process, authenticate the stdio peer, parse/trust host JSON, expose protected values, or grant Agent actions. Those remain separately reviewed runtime boundaries.
 
@@ -76,7 +82,7 @@ The executable authority chains are intentionally non-transitive:
 
 ```text
 Chromium extension permission
--> explicit extension/session/context grant
+-> explicit extension/session/context/origin/time-bounded grant
 -> permission to propose a typed action
 -/> Agent capability
 -/> Agent readable/writable origin

@@ -6,6 +6,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Added
 
+- Bound explicit extension-to-Agent grants to exclusive trusted-time expiry in addition to extension identity, session, browsing context, and canonical origin, so a same-origin grant cannot be reused at or after the deadline.
+- Bound explicit extension-to-Agent grants to the exact canonical origin in addition to extension identity, session, and browsing context, so a same-session navigation or port change cannot reuse the grant.
 - Rust workspace for independently reusable core, policy, destination, network, TLS, resource, and evidence modules.
 - Bounded Chrome native-messaging framing with native-endian 32-bit byte lengths, direction-specific 1 MiB host-to-browser and 64 MiB browser-to-host payload ceilings, fail-closed rejection of oversized, truncated, or trailing frame data, and explicit UTF-8 payload validation before framed bytes can be treated as native-messaging text, without granting Agent authority or claiming JSON trust.
 - Fail-closed native-messaging host-manifest authority that accepts only exact `stdio`, bounds raw `allowed_origins` before deduplication, validates only exact `chrome-extension://<id>/` entries, and matches exact host/extension identity without treating manifest installation or process state as Agent authority.
@@ -58,7 +60,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Resolver answers are rejected when empty or larger than 256 addresses, preventing an unbounded resolver response from entering policy state.
 - `localhost` may approve only loopback addresses, while literal IPv4 and IPv6 origins may approve only the exact canonical address encoded in the origin.
 - Resolver answers must remain a non-empty subset of the origin-bound approved address set; any newly introduced address fails closed as a possible DNS-rebinding event.
-- Every redirect rechecks target-origin authority, target-bound resolution, HTTPS downgrade, complete-target digest, and hop capacity before policy state changes.
+- Every redirect rechecks target-origin authority, target-bound resolution, HTTPS downgrade, complete-target cycle state, and hop capacity before policy state changes.
 - Direct TCP plans reject port zero, zero or excessive timeouts, excessive attempts, unapproved IPs, non-canonical IPv4-mapped IPv6 sockets, and IPv6 flow or scope metadata not represented in destination authority before connection I/O.
 - Direct connection code accepts only an explicit `SocketAddr`, never a hostname, and does not read proxy environment variables.
 - Established streams are discarded when peer inspection fails or the observed remote IP or port differs from the approved socket.
