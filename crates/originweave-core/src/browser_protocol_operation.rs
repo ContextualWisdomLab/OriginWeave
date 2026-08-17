@@ -219,8 +219,9 @@ impl WebDriverBiDiAccessibilityQuery {
     /// The registry then proves that `target` still names the current session, browsing context,
     /// canonical origin, and document epoch. Only then is the returned item count checked against
     /// this query's budget. Each item must be an exact `node` remote value with a usable shared
-    /// identifier; those identifiers are translated through the registry into
-    /// [`ObservedNodeHandle`] values bound to that same current authority.
+    /// identifier. The complete admitted batch is then translated atomically into
+    /// [`ObservedNodeHandle`] values bound to that same current authority: if any registry binding
+    /// fails, no partial node authority from this call is retained.
     ///
     /// This method performs no browser I/O, does not authenticate Chromium, and does not grant
     /// policy, destination, or typed-input authority. A later action must still revalidate the
@@ -268,20 +269,18 @@ impl WebDriverBiDiAccessibilityQuery {
             );
         }
 
-        let mut handles = Vec::new();
-        for reference in references {
-            handles.push(
-                authority_registry
-                    .bind_node(
-                        context.browser_session(),
-                        context.browsing_context(),
-                        context_origin.expected_origin(),
-                        reference.shared_id(),
-                    )
-                    .map_err(WebDriverBiDiLocateNodesAdmissionError::BrowserAuthority)?,
-            );
-        }
-        Ok(handles)
+        let shared_ids = references
+            .iter()
+            .map(WebDriverBiDiRemoteNodeReference::shared_id)
+            .collect::<Vec<_>>();
+        authority_registry
+            .bind_nodes(
+                context.browser_session(),
+                context.browsing_context(),
+                context_origin.expected_origin(),
+                &shared_ids,
+            )
+            .map_err(WebDriverBiDiLocateNodesAdmissionError::BrowserAuthority)
     }
 }
 

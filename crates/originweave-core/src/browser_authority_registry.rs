@@ -7,11 +7,12 @@ use crate::{
 /// Public browser-authority registry with raw node minting kept inside the crate.
 ///
 /// Browser-session, browsing-context, document-epoch, and canonical-origin lifecycle operations are
-/// public because trusted adapters need them to maintain current authority. Converting an untrusted
-/// browser-protocol node identifier into an [`ObservedNodeHandle`] is deliberately crate-private:
-/// external callers must use a reviewed semantic-observation admission boundary such as
-/// [`crate::WebDriverBiDiAccessibilityQuery::bind_current_nodes`], which consumes the required
-/// protocol-use proof and revalidates the exact current document before minting handles.
+/// public because trusted adapters need them to maintain current authority. Converting untrusted
+/// browser-protocol node identifiers into [`ObservedNodeHandle`] values is deliberately
+/// crate-private: external callers must use a reviewed semantic-observation admission boundary such
+/// as [`crate::WebDriverBiDiAccessibilityQuery::bind_current_nodes`], which consumes the required
+/// protocol-use proof, validates the complete batch, and revalidates the exact current document
+/// before atomically minting handles.
 pub struct BrowserAuthorityRegistry {
     inner: RawBrowserAuthorityRegistry,
 }
@@ -118,23 +119,25 @@ impl BrowserAuthorityRegistry {
         self.inner.advance_document(browsing_context)
     }
 
-    /// Bind one admitted adapter-local node identifier to exact current browser authority.
+    /// Bind one admitted batch of adapter-local node identifiers to current browser authority.
     ///
-    /// This operation is intentionally crate-private. Production callers outside this crate cannot
-    /// invoke it without first passing through a public admission path that owns the appropriate
-    /// protocol-use proof and untrusted-result validation.
-    pub(crate) fn bind_node(
+    /// This operation is intentionally crate-private. The raw registry commits the batch only when
+    /// every identifier can be bound; a later failure rolls back node identifiers and any origin
+    /// binding created by the batch before the error is returned. Production callers outside this
+    /// crate therefore cannot bypass semantic admission or observe partial authority from a failed
+    /// `locateNodes` result.
+    pub(crate) fn bind_nodes(
         &mut self,
         browser_session: BrowserSessionId,
         browsing_context: BrowsingContextId,
         origin: &Origin,
-        external_identifier: &str,
-    ) -> Result<ObservedNodeHandle, BrowserRegistryError> {
-        self.inner.bind_node(
+        external_identifiers: &[&str],
+    ) -> Result<Vec<ObservedNodeHandle>, BrowserRegistryError> {
+        self.inner.bind_nodes(
             browser_session,
             browsing_context,
             origin,
-            external_identifier,
+            external_identifiers,
         )
     }
 }

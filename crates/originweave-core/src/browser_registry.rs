@@ -356,6 +356,46 @@ impl BrowserAuthorityRegistry {
             observed_node_handle(browser_session, browsing_context, origin, epoch, node_id)
         })
     }
+
+    /// Bind a batch of node identifiers transactionally to the exact current browser authority.
+    ///
+    /// Successful bindings are retained only when every identifier in the batch succeeds. If a
+    /// later identifier fails validation, authority checks, identifier allocation, or handle
+    /// construction, node mappings allocated by this batch are removed, the next node identifier
+    /// is restored, and an origin first established by this batch is removed before the error is
+    /// returned. Handles created earlier in the failed batch never escape this method, so restoring
+    /// the local allocation cursor cannot revive externally observable stale authority.
+    pub(crate) fn bind_nodes(
+        &mut self,
+        browser_session: BrowserSessionId,
+        browsing_context: BrowsingContextId,
+        origin: &Origin,
+        external_identifiers: &[&str],
+    ) -> Result<Vec<ObservedNodeHandle>, BrowserRegistryError> {
+        let starting_next_node_id = self.next_node_id;
+        let had_origin = self.context_origin.contains_key(&browsing_context);
+        let mut handles = Vec::with_capacity(external_identifiers.len());
+        for external_identifier in external_identifiers {
+            match self.bind_node(
+                browser_session,
+                browsing_context,
+                origin,
+                external_identifier,
+            ) {
+                Ok(handle) => handles.push(handle),
+                Err(error) => {
+                    self.node_by_external
+                        .retain(|_key, node_id| *node_id < starting_next_node_id);
+                    self.next_node_id = starting_next_node_id;
+                    if !had_origin {
+                        self.context_origin.remove(&browsing_context);
+                    }
+                    return Err(error);
+                }
+            }
+        }
+        Ok(handles)
+    }
 }
 
 impl Default for BrowserAuthorityRegistry {
@@ -609,6 +649,55 @@ mod tests {
             registry.bind_node(session, unknown_contexts[0], origin, "node"),
             Err(BrowserRegistryError::UnknownBrowsingContext)
         );
+    }
+
+    #[test]
+    fn batched_node_binding_rolls_back_partial_authority() {
+        let origins = values(Origin::parse("http://127.0.0.1:43127"));
+        assert_eq!(origins.len(), 1);
+        let origin = &origins[0];
+
+        let mut registry = BrowserAuthorityRegistry::with_identifier_limit(2);
+        let sessions = values(registry.register_session("session"));
+        assert_eq!(sessions.len(), 1);
+        let session = sessions[0];
+        let contexts = values(registry.register_context(session, "context"));
+        assert_eq!(contexts.len(), 1);
+        let context = contexts[0];
+        let existing = values(registry.bind_node(session, context, origin, "existing"));
+        assert_eq!(existing.len(), 1);
+        assert_eq!(existing[0].node_id(), 1);
+        assert_eq!(
+            registry.bind_nodes(session, context, origin, &["existing", "fresh", "overflow"]),
+            Err(BrowserRegistryError::IdentifierSpaceExhausted)
+        );
+        assert_eq!(registry.node_by_external.len(), 1);
+        assert_eq!(registry.next_node_id, 2);
+        assert!(registry.context_origin.contains_key(&context));
+        let recovery = values(registry.bind_node(session, context, origin, "recovery"));
+        assert_eq!(recovery.len(), 1);
+        assert_eq!(recovery[0].node_id(), 2);
+
+        let mut unbound_registry = BrowserAuthorityRegistry::with_identifier_limit(1);
+        let sessions = values(unbound_registry.register_session("unbound-session"));
+        assert_eq!(sessions.len(), 1);
+        let unbound_session = sessions[0];
+        let contexts = values(unbound_registry.register_context(unbound_session, "unbound-context"));
+        assert_eq!(contexts.len(), 1);
+        let unbound_context = contexts[0];
+        assert!(!unbound_registry.context_origin.contains_key(&unbound_context));
+        assert_eq!(
+            unbound_registry.bind_nodes(
+                unbound_session,
+                unbound_context,
+                origin,
+                &["first", "overflow"],
+            ),
+            Err(BrowserRegistryError::IdentifierSpaceExhausted)
+        );
+        assert!(!unbound_registry.context_origin.contains_key(&unbound_context));
+        assert!(unbound_registry.node_by_external.is_empty());
+        assert_eq!(unbound_registry.next_node_id, 1);
     }
 
     #[test]
