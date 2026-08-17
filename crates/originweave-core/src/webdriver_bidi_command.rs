@@ -61,6 +61,55 @@ impl Display for WebDriverBiDiLocateNodesResponseCorrelationError {
 
 impl Error for WebDriverBiDiLocateNodesResponseCorrelationError {}
 
+/// Structured WebDriver BiDi command-response envelope kind retained through correlation.
+///
+/// A later trusted parser must derive this classification from the exact wire envelope. This value
+/// does not validate raw JSON or grant browser, node, policy, or Agent authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WebDriverBiDiCommandResponseKind {
+    /// A WebDriver BiDi command success response.
+    Success,
+    /// A WebDriver BiDi command error response.
+    Error,
+}
+
+/// Fail-closed errors while admitting a structured WebDriver BiDi response envelope.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WebDriverBiDiLocateNodesResponseEnvelopeError {
+    /// A success envelope did not carry the required command response identifier.
+    MissingResponseId,
+    /// An error envelope carried no recoverable command identifier and cannot be correlated.
+    UncorrelatableErrorResponse,
+    /// The present response identifier failed exact command correlation.
+    Correlation(WebDriverBiDiLocateNodesResponseCorrelationError),
+}
+
+impl Display for WebDriverBiDiLocateNodesResponseEnvelopeError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::MissingResponseId => {
+                formatter.write_str("WebDriver BiDi success response is missing its command id")
+            }
+            Self::UncorrelatableErrorResponse => formatter.write_str(
+                "WebDriver BiDi error response has no recoverable command id for correlation",
+            ),
+            Self::Correlation(error) => write!(
+                formatter,
+                "WebDriver BiDi response envelope rejected command correlation: {error}"
+            ),
+        }
+    }
+}
+
+impl Error for WebDriverBiDiLocateNodesResponseEnvelopeError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::Correlation(error) => Some(error),
+            Self::MissingResponseId | Self::UncorrelatableErrorResponse => None,
+        }
+    }
+}
+
 /// Non-cloneable evidence that one `locateNodes` response matched the exact command id.
 ///
 /// Only [`WebDriverBiDiLocateNodesCommand::correlate_response_id`] can construct this value. It
@@ -86,6 +135,41 @@ impl ValidatedWebDriverBiDiLocateNodesResponse {
     #[must_use]
     pub fn browsing_context(&self) -> &str {
         &self.browsing_context
+    }
+}
+
+/// Non-cloneable structured-envelope evidence for one correlated `locateNodes` response.
+///
+/// This value deliberately keeps success and error envelopes distinguishable after exact response
+/// id correlation. A correlated error response remains error evidence and cannot be converted into
+/// [`ValidatedWebDriverBiDiLocateNodesResponse`] through this public API. A later trusted response
+/// parser must classify the exact wire envelope before calling
+/// [`WebDriverBiDiLocateNodesCommand::correlate_response_envelope`]. This value performs no raw JSON
+/// parsing, browser or adapter authentication, node admission, policy authorization, or Agent
+/// action authorization.
+#[derive(Debug, PartialEq, Eq)]
+pub struct CorrelatedWebDriverBiDiLocateNodesResponse {
+    kind: WebDriverBiDiCommandResponseKind,
+    correlated: ValidatedWebDriverBiDiLocateNodesResponse,
+}
+
+impl CorrelatedWebDriverBiDiLocateNodesResponse {
+    /// Return whether the exact correlated envelope was classified as success or error.
+    #[must_use]
+    pub const fn kind(&self) -> WebDriverBiDiCommandResponseKind {
+        self.kind
+    }
+
+    /// Return the exact command identifier proven to match the response.
+    #[must_use]
+    pub const fn command_id(&self) -> u64 {
+        self.correlated.command_id()
+    }
+
+    /// Return the bounded browsing-context identifier serialized by the matched command.
+    #[must_use]
+    pub fn browsing_context(&self) -> &str {
+        self.correlated.browsing_context()
     }
 }
 
@@ -217,6 +301,44 @@ impl WebDriverBiDiLocateNodesCommand {
             command_id: self.command_id,
             browsing_context: self.browsing_context,
         })
+    }
+
+    /// Consume this command and admit one already classified response envelope for correlation.
+    ///
+    /// A success envelope must carry a response id. A WebDriver BiDi error envelope may have a null
+    /// id when no valid command id can be recovered; that case returns
+    /// [`WebDriverBiDiLocateNodesResponseEnvelopeError::UncorrelatableErrorResponse`] and produces
+    /// no correlation evidence. When an id is present, the same protocol-range and exact-id checks
+    /// as [`Self::correlate_response_id`] apply. The returned evidence retains whether the envelope
+    /// was success or error so an error cannot silently become success evidence.
+    ///
+    /// The caller must obtain `kind` and `response_id` from a separately reviewed exact response
+    /// parser. This method does not parse JSON, validate result payload shape, authenticate a browser
+    /// or adapter, admit nodes, or grant policy, typed-input, secret, or Agent authority.
+    pub fn correlate_response_envelope(
+        self,
+        kind: WebDriverBiDiCommandResponseKind,
+        response_id: Option<u64>,
+    ) -> Result<
+        CorrelatedWebDriverBiDiLocateNodesResponse,
+        WebDriverBiDiLocateNodesResponseEnvelopeError,
+    > {
+        let response_id = match (kind, response_id) {
+            (WebDriverBiDiCommandResponseKind::Success, None) => {
+                return Err(WebDriverBiDiLocateNodesResponseEnvelopeError::MissingResponseId);
+            }
+            (WebDriverBiDiCommandResponseKind::Error, None) => {
+                return Err(
+                    WebDriverBiDiLocateNodesResponseEnvelopeError::UncorrelatableErrorResponse,
+                );
+            }
+            (_, Some(response_id)) => response_id,
+        };
+        let correlated = self
+            .correlate_response_id(response_id)
+            .map_err(WebDriverBiDiLocateNodesResponseEnvelopeError::Correlation)?;
+
+        Ok(CorrelatedWebDriverBiDiLocateNodesResponse { kind, correlated })
     }
 }
 
