@@ -232,10 +232,12 @@ impl fmt::Display for McpToolsListBoundaryError {
             Self::HeaderBodyMismatch => {
                 formatter.write_str("MCP routing headers do not match the request body")
             }
-            Self::UnsupportedMethod => formatter
-                .write_str("only MCP tools/list requests can enter the discovery boundary"),
-            Self::UnsupportedCursor => formatter
-                .write_str("MCP tools/list cursor was not issued by this fixed catalog"),
+            Self::UnsupportedMethod => {
+                formatter.write_str("only MCP tools/list requests can enter the discovery boundary")
+            }
+            Self::UnsupportedCursor => {
+                formatter.write_str("MCP tools/list cursor was not issued by this fixed catalog")
+            }
         }
     }
 }
