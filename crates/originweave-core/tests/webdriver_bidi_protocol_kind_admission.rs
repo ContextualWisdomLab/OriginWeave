@@ -36,8 +36,8 @@ fn cdp_semantic_observation_proof() -> Result<ValidatedBrowserProtocolUse, Box<d
 }
 
 #[test]
-fn webdriver_bidi_locate_nodes_rejects_cdp_semantic_observation_proof(
-) -> Result<(), Box<dyn Error>> {
+fn webdriver_bidi_locate_nodes_rejects_cdp_semantic_observation_proof() -> Result<(), Box<dyn Error>>
+{
     let mut registry = BrowserAuthorityRegistry::new();
     let origin = Origin::parse("https://app.example").expect("valid controlled fixture origin");
     let session = registry.register_session("webdriver-session")?;
@@ -59,9 +59,11 @@ fn webdriver_bidi_locate_nodes_rejects_cdp_semantic_observation_proof(
             target,
             &[("node", Some("shared-task-text"))],
         ),
-        Err(WebDriverBiDiLocateNodesAdmissionError::UnsupportedProtocolKind(
-            BrowserProtocolKind::ChromeDevToolsProtocol,
-        ))
+        Err(
+            WebDriverBiDiLocateNodesAdmissionError::UnsupportedProtocolKind(
+                BrowserProtocolKind::ChromeDevToolsProtocol,
+            )
+        )
     );
     Ok(())
 }
