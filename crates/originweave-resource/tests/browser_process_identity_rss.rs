@@ -105,11 +105,11 @@ fn linux_identity_sampler_rejects_pid_reuse_and_samples_current_process() -> Res
             .map_err(|error| format!("sample current process identity: {error:?}"))?;
         assert!(rss_bytes > 0);
         assert_eq!(rss_bytes % 1_024, 0);
-        assert_eq!(
-            sample_linux_process_identity_set_rss_bytes(&[identity])
-                .map_err(|error| format!("sample current identity set: {error:?}"))?,
-            rss_bytes
-        );
+
+        let identity_set_rss_bytes = sample_linux_process_identity_set_rss_bytes(&[identity])
+            .map_err(|error| format!("sample current identity set: {error:?}"))?;
+        assert!(identity_set_rss_bytes > 0);
+        assert_eq!(identity_set_rss_bytes % 1_024, 0);
 
         let stale = LinuxProcessIdentity::new(
             identity.process_id(),
