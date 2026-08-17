@@ -2,8 +2,8 @@ use std::error::Error;
 use std::fmt::{Display, Formatter};
 
 use crate::{
-    contains_disallowed_protocol_text, WebDriverBiDiAccessibilityQuery,
     MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES, WEBDRIVER_BIDI_LOCATE_NODES_METHOD,
+    WebDriverBiDiAccessibilityQuery, contains_disallowed_protocol_text,
 };
 
 /// Maximum WebDriver BiDi command identifier representable by the protocol `js-uint` type.
