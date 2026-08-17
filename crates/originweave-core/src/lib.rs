@@ -967,16 +967,20 @@ pub struct ExtensionAgentGrant {
     extension_id: ExtensionId,
     browser_session: BrowserSessionId,
     browsing_context: BrowsingContextId,
+    origin: Origin,
+    expires_at_epoch_seconds: u64,
     capabilities: BTreeSet<ExtensionAgentCapability>,
 }
 
 impl ExtensionAgentGrant {
-    /// Build an exact extension-to-Agent grant for one browser session and context.
+    /// Build an exact extension-to-Agent grant for one session, context, origin, and exclusive expiry.
     #[must_use]
     pub fn new<I>(
         extension_id: ExtensionId,
         browser_session: BrowserSessionId,
         browsing_context: BrowsingContextId,
+        origin: Origin,
+        expires_at_epoch_seconds: u64,
         capabilities: I,
     ) -> Self
     where
@@ -986,6 +990,8 @@ impl ExtensionAgentGrant {
             extension_id,
             browser_session,
             browsing_context,
+            origin,
+            expires_at_epoch_seconds,
             capabilities: capabilities.into_iter().collect(),
         }
     }
@@ -997,22 +1003,31 @@ pub struct ExtensionAccessRequest {
     extension_id: ExtensionId,
     browser_session: BrowserSessionId,
     browsing_context: BrowsingContextId,
+    origin: Origin,
+    now_epoch_seconds: u64,
     capability: ExtensionAgentCapability,
 }
 
 impl ExtensionAccessRequest {
     /// Build one exact extension capability request without granting authority.
+    ///
+    /// `now_epoch_seconds` must be trusted evaluation time supplied by the host,
+    /// not a page, extension, or model clock.
     #[must_use]
     pub const fn new(
         extension_id: ExtensionId,
         browser_session: BrowserSessionId,
         browsing_context: BrowsingContextId,
+        origin: Origin,
+        now_epoch_seconds: u64,
         capability: ExtensionAgentCapability,
     ) -> Self {
         Self {
             extension_id,
             browser_session,
             browsing_context,
+            origin,
+            now_epoch_seconds,
             capability,
         }
     }
@@ -1021,7 +1036,7 @@ impl ExtensionAccessRequest {
 /// Result of evaluating an extension request against one explicit Agent grant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExtensionAccessDecision {
-    /// The exact extension, session, context, and capability are explicitly granted.
+    /// The exact extension, session, context, origin, unexpired grant, and capability are explicitly granted.
     Allow,
     /// No explicit extension-to-Agent grant was supplied.
     DenyMissingGrant,
@@ -1031,6 +1046,10 @@ pub enum ExtensionAccessDecision {
     DenyBrowserSessionMismatch,
     /// The request belongs to a different independently navigable browser context.
     DenyBrowsingContextMismatch,
+    /// The request belongs to a different canonical origin than the grant.
+    DenyOriginMismatch,
+    /// Trusted evaluation time is at or after the grant's exclusive expiry.
+    DenyExpired,
     /// The extension grant does not contain the requested OriginWeave capability.
     DenyCapabilityNotGranted,
 }
@@ -1039,8 +1058,9 @@ pub enum ExtensionAccessDecision {
 ///
 /// A Chrome extension permission, installation state, or page capability is never
 /// consulted here. A future Chromium adapter must construct a host-originated
-/// [`ExtensionAgentGrant`] explicitly and re-evaluate the exact session/context
-/// request at the boundary where Agent authority would otherwise cross.
+/// [`ExtensionAgentGrant`] explicitly and re-evaluate the exact session, context,
+/// canonical origin, and exclusive expiry at the boundary where Agent authority
+/// would otherwise cross.
 #[must_use]
 pub fn evaluate_extension_access(
     request: &ExtensionAccessRequest,
@@ -1058,60 +1078,14 @@ pub fn evaluate_extension_access(
     if request.browsing_context != grant.browsing_context {
         return ExtensionAccessDecision::DenyBrowsingContextMismatch;
     }
+    if request.origin != grant.origin {
+        return ExtensionAccessDecision::DenyOriginMismatch;
+    }
+    if request.now_epoch_seconds >= grant.expires_at_epoch_seconds {
+        return ExtensionAccessDecision::DenyExpired;
+    }
     if !grant.capabilities.contains(&request.capability) {
         return ExtensionAccessDecision::DenyCapabilityNotGranted;
     }
     ExtensionAccessDecision::Allow
-}
-
-/// Why a Chrome extension permission cannot authorize an OriginWeave Agent action.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ChromePermissionAuthorityError {
-    /// The permission names a reviewed Chrome compatibility surface, not Agent authority.
-    CompatibilitySurfaceOnly,
-    /// The permission is not a reviewed Chrome surface and still grants no Agent capability.
-    UnrecognizedPermission,
-}
-
-const REVIEWED_CHROME_COMPATIBILITY_PERMISSIONS: &[&str] = &[
-    "bookmarks",
-    "declarativeNetRequest",
-    "declarativeNetRequestWithHostAccess",
-    "downloads",
-    "history",
-    "scripting",
-    "sidePanel",
-    "storage",
-    "tabs",
-];
-
-/// Refuse to treat a Chrome extension permission as OriginWeave Agent authority.
-///
-/// A successful `chrome.downloads` compatibility proof, or any other reviewed
-/// Chrome permission, never becomes [`Capability::Download`] or any other Agent
-/// capability. Adapters must keep Manifest V3 evidence and Agent grants separate
-/// and call this boundary before exposing a typed action to policy.
-pub fn chrome_permission_authorizes_agent_action(
-    permission: &str,
-    action: ActionKind,
-) -> Result<(), ChromePermissionAuthorityError> {
-    let _action = action;
-    if !is_exact_chrome_permission_token(permission) {
-        return Err(ChromePermissionAuthorityError::UnrecognizedPermission);
-    }
-    if REVIEWED_CHROME_COMPATIBILITY_PERMISSIONS.contains(&permission) {
-        return Err(ChromePermissionAuthorityError::CompatibilitySurfaceOnly);
-    }
-    Err(ChromePermissionAuthorityError::UnrecognizedPermission)
-}
-
-fn is_exact_chrome_permission_token(permission: &str) -> bool {
-    let mut characters = permission.chars();
-    let Some(first) = characters.next() else {
-        return false;
-    };
-    first.is_ascii_lowercase()
-        && permission
-            .chars()
-            .all(|character| character.is_ascii_alphabetic())
 }
