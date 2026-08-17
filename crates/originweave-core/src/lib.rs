@@ -26,7 +26,8 @@ pub use contracts::{
     RobotsDecision, SecretDelivery, SessionMode,
 };
 pub use extension_authority::{
-    ExtensionAccessDecision, ExtensionAccessRequest, ExtensionAgentGrant, evaluate_extension_access,
+    AgentTaskId, AgentTaskIdError, ExtensionAccessDecision, ExtensionAccessRequest,
+    ExtensionAgentGrant, evaluate_extension_access,
 };
 pub use semantic_observation::{
     MAX_ACCESSIBLE_NAME_BYTES, MAX_SEMANTIC_CHILDREN, MAX_SEMANTIC_ROLE_BYTES,
