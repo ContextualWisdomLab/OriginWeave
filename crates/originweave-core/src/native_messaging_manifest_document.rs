@@ -70,8 +70,9 @@ impl fmt::Display for NativeMessagingManifestDocumentError {
             Self::DocumentTooLarge => formatter.write_str(
                 "native messaging host manifest document exceeds the OriginWeave safety budget",
             ),
-            Self::InvalidUtf8 => formatter
-                .write_str("native messaging host manifest document is not valid UTF-8"),
+            Self::InvalidUtf8 => {
+                formatter.write_str("native messaging host manifest document is not valid UTF-8")
+            }
         }
     }
 }
