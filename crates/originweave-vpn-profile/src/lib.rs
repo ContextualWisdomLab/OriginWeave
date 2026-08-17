@@ -325,9 +325,7 @@ fn rollback_imports(
 ) -> ProfileError {
     let mut cleanup_failed = false;
     for reference in imported.iter().rev() {
-        if importer.discard_secret(reference).is_err() {
-            cleanup_failed = true;
-        }
+        cleanup_failed |= importer.discard_secret(reference).is_err();
     }
     if cleanup_failed {
         ProfileError::SecretCleanupFailed
