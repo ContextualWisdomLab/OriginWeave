@@ -243,19 +243,20 @@ mod tests {
 
                     for error in result.err().into_iter() {
                         let Some(source) = std::error::Error::source(&error) else {
-                            panic!("expired compatibility path must retain its destination error source");
+                            panic!(
+                                "expired compatibility path must retain its destination error source"
+                            );
                         };
-                        let Some(destination_error) = source.downcast_ref::<DestinationError>() else {
+                        let Some(destination_error) = source.downcast_ref::<DestinationError>()
+                        else {
                             panic!("expired compatibility path must preserve a destination error");
                         };
                         assert_eq!(
                             std::mem::discriminant(destination_error),
-                            std::mem::discriminant(
-                                &DestinationError::ResolutionApprovalExpired {
-                                    valid_until: Duration::ZERO,
-                                    current_time: Duration::ZERO,
-                                }
-                            )
+                            std::mem::discriminant(&DestinationError::ResolutionApprovalExpired {
+                                valid_until: Duration::ZERO,
+                                current_time: Duration::ZERO,
+                            })
                         );
                     }
                 }
