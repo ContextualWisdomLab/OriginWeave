@@ -43,9 +43,10 @@ pub enum NativeMessagingHostPlatform {
 /// Validated authority-bearing fields from one Chrome native-messaging host manifest.
 ///
 /// The record contains the exact host identity, declared executable-path text and platform,
-/// plus exact Chromium extension identities named by the manifest's `allowed_origins`.
-/// Possessing this value is not proof of manifest installation, path canonicalization,
-/// executable existence or ownership, process identity, message provenance, or Agent
+/// exact Chromium extension identities named by the manifest's `allowed_origins`, and whether
+/// the manifest explicitly declares support for native-initiated connections. Possessing this
+/// value is not proof of manifest installation, path canonicalization, executable existence or
+/// ownership, process identity, message provenance, Chrome feature/policy enablement, or Agent
 /// authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeMessagingHostManifest {
@@ -53,10 +54,33 @@ pub struct NativeMessagingHostManifest {
     platform: NativeMessagingHostPlatform,
     executable_path: String,
     allowed_extensions: BTreeSet<ExtensionId>,
+    supports_native_initiated_connections: bool,
 }
 
 impl NativeMessagingHostManifest {
     /// Validate the authority-bearing host-manifest fields without widening them.
+    ///
+    /// This compatibility constructor records no native-initiated-connection declaration.
+    /// Call [`Self::parse_with_native_initiated_connections`] only when a trusted structured
+    /// parser has explicitly validated that optional manifest field.
+    pub fn parse(
+        host_name: NativeMessagingHostName,
+        platform: NativeMessagingHostPlatform,
+        executable_path: &str,
+        interface_type: &str,
+        allowed_origins: &[&str],
+    ) -> Result<Self, NativeMessagingHostManifestError> {
+        Self::parse_with_native_initiated_connections(
+            host_name,
+            platform,
+            executable_path,
+            interface_type,
+            false,
+            allowed_origins,
+        )
+    }
+
+    /// Validate authority-bearing host-manifest fields plus the optional native-initiation flag.
     ///
     /// `interface_type` must be exactly `stdio`. Linux and macOS executable paths must be
     /// absolute, matching Chrome's native-messaging contract; Windows relative paths remain
@@ -67,11 +91,17 @@ impl NativeMessagingHostManifest {
     /// alternate schemes, wildcards, suffix paths, query strings, fragments, and
     /// non-canonical extension identities are rejected rather than normalized. The raw list
     /// is bounded before deduplication.
-    pub fn parse(
+    ///
+    /// `supports_native_initiated_connections` records only the validated manifest declaration.
+    /// It does not prove that Chromium enables the corresponding feature, that policy permits
+    /// it, that a process is the declared host, or that any native-initiated request has Agent
+    /// authority.
+    pub fn parse_with_native_initiated_connections(
         host_name: NativeMessagingHostName,
         platform: NativeMessagingHostPlatform,
         executable_path: &str,
         interface_type: &str,
+        supports_native_initiated_connections: bool,
         allowed_origins: &[&str],
     ) -> Result<Self, NativeMessagingHostManifestError> {
         if interface_type != "stdio" {
@@ -95,6 +125,7 @@ impl NativeMessagingHostManifest {
             platform,
             executable_path: executable_path.to_owned(),
             allowed_extensions,
+            supports_native_initiated_connections,
         })
     }
 
@@ -124,6 +155,16 @@ impl NativeMessagingHostManifest {
     #[must_use]
     pub fn allowed_extension_count(&self) -> usize {
         self.allowed_extensions.len()
+    }
+
+    /// Return whether the validated manifest explicitly declares native-initiated connections.
+    ///
+    /// A `true` value is declaration evidence only. It does not prove Chromium feature or
+    /// enterprise-policy enablement and grants no connection, process, message, or Agent
+    /// authority by itself.
+    #[must_use]
+    pub const fn supports_native_initiated_connections(&self) -> bool {
+        self.supports_native_initiated_connections
     }
 
     /// Evaluate one native-messaging request against this exact manifest authority.
