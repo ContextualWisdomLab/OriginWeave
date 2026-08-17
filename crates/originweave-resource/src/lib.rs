@@ -575,11 +575,10 @@ pub fn read_linux_process_identity(
     {
         let stat = std::fs::read_to_string(format!("/proc/{process_id}/stat"))
             .map_err(|_error| BrowserRssSampleError::ProcessStatUnavailable)?;
-        let (observed_process_id, start_time_ticks) = parse_linux_proc_stat_identity(&stat)?;
-        if observed_process_id != process_id {
-            return Err(BrowserRssSampleError::ProcessIdentityChanged);
-        }
-        LinuxProcessIdentity::new(observed_process_id, start_time_ticks)
+        let start_time_ticks = parse_linux_proc_stat_start_time_ticks(&stat)?;
+        let identity = LinuxProcessIdentity::new(process_id, start_time_ticks)?;
+        verify_linux_process_identity(identity, &stat)?;
+        Ok(identity)
     }
 
     #[cfg(not(target_os = "linux"))]
