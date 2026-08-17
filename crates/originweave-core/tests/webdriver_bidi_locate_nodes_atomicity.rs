@@ -1,6 +1,7 @@
 #![allow(clippy::expect_used)]
 
 use std::error::Error;
+use std::io;
 
 use originweave_core::{
     BrowserAuthorityRegistry, BrowserContextDispatchTarget, BrowserContextOriginDispatchTarget,
@@ -39,7 +40,12 @@ fn semantic_observation_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn E
 fn exhausted_locate_nodes_batch_does_not_consume_partial_node_authority()
 -> Result<(), Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::with_identifier_limit(1);
-    let origin = Origin::parse("https://app.example")?;
+    let origin = Origin::parse("https://app.example").map_err(|_error| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "controlled fixture origin must remain valid",
+        )
+    })?;
     let session = registry.register_session("webdriver-session")?;
     let context = registry.register_context(session, "top-level-context")?;
     let epoch = registry.bind_context_origin(session, context, &origin)?;
