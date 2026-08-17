@@ -106,20 +106,16 @@ pub enum ExtensionAccessDecision {
 
 /// Evaluate extension Agent access without inheriting ambient Chrome permissions.
 ///
-/// Identity, session, and context checks reuse the pre-existing deterministic
-/// contract. Origin and exclusive-expiry checks are then applied before a
-/// capability denial or allowance is returned, preserving protected-main
+/// Identity, session, context, and missing-grant checks reuse the pre-existing
+/// deterministic contract. Origin and exclusive-expiry checks are then applied
+/// before a capability denial or allowance is returned, preserving protected-main
 /// fail-closed ordering on the refactored branch.
 #[must_use]
 pub fn evaluate_extension_access(
     request: &ExtensionAccessRequest,
     grant: Option<&ExtensionAgentGrant>,
 ) -> ExtensionAccessDecision {
-    let Some(grant) = grant else {
-        return ExtensionAccessDecision::DenyMissingGrant;
-    };
-
-    let base_decision = evaluate_base_extension_access(&request.base, Some(&grant.base));
+    let base_decision = evaluate_base_extension_access(&request.base, grant.map(|grant| &grant.base));
     match base_decision {
         BaseExtensionAccessDecision::DenyMissingGrant => ExtensionAccessDecision::DenyMissingGrant,
         BaseExtensionAccessDecision::DenyExtensionMismatch => {
@@ -131,17 +127,21 @@ pub fn evaluate_extension_access(
         BaseExtensionAccessDecision::DenyBrowsingContextMismatch => {
             ExtensionAccessDecision::DenyBrowsingContextMismatch
         }
-        BaseExtensionAccessDecision::Allow | BaseExtensionAccessDecision::DenyCapabilityNotGranted => {
-            if request.origin != grant.origin {
-                return ExtensionAccessDecision::DenyOriginMismatch;
-            }
-            if request.now_epoch_seconds >= grant.expires_at_epoch_seconds {
-                return ExtensionAccessDecision::DenyExpired;
-            }
-            if base_decision == BaseExtensionAccessDecision::DenyCapabilityNotGranted {
-                return ExtensionAccessDecision::DenyCapabilityNotGranted;
-            }
-            ExtensionAccessDecision::Allow
-        }
+        BaseExtensionAccessDecision::Allow
+        | BaseExtensionAccessDecision::DenyCapabilityNotGranted => grant.map_or(
+            ExtensionAccessDecision::DenyMissingGrant,
+            |grant| {
+                if request.origin != grant.origin {
+                    return ExtensionAccessDecision::DenyOriginMismatch;
+                }
+                if request.now_epoch_seconds >= grant.expires_at_epoch_seconds {
+                    return ExtensionAccessDecision::DenyExpired;
+                }
+                if base_decision == BaseExtensionAccessDecision::DenyCapabilityNotGranted {
+                    return ExtensionAccessDecision::DenyCapabilityNotGranted;
+                }
+                ExtensionAccessDecision::Allow
+            },
+        ),
     }
 }
