@@ -5,8 +5,8 @@ use crate::{
     BrowserAuthorityRegistry, BrowserContextOriginEpochDispatchTarget,
     BrowserContextProtocolDispatchError, BrowserProtocolAdapterDescriptor,
     BrowserProtocolCapability, BrowserProtocolKind, BrowserProtocolRuntimeMetadata,
-    BrowserRegistryError, DocumentEpoch, MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES,
-    ObservedNodeHandle, OriginWeaveProtocolVersion, ValidatedBrowserProtocolUse,
+    BrowserRegistryError, DocumentEpoch, MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES, ObservedNodeHandle,
+    OriginWeaveProtocolVersion, ValidatedBrowserProtocolUse,
 };
 
 /// Exact WebDriver BiDi method used by the bounded accessibility-query contract.
