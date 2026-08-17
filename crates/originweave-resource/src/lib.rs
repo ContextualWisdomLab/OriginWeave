@@ -545,6 +545,28 @@ pub fn parse_linux_proc_stat_start_time_ticks(stat: &str) -> Result<u64, Browser
     parse_linux_proc_stat_identity(stat).map(|(_process_id, start_time_ticks)| start_time_ticks)
 }
 
+/// Parse one Linux stat record and bind it to the caller-requested process identifier.
+///
+/// The stat record must be structurally valid and its embedded PID must equal
+/// `process_id`; otherwise this boundary fails closed. It performs no process
+/// discovery and does not prove Chromium/task ownership.
+pub fn parse_linux_process_identity(
+    process_id: u32,
+    stat: &str,
+) -> Result<LinuxProcessIdentity, BrowserRssSampleError> {
+    if process_id == 0 {
+        return Err(BrowserRssSampleError::InvalidProcessId);
+    }
+    let (observed_process_id, start_time_ticks) = parse_linux_proc_stat_identity(stat)?;
+    if observed_process_id != process_id {
+        return Err(BrowserRssSampleError::ProcessIdentityChanged);
+    }
+    Ok(LinuxProcessIdentity {
+        process_id,
+        start_time_ticks,
+    })
+}
+
 /// Verify that one Linux stat record still represents the supplied process identity.
 ///
 /// Both PID and kernel start time must match. A syntactically valid record for a
@@ -575,10 +597,7 @@ pub fn read_linux_process_identity(
     {
         let stat = std::fs::read_to_string(format!("/proc/{process_id}/stat"))
             .map_err(|_error| BrowserRssSampleError::ProcessStatUnavailable)?;
-        let start_time_ticks = parse_linux_proc_stat_start_time_ticks(&stat)?;
-        let identity = LinuxProcessIdentity::new(process_id, start_time_ticks)?;
-        verify_linux_process_identity(identity, &stat)?;
-        Ok(identity)
+        parse_linux_process_identity(process_id, &stat)
     }
 
     #[cfg(not(target_os = "linux"))]
