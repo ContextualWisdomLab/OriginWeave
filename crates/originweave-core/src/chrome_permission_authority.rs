@@ -35,6 +35,7 @@ const REVIEWED_CHROME_COMPATIBILITY_PERMISSIONS: &[&str] = &[
     "declarativeNetRequestWithHostAccess",
     "downloads",
     "history",
+    "nativeMessaging",
     "scripting",
     "sidePanel",
     "storage",
