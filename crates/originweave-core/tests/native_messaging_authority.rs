@@ -3,9 +3,11 @@
 use originweave_core::{
     BrowserSessionId, BrowsingContextId, ExtensionAccessDecision, ExtensionAccessRequest,
     ExtensionAgentCapability, ExtensionId, NativeMessagingAccessDecision,
-    NativeMessagingAccessRequest, NativeMessagingHostGrant, NativeMessagingHostName,
+    NativeMessagingAccessRequest, NativeMessagingHostGrant, NativeMessagingHostName, Origin,
     evaluate_extension_access, evaluate_native_messaging_access,
 };
+
+const UNEXPIRED_NOW_EPOCH_SECONDS: u64 = 1_700_000_000;
 
 fn extension_id(value: &str) -> ExtensionId {
     ExtensionId::parse(value).expect("valid extension id")
@@ -21,6 +23,10 @@ fn session(value: u64) -> BrowserSessionId {
 
 fn context(value: u64) -> BrowsingContextId {
     BrowsingContextId::new(value).expect("nonzero browsing context")
+}
+
+fn origin(value: &str) -> Origin {
+    Origin::parse(value).expect("valid test origin")
 }
 
 #[test]
@@ -98,6 +104,8 @@ fn native_messaging_grant_does_not_mint_agent_capability() {
         extension,
         session(23),
         context(29),
+        origin("https://native-messaging.example"),
+        UNEXPIRED_NOW_EPOCH_SECONDS,
         ExtensionAgentCapability::ProposeTypedAction,
     );
     assert_eq!(
