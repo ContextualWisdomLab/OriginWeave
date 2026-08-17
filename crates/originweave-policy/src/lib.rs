@@ -36,7 +36,7 @@ pub enum Decision {
 /// Result of composing exact extension proposal authority with ordinary action policy.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExtensionProposalDecision {
-    /// The extension/session/context lacks exact typed-action proposal authority.
+    /// The extension/session/context/origin/time lacks exact typed-action proposal authority.
     ExtensionAccessDenied(ExtensionAccessDecision),
     /// Proposal authority was present; this is the unchanged ordinary action-policy result.
     ActionPolicy(Decision),
@@ -79,17 +79,21 @@ pub enum DenialReason {
 
 /// Evaluate one extension-originated typed-action proposal without promoting transport authority.
 ///
-/// This function checks the exact extension, browser-session, browsing-context and
-/// [`ExtensionAgentCapability::ProposeTypedAction`] grant before ordinary action policy. When
-/// extension access is allowed, the caller-supplied [`ActionRequest`] is evaluated unchanged, so
-/// its instruction source, capability, origin, secret-delivery and approval requirements cannot be
-/// minted or rewritten by extension transport. This function does not parse extension messages,
+/// This function checks the exact extension, browser-session, browsing-context, request source
+/// origin, trusted current time and [`ExtensionAgentCapability::ProposeTypedAction`] grant before
+/// ordinary action policy. The source origin is taken from the caller-supplied [`ActionRequest`]
+/// rather than from a second extension-controlled field, so a navigation cannot reuse an otherwise
+/// matching grant. `now_epoch_seconds` must come from the trusted caller rather than extension or
+/// page content. When extension access is allowed, the [`ActionRequest`] is evaluated unchanged,
+/// so its instruction source, capability, origin, secret-delivery and approval requirements cannot
+/// be minted or rewritten by extension transport. This function does not parse extension messages,
 /// execute browser input, resolve secrets, or claim an action post-condition.
 #[must_use]
 pub fn evaluate_extension_action_proposal(
     extension_id: &ExtensionId,
     browser_session: BrowserSessionId,
     browsing_context: BrowsingContextId,
+    now_epoch_seconds: u64,
     grant: Option<&ExtensionAgentGrant>,
     request: &ActionRequest,
     context: &PolicyContext,
@@ -98,6 +102,8 @@ pub fn evaluate_extension_action_proposal(
         extension_id.clone(),
         browser_session,
         browsing_context,
+        request.source_origin().clone(),
+        now_epoch_seconds,
         ExtensionAgentCapability::ProposeTypedAction,
     );
     let access = evaluate_extension_access(&access_request, grant);
