@@ -63,7 +63,8 @@ pub use browser_registry::{
 };
 pub use contracts::*;
 pub use webdriver_bidi_command::{
-    MAX_WEBDRIVER_BIDI_COMMAND_ID, ValidatedWebDriverBiDiLocateNodesResponse,
+    CorrelatedWebDriverBiDiLocateNodesResponse, MAX_WEBDRIVER_BIDI_COMMAND_ID,
+    ValidatedWebDriverBiDiLocateNodesResponse, WebDriverBiDiCommandResponseKind,
     WebDriverBiDiLocateNodesCommand, WebDriverBiDiLocateNodesCommandError,
-    WebDriverBiDiLocateNodesResponseCorrelationError,
+    WebDriverBiDiLocateNodesResponseCorrelationError, WebDriverBiDiLocateNodesResponseEnvelopeError,
 };
