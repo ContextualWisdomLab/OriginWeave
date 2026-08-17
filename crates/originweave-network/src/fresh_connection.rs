@@ -207,18 +207,17 @@ mod tests {
     }
 
     #[test]
-    fn compatibility_anchor_includes_time_spent_before_plan_completion() -> Result<(), String> {
+    fn compatibility_anchor_includes_time_spent_before_plan_completion(
+    ) -> Result<(), Box<dyn Error>> {
         let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9);
-        let origin = Origin::parse("http://localhost:9")
-            .map_err(|error| format!("loopback origin fixture is invalid: {error:?}"))?;
+        let origin = Origin::parse("http://localhost:9")?;
         let snapshot = FreshResolutionSnapshot::approve(
             origin,
             [IpAddr::V4(Ipv4Addr::LOCALHOST)],
             &DestinationPolicy::from_allowed_classes([AddressClass::Loopback]),
             Duration::from_secs(10),
             Duration::from_millis(1),
-        )
-        .map_err(|error| format!("short-lived snapshot is invalid: {error}"))?;
+        )?;
         let authorization_started_at = Instant::now();
         std::thread::sleep(Duration::from_millis(5));
 
@@ -229,8 +228,7 @@ mod tests {
             Duration::from_secs(1),
             1,
             authorization_started_at,
-        )
-        .map_err(|error| format!("authorize short-lived connection plan: {error}"))?;
+        )?;
 
         let result = plan.connect();
         assert!(matches!(
