@@ -12,6 +12,8 @@ The latest published W3C technical-report baseline reviewed here remains the 1 J
 
 For the bounded `browsingContext.locateNodes` command-serialization boundary, the reviewed Editor’s Draft defines a command envelope with `id: js-uint`, defines `js-uint` as `0..9007199254740991`, and defines `browsingContext.locateNodes` parameters containing a browsing context, locator, optional positive `maxNodeCount`, optional `serializationOptions`, and optional `startNodes`. OriginWeave serializes only its separately reviewed accessibility-locator subset and fixed minimal serialization options; this deterministic JSON value is not transport authentication or browser/Agent authority.
 
+WebDriver BiDi commands may execute concurrently and finish out of order. The Editor’s Draft defines the command id as the local end’s correlation identifier and sets a successful `CommandResponse.id` to that exact command id; an `ErrorResponse.id` may be `null` when no valid command id can be recovered. OriginWeave therefore fails closed unless a non-null protocol-range response id exactly matches the consumed command before later payload admission. Parsing success/error envelopes, handling nullable malformed-command errors, and authenticating the browser transport remain separate adapter boundaries.
+
 Primary sources: World Wide Web Consortium, *WebDriver BiDi* (published Working Draft and current Editor’s Draft).
 
 ## Chrome Manifest V3
@@ -49,7 +51,7 @@ The main [`docs/doctoring.md`](../doctoring.md) records the stable W3C PROV-O Re
 ## Product consequences
 
 1. Version adapter contracts independently from OriginWeave session/context/action/evidence types. Admit a BiDi `script.NodeRemoteValue` only as an untrusted transport handle when its type is exactly `node` and a usable control-free `sharedId` is present; do not treat a realm-local `handle`, a missing shared identifier, or control/whitespace-bearing protocol text as OriginWeave node authority. Treat an accessibility-query role as one exact WAI-ARIA token, not a whitespace-separated fallback list.
-2. Serialize reviewed BiDi commands from already validated bounded values only; a protocol-shaped JSON envelope never substitutes for authenticated browser transport, current session/context/origin/document authority, policy authorization, or post-condition evidence.
+2. Serialize reviewed BiDi commands from already validated bounded values only, then correlate each non-null response id to the exact consumed command before payload admission; a protocol-shaped JSON envelope or matching id never substitutes for authenticated browser transport, current session/context/origin/document authority, policy authorization, or post-condition evidence.
 3. Pin exact Chromium/CDP compatibility evidence at release time.
 4. Keep WebDriver BiDi's Working Draft status visible in compatibility claims.
 5. Keep WebMCP experimental/optional and propagate untrusted-content semantics.
