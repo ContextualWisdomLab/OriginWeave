@@ -68,6 +68,33 @@ fn manifest_binds_stdio_host_path_and_exact_allowed_extension_origins() -> Resul
 }
 
 #[test]
+fn manifest_records_native_initiated_connection_declaration_without_granting_it()
+-> Result<(), Box<dyn Error>> {
+    let host = host_name("com.contextualwisdom.originweave");
+    let allowed_origin = extension_origin(ALLOWED_EXTENSION);
+
+    let declared = NativeMessagingHostManifest::parse_with_native_initiated_connections(
+        host.clone(),
+        NativeMessagingHostPlatform::Linux,
+        LINUX_HOST_PATH,
+        "stdio",
+        true,
+        &[allowed_origin.as_str()],
+    )?;
+    assert!(declared.supports_native_initiated_connections());
+
+    let absent = NativeMessagingHostManifest::parse(
+        host,
+        NativeMessagingHostPlatform::Linux,
+        LINUX_HOST_PATH,
+        "stdio",
+        &[allowed_origin.as_str()],
+    )?;
+    assert!(!absent.supports_native_initiated_connections());
+    Ok(())
+}
+
+#[test]
 fn manifest_enforces_platform_specific_executable_path_shape() -> Result<(), Box<dyn Error>> {
     let host = host_name("com.contextualwisdom.originweave");
     let allowed_origin = extension_origin(ALLOWED_EXTENSION);
