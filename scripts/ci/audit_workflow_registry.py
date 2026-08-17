@@ -231,6 +231,10 @@ def _validate_pages(value: Any) -> tuple[list[dict[str, Any]], list[dict[str, An
             raise WorkflowAuditError(
                 f"registry page {expected_page} did not return HTTP 200"
             )
+        if status_code < 100 or status_code > 599:
+            raise WorkflowAuditError(
+                "status_code must be an integer from 100 through 599"
+            )
         if status_code == 200 and retry_after_seconds is not None:
             raise WorkflowAuditError(
                 "retry_after_seconds is only valid for a failed registry page"
