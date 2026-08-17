@@ -17,22 +17,64 @@ fn mcp_tools_list_page_is_complete_private_and_immediately_stale() {
     assert_eq!(page.next_cursor(), None);
 }
 
+fn valid_tools_list_request(
+    cursor: Option<&str>,
+) -> Result<ValidatedMcpToolsListRequest, McpToolsListBoundaryError> {
+    ValidatedMcpToolsListRequest::new(
+        Some(MCP_PROTOCOL_VERSION),
+        Some(MCP_PROTOCOL_VERSION),
+        true,
+        MCP_TOOLS_LIST_METHOD,
+        MCP_TOOLS_LIST_METHOD,
+        cursor,
+    )
+}
+
 #[test]
-fn mcp_tools_list_request_requires_exact_routing_and_no_unissued_cursor() {
-    let request = ValidatedMcpToolsListRequest::new(
-        MCP_PROTOCOL_VERSION,
-        MCP_TOOLS_LIST_METHOD,
-        MCP_TOOLS_LIST_METHOD,
-        None,
-    );
+fn mcp_tools_list_request_requires_complete_request_metadata() {
     assert_eq!(
-        request.map(|validated| validated.method()),
+        valid_tools_list_request(None).map(|validated| validated.method()),
         Ok(MCP_TOOLS_LIST_METHOD)
     );
 
     assert_eq!(
         ValidatedMcpToolsListRequest::new(
-            "2025-11-25",
+            None,
+            Some(MCP_PROTOCOL_VERSION),
+            true,
+            MCP_TOOLS_LIST_METHOD,
+            MCP_TOOLS_LIST_METHOD,
+            None,
+        ),
+        Err(McpToolsListBoundaryError::MissingProtocolVersionHeader)
+    );
+    assert_eq!(
+        ValidatedMcpToolsListRequest::new(
+            Some(MCP_PROTOCOL_VERSION),
+            None,
+            true,
+            MCP_TOOLS_LIST_METHOD,
+            MCP_TOOLS_LIST_METHOD,
+            None,
+        ),
+        Err(McpToolsListBoundaryError::MissingProtocolVersionMetadata)
+    );
+    assert_eq!(
+        ValidatedMcpToolsListRequest::new(
+            Some(MCP_PROTOCOL_VERSION),
+            Some("2025-11-25"),
+            true,
+            MCP_TOOLS_LIST_METHOD,
+            MCP_TOOLS_LIST_METHOD,
+            None,
+        ),
+        Err(McpToolsListBoundaryError::ProtocolVersionHeaderBodyMismatch)
+    );
+    assert_eq!(
+        ValidatedMcpToolsListRequest::new(
+            Some("2025-11-25"),
+            Some("2025-11-25"),
+            true,
             MCP_TOOLS_LIST_METHOD,
             MCP_TOOLS_LIST_METHOD,
             None,
@@ -41,16 +83,35 @@ fn mcp_tools_list_request_requires_exact_routing_and_no_unissued_cursor() {
     );
     assert_eq!(
         ValidatedMcpToolsListRequest::new(
-            MCP_PROTOCOL_VERSION,
+            Some(MCP_PROTOCOL_VERSION),
+            Some(MCP_PROTOCOL_VERSION),
+            false,
+            MCP_TOOLS_LIST_METHOD,
+            MCP_TOOLS_LIST_METHOD,
+            None,
+        ),
+        Err(McpToolsListBoundaryError::MissingClientCapabilities)
+    );
+}
+
+#[test]
+fn mcp_tools_list_request_requires_exact_routing_and_no_unissued_cursor() {
+    assert_eq!(
+        ValidatedMcpToolsListRequest::new(
+            Some(MCP_PROTOCOL_VERSION),
+            Some(MCP_PROTOCOL_VERSION),
+            true,
             MCP_TOOLS_LIST_METHOD,
             "tools/call",
             None,
         ),
-        Err(McpToolsListBoundaryError::HeaderBodyMismatch)
+        Err(McpToolsListBoundaryError::MethodHeaderBodyMismatch)
     );
     assert_eq!(
         ValidatedMcpToolsListRequest::new(
-            MCP_PROTOCOL_VERSION,
+            Some(MCP_PROTOCOL_VERSION),
+            Some(MCP_PROTOCOL_VERSION),
+            true,
             "resources/list",
             "resources/list",
             None,
@@ -60,12 +121,7 @@ fn mcp_tools_list_request_requires_exact_routing_and_no_unissued_cursor() {
 
     for cursor in ["cursor-1", ""] {
         assert_eq!(
-            ValidatedMcpToolsListRequest::new(
-                MCP_PROTOCOL_VERSION,
-                MCP_TOOLS_LIST_METHOD,
-                MCP_TOOLS_LIST_METHOD,
-                Some(cursor),
-            ),
+            valid_tools_list_request(Some(cursor)),
             Err(McpToolsListBoundaryError::UnsupportedCursor)
         );
     }
@@ -75,12 +131,28 @@ fn mcp_tools_list_request_requires_exact_routing_and_no_unissued_cursor() {
 fn mcp_tools_list_request_errors_are_source_free_and_non_echoing() {
     let cases = [
         (
+            McpToolsListBoundaryError::MissingProtocolVersionHeader,
+            "MCP protocol version header is required",
+        ),
+        (
+            McpToolsListBoundaryError::MissingProtocolVersionMetadata,
+            "MCP request metadata protocol version is required",
+        ),
+        (
+            McpToolsListBoundaryError::ProtocolVersionHeaderBodyMismatch,
+            "MCP protocol version header does not match request metadata",
+        ),
+        (
             McpToolsListBoundaryError::UnsupportedProtocolVersion,
             "unsupported MCP protocol version",
         ),
         (
-            McpToolsListBoundaryError::HeaderBodyMismatch,
-            "MCP routing headers do not match the request body",
+            McpToolsListBoundaryError::MissingClientCapabilities,
+            "MCP request metadata client capabilities are required",
+        ),
+        (
+            McpToolsListBoundaryError::MethodHeaderBodyMismatch,
+            "MCP method header does not match the request body",
         ),
         (
             McpToolsListBoundaryError::UnsupportedMethod,
