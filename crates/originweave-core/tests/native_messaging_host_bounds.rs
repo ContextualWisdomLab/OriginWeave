@@ -18,3 +18,13 @@ fn native_messaging_host_name_is_bounded_before_it_becomes_authority() {
         Err(NativeMessagingHostNameError::InvalidHostName)
     );
 }
+
+#[test]
+fn native_messaging_host_name_error_is_a_standard_credential_safe_error() {
+    let error = NativeMessagingHostNameError::InvalidHostName;
+    assert_eq!(
+        error.to_string(),
+        "native-messaging host name violates the reviewed Chrome identity syntax"
+    );
+    assert!(std::error::Error::source(&error).is_none());
+}

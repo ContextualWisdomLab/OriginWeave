@@ -2,7 +2,7 @@
 
 use originweave_core::{
     BrowserSessionId, BrowsingContextId, ExtensionAccessDecision, ExtensionAccessRequest,
-    ExtensionAgentCapability, ExtensionId, evaluate_extension_access,
+    ExtensionAgentCapability, ExtensionId, Origin, evaluate_extension_access,
 };
 use originweave_policy::{
     AgentTaskExtensionDecision, AgentTaskExtensionPolicy, evaluate_agent_task_extension,
@@ -18,6 +18,10 @@ fn session(value: u64) -> BrowserSessionId {
 
 fn context(value: u64) -> BrowsingContextId {
     BrowsingContextId::new(value).expect("nonzero browsing context")
+}
+
+fn origin() -> Origin {
+    Origin::parse("https://app.example").expect("valid controlled origin")
 }
 
 #[test]
@@ -132,6 +136,8 @@ fn managed_agent_task_extension_admission_does_not_mint_agent_capability() {
         extension,
         session(31),
         context(37),
+        origin(),
+        100,
         ExtensionAgentCapability::ProposeTypedAction,
     );
     assert_eq!(
