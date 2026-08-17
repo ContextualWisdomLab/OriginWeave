@@ -239,13 +239,27 @@ mod tests {
 
                 for plan in plan.into_iter() {
                     let result = plan.connect();
-                    assert!(matches!(
-                        result,
-                        Err(NetworkError::DestinationNotApproved {
-                            source: DestinationError::ResolutionApprovalExpired { .. },
-                            ..
-                        })
-                    ));
+                    assert!(result.is_err());
+
+                    for error in result.err().into_iter() {
+                        let source = std::error::Error::source(&error);
+                        assert!(source.is_some());
+                        for source in source {
+                            let destination_error = source.downcast_ref::<DestinationError>();
+                            assert!(destination_error.is_some());
+                            for destination_error in destination_error {
+                                assert_eq!(
+                                    std::mem::discriminant(destination_error),
+                                    std::mem::discriminant(
+                                        &DestinationError::ResolutionApprovalExpired {
+                                            valid_until: Duration::ZERO,
+                                            current_time: Duration::ZERO,
+                                        }
+                                    )
+                                );
+                            }
+                        }
+                    }
                 }
             }
         }
