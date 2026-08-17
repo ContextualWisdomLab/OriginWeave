@@ -105,6 +105,17 @@ class WorkflowRegistryHttpStatusContractTests(unittest.TestCase):
         ):
             self.audit.audit_workflow_registry(payload)
 
+    def test_status_code_outside_http_range_is_malformed_evidence(self) -> None:
+        """Non-HTTP integers must not masquerade as real non-retryable responses."""
+
+        for status_code in (0, 99, 600, 999):
+            with self.subTest(status_code=status_code):
+                with self.assertRaisesRegex(
+                    self.audit.WorkflowAuditError,
+                    "status_code must be an integer from 100 through 599",
+                ):
+                    self.audit.audit_workflow_registry(_payload(status_code))
+
     def test_exact_http_200_still_classifies_the_active_orphan_candidate(self) -> None:
         """The failure regression must preserve the reviewed successful evidence path."""
 
