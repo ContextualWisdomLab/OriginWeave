@@ -13,6 +13,7 @@ pub enum ChromePermissionAuthorityError {
 
 const REVIEWED_CHROME_COMPATIBILITY_PERMISSIONS: &[&str] = &[
     "bookmarks",
+    "commands",
     "declarativeNetRequest",
     "declarativeNetRequestWithHostAccess",
     "downloads",
@@ -21,6 +22,7 @@ const REVIEWED_CHROME_COMPATIBILITY_PERMISSIONS: &[&str] = &[
     "sidePanel",
     "storage",
     "tabs",
+    "windows",
 ];
 
 /// Refuse to treat a Chrome extension permission as OriginWeave Agent authority.
