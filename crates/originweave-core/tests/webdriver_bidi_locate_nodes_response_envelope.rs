@@ -19,10 +19,8 @@ fn locate_nodes_command(
 
 #[test]
 fn success_envelope_requires_and_retains_exact_response_id() -> Result<(), Box<dyn Error>> {
-    let correlated = locate_nodes_command(42)?.correlate_response_envelope(
-        WebDriverBiDiCommandResponseKind::Success,
-        Some(42),
-    )?;
+    let correlated = locate_nodes_command(42)?
+        .correlate_response_envelope(WebDriverBiDiCommandResponseKind::Success, Some(42))?;
 
     assert_eq!(correlated.kind(), WebDriverBiDiCommandResponseKind::Success);
     assert_eq!(correlated.command_id(), 42);
@@ -32,10 +30,8 @@ fn success_envelope_requires_and_retains_exact_response_id() -> Result<(), Box<d
 
 #[test]
 fn error_envelope_with_id_is_correlated_but_remains_error_kind() -> Result<(), Box<dyn Error>> {
-    let correlated = locate_nodes_command(42)?.correlate_response_envelope(
-        WebDriverBiDiCommandResponseKind::Error,
-        Some(42),
-    )?;
+    let correlated = locate_nodes_command(42)?
+        .correlate_response_envelope(WebDriverBiDiCommandResponseKind::Error, Some(42))?;
 
     assert_eq!(correlated.kind(), WebDriverBiDiCommandResponseKind::Error);
     assert_eq!(correlated.command_id(), 42);
@@ -45,10 +41,8 @@ fn error_envelope_with_id_is_correlated_but_remains_error_kind() -> Result<(), B
 
 #[test]
 fn success_envelope_rejects_missing_id() -> Result<(), Box<dyn Error>> {
-    let error = locate_nodes_command(42)?.correlate_response_envelope(
-        WebDriverBiDiCommandResponseKind::Success,
-        None,
-    );
+    let error = locate_nodes_command(42)?
+        .correlate_response_envelope(WebDriverBiDiCommandResponseKind::Success, None);
 
     assert_eq!(
         error,
@@ -59,10 +53,8 @@ fn success_envelope_rejects_missing_id() -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn null_error_id_is_explicitly_uncorrelatable() -> Result<(), Box<dyn Error>> {
-    let error = locate_nodes_command(42)?.correlate_response_envelope(
-        WebDriverBiDiCommandResponseKind::Error,
-        None,
-    );
+    let error = locate_nodes_command(42)?
+        .correlate_response_envelope(WebDriverBiDiCommandResponseKind::Error, None);
 
     assert_eq!(
         error,
@@ -73,10 +65,8 @@ fn null_error_id_is_explicitly_uncorrelatable() -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn envelope_preserves_exact_correlation_failures() -> Result<(), Box<dyn Error>> {
-    let error = locate_nodes_command(42)?.correlate_response_envelope(
-        WebDriverBiDiCommandResponseKind::Success,
-        Some(41),
-    );
+    let error = locate_nodes_command(42)?
+        .correlate_response_envelope(WebDriverBiDiCommandResponseKind::Success, Some(41));
 
     assert_eq!(
         error,
