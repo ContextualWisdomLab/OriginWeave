@@ -233,6 +233,24 @@ fn correlated_result_rejects_non_observation_protocol_proof() -> Result<(), Box<
 }
 
 #[test]
+fn correlated_result_rejects_missing_current_origin_binding() -> Result<(), Box<dyn Error>> {
+    let mut registry = BrowserAuthorityRegistry::new();
+    let origin = controlled_origin()?;
+    let target = current_target(&mut registry, &origin, "context-a")?;
+    let context = target.context_origin().context().browsing_context();
+    registry.advance_document(context)?;
+    let result = correlated_success(1)?.admit_result_nodes(&[("node", Some("shared-node-a"))])?;
+
+    assert_eq!(
+        result.bind_current_nodes(semantic_observation_proof()?, &mut registry, target),
+        Err(WebDriverBiDiLocateNodesAdmissionError::BrowserAuthority(
+            BrowserRegistryError::ContextOriginNotBound,
+        ))
+    );
+    Ok(())
+}
+
+#[test]
 fn correlated_result_rejects_stale_document_epoch() -> Result<(), Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
     let origin = controlled_origin()?;
