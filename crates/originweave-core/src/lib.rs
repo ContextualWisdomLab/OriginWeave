@@ -14,6 +14,7 @@ mod contract_errors;
 mod contracts;
 mod semantic_action_target;
 mod semantic_observation;
+mod semantic_policy_binding;
 
 pub use browser_registry::{
     BrowserAuthorityRegistry, BrowserRegistryError, MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES,
@@ -33,3 +34,4 @@ pub use semantic_observation::{
     SemanticNodeObservationError, SemanticNodeObservationInput, SemanticNodeQuery,
     SemanticNodeQueryError,
 };
+pub use semantic_policy_binding::{SemanticNodePolicyBinding, SemanticNodePolicyBindingError};
