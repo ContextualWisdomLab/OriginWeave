@@ -19,8 +19,8 @@ fn repeated_node_binding_exercises_the_unit_crate_existing_node_path() {
     assert_eq!(origins.len(), 1);
     let origin = &origins[0];
 
-    let first = values(registry.bind_node(session, context, origin, "unit-node"));
-    let repeated = values(registry.bind_node(session, context, origin, "unit-node"));
+    let first = values(registry.bind_nodes(session, context, origin, &["unit-node"]));
+    let repeated = values(registry.bind_nodes(session, context, origin, &["unit-node"]));
     assert_eq!(first.len(), 1);
     assert_eq!(repeated.len(), 1);
     assert_eq!(first[0], repeated[0]);
@@ -51,7 +51,7 @@ fn session_authority_failures_are_exercised_in_the_unit_crate() {
     let context = contexts[0];
 
     assert_eq!(
-        registry.bind_node(attacker, context, &origins[0], "unit-node"),
+        registry.bind_nodes(attacker, context, &origins[0], &["unit-node"]),
         Err(BrowserRegistryError::ContextSessionMismatch {
             expected: owner,
             actual: attacker,
