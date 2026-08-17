@@ -31,6 +31,64 @@ impl Display for WebDriverBiDiLocateNodesCommandError {
 
 impl Error for WebDriverBiDiLocateNodesCommandError {}
 
+/// Fail-closed errors while correlating one WebDriver BiDi response with its exact command.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WebDriverBiDiLocateNodesResponseCorrelationError {
+    /// The returned response identifier exceeds WebDriver BiDi's `js-uint` range.
+    InvalidResponseId,
+    /// The returned response identifier belongs to a different in-flight command.
+    ResponseIdMismatch {
+        /// Exact command identifier that this response must carry.
+        expected: u64,
+        /// Untrusted response identifier returned by the adapter.
+        actual: u64,
+    },
+}
+
+impl Display for WebDriverBiDiLocateNodesResponseCorrelationError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidResponseId => {
+                formatter.write_str("WebDriver BiDi response id is outside the js-uint range")
+            }
+            Self::ResponseIdMismatch { expected, actual } => write!(
+                formatter,
+                "WebDriver BiDi response id {actual} does not match command id {expected}"
+            ),
+        }
+    }
+}
+
+impl Error for WebDriverBiDiLocateNodesResponseCorrelationError {}
+
+/// Non-cloneable evidence that one `locateNodes` response matched the exact command id.
+///
+/// Only [`WebDriverBiDiLocateNodesCommand::correlate_response_id`] can construct this value. It
+/// retains the exact command identifier and bounded browsing-context identifier so a later trusted
+/// transport boundary can carry correlation evidence forward without reconstructing it from
+/// ambient metadata. It does not authenticate a browser or adapter, prove current OriginWeave
+/// session/context/origin authority, validate response payload shape, admit nodes, or authorize an
+/// Agent action.
+#[derive(Debug, PartialEq, Eq)]
+pub struct ValidatedWebDriverBiDiLocateNodesResponse {
+    command_id: u64,
+    browsing_context: String,
+}
+
+impl ValidatedWebDriverBiDiLocateNodesResponse {
+    /// Return the exact command identifier proven to match the response.
+    #[must_use]
+    pub const fn command_id(&self) -> u64 {
+        self.command_id
+    }
+
+    /// Return the bounded browsing-context identifier serialized by the matched command.
+    #[must_use]
+    pub fn browsing_context(&self) -> &str {
+        &self.browsing_context
+    }
+}
+
 /// Deterministic serialized command envelope for one bounded WebDriver BiDi accessibility query.
 ///
 /// Construction accepts only a WebDriver BiDi `js-uint` command identifier, a bounded opaque
@@ -128,6 +186,37 @@ impl WebDriverBiDiLocateNodesCommand {
     #[must_use]
     pub fn as_json(&self) -> &str {
         &self.json
+    }
+
+    /// Consume this command and correlate one untrusted response identifier with it.
+    ///
+    /// The response identifier is validated against WebDriver BiDi's `js-uint` range before exact
+    /// equality is checked. Success consumes the command and returns non-cloneable correlation
+    /// evidence, preventing this command value from being reused to validate another response.
+    /// This does not parse a response, authenticate the transport, or grant browser/Agent authority.
+    pub fn correlate_response_id(
+        self,
+        response_id: u64,
+    ) -> Result<
+        ValidatedWebDriverBiDiLocateNodesResponse,
+        WebDriverBiDiLocateNodesResponseCorrelationError,
+    > {
+        if response_id > MAX_WEBDRIVER_BIDI_COMMAND_ID {
+            return Err(WebDriverBiDiLocateNodesResponseCorrelationError::InvalidResponseId);
+        }
+        if response_id != self.command_id {
+            return Err(
+                WebDriverBiDiLocateNodesResponseCorrelationError::ResponseIdMismatch {
+                    expected: self.command_id,
+                    actual: response_id,
+                },
+            );
+        }
+
+        Ok(ValidatedWebDriverBiDiLocateNodesResponse {
+            command_id: self.command_id,
+            browsing_context: self.browsing_context,
+        })
     }
 }
 
