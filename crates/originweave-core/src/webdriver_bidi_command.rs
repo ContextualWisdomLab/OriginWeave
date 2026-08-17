@@ -80,6 +80,8 @@ pub enum WebDriverBiDiLocateNodesResponseEnvelopeError {
     MissingResponseId,
     /// An error envelope carried no recoverable command identifier and cannot be correlated.
     UncorrelatableErrorResponse,
+    /// A correlated error envelope cannot be converted into success response evidence.
+    CorrelatedErrorResponse,
     /// The present response identifier failed exact command correlation.
     Correlation(WebDriverBiDiLocateNodesResponseCorrelationError),
 }
@@ -93,6 +95,9 @@ impl Display for WebDriverBiDiLocateNodesResponseEnvelopeError {
             Self::UncorrelatableErrorResponse => formatter.write_str(
                 "WebDriver BiDi error response has no recoverable command id for correlation",
             ),
+            Self::CorrelatedErrorResponse => formatter.write_str(
+                "WebDriver BiDi error response cannot become success response evidence",
+            ),
             Self::Correlation(error) => write!(
                 formatter,
                 "WebDriver BiDi response envelope rejected command correlation: {error}"
@@ -105,7 +110,9 @@ impl Error for WebDriverBiDiLocateNodesResponseEnvelopeError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::Correlation(error) => Some(error),
-            Self::MissingResponseId | Self::UncorrelatableErrorResponse => None,
+            Self::MissingResponseId
+            | Self::UncorrelatableErrorResponse
+            | Self::CorrelatedErrorResponse => None,
         }
     }
 }
@@ -141,9 +148,9 @@ impl ValidatedWebDriverBiDiLocateNodesResponse {
 /// Non-cloneable structured-envelope evidence for one correlated `locateNodes` response.
 ///
 /// This value deliberately keeps success and error envelopes distinguishable after exact response
-/// id correlation. A correlated error response remains error evidence and cannot be converted into
-/// [`ValidatedWebDriverBiDiLocateNodesResponse`] through this public API. A later trusted response
-/// parser must classify the exact wire envelope before calling
+/// id correlation. The only conversion into [`ValidatedWebDriverBiDiLocateNodesResponse`] is
+/// [`Self::into_validated_success`], which fails closed for a correlated error envelope. A later
+/// trusted response parser must classify the exact wire envelope before calling
 /// [`WebDriverBiDiLocateNodesCommand::correlate_response_envelope`]. This value performs no raw JSON
 /// parsing, browser or adapter authentication, node admission, policy authorization, or Agent
 /// action authorization.
@@ -170,6 +177,26 @@ impl CorrelatedWebDriverBiDiLocateNodesResponse {
     #[must_use]
     pub fn browsing_context(&self) -> &str {
         self.correlated.browsing_context()
+    }
+
+    /// Consume this envelope and return correlation evidence only when it was a success response.
+    ///
+    /// A correlated WebDriver BiDi error envelope remains error evidence and is rejected as
+    /// [`WebDriverBiDiLocateNodesResponseEnvelopeError::CorrelatedErrorResponse`]. This explicit
+    /// fail-closed conversion prevents downstream result/node admission code from accidentally
+    /// erasing the protocol response kind while reusing exact command correlation evidence.
+    pub fn into_validated_success(
+        self,
+    ) -> Result<
+        ValidatedWebDriverBiDiLocateNodesResponse,
+        WebDriverBiDiLocateNodesResponseEnvelopeError,
+    > {
+        match self.kind {
+            WebDriverBiDiCommandResponseKind::Success => Ok(self.correlated),
+            WebDriverBiDiCommandResponseKind::Error => {
+                Err(WebDriverBiDiLocateNodesResponseEnvelopeError::CorrelatedErrorResponse)
+            }
+        }
     }
 }
 
