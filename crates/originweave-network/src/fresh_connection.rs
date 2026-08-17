@@ -180,7 +180,6 @@ impl FreshConnectionPlan {
 
 #[cfg(test)]
 mod tests {
-    use std::error::Error;
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     use std::time::{Duration, Instant};
 
@@ -207,38 +206,49 @@ mod tests {
     }
 
     #[test]
-    fn compatibility_anchor_includes_time_spent_before_plan_completion()
-    -> Result<(), Box<dyn Error>> {
+    fn compatibility_anchor_includes_time_spent_before_plan_completion() {
         let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9);
-        let origin = Origin::parse("http://localhost:9")?;
-        let snapshot = FreshResolutionSnapshot::approve(
-            origin,
-            [IpAddr::V4(Ipv4Addr::LOCALHOST)],
-            &DestinationPolicy::from_allowed_classes([AddressClass::Loopback]),
-            Duration::from_secs(10),
-            Duration::from_millis(1),
-        )?;
-        let authorization_started_at = Instant::now();
-        std::thread::sleep(Duration::from_millis(5));
+        let origin = Origin::parse("http://localhost:9");
+        assert_eq!(
+            origin.as_ref().map(Origin::as_str),
+            Ok("http://localhost:9")
+        );
 
-        let plan = FreshConnectionPlan::new_with_authorization_instant(
-            &snapshot,
-            Duration::from_secs(10),
-            socket,
-            Duration::from_secs(1),
-            1,
-            authorization_started_at,
-        )?;
+        for origin in origin.into_iter() {
+            let snapshot = FreshResolutionSnapshot::approve(
+                origin,
+                [IpAddr::V4(Ipv4Addr::LOCALHOST)],
+                &DestinationPolicy::from_allowed_classes([AddressClass::Loopback]),
+                Duration::from_secs(10),
+                Duration::from_millis(1),
+            );
+            assert!(snapshot.is_ok());
 
-        let result = plan.connect();
-        assert!(matches!(
-            result,
-            Err(NetworkError::DestinationNotApproved {
-                source: DestinationError::ResolutionApprovalExpired { .. },
-                ..
-            })
-        ));
-        Ok(())
+            for snapshot in snapshot.into_iter() {
+                let authorization_started_at = Instant::now();
+                std::thread::sleep(Duration::from_millis(5));
+                let plan = FreshConnectionPlan::new_with_authorization_instant(
+                    &snapshot,
+                    Duration::from_secs(10),
+                    socket,
+                    Duration::from_secs(1),
+                    1,
+                    authorization_started_at,
+                );
+                assert!(plan.is_ok());
+
+                for plan in plan.into_iter() {
+                    let result = plan.connect();
+                    assert!(matches!(
+                        result,
+                        Err(NetworkError::DestinationNotApproved {
+                            source: DestinationError::ResolutionApprovalExpired { .. },
+                            ..
+                        })
+                    ));
+                }
+            }
+        }
     }
 
     #[test]
@@ -252,7 +262,7 @@ mod tests {
             error.to_string(),
             "socket port 8080 does not match canonical origin port 80"
         );
-        assert!(error.source().is_none());
+        assert!(std::error::Error::source(&error).is_none());
         assert_eq!(error.attempt_count(), None);
     }
 }
