@@ -16,6 +16,7 @@ fn chrome_compatibility_permissions_never_mint_agent_authority() {
         "sidePanel",
         "declarativeNetRequest",
         "declarativeNetRequestWithHostAccess",
+        "nativeMessaging",
     ] {
         assert_eq!(
             chrome_permission_authorizes_agent_action(permission, ActionKind::Download),
