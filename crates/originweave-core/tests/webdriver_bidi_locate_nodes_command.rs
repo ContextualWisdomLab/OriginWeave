@@ -14,11 +14,7 @@ fn locate_nodes_command_serializes_exact_bidi_envelope() -> Result<(), Box<dyn E
         Some(r#"Task "quoted" \ review 작업"#),
         32,
     )?;
-    let command = WebDriverBiDiLocateNodesCommand::new(
-        42,
-        r#"context-"quoted"\path"#,
-        &query,
-    )?;
+    let command = WebDriverBiDiLocateNodesCommand::new(42, r#"context-"quoted"\path"#, &query)?;
 
     assert_eq!(command.command_id(), 42);
     assert_eq!(command.method(), WEBDRIVER_BIDI_LOCATE_NODES_METHOD);
@@ -31,8 +27,8 @@ fn locate_nodes_command_serializes_exact_bidi_envelope() -> Result<(), Box<dyn E
 }
 
 #[test]
-fn locate_nodes_command_serializes_role_only_and_name_only_locators()
--> Result<(), Box<dyn Error>> {
+fn locate_nodes_command_serializes_role_only_and_name_only_locators() -> Result<(), Box<dyn Error>>
+{
     let role_only = WebDriverBiDiAccessibilityQuery::new(Some("button"), None, 1)?;
     let role_command = WebDriverBiDiLocateNodesCommand::new(0, "context-a", &role_only)?;
     assert_eq!(
