@@ -31,16 +31,19 @@ fn locate_nodes_response_rejects_mismatched_command_id() -> Result<(), Box<dyn E
 
     assert_eq!(
         error,
-        Err(WebDriverBiDiLocateNodesResponseCorrelationError::ResponseIdMismatch {
-            expected: 42,
-            actual: 41,
-        })
+        Err(
+            WebDriverBiDiLocateNodesResponseCorrelationError::ResponseIdMismatch {
+                expected: 42,
+                actual: 41,
+            }
+        )
     );
     Ok(())
 }
 
 #[test]
-fn locate_nodes_response_rejects_out_of_range_id_before_correlation() -> Result<(), Box<dyn Error>> {
+fn locate_nodes_response_rejects_out_of_range_id_before_correlation() -> Result<(), Box<dyn Error>>
+{
     let error = locate_nodes_command(1)?.correlate_response_id(MAX_WEBDRIVER_BIDI_COMMAND_ID + 1);
 
     assert_eq!(
