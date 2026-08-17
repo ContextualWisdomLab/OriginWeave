@@ -90,7 +90,10 @@ class ManifestV3BrowserVersionDiagnosticTests(unittest.TestCase):
                         pathlib.Path("/controlled/chrome"),
                         pathlib.Path("/controlled/chromedriver"),
                         "http://127.0.0.1:8080/page.html",
-                        profile_dir,
+                        pathlib.Path(profile_dir),
+                        pathlib.Path(profile_dir) / "extension",
+                        "initialized",
+                        namespace["INITIAL_EXTENSION_VERSION"],
                         "initialized",
                     )
 

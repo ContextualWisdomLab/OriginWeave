@@ -69,6 +69,8 @@ class ManifestV3SessionCleanupExceptionTests(unittest.TestCase):
         return {
             "workerStartCount": "1",
             "storagePersistence": "initialized",
+            "extensionVersion": "1.0.0",
+            "storageMigration": "initialized",
             "workerReply": "pong",
             "content": "ready",
             "storage": "ready",
@@ -132,7 +134,9 @@ class ManifestV3SessionCleanupExceptionTests(unittest.TestCase):
                         "_wait_for_driver": lambda _port: None,
                         "_json_request": fake_json_request,
                         "_wait_for_extension_evidence": (
-                            lambda _port, _session, _expected: self._surfaces()
+                            lambda _port, _session, _persistence, _version, _migration: (
+                                self._surfaces()
+                            )
                         ),
                         "_exercise_real_click": lambda _port, _session: "clicked",
                     },
@@ -143,7 +147,10 @@ class ManifestV3SessionCleanupExceptionTests(unittest.TestCase):
                         pathlib.Path("/controlled/chrome"),
                         pathlib.Path("/controlled/chromedriver"),
                         "http://127.0.0.1:8080/page.html",
-                        profile_dir,
+                        pathlib.Path(profile_dir),
+                        pathlib.Path(profile_dir) / "extension",
+                        "initialized",
+                        namespace["INITIAL_EXTENSION_VERSION"],
                         "initialized",
                     )
                 except Exception as error:  # noqa: BLE001 - return exact boundary error.
