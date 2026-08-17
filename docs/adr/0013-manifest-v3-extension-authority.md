@@ -92,7 +92,7 @@ No persistent database migration is introduced. A release can roll back the Chro
 
 ## Open follow-ups
 
-- Complete issue #27's compatibility matrix and production isolation acceptance. Exclusive trusted-time expiry on origin-bound `ExtensionAgentGrant` evaluation is the next protected-main candidate; task identity binding remains open.
+- Complete issue #27's compatibility matrix and production isolation acceptance. Exact Agent Task identity binding, canonical-origin binding, and exclusive trusted-time expiry are implemented on active PR #40 and remain active-PR evidence until protected integration.
 - Define managed-extension identity/update semantics.
 - Implement the native-messaging allow-list/process boundary before claiming support.
 - Integrate the complete Agent Task browser vertical slice under issue #28.
