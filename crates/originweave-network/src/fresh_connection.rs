@@ -207,8 +207,8 @@ mod tests {
     }
 
     #[test]
-    fn compatibility_anchor_includes_time_spent_before_plan_completion(
-    ) -> Result<(), Box<dyn Error>> {
+    fn compatibility_anchor_includes_time_spent_before_plan_completion()
+    -> Result<(), Box<dyn Error>> {
         let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9);
         let origin = Origin::parse("http://localhost:9")?;
         let snapshot = FreshResolutionSnapshot::approve(
