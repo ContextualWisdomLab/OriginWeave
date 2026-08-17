@@ -79,18 +79,18 @@ fn parse_content_length(
     if values.is_empty() {
         return Ok(None);
     }
-    let mut canonical_digits = None;
+    let mut first_member = None;
     let mut parsed_length = None;
     for value in values {
         for member in value.split(|byte| *byte == b',') {
             let member = trim_optional_whitespace(member);
-            let canonical_member = canonical_decimal(member)?;
-            match canonical_digits {
-                Some(existing) if existing != canonical_member => {
+            validate_decimal(member)?;
+            match first_member {
+                Some(existing) if existing != member => {
                     return Err(HttpError::ConflictingContentLength);
                 }
                 Some(_existing) => {}
-                None => canonical_digits = Some(canonical_member),
+                None => first_member = Some(member),
             }
             if let Some(maximum_encoded_bytes) = maximum_encoded_bytes {
                 let parsed = parse_decimal_usize(member)?;
@@ -109,14 +109,11 @@ fn parse_content_length(
     Ok(parsed_length)
 }
 
-fn canonical_decimal(input: &[u8]) -> Result<&[u8], HttpError> {
+fn validate_decimal(input: &[u8]) -> Result<(), HttpError> {
     if input.is_empty() || !input.iter().all(u8::is_ascii_digit) {
         return Err(HttpError::InvalidContentLength);
     }
-    Ok(input
-        .iter()
-        .position(|byte| *byte != b'0')
-        .map_or(&input[input.len() - 1..], |index| &input[index..]))
+    Ok(())
 }
 
 fn parse_decimal_usize(input: &[u8]) -> Result<usize, HttpError> {
