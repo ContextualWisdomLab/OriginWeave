@@ -92,7 +92,10 @@ fn semantic_target_preserves_explicit_cross_origin_policy_target() -> Result<(),
         .map_err(|error| error.to_string())?;
 
     assert_eq!(binding.request(), &request);
-    assert_eq!(binding.request().target_origin().as_str(), "https://other.example");
+    assert_eq!(
+        binding.request().target_origin().as_str(),
+        "https://other.example"
+    );
     Ok(())
 }
 
