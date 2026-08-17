@@ -712,12 +712,14 @@ pub fn sample_linux_process_rss_bytes(process_id: u32) -> Result<u64, BrowserRss
 pub fn sample_linux_process_identity_rss_bytes(
     identity: LinuxProcessIdentity,
 ) -> Result<u64, BrowserRssSampleError> {
-    let rss_bytes = sample_linux_process_rss_bytes(identity.process_id)?;
-    let current_identity = read_linux_process_identity(identity.process_id)?;
-    if current_identity != identity {
-        return Err(BrowserRssSampleError::ProcessIdentityChanged);
-    }
-    Ok(rss_bytes)
+    sample_linux_process_rss_bytes(identity.process_id).and_then(|rss_bytes| {
+        read_linux_process_identity(identity.process_id).and_then(|current_identity| {
+            if current_identity != identity {
+                return Err(BrowserRssSampleError::ProcessIdentityChanged);
+            }
+            Ok(rss_bytes)
+        })
+    })
 }
 
 /// Sample the aggregate RSS of one explicit bounded Linux process-identity set.

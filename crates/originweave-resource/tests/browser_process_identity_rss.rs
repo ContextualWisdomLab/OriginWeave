@@ -1,7 +1,8 @@
 use originweave_resource::{
     BrowserRssSampleError, LinuxProcessIdentity, parse_linux_proc_stat_start_time_ticks,
-    parse_linux_process_identity, read_linux_process_identity, sample_linux_process_identity_rss_bytes,
-    sample_linux_process_identity_set_rss_bytes, verify_linux_process_identity,
+    parse_linux_process_identity, read_linux_process_identity,
+    sample_linux_process_identity_rss_bytes, sample_linux_process_identity_set_rss_bytes,
+    verify_linux_process_identity,
 };
 
 fn proc_stat_with_start_time(start_time_ticks: u64) -> String {
@@ -60,7 +61,8 @@ fn proc_stat_parser_rejects_hostile_structure_and_numeric_fields() {
 }
 
 #[test]
-fn process_identity_parser_binds_expected_pid_and_fails_closed() -> Result<(), BrowserRssSampleError> {
+fn process_identity_parser_binds_expected_pid_and_fails_closed() -> Result<(), BrowserRssSampleError>
+{
     let expected = LinuxProcessIdentity::new(42, 987_654)?;
     assert_eq!(
         parse_linux_process_identity(42, &proc_stat_with_start_time(987_654)),
