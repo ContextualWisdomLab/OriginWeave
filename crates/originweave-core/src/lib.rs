@@ -32,6 +32,7 @@ mod browser_registry;
 mod browser_registry_coverage;
 mod contracts;
 mod webdriver_bidi_command;
+mod webdriver_bidi_result;
 
 pub use browser_authority_registry::BrowserAuthorityRegistry;
 pub use browser_protocol::{
@@ -68,4 +69,7 @@ pub use webdriver_bidi_command::{
     WebDriverBiDiLocateNodesCommand, WebDriverBiDiLocateNodesCommandError,
     WebDriverBiDiLocateNodesResponseCorrelationError,
     WebDriverBiDiLocateNodesResponseEnvelopeError,
+};
+pub use webdriver_bidi_result::{
+    ValidatedWebDriverBiDiLocateNodesResult, WebDriverBiDiLocateNodesResultAdmissionError,
 };
