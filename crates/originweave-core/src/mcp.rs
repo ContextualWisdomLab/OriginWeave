@@ -210,13 +210,21 @@ pub const fn mcp_tools_list_page() -> McpToolsListPage {
     }
 }
 
-/// A deterministic failure while validating one MCP `tools/list` routing envelope.
+/// A deterministic failure while validating one MCP `tools/list` request envelope.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum McpToolsListBoundaryError {
+    /// The transport request omitted the required MCP protocol-version header.
+    MissingProtocolVersionHeader,
+    /// The structured request metadata omitted the required MCP protocol version.
+    MissingProtocolVersionMetadata,
+    /// The transport protocol version disagrees with the structured request metadata.
+    ProtocolVersionHeaderBodyMismatch,
     /// The request names an MCP protocol generation this boundary does not support.
     UnsupportedProtocolVersion,
-    /// MCP routing metadata disagrees with the method in the body.
-    HeaderBodyMismatch,
+    /// The structured request metadata omitted the required client-capabilities object.
+    MissingClientCapabilities,
+    /// MCP routing method metadata disagrees with the method in the request body.
+    MethodHeaderBodyMismatch,
     /// The request method is not the supported `tools/list` operation.
     UnsupportedMethod,
     /// The request supplied a cursor that this fixed single-page catalog never issued.
@@ -226,11 +234,22 @@ pub enum McpToolsListBoundaryError {
 impl fmt::Display for McpToolsListBoundaryError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::MissingProtocolVersionHeader => {
+                formatter.write_str("MCP protocol version header is required")
+            }
+            Self::MissingProtocolVersionMetadata => {
+                formatter.write_str("MCP request metadata protocol version is required")
+            }
+            Self::ProtocolVersionHeaderBodyMismatch => formatter
+                .write_str("MCP protocol version header does not match request metadata"),
             Self::UnsupportedProtocolVersion => {
                 formatter.write_str("unsupported MCP protocol version")
             }
-            Self::HeaderBodyMismatch => {
-                formatter.write_str("MCP routing headers do not match the request body")
+            Self::MissingClientCapabilities => {
+                formatter.write_str("MCP request metadata client capabilities are required")
+            }
+            Self::MethodHeaderBodyMismatch => {
+                formatter.write_str("MCP method header does not match the request body")
             }
             Self::UnsupportedMethod => {
                 formatter.write_str("only MCP tools/list requests can enter the discovery boundary")
@@ -244,34 +263,53 @@ impl fmt::Display for McpToolsListBoundaryError {
 
 impl std::error::Error for McpToolsListBoundaryError {}
 
-/// An MCP `tools/list` request whose protocol and routing envelope were validated.
+/// An MCP `tools/list` request whose protocol, required metadata, and routing envelope were
+/// validated.
 ///
-/// This boundary is deliberately narrower than a general pagination implementation. The current
-/// reviewed catalog returns one complete page and emits no continuation cursor, so no non-null
-/// cursor can be a value previously issued by OriginWeave. A transport adapter must not silently
-/// ignore or reinterpret a supplied cursor.
+/// This boundary is deliberately narrower than a general transport or pagination implementation.
+/// A trusted structured parser must prove whether the required per-request client-capabilities
+/// object was present; this type never accepts its contents as authority. The current reviewed
+/// catalog returns one complete page and emits no continuation cursor, so no non-null cursor can
+/// be a value previously issued by OriginWeave. A transport adapter must not silently ignore or
+/// reinterpret a supplied cursor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ValidatedMcpToolsListRequest {
     method: &'static str,
 }
 
 impl ValidatedMcpToolsListRequest {
-    /// Validate the stateless routing envelope for the current fixed `tools/list` catalog.
+    /// Validate the stateless request envelope for the current fixed `tools/list` catalog.
     ///
-    /// The MCP protocol version and routing/body method must match this reviewed boundary. Any
-    /// supplied cursor fails closed because [`mcp_tools_list_page`] emits no continuation cursor;
-    /// accepting one would silently invent pagination state that OriginWeave never issued.
+    /// Both the required transport protocol-version header and structured request `_meta`
+    /// protocol version must be present, equal, and exactly [`MCP_PROTOCOL_VERSION`]. A trusted
+    /// structured parser must also attest that the required `_meta` client-capabilities object was
+    /// present; its contents grant no OriginWeave authority. The routing/body method must agree.
+    /// Any supplied cursor fails closed because [`mcp_tools_list_page`] emits no continuation
+    /// cursor; accepting one would silently invent pagination state that OriginWeave never issued.
     pub fn new(
-        protocol_version: &str,
+        protocol_version_header: Option<&str>,
+        protocol_version_metadata: Option<&str>,
+        client_capabilities_present: bool,
         routing_method: &str,
         body_method: &str,
         cursor: Option<&str>,
     ) -> Result<Self, McpToolsListBoundaryError> {
-        if protocol_version != MCP_PROTOCOL_VERSION {
+        let protocol_version_header = protocol_version_header
+            .ok_or(McpToolsListBoundaryError::MissingProtocolVersionHeader)?;
+        let protocol_version_metadata = protocol_version_metadata
+            .ok_or(McpToolsListBoundaryError::MissingProtocolVersionMetadata)?;
+
+        if protocol_version_header != protocol_version_metadata {
+            return Err(McpToolsListBoundaryError::ProtocolVersionHeaderBodyMismatch);
+        }
+        if protocol_version_metadata != MCP_PROTOCOL_VERSION {
             return Err(McpToolsListBoundaryError::UnsupportedProtocolVersion);
         }
+        if !client_capabilities_present {
+            return Err(McpToolsListBoundaryError::MissingClientCapabilities);
+        }
         if routing_method != body_method {
-            return Err(McpToolsListBoundaryError::HeaderBodyMismatch);
+            return Err(McpToolsListBoundaryError::MethodHeaderBodyMismatch);
         }
         if routing_method != MCP_TOOLS_LIST_METHOD {
             return Err(McpToolsListBoundaryError::UnsupportedMethod);
