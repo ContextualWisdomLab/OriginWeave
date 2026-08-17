@@ -682,10 +682,15 @@ mod tests {
         let sessions = values(unbound_registry.register_session("unbound-session"));
         assert_eq!(sessions.len(), 1);
         let unbound_session = sessions[0];
-        let contexts = values(unbound_registry.register_context(unbound_session, "unbound-context"));
+        let contexts =
+            values(unbound_registry.register_context(unbound_session, "unbound-context"));
         assert_eq!(contexts.len(), 1);
         let unbound_context = contexts[0];
-        assert!(!unbound_registry.context_origin.contains_key(&unbound_context));
+        assert!(
+            !unbound_registry
+                .context_origin
+                .contains_key(&unbound_context)
+        );
         assert_eq!(
             unbound_registry.bind_nodes(
                 unbound_session,
@@ -695,7 +700,11 @@ mod tests {
             ),
             Err(BrowserRegistryError::IdentifierSpaceExhausted)
         );
-        assert!(!unbound_registry.context_origin.contains_key(&unbound_context));
+        assert!(
+            !unbound_registry
+                .context_origin
+                .contains_key(&unbound_context)
+        );
         assert!(unbound_registry.node_by_external.is_empty());
         assert_eq!(unbound_registry.next_node_id, 1);
     }
