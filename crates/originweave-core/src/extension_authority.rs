@@ -115,7 +115,8 @@ pub fn evaluate_extension_access(
     request: &ExtensionAccessRequest,
     grant: Option<&ExtensionAgentGrant>,
 ) -> ExtensionAccessDecision {
-    let base_decision = evaluate_base_extension_access(&request.base, grant.map(|grant| &grant.base));
+    let base_decision =
+        evaluate_base_extension_access(&request.base, grant.map(|grant| &grant.base));
     match base_decision {
         BaseExtensionAccessDecision::DenyMissingGrant => ExtensionAccessDecision::DenyMissingGrant,
         BaseExtensionAccessDecision::DenyExtensionMismatch => {
@@ -128,9 +129,8 @@ pub fn evaluate_extension_access(
             ExtensionAccessDecision::DenyBrowsingContextMismatch
         }
         BaseExtensionAccessDecision::Allow
-        | BaseExtensionAccessDecision::DenyCapabilityNotGranted => grant.map_or(
-            ExtensionAccessDecision::DenyMissingGrant,
-            |grant| {
+        | BaseExtensionAccessDecision::DenyCapabilityNotGranted => {
+            grant.map_or(ExtensionAccessDecision::DenyMissingGrant, |grant| {
                 if request.origin != grant.origin {
                     return ExtensionAccessDecision::DenyOriginMismatch;
                 }
@@ -141,7 +141,7 @@ pub fn evaluate_extension_access(
                     return ExtensionAccessDecision::DenyCapabilityNotGranted;
                 }
                 ExtensionAccessDecision::Allow
-            },
-        ),
+            })
+        }
     }
 }
