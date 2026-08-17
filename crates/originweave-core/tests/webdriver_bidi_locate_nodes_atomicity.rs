@@ -36,8 +36,8 @@ fn semantic_observation_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn E
 }
 
 #[test]
-fn exhausted_locate_nodes_batch_does_not_consume_partial_node_authority(
-) -> Result<(), Box<dyn Error>> {
+fn exhausted_locate_nodes_batch_does_not_consume_partial_node_authority()
+-> Result<(), Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::with_identifier_limit(1);
     let origin = Origin::parse("https://app.example")?;
     let session = registry.register_session("webdriver-session")?;
@@ -50,8 +50,7 @@ fn exhausted_locate_nodes_batch_does_not_consume_partial_node_authority(
         ),
         epoch,
     );
-    let batch_query =
-        WebDriverBiDiAccessibilityQuery::new(Some("button"), Some("Submit task"), 2)?;
+    let batch_query = WebDriverBiDiAccessibilityQuery::new(Some("button"), Some("Submit task"), 2)?;
 
     assert_eq!(
         batch_query.bind_current_nodes(
