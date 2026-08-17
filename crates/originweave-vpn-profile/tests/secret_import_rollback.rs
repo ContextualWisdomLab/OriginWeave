@@ -121,3 +121,18 @@ fn ikev2_first_import_failure_needs_no_cleanup() {
     assert!(importer.discard_calls.is_empty());
     assert!(importer.stored.is_empty());
 }
+
+#[test]
+fn ikev2_success_imports_exactly_one_secret_per_authentication_variant() {
+    for profile in [
+        "[IKEv2]\nServer=vpn.example\nAuth=psk\nPsk=secret\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
+        "[IKEv2]\nServer=vpn.example\nAuth=eap\nUsername=alice\nPassword=raw-password\nProposal=aes256gcm16-prfsha256-ecp256\nTrafficSelectors=0.0.0.0/0",
+    ] {
+        let mut importer = TransactionalImporter::default();
+
+        assert!(parse_ikev2_profile(profile, &mut importer).is_ok());
+        assert_eq!(importer.import_calls, 1);
+        assert_eq!(importer.stored.len(), 1);
+        assert!(importer.discard_calls.is_empty());
+    }
+}
