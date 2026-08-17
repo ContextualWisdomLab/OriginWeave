@@ -12,6 +12,10 @@ The 1 June 2026 WebDriver BiDi Working Draft defines a bidirectional remote-cont
 
 The current Chrome Extensions Downloads API documents the `downloads` manifest permission and `chrome.downloads` methods that initiate, monitor, search, and inspect downloads. That living vendor reference is API semantics only. OriginWeave treats a successful controlled loopback download in pinned Chromium as compatibility evidence for one declared surface, not as Agent filesystem authority, general download persistence, or a claim that every Downloads method is supported.
 
+### Manifest V3 bookmarks compatibility
+
+The current Chrome Extensions Bookmarks API documents the `bookmarks` manifest permission and Promise-returning `chrome.bookmarks.create`, `chrome.bookmarks.get`, and `chrome.bookmarks.remove` methods. Bookmark node identifiers are strings unique within one browser profile. That living vendor reference is API semantics only. OriginWeave treats one controlled loopback create → get → remove lifecycle plus allow-listed stage diagnostics as compatibility evidence, not as Agent bookmark capability or ambient human-profile bookmark authority.
+
 ### Manifest V3 WebDriver transport-protocol diagnostics
 
 RFC 9112 defines the HTTP/1.1 status-line and the requirement that a message body match the announced framing. A malformed status-line or an incomplete body is a recoverable parser failure, not a trusted diagnostic payload. W3C WebDriver carries commands over that HTTP transport. The Manifest V3 compatibility runner therefore converts `http.client.HTTPException` subclasses such as `BadStatusLine` and `IncompleteRead` into the classified message `WebDriver transport protocol failure`. Raw status-line text, partial body bytes, paths, URLs, or tokens must not enter exception text, trial evidence, or logs.
@@ -119,6 +123,8 @@ Autio, C., Schwartz, R., Dunietz, J., Jain, S., Stanley, M., Tabassi, E., Hall, 
 Barth, A. (2011). *The web origin concept* (RFC 6454). Internet Engineering Task Force. https://doi.org/10.17487/RFC6454
 
 Bonica, R., Cotton, M., Haberman, B., & Vegoda, L. (2017). *Updates to the special-purpose IP address registries* (RFC 8190). Internet Engineering Task Force. https://doi.org/10.17487/RFC8190
+
+Chrome for Developers. (n.d.). *chrome.bookmarks*. Google. Retrieved August 16, 2026, from https://developer.chrome.com/docs/extensions/reference/api/bookmarks
 
 Chrome for Developers. (n.d.). *chrome.downloads*. Google. Retrieved August 16, 2026, from https://developer.chrome.com/docs/extensions/reference/api/downloads
 
