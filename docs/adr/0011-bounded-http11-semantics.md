@@ -58,7 +58,7 @@ Body framing follows RFC 9110 and RFC 9112 with these product constraints:
 
 1. `HEAD`, informational responses, 204, and 304 expose no content.
 2. The only supported transfer-coding list is exactly `chunked`.
-3. Canonical repeated/comma-separated content lengths must all agree.
+3. Repeated or comma-separated `Content-Length` members are accepted only when every decimal member is byte-identical after optional whitespace is trimmed; numerically equal but differently spelled members such as `042` and `42` fail closed as conflicting framing evidence.
 4. Chunked completion occurs at the terminal zero chunk plus bounded trailers and final empty line; peer close is not required.
 5. Close-delimited content is complete only after authenticated clean TLS EOF.
 6. This first slice is single-use and retains no parser state for connection reuse.
