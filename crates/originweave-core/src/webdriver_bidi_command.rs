@@ -95,9 +95,8 @@ impl Display for WebDriverBiDiLocateNodesResponseEnvelopeError {
             Self::UncorrelatableErrorResponse => formatter.write_str(
                 "WebDriver BiDi error response has no recoverable command id for correlation",
             ),
-            Self::CorrelatedErrorResponse => formatter.write_str(
-                "WebDriver BiDi error response cannot become success response evidence",
-            ),
+            Self::CorrelatedErrorResponse => formatter
+                .write_str("WebDriver BiDi error response cannot become success response evidence"),
             Self::Correlation(error) => write!(
                 formatter,
                 "WebDriver BiDi response envelope rejected command correlation: {error}"
