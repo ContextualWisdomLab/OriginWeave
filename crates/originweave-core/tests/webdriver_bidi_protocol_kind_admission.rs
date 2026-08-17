@@ -52,18 +52,24 @@ fn webdriver_bidi_locate_nodes_rejects_cdp_semantic_observation_proof() -> Resul
     );
     let query = WebDriverBiDiAccessibilityQuery::new(Some("textbox"), Some("Task text"), 1)?;
 
-    assert_eq!(
-        query.bind_current_nodes(
+    let error = query
+        .bind_current_nodes(
             cdp_semantic_observation_proof()?,
             &mut registry,
             target,
             &[("node", Some("shared-task-text"))],
-        ),
-        Err(
-            WebDriverBiDiLocateNodesAdmissionError::UnsupportedProtocolKind(
-                BrowserProtocolKind::ChromeDevToolsProtocol,
-            )
+        )
+        .expect_err("CDP proof must not authorize WebDriver BiDi locateNodes admission");
+    assert_eq!(
+        error,
+        WebDriverBiDiLocateNodesAdmissionError::UnsupportedProtocolKind(
+            BrowserProtocolKind::ChromeDevToolsProtocol,
         )
     );
+    assert_eq!(
+        error.to_string(),
+        "locateNodes admission requires a WebDriverBiDi protocol-use proof, not ChromeDevToolsProtocol"
+    );
+    assert!(error.source().is_none());
     Ok(())
 }
