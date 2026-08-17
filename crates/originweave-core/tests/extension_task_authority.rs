@@ -1,7 +1,7 @@
 #![allow(clippy::expect_used)]
 
 use originweave_core::{
-    AgentTaskId, BrowserSessionId, BrowsingContextId, ExtensionAccessDecision,
+    AgentTaskId, AgentTaskIdError, BrowserSessionId, BrowsingContextId, ExtensionAccessDecision,
     ExtensionAccessRequest, ExtensionAgentCapability, ExtensionAgentGrant, ExtensionId, Origin,
     evaluate_extension_access,
 };
@@ -27,9 +27,16 @@ fn origin(value: &str) -> Origin {
 }
 
 #[test]
-fn agent_task_identity_rejects_zero() {
-    assert!(AgentTaskId::new(0).is_err());
+fn agent_task_identity_rejects_zero_with_standard_error_contract() {
+    assert_eq!(
+        AgentTaskId::new(0),
+        Err(AgentTaskIdError::InvalidAgentTaskId)
+    );
     assert_eq!(task(29).value(), 29);
+
+    let error = AgentTaskIdError::InvalidAgentTaskId;
+    assert_eq!(error.to_string(), "Agent Task identifier must be nonzero");
+    assert!(std::error::Error::source(&error).is_none());
 }
 
 #[test]
