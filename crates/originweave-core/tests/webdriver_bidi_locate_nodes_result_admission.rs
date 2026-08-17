@@ -45,6 +45,10 @@ fn current_target<'a>(
     ))
 }
 
+fn controlled_origin() -> Result<Origin, Box<dyn Error>> {
+    Origin::parse("https://app.example").map_err(|_error| "valid controlled fixture origin".into())
+}
+
 fn protocol_proof(
     kind: BrowserProtocolKind,
     capability: BrowserProtocolCapability,
@@ -138,7 +142,7 @@ fn correlated_result_admission_error_preserves_typed_source() {
 #[test]
 fn correlated_result_binds_only_to_its_exact_registered_context() -> Result<(), Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
-    let origin = Origin::parse("https://app.example")?;
+    let origin = controlled_origin()?;
     let target = current_target(&mut registry, &origin, "context-a")?;
     let result = correlated_success(2)?.admit_result_nodes(&[
         ("node", Some("shared-node-a")),
@@ -161,7 +165,7 @@ fn correlated_result_binds_only_to_its_exact_registered_context() -> Result<(), 
 #[test]
 fn correlated_result_rejects_cross_context_rebinding() -> Result<(), Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
-    let origin = Origin::parse("https://app.example")?;
+    let origin = controlled_origin()?;
     let target = current_target(&mut registry, &origin, "context-b")?;
     let result = correlated_success(1)?.admit_result_nodes(&[("node", Some("shared-node-a"))])?;
 
@@ -181,14 +185,14 @@ fn correlated_result_rejects_cross_context_rebinding() -> Result<(), Box<dyn Err
 #[test]
 fn correlated_result_rejects_non_bidi_protocol_proof() -> Result<(), Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
-    let origin = Origin::parse("https://app.example")?;
+    let origin = controlled_origin()?;
     let target = current_target(&mut registry, &origin, "context-a")?;
     let result = correlated_success(1)?.admit_result_nodes(&[("node", Some("shared-node-a"))])?;
 
     assert_eq!(
         result.bind_current_nodes(
             protocol_proof(
-                BrowserProtocolKind::Cdp,
+                BrowserProtocolKind::ChromeDevToolsProtocol,
                 BrowserProtocolCapability::SemanticObservation,
             )?,
             &mut registry,
@@ -196,7 +200,7 @@ fn correlated_result_rejects_non_bidi_protocol_proof() -> Result<(), Box<dyn Err
         ),
         Err(
             WebDriverBiDiLocateNodesAdmissionError::UnsupportedProtocolKind(
-                BrowserProtocolKind::Cdp,
+                BrowserProtocolKind::ChromeDevToolsProtocol,
             )
         )
     );
@@ -206,7 +210,7 @@ fn correlated_result_rejects_non_bidi_protocol_proof() -> Result<(), Box<dyn Err
 #[test]
 fn correlated_result_rejects_non_observation_protocol_proof() -> Result<(), Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
-    let origin = Origin::parse("https://app.example")?;
+    let origin = controlled_origin()?;
     let target = current_target(&mut registry, &origin, "context-a")?;
     let result = correlated_success(1)?.admit_result_nodes(&[("node", Some("shared-node-a"))])?;
 
@@ -231,7 +235,7 @@ fn correlated_result_rejects_non_observation_protocol_proof() -> Result<(), Box<
 #[test]
 fn correlated_result_rejects_stale_document_epoch() -> Result<(), Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
-    let origin = Origin::parse("https://app.example")?;
+    let origin = controlled_origin()?;
     let target = current_target(&mut registry, &origin, "context-a")?;
     let context = target.context_origin().context().browsing_context();
     let current_epoch = registry.advance_document(context)?;
@@ -258,7 +262,7 @@ fn correlated_result_rejects_stale_document_epoch() -> Result<(), Box<dyn Error>
 fn correlated_result_keeps_node_binding_transactional_on_identifier_exhaustion()
 -> Result<(), Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::with_identifier_limit(1);
-    let origin = Origin::parse("https://app.example")?;
+    let origin = controlled_origin()?;
     let target = current_target(&mut registry, &origin, "context-a")?;
     let result = correlated_success(2)?.admit_result_nodes(&[
         ("node", Some("shared-node-a")),
