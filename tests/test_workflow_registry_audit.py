@@ -10,9 +10,10 @@ import types
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "scripts/ci/audit_workflow_registry.py"
+SCRIPT = ROOT / "scripts" / "ci" / "audit_workflow_registry.py"
 DEFAULT_SHA = "67af7c87589edc2039545af335c95064d9b8391c"
 OBSERVED_AT = "2026-08-12T00:00:00Z"
+ACTIVE_PR_HEAD = "b" * 40
 
 
 def _load_module():
@@ -41,6 +42,7 @@ def _payload(*workflows: dict) -> dict:
     """Return one complete two-page exact-protected-main audit fixture."""
 
     split = max(1, len(workflows) // 2)
+    active_pr_path = ".github/workflows/current-bounded-diagnostic.yml"
     return {
         "schema_version": 1,
         "expected_default_branch_sha": DEFAULT_SHA,
@@ -51,8 +53,13 @@ def _payload(*workflows: dict) -> dict:
             ".github/workflows/ci.yml",
             ".github/workflows/hourly-product-development.yml",
         ],
-        "active_pr_workflow_paths": [
-            ".github/workflows/current-bounded-diagnostic.yml"
+        "active_pr_workflow_paths": [active_pr_path],
+        "active_pr_workflow_owners": [
+            {
+                "path": active_pr_path,
+                "pull_request_number": 321,
+                "head_sha": ACTIVE_PR_HEAD,
+            }
         ],
         "registry_pages": [
             {
@@ -322,6 +329,10 @@ class WorkflowRegistryAuditTests(unittest.TestCase):
         record = evidence["workflow_records"][0]
         self.assertEqual(record["classification"], "active_pr_owned_workflow")
         self.assertFalse(record["disable_candidate"])
+        self.assertEqual(
+            record["active_pr_owner"],
+            {"pull_request_number": 321, "head_sha": ACTIVE_PR_HEAD},
+        )
 
     def test_only_reviewed_active_orphans_are_disable_candidates(self) -> None:
         """Dynamic, disabled, present, and active-PR records remain non-candidates."""
