@@ -31,3 +31,9 @@ pub use native_messaging_manifest::{
     NativeMessagingHostManifest, NativeMessagingHostManifestAccessDecision,
     NativeMessagingHostManifestError, NativeMessagingHostPlatform,
 };
+
+mod native_messaging_manifest_document;
+pub use native_messaging_manifest_document::{
+    MAX_NATIVE_MESSAGING_MANIFEST_DOCUMENT_BYTES, NativeMessagingManifestDocument,
+    NativeMessagingManifestDocumentError,
+};
