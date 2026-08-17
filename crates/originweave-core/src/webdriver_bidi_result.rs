@@ -2,8 +2,11 @@ use std::error::Error;
 use std::fmt::{Display, Formatter};
 
 use crate::{
+    BrowserAuthorityRegistry, BrowserContextOriginEpochDispatchTarget, BrowserProtocolCapability,
+    BrowserProtocolKind, ObservedNodeHandle, ValidatedBrowserProtocolUse,
     ValidatedWebDriverBiDiLocateNodesResponse, WebDriverBiDiAccessibilityQueryError,
-    WebDriverBiDiRemoteNodeReference, WebDriverBiDiRemoteNodeReferenceError,
+    WebDriverBiDiLocateNodesAdmissionError, WebDriverBiDiRemoteNodeReference,
+    WebDriverBiDiRemoteNodeReferenceError,
 };
 
 /// Fail-closed errors while admitting one correlated `locateNodes` result batch.
@@ -80,6 +83,76 @@ impl ValidatedWebDriverBiDiLocateNodesResult {
     #[must_use]
     pub fn nodes(&self) -> &[WebDriverBiDiRemoteNodeReference] {
         &self.nodes
+    }
+
+    /// Consume this correlated result and bind its nodes to exact current browser authority.
+    ///
+    /// The consumed protocol-use proof must be WebDriver BiDi SemanticObservation authority. The
+    /// exact browsing-context identifier serialized by the correlated command must still map to
+    /// the supplied OriginWeave context; this check is read-only and never registers a missing or
+    /// different context. The registry then revalidates the exact session, canonical origin, and
+    /// document epoch before all normalized `sharedId` values are bound transactionally.
+    ///
+    /// Success mints only [`ObservedNodeHandle`] values. It does not authenticate Chromium or an
+    /// adapter process, perform browser I/O, authorize policy or typed input, or turn descriptive
+    /// protocol evidence into an Agent capability.
+    pub fn bind_current_nodes(
+        self,
+        validated: ValidatedBrowserProtocolUse,
+        authority_registry: &mut BrowserAuthorityRegistry,
+        target: BrowserContextOriginEpochDispatchTarget<'_>,
+    ) -> Result<Vec<ObservedNodeHandle>, WebDriverBiDiLocateNodesAdmissionError> {
+        if validated.kind() != BrowserProtocolKind::WebDriverBiDi {
+            return Err(
+                WebDriverBiDiLocateNodesAdmissionError::UnsupportedProtocolKind(validated.kind()),
+            );
+        }
+        if validated.capability() != BrowserProtocolCapability::SemanticObservation {
+            return Err(
+                WebDriverBiDiLocateNodesAdmissionError::UnsupportedCapability(
+                    validated.capability(),
+                ),
+            );
+        }
+        let _consumed_observation_proof = validated;
+        let context_origin = target.context_origin();
+        let context = context_origin.context();
+        authority_registry
+            .require_context_external_identifier(
+                context.browser_session(),
+                context.browsing_context(),
+                self.browsing_context(),
+            )
+            .map_err(WebDriverBiDiLocateNodesAdmissionError::BrowserAuthority)?;
+        let current_epoch = authority_registry
+            .require_context_origin(
+                context.browser_session(),
+                context.browsing_context(),
+                context_origin.expected_origin(),
+            )
+            .map_err(WebDriverBiDiLocateNodesAdmissionError::BrowserAuthority)?;
+        if current_epoch != target.expected_epoch() {
+            return Err(
+                WebDriverBiDiLocateNodesAdmissionError::DocumentEpochMismatch {
+                    expected: target.expected_epoch(),
+                    current: current_epoch,
+                },
+            );
+        }
+
+        let shared_ids = self
+            .nodes
+            .iter()
+            .map(WebDriverBiDiRemoteNodeReference::shared_id)
+            .collect::<Vec<_>>();
+        authority_registry
+            .bind_nodes(
+                context.browser_session(),
+                context.browsing_context(),
+                context_origin.expected_origin(),
+                &shared_ids,
+            )
+            .map_err(WebDriverBiDiLocateNodesAdmissionError::BrowserAuthority)
     }
 }
 
