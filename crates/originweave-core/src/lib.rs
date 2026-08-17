@@ -66,5 +66,6 @@ pub use webdriver_bidi_command::{
     CorrelatedWebDriverBiDiLocateNodesResponse, MAX_WEBDRIVER_BIDI_COMMAND_ID,
     ValidatedWebDriverBiDiLocateNodesResponse, WebDriverBiDiCommandResponseKind,
     WebDriverBiDiLocateNodesCommand, WebDriverBiDiLocateNodesCommandError,
-    WebDriverBiDiLocateNodesResponseCorrelationError, WebDriverBiDiLocateNodesResponseEnvelopeError,
+    WebDriverBiDiLocateNodesResponseCorrelationError,
+    WebDriverBiDiLocateNodesResponseEnvelopeError,
 };
