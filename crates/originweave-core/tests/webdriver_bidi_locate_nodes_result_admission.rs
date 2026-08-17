@@ -145,10 +145,14 @@ fn correlated_result_binds_only_to_its_exact_registered_context() -> Result<(), 
         ("node", Some("shared-node-b")),
     ])?;
 
-    let handles = result.bind_current_nodes(semantic_observation_proof()?, &mut registry, target)?;
+    let handles =
+        result.bind_current_nodes(semantic_observation_proof()?, &mut registry, target)?;
 
     assert_eq!(handles.len(), 2);
-    assert_eq!(handles[0].browsing_context(), target.context_origin().context().browsing_context());
+    assert_eq!(
+        handles[0].browsing_context(),
+        target.context_origin().context().browsing_context()
+    );
     assert_eq!(handles[0].origin(), &origin);
     assert_eq!(handles[0].document_epoch(), target.expected_epoch());
     Ok(())
@@ -190,9 +194,11 @@ fn correlated_result_rejects_non_bidi_protocol_proof() -> Result<(), Box<dyn Err
             &mut registry,
             target,
         ),
-        Err(WebDriverBiDiLocateNodesAdmissionError::UnsupportedProtocolKind(
-            BrowserProtocolKind::Cdp,
-        ))
+        Err(
+            WebDriverBiDiLocateNodesAdmissionError::UnsupportedProtocolKind(
+                BrowserProtocolKind::Cdp,
+            )
+        )
     );
     Ok(())
 }
@@ -213,9 +219,11 @@ fn correlated_result_rejects_non_observation_protocol_proof() -> Result<(), Box<
             &mut registry,
             target,
         ),
-        Err(WebDriverBiDiLocateNodesAdmissionError::UnsupportedCapability(
-            BrowserProtocolCapability::TypedInput,
-        ))
+        Err(
+            WebDriverBiDiLocateNodesAdmissionError::UnsupportedCapability(
+                BrowserProtocolCapability::TypedInput,
+            )
+        )
     );
     Ok(())
 }
@@ -236,10 +244,12 @@ fn correlated_result_rejects_stale_document_epoch() -> Result<(), Box<dyn Error>
 
     assert_eq!(
         result.bind_current_nodes(semantic_observation_proof()?, &mut registry, target),
-        Err(WebDriverBiDiLocateNodesAdmissionError::DocumentEpochMismatch {
-            expected: target.expected_epoch(),
-            current: current_epoch,
-        })
+        Err(
+            WebDriverBiDiLocateNodesAdmissionError::DocumentEpochMismatch {
+                expected: target.expected_epoch(),
+                current: current_epoch,
+            }
+        )
     );
     Ok(())
 }
