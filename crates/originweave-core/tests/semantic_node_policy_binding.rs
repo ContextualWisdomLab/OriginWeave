@@ -34,9 +34,9 @@ fn node_target() -> Result<SemanticNodeActionTarget, String> {
         .map_err(|error| error.to_string())
 }
 
-fn request(source: &str, target: &str) -> Result<ActionRequest, String> {
+fn request(action: ActionKind, source: &str, target: &str) -> Result<ActionRequest, String> {
     Ok(ActionRequest::new(
-        ActionKind::Submit,
+        action,
         Origin::parse(source).map_err(|error| format!("{error:?}"))?,
         Origin::parse(target).map_err(|error| format!("{error:?}"))?,
         InstructionSource::User,
@@ -51,7 +51,11 @@ fn request(source: &str, target: &str) -> Result<ActionRequest, String> {
 #[test]
 fn semantic_target_binds_to_explicit_same_origin_policy_request() -> Result<(), String> {
     let target = node_target()?;
-    let request = request("https://example.com", "https://example.com")?;
+    let request = request(
+        ActionKind::Submit,
+        "https://example.com",
+        "https://example.com",
+    )?;
     let binding = SemanticNodePolicyBinding::new(target.clone(), request.clone())
         .map_err(|error| error.to_string())?;
 
@@ -63,7 +67,11 @@ fn semantic_target_binds_to_explicit_same_origin_policy_request() -> Result<(), 
 #[test]
 fn semantic_target_rejects_policy_request_from_another_browser_origin() -> Result<(), String> {
     let target = node_target()?;
-    let request = request("https://other.example", "https://example.com")?;
+    let request = request(
+        ActionKind::Submit,
+        "https://other.example",
+        "https://example.com",
+    )?;
 
     assert_eq!(
         SemanticNodePolicyBinding::new(target, request).err(),
@@ -73,25 +81,25 @@ fn semantic_target_rejects_policy_request_from_another_browser_origin() -> Resul
 }
 
 #[test]
-fn semantic_target_rejects_policy_request_for_another_target_origin() -> Result<(), String> {
+fn semantic_target_preserves_explicit_cross_origin_policy_target() -> Result<(), String> {
     let target = node_target()?;
-    let request = request("https://example.com", "https://other.example")?;
+    let request = request(
+        ActionKind::Navigate,
+        "https://example.com",
+        "https://other.example",
+    )?;
+    let binding = SemanticNodePolicyBinding::new(target, request.clone())
+        .map_err(|error| error.to_string())?;
 
-    assert_eq!(
-        SemanticNodePolicyBinding::new(target, request).err(),
-        Some(SemanticNodePolicyBindingError::TargetOriginMismatch)
-    );
+    assert_eq!(binding.request(), &request);
+    assert_eq!(binding.request().target_origin().as_str(), "https://other.example");
     Ok(())
 }
 
 #[test]
-fn semantic_policy_binding_errors_are_stable_and_credential_free() {
+fn semantic_policy_binding_error_is_stable_and_credential_free() {
     assert_eq!(
         SemanticNodePolicyBindingError::SourceOriginMismatch.to_string(),
         "semantic node origin does not match the policy request source origin"
-    );
-    assert_eq!(
-        SemanticNodePolicyBindingError::TargetOriginMismatch.to_string(),
-        "semantic node origin does not match the policy request target origin"
     );
 }
