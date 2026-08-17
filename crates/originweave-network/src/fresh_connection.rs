@@ -53,6 +53,25 @@ impl FreshConnectionPlan {
         connect_timeout: Duration,
         maximum_attempts: u8,
     ) -> Result<Self, NetworkError> {
+        let authorization_started_at = Instant::now();
+        Self::new_with_authorization_instant(
+            resolution,
+            current_time,
+            socket_address,
+            connect_timeout,
+            maximum_attempts,
+            authorization_started_at,
+        )
+    }
+
+    fn new_with_authorization_instant(
+        resolution: &FreshResolutionSnapshot,
+        current_time: Duration,
+        socket_address: SocketAddr,
+        connect_timeout: Duration,
+        maximum_attempts: u8,
+        authorization_started_at: Instant,
+    ) -> Result<Self, NetworkError> {
         if socket_address.port() == 0 {
             return Err(NetworkError::InvalidPort);
         }
@@ -94,7 +113,7 @@ impl FreshConnectionPlan {
             resolution_approved_at: fresh_evidence.resolution_approved_at(),
             resolution_valid_until: fresh_evidence.resolution_valid_until(),
             resolution_authorized_at: fresh_evidence.authorized_at(),
-            authorized_instant: Instant::now(),
+            authorized_instant: authorization_started_at,
         })
     }
 
