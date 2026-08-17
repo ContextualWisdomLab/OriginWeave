@@ -431,7 +431,7 @@ def _set_fixture_version(extension_dir: pathlib.Path, version: str) -> None:
 
 
 def _teardown_driver_process(driver: subprocess.Popen[str]) -> Exception | None:
-    """Best-effort reap ChromeDriver while preserving reviewed process failures."""
+    """Best-effort reap ChromeDriver while preserving unrecovered process failures."""
 
     try:
         driver.terminate()
@@ -444,7 +444,8 @@ def _teardown_driver_process(driver: subprocess.Popen[str]) -> Exception | None:
                 "bounded ChromeDriver kill fallback also failed: "
                 f"{type(fallback_error).__name__}"
             )
-        return terminate_error
+            return terminate_error
+        return None
 
     try:
         driver.wait(timeout=5)
@@ -480,6 +481,7 @@ def _run_browser_pass(
         stderr=subprocess.STDOUT,
         text=True,
     )
+    primary_error: BaseException | None = None
     try:
         _wait_for_driver(driver_port)
         session = _json_request(
@@ -567,6 +569,9 @@ def _run_browser_pass(
                 "real-browser-click": click_result == "clicked",
             },
         }
+    except BaseException as error:  # noqa: BLE001 - re-raised unchanged after cleanup.
+        primary_error = error
+        raise
     finally:
         cleanup_error: Exception | None = None
         try:
@@ -582,11 +587,28 @@ def _run_browser_pass(
                     cleanup_error = error
         finally:
             teardown_error = _teardown_driver_process(driver)
-        if cleanup_error is not None:
-            raise WebDriverSessionCleanupError(
+        if primary_error is not None:
+            if cleanup_error is not None:
+                primary_error.add_note(
+                    "WebDriver session cleanup also failed after the primary browser-pass "
+                    f"failure: {type(cleanup_error).__name__}"
+                )
+            if teardown_error is not None:
+                primary_error.add_note(
+                    "ChromeDriver process teardown also failed after the primary browser-pass "
+                    f"failure: {type(teardown_error).__name__}"
+                )
+        elif cleanup_error is not None:
+            cleanup_failure = WebDriverSessionCleanupError(
                 "WebDriver session cleanup failed after bounded process teardown"
-            ) from cleanup_error
-        if teardown_error is not None:
+            )
+            if teardown_error is not None:
+                cleanup_failure.add_note(
+                    "ChromeDriver process teardown also failed: "
+                    f"{type(teardown_error).__name__}"
+                )
+            raise cleanup_failure from cleanup_error
+        elif teardown_error is not None:
             raise teardown_error
 
 
