@@ -1,8 +1,8 @@
 //! Shared security and governance contracts for OriginWeave.
 //!
 //! This crate keeps the long-lived value contracts in `contracts`, the
-//! protocol-identifier registry in a focused module, and bounded semantic
-//! observations in separate authority-preserving modules.
+//! protocol-identifier registry and extension authority in focused modules,
+//! and bounded semantic observations in separate authority-preserving modules.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -12,6 +12,7 @@ mod browser_registry;
 mod browser_registry_coverage;
 mod contract_errors;
 mod contracts;
+mod extension_authority;
 mod semantic_action_target;
 mod semantic_observation;
 
@@ -21,10 +22,12 @@ pub use browser_registry::{
 pub use contracts::{
     ActionIntentDigest, ActionIntentDigestError, ActionKind, ActionRequest, ApprovalEvidence,
     ApprovalScope, BrowserSessionId, BrowsingContextId, Capability, DocumentEpoch,
-    ExecutionPurpose, ExtensionAccessDecision, ExtensionAccessRequest, ExtensionAgentCapability,
-    ExtensionAgentGrant, ExtensionId, ExtensionIdError, InstructionSource, NodeHandleError,
-    ObservedNodeHandle, Origin, OriginError, PolicyContext, RiskClass, RobotsDecision,
-    SecretDelivery, SessionMode, evaluate_extension_access,
+    ExecutionPurpose, ExtensionAgentCapability, ExtensionId, ExtensionIdError, InstructionSource,
+    NodeHandleError, ObservedNodeHandle, Origin, OriginError, PolicyContext, RiskClass,
+    RobotsDecision, SecretDelivery, SessionMode,
+};
+pub use extension_authority::{
+    ExtensionAccessDecision, ExtensionAccessRequest, ExtensionAgentGrant, evaluate_extension_access,
 };
 pub use semantic_action_target::{SemanticNodeActionTarget, SemanticNodeActionTargetError};
 pub use semantic_observation::{
