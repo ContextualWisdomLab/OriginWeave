@@ -29,6 +29,17 @@ fn success_envelope_requires_and_retains_exact_response_id() -> Result<(), Box<d
 }
 
 #[test]
+fn correlated_success_can_be_consumed_as_success_evidence() -> Result<(), Box<dyn Error>> {
+    let validated = locate_nodes_command(42)?
+        .correlate_response_envelope(WebDriverBiDiCommandResponseKind::Success, Some(42))?
+        .into_validated_success()?;
+
+    assert_eq!(validated.command_id(), 42);
+    assert_eq!(validated.browsing_context(), "context-a");
+    Ok(())
+}
+
+#[test]
 fn error_envelope_with_id_is_correlated_but_remains_error_kind() -> Result<(), Box<dyn Error>> {
     let correlated = locate_nodes_command(42)?
         .correlate_response_envelope(WebDriverBiDiCommandResponseKind::Error, Some(42))?;
@@ -36,6 +47,19 @@ fn error_envelope_with_id_is_correlated_but_remains_error_kind() -> Result<(), B
     assert_eq!(correlated.kind(), WebDriverBiDiCommandResponseKind::Error);
     assert_eq!(correlated.command_id(), 42);
     assert_eq!(correlated.browsing_context(), "context-a");
+    Ok(())
+}
+
+#[test]
+fn correlated_error_cannot_become_success_evidence() -> Result<(), Box<dyn Error>> {
+    let result = locate_nodes_command(42)?
+        .correlate_response_envelope(WebDriverBiDiCommandResponseKind::Error, Some(42))?
+        .into_validated_success();
+
+    assert_eq!(
+        result,
+        Err(WebDriverBiDiLocateNodesResponseEnvelopeError::CorrelatedErrorResponse)
+    );
     Ok(())
 }
 
@@ -85,6 +109,7 @@ fn envelope_error_sources_distinguish_protocol_shape_from_correlation() {
     let direct_errors = [
         WebDriverBiDiLocateNodesResponseEnvelopeError::MissingResponseId,
         WebDriverBiDiLocateNodesResponseEnvelopeError::UncorrelatableErrorResponse,
+        WebDriverBiDiLocateNodesResponseEnvelopeError::CorrelatedErrorResponse,
     ];
     for error in direct_errors {
         assert!(error.source().is_none());
