@@ -45,7 +45,9 @@ pub enum AgentTaskIdError {
 impl fmt::Display for AgentTaskIdError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidAgentTaskId => formatter.write_str("Agent Task identifier must be nonzero"),
+            Self::InvalidAgentTaskId => {
+                formatter.write_str("Agent Task identifier must be nonzero")
+            }
         }
     }
 }
