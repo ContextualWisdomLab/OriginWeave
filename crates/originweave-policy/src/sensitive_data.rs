@@ -161,8 +161,6 @@ pub enum HandleUseDecision {
     Authorized,
     /// Tenant, task, field, purpose, destination, or classification did not match the handle scope.
     ScopeMismatch,
-    /// The exact in-process handle state was revoked before this reservation.
-    Revoked,
     /// The handle is no longer valid at the supplied trusted time.
     Expired,
     /// The bounded use count has already been consumed.
@@ -224,26 +222,23 @@ impl HandleUseRequest {
     }
 }
 
-/// In-process authoritative use-count and revocation state for one opaque handle scope.
+/// In-process authoritative use-count state for one opaque sensitive-value handle scope.
 ///
 /// This value removes the caller-supplied prior-use count from the reservation
 /// operation. A successful reservation compares the exact authority, trusted
-/// time, revocation state, expiry, and current count and then increments the count
-/// while the caller holds an exclusive mutable borrow of this state. Denied
-/// reservations never consume a use. Revocation is idempotent and affects every
-/// later exact-scope reservation through this state value.
+/// time, expiry, and current count and then increments the count while the caller
+/// holds an exclusive mutable borrow of this state. Denied reservations never
+/// consume a use.
 ///
 /// This is a policy-state primitive, not the trusted broker itself. It contains
 /// neither the opaque handle token nor protected data and provides no durable or
-/// cross-process transaction, revocation reason/evidence, value resolution,
-/// compensation, or persistence. A shared or durable broker must place the state
-/// behind its own transactional/locking boundary and recheck lifecycle state
-/// immediately before disclosure.
+/// cross-process transaction, revocation, value resolution, compensation, or
+/// persistence. A shared or durable broker must place the state behind its own
+/// transactional/locking boundary and recheck lifecycle state before disclosure.
 #[derive(Debug, PartialEq, Eq)]
 pub struct SensitiveHandleUseState {
     scope: SensitiveValueHandleScope,
     reserved_uses: u32,
-    revoked: bool,
 }
 
 impl SensitiveHandleUseState {
@@ -253,7 +248,6 @@ impl SensitiveHandleUseState {
         Self {
             scope,
             reserved_uses: 0,
-            revoked: false,
         }
     }
 
@@ -263,28 +257,10 @@ impl SensitiveHandleUseState {
         self.reserved_uses
     }
 
-    /// Return whether this in-process handle state has been revoked.
-    #[must_use]
-    pub const fn is_revoked(&self) -> bool {
-        self.revoked
-    }
-
-    /// Revoke this in-process handle state for all later reservations.
-    ///
-    /// Repeated calls are idempotent. This method intentionally records no reason,
-    /// actor, or timestamp; a durable broker must own those lifecycle and evidence
-    /// fields and persist them atomically with its authoritative handle state.
-    pub const fn revoke(&mut self) {
-        self.revoked = true;
-    }
-
     /// Reserve one use from the current authoritative count when policy permits it.
     ///
-    /// The supplied time must come from the trusted broker boundary. Scope mismatch
-    /// is evaluated before revocation so a foreign authority cannot probe whether
-    /// an otherwise matching handle state has been revoked. For an exact scope,
-    /// revocation takes precedence over expiry/use-limit state and never consumes
-    /// another use.
+    /// The supplied time must come from the trusted broker boundary. Exact-scope,
+    /// expiry, and use-limit denial leaves the authoritative count unchanged.
     pub fn reserve_use(
         &mut self,
         authority: SensitiveDataAuthority,
@@ -292,12 +268,6 @@ impl SensitiveHandleUseState {
     ) -> HandleUseDecision {
         let request = HandleUseRequest::new(authority, now_epoch_seconds, self.reserved_uses);
         let decision = evaluate_handle_use(&request, &self.scope);
-        if decision == HandleUseDecision::ScopeMismatch {
-            return decision;
-        }
-        if self.revoked {
-            return HandleUseDecision::Revoked;
-        }
         if decision == HandleUseDecision::Authorized {
             self.reserved_uses += 1;
         }
@@ -307,14 +277,14 @@ impl SensitiveHandleUseState {
 
 /// Evaluate whether authoritative broker state is admissible for one handle use.
 ///
-/// This pure function does not consume a use, inspect mutable revocation state,
-/// mutate broker state, resolve a handle, or release a protected value. It is
-/// therefore not standalone enforcement. A trusted broker must obtain trusted
-/// time and caller-unforgeable handle state, atomically reserve or increment the
-/// use count before value resolution, and recheck the reserved authority and
-/// lifecycle immediately before disclosure. Missing or malformed authority
-/// identifiers fail closed as a scope mismatch. The authority destination must
-/// already have crossed the canonical [`Origin`] boundary.
+/// This pure function does not consume a use, mutate broker state, resolve a
+/// handle, or release a protected value. It is therefore not standalone
+/// enforcement. A trusted broker must obtain trusted time and caller-unforgeable
+/// handle state, atomically reserve or increment the use count before value
+/// resolution, and recheck the reserved authority immediately before disclosure.
+/// Missing or malformed authority identifiers fail closed as a scope mismatch.
+/// The authority destination must already have crossed the canonical [`Origin`]
+/// boundary.
 #[must_use]
 pub fn evaluate_handle_use(
     request: &HandleUseRequest,
