@@ -242,23 +242,21 @@ mod tests {
                     assert!(result.is_err());
 
                     for error in result.err().into_iter() {
-                        let source = std::error::Error::source(&error);
-                        assert!(source.is_some());
-                        for source in source {
-                            let destination_error = source.downcast_ref::<DestinationError>();
-                            assert!(destination_error.is_some());
-                            for destination_error in destination_error {
-                                assert_eq!(
-                                    std::mem::discriminant(destination_error),
-                                    std::mem::discriminant(
-                                        &DestinationError::ResolutionApprovalExpired {
-                                            valid_until: Duration::ZERO,
-                                            current_time: Duration::ZERO,
-                                        }
-                                    )
-                                );
-                            }
-                        }
+                        let Some(source) = std::error::Error::source(&error) else {
+                            panic!("expired compatibility path must retain its destination error source");
+                        };
+                        let Some(destination_error) = source.downcast_ref::<DestinationError>() else {
+                            panic!("expired compatibility path must preserve a destination error");
+                        };
+                        assert_eq!(
+                            std::mem::discriminant(destination_error),
+                            std::mem::discriminant(
+                                &DestinationError::ResolutionApprovalExpired {
+                                    valid_until: Duration::ZERO,
+                                    current_time: Duration::ZERO,
+                                }
+                            )
+                        );
                     }
                 }
             }
