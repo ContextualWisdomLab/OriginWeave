@@ -10,6 +10,9 @@ repository.workspace = true
 homepage.workspace = true
 publish = false
 
+[lib]
+path = "src/crate_root.rs"
+
 [dependencies]
 
 [lints]
