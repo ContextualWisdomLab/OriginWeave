@@ -9,19 +9,18 @@ use originweave_core::{
 fn correlated_success(
     max_node_count: u16,
 ) -> Result<originweave_core::ValidatedWebDriverBiDiLocateNodesResponse, Box<dyn Error>> {
-    let query = WebDriverBiDiAccessibilityQuery::new(
-        Some("button"),
-        Some("Submit task"),
-        max_node_count,
-    )?;
-    Ok(WebDriverBiDiLocateNodesCommand::new(42, "context-a", &query)?
-        .correlate_response_envelope(WebDriverBiDiCommandResponseKind::Success, Some(42))?
-        .into_validated_success()?)
+    let query =
+        WebDriverBiDiAccessibilityQuery::new(Some("button"), Some("Submit task"), max_node_count)?;
+    Ok(
+        WebDriverBiDiLocateNodesCommand::new(42, "context-a", &query)?
+            .correlate_response_envelope(WebDriverBiDiCommandResponseKind::Success, Some(42))?
+            .into_validated_success()?,
+    )
 }
 
 #[test]
-fn correlated_result_admission_retains_exact_command_and_normalized_nodes(
-) -> Result<(), Box<dyn Error>> {
+fn correlated_result_admission_retains_exact_command_and_normalized_nodes()
+-> Result<(), Box<dyn Error>> {
     let result = correlated_success(2)?.admit_result_nodes(&[
         ("node", Some("shared-node-a")),
         ("node", Some("shared-node-b")),
@@ -38,12 +37,10 @@ fn correlated_result_admission_retains_exact_command_and_normalized_nodes(
 }
 
 #[test]
-fn correlated_result_admission_rejects_over_budget_batch_before_node_normalization(
-) -> Result<(), Box<dyn Error>> {
-    let error = correlated_success(1)?.admit_result_nodes(&[
-        ("not-a-node", None),
-        ("not-a-node", None),
-    ]);
+fn correlated_result_admission_rejects_over_budget_batch_before_node_normalization()
+-> Result<(), Box<dyn Error>> {
+    let error =
+        correlated_success(1)?.admit_result_nodes(&[("not-a-node", None), ("not-a-node", None)]);
 
     assert_eq!(
         error,
