@@ -318,11 +318,11 @@ fn import_bounded_secret(
     Ok(reference)
 }
 
-fn rollback_imports<T>(
+fn rollback_imports(
     importer: &mut dyn VpnSecretImporter,
     imported: &[SecretReference],
     error: ProfileError,
-) -> Result<T, ProfileError> {
+) -> ProfileError {
     let mut cleanup_failed = false;
     for reference in imported.iter().rev() {
         if importer.discard_secret(reference).is_err() {
@@ -330,9 +330,9 @@ fn rollback_imports<T>(
         }
     }
     if cleanup_failed {
-        Err(ProfileError::SecretCleanupFailed)
+        ProfileError::SecretCleanupFailed
     } else {
-        Err(error)
+        error
     }
 }
 
@@ -547,7 +547,7 @@ pub fn import_wireguard_profile(
     let mut imported = Vec::new();
     match import_wireguard_profile_once(profile, importer, &mut imported) {
         Ok(profile) => Ok(profile),
-        Err(error) => rollback_imports(importer, &imported, error),
+        Err(error) => Err(rollback_imports(importer, &imported, error)),
     }
 }
 
@@ -696,7 +696,7 @@ pub fn parse_ikev2_profile(
     let mut imported = Vec::new();
     match parse_ikev2_profile_once(profile, importer, &mut imported) {
         Ok(profile) => Ok(profile),
-        Err(error) => rollback_imports(importer, &imported, error),
+        Err(error) => Err(rollback_imports(importer, &imported, error)),
     }
 }
 
