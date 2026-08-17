@@ -3,7 +3,8 @@ use std::error::Error;
 use originweave_core::{
     WebDriverBiDiAccessibilityQuery, WebDriverBiDiAccessibilityQueryError,
     WebDriverBiDiCommandResponseKind, WebDriverBiDiLocateNodesCommand,
-    WebDriverBiDiLocateNodesResponseCorrelationError, WebDriverBiDiLocateNodesResponseEnvelopeError,
+    WebDriverBiDiLocateNodesResponseCorrelationError,
+    WebDriverBiDiLocateNodesResponseEnvelopeError,
 };
 
 fn locate_nodes_command(
