@@ -222,6 +222,43 @@ fn mcp_route_rejects_unbounded_malformed_and_unmapped_tool_names() {
 }
 
 #[test]
+fn mcp_route_validates_each_untrusted_tool_name_before_cross_field_comparison() {
+    let oversized_routing = "r".repeat(MAX_MCP_TOOL_NAME_BYTES + 1);
+    let oversized_body = "b".repeat(MAX_MCP_TOOL_NAME_BYTES + 1);
+
+    assert_eq!(
+        ValidatedMcpToolCall::new(
+            MCP_PROTOCOL_VERSION,
+            MCP_TOOLS_CALL_METHOD,
+            &oversized_routing,
+            MCP_TOOLS_CALL_METHOD,
+            "originweave.observe",
+        ),
+        Err(McpToolBoundaryError::InvalidToolName)
+    );
+    assert_eq!(
+        ValidatedMcpToolCall::new(
+            MCP_PROTOCOL_VERSION,
+            MCP_TOOLS_CALL_METHOD,
+            "originweave.observe",
+            MCP_TOOLS_CALL_METHOD,
+            &oversized_body,
+        ),
+        Err(McpToolBoundaryError::InvalidToolName)
+    );
+    assert_eq!(
+        ValidatedMcpToolCall::new(
+            MCP_PROTOCOL_VERSION,
+            MCP_TOOLS_CALL_METHOD,
+            "originweave/observe",
+            MCP_TOOLS_CALL_METHOD,
+            "originweave.observe",
+        ),
+        Err(McpToolBoundaryError::InvalidToolName)
+    );
+}
+
+#[test]
 fn mcp_boundary_errors_are_deterministic_and_do_not_echo_untrusted_values() {
     let cases = [
         (
