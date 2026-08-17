@@ -12,6 +12,7 @@ mod browser_registry;
 mod browser_registry_coverage;
 mod contract_errors;
 mod contracts;
+mod extension_authority;
 
 pub use browser_registry::{
     BrowserAuthorityRegistry, BrowserRegistryError, MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES,
@@ -19,8 +20,10 @@ pub use browser_registry::{
 pub use contracts::{
     ActionIntentDigest, ActionIntentDigestError, ActionKind, ActionRequest, ApprovalEvidence,
     ApprovalScope, BrowserSessionId, BrowsingContextId, Capability, DocumentEpoch,
-    ExecutionPurpose, ExtensionAccessDecision, ExtensionAccessRequest, ExtensionAgentCapability,
-    ExtensionAgentGrant, ExtensionId, ExtensionIdError, InstructionSource, NodeHandleError,
-    ObservedNodeHandle, Origin, OriginError, PolicyContext, RiskClass, RobotsDecision,
-    SecretDelivery, SessionMode, evaluate_extension_access,
+    ExecutionPurpose, ExtensionAgentCapability, ExtensionId, ExtensionIdError, InstructionSource,
+    NodeHandleError, ObservedNodeHandle, Origin, OriginError, PolicyContext, RiskClass,
+    RobotsDecision, SecretDelivery, SessionMode,
+};
+pub use extension_authority::{
+    ExtensionAccessDecision, ExtensionAccessRequest, ExtensionAgentGrant, evaluate_extension_access,
 };
