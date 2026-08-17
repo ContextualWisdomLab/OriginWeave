@@ -509,9 +509,7 @@ fn parse_linux_proc_stat_identity(stat: &str) -> Result<(u32, u64), BrowserRssSa
     }
 
     let process_id_text = &stat[..open_comm_index];
-    if process_id_text.is_empty()
-        || !process_id_text.bytes().all(|byte| byte.is_ascii_digit())
-    {
+    if process_id_text.is_empty() || !process_id_text.bytes().all(|byte| byte.is_ascii_digit()) {
         return Err(BrowserRssSampleError::InvalidProcessStat);
     }
     let process_id = process_id_text
@@ -543,9 +541,7 @@ fn parse_linux_proc_stat_identity(stat: &str) -> Result<(u32, u64), BrowserRssSa
 /// parentheses, so this parser anchors on the final `") "` delimiter instead
 /// of splitting the complete record on whitespace. Malformed or truncated
 /// records fail closed rather than producing a reusable PID-only identity.
-pub fn parse_linux_proc_stat_start_time_ticks(
-    stat: &str,
-) -> Result<u64, BrowserRssSampleError> {
+pub fn parse_linux_proc_stat_start_time_ticks(stat: &str) -> Result<u64, BrowserRssSampleError> {
     parse_linux_proc_stat_identity(stat).map(|(_process_id, start_time_ticks)| start_time_ticks)
 }
 
@@ -715,7 +711,10 @@ pub fn sample_linux_process_identity_set_rss_bytes(
     identities: &[LinuxProcessIdentity],
 ) -> Result<u64, BrowserRssSampleError> {
     validate_browser_process_set_size(identities.len())?;
-    let process_ids: Vec<u32> = identities.iter().map(|identity| identity.process_id).collect();
+    let process_ids: Vec<u32> = identities
+        .iter()
+        .map(|identity| identity.process_id)
+        .collect();
     validate_browser_process_ids(&process_ids)?;
 
     let mut samples = Vec::with_capacity(identities.len());
