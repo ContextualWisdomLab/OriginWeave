@@ -240,8 +240,9 @@ impl fmt::Display for McpToolsListBoundaryError {
             Self::MissingProtocolVersionMetadata => {
                 formatter.write_str("MCP request metadata protocol version is required")
             }
-            Self::ProtocolVersionHeaderBodyMismatch => formatter
-                .write_str("MCP protocol version header does not match request metadata"),
+            Self::ProtocolVersionHeaderBodyMismatch => {
+                formatter.write_str("MCP protocol version header does not match request metadata")
+            }
             Self::UnsupportedProtocolVersion => {
                 formatter.write_str("unsupported MCP protocol version")
             }
