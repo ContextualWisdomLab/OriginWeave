@@ -6,6 +6,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Added
 
+- Fail-closed managed extension admission for isolated Agent Task profiles: an empty policy admits no extension, only exact canonical `ExtensionId` allow-list membership is accepted, duplicate entries cannot widen authority, and successful profile admission remains separate from `ExtensionAgentGrant` capability.
 - Explicit reduced-assurance classification for attached human tabs when trusted adapter evidence says an existing extension can influence page state; the narrow rule does not detect extensions, prove extension absence, grant Agent authority, or turn an unclassified context into high-assurance evidence.
 - Bound explicit extension-to-Agent grants to exclusive trusted-time expiry in addition to extension identity, session, browsing context, and canonical origin, so a same-origin grant cannot be reused at or after the deadline.
 - Bound explicit extension-to-Agent grants to the exact canonical origin in addition to extension identity, session, and browsing context, so a same-session navigation or port change cannot reuse the grant.
