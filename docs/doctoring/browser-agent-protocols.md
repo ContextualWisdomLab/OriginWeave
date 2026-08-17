@@ -1,6 +1,6 @@
 # Browser and Agent Protocol Standards Evidence
 
-- **Reviewed:** 2026-08-16
+- **Reviewed:** 2026-08-18
 - **Purpose:** primary-source evidence for OriginWeave browser compatibility and adapter boundaries
 - **Canonical research index:** [`../doctoring.md`](../doctoring.md)
 
@@ -38,6 +38,8 @@ Primary sources: Chrome for Developers, *WebMCP*; *WebMCP tool security*; *Agent
 
 The Model Context Protocol project released specification version `2026-07-28` on 28 July 2026. That release moved the protocol core toward stateless request/response operation and removed the earlier protocol-session assumptions described by previous releases. OriginWeave therefore keeps durable browser state in explicit OriginWeave application handles and exposes MCP only as a high-level adapter to the Rust runtime. MCP clients or servers do not connect models directly to Chromium/CDP authority.
 
+The Streamable HTTP contract requires `MCP-Protocol-Version` and `Mcp-Method` on modern requests and requires a server that processes the request body to reject mirrored header/body mismatches. `Mcp-Name` is required only for named operations such as `tools/call`, `resources/read`, and `prompts/get`, not `tools/list`. OriginWeave's typed `tools/list` admission boundary therefore validates the exact protocol generation plus routing/body method agreement without inventing a name header. It rejects any supplied cursor because the current fixed catalog emits no `nextCursor`; this is a conservative local invariant against accepting pagination state OriginWeave never issued, not a claim that MCP forbids `tools/list` cursors generally.
+
 The same specification requires every Result to carry `resultType`, using `complete` for a terminal result, and adds explicit cache hints for cacheable result families including `tools/list`: `ttlMs` expresses freshness lifetime and `cacheScope` expresses whether reuse is private or shareable. OriginWeave's first typed `tools/list` result therefore binds `resultType = complete`, chooses the conservative boundary `ttlMs = 0` and private scope, derives the page directly from the reviewed tool catalog, and emits no continuation cursor for the current fixed single-page catalog. These metadata choices do not grant tool authority and do not claim JSON-RPC serialization, transport caching, OAuth, or a general pagination implementation.
 
 Primary sources: Model Context Protocol, *2026-07-28 Specification* and the maintainers' official release announcement.
@@ -53,9 +55,10 @@ The main [`docs/doctoring.md`](../doctoring.md) records the stable W3C PROV-O Re
 3. Keep WebDriver BiDi's Working Draft status visible in compatibility claims.
 4. Keep WebMCP experimental/optional and propagate untrusted-content semantics.
 5. Keep MCP browser state application-level rather than equating protocol transport/session metadata with browser authority.
-6. Bind mandatory MCP result disposition and cacheable-list metadata to reviewed typed results; use a complete terminal result with zero freshness and private scope unless a separate reviewed policy proves broader semantics safe.
-7. Test Manifest V3 compatibility and extension-to-Agent authority isolation as separate evidence classes.
-8. Treat WARC/PROV as provenance representations, not policy or truth escalation.
+6. Validate modern MCP protocol/method routing against the request body before adapter dispatch; require `Mcp-Name` only for operations for which the specification defines it.
+7. Bind mandatory MCP result disposition and cacheable-list metadata to reviewed typed results; use a complete terminal result with zero freshness and private scope unless a separate reviewed policy proves broader semantics safe. Reject a `tools/list` cursor while the current fixed page has never issued one.
+8. Test Manifest V3 compatibility and extension-to-Agent authority isolation as separate evidence classes.
+9. Treat WARC/PROV as provenance representations, not policy or truth escalation.
 
 ## References — APA 7th
 
