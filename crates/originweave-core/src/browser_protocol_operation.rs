@@ -4,9 +4,9 @@ use std::fmt::{Display, Formatter};
 use crate::{
     BrowserAuthorityRegistry, BrowserContextOriginEpochDispatchTarget,
     BrowserContextProtocolDispatchError, BrowserProtocolAdapterDescriptor,
-    BrowserProtocolCapability, BrowserProtocolRuntimeMetadata, BrowserRegistryError, DocumentEpoch,
-    MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES, ObservedNodeHandle, OriginWeaveProtocolVersion,
-    ValidatedBrowserProtocolUse,
+    BrowserProtocolCapability, BrowserProtocolKind, BrowserProtocolRuntimeMetadata,
+    BrowserRegistryError, DocumentEpoch, MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES,
+    ObservedNodeHandle, OriginWeaveProtocolVersion, ValidatedBrowserProtocolUse,
 };
 
 /// Exact WebDriver BiDi method used by the bounded accessibility-query contract.
@@ -211,10 +211,12 @@ impl WebDriverBiDiAccessibilityQuery {
 
     /// Admit one untrusted `locateNodes` result against the exact current document authority.
     ///
-    /// The caller must transfer a non-cloneable [`ValidatedBrowserProtocolUse`] whose capability is
-    /// exactly [`BrowserProtocolCapability::SemanticObservation`]. Navigation and TypedInput proofs
-    /// fail closed before the registry is consulted, so those adapters cannot mint observation
-    /// handles. The proof is consumed by ownership and cannot be reused for a later bind.
+    /// The caller must transfer a non-cloneable [`ValidatedBrowserProtocolUse`] whose protocol
+    /// family is exactly [`BrowserProtocolKind::WebDriverBiDi`] and whose capability is exactly
+    /// [`BrowserProtocolCapability::SemanticObservation`]. A CDP proof or a Navigation/TypedInput
+    /// proof fails closed before the registry is consulted, so another protocol surface cannot
+    /// mint WebDriver BiDi observation handles. The proof is consumed by ownership and cannot be
+    /// reused for a later bind.
     ///
     /// The registry then proves that `target` still names the current session, browsing context,
     /// canonical origin, and document epoch. Only then is the returned item count checked against
@@ -233,6 +235,11 @@ impl WebDriverBiDiAccessibilityQuery {
         target: BrowserContextOriginEpochDispatchTarget<'_>,
         items: &[(&str, Option<&str>)],
     ) -> Result<Vec<ObservedNodeHandle>, WebDriverBiDiLocateNodesAdmissionError> {
+        if validated.kind() != BrowserProtocolKind::WebDriverBiDi {
+            return Err(
+                WebDriverBiDiLocateNodesAdmissionError::UnsupportedProtocolKind(validated.kind()),
+            );
+        }
         if validated.capability() != BrowserProtocolCapability::SemanticObservation {
             return Err(
                 WebDriverBiDiLocateNodesAdmissionError::UnsupportedCapability(
@@ -337,6 +344,8 @@ pub enum WebDriverBiDiLocateNodesAdmissionError {
     },
     /// The supplied browser session, context, or origin is not current in the registry.
     BrowserAuthority(BrowserRegistryError),
+    /// The consumed protocol-use proof came from a different browser protocol family.
+    UnsupportedProtocolKind(BrowserProtocolKind),
     /// The consumed protocol-use proof was not SemanticObservation.
     UnsupportedCapability(BrowserProtocolCapability),
 }
@@ -368,6 +377,10 @@ impl Display for WebDriverBiDiLocateNodesAdmissionError {
                     "browser authority denied locateNodes admission: {error}"
                 )
             }
+            Self::UnsupportedProtocolKind(kind) => write!(
+                formatter,
+                "locateNodes admission requires a WebDriverBiDi protocol-use proof, not {kind:?}"
+            ),
             Self::UnsupportedCapability(capability) => {
                 let name = match capability {
                     BrowserProtocolCapability::Navigation => "Navigation",
@@ -391,7 +404,7 @@ impl Error for WebDriverBiDiLocateNodesAdmissionError {
             Self::RemoteNode(error) => Some(error),
             Self::DocumentEpochMismatch { .. } => None,
             Self::BrowserAuthority(error) => Some(error),
-            Self::UnsupportedCapability(_) => None,
+            Self::UnsupportedProtocolKind(_) | Self::UnsupportedCapability(_) => None,
         }
     }
 }
@@ -563,10 +576,10 @@ impl BrowserProtocolAdapterDescriptor {
     /// The same-call boundary first obtains a non-cloneable protocol-use proof for
     /// [`BrowserProtocolOperation::QueryNodes`], which derives
     /// [`BrowserProtocolCapability::SemanticObservation`]. That proof is transferred by
-    /// ownership into [`WebDriverBiDiAccessibilityQuery::bind_current_nodes`], which refuses
-    /// any other capability before translating admitted `sharedId` values into
-    /// [`ObservedNodeHandle`] values on the exact current session, browsing context, canonical
-    /// origin, and document epoch.
+    /// ownership into [`WebDriverBiDiAccessibilityQuery::bind_current_nodes`], which requires
+    /// the exact [`BrowserProtocolKind::WebDriverBiDi`] family and refuses any other capability
+    /// before translating admitted `sharedId` values into [`ObservedNodeHandle`] values on the
+    /// exact current session, browsing context, canonical origin, and document epoch.
     ///
     /// This method performs no browser I/O, does not authenticate Chromium, and does not grant
     /// policy, destination, or typed-input authority. A later action must still revalidate the
