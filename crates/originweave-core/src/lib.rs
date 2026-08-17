@@ -31,6 +31,7 @@ mod browser_registry;
 #[cfg(test)]
 mod browser_registry_coverage;
 mod contracts;
+mod webdriver_bidi_command;
 
 pub use browser_authority_registry::BrowserAuthorityRegistry;
 pub use browser_protocol::{
@@ -61,3 +62,7 @@ pub use browser_registry::{
     UNICODE_PROTOCOL_FORMAT_INJECTION_CHARS,
 };
 pub use contracts::*;
+pub use webdriver_bidi_command::{
+    MAX_WEBDRIVER_BIDI_COMMAND_ID, WebDriverBiDiLocateNodesCommand,
+    WebDriverBiDiLocateNodesCommandError,
+};
