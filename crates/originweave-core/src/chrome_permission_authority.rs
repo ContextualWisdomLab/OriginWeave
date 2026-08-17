@@ -1,6 +1,7 @@
 //! Separation between Chrome extension compatibility permissions and Agent authority.
 
 use crate::ActionKind;
+use std::fmt;
 
 /// Why a Chrome extension permission cannot authorize an OriginWeave Agent action.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -10,6 +11,22 @@ pub enum ChromePermissionAuthorityError {
     /// The permission is not a reviewed Chrome surface and still grants no Agent capability.
     UnrecognizedPermission,
 }
+
+impl fmt::Display for ChromePermissionAuthorityError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let message = match self {
+            Self::CompatibilitySurfaceOnly => {
+                "Chrome compatibility permission cannot authorize an OriginWeave Agent action"
+            }
+            Self::UnrecognizedPermission => {
+                "Chrome permission is not a reviewed compatibility surface and cannot authorize an OriginWeave Agent action"
+            }
+        };
+        formatter.write_str(message)
+    }
+}
+
+impl std::error::Error for ChromePermissionAuthorityError {}
 
 const REVIEWED_CHROME_COMPATIBILITY_PERMISSIONS: &[&str] = &[
     "bookmarks",
