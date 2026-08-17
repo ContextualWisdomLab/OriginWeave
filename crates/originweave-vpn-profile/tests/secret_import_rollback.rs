@@ -1,5 +1,6 @@
 use originweave_vpn_profile::{
     ProfileError, SecretReference, VpnSecret, VpnSecretImporter, import_wireguard_profile,
+    parse_ikev2_profile,
 };
 
 const VALID_WIREGUARD_KEY: &str = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
@@ -100,6 +101,20 @@ fn first_import_failure_needs_no_cleanup() {
 
     assert_eq!(
         import_wireguard_profile(&three_secret_wireguard_profile(), &mut importer),
+        Err(ProfileError::SecretImportFailed)
+    );
+    assert_eq!(importer.import_calls, 1);
+    assert!(importer.discard_calls.is_empty());
+    assert!(importer.stored.is_empty());
+}
+
+#[test]
+fn ikev2_first_import_failure_needs_no_cleanup() {
+    let mut importer = TransactionalImporter::failing_on_import(1);
+    let profile = "[IKEv2]\nServer=vpn.example\nAuth=psk\nPsk=secret\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8";
+
+    assert_eq!(
+        parse_ikev2_profile(profile, &mut importer),
         Err(ProfileError::SecretImportFailed)
     );
     assert_eq!(importer.import_calls, 1);
