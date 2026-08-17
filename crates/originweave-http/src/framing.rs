@@ -182,7 +182,7 @@ mod tests {
     #[test]
     fn no_content_semantics_do_not_apply_body_size_budget_to_content_length_metadata() {
         for (method, status) in [(HttpMethod::Head, 200), (HttpMethod::Get, 304)] {
-            for metadata in [b"1001".as_slice(), b"18446744073709551616", b"000, 0"] {
+            for metadata in [b"1001".as_slice(), b"18446744073709551616", b"0, 0"] {
                 assert_eq!(
                     determine_body_framing(
                         method,
@@ -194,6 +194,15 @@ mod tests {
                     BodyFraming::NoContent
                 );
             }
+            assert!(matches!(
+                determine_body_framing(
+                    method,
+                    status,
+                    &fields(&[("content-length", b"000, 0")]),
+                    1_000,
+                ),
+                Err(HttpError::ConflictingContentLength)
+            ));
         }
     }
 
@@ -244,7 +253,6 @@ mod tests {
         for entries in [
             vec![("content-length", b"42".as_slice())],
             vec![("content-length", b"42, 42".as_slice())],
-            vec![("content-length", b"042, 42".as_slice())],
         ] {
             assert_eq!(
                 determine_body_framing(HttpMethod::Get, 200, &fields(&entries), 100,)
@@ -274,15 +282,17 @@ mod tests {
                 Err(HttpError::InvalidContentLength)
             ));
         }
-        assert!(matches!(
-            determine_body_framing(
-                HttpMethod::Get,
-                200,
-                &fields(&[("content-length", b"41, 42")]),
-                100,
-            ),
-            Err(HttpError::ConflictingContentLength)
-        ));
+        for conflicting in [b"41, 42".as_slice(), b"042, 42"] {
+            assert!(matches!(
+                determine_body_framing(
+                    HttpMethod::Get,
+                    200,
+                    &fields(&[("content-length", conflicting)]),
+                    100,
+                ),
+                Err(HttpError::ConflictingContentLength)
+            ));
+        }
         assert!(matches!(
             determine_body_framing(
                 HttpMethod::Get,
