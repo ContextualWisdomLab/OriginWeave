@@ -3,7 +3,8 @@ use std::fmt::{Display, Formatter};
 
 use crate::{
     MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES, WEBDRIVER_BIDI_LOCATE_NODES_METHOD,
-    WebDriverBiDiAccessibilityQuery, contains_disallowed_protocol_text,
+    WebDriverBiDiAccessibilityQuery, WebDriverBiDiAccessibilityQueryError,
+    contains_disallowed_protocol_text,
 };
 
 /// Maximum WebDriver BiDi command identifier representable by the protocol `js-uint` type.
@@ -119,15 +120,16 @@ impl Error for WebDriverBiDiLocateNodesResponseEnvelopeError {
 /// Non-cloneable evidence that one `locateNodes` response matched the exact command id.
 ///
 /// Only [`WebDriverBiDiLocateNodesCommand::correlate_response_id`] can construct this value. It
-/// retains the exact command identifier and bounded browsing-context identifier so a later trusted
-/// transport boundary can carry correlation evidence forward without reconstructing it from
-/// ambient metadata. It does not authenticate a browser or adapter, prove current OriginWeave
-/// session/context/origin authority, validate response payload shape, admit nodes, or authorize an
-/// Agent action.
+/// retains the exact command identifier, bounded browsing-context identifier, and exact serialized
+/// result budget so a later trusted transport boundary can carry correlation evidence forward
+/// without reconstructing authority from ambient query state. It does not authenticate a browser or
+/// adapter, prove current OriginWeave session/context/origin authority, validate response payload
+/// shape, admit nodes, or authorize an Agent action.
 #[derive(Debug, PartialEq, Eq)]
 pub struct ValidatedWebDriverBiDiLocateNodesResponse {
     command_id: u64,
     browsing_context: String,
+    max_node_count: u16,
 }
 
 impl ValidatedWebDriverBiDiLocateNodesResponse {
@@ -141,6 +143,28 @@ impl ValidatedWebDriverBiDiLocateNodesResponse {
     #[must_use]
     pub fn browsing_context(&self) -> &str {
         &self.browsing_context
+    }
+
+    /// Return the exact `maxNodeCount` serialized by the matched command.
+    #[must_use]
+    pub const fn max_node_count(&self) -> u16 {
+        self.max_node_count
+    }
+
+    /// Validate a parsed `locateNodes` result count against the matched command's exact budget.
+    ///
+    /// This check is intentionally carried by command-correlation evidence rather than by a
+    /// separately supplied query value, preventing downstream code from validating an untrusted
+    /// response against a different, more permissive result budget. Zero through the serialized
+    /// maximum are valid; any larger result fails closed before node normalization or admission.
+    pub fn validate_result_count(
+        &self,
+        returned_node_count: usize,
+    ) -> Result<(), WebDriverBiDiAccessibilityQueryError> {
+        if returned_node_count > usize::from(self.max_node_count) {
+            return Err(WebDriverBiDiAccessibilityQueryError::ResultNodeCountExceeded);
+        }
+        Ok(())
     }
 }
 
@@ -215,6 +239,7 @@ impl CorrelatedWebDriverBiDiLocateNodesResponse {
 pub struct WebDriverBiDiLocateNodesCommand {
     command_id: u64,
     browsing_context: String,
+    max_node_count: u16,
     json: String,
 }
 
@@ -270,6 +295,7 @@ impl WebDriverBiDiLocateNodesCommand {
         Ok(Self {
             command_id,
             browsing_context: browsing_context.to_owned(),
+            max_node_count: query.max_node_count(),
             json,
         })
     }
@@ -302,8 +328,10 @@ impl WebDriverBiDiLocateNodesCommand {
     ///
     /// The response identifier is validated against WebDriver BiDi's `js-uint` range before exact
     /// equality is checked. Success consumes the command and returns non-cloneable correlation
-    /// evidence, preventing this command value from being reused to validate another response.
-    /// This does not parse a response, authenticate the transport, or grant browser/Agent authority.
+    /// evidence, preventing this command value from being reused to validate another response. The
+    /// evidence also retains the exact `maxNodeCount` serialized by this command so later result
+    /// admission cannot substitute a different query budget. This does not parse a response,
+    /// authenticate the transport, or grant browser/Agent authority.
     pub fn correlate_response_id(
         self,
         response_id: u64,
@@ -326,6 +354,7 @@ impl WebDriverBiDiLocateNodesCommand {
         Ok(ValidatedWebDriverBiDiLocateNodesResponse {
             command_id: self.command_id,
             browsing_context: self.browsing_context,
+            max_node_count: self.max_node_count,
         })
     }
 
