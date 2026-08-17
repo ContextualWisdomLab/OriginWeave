@@ -198,6 +198,52 @@ def _validated_path_set(value: Any, field_name: str) -> set[str]:
     return validated
 
 
+def _validated_active_pr_owners(
+    value: Any, active_pr_paths: set[str]
+) -> dict[str, dict[str, Any]]:
+    """Bind every deferred workflow path to one exact active PR number and head."""
+
+    ownership_error = "active PR workflow ownership must be bound to exact PR heads"
+    if value is None:
+        if active_pr_paths:
+            raise WorkflowAuditError(ownership_error)
+        return {}
+
+    owners = _require_list(value, "active_pr_workflow_owners")
+    validated: dict[str, dict[str, Any]] = {}
+    for index, raw_owner in enumerate(owners):
+        owner = _require_exact_fields(
+            raw_owner,
+            f"active_pr_workflow_owners[{index}]",
+            {"path", "pull_request_number", "head_sha"},
+        )
+        path = _validate_workflow_path(
+            owner.get("path"), f"active_pr_workflow_owners[{index}].path"
+        )
+        if not path.startswith(_REPOSITORY_WORKFLOW_PREFIX):
+            raise WorkflowAuditError(ownership_error)
+        pull_request_number = owner.get("pull_request_number")
+        if (
+            isinstance(pull_request_number, bool)
+            or not isinstance(pull_request_number, int)
+            or pull_request_number <= 0
+        ):
+            raise WorkflowAuditError(ownership_error)
+        head_sha = _validate_sha(
+            owner.get("head_sha"), f"active_pr_workflow_owners[{index}].head_sha"
+        )
+        if path in validated:
+            raise WorkflowAuditError(ownership_error)
+        validated[path] = {
+            "pull_request_number": pull_request_number,
+            "head_sha": head_sha,
+        }
+
+    if set(validated) != active_pr_paths:
+        raise WorkflowAuditError(ownership_error)
+    return validated
+
+
 def _validate_pages(value: Any) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Return complete registry records and immutable pagination receipts."""
 
@@ -297,6 +343,7 @@ def _validate_workflow_record(
     seen_paths: set[str],
     protected_paths: set[str],
     active_pr_paths: set[str],
+    active_pr_owners: dict[str, dict[str, Any]],
     default_branch_sha: str,
     observed_at: str,
 ) -> dict[str, Any]:
@@ -334,7 +381,7 @@ def _validate_workflow_record(
     classification = _classify_workflow(
         path, state, protected_paths, active_pr_paths
     )
-    return {
+    record = {
         "workflow_id": workflow_id,
         "name": name,
         "path": path,
@@ -344,6 +391,9 @@ def _validate_workflow_record(
         "default_branch_sha": default_branch_sha,
         "observed_at": observed_at,
     }
+    if classification == "active_pr_owned_workflow":
+        record["active_pr_owner"] = active_pr_owners[path]
+    return record
 
 
 def audit_workflow_registry(payload: dict[str, Any]) -> dict[str, Any]:
@@ -365,6 +415,7 @@ def audit_workflow_registry(payload: dict[str, Any]) -> dict[str, Any]:
             "reported_total_count",
             "protected_workflow_paths",
             "active_pr_workflow_paths",
+            "active_pr_workflow_owners",
             "registry_pages",
         },
     )
@@ -395,6 +446,9 @@ def audit_workflow_registry(payload: dict[str, Any]) -> dict[str, Any]:
     active_pr_paths = _validated_path_set(
         document.get("active_pr_workflow_paths"), "active_pr_workflow_paths"
     )
+    active_pr_owners = _validated_active_pr_owners(
+        document.get("active_pr_workflow_owners"), active_pr_paths
+    )
     overlap = protected_paths.intersection(active_pr_paths)
     if overlap:
         raise WorkflowAuditError("protected and active-PR path ownership overlaps")
@@ -414,6 +468,7 @@ def audit_workflow_registry(payload: dict[str, Any]) -> dict[str, Any]:
             seen_paths,
             protected_paths,
             active_pr_paths,
+            active_pr_owners,
             observed_sha,
             observed_at,
         )
