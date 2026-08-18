@@ -9,6 +9,7 @@ const CURRENT_WEBDRIVER_BIDI_ERROR_CODES: &[&str] = &[
     "invalid web extension",
     "move target out of bounds",
     "no such alert",
+    "no such client window",
     "no such network collector",
     "no such element",
     "no such frame",
