@@ -46,7 +46,9 @@ impl fmt::Display for WebDriverBiDiResponseEnvelopeParseError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
             Self::InvalidJson => "WebDriver BiDi response document is not valid JSON",
-            Self::JsonDepthExceeded => "WebDriver BiDi response JSON depth exceeds the safety budget",
+            Self::JsonDepthExceeded => {
+                "WebDriver BiDi response JSON depth exceeds the safety budget"
+            }
             Self::TopLevelFieldCountExceeded => {
                 "WebDriver BiDi response top-level field count exceeds the safety budget"
             }
@@ -147,9 +149,7 @@ impl<'input> ResponseEnvelopeParser<'input> {
         Self { input, position: 0 }
     }
 
-    fn parse(
-        mut self,
-    ) -> Result<ParsedEnvelopeFields, WebDriverBiDiResponseEnvelopeParseError> {
+    fn parse(mut self) -> Result<ParsedEnvelopeFields, WebDriverBiDiResponseEnvelopeParseError> {
         self.skip_whitespace();
         self.expect_byte(b'{')?;
         self.skip_whitespace();
@@ -263,8 +263,8 @@ impl<'input> ResponseEnvelopeParser<'input> {
     ) -> Result<(), WebDriverBiDiResponseEnvelopeParseError> {
         match kind {
             WebDriverBiDiCommandResponseKind::Success => {
-                let result =
-                    result.ok_or(WebDriverBiDiResponseEnvelopeParseError::MissingRequiredPayload)?;
+                let result = result
+                    .ok_or(WebDriverBiDiResponseEnvelopeParseError::MissingRequiredPayload)?;
                 if !matches!(result, ParsedJsonValue::Object) {
                     return Err(
                         WebDriverBiDiResponseEnvelopeParseError::InvalidRequiredPayloadType,
@@ -274,8 +274,8 @@ impl<'input> ResponseEnvelopeParser<'input> {
             WebDriverBiDiCommandResponseKind::Error => {
                 let error_code = error_code
                     .ok_or(WebDriverBiDiResponseEnvelopeParseError::MissingRequiredPayload)?;
-                let message =
-                    message.ok_or(WebDriverBiDiResponseEnvelopeParseError::MissingRequiredPayload)?;
+                let message = message
+                    .ok_or(WebDriverBiDiResponseEnvelopeParseError::MissingRequiredPayload)?;
                 if !matches!(error_code, ParsedJsonValue::String(_))
                     || !matches!(message, ParsedJsonValue::String(_))
                 {
@@ -359,10 +359,7 @@ impl<'input> ResponseEnvelopeParser<'input> {
         }
     }
 
-    fn parse_array(
-        &mut self,
-        depth: usize,
-    ) -> Result<(), WebDriverBiDiResponseEnvelopeParseError> {
+    fn parse_array(&mut self, depth: usize) -> Result<(), WebDriverBiDiResponseEnvelopeParseError> {
         Self::require_depth(depth)?;
         self.expect_byte(b'[')?;
         self.skip_whitespace();
@@ -464,11 +461,9 @@ impl<'input> ResponseEnvelopeParser<'input> {
             if !(0xdc00..=0xdfff).contains(&second) {
                 return Err(WebDriverBiDiResponseEnvelopeParseError::InvalidJson);
             }
-            return Ok(
-                0x1_0000
-                    + ((u32::from(first) - 0xd800) << 10)
-                    + (u32::from(second) - 0xdc00),
-            );
+            return Ok(0x1_0000
+                + ((u32::from(first) - 0xd800) << 10)
+                + (u32::from(second) - 0xdc00));
         }
         if (0xdc00..=0xdfff).contains(&first) {
             return Err(WebDriverBiDiResponseEnvelopeParseError::InvalidJson);
