@@ -152,6 +152,10 @@ struct ManifestJsonParser<'a> {
     position: usize,
 }
 
+fn decoded_json_string(bytes: Vec<u8>) -> Result<String, NativeMessagingManifestParseError> {
+    String::from_utf8(bytes).map_err(|_error| NativeMessagingManifestParseError::InvalidJson)
+}
+
 impl<'a> ManifestJsonParser<'a> {
     const fn new(input: &'a str) -> Self {
         Self { input, position: 0 }
@@ -297,7 +301,7 @@ impl<'a> ManifestJsonParser<'a> {
 
     fn parse_string(&mut self) -> Result<String, NativeMessagingManifestParseError> {
         self.expect_byte(b'"')?;
-        let mut output = String::new();
+        let mut output = Vec::new();
         loop {
             let Some(byte) = self.peek_byte() else {
                 return Err(NativeMessagingManifestParseError::InvalidJson);
@@ -305,7 +309,7 @@ impl<'a> ManifestJsonParser<'a> {
             match byte {
                 b'"' => {
                     self.position += 1;
-                    return Ok(output);
+                    return decoded_json_string(output);
                 }
                 b'\\' => {
                     self.position += 1;
@@ -313,11 +317,8 @@ impl<'a> ManifestJsonParser<'a> {
                 }
                 0x00..=0x1f => return Err(NativeMessagingManifestParseError::InvalidJson),
                 _ => {
-                    let Some(character) = self.input[self.position..].chars().next() else {
-                        return Err(NativeMessagingManifestParseError::InvalidJson);
-                    };
-                    output.push(character);
-                    self.position += character.len_utf8();
+                    output.push(byte);
+                    self.position += 1;
                 }
             }
         }
@@ -325,21 +326,25 @@ impl<'a> ManifestJsonParser<'a> {
 
     fn parse_escape(
         &mut self,
-        output: &mut String,
+        output: &mut Vec<u8>,
     ) -> Result<(), NativeMessagingManifestParseError> {
         let Some(escape) = self.take_byte() else {
             return Err(NativeMessagingManifestParseError::InvalidJson);
         };
         match escape {
-            b'"' => output.push('"'),
-            b'\\' => output.push('\\'),
-            b'/' => output.push('/'),
-            b'b' => output.push('\u{0008}'),
-            b'f' => output.push('\u{000c}'),
-            b'n' => output.push('\n'),
-            b'r' => output.push('\r'),
-            b't' => output.push('\t'),
-            b'u' => output.push(self.parse_unicode_escape()?),
+            b'"' => output.push(b'"'),
+            b'\\' => output.push(b'\\'),
+            b'/' => output.push(b'/'),
+            b'b' => output.push(0x08),
+            b'f' => output.push(0x0c),
+            b'n' => output.push(b'\n'),
+            b'r' => output.push(b'\r'),
+            b't' => output.push(b'\t'),
+            b'u' => {
+                let character = self.parse_unicode_escape()?;
+                let mut encoded = [0_u8; 4];
+                output.extend_from_slice(character.encode_utf8(&mut encoded).as_bytes());
+            }
             _ => return Err(NativeMessagingManifestParseError::InvalidJson),
         }
         Ok(())
@@ -498,5 +503,55 @@ impl std::error::Error for NativeMessagingManifestParseError {
             | Self::MissingRequiredField
             | Self::InvalidFieldType => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const INVALID_JSON: NativeMessagingManifestParseError =
+        NativeMessagingManifestParseError::InvalidJson;
+
+    #[test]
+    fn parser_propagates_structural_and_typed_field_failures() {
+        for raw in [
+            "[]",
+            "{?}",
+            r#"{"name" "value"}"#,
+            r#"{"path":"\q"}"#,
+            r#"{"type":"\q"}"#,
+        ] {
+            assert_eq!(ManifestJsonParser::new(raw).parse_manifest(), Err(INVALID_JSON));
+        }
+
+        assert_eq!(
+            ManifestJsonParser::new(r#"{"name":1}"#).parse_manifest(),
+            Err(NativeMessagingManifestParseError::InvalidFieldType)
+        );
+    }
+
+    #[test]
+    fn parser_propagates_array_escape_unicode_and_byte_boundary_failures() {
+        assert_eq!(
+            ManifestJsonParser::new(r#"{"allowed_origins":["\q"]}"#).parse_manifest(),
+            Err(INVALID_JSON)
+        );
+        assert_eq!(
+            ManifestJsonParser::new(r#"{"allowed_origins":["origin",]}"#).parse_manifest(),
+            Err(INVALID_JSON)
+        );
+
+        let mut empty_escape = ManifestJsonParser::new("");
+        let mut output = Vec::new();
+        assert_eq!(empty_escape.parse_escape(&mut output), Err(INVALID_JSON));
+
+        let mut short_quad = ManifestJsonParser::new("12");
+        assert_eq!(short_quad.parse_hex_quad(), Err(INVALID_JSON));
+
+        let mut short_second_quad = ManifestJsonParser::new("D83D\\u12");
+        assert_eq!(short_second_quad.parse_unicode_escape(), Err(INVALID_JSON));
+
+        assert_eq!(decoded_json_string(vec![0xff]), Err(INVALID_JSON));
     }
 }
