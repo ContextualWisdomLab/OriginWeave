@@ -25,7 +25,8 @@ fn empty_or_json_whitespace_only_response_document_fails_closed() {
 }
 
 #[test]
-fn response_document_requires_an_object_boundary_without_claiming_json_validation() {
+fn response_document_requires_an_object_boundary_without_claiming_json_validation()
+-> Result<(), Box<dyn Error>> {
     for raw in ["[]", "null", "{", "}", "\u{00a0}{}\u{00a0}"] {
         assert_eq!(
             BoundedWebDriverBiDiResponseDocument::new(raw),
@@ -33,13 +34,14 @@ fn response_document_requires_an_object_boundary_without_claiming_json_validatio
         );
     }
 
-    let coarse_only = BoundedWebDriverBiDiResponseDocument::new("{not-json}")
-        .expect("coarse admission intentionally does not parse JSON");
+    let coarse_only = BoundedWebDriverBiDiResponseDocument::new("{not-json}")?;
     assert_eq!(coarse_only.as_str(), "{not-json}");
+    Ok(())
 }
 
 #[test]
-fn response_document_budget_accepts_exact_limit_and_rejects_one_more_byte() -> Result<(), Box<dyn Error>> {
+fn response_document_budget_accepts_exact_limit_and_rejects_one_more_byte()
+-> Result<(), Box<dyn Error>> {
     const OBJECT_OVERHEAD_BYTES: usize = 8;
     let exact = format!(
         "{{\"x\":\"{}\"}}",
@@ -49,7 +51,10 @@ fn response_document_budget_accepts_exact_limit_and_rejects_one_more_byte() -> R
     assert!(BoundedWebDriverBiDiResponseDocument::new(&exact).is_ok());
 
     let oversized = format!("{exact} ");
-    assert_eq!(oversized.len(), MAX_WEBDRIVER_BIDI_RESPONSE_DOCUMENT_BYTES + 1);
+    assert_eq!(
+        oversized.len(),
+        MAX_WEBDRIVER_BIDI_RESPONSE_DOCUMENT_BYTES + 1
+    );
     assert_eq!(
         BoundedWebDriverBiDiResponseDocument::new(&oversized),
         Err(WebDriverBiDiResponseDocumentAdmissionError::DocumentTooLarge)
