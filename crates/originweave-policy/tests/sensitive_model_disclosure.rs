@@ -4,16 +4,17 @@
 //!
 //! The model route and invocation policy are not raw-value disclosure authority. This contract
 //! requires the exact sensitive-data authority to authorize full-field disclosure, requires that
-//! authority to be the same authority carried by the reviewed model invocation, requires no known
-//! lower-disclosure task path, and then requires the invocation policy itself to authorize. It carries
-//! no protected bytes and performs no model I/O.
+//! authority to be the same authority carried by the reviewed model invocation, requires fresh
+//! evidence that no known lower-disclosure task path exists, and then requires the invocation policy
+//! itself to authorize. It carries no protected bytes and performs no model I/O.
 
 use originweave_core::Origin;
 use originweave_policy::{
     DataClassification, DisclosureDecision, DisclosureScope, ModelDisclosureDecision,
-    ModelDisclosureNecessity, ModelInvocationDecision, ModelInvocationRequest,
-    ModelInvocationScope, ModelRouteDecision, ModelRouteRequest, ModelRouteScope,
-    SensitiveDataAuthority, SensitiveDataRequest, evaluate_full_field_model_disclosure,
+    ModelDisclosureNecessity, ModelDisclosureNecessityEvidence, ModelInvocationDecision,
+    ModelInvocationRequest, ModelInvocationScope, ModelRouteDecision, ModelRouteRequest,
+    ModelRouteScope, SensitiveDataAuthority, SensitiveDataRequest,
+    evaluate_full_field_model_disclosure,
 };
 
 fn authority(task_id: &str) -> SensitiveDataAuthority {
@@ -76,6 +77,10 @@ fn invocation_scope(authority: SensitiveDataAuthority) -> ModelInvocationScope {
     )
 }
 
+fn necessity_evidence() -> ModelDisclosureNecessityEvidence {
+    ModelDisclosureNecessityEvidence::new(ModelDisclosureNecessity::NoLowerDisclosurePath, 1_000)
+}
+
 #[test]
 fn full_field_disclosure_and_exact_reviewed_invocation_are_authorized() {
     let exact_authority = authority("task-42");
@@ -91,7 +96,7 @@ fn full_field_disclosure_and_exact_reviewed_invocation_are_authorized() {
         evaluate_full_field_model_disclosure(
             &disclosure_request,
             &disclosure_scope,
-            ModelDisclosureNecessity::NoLowerDisclosurePath,
+            &necessity_evidence(),
             &invocation_request,
             &invocation_scope,
             999,
@@ -120,7 +125,7 @@ fn every_non_full_field_outcome_remains_non_authorizing_for_raw_model_input() {
             evaluate_full_field_model_disclosure(
                 &disclosure_request,
                 &disclosure_scope,
-                ModelDisclosureNecessity::NoLowerDisclosurePath,
+                &necessity_evidence(),
                 &invocation_request,
                 &invocation_scope,
                 999,
@@ -144,7 +149,7 @@ fn disclosure_authority_cannot_be_composed_with_another_tasks_valid_invocation()
         evaluate_full_field_model_disclosure(
             &disclosure_request,
             &disclosure_scope,
-            ModelDisclosureNecessity::NoLowerDisclosurePath,
+            &necessity_evidence(),
             &invocation_request,
             &invocation_scope,
             999,
@@ -168,7 +173,7 @@ fn invocation_denial_is_preserved_after_full_field_disclosure_authority() {
         evaluate_full_field_model_disclosure(
             &disclosure_request,
             &disclosure_scope,
-            ModelDisclosureNecessity::NoLowerDisclosurePath,
+            &necessity_evidence(),
             &invocation_request,
             &invocation_scope,
             999,
