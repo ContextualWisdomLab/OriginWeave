@@ -63,6 +63,9 @@ mod response_head;
 #[cfg(test)]
 #[path = "tests/security_contract.rs"]
 mod security_contract;
+#[cfg(test)]
+#[path = "tests/status_framing_contract.rs"]
+mod status_framing_contract;
 mod target;
 #[cfg(test)]
 #[path = "tests/trailer_error_contract.rs"]
