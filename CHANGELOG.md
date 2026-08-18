@@ -11,6 +11,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Rust workspace for independently reusable core, policy, destination, network, TLS, resource, and evidence modules.
 - Read-only workflow-registry audit evidence that binds complete paginated GitHub Actions inventory to exact protected-main state, fails closed on ambiguous scalar types including noncanonical negative-zero integers, workflow identities, paths, timestamps, and ownership, and exposes typed bounded-recollection guidance only for reviewed transient HTTP results (`429`, `500`, `502`, `503`, and `504`), preserves bounded `Retry-After` seconds when collected, treats `403` as retryable only when that bounded hint is retained, and keeps `404`, `501`, `505`, and every other non-reviewed failure non-retryable and non-passing.
 - Exact active-PR workflow-owner evidence that binds every deferred registry path to one positive PR number and exact contributor-head SHA, rejects path-only or mismatched exemptions, and retains the independently refetchable owner identity on read-only audit output.
+- Disabled active-PR-owned workflow identities remain bound to their exact PR/head owner but are surfaced explicitly as operational drift instead of being mislabeled as active PR ownership.
 - Canonical HTTPS and loopback-origin boundary with case-normalized schemes and hosts, default-port normalization, IPv4/IPv6 handling, browser-special numeric-host rejection, and explicit malformed-input errors.
 - Typed browser actions, capabilities, risk classes, execution modes, robots decisions, secret-delivery contracts, immutable canonical action-intent digests, and intent-bound approval scopes.
 - Deterministic fail-closed policy evaluation for untrusted instructions, origin grants, crawler restrictions, execution-mode and purpose consistency, approvals, and brokered secrets.
@@ -67,7 +68,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - TLS accepts only an already verified direct stream, never a hostname or new socket, and requires the TLS origin to match the transport-authority origin exactly.
 - DNS TLS identity requires an applicable subjectAltName and never falls back to Common Name; literal IPv4 and IPv6 origins require exact IP subjectAltName entries.
 - TLS uses an explicit immutable trust-root bundle and fixed verification time, and permits only TLS 1.2 and TLS 1.3.
-- TLS resumption, 0-RTT, secret extraction, key logging, client certificates, certificate compression, and dangerous custom verifier hooks are disabled in the first slice.
+- TLS resumption, 0-RTT, secret extraction, key logging, client certificates, certificate compression, and dangerous custom verification hooks are disabled in the first slice.
 - The operating-system peer is rechecked before, during, and after the deadline-bound TLS handshake.
 - ALPN selection is restricted to the caller's bounded allow-list, while absence is either explicitly recorded or rejected by policy.
 - Revocation is reported as not configured; the product makes no OCSP or CRL validation claim without supplied revocation evidence.
