@@ -119,6 +119,8 @@ def _validate_sha(value: Any, field_name: str) -> str:
     text = _require_nonempty_string(value, field_name, 40)
     if _SHA_PATTERN.fullmatch(text) is None:
         raise WorkflowAuditError(f"{field_name} must be a lowercase commit SHA")
+    if text == "0" * 40:
+        raise WorkflowAuditError(f"{field_name} must be a nonzero commit SHA")
     return text
 
 
