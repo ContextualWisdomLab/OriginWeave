@@ -12,6 +12,10 @@ use crate::webdriver_bidi_response_envelope::WebDriverBiDiResponseEnvelopeParseE
 use crate::webdriver_bidi_result::{
     ValidatedWebDriverBiDiLocateNodesResult, WebDriverBiDiLocateNodesResultAdmissionError,
 };
+use crate::{
+    BrowserAuthorityRegistry, BrowserContextOriginEpochDispatchTarget, ObservedNodeHandle,
+    ValidatedBrowserProtocolUse, WebDriverBiDiLocateNodesAdmissionError,
+};
 
 /// Fail-closed errors while parsing, correlating, and admitting one bounded WebDriver BiDi
 /// `locateNodes` response document.
@@ -39,6 +43,8 @@ pub enum WebDriverBiDiLocateNodesResponseDocumentError {
     InvalidResultNodeSharedId,
     /// Exact command-budget or remote-node admission rejected the wire-derived node batch.
     ResultAdmission(WebDriverBiDiLocateNodesResultAdmissionError),
+    /// Exact current browser authority rejected the wire-derived node batch.
+    NodeBinding(WebDriverBiDiLocateNodesAdmissionError),
     /// A second-pass result parser invariant failed after complete envelope parsing succeeded.
     ResultParserInvariant,
 }
@@ -77,6 +83,10 @@ impl Display for WebDriverBiDiLocateNodesResponseDocumentError {
                 formatter,
                 "WebDriver BiDi locateNodes wire result rejected node admission: {error}"
             ),
+            Self::NodeBinding(error) => write!(
+                formatter,
+                "WebDriver BiDi locateNodes wire result rejected current browser authority: {error}"
+            ),
             Self::ResultParserInvariant => formatter.write_str(
                 "WebDriver BiDi locateNodes result parser invariant failed after envelope validation",
             ),
@@ -90,6 +100,7 @@ impl Error for WebDriverBiDiLocateNodesResponseDocumentError {
             Self::Parse(error) => Some(error),
             Self::Envelope(error) => Some(error),
             Self::ResultAdmission(error) => Some(error),
+            Self::NodeBinding(error) => Some(error),
             Self::MissingResultNodes
             | Self::InvalidResultNodes
             | Self::DuplicateResultNodes
@@ -168,6 +179,30 @@ impl WebDriverBiDiLocateNodesCommand {
         validated
             .admit_result_nodes(&admission_parts)
             .map_err(WebDriverBiDiLocateNodesResponseDocumentError::ResultAdmission)
+    }
+
+    /// Consume one bounded raw `locateNodes` response through wire admission and current authority.
+    ///
+    /// This is the direct composition boundary from the exact parsed wire document to current
+    /// OriginWeave node authority. The caller cannot replace the response kind, response id, result
+    /// nodes, browsing-context identifier, or command result budget between wire parsing and node
+    /// binding. After wire-derived admission succeeds, the supplied WebDriver BiDi
+    /// `SemanticObservation` proof and exact current session/context/origin/document epoch are
+    /// revalidated by [`ValidatedWebDriverBiDiLocateNodesResult::bind_current_nodes`].
+    ///
+    /// Success mints only [`ObservedNodeHandle`] values. It still does not authenticate Chromium,
+    /// ChromeDriver, WebSocket/TLS provenance, or the adapter process; authorize policy or typed
+    /// input; execute browser I/O; or prove an action post-condition.
+    pub fn bind_response_document_nodes(
+        self,
+        document: BoundedWebDriverBiDiResponseDocument,
+        validated: ValidatedBrowserProtocolUse,
+        authority_registry: &mut BrowserAuthorityRegistry,
+        target: BrowserContextOriginEpochDispatchTarget<'_>,
+    ) -> Result<Vec<ObservedNodeHandle>, WebDriverBiDiLocateNodesResponseDocumentError> {
+        self.admit_response_document_nodes(document)?
+            .bind_current_nodes(validated, authority_registry, target)
+            .map_err(WebDriverBiDiLocateNodesResponseDocumentError::NodeBinding)
     }
 }
 
