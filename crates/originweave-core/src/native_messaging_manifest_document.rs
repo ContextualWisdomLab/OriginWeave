@@ -78,7 +78,8 @@ impl NativeMessagingManifestDocument {
         let fields = ManifestJsonParser::new(&self.text).parse_manifest()?;
         let host_name = NativeMessagingHostName::parse(&fields.name)
             .map_err(NativeMessagingManifestParseError::HostName)?;
-        let allowed_origins: Vec<&str> = fields.allowed_origins.iter().map(String::as_str).collect();
+        let allowed_origins: Vec<&str> =
+            fields.allowed_origins.iter().map(String::as_str).collect();
         NativeMessagingHostManifest::parse_with_native_initiated_connections(
             host_name,
             platform,
@@ -118,13 +119,20 @@ struct PartialManifestFields {
 
 impl PartialManifestFields {
     fn finish(self) -> Result<ManifestFields, NativeMessagingManifestParseError> {
-        let (Some(name), Some(_description), Some(executable_path), Some(interface_type), Some(allowed_origins)) = (
+        let (
+            Some(name),
+            Some(_description),
+            Some(executable_path),
+            Some(interface_type),
+            Some(allowed_origins),
+        ) = (
             self.name,
             self.description,
             self.executable_path,
             self.interface_type,
             self.allowed_origins,
-        ) else {
+        )
+        else {
             return Err(NativeMessagingManifestParseError::MissingRequiredField);
         };
         Ok(ManifestFields {
@@ -454,20 +462,27 @@ pub enum NativeMessagingManifestParseError {
 impl fmt::Display for NativeMessagingManifestParseError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidJson => formatter.write_str("native messaging host manifest JSON is invalid"),
+            Self::InvalidJson => {
+                formatter.write_str("native messaging host manifest JSON is invalid")
+            }
             Self::DuplicateField => {
                 formatter.write_str("native messaging host manifest contains a duplicate field")
             }
             Self::UnknownField => {
                 formatter.write_str("native messaging host manifest contains an unknown field")
             }
-            Self::MissingRequiredField => formatter
-                .write_str("native messaging host manifest is missing a required field"),
+            Self::MissingRequiredField => {
+                formatter.write_str("native messaging host manifest is missing a required field")
+            }
             Self::InvalidFieldType => {
                 formatter.write_str("native messaging host manifest field has an invalid JSON type")
             }
-            Self::HostName(error) => write!(formatter, "invalid native messaging host name: {error}"),
-            Self::Manifest(error) => write!(formatter, "invalid native messaging host manifest: {error}"),
+            Self::HostName(error) => {
+                write!(formatter, "invalid native messaging host name: {error}")
+            }
+            Self::Manifest(error) => {
+                write!(formatter, "invalid native messaging host manifest: {error}")
+            }
         }
     }
 }
