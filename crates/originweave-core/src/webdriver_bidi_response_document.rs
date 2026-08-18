@@ -15,6 +15,8 @@ pub enum WebDriverBiDiResponseDocumentAdmissionError {
     EmptyDocument,
     /// The raw response exceeds the OriginWeave pre-parser byte budget.
     DocumentTooLarge,
+    /// The raw response is not valid UTF-8.
+    InvalidUtf8,
     /// The first and last non-whitespace bytes do not delimit a JSON object.
     InvalidObjectBoundary,
 }
@@ -27,6 +29,9 @@ impl fmt::Display for WebDriverBiDiResponseDocumentAdmissionError {
                 formatter,
                 "WebDriver BiDi response document exceeds {MAX_WEBDRIVER_BIDI_RESPONSE_DOCUMENT_BYTES} bytes"
             ),
+            Self::InvalidUtf8 => {
+                formatter.write_str("WebDriver BiDi response document is not valid UTF-8")
+            }
             Self::InvalidObjectBoundary => formatter.write_str(
                 "WebDriver BiDi response document must have a top-level JSON object boundary",
             ),
@@ -66,6 +71,23 @@ impl BoundedWebDriverBiDiResponseDocument {
         Ok(Self {
             raw: raw.to_owned(),
         })
+    }
+
+    /// Admits raw transport bytes after bounding them and validating UTF-8.
+    ///
+    /// The byte budget is checked before UTF-8 validation or owned-text
+    /// allocation. This keeps hostile transport payloads outside the parser
+    /// boundary until both the resource and text-encoding contracts hold.
+    pub fn from_utf8_bytes(
+        raw: &[u8],
+    ) -> Result<Self, WebDriverBiDiResponseDocumentAdmissionError> {
+        if raw.len() > MAX_WEBDRIVER_BIDI_RESPONSE_DOCUMENT_BYTES {
+            return Err(WebDriverBiDiResponseDocumentAdmissionError::DocumentTooLarge);
+        }
+
+        let raw = std::str::from_utf8(raw)
+            .map_err(|_| WebDriverBiDiResponseDocumentAdmissionError::InvalidUtf8)?;
+        Self::new(raw)
     }
 
     /// Returns the exact admitted response text, including surrounding JSON whitespace.
