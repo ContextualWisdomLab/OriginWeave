@@ -140,6 +140,7 @@ fn public_http_errors() -> Vec<HttpError> {
         },
         HttpError::SupportedDigestRequired,
         HttpError::InvalidMimeType,
+        HttpError::InvalidNoSniffDirective,
         HttpError::InvalidContentDisposition,
         HttpError::InvalidRedirectMetadata,
         HttpError::HttpExchangeTimedOut {
