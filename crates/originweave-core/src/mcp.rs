@@ -17,6 +17,9 @@ pub const MCP_PROTOCOL_VERSION: &str = "2026-07-28";
 /// The only MCP method that can enter the typed action-routing boundary.
 pub const MCP_TOOLS_CALL_METHOD: &str = "tools/call";
 
+/// Maximum accepted MCP method-name length in bytes.
+pub const MAX_MCP_METHOD_NAME_BYTES: usize = 64;
+
 /// Maximum accepted MCP tool-name length in bytes.
 pub const MAX_MCP_TOOL_NAME_BYTES: usize = 128;
 
@@ -123,6 +126,8 @@ pub enum McpToolBoundaryError {
     UnsupportedProtocolVersion,
     /// MCP routing metadata disagrees with the method or tool name in the body.
     HeaderBodyMismatch,
+    /// The request method violates the bounded ASCII MCP routing syntax.
+    InvalidMethod,
     /// The request method is not the supported `tools/call` operation.
     UnsupportedMethod,
     /// The tool name violates the bounded ASCII MCP routing syntax.
@@ -139,6 +144,9 @@ impl fmt::Display for McpToolBoundaryError {
             }
             Self::HeaderBodyMismatch => {
                 formatter.write_str("MCP routing headers do not match the request body")
+            }
+            Self::InvalidMethod => {
+                formatter.write_str("MCP method violates the bounded ASCII routing syntax")
             }
             Self::UnsupportedMethod => formatter
                 .write_str("only MCP tools/call requests can enter the typed action boundary"),
@@ -167,9 +175,9 @@ impl ValidatedMcpToolCall {
     /// Routing integrity is intentionally narrower than authorization. A
     /// successful value proves only that the untrusted protocol version,
     /// routing metadata, body method, and body tool name agree with one
-    /// explicitly supported mapping. Each untrusted tool name is shape-validated
-    /// before cross-field comparison so malformed or oversized names cannot
-    /// bypass the bounded routing syntax through mismatch handling.
+    /// explicitly supported mapping. Each untrusted method and tool name is
+    /// shape-validated before cross-field comparison so malformed or oversized
+    /// metadata cannot bypass the bounded routing syntax through mismatch handling.
     pub fn new(
         protocol_version: &str,
         routing_method: &str,
@@ -179,6 +187,9 @@ impl ValidatedMcpToolCall {
     ) -> Result<Self, McpToolBoundaryError> {
         if protocol_version != MCP_PROTOCOL_VERSION {
             return Err(McpToolBoundaryError::UnsupportedProtocolVersion);
+        }
+        if !valid_method(routing_method) || !valid_method(body_method) {
+            return Err(McpToolBoundaryError::InvalidMethod);
         }
         if !valid_tool_name(routing_tool_name) || !valid_tool_name(body_tool_name) {
             return Err(McpToolBoundaryError::InvalidToolName);
@@ -208,6 +219,15 @@ impl ValidatedMcpToolCall {
     pub const fn action_kind(&self) -> ActionKind {
         self.action_kind
     }
+}
+
+fn valid_method(method: &str) -> bool {
+    if method.is_empty() || method.len() > MAX_MCP_METHOD_NAME_BYTES {
+        return false;
+    }
+    method
+        .bytes()
+        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.' | b'/'))
 }
 
 fn valid_tool_name(tool_name: &str) -> bool {
