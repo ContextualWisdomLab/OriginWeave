@@ -8,7 +8,9 @@ use originweave_core::{
     WebDriverBiDiResponseEnvelopeParseError,
 };
 
-fn locate_nodes_command(command_id: u64) -> Result<WebDriverBiDiLocateNodesCommand, Box<dyn Error>> {
+fn locate_nodes_command(
+    command_id: u64,
+) -> Result<WebDriverBiDiLocateNodesCommand, Box<dyn Error>> {
     let query = WebDriverBiDiAccessibilityQuery::new(Some("button"), Some("Submit task"), 4)?;
     Ok(WebDriverBiDiLocateNodesCommand::new(
         command_id,
@@ -33,9 +35,8 @@ fn bounded_success_document_is_parsed_and_correlated_in_one_consuming_boundary()
 
 #[test]
 fn malformed_bounded_document_preserves_the_parser_failure() -> Result<(), Box<dyn Error>> {
-    let document = BoundedWebDriverBiDiResponseDocument::new(
-        r#"{"type":"success","id":42,"result":{},}"#,
-    )?;
+    let document =
+        BoundedWebDriverBiDiResponseDocument::new(r#"{"type":"success","id":42,"result":{},}"#)?;
     let result = locate_nodes_command(42)?.correlate_response_document(document);
 
     assert_eq!(
@@ -49,9 +50,8 @@ fn malformed_bounded_document_preserves_the_parser_failure() -> Result<(), Box<d
 
 #[test]
 fn parsed_response_id_mismatch_preserves_exact_correlation_failure() -> Result<(), Box<dyn Error>> {
-    let document = BoundedWebDriverBiDiResponseDocument::new(
-        r#"{"type":"success","id":41,"result":{}}"#,
-    )?;
+    let document =
+        BoundedWebDriverBiDiResponseDocument::new(r#"{"type":"success","id":41,"result":{}}"#)?;
     let result = locate_nodes_command(42)?.correlate_response_document(document);
 
     assert_eq!(
