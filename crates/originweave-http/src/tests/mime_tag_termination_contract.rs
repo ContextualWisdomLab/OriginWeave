@@ -42,7 +42,7 @@ fn every_html_tag_signature_requires_tag_termination() {
             assert_eq!(observed.risk_class(), ContentRiskClass::Passive);
         }
 
-        for terminator in [b' ', b'>'] {
+        for terminator in *b" >" {
             let mut content = signature.to_vec();
             content.push(terminator);
             content.extend_from_slice(b"payload");
