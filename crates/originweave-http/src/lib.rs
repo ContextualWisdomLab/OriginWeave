@@ -37,6 +37,7 @@ mod integrity;
 #[cfg_attr(coverage_nightly, coverage(off))]
 #[path = "tests/integrity_padding_contract.rs"]
 mod integrity_padding_contract;
+#[path = "mime_checked.rs"]
 mod mime;
 #[cfg(test)]
 #[path = "tests/mime_contract.rs"]
