@@ -44,6 +44,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Chunked HTTP/1.1 responses now complete at the terminal zero chunk plus bounded trailer terminator instead of waiting for peer TLS closure; close-delimited responses still require authenticated TLS EOF, and the stream remains single-use.
 - Overlong chunked trailer lines now fail as `TrailerSectionTooLarge` against the trailer-section budget, while malformed trailer line endings retain their chunked-syntax error classification.
 - MIME essence construction now enforces its parameter-free contract: reviewed type/subtype inputs that introduce MIME parameters fail closed instead of manufacturing a parameterized `MimeType`.
+- Invalid `X-Content-Type-Options` metadata now fails with the dedicated `InvalidNoSniffDirective` error instead of being misclassified as malformed `Content-Type` MIME syntax.
 - Replaced single resource-pressure directives with a cumulative mitigation plan so simultaneous RAM, VRAM, frame, model, and admission pressure cannot discard required actions.
 - Changed generic network capture from finite deny-lists or safe-name allow-lists to unconditional value redaction. Typed metadata values and bodies now require a separate schema-specific capture contract.
 - Updated the first Chromium slice to distinguish implemented origin, destination, direct TCP, TLS identity, and bounded HTTP/MIME kernels from the remaining trusted DNS adapter, proxy/PAC execution, browser download handoff, and Chromium integration required before safe navigation can be claimed.
