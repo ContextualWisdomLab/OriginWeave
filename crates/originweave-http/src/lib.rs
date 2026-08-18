@@ -42,6 +42,9 @@ mod mime;
 #[path = "tests/mime_contract.rs"]
 mod mime_contract;
 #[cfg(test)]
+#[path = "tests/mime_tag_termination_contract.rs"]
+mod mime_tag_termination_contract;
+#[cfg(test)]
 #[path = "tests/no_content_integrity_contract.rs"]
 mod no_content_integrity_contract;
 mod policy;
