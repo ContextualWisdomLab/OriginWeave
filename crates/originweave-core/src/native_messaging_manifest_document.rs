@@ -522,7 +522,10 @@ mod tests {
             r#"{"path":"\q"}"#,
             r#"{"type":"\q"}"#,
         ] {
-            assert_eq!(ManifestJsonParser::new(raw).parse_manifest(), Err(INVALID_JSON));
+            assert_eq!(
+                ManifestJsonParser::new(raw).parse_manifest(),
+                Err(INVALID_JSON)
+            );
         }
 
         assert_eq!(
@@ -541,6 +544,9 @@ mod tests {
             ManifestJsonParser::new(r#"{"allowed_origins":["origin",]}"#).parse_manifest(),
             Err(INVALID_JSON)
         );
+
+        let mut trailing_array = ManifestJsonParser::new(r#"["origin",]"#);
+        assert_eq!(trailing_array.parse_string_array(), Err(INVALID_JSON));
 
         let mut empty_escape = ManifestJsonParser::new("");
         let mut output = Vec::new();
