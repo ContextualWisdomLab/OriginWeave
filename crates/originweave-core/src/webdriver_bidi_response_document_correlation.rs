@@ -173,7 +173,10 @@ impl WebDriverBiDiLocateNodesCommand {
 
 #[cfg(test)]
 mod tests {
-    use super::locate_nodes_result_document::parse_wire_locate_nodes_result;
+    use super::locate_nodes_result_document::{
+        parse_wire_locate_nodes_result, parse_wire_locate_nodes_result_bounded,
+    };
+    use super::WebDriverBiDiLocateNodesResponseDocumentError;
 
     #[test]
     fn wire_node_admission_parts_preserve_wire_derived_metadata() {
@@ -190,5 +193,22 @@ mod tests {
         assert_eq!(nodes.len(), 2);
         assert_eq!(nodes[0].as_admission_parts(), ("node", Some("shared-1")));
         assert_eq!(nodes[1].as_admission_parts(), ("window", None));
+    }
+
+    #[test]
+    fn bounded_overflow_parser_preserves_invalid_generic_json_invariant() {
+        let result = parse_wire_locate_nodes_result_bounded(
+            concat!(
+                "{\"result\":{\"nodes\":[",
+                "{\"type\":\"node\",\"sharedId\":\"shared-1\"},",
+                "?]}}"
+            ),
+            1,
+        );
+
+        assert!(matches!(
+            result,
+            Err(WebDriverBiDiLocateNodesResponseDocumentError::ResultParserInvariant)
+        ));
     }
 }
