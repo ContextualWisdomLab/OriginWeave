@@ -27,15 +27,15 @@ pub enum WebDriverBiDiLocateNodesResponseDocumentError {
     InvalidResultNodes,
     /// The correlated success result repeated the decoded `nodes` field.
     DuplicateResultNodes,
-    /// One `nodes` array item was not a JSON object.
+    /// One in-budget `nodes` array item was not a JSON object.
     InvalidResultNode,
-    /// One node object repeated decoded `type` or `sharedId` authority-relevant metadata.
+    /// One in-budget node object repeated decoded `type` or `sharedId` authority-relevant metadata.
     DuplicateResultNodeField,
-    /// One node object omitted its required WebDriver BiDi remote-value `type` field.
+    /// One in-budget node object omitted its required WebDriver BiDi remote-value `type` field.
     MissingResultNodeType,
-    /// One node object's `type` field was not a JSON string.
+    /// One in-budget node object's `type` field was not a JSON string.
     InvalidResultNodeType,
-    /// One present node `sharedId` field was not a JSON string.
+    /// One present in-budget node `sharedId` field was not a JSON string.
     InvalidResultNodeSharedId,
     /// Exact command-budget or remote-node admission rejected the wire-derived node batch.
     ResultAdmission(WebDriverBiDiLocateNodesResultAdmissionError),
@@ -130,11 +130,12 @@ impl WebDriverBiDiLocateNodesCommand {
     ///
     /// The same bounded document first passes the complete response-envelope parser, exact command
     /// correlation, and success-only conversion. Only then does the result parser derive the exact
-    /// `result.nodes` array from that already-validated wire document. Decoded duplicate `nodes`,
-    /// `type`, or `sharedId` fields fail closed, JSON-escaped protocol metadata is decoded before
-    /// admission, and the existing correlated-result boundary enforces the command's exact
-    /// `maxNodeCount` before normalizing node references. Callers cannot supply replacement node
-    /// metadata to this method.
+    /// `result.nodes` array from that already-validated wire document. The command's exact
+    /// `maxNodeCount` is carried into this parser so overflow items are consumed only as generic JSON
+    /// and produce the existing result-budget failure before authority-relevant node metadata is
+    /// decoded or normalized. Decoded duplicate `nodes`, and duplicate or malformed in-budget
+    /// `type`/`sharedId` fields, fail closed. JSON-escaped protocol metadata is decoded before
+    /// admission, and callers cannot supply replacement node metadata to this method.
     ///
     /// Success remains untrusted transport evidence. It does not authenticate Chromium,
     /// ChromeDriver, WebSocket/TLS provenance, or an adapter process; prove current
@@ -156,8 +157,10 @@ impl WebDriverBiDiLocateNodesCommand {
         let validated = correlated
             .into_validated_success()
             .map_err(WebDriverBiDiLocateNodesResponseDocumentError::Envelope)?;
-        let wire_nodes =
-            locate_nodes_result_document::parse_wire_locate_nodes_result(parsed.as_str())?;
+        let wire_nodes = locate_nodes_result_document::parse_wire_locate_nodes_result_bounded(
+            parsed.as_str(),
+            validated.max_node_count(),
+        )?;
         let admission_parts = wire_nodes
             .iter()
             .map(locate_nodes_result_document::WireLocateNodesNode::as_admission_parts)
