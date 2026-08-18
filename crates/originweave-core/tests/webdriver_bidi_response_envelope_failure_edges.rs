@@ -16,11 +16,10 @@ fn assert_invalid_json(raw: &str) -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn non_object_response_stops_at_document_admission_before_parser() {
-    let error = BoundedWebDriverBiDiResponseDocument::new("[]").unwrap_err();
-    assert_eq!(
-        error,
-        WebDriverBiDiResponseDocumentAdmissionError::InvalidObjectBoundary
-    );
+    assert!(matches!(
+        BoundedWebDriverBiDiResponseDocument::new("[]"),
+        Err(WebDriverBiDiResponseDocumentAdmissionError::InvalidObjectBoundary)
+    ));
 }
 
 #[test]
