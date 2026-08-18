@@ -127,9 +127,8 @@ fn wire_result_decodes_json_escaped_protocol_fields_before_admission() -> Result
 #[test]
 fn wire_result_boundary_preserves_parse_correlation_and_success_only_failures()
 -> Result<(), Box<dyn Error>> {
-    let malformed = BoundedWebDriverBiDiResponseDocument::new(
-        r#"{"type":"success","id":42,"result":{},}"#,
-    )?;
+    let malformed =
+        BoundedWebDriverBiDiResponseDocument::new(r#"{"type":"success","id":42,"result":{},}"#)?;
     assert!(matches!(
         locate_nodes_command(42, 1)?.admit_response_document_nodes(malformed),
         Err(WebDriverBiDiLocateNodesResponseDocumentError::Parse(_))
