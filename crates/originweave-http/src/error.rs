@@ -126,7 +126,7 @@ pub enum HttpError {
     ExcessiveResponseFieldCount {
         /// Observed response field count.
         field_count: usize,
-        /// Largest accepted response field count.
+        /// Largest accepted field count.
         maximum_count: usize,
     },
     /// A response field name is empty or contains a non-token byte.
@@ -241,6 +241,8 @@ pub enum HttpError {
     SupportedDigestRequired,
     /// Supplied Content-Type syntax is invalid.
     InvalidMimeType,
+    /// X-Content-Type-Options metadata contains a value other than `nosniff`.
+    InvalidNoSniffDirective,
     /// Content-Disposition metadata is malformed or unsafe.
     InvalidContentDisposition,
     /// Redirect metadata is duplicated, malformed, or unsafe.
@@ -501,6 +503,9 @@ impl fmt::Display for HttpError {
                 formatter.write_str("HTTP policy requires a supported digest")
             }
             Self::InvalidMimeType => formatter.write_str("HTTP Content-Type metadata is invalid"),
+            Self::InvalidNoSniffDirective => {
+                formatter.write_str("HTTP X-Content-Type-Options metadata is invalid")
+            }
             Self::InvalidContentDisposition => {
                 formatter.write_str("HTTP Content-Disposition metadata is invalid or unsafe")
             }
