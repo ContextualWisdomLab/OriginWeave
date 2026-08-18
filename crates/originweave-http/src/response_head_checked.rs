@@ -61,10 +61,7 @@ pub(crate) fn parse_final_response_head(
     }
 }
 
-fn validate_status_framing_fields(
-    status_code: u16,
-    fields: &FieldBlock,
-) -> Result<(), HttpError> {
+fn validate_status_framing_fields(status_code: u16, fields: &FieldBlock) -> Result<(), HttpError> {
     if (100..200).contains(&status_code) || status_code == 204 {
         if !fields.values("transfer-encoding").is_empty() {
             return Err(HttpError::UnsupportedTransferCoding);
