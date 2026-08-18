@@ -1,14 +1,14 @@
 # MCP 2026-07-28 authority-route traceability
 
 - **Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
-- **Owning work:** PR #168 `feat/mcp): bind stateless tool routing to typed actions`
+- **Owning work:** PR #168 `feat(mcp): bind stateless tool routing to typed actions`
 - **Protected-main status:** non-shipped active-PR evidence
 - **Complete MCP adapter status:** `PLANNED`
 - **Governing decision:** ADR 0107
 
 ## Scope
 
-PR #168 implements a bounded Rust control-plane foundation for MCP `2026-07-28` `tools/call` routing. It validates the represented stateless routing envelope, bounds and syntax-validates both attacker-controlled tool-name fields before correlation, maps only an explicit reviewed `originweave.*` catalog to existing typed `ActionKind` values, derives discovery metadata from the same catalog, and rejects route/action mismatch before ordinary deterministic policy evaluation.
+PR #168 implements a bounded Rust control-plane foundation for MCP `2026-07-28` `tools/call` routing. It validates the represented stateless routing envelope, bounds and syntax-validates both attacker-controlled method fields and both attacker-controlled tool-name fields before correlation, maps only an explicit reviewed `originweave.*` catalog to existing typed `ActionKind` values, derives discovery metadata from the same catalog, and rejects route/action mismatch before ordinary deterministic policy evaluation. Methods are nonempty reviewed-ASCII routing tokens of at most 64 bytes; tool names are nonempty reviewed-ASCII identifiers of at most 128 bytes. Invalid method metadata is rejected distinctly from a bounded but unsupported MCP method.
 
 A successful `ValidatedMcpToolCall` proves routing integrity only. It grants no capability, origin, approval, secret, browser, tenant, persistence, network, or evidence authority. `originweave_policy::evaluate_mcp` still delegates to the ordinary policy evaluator after the route/action match.
 
@@ -41,8 +41,8 @@ The canonical bibliography remains `docs/doctoring.md`.
 
 Current PR #168 production/test surfaces include:
 
-- `crates/originweave-core/src/mcp.rs` — bounded deterministic catalog and `ValidatedMcpToolCall` routing primitive;
-- `crates/originweave-core/tests/mcp_authority_route.rs` — mapping, bounds, malformed-input, version/method/header-body, and error-contract evidence;
+- `crates/originweave-core/src/mcp.rs` — bounded deterministic catalog plus method/tool routing validation in the `ValidatedMcpToolCall` primitive;
+- `crates/originweave-core/tests/mcp_authority_route.rs` — mapping, exact method/tool bounds, empty/oversized/malformed inputs, version/method/header-body correlation, and error-contract evidence;
 - `crates/originweave-policy/src/lib.rs` — `evaluate_mcp` route/action guard before normal policy evaluation; and
 - `crates/originweave-policy/tests/mcp_route_binding.rs` — confused-deputy and policy-preservation evidence.
 
