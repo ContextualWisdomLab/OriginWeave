@@ -1,51 +1,97 @@
 use std::error::Error;
 
-use originweave_core::BoundedWebDriverBiDiResponseDocument;
+use originweave_core::{BoundedWebDriverBiDiResponseDocument, WebDriverBiDiErrorCode};
 
-const CURRENT_WEBDRIVER_BIDI_ERROR_CODES: &[&str] = &[
-    "invalid argument",
-    "invalid selector",
-    "invalid session id",
-    "invalid web extension",
-    "move target out of bounds",
-    "no such alert",
-    "no such client window",
-    "no such network collector",
-    "no such element",
-    "no such frame",
-    "no such handle",
-    "no such history entry",
-    "no such intercept",
-    "no such network data",
-    "no such node",
-    "no such request",
-    "no such screencast",
-    "no such script",
-    "no such storage partition",
-    "no such user context",
-    "no such web extension",
-    "session not created",
-    "unable to capture screen",
-    "unable to close browser",
-    "unable to set cookie",
-    "unable to set file input",
-    "unavailable network data",
-    "underspecified storage partition",
-    "unknown command",
-    "unknown error",
-    "unsupported operation",
+const CURRENT_WEBDRIVER_BIDI_ERROR_CODES: &[(&str, WebDriverBiDiErrorCode)] = &[
+    ("invalid argument", WebDriverBiDiErrorCode::InvalidArgument),
+    ("invalid selector", WebDriverBiDiErrorCode::InvalidSelector),
+    ("invalid session id", WebDriverBiDiErrorCode::InvalidSessionId),
+    ("invalid web extension", WebDriverBiDiErrorCode::InvalidWebExtension),
+    (
+        "move target out of bounds",
+        WebDriverBiDiErrorCode::MoveTargetOutOfBounds,
+    ),
+    ("no such alert", WebDriverBiDiErrorCode::NoSuchAlert),
+    (
+        "no such client window",
+        WebDriverBiDiErrorCode::NoSuchClientWindow,
+    ),
+    (
+        "no such network collector",
+        WebDriverBiDiErrorCode::NoSuchNetworkCollector,
+    ),
+    ("no such element", WebDriverBiDiErrorCode::NoSuchElement),
+    ("no such frame", WebDriverBiDiErrorCode::NoSuchFrame),
+    ("no such handle", WebDriverBiDiErrorCode::NoSuchHandle),
+    (
+        "no such history entry",
+        WebDriverBiDiErrorCode::NoSuchHistoryEntry,
+    ),
+    ("no such intercept", WebDriverBiDiErrorCode::NoSuchIntercept),
+    (
+        "no such network data",
+        WebDriverBiDiErrorCode::NoSuchNetworkData,
+    ),
+    ("no such node", WebDriverBiDiErrorCode::NoSuchNode),
+    ("no such request", WebDriverBiDiErrorCode::NoSuchRequest),
+    ("no such screencast", WebDriverBiDiErrorCode::NoSuchScreencast),
+    ("no such script", WebDriverBiDiErrorCode::NoSuchScript),
+    (
+        "no such storage partition",
+        WebDriverBiDiErrorCode::NoSuchStoragePartition,
+    ),
+    (
+        "no such user context",
+        WebDriverBiDiErrorCode::NoSuchUserContext,
+    ),
+    (
+        "no such web extension",
+        WebDriverBiDiErrorCode::NoSuchWebExtension,
+    ),
+    (
+        "session not created",
+        WebDriverBiDiErrorCode::SessionNotCreated,
+    ),
+    (
+        "unable to capture screen",
+        WebDriverBiDiErrorCode::UnableToCaptureScreen,
+    ),
+    (
+        "unable to close browser",
+        WebDriverBiDiErrorCode::UnableToCloseBrowser,
+    ),
+    ("unable to set cookie", WebDriverBiDiErrorCode::UnableToSetCookie),
+    (
+        "unable to set file input",
+        WebDriverBiDiErrorCode::UnableToSetFileInput,
+    ),
+    (
+        "unavailable network data",
+        WebDriverBiDiErrorCode::UnavailableNetworkData,
+    ),
+    (
+        "underspecified storage partition",
+        WebDriverBiDiErrorCode::UnderspecifiedStoragePartition,
+    ),
+    ("unknown command", WebDriverBiDiErrorCode::UnknownCommand),
+    ("unknown error", WebDriverBiDiErrorCode::UnknownError),
+    (
+        "unsupported operation",
+        WebDriverBiDiErrorCode::UnsupportedOperation,
+    ),
 ];
 
 #[test]
-fn parser_accepts_current_webdriver_bidi_error_code_vocabulary() -> Result<(), Box<dyn Error>> {
-    for error_code in CURRENT_WEBDRIVER_BIDI_ERROR_CODES {
+fn parser_retains_every_current_webdriver_bidi_error_code() -> Result<(), Box<dyn Error>> {
+    for &(raw_code, expected) in CURRENT_WEBDRIVER_BIDI_ERROR_CODES {
         let raw = format!(
-            "{{\"type\":\"error\",\"id\":7,\"error\":\"{error_code}\",\"message\":\"browser rejected command\"}}"
+            "{{\"type\":\"error\",\"id\":7,\"error\":\"{raw_code}\",\"message\":\"browser rejected command\"}}"
         );
-        let parsed = BoundedWebDriverBiDiResponseDocument::new(&raw)?.parse_command_response();
-        assert!(
-            parsed.is_ok(),
-            "current WebDriver BiDi error code must remain admissible: {error_code}"
+        let parsed = BoundedWebDriverBiDiResponseDocument::new(&raw)?.parse_command_response()?;
+        assert_eq!(
+            parsed.error_code(),
+            Some(expected),
+            "current WebDriver BiDi error code must retain its typed mapping: {raw_code}"
         );
     }
     Ok(())
