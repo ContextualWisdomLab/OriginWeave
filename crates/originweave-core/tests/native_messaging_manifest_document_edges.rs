@@ -7,6 +7,7 @@ use originweave_core::{
 };
 
 const EXTENSION_ORIGIN: &str = "chrome-extension://abcdefghijklmnopabcdefghijklmnop/";
+const SECOND_EXTENSION_ORIGIN: &str = "chrome-extension://ponmlkjihgfedcbaponmlkjihgfedcba/";
 
 fn parse_error(raw: &str) -> NativeMessagingManifestParseError {
     NativeMessagingManifestDocument::parse(raw.as_bytes())
@@ -55,18 +56,23 @@ fn complete_parser_covers_empty_and_malformed_array_and_boolean_shapes() {
         Err(NativeMessagingManifestParseError::MissingRequiredField)
     );
 
-    let empty_origins = format!(
-        r#"{{"name":"com.contextualwisdom.originweave","description":"host","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":[]}}"#
-    );
+    let empty_origins = r#"{"name":"com.contextualwisdom.originweave","description":"host","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":[]}"#.to_owned();
     assert!(matches!(
         parse_error(&empty_origins),
         NativeMessagingManifestParseError::Manifest(_)
     ));
 
+    let multiple_origins = format!(
+        r#"{{"name":"com.contextualwisdom.originweave","description":"host","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":["{EXTENSION_ORIGIN}","{SECOND_EXTENSION_ORIGIN}"]}}"#
+    );
+    let multiple_manifest = NativeMessagingManifestDocument::parse(multiple_origins.as_bytes())
+        .expect("valid multi-origin fixture passes pre-parser")
+        .parse_host_manifest(NativeMessagingHostPlatform::Linux)
+        .expect("valid multi-origin fixture passes complete parsing");
+    assert_eq!(multiple_manifest.allowed_extension_count(), 2);
+
     for raw in [
-        format!(
-            r#"{{"name":"com.contextualwisdom.originweave","description":"host","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":[true]}}"#
-        ),
+        r#"{"name":"com.contextualwisdom.originweave","description":"host","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":[true]}"#.to_owned(),
         format!(
             r#"{{"name":"com.contextualwisdom.originweave","description":"host","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":"{EXTENSION_ORIGIN}"}}"#
         ),
