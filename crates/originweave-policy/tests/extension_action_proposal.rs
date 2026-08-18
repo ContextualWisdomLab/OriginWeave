@@ -4,7 +4,9 @@
 //!
 //! An extension grant can authorize only the right to propose one typed action for independent
 //! OriginWeave policy evaluation. It must not manufacture instruction trust, action capability,
-//! origin authority, secret authority, approval, or action success.
+//! origin authority, secret authority, approval, or action success. Proposal admission is bound to
+//! the request source origin and caller-supplied trusted time so navigation or expiry cannot reuse
+//! an otherwise matching extension/session/context grant.
 
 use std::collections::BTreeSet;
 
@@ -20,6 +22,10 @@ use originweave_policy::{
 
 const VALID_INTENT: &str =
     "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+const APP_ORIGIN: &str = "https://app.example";
+const OTHER_ORIGIN: &str = "https://other.example";
+const UNEXPIRED_NOW_EPOCH_SECONDS: u64 = 1_700_000_000;
+const UNEXPIRED_EXPIRES_AT_EPOCH_SECONDS: u64 = 1_700_000_600;
 
 fn extension_id() -> ExtensionId {
     ExtensionId::parse("abcdefghijklmnopabcdefghijklmnop").expect("valid extension id")
@@ -46,12 +52,14 @@ fn proposal_grant() -> ExtensionAgentGrant {
         extension_id(),
         browser_session(),
         browsing_context(),
+        origin(APP_ORIGIN),
+        UNEXPIRED_EXPIRES_AT_EPOCH_SECONDS,
         [ExtensionAgentCapability::ProposeTypedAction],
     )
 }
 
 fn observe_request(source: InstructionSource) -> ActionRequest {
-    let site = origin("https://app.example");
+    let site = origin(APP_ORIGIN);
     ActionRequest::new(
         ActionKind::Observe,
         site.clone(),
@@ -67,7 +75,7 @@ fn observe_context() -> PolicyContext {
         SessionMode::AgentTask,
         ExecutionPurpose::UserDelegatedTask,
         BTreeSet::from([Capability::Observe]),
-        BTreeSet::from([origin("https://app.example")]),
+        BTreeSet::from([origin(APP_ORIGIN)]),
         BTreeSet::new(),
         RobotsDecision::Allowed,
         ApprovalEvidence::None,
@@ -81,6 +89,7 @@ fn missing_extension_grant_stops_before_action_policy() {
             &extension_id(),
             browser_session(),
             browsing_context(),
+            UNEXPIRED_NOW_EPOCH_SECONDS,
             None,
             &observe_request(InstructionSource::User),
             &observe_context(),
@@ -95,6 +104,8 @@ fn non_proposal_extension_capability_cannot_submit_an_action() {
         extension_id(),
         browser_session(),
         browsing_context(),
+        origin(APP_ORIGIN),
+        UNEXPIRED_EXPIRES_AT_EPOCH_SECONDS,
         [ExtensionAgentCapability::ObserveCurrentContext],
     );
 
@@ -103,6 +114,7 @@ fn non_proposal_extension_capability_cannot_submit_an_action() {
             &extension_id(),
             browser_session(),
             browsing_context(),
+            UNEXPIRED_NOW_EPOCH_SECONDS,
             Some(&grant),
             &observe_request(InstructionSource::User),
             &observe_context(),
@@ -114,12 +126,65 @@ fn non_proposal_extension_capability_cannot_submit_an_action() {
 }
 
 #[test]
-fn exact_proposal_grant_reaches_ordinary_action_policy() {
+fn proposal_grant_for_another_origin_stops_before_action_policy() {
+    let grant = ExtensionAgentGrant::new(
+        extension_id(),
+        browser_session(),
+        browsing_context(),
+        origin(OTHER_ORIGIN),
+        UNEXPIRED_EXPIRES_AT_EPOCH_SECONDS,
+        [ExtensionAgentCapability::ProposeTypedAction],
+    );
+
     assert_eq!(
         evaluate_extension_action_proposal(
             &extension_id(),
             browser_session(),
             browsing_context(),
+            UNEXPIRED_NOW_EPOCH_SECONDS,
+            Some(&grant),
+            &observe_request(InstructionSource::User),
+            &observe_context(),
+        ),
+        ExtensionProposalDecision::ExtensionAccessDenied(
+            ExtensionAccessDecision::DenyOriginMismatch
+        )
+    );
+}
+
+#[test]
+fn expired_proposal_grant_stops_before_action_policy() {
+    let grant = ExtensionAgentGrant::new(
+        extension_id(),
+        browser_session(),
+        browsing_context(),
+        origin(APP_ORIGIN),
+        UNEXPIRED_NOW_EPOCH_SECONDS,
+        [ExtensionAgentCapability::ProposeTypedAction],
+    );
+
+    assert_eq!(
+        evaluate_extension_action_proposal(
+            &extension_id(),
+            browser_session(),
+            browsing_context(),
+            UNEXPIRED_NOW_EPOCH_SECONDS,
+            Some(&grant),
+            &observe_request(InstructionSource::User),
+            &observe_context(),
+        ),
+        ExtensionProposalDecision::ExtensionAccessDenied(ExtensionAccessDecision::DenyExpired)
+    );
+}
+
+#[test]
+fn exact_unexpired_same_origin_proposal_grant_reaches_ordinary_action_policy() {
+    assert_eq!(
+        evaluate_extension_action_proposal(
+            &extension_id(),
+            browser_session(),
+            browsing_context(),
+            UNEXPIRED_NOW_EPOCH_SECONDS,
             Some(&proposal_grant()),
             &observe_request(InstructionSource::User),
             &observe_context(),
@@ -135,6 +200,7 @@ fn extension_transport_does_not_promote_web_content_to_instruction_authority() {
             &extension_id(),
             browser_session(),
             browsing_context(),
+            UNEXPIRED_NOW_EPOCH_SECONDS,
             Some(&proposal_grant()),
             &observe_request(InstructionSource::WebContent),
             &observe_context(),
@@ -147,7 +213,7 @@ fn extension_transport_does_not_promote_web_content_to_instruction_authority() {
 
 #[test]
 fn extension_proposal_grant_cannot_manufacture_secret_fill_approval() {
-    let site = origin("https://app.example");
+    let site = origin(APP_ORIGIN);
     let context = PolicyContext::new(
         SessionMode::AgentTask,
         ExecutionPurpose::UserDelegatedTask,
@@ -171,6 +237,7 @@ fn extension_proposal_grant_cannot_manufacture_secret_fill_approval() {
             &extension_id(),
             browser_session(),
             browsing_context(),
+            UNEXPIRED_NOW_EPOCH_SECONDS,
             Some(&proposal_grant()),
             &request,
             &context,
