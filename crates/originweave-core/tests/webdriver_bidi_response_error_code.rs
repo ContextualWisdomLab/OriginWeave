@@ -42,7 +42,10 @@ fn parser_accepts_current_webdriver_bidi_error_code_vocabulary() -> Result<(), B
             "{{\"type\":\"error\",\"id\":7,\"error\":\"{error_code}\",\"message\":\"browser rejected command\"}}"
         );
         let parsed = BoundedWebDriverBiDiResponseDocument::new(&raw)?.parse_command_response();
-        assert!(parsed.is_ok(), "current WebDriver BiDi error code must remain admissible: {error_code}");
+        assert!(
+            parsed.is_ok(),
+            "current WebDriver BiDi error code must remain admissible: {error_code}"
+        );
     }
     Ok(())
 }
@@ -53,6 +56,10 @@ fn parser_rejects_unknown_webdriver_bidi_error_code() -> Result<(), Box<dyn Erro
         "{\"type\":\"error\",\"id\":7,\"error\":\"made up browser failure\",\"message\":\"untrusted adapter text\"}",
     )?;
 
-    assert!(document.parse_command_response().is_err());
+    let error = document
+        .parse_command_response()
+        .expect_err("unknown WebDriver BiDi error codes must fail closed");
+    assert!(!error.to_string().is_empty());
+    assert!(error.source().is_none());
     Ok(())
 }
