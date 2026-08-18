@@ -126,11 +126,12 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
                 self.assertIn(expected, runner)
 
     def test_process_tree_and_rss_use_one_sampled_process_snapshot(self) -> None:
-        """Descendant RSS must come from the same bounded status snapshot as lineage."""
+        """Root and descendant RSS must come from the same bounded status snapshot."""
 
         namespace = runpy.run_path(str(RUNNER), run_name="agent_task_process_snapshot")
         discover = namespace["_discover_linux_process_tree_ids"]
         sample = namespace["_sample_linux_process_set_rss_bytes"]
+        sample_root = namespace["_sample_linux_process_snapshot_rss_bytes"]
         evidence = {
             10: (1, 100),
             20: (10, 200),
@@ -139,9 +140,22 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
         }
         process_ids = discover(10, evidence)
         self.assertEqual(process_ids, (10, 20, 30))
+        self.assertEqual(sample_root(10, evidence), 100)
         self.assertEqual(sample(process_ids, evidence), 600)
         with self.assertRaises(ValueError):
             sample((10, 50), evidence)
+        with self.assertRaises(RuntimeError):
+            sample_root(50, evidence)
+
+        runner = RUNNER.read_text(encoding="utf-8")
+        self.assertIn(
+            "browser_process_rss_bytes = _sample_linux_process_snapshot_rss_bytes(",
+            runner,
+        )
+        self.assertNotIn(
+            "browser_process_rss_bytes = _sample_linux_process_rss_bytes(browser_process_id)",
+            runner,
+        )
 
     def test_process_set_tolerates_descendant_without_resident_rss(self) -> None:
         """A sampled child with no resident RSS must not invalidate the whole tree."""
