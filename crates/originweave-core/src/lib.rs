@@ -32,6 +32,7 @@ mod browser_registry;
 mod browser_registry_coverage;
 mod contracts;
 mod webdriver_bidi_command;
+mod webdriver_bidi_error_code;
 mod webdriver_bidi_response_document;
 mod webdriver_bidi_response_document_correlation;
 mod webdriver_bidi_response_envelope;
