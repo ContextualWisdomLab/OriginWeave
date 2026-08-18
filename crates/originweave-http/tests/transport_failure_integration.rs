@@ -384,15 +384,19 @@ fn unsupported_content_coding_fails_after_exact_framing() {
 }
 
 #[test]
-fn malformed_mime_and_nosniff_metadata_fail_after_exact_framing() {
-    for response in [
-        b"HTTP/1.1 200 OK\r\nContent-Length: 7\r\nContent-Type: text\r\nConnection: close\r\n\r\npayload".as_slice(),
-        b"HTTP/1.1 200 OK\r\nContent-Length: 7\r\nX-Content-Type-Options: other\r\nConnection: close\r\n\r\npayload".as_slice(),
-    ] {
-        let (result, server) = execute_static_response(response);
-        assert!(matches!(result, Err(HttpError::InvalidMimeType)));
-        assert_server_received_request(server);
-    }
+fn malformed_mime_metadata_fails_after_exact_framing() {
+    let response = b"HTTP/1.1 200 OK\r\nContent-Length: 7\r\nContent-Type: text\r\nConnection: close\r\n\r\npayload";
+    let (result, server) = execute_static_response(response);
+    assert!(matches!(result, Err(HttpError::InvalidMimeType)));
+    assert_server_received_request(server);
+}
+
+#[test]
+fn invalid_nosniff_metadata_has_distinct_typed_failure_after_exact_framing() {
+    let response = b"HTTP/1.1 200 OK\r\nContent-Length: 7\r\nX-Content-Type-Options: other\r\nConnection: close\r\n\r\npayload";
+    let (result, server) = execute_static_response(response);
+    assert!(matches!(result, Err(HttpError::InvalidNoSniffDirective)));
+    assert_server_received_request(server);
 }
 
 #[test]
