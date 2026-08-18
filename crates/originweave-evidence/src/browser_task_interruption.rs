@@ -1,4 +1,4 @@
-use originweave_core::{BrowserSessionId, BrowsingContextId, DocumentEpoch};
+use originweave_core::{ActionIntentDigest, BrowserSessionId, BrowsingContextId, DocumentEpoch};
 
 /// Browser/runtime interruption category recorded for one Agent Task.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -32,14 +32,16 @@ pub enum RetryDisposition {
 /// Credential-free recovery evidence for an interrupted browser task.
 ///
 /// The value binds caller-supplied interruption and cleanup facts to one exact OriginWeave
-/// browser session, browsing context, and document epoch. It does not authenticate the browser
-/// adapter, prove that the identified browser authority experienced the interruption, detect
-/// crashes, prove cleanup, reconcile external effects, or dispatch a retry by itself.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// browser session, browsing context, document epoch, and immutable canonical action-intent digest.
+/// It does not authenticate the browser adapter, prove that the identified browser authority or
+/// action experienced the interruption, detect crashes, prove cleanup, reconcile external effects,
+/// or dispatch a retry by itself.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BrowserTaskInterruptionEvidence {
     browser_session_id: BrowserSessionId,
     browsing_context_id: BrowsingContextId,
     document_epoch: DocumentEpoch,
+    action_intent_digest: ActionIntentDigest,
     interruption_kind: BrowserTaskInterruptionKind,
     external_effect_disposition: ExternalEffectDisposition,
     browser_context_closed: bool,
@@ -48,14 +50,16 @@ pub struct BrowserTaskInterruptionEvidence {
 }
 
 impl BrowserTaskInterruptionEvidence {
-    /// Create one interruption evidence value bound to exact browser authority.
+    /// Create one interruption evidence value bound to exact browser and action authority.
     ///
     /// `browser_authority` is the exact `(browser session, browsing context, document epoch)`
-    /// tuple observed by the trusted runtime; callers must not infer any element from ambient
-    /// browser state.
+    /// tuple observed by the trusted runtime. `action_intent_digest` must be the complete canonical
+    /// intent digest of the interrupted governed action. Callers must not infer either input from
+    /// ambient browser state.
     #[must_use]
-    pub const fn new(
+    pub fn new(
         browser_authority: (BrowserSessionId, BrowsingContextId, DocumentEpoch),
+        action_intent_digest: ActionIntentDigest,
         interruption_kind: BrowserTaskInterruptionKind,
         external_effect_disposition: ExternalEffectDisposition,
         browser_context_closed: bool,
@@ -67,6 +71,7 @@ impl BrowserTaskInterruptionEvidence {
             browser_session_id,
             browsing_context_id,
             document_epoch,
+            action_intent_digest,
             interruption_kind,
             external_effect_disposition,
             browser_context_closed,
@@ -91,6 +96,12 @@ impl BrowserTaskInterruptionEvidence {
     #[must_use]
     pub const fn document_epoch(&self) -> DocumentEpoch {
         self.document_epoch
+    }
+
+    /// Return the immutable canonical action-intent digest bound to this recovery evidence.
+    #[must_use]
+    pub const fn action_intent_digest(&self) -> &ActionIntentDigest {
+        &self.action_intent_digest
     }
 
     /// Return the recorded interruption category.
@@ -129,9 +140,16 @@ impl BrowserTaskInterruptionEvidence {
         self.browser_context_closed && self.resources_reclaimed && self.evidence_finalized
     }
 
-    /// Derive whether a retry is safe from external-effect and cleanup evidence.
+    /// Derive whether the exact expected action may be retried from interruption and cleanup evidence.
+    ///
+    /// Recovery evidence for any other canonical action intent always requires quarantine, even when
+    /// browser authority matches and cleanup is otherwise complete. This prevents recovery facts from
+    /// one action in a session/context/document from authorizing replay of a different action.
     #[must_use]
-    pub const fn retry_disposition(&self) -> RetryDisposition {
+    pub fn retry_disposition(&self, expected_action_intent: &ActionIntentDigest) -> RetryDisposition {
+        if &self.action_intent_digest != expected_action_intent {
+            return RetryDisposition::QuarantineRequired;
+        }
         if matches!(
             self.external_effect_disposition,
             ExternalEffectDisposition::InterruptedBeforeExternalEffect
