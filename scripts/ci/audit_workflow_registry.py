@@ -326,7 +326,9 @@ def _classify_workflow(
             return "present_repository_workflow"
         return "disabled_present_repository_workflow"
     if path in active_pr_paths:
-        return "active_pr_owned_workflow"
+        if state == "active":
+            return "active_pr_owned_workflow"
+        return "disabled_active_pr_owned_workflow"
     if path.startswith(_REPOSITORY_WORKFLOW_PREFIX):
         if state == "active":
             return "active_orphan_repository_workflow"
@@ -391,7 +393,10 @@ def _validate_workflow_record(
         "default_branch_sha": default_branch_sha,
         "observed_at": observed_at,
     }
-    if classification == "active_pr_owned_workflow":
+    if classification in {
+        "active_pr_owned_workflow",
+        "disabled_active_pr_owned_workflow",
+    }:
         record["active_pr_owner"] = active_pr_owners[path]
     return record
 
