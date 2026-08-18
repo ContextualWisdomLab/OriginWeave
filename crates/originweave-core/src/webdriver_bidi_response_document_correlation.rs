@@ -173,10 +173,10 @@ impl WebDriverBiDiLocateNodesCommand {
 
 #[cfg(test)]
 mod tests {
+    use super::WebDriverBiDiLocateNodesResponseDocumentError;
     use super::locate_nodes_result_document::{
         parse_wire_locate_nodes_result, parse_wire_locate_nodes_result_bounded,
     };
-    use super::WebDriverBiDiLocateNodesResponseDocumentError;
 
     #[test]
     fn wire_node_admission_parts_preserve_wire_derived_metadata() {
@@ -206,9 +206,9 @@ mod tests {
             1,
         );
 
-        assert!(matches!(
-            result,
-            Err(WebDriverBiDiLocateNodesResponseDocumentError::ResultParserInvariant)
-        ));
+        assert_eq!(
+            result.err(),
+            Some(WebDriverBiDiLocateNodesResponseDocumentError::ResultParserInvariant)
+        );
     }
 }
