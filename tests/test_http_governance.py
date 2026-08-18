@@ -25,6 +25,7 @@ class HttpGovernanceTests(unittest.TestCase):
             "field.rs",
             "request.rs",
             "response_head.rs",
+            "response_head_checked.rs",
             "framing.rs",
             "chunked.rs",
             "content.rs",
