@@ -6,8 +6,7 @@ use originweave_core::{
     NativeMessagingHostPlatform, NativeMessagingManifestDocument, NativeMessagingManifestParseError,
 };
 
-const EXTENSION_ORIGIN: &str =
-    "chrome-extension://abcdefghijklmnopabcdefghijklmnop/";
+const EXTENSION_ORIGIN: &str = "chrome-extension://abcdefghijklmnopabcdefghijklmnop/";
 
 fn parse_error(raw: &str) -> NativeMessagingManifestParseError {
     NativeMessagingManifestDocument::parse(raw.as_bytes())
@@ -40,7 +39,10 @@ fn complete_parser_rejects_every_duplicate_reviewed_field() {
     ];
 
     for raw in cases {
-        assert_eq!(parse_error(&raw), NativeMessagingManifestParseError::DuplicateField);
+        assert_eq!(
+            parse_error(&raw),
+            NativeMessagingManifestParseError::DuplicateField
+        );
     }
 }
 
@@ -69,7 +71,10 @@ fn complete_parser_covers_empty_and_malformed_array_and_boolean_shapes() {
             r#"{{"name":"com.contextualwisdom.originweave","description":"host","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":"{EXTENSION_ORIGIN}"}}"#
         ),
     ] {
-        assert_eq!(parse_error(&raw), NativeMessagingManifestParseError::InvalidFieldType);
+        assert_eq!(
+            parse_error(&raw),
+            NativeMessagingManifestParseError::InvalidFieldType
+        );
     }
 
     for raw in [
@@ -81,7 +86,10 @@ fn complete_parser_covers_empty_and_malformed_array_and_boolean_shapes() {
         ),
         "{} {}".to_owned(),
     ] {
-        assert_eq!(parse_error(&raw), NativeMessagingManifestParseError::InvalidJson);
+        assert_eq!(
+            parse_error(&raw),
+            NativeMessagingManifestParseError::InvalidJson
+        );
     }
 
     let invalid_boolean = format!(
@@ -125,7 +133,10 @@ fn complete_parser_covers_json_escape_and_unicode_failure_edges() {
         let raw = format!(
             r#"{{"name":"com.contextualwisdom.originweave","description":"{description}","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":["{EXTENSION_ORIGIN}"]}}"#
         );
-        assert_eq!(parse_error(&raw), NativeMessagingManifestParseError::InvalidJson);
+        assert_eq!(
+            parse_error(&raw),
+            NativeMessagingManifestParseError::InvalidJson
+        );
     }
 
     let raw_control = format!(
@@ -160,7 +171,10 @@ fn parse_errors_expose_deterministic_display_and_only_causal_sources() {
         r#"{{"name":"INVALID HOST","description":"host","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":["{EXTENSION_ORIGIN}"]}}"#
     );
     let host_error = parse_error(&invalid_host);
-    assert!(matches!(host_error, NativeMessagingManifestParseError::HostName(_)));
+    assert!(matches!(
+        host_error,
+        NativeMessagingManifestParseError::HostName(_)
+    ));
     assert!(!host_error.to_string().is_empty());
     assert!(host_error.source().is_some());
 
