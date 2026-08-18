@@ -1,8 +1,8 @@
 use std::error::Error;
 
 use originweave_core::mcp::{
-    MAX_MCP_TOOL_NAME_BYTES, MCP_PROTOCOL_VERSION, MCP_TOOLS_CALL_METHOD, McpToolBoundaryError,
-    ValidatedMcpToolCall, supported_mcp_tools,
+    MAX_MCP_METHOD_NAME_BYTES, MAX_MCP_TOOL_NAME_BYTES, MCP_PROTOCOL_VERSION,
+    MCP_TOOLS_CALL_METHOD, McpToolBoundaryError, ValidatedMcpToolCall, supported_mcp_tools,
 };
 use originweave_core::{ActionKind, Capability, RiskClass};
 
@@ -194,6 +194,54 @@ fn mcp_route_rejects_protocol_header_body_and_method_drift() {
 }
 
 #[test]
+fn mcp_route_bounds_each_untrusted_method_before_cross_field_comparison() {
+    let at_limit = "x".repeat(MAX_MCP_METHOD_NAME_BYTES);
+    let oversized_routing = "r".repeat(MAX_MCP_METHOD_NAME_BYTES + 1);
+    let oversized_body = "b".repeat(MAX_MCP_METHOD_NAME_BYTES + 1);
+
+    assert_eq!(
+        ValidatedMcpToolCall::new(
+            MCP_PROTOCOL_VERSION,
+            &oversized_routing,
+            "originweave.observe",
+            MCP_TOOLS_CALL_METHOD,
+            "originweave.observe",
+        ),
+        Err(McpToolBoundaryError::InvalidMethod)
+    );
+    assert_eq!(
+        ValidatedMcpToolCall::new(
+            MCP_PROTOCOL_VERSION,
+            MCP_TOOLS_CALL_METHOD,
+            "originweave.observe",
+            &oversized_body,
+            "originweave.observe",
+        ),
+        Err(McpToolBoundaryError::InvalidMethod)
+    );
+    assert_eq!(
+        ValidatedMcpToolCall::new(
+            MCP_PROTOCOL_VERSION,
+            "tools call",
+            "originweave.observe",
+            "tools call",
+            "originweave.observe",
+        ),
+        Err(McpToolBoundaryError::InvalidMethod)
+    );
+    assert_eq!(
+        ValidatedMcpToolCall::new(
+            MCP_PROTOCOL_VERSION,
+            &at_limit,
+            "originweave.observe",
+            &at_limit,
+            "originweave.observe",
+        ),
+        Err(McpToolBoundaryError::UnsupportedMethod)
+    );
+}
+
+#[test]
 fn mcp_route_rejects_unbounded_malformed_and_unmapped_tool_names() {
     let at_limit = "x".repeat(MAX_MCP_TOOL_NAME_BYTES);
     let oversized = "x".repeat(MAX_MCP_TOOL_NAME_BYTES + 1);
@@ -272,6 +320,10 @@ fn mcp_boundary_errors_are_deterministic_and_do_not_echo_untrusted_values() {
         (
             McpToolBoundaryError::UnsupportedMethod,
             "only MCP tools/call requests can enter the typed action boundary",
+        ),
+        (
+            McpToolBoundaryError::InvalidMethod,
+            "MCP method violates the bounded ASCII routing syntax",
         ),
         (
             McpToolBoundaryError::InvalidToolName,
