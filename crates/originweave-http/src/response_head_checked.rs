@@ -5,10 +5,12 @@
 //! informational-response limit, and protocol-upgrade behavior.
 
 use crate::field::FieldBlock;
-use crate::response_head_raw::{self, HeadParseResult};
+use crate::response_head_raw;
 use crate::{HttpClientPolicy, HttpError};
 
-pub(crate) use crate::response_head_raw::{FinalHeadParseResult, ResponseHead};
+pub(crate) use crate::response_head_raw::{
+    FinalHeadParseResult, HeadParseResult, ResponseHead, parse_response_head,
+};
 
 pub(crate) fn parse_final_response_head(
     input: &[u8],
