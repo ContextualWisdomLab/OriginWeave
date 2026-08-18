@@ -412,10 +412,9 @@ fn looks_like_html(input: &[u8]) -> bool {
     ];
     SIGNATURES.iter().any(|signature| {
         starts_ascii_case_insensitive(input, signature)
-            && (!matches!(*signature, b"<a" | b"<b" | b"<p")
-                || input
-                    .get(signature.len())
-                    .is_some_and(|next| next.is_ascii_whitespace() || *next == b'>'))
+            && input
+                .get(signature.len())
+                .is_some_and(|next| matches!(*next, b' ' | b'>'))
     })
 }
 
