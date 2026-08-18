@@ -1,8 +1,6 @@
 use std::error::Error;
 
-use originweave_core::{
-    BoundedWebDriverBiDiResponseDocument, WebDriverBiDiErrorCode,
-};
+use originweave_core::{BoundedWebDriverBiDiResponseDocument, WebDriverBiDiErrorCode};
 
 #[test]
 fn parsed_error_envelope_retains_typed_error_code() -> Result<(), Box<dyn Error>> {
