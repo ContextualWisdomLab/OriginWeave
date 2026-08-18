@@ -9,18 +9,15 @@ use originweave_core::{
 
 #[test]
 fn parser_classifies_exact_success_and_nullable_error_envelopes() -> Result<(), Box<dyn Error>> {
-    let success_raw =
-        " {\"type\":\"success\",\"id\":42,\"result\":{\"nodes\":[]}}\r\n";
-    let success = BoundedWebDriverBiDiResponseDocument::new(success_raw)?
-        .parse_command_response()?;
+    let success_raw = " {\"type\":\"success\",\"id\":42,\"result\":{\"nodes\":[]}}\r\n";
+    let success =
+        BoundedWebDriverBiDiResponseDocument::new(success_raw)?.parse_command_response()?;
     assert_eq!(success.kind(), WebDriverBiDiCommandResponseKind::Success);
     assert_eq!(success.response_id(), Some(42));
     assert_eq!(success.as_str(), success_raw);
 
-    let error_raw =
-        "{\"type\":\"error\",\"id\":null,\"error\":\"invalid argument\",\"message\":\"bad request\"}";
-    let error = BoundedWebDriverBiDiResponseDocument::new(error_raw)?
-        .parse_command_response()?;
+    let error_raw = "{\"type\":\"error\",\"id\":null,\"error\":\"invalid argument\",\"message\":\"bad request\"}";
+    let error = BoundedWebDriverBiDiResponseDocument::new(error_raw)?.parse_command_response()?;
     assert_eq!(error.kind(), WebDriverBiDiCommandResponseKind::Error);
     assert_eq!(error.response_id(), None);
     assert_eq!(error.as_str(), error_raw);
@@ -34,8 +31,7 @@ fn parser_accepts_extensible_fields_only_when_the_complete_json_is_valid()
         "{\"vendor\":{\"nested\":[true,false,null,{\"text\":\"a\\\\b\\\"c\\u263a\"}]},",
         "\"id\":7,\"result\":{},\"type\":\"success\"}"
     );
-    let parsed = BoundedWebDriverBiDiResponseDocument::new(raw)?
-        .parse_command_response()?;
+    let parsed = BoundedWebDriverBiDiResponseDocument::new(raw)?.parse_command_response()?;
     assert_eq!(parsed.response_id(), Some(7));
 
     for malformed in [
@@ -81,8 +77,7 @@ fn parser_rejects_missing_duplicate_or_unexpected_response_discriminators()
 }
 
 #[test]
-fn parser_requires_a_present_protocol_range_id_and_success_result()
--> Result<(), Box<dyn Error>> {
+fn parser_requires_a_present_protocol_range_id_and_success_result() -> Result<(), Box<dyn Error>> {
     for (raw, expected) in [
         (
             "{\"type\":\"success\",\"result\":{}}",
@@ -125,9 +120,8 @@ fn parser_requires_a_present_protocol_range_id_and_success_result()
         assert_eq!(document.parse_command_response(), Err(expected));
     }
 
-    let maximum = format!(
-        "{{\"type\":\"success\",\"id\":{MAX_WEBDRIVER_BIDI_COMMAND_ID},\"result\":{{}}}}"
-    );
+    let maximum =
+        format!("{{\"type\":\"success\",\"id\":{MAX_WEBDRIVER_BIDI_COMMAND_ID},\"result\":{{}}}}");
     assert_eq!(
         BoundedWebDriverBiDiResponseDocument::new(&maximum)?
             .parse_command_response()?
@@ -192,8 +186,7 @@ fn parser_enforces_top_level_field_and_json_depth_budgets() -> Result<(), Box<dy
     fields.push("\"overflow\":null".to_owned());
     let over_fields = format!("{{{}}}", fields.join(","));
     assert_eq!(
-        BoundedWebDriverBiDiResponseDocument::new(&over_fields)?
-            .parse_command_response(),
+        BoundedWebDriverBiDiResponseDocument::new(&over_fields)?.parse_command_response(),
         Err(WebDriverBiDiResponseEnvelopeParseError::TopLevelFieldCountExceeded)
     );
 
@@ -214,8 +207,7 @@ fn parser_enforces_top_level_field_and_json_depth_budgets() -> Result<(), Box<dy
         "]".repeat(MAX_WEBDRIVER_BIDI_RESPONSE_JSON_DEPTH - 1)
     );
     assert_eq!(
-        BoundedWebDriverBiDiResponseDocument::new(&over_nested)?
-            .parse_command_response(),
+        BoundedWebDriverBiDiResponseDocument::new(&over_nested)?.parse_command_response(),
         Err(WebDriverBiDiResponseEnvelopeParseError::JsonDepthExceeded)
     );
     Ok(())
