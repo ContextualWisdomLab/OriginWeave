@@ -130,6 +130,28 @@ fn ikev2_identity_rejects_ascii_control_characters_before_secret_import() {
 }
 
 #[test]
+fn ikev2_identity_rejects_unicode_presentation_controls_before_secret_import() {
+    for identity_lines in [
+        "RemoteId=remote\u{202e}id\n",
+        "LocalId=local\u{2066}id\n",
+        "RemoteId=remote\u{200b}id\n",
+    ] {
+        assert_ikev2_invalid_without_import("vpn.example", identity_lines);
+    }
+
+    let profile = "[IKEv2]\nServer=vpn.example\nAuth=eap\nUsername=user\u{feff}name\nPassword=p\nProposal=aes256gcm16-prfsha256-ecp256\nTrafficSelectors=10.0.0.0/8\n";
+    let mut importer = CountingImporter::default();
+    assert_eq!(
+        parse_ikev2_profile(profile, &mut importer),
+        Err(ProfileError::InvalidValue)
+    );
+    assert_eq!(
+        importer.0, 0,
+        "presentation-controlled username reached caller importer"
+    );
+}
+
+#[test]
 fn ikev2_identity_fields_are_explicitly_bounded_before_secret_import() {
     let overlong_identity = "a".repeat(254);
     assert_ikev2_invalid_without_import("vpn.example", &format!("RemoteId={overlong_identity}\n"));
