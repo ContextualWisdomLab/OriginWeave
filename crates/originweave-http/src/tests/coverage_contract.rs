@@ -133,7 +133,7 @@ fn mime_parser_rejects_every_ambiguous_syntax_class_and_classifies_signatures() 
     ));
     assert!(matches!(
         no_sniff_status(&fields(&[("x-content-type-options", b"nosniff, other")])),
-        Err(HttpError::InvalidMimeType)
+        Err(HttpError::InvalidNoSniffDirective)
     ));
 
     let javascript = MimeType::parse(b"text/javascript").expect("JS MIME");
