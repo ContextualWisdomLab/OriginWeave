@@ -176,12 +176,15 @@ fn wire_result_document_error_display_and_sources_cover_result_failure_variants(
         r#"{"type":"success","id":42,"result":{"nodes":[{"type":"node","sharedId":"node-a"},{"type":"node","sharedId":"node-b"}]}}"#,
     )?;
     let result = locate_nodes_command(42, 1)?.admit_response_document_nodes(over_budget);
-    match result {
-        Err(error @ WebDriverBiDiLocateNodesResponseDocumentError::ResultAdmission(_)) => {
-            assert!(!error.to_string().is_empty());
-            assert!(error.source().is_some());
+    let error = match result {
+        Err(error @ WebDriverBiDiLocateNodesResponseDocumentError::ResultAdmission(_)) => error,
+        _ => {
+            return Err(
+                "over-budget wire result must preserve result-admission error evidence".into(),
+            );
         }
-        _ => panic!("over-budget wire result must preserve result-admission error evidence"),
-    }
+    };
+    assert!(!error.to_string().is_empty());
+    assert!(error.source().is_some());
     Ok(())
 }
