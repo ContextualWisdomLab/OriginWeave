@@ -191,7 +191,7 @@ pub(crate) fn no_sniff_status(fields: &FieldBlock) -> Result<NoSniffStatus, Http
     {
         Ok(NoSniffStatus::Enabled)
     } else {
-        Err(HttpError::InvalidMimeType)
+        Err(HttpError::InvalidNoSniffDirective)
     }
 }
 
