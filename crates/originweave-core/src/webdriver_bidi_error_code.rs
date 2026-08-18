@@ -7,6 +7,7 @@ pub(crate) fn is_webdriver_bidi_error_code(value: &[u8]) -> bool {
         b"invalid web extension",
         b"move target out of bounds",
         b"no such alert",
+        b"no such client window",
         b"no such network collector",
         b"no such element",
         b"no such frame",
