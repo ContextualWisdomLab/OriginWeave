@@ -6,6 +6,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Added
 
+- Raw extension-message typed-action proposals are constructed internally as `InstructionSource::WebContent` before ordinary action-policy evaluation, while retaining exact source-origin and trusted-time extension-grant checks, so extension-produced message content cannot mint human or enterprise instruction trust or reuse a grant after origin movement or expiry.
 - Bound explicit extension-to-Agent grants to exclusive trusted-time expiry in addition to extension identity, session, browsing context, and canonical origin, so a same-origin grant cannot be reused at or after the deadline.
 - Bound explicit extension-to-Agent grants to the exact canonical origin in addition to extension identity, session, and browsing context, so a same-session navigation or port change cannot reuse the grant.
 - Exact extension typed-action proposal composition that requires the matching extension/session/context `ProposeTypedAction` grant before ordinary unchanged action-policy evaluation; extension transport cannot manufacture instruction trust, Agent capability or origin authority, secret approval, browser execution, or verified success.
