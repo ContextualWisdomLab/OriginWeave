@@ -9,22 +9,51 @@ impl WireLocateNodesNode {
     pub(super) fn as_admission_parts(&self) -> (&str, Option<&str>) {
         (self.remote_type.as_str(), self.shared_id.as_deref())
     }
+
+    fn overflow_count_marker() -> Self {
+        Self {
+            remote_type: String::new(),
+            shared_id: None,
+        }
+    }
 }
 
+#[cfg(test)]
 pub(super) fn parse_wire_locate_nodes_result(
     input: &str,
 ) -> Result<Vec<WireLocateNodesNode>, WebDriverBiDiLocateNodesResponseDocumentError> {
     ResultParser::new(input).parse()
 }
 
+pub(super) fn parse_wire_locate_nodes_result_bounded(
+    input: &str,
+    max_node_count: u16,
+) -> Result<Vec<WireLocateNodesNode>, WebDriverBiDiLocateNodesResponseDocumentError> {
+    ResultParser::with_node_budget(input, usize::from(max_node_count)).parse()
+}
+
 struct ResultParser<'input> {
     input: &'input str,
     position: usize,
+    max_node_count: Option<usize>,
 }
 
 impl<'input> ResultParser<'input> {
+    #[cfg(test)]
     const fn new(input: &'input str) -> Self {
-        Self { input, position: 0 }
+        Self {
+            input,
+            position: 0,
+            max_node_count: None,
+        }
+    }
+
+    const fn with_node_budget(input: &'input str, max_node_count: usize) -> Self {
+        Self {
+            input,
+            position: 0,
+            max_node_count: Some(max_node_count),
+        }
     }
 
     fn parse(
@@ -126,13 +155,25 @@ impl<'input> ResultParser<'input> {
         self.position += 1;
         self.skip_whitespace();
         let mut nodes = Vec::new();
+        let mut over_budget = false;
         if self.peek_byte() == Some(b']') {
             self.position += 1;
             return Ok(nodes);
         }
 
         loop {
-            nodes.push(self.parse_node()?);
+            let at_node_budget = self
+                .max_node_count
+                .is_some_and(|max_node_count| nodes.len() >= max_node_count);
+            if over_budget || at_node_budget {
+                self.skip_value()?;
+                if !over_budget {
+                    nodes.push(WireLocateNodesNode::overflow_count_marker());
+                    over_budget = true;
+                }
+            } else {
+                nodes.push(self.parse_node()?);
+            }
             self.skip_whitespace();
             match self.peek_byte() {
                 Some(b',') => {
@@ -567,6 +608,21 @@ mod tests {
         for (raw, expected) in cases {
             assert_eq!(parse_wire_locate_nodes_result(raw).err(), Some(expected));
         }
+    }
+
+    #[test]
+    fn bounded_parser_uses_one_count_marker_and_skips_overflow_node_shapes() {
+        let nodes = parse_wire_locate_nodes_result_bounded(
+            r#"{"result":{"nodes":[{"type":"node","sharedId":"node-a"},{"type":1},{"type":2}]}}"#,
+            1,
+        )
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+
+        assert_eq!(nodes.len(), 2);
+        assert_eq!(nodes[0].remote_type, "node");
+        assert_eq!(nodes[1].as_admission_parts(), ("", None));
     }
 
     #[test]
