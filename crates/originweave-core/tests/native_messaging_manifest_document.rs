@@ -56,7 +56,8 @@ fn native_messaging_manifest_document_requires_outer_object_boundary() {
 }
 
 #[test]
-fn native_messaging_manifest_document_parses_complete_authority_fields() -> Result<(), Box<dyn Error>> {
+fn native_messaging_manifest_document_parses_complete_authority_fields()
+-> Result<(), Box<dyn Error>> {
     let json = format!(
         r#"{{
             "name": "com.contextualwisdom.originweave",
@@ -70,7 +71,10 @@ fn native_messaging_manifest_document_parses_complete_authority_fields() -> Resu
     let document = NativeMessagingManifestDocument::parse(json.as_bytes())?;
     let manifest = document.parse_host_manifest(NativeMessagingHostPlatform::Linux)?;
 
-    assert_eq!(manifest.host_name().as_str(), "com.contextualwisdom.originweave");
+    assert_eq!(
+        manifest.host_name().as_str(),
+        "com.contextualwisdom.originweave"
+    );
     assert_eq!(manifest.platform(), NativeMessagingHostPlatform::Linux);
     assert_eq!(manifest.executable_path(), LINUX_HOST_PATH);
     assert_eq!(manifest.allowed_extension_count(), 1);
@@ -94,7 +98,10 @@ fn native_messaging_manifest_document_decodes_json_string_escapes_before_validat
     let document = NativeMessagingManifestDocument::parse(json.as_bytes())?;
     let manifest = document.parse_host_manifest(NativeMessagingHostPlatform::Linux)?;
 
-    assert_eq!(manifest.host_name().as_str(), "com.contextualwisdom.originweave");
+    assert_eq!(
+        manifest.host_name().as_str(),
+        "com.contextualwisdom.originweave"
+    );
     assert_eq!(manifest.executable_path(), LINUX_HOST_PATH);
     assert!(!manifest.supports_native_initiated_connections());
     Ok(())
