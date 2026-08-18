@@ -437,7 +437,20 @@ fn validate_gateway_host(value: &str) -> Result<&str, ProfileError> {
 }
 
 fn validate_ike_identity(value: &str) -> Result<&str, ProfileError> {
-    if value.len() > MAX_IKE_IDENTITY_BYTES || value.chars().any(char::is_control) {
+    if value.len() > MAX_IKE_IDENTITY_BYTES
+        || value.chars().any(|character| {
+            character.is_control()
+                || matches!(
+                    character,
+                    '\u{00ad}'
+                        | '\u{061c}'
+                        | '\u{200b}'..='\u{200f}'
+                        | '\u{202a}'..='\u{202e}'
+                        | '\u{2060}'..='\u{206f}'
+                        | '\u{feff}'
+                )
+        })
+    {
         return Err(ProfileError::InvalidValue);
     }
     Ok(value)
