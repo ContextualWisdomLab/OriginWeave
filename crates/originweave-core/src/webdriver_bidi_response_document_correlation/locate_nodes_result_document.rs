@@ -455,3 +455,182 @@ impl<'input> ResultParser<'input> {
         self.input.get(self.position).copied()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const INVARIANT: WebDriverBiDiLocateNodesResponseDocumentError =
+        WebDriverBiDiLocateNodesResponseDocumentError::ResultParserInvariant;
+
+    #[test]
+    fn second_pass_parser_covers_valid_skipped_value_and_escape_shapes() {
+        let raw = concat!(
+            " \n{\t\"metadata\": [true,false,null,{\"a\":1,\"b\":2}],",
+            "\"result\":{",
+            "\"emptyObject\":{},\"emptyArray\":[],",
+            "\"object\":{\"first\":1,\"second\":2},",
+            "\"array\":[true,false,null],",
+            "\"escaped\":\"\\\"\\\\\\/\\b\\f\\n\\r\\t\",",
+            "\"number\":-1.25e+2,\"truth\":true,\"falsehood\":false,\"nothing\":null,",
+            "\"nodes\":[{",
+            "\"ignored\":{\"nested\":[1,2]},",
+            "\"type\":\"no\\u0064e\",",
+            "\"sharedId\":\"node-\\u0041-\\u00E9-\\u263A-\\uD83D\\uDE00-\\u00af-\\u00AF\"",
+            "}]}}"
+        );
+        let nodes = parse_wire_locate_nodes_result(raw)
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+
+        assert_eq!(nodes.len(), 1);
+        assert_eq!(nodes[0].remote_type, "node");
+        assert_eq!(nodes[0].shared_id.as_deref(), Some("node-A-é-☺-😀-¯-¯"));
+    }
+
+    #[test]
+    fn second_pass_parser_rejects_structural_and_typed_result_faults() {
+        let cases = [
+            ("", INVARIANT),
+            ("{}", INVARIANT),
+            (r#"{"metadata":0}"#, INVARIANT),
+            (r#"{"metadata":0]"#, INVARIANT),
+            (r#"{"metadata" 0,"result":{"nodes":[]}}"#, INVARIANT),
+            (r#"{metadata:0,"result":{"nodes":[]}}"#, INVARIANT),
+            (
+                r#"{"result":[]}"#,
+                WebDriverBiDiLocateNodesResponseDocumentError::InvalidResultNodes,
+            ),
+            (
+                r#"{"result":{}}"#,
+                WebDriverBiDiLocateNodesResponseDocumentError::MissingResultNodes,
+            ),
+            (
+                r#"{"result":{"other":0}}"#,
+                WebDriverBiDiLocateNodesResponseDocumentError::MissingResultNodes,
+            ),
+            (
+                r#"{"result":{"nodes":0}}"#,
+                WebDriverBiDiLocateNodesResponseDocumentError::InvalidResultNodes,
+            ),
+            (
+                r#"{"result":{"nodes":[0]}}"#,
+                WebDriverBiDiLocateNodesResponseDocumentError::InvalidResultNode,
+            ),
+            (
+                r#"{"result":{"nodes":[{}]}}"#,
+                WebDriverBiDiLocateNodesResponseDocumentError::MissingResultNodeType,
+            ),
+            (
+                r#"{"result":{"nodes":[{"sharedId":"node-a"}]}}"#,
+                WebDriverBiDiLocateNodesResponseDocumentError::MissingResultNodeType,
+            ),
+            (
+                r#"{"result":{"nodes":[{"type":0}]}}"#,
+                WebDriverBiDiLocateNodesResponseDocumentError::InvalidResultNodeType,
+            ),
+            (
+                r#"{"result":{"nodes":[{"type":"node","sharedId":0}]}}"#,
+                WebDriverBiDiLocateNodesResponseDocumentError::InvalidResultNodeSharedId,
+            ),
+            (
+                r#"{"result":{"nodes":[],"nodes":[]}}"#,
+                WebDriverBiDiLocateNodesResponseDocumentError::DuplicateResultNodes,
+            ),
+            (
+                r#"{"result":{"nodes":[{"type":"node","type":"node"}]}}"#,
+                WebDriverBiDiLocateNodesResponseDocumentError::DuplicateResultNodeField,
+            ),
+            (
+                r#"{"result":{"nodes":[{"type":"node","sharedId":"a","sharedId":"b"}]}}"#,
+                WebDriverBiDiLocateNodesResponseDocumentError::DuplicateResultNodeField,
+            ),
+            (r#"{"result":{"nodes":[] "other":0}}"#, INVARIANT),
+            (r#"{"result":{"nodes":[{"type":"node"} 0]}}"#, INVARIANT),
+            (
+                r#"{"result":{"nodes":[{"type":"node" "sharedId":"node-a"}]}}"#,
+                INVARIANT,
+            ),
+        ];
+
+        for (raw, expected) in cases {
+            assert_eq!(parse_wire_locate_nodes_result(raw), Err(expected));
+        }
+    }
+
+    #[test]
+    fn skip_helpers_cover_empty_nonempty_and_malformed_containers() {
+        let mut empty_object = ResultParser::new("{}");
+        assert_eq!(empty_object.skip_object(), Ok(()));
+
+        let mut object = ResultParser::new(r#"{"a":0,"b":1}"#);
+        assert_eq!(object.skip_object(), Ok(()));
+
+        let mut malformed_object = ResultParser::new(r#"{"a":0 "b":1}"#);
+        assert_eq!(malformed_object.skip_object(), Err(INVARIANT));
+
+        let mut empty_array = ResultParser::new("[]");
+        assert_eq!(empty_array.skip_array(), Ok(()));
+
+        let mut array = ResultParser::new("[0,1]");
+        assert_eq!(array.skip_array(), Ok(()));
+
+        let mut malformed_array = ResultParser::new("[0 1]");
+        assert_eq!(malformed_array.skip_array(), Err(INVARIANT));
+
+        let mut unknown = ResultParser::new("?");
+        assert_eq!(unknown.skip_value(), Err(INVARIANT));
+
+        let mut empty_number = ResultParser::new("");
+        assert_eq!(empty_number.skip_number(), Err(INVARIANT));
+
+        let mut terminal_number = ResultParser::new("123");
+        assert_eq!(terminal_number.skip_number(), Ok(()));
+        assert_eq!(terminal_number.peek_byte(), None);
+
+        let mut truncated_literal = ResultParser::new("tru");
+        assert_eq!(truncated_literal.skip_literal(b"true"), Err(INVARIANT));
+    }
+
+    #[test]
+    fn string_decoder_rejects_all_second_pass_escape_invariants() {
+        let mut missing_open_quote = ResultParser::new("plain");
+        assert_eq!(missing_open_quote.parse_string(), Err(INVARIANT));
+
+        let mut unterminated = ResultParser::new("\"plain");
+        assert_eq!(unterminated.parse_string(), Err(INVARIANT));
+
+        let control_bytes = [b'\"', 0x01, b'\"'];
+        let mut control = ResultParser {
+            input: &control_bytes,
+            position: 0,
+        };
+        assert_eq!(control.parse_string(), Err(INVARIANT));
+
+        let invalid_utf8_bytes = [b'\"', 0xff, b'\"'];
+        let mut invalid_utf8 = ResultParser {
+            input: &invalid_utf8_bytes,
+            position: 0,
+        };
+        assert_eq!(invalid_utf8.parse_string(), Err(INVARIANT));
+
+        let mut missing_escape = ResultParser::new("\"\\");
+        assert_eq!(missing_escape.parse_string(), Err(INVARIANT));
+
+        let mut invalid_escape = ResultParser::new(r#""\x""#);
+        assert_eq!(invalid_escape.parse_string(), Err(INVARIANT));
+
+        for raw in [
+            r#""\uD83D""#,
+            r#""\uD83D\x0000""#,
+            r#""\uD83D\u0041""#,
+            r#""\uDE00""#,
+            r#""\u12""#,
+            r#""\u00G0""#,
+        ] {
+            let mut parser = ResultParser::new(raw);
+            assert_eq!(parser.parse_string(), Err(INVARIANT));
+        }
+    }
+}
