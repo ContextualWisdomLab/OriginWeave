@@ -38,9 +38,6 @@ fn every_html_tag_signature_requires_tag_termination() {
     ] {
         let observed = classify_observed_mime(content, None);
         assert_eq!(observed.mime_type().essence(), "text/html");
-        assert_eq!(
-            observed.risk_class(),
-            ContentRiskClass::ActiveOrScriptable
-        );
+        assert_eq!(observed.risk_class(), ContentRiskClass::ActiveOrScriptable);
     }
 }
