@@ -59,7 +59,10 @@ mod request;
 #[cfg(test)]
 #[path = "tests/response_debug_runtime_contract.rs"]
 mod response_debug_runtime_contract;
+#[path = "response_head_checked.rs"]
 mod response_head;
+#[path = "response_head.rs"]
+mod response_head_raw;
 #[cfg(test)]
 #[path = "tests/security_contract.rs"]
 mod security_contract;
