@@ -128,7 +128,7 @@ fn content_type_and_nosniff_fields_are_single_and_strict() {
     ));
     assert!(matches!(
         no_sniff_status(&fields(&[("x-content-type-options", b"other")])),
-        Err(HttpError::InvalidMimeType)
+        Err(HttpError::InvalidNoSniffDirective)
     ));
 }
 
