@@ -400,9 +400,6 @@ impl<'input> ResultParser<'input> {
             }
             0x1_0000 + (((u32::from(first) - 0xd800) << 10) | (u32::from(second) - 0xdc00))
         } else {
-            if (0xdc00..=0xdfff).contains(&first) {
-                return Err(WebDriverBiDiLocateNodesResponseDocumentError::ResultParserInvariant);
-            }
             u32::from(first)
         };
         let character = char::from_u32(scalar)
@@ -552,6 +549,21 @@ mod tests {
                 r#"{"result":{"nodes":[{"type":"node" "sharedId":"node-a"}]}}"#,
                 INVARIANT,
             ),
+            (r#"{"metadata":?,"result":{"nodes":[]}}"#, INVARIANT),
+            (r#"{"result":{?}}"#, INVARIANT),
+            (r#"{"result":{"nodes" []}}"#, INVARIANT),
+            (r#"{"result":{"other":?,"nodes":[]}}"#, INVARIANT),
+            (r#"{"result":{"nodes":[{?}]}}"#, INVARIANT),
+            (r#"{"result":{"nodes":[{"type" "node"}]}}"#, INVARIANT),
+            (r#"{"result":{"nodes":[{"type":"\x"}]}}"#, INVARIANT),
+            (
+                r#"{"result":{"nodes":[{"type":"node","sharedId":"\x"}]}}"#,
+                INVARIANT,
+            ),
+            (
+                r#"{"result":{"nodes":[{"ignored":?,"type":"node"}]}}"#,
+                INVARIANT,
+            ),
         ];
 
         for (raw, expected) in cases {
@@ -592,6 +604,27 @@ mod tests {
         assert_eq!(terminal_number.skip_number(), Ok(()));
         assert_eq!(terminal_number.peek_byte(), None);
 
+        let mut malformed_string_value = ResultParser::new(r#""\x""#);
+        assert_eq!(malformed_string_value.skip_value(), Err(INVARIANT));
+
+        let mut wrong_object_opener = ResultParser::new("[]");
+        assert_eq!(wrong_object_opener.skip_object(), Err(INVARIANT));
+
+        let mut malformed_object_key = ResultParser::new("{?}");
+        assert_eq!(malformed_object_key.skip_object(), Err(INVARIANT));
+
+        let mut missing_object_colon = ResultParser::new(r#"{"a" 0}"#);
+        assert_eq!(missing_object_colon.skip_object(), Err(INVARIANT));
+
+        let mut malformed_object_value = ResultParser::new(r#"{"a":?}"#);
+        assert_eq!(malformed_object_value.skip_object(), Err(INVARIANT));
+
+        let mut wrong_array_opener = ResultParser::new("{}");
+        assert_eq!(wrong_array_opener.skip_array(), Err(INVARIANT));
+
+        let mut malformed_array_value = ResultParser::new("[?]");
+        assert_eq!(malformed_array_value.skip_array(), Err(INVARIANT));
+
         let mut truncated_literal = ResultParser::new("tru");
         assert_eq!(truncated_literal.skip_literal(b"true"), Err(INVARIANT));
     }
@@ -628,8 +661,10 @@ mod tests {
             r#""\uD83D""#,
             r#""\uD83D\x0000""#,
             r#""\uD83D\u0041""#,
+            "\"\\uD83D\\u12",
             r#""\uDE00""#,
             r#""\u12""#,
+            "\"\\u12",
             r#""\u00G0""#,
         ] {
             let mut parser = ResultParser::new(raw);
