@@ -68,3 +68,56 @@ fn validate_status_framing_fields(status_code: u16, fields: &FieldBlock) -> Resu
     }
     Ok(())
 }
+
+#[cfg(test)]
+#[cfg_attr(coverage_nightly, coverage(off))]
+mod tests {
+    #![allow(clippy::expect_used)]
+
+    use std::time::Duration;
+
+    use super::*;
+    use crate::{AlpnHttp11Policy, IntegrityRequirement};
+
+    fn bounded_head_policy() -> HttpClientPolicy {
+        HttpClientPolicy::new(
+            Duration::from_secs(1),
+            1_024,
+            64,
+            4,
+            16,
+            16,
+            32,
+            2,
+            16,
+            8,
+            1_024,
+            1_024,
+            1_024,
+            2,
+            AlpnHttp11Policy::RequireHttp11,
+            IntegrityRequirement::Optional,
+        )
+        .expect("bounded response-head policy")
+    }
+
+    #[test]
+    fn checked_budget_and_raw_error_propagation_are_explicit() {
+        let cumulative = b"HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 200 OK\r\n\r\n";
+        assert!(matches!(
+            parse_final_response_head(cumulative, &bounded_head_policy()),
+            Err(HttpError::HeaderSectionTooLarge {
+                byte_count: 44,
+                maximum_bytes: 32,
+            })
+        ));
+
+        assert!(matches!(
+            response_head_raw::parse_final_response_head(
+                b"HTTP/1.1 200 OK\n\n",
+                &HttpClientPolicy::strict_defaults(),
+            ),
+            Err(HttpError::InvalidResponseLineEnding)
+        ));
+    }
+}
