@@ -9,11 +9,8 @@ fn locate_nodes_command(
     command_id: u64,
     max_node_count: u16,
 ) -> Result<WebDriverBiDiLocateNodesCommand, Box<dyn Error>> {
-    let query = WebDriverBiDiAccessibilityQuery::new(
-        Some("button"),
-        Some("Submit task"),
-        max_node_count,
-    )?;
+    let query =
+        WebDriverBiDiAccessibilityQuery::new(Some("button"), Some("Submit task"), max_node_count)?;
     Ok(WebDriverBiDiLocateNodesCommand::new(
         command_id,
         "context-a",
@@ -115,7 +112,8 @@ fn wire_result_rejects_ambiguous_duplicate_result_or_node_fields() -> Result<(),
 }
 
 #[test]
-fn wire_result_decodes_json_escaped_protocol_fields_before_admission() -> Result<(), Box<dyn Error>> {
+fn wire_result_decodes_json_escaped_protocol_fields_before_admission() -> Result<(), Box<dyn Error>>
+{
     let document = BoundedWebDriverBiDiResponseDocument::new(
         r#"{"type":"success","id":42,"res\u0075lt":{"no\u0064es":[{"ty\u0070e":"no\u0064e","shared\u0049d":"node-\u03b1"}]}}"#,
     )?;
