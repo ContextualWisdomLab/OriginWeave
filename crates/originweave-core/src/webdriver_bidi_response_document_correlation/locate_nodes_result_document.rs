@@ -91,7 +91,9 @@ impl<'input> ResultParser<'input> {
             self.skip_whitespace();
             if field_name == "nodes" {
                 if nodes.is_some() {
-                    return Err(WebDriverBiDiLocateNodesResponseDocumentError::DuplicateResultNodes);
+                    return Err(
+                        WebDriverBiDiLocateNodesResponseDocumentError::DuplicateResultNodes,
+                    );
                 }
                 nodes = Some(self.parse_nodes_array()?);
             } else {
