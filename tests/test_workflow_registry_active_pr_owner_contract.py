@@ -82,6 +82,25 @@ class WorkflowRegistryActivePrOwnerContractTests(unittest.TestCase):
             },
         )
 
+    def test_disabled_active_pr_workflow_is_reported_as_operational_drift(self) -> None:
+        """PR ownership must not hide that its registry identity is disabled."""
+
+        payload = _payload()
+        payload["registry_pages"][0]["workflows"][0]["state"] = "disabled_manually"
+        evidence = self.audit.audit_workflow_registry(payload)
+        record = evidence["workflow_records"][0]
+        self.assertEqual(
+            record["classification"], "disabled_active_pr_owned_workflow"
+        )
+        self.assertFalse(record["disable_candidate"])
+        self.assertEqual(
+            record["active_pr_owner"],
+            {
+                "pull_request_number": 321,
+                "head_sha": ACTIVE_PR_HEAD,
+            },
+        )
+
     def test_nonempty_active_pr_paths_require_exact_owner_evidence(self) -> None:
         """A path string alone cannot suppress an orphan disable candidate."""
 
