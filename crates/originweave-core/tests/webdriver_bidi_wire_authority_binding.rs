@@ -71,8 +71,8 @@ fn successful_wire_document() -> Result<BoundedWebDriverBiDiResponseDocument, Bo
 }
 
 #[test]
-fn wire_response_binds_nodes_to_exact_current_authority_without_caller_selected_intermediate_result(
-) -> Result<(), Box<dyn Error>> {
+fn wire_response_binds_nodes_to_exact_current_authority_without_caller_selected_intermediate_result()
+-> Result<(), Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
     let origin = controlled_origin()?;
     let target = current_target(&mut registry, &origin, "context-a")?;
@@ -91,7 +91,8 @@ fn wire_response_binds_nodes_to_exact_current_authority_without_caller_selected_
 }
 
 #[test]
-fn wire_response_binding_preserves_current_context_authority_failure() -> Result<(), Box<dyn Error>> {
+fn wire_response_binding_preserves_current_context_authority_failure() -> Result<(), Box<dyn Error>>
+{
     let mut registry = BrowserAuthorityRegistry::new();
     let origin = controlled_origin()?;
     let target = current_target(&mut registry, &origin, "context-b")?;
@@ -111,7 +112,9 @@ fn wire_response_binding_preserves_current_context_authority_failure() -> Result
             ),
         ))
     );
-    let error = error.err().ok_or("expected exact current context failure")?;
+    let error = error
+        .err()
+        .ok_or("expected exact current context failure")?;
     assert!(error.source().is_some());
     assert!(!error.to_string().is_empty());
     Ok(())
