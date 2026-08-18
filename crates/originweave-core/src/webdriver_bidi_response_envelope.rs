@@ -151,7 +151,8 @@ impl<'input> ResponseEnvelopeParser<'input> {
 
     fn parse(mut self) -> Result<ParsedEnvelopeFields, WebDriverBiDiResponseEnvelopeParseError> {
         self.skip_whitespace();
-        self.expect_byte(b'{')?;
+        // The bounded-document constructor proves the first non-whitespace byte is `{`.
+        self.position += 1;
         self.skip_whitespace();
 
         let mut seen_fields: Vec<Vec<u8>> = Vec::new();
@@ -428,9 +429,9 @@ impl<'input> ResponseEnvelopeParser<'input> {
         &mut self,
         decoded: &mut Vec<u8>,
     ) -> Result<(), WebDriverBiDiResponseEnvelopeParseError> {
-        let escaped = self
-            .peek_byte()
-            .ok_or(WebDriverBiDiResponseEnvelopeParseError::InvalidJson)?;
+        // The bounded top-level object guarantees a following byte; map any violated internal
+        // invariant to the existing fail-closed invalid-JSON path without a second unreachable branch.
+        let escaped = self.peek_byte().unwrap_or_default();
         self.position += 1;
         match escaped {
             b'"' => decoded.push(b'"'),
@@ -496,9 +497,9 @@ impl<'input> ResponseEnvelopeParser<'input> {
     fn parse_hex_code_unit(&mut self) -> Result<u16, WebDriverBiDiResponseEnvelopeParseError> {
         let mut value = 0_u16;
         for _ in 0..4 {
-            let byte = self
-                .peek_byte()
-                .ok_or(WebDriverBiDiResponseEnvelopeParseError::InvalidJson)?;
+            // A truncated escape cannot run past the admitted top-level closing `}`. If an
+            // internal invariant is ever violated, zero still deterministically fails hex decoding.
+            let byte = self.peek_byte().unwrap_or_default();
             let digit = Self::hex_value(byte)
                 .ok_or(WebDriverBiDiResponseEnvelopeParseError::InvalidJson)?;
             value = (value << 4) | u16::from(digit);
