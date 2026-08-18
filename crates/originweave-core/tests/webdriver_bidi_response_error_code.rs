@@ -57,9 +57,15 @@ fn parser_rejects_unknown_webdriver_bidi_error_code() -> Result<(), Box<dyn Erro
         "{\"type\":\"error\",\"id\":7,\"error\":\"made up browser failure\",\"message\":\"untrusted adapter text\"}",
     )?;
 
-    let error = document
-        .parse_command_response()
-        .expect_err("unknown WebDriver BiDi error codes must fail closed");
+    let error = match document.parse_command_response() {
+        Ok(_) => {
+            return Err(std::io::Error::other(
+                "unknown WebDriver BiDi error code was unexpectedly accepted",
+            )
+            .into());
+        }
+        Err(error) => error,
+    };
     assert!(!error.to_string().is_empty());
     assert!(error.source().is_none());
     Ok(())
