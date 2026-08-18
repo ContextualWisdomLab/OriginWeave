@@ -143,8 +143,10 @@ impl WebDriverBiDiLocateNodesCommand {
     pub fn admit_response_document_nodes(
         self,
         document: BoundedWebDriverBiDiResponseDocument,
-    ) -> Result<ValidatedWebDriverBiDiLocateNodesResult, WebDriverBiDiLocateNodesResponseDocumentError>
-    {
+    ) -> Result<
+        ValidatedWebDriverBiDiLocateNodesResult,
+        WebDriverBiDiLocateNodesResponseDocumentError,
+    > {
         let parsed = document
             .parse_command_response()
             .map_err(WebDriverBiDiLocateNodesResponseDocumentError::Parse)?;
@@ -154,7 +156,8 @@ impl WebDriverBiDiLocateNodesCommand {
         let validated = correlated
             .into_validated_success()
             .map_err(WebDriverBiDiLocateNodesResponseDocumentError::Envelope)?;
-        let wire_nodes = locate_nodes_result_document::parse_wire_locate_nodes_result(parsed.as_str())?;
+        let wire_nodes =
+            locate_nodes_result_document::parse_wire_locate_nodes_result(parsed.as_str())?;
         let admission_parts = wire_nodes
             .iter()
             .map(locate_nodes_result_document::WireLocateNodesNode::as_admission_parts)
