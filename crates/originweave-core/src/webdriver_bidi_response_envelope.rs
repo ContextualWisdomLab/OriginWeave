@@ -1,6 +1,7 @@
 use std::{error::Error, fmt};
 
 use crate::{
+    webdriver_bidi_error_code::is_webdriver_bidi_error_code,
     BoundedWebDriverBiDiResponseDocument, MAX_WEBDRIVER_BIDI_COMMAND_ID,
     WebDriverBiDiCommandResponseKind,
 };
@@ -40,6 +41,8 @@ pub enum WebDriverBiDiResponseEnvelopeParseError {
     MissingRequiredPayload,
     /// A required response payload field has the wrong JSON value type.
     InvalidRequiredPayloadType,
+    /// The error response uses a string outside the current WebDriver BiDi `ErrorCode` vocabulary.
+    UnexpectedErrorCode,
 }
 
 impl fmt::Display for WebDriverBiDiResponseEnvelopeParseError {
@@ -65,6 +68,7 @@ impl fmt::Display for WebDriverBiDiResponseEnvelopeParseError {
             Self::InvalidRequiredPayloadType => {
                 "WebDriver BiDi response payload field has an invalid JSON type"
             }
+            Self::UnexpectedErrorCode => "WebDriver BiDi response error code is not recognized",
         })
     }
 }
@@ -281,12 +285,18 @@ impl<'input> ResponseEnvelopeParser<'input> {
                     .ok_or(WebDriverBiDiResponseEnvelopeParseError::MissingRequiredPayload)?;
                 let message = message
                     .ok_or(WebDriverBiDiResponseEnvelopeParseError::MissingRequiredPayload)?;
-                if !matches!(error_code, ParsedJsonValue::String(_))
-                    || !matches!(message, ParsedJsonValue::String(_))
-                {
+                let ParsedJsonValue::String(error_code) = error_code else {
                     return Err(
                         WebDriverBiDiResponseEnvelopeParseError::InvalidRequiredPayloadType,
                     );
+                };
+                if !matches!(message, ParsedJsonValue::String(_)) {
+                    return Err(
+                        WebDriverBiDiResponseEnvelopeParseError::InvalidRequiredPayloadType,
+                    );
+                }
+                if !is_webdriver_bidi_error_code(&error_code) {
+                    return Err(WebDriverBiDiResponseEnvelopeParseError::UnexpectedErrorCode);
                 }
                 if let Some(stacktrace) = stacktrace
                     && !matches!(stacktrace, ParsedJsonValue::String(_))
