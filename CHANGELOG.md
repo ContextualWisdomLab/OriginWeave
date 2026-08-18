@@ -76,5 +76,6 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - The hourly product agent has no Git metadata or repository authority. A separate post-verification publisher opens one PR and cannot approve or merge it.
 - The unprivileged OpenCode user is restricted to loopback egress during model execution, preventing runner-wide allow-listed endpoints from becoming direct source-exfiltration channels.
 - VPN profile entry points complete side-effect-free validation before caller-visible import, journal opaque references, invoke `VpnSecretImporter::discard_secret` in reverse order after a later failure, return `SecretCleanupFailed` whenever compensating cleanup cannot be proven complete, and reject whitespace/control-format characters in opaque secret references before they can enter diagnostics or normalized profiles.
+- IKEv2 `RemoteId`, `LocalId`, and EAP `Username` reject invisible and bidirectional Unicode presentation controls before any caller-visible secret import.
 
 [Unreleased]: https://github.com/ContextualWisdomLab/OriginWeave/compare/main...HEAD
