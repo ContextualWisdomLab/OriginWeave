@@ -2,7 +2,8 @@ use std::{error::Error, fmt};
 
 use crate::{
     BoundedWebDriverBiDiResponseDocument, MAX_WEBDRIVER_BIDI_COMMAND_ID,
-    WebDriverBiDiCommandResponseKind, webdriver_bidi_error_code::is_webdriver_bidi_error_code,
+    WebDriverBiDiCommandResponseKind,
+    webdriver_bidi_error_code::{WebDriverBiDiErrorCode, parse_webdriver_bidi_error_code},
 };
 
 /// Maximum accepted JSON container nesting depth for one WebDriver BiDi response document.
@@ -77,14 +78,16 @@ impl Error for WebDriverBiDiResponseEnvelopeParseError {}
 /// Typed evidence that one bounded raw document is a syntactically valid WebDriver BiDi command
 /// response envelope.
 ///
-/// The value retains the exact admitted wire text and exposes only the command-response kind and
-/// parsed response identifier needed by later correlation. Parsing does not authenticate a browser
-/// or transport and does not grant browser, node, policy, or Agent authority.
+/// The value retains the exact admitted wire text, command-response kind, parsed response
+/// identifier, and the typed protocol error code for an error response. Parsing does not
+/// authenticate a browser or transport and does not grant browser, node, policy, or Agent
+/// authority.
 #[derive(Debug, PartialEq, Eq)]
 pub struct ParsedWebDriverBiDiCommandResponseEnvelope {
     document: BoundedWebDriverBiDiResponseDocument,
     kind: WebDriverBiDiCommandResponseKind,
     response_id: Option<u64>,
+    error_code: Option<WebDriverBiDiErrorCode>,
 }
 
 impl ParsedWebDriverBiDiCommandResponseEnvelope {
@@ -101,6 +104,16 @@ impl ParsedWebDriverBiDiCommandResponseEnvelope {
         self.response_id
     }
 
+    /// Returns the typed protocol error code, or `None` for a success response.
+    ///
+    /// The value is derived from the same decoded top-level `error` field that passed complete
+    /// envelope validation; callers therefore do not need to reparse untrusted wire text merely to
+    /// classify a recoverable protocol failure.
+    #[must_use]
+    pub const fn error_code(&self) -> Option<WebDriverBiDiErrorCode> {
+        self.error_code
+    }
+
     /// Returns the exact bounded wire text from which this envelope evidence was parsed.
     #[must_use]
     pub fn as_str(&self) -> &str {
@@ -112,8 +125,9 @@ impl BoundedWebDriverBiDiResponseDocument {
     /// Parses this already-bounded raw document into typed command-response envelope evidence.
     ///
     /// Complete JSON syntax, decoded top-level field uniqueness, response-kind requirements,
-    /// protocol-range response identifiers, and explicit parser resource budgets are enforced
-    /// before the value can be used by a later correlation boundary.
+    /// protocol-range response identifiers, typed current error-code classification, and explicit
+    /// parser resource budgets are enforced before the value can be used by a later correlation
+    /// boundary.
     pub fn parse_command_response(
         self,
     ) -> Result<ParsedWebDriverBiDiCommandResponseEnvelope, WebDriverBiDiResponseEnvelopeParseError>
@@ -123,6 +137,7 @@ impl BoundedWebDriverBiDiResponseDocument {
             document: self,
             kind: parsed.kind,
             response_id: parsed.response_id,
+            error_code: parsed.error_code,
         })
     }
 }
@@ -140,6 +155,7 @@ enum ParsedJsonValue {
 struct ParsedEnvelopeFields {
     kind: WebDriverBiDiCommandResponseKind,
     response_id: Option<u64>,
+    error_code: Option<WebDriverBiDiErrorCode>,
 }
 
 struct ResponseEnvelopeParser<'input> {
@@ -218,9 +234,14 @@ impl<'input> ResponseEnvelopeParser<'input> {
 
         let kind = Self::parse_response_type(response_type)?;
         let response_id = Self::parse_response_id(response_id, kind)?;
-        Self::validate_required_payload(kind, result, error_code, message, stacktrace)?;
+        let error_code =
+            Self::validate_required_payload(kind, result, error_code, message, stacktrace)?;
 
-        Ok(ParsedEnvelopeFields { kind, response_id })
+        Ok(ParsedEnvelopeFields {
+            kind,
+            response_id,
+            error_code,
+        })
     }
 
     fn parse_response_type(
@@ -268,7 +289,7 @@ impl<'input> ResponseEnvelopeParser<'input> {
         error_code: Option<ParsedJsonValue>,
         message: Option<ParsedJsonValue>,
         stacktrace: Option<ParsedJsonValue>,
-    ) -> Result<(), WebDriverBiDiResponseEnvelopeParseError> {
+    ) -> Result<Option<WebDriverBiDiErrorCode>, WebDriverBiDiResponseEnvelopeParseError> {
         match kind {
             WebDriverBiDiCommandResponseKind::Success => {
                 let result = result
@@ -278,6 +299,7 @@ impl<'input> ResponseEnvelopeParser<'input> {
                         WebDriverBiDiResponseEnvelopeParseError::InvalidRequiredPayloadType,
                     );
                 }
+                Ok(None)
             }
             WebDriverBiDiCommandResponseKind::Error => {
                 let error_code = error_code
@@ -294,9 +316,8 @@ impl<'input> ResponseEnvelopeParser<'input> {
                         WebDriverBiDiResponseEnvelopeParseError::InvalidRequiredPayloadType,
                     );
                 }
-                if !is_webdriver_bidi_error_code(&error_code) {
-                    return Err(WebDriverBiDiResponseEnvelopeParseError::UnexpectedErrorCode);
-                }
+                let error_code = parse_webdriver_bidi_error_code(&error_code)
+                    .ok_or(WebDriverBiDiResponseEnvelopeParseError::UnexpectedErrorCode)?;
                 if let Some(stacktrace) = stacktrace
                     && !matches!(stacktrace, ParsedJsonValue::String(_))
                 {
@@ -304,9 +325,9 @@ impl<'input> ResponseEnvelopeParser<'input> {
                         WebDriverBiDiResponseEnvelopeParseError::InvalidRequiredPayloadType,
                     );
                 }
+                Ok(Some(error_code))
             }
         }
-        Ok(())
     }
 
     fn parse_value(

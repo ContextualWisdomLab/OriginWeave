@@ -74,6 +74,7 @@ pub use webdriver_bidi_command::{
     WebDriverBiDiLocateNodesResponseCorrelationError,
     WebDriverBiDiLocateNodesResponseEnvelopeError,
 };
+pub use webdriver_bidi_error_code::WebDriverBiDiErrorCode;
 pub use webdriver_bidi_response_document::{
     BoundedWebDriverBiDiResponseDocument, MAX_WEBDRIVER_BIDI_RESPONSE_DOCUMENT_BYTES,
     WebDriverBiDiResponseDocumentAdmissionError,
