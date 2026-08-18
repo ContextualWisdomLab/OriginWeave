@@ -202,6 +202,26 @@ fn mcp_route_bounds_each_untrusted_method_before_cross_field_comparison() {
     assert_eq!(
         ValidatedMcpToolCall::new(
             MCP_PROTOCOL_VERSION,
+            "",
+            "originweave.observe",
+            MCP_TOOLS_CALL_METHOD,
+            "originweave.observe",
+        ),
+        Err(McpToolBoundaryError::InvalidMethod)
+    );
+    assert_eq!(
+        ValidatedMcpToolCall::new(
+            MCP_PROTOCOL_VERSION,
+            MCP_TOOLS_CALL_METHOD,
+            "originweave.observe",
+            "",
+            "originweave.observe",
+        ),
+        Err(McpToolBoundaryError::InvalidMethod)
+    );
+    assert_eq!(
+        ValidatedMcpToolCall::new(
+            MCP_PROTOCOL_VERSION,
             &oversized_routing,
             "originweave.observe",
             MCP_TOOLS_CALL_METHOD,
