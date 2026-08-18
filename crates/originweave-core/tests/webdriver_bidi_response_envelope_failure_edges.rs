@@ -2,7 +2,7 @@ use std::error::Error;
 
 use originweave_core::{
     BoundedWebDriverBiDiResponseDocument, MAX_WEBDRIVER_BIDI_RESPONSE_JSON_DEPTH,
-    WebDriverBiDiResponseEnvelopeParseError,
+    WebDriverBiDiResponseDocumentAdmissionError, WebDriverBiDiResponseEnvelopeParseError,
 };
 
 fn assert_invalid_json(raw: &str) -> Result<(), Box<dyn Error>> {
@@ -15,9 +15,17 @@ fn assert_invalid_json(raw: &str) -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
-fn parser_rejects_non_object_and_truncated_literal_documents() -> Result<(), Box<dyn Error>> {
+fn non_object_response_stops_at_document_admission_before_parser() {
+    let error = BoundedWebDriverBiDiResponseDocument::new("[]").unwrap_err();
+    assert_eq!(
+        error,
+        WebDriverBiDiResponseDocumentAdmissionError::InvalidObjectBoundary
+    );
+}
+
+#[test]
+fn parser_rejects_truncated_literal_documents() -> Result<(), Box<dyn Error>> {
     for raw in [
-        "[]",
         r#"{"type":"success","id":1,"result":{},"x":falsX}"#,
         r#"{"type":"success","id":1,"result":{},"x":nulX}"#,
     ] {
@@ -27,11 +35,11 @@ fn parser_rejects_non_object_and_truncated_literal_documents() -> Result<(), Box
 }
 
 #[test]
-fn parser_rejects_truncated_escape_and_unicode_code_units() -> Result<(), Box<dyn Error>> {
+fn parser_rejects_malformed_escape_and_unicode_code_units() -> Result<(), Box<dyn Error>> {
     for raw in [
-        r#"{"type":"success","id":1,"result":{},"x":"\"#,
-        r#"{"type":"success","id":1,"result":{},"x":"\u12"#,
-        r#"{"type":"success","id":1,"result":{},"x":"\uD83D\u"#,
+        r#"{"type":"success","id":1,"result":{},"x":"\q"}"#,
+        r#"{"type":"success","id":1,"result":{},"x":"\u12G4"}"#,
+        r#"{"type":"success","id":1,"result":{},"x":"\uD83D\u12G4"}"#,
     ] {
         assert_invalid_json(raw)?;
     }
