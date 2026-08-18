@@ -1,9 +1,8 @@
 use std::{error::Error, fmt};
 
 use crate::{
-    webdriver_bidi_error_code::is_webdriver_bidi_error_code,
     BoundedWebDriverBiDiResponseDocument, MAX_WEBDRIVER_BIDI_COMMAND_ID,
-    WebDriverBiDiCommandResponseKind,
+    WebDriverBiDiCommandResponseKind, webdriver_bidi_error_code::is_webdriver_bidi_error_code,
 };
 
 /// Maximum accepted JSON container nesting depth for one WebDriver BiDi response document.
