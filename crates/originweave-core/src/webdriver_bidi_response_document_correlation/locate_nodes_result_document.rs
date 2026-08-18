@@ -555,7 +555,10 @@ mod tests {
         ];
 
         for (raw, expected) in cases {
-            assert_eq!(parse_wire_locate_nodes_result(raw), Err(expected));
+            assert!(matches!(
+                parse_wire_locate_nodes_result(raw),
+                Err(error) if error == expected
+            ));
         }
     }
 
