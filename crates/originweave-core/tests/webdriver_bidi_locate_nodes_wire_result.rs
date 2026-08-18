@@ -22,7 +22,7 @@ fn locate_nodes_command(
 fn bounded_locate_nodes_document_admits_exact_wire_nodes_without_caller_selected_payload()
 -> Result<(), Box<dyn Error>> {
     let document = BoundedWebDriverBiDiResponseDocument::new(
-        r#"{"type":"success","id":42,"result":{"nodes":[{"type":"node","sharedId":"node-a"},{"type":"node","sharedId":"node-b","value":{"nodeType":1}}]}}"#,
+        r#"{"type":"success","id":42,"result":{"ignored":[true,false,null],"nodes":[{"type":"node","sharedId":"node-a"},{"type":"node","sharedId":"node-b","value":{"nodeType":1}}]}}"#,
     )?;
     let admitted = locate_nodes_command(42, 2)?.admit_response_document_nodes(document)?;
 
