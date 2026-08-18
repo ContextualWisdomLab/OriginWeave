@@ -283,12 +283,12 @@ impl<'input> ResponseEnvelopeParser<'input> {
                         WebDriverBiDiResponseEnvelopeParseError::InvalidRequiredPayloadType,
                     );
                 }
-                if let Some(stacktrace) = stacktrace {
-                    if !matches!(stacktrace, ParsedJsonValue::String(_)) {
-                        return Err(
-                            WebDriverBiDiResponseEnvelopeParseError::InvalidRequiredPayloadType,
-                        );
-                    }
+                if let Some(stacktrace) = stacktrace
+                    && !matches!(stacktrace, ParsedJsonValue::String(_))
+                {
+                    return Err(
+                        WebDriverBiDiResponseEnvelopeParseError::InvalidRequiredPayloadType,
+                    );
                 }
             }
         }
