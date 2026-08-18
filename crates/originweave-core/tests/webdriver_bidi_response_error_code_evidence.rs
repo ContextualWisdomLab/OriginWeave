@@ -26,10 +26,9 @@ fn parsed_error_envelope_retains_typed_error_code() -> Result<(), Box<dyn Error>
 
 #[test]
 fn parsed_success_envelope_has_no_error_code() -> Result<(), Box<dyn Error>> {
-    let parsed = BoundedWebDriverBiDiResponseDocument::new(
-        "{\"type\":\"success\",\"id\":7,\"result\":{}}",
-    )?
-    .parse_command_response()?;
+    let parsed =
+        BoundedWebDriverBiDiResponseDocument::new("{\"type\":\"success\",\"id\":7,\"result\":{}}")?
+            .parse_command_response()?;
 
     assert_eq!(parsed.error_code(), None);
     Ok(())

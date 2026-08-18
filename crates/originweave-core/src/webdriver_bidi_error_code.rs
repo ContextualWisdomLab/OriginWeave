@@ -73,8 +73,14 @@ pub(crate) fn parse_webdriver_bidi_error_code(value: &[u8]) -> Option<WebDriverB
     const ERROR_CODES: &[(&[u8], WebDriverBiDiErrorCode)] = &[
         (b"invalid argument", WebDriverBiDiErrorCode::InvalidArgument),
         (b"invalid selector", WebDriverBiDiErrorCode::InvalidSelector),
-        (b"invalid session id", WebDriverBiDiErrorCode::InvalidSessionId),
-        (b"invalid web extension", WebDriverBiDiErrorCode::InvalidWebExtension),
+        (
+            b"invalid session id",
+            WebDriverBiDiErrorCode::InvalidSessionId,
+        ),
+        (
+            b"invalid web extension",
+            WebDriverBiDiErrorCode::InvalidWebExtension,
+        ),
         (
             b"move target out of bounds",
             WebDriverBiDiErrorCode::MoveTargetOutOfBounds,
@@ -95,14 +101,20 @@ pub(crate) fn parse_webdriver_bidi_error_code(value: &[u8]) -> Option<WebDriverB
             b"no such history entry",
             WebDriverBiDiErrorCode::NoSuchHistoryEntry,
         ),
-        (b"no such intercept", WebDriverBiDiErrorCode::NoSuchIntercept),
+        (
+            b"no such intercept",
+            WebDriverBiDiErrorCode::NoSuchIntercept,
+        ),
         (
             b"no such network data",
             WebDriverBiDiErrorCode::NoSuchNetworkData,
         ),
         (b"no such node", WebDriverBiDiErrorCode::NoSuchNode),
         (b"no such request", WebDriverBiDiErrorCode::NoSuchRequest),
-        (b"no such screencast", WebDriverBiDiErrorCode::NoSuchScreencast),
+        (
+            b"no such screencast",
+            WebDriverBiDiErrorCode::NoSuchScreencast,
+        ),
         (b"no such script", WebDriverBiDiErrorCode::NoSuchScript),
         (
             b"no such storage partition",
@@ -128,7 +140,10 @@ pub(crate) fn parse_webdriver_bidi_error_code(value: &[u8]) -> Option<WebDriverB
             b"unable to close browser",
             WebDriverBiDiErrorCode::UnableToCloseBrowser,
         ),
-        (b"unable to set cookie", WebDriverBiDiErrorCode::UnableToSetCookie),
+        (
+            b"unable to set cookie",
+            WebDriverBiDiErrorCode::UnableToSetCookie,
+        ),
         (
             b"unable to set file input",
             WebDriverBiDiErrorCode::UnableToSetFileInput,

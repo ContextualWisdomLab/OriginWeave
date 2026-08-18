@@ -5,8 +5,14 @@ use originweave_core::{BoundedWebDriverBiDiResponseDocument, WebDriverBiDiErrorC
 const CURRENT_WEBDRIVER_BIDI_ERROR_CODES: &[(&str, WebDriverBiDiErrorCode)] = &[
     ("invalid argument", WebDriverBiDiErrorCode::InvalidArgument),
     ("invalid selector", WebDriverBiDiErrorCode::InvalidSelector),
-    ("invalid session id", WebDriverBiDiErrorCode::InvalidSessionId),
-    ("invalid web extension", WebDriverBiDiErrorCode::InvalidWebExtension),
+    (
+        "invalid session id",
+        WebDriverBiDiErrorCode::InvalidSessionId,
+    ),
+    (
+        "invalid web extension",
+        WebDriverBiDiErrorCode::InvalidWebExtension,
+    ),
     (
         "move target out of bounds",
         WebDriverBiDiErrorCode::MoveTargetOutOfBounds,
@@ -34,7 +40,10 @@ const CURRENT_WEBDRIVER_BIDI_ERROR_CODES: &[(&str, WebDriverBiDiErrorCode)] = &[
     ),
     ("no such node", WebDriverBiDiErrorCode::NoSuchNode),
     ("no such request", WebDriverBiDiErrorCode::NoSuchRequest),
-    ("no such screencast", WebDriverBiDiErrorCode::NoSuchScreencast),
+    (
+        "no such screencast",
+        WebDriverBiDiErrorCode::NoSuchScreencast,
+    ),
     ("no such script", WebDriverBiDiErrorCode::NoSuchScript),
     (
         "no such storage partition",
@@ -60,7 +69,10 @@ const CURRENT_WEBDRIVER_BIDI_ERROR_CODES: &[(&str, WebDriverBiDiErrorCode)] = &[
         "unable to close browser",
         WebDriverBiDiErrorCode::UnableToCloseBrowser,
     ),
-    ("unable to set cookie", WebDriverBiDiErrorCode::UnableToSetCookie),
+    (
+        "unable to set cookie",
+        WebDriverBiDiErrorCode::UnableToSetCookie,
+    ),
     (
         "unable to set file input",
         WebDriverBiDiErrorCode::UnableToSetFileInput,
