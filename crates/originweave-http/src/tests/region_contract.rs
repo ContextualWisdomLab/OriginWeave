@@ -117,17 +117,20 @@ fn mime_classifier_exercises_every_html_signature_and_plain_text_byte_class() {
         "<div",
         "<font",
         "<table",
-        "<a>",
+        "<a",
         "<style",
         "<title",
-        "<b>",
+        "<b",
         "<body",
         "<br",
-        "<p>",
+        "<p",
         "<!--",
     ] {
-        let observed = classify_observed_mime(signature.as_bytes(), None);
-        assert_eq!(observed.mime_type().essence(), "text/html");
+        for terminator in [' ', '>'] {
+            let content = format!("{signature}{terminator}payload");
+            let observed = classify_observed_mime(content.as_bytes(), None);
+            assert_eq!(observed.mime_type().essence(), "text/html");
+        }
     }
 
     for text in ["\ttext", "\ntext", "\u{000c}text", "\rtext", " text", "é"] {
