@@ -16,11 +16,11 @@ pub use sensitive_data::{
 };
 
 use originweave_core::{
-    ActionIntentDigest, ActionKind, ActionRequest, ApprovalEvidence, ApprovalScope, BrowserSessionId,
-    BrowsingContextId, Capability, ExecutionPurpose, ExtensionAccessDecision,
+    ActionIntentDigest, ActionKind, ActionRequest, ApprovalEvidence, ApprovalScope,
+    BrowserSessionId, BrowsingContextId, Capability, ExecutionPurpose, ExtensionAccessDecision,
     ExtensionAccessRequest, ExtensionAgentCapability, ExtensionAgentGrant, ExtensionId,
-    InstructionSource, Origin, PolicyContext, RiskClass, RobotsDecision, SecretDelivery, SessionMode,
-    evaluate_extension_access,
+    InstructionSource, Origin, PolicyContext, RiskClass, RobotsDecision, SecretDelivery,
+    SessionMode, evaluate_extension_access,
 };
 
 /// The result of evaluating one typed action request.
