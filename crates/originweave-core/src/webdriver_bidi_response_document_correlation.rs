@@ -167,3 +167,25 @@ impl WebDriverBiDiLocateNodesCommand {
             .map_err(WebDriverBiDiLocateNodesResponseDocumentError::ResultAdmission)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::locate_nodes_result_document::parse_wire_locate_nodes_result;
+
+    #[test]
+    fn wire_node_admission_parts_preserve_wire_derived_metadata() {
+        let nodes = parse_wire_locate_nodes_result(concat!(
+            "{\"result\":{\"nodes\":[",
+            "{\"type\":\"node\",\"sharedId\":\"shared-1\"},",
+            "{\"type\":\"window\"}",
+            "]}}"
+        ))
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+
+        assert_eq!(nodes.len(), 2);
+        assert_eq!(nodes[0].as_admission_parts(), ("node", Some("shared-1")));
+        assert_eq!(nodes[1].as_admission_parts(), ("window", None));
+    }
+}
