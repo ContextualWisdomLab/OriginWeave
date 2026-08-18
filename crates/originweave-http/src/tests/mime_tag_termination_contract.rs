@@ -4,7 +4,9 @@ use crate::mime::classify_observed_mime;
 #[test]
 fn every_html_tag_signature_requires_tag_termination() {
     for content in [
-        b"<htmlx>not an html tag</htmlx>".as_slice(),
+        b"<html".as_slice(),
+        b"\xef\xbb\xbf \t<htmlx>not an html tag</htmlx>",
+        b"<htmlx>not an html tag</htmlx>",
         b"<headless>not a head tag</headless>",
         b"<scripture>not a script tag</scripture>",
         b"<iframed>not an iframe tag</iframed>",
