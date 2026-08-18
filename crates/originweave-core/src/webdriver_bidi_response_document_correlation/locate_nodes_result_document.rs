@@ -18,16 +18,13 @@ pub(super) fn parse_wire_locate_nodes_result(
 }
 
 struct ResultParser<'input> {
-    input: &'input [u8],
+    input: &'input str,
     position: usize,
 }
 
 impl<'input> ResultParser<'input> {
     const fn new(input: &'input str) -> Self {
-        Self {
-            input: input.as_bytes(),
-            position: 0,
-        }
+        Self { input, position: 0 }
     }
 
     fn parse(
@@ -334,21 +331,23 @@ impl<'input> ResultParser<'input> {
 
     fn parse_string(&mut self) -> Result<String, WebDriverBiDiLocateNodesResponseDocumentError> {
         self.expect_byte(b'"')?;
-        let mut decoded = Vec::new();
+        let mut decoded = String::new();
+        let mut literal_start = self.position;
         loop {
             let byte = self
                 .peek_byte()
                 .ok_or(WebDriverBiDiLocateNodesResponseDocumentError::ResultParserInvariant)?;
             match byte {
                 b'"' => {
+                    decoded.push_str(&self.input[literal_start..self.position]);
                     self.position += 1;
-                    return String::from_utf8(decoded).map_err(|_error| {
-                        WebDriverBiDiLocateNodesResponseDocumentError::ResultParserInvariant
-                    });
+                    return Ok(decoded);
                 }
                 b'\\' => {
+                    decoded.push_str(&self.input[literal_start..self.position]);
                     self.position += 1;
                     self.parse_escape(&mut decoded)?;
+                    literal_start = self.position;
                 }
                 0x00..=0x1f => {
                     return Err(
@@ -356,7 +355,6 @@ impl<'input> ResultParser<'input> {
                     );
                 }
                 _ => {
-                    decoded.push(byte);
                     self.position += 1;
                 }
             }
@@ -365,21 +363,21 @@ impl<'input> ResultParser<'input> {
 
     fn parse_escape(
         &mut self,
-        decoded: &mut Vec<u8>,
+        decoded: &mut String,
     ) -> Result<(), WebDriverBiDiLocateNodesResponseDocumentError> {
         let escaped = self
             .peek_byte()
             .ok_or(WebDriverBiDiLocateNodesResponseDocumentError::ResultParserInvariant)?;
         self.position += 1;
         match escaped {
-            b'"' => decoded.push(b'"'),
-            b'\\' => decoded.push(b'\\'),
-            b'/' => decoded.push(b'/'),
-            b'b' => decoded.push(0x08),
-            b'f' => decoded.push(0x0c),
-            b'n' => decoded.push(b'\n'),
-            b'r' => decoded.push(b'\r'),
-            b't' => decoded.push(b'\t'),
+            b'"' => decoded.push('"'),
+            b'\\' => decoded.push('\\'),
+            b'/' => decoded.push('/'),
+            b'b' => decoded.push('\u{0008}'),
+            b'f' => decoded.push('\u{000c}'),
+            b'n' => decoded.push('\n'),
+            b'r' => decoded.push('\r'),
+            b't' => decoded.push('\t'),
             b'u' => self.parse_unicode_escape(decoded)?,
             _ => return Err(WebDriverBiDiLocateNodesResponseDocumentError::ResultParserInvariant),
         }
@@ -388,7 +386,7 @@ impl<'input> ResultParser<'input> {
 
     fn parse_unicode_escape(
         &mut self,
-        decoded: &mut Vec<u8>,
+        decoded: &mut String,
     ) -> Result<(), WebDriverBiDiLocateNodesResponseDocumentError> {
         let first = self.parse_hex_quad()?;
         let scalar = if (0xd800..=0xdbff).contains(&first) {
@@ -404,8 +402,7 @@ impl<'input> ResultParser<'input> {
         };
         let character = char::from_u32(scalar)
             .ok_or(WebDriverBiDiLocateNodesResponseDocumentError::ResultParserInvariant)?;
-        let mut encoded = [0_u8; 4];
-        decoded.extend_from_slice(character.encode_utf8(&mut encoded).as_bytes());
+        decoded.push(character);
         Ok(())
     }
 
@@ -449,7 +446,7 @@ impl<'input> ResultParser<'input> {
     }
 
     fn peek_byte(&self) -> Option<u8> {
-        self.input.get(self.position).copied()
+        self.input.as_bytes().get(self.position).copied()
     }
 }
 
@@ -469,6 +466,7 @@ mod tests {
             "\"object\":{\"first\":1,\"second\":2},",
             "\"array\":[true,false,null],",
             "\"escaped\":\"\\\"\\\\\\/\\b\\f\\n\\r\\t\",",
+            "\"utf8\":\"é\",",
             "\"number\":-1.25e+2,\"truth\":true,\"falsehood\":false,\"nothing\":null,",
             "\"nodes\":[{",
             "\"ignored\":{\"nested\":[1,2]},",
@@ -567,10 +565,7 @@ mod tests {
         ];
 
         for (raw, expected) in cases {
-            assert!(matches!(
-                parse_wire_locate_nodes_result(raw),
-                Err(error) if error == expected
-            ));
+            assert_eq!(parse_wire_locate_nodes_result(raw).err(), Some(expected));
         }
     }
 
@@ -637,19 +632,8 @@ mod tests {
         let mut unterminated = ResultParser::new("\"plain");
         assert_eq!(unterminated.parse_string(), Err(INVARIANT));
 
-        let control_bytes = [b'\"', 0x01, b'\"'];
-        let mut control = ResultParser {
-            input: &control_bytes,
-            position: 0,
-        };
+        let mut control = ResultParser::new("\"\u{0001}\"");
         assert_eq!(control.parse_string(), Err(INVARIANT));
-
-        let invalid_utf8_bytes = [b'\"', 0xff, b'\"'];
-        let mut invalid_utf8 = ResultParser {
-            input: &invalid_utf8_bytes,
-            position: 0,
-        };
-        assert_eq!(invalid_utf8.parse_string(), Err(INVARIANT));
 
         let mut missing_escape = ResultParser::new("\"\\");
         assert_eq!(missing_escape.parse_string(), Err(INVARIANT));
