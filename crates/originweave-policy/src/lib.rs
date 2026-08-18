@@ -16,10 +16,11 @@ pub use sensitive_data::{
 };
 
 use originweave_core::{
-    ActionRequest, ApprovalEvidence, ApprovalScope, BrowserSessionId, BrowsingContextId,
-    Capability, ExecutionPurpose, ExtensionAccessDecision, ExtensionAccessRequest,
-    ExtensionAgentCapability, ExtensionAgentGrant, ExtensionId, InstructionSource, PolicyContext,
-    RiskClass, RobotsDecision, SecretDelivery, SessionMode, evaluate_extension_access,
+    ActionIntentDigest, ActionKind, ActionRequest, ApprovalEvidence, ApprovalScope, BrowserSessionId,
+    BrowsingContextId, Capability, ExecutionPurpose, ExtensionAccessDecision,
+    ExtensionAccessRequest, ExtensionAgentCapability, ExtensionAgentGrant, ExtensionId,
+    InstructionSource, Origin, PolicyContext, RiskClass, RobotsDecision, SecretDelivery, SessionMode,
+    evaluate_extension_access,
 };
 
 /// The result of evaluating one typed action request.
@@ -40,6 +41,41 @@ pub enum ExtensionProposalDecision {
     ExtensionAccessDenied(ExtensionAccessDecision),
     /// Proposal authority was present; this is the unchanged ordinary action-policy result.
     ActionPolicy(Decision),
+}
+
+/// A typed action proposal derived from raw extension-produced message content.
+///
+/// This value intentionally has no instruction-source field. Raw extension messages are untrusted
+/// observations regardless of the extension's Chrome permissions or OriginWeave proposal grant.
+/// A separate trusted adapter must authenticate independent human or enterprise-policy provenance
+/// before using any path that can construct a trusted [`ActionRequest`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExtensionMessageActionProposal {
+    action: ActionKind,
+    source_origin: Origin,
+    target_origin: Origin,
+    secret_delivery: SecretDelivery,
+    intent_digest: ActionIntentDigest,
+}
+
+impl ExtensionMessageActionProposal {
+    /// Construct one raw extension-message action proposal without granting instruction trust.
+    #[must_use]
+    pub const fn new(
+        action: ActionKind,
+        source_origin: Origin,
+        target_origin: Origin,
+        secret_delivery: SecretDelivery,
+        intent_digest: ActionIntentDigest,
+    ) -> Self {
+        Self {
+            action,
+            source_origin,
+            target_origin,
+            secret_delivery,
+            intent_digest,
+        }
+    }
 }
 
 /// A stable reason that policy denied an action.
@@ -111,6 +147,44 @@ pub fn evaluate_extension_action_proposal(
         return ExtensionProposalDecision::ExtensionAccessDenied(access);
     }
     ExtensionProposalDecision::ActionPolicy(evaluate(request, context))
+}
+
+/// Evaluate a raw extension-message proposal as untrusted web content.
+///
+/// Exact extension/session/context/origin/time proposal authority is checked first by
+/// [`evaluate_extension_action_proposal`]. The proposal is then converted internally into an
+/// [`ActionRequest`] whose instruction source is always [`InstructionSource::WebContent`]. The
+/// extension therefore cannot select human or enterprise instruction trust from message content.
+/// `now_epoch_seconds` must come from the trusted caller rather than extension or page content.
+/// This boundary does not authenticate an independently trusted human/policy source, parse Chrome
+/// messages, execute input, resolve secrets, or verify action success.
+#[must_use]
+pub fn evaluate_extension_message_action_proposal(
+    extension_id: &ExtensionId,
+    browser_session: BrowserSessionId,
+    browsing_context: BrowsingContextId,
+    now_epoch_seconds: u64,
+    grant: Option<&ExtensionAgentGrant>,
+    proposal: &ExtensionMessageActionProposal,
+    context: &PolicyContext,
+) -> ExtensionProposalDecision {
+    let request = ActionRequest::new(
+        proposal.action,
+        proposal.source_origin.clone(),
+        proposal.target_origin.clone(),
+        InstructionSource::WebContent,
+        proposal.secret_delivery,
+        proposal.intent_digest.clone(),
+    );
+    evaluate_extension_action_proposal(
+        extension_id,
+        browser_session,
+        browsing_context,
+        now_epoch_seconds,
+        grant,
+        &request,
+        context,
+    )
 }
 
 /// Evaluate a typed browser action against one explicit policy context.
