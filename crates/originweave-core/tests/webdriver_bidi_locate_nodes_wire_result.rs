@@ -2,7 +2,7 @@ use std::error::Error;
 
 use originweave_core::{
     BoundedWebDriverBiDiResponseDocument, WebDriverBiDiAccessibilityQuery,
-    WebDriverBiDiLocateNodesCommand,
+    WebDriverBiDiLocateNodesCommand, WebDriverBiDiLocateNodesResponseDocumentError,
 };
 
 fn locate_nodes_command(
@@ -121,5 +121,67 @@ fn wire_result_decodes_json_escaped_protocol_fields_before_admission() -> Result
 
     assert_eq!(admitted.nodes().len(), 1);
     assert_eq!(admitted.nodes()[0].shared_id(), "node-α");
+    Ok(())
+}
+
+#[test]
+fn wire_result_boundary_preserves_parse_correlation_and_success_only_failures()
+-> Result<(), Box<dyn Error>> {
+    let malformed = BoundedWebDriverBiDiResponseDocument::new(
+        r#"{"type":"success","id":42,"result":{},}"#,
+    )?;
+    assert!(matches!(
+        locate_nodes_command(42, 1)?.admit_response_document_nodes(malformed),
+        Err(WebDriverBiDiLocateNodesResponseDocumentError::Parse(_))
+    ));
+
+    let mismatched = BoundedWebDriverBiDiResponseDocument::new(
+        r#"{"type":"success","id":41,"result":{"nodes":[]}}"#,
+    )?;
+    assert!(matches!(
+        locate_nodes_command(42, 1)?.admit_response_document_nodes(mismatched),
+        Err(WebDriverBiDiLocateNodesResponseDocumentError::Envelope(_))
+    ));
+
+    let error_response = BoundedWebDriverBiDiResponseDocument::new(
+        r#"{"type":"error","id":42,"error":"invalid argument","message":"bad request"}"#,
+    )?;
+    assert!(matches!(
+        locate_nodes_command(42, 1)?.admit_response_document_nodes(error_response),
+        Err(WebDriverBiDiLocateNodesResponseDocumentError::Envelope(_))
+    ));
+    Ok(())
+}
+
+#[test]
+fn wire_result_document_error_display_and_sources_cover_result_failure_variants()
+-> Result<(), Box<dyn Error>> {
+    let source_free = [
+        WebDriverBiDiLocateNodesResponseDocumentError::MissingResultNodes,
+        WebDriverBiDiLocateNodesResponseDocumentError::InvalidResultNodes,
+        WebDriverBiDiLocateNodesResponseDocumentError::DuplicateResultNodes,
+        WebDriverBiDiLocateNodesResponseDocumentError::InvalidResultNode,
+        WebDriverBiDiLocateNodesResponseDocumentError::DuplicateResultNodeField,
+        WebDriverBiDiLocateNodesResponseDocumentError::MissingResultNodeType,
+        WebDriverBiDiLocateNodesResponseDocumentError::InvalidResultNodeType,
+        WebDriverBiDiLocateNodesResponseDocumentError::InvalidResultNodeSharedId,
+        WebDriverBiDiLocateNodesResponseDocumentError::ResultParserInvariant,
+    ];
+    for error in source_free {
+        assert!(!error.to_string().is_empty());
+        assert!(error.source().is_none());
+    }
+
+    let over_budget = BoundedWebDriverBiDiResponseDocument::new(
+        r#"{"type":"success","id":42,"result":{"nodes":[{"type":"node","sharedId":"node-a"},{"type":"node","sharedId":"node-b"}]}}"#,
+    )?;
+    let result = locate_nodes_command(42, 1)?.admit_response_document_nodes(over_budget);
+    match result {
+        Err(error @ WebDriverBiDiLocateNodesResponseDocumentError::ResultAdmission(_)) => {
+            assert!(!error.to_string().is_empty());
+            assert!(error.source().is_some());
+        }
+        _ => panic!("over-budget wire result must preserve result-admission error evidence"),
+    }
     Ok(())
 }
