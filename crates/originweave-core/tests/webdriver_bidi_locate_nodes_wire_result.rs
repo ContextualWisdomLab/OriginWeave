@@ -51,6 +51,19 @@ fn wire_result_preserves_exact_command_node_budget() -> Result<(), Box<dyn Error
 }
 
 #[test]
+fn wire_result_checks_node_budget_before_parsing_overflow_items() -> Result<(), Box<dyn Error>> {
+    let document = BoundedWebDriverBiDiResponseDocument::new(
+        r#"{"type":"success","id":42,"result":{"nodes":[{"type":"node","sharedId":"node-a"},{"type":1,"sharedId":"malformed-overflow-item"}]}}"#,
+    )?;
+
+    assert!(matches!(
+        locate_nodes_command(42, 1)?.admit_response_document_nodes(document),
+        Err(WebDriverBiDiLocateNodesResponseDocumentError::ResultAdmission(_))
+    ));
+    Ok(())
+}
+
+#[test]
 fn wire_result_rejects_missing_shared_id() -> Result<(), Box<dyn Error>> {
     let document = BoundedWebDriverBiDiResponseDocument::new(
         r#"{"type":"success","id":42,"result":{"nodes":[{"type":"node"}]}}"#,
