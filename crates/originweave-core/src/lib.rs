@@ -33,6 +33,7 @@ mod browser_registry_coverage;
 mod contracts;
 mod webdriver_bidi_command;
 mod webdriver_bidi_response_document;
+mod webdriver_bidi_response_document_correlation;
 mod webdriver_bidi_response_envelope;
 mod webdriver_bidi_result;
 
@@ -76,6 +77,7 @@ pub use webdriver_bidi_response_document::{
     BoundedWebDriverBiDiResponseDocument, MAX_WEBDRIVER_BIDI_RESPONSE_DOCUMENT_BYTES,
     WebDriverBiDiResponseDocumentAdmissionError,
 };
+pub use webdriver_bidi_response_document_correlation::WebDriverBiDiLocateNodesResponseDocumentError;
 pub use webdriver_bidi_response_envelope::{
     MAX_WEBDRIVER_BIDI_RESPONSE_JSON_DEPTH, MAX_WEBDRIVER_BIDI_RESPONSE_TOP_LEVEL_FIELDS,
     ParsedWebDriverBiDiCommandResponseEnvelope, WebDriverBiDiResponseEnvelopeParseError,
