@@ -1,6 +1,4 @@
-use originweave_vpn_profile::{
-    ProfileError, SecretReference, MAX_SECRET_REFERENCE_BYTES,
-};
+use originweave_vpn_profile::{MAX_SECRET_REFERENCE_BYTES, ProfileError, SecretReference};
 
 fn assert_standard_error<T: std::error::Error + Send + Sync + 'static>() {}
 
