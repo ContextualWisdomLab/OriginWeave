@@ -8,9 +8,9 @@ use crate::field::FieldBlock;
 use crate::response_head_raw;
 use crate::{HttpClientPolicy, HttpError};
 
-pub(crate) use crate::response_head_raw::{
-    FinalHeadParseResult, HeadParseResult, ResponseHead, parse_response_head,
-};
+#[cfg(test)]
+pub(crate) use crate::response_head_raw::parse_response_head;
+pub(crate) use crate::response_head_raw::{FinalHeadParseResult, HeadParseResult, ResponseHead};
 
 pub(crate) fn parse_final_response_head(
     input: &[u8],
@@ -20,15 +20,7 @@ pub(crate) fn parse_final_response_head(
     let mut interim_response_count = 0_usize;
     loop {
         match response_head_raw::parse_response_head(&input[offset..], policy)? {
-            HeadParseResult::Incomplete => {
-                if input.len() > policy.max_header_section_bytes() {
-                    return Err(HttpError::HeaderSectionTooLarge {
-                        byte_count: input.len(),
-                        maximum_bytes: policy.max_header_section_bytes(),
-                    });
-                }
-                return Ok(FinalHeadParseResult::Incomplete);
-            }
+            HeadParseResult::Incomplete => break,
             HeadParseResult::Complete { head, consumed } => {
                 // `consumed` is an index inside `input[offset..]`, so a successful parse proves
                 // `offset + consumed <= input.len()` and makes arithmetic overflow impossible.
@@ -40,9 +32,8 @@ pub(crate) fn parse_final_response_head(
                     });
                 }
                 if head.status_code == 101 {
-                    return Err(HttpError::SwitchingProtocolsUnsupported);
+                    break;
                 }
-                validate_status_framing_fields(head.status_code, &head.fields)?;
                 if (100..200).contains(&head.status_code) {
                     interim_response_count += 1;
                     if interim_response_count > policy.max_interim_response_count() {
@@ -51,16 +42,19 @@ pub(crate) fn parse_final_response_head(
                             maximum_count: policy.max_interim_response_count(),
                         });
                     }
+                    validate_status_framing_fields(head.status_code, &head.fields)?;
                     continue;
                 }
-                return Ok(FinalHeadParseResult::Complete {
-                    head,
-                    consumed: offset,
-                    interim_response_count,
-                });
+                validate_status_framing_fields(head.status_code, &head.fields)?;
+                break;
             }
         }
     }
+
+    // The raw parser remains the authority for final assembly, incomplete-state reporting,
+    // protocol-upgrade rejection, and exact cumulative accounting. The pre-scan above adds only
+    // the status-specific field legality that the syntax parser intentionally does not own.
+    response_head_raw::parse_final_response_head(input, policy)
 }
 
 fn validate_status_framing_fields(status_code: u16, fields: &FieldBlock) -> Result<(), HttpError> {
