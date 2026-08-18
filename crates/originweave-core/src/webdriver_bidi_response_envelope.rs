@@ -196,13 +196,17 @@ impl<'input> ResponseEnvelopeParser<'input> {
                         self.position += 1;
                         self.skip_whitespace();
                     }
-                    Some(b'}') => break,
+                    Some(b'}') => {
+                        self.position += 1;
+                        break;
+                    }
                     _ => return Err(WebDriverBiDiResponseEnvelopeParseError::InvalidJson),
                 }
             }
+        } else {
+            self.position += 1;
         }
 
-        self.expect_byte(b'}')?;
         self.skip_whitespace();
         if self.position != self.input.len() {
             return Err(WebDriverBiDiResponseEnvelopeParseError::InvalidJson);
@@ -331,7 +335,7 @@ impl<'input> ResponseEnvelopeParser<'input> {
         depth: usize,
     ) -> Result<(), WebDriverBiDiResponseEnvelopeParseError> {
         Self::require_depth(depth)?;
-        self.expect_byte(b'{')?;
+        self.position += 1;
         self.skip_whitespace();
         if self.peek_byte() == Some(b'}') {
             self.position += 1;
@@ -361,7 +365,7 @@ impl<'input> ResponseEnvelopeParser<'input> {
 
     fn parse_array(&mut self, depth: usize) -> Result<(), WebDriverBiDiResponseEnvelopeParseError> {
         Self::require_depth(depth)?;
-        self.expect_byte(b'[')?;
+        self.position += 1;
         self.skip_whitespace();
         if self.peek_byte() == Some(b']') {
             self.position += 1;
