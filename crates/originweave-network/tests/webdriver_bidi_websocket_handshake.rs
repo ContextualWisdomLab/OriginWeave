@@ -94,6 +94,11 @@ fn handshake_errors_render_actionable_fail_closed_messages() {
 
 #[test]
 fn handshake_plan_rejects_tls_required_stream_and_noncanonical_client_keys() {
+    let invalid_length = WebDriverBiDiWebSocketClientKey::new("dGhlIHNhbXBsZSBub25jZQ=");
+    assert!(matches!(
+        invalid_length,
+        Err(WebDriverBiDiWebSocketHandshakeError::InvalidClientKey)
+    ));
     let invalid_character = WebDriverBiDiWebSocketClientKey::new("dGhlIHNhbXBsZSBub25jZ!==");
     assert!(matches!(
         invalid_character,
@@ -102,6 +107,12 @@ fn handshake_plan_rejects_tls_required_stream_and_noncanonical_client_keys() {
     let invalid_padding_bits = WebDriverBiDiWebSocketClientKey::new("dGhlIHNhbXBsZSBub25jZR==");
     assert!(matches!(
         invalid_padding_bits,
+        Err(WebDriverBiDiWebSocketHandshakeError::InvalidClientKey)
+    ));
+    let invalid_padding_character =
+        WebDriverBiDiWebSocketClientKey::new("dGhlIHNhbXBsZSBub25jZQA=");
+    assert!(matches!(
+        invalid_padding_character,
         Err(WebDriverBiDiWebSocketHandshakeError::InvalidClientKey)
     ));
 
