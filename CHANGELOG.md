@@ -6,6 +6,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Added
 
+- Bounded WebDriver BiDi loopback TCP transport that consumes one exact no-DNS connect target, retries only explicitly recoverable local transport failures within repository timeout and attempt ceilings, exposes the stream only after operating-system peer inspection and exact peer verification, preserves correlated session/TLS metadata and typed causal errors, and performs no DNS, proxy/PAC, process authentication, TLS, WebSocket, BiDi message, browser-action, or Agent-authority step.
 - Exact WebDriver BiDi socket-peer verification that consumes an approved no-DNS connect target, requires the observed IP address and port to match exactly, preserves the TLS requirement and exact correlated session id, and remains inert metadata that does not authenticate an OS process, does not negotiate TLS, perform a WebSocket handshake, or grant Agent authority.
 - Explicit no-DNS WebDriver BiDi loopback connection targets that derive exact IPv4/IPv6 loopback `SocketAddr` metadata from a session-correlated endpoint, reject `localhost` as requiring separately trusted name resolution, preserve the TLS requirement and exact session id, perform no socket I/O, and grant no Agent authority.
 - Rust workspace for independently reusable core, policy, destination, network, TLS, resource, and evidence modules.
