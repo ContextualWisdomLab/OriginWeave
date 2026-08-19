@@ -100,7 +100,8 @@ fn recovery_evidence_for_another_browser_authority_cannot_authorize_retry() -> R
         true,
         true,
     );
-    let other_session = BrowserSessionId::new(session_id.value() + 1).map_err(|error| error.to_string())?;
+    let other_session =
+        BrowserSessionId::new(session_id.value() + 1).map_err(|error| error.to_string())?;
     let other_context =
         BrowsingContextId::new(context_id.value() + 1).map_err(|error| error.to_string())?;
     let other_epoch =
