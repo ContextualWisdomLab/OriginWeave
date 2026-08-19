@@ -88,9 +88,6 @@ impl WebDriverBiDiWebSocketEndpoint {
             if host_text == "localhost" {
                 (host_text.to_owned(), port_text)
             } else if let Ok(ip) = host_text.parse::<Ipv4Addr>() {
-                if ip.to_string() != host_text {
-                    return Err(WebDriverBiDiWebSocketEndpointAdmissionError::InvalidAuthority);
-                }
                 if !ip.is_loopback() {
                     return Err(WebDriverBiDiWebSocketEndpointAdmissionError::NonLoopbackHost);
                 }
