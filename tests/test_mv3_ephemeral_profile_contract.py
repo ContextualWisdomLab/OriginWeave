@@ -73,6 +73,9 @@ class ManifestV3EphemeralProfileContractTests(unittest.TestCase):
     def test_browser_pass_owns_and_terminates_the_chromedriver_process_group(self) -> None:
         """Failure cleanup must signal the isolated driver group, not only its leader."""
 
+        source = RUNNER.read_text(encoding="utf-8")
+        self.assertIn("start_new_session=True", source)
+
         namespace = runpy.run_path(str(RUNNER), run_name="mv3_process_group_contract")
         run_browser_pass = namespace["_run_browser_pass"]
         globals_ = run_browser_pass.__globals__
@@ -82,13 +85,10 @@ class ManifestV3EphemeralProfileContractTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory(prefix="originweave-mv3-cleanup-") as profile_dir:
             with (
-                unittest.mock.patch.object(
-                    globals_["subprocess"], "Popen", return_value=driver
-                ) as popen,
                 unittest.mock.patch.dict(
                     globals_,
                     {
-                        "_free_loopback_port": lambda: 43123,
+                        "_start_chromedriver": lambda _binary: (driver, 43123),
                         "_wait_for_driver": unittest.mock.Mock(
                             side_effect=RuntimeError("controlled startup failure")
                         ),
@@ -105,8 +105,6 @@ class ManifestV3EphemeralProfileContractTests(unittest.TestCase):
                         "initialized",
                     )
 
-        _, popen_kwargs = popen.call_args
-        self.assertIs(popen_kwargs.get("start_new_session"), True)
         kill_process_group.assert_called_once_with(driver.pid, signal.SIGTERM)
         driver.wait.assert_called_once_with(timeout=5)
         driver.terminate.assert_not_called()

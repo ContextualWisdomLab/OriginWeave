@@ -16,8 +16,8 @@ import http.server
 import json
 import os
 import pathlib
+import queue
 import signal
-import socket
 import string
 import subprocess
 import tempfile
@@ -40,6 +40,8 @@ REQUEST_TIMEOUT_SECONDS = 5.0
 STARTUP_TIMEOUT_SECONDS = 20.0
 FIXTURE_TIMEOUT_SECONDS = 20.0
 MAX_WEBDRIVER_RESPONSE_BYTES = 1_048_576
+MAX_CHROMEDRIVER_STARTUP_LINE_BYTES = 512
+CHROMEDRIVER_BOUND_PORT_PREFIX = "ChromeDriver was started successfully on port "
 W3C_ELEMENT_KEY = "element-6066-11e4-a52e-4f735466cecf"
 PATH_TOKEN_CHARACTERS = frozenset(string.ascii_letters + string.digits + "-_.")
 SURFACE_EVIDENCE_KEYS = (
@@ -125,14 +127,6 @@ def _failure_evidence(error: BaseException) -> dict[str, Any]:
     if isinstance(error, ValueError):
         return {"failure_kind": "value_error"}
     return {"failure_kind": "runtime_error"}
-
-
-def _free_loopback_port() -> int:
-    """Reserve and release one loopback TCP port for a short-lived local service."""
-
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.bind(("127.0.0.1", 0))
-        return int(sock.getsockname()[1])
 
 
 def _path_token(value: str, label: str) -> str:
@@ -457,6 +451,91 @@ def _teardown_driver_process(driver: subprocess.Popen[str]) -> Exception | None:
         return None
 
 
+def _start_chromedriver(
+    chromedriver_bin: pathlib.Path,
+) -> tuple[subprocess.Popen[str], int]:
+    """Let ChromeDriver atomically bind an ephemeral port and report the bound authority.
+
+    The process owns port allocation by binding port zero itself. Its combined output is
+    continuously drained so the pipe cannot become a back-pressure failure, but only the
+    reviewed startup-port record is retained. Raw ChromeDriver output never enters evidence.
+    """
+
+    driver = subprocess.Popen(
+        [str(chromedriver_bin), "--port=0", "--allowed-ips=127.0.0.1"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        bufsize=1,
+        start_new_session=True,
+    )
+    if driver.stdout is None:
+        teardown_error = _teardown_driver_process(driver)
+        startup_error = RuntimeError("ChromeDriver startup output pipe was unavailable")
+        if teardown_error is not None:
+            startup_error.add_note(
+                "ChromeDriver process teardown also failed: "
+                f"{type(teardown_error).__name__}"
+            )
+        raise startup_error
+
+    startup_events: queue.Queue[tuple[str, int | None]] = queue.Queue(maxsize=1)
+
+    def publish(event: tuple[str, int | None]) -> None:
+        try:
+            startup_events.put_nowait(event)
+        except queue.Full:
+            return
+
+    def drain_output() -> None:
+        for raw_line in driver.stdout:
+            if not raw_line.startswith(CHROMEDRIVER_BOUND_PORT_PREFIX):
+                continue
+            if len(raw_line.encode("utf-8")) > MAX_CHROMEDRIVER_STARTUP_LINE_BYTES:
+                publish(("invalid", None))
+                continue
+
+            line = raw_line.rstrip("\r\n")
+            if not line.endswith("."):
+                publish(("invalid", None))
+                continue
+            port_text = line[len(CHROMEDRIVER_BOUND_PORT_PREFIX) : -1]
+            if not port_text.isdecimal():
+                publish(("invalid", None))
+                continue
+            port = int(port_text)
+            if not 1 <= port <= 65_535:
+                publish(("invalid", None))
+                continue
+            publish(("ready", port))
+        publish(("eof", None))
+
+    threading.Thread(
+        target=drain_output,
+        name="originweave-chromedriver-output-drain",
+        daemon=True,
+    ).start()
+
+    try:
+        event_kind, bound_port = startup_events.get(timeout=STARTUP_TIMEOUT_SECONDS)
+    except queue.Empty:
+        event_kind, bound_port = "timeout", None
+
+    if event_kind == "ready" and bound_port is not None:
+        return driver, bound_port
+
+    teardown_error = _teardown_driver_process(driver)
+    startup_error = RuntimeError("ChromeDriver did not publish a valid bound port")
+    if teardown_error is not None:
+        startup_error.add_note(
+            "ChromeDriver process teardown also failed: "
+            f"{type(teardown_error).__name__}"
+        )
+    raise startup_error
+
+
 def _run_browser_pass(
     chrome_bin: pathlib.Path,
     chromedriver_bin: pathlib.Path,
@@ -466,17 +545,10 @@ def _run_browser_pass(
 ) -> dict[str, Any]:
     """Run one fresh browser process against a shared bounded compatibility profile."""
 
-    driver_port = _free_loopback_port()
     session_id: str | None = None
     download_dir = pathlib.Path(profile_dir) / "downloads"
     download_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
-    driver = subprocess.Popen(
-        [str(chromedriver_bin), f"--port={driver_port}", "--allowed-ips=127.0.0.1"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.STDOUT,
-        text=True,
-        start_new_session=True,
-    )
+    driver, driver_port = _start_chromedriver(chromedriver_bin)
     primary_error: BaseException | None = None
     try:
         _wait_for_driver(driver_port)

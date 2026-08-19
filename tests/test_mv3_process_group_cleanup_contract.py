@@ -76,9 +76,6 @@ class ManifestV3ProcessGroupCleanupContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="originweave-group-cleanup-") as profile_dir:
             with (
                 unittest.mock.patch.object(
-                    globals_["subprocess"], "Popen", return_value=driver
-                ),
-                unittest.mock.patch.object(
                     globals_["os"],
                     "killpg",
                     side_effect=PermissionError("process-group signal denied"),
@@ -86,7 +83,7 @@ class ManifestV3ProcessGroupCleanupContractTests(unittest.TestCase):
                 unittest.mock.patch.dict(
                     globals_,
                     {
-                        "_free_loopback_port": lambda: 43123,
+                        "_start_chromedriver": lambda _binary: (driver, 43123),
                         "_wait_for_driver": lambda _port: None,
                         "_json_request": fake_json_request,
                         "_wait_for_extension_evidence": (
