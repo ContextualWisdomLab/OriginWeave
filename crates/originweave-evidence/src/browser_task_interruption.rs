@@ -146,7 +146,10 @@ impl BrowserTaskInterruptionEvidence {
     /// browser authority matches and cleanup is otherwise complete. This prevents recovery facts from
     /// one action in a session/context/document from authorizing replay of a different action.
     #[must_use]
-    pub fn retry_disposition(&self, expected_action_intent: &ActionIntentDigest) -> RetryDisposition {
+    pub fn retry_disposition(
+        &self,
+        expected_action_intent: &ActionIntentDigest,
+    ) -> RetryDisposition {
         if &self.action_intent_digest != expected_action_intent {
             return RetryDisposition::QuarantineRequired;
         }
