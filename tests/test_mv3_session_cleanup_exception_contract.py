@@ -121,22 +121,17 @@ class ManifestV3SessionCleanupExceptionTests(unittest.TestCase):
             raise AssertionError(f"unexpected WebDriver request: {method} {path}")
 
         with tempfile.TemporaryDirectory(prefix="originweave-cleanup-contract-") as profile_dir:
-            with (
-                unittest.mock.patch.object(
-                    globals_["subprocess"], "Popen", return_value=fake_driver
-                ),
-                unittest.mock.patch.dict(
-                    globals_,
-                    {
-                        "_free_loopback_port": lambda: 43123,
-                        "_wait_for_driver": lambda _port: None,
-                        "_json_request": fake_json_request,
-                        "_wait_for_extension_evidence": (
-                            lambda _port, _session, _expected: self._surfaces()
-                        ),
-                        "_exercise_real_click": lambda _port, _session: "clicked",
-                    },
-                ),
+            with unittest.mock.patch.dict(
+                globals_,
+                {
+                    "_start_chromedriver": lambda _binary: (fake_driver, 43123),
+                    "_wait_for_driver": lambda _port: None,
+                    "_json_request": fake_json_request,
+                    "_wait_for_extension_evidence": (
+                        lambda _port, _session, _expected: self._surfaces()
+                    ),
+                    "_exercise_real_click": lambda _port, _session: "clicked",
+                },
             ):
                 try:
                     run_browser_pass(
