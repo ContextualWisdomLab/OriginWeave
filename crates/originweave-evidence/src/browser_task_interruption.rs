@@ -140,17 +140,25 @@ impl BrowserTaskInterruptionEvidence {
         self.browser_context_closed && self.resources_reclaimed && self.evidence_finalized
     }
 
-    /// Derive whether the exact expected action may be retried from interruption and cleanup evidence.
+    /// Derive whether the exact expected browser authority and action may be safely retried.
     ///
-    /// Recovery evidence for any other canonical action intent always requires quarantine, even when
-    /// browser authority matches and cleanup is otherwise complete. This prevents recovery facts from
-    /// one action in a session/context/document from authorizing replay of a different action.
+    /// `expected_browser_authority` must be the trusted runtime's current exact `(browser session,
+    /// browsing context, document epoch)` tuple. Recovery evidence for any other browser authority
+    /// or canonical action intent always requires quarantine, even when cleanup is otherwise
+    /// complete. This prevents recovery facts from one session/context/document/action from
+    /// authorizing replay in another authority scope.
     #[must_use]
     pub fn retry_disposition(
         &self,
+        expected_browser_authority: (BrowserSessionId, BrowsingContextId, DocumentEpoch),
         expected_action_intent: &ActionIntentDigest,
     ) -> RetryDisposition {
-        if &self.action_intent_digest != expected_action_intent {
+        let (browser_session_id, browsing_context_id, document_epoch) = expected_browser_authority;
+        if self.browser_session_id != browser_session_id
+            || self.browsing_context_id != browsing_context_id
+            || self.document_epoch != document_epoch
+            || &self.action_intent_digest != expected_action_intent
+        {
             return RetryDisposition::QuarantineRequired;
         }
         if matches!(
