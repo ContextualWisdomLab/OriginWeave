@@ -72,7 +72,8 @@ impl WebDriverBiDiWebSocketClientKey {
 ///
 /// The plan consumes the verified TCP connection so the opening request cannot be detached from the
 /// socket peer/session evidence that authorized its exact loopback destination. It serializes only
-/// the fixed WebSocket version-13 request required for the admitted `/session/<session-id>` resource.
+/// the fixed WebSocket version-13 request required for the admitted `/session/<session-id>` resource
+/// and retains the exact client key required to validate a later `Sec-WebSocket-Accept` response.
 /// Secure `wss` targets fail closed here and require a separate authenticated TLS transport boundary
 /// before any WebSocket bytes may be written.
 ///
@@ -82,6 +83,7 @@ impl WebDriverBiDiWebSocketClientKey {
 #[derive(Debug)]
 pub struct WebDriverBiDiWebSocketHandshakePlan {
     connection: WebDriverBiDiTcpConnection,
+    client_key: WebDriverBiDiWebSocketClientKey,
     request: Vec<u8>,
 }
 
@@ -106,6 +108,7 @@ impl WebDriverBiDiWebSocketHandshakePlan {
 
         Ok(Self {
             connection,
+            client_key,
             request,
         })
     }
@@ -114,6 +117,12 @@ impl WebDriverBiDiWebSocketHandshakePlan {
     #[must_use]
     pub fn request_bytes(&self) -> &[u8] {
         &self.request
+    }
+
+    /// Borrow the exact client key that a later server-handshake validator must correlate.
+    #[must_use]
+    pub const fn client_key(&self) -> &WebDriverBiDiWebSocketClientKey {
+        &self.client_key
     }
 
     /// Borrow the exact peer/session evidence already verified before request construction.
