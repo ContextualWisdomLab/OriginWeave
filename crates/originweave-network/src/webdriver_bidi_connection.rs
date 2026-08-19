@@ -203,4 +203,52 @@ impl WebDriverBiDiTcpConnection {
     pub const fn connect_timeout(&self) -> Duration {
         self.connect_timeout
     }
+
+    /// Consume the wrapper into the original verified stream and credential-free transport evidence.
+    ///
+    /// This handoff does not clone the socket or create reusable connection authority. The returned
+    /// evidence records only the already-verified peer plus bounded connection-attempt metadata; it
+    /// does not authenticate a browser process, establish TLS, complete WebSocket framing, or grant
+    /// browser or Agent authority.
+    #[must_use]
+    pub fn into_parts(self) -> (TcpStream, WebDriverBiDiTcpConnectionEvidence) {
+        let evidence = WebDriverBiDiTcpConnectionEvidence {
+            verified_peer: self.verified_peer,
+            attempt_number: self.attempt_number,
+            connect_timeout: self.connect_timeout,
+        };
+        (self.stream, evidence)
+    }
+}
+
+/// Credential-free evidence retained when a verified WebDriver BiDi TCP stream is consumed.
+///
+/// This value records exact peer/session/TLS-requirement metadata inherited from the consumed
+/// no-DNS target together with the successful bounded attempt and per-attempt timeout. It is
+/// transport evidence only and grants no process, TLS, WebSocket, browser-action, or Agent authority.
+#[derive(Debug)]
+pub struct WebDriverBiDiTcpConnectionEvidence {
+    verified_peer: VerifiedWebDriverBiDiSocketPeer,
+    attempt_number: u8,
+    connect_timeout: Duration,
+}
+
+impl WebDriverBiDiTcpConnectionEvidence {
+    /// Borrow the exact session-correlated peer verified before stream exposure.
+    #[must_use]
+    pub const fn verified_peer(&self) -> &VerifiedWebDriverBiDiSocketPeer {
+        &self.verified_peer
+    }
+
+    /// Return the one-based bounded attempt on which the connection succeeded.
+    #[must_use]
+    pub const fn attempt_number(&self) -> u8 {
+        self.attempt_number
+    }
+
+    /// Return the per-attempt timeout applied while establishing the connection.
+    #[must_use]
+    pub const fn connect_timeout(&self) -> Duration {
+        self.connect_timeout
+    }
 }

@@ -18,5 +18,6 @@ pub use connection::{
     NetworkError, SocketConnectionEvidence,
 };
 pub use webdriver_bidi_connection::{
-    WebDriverBiDiTcpConnection, WebDriverBiDiTcpConnectionError, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiTcpConnection, WebDriverBiDiTcpConnectionError,
+    WebDriverBiDiTcpConnectionEvidence, WebDriverBiDiTcpConnectionPlan,
 };
