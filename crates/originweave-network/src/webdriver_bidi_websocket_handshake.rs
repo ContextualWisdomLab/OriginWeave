@@ -158,10 +158,12 @@ impl WebDriverBiDiWebSocketHandshakePlan {
     ) -> Result<WebDriverBiDiWebSocketOpeningRequestSent, WebDriverBiDiWebSocketOpeningWriteError>
     {
         if write_timeout.is_zero() || write_timeout > MAX_WEBSOCKET_OPENING_WRITE_TIMEOUT {
-            return Err(WebDriverBiDiWebSocketOpeningWriteError::InvalidWriteTimeout {
-                write_timeout,
-                maximum_timeout: MAX_WEBSOCKET_OPENING_WRITE_TIMEOUT,
-            });
+            return Err(
+                WebDriverBiDiWebSocketOpeningWriteError::InvalidWriteTimeout {
+                    write_timeout,
+                    maximum_timeout: MAX_WEBSOCKET_OPENING_WRITE_TIMEOUT,
+                },
+            );
         }
 
         let Self {
@@ -170,12 +172,8 @@ impl WebDriverBiDiWebSocketHandshakePlan {
             request,
         } = self;
         let (mut stream, transport_evidence) = connection.into_parts();
-        let request_byte_count = write_request_with_clock(
-            &mut stream,
-            &request,
-            write_timeout,
-            Instant::now,
-        )?;
+        let request_byte_count =
+            write_request_with_clock(&mut stream, &request, write_timeout, Instant::now)?;
 
         Ok(WebDriverBiDiWebSocketOpeningRequestSent {
             stream,
@@ -208,7 +206,10 @@ impl fmt::Debug for WebDriverBiDiWebSocketOpeningRequestSent {
             .debug_struct("WebDriverBiDiWebSocketOpeningRequestSent")
             .field("stream_local_addr", &self.stream.local_addr().ok())
             .field("transport_evidence", &self.transport_evidence)
-            .field("client_key", &"<retained for Sec-WebSocket-Accept validation>")
+            .field(
+                "client_key",
+                &"<retained for Sec-WebSocket-Accept validation>",
+            )
             .field("request_byte_count", &self.request_byte_count)
             .field("write_timeout", &self.write_timeout)
             .finish()
@@ -353,9 +354,9 @@ where
     while bytes_written < request.len() {
         let remaining = deadline.saturating_duration_since(now());
         if remaining.is_zero() {
-            return Err(WebDriverBiDiWebSocketOpeningWriteError::WriteDeadlineExceeded {
-                bytes_written,
-            });
+            return Err(
+                WebDriverBiDiWebSocketOpeningWriteError::WriteDeadlineExceeded { bytes_written },
+            );
         }
         writer.set_write_timeout(remaining).map_err(|source| {
             WebDriverBiDiWebSocketOpeningWriteError::WriteTimeoutConfigurationFailed {
@@ -366,9 +367,7 @@ where
 
         match writer.write_request_bytes(&request[bytes_written..]) {
             Ok(0) => {
-                return Err(WebDriverBiDiWebSocketOpeningWriteError::WriteZero {
-                    bytes_written,
-                });
+                return Err(WebDriverBiDiWebSocketOpeningWriteError::WriteZero { bytes_written });
             }
             Ok(count) => bytes_written += count,
             Err(source) if source.kind() == io::ErrorKind::Interrupted => {}
@@ -410,7 +409,6 @@ mod opening_write_tests {
     struct FakeWriter {
         timeout_error: Option<io::ErrorKind>,
         actions: VecDeque<WriteAction>,
-        configured_timeouts: Vec<Duration>,
     }
 
     impl FakeWriter {
@@ -418,7 +416,6 @@ mod opening_write_tests {
             Self {
                 timeout_error: None,
                 actions: actions.into_iter().collect(),
-                configured_timeouts: Vec::new(),
             }
         }
     }
@@ -432,7 +429,10 @@ mod opening_write_tests {
         }
 
         fn write_request_bytes(&mut self, bytes: &[u8]) -> io::Result<usize> {
-            let action = self.actions.pop_front().unwrap_or(WriteAction::Count(bytes.len()));
+            let action = self
+                .actions
+                .pop_front()
+                .unwrap_or(WriteAction::Count(bytes.len()));
             match action {
                 WriteAction::Count(count) => Ok(count.min(bytes.len())),
                 WriteAction::Error(kind) => Err(io::Error::from(kind)),
@@ -449,12 +449,10 @@ mod opening_write_tests {
         ]);
         let start = Instant::now();
         let mut times = VecDeque::from([start, start, start, start]);
-        let result = write_request_with_clock(
-            &mut writer,
-            b"hello",
-            Duration::from_secs(1),
-            || times.pop_front().unwrap_or(start),
-        );
+        let result =
+            write_request_with_clock(&mut writer, b"hello", Duration::from_secs(1), || {
+                times.pop_front().unwrap_or(start)
+            });
         assert_eq!(result, Ok(5));
     }
 
@@ -464,26 +462,20 @@ mod opening_write_tests {
 
         let mut deadline_writer = FakeWriter::new([]);
         let mut deadline_times = VecDeque::from([start, start + Duration::from_secs(1)]);
-        let deadline = write_request_with_clock(
-            &mut deadline_writer,
-            b"x",
-            Duration::from_secs(1),
-            || deadline_times.pop_front().unwrap_or(start),
-        );
+        let deadline =
+            write_request_with_clock(&mut deadline_writer, b"x", Duration::from_secs(1), || {
+                deadline_times.pop_front().unwrap_or(start)
+            });
         assert!(matches!(
             deadline,
-            Err(WebDriverBiDiWebSocketOpeningWriteError::WriteDeadlineExceeded {
-                bytes_written: 0
-            })
+            Err(
+                WebDriverBiDiWebSocketOpeningWriteError::WriteDeadlineExceeded { bytes_written: 0 }
+            )
         ));
 
         let mut zero_writer = FakeWriter::new([WriteAction::Count(0)]);
-        let zero = write_request_with_clock(
-            &mut zero_writer,
-            b"x",
-            Duration::from_secs(1),
-            || start,
-        );
+        let zero =
+            write_request_with_clock(&mut zero_writer, b"x", Duration::from_secs(1), || start);
         assert!(matches!(
             zero,
             Err(WebDriverBiDiWebSocketOpeningWriteError::WriteZero { bytes_written: 0 })
@@ -491,12 +483,8 @@ mod opening_write_tests {
 
         for kind in [io::ErrorKind::TimedOut, io::ErrorKind::WouldBlock] {
             let mut writer = FakeWriter::new([WriteAction::Error(kind)]);
-            let timed_out = write_request_with_clock(
-                &mut writer,
-                b"x",
-                Duration::from_secs(1),
-                || start,
-            );
+            let timed_out =
+                write_request_with_clock(&mut writer, b"x", Duration::from_secs(1), || start);
             assert!(matches!(
                 timed_out,
                 Err(WebDriverBiDiWebSocketOpeningWriteError::WriteTimedOut {
@@ -507,12 +495,8 @@ mod opening_write_tests {
         }
 
         let mut failed_writer = FakeWriter::new([WriteAction::Error(io::ErrorKind::BrokenPipe)]);
-        let failed = write_request_with_clock(
-            &mut failed_writer,
-            b"x",
-            Duration::from_secs(1),
-            || start,
-        );
+        let failed =
+            write_request_with_clock(&mut failed_writer, b"x", Duration::from_secs(1), || start);
         assert!(matches!(
             failed,
             Err(WebDriverBiDiWebSocketOpeningWriteError::WriteFailed {
@@ -531,10 +515,12 @@ mod opening_write_tests {
         );
         assert!(matches!(
             configuration,
-            Err(WebDriverBiDiWebSocketOpeningWriteError::WriteTimeoutConfigurationFailed {
-                bytes_written: 0,
-                ..
-            })
+            Err(
+                WebDriverBiDiWebSocketOpeningWriteError::WriteTimeoutConfigurationFailed {
+                    bytes_written: 0,
+                    ..
+                }
+            )
         ));
     }
 
@@ -544,14 +530,12 @@ mod opening_write_tests {
             write_timeout: Duration::ZERO,
             maximum_timeout: MAX_WEBSOCKET_OPENING_WRITE_TIMEOUT,
         };
-        let deadline = WebDriverBiDiWebSocketOpeningWriteError::WriteDeadlineExceeded {
+        let deadline =
+            WebDriverBiDiWebSocketOpeningWriteError::WriteDeadlineExceeded { bytes_written: 1 };
+        let configure = WebDriverBiDiWebSocketOpeningWriteError::WriteTimeoutConfigurationFailed {
             bytes_written: 1,
+            source: io::Error::from(io::ErrorKind::InvalidInput),
         };
-        let configure =
-            WebDriverBiDiWebSocketOpeningWriteError::WriteTimeoutConfigurationFailed {
-                bytes_written: 1,
-                source: io::Error::from(io::ErrorKind::InvalidInput),
-            };
         let timed_out = WebDriverBiDiWebSocketOpeningWriteError::WriteTimedOut {
             bytes_written: 1,
             source: io::Error::from(io::ErrorKind::TimedOut),
