@@ -1,19 +1,11 @@
-use std::{
-    net::TcpListener,
-    thread,
-    time::Duration,
-};
+use std::{net::TcpListener, thread, time::Duration};
 
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
-use originweave_network::{
-    WebDriverBiDiTcpConnectionError, WebDriverBiDiTcpConnectionPlan,
-};
+use originweave_network::{WebDriverBiDiTcpConnectionError, WebDriverBiDiTcpConnectionPlan};
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
 
-fn connect_target(
-    endpoint: &str,
-) -> originweave_core::WebDriverBiDiWebSocketConnectTarget {
+fn connect_target(endpoint: &str) -> originweave_core::WebDriverBiDiWebSocketConnectTarget {
     let admitted = WebDriverBiDiWebSocketEndpoint::new(endpoint);
     assert!(admitted.is_ok(), "{admitted:?}");
     let Ok(admitted) = admitted else {
@@ -78,21 +70,15 @@ fn exact_loopback_target_opens_one_verified_bidi_tcp_stream() {
 #[test]
 fn bidi_tcp_plan_rejects_invalid_retry_settings_before_io() {
     let endpoint = format!("wss://127.0.0.1:9443/session/{SESSION_ID}");
-    let zero_timeout = WebDriverBiDiTcpConnectionPlan::new(
-        connect_target(&endpoint),
-        Duration::ZERO,
-        1,
-    );
+    let zero_timeout =
+        WebDriverBiDiTcpConnectionPlan::new(connect_target(&endpoint), Duration::ZERO, 1);
     assert!(matches!(
         zero_timeout,
         Err(WebDriverBiDiTcpConnectionError::InvalidConnectTimeout { .. })
     ));
 
-    let zero_attempts = WebDriverBiDiTcpConnectionPlan::new(
-        connect_target(&endpoint),
-        Duration::from_secs(1),
-        0,
-    );
+    let zero_attempts =
+        WebDriverBiDiTcpConnectionPlan::new(connect_target(&endpoint), Duration::from_secs(1), 0);
     assert!(matches!(
         zero_attempts,
         Err(WebDriverBiDiTcpConnectionError::InvalidAttemptCount { .. })
