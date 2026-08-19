@@ -2,8 +2,10 @@
 //!
 //! This boundary converts only literal loopback listener identities into exact socket metadata.
 //! It deliberately refuses `localhost` so a later connector cannot silently inherit ambient DNS
-//! authority from an admitted WebDriver endpoint. The resulting value does not open a socket,
-//! authenticate a peer, negotiate TLS, perform a WebSocket handshake, or grant Agent authority.
+//! authority from an admitted WebDriver endpoint. When explicit trusted name resolution is needed,
+//! the typed error preserves the correlated endpoint instead of discarding its session evidence.
+//! The resulting value does not open a socket, authenticate a peer, negotiate TLS, perform a
+//! WebSocket handshake, or grant Agent authority.
 
 use std::{
     fmt,
@@ -51,8 +53,10 @@ impl CorrelatedWebDriverBiDiWebSocketEndpoint {
     /// Literal IPv4 and IPv6 loopback hosts become an exact [`SocketAddr`]. Any admitted host that
     /// is not an IP literal—including `localhost`—fails closed so the caller must perform an
     /// explicit, separately trusted name-resolution step rather than inheriting ambient resolver
-    /// authority. This method performs no DNS lookup, socket I/O, peer authentication, TLS, or
-    /// WebSocket handshake.
+    /// authority. The name-resolution-required error retains this correlated endpoint so that
+    /// trusted resolver handoff does not require reconstructing or recorrelation of session evidence.
+    /// This method performs no DNS lookup, socket I/O, peer authentication, TLS, or WebSocket
+    /// handshake.
     pub fn into_explicit_connect_target(
         self,
     ) -> Result<WebDriverBiDiWebSocketConnectTarget, WebDriverBiDiWebSocketConnectTargetError> {
@@ -61,7 +65,11 @@ impl CorrelatedWebDriverBiDiWebSocketEndpoint {
         } else if let Ok(ipv6) = self.host().parse::<Ipv6Addr>() {
             SocketAddr::from((ipv6, self.port()))
         } else {
-            return Err(WebDriverBiDiWebSocketConnectTargetError::NameResolutionRequired);
+            return Err(
+                WebDriverBiDiWebSocketConnectTargetError::NameResolutionRequired {
+                    correlated_endpoint: self,
+                },
+            );
         };
 
         Ok(WebDriverBiDiWebSocketConnectTarget {
@@ -73,16 +81,41 @@ impl CorrelatedWebDriverBiDiWebSocketEndpoint {
 }
 
 /// Fail-closed errors while deriving an explicit WebDriver BiDi socket destination.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum WebDriverBiDiWebSocketConnectTargetError {
     /// The admitted endpoint used a host name and therefore requires explicit trusted resolution.
-    NameResolutionRequired,
+    NameResolutionRequired {
+        /// The still-correlated endpoint that must be handed to a separately trusted resolver.
+        correlated_endpoint: CorrelatedWebDriverBiDiWebSocketEndpoint,
+    },
+}
+
+impl WebDriverBiDiWebSocketConnectTargetError {
+    /// Borrow the correlated endpoint preserved for an explicit trusted resolver handoff.
+    #[must_use]
+    pub const fn correlated_endpoint(&self) -> &CorrelatedWebDriverBiDiWebSocketEndpoint {
+        match self {
+            Self::NameResolutionRequired {
+                correlated_endpoint,
+            } => correlated_endpoint,
+        }
+    }
+
+    /// Recover the correlated endpoint for an explicit trusted resolver handoff.
+    #[must_use]
+    pub fn into_correlated_endpoint(self) -> CorrelatedWebDriverBiDiWebSocketEndpoint {
+        match self {
+            Self::NameResolutionRequired {
+                correlated_endpoint,
+            } => correlated_endpoint,
+        }
+    }
 }
 
 impl fmt::Display for WebDriverBiDiWebSocketConnectTargetError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::NameResolutionRequired => formatter.write_str(
+            Self::NameResolutionRequired { .. } => formatter.write_str(
                 "WebDriver BiDi WebSocket endpoint requires explicit trusted name resolution",
             ),
         }
