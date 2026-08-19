@@ -115,7 +115,7 @@ impl WebDriverBiDiWebSocketEndpoint {
         if session_id.is_empty() || session_id.contains('/') {
             return Err(WebDriverBiDiWebSocketEndpointAdmissionError::InvalidSessionResource);
         }
-        if !is_canonical_session_uuid(session_id) {
+        if !is_canonical_session_id(session_id) {
             return Err(WebDriverBiDiWebSocketEndpointAdmissionError::InvalidSessionId);
         }
 
@@ -152,29 +152,36 @@ impl WebDriverBiDiWebSocketEndpoint {
         self.port
     }
 
-    /// Return the canonical lower-case UUID session identifier.
+    /// Return the exact canonical session identifier admitted from the WebDriver endpoint.
     #[must_use]
     pub fn session_id(&self) -> &str {
         &self.session_id
     }
 }
 
-fn is_canonical_session_uuid(value: &str) -> bool {
+fn is_lowercase_hex(byte: u8) -> bool {
+    byte.is_ascii_digit() || matches!(byte, b'a'..=b'f')
+}
+
+fn is_canonical_session_id(value: &str) -> bool {
     let bytes = value.as_bytes();
-    if bytes.len() != 36 {
-        return false;
-    }
-    for (index, byte) in bytes.iter().copied().enumerate() {
-        let valid = if matches!(index, 8 | 13 | 18 | 23) {
-            byte == b'-'
-        } else {
-            byte.is_ascii_digit() || matches!(byte, b'a'..=b'f')
-        };
-        if !valid {
-            return false;
+    match bytes.len() {
+        32 => bytes.iter().copied().all(is_lowercase_hex),
+        36 => {
+            for (index, byte) in bytes.iter().copied().enumerate() {
+                let valid = if matches!(index, 8 | 13 | 18 | 23) {
+                    byte == b'-'
+                } else {
+                    is_lowercase_hex(byte)
+                };
+                if !valid {
+                    return false;
+                }
+            }
+            true
         }
+        _ => false,
     }
-    true
 }
 
 /// Fail-closed admission errors for WebDriver BiDi WebSocket endpoint metadata.
@@ -198,7 +205,7 @@ pub enum WebDriverBiDiWebSocketEndpointAdmissionError {
     InvalidPort,
     /// The path is not exactly one `/session/<session id>` resource.
     InvalidSessionResource,
-    /// The session id is not one canonical lower-case UUID representation.
+    /// The session id is not an admitted canonical W3C/ChromeDriver representation.
     InvalidSessionId,
 }
 

@@ -132,6 +132,10 @@ fn port_and_session_resource_are_canonical_and_bounded() {
         "0123456789ab-cdef-0123-456789abcdef",
         "01234567-89ab-cdef-0123-456789abcdeg",
         "01234567_89ab-cdef-0123-456789abcdef",
+        "0123456789abcdef0123456789abcdeF",
+        "0123456789abcdef0123456789abcdeg",
+        "0123456789abcdef0123456789abcde_",
+        "0123456789abcdef0123456789abcde",
     ] {
         assert!(matches!(
             WebDriverBiDiWebSocketEndpoint::new(&format!(
