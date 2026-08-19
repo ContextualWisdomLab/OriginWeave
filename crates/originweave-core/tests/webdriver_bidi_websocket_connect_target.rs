@@ -30,7 +30,10 @@ fn explicit_ipv4_loopback_becomes_exact_no_dns_connect_target() {
         return;
     };
 
-    assert_eq!(target.socket_addr(), SocketAddr::from(([127, 0, 0, 1], 9515)));
+    assert_eq!(
+        target.socket_addr(),
+        SocketAddr::from(([127, 0, 0, 1], 9515))
+    );
     assert!(!target.requires_tls());
     assert_eq!(target.session_id(), SESSION_ID);
 }
@@ -44,7 +47,10 @@ fn explicit_ipv6_loopback_preserves_exact_destination_and_tls_requirement() {
         return;
     };
 
-    assert_eq!(target.socket_addr(), SocketAddr::from(([0, 0, 0, 0, 0, 0, 0, 1], 9443)));
+    assert_eq!(
+        target.socket_addr(),
+        SocketAddr::from(([0, 0, 0, 0, 0, 0, 0, 1], 9443))
+    );
     assert!(target.requires_tls());
     assert_eq!(target.session_id(), SESSION_ID);
 }
