@@ -1,9 +1,14 @@
-use std::{net::TcpListener, thread, time::Duration};
+use std::{
+    net::{Shutdown, TcpListener},
+    thread,
+    time::Duration,
+};
 
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
     WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
     WebDriverBiDiWebSocketHandshakeError, WebDriverBiDiWebSocketHandshakePlan,
+    WebDriverBiDiWebSocketOpeningWriteError,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -73,6 +78,52 @@ fn plain_bidi_connection_serializes_exact_rfc6455_opening_request() {
     assert_eq!(plan.verified_peer().socket_addr(), local_addr);
     assert_eq!(plan.verified_peer().session_id(), SESSION_ID);
     assert!(!plan.verified_peer().requires_tls());
+
+    let server_result = server.join();
+    assert!(server_result.is_ok(), "{server_result:?}");
+    if let Ok(accept_result) = server_result {
+        assert!(accept_result.is_ok(), "{accept_result:?}");
+    }
+}
+
+#[test]
+fn opening_write_fails_closed_after_verified_stream_is_locally_revoked() {
+    let listener = TcpListener::bind(("127.0.0.1", 0));
+    assert!(listener.is_ok(), "{listener:?}");
+    let Ok(listener) = listener else {
+        return;
+    };
+    let local_addr = listener.local_addr();
+    assert!(local_addr.is_ok(), "{local_addr:?}");
+    let Ok(local_addr) = local_addr else {
+        return;
+    };
+    let server = thread::spawn(move || listener.accept().map(|_| ()));
+
+    let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+    let connection = connect(&endpoint);
+    let shutdown = connection.stream().shutdown(Shutdown::Both);
+    assert!(shutdown.is_ok(), "{shutdown:?}");
+
+    let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY);
+    assert!(key.is_ok(), "{key:?}");
+    let Ok(key) = key else {
+        return;
+    };
+    let plan = WebDriverBiDiWebSocketHandshakePlan::new(connection, key);
+    assert!(plan.is_ok(), "{plan:?}");
+    let Ok(plan) = plan else {
+        return;
+    };
+
+    let write = plan.write_opening_request(Duration::from_secs(1));
+    assert!(matches!(
+        write,
+        Err(WebDriverBiDiWebSocketOpeningWriteError::WriteFailed {
+            bytes_written: 0,
+            ..
+        })
+    ));
 
     let server_result = server.join();
     assert!(server_result.is_ok(), "{server_result:?}");
