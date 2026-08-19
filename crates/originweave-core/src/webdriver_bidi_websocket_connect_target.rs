@@ -5,7 +5,10 @@
 //! authority from an admitted WebDriver endpoint. The resulting value does not open a socket,
 //! authenticate a peer, negotiate TLS, perform a WebSocket handshake, or grant Agent authority.
 
-use std::{fmt, net::{Ipv4Addr, Ipv6Addr, SocketAddr}};
+use std::{
+    fmt,
+    net::{Ipv4Addr, Ipv6Addr, SocketAddr},
+};
 
 use crate::CorrelatedWebDriverBiDiWebSocketEndpoint;
 
