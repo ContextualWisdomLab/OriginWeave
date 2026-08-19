@@ -6,6 +6,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Added
 
+- Exact WebDriver BiDi socket-peer verification that consumes an approved no-DNS connect target, requires the observed IP address and port to match exactly, preserves the TLS requirement and exact correlated session id, and remains inert metadata that does not authenticate an OS process, does not negotiate TLS, perform a WebSocket handshake, or grant Agent authority.
 - Explicit no-DNS WebDriver BiDi loopback connection targets that derive exact IPv4/IPv6 loopback `SocketAddr` metadata from a session-correlated endpoint, reject `localhost` as requiring separately trusted name resolution, preserve the TLS requirement and exact session id, perform no socket I/O, and grant no Agent authority.
 - Rust workspace for independently reusable core, policy, destination, network, TLS, resource, and evidence modules.
 - Versioned browser-protocol adapter metadata that distinguishes WebDriver BiDi from pinned CDP, binds bounded adapter/browser revision tokens to an explicit duplicate-free capability set, normalizes capability-set identity independently of caller ordering, and exposes typed fail-closed capability requirements without granting browser, action, network, or secret authority by protocol kind alone.
@@ -77,7 +78,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - `localhost` may approve only loopback addresses, while literal IPv4 and IPv6 origins may approve only the exact canonical address encoded in the origin.
 - Resolver answers must remain a non-empty subset of the origin-bound approved address set; any newly introduced address fails closed as a possible DNS-rebinding event.
 - Every redirect rechecks target-origin authority, target-bound resolution, HTTPS downgrade, complete-target cycle state, and hop capacity before policy state changes.
-- Direct TCP plans reject port zero, zero or excessive timeouts, excessive attempts, unapproved IPs, non-canonical IPv4-mapped IPv6 sockets, and IPv6 flow or scope metadata not represented in destination authority before connection I/O.
+- Direct TCP plans reject port zero, zero or excessive timeouts, excessive attempts, excessive attempts, unapproved IPs, non-canonical IPv4-mapped IPv6 sockets, and IPv6 flow or scope metadata not represented in destination authority before connection I/O.
 - Direct connection code accepts only an explicit `SocketAddr`, never a hostname, and does not read proxy environment variables.
 - Established streams are discarded when peer inspection fails or the observed remote IP or port differs from the approved socket.
 - TLS accepts only an already verified direct stream, never a hostname or new socket, and requires the TLS origin to match the transport-authority origin exactly.
