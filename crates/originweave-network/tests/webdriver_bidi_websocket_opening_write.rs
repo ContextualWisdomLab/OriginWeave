@@ -7,9 +7,9 @@ use std::{
 
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
-    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
-    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketOpeningWriteError,
-    MAX_WEBSOCKET_OPENING_WRITE_TIMEOUT,
+    MAX_WEBSOCKET_OPENING_WRITE_TIMEOUT, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
+    WebDriverBiDiWebSocketOpeningWriteError,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -101,9 +101,18 @@ fn bounded_opening_write_sends_exact_request_and_preserves_transport_evidence() 
     assert_eq!(written.request_byte_count(), expected.len());
     assert_eq!(written.write_timeout(), write_timeout);
     assert_eq!(written.client_key().as_str(), RFC6455_SAMPLE_KEY);
-    assert_eq!(written.transport_evidence().verified_peer().socket_addr(), local_addr);
-    assert_eq!(written.transport_evidence().verified_peer().session_id(), SESSION_ID);
+    assert_eq!(
+        written.transport_evidence().verified_peer().socket_addr(),
+        local_addr
+    );
+    assert_eq!(
+        written.transport_evidence().verified_peer().session_id(),
+        SESSION_ID
+    );
     assert_eq!(written.transport_evidence().attempt_number(), 1);
+    let debug = format!("{written:?}");
+    assert!(debug.contains("WebDriverBiDiWebSocketOpeningRequestSent"));
+    assert!(!debug.contains(RFC6455_SAMPLE_KEY));
 
     let server_result = server.join();
     assert!(server_result.is_ok(), "{server_result:?}");
