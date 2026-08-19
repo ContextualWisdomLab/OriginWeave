@@ -397,7 +397,7 @@ where
 #[cfg(test)]
 mod opening_write_tests {
     use super::*;
-    use std::{collections::VecDeque, error::Error as _};
+    use std::collections::VecDeque;
 
     #[derive(Debug)]
     enum WriteAction {
@@ -453,7 +453,30 @@ mod opening_write_tests {
             write_request_with_clock(&mut writer, b"hello", Duration::from_secs(1), || {
                 times.pop_front().unwrap_or(start)
             });
-        assert_eq!(result, Ok(5));
+        assert!(matches!(result, Ok(5)));
+    }
+
+    #[test]
+    fn bounded_writer_rejects_completion_observed_after_total_deadline() {
+        let mut writer = FakeWriter::new([WriteAction::Count(1)]);
+        let start = Instant::now();
+        let mut times = VecDeque::from([
+            start,
+            start,
+            start + Duration::from_secs(1),
+        ]);
+        let result =
+            write_request_with_clock(&mut writer, b"x", Duration::from_secs(1), || {
+                times
+                    .pop_front()
+                    .unwrap_or(start + Duration::from_secs(1))
+            });
+        assert!(matches!(
+            result,
+            Err(WebDriverBiDiWebSocketOpeningWriteError::WriteDeadlineExceeded {
+                bytes_written: 1
+            })
+        ));
     }
 
     #[test]
