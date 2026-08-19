@@ -74,6 +74,14 @@ Credential-free TLS evidence records the canonical origin, TCP peers, reference 
 
 The test-only rcgen 0.14.8 dependency creates a local CA and deterministic certificate-policy scenarios. It is not part of production arithmetic or trust. Tests cover trusted DNS identity, Common Name non-fallback, wrong name, untrusted root, expired and not-yet-valid validity, exact IPv4 and IPv6 SAN identity, TLS 1.2 and TLS 1.3, required and optional ALPN, and equality between TLS origin and TCP authority.
 
+### Bounded HTTP semantics and digest-field interoperability
+
+RFC 9110 and RFC 9112 separate HTTP semantics from HTTP/1.1 framing. OriginWeave therefore consumes one authenticated TLS stream under strict request, response, framing, and resource budgets rather than treating TLS success as HTTP completeness.
+
+RFC 9530 defines `Content-Digest` and `Repr-Digest` as Structured Fields Dictionaries using RFC 8941. RFC 8941 permits Item parameters, requires same-name field lines to be combined, applies last-occurrence-wins to duplicate dictionary and parameter keys, and permits SP or HTAB optional whitespace around dictionary commas. RFC 9530 also permits a digest trailer to be merged into the corresponding header field. OriginWeave therefore processes bounded header members before bounded trailer members, validates Byte Sequence member values, validates but otherwise ignores RFC 8941 parameters, and verifies every supported surviving `sha-256` or `sha-512` member.
+
+RFC 9651 is the current Structured Fields standard and obsoletes RFC 8941, but its versioning contract preserves definitions written against the earlier RFC. Therefore OriginWeave does not accept RFC 9651-only Date or Display String parameter values for RFC 9530 unless a future field-definition update authorizes them. Regression tests cover duplicate keys, repeated field lines, SP/HTAB OWS, trailer merge and override, valid RFC 8941 parameters, invalid newer-version bare items, malformed dictionaries, and digest known-answer vectors. This distinction prevents both the original overly strict parser and a later accidental over-upgrade of the field grammar.
+
 ### Crawling policy
 
 RFC 9309 standardizes robots parsing, matching, error handling, and caching. It also states that robots rules are not access authorization. OriginWeave therefore requires robots evidence for public crawler mode while maintaining authentication, terms, rate, privacy, and retention policy as separate controls.
@@ -124,6 +132,8 @@ Evtimov, I., Zharmagambetov, A., Grattafiori, A., Guo, C., & Chaudhuri, K. (2025
 
 Fielding, R., Nottingham, M., & Reschke, J. (2022). *HTTP semantics* (RFC 9110). Internet Engineering Task Force. https://doi.org/10.17487/RFC9110
 
+Fielding, R., Nottingham, M., & Reschke, J. (2022). *HTTP/1.1* (RFC 9112; STD 99). Internet Engineering Task Force. https://doi.org/10.17487/RFC9112
+
 Fugu Team, Sakana AI. (2026). *Sakana Fugu technical report* [Technical report]. arXiv. https://doi.org/10.48550/arXiv.2606.21228
 
 Huston, G., & Buraglio, N. (2024). *Expanding the IPv6 documentation space* (RFC 9637). Internet Engineering Task Force. https://doi.org/10.17487/RFC9637
@@ -143,6 +153,12 @@ Lodderstedt, T., Bradley, J., Labunets, A., & Fett, D. (2025). *OAuth 2.0 securi
 Microsoft. (2025, July 25). *Azure IP address 168.63.129.16 overview*. Microsoft Learn. https://learn.microsoft.com/azure/virtual-network/what-is-ip-address-168-63-129-16
 
 Nielsen, S., Cetin, E., Schwendeman, P., Sun, Q., Xu, J., & Tang, Y. (2025). *Learning to orchestrate agents in natural language with the Conductor* [Preprint]. arXiv. https://doi.org/10.48550/arXiv.2512.04388
+
+Nottingham, M., & Kamp, P.-H. (2021). *Structured Field Values for HTTP* (RFC 8941). Internet Engineering Task Force. https://doi.org/10.17487/RFC8941
+
+Nottingham, M., & Kamp, P.-H. (2024). *Structured Field Values for HTTP* (RFC 9651). Internet Engineering Task Force. https://doi.org/10.17487/RFC9651
+
+Polli, R., & Pardue, L. (2024). *Digest fields* (RFC 9530). Internet Engineering Task Force. https://doi.org/10.17487/RFC9530
 
 Rescorla, E. (2026). *The Transport Layer Security (TLS) protocol version 1.3* (RFC 9846). Internet Engineering Task Force. https://doi.org/10.17487/RFC9846
 
