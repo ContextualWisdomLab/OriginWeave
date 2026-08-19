@@ -58,15 +58,39 @@ fn explicit_ipv6_loopback_preserves_exact_destination_and_tls_requirement() {
 #[test]
 fn localhost_name_never_silently_inherits_ambient_dns_authority() {
     let endpoint = format!("ws://localhost:9515/session/{SESSION_ID}");
+    let result = correlated(&endpoint).into_explicit_connect_target();
     assert!(matches!(
-        correlated(&endpoint).into_explicit_connect_target(),
-        Err(WebDriverBiDiWebSocketConnectTargetError::NameResolutionRequired)
+        &result,
+        Err(WebDriverBiDiWebSocketConnectTargetError::NameResolutionRequired { .. })
     ));
 }
 
 #[test]
+fn name_resolution_failure_preserves_correlated_endpoint_for_trusted_resolver() {
+    let endpoint = format!("ws://localhost:9515/session/{SESSION_ID}");
+    let result = correlated(&endpoint).into_explicit_connect_target();
+    let Err(error) = result else {
+        return;
+    };
+
+    assert_eq!(error.correlated_endpoint().as_str(), endpoint);
+    assert_eq!(error.correlated_endpoint().session_id(), SESSION_ID);
+    assert!(!error.correlated_endpoint().is_secure());
+    assert_eq!(error.correlated_endpoint().port(), 9515);
+
+    let recovered = error.into_correlated_endpoint();
+    assert_eq!(recovered.as_str(), endpoint);
+    assert_eq!(recovered.session_id(), SESSION_ID);
+}
+
+#[test]
 fn connect_target_errors_are_deterministic_and_source_free() {
-    let error = WebDriverBiDiWebSocketConnectTargetError::NameResolutionRequired;
+    let endpoint = format!("ws://localhost:9515/session/{SESSION_ID}");
+    let result = correlated(&endpoint).into_explicit_connect_target();
+    let Err(error) = result else {
+        return;
+    };
+
     assert_eq!(
         error.to_string(),
         "WebDriver BiDi WebSocket endpoint requires explicit trusted name resolution"
