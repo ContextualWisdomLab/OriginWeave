@@ -89,6 +89,7 @@ pub use webdriver_bidi_result::{
     ValidatedWebDriverBiDiLocateNodesResult, WebDriverBiDiLocateNodesResultAdmissionError,
 };
 pub use webdriver_bidi_websocket_endpoint::{
-    MAX_WEBDRIVER_BIDI_WEBSOCKET_ENDPOINT_BYTES, WebDriverBiDiWebSocketEndpoint,
-    WebDriverBiDiWebSocketEndpointAdmissionError,
+    CorrelatedWebDriverBiDiWebSocketEndpoint, MAX_WEBDRIVER_BIDI_WEBSOCKET_ENDPOINT_BYTES,
+    WebDriverBiDiWebSocketEndpoint, WebDriverBiDiWebSocketEndpointAdmissionError,
+    WebDriverBiDiWebSocketEndpointCorrelationError,
 };
