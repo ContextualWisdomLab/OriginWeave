@@ -81,6 +81,18 @@ fn plain_bidi_connection_serializes_exact_rfc6455_opening_request() {
 }
 
 #[test]
+fn handshake_errors_render_actionable_fail_closed_messages() {
+    assert_eq!(
+        WebDriverBiDiWebSocketHandshakeError::InvalidClientKey.to_string(),
+        "WebDriver BiDi WebSocket client key is not canonical base64 for exactly 16 bytes"
+    );
+    assert_eq!(
+        WebDriverBiDiWebSocketHandshakeError::TlsRequired.to_string(),
+        "WebDriver BiDi WebSocket target requires authenticated TLS before the opening request"
+    );
+}
+
+#[test]
 fn handshake_plan_rejects_tls_required_stream_and_noncanonical_client_keys() {
     let invalid_character = WebDriverBiDiWebSocketClientKey::new("dGhlIHNhbXBsZSBub25jZ!==");
     assert!(matches!(
