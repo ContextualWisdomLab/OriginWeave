@@ -366,7 +366,7 @@ def _exercise_real_click(driver_port: int, session_id: str) -> str:
     return str(text)
 
 
-def _teardown_driver_process(driver: subprocess.Popen[str]) -> Exception | None:
+def _teardown_driver_process(driver: subprocess.Popen[bytes]) -> Exception | None:
     """Reap ChromeDriver and, for real Popen instances, its isolated process group.
 
     Production ChromeDriver launches expose a positive `pid` and run in a fresh
@@ -453,7 +453,7 @@ def _teardown_driver_process(driver: subprocess.Popen[str]) -> Exception | None:
 
 def _start_chromedriver(
     chromedriver_bin: pathlib.Path,
-) -> tuple[subprocess.Popen[str], int]:
+) -> tuple[subprocess.Popen[bytes], int]:
     """Let ChromeDriver atomically bind an ephemeral port and report the bound authority.
 
     The process owns port allocation by binding port zero itself. Its combined output is
@@ -465,10 +465,6 @@ def _start_chromedriver(
         [str(chromedriver_bin), "--port=0", "--allowed-ips=127.0.0.1"],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        bufsize=1,
         start_new_session=True,
     )
     if driver.stdout is None:
@@ -482,6 +478,7 @@ def _start_chromedriver(
         raise startup_error
 
     startup_events: queue.Queue[tuple[str, int | None]] = queue.Queue(maxsize=1)
+    port_prefix_bytes = CHROMEDRIVER_BOUND_PORT_PREFIX.encode("ascii")
 
     def publish(event: tuple[str, int | None]) -> None:
         try:
@@ -490,13 +487,14 @@ def _start_chromedriver(
             return
 
     def drain_output() -> None:
-        for raw_line in driver.stdout:
-            if not raw_line.startswith(CHROMEDRIVER_BOUND_PORT_PREFIX):
+        for raw_line_bytes in driver.stdout:
+            if not raw_line_bytes.startswith(port_prefix_bytes):
                 continue
-            if len(raw_line.encode("utf-8")) > MAX_CHROMEDRIVER_STARTUP_LINE_BYTES:
+            if len(raw_line_bytes) > MAX_CHROMEDRIVER_STARTUP_LINE_BYTES:
                 publish(("invalid", None))
                 continue
 
+            raw_line = raw_line_bytes.decode("utf-8", errors="replace")
             line = raw_line.rstrip("\r\n")
             if not line.endswith("."):
                 publish(("invalid", None))
