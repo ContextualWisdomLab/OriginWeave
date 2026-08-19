@@ -153,9 +153,7 @@ impl WebDriverBiDiWebSocketEndpoint {
         WebDriverBiDiWebSocketEndpointCorrelationError,
     > {
         if !is_canonical_session_uuid(expected_session_id) {
-            return Err(
-                WebDriverBiDiWebSocketEndpointCorrelationError::InvalidExpectedSessionId,
-            );
+            return Err(WebDriverBiDiWebSocketEndpointCorrelationError::InvalidExpectedSessionId);
         }
         if self.session_id != expected_session_id {
             return Err(WebDriverBiDiWebSocketEndpointCorrelationError::SessionIdMismatch);
