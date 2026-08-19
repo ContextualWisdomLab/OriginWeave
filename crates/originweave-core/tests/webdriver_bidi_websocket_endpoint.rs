@@ -119,21 +119,15 @@ fn endpoint_text_rejects_noncanonical_or_unbounded_inputs_before_transport_use()
         Err(WebDriverBiDiWebSocketEndpointAdmissionError::EmptyEndpoint)
     ));
     assert!(matches!(
-        WebDriverBiDiWebSocketEndpoint::new(&format!(
-            "http://localhost:9515/session/{SESSION_ID}"
-        )),
+        WebDriverBiDiWebSocketEndpoint::new(&format!("http://localhost:9515/session/{SESSION_ID}")),
         Err(WebDriverBiDiWebSocketEndpointAdmissionError::InvalidScheme)
     ));
     assert!(matches!(
-        WebDriverBiDiWebSocketEndpoint::new(&format!(
-            "ws://local host:9515/session/{SESSION_ID}"
-        )),
+        WebDriverBiDiWebSocketEndpoint::new(&format!("ws://local host:9515/session/{SESSION_ID}")),
         Err(WebDriverBiDiWebSocketEndpointAdmissionError::InvalidEndpointText)
     ));
     assert!(matches!(
-        WebDriverBiDiWebSocketEndpoint::new(&format!(
-            "ws://locálhost:9515/session/{SESSION_ID}"
-        )),
+        WebDriverBiDiWebSocketEndpoint::new(&format!("ws://locálhost:9515/session/{SESSION_ID}")),
         Err(WebDriverBiDiWebSocketEndpointAdmissionError::InvalidEndpointText)
     ));
     assert!(matches!(
