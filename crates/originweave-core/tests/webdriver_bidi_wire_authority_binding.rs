@@ -6,7 +6,8 @@ use originweave_core::{
     BrowserProtocolAdapterDescriptor, BrowserProtocolCapability, BrowserProtocolKind,
     BrowserRegistryError, Origin, OriginWeaveProtocolVersion, ValidatedBrowserProtocolUse,
     WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesAdmissionError,
-    WebDriverBiDiLocateNodesCommand, WebDriverBiDiLocateNodesResponseDocumentError,
+    WebDriverBiDiLocateNodesCommand, WebDriverBiDiLocateNodesResponseCorrelationError,
+    WebDriverBiDiLocateNodesResponseDocumentError, WebDriverBiDiLocateNodesResponseEnvelopeError,
 };
 
 const ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion =
@@ -70,6 +71,12 @@ fn successful_wire_document() -> Result<BoundedWebDriverBiDiResponseDocument, Bo
     )?)
 }
 
+fn mismatched_wire_document() -> Result<BoundedWebDriverBiDiResponseDocument, Box<dyn Error>> {
+    Ok(BoundedWebDriverBiDiResponseDocument::new(
+        r#"{"type":"success","id":43,"result":{"nodes":[{"type":"node","sharedId":"node-a"}]}}"#,
+    )?)
+}
+
 #[test]
 fn wire_response_binds_nodes_to_exact_current_authority_without_caller_selected_intermediate_result()
 -> Result<(), Box<dyn Error>> {
@@ -87,6 +94,34 @@ fn wire_response_binds_nodes_to_exact_current_authority_without_caller_selected_
     assert_eq!(handles.len(), 1);
     assert_eq!(handles[0].origin(), &origin);
     assert_eq!(handles[0].document_epoch(), target.expected_epoch());
+    Ok(())
+}
+
+#[test]
+fn wire_response_binding_preserves_wire_correlation_failure_before_authority()
+-> Result<(), Box<dyn Error>> {
+    let mut registry = BrowserAuthorityRegistry::new();
+    let origin = controlled_origin()?;
+    let target = current_target(&mut registry, &origin, "context-a")?;
+
+    let error = locate_nodes_command()?.bind_response_document_nodes(
+        mismatched_wire_document()?,
+        semantic_observation_proof()?,
+        &mut registry,
+        target,
+    );
+
+    assert_eq!(
+        error,
+        Err(WebDriverBiDiLocateNodesResponseDocumentError::Envelope(
+            WebDriverBiDiLocateNodesResponseEnvelopeError::Correlation(
+                WebDriverBiDiLocateNodesResponseCorrelationError::ResponseIdMismatch {
+                    expected: 42,
+                    actual: 43,
+                },
+            ),
+        ))
+    );
     Ok(())
 }
 
