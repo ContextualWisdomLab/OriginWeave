@@ -172,8 +172,9 @@ impl WebDriverBiDiWebSocketHandshakePlan {
             request,
         } = self;
         let (mut stream, transport_evidence) = connection.into_parts();
+        let mut now = Instant::now;
         let request_byte_count =
-            write_request_with_clock(&mut stream, &request, write_timeout, Instant::now)?;
+            write_request_with_clock(&mut stream, &request, write_timeout, &mut now)?;
 
         Ok(WebDriverBiDiWebSocketOpeningRequestSent {
             stream,
@@ -338,16 +339,12 @@ impl OpeningRequestWriter for TcpStream {
     }
 }
 
-fn write_request_with_clock<W, N>(
-    writer: &mut W,
+fn write_request_with_clock(
+    writer: &mut dyn OpeningRequestWriter,
     request: &[u8],
     write_timeout: Duration,
-    mut now: N,
-) -> Result<usize, WebDriverBiDiWebSocketOpeningWriteError>
-where
-    W: OpeningRequestWriter,
-    N: FnMut() -> Instant,
-{
+    now: &mut dyn FnMut() -> Instant,
+) -> Result<usize, WebDriverBiDiWebSocketOpeningWriteError> {
     let deadline = now() + write_timeout;
     let mut bytes_written = 0;
 
@@ -458,10 +455,13 @@ mod opening_write_tests {
         ]);
         let start = Instant::now();
         let mut times = VecDeque::from([start, start, start, start]);
-        let result =
-            write_request_with_clock(&mut writer, b"hello", Duration::from_secs(1), || {
-                times.pop_front().unwrap_or(start)
-            });
+        let mut now = || times.pop_front().unwrap_or(start);
+        let result = write_request_with_clock(
+            &mut writer,
+            b"hello",
+            Duration::from_secs(1),
+            &mut now,
+        );
         assert!(matches!(result, Ok(5)));
     }
 
@@ -470,9 +470,13 @@ mod opening_write_tests {
         let mut writer = FakeWriter::new([WriteAction::Count(1)]);
         let start = Instant::now();
         let mut times = VecDeque::from([start, start, start + Duration::from_secs(1)]);
-        let result = write_request_with_clock(&mut writer, b"x", Duration::from_secs(1), || {
-            times.pop_front().unwrap_or(start + Duration::from_secs(1))
-        });
+        let mut now = || times.pop_front().unwrap_or(start + Duration::from_secs(1));
+        let result = write_request_with_clock(
+            &mut writer,
+            b"x",
+            Duration::from_secs(1),
+            &mut now,
+        );
         assert!(matches!(
             result,
             Err(
@@ -487,10 +491,13 @@ mod opening_write_tests {
 
         let mut deadline_writer = FakeWriter::new([]);
         let mut deadline_times = VecDeque::from([start, start + Duration::from_secs(1)]);
-        let deadline =
-            write_request_with_clock(&mut deadline_writer, b"x", Duration::from_secs(1), || {
-                deadline_times.pop_front().unwrap_or(start)
-            });
+        let mut deadline_now = || deadline_times.pop_front().unwrap_or(start);
+        let deadline = write_request_with_clock(
+            &mut deadline_writer,
+            b"x",
+            Duration::from_secs(1),
+            &mut deadline_now,
+        );
         assert!(matches!(
             deadline,
             Err(
@@ -499,8 +506,13 @@ mod opening_write_tests {
         ));
 
         let mut zero_writer = FakeWriter::new([WriteAction::Count(0)]);
-        let zero =
-            write_request_with_clock(&mut zero_writer, b"x", Duration::from_secs(1), || start);
+        let mut zero_now = || start;
+        let zero = write_request_with_clock(
+            &mut zero_writer,
+            b"x",
+            Duration::from_secs(1),
+            &mut zero_now,
+        );
         assert!(matches!(
             zero,
             Err(WebDriverBiDiWebSocketOpeningWriteError::WriteZero { bytes_written: 0 })
@@ -508,8 +520,13 @@ mod opening_write_tests {
 
         for kind in [io::ErrorKind::TimedOut, io::ErrorKind::WouldBlock] {
             let mut writer = FakeWriter::new([WriteAction::Error(kind)]);
-            let timed_out =
-                write_request_with_clock(&mut writer, b"x", Duration::from_secs(1), || start);
+            let mut now = || start;
+            let timed_out = write_request_with_clock(
+                &mut writer,
+                b"x",
+                Duration::from_secs(1),
+                &mut now,
+            );
             assert!(matches!(
                 timed_out,
                 Err(WebDriverBiDiWebSocketOpeningWriteError::WriteTimedOut {
@@ -520,8 +537,13 @@ mod opening_write_tests {
         }
 
         let mut failed_writer = FakeWriter::new([WriteAction::Error(io::ErrorKind::BrokenPipe)]);
-        let failed =
-            write_request_with_clock(&mut failed_writer, b"x", Duration::from_secs(1), || start);
+        let mut failed_now = || start;
+        let failed = write_request_with_clock(
+            &mut failed_writer,
+            b"x",
+            Duration::from_secs(1),
+            &mut failed_now,
+        );
         assert!(matches!(
             failed,
             Err(WebDriverBiDiWebSocketOpeningWriteError::WriteFailed {
@@ -532,11 +554,12 @@ mod opening_write_tests {
 
         let mut configuration_writer = FakeWriter::new([]);
         configuration_writer.timeout_error = Some(io::ErrorKind::InvalidInput);
+        let mut configuration_now = || start;
         let configuration = write_request_with_clock(
             &mut configuration_writer,
             b"x",
             Duration::from_secs(1),
-            || start,
+            &mut configuration_now,
         );
         assert!(matches!(
             configuration,
