@@ -4,8 +4,9 @@
 //! without hostname resolution or proxy inheritance, verifies operating-system
 //! peers before exposing transport I/O, and emits credential-free evidence.
 //! It also bridges a session-correlated WebDriver BiDi loopback target from
-//! `originweave-core` into one bounded exact TCP connection and can bind an inert
-//! RFC 6455 opening request to an already-verified plain BiDi stream without
+//! `originweave-core` into one bounded exact TCP connection, binds an RFC 6455
+//! opening request to that verified plain stream, and can write that exact request
+//! under one bounded deadline without claiming a completed WebSocket handshake or
 //! granting browser, WebSocket, TLS, policy, or Agent authority.
 
 #![forbid(unsafe_code)]
@@ -25,5 +26,6 @@ pub use webdriver_bidi_connection::{
 };
 pub use webdriver_bidi_websocket_handshake::{
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakeError,
-    WebDriverBiDiWebSocketHandshakePlan,
+    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketOpeningRequestSent,
+    WebDriverBiDiWebSocketOpeningWriteError, MAX_WEBSOCKET_OPENING_WRITE_TIMEOUT,
 };
