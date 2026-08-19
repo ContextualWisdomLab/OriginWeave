@@ -25,7 +25,7 @@ pub use webdriver_bidi_connection::{
     WebDriverBiDiTcpConnectionEvidence, WebDriverBiDiTcpConnectionPlan,
 };
 pub use webdriver_bidi_websocket_handshake::{
-    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakeError,
-    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketOpeningRequestSent,
-    WebDriverBiDiWebSocketOpeningWriteError, MAX_WEBSOCKET_OPENING_WRITE_TIMEOUT,
+    MAX_WEBSOCKET_OPENING_WRITE_TIMEOUT, WebDriverBiDiWebSocketClientKey,
+    WebDriverBiDiWebSocketHandshakeError, WebDriverBiDiWebSocketHandshakePlan,
+    WebDriverBiDiWebSocketOpeningRequestSent, WebDriverBiDiWebSocketOpeningWriteError,
 };
