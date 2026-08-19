@@ -160,9 +160,11 @@ fn wire_result_boundary_preserves_parse_correlation_and_protocol_failures()
     )?;
     assert_eq!(
         locate_nodes_command(42, 1)?.admit_response_document_nodes(error_response),
-        Err(WebDriverBiDiLocateNodesResponseDocumentError::ProtocolError(
-            WebDriverBiDiErrorCode::InvalidArgument,
-        ))
+        Err(
+            WebDriverBiDiLocateNodesResponseDocumentError::ProtocolError(
+                WebDriverBiDiErrorCode::InvalidArgument,
+            )
+        )
     );
     Ok(())
 }
