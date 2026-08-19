@@ -14,17 +14,19 @@ use crate::webdriver_bidi_result::{
 };
 use crate::{
     BrowserAuthorityRegistry, BrowserContextOriginEpochDispatchTarget, ObservedNodeHandle,
-    ValidatedBrowserProtocolUse, WebDriverBiDiLocateNodesAdmissionError,
+    ValidatedBrowserProtocolUse, WebDriverBiDiErrorCode, WebDriverBiDiLocateNodesAdmissionError,
 };
 
-/// Fail-closed errors while parsing, correlating, and admitting one bounded WebDriver BiDi
-/// `locateNodes` response document.
+/// Fail-closed errors while parsing, correlating, classifying, and admitting one bounded
+/// WebDriver BiDi `locateNodes` response document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WebDriverBiDiLocateNodesResponseDocumentError {
     /// The bounded document failed complete WebDriver BiDi response-envelope parsing.
     Parse(WebDriverBiDiResponseEnvelopeParseError),
     /// The parsed envelope failed exact command correlation or success-only conversion.
     Envelope(WebDriverBiDiLocateNodesResponseEnvelopeError),
+    /// The exactly correlated remote end returned a typed WebDriver BiDi protocol error.
+    ProtocolError(WebDriverBiDiErrorCode),
     /// The correlated success result omitted its required `nodes` field.
     MissingResultNodes,
     /// The correlated success result's `nodes` field was not a JSON array.
@@ -59,6 +61,9 @@ impl Display for WebDriverBiDiLocateNodesResponseDocumentError {
             Self::Envelope(error) => write!(
                 formatter,
                 "WebDriver BiDi response document rejected command correlation: {error}"
+            ),
+            Self::ProtocolError(_) => formatter.write_str(
+                "WebDriver BiDi response document contains a correlated typed protocol error",
             ),
             Self::MissingResultNodes => {
                 formatter.write_str("WebDriver BiDi locateNodes result is missing its nodes field")
@@ -101,7 +106,8 @@ impl Error for WebDriverBiDiLocateNodesResponseDocumentError {
             Self::Envelope(error) => Some(error),
             Self::ResultAdmission(error) => Some(error),
             Self::NodeBinding(error) => Some(error),
-            Self::MissingResultNodes
+            Self::ProtocolError(_)
+            | Self::MissingResultNodes
             | Self::InvalidResultNodes
             | Self::DuplicateResultNodes
             | Self::InvalidResultNode
@@ -139,14 +145,17 @@ impl WebDriverBiDiLocateNodesCommand {
 
     /// Consume one bounded raw `locateNodes` response through exact wire-derived node admission.
     ///
-    /// The same bounded document first passes the complete response-envelope parser, exact command
-    /// correlation, and success-only conversion. Only then does the result parser derive the exact
-    /// `result.nodes` array from that already-validated wire document. The command's exact
-    /// `maxNodeCount` is carried into this parser so overflow items are consumed only as generic JSON
-    /// and produce the existing result-budget failure before authority-relevant node metadata is
-    /// decoded or normalized. Decoded duplicate `nodes`, and duplicate or malformed in-budget
-    /// `type`/`sharedId` fields, fail closed. JSON-escaped protocol metadata is decoded before
-    /// admission, and callers cannot supply replacement node metadata to this method.
+    /// The same bounded document first passes the complete response-envelope parser and exact
+    /// command correlation. An exactly correlated protocol error retains its reviewed typed error
+    /// code and stops before success-only result admission; unknown error-code text still fails
+    /// closed during complete envelope parsing. Only a correlated success proceeds to the result
+    /// parser, which derives the exact `result.nodes` array from that already-validated wire
+    /// document. The command's exact `maxNodeCount` is carried into this parser so overflow items are
+    /// consumed only as generic JSON and produce the existing result-budget failure before
+    /// authority-relevant node metadata is decoded or normalized. Decoded duplicate `nodes`, and
+    /// duplicate or malformed in-budget `type`/`sharedId` fields, fail closed. JSON-escaped protocol
+    /// metadata is decoded before admission, and callers cannot supply replacement node metadata to
+    /// this method.
     ///
     /// Success remains untrusted transport evidence. It does not authenticate Chromium,
     /// ChromeDriver, WebSocket/TLS provenance, or an adapter process; prove current
@@ -165,6 +174,11 @@ impl WebDriverBiDiLocateNodesCommand {
         let correlated = self
             .correlate_response_envelope(parsed.kind(), parsed.response_id())
             .map_err(WebDriverBiDiLocateNodesResponseDocumentError::Envelope)?;
+        if let Some(error_code) = parsed.error_code() {
+            return Err(WebDriverBiDiLocateNodesResponseDocumentError::ProtocolError(
+                error_code,
+            ));
+        }
         let validated = correlated
             .into_validated_success()
             .map_err(WebDriverBiDiLocateNodesResponseDocumentError::Envelope)?;
