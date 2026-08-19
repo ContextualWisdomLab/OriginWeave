@@ -26,9 +26,10 @@ pub struct WebDriverBiDiWebSocketEndpoint {
 /// One admitted WebDriver BiDi WebSocket endpoint correlated to an expected session id.
 ///
 /// Correlation proves only that the endpoint resource and the caller-supplied expected session id
-/// contain the same canonical UUID text. The expected session id must itself come from a trusted
-/// session-creation boundary. This value does not authenticate Chromium, ChromeDriver, the caller,
-/// the operating-system peer, TLS, policy, or Agent authority, and it does not establish a socket.
+/// contain the same canonical admitted session text. The expected session id must itself come from
+/// a trusted session-creation boundary. This value does not authenticate Chromium, ChromeDriver,
+/// the caller, the operating-system peer, TLS, policy, or Agent authority, and it does not establish
+/// a socket.
 #[derive(Debug, PartialEq, Eq)]
 pub struct CorrelatedWebDriverBiDiWebSocketEndpoint {
     endpoint: WebDriverBiDiWebSocketEndpoint,
@@ -126,7 +127,7 @@ impl WebDriverBiDiWebSocketEndpoint {
         if session_id.is_empty() || session_id.contains('/') {
             return Err(WebDriverBiDiWebSocketEndpointAdmissionError::InvalidSessionResource);
         }
-        if !is_canonical_session_uuid(session_id) {
+        if !is_canonical_session_id(session_id) {
             return Err(WebDriverBiDiWebSocketEndpointAdmissionError::InvalidSessionId);
         }
 
@@ -152,7 +153,7 @@ impl WebDriverBiDiWebSocketEndpoint {
         CorrelatedWebDriverBiDiWebSocketEndpoint,
         WebDriverBiDiWebSocketEndpointCorrelationError,
     > {
-        if !is_canonical_session_uuid(expected_session_id) {
+        if !is_canonical_session_id(expected_session_id) {
             return Err(WebDriverBiDiWebSocketEndpointCorrelationError::InvalidExpectedSessionId);
         }
         if self.session_id != expected_session_id {
@@ -185,7 +186,7 @@ impl WebDriverBiDiWebSocketEndpoint {
         self.port
     }
 
-    /// Return the canonical lower-case UUID session identifier.
+    /// Return the exact canonical session identifier admitted from the WebDriver endpoint.
     #[must_use]
     pub fn session_id(&self) -> &str {
         &self.session_id
@@ -224,22 +225,29 @@ impl CorrelatedWebDriverBiDiWebSocketEndpoint {
     }
 }
 
-fn is_canonical_session_uuid(value: &str) -> bool {
+fn is_lowercase_hex(byte: u8) -> bool {
+    byte.is_ascii_digit() || matches!(byte, b'a'..=b'f')
+}
+
+fn is_canonical_session_id(value: &str) -> bool {
     let bytes = value.as_bytes();
-    if bytes.len() != 36 {
-        return false;
-    }
-    for (index, byte) in bytes.iter().copied().enumerate() {
-        let valid = if matches!(index, 8 | 13 | 18 | 23) {
-            byte == b'-'
-        } else {
-            byte.is_ascii_digit() || matches!(byte, b'a'..=b'f')
-        };
-        if !valid {
-            return false;
+    match bytes.len() {
+        32 => bytes.iter().copied().all(is_lowercase_hex),
+        36 => {
+            for (index, byte) in bytes.iter().copied().enumerate() {
+                let valid = if matches!(index, 8 | 13 | 18 | 23) {
+                    byte == b'-'
+                } else {
+                    is_lowercase_hex(byte)
+                };
+                if !valid {
+                    return false;
+                }
+            }
+            true
         }
+        _ => false,
     }
-    true
 }
 
 /// Fail-closed admission errors for WebDriver BiDi WebSocket endpoint metadata.
@@ -263,7 +271,7 @@ pub enum WebDriverBiDiWebSocketEndpointAdmissionError {
     InvalidPort,
     /// The path is not exactly one `/session/<session id>` resource.
     InvalidSessionResource,
-    /// The session id is not one canonical lower-case UUID representation.
+    /// The session id is not an admitted canonical W3C/ChromeDriver representation.
     InvalidSessionId,
 }
 
@@ -296,7 +304,7 @@ impl std::error::Error for WebDriverBiDiWebSocketEndpointAdmissionError {}
 /// Fail-closed errors while correlating an admitted endpoint with an expected session id.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WebDriverBiDiWebSocketEndpointCorrelationError {
-    /// The expected session id is not one canonical lower-case UUID representation.
+    /// The expected session id is not an admitted canonical W3C/ChromeDriver representation.
     InvalidExpectedSessionId,
     /// The endpoint resource belongs to a different canonical session id.
     SessionIdMismatch,
@@ -306,7 +314,7 @@ impl fmt::Display for WebDriverBiDiWebSocketEndpointCorrelationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let message = match self {
             Self::InvalidExpectedSessionId => {
-                "expected WebDriver session id is not a canonical lower-case UUID"
+                "expected WebDriver session id is not an admitted canonical representation"
             }
             Self::SessionIdMismatch => {
                 "WebDriver BiDi WebSocket endpoint session id does not match the expected session"
