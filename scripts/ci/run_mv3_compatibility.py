@@ -213,17 +213,37 @@ def _json_request(
 
 
 def _wait_for_driver(driver_port: int) -> None:
-    """Wait for local ChromeDriver readiness while retaining only a safe failure class."""
+    """Wait for the exact pinned local ChromeDriver and reject foreign ready endpoints."""
 
     deadline = time.monotonic() + STARTUP_TIMEOUT_SECONDS
     last_failure_kind = "not_observed"
     while time.monotonic() < deadline:
         try:
             status = _json_request(driver_port, "GET", "/status", timeout=1.0)
-            if status.get("value", {}).get("ready") is True:
-                return
         except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
             last_failure_kind = str(_failure_evidence(exc)["failure_kind"])
+            time.sleep(0.1)
+            continue
+
+        status_value = status.get("value")
+        if not isinstance(status_value, dict):
+            last_failure_kind = "status_protocol_error"
+            time.sleep(0.1)
+            continue
+
+        ready = status_value.get("ready")
+        if ready is True:
+            build = status_value.get("build")
+            build_version = build.get("version") if isinstance(build, dict) else None
+            expected_prefix = f"{PINNED_CHROME_VERSION} ("
+            if not isinstance(build_version, str) or not (
+                build_version == PINNED_CHROME_VERSION
+                or build_version.startswith(expected_prefix)
+            ):
+                raise RuntimeError("ChromeDriver status identity mismatch")
+            return
+        if ready is not False:
+            last_failure_kind = "status_protocol_error"
         time.sleep(0.1)
     raise RuntimeError(
         f"ChromeDriver did not become ready ({last_failure_kind})"
