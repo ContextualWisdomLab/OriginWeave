@@ -210,7 +210,9 @@ impl fmt::Display for WebDriverBiDiWebSocketEndpointAdmissionError {
         let message = match self {
             Self::EmptyEndpoint => "WebDriver BiDi WebSocket endpoint is empty",
             Self::EndpointTooLong => "WebDriver BiDi WebSocket endpoint exceeds the safety budget",
-            Self::InvalidEndpointText => "WebDriver BiDi WebSocket endpoint text is not canonical ASCII",
+            Self::InvalidEndpointText => {
+                "WebDriver BiDi WebSocket endpoint text is not canonical ASCII"
+            }
             Self::InvalidScheme => "WebDriver BiDi WebSocket endpoint scheme is not ws or wss",
             Self::QueryOrFragmentForbidden => {
                 "WebDriver BiDi WebSocket endpoint query or fragment is forbidden"
