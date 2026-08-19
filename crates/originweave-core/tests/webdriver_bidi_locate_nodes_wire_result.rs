@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use originweave_core::{
-    BoundedWebDriverBiDiResponseDocument, WebDriverBiDiAccessibilityQuery,
+    BoundedWebDriverBiDiResponseDocument, WebDriverBiDiAccessibilityQuery, WebDriverBiDiErrorCode,
     WebDriverBiDiLocateNodesCommand, WebDriverBiDiLocateNodesResponseDocumentError,
 };
 
@@ -138,7 +138,7 @@ fn wire_result_decodes_json_escaped_protocol_fields_before_admission() -> Result
 }
 
 #[test]
-fn wire_result_boundary_preserves_parse_correlation_and_success_only_failures()
+fn wire_result_boundary_preserves_parse_correlation_and_protocol_failures()
 -> Result<(), Box<dyn Error>> {
     let malformed =
         BoundedWebDriverBiDiResponseDocument::new(r#"{"type":"success","id":42,"result":{},}"#)?;
@@ -158,10 +158,12 @@ fn wire_result_boundary_preserves_parse_correlation_and_success_only_failures()
     let error_response = BoundedWebDriverBiDiResponseDocument::new(
         r#"{"type":"error","id":42,"error":"invalid argument","message":"bad request"}"#,
     )?;
-    assert!(matches!(
+    assert_eq!(
         locate_nodes_command(42, 1)?.admit_response_document_nodes(error_response),
-        Err(WebDriverBiDiLocateNodesResponseDocumentError::Envelope(_))
-    ));
+        Err(WebDriverBiDiLocateNodesResponseDocumentError::ProtocolError(
+            WebDriverBiDiErrorCode::InvalidArgument,
+        ))
+    );
     Ok(())
 }
 
@@ -169,6 +171,9 @@ fn wire_result_boundary_preserves_parse_correlation_and_success_only_failures()
 fn wire_result_document_error_display_and_sources_cover_result_failure_variants()
 -> Result<(), Box<dyn Error>> {
     let source_free = [
+        WebDriverBiDiLocateNodesResponseDocumentError::ProtocolError(
+            WebDriverBiDiErrorCode::InvalidArgument,
+        ),
         WebDriverBiDiLocateNodesResponseDocumentError::MissingResultNodes,
         WebDriverBiDiLocateNodesResponseDocumentError::InvalidResultNodes,
         WebDriverBiDiLocateNodesResponseDocumentError::DuplicateResultNodes,
