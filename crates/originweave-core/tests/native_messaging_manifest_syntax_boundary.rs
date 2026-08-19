@@ -34,3 +34,16 @@ fn complete_parser_rejects_a_unicode_escape_truncated_by_the_outer_object_bounda
         NativeMessagingManifestParseError::InvalidJson
     );
 }
+
+#[test]
+fn complete_parser_preserves_nested_string_failures_at_each_schema_boundary() {
+    for raw in [
+        br#"{"\q":"value"}"#.as_slice(),
+        br#"{"path":"\q"}"#.as_slice(),
+        br#"{"type":"\q"}"#.as_slice(),
+        br#"{"allowed_origins":["\q"]}"#.as_slice(),
+        br#"{"name":"\uD83D\u12"}"#.as_slice(),
+    ] {
+        assert_eq!(parse_error(raw), NativeMessagingManifestParseError::InvalidJson);
+    }
+}
