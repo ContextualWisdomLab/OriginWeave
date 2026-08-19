@@ -90,6 +90,7 @@ pub use webdriver_bidi_result::{
     ValidatedWebDriverBiDiLocateNodesResult, WebDriverBiDiLocateNodesResultAdmissionError,
 };
 pub use webdriver_bidi_websocket_connect_target::{
+    VerifiedWebDriverBiDiSocketPeer, WebDriverBiDiSocketPeerVerificationError,
     WebDriverBiDiWebSocketConnectTarget, WebDriverBiDiWebSocketConnectTargetError,
 };
 pub use webdriver_bidi_websocket_endpoint::{
