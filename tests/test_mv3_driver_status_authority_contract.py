@@ -14,6 +14,14 @@ RUNNER = ROOT / "scripts" / "ci" / "run_mv3_compatibility.py"
 class ManifestV3DriverStatusAuthorityTests(unittest.TestCase):
     """Startup evidence must come from the pinned ChromeDriver status shape."""
 
+    def test_driver_owns_ephemeral_port_selection_without_a_release_bind_race(self) -> None:
+        """ChromeDriver itself must bind port zero instead of racing on a released probe port."""
+
+        source = RUNNER.read_text(encoding="utf-8")
+        self.assertNotIn("def _free_loopback_port", source)
+        self.assertNotIn("driver_port = _free_loopback_port()", source)
+        self.assertIn('"--port=0"', source)
+
     def test_ready_status_rejects_a_different_chromedriver_build(self) -> None:
         """A ready loopback endpoint cannot impersonate the pinned driver build."""
 
