@@ -6,6 +6,7 @@ use originweave_core::{
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
+const CHROMEDRIVER_SESSION_ID: &str = "0123456789abcdef0123456789abcdef";
 
 #[test]
 fn canonical_loopback_session_endpoints_are_admitted_without_granting_authority() {
@@ -41,6 +42,18 @@ fn canonical_loopback_session_endpoints_are_admitted_without_granting_authority(
     assert!(ipv6.is_secure());
     assert_eq!(ipv6.host(), "::1");
     assert_eq!(ipv6.port(), 9222);
+}
+
+#[test]
+fn chromedriver_generated_session_identifier_is_admitted_for_real_chromium_fixture() {
+    let endpoint = WebDriverBiDiWebSocketEndpoint::new(&format!(
+        "ws://127.0.0.1:9515/session/{CHROMEDRIVER_SESSION_ID}"
+    ));
+    assert!(endpoint.is_ok(), "{endpoint:?}");
+    let Ok(endpoint) = endpoint else {
+        return;
+    };
+    assert_eq!(endpoint.session_id(), CHROMEDRIVER_SESSION_ID);
 }
 
 #[test]
