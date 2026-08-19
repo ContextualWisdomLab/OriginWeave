@@ -15,9 +15,11 @@ fn correlated_wire_error_remains_typed_through_node_admission() -> Result<(), Bo
 
     assert_eq!(
         command.admit_response_document_nodes(document),
-        Err(WebDriverBiDiLocateNodesResponseDocumentError::ProtocolError(
-            WebDriverBiDiErrorCode::UnavailableNetworkData,
-        ))
+        Err(
+            WebDriverBiDiLocateNodesResponseDocumentError::ProtocolError(
+                WebDriverBiDiErrorCode::UnavailableNetworkData,
+            )
+        )
     );
     Ok(())
 }
