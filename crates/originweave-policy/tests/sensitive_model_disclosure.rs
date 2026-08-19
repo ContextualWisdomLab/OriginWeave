@@ -77,8 +77,14 @@ fn invocation_scope(authority: SensitiveDataAuthority) -> ModelInvocationScope {
     )
 }
 
-fn necessity_evidence() -> ModelDisclosureNecessityEvidence {
-    ModelDisclosureNecessityEvidence::new(ModelDisclosureNecessity::NoLowerDisclosurePath, 1_000)
+fn necessity_evidence(
+    disclosure_request: &SensitiveDataRequest,
+) -> ModelDisclosureNecessityEvidence {
+    ModelDisclosureNecessityEvidence::new(
+        disclosure_request.clone(),
+        ModelDisclosureNecessity::NoLowerDisclosurePath,
+        1_000,
+    )
 }
 
 #[test]
@@ -96,7 +102,7 @@ fn full_field_disclosure_and_exact_reviewed_invocation_are_authorized() {
         evaluate_full_field_model_disclosure(
             &disclosure_request,
             &disclosure_scope,
-            &necessity_evidence(),
+            &necessity_evidence(&disclosure_request),
             &invocation_request,
             &invocation_scope,
             999,
@@ -125,7 +131,7 @@ fn every_non_full_field_outcome_remains_non_authorizing_for_raw_model_input() {
             evaluate_full_field_model_disclosure(
                 &disclosure_request,
                 &disclosure_scope,
-                &necessity_evidence(),
+                &necessity_evidence(&disclosure_request),
                 &invocation_request,
                 &invocation_scope,
                 999,
@@ -149,7 +155,7 @@ fn disclosure_authority_cannot_be_composed_with_another_tasks_valid_invocation()
         evaluate_full_field_model_disclosure(
             &disclosure_request,
             &disclosure_scope,
-            &necessity_evidence(),
+            &necessity_evidence(&disclosure_request),
             &invocation_request,
             &invocation_scope,
             999,
@@ -173,7 +179,7 @@ fn invocation_denial_is_preserved_after_full_field_disclosure_authority() {
         evaluate_full_field_model_disclosure(
             &disclosure_request,
             &disclosure_scope,
-            &necessity_evidence(),
+            &necessity_evidence(&disclosure_request),
             &invocation_request,
             &invocation_scope,
             999,
