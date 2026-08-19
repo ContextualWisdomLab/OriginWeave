@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import http.client
 import pathlib
 import runpy
 import signal
@@ -171,6 +172,12 @@ class AgentTaskBrowserCrashRecoveryContractTests(unittest.TestCase):
         cleanup_session.__globals__["_json_request"] = expected_transport_failure
         cleanup_session(9222, "session-1")
         self.assertEqual(len(calls), 1)
+
+        def incomplete_post_crash_response(*_args: object, **_kwargs: object) -> object:
+            raise http.client.IncompleteRead(b'{"value":')
+
+        cleanup_session.__globals__["_json_request"] = incomplete_post_crash_response
+        cleanup_session(9222, "session-1")
 
         def unexpected_programming_failure(*_args: object, **_kwargs: object) -> object:
             raise AssertionError("unexpected cleanup defect")
