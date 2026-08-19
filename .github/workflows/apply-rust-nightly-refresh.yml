@@ -1,0 +1,58 @@
+name: Apply Rust nightly refresh once
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  refresh-owned-branch:
+    if: >-
+      github.repository == 'ContextualWisdomLab/OriginWeave' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'agent/rust-toolchain-refresh-2026-08-19' &&
+      github.event.pull_request.user.login == 'seonghobae'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Replace only the reviewed nightly snapshot
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('.github/workflows/hourly-product-development.yml')
+          source = path.read_text(encoding='utf-8')
+          old = 'nightly-2026-08-01'
+          new = 'nightly-2026-08-18'
+          count = source.count(old)
+          if count == 0:
+              print('Autonomous development workflow already uses the reviewed nightly.')
+          else:
+              path.write_text(source.replace(old, new), encoding='utf-8')
+              print(f'Replaced {count} exact nightly selector(s).')
+          PY
+          git diff --check
+          if git diff --quiet -- .github/workflows/hourly-product-development.yml; then
+            exit 0
+          fi
+          changed="$(git diff --name-only)"
+          test "$changed" = ".github/workflows/hourly-product-development.yml"
+          git config user.name "Seongho Bae"
+          git config user.email "me@seonghobae.me"
+          git add .github/workflows/hourly-product-development.yml
+          git commit -m "ci: refresh autonomous Rust nightly"
+          git push origin "HEAD:${HEAD_BRANCH}"
