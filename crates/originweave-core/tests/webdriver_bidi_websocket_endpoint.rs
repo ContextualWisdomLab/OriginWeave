@@ -9,10 +9,12 @@ const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
 
 #[test]
 fn canonical_loopback_session_endpoints_are_admitted_without_granting_authority() {
-    let ipv4 = WebDriverBiDiWebSocketEndpoint::new(&format!(
-        "ws://127.0.0.1:9515/session/{SESSION_ID}"
-    ))
-    .unwrap();
+    let ipv4_result =
+        WebDriverBiDiWebSocketEndpoint::new(&format!("ws://127.0.0.1:9515/session/{SESSION_ID}"));
+    assert!(ipv4_result.is_ok(), "{ipv4_result:?}");
+    let Ok(ipv4) = ipv4_result else {
+        return;
+    };
     assert!(!ipv4.is_secure());
     assert_eq!(ipv4.host(), "127.0.0.1");
     assert_eq!(ipv4.port(), 9515);
@@ -22,16 +24,20 @@ fn canonical_loopback_session_endpoints_are_admitted_without_granting_authority(
         format!("ws://127.0.0.1:9515/session/{SESSION_ID}")
     );
 
-    let localhost = WebDriverBiDiWebSocketEndpoint::new(&format!(
-        "ws://localhost:4444/session/{SESSION_ID}"
-    ))
-    .unwrap();
+    let localhost_result =
+        WebDriverBiDiWebSocketEndpoint::new(&format!("ws://localhost:4444/session/{SESSION_ID}"));
+    assert!(localhost_result.is_ok(), "{localhost_result:?}");
+    let Ok(localhost) = localhost_result else {
+        return;
+    };
     assert_eq!(localhost.host(), "localhost");
 
-    let ipv6 = WebDriverBiDiWebSocketEndpoint::new(&format!(
-        "wss://[::1]:9222/session/{SESSION_ID}"
-    ))
-    .unwrap();
+    let ipv6_result =
+        WebDriverBiDiWebSocketEndpoint::new(&format!("wss://[::1]:9222/session/{SESSION_ID}"));
+    assert!(ipv6_result.is_ok(), "{ipv6_result:?}");
+    let Ok(ipv6) = ipv6_result else {
+        return;
+    };
     assert!(ipv6.is_secure());
     assert_eq!(ipv6.host(), "::1");
     assert_eq!(ipv6.port(), 9222);
@@ -44,10 +50,10 @@ fn remote_or_ambiguous_authorities_fail_closed() {
         format!("ws://192.0.2.1:9515/session/{SESSION_ID}"),
         format!("ws://[2001:db8::1]:9515/session/{SESSION_ID}"),
     ] {
-        assert_eq!(
-            WebDriverBiDiWebSocketEndpoint::new(&endpoint).unwrap_err(),
-            WebDriverBiDiWebSocketEndpointAdmissionError::NonLoopbackHost
-        );
+        assert!(matches!(
+            WebDriverBiDiWebSocketEndpoint::new(&endpoint),
+            Err(WebDriverBiDiWebSocketEndpointAdmissionError::NonLoopbackHost)
+        ));
     }
 
     for endpoint in [
@@ -55,11 +61,13 @@ fn remote_or_ambiguous_authorities_fail_closed() {
         format!("ws://localhost/session/{SESSION_ID}"),
         format!("ws://::1:9515/session/{SESSION_ID}"),
         format!("ws://[::1]9515/session/{SESSION_ID}"),
+        format!("ws://[::zz]:9515/session/{SESSION_ID}"),
+        format!("ws://:9515/session/{SESSION_ID}"),
     ] {
-        assert_eq!(
-            WebDriverBiDiWebSocketEndpoint::new(&endpoint).unwrap_err(),
-            WebDriverBiDiWebSocketEndpointAdmissionError::InvalidAuthority
-        );
+        assert!(matches!(
+            WebDriverBiDiWebSocketEndpoint::new(&endpoint),
+            Err(WebDriverBiDiWebSocketEndpointAdmissionError::InvalidAuthority)
+        ));
     }
 }
 
@@ -71,10 +79,10 @@ fn port_and_session_resource_are_canonical_and_bounded() {
         format!("ws://localhost:65536/session/{SESSION_ID}"),
         format!("ws://localhost:+9515/session/{SESSION_ID}"),
     ] {
-        assert_eq!(
-            WebDriverBiDiWebSocketEndpoint::new(&endpoint).unwrap_err(),
-            WebDriverBiDiWebSocketEndpointAdmissionError::InvalidPort
-        );
+        assert!(matches!(
+            WebDriverBiDiWebSocketEndpoint::new(&endpoint),
+            Err(WebDriverBiDiWebSocketEndpointAdmissionError::InvalidPort)
+        ));
     }
 
     for endpoint in [
@@ -83,67 +91,69 @@ fn port_and_session_resource_are_canonical_and_bounded() {
         "ws://localhost:9515/session/".to_owned(),
         "ws://localhost:9515".to_owned(),
     ] {
-        assert_eq!(
-            WebDriverBiDiWebSocketEndpoint::new(&endpoint).unwrap_err(),
-            WebDriverBiDiWebSocketEndpointAdmissionError::InvalidSessionResource
-        );
+        assert!(matches!(
+            WebDriverBiDiWebSocketEndpoint::new(&endpoint),
+            Err(WebDriverBiDiWebSocketEndpointAdmissionError::InvalidSessionResource)
+        ));
     }
 
     for session_id in [
         "01234567-89ab-cdef-0123-456789abcdeF",
         "0123456789ab-cdef-0123-456789abcdef",
         "01234567-89ab-cdef-0123-456789abcdeg",
+        "01234567_89ab-cdef-0123-456789abcdef",
     ] {
-        assert_eq!(
+        assert!(matches!(
             WebDriverBiDiWebSocketEndpoint::new(&format!(
                 "ws://localhost:9515/session/{session_id}"
-            ))
-            .unwrap_err(),
-            WebDriverBiDiWebSocketEndpointAdmissionError::InvalidSessionId
-        );
+            )),
+            Err(WebDriverBiDiWebSocketEndpointAdmissionError::InvalidSessionId)
+        ));
     }
 }
 
 #[test]
 fn endpoint_text_rejects_noncanonical_or_unbounded_inputs_before_transport_use() {
-    assert_eq!(
-        WebDriverBiDiWebSocketEndpoint::new("").unwrap_err(),
-        WebDriverBiDiWebSocketEndpointAdmissionError::EmptyEndpoint
-    );
-    assert_eq!(
+    assert!(matches!(
+        WebDriverBiDiWebSocketEndpoint::new(""),
+        Err(WebDriverBiDiWebSocketEndpointAdmissionError::EmptyEndpoint)
+    ));
+    assert!(matches!(
         WebDriverBiDiWebSocketEndpoint::new(&format!(
             "http://localhost:9515/session/{SESSION_ID}"
-        ))
-        .unwrap_err(),
-        WebDriverBiDiWebSocketEndpointAdmissionError::InvalidScheme
-    );
-    assert_eq!(
+        )),
+        Err(WebDriverBiDiWebSocketEndpointAdmissionError::InvalidScheme)
+    ));
+    assert!(matches!(
         WebDriverBiDiWebSocketEndpoint::new(&format!(
             "ws://local host:9515/session/{SESSION_ID}"
-        ))
-        .unwrap_err(),
-        WebDriverBiDiWebSocketEndpointAdmissionError::InvalidEndpointText
-    );
-    assert_eq!(
+        )),
+        Err(WebDriverBiDiWebSocketEndpointAdmissionError::InvalidEndpointText)
+    ));
+    assert!(matches!(
+        WebDriverBiDiWebSocketEndpoint::new(&format!(
+            "ws://locálhost:9515/session/{SESSION_ID}"
+        )),
+        Err(WebDriverBiDiWebSocketEndpointAdmissionError::InvalidEndpointText)
+    ));
+    assert!(matches!(
         WebDriverBiDiWebSocketEndpoint::new(&format!(
             "ws://localhost:9515/session/{SESSION_ID}?token=secret"
-        ))
-        .unwrap_err(),
-        WebDriverBiDiWebSocketEndpointAdmissionError::QueryOrFragmentForbidden
-    );
-    assert_eq!(
+        )),
+        Err(WebDriverBiDiWebSocketEndpointAdmissionError::QueryOrFragmentForbidden)
+    ));
+    assert!(matches!(
         WebDriverBiDiWebSocketEndpoint::new(&format!(
             "ws://localhost:9515/session/{SESSION_ID}#fragment"
-        ))
-        .unwrap_err(),
-        WebDriverBiDiWebSocketEndpointAdmissionError::QueryOrFragmentForbidden
-    );
+        )),
+        Err(WebDriverBiDiWebSocketEndpointAdmissionError::QueryOrFragmentForbidden)
+    ));
 
     let oversized = "x".repeat(MAX_WEBDRIVER_BIDI_WEBSOCKET_ENDPOINT_BYTES + 1);
-    assert_eq!(
-        WebDriverBiDiWebSocketEndpoint::new(&oversized).unwrap_err(),
-        WebDriverBiDiWebSocketEndpointAdmissionError::EndpointTooLong
-    );
+    assert!(matches!(
+        WebDriverBiDiWebSocketEndpoint::new(&oversized),
+        Err(WebDriverBiDiWebSocketEndpointAdmissionError::EndpointTooLong)
+    ));
 }
 
 #[test]
