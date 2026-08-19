@@ -528,6 +528,7 @@ mod tests {
     #[test]
     fn parser_propagates_structural_and_typed_field_failures() {
         for raw in [
+            "",
             "{?}",
             r#"{"name" "value"}"#,
             r#"{"path":"\q"}"#,
