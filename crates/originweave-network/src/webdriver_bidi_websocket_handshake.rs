@@ -369,7 +369,16 @@ where
             Ok(0) => {
                 return Err(WebDriverBiDiWebSocketOpeningWriteError::WriteZero { bytes_written });
             }
-            Ok(count) => bytes_written += count,
+            Ok(count) => {
+                bytes_written += count;
+                if deadline.saturating_duration_since(now()).is_zero() {
+                    return Err(
+                        WebDriverBiDiWebSocketOpeningWriteError::WriteDeadlineExceeded {
+                            bytes_written,
+                        },
+                    );
+                }
+            }
             Err(source) if source.kind() == io::ErrorKind::Interrupted => {}
             Err(source)
                 if matches!(
