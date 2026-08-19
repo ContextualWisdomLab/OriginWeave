@@ -59,7 +59,7 @@ fn interruption_before_external_effect_is_retryable_after_complete_cleanup() -> 
     assert!(evidence.evidence_finalized());
     assert!(evidence.recovery_complete());
     assert_eq!(
-        evidence.retry_disposition(&intent),
+        evidence.retry_disposition(browser_authority, &intent),
         RetryDisposition::SafeToRetry
     );
     Ok(())
@@ -67,9 +67,10 @@ fn interruption_before_external_effect_is_retryable_after_complete_cleanup() -> 
 
 #[test]
 fn recovery_evidence_for_another_action_intent_cannot_authorize_retry() -> Result<(), String> {
+    let browser_authority = browser_authority()?;
     let intent = action_intent();
     let evidence = BrowserTaskInterruptionEvidence::new(
-        browser_authority()?,
+        browser_authority,
         intent,
         BrowserTaskInterruptionKind::RendererCrash,
         ExternalEffectDisposition::InterruptedBeforeExternalEffect,
@@ -79,17 +80,51 @@ fn recovery_evidence_for_another_action_intent_cannot_authorize_retry() -> Resul
     );
 
     assert_eq!(
-        evidence.retry_disposition(&other_action_intent()),
+        evidence.retry_disposition(browser_authority, &other_action_intent()),
         RetryDisposition::QuarantineRequired
     );
     Ok(())
 }
 
 #[test]
-fn ambiguous_external_effect_requires_quarantine_even_after_cleanup() -> Result<(), String> {
+fn recovery_evidence_for_another_browser_authority_cannot_authorize_retry() -> Result<(), String> {
+    let browser_authority = browser_authority()?;
+    let (session_id, context_id, document_epoch) = browser_authority;
     let intent = action_intent();
     let evidence = BrowserTaskInterruptionEvidence::new(
-        browser_authority()?,
+        browser_authority,
+        intent.clone(),
+        BrowserTaskInterruptionKind::RendererCrash,
+        ExternalEffectDisposition::InterruptedBeforeExternalEffect,
+        true,
+        true,
+        true,
+    );
+    let other_session = BrowserSessionId::new(session_id.value() + 1).map_err(|error| error.to_string())?;
+    let other_context =
+        BrowsingContextId::new(context_id.value() + 1).map_err(|error| error.to_string())?;
+    let other_epoch =
+        DocumentEpoch::new(document_epoch.value() + 1).map_err(|error| error.to_string())?;
+
+    for current_authority in [
+        (other_session, context_id, document_epoch),
+        (session_id, other_context, document_epoch),
+        (session_id, context_id, other_epoch),
+    ] {
+        assert_eq!(
+            evidence.retry_disposition(current_authority, &intent),
+            RetryDisposition::QuarantineRequired
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn ambiguous_external_effect_requires_quarantine_even_after_cleanup() -> Result<(), String> {
+    let browser_authority = browser_authority()?;
+    let intent = action_intent();
+    let evidence = BrowserTaskInterruptionEvidence::new(
+        browser_authority,
         intent.clone(),
         BrowserTaskInterruptionKind::BrowserProcessExit,
         ExternalEffectDisposition::MayHaveCommitted,
@@ -99,7 +134,7 @@ fn ambiguous_external_effect_requires_quarantine_even_after_cleanup() -> Result<
     );
 
     assert_eq!(
-        evidence.retry_disposition(&intent),
+        evidence.retry_disposition(browser_authority, &intent),
         RetryDisposition::QuarantineRequired
     );
     assert!(evidence.recovery_complete());
@@ -108,9 +143,10 @@ fn ambiguous_external_effect_requires_quarantine_even_after_cleanup() -> Result<
 
 #[test]
 fn forced_context_close_is_recorded_without_inventing_external_effect() -> Result<(), String> {
+    let browser_authority = browser_authority()?;
     let intent = action_intent();
     let evidence = BrowserTaskInterruptionEvidence::new(
-        browser_authority()?,
+        browser_authority,
         intent.clone(),
         BrowserTaskInterruptionKind::ForcedContextClose,
         ExternalEffectDisposition::InterruptedBeforeExternalEffect,
@@ -124,7 +160,7 @@ fn forced_context_close_is_recorded_without_inventing_external_effect() -> Resul
         BrowserTaskInterruptionKind::ForcedContextClose
     );
     assert_eq!(
-        evidence.retry_disposition(&intent),
+        evidence.retry_disposition(browser_authority, &intent),
         RetryDisposition::SafeToRetry
     );
     Ok(())
@@ -165,7 +201,7 @@ fn incomplete_cleanup_requires_quarantine_even_before_an_external_effect() -> Re
     ] {
         assert!(!evidence.recovery_complete());
         assert_eq!(
-            evidence.retry_disposition(&intent),
+            evidence.retry_disposition(browser_authority, &intent),
             RetryDisposition::QuarantineRequired
         );
     }
