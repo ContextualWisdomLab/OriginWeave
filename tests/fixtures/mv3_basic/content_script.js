@@ -1,7 +1,13 @@
 "use strict";
 
 (async () => {
-  document.documentElement.dataset.originweaveContentScript = "ready";
+  window.originweaveWorldSentinel = "extension";
+  await new Promise((resolve) => setTimeout(resolve, 75));
+  const pageWorldSentinel = document.documentElement.dataset.originweavePageWorld;
+  document.documentElement.dataset.originweaveContentScript =
+    window.originweaveWorldSentinel === "extension" && pageWorldSentinel === "page"
+      ? "ready"
+      : "missing";
 
   const previous = await chrome.storage.local.get("originweave_content");
   const storagePersisted = previous.originweave_content === "ready";
