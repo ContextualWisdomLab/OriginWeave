@@ -72,18 +72,13 @@ class ManifestV3BrowserVersionDiagnosticTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(
             prefix="originweave-browser-version-contract-"
         ) as profile_dir:
-            with (
-                unittest.mock.patch.object(
-                    globals_["subprocess"], "Popen", return_value=fake_driver
-                ),
-                unittest.mock.patch.dict(
-                    globals_,
-                    {
-                        "_free_loopback_port": lambda: 43123,
-                        "_wait_for_driver": lambda _port: None,
-                        "_json_request": fake_json_request,
-                    },
-                ),
+            with unittest.mock.patch.dict(
+                globals_,
+                {
+                    "_start_chromedriver": lambda _binary: (fake_driver, 43123),
+                    "_wait_for_driver": lambda _port: None,
+                    "_json_request": fake_json_request,
+                },
             ):
                 with self.assertRaises(RuntimeError) as raised:
                     run_browser_pass(
