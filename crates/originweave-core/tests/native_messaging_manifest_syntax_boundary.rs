@@ -44,6 +44,9 @@ fn complete_parser_preserves_nested_string_failures_at_each_schema_boundary() {
         br#"{"allowed_origins":["\q"]}"#.as_slice(),
         br#"{"name":"\uD83D\u12"}"#.as_slice(),
     ] {
-        assert_eq!(parse_error(raw), NativeMessagingManifestParseError::InvalidJson);
+        assert_eq!(
+            parse_error(raw),
+            NativeMessagingManifestParseError::InvalidJson
+        );
     }
 }
