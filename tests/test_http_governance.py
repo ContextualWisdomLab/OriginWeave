@@ -187,6 +187,20 @@ class HttpGovernanceTests(unittest.TestCase):
         self.assertIn("ADR 0011", security)
         self.assertIn("0012-http-reason-phrase-diagnostics.md", reason)
 
+    def test_root_doctoring_records_http_structured_fields_contract(self) -> None:
+        """Material HTTP standards choices must remain in canonical doctoring."""
+
+        doctoring = (ROOT / "docs/doctoring.md").read_text(encoding="utf-8")
+        for marker in (
+            "### Bounded HTTP semantics and digest-field interoperability",
+            "RFC 9112",
+            "RFC 9530",
+            "RFC 8941",
+            "RFC 9651",
+            "obsoletes RFC 8941",
+        ):
+            self.assertIn(marker, doctoring)
+
 
 if __name__ == "__main__":
     unittest.main()
