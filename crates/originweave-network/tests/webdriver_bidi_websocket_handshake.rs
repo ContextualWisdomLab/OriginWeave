@@ -69,6 +69,7 @@ fn plain_bidi_connection_serializes_exact_rfc6455_opening_request() {
         "GET /session/{SESSION_ID} HTTP/1.1\r\nHost: {local_addr}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: {RFC6455_SAMPLE_KEY}\r\nSec-WebSocket-Version: 13\r\n\r\n"
     );
     assert_eq!(plan.request_bytes(), expected.as_bytes());
+    assert_eq!(plan.client_key().as_str(), RFC6455_SAMPLE_KEY);
     assert_eq!(plan.verified_peer().socket_addr(), local_addr);
     assert_eq!(plan.verified_peer().session_id(), SESSION_ID);
     assert!(!plan.verified_peer().requires_tls());
