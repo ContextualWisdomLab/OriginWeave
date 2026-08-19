@@ -456,12 +456,8 @@ mod opening_write_tests {
         let start = Instant::now();
         let mut times = VecDeque::from([start, start, start, start]);
         let mut now = || times.pop_front().unwrap_or(start);
-        let result = write_request_with_clock(
-            &mut writer,
-            b"hello",
-            Duration::from_secs(1),
-            &mut now,
-        );
+        let result =
+            write_request_with_clock(&mut writer, b"hello", Duration::from_secs(1), &mut now);
         assert!(matches!(result, Ok(5)));
     }
 
@@ -471,12 +467,7 @@ mod opening_write_tests {
         let start = Instant::now();
         let mut times = VecDeque::from([start, start, start + Duration::from_secs(1)]);
         let mut now = || times.pop_front().unwrap_or(start + Duration::from_secs(1));
-        let result = write_request_with_clock(
-            &mut writer,
-            b"x",
-            Duration::from_secs(1),
-            &mut now,
-        );
+        let result = write_request_with_clock(&mut writer, b"x", Duration::from_secs(1), &mut now);
         assert!(matches!(
             result,
             Err(
@@ -521,12 +512,8 @@ mod opening_write_tests {
         for kind in [io::ErrorKind::TimedOut, io::ErrorKind::WouldBlock] {
             let mut writer = FakeWriter::new([WriteAction::Error(kind)]);
             let mut now = || start;
-            let timed_out = write_request_with_clock(
-                &mut writer,
-                b"x",
-                Duration::from_secs(1),
-                &mut now,
-            );
+            let timed_out =
+                write_request_with_clock(&mut writer, b"x", Duration::from_secs(1), &mut now);
             assert!(matches!(
                 timed_out,
                 Err(WebDriverBiDiWebSocketOpeningWriteError::WriteTimedOut {
