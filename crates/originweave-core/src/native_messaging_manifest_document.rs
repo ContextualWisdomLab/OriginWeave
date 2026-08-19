@@ -519,8 +519,9 @@ mod tests {
     fn parse_manifest_for_test(
         raw: &str,
     ) -> Result<ManifestFields, NativeMessagingManifestParseError> {
-        let document = NativeMessagingManifestDocument::parse(raw.as_bytes())
-            .expect("manifest parser fixture must satisfy the bounded outer-object invariant");
+        let Ok(document) = NativeMessagingManifestDocument::parse(raw.as_bytes()) else {
+            return Err(INVALID_JSON);
+        };
         ManifestJsonParser::new(&document).parse_manifest()
     }
 
