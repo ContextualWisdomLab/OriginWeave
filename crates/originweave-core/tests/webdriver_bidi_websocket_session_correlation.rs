@@ -8,9 +8,8 @@ const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
 const OTHER_SESSION_ID: &str = "11234567-89ab-cdef-0123-456789abcdef";
 
 fn endpoint() -> WebDriverBiDiWebSocketEndpoint {
-    let result = WebDriverBiDiWebSocketEndpoint::new(&format!(
-        "ws://127.0.0.1:9515/session/{SESSION_ID}"
-    ));
+    let result =
+        WebDriverBiDiWebSocketEndpoint::new(&format!("ws://127.0.0.1:9515/session/{SESSION_ID}"));
     assert!(result.is_ok(), "{result:?}");
     let Ok(endpoint) = result else {
         unreachable!("asserted valid endpoint")
