@@ -2,12 +2,10 @@ use std::{fmt, io, net::SocketAddr, time::Duration};
 
 use originweave_core::WebDriverBiDiSocketPeerVerificationError;
 
-use crate::connection::{MAX_CONNECT_TIMEOUT, MAX_CONNECTION_ATTEMPTS};
-
 /// Deterministic failures while establishing one bounded WebDriver BiDi TCP transport.
 #[derive(Debug)]
 pub enum WebDriverBiDiTcpConnectionError {
-    /// The requested timeout was zero or exceeded [`MAX_CONNECT_TIMEOUT`].
+    /// The requested timeout was zero or exceeded [`crate::MAX_CONNECT_TIMEOUT`].
     InvalidConnectTimeout {
         /// The rejected timeout.
         connect_timeout: Duration,
