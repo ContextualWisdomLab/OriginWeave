@@ -146,16 +146,17 @@ impl WebDriverBiDiLocateNodesCommand {
     /// Consume one bounded raw `locateNodes` response through exact wire-derived node admission.
     ///
     /// The same bounded document first passes the complete response-envelope parser and exact
-    /// command correlation. An exactly correlated protocol error retains its reviewed typed error
-    /// code and stops before success-only result admission; unknown error-code text still fails
-    /// closed during complete envelope parsing. Only a correlated success proceeds to the result
-    /// parser, which derives the exact `result.nodes` array from that already-validated wire
-    /// document. The command's exact `maxNodeCount` is carried into this parser so overflow items are
-    /// consumed only as generic JSON and produce the existing result-budget failure before
-    /// authority-relevant node metadata is decoded or normalized. Decoded duplicate `nodes`, and
-    /// duplicate or malformed in-budget `type`/`sharedId` fields, fail closed. JSON-escaped protocol
-    /// metadata is decoded before admission, and callers cannot supply replacement node metadata to
-    /// this method.
+    /// command-id correlation. A parsed error with JSON `null` id remains uncorrelatable and fails
+    /// closed before its typed error code can influence recovery. An exactly correlated protocol
+    /// error retains its reviewed typed error code and stops before result admission; unknown
+    /// error-code text still fails closed during complete envelope parsing. Only a correlated
+    /// success proceeds to the result parser, which derives the exact `result.nodes` array from that
+    /// already-validated wire document. The command's exact `maxNodeCount` is carried into this
+    /// parser so overflow items are consumed only as generic JSON and produce the existing
+    /// result-budget failure before authority-relevant node metadata is decoded or normalized.
+    /// Decoded duplicate `nodes`, and duplicate or malformed in-budget `type`/`sharedId` fields,
+    /// fail closed. JSON-escaped protocol metadata is decoded before admission, and callers cannot
+    /// supply replacement node metadata to this method.
     ///
     /// Success remains untrusted transport evidence. It does not authenticate Chromium,
     /// ChromeDriver, WebSocket/TLS provenance, or an adapter process; prove current
@@ -171,15 +172,22 @@ impl WebDriverBiDiLocateNodesCommand {
         let parsed = document
             .parse_command_response()
             .map_err(WebDriverBiDiLocateNodesResponseDocumentError::Parse)?;
-        let correlated = self
-            .correlate_response_envelope(parsed.kind(), parsed.response_id())
-            .map_err(WebDriverBiDiLocateNodesResponseDocumentError::Envelope)?;
+        let response_id = match parsed.response_id() {
+            Some(response_id) => response_id,
+            None => {
+                return Err(WebDriverBiDiLocateNodesResponseDocumentError::Envelope(
+                    WebDriverBiDiLocateNodesResponseEnvelopeError::UncorrelatableErrorResponse,
+                ));
+            }
+        };
+        let validated = self.correlate_response_id(response_id).map_err(|error| {
+            WebDriverBiDiLocateNodesResponseDocumentError::Envelope(
+                WebDriverBiDiLocateNodesResponseEnvelopeError::Correlation(error),
+            )
+        })?;
         if let Some(error_code) = parsed.error_code() {
             return Err(WebDriverBiDiLocateNodesResponseDocumentError::ProtocolError(error_code));
         }
-        let validated = correlated
-            .into_validated_success()
-            .map_err(WebDriverBiDiLocateNodesResponseDocumentError::Envelope)?;
         let wire_nodes = locate_nodes_result_document::parse_wire_locate_nodes_result_bounded(
             parsed.as_str(),
             validated.max_node_count(),
