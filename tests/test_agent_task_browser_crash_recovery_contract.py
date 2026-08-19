@@ -156,6 +156,42 @@ class AgentTaskBrowserCrashRecoveryContractTests(unittest.TestCase):
         cleanup(ExitedDriver())
         self.assertEqual(events, ["poll", ("wait", 5)])
 
+    def test_crash_session_cleanup_ignores_only_reviewed_transport_failures(self) -> None:
+        """Expected post-crash transport loss is bounded, while programming failures propagate."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_browser_crash_session_cleanup")
+        self.assertIn("_cleanup_crashed_browser_session", namespace)
+        cleanup_session = namespace["_cleanup_crashed_browser_session"]
+        calls: list[tuple[object, ...]] = []
+
+        def expected_transport_failure(*args: object, **_kwargs: object) -> object:
+            calls.append(args)
+            raise OSError("browser transport is already gone")
+
+        cleanup_session.__globals__["_json_request"] = expected_transport_failure
+        cleanup_session(9222, "session-1")
+        self.assertEqual(len(calls), 1)
+
+        def unexpected_programming_failure(*_args: object, **_kwargs: object) -> object:
+            raise AssertionError("unexpected cleanup defect")
+
+        cleanup_session.__globals__["_json_request"] = unexpected_programming_failure
+        with self.assertRaisesRegex(AssertionError, "unexpected cleanup defect"):
+            cleanup_session(9222, "session-1")
+
+    def test_crash_session_cleanup_without_session_is_a_noop(self) -> None:
+        """No session identifier means cleanup has no remote operation to attempt."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_browser_crash_no_session")
+        self.assertIn("_cleanup_crashed_browser_session", namespace)
+        cleanup_session = namespace["_cleanup_crashed_browser_session"]
+
+        def unexpected_request(*_args: object, **_kwargs: object) -> object:
+            raise AssertionError("cleanup must not call WebDriver without a session")
+
+        cleanup_session.__globals__["_json_request"] = unexpected_request
+        cleanup_session(9222, None)
+
     def test_crash_lane_is_required_for_success_evidence(self) -> None:
         """The real-browser evidence must retain deterministic crash and teardown proof."""
 
