@@ -30,6 +30,7 @@ mod browser_protocol_operation;
 mod browser_registry;
 #[cfg(test)]
 mod browser_registry_coverage;
+mod contract_errors;
 mod contracts;
 mod webdriver_bidi_command;
 
@@ -61,7 +62,14 @@ pub use browser_registry::{
     BrowserRegistryError, MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES,
     UNICODE_PROTOCOL_FORMAT_INJECTION_CHARS,
 };
-pub use contracts::*;
+pub use contracts::{
+    ActionIntentDigest, ActionIntentDigestError, ActionKind, ActionRequest, ApprovalEvidence,
+    ApprovalScope, BrowserSessionId, BrowsingContextId, Capability, DocumentEpoch,
+    ExecutionPurpose, ExtensionAccessDecision, ExtensionAccessRequest, ExtensionAgentCapability,
+    ExtensionAgentGrant, ExtensionId, ExtensionIdError, InstructionSource, NodeHandleError,
+    ObservedNodeHandle, Origin, OriginError, PolicyContext, RiskClass, RobotsDecision,
+    SecretDelivery, SessionMode, evaluate_extension_access,
+};
 pub use webdriver_bidi_command::{
     MAX_WEBDRIVER_BIDI_COMMAND_ID, WebDriverBiDiLocateNodesCommand,
     WebDriverBiDiLocateNodesCommandError,
