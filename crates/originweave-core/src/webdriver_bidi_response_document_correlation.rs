@@ -175,9 +175,7 @@ impl WebDriverBiDiLocateNodesCommand {
             .correlate_response_envelope(parsed.kind(), parsed.response_id())
             .map_err(WebDriverBiDiLocateNodesResponseDocumentError::Envelope)?;
         if let Some(error_code) = parsed.error_code() {
-            return Err(WebDriverBiDiLocateNodesResponseDocumentError::ProtocolError(
-                error_code,
-            ));
+            return Err(WebDriverBiDiLocateNodesResponseDocumentError::ProtocolError(error_code));
         }
         let validated = correlated
             .into_validated_success()
