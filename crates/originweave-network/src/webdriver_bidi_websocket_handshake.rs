@@ -460,22 +460,15 @@ mod opening_write_tests {
     fn bounded_writer_rejects_completion_observed_after_total_deadline() {
         let mut writer = FakeWriter::new([WriteAction::Count(1)]);
         let start = Instant::now();
-        let mut times = VecDeque::from([
-            start,
-            start,
-            start + Duration::from_secs(1),
-        ]);
-        let result =
-            write_request_with_clock(&mut writer, b"x", Duration::from_secs(1), || {
-                times
-                    .pop_front()
-                    .unwrap_or(start + Duration::from_secs(1))
-            });
+        let mut times = VecDeque::from([start, start, start + Duration::from_secs(1)]);
+        let result = write_request_with_clock(&mut writer, b"x", Duration::from_secs(1), || {
+            times.pop_front().unwrap_or(start + Duration::from_secs(1))
+        });
         assert!(matches!(
             result,
-            Err(WebDriverBiDiWebSocketOpeningWriteError::WriteDeadlineExceeded {
-                bytes_written: 1
-            })
+            Err(
+                WebDriverBiDiWebSocketOpeningWriteError::WriteDeadlineExceeded { bytes_written: 1 }
+            )
         ));
     }
 
