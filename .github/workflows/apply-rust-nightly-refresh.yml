@@ -1,4 +1,4 @@
-name: Apply Rust nightly refresh once
+name: Materialize Rust nightly refresh once
 
 on:
   pull_request:
@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  refresh-owned-branch:
+  materialize-owned-branch:
     if: >-
       github.repository == 'ContextualWisdomLab/OriginWeave' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
@@ -16,43 +16,35 @@ jobs:
       github.event.pull_request.user.login == 'seonghobae'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          fetch-depth: 0
-          persist-credentials: true
-      - name: Replace only the reviewed nightly snapshot
-        env:
-          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
-          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Materialize only the reviewed nightly snapshot
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           python3 - <<'PY'
           from pathlib import Path
 
-          path = Path('.github/workflows/hourly-product-development.yml')
-          source = path.read_text(encoding='utf-8')
+          source_path = Path('.github/workflows/hourly-product-development.yml')
+          source = source_path.read_text(encoding='utf-8')
           old = 'nightly-2026-08-01'
           new = 'nightly-2026-08-18'
           count = source.count(old)
-          if count == 0:
-              print('Autonomous development workflow already uses the reviewed nightly.')
-          else:
-              path.write_text(source.replace(old, new), encoding='utf-8')
-              print(f'Replaced {count} exact nightly selector(s).')
+          if count != 2:
+              raise SystemExit(f'expected exactly 2 predecessor selectors, found {count}')
+          output = Path('nightly-refresh-artifact/hourly-product-development.yml')
+          output.parent.mkdir(parents=True, exist_ok=True)
+          output.write_text(source.replace(old, new), encoding='utf-8')
+          refreshed = output.read_text(encoding='utf-8')
+          if old in refreshed or refreshed.count(new) < 2:
+              raise SystemExit('nightly refresh artifact failed its replacement contract')
           PY
-          git diff --check
-          if git diff --quiet -- .github/workflows/hourly-product-development.yml; then
-            exit 0
-          fi
-          changed="$(git diff --name-only)"
-          test "$changed" = ".github/workflows/hourly-product-development.yml"
-          git config user.name "Seongho Bae"
-          git config user.email "me@seonghobae.me"
-          git add .github/workflows/hourly-product-development.yml
-          git commit -m "ci: refresh autonomous Rust nightly"
-          git push origin "HEAD:${HEAD_BRANCH}"
+      - name: Upload exact refreshed workflow
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: hourly-rust-nightly-${{ github.event.pull_request.head.sha }}
+          path: nightly-refresh-artifact/hourly-product-development.yml
+          if-no-files-found: error
+          retention-days: 1
