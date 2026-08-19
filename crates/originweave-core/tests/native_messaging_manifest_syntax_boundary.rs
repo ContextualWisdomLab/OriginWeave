@@ -20,6 +20,14 @@ fn complete_parser_rejects_a_missing_member_separator_after_bounded_admission() 
 }
 
 #[test]
+fn complete_parser_rejects_a_non_string_member_key_after_bounded_admission() {
+    assert_eq!(
+        parse_error(br#"{?}"#),
+        NativeMessagingManifestParseError::InvalidJson
+    );
+}
+
+#[test]
 fn complete_parser_rejects_non_string_required_fields_through_the_public_boundary() {
     assert_eq!(
         parse_error(br#"{"name":true}"#),
