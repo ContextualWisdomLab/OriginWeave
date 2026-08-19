@@ -68,13 +68,15 @@ Exact current head `c639cd78e3acad235be4cbbfdef67b84ce7ddbfa` provides bounded n
 
 Exact current head `4a71b7dd357974f791f8d7f4a0be5c4c0b9ea1b1`, stacked on #82, preserves current extension authority while bounding native-endian message framing with direction-specific payload ceilings, exact frame length, and UTF-8 text validation before later JSON/untrusted-observation handling. It does not prove host-manifest installation, process ownership, sandboxing, stdio provenance, or Agent authority.
 
-### PR #169 — validated host-manifest authority
+### PR #169 — complete bounded host-manifest parsing and authority validation
 
 **Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
 
-This Draft, stacked on #154, adds test-first host-manifest authority. Before future structured parsing, the raw manifest document must be non-empty valid UTF-8, at most the OriginWeave 64 KiB pre-parser safety budget, and wrapped by one outer object-shaped envelope after the four JSON whitespace characters are ignored; the byte bound is enforced before storing the document as a `String`. The envelope check is deliberately only an ingress guard: it does not establish complete JSON syntax or field validity. The budget is an OriginWeave resource-governance limit, not a Chrome or operating-system manifest-size claim, and successful admission does not establish authority. The structured contract accepts only exact `stdio`, requires a non-empty bounded raw `allowed_origins` list, validates exact canonical `chrome-extension://<id>/` origins without wildcard or suffix normalization, collapses duplicate exact origins without widening authority, bounds executable-path allocation, preserves platform-specific path semantics, allows only an exact host plus explicitly listed extension identity, and retains the optional boolean `supports_native_initiated_connections` declaration when a trusted structured parser supplies it. The compatibility constructor records that declaration as absent/false rather than inventing support.
+This Draft, stacked on #154, now parses the admitted native-host manifest document completely at the reviewed schema boundary. Raw ingress must first be non-empty valid UTF-8, remain within the OriginWeave 64 KiB pre-parser safety budget before `String` allocation, and have one outer object-shaped envelope after the four JSON whitespace characters are ignored. Complete parsing then accepts exactly Chrome's reviewed required `name`, `description`, `path`, `type`, and `allowed_origins` members plus optional boolean `supports_native_initiated_connections`; rejects duplicate decoded member names, unknown or missing members, wrong JSON types, malformed escapes and surrogate pairs, malformed arrays, trailing commas, control characters, and trailing JSON data; and decodes JSON strings before authority-bearing values reach the existing validators.
 
-The implementation intentionally treats bounded document admission and caller-supplied validated manifest fields as separate preconditions rather than ambient authority. A retained `supports_native_initiated_connections: true` value proves only that the validated manifest declared the optional Chromium field; it does not prove Chromium feature or enterprise-policy enablement, installed registration, executable/process identity, native-initiated connection provenance, message trust, or Agent authority. This slice still does not completely parse or validate JSON from the admitted document, read or authenticate filesystem/registry registration, canonicalize or attest executable paths, resolve a Windows relative path against an authenticated manifest directory, prove installer/OS ownership, spawn/sandbox/supervise a host process, authenticate the stdio peer, parse/trust host JSON, expose protected values, or grant Agent actions. Those remain separately reviewed runtime boundaries.
+`description` is required and type-checked because it belongs to the reviewed manifest schema but is intentionally not retained as authority. The parsed contract accepts only exact `stdio`, requires a non-empty bounded raw `allowed_origins` list, validates exact canonical `chrome-extension://<id>/` origins without wildcard or suffix normalization, collapses duplicate exact origins without widening authority, bounds executable-path allocation, preserves platform-specific path semantics, allows only an exact host plus explicitly listed extension identity, and retains the optional `supports_native_initiated_connections` declaration as data. The raw-document and executable-path limits are OriginWeave resource-governance limits, not Chrome or operating-system maximum claims.
+
+Successful parsing still does not prove that the manifest is installed, authentic, OS-owned, policy-enabled, or bound to the process that will exchange native messages. A retained `supports_native_initiated_connections: true` value proves only that the parsed document declared the reviewed optional field; it does not prove Chromium feature or enterprise-policy enablement, installed registration, executable/process identity, native-initiated connection provenance, message trust, or Agent authority. This slice still does not read or authenticate filesystem/registry registration, canonicalize or attest an installed executable path, resolve a Windows relative path against an authenticated manifest directory, prove installer/OS ownership, spawn/sandbox/supervise a host process, authenticate the stdio peer, trust host message semantics, expose protected values, or grant Agent actions. Those remain separately reviewed runtime boundaries.
 
 ## 4. Security interpretation
 
@@ -98,25 +100,26 @@ and:
 Chrome nativeMessaging permission
 -> exact extension/host grant
 -> bounded UTF-8, object-shaped manifest-document ingress
--> validated exact host-manifest allow-list
+-> complete bounded reviewed JSON/schema parsing
+-> validated exact host-manifest allow-list and executable-path intent
 -> optional native-initiated-connection declaration retained as data only
 -> bounded native-messaging framing
 -/> Chromium feature / enterprise-policy enablement
--/> complete JSON validity / installed-host ownership
+-/> installed-host ownership / executable-process identity
 -/> process identity / sandbox authority
 -/> trusted message provenance
 -/> Agent authority
 -/> protected-value access
 ```
 
-A future real extension/native-host adapter must preserve these separations. Chrome permissions, extension grants, bounded document bytes, validated host-manifest fields, optional connection-direction declarations, and framed native bytes are inputs to explicit policy/provenance composition, never ambient authority that bypasses deterministic Agent or sensitive-data controls.
+A future real extension/native-host adapter must preserve these separations. Chrome permissions, extension grants, bounded and fully parsed manifest documents, validated host-manifest fields, optional connection-direction declarations, and framed native bytes are inputs to explicit policy/provenance composition, never ambient authority that bypasses deterministic Agent or sensitive-data controls.
 
 ## 5. Remaining issue #27 / #10 boundary
 
 This dossier does **not** close issue #27 or issue #10. Remaining material work includes, among other accepted requirements:
 
-- complete structured JSON parsing with bounded field extraction plus trusted platform-specific native-host registration discovery and ownership/path validation;
-- process sandboxing, lifecycle supervision, authenticated stdio peer attribution, crash recovery, and untrusted-message handling;
+- trusted platform-specific native-host registration discovery, ownership checks, and installed-path validation, including Windows relative-path resolution against an authenticated manifest directory;
+- process sandboxing, lifecycle supervision, authenticated stdio peer attribution, crash recovery, and fail-closed untrusted-message handling;
 - real managed-extension allow-list and enterprise policy integration, including independent validation of any Chromium native-initiated-connection feature/policy state before use;
 - complete supported-capability release matrix and regression gate;
 - authenticated workload/service identity for sensitive-data broker audience;
