@@ -1814,6 +1814,22 @@ def _run_agent_task_forced_close_trial(
     }
 
 
+def _cleanup_crashed_browser_session(driver_port: int, session_id: str | None) -> None:
+    """Delete a crash session while ignoring only reviewed post-crash transport loss."""
+
+    if session_id is None:
+        return
+    try:
+        _json_request(
+            driver_port,
+            "DELETE",
+            _webdriver_path(session_id, ""),
+            {},
+        )
+    except (OSError, RuntimeError, json.JSONDecodeError):
+        return
+
+
 def _stop_crashed_driver(driver: subprocess.Popen[Any]) -> None:
     """Reap ChromeDriver without re-signalling a child that already exited."""
 
@@ -1951,14 +1967,7 @@ def _run_agent_task_browser_crash_browser_pass(
                 raise RuntimeError("Agent Task browser remained usable after SIGKILL")
             time.sleep(min(0.05, remaining_seconds))
     finally:
-        if session_id is not None:
-            with contextlib.suppress(Exception):
-                _json_request(
-                    driver_port,
-                    "DELETE",
-                    _webdriver_path(session_id, ""),
-                    {},
-                )
+        _cleanup_crashed_browser_session(driver_port, session_id)
         _stop_crashed_driver(driver)
 
     if (
