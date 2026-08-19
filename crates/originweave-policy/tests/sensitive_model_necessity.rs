@@ -55,7 +55,7 @@ fn invocation_scope(authority: SensitiveDataAuthority) -> ModelInvocationScope {
         "customer-email-summary-v1",
         8_192,
         2_048,
-        1_000,
+        1_001,
     )
 }
 
@@ -75,7 +75,10 @@ fn exact_full_field_model_disclosure_requires_no_lower_disclosure_path() {
     let invocation_scope = invocation_scope(exact_authority);
     let necessity = necessity_evidence(ModelDisclosureNecessity::NoLowerDisclosurePath);
 
-    assert_eq!(necessity.necessity(), ModelDisclosureNecessity::NoLowerDisclosurePath);
+    assert_eq!(
+        necessity.necessity(),
+        ModelDisclosureNecessity::NoLowerDisclosurePath
+    );
     assert_eq!(necessity.valid_until(), 1_000);
     assert_eq!(
         evaluate_full_field_model_disclosure(
