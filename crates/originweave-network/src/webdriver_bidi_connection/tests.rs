@@ -12,8 +12,8 @@ use std::{
 use originweave_core::{WebDriverBiDiWebSocketConnectTarget, WebDriverBiDiWebSocketEndpoint};
 
 use super::{
-    is_retryable_connect_error, WebDriverBiDiSocketConnector, WebDriverBiDiTcpConnectionError,
-    WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiSocketConnector, WebDriverBiDiTcpConnectionError, WebDriverBiDiTcpConnectionPlan,
+    is_retryable_connect_error,
 };
 use crate::connection::{MAX_CONNECT_TIMEOUT, MAX_CONNECTION_ATTEMPTS};
 
@@ -134,11 +134,8 @@ fn validates_timeout_and_attempt_bounds_before_io() {
         Err(WebDriverBiDiTcpConnectionError::InvalidConnectTimeout { .. })
     ));
 
-    let zero_attempts = WebDriverBiDiTcpConnectionPlan::new(
-        connect_target(false),
-        Duration::from_millis(250),
-        0,
-    );
+    let zero_attempts =
+        WebDriverBiDiTcpConnectionPlan::new(connect_target(false), Duration::from_millis(250), 0);
     assert!(matches!(
         zero_attempts,
         Err(WebDriverBiDiTcpConnectionError::InvalidAttemptCount { .. })
@@ -161,14 +158,11 @@ fn verified_peer_is_required_before_stream_exposure() {
         vec![ConnectOutcome::Success(loopback_stream())],
         vec![PeerOutcome::Address(socket_address())],
     );
-    let connection = WebDriverBiDiTcpConnectionPlan::new(
-        connect_target(true),
-        Duration::from_millis(250),
-        1,
-    )
-    .expect("valid plan")
-    .connect_with(&connector)
-    .expect("verified connection");
+    let connection =
+        WebDriverBiDiTcpConnectionPlan::new(connect_target(true), Duration::from_millis(250), 1)
+            .expect("valid plan")
+            .connect_with(&connector)
+            .expect("verified connection");
 
     assert!(connection.stream().peer_addr().is_ok());
     assert_eq!(connection.verified_peer().socket_addr(), socket_address());
