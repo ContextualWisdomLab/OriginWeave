@@ -57,6 +57,7 @@ fn remote_or_ambiguous_authorities_fail_closed() {
     }
 
     for endpoint in [
+        format!("ws:///session/{SESSION_ID}"),
         format!("ws://user@localhost:9515/session/{SESSION_ID}"),
         format!("ws://localhost/session/{SESSION_ID}"),
         format!("ws://::1:9515/session/{SESSION_ID}"),
