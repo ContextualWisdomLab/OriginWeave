@@ -72,6 +72,22 @@ fn remote_or_ambiguous_authorities_fail_closed() {
 }
 
 #[test]
+fn malformed_loopback_authority_edge_cases_fail_closed() {
+    for endpoint in [
+        format!("ws://[::1:9515/session/{SESSION_ID}"),
+        format!("ws://[::1]:/session/{SESSION_ID}"),
+        format!("ws://[0:0:0:0:0:0:0:1]:9515/session/{SESSION_ID}"),
+        format!("ws://localhost:/session/{SESSION_ID}"),
+        format!("ws://local_host:9515/session/{SESSION_ID}"),
+    ] {
+        assert!(matches!(
+            WebDriverBiDiWebSocketEndpoint::new(&endpoint),
+            Err(WebDriverBiDiWebSocketEndpointAdmissionError::InvalidAuthority)
+        ));
+    }
+}
+
+#[test]
 fn port_and_session_resource_are_canonical_and_bounded() {
     for endpoint in [
         format!("ws://localhost:0/session/{SESSION_ID}"),
