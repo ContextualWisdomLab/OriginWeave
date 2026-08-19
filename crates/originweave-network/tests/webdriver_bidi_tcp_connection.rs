@@ -60,6 +60,14 @@ fn exact_loopback_target_opens_one_verified_bidi_tcp_stream() {
     assert_eq!(connection.attempt_number(), 1);
     assert_eq!(connection.connect_timeout(), Duration::from_secs(1));
 
+    let (stream, evidence) = connection.into_parts();
+    assert_eq!(stream.peer_addr().ok(), Some(local_addr));
+    assert_eq!(evidence.verified_peer().socket_addr(), local_addr);
+    assert!(!evidence.verified_peer().requires_tls());
+    assert_eq!(evidence.verified_peer().session_id(), SESSION_ID);
+    assert_eq!(evidence.attempt_number(), 1);
+    assert_eq!(evidence.connect_timeout(), Duration::from_secs(1));
+
     let server_result = server.join();
     assert!(server_result.is_ok(), "{server_result:?}");
     if let Ok(accept_result) = server_result {
