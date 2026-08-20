@@ -9,8 +9,9 @@
 use std::fmt;
 
 use crate::{
-    NativeMessagingHostManifest, NativeMessagingHostManifestError, NativeMessagingHostName,
-    NativeMessagingHostNameError, NativeMessagingHostPlatform, MAX_NATIVE_MESSAGING_ALLOWED_ORIGINS,
+    MAX_NATIVE_MESSAGING_ALLOWED_ORIGINS, NativeMessagingHostManifest,
+    NativeMessagingHostManifestError, NativeMessagingHostName, NativeMessagingHostNameError,
+    NativeMessagingHostPlatform,
 };
 
 /// Maximum UTF-8 byte length accepted for one native-messaging host manifest document.
@@ -166,7 +167,6 @@ impl<'a> ManifestJsonParser<'a> {
 
     fn parse_manifest(mut self) -> Result<ManifestFields, NativeMessagingManifestParseError> {
         self.skip_whitespace();
-        // The document constructor already proved that the first non-whitespace byte is `{`.
         self.position += 1;
         self.skip_whitespace();
         let mut fields = PartialManifestFields::default();
@@ -337,7 +337,6 @@ impl<'a> ManifestJsonParser<'a> {
         &mut self,
         output: &mut Vec<u8>,
     ) -> Result<(), NativeMessagingManifestParseError> {
-        // NUL is not a legal JSON escape, so unexpected EOF shares the normal fail-closed path.
         let escape = self.take_byte().unwrap_or(b'\0');
         match escape {
             b'"' => output.push(b'"'),
@@ -419,16 +418,11 @@ impl<'a> ManifestJsonParser<'a> {
     }
 }
 
-/// Failure to admit a native-messaging host manifest document at the pre-parser boundary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NativeMessagingManifestDocumentError {
-    /// The manifest document contained zero bytes.
     EmptyDocument,
-    /// The manifest document exceeded the OriginWeave pre-parser safety budget.
     DocumentTooLarge,
-    /// The manifest document was not valid UTF-8.
     InvalidUtf8,
-    /// The document did not have one outer object boundary after JSON whitespace was removed.
     InvalidObjectBoundary,
 }
 
@@ -453,22 +447,14 @@ impl fmt::Display for NativeMessagingManifestDocumentError {
 
 impl std::error::Error for NativeMessagingManifestDocumentError {}
 
-/// Failure to parse or validate a complete bounded native-messaging host manifest document.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NativeMessagingManifestParseError {
-    /// The document was not one complete valid JSON object in the reviewed schema.
     InvalidJson,
-    /// A decoded manifest member appeared more than once.
     DuplicateField,
-    /// The manifest contained a member outside the reviewed Chrome native-host schema.
     UnknownField,
-    /// One or more Chrome-required manifest members were absent.
     MissingRequiredField,
-    /// A reviewed member used a JSON type different from the Chrome manifest contract.
     InvalidFieldType,
-    /// The decoded host-name string violated the existing exact host-identity contract.
     HostName(NativeMessagingHostNameError),
-    /// The decoded authority-bearing fields failed the existing host-manifest validator.
     Manifest(NativeMessagingHostManifestError),
 }
 
@@ -532,16 +518,9 @@ mod tests {
 
     #[test]
     fn parser_propagates_structural_and_typed_field_failures() {
-        for raw in [
-            "",
-            "{?}",
-            r#"{"name" "value"}"#,
-            r#"{"path":"\q"}"#,
-            r#"{"type":"\q"}"#,
-        ] {
+        for raw in ["", "{?}", r#"{"name" "value"}"#, r#"{"path":"\q"}"#, r#"{"type":"\q"}"#] {
             assert_eq!(parse_manifest_for_test(raw), Err(INVALID_JSON));
         }
-
         assert_eq!(
             parse_manifest_for_test(r#"{"name":1}"#),
             Err(NativeMessagingManifestParseError::InvalidFieldType)
@@ -565,17 +544,11 @@ mod tests {
         };
         assert_eq!(trailing_array.parse_string_array(), Err(INVALID_JSON));
 
-        let mut empty_escape = ManifestJsonParser {
-            input: "",
-            position: 0,
-        };
+        let mut empty_escape = ManifestJsonParser { input: "", position: 0 };
         let mut output = Vec::new();
         assert_eq!(empty_escape.parse_escape(&mut output), Err(INVALID_JSON));
 
-        let mut short_quad = ManifestJsonParser {
-            input: "12",
-            position: 0,
-        };
+        let mut short_quad = ManifestJsonParser { input: "12", position: 0 };
         assert_eq!(short_quad.parse_hex_quad(), Err(INVALID_JSON));
 
         let mut short_second_quad = ManifestJsonParser {
