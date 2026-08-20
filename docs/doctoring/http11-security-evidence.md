@@ -1,6 +1,6 @@
-# HTTP/1.1 Redirect and Download-Metadata Security Evidence
+# HTTP/1.1 Redirect, Download-Metadata, and MIME Security Evidence
 
-This document is an authoritative doctoring addendum for ADR 0011. It records primary-source evidence that changed the bounded HTTP/1.1 redirect and download-metadata contracts on 2026-08-07. References use APA 7th style.
+This document is an authoritative doctoring addendum for ADR 0011. It records primary-source evidence that changed the bounded HTTP/1.1 redirect, download-metadata, and observed-MIME contracts. References use APA 7th style.
 
 ## Redirect-reference authority
 
@@ -18,6 +18,12 @@ Validation occurs after quoted-string or RFC 8187 extended-value decoding. RFC 8
 
 The HTTP crate still does not create files. It supplies bounded metadata to a later separately authorized persistence boundary.
 
+## Observed MIME text/binary boundary
+
+The current WHATWG MIME Sniffing Standard defines a **binary data byte** narrowly: `0x00..=0x08`, `0x0B`, `0x0E..=0x1A`, and `0x1C..=0x1F`. In the unknown-MIME algorithm, a bounded resource header that contains none of those bytes is classified as `text/plain`; validity as UTF-8 is not a prerequisite. Bytes in `0x80..=0xFF` therefore cannot be treated as binary merely because a prefix is not valid UTF-8.
+
+OriginWeave's observed classifier follows that byte-level contract after higher-priority reviewed signatures. The implementation still reads only the bounded sniff prefix, and active/scriptable signatures keep their separate conservative risk handling. Regression evidence includes non-UTF-8 high bytes that must remain passive `text/plain` and control-byte content that must remain `application/octet-stream`. This prevents evidence drift caused by conflating text/binary sniffing with Unicode decoding.
+
 ## Verification contract
 
 The exact pull-request head must demonstrate:
@@ -26,6 +32,7 @@ The exact pull-request head must demonstrate:
 - preservation of admitted single-leading-slash same-origin redirect metadata;
 - rejection of all Win32 reserved filename characters after decoding;
 - preservation of existing control, path, device-name, bidi, length, dot, and whitespace restrictions;
+- WHATWG byte-level text/binary classification, including passive non-UTF-8 high bytes and binary control-byte rejection;
 - Rust formatting, workspace checks, tests, Clippy, and rustdoc;
 - exact 100% production function, line, region, statement, and branch coverage;
 - Security Scan, SAST, all operationally required current review gates, and branch-protection gates.
@@ -34,6 +41,8 @@ The exact pull-request head must demonstrate:
 
 Berners-Lee, T., Fielding, R., & Masinter, L. (2005). *Uniform resource identifier (URI): Generic syntax* (RFC 3986). Internet Engineering Task Force. https://doi.org/10.17487/RFC3986
 
+Microsoft. (n.d.). *Naming files, paths, and namespaces*. Microsoft Learn. Retrieved August 7, 2026, from https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file
+
 Reschke, J. (2017). *Indicating character encoding and language for HTTP header field parameters* (RFC 8187). Internet Engineering Task Force. https://doi.org/10.17487/RFC8187
 
-Microsoft. (n.d.). *Naming files, paths, and namespaces*. Microsoft Learn. Retrieved August 7, 2026, from https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file
+Web Hypertext Application Technology Working Group. (2026). *MIME Sniffing Standard*. https://mimesniff.spec.whatwg.org/
