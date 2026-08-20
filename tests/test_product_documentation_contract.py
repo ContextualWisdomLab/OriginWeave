@@ -48,6 +48,16 @@ class ProductDocumentationContractTests(unittest.TestCase):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, text)
 
+        protected_main = text.split("### Open pull requests", 1)[0]
+        open_pull_requests = text.split("### Open pull requests", 1)[1].split(
+            "### Review and merge authority", 1
+        )[0]
+        self.assertIn("Phase 1 is **in progress**, not shipped.", protected_main)
+        self.assertIn(
+            "It remains draft evidence and cannot be treated as shipped behavior.",
+            open_pull_requests,
+        )
+
     def test_root_architecture_links_the_authoritative_product_graph(self) -> None:
         """Architecture readers must be able to reach requirements, decisions, diagrams, and data."""
         architecture = (ROOT / "ARCHITECTURE.md").read_text(encoding="utf-8")

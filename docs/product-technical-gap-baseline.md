@@ -71,10 +71,10 @@ The hourly product-development loop exists as a bounded, review-separated workfl
 The volatile values above were obtained from the repository and GitHub APIs, without exposing credentials:
 
 ```text
-gh api repos/ContextualWisdomLab/OriginWeave/pulls?state=open&per_page=100
-gh api repos/ContextualWisdomLab/OriginWeave/commits/<exact-head-sha>/check-runs?per_page=100
-gh api repos/ContextualWisdomLab/OriginWeave/rulesets/18156473
-gh api repos/ContextualWisdomLab/OriginWeave/collaborators?affiliation=all&per_page=100
+gh api 'repos/ContextualWisdomLab/OriginWeave/pulls?state=open&per_page=100'
+gh api 'repos/ContextualWisdomLab/OriginWeave/commits/0841d2ab3d8b5e60a03c0a8e818cf438e2716829/check-runs?per_page=100'
+gh api 'repos/ContextualWisdomLab/OriginWeave/rulesets/18156473'
+gh api 'repos/ContextualWisdomLab/OriginWeave/collaborators?affiliation=all&per_page=100'
 ```
 
 For standards and binding architecture, use [`doctoring.md`](doctoring.md), [`PRD.md`](PRD.md), [`TRD.md`](TRD.md), [`product-roadmap.md`](product-roadmap.md), and the linked ADR/UML/ERD/traceability graph. This baseline intentionally records delivery state and does not promote planned adapters or open pull-request code to implemented behavior.
