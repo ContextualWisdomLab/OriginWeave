@@ -10,7 +10,7 @@ fn field(
     cardinality: ExtractionCardinality,
     required: bool,
     source_channels: &[ExtractionSourceChannel],
-) -> ExtractionField {
+) -> Result<ExtractionField, ExtractionSchemaError> {
     ExtractionField::new(
         identifier,
         value_type,
@@ -18,11 +18,11 @@ fn field(
         required,
         source_channels,
     )
-    .expect("fixture field must be valid")
 }
 
 #[test]
-fn schema_binds_versioned_typed_fields_to_explicit_source_channels() {
+fn schema_binds_versioned_typed_fields_to_explicit_source_channels(
+) -> Result<(), ExtractionSchemaError> {
     let schema = ExtractionSchema::new(
         "product-card-v1",
         vec![
@@ -35,7 +35,7 @@ fn schema_binds_versioned_typed_fields_to_explicit_source_channels() {
                     ExtractionSourceChannel::SemanticNode,
                     ExtractionSourceChannel::StructuredData,
                 ],
-            ),
+            )?,
             field(
                 "unit_price",
                 ExtractionValueType::Decimal,
@@ -45,47 +45,61 @@ fn schema_binds_versioned_typed_fields_to_explicit_source_channels() {
                     ExtractionSourceChannel::TableCell,
                     ExtractionSourceChannel::NetworkResponse,
                 ],
-            ),
+            )?,
         ],
-    )
-    .expect("schema must be admitted");
+    )?;
 
     assert_eq!(schema.version(), "product-card-v1");
     assert_eq!(schema.fields().len(), 2);
     assert_eq!(
-        schema.field("product_name").unwrap().identifier(),
-        "product_name"
+        schema.field("product_name").map(ExtractionField::identifier),
+        Some("product_name")
     );
     assert_eq!(
-        schema.field("product_name").unwrap().value_type(),
-        ExtractionValueType::Text
+        schema.field("product_name").map(ExtractionField::value_type),
+        Some(ExtractionValueType::Text)
     );
     assert_eq!(
-        schema.field("product_name").unwrap().cardinality(),
-        ExtractionCardinality::One
-    );
-    assert!(schema.field("product_name").unwrap().required());
-    assert_eq!(
-        schema.field("product_name").unwrap().source_channels(),
-        &[
-            ExtractionSourceChannel::SemanticNode,
-            ExtractionSourceChannel::StructuredData,
-        ]
+        schema
+            .field("product_name")
+            .map(ExtractionField::cardinality),
+        Some(ExtractionCardinality::One)
     );
     assert_eq!(
-        schema.field("unit_price").unwrap().value_type(),
-        ExtractionValueType::Decimal
+        schema.field("product_name").map(ExtractionField::required),
+        Some(true)
+    );
+    let expected_product_sources = [
+        ExtractionSourceChannel::SemanticNode,
+        ExtractionSourceChannel::StructuredData,
+    ];
+    assert_eq!(
+        schema
+            .field("product_name")
+            .map(ExtractionField::source_channels),
+        Some(expected_product_sources.as_slice())
     );
     assert_eq!(
-        schema.field("unit_price").unwrap().cardinality(),
-        ExtractionCardinality::ZeroOrOne
+        schema.field("unit_price").map(ExtractionField::value_type),
+        Some(ExtractionValueType::Decimal)
     );
-    assert!(!schema.field("unit_price").unwrap().required());
+    assert_eq!(
+        schema
+            .field("unit_price")
+            .map(ExtractionField::cardinality),
+        Some(ExtractionCardinality::ZeroOrOne)
+    );
+    assert_eq!(
+        schema.field("unit_price").map(ExtractionField::required),
+        Some(false)
+    );
     assert!(schema.field("missing_field").is_none());
+    Ok(())
 }
 
 #[test]
-fn field_accepts_all_reviewed_value_and_source_channel_variants() {
+fn field_accepts_all_reviewed_value_and_source_channel_variants(
+) -> Result<(), ExtractionSchemaError> {
     let cases = [
         (
             ExtractionValueType::Text,
@@ -116,11 +130,12 @@ fn field_accepts_all_reviewed_value_and_source_channel_variants() {
             ExtractionCardinality::Many,
             false,
             &[source_channel],
-        );
+        )?;
         assert_eq!(field.value_type(), value_type);
         assert_eq!(field.cardinality(), ExtractionCardinality::Many);
         assert_eq!(field.source_channels(), &[source_channel]);
     }
+    Ok(())
 }
 
 #[test]
@@ -205,7 +220,8 @@ fn field_requires_a_nonempty_duplicate_free_source_channel_set() {
 }
 
 #[test]
-fn schema_rejects_invalid_version_empty_fields_duplicate_fields_and_field_overflow() {
+fn schema_rejects_invalid_version_empty_fields_duplicate_fields_and_field_overflow(
+) -> Result<(), ExtractionSchemaError> {
     assert_eq!(
         ExtractionSchema::new(
             "Product Schema",
@@ -215,7 +231,7 @@ fn schema_rejects_invalid_version_empty_fields_duplicate_fields_and_field_overfl
                 ExtractionCardinality::One,
                 true,
                 &[ExtractionSourceChannel::SemanticNode],
-            )]
+            )?]
         ),
         Err(ExtractionSchemaError::InvalidIdentifier)
     );
@@ -228,7 +244,7 @@ fn schema_rejects_invalid_version_empty_fields_duplicate_fields_and_field_overfl
                 ExtractionCardinality::One,
                 true,
                 &[ExtractionSourceChannel::SemanticNode],
-            )],
+            )?],
         ),
         Err(ExtractionSchemaError::LimitExceeded)
     );
@@ -243,14 +259,14 @@ fn schema_rejects_invalid_version_empty_fields_duplicate_fields_and_field_overfl
         ExtractionCardinality::One,
         true,
         &[ExtractionSourceChannel::SemanticNode],
-    );
+    )?;
     let duplicate_again = field(
         "product_name",
         ExtractionValueType::Text,
         ExtractionCardinality::ZeroOrOne,
         false,
         &[ExtractionSourceChannel::StructuredData],
-    );
+    )?;
     assert_eq!(
         ExtractionSchema::new("product-card-v1", vec![duplicate, duplicate_again]),
         Err(ExtractionSchemaError::DuplicateField)
@@ -266,9 +282,10 @@ fn schema_rejects_invalid_version_empty_fields_duplicate_fields_and_field_overfl
                 &[ExtractionSourceChannel::SemanticNode],
             )
         })
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
     assert_eq!(
         ExtractionSchema::new("product-card-v1", too_many_fields),
         Err(ExtractionSchemaError::LimitExceeded)
     );
+    Ok(())
 }
