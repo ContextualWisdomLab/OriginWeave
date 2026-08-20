@@ -16,6 +16,10 @@ mod chunked;
 mod chunked_wire_budget_contract;
 mod content;
 #[cfg(test)]
+#[cfg_attr(coverage_nightly, coverage(off))]
+#[path = "tests/content_trailing_contract.rs"]
+mod content_trailing_contract;
+#[cfg(test)]
 #[path = "tests/coverage_contract.rs"]
 mod coverage_contract;
 mod disposition;
