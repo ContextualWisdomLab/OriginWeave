@@ -703,23 +703,30 @@ pub fn sample_linux_process_rss_bytes(process_id: u32) -> Result<u64, BrowserRss
     }
 }
 
-/// Sample one Linux process RSS only if its PID still names the bound process instance.
+fn ensure_linux_process_identity_current(
+    identity: LinuxProcessIdentity,
+) -> Result<(), BrowserRssSampleError> {
+    let current_identity = read_linux_process_identity(identity.process_id)?;
+    if current_identity != identity {
+        return Err(BrowserRssSampleError::ProcessIdentityChanged);
+    }
+    Ok(())
+}
+
+/// Sample one Linux process RSS only while its PID names the bound process instance.
 ///
-/// RSS is sampled first, then `/proc/<pid>/stat` is read and compared with the
-/// supplied kernel start-time identity. If the PID was reused at or before the
-/// verification point, the measurement is discarded. The function never turns
-/// this operating-system identity into Chromium/task ownership authority.
+/// The sampler checks `/proc/<pid>/stat` before reading `/proc/<pid>/status` so
+/// a stale caller identity cannot authorize inspection of a reused PID. It then
+/// checks the kernel identity again after the RSS read; any disappearance or PID
+/// reuse during the cross-file sample invalidates the measurement. The function
+/// never turns this operating-system identity into Chromium/task ownership authority.
 pub fn sample_linux_process_identity_rss_bytes(
     identity: LinuxProcessIdentity,
 ) -> Result<u64, BrowserRssSampleError> {
-    sample_linux_process_rss_bytes(identity.process_id).and_then(|rss_bytes| {
-        read_linux_process_identity(identity.process_id).and_then(|current_identity| {
-            if current_identity != identity {
-                return Err(BrowserRssSampleError::ProcessIdentityChanged);
-            }
-            Ok(rss_bytes)
-        })
-    })
+    ensure_linux_process_identity_current(identity)?;
+    let rss_bytes = sample_linux_process_rss_bytes(identity.process_id)?;
+    ensure_linux_process_identity_current(identity)?;
+    Ok(rss_bytes)
 }
 
 /// Sample the aggregate RSS of one explicit bounded Linux process-identity set.
