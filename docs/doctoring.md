@@ -88,6 +88,8 @@ The WHATWG MIME Sniffing Standard defines binary-data bytes as `0x00..=0x08`, `0
 
 OriginWeave applies that byte-level text/binary predicate only after its higher-priority reviewed signatures for PDF, images, archives, SVG, XML, HTML, and supplied JavaScript metadata. The classifier still reads only the bounded prefix, and downstream active-content handling remains fail-closed. Regression tests require non-UTF-8 high bytes without binary controls to remain passive `text/plain`, while binary control bytes retain `application/octet-stream`. This keeps observed evidence aligned with browser MIME-sniffing semantics without treating text decoding as authorization.
 
+The same WHATWG unknown-MIME signature table computes `text/xml` for the exact `<?xml` signature. OriginWeave preserves that computed essence in observed evidence rather than normalizing it to `application/xml`, so supplied `text/xml` metadata compares as an exact match. Because this changes persisted classifier evidence, the version advances to `originweave-mime-signatures-2`; regression tests bind both the computed essence and the resulting `MimeMismatch::Match` state.
+
 ### Crawling policy
 
 RFC 9309 standardizes robots parsing, matching, error handling, and caching. It also states that robots rules are not access authorization. OriginWeave therefore requires robots evidence for public crawler mode while maintaining authentication, terms, rate, privacy, and retention policy as separate controls.
