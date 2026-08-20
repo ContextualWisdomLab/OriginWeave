@@ -458,7 +458,11 @@ mod opening_write_tests {
         let mut now = || times.pop_front().unwrap_or(start);
         let result =
             write_request_with_clock(&mut writer, b"hello", Duration::from_secs(1), &mut now);
-        assert!(matches!(result, Ok(5)));
+        let is_five = |candidate: Result<usize, WebDriverBiDiWebSocketOpeningWriteError>| {
+            matches!(candidate, Ok(5))
+        };
+        assert!(is_five(result));
+        assert!(!is_five(Ok(4)));
     }
 
     #[test]
@@ -468,12 +472,19 @@ mod opening_write_tests {
         let mut times = VecDeque::from([start, start, start + Duration::from_secs(1)]);
         let mut now = || times.pop_front().unwrap_or(start + Duration::from_secs(1));
         let result = write_request_with_clock(&mut writer, b"x", Duration::from_secs(1), &mut now);
-        assert!(matches!(
-            result,
-            Err(
-                WebDriverBiDiWebSocketOpeningWriteError::WriteDeadlineExceeded { bytes_written: 1 }
-            )
-        ));
+        let is_deadline_after_one =
+            |candidate: Result<usize, WebDriverBiDiWebSocketOpeningWriteError>| {
+                matches!(
+                    candidate,
+                    Err(WebDriverBiDiWebSocketOpeningWriteError::WriteDeadlineExceeded {
+                        bytes_written: 1
+                    })
+                )
+            };
+        assert!(is_deadline_after_one(result));
+        assert!(!is_deadline_after_one(Err(
+            WebDriverBiDiWebSocketOpeningWriteError::WriteZero { bytes_written: 1 }
+        )));
     }
 
     #[test]
@@ -489,12 +500,19 @@ mod opening_write_tests {
             Duration::from_secs(1),
             &mut deadline_now,
         );
-        assert!(matches!(
-            deadline,
-            Err(
-                WebDriverBiDiWebSocketOpeningWriteError::WriteDeadlineExceeded { bytes_written: 0 }
-            )
-        ));
+        let is_deadline_before_write =
+            |candidate: Result<usize, WebDriverBiDiWebSocketOpeningWriteError>| {
+                matches!(
+                    candidate,
+                    Err(WebDriverBiDiWebSocketOpeningWriteError::WriteDeadlineExceeded {
+                        bytes_written: 0
+                    })
+                )
+            };
+        assert!(is_deadline_before_write(deadline));
+        assert!(!is_deadline_before_write(Err(
+            WebDriverBiDiWebSocketOpeningWriteError::WriteZero { bytes_written: 0 }
+        )));
 
         let mut zero_writer = FakeWriter::new([WriteAction::Count(0)]);
         let mut zero_now = || start;
@@ -504,23 +522,40 @@ mod opening_write_tests {
             Duration::from_secs(1),
             &mut zero_now,
         );
-        assert!(matches!(
-            zero,
-            Err(WebDriverBiDiWebSocketOpeningWriteError::WriteZero { bytes_written: 0 })
-        ));
+        let is_zero_write =
+            |candidate: Result<usize, WebDriverBiDiWebSocketOpeningWriteError>| {
+                matches!(
+                    candidate,
+                    Err(WebDriverBiDiWebSocketOpeningWriteError::WriteZero { bytes_written: 0 })
+                )
+            };
+        assert!(is_zero_write(zero));
+        assert!(!is_zero_write(Err(
+            WebDriverBiDiWebSocketOpeningWriteError::WriteDeadlineExceeded { bytes_written: 0 }
+        )));
 
         for kind in [io::ErrorKind::TimedOut, io::ErrorKind::WouldBlock] {
             let mut writer = FakeWriter::new([WriteAction::Error(kind)]);
             let mut now = || start;
             let timed_out =
                 write_request_with_clock(&mut writer, b"x", Duration::from_secs(1), &mut now);
-            assert!(matches!(
-                timed_out,
-                Err(WebDriverBiDiWebSocketOpeningWriteError::WriteTimedOut {
+            let is_timed_out =
+                |candidate: Result<usize, WebDriverBiDiWebSocketOpeningWriteError>| {
+                    matches!(
+                        candidate,
+                        Err(WebDriverBiDiWebSocketOpeningWriteError::WriteTimedOut {
+                            bytes_written: 0,
+                            ..
+                        })
+                    )
+                };
+            assert!(is_timed_out(timed_out));
+            assert!(!is_timed_out(Err(
+                WebDriverBiDiWebSocketOpeningWriteError::WriteFailed {
                     bytes_written: 0,
-                    ..
-                })
-            ));
+                    source: io::Error::from(kind),
+                }
+            )));
         }
 
         let mut failed_writer = FakeWriter::new([WriteAction::Error(io::ErrorKind::BrokenPipe)]);
@@ -531,13 +566,19 @@ mod opening_write_tests {
             Duration::from_secs(1),
             &mut failed_now,
         );
-        assert!(matches!(
-            failed,
-            Err(WebDriverBiDiWebSocketOpeningWriteError::WriteFailed {
-                bytes_written: 0,
-                ..
-            })
-        ));
+        let is_failed = |candidate: Result<usize, WebDriverBiDiWebSocketOpeningWriteError>| {
+            matches!(
+                candidate,
+                Err(WebDriverBiDiWebSocketOpeningWriteError::WriteFailed {
+                    bytes_written: 0,
+                    ..
+                })
+            )
+        };
+        assert!(is_failed(failed));
+        assert!(!is_failed(Err(
+            WebDriverBiDiWebSocketOpeningWriteError::WriteZero { bytes_written: 0 }
+        )));
 
         let mut configuration_writer = FakeWriter::new([]);
         configuration_writer.timeout_error = Some(io::ErrorKind::InvalidInput);
@@ -548,15 +589,22 @@ mod opening_write_tests {
             Duration::from_secs(1),
             &mut configuration_now,
         );
-        assert!(matches!(
-            configuration,
-            Err(
-                WebDriverBiDiWebSocketOpeningWriteError::WriteTimeoutConfigurationFailed {
-                    bytes_written: 0,
-                    ..
-                }
-            )
-        ));
+        let is_configuration_failure =
+            |candidate: Result<usize, WebDriverBiDiWebSocketOpeningWriteError>| {
+                matches!(
+                    candidate,
+                    Err(
+                        WebDriverBiDiWebSocketOpeningWriteError::WriteTimeoutConfigurationFailed {
+                            bytes_written: 0,
+                            ..
+                        }
+                    )
+                )
+            };
+        assert!(is_configuration_failure(configuration));
+        assert!(!is_configuration_failure(Err(
+            WebDriverBiDiWebSocketOpeningWriteError::WriteZero { bytes_written: 0 }
+        )));
     }
 
     #[test]
