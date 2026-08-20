@@ -235,7 +235,8 @@ impl BrowserAuthorityRegistry {
         } else {
             take_identifier(&mut self.next_node_id, self.maximum_identifier)?
         };
-        let handle = observed_node_handle(browser_session, browsing_context, origin, epoch, node_id)?;
+        let handle =
+            observed_node_handle(browser_session, browsing_context, origin, epoch, node_id)?;
         if origin_is_unbound {
             self.context_origin.insert(browsing_context, origin.clone());
         }
