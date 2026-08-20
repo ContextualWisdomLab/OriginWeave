@@ -17,9 +17,9 @@ class ProductCompletionGapContractTests(unittest.TestCase):
         text = BASELINE.read_text(encoding="utf-8")
 
         for phrase in (
-            "145 open pull requests",
+            "149 open pull requests",
             "38 non-draft",
-            "107 draft",
+            "111 draft",
             "#198",
             "#199",
             "#200",

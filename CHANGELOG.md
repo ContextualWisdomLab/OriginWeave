@@ -46,6 +46,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Moved autonomous-agent Cargo targets and Python bytecode caches outside the proposed source tree and prefetched locked Cargo dependencies for offline verification.
 - Updated research doctoring to pin Chromium canonicalizer evidence to an immutable revision, add RFC 9293, RFC 5280, RFC 8446, RFC 9525, rustls 0.23.42, and Rust `TcpStream` evidence, distinguish the April 2026 Fugu beta from the June 2026 release, and treat vendor benchmark claims as first-party evidence rather than independent validation.
 - Tightened the product-baseline contract so the BiDi opening path and VPN/profile evidence retain their explicit not-shipped status within their own documentation sections.
+- Refreshed the product and technical gap baseline against the 2026-08-21 live inventory: 149 open pull requests, 111 drafts, and the new hardened-runner/MV3 evidence gap issue #206.
 
 ### Security
 
