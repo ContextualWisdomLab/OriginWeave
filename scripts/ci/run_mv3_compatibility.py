@@ -211,14 +211,22 @@ def _json_request(
             raise RuntimeError("WebDriver transport protocol failure") from None
         if len(raw) > MAX_WEBDRIVER_RESPONSE_BYTES:
             raise RuntimeError("WebDriver response exceeded the bounded JSON limit")
-        if response.status >= 400:
-            raise RuntimeError(f"WebDriver HTTP {response.status} error")
     finally:
         connection.close()
 
-    decoded = json.loads(raw.decode("utf-8"))
+    try:
+        decoded = json.loads(raw.decode("utf-8"))
+    except json.JSONDecodeError:
+        if response.status >= 400:
+            raise RuntimeError(f"WebDriver HTTP {response.status} error") from None
+        raise
     if not isinstance(decoded, dict):
         raise RuntimeError("WebDriver returned a non-object JSON payload")
+    if response.status >= 400:
+        value = decoded.get("value")
+        if isinstance(value, dict) and value.get("error"):
+            raise WebDriverProtocolError(value.get("error"), value.get("message"))
+        raise RuntimeError(f"WebDriver HTTP {response.status} error")
     value = decoded.get("value")
     if isinstance(value, dict) and value.get("error"):
         raise WebDriverProtocolError(value.get("error"), value.get("message"))

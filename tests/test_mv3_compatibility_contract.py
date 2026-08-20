@@ -269,6 +269,47 @@ class ManifestV3CompatibilityContractTests(unittest.TestCase):
         self.assertEqual(str(unknown), "WebDriver protocol error: unknown")
         self.assertEqual(unknown.code, "unknown")
 
+    def test_webdriver_http_error_keeps_json_error_code(self) -> None:
+        """HTTP 500 session failures must retain only the bounded WebDriver code."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="mv3_contract")
+        json_request = namespace["_json_request"]
+        protocol_error = namespace["WebDriverProtocolError"]
+        http_module = namespace["http"]
+
+        class FakeResponse:
+            status = 500
+
+            def read(self, _limit: int) -> bytes:
+                return json.dumps(
+                    {
+                        "value": {
+                            "error": "session not created",
+                            "message": "secret browser diagnostic",
+                        }
+                    }
+                ).encode("utf-8")
+
+        class FakeConnection:
+            def request(self, *_args: object, **_kwargs: object) -> None:
+                return None
+
+            def getresponse(self) -> FakeResponse:
+                return FakeResponse()
+
+            def close(self) -> None:
+                return None
+
+        with unittest.mock.patch.object(
+            http_module.client,
+            "HTTPConnection",
+            return_value=FakeConnection(),
+        ):
+            with self.assertRaises(protocol_error) as raised:
+                json_request(9515, "POST", "/session", {})
+        self.assertEqual(raised.exception.code, "session not created")
+        self.assertNotIn("secret browser diagnostic", str(raised.exception))
+
     def test_chromedriver_startup_timeout_does_not_retain_raw_last_error(self) -> None:
         """Startup timeout diagnostics must classify transient errors without copying raw text."""
 
