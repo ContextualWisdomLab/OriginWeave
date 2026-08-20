@@ -395,6 +395,38 @@ mod tests {
     }
 
     #[test]
+    fn bind_node_fails_closed_on_corrupted_internal_authority_state() {
+        let mut registry = BrowserAuthorityRegistry::new();
+        let sessions = values(registry.register_session("corrupt-session"));
+        assert_eq!(sessions.len(), 1);
+        let session = sessions[0];
+        let contexts = values(registry.register_context(session, "corrupt-context"));
+        assert_eq!(contexts.len(), 1);
+        let context = contexts[0];
+        let origins = values(Origin::parse("http://127.0.0.1:43127"));
+        assert_eq!(origins.len(), 1);
+        let origin = &origins[0];
+        let epochs = values(registry.current_epoch(context));
+        assert_eq!(epochs.len(), 1);
+        let epoch = epochs[0];
+
+        registry.context_epoch.remove(&context);
+        assert_eq!(
+            registry.bind_node(session, context, origin, "missing-epoch"),
+            Err(BrowserRegistryError::UnknownBrowsingContext)
+        );
+        registry.context_epoch.insert(context, epoch);
+
+        registry
+            .node_by_external
+            .insert((context, epoch, "invalid-node".to_owned()), 0);
+        assert_eq!(
+            registry.bind_node(session, context, origin, "invalid-node"),
+            Err(BrowserRegistryError::InternalAuthorityInvariant)
+        );
+    }
+
+    #[test]
     fn monotonic_identifier_exhaustion_is_fail_closed() {
         let mut next = 1;
         assert_eq!(take_identifier(&mut next, 1), Ok(1));
