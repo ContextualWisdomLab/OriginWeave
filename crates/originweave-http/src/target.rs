@@ -1,3 +1,5 @@
+use std::fmt;
+
 use originweave_core::Origin;
 use sha2::{Digest, Sha256};
 
@@ -8,7 +10,7 @@ const MAX_EVIDENCE_PATH_PREFIX_BYTES: usize = 256;
 const HEX_UPPER: &[u8; 16] = b"0123456789ABCDEF";
 
 /// One canonical origin-bound HTTP origin-form request target.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct HttpRequestTarget {
     origin: Origin,
     encoded_path_and_query: String,
@@ -103,6 +105,18 @@ impl HttpRequestTarget {
     #[must_use]
     pub const fn path_prefix(&self) -> &str {
         self.path_prefix.as_str()
+    }
+}
+
+impl fmt::Debug for HttpRequestTarget {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("HttpRequestTarget")
+            .field("origin", &self.origin)
+            .field("target_hash", &self.target_hash)
+            .field("query_present", &self.query_present)
+            .field("path_prefix_byte_count", &self.path_prefix.len())
+            .finish()
     }
 }
 
