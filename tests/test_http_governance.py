@@ -21,6 +21,7 @@ class HttpGovernanceTests(unittest.TestCase):
             "lib.rs",
             "error.rs",
             "policy.rs",
+            "named_policy.rs",
             "target.rs",
             "field.rs",
             "request.rs",
