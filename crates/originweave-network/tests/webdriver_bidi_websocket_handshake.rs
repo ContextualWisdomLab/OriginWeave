@@ -119,15 +119,12 @@ fn opening_write_fails_closed_after_verified_stream_is_locally_revoked() {
     let write = plan.write_opening_request(Duration::from_secs(1));
     let failed_closed_without_writing = match write {
         Err(WebDriverBiDiWebSocketOpeningWriteError::WriteFailed {
-            bytes_written: 0,
-            ..
+            bytes_written: 0, ..
         }) => true,
-        Err(
-            WebDriverBiDiWebSocketOpeningWriteError::WriteTimeoutConfigurationFailed {
-                bytes_written: 0,
-                source,
-            },
-        ) => source.kind() == std::io::ErrorKind::InvalidInput,
+        Err(WebDriverBiDiWebSocketOpeningWriteError::WriteTimeoutConfigurationFailed {
+            bytes_written: 0,
+            source,
+        }) => source.kind() == std::io::ErrorKind::InvalidInput,
         _ => false,
     };
     assert!(failed_closed_without_writing);
