@@ -192,7 +192,7 @@ query($owner: String!, $name: String!, $number: Int!, $endCursor: String) {
           check_runs: [$checks[]?.check_runs[]?],
           legacy_statuses: [$statuses[][]?]
         },
-        workflow_runs: [$workflow_runs[0].workflow_runs[]?],
+        workflow_runs: [$workflow_runs[]?.workflow_runs[]?],
         counted_approvals: ([
           $reviews[][]?
           | select(.state == "APPROVED")

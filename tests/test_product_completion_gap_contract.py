@@ -61,6 +61,7 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             '"repos/ContextualWisdomLab/OriginWeave/commits/$HEAD_SHA/statuses?per_page=100"',
             '"repos/ContextualWisdomLab/OriginWeave/pulls/$PR/reviews?per_page=100"',
             '"repos/ContextualWisdomLab/OriginWeave/actions/runs?head_sha=$HEAD_SHA&per_page=100"',
+            "workflow_runs: [$workflow_runs[]?.workflow_runs[]?],",
             "reviewThreads(first: 100, after: $endCursor)",
             "rules/branches/main?per_page=100",
             '"$EVIDENCE_DIR/main-branch-rule-pages.json"',
