@@ -3,6 +3,11 @@
 use originweave_bap::{BapTaskEvent, BapTaskLifecycle, BapTaskState, BapTaskTransitionError};
 
 #[test]
+fn default_starts_a_new_created_lifecycle() {
+    assert_eq!(BapTaskLifecycle::default(), BapTaskLifecycle::new());
+}
+
+#[test]
 fn bap_task_lifecycle_follows_the_reviewed_resumable_path() {
     let mut task = BapTaskLifecycle::new();
     assert_eq!(task.state(), BapTaskState::Created);

@@ -126,6 +126,12 @@ pub struct BapTaskLifecycle {
     transition_sequence: u64,
 }
 
+impl Default for BapTaskLifecycle {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BapTaskLifecycle {
     /// Create one lifecycle in the `created` state with no accepted transitions.
     #[must_use]
