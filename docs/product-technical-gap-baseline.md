@@ -142,7 +142,8 @@ jq '[.[][]]' "$EVIDENCE_DIR/collaborator-pages.json" \
   > "$EVIDENCE_DIR/collaborators.json"
 
 jq -r '.[].number' "$EVIDENCE_DIR/open-prs.json" | while read -r PR; do
-  while :; do
+  STABLE_HEAD=false
+  for ATTEMPT in 1 2 3; do
     PR_JSON="$EVIDENCE_DIR/pr-${PR}.json"
     gh api "repos/ContextualWisdomLab/OriginWeave/pulls/$PR" > "$PR_JSON"
     HEAD_SHA=$(jq -r '.head.sha' "$PR_JSON")
@@ -151,8 +152,14 @@ jq -r '.[].number' "$EVIDENCE_DIR/open-prs.json" | while read -r PR; do
       "repos/ContextualWisdomLab/OriginWeave/commits/$HEAD_SHA/check-runs?per_page=100" \
       > "$EVIDENCE_DIR/pr-${PR}-check-runs.json"
     gh api --paginate --slurp \
+      "repos/ContextualWisdomLab/OriginWeave/commits/$HEAD_SHA/statuses?per_page=100" \
+      > "$EVIDENCE_DIR/pr-${PR}-statuses.json"
+    gh api --paginate --slurp \
       "repos/ContextualWisdomLab/OriginWeave/pulls/$PR/reviews?per_page=100" \
       > "$EVIDENCE_DIR/pr-${PR}-reviews.json"
+    gh api --paginate --slurp \
+      "repos/ContextualWisdomLab/OriginWeave/actions/runs?head_sha=$HEAD_SHA&per_page=100" \
+      > "$EVIDENCE_DIR/pr-${PR}-workflow-runs.json"
     gh api graphql --paginate --slurp \
       -F owner=ContextualWisdomLab \
       -F name=OriginWeave \
@@ -169,17 +176,56 @@ query($owner: String!, $name: String!, $number: Int!, $endCursor: String) {
   }
 }' > "$EVIDENCE_DIR/pr-${PR}-review-threads.json"
 
+    jq -n \
+      --arg head "$HEAD_SHA" \
+      --slurpfile pr "$PR_JSON" \
+      --slurpfile checks "$EVIDENCE_DIR/pr-${PR}-check-runs.json" \
+      --slurpfile statuses "$EVIDENCE_DIR/pr-${PR}-statuses.json" \
+      --slurpfile reviews "$EVIDENCE_DIR/pr-${PR}-reviews.json" \
+      --slurpfile workflow_runs "$EVIDENCE_DIR/pr-${PR}-workflow-runs.json" \
+      --slurpfile rules "$EVIDENCE_DIR/main-branch-rules.json" \
+      --slurpfile threads "$EVIDENCE_DIR/pr-${PR}-review-threads.json" \
+      '{
+        head_sha: $head,
+        base_sha: $pr[0].base.sha,
+        required_status_checks: {
+          check_runs: [$checks[][]?],
+          legacy_statuses: [$statuses[][]?]
+        },
+        workflow_runs: [$workflow_runs[0].workflow_runs[]?],
+        counted_approvals: [
+          $reviews[][]?
+          | select(.state == "APPROVED")
+          | select(.submitted_at != null)
+          | select(.commit_id == $head)
+        ],
+        required_workflows: [
+          $rules[][]?
+          | select(.type == "workflows")
+          | .parameters.workflows[]
+        ],
+        unresolved_threads: [
+          $threads[]?.data.repository.pullRequest.reviewThreads.nodes[]?
+          | select(.isResolved == false and .isOutdated == false)
+        ]
+      }' > "$EVIDENCE_DIR/pr-${PR}-merge-verdict.json"
+
     RECHECKED_HEAD_SHA=$(gh api "repos/ContextualWisdomLab/OriginWeave/pulls/$PR" \
       | jq -r '.head.sha')
     if [[ "$RECHECKED_HEAD_SHA" == "$HEAD_SHA" ]]; then
+      STABLE_HEAD=true
       break
     fi
     printf 'Discarding moving-head evidence for PR #%s (%s -> %s) and retrying.\n' \
       "$PR" "$HEAD_SHA" "$RECHECKED_HEAD_SHA" >&2
   done
+  if [[ "$STABLE_HEAD" != true ]]; then
+    printf 'Unable to collect stable exact-head evidence for PR #%s after 3 attempts.\n' "$PR" >&2
+    exit 1
+  fi
 done
 ```
 
-The branch-scoped rules response determines the active rules affecting `main`; each PR's exact `HEAD_SHA` then determines which check runs, reviews, and unresolved threads are current. The saved PR JSON also preserves the exact base reference and branch ancestry input for the dependency graph. Evidence is retained only when the post-collection `RECHECKED_HEAD_SHA` equals the collected `HEAD_SHA`.
+The branch-scoped rules response determines the active rules affecting `main`; each PR's exact `HEAD_SHA` then determines which check runs, legacy statuses, workflow runs, reviews, and unresolved threads are current. The saved merge verdict binds counted approvals to `APPROVED`, non-null submission times, and the exact head, while preserving required workflow rules. The saved PR JSON also preserves the exact base reference and branch ancestry input for the dependency graph. Evidence is retained only when the post-collection `RECHECKED_HEAD_SHA` equals the collected `HEAD_SHA`; a moving head fails after three bounded attempts.
 
 For standards and binding architecture, use [`doctoring.md`](doctoring.md), [`doctoring/browser-agent-protocols.md`](doctoring/browser-agent-protocols.md), [`PRD.md`](PRD.md), [`TRD.md`](TRD.md), [`product-roadmap.md`](product-roadmap.md), and linked ADR/UML/ERD/traceability records. Issues #199-#203 contain their own APA 7th standards and research traceability. This baseline intentionally records delivery state and never promotes planned adapters or active pull-request code to implemented behavior.
