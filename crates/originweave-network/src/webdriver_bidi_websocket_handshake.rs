@@ -501,33 +501,24 @@ mod opening_write_tests {
     }
 
     #[test]
-    fn bounded_writer_clears_real_socket_timeout_before_success() {
-        let listener = TcpListener::bind(("127.0.0.1", 0))
-            .expect("loopback listener must bind for the real socket timeout regression");
-        let address = listener
-            .local_addr()
-            .expect("bound loopback listener must expose its local address");
+    fn bounded_writer_clears_real_socket_timeout_before_success() -> Result<(), Box<dyn Error>> {
+        let listener = TcpListener::bind(("127.0.0.1", 0))?;
+        let address = listener.local_addr()?;
         let server = thread::spawn(move || listener.accept().map(|_| ()));
-        let mut stream = TcpStream::connect(address)
-            .expect("client must connect to the already-bound loopback listener");
+        let mut stream = TcpStream::connect(address)?;
         let start = Instant::now();
         let mut now = || start;
 
         let request_byte_count =
-            write_request_with_clock(&mut stream, b"opening", Duration::from_secs(1), &mut now)
-                .expect("bounded opening write must complete on the connected loopback stream");
+            write_request_with_clock(&mut stream, b"opening", Duration::from_secs(1), &mut now)?;
 
         assert_eq!(request_byte_count, 7);
-        assert_eq!(
-            stream
-                .write_timeout()
-                .expect("live stream must expose its cleared write timeout"),
-            None
-        );
-        server
-            .join()
-            .expect("loopback server thread must not panic")
-            .expect("loopback server must accept the client connection");
+        assert_eq!(stream.write_timeout()?, None);
+        match server.join() {
+            Ok(result) => result?,
+            Err(_) => return Err("loopback server thread panicked".into()),
+        }
+        Ok(())
     }
 
     #[test]
