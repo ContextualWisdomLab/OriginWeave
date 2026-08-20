@@ -111,7 +111,7 @@ fn rejects_zero_use_limit_or_resolution_count_above_limit() {
 
 #[test]
 fn rejects_revocation_outside_handle_lifetime() {
-    for revoked in [1_719_999_999, 1_720_000_301] {
+    for revoked in [1_719_999_999, 1_720_000_300, 1_720_000_301] {
         let mut input = valid_input();
         input.revoked_epoch_seconds = Some(revoked);
         assert_eq!(
