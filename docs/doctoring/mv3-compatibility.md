@@ -1,14 +1,14 @@
 # Manifest V3 compatibility evidence baseline
 
 - **Status:** Active implementation evidence for issue #27
-- **Reviewed:** 2026-08-20
+- **Reviewed:** 2026-08-21
 - **Pinned browser:** Chrome for Testing `150.0.7871.129`, Chromium revision `r1639810`
 
 OriginWeave uses Chromium as its compatibility kernel, so browser-extension compatibility must be demonstrated with executable Chromium evidence rather than inferred from architecture alone. The protected-main lane exercises a controlled unpacked Manifest V3 extension against one exact Chrome for Testing build and proves service-worker, content-script, storage, declarative-network-request, tabs, windows, scripting, commands, side-panel, bookmarks/history read compatibility, restart persistence, repeatability, and one real WebDriver click/post-condition. Active stacked compatibility work adds downloads, bounded bookmark/history mutation, profile isolation, explicit extension update/version-migration evidence, and an exact content-script isolated-world check. OriginWeave does **not claim 100% Chrome extension compatibility**.
 
 The checked-in fixture is intentionally local-only. Its host permission is limited to loopback HTTP used by the deterministic test server. It contains no remote code, user credential, model call, external content, native-messaging host, or production PII. Chrome permissions remain distinct from the explicit OriginWeave extension-to-Agent grant implemented in `originweave-core`. Compatibility mutation tests create only controlled synthetic state inside the ephemeral test profile and must clean it up; successful API compatibility never grants the OriginWeave Agent ambient bookmarks/history/downloads authority.
 
-The compatibility runner preserves Chromium's renderer sandbox and does not pass `--no-sandbox`. A runner environment that cannot start the pinned browser with sandboxing enabled is an infrastructure failure to repair or report, not a reason to weaken the browser security boundary.
+The compatibility runner preserves Chromium's renderer sandbox and does not pass `--no-sandbox`. Because the Chrome for Testing archive does not carry setuid ownership through extraction, the workflow installs its pinned `chrome_sandbox` helper as root-owned mode `4755` before execution. A runner environment that cannot start the pinned browser with sandboxing enabled is an infrastructure failure to repair or report, not a reason to weaken the browser security boundary.
 
 ## Supported-capability evidence matrix
 

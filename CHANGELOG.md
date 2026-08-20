@@ -4,6 +4,10 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+### Changed
+
+- Kept the real MV3 compatibility lane sandboxed by installing the pinned Chrome for Testing archive's root-owned `chrome_sandbox` helper instead of passing `--no-sandbox`.
+
 ### Added
 
 - Bound explicit extension-to-Agent grants to exclusive trusted-time expiry in addition to extension identity, session, browsing context, and canonical origin, so a same-origin grant cannot be reused at or after the deadline.

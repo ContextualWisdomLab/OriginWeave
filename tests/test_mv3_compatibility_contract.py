@@ -127,6 +127,20 @@ class ManifestV3CompatibilityContractTests(unittest.TestCase):
         runner = RUNNER.read_text(encoding="utf-8")
         self.assertNotIn('"--no-sandbox"', runner)
 
+    def test_workflow_installs_chromium_sandbox_helper(self) -> None:
+        """The downloaded Chrome for Testing build must have its setuid sandbox installed."""
+
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("chrome_sandbox", workflow)
+        self.assertIn(
+            "sudo chown root:root .mv3-browser/chrome-linux64/chrome_sandbox",
+            workflow,
+        )
+        self.assertIn(
+            "sudo chmod 4755 .mv3-browser/chrome-linux64/chrome_sandbox",
+            workflow,
+        )
+
     def test_runner_accepts_real_chromedriver_element_ids_without_path_injection(self) -> None:
         """ChromeDriver dotted element IDs must work while path syntax stays fail-closed."""
 
