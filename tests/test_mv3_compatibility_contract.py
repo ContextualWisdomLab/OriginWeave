@@ -121,6 +121,12 @@ class ManifestV3CompatibilityContractTests(unittest.TestCase):
         self.assertNotIn("urllib.request", runner)
         self.assertNotIn("urllib.error", runner)
 
+    def test_runner_preserves_chromium_sandbox(self) -> None:
+        """The real-browser compatibility lane must not disable Chromium sandboxing."""
+
+        runner = RUNNER.read_text(encoding="utf-8")
+        self.assertNotIn('"--no-sandbox"', runner)
+
     def test_runner_accepts_real_chromedriver_element_ids_without_path_injection(self) -> None:
         """ChromeDriver dotted element IDs must work while path syntax stays fail-closed."""
 

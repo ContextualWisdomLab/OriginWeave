@@ -530,7 +530,6 @@ def _run_browser_pass(
                                 "--disable-component-update",
                                 "--disable-sync",
                                 "--disable-dev-shm-usage",
-                                "--no-sandbox",
                                 f"--user-data-dir={profile_dir}",
                                 f"--disable-extensions-except={FIXTURE}",
                                 f"--load-extension={FIXTURE}",

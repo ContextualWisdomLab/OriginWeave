@@ -33,6 +33,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Preserved Chromium's renderer sandbox in the real Manifest V3 compatibility runner by removing the `--no-sandbox` launch override; environments that cannot run the pinned browser with sandboxing enabled must fail the compatibility lane rather than weaken the security boundary.
 - Made malformed or oversized ChromeDriver startup-port candidate records non-authoritative within the existing bounded startup wait, so later valid startup output may recover while exact pinned-build `/status` identity remains mandatory before session creation.
 - Treated a failed graceful ChromeDriver termination as recoverable when the bounded hard-kill fallback successfully reaps the process, while preserving unrecovered fallback failures as teardown errors.
 - Classified a mismatched Chrome `browserVersion` capability as an expected-only diagnostic so browser-reported capability text cannot enter Manifest V3 runner exception output.
