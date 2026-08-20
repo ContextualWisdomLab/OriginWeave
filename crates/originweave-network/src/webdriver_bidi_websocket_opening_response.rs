@@ -411,7 +411,10 @@ mod tests {
         let start = Instant::now();
         let mut now = move || start;
         let result = read_response_header_with_clock(&mut reader, Duration::from_secs(1), &mut now);
-        assert_eq!(result.as_deref(), Ok(&b"X\r\n\r\n"[..]));
+        assert!(result.is_ok(), "{result:?}");
+        if let Ok(header) = result {
+            assert_eq!(header, b"X\r\n\r\n");
+        }
     }
 
     #[test]
@@ -594,9 +597,7 @@ mod tests {
         for error in errors {
             assert!(!error.to_string().is_empty());
             match &error {
-                WebDriverBiDiWebSocketOpeningReadError::ReadTimeoutConfigurationFailed {
-                    ..
-                }
+                WebDriverBiDiWebSocketOpeningReadError::ReadTimeoutConfigurationFailed { .. }
                 | WebDriverBiDiWebSocketOpeningReadError::ReadTimedOut { .. }
                 | WebDriverBiDiWebSocketOpeningReadError::ReadFailed { .. }
                 | WebDriverBiDiWebSocketOpeningReadError::ReadTimeoutCleanupFailed { .. } => {
