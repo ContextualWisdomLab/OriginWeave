@@ -150,10 +150,7 @@ pub struct ExtractionSchema {
 
 impl ExtractionSchema {
     /// Validate and construct one versioned extraction schema.
-    pub fn new(
-        version: &str,
-        fields: Vec<ExtractionField>,
-    ) -> Result<Self, ExtractionSchemaError> {
+    pub fn new(version: &str, fields: Vec<ExtractionField>) -> Result<Self, ExtractionSchemaError> {
         validate_identifier(version)?;
         if fields.is_empty() {
             return Err(ExtractionSchemaError::MissingField);
