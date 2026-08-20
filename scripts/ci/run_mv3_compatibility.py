@@ -395,6 +395,17 @@ def _sample_linux_process_set_rss_bytes(
     return total_rss_bytes
 
 
+def _sample_linux_process_snapshot_rss_bytes(
+    process_id: int,
+    process_evidence: dict[int, tuple[int, int | None]],
+) -> int:
+    """Sample one process RSS from the same bounded snapshot as its process set."""
+
+    if process_id not in process_evidence:
+        raise RuntimeError("Linux process snapshot did not contain the browser root PID")
+    return _sample_linux_process_set_rss_bytes((process_id,), process_evidence)
+
+
 def _wait_for_extension_evidence(
     driver_port: int,
     session_id: str,
@@ -835,7 +846,10 @@ def _run_agent_task_browser_pass(
             browser_process_id,
             process_evidence,
         )
-        browser_process_rss_bytes = _sample_linux_process_rss_bytes(browser_process_id)
+        browser_process_rss_bytes = _sample_linux_process_snapshot_rss_bytes(
+            browser_process_id,
+            process_evidence,
+        )
         chromium_process_set_rss_bytes = _sample_linux_process_set_rss_bytes(
             chromium_process_ids,
             process_evidence,
