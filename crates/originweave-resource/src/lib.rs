@@ -724,9 +724,9 @@ pub fn sample_linux_process_identity_rss_bytes(
     identity: LinuxProcessIdentity,
 ) -> Result<u64, BrowserRssSampleError> {
     ensure_linux_process_identity_current(identity)?;
-    let rss_bytes = sample_linux_process_rss_bytes(identity.process_id)?;
-    ensure_linux_process_identity_current(identity)?;
-    Ok(rss_bytes)
+    sample_linux_process_rss_bytes(identity.process_id).and_then(|rss_bytes| {
+        ensure_linux_process_identity_current(identity).map(|()| rss_bytes)
+    })
 }
 
 /// Sample the aggregate RSS of one explicit bounded Linux process-identity set.
