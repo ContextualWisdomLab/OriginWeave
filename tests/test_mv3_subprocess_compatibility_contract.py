@@ -67,6 +67,23 @@ class ChromeDriverSubprocessCompatibilityContractTests(unittest.TestCase):
         self.assertLessEqual(max(stream.requested_sizes), maximum + 1)
         self.assertEqual(read_line(stream), (b"next\n", False))
 
+    def test_startup_port_parser_treats_malformed_candidates_as_non_authoritative(self) -> None:
+        """Malformed candidate records must be ignorable while a later valid record can win."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="mv3_startup_port_parser")
+        parse_bound_port = namespace["_parse_chromedriver_bound_port"]
+        prefix = namespace["CHROMEDRIVER_BOUND_PORT_PREFIX"].encode("ascii")
+        maximum = namespace["MAX_CHROMEDRIVER_STARTUP_LINE_BYTES"]
+
+        self.assertIsNone(parse_bound_port(prefix + b"not-a-port.\n", False))
+        self.assertIsNone(parse_bound_port(prefix + b"9515\n", False))
+        self.assertIsNone(parse_bound_port(prefix + b"9515.\n", True))
+        self.assertIsNone(parse_bound_port(b"ordinary ChromeDriver diagnostic\n", False))
+        self.assertIsNone(parse_bound_port(prefix + b"0.\n", False))
+        self.assertIsNone(parse_bound_port(prefix + b"65536.\n", False))
+        self.assertEqual(parse_bound_port(prefix + b"9515.\n", False), 9515)
+        self.assertLess(len(prefix) + len(b"9515.\n"), maximum)
+
 
 if __name__ == "__main__":
     unittest.main()
