@@ -6,8 +6,9 @@
 //! It also bridges a session-correlated WebDriver BiDi loopback target from
 //! `originweave-core` into one bounded exact TCP connection, binds an RFC 6455
 //! opening request to that verified plain stream, and can write that exact request
-//! under one bounded deadline and validate its bounded RFC 6455 opening response
-//! and one bounded frame at a time without granting browser, WebSocket, TLS,
+//! under one bounded deadline, validate its bounded RFC 6455 opening response,
+//! carry one bounded frame at a time, and bind one exact `locateNodes` command to
+//! its bounded correlated response without granting browser, WebSocket, TLS,
 //! policy, or Agent authority.
 
 #![forbid(unsafe_code)]
@@ -15,6 +16,7 @@
 
 mod connection;
 mod webdriver_bidi_connection;
+mod webdriver_bidi_locate_nodes_exchange;
 mod webdriver_bidi_websocket_handshake;
 
 pub use connection::{
@@ -25,6 +27,7 @@ pub use webdriver_bidi_connection::{
     WebDriverBiDiTcpConnection, WebDriverBiDiTcpConnectionError,
     WebDriverBiDiTcpConnectionEvidence, WebDriverBiDiTcpConnectionPlan,
 };
+pub use webdriver_bidi_locate_nodes_exchange::WebDriverBiDiLocateNodesExchangeError;
 pub use webdriver_bidi_websocket_handshake::{
     MAX_WEBSOCKET_FRAME_PAYLOAD_SIZE, MAX_WEBSOCKET_FRAME_TIMEOUT,
     MAX_WEBSOCKET_OPENING_RESPONSE_SIZE, MAX_WEBSOCKET_OPENING_RESPONSE_TIMEOUT,
