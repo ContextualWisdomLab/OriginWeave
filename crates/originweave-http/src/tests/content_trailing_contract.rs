@@ -25,7 +25,7 @@ fn policy(maximum_encoded_bytes: usize) -> HttpClientPolicy {
         1_024,
         maximum_encoded_bytes,
         1_024,
-        64,
+        32,
         AlpnHttp11Policy::RequireHttp11,
         IntegrityRequirement::Optional,
     )
