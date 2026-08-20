@@ -123,10 +123,7 @@ fn lifecycle_failures_use_the_standard_rust_error_contract() {
     let terminal = BapTaskTransitionError::TerminalState {
         state: BapTaskState::Cancelled,
     };
-    assert_eq!(
-        terminal.to_string(),
-        "BAP task state Cancelled is terminal"
-    );
+    assert_eq!(terminal.to_string(), "BAP task state Cancelled is terminal");
     assert!(terminal.source().is_none());
 
     let restore = BapTaskLifecycle::restore(BapTaskState::Created, 1)
