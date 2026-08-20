@@ -90,3 +90,25 @@ fn canonical_32_byte_wireguard_keys_remain_accepted() {
         assert_eq!(profile.peers[0].public_key, VALID_KEY);
     }
 }
+
+#[test]
+fn canonical_keys_cover_standard_base64_alphabet_and_padding_endings() {
+    let mut keys = vec![format!("+{}A=", "A".repeat(41))];
+    keys.extend(['Q', 'g', 'w'].map(|last| format!("{}{}=", "A".repeat(42), last)));
+
+    for key in keys {
+        let mut importer = CountingImporter::default();
+        let parsed = import_wireguard_profile(&profile(&key, &key, None), &mut importer);
+
+        assert!(parsed.is_ok(), "canonical key must parse: {parsed:?}");
+        assert_eq!(importer.0, 1);
+    }
+
+    let invalid_key = format!("!{}A=", "A".repeat(41));
+    let mut importer = CountingImporter::default();
+    assert_eq!(
+        import_wireguard_profile(&profile(&invalid_key, &invalid_key, None), &mut importer),
+        Err(ProfileError::InvalidValue)
+    );
+    assert_eq!(importer.0, 0);
+}

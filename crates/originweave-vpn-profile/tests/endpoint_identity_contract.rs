@@ -117,23 +117,23 @@ fn gateway_hosts_reject_ambiguous_numeric_ipv4_spellings_before_secret_import() 
 
 #[test]
 fn gateway_hosts_preserve_hex_prefixed_but_nonnumeric_dns_labels() -> Result<(), ProfileError> {
-    let host = "0xnothex.example";
+    for host in ["0xnothex.example", "0x"] {
+        let endpoint = format!("{host}:51820");
 
-    let mut wireguard_importer = CountingImporter::default();
-    let wireguard = import_wireguard_profile(
-        &wireguard_profile(&format!("{host}:51820")),
-        &mut wireguard_importer,
-    )?;
-    assert_eq!(
-        wireguard.peers[0].endpoint.as_deref(),
-        Some("0xnothex.example:51820")
-    );
-    assert_eq!(wireguard_importer.0, 1);
+        let mut wireguard_importer = CountingImporter::default();
+        let wireguard =
+            import_wireguard_profile(&wireguard_profile(&endpoint), &mut wireguard_importer)?;
+        assert_eq!(
+            wireguard.peers[0].endpoint.as_deref(),
+            Some(endpoint.as_str())
+        );
+        assert_eq!(wireguard_importer.0, 1);
 
-    let mut ikev2_importer = CountingImporter::default();
-    let ikev2 = parse_ikev2_profile(&ikev2_profile(host, ""), &mut ikev2_importer)?;
-    assert_eq!(ikev2.server, host);
-    assert_eq!(ikev2_importer.0, 1);
+        let mut ikev2_importer = CountingImporter::default();
+        let ikev2 = parse_ikev2_profile(&ikev2_profile(host, ""), &mut ikev2_importer)?;
+        assert_eq!(ikev2.server, host);
+        assert_eq!(ikev2_importer.0, 1);
+    }
     Ok(())
 }
 
