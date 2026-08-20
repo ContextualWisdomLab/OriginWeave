@@ -26,6 +26,12 @@ OriginWeave's observed classifier follows that byte-level contract after higher-
 
 The same WHATWG unknown-MIME signature table defines an exact `<?xml` signature whose computed MIME type is `text/xml`. OriginWeave therefore records `text/xml` for that observed signature rather than normalizing it to the related `application/xml` alias. This distinction is evidence-significant: a supplied `Content-Type: text/xml` must compare as an exact essence match when the observed prefix is the standard XML signature. Because that observable classifier output is persisted as evidence, this contract change advances the classifier version from `originweave-mime-signatures-1` to `originweave-mime-signatures-2`.
 
+## Request-target diagnostic redaction
+
+An HTTP origin-form request target can legitimately contain a query component, and application query values can carry credentials or other protected material even when the surrounding origin and path are authorized. OriginWeave therefore treats the complete encoded path-and-query as wire-only request state rather than safe diagnostic text. `HttpRequestTarget` uses an explicit structural `Debug` implementation that records only the canonical origin, the domain-separated exact-target digest, whether a query exists, and the byte count of the bounded path prefix. It never formats the raw `encoded_path_and_query` or the retained path-prefix bytes.
+
+The regression contract constructs a target with credential-shaped query values and requires its debug representation to omit the field name, query parameter names, and query values. The complete target remains available only through the deliberate `path_and_query()` API for the request serializer; diagnostic formatting cannot accidentally turn it into log or evidence content.
+
 ## Verification contract
 
 The exact pull-request head must demonstrate:
@@ -36,6 +42,7 @@ The exact pull-request head must demonstrate:
 - preservation of existing control, path, device-name, bidi, length, dot, and whitespace restrictions;
 - WHATWG byte-level text/binary classification, including passive non-UTF-8 high bytes and binary control-byte rejection;
 - exact WHATWG XML signature evidence as `text/xml`, with supplied `text/xml` producing `MimeMismatch::Match` and the classifier version reflecting the changed evidence semantics;
+- request-target debug output that cannot expose raw path/query bytes or credential-shaped query values;
 - Rust formatting, workspace checks, tests, Clippy, and rustdoc;
 - exact 100% production function, line, region, statement, and branch coverage;
 - Security Scan, SAST, all operationally required current review gates, and branch-protection gates.
