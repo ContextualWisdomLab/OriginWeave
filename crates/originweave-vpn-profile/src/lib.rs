@@ -422,6 +422,21 @@ fn validate_dns_hostname(value: &str) -> bool {
         })
 }
 
+fn looks_like_ipv4_number_component(value: &str) -> bool {
+    let lowercase = value.to_ascii_lowercase();
+    if let Some(hexadecimal) = lowercase.strip_prefix("0x") {
+        return !hexadecimal.is_empty()
+            && hexadecimal
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit());
+    }
+    !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit())
+}
+
+fn looks_like_ambiguous_ipv4_host(value: &str) -> bool {
+    value.split('.').all(looks_like_ipv4_number_component)
+}
+
 fn validate_gateway_host(value: &str) -> Result<&str, ProfileError> {
     let value = bounded_value(value)?;
     if value
@@ -430,7 +445,13 @@ fn validate_gateway_host(value: &str) -> Result<&str, ProfileError> {
     {
         return Err(ProfileError::InvalidValue);
     }
-    if value.parse::<std::net::IpAddr>().is_ok() || validate_dns_hostname(value) {
+    if value.parse::<std::net::IpAddr>().is_ok() {
+        return Ok(value);
+    }
+    if looks_like_ambiguous_ipv4_host(value) {
+        return Err(ProfileError::InvalidValue);
+    }
+    if validate_dns_hostname(value) {
         return Ok(value);
     }
     Err(ProfileError::InvalidValue)
