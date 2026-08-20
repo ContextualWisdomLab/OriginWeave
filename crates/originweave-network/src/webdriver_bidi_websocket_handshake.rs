@@ -502,10 +502,19 @@ mod opening_write_tests {
 
     #[test]
     fn bounded_writer_clears_real_socket_timeout_before_success() {
-        let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind loopback listener");
-        let address = listener.local_addr().expect("read loopback address");
+        let listener = match TcpListener::bind(("127.0.0.1", 0)) {
+            Ok(listener) => listener,
+            Err(error) => panic!("failed to bind loopback listener: {error}"),
+        };
+        let address = match listener.local_addr() {
+            Ok(address) => address,
+            Err(error) => panic!("failed to read loopback listener address: {error}"),
+        };
         let server = thread::spawn(move || listener.accept().map(|_| ()));
-        let mut stream = TcpStream::connect(address).expect("connect loopback stream");
+        let mut stream = match TcpStream::connect(address) {
+            Ok(stream) => stream,
+            Err(error) => panic!("failed to connect loopback stream: {error}"),
+        };
         let start = Instant::now();
         let mut now = || start;
 
@@ -513,8 +522,16 @@ mod opening_write_tests {
             write_request_with_clock(&mut stream, b"opening", Duration::from_secs(1), &mut now);
 
         assert!(matches!(result, Ok(7)));
-        assert_eq!(stream.write_timeout().expect("inspect write timeout"), None);
-        assert!(server.join().expect("join loopback server").is_ok());
+        let write_timeout = match stream.write_timeout() {
+            Ok(write_timeout) => write_timeout,
+            Err(error) => panic!("failed to inspect write timeout: {error}"),
+        };
+        assert_eq!(write_timeout, None);
+        let server_result = match server.join() {
+            Ok(server_result) => server_result,
+            Err(_) => panic!("loopback server thread panicked"),
+        };
+        assert!(server_result.is_ok());
     }
 
     #[test]
