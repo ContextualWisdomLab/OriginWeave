@@ -1826,7 +1826,7 @@ def _cleanup_crashed_browser_session(driver_port: int, session_id: str | None) -
             _webdriver_path(session_id, ""),
             {},
         )
-    except (OSError, RuntimeError, json.JSONDecodeError):
+    except (OSError, RuntimeError, json.JSONDecodeError, http.client.IncompleteRead):
         return
 
 
