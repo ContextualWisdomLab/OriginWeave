@@ -21,8 +21,8 @@ fn field(
 }
 
 #[test]
-fn schema_binds_versioned_typed_fields_to_explicit_source_channels(
-) -> Result<(), ExtractionSchemaError> {
+fn schema_binds_versioned_typed_fields_to_explicit_source_channels()
+-> Result<(), ExtractionSchemaError> {
     let schema = ExtractionSchema::new(
         "product-card-v1",
         vec![
@@ -52,11 +52,15 @@ fn schema_binds_versioned_typed_fields_to_explicit_source_channels(
     assert_eq!(schema.version(), "product-card-v1");
     assert_eq!(schema.fields().len(), 2);
     assert_eq!(
-        schema.field("product_name").map(ExtractionField::identifier),
+        schema
+            .field("product_name")
+            .map(ExtractionField::identifier),
         Some("product_name")
     );
     assert_eq!(
-        schema.field("product_name").map(ExtractionField::value_type),
+        schema
+            .field("product_name")
+            .map(ExtractionField::value_type),
         Some(ExtractionValueType::Text)
     );
     assert_eq!(
@@ -84,9 +88,7 @@ fn schema_binds_versioned_typed_fields_to_explicit_source_channels(
         Some(ExtractionValueType::Decimal)
     );
     assert_eq!(
-        schema
-            .field("unit_price")
-            .map(ExtractionField::cardinality),
+        schema.field("unit_price").map(ExtractionField::cardinality),
         Some(ExtractionCardinality::ZeroOrOne)
     );
     assert_eq!(
@@ -98,8 +100,8 @@ fn schema_binds_versioned_typed_fields_to_explicit_source_channels(
 }
 
 #[test]
-fn field_accepts_all_reviewed_value_and_source_channel_variants(
-) -> Result<(), ExtractionSchemaError> {
+fn field_accepts_all_reviewed_value_and_source_channel_variants()
+-> Result<(), ExtractionSchemaError> {
     let cases = [
         (
             ExtractionValueType::Text,
@@ -220,8 +222,8 @@ fn field_requires_a_nonempty_duplicate_free_source_channel_set() {
 }
 
 #[test]
-fn schema_rejects_invalid_version_empty_fields_duplicate_fields_and_field_overflow(
-) -> Result<(), ExtractionSchemaError> {
+fn schema_rejects_invalid_version_empty_fields_duplicate_fields_and_field_overflow()
+-> Result<(), ExtractionSchemaError> {
     assert_eq!(
         ExtractionSchema::new(
             "Product Schema",
