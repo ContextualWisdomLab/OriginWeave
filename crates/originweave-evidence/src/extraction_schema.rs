@@ -53,6 +53,17 @@ pub enum ExtractionSourceChannel {
     ModelInterpretation,
 }
 
+/// A deterministic normalization rule declared for one extracted field.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ExtractionNormalizationRule {
+    /// Preserve the typed source value without text normalization.
+    Verbatim,
+    /// Trim surrounding whitespace from a textual value.
+    TrimTextWhitespace,
+    /// Normalize a timestamp into an RFC 3339 UTC representation.
+    Rfc3339Utc,
+}
+
 /// A validation failure while constructing an extraction schema contract.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExtractionSchemaError {
@@ -64,6 +75,8 @@ pub enum ExtractionSchemaError {
     MissingSourceChannel,
     /// A field declared the same source channel more than once.
     DuplicateSourceChannel,
+    /// The declared normalization rule was incompatible with the field value type.
+    InvalidNormalizationRule,
     /// A schema did not contain any field definitions.
     MissingField,
     /// A schema declared the same field identifier more than once.
@@ -77,11 +90,12 @@ pub struct ExtractionField {
     value_type: ExtractionValueType,
     cardinality: ExtractionCardinality,
     required: bool,
+    normalization_rule: ExtractionNormalizationRule,
     source_channels: Vec<ExtractionSourceChannel>,
 }
 
 impl ExtractionField {
-    /// Validate and construct one extraction field contract.
+    /// Validate and construct one extraction field contract with verbatim normalization.
     pub fn new(
         identifier: &str,
         value_type: ExtractionValueType,
@@ -89,9 +103,41 @@ impl ExtractionField {
         required: bool,
         source_channels: &[ExtractionSourceChannel],
     ) -> Result<Self, ExtractionSchemaError> {
+        Self::new_with_normalization(
+            identifier,
+            value_type,
+            cardinality,
+            required,
+            ExtractionNormalizationRule::Verbatim,
+            source_channels,
+        )
+    }
+
+    /// Validate and construct one extraction field with an explicit normalization rule.
+    pub fn new_with_normalization(
+        identifier: &str,
+        value_type: ExtractionValueType,
+        cardinality: ExtractionCardinality,
+        required: bool,
+        normalization_rule: ExtractionNormalizationRule,
+        source_channels: &[ExtractionSourceChannel],
+    ) -> Result<Self, ExtractionSchemaError> {
         validate_identifier(identifier)?;
         if source_channels.is_empty() {
             return Err(ExtractionSchemaError::MissingSourceChannel);
+        }
+
+        let normalization_is_compatible = match normalization_rule {
+            ExtractionNormalizationRule::Verbatim => true,
+            ExtractionNormalizationRule::TrimTextWhitespace => {
+                value_type == ExtractionValueType::Text
+            }
+            ExtractionNormalizationRule::Rfc3339Utc => {
+                value_type == ExtractionValueType::Timestamp
+            }
+        };
+        if !normalization_is_compatible {
+            return Err(ExtractionSchemaError::InvalidNormalizationRule);
         }
 
         let mut seen_channels = BTreeSet::new();
@@ -106,6 +152,7 @@ impl ExtractionField {
             value_type,
             cardinality,
             required,
+            normalization_rule,
             source_channels: source_channels.to_vec(),
         })
     }
@@ -132,6 +179,12 @@ impl ExtractionField {
     #[must_use]
     pub const fn required(&self) -> bool {
         self.required
+    }
+
+    /// Return the deterministic normalization rule declared for this field.
+    #[must_use]
+    pub const fn normalization_rule(&self) -> ExtractionNormalizationRule {
+        self.normalization_rule
     }
 
     /// Return the reviewed source channels that may support this field.
