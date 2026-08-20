@@ -701,6 +701,13 @@ def _run_restart_trial(
     }
 
 
+def _validate_agent_task_submitted_state(state: object) -> None:
+    """Require the controlled submitted marker without echoing page-controlled data."""
+
+    if state != "submitted":
+        raise RuntimeError("Agent Task state post-condition failed")
+
+
 def _run_agent_task_browser_pass(
     chrome_bin: pathlib.Path,
     chromedriver_bin: pathlib.Path,
@@ -867,8 +874,7 @@ def _run_agent_task_browser_pass(
             "GET",
             _element_command_path(session_id, result_element, "/text"),
         ).get("value")
-        if state != "submitted":
-            raise RuntimeError(f"Agent Task state post-condition failed: {state!r}")
+        _validate_agent_task_submitted_state(state)
         if text != AGENT_TASK_INPUT_VALUE:
             raise RuntimeError("Agent Task result did not match the synthetic typed value")
 
