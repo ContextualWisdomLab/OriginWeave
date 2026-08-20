@@ -79,6 +79,16 @@ DOWNLOAD_DIAGNOSTIC_VALUES = frozenset(
         "download-not-evaluated",
     }
 )
+WEBDRIVER_ERROR_CODES = frozenset(
+    {
+        "invalid argument",
+        "no such element",
+        "session not created",
+        "stale element reference",
+        "timeout",
+        "unknown error",
+    }
+)
 
 
 class CompatibilitySurfaceError(RuntimeError):
@@ -91,6 +101,14 @@ class CompatibilitySurfaceError(RuntimeError):
             if key in observed
         }
         super().__init__("Manifest V3 fixture surfaces did not converge")
+
+
+class WebDriverProtocolError(RuntimeError):
+    """Report one allow-listed WebDriver error code without browser-controlled text."""
+
+    def __init__(self, code: object, _message: object) -> None:
+        self.code = code if isinstance(code, str) and code in WEBDRIVER_ERROR_CODES else "unknown"
+        super().__init__(f"WebDriver protocol error: {self.code}")
 
 
 class WebDriverSessionCleanupError(RuntimeError):
@@ -119,6 +137,8 @@ def _failure_evidence(error: BaseException) -> dict[str, Any]:
 
     if isinstance(error, CompatibilitySurfaceError):
         return {"failure_kind": "surface_mismatch", "observed": error.observed}
+    if isinstance(error, WebDriverProtocolError):
+        return {"failure_kind": "webdriver_protocol_error", "error_code": error.code}
     if isinstance(error, json.JSONDecodeError):
         return {"failure_kind": "json_decode_error"}
     if isinstance(error, OSError):
@@ -201,7 +221,7 @@ def _json_request(
         raise RuntimeError("WebDriver returned a non-object JSON payload")
     value = decoded.get("value")
     if isinstance(value, dict) and value.get("error"):
-        raise RuntimeError("WebDriver returned a protocol error")
+        raise WebDriverProtocolError(value.get("error"), value.get("message"))
     return decoded
 
 

@@ -257,6 +257,18 @@ class ManifestV3CompatibilityContractTests(unittest.TestCase):
                 self.assertNotIn("/home/runner/private", rendered)
                 self.assertNotIn("example.invalid", rendered)
 
+    def test_webdriver_error_keeps_only_an_allowlisted_code(self) -> None:
+        """Session-start failures must expose a bounded code without browser text."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="mv3_contract")
+        protocol_error = namespace["WebDriverProtocolError"]
+        error = protocol_error("session not created", "secret browser diagnostic")
+        self.assertEqual(str(error), "WebDriver protocol error: session not created")
+        self.assertEqual(error.code, "session not created")
+        unknown = protocol_error("untrusted code", "secret browser diagnostic")
+        self.assertEqual(str(unknown), "WebDriver protocol error: unknown")
+        self.assertEqual(unknown.code, "unknown")
+
     def test_chromedriver_startup_timeout_does_not_retain_raw_last_error(self) -> None:
         """Startup timeout diagnostics must classify transient errors without copying raw text."""
 
