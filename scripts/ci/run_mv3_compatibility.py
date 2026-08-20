@@ -413,6 +413,22 @@ def _teardown_driver_process(driver: subprocess.Popen[bytes]) -> Exception | Non
         return None
 
 
+def _read_chromedriver_startup_line(stream: Any) -> tuple[bytes, bool]:
+    """Read and drain one ChromeDriver startup record using only bounded reads."""
+
+    raw_line_bytes = stream.readline(MAX_CHROMEDRIVER_STARTUP_LINE_BYTES + 1)
+    if not raw_line_bytes:
+        return b"", False
+
+    oversized = len(raw_line_bytes) > MAX_CHROMEDRIVER_STARTUP_LINE_BYTES
+    if oversized and not raw_line_bytes.endswith(b"\n"):
+        while True:
+            remainder = stream.readline(MAX_CHROMEDRIVER_STARTUP_LINE_BYTES + 1)
+            if not remainder or remainder.endswith(b"\n"):
+                break
+    return raw_line_bytes, oversized
+
+
 def _start_chromedriver(
     chromedriver_bin: pathlib.Path,
 ) -> tuple[subprocess.Popen[bytes], int]:
@@ -448,10 +464,13 @@ def _start_chromedriver(
             return
 
     def drain_output() -> None:
-        for raw_line_bytes in driver.stdout:
+        while True:
+            raw_line_bytes, oversized = _read_chromedriver_startup_line(driver.stdout)
+            if not raw_line_bytes:
+                break
             if not raw_line_bytes.startswith(port_prefix_bytes):
                 continue
-            if len(raw_line_bytes) > MAX_CHROMEDRIVER_STARTUP_LINE_BYTES:
+            if oversized:
                 publish(("invalid", None))
                 continue
 
