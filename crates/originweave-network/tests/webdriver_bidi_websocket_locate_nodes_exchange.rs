@@ -1,6 +1,7 @@
 use std::{
+    error::Error,
     io::{self, Read, Write},
-    net::{TcpListener, TcpStream},
+    net::{SocketAddr, TcpListener, TcpStream},
     thread,
     time::Duration,
 };
@@ -10,7 +11,8 @@ use originweave_core::{
     WebDriverBiDiWebSocketEndpoint,
 };
 use originweave_network::{
-    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
+    WebDriverBiDiLocateNodesExchangeError, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketEstablished,
     WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
 };
 
@@ -18,6 +20,7 @@ const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
 const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
 const RESPONSE_DOCUMENT: &str =
     r#"{"type":"success","id":7,"result":{"nodes":[{"type":"node","sharedId":"shared-1"}]}}"#;
+const MISMATCHED_RESPONSE_DOCUMENT: &str = r#"{"type":"success","id":8,"result":{"nodes":[]}}"#;
 
 fn connect(endpoint: &str) -> originweave_network::WebDriverBiDiTcpConnection {
     let admitted = WebDriverBiDiWebSocketEndpoint::new(endpoint);
@@ -95,7 +98,7 @@ fn read_client_text_frame(stream: &mut TcpStream) -> io::Result<Vec<u8>> {
     Ok(payload)
 }
 
-fn write_server_text_frame(stream: &mut TcpStream, payload: &[u8]) -> io::Result<()> {
+fn server_frame(first_byte: u8, payload: &[u8]) -> io::Result<Vec<u8>> {
     let payload_length = u8::try_from(payload.len()).map_err(|_| {
         io::Error::new(
             io::ErrorKind::InvalidData,
@@ -108,23 +111,24 @@ fn write_server_text_frame(stream: &mut TcpStream, payload: &[u8]) -> io::Result
             "test response must fit one short WebSocket text frame",
         ));
     }
-    stream.write_all(&[0x81, payload_length])?;
-    stream.write_all(payload)
+    let mut frame = vec![first_byte, payload_length];
+    frame.extend_from_slice(payload);
+    Ok(frame)
 }
 
-#[test]
-fn established_stream_exchanges_exact_locate_nodes_command_and_correlates_wire_result() {
-    let listener = TcpListener::bind(("127.0.0.1", 0));
-    assert!(listener.is_ok(), "{listener:?}");
-    let Ok(listener) = listener else {
-        return;
-    };
-    let local_addr = listener.local_addr();
-    assert!(local_addr.is_ok(), "{local_addr:?}");
-    let Ok(local_addr) = local_addr else {
-        return;
-    };
-
+fn establish_with_server_frame(
+    response_frame: &[u8],
+) -> Result<
+    (
+        SocketAddr,
+        WebDriverBiDiWebSocketEstablished,
+        thread::JoinHandle<io::Result<Vec<u8>>>,
+    ),
+    Box<dyn Error>,
+> {
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let local_addr = listener.local_addr()?;
+    let response_frame = response_frame.to_vec();
     let server = thread::spawn(move || -> io::Result<Vec<u8>> {
         let (mut stream, _) = listener.accept()?;
         let request = read_opening_request(&mut stream)?;
@@ -138,29 +142,58 @@ fn established_stream_exchanges_exact_locate_nodes_command_and_correlates_wire_r
             b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n",
         )?;
         let command = read_client_text_frame(&mut stream)?;
-        write_server_text_frame(&mut stream, RESPONSE_DOCUMENT.as_bytes())?;
+        stream.write_all(&response_frame)?;
         Ok(command)
     });
 
     let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
-    let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY);
-    assert!(key.is_ok(), "{key:?}");
-    let Ok(key) = key else {
+    let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?;
+    let plan = WebDriverBiDiWebSocketHandshakePlan::new(connect(&endpoint), key)?;
+    let written = plan.write_opening_request(Duration::from_millis(500))?;
+    let established = written.read_opening_response(Duration::from_millis(500))?;
+    Ok((local_addr, established, server))
+}
+
+fn locate_nodes_command() -> WebDriverBiDiLocateNodesCommand {
+    let query = WebDriverBiDiAccessibilityQuery::new(Some("button"), Some("Checkout"), 2)
+        .expect("test query must be valid");
+    WebDriverBiDiLocateNodesCommand::new(7, "top-level-context", &query)
+        .expect("test command must be valid")
+}
+
+fn exchange_error(
+    response_frame: &[u8],
+    frame_timeout: Duration,
+    server_must_receive_command: bool,
+) -> WebDriverBiDiLocateNodesExchangeError {
+    let (_, established, server) =
+        establish_with_server_frame(response_frame).expect("test exchange fixture must start");
+    let error = established
+        .exchange_locate_nodes(
+            locate_nodes_command(),
+            WebDriverBiDiWebSocketMaskKey::new([0x11, 0x22, 0x33, 0x44]),
+            frame_timeout,
+        )
+        .expect_err("test exchange must fail");
+    let server_result = server.join().expect("test server must join");
+    assert_eq!(
+        server_result.is_ok(),
+        server_must_receive_command,
+        "test server command receipt did not match the exchange boundary"
+    );
+    error
+}
+
+#[test]
+fn established_stream_exchanges_exact_locate_nodes_command_and_correlates_wire_result() {
+    let response_frame = server_frame(0x81, RESPONSE_DOCUMENT.as_bytes());
+    assert!(response_frame.is_ok(), "{response_frame:?}");
+    let Ok(response_frame) = response_frame else {
         return;
     };
-    let plan = WebDriverBiDiWebSocketHandshakePlan::new(connect(&endpoint), key);
-    assert!(plan.is_ok(), "{plan:?}");
-    let Ok(plan) = plan else {
-        return;
-    };
-    let written = plan.write_opening_request(Duration::from_millis(500));
-    assert!(written.is_ok(), "{written:?}");
-    let Ok(written) = written else {
-        return;
-    };
-    let established = written.read_opening_response(Duration::from_millis(500));
-    assert!(established.is_ok(), "{established:?}");
-    let Ok(established) = established else {
+    let fixture = establish_with_server_frame(&response_frame);
+    assert!(fixture.is_ok(), "{fixture:?}");
+    let Ok((local_addr, established, server)) = fixture else {
         return;
     };
 
@@ -214,4 +247,73 @@ fn established_stream_exchanges_exact_locate_nodes_command_and_correlates_wire_r
             assert_eq!(actual_command, expected_command);
         }
     }
+}
+
+#[test]
+fn exchange_rejects_a_non_final_or_non_text_response_frame() {
+    for (first_byte, expected_fin, expected_opcode) in
+        [(0x01_u8, false, 0x01_u8), (0x82_u8, true, 0x02_u8)]
+    {
+        let response_frame = server_frame(first_byte, &[]);
+        assert!(response_frame.is_ok(), "{response_frame:?}");
+        let Ok(response_frame) = response_frame else {
+            return;
+        };
+        let fixture = establish_with_server_frame(&response_frame);
+        assert!(fixture.is_ok(), "{fixture:?}");
+        let Ok((_, established, server)) = fixture else {
+            return;
+        };
+
+        let error = established
+            .exchange_locate_nodes(
+                locate_nodes_command(),
+                WebDriverBiDiWebSocketMaskKey::new([0x11, 0x22, 0x33, 0x44]),
+                Duration::from_millis(500),
+            )
+            .expect_err("invalid response frames must fail closed");
+        assert!(matches!(
+            error,
+            WebDriverBiDiLocateNodesExchangeError::UnexpectedResponseFrame {
+                fin,
+                opcode,
+            } if fin == expected_fin && opcode == expected_opcode
+        ));
+
+        let server_result = server.join();
+        assert!(server_result.is_ok(), "{server_result:?}");
+        if let Ok(command_result) = server_result {
+            assert!(command_result.is_ok(), "{command_result:?}");
+        }
+    }
+}
+
+#[test]
+fn exchange_preserves_frame_document_and_response_admission_boundaries() {
+    let write_error = exchange_error(&[], Duration::ZERO, false);
+    assert!(matches!(
+        write_error,
+        WebDriverBiDiLocateNodesExchangeError::Frame(_)
+    ));
+
+    let read_error = exchange_error(&[], Duration::from_millis(500), true);
+    assert!(matches!(
+        read_error,
+        WebDriverBiDiLocateNodesExchangeError::Frame(_)
+    ));
+
+    let invalid_utf8_frame = server_frame(0x81, &[0xff]).expect("test frame must be bounded");
+    let document_error = exchange_error(&invalid_utf8_frame, Duration::from_millis(500), true);
+    assert!(matches!(
+        document_error,
+        WebDriverBiDiLocateNodesExchangeError::ResponseDocument(_)
+    ));
+
+    let mismatched_frame =
+        server_frame(0x81, MISMATCHED_RESPONSE_DOCUMENT.as_bytes()).expect("test frame must fit");
+    let response_error = exchange_error(&mismatched_frame, Duration::from_millis(500), true);
+    assert!(matches!(
+        response_error,
+        WebDriverBiDiLocateNodesExchangeError::LocateNodesResponse(_)
+    ));
 }
