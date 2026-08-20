@@ -24,6 +24,8 @@ The current WHATWG MIME Sniffing Standard defines a **binary data byte** narrowl
 
 OriginWeave's observed classifier follows that byte-level contract after higher-priority reviewed signatures. The implementation still reads only the bounded sniff prefix, and active/scriptable signatures keep their separate conservative risk handling. Regression evidence includes non-UTF-8 high bytes that must remain passive `text/plain` and control-byte content that must remain `application/octet-stream`. This prevents evidence drift caused by conflating text/binary sniffing with Unicode decoding.
 
+The same WHATWG unknown-MIME signature table defines an exact `<?xml` signature whose computed MIME type is `text/xml`. OriginWeave therefore records `text/xml` for that observed signature rather than normalizing it to the related `application/xml` alias. This distinction is evidence-significant: a supplied `Content-Type: text/xml` must compare as an exact essence match when the observed prefix is the standard XML signature. Because that observable classifier output is persisted as evidence, this contract change advances the classifier version from `originweave-mime-signatures-1` to `originweave-mime-signatures-2`.
+
 ## Verification contract
 
 The exact pull-request head must demonstrate:
@@ -33,6 +35,7 @@ The exact pull-request head must demonstrate:
 - rejection of all Win32 reserved filename characters after decoding;
 - preservation of existing control, path, device-name, bidi, length, dot, and whitespace restrictions;
 - WHATWG byte-level text/binary classification, including passive non-UTF-8 high bytes and binary control-byte rejection;
+- exact WHATWG XML signature evidence as `text/xml`, with supplied `text/xml` producing `MimeMismatch::Match` and the classifier version reflecting the changed evidence semantics;
 - Rust formatting, workspace checks, tests, Clippy, and rustdoc;
 - exact 100% production function, line, region, statement, and branch coverage;
 - Security Scan, SAST, all operationally required current review gates, and branch-protection gates.
