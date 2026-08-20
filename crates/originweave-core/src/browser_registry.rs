@@ -473,6 +473,52 @@ mod tests {
     }
 
     #[test]
+    fn validation_binding_predicate_checks_each_authority_dimension() {
+        let mut registry = BrowserAuthorityRegistry::new();
+        let sessions = values(registry.register_session("predicate-session"));
+        let contexts = values(registry.register_context(sessions[0], "first-context"));
+        let second_contexts = values(registry.register_context(sessions[0], "second-context"));
+        let origins = values(Origin::parse("http://127.0.0.1:43127"));
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(contexts.len(), 1);
+        assert_eq!(second_contexts.len(), 1);
+        assert_eq!(origins.len(), 1);
+
+        let first = values(registry.bind_node(sessions[0], contexts[0], &origins[0], "first-node"));
+        let second =
+            values(registry.bind_node(sessions[0], second_contexts[0], &origins[0], "second-node"));
+        assert_eq!(first.len(), 1);
+        assert_eq!(second.len(), 1);
+        assert_eq!(registry.validate_node_handle(&second[0]), Ok(()));
+
+        let current_epochs = values(registry.current_epoch(contexts[0]));
+        let future_epochs = values(DocumentEpoch::new(2));
+        assert_eq!(current_epochs.len(), 1);
+        assert_eq!(future_epochs.len(), 1);
+        registry.node_by_external.insert(
+            (contexts[0], future_epochs[0], "synthetic-node".to_owned()),
+            9_999,
+        );
+        let forged = values(ObservedNodeHandle::new(
+            sessions[0],
+            contexts[0],
+            origins[0].clone(),
+            current_epochs[0],
+            9_999,
+        ));
+        assert_eq!(forged.len(), 1);
+        assert_eq!(
+            registry.validate_node_handle(&forged[0]),
+            Err(BrowserRegistryError::UnknownNodeAuthority)
+        );
+        registry.context_epoch.remove(&contexts[0]);
+        assert_eq!(
+            registry.validate_node_handle(&forged[0]),
+            Err(BrowserRegistryError::UnknownBrowsingContext)
+        );
+    }
+
+    #[test]
     fn monotonic_identifier_exhaustion_is_fail_closed() {
         let mut next = 1;
         assert_eq!(take_identifier(&mut next, 1), Ok(1));

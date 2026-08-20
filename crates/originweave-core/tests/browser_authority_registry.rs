@@ -166,6 +166,20 @@ fn retired_context_and_session_authority_cannot_be_reused() -> Result<(), Box<dy
 }
 
 #[test]
+fn advancing_a_retired_context_is_rejected() -> Result<(), Box<dyn Error>> {
+    let mut registry = BrowserAuthorityRegistry::new();
+    let session = registry.register_session("webdriver-session")?;
+    let context = registry.register_context(session, "top-level-context")?;
+
+    registry.remove_context(context)?;
+    assert_eq!(
+        registry.advance_document(context),
+        Err(BrowserRegistryError::UnknownBrowsingContext)
+    );
+    Ok(())
+}
+
+#[test]
 fn context_cannot_be_reused_by_another_session() -> Result<(), Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
     let owner = registry.register_session("owner-session")?;
