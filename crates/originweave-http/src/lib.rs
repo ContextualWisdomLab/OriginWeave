@@ -48,7 +48,6 @@ mod mime_contract;
 #[cfg(test)]
 #[path = "tests/mime_tag_termination_contract.rs"]
 mod mime_tag_termination_contract;
-mod named_policy;
 #[cfg(test)]
 #[path = "tests/no_content_integrity_contract.rs"]
 mod no_content_integrity_contract;
@@ -98,7 +97,6 @@ pub use mime::{
     ContentRiskClass, MIME_CLASSIFIER_VERSION, MimeMismatch, MimeType, NoSniffStatus,
     ObservedMimeClassification,
 };
-pub use named_policy::HttpPolicyLimits;
 pub use policy::{
     AlpnHttp11Policy, DEFAULT_MAX_CHUNK_COUNT, DEFAULT_MAX_CONTENT_EXPANSION_RATIO,
     DEFAULT_MAX_DECODED_CONTENT_BYTES, DEFAULT_MAX_ENCODED_CONTENT_BYTES,
@@ -106,7 +104,8 @@ pub use policy::{
     DEFAULT_MAX_HEADER_SECTION_BYTES, DEFAULT_MAX_HEADER_VALUE_BYTES,
     DEFAULT_MAX_INTERIM_RESPONSE_COUNT, DEFAULT_MAX_REQUEST_BYTES, DEFAULT_MAX_STATUS_LINE_BYTES,
     DEFAULT_MAX_TRAILER_FIELD_COUNT, DEFAULT_MAX_TRAILER_SECTION_BYTES, HttpClientPolicy,
-    IntegrityRequirement, MAX_HTTP_EXCHANGE_TIMEOUT, MAX_MIME_SNIFF_BYTES, MAX_SAFE_FILENAME_BYTES,
+    HttpPolicyLimits, IntegrityRequirement, MAX_HTTP_EXCHANGE_TIMEOUT, MAX_MIME_SNIFF_BYTES,
+    MAX_SAFE_FILENAME_BYTES,
 };
 pub use request::HttpMethod;
 pub use target::HttpRequestTarget;

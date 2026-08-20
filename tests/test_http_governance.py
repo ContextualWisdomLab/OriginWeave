@@ -21,7 +21,6 @@ class HttpGovernanceTests(unittest.TestCase):
             "lib.rs",
             "error.rs",
             "policy.rs",
-            "named_policy.rs",
             "target.rs",
             "field.rs",
             "request.rs",
@@ -92,6 +91,18 @@ class HttpGovernanceTests(unittest.TestCase):
         )
         for token, authority in forbidden.items():
             self.assertNotIn(token, combined, authority)
+
+    def test_custom_http_limits_use_the_named_canonical_constructor(self) -> None:
+        """Positional compatibility must delegate into the named validation boundary."""
+
+        policy = (SOURCE / "policy.rs").read_text(encoding="utf-8")
+        self.assertIn("pub struct HttpPolicyLimits", policy)
+        positional = policy.split("pub fn new(", 1)[1].split("pub fn from_limits(", 1)[0]
+        canonical = policy.split("pub fn from_limits(", 1)[1].split(
+            "pub const fn strict_defaults", 1
+        )[0]
+        self.assertIn("Self::from_limits(", positional)
+        self.assertNotIn("Self::new(", canonical)
 
     def test_dependency_lock_contains_reviewed_decoder_family(self) -> None:
         """The lockfile must pin the reviewed portable decoder graph."""

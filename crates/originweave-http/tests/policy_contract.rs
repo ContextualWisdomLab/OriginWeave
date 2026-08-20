@@ -9,67 +9,19 @@ use originweave_http::{
     DEFAULT_MAX_HEADER_SECTION_BYTES, DEFAULT_MAX_HEADER_VALUE_BYTES,
     DEFAULT_MAX_INTERIM_RESPONSE_COUNT, DEFAULT_MAX_REQUEST_BYTES, DEFAULT_MAX_STATUS_LINE_BYTES,
     DEFAULT_MAX_TRAILER_FIELD_COUNT, DEFAULT_MAX_TRAILER_SECTION_BYTES, HttpClientPolicy,
-    HttpError, IntegrityRequirement, MAX_HTTP_EXCHANGE_TIMEOUT,
+    HttpError, HttpPolicyLimits, IntegrityRequirement, MAX_HTTP_EXCHANGE_TIMEOUT,
 };
 
-#[derive(Clone, Copy)]
-struct PolicyInput {
+fn build_named_policy(
     exchange_timeout: Duration,
-    max_request_bytes: usize,
-    max_status_line_bytes: usize,
-    max_header_field_count: usize,
-    max_header_name_bytes: usize,
-    max_header_value_bytes: usize,
-    max_header_section_bytes: usize,
-    max_interim_response_count: usize,
-    max_chunk_count: usize,
-    max_trailer_field_count: usize,
-    max_trailer_section_bytes: usize,
-    max_encoded_content_bytes: usize,
-    max_decoded_content_bytes: usize,
-    max_content_expansion_ratio: usize,
-}
-
-impl PolicyInput {
-    const fn defaults() -> Self {
-        Self {
-            exchange_timeout: MAX_HTTP_EXCHANGE_TIMEOUT,
-            max_request_bytes: DEFAULT_MAX_REQUEST_BYTES,
-            max_status_line_bytes: DEFAULT_MAX_STATUS_LINE_BYTES,
-            max_header_field_count: DEFAULT_MAX_HEADER_FIELD_COUNT,
-            max_header_name_bytes: DEFAULT_MAX_HEADER_NAME_BYTES,
-            max_header_value_bytes: DEFAULT_MAX_HEADER_VALUE_BYTES,
-            max_header_section_bytes: DEFAULT_MAX_HEADER_SECTION_BYTES,
-            max_interim_response_count: DEFAULT_MAX_INTERIM_RESPONSE_COUNT,
-            max_chunk_count: DEFAULT_MAX_CHUNK_COUNT,
-            max_trailer_field_count: DEFAULT_MAX_TRAILER_FIELD_COUNT,
-            max_trailer_section_bytes: DEFAULT_MAX_TRAILER_SECTION_BYTES,
-            max_encoded_content_bytes: DEFAULT_MAX_ENCODED_CONTENT_BYTES,
-            max_decoded_content_bytes: DEFAULT_MAX_DECODED_CONTENT_BYTES,
-            max_content_expansion_ratio: DEFAULT_MAX_CONTENT_EXPANSION_RATIO,
-        }
-    }
-
-    fn build(self) -> Result<HttpClientPolicy, HttpError> {
-        HttpClientPolicy::new(
-            self.exchange_timeout,
-            self.max_request_bytes,
-            self.max_status_line_bytes,
-            self.max_header_field_count,
-            self.max_header_name_bytes,
-            self.max_header_value_bytes,
-            self.max_header_section_bytes,
-            self.max_interim_response_count,
-            self.max_chunk_count,
-            self.max_trailer_field_count,
-            self.max_trailer_section_bytes,
-            self.max_encoded_content_bytes,
-            self.max_decoded_content_bytes,
-            self.max_content_expansion_ratio,
-            AlpnHttp11Policy::RequireHttp11,
-            IntegrityRequirement::Optional,
-        )
-    }
+    limits: HttpPolicyLimits,
+) -> Result<HttpClientPolicy, HttpError> {
+    HttpClientPolicy::from_limits(
+        exchange_timeout,
+        limits,
+        AlpnHttp11Policy::RequireHttp11,
+        IntegrityRequirement::Optional,
+    )
 }
 
 #[derive(Clone, Copy)]
@@ -123,20 +75,20 @@ impl PolicyLimit {
         }
     }
 
-    fn assign(self, input: &mut PolicyInput, value: usize) {
+    fn assign(self, limits: &mut HttpPolicyLimits, value: usize) {
         match self {
-            Self::RequestBytes => input.max_request_bytes = value,
-            Self::StatusLineBytes => input.max_status_line_bytes = value,
-            Self::HeaderFieldCount => input.max_header_field_count = value,
-            Self::HeaderNameBytes => input.max_header_name_bytes = value,
-            Self::HeaderValueBytes => input.max_header_value_bytes = value,
-            Self::HeaderSectionBytes => input.max_header_section_bytes = value,
-            Self::InterimResponseCount => input.max_interim_response_count = value,
-            Self::ChunkCount => input.max_chunk_count = value,
-            Self::TrailerFieldCount => input.max_trailer_field_count = value,
-            Self::TrailerSectionBytes => input.max_trailer_section_bytes = value,
-            Self::EncodedContentBytes => input.max_encoded_content_bytes = value,
-            Self::DecodedContentBytes => input.max_decoded_content_bytes = value,
+            Self::RequestBytes => limits.max_request_bytes = value,
+            Self::StatusLineBytes => limits.max_status_line_bytes = value,
+            Self::HeaderFieldCount => limits.max_header_field_count = value,
+            Self::HeaderNameBytes => limits.max_header_name_bytes = value,
+            Self::HeaderValueBytes => limits.max_header_value_bytes = value,
+            Self::HeaderSectionBytes => limits.max_header_section_bytes = value,
+            Self::InterimResponseCount => limits.max_interim_response_count = value,
+            Self::ChunkCount => limits.max_chunk_count = value,
+            Self::TrailerFieldCount => limits.max_trailer_field_count = value,
+            Self::TrailerSectionBytes => limits.max_trailer_section_bytes = value,
+            Self::EncodedContentBytes => limits.max_encoded_content_bytes = value,
+            Self::DecodedContentBytes => limits.max_decoded_content_bytes = value,
         }
     }
 }
@@ -199,26 +151,68 @@ fn strict_defaults_expose_the_complete_reviewed_policy() {
 }
 
 #[test]
-fn callers_can_reduce_every_reviewed_limit() {
-    let policy = HttpClientPolicy::new(
+fn named_defaults_match_the_complete_reviewed_resource_policy() {
+    let limits = HttpPolicyLimits::strict_defaults();
+    assert_eq!(limits.max_request_bytes, DEFAULT_MAX_REQUEST_BYTES);
+    assert_eq!(limits.max_status_line_bytes, DEFAULT_MAX_STATUS_LINE_BYTES);
+    assert_eq!(limits.max_header_field_count, DEFAULT_MAX_HEADER_FIELD_COUNT);
+    assert_eq!(limits.max_header_name_bytes, DEFAULT_MAX_HEADER_NAME_BYTES);
+    assert_eq!(limits.max_header_value_bytes, DEFAULT_MAX_HEADER_VALUE_BYTES);
+    assert_eq!(
+        limits.max_header_section_bytes,
+        DEFAULT_MAX_HEADER_SECTION_BYTES
+    );
+    assert_eq!(
+        limits.max_interim_response_count,
+        DEFAULT_MAX_INTERIM_RESPONSE_COUNT
+    );
+    assert_eq!(limits.max_chunk_count, DEFAULT_MAX_CHUNK_COUNT);
+    assert_eq!(
+        limits.max_trailer_field_count,
+        DEFAULT_MAX_TRAILER_FIELD_COUNT
+    );
+    assert_eq!(
+        limits.max_trailer_section_bytes,
+        DEFAULT_MAX_TRAILER_SECTION_BYTES
+    );
+    assert_eq!(
+        limits.max_encoded_content_bytes,
+        DEFAULT_MAX_ENCODED_CONTENT_BYTES
+    );
+    assert_eq!(
+        limits.max_decoded_content_bytes,
+        DEFAULT_MAX_DECODED_CONTENT_BYTES
+    );
+    assert_eq!(
+        limits.max_content_expansion_ratio,
+        DEFAULT_MAX_CONTENT_EXPANSION_RATIO
+    );
+}
+
+#[test]
+fn callers_can_reduce_every_reviewed_limit_through_named_inputs() {
+    let limits = HttpPolicyLimits {
+        max_request_bytes: 1,
+        max_status_line_bytes: 1,
+        max_header_field_count: 1,
+        max_header_name_bytes: 1,
+        max_header_value_bytes: 1,
+        max_header_section_bytes: 1,
+        max_interim_response_count: 1,
+        max_chunk_count: 1,
+        max_trailer_field_count: 1,
+        max_trailer_section_bytes: 1,
+        max_encoded_content_bytes: 1,
+        max_decoded_content_bytes: 1,
+        max_content_expansion_ratio: 1,
+    };
+    let policy = HttpClientPolicy::from_limits(
         Duration::from_nanos(1),
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
+        limits,
         AlpnHttp11Policy::PermitAbsentForManagedLoopback,
         IntegrityRequirement::RequireSupportedDigest,
     )
-    .expect("minimum policy");
+    .expect("minimum named policy");
     assert_eq!(policy.exchange_timeout(), Duration::from_nanos(1));
     assert_eq!(policy.max_request_bytes(), 1);
     assert_eq!(policy.max_decoded_content_bytes(), 1);
@@ -284,18 +278,16 @@ fn timeout_and_expansion_ratio_fail_outside_the_reviewed_range() {
         Duration::ZERO,
         MAX_HTTP_EXCHANGE_TIMEOUT + Duration::from_nanos(1),
     ] {
-        let mut input = PolicyInput::defaults();
-        input.exchange_timeout = timeout;
         assert!(matches!(
-            input.build(),
+            build_named_policy(timeout, HttpPolicyLimits::strict_defaults()),
             Err(HttpError::InvalidExchangeTimeout { .. })
         ));
     }
     for ratio in [0, DEFAULT_MAX_CONTENT_EXPANSION_RATIO + 1] {
-        let mut input = PolicyInput::defaults();
-        input.max_content_expansion_ratio = ratio;
+        let mut limits = HttpPolicyLimits::strict_defaults();
+        limits.max_content_expansion_ratio = ratio;
         assert!(matches!(
-            input.build(),
+            build_named_policy(MAX_HTTP_EXCHANGE_TIMEOUT, limits),
             Err(HttpError::InvalidExpansionRatio { .. })
         ));
     }
@@ -303,7 +295,7 @@ fn timeout_and_expansion_ratio_fail_outside_the_reviewed_range() {
 
 #[test]
 fn each_count_and_byte_limit_rejects_zero_and_maximum_plus_one() {
-    let limits = [
+    let policy_limits = [
         PolicyLimit::RequestBytes,
         PolicyLimit::StatusLineBytes,
         PolicyLimit::HeaderFieldCount,
@@ -318,13 +310,13 @@ fn each_count_and_byte_limit_rejects_zero_and_maximum_plus_one() {
         PolicyLimit::DecodedContentBytes,
     ];
 
-    for limit in limits {
+    for limit in policy_limits {
         let maximum = limit.maximum();
         for value in [0, maximum + 1] {
-            let mut input = PolicyInput::defaults();
-            limit.assign(&mut input, value);
+            let mut limits = HttpPolicyLimits::strict_defaults();
+            limit.assign(&mut limits, value);
             assert!(matches!(
-                input.build(),
+                build_named_policy(MAX_HTTP_EXCHANGE_TIMEOUT, limits),
                 Err(HttpError::InvalidPolicyLimit {
                     limit_name: observed,
                     value: observed_value,
