@@ -270,6 +270,13 @@ fn observation_accepts_utf8_prefix_truncated_mid_scalar() {
 }
 
 #[test]
+fn observation_treats_non_utf8_high_bytes_as_text_when_not_binary() {
+    let observed = classify_observed_mime(&[0x80, 0xe9, 0xff], None);
+    assert_eq!(observed.mime_type().essence(), "text/plain");
+    assert_eq!(observed.risk_class(), ContentRiskClass::Passive);
+}
+
+#[test]
 fn supplied_and_observed_mismatch_states_are_explicit() {
     let html = classify_observed_mime(b"<html>", None);
     let binary = classify_observed_mime(b"\0", None);
