@@ -147,6 +147,16 @@ fn field_rejects_empty_malformed_or_overlong_identifiers() {
     );
     assert_eq!(
         ExtractionField::new(
+            "product name",
+            ExtractionValueType::Text,
+            ExtractionCardinality::One,
+            true,
+            &[ExtractionSourceChannel::SemanticNode],
+        ),
+        Err(ExtractionSchemaError::InvalidIdentifier)
+    );
+    assert_eq!(
+        ExtractionField::new(
             "1product_name",
             ExtractionValueType::Text,
             ExtractionCardinality::One,
