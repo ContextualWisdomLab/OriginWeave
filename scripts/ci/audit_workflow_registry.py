@@ -203,7 +203,7 @@ def _validated_path_set(value: Any, field_name: str) -> set[str]:
 def _validated_active_pr_owners(
     value: Any, active_pr_paths: set[str]
 ) -> dict[str, dict[str, Any]]:
-    """Bind every deferred workflow path to one exact active PR number and head."""
+    """Bind every deferred path to one PR and two equal exact head observations."""
 
     ownership_error = "active PR workflow ownership must be bound to exact PR heads"
     if value is None:
@@ -217,7 +217,7 @@ def _validated_active_pr_owners(
         owner = _require_exact_fields(
             raw_owner,
             f"active_pr_workflow_owners[{index}]",
-            {"path", "pull_request_number", "head_sha"},
+            {"path", "pull_request_number", "head_sha", "observed_head_sha"},
         )
         path = _validate_workflow_path(
             owner.get("path"), f"active_pr_workflow_owners[{index}].path"
@@ -234,6 +234,12 @@ def _validated_active_pr_owners(
         head_sha = _validate_sha(
             owner.get("head_sha"), f"active_pr_workflow_owners[{index}].head_sha"
         )
+        observed_head_sha = _validate_sha(
+            owner.get("observed_head_sha"),
+            f"active_pr_workflow_owners[{index}].observed_head_sha",
+        )
+        if head_sha != observed_head_sha:
+            raise WorkflowAuditError("active PR workflow head moved during collection")
         if path in validated:
             raise WorkflowAuditError(ownership_error)
         validated[path] = {
