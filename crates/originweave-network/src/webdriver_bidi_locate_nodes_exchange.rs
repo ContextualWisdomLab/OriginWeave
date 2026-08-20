@@ -127,8 +127,7 @@ mod tests {
     use std::{error::Error as _, time::Duration};
 
     use originweave_core::{
-        WebDriverBiDiLocateNodesResponseDocumentError,
-        WebDriverBiDiResponseDocumentAdmissionError,
+        WebDriverBiDiLocateNodesResponseDocumentError, WebDriverBiDiResponseDocumentAdmissionError,
     };
 
     use crate::{MAX_WEBSOCKET_FRAME_TIMEOUT, WebDriverBiDiWebSocketFrameError};
@@ -144,7 +143,11 @@ mod tests {
             },
         );
         assert!(frame.source().is_some());
-        assert!(frame.to_string().contains("WebSocket frame exchange failed"));
+        assert!(
+            frame
+                .to_string()
+                .contains("WebSocket frame exchange failed")
+        );
 
         let shape = WebDriverBiDiLocateNodesExchangeError::UnexpectedResponseFrame {
             fin: false,
