@@ -179,7 +179,7 @@ fn mime_parser_rejects_every_ambiguous_syntax_class_and_classifies_signatures() 
         (
             b"\t<?XML version='1.0'?>",
             None,
-            "application/xml",
+            "text/xml",
             ContentRiskClass::ActiveOrScriptable,
         ),
         (
