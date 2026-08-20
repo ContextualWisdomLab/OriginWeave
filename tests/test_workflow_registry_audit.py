@@ -59,6 +59,7 @@ def _payload(*workflows: dict) -> dict:
                 "path": active_pr_path,
                 "pull_request_number": 321,
                 "head_sha": ACTIVE_PR_HEAD,
+                "observed_head_sha": ACTIVE_PR_HEAD,
             }
         ],
         "registry_pages": [
