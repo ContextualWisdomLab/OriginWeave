@@ -132,9 +132,7 @@ impl ExtractionField {
             ExtractionNormalizationRule::TrimTextWhitespace => {
                 value_type == ExtractionValueType::Text
             }
-            ExtractionNormalizationRule::Rfc3339Utc => {
-                value_type == ExtractionValueType::Timestamp
-            }
+            ExtractionNormalizationRule::Rfc3339Utc => value_type == ExtractionValueType::Timestamp,
         };
         if !normalization_is_compatible {
             return Err(ExtractionSchemaError::InvalidNormalizationRule);
