@@ -193,10 +193,6 @@ impl WebDriverBiDiWebSocketOpeningResponseRead {
     pub const fn write_timeout(&self) -> Duration {
         self.sent.write_timeout()
     }
-
-    pub(crate) fn into_parts(self) -> (WebDriverBiDiWebSocketOpeningRequestSent, Vec<u8>) {
-        (self.sent, self.header)
-    }
 }
 
 impl WebDriverBiDiWebSocketOpeningRequestSent {
@@ -263,9 +259,11 @@ fn read_response_header_with_clock(
     loop {
         let remaining = deadline.saturating_duration_since(now());
         if remaining.is_zero() {
-            return Err(WebDriverBiDiWebSocketOpeningReadError::ReadDeadlineExceeded {
-                bytes_read: response.len(),
-            });
+            return Err(
+                WebDriverBiDiWebSocketOpeningReadError::ReadDeadlineExceeded {
+                    bytes_read: response.len(),
+                },
+            );
         }
         reader.set_read_timeout(remaining).map_err(|source| {
             WebDriverBiDiWebSocketOpeningReadError::ReadTimeoutConfigurationFailed {
@@ -283,9 +281,11 @@ fn read_response_header_with_clock(
             Ok(_) => {
                 response.push(byte[0]);
                 if deadline.saturating_duration_since(now()).is_zero() {
-                    return Err(WebDriverBiDiWebSocketOpeningReadError::ReadDeadlineExceeded {
-                        bytes_read: response.len(),
-                    });
+                    return Err(
+                        WebDriverBiDiWebSocketOpeningReadError::ReadDeadlineExceeded {
+                            bytes_read: response.len(),
+                        },
+                    );
                 }
                 if response.ends_with(OPENING_RESPONSE_TERMINATOR) {
                     reader.clear_read_timeout().map_err(|source| {
@@ -387,14 +387,14 @@ mod tests {
         move || instants.pop_front().unwrap_or(fallback)
     }
 
-    fn assert_source_kind(
-        error: &WebDriverBiDiWebSocketOpeningReadError,
-        expected: io::ErrorKind,
-    ) {
+    fn assert_source_kind(error: &WebDriverBiDiWebSocketOpeningReadError, expected: io::ErrorKind) {
         let source = error.source();
         assert!(source.is_some());
         if let Some(source) = source {
-            assert_eq!(source.downcast_ref::<io::Error>().map(io::Error::kind), Some(expected));
+            assert_eq!(
+                source.downcast_ref::<io::Error>().map(io::Error::kind),
+                Some(expected)
+            );
         }
     }
 
@@ -430,11 +430,7 @@ mod tests {
         ));
 
         let mut after_reader = FakeReader::from_steps([ReadStep::Byte(b'X')]);
-        let mut after_clock = fixed_clock([
-            start,
-            start,
-            start + Duration::from_secs(1),
-        ]);
+        let mut after_clock = fixed_clock([start, start, start + Duration::from_secs(1)]);
         let after = read_response_header_with_clock(
             &mut after_reader,
             Duration::from_secs(1),
@@ -459,29 +455,33 @@ mod tests {
             &mut configuration_clock,
         );
         assert!(matches!(
-            configuration,
-            Err(WebDriverBiDiWebSocketOpeningReadError::ReadTimeoutConfigurationFailed {
-                bytes_read: 0,
-                ..
-            })
+            &configuration,
+            Err(
+                WebDriverBiDiWebSocketOpeningReadError::ReadTimeoutConfigurationFailed {
+                    bytes_read: 0,
+                    ..
+                }
+            )
         ));
         if let Err(error) = configuration {
             assert_source_kind(&error, io::ErrorKind::InvalidInput);
         }
 
-        let mut timeout_reader = FakeReader::from_steps([ReadStep::Error(io::ErrorKind::TimedOut)]);
-        let mut timeout_clock = move || start;
-        let timeout = read_response_header_with_clock(
-            &mut timeout_reader,
-            Duration::from_secs(1),
-            &mut timeout_clock,
-        );
-        assert!(matches!(
-            timeout,
-            Err(WebDriverBiDiWebSocketOpeningReadError::ReadTimedOut { bytes_read: 0, .. })
-        ));
-        if let Err(error) = timeout {
-            assert_source_kind(&error, io::ErrorKind::TimedOut);
+        for kind in [io::ErrorKind::TimedOut, io::ErrorKind::WouldBlock] {
+            let mut timeout_reader = FakeReader::from_steps([ReadStep::Error(kind)]);
+            let mut timeout_clock = move || start;
+            let timeout = read_response_header_with_clock(
+                &mut timeout_reader,
+                Duration::from_secs(1),
+                &mut timeout_clock,
+            );
+            assert!(matches!(
+                &timeout,
+                Err(WebDriverBiDiWebSocketOpeningReadError::ReadTimedOut { bytes_read: 0, .. })
+            ));
+            if let Err(error) = timeout {
+                assert_source_kind(&error, kind);
+            }
         }
 
         let mut eof_reader = FakeReader::from_steps([ReadStep::Eof]);
@@ -505,7 +505,7 @@ mod tests {
             &mut failure_clock,
         );
         assert!(matches!(
-            failure,
+            &failure,
             Err(WebDriverBiDiWebSocketOpeningReadError::ReadFailed { bytes_read: 0, .. })
         ));
         if let Err(error) = failure {
@@ -517,7 +517,7 @@ mod tests {
     fn bounded_reader_rejects_oversize_and_cleanup_failure() {
         let start = Instant::now();
         let mut oversize_reader = FakeReader::from_steps(
-            std::iter::repeat_n(ReadStep::Byte(b'X'), MAX_WEBSOCKET_OPENING_RESPONSE_HEADER_BYTES),
+            (0..MAX_WEBSOCKET_OPENING_RESPONSE_HEADER_BYTES).map(|_| ReadStep::Byte(b'X')),
         );
         let mut oversize_clock = move || start;
         let oversize = read_response_header_with_clock(
@@ -527,9 +527,11 @@ mod tests {
         );
         assert!(matches!(
             oversize,
-            Err(WebDriverBiDiWebSocketOpeningReadError::ResponseHeaderTooLarge {
-                maximum_bytes: MAX_WEBSOCKET_OPENING_RESPONSE_HEADER_BYTES,
-            })
+            Err(
+                WebDriverBiDiWebSocketOpeningReadError::ResponseHeaderTooLarge {
+                    maximum_bytes: MAX_WEBSOCKET_OPENING_RESPONSE_HEADER_BYTES,
+                }
+            )
         ));
 
         let mut cleanup_reader = FakeReader::from_steps([
@@ -546,11 +548,13 @@ mod tests {
             &mut cleanup_clock,
         );
         assert!(matches!(
-            cleanup,
-            Err(WebDriverBiDiWebSocketOpeningReadError::ReadTimeoutCleanupFailed {
-                bytes_read: 4,
-                ..
-            })
+            &cleanup,
+            Err(
+                WebDriverBiDiWebSocketOpeningReadError::ReadTimeoutCleanupFailed {
+                    bytes_read: 4,
+                    ..
+                }
+            )
         ));
         if let Err(error) = cleanup {
             assert_source_kind(&error, io::ErrorKind::InvalidInput);
@@ -589,8 +593,10 @@ mod tests {
 
         for error in errors {
             assert!(!error.to_string().is_empty());
-            match error {
-                WebDriverBiDiWebSocketOpeningReadError::ReadTimeoutConfigurationFailed { .. }
+            match &error {
+                WebDriverBiDiWebSocketOpeningReadError::ReadTimeoutConfigurationFailed {
+                    ..
+                }
                 | WebDriverBiDiWebSocketOpeningReadError::ReadTimedOut { .. }
                 | WebDriverBiDiWebSocketOpeningReadError::ReadFailed { .. }
                 | WebDriverBiDiWebSocketOpeningReadError::ReadTimeoutCleanupFailed { .. } => {
