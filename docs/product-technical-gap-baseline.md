@@ -113,36 +113,50 @@ OriginWeave is not complete merely because every low-level primitive exists in s
 The volatile counts above are reproducible by paginating the complete open-PR inventory, flattening every page, and then inspecting each PR's exact head, checks, reviews, and review threads:
 
 ```bash
+set -euo pipefail
+EVIDENCE_DIR="$(mktemp -d /tmp/originweave-evidence.XXXXXX)"
+printf 'Evidence directory: %s\n' "$EVIDENCE_DIR" >&2
+
 gh api --paginate --slurp 'repos/ContextualWisdomLab/OriginWeave/pulls?state=open&per_page=100' \
-  > /tmp/originweave-open-pr-pages.json
-jq '[.[][]]' /tmp/originweave-open-pr-pages.json \
-  > /tmp/originweave-open-prs.json
+  > "$EVIDENCE_DIR/open-pr-pages.json"
+jq '[.[][]]' "$EVIDENCE_DIR/open-pr-pages.json" \
+  > "$EVIDENCE_DIR/open-prs.json"
 jq '{
   open_pull_requests: length,
   non_draft: (map(select(.draft == false)) | length),
   draft: (map(select(.draft == true)) | length)
-}' /tmp/originweave-open-prs.json
+}' "$EVIDENCE_DIR/open-prs.json"
 
-gh api repos/ContextualWisdomLab/OriginWeave/branches/main
-gh api repos/ContextualWisdomLab/OriginWeave/rulesets/18156473
-gh api 'repos/ContextualWisdomLab/OriginWeave/collaborators?affiliation=all&per_page=100'
+gh api 'repos/ContextualWisdomLab/OriginWeave/branches/main' \
+  > "$EVIDENCE_DIR/main-branch.json"
+gh api --paginate --slurp \
+  'repos/ContextualWisdomLab/OriginWeave/rules/branches/main?per_page=100' \
+  > "$EVIDENCE_DIR/main-branch-rule-pages.json"
+jq '[.[][]]' "$EVIDENCE_DIR/main-branch-rule-pages.json" \
+  > "$EVIDENCE_DIR/main-branch-rules.json"
+gh api --paginate --slurp \
+  'repos/ContextualWisdomLab/OriginWeave/collaborators?affiliation=all&per_page=100' \
+  > "$EVIDENCE_DIR/collaborator-pages.json"
+jq '[.[][]]' "$EVIDENCE_DIR/collaborator-pages.json" \
+  > "$EVIDENCE_DIR/collaborators.json"
 
-jq -r '.[].number' /tmp/originweave-open-prs.json | while read -r PR; do
-  PR_JSON="/tmp/originweave-pr-${PR}.json"
-  gh api "repos/ContextualWisdomLab/OriginWeave/pulls/$PR" > "$PR_JSON"
-  HEAD_SHA=$(jq -r '.head.sha' "$PR_JSON")
+jq -r '.[].number' "$EVIDENCE_DIR/open-prs.json" | while read -r PR; do
+  while :; do
+    PR_JSON="$EVIDENCE_DIR/pr-${PR}.json"
+    gh api "repos/ContextualWisdomLab/OriginWeave/pulls/$PR" > "$PR_JSON"
+    HEAD_SHA=$(jq -r '.head.sha' "$PR_JSON")
 
-  gh api --paginate --slurp \
-    "repos/ContextualWisdomLab/OriginWeave/commits/$HEAD_SHA/check-runs?per_page=100" \
-    > "/tmp/originweave-pr-${PR}-check-runs.json"
-  gh api --paginate --slurp \
-    "repos/ContextualWisdomLab/OriginWeave/pulls/$PR/reviews?per_page=100" \
-    > "/tmp/originweave-pr-${PR}-reviews.json"
-  gh api graphql --paginate --slurp \
-    -F owner=ContextualWisdomLab \
-    -F name=OriginWeave \
-    -F number="$PR" \
-    -f query='
+    gh api --paginate --slurp \
+      "repos/ContextualWisdomLab/OriginWeave/commits/$HEAD_SHA/check-runs?per_page=100" \
+      > "$EVIDENCE_DIR/pr-${PR}-check-runs.json"
+    gh api --paginate --slurp \
+      "repos/ContextualWisdomLab/OriginWeave/pulls/$PR/reviews?per_page=100" \
+      > "$EVIDENCE_DIR/pr-${PR}-reviews.json"
+    gh api graphql --paginate --slurp \
+      -F owner=ContextualWisdomLab \
+      -F name=OriginWeave \
+      -F number="$PR" \
+      -f query='
 query($owner: String!, $name: String!, $number: Int!, $endCursor: String) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
@@ -152,10 +166,19 @@ query($owner: String!, $name: String!, $number: Int!, $endCursor: String) {
       }
     }
   }
-}' > "/tmp/originweave-pr-${PR}-review-threads.json"
+}' > "$EVIDENCE_DIR/pr-${PR}-review-threads.json"
+
+    RECHECKED_HEAD_SHA=$(gh api "repos/ContextualWisdomLab/OriginWeave/pulls/$PR" \
+      | jq -r '.head.sha')
+    if [[ "$RECHECKED_HEAD_SHA" == "$HEAD_SHA" ]]; then
+      break
+    fi
+    printf 'Discarding moving-head evidence for PR #%s (%s -> %s) and retrying.\n' \
+      "$PR" "$HEAD_SHA" "$RECHECKED_HEAD_SHA" >&2
+  done
 done
 ```
 
-The ruleset response determines the required workflow names; each PR's exact `HEAD_SHA` then determines which check runs, reviews, and unresolved threads are current. The saved PR JSON also preserves the exact base reference and branch ancestry input for the dependency graph.
+The branch-scoped rules response determines the active rules affecting `main`; each PR's exact `HEAD_SHA` then determines which check runs, reviews, and unresolved threads are current. The saved PR JSON also preserves the exact base reference and branch ancestry input for the dependency graph. Evidence is retained only when the post-collection `RECHECKED_HEAD_SHA` equals the collected `HEAD_SHA`.
 
 For standards and binding architecture, use [`doctoring.md`](doctoring.md), [`doctoring/browser-agent-protocols.md`](doctoring/browser-agent-protocols.md), [`PRD.md`](PRD.md), [`TRD.md`](TRD.md), [`product-roadmap.md`](product-roadmap.md), and linked ADR/UML/ERD/traceability records. Issues #199-#203 contain their own APA 7th standards and research traceability. This baseline intentionally records delivery state and never promotes planned adapters or active pull-request code to implemented behavior.
