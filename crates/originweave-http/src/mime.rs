@@ -425,15 +425,12 @@ fn starts_ascii_case_insensitive(input: &[u8], prefix: &[u8]) -> bool {
 }
 
 fn is_plain_text(input: &[u8]) -> bool {
-    let valid = match std::str::from_utf8(input) {
-        Ok(_text) => input.len(),
-        Err(error) if error.error_len().is_none() => error.valid_up_to(),
-        Err(_error) => return false,
-    };
-    input[..valid]
-        .iter()
-        .copied()
-        .all(|byte| matches!(byte, b'\t' | b'\n' | b'\x0c' | b'\r' | 0x20..=0x7e | 0x80..=0xff))
+    !input.iter().copied().any(|byte| {
+        matches!(
+            byte,
+            0x00..=0x08 | 0x0b | 0x0e..=0x1a | 0x1c..=0x1f
+        )
+    })
 }
 
 fn trim_optional_whitespace(value: &[u8]) -> &[u8] {
