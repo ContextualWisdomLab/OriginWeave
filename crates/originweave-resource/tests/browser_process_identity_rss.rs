@@ -165,7 +165,7 @@ fn linux_identity_sampler_rejects_pid_reuse_and_samples_current_process() -> Res
         );
         assert_eq!(
             sample_linux_process_identity_rss_bytes(absent),
-            Err(BrowserRssSampleError::ProcessStatusUnavailable)
+            Err(BrowserRssSampleError::ProcessStatUnavailable)
         );
     }
 
