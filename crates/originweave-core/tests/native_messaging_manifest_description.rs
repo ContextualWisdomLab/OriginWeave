@@ -1,6 +1,5 @@
 use originweave_core::{
-    NativeMessagingHostPlatform, NativeMessagingManifestDocument,
-    NativeMessagingManifestParseError,
+    NativeMessagingHostPlatform, NativeMessagingManifestDocument, NativeMessagingManifestParseError,
 };
 
 #[test]
