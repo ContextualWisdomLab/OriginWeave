@@ -17,7 +17,7 @@ File existence alone is never sufficient. An artifact can exist and still be sta
 
 | Documentation family | Fitness | Current evidence / remaining boundary |
 |---|---|---|
-| PRD | **PRESENT-CURRENT on this branch / protected-main follow-up required** | Protected-main requirements remain distinct from active evidence. #37 is the bounded-HTTP replacement; #45→#46→#53→#55 narrows sensitive-handle authority without creating the trusted broker; #47→#50→#54 narrows resolution freshness through socket use; #40→#52→#57→#58 provides browser authority/semantic prerequisites; #43→#56→#59→#60→#61 plus #49 provide active MV3 compatibility evidence; #62/#63 prove extension-proposal isolation without widening Agent/secret approval authority; and #64/#65 plus #51→#66 add outcome, controlled-fixture and resource-measurement prerequisites without completing the real Chromium runtime. |
+| PRD | **PRESENT-CURRENT on this branch / protected-main follow-up required** | Protected-main requirements remain distinct from active evidence. #207 is the bounded-HTTP replacement; #45→#46→#53→#55 narrows sensitive-handle authority without creating the trusted broker; #47→#50→#54 narrows resolution freshness through socket use; #40→#52→#57→#58 provides browser authority/semantic prerequisites; #43→#56→#59→#60→#61 plus #49 provide active MV3 compatibility evidence; #62/#63 prove extension-proposal isolation without widening Agent/secret approval authority; and #64/#65 plus #51→#66 add outcome, controlled-fixture and resource-measurement prerequisites without completing the real Chromium runtime. |
 | TRD | **PRESENT-CURRENT on this branch / protected-main follow-up required** | One protected-main implementation state is kept separate from volatile active/non-shipped evidence. Value objects, fixtures, bounded Linux samplers and compatibility tests do not imply deployed services, Chromium process attribution, browser adapters or completed runtime paths. |
 | Root Architecture | **PRESENT-CURRENT** | The Chromium compatibility kernel plus Rust authority-bearing control plane remains correct. #47/#50/#54 refine ADR 0004; #45/#46/#53/#55 refine ADR 0007; #40/#52/#57/#58 refine browser observation/action boundaries; #62/#63 exercise the existing extension/policy separation; #64/#65 and #51→#66 refine evidence/fixture/resource prerequisites; #43/#49/#56/#59/#60/#61 remain compatibility work under issue #27. None introduces a new trust domain, persistence owner or deployed component. |
 | ADR index/lifecycle | **PRESENT-CURRENT on this branch** | Accepted ADRs remain distinct from Proposed decisions. ADR 0013 separates MV3 compatibility from Agent authority; ADR 0014 governs architecture-decision lifecycle. Their branch presence or later integration cannot silently promote them to Accepted. |
@@ -37,9 +37,9 @@ File existence alone is never sufficient. An artifact can exist and still be sta
 
 ### 3.1 HTTP lineage
 
-Protected-main PRD previously named historical PR #11 as active HTTP evidence. Current replacement work is PR #37, while protected main still does not ship the reconstructed bounded HTTP capability.
+Protected-main PRD previously named historical PR #11 as active HTTP evidence. Current replacement work is PR #207, while protected main still does not ship the reconstructed bounded HTTP capability.
 
-**Resolution:** #37 is active/non-shipped implementation evidence, #11 is historical predecessor lineage, and integration before any of these branch repairs become protected-main truth remains mandatory. Old-head checks, reviews and mergeability never transfer.
+**Resolution:** #207 is active/non-shipped implementation evidence, #11 is historical predecessor lineage, and integration before any of these branch repairs become protected-main truth remains mandatory. Old-head checks, reviews and mergeability never transfer.
 
 ### 3.2 Sensitive-data authority and broker lifecycle
 
@@ -74,7 +74,7 @@ Protected main contains session/context/document/node foundations under Accepted
 
 ### 3.5 ADR discoverability and identifier allocation
 
-The earlier index omitted existing ADRs, and active #37 already reserves ADR identifiers 0011/0012.
+The earlier index omitted existing ADRs, and the earlier HTTP replacement PR #37 reserved ADR identifiers 0011/0012; current PR #207 reuses that feature lineage without adding a new ADR.
 
 **Resolution:** the branch indexes every ADR by lifecycle, uses non-colliding 0013/0014 for new Proposed decisions, and treats collision-sensitive identifiers as reserved across protected main plus active work.
 

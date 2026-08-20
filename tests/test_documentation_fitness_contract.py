@@ -227,7 +227,7 @@ class DocumentationFitnessContractTests(unittest.TestCase):
         prd = (DOCS_ROOT / "PRD.md").read_text(encoding="utf-8")
         self.assertNotIn("Active PR #11", prd)
         self.assertNotIn("Active replacement PR #33", prd)
-        self.assertIn("active replacement PR #37", prd)
+        self.assertIn("active replacement PR #207", prd)
         self.assertIn("Protected-main purpose-bound sensitive-data policy kernel", prd)
         self.assertIn("active PR #43 adds", prd)
 
@@ -238,7 +238,7 @@ class DocumentationFitnessContractTests(unittest.TestCase):
         self.assertNotIn("**Accepted architecture; active development.**", trd)
         self.assertIn("Protected-main status", trd)
         self.assertIn("Active/non-shipped evidence", trd)
-        self.assertIn("Active replacement PR #37", trd)
+        self.assertIn("Active replacement PR #207", trd)
         self.assertIn("purpose-bound sensitive-data authority", trd)
 
     def test_extension_authority_uml_separates_compatibility_from_agent_authority(self) -> None:

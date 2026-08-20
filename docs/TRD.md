@@ -34,7 +34,7 @@ The current reusable Rust control plane is intentionally smaller than the final 
 | `originweave-evidence` | Value-redacted network evidence, provenance foundations and sensitive-access evidence primitives. | **Implemented** | Complete durable Evidence Trail/WARC/PROV persistence remains Planned |
 | Browser/session protocol registry | Bind raw BiDi/CDP identifiers to OriginWeave session/context/document authority. | **Planned** | Active PR #40; core lifetime value contracts are already Implemented under ADR 0010 |
 | Semantic observation/action browser adapters | Chromium/BiDi/CDP observation, node lifecycle, typed input and post-condition verification. | **Planned** | Issue #28 |
-| Bounded HTTP execution | HTTP/1.1 semantics over authenticated governed transport. | **Planned** | Active replacement PR #37; historical PR #11 is predecessor lineage, not current evidence |
+| Bounded HTTP execution | HTTP/1.1 semantics over authenticated governed transport. | **Planned** | Active replacement PR #207; historical PR #11 is predecessor lineage, not current evidence |
 | Proxy/PAC execution | Evaluate authorized route selection and perform governed proxy/CONNECT transport. | **Planned** | Protected-main route-authority value foundation already exists |
 | Sensitive-data broker persistence/runtime | Atomic opaque-handle lifecycle, revocation/reservation, value resolution and trusted fill. | **Planned** | Protected-main policy/evidence foundations exist; issue #10 owns complete runtime lifecycle |
 | Manifest V3 compatibility program | Real pinned-Chromium extension compatibility and release matrix. | **Planned** | Protected main already contains partial real-browser evidence; active PR #43 adds downloads evidence |
@@ -160,7 +160,7 @@ The pure destination crate itself does no DNS lookup.
 
 ### 6.6 HTTP semantics
 
-**Protected-main status: Planned.** Active replacement PR #37 implements bounded HTTP/1.1 semantics but remains non-shipped evidence until protected integration. Historical PR #11 is predecessor lineage and is not current implementation evidence.
+**Protected-main status: Planned.** Active replacement PR #207 implements bounded HTTP/1.1 semantics but remains non-shipped evidence until protected integration. Historical PR #11 is predecessor lineage and is not current implementation evidence.
 
 HTTP processing must consume an authenticated governed connection and define:
 

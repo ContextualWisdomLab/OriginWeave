@@ -216,7 +216,7 @@ public-crawl purpose
 | PRD-NET-003 | Direct transport connects only to approved canonical sockets and verifies `peer_addr` | Implemented | `originweave-network` |
 | PRD-NET-004 | TLS authenticates service identity over the exact governed transport with explicit roots/time | Implemented | `originweave-tls` |
 | PRD-NET-005 | Proxy/PAC route authority is explicit and never ambient | Implemented | Protected-main route-authority foundation; PAC evaluation, proxy transport and CONNECT remain planned |
-| PRD-NET-006 | Bounded HTTP semantics operate over authenticated governed transport | Planned | Current implementation evidence is active replacement PR #37; it is not protected-main truth. Historical PR #11 is predecessor lineage and must not be used as current implementation evidence |
+| PRD-NET-006 | Bounded HTTP semantics operate over authenticated governed transport | Planned | Current implementation evidence is active replacement PR #207; it is not protected-main truth. Historical PR #11 is predecessor lineage and must not be used as current implementation evidence |
 | PRD-NET-007 | Real Chromium navigation proves end-to-end consumption of every shipped authority layer | Planned | Issue #28 / release acceptance requirement |
 
 ### 9.5 Secret and sensitive-data authority

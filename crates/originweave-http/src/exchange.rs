@@ -42,8 +42,8 @@ impl HttpExchange {
         let (mut stream, tls_evidence) = connection.into_parts();
         let response = timeout_result(stream.sock.read_timeout(), "read timeout inspection")
             .and_then(|original_read_timeout| {
-                timeout_result(stream.sock.write_timeout(), "write timeout inspection")
-                    .and_then(|original_write_timeout| {
+                timeout_result(stream.sock.write_timeout(), "write timeout inspection").and_then(
+                    |original_write_timeout| {
                         remaining(deadline).and_then(|write_remaining| {
                             timeout_result(
                                 stream.sock.set_write_timeout(Some(write_remaining)),
@@ -59,7 +59,9 @@ impl HttpExchange {
                                         .and_then(|()| {
                                             remaining(deadline).and_then(|read_remaining| {
                                                 timeout_result(
-                                                    stream.sock.set_read_timeout(Some(read_remaining)),
+                                                    stream
+                                                        .sock
+                                                        .set_read_timeout(Some(read_remaining)),
                                                     "read timeout configuration",
                                                 )
                                                 .and_then(|()| {
@@ -71,9 +73,9 @@ impl HttpExchange {
                                                     )
                                                     .and_then(|response| {
                                                         timeout_result(
-                                                            stream
-                                                                .sock
-                                                                .set_read_timeout(original_read_timeout),
+                                                            stream.sock.set_read_timeout(
+                                                                original_read_timeout,
+                                                            ),
                                                             "read timeout cleanup",
                                                         )
                                                         .map(|()| response)
@@ -84,7 +86,8 @@ impl HttpExchange {
                                     })
                             })
                         })
-                    })
+                    },
+                )
             });
         response.map(|response| Self {
             response,

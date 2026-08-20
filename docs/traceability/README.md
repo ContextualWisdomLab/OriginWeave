@@ -60,7 +60,7 @@ ADR lifecycle is separate and remains `Proposed`, `Accepted`, `Superseded`, `Dep
 | TCP peer != TLS service identity | IMPLEMENTED_ON_PROTECTED_MAIN | ADR 0006; TRD Section 6 | `originweave-tls`; rustls integration tests |
 | Revocation-material freshness is separate from revocation authenticity/non-revocation | IMPLEMENTED_ON_ACTIVE_PR | ADR 0006/0008 boundary; [`tls-revocation-freshness-authority.md`](tls-revocation-freshness-authority.md) | PR #48 adds a freshness classifier only; protected main still records revocation as NotConfigured and makes no unrevoked claim |
 | Proxy/PAC route authority must be explicit | PARTIAL | PRD-NET-005; TRD Section 6.3 | Protected-main direct-route authority exists; PAC evaluation/proxy transport/CONNECT remain incomplete |
-| Bounded HTTP semantics require an authenticated governed connection and resource bounds | IMPLEMENTED_ON_ACTIVE_PR | PRD-NET-006; issue #9; active PR #37 | `originweave-http` replacement exists on active PR #37; historical PR #11 is SUPERSEDED implementation lineage and is not current evidence; no protected-main HTTP claim yet |
+| Bounded HTTP semantics require an authenticated governed connection and resource bounds | IMPLEMENTED_ON_ACTIVE_PR | PRD-NET-006; issue #9; active PR #207 | `originweave-http` replacement exists on active PR #207; historical PR #11 is SUPERSEDED implementation lineage and is not current evidence; no protected-main HTTP claim yet |
 | Node handles bind session/context/origin/document lifetime | PARTIAL | ADR 0010; PRD-OBS-001/002; TRD Section 5 | Core opaque session/context/document/node authority is on protected main; active PR #40 owns the protocol-ID registry and remains non-shipped evidence |
 | Semantic observations retain OriginWeave node authority and explicit source-channel provenance | IMPLEMENTED_ON_ACTIVE_PR | PRD-OBS-001/003/005; ADR 0010; structured-observation architecture | Active PR #52, stacked on #40, implements a bounded `SemanticNodeObservation` value primitive that rejects missing evidence-channel provenance. It is not a browser observation adapter; channels and advertised node actions are descriptive evidence and grant no execution authority |
 | Raw secrets never enter model context | PARTIAL | PRD-DATA-001; ADR 0002; TRD Section 9 | Core secret-delivery policy exists; trusted broker/runtime completion remains Planned |
@@ -90,7 +90,7 @@ ADR lifecycle is separate and remains `Proposed`, `Accepted`, `Superseded`, `Dep
 | TLS revocation-material freshness | active `originweave-tls` work in PR #48 | [`tls-revocation-freshness-authority.md`](tls-revocation-freshness-authority.md); active exact-head tests/coverage | IMPLEMENTED_ON_ACTIVE_PR |
 | Resource budgets/mitigations | `originweave-resource` | crate tests | PARTIAL |
 | Redacted evidence/provenance | `originweave-evidence` | crate tests; ADR 0003 | PARTIAL |
-| Bounded HTTP/1.1 | active `originweave-http` replacement in PR #37 | issue #9; active-PR unit/integration/coverage evidence | IMPLEMENTED_ON_ACTIVE_PR |
+| Bounded HTTP/1.1 | active `originweave-http` replacement in PR #207 | issue #9; active-PR unit/integration/coverage evidence | IMPLEMENTED_ON_ACTIVE_PR |
 | Proxy/PAC | destination/route foundation + future adapter | roadmap/TRD | PARTIAL |
 | Session/context/document/node authority | `originweave-core` authority values; active registry work in PR #40 | ADR 0010; roadmap/TRD/UML | PARTIAL |
 | Semantic observation value authority/provenance | active `originweave-core` work in PR #52, stacked on #40 | `semantic_node_observation` tests; PRD-OBS-001/003/005; issue #28 | IMPLEMENTED_ON_ACTIVE_PR |
@@ -117,7 +117,7 @@ ADR lifecycle is separate and remains `Proposed`, `Accepted`, `Superseded`, `Dep
 | Semantic observation authority/provenance | Existing session/node authority plus structured-observation architecture; active PR #52 narrows the value contract without creating a new service, trust owner, persistence boundary, or external protocol and therefore does not justify a new ADR by itself |
 | Manifest V3 compatibility + extension-to-Agent authority | ADR 0013 is Proposed on documentation PR #44; protected-main extension authority code does not auto-Accept the ADR |
 | Architecture-decision acceptance governance | ADR 0014 is Proposed on documentation PR #44; protected-main AGENTS + live policy remain authoritative |
-| HTTP semantics | active PR #37 contains its feature ADR lineage; it is active-PR evidence until protected merge and index reconciliation |
+| HTTP semantics | active PR #207 contains its feature ADR lineage; it is active-PR evidence until protected merge and index reconciliation |
 | Proxy/PAC route execution | current protected-main route authority + future dedicated execution decision as needed |
 | Enterprise deployment/privacy | open ADR family before production release |
 
@@ -147,7 +147,7 @@ Material claims should update `docs/doctoring.md` with current primary evidence 
 | Diagram | Requirements represented / maturity |
 |---|---|
 | UML component/bounded-context view | Product family, Chromium/Rust ownership, adapter boundaries |
-| Network authority sequence | PRD-NET-001..007; TRD-INV-002; HTTP remains active-PR until #37 integrates; resolution freshness remains an active lower-layer primitive until the socket consumer requires it |
+| Network authority sequence | PRD-NET-001..007; TRD-INV-002; HTTP remains active-PR until #207 integrates; resolution freshness remains an active lower-layer primitive until the socket consumer requires it |
 | Observation/action sequence | PRD-OBS, PRD-ACT, PRD-DATA, trust separation; active #52 makes the bounded semantic-observation value/provenance contract explicit without establishing browser I/O or action dispatch |
 | Delegated-task state machine | session lifecycle, approval, resource pause, cancellation/recovery, post-condition truth |
 | Deployment topology | renderer trust, orchestrator/model/store boundaries |
@@ -179,7 +179,7 @@ Repository contracts should fail when canonical PRD/TRD/ADR/UML/ERD/traceability
 
 - **Open:** active PR #47 must reach unchanged exact-head CI/security/100% coverage, then the first-party socket consumer must require the fresh resolution authority before the resolution-to-socket TOCTOU interval can become protected-main implemented evidence.
 - **Open:** active PR #48 remains freshness classification only; define and review revocation-material acquisition/authenticity/cache/failure/composition before any protected-main revocation-enforcement or unrevoked claim.
-- **Open:** after #37 integrates, move bounded HTTP from `IMPLEMENTED_ON_ACTIVE_PR` into protected-main evidence and close historical PR #11 only after unique-work preservation and protected-main verification are proven.
+- **Open:** after #207 integrates, move bounded HTTP from `IMPLEMENTED_ON_ACTIVE_PR` into protected-main evidence and close historical PR #11 only after unique-work preservation and protected-main verification are proven.
 - **Open:** after #43 integrates, move bounded MV3 downloads from `IMPLEMENTED_ON_ACTIVE_PR` into the protected-main compatibility evidence inventory while issue #27 remains open for the complete matrix.
 - **Open:** after #40 stabilizes/integrates, map its registry API and tests without presenting raw BiDi/CDP identifiers as durable authority.
 - **Open:** after stacked #52 stabilizes/integrates behind #40, reclassify only its bounded semantic-observation value/provenance primitive; keep real browser observation I/O, action dispatch, mutation invalidation and post-condition evidence under issue #28 until implemented.

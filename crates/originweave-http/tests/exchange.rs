@@ -446,11 +446,7 @@ fn public_parser_exercises_framing_limits_and_credential_free_errors() {
             Err(HttpError::MalformedStatusLine | HttpError::MalformedHeader)
         ));
     }
-    assert!(parse_public(
-        b"HTTP/1.1 200 OK\r\nX-Tab: a\tb\r\n\r\n",
-        HttpMethod::Get,
-    )
-    .is_ok());
+    assert!(parse_public(b"HTTP/1.1 200 OK\r\nX-Tab: a\tb\r\n\r\n", HttpMethod::Get,).is_ok());
     assert!(matches!(
         parse_public(b"HTTP/1.1 200 OK\r\n: value\r\n\r\n", HttpMethod::Get),
         Err(HttpError::MalformedHeader)
