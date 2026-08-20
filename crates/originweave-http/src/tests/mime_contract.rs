@@ -164,7 +164,7 @@ fn signature_table_classifies_active_archival_image_text_and_binary_content() {
         ),
         (
             b"\n<?xml version=\"1.0\"?>",
-            "application/xml",
+            "text/xml",
             ContentRiskClass::ActiveOrScriptable,
         ),
         (
