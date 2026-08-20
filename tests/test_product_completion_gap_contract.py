@@ -60,6 +60,7 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             '"repos/ContextualWisdomLab/OriginWeave/commits/$HEAD_SHA/check-runs?per_page=100"',
             '"repos/ContextualWisdomLab/OriginWeave/commits/$HEAD_SHA/statuses?per_page=100"',
             '"repos/ContextualWisdomLab/OriginWeave/pulls/$PR/reviews?per_page=100"',
+            '"repos/ContextualWisdomLab/OriginWeave/actions/runs?head_sha=$HEAD_SHA&per_page=100"',
             "reviewThreads(first: 100, after: $endCursor)",
             "rules/branches/main?per_page=100",
             '"$EVIDENCE_DIR/main-branch-rule-pages.json"',
@@ -70,13 +71,14 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             ".parameters.workflows",
             "required_status_checks",
             '"$EVIDENCE_DIR/pr-${PR}-merge-verdict.json"',
+            "for ATTEMPT in 1 2 3; do",
             "RECHECKED_HEAD_SHA=",
             '[[ "$RECHECKED_HEAD_SHA" == "$HEAD_SHA" ]]',
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, shell)
 
-        self.assertIn("while :; do", shell)
+        self.assertNotIn("while :; do", shell)
         self.assertNotIn("/tmp/originweave-open-pr", shell)
 
 
