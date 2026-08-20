@@ -67,3 +67,26 @@ fn windows_superscript_device_names_are_rejected_after_extended_filename_decodin
         assert!(matches!(error, HttpError::InvalidContentDisposition));
     }
 }
+
+#[test]
+fn extended_filename_requires_rfc8187_attr_chars_or_percent_encoding() {
+    let observed = classify_observed_mime(b"plain text", None);
+    for value in [
+        b"attachment; filename*=UTF-8''quarter one.txt".as_slice(),
+        b"attachment; filename*=UTF-8''report(1).txt".as_slice(),
+    ] {
+        let error =
+            parse_content_disposition(&fields(&[("content-disposition", value)]), &observed)
+                .expect_err("RFC 8187 non-attr characters must be percent-encoded");
+        assert!(matches!(error, HttpError::InvalidContentDisposition));
+    }
+
+    for value in [
+        b"attachment; filename*=UTF-8''quarter%20one.txt".as_slice(),
+        b"attachment; filename*=UTF-8''report%281%29.txt".as_slice(),
+    ] {
+        parse_content_disposition(&fields(&[("content-disposition", value)]), &observed)
+            .expect("percent-encoded RFC 8187 filename")
+            .expect("present content disposition");
+    }
+}
