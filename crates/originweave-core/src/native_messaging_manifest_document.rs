@@ -67,11 +67,11 @@ impl NativeMessagingManifestDocument {
     /// commas, and trailing JSON data all fail closed. JSON strings are decoded before the
     /// existing host-name, path, interface, and extension-origin validators run.
     ///
-    /// `description` is required and type-checked because Chrome's manifest schema requires it,
-    /// but it is intentionally not retained as authority. The optional native-initiated field
-    /// defaults to `false` when absent. A successful result still does not prove installation,
-    /// filesystem ownership, executable identity, process provenance, feature/policy enablement,
-    /// message provenance, or Agent authority.
+    /// `description` is required, type-checked, and non-empty because Chrome's manifest schema
+    /// requires a non-empty description, but it is intentionally not retained as authority. The
+    /// optional native-initiated field defaults to `false` when absent. A successful result still
+    /// does not prove installation, filesystem ownership, executable identity, process provenance,
+    /// feature/policy enablement, message provenance, or Agent authority.
     pub fn parse_host_manifest(
         &self,
         platform: NativeMessagingHostPlatform,
@@ -122,7 +122,7 @@ impl PartialManifestFields {
     fn finish(self) -> Result<ManifestFields, NativeMessagingManifestParseError> {
         let (
             Some(name),
-            Some(_description),
+            Some(description),
             Some(executable_path),
             Some(interface_type),
             Some(allowed_origins),
@@ -136,6 +136,9 @@ impl PartialManifestFields {
         else {
             return Err(NativeMessagingManifestParseError::MissingRequiredField);
         };
+        if description.is_empty() {
+            return Err(NativeMessagingManifestParseError::InvalidFieldValue);
+        }
         Ok(ManifestFields {
             name,
             executable_path,
@@ -467,6 +470,8 @@ pub enum NativeMessagingManifestParseError {
     MissingRequiredField,
     /// A reviewed member used a JSON type different from the Chrome manifest contract.
     InvalidFieldType,
+    /// A reviewed member used a JSON value rejected by the Chrome manifest contract.
+    InvalidFieldValue,
     /// The decoded host-name string violated the existing exact host-identity contract.
     HostName(NativeMessagingHostNameError),
     /// The decoded authority-bearing fields failed the existing host-manifest validator.
@@ -491,6 +496,9 @@ impl fmt::Display for NativeMessagingManifestParseError {
             Self::InvalidFieldType => {
                 formatter.write_str("native messaging host manifest field has an invalid JSON type")
             }
+            Self::InvalidFieldValue => {
+                formatter.write_str("native messaging host manifest field has an invalid value")
+            }
             Self::HostName(error) => {
                 write!(formatter, "invalid native messaging host name: {error}")
             }
@@ -510,7 +518,8 @@ impl std::error::Error for NativeMessagingManifestParseError {
             | Self::DuplicateField
             | Self::UnknownField
             | Self::MissingRequiredField
-            | Self::InvalidFieldType => None,
+            | Self::InvalidFieldType
+            | Self::InvalidFieldValue => None,
         }
     }
 }
