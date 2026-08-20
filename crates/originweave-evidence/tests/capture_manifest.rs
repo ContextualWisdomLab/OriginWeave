@@ -6,14 +6,10 @@ use originweave_evidence::{
     ProvenanceRecord, StructuredValueEvidence, VerificationResult,
 };
 
-const VALUE_HASH: &str =
-    "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-const SOURCE_HASH: &str =
-    "sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
-const WARC_HASH: &str =
-    "sha256:1111111111111111111111111111111111111111111111111111111111111111";
-const PROV_HASH: &str =
-    "sha256:2222222222222222222222222222222222222222222222222222222222222222";
+const VALUE_HASH: &str = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+const SOURCE_HASH: &str = "sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
+const WARC_HASH: &str = "sha256:1111111111111111111111111111111111111111111111111111111111111111";
+const PROV_HASH: &str = "sha256:2222222222222222222222222222222222222222222222222222222222222222";
 
 fn structured_value() -> Result<StructuredValueEvidence, String> {
     let origin = Origin::parse("https://app.example").map_err(|error| format!("{error:?}"))?;
