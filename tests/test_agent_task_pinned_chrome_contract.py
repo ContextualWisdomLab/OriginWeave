@@ -114,6 +114,95 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
             with self.subTest(expected=expected):
                 self.assertIn(expected, runner)
 
+    def test_agent_task_records_bounded_chromium_process_tree_rss(self) -> None:
+        """The evidence runner must measure one bounded sampled process-set snapshot."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_process_tree_contract")
+        runner = RUNNER.read_text(encoding="utf-8")
+        for expected in (
+            "MAX_BROWSER_PROCESS_TREE_SIZE",
+            "MAX_PROC_PROCESS_SCAN_SIZE",
+            "_parse_linux_proc_status_process_identity",
+            "_parse_linux_proc_status_optional_rss_bytes",
+            "_snapshot_linux_process_evidence",
+            "_discover_linux_process_tree_ids",
+            "_sample_linux_process_set_rss_bytes",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, namespace)
+        self.assertNotIn("_parse_linux_children_process_ids", namespace)
+        self.assertNotIn("_snapshot_linux_process_parent_ids", namespace)
+        for expected in (
+            '"chromium_process_count"',
+            '"chromium_process_set_rss_bytes"',
+            '"failure_type"',
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, runner)
+
+    def test_process_tree_and_rss_use_one_sampled_process_snapshot(self) -> None:
+        """Root and descendant RSS must come from the same bounded status snapshot."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_process_snapshot")
+        discover = namespace["_discover_linux_process_tree_ids"]
+        sample = namespace["_sample_linux_process_set_rss_bytes"]
+        sample_root = namespace["_sample_linux_process_snapshot_rss_bytes"]
+        evidence = {
+            10: (1, 100),
+            20: (10, 200),
+            30: (20, 300),
+            40: (999, 400),
+        }
+        process_ids = discover(10, evidence)
+        self.assertEqual(process_ids, (10, 20, 30))
+        self.assertEqual(sample_root(10, evidence), 100)
+        self.assertEqual(sample(process_ids, evidence), 600)
+        with self.assertRaises(ValueError):
+            sample((10, 50), evidence)
+        with self.assertRaises(RuntimeError):
+            sample_root(50, evidence)
+
+        runner = RUNNER.read_text(encoding="utf-8")
+        self.assertIn(
+            "browser_process_rss_bytes = _sample_linux_process_snapshot_rss_bytes(",
+            runner,
+        )
+        self.assertNotIn(
+            "browser_process_rss_bytes = _sample_linux_process_rss_bytes(browser_process_id)",
+            runner,
+        )
+
+    def test_process_set_tolerates_descendant_without_resident_rss(self) -> None:
+        """A sampled child with no resident RSS must not invalidate the whole tree."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_zero_rss_contract")
+        sample = namespace["_sample_linux_process_set_rss_bytes"]
+        evidence = {
+            10: (1, 100),
+            20: (10, None),
+            30: (20, 300),
+        }
+        self.assertEqual(sample((10, 20, 30), evidence), 400)
+
+    def test_optional_linux_rss_parser_separates_absence_from_ambiguity(self) -> None:
+        """Snapshot parsing may tolerate absence, never malformed or duplicate VmRSS."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_optional_rss_contract")
+        parser = namespace["_parse_linux_proc_status_optional_rss_bytes"]
+        self.assertIsNone(parser("Name:\tchrome\n"))
+        self.assertIsNone(parser("Name:\tchrome\nVmRSS:\t0 kB\n"))
+        self.assertEqual(parser("Name:\tchrome\nVmRSS:\t123 kB\n"), 123 * 1024)
+        for malformed in (
+            "VmRSS:\t123 MB\n",
+            "VmRSS:\t123 kB extra\n",
+            "VmRSS:\tnot-a-number kB\n",
+            "VmRSS:\t123 kB\nVmRSS:\t124 kB\n",
+            "VmRSS:\t18446744073709551616 kB\n",
+        ):
+            with self.subTest(malformed=malformed):
+                with self.assertRaises((ValueError, OverflowError)):
+                    parser(malformed)
+
     def test_linux_rss_parser_is_strict_and_overflow_safe(self) -> None:
         """Runner-side RSS evidence must not accept ambiguous proc status input."""
 
@@ -130,6 +219,26 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
         ):
             with self.subTest(malformed=malformed):
                 with self.assertRaises((ValueError, OverflowError)):
+                    parser(malformed)
+
+    def test_linux_status_identity_parser_is_strict_and_positive(self) -> None:
+        """Process snapshot discovery must parse one unambiguous identity per status."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_parent_map_contract")
+        parser = namespace["_parse_linux_proc_status_process_identity"]
+        self.assertEqual(parser("Name:\tchrome\nPid:\t34\nPPid:\t12\n"), (34, 12))
+        self.assertEqual(parser("Name:\tinit\nPid:\t1\nPPid:\t0\n"), (1, 0))
+        for malformed in (
+            "Name:\tchrome\nPid:\t34\n",
+            "Name:\tchrome\nPPid:\t12\n",
+            "Pid:\t0\nPPid:\t12\n",
+            "Pid:\t34\nPPid:\t-1\n",
+            "Pid:\tchild\nPPid:\t12\n",
+            "Pid:\t34\nPid:\t35\nPPid:\t12\n",
+            "Pid:\t34\nPPid:\t12\nPPid:\t13\n",
+        ):
+            with self.subTest(malformed=malformed):
+                with self.assertRaises(ValueError):
                     parser(malformed)
 
     def test_agent_task_fixture_runs_under_the_existing_pinned_chrome_job(self) -> None:
