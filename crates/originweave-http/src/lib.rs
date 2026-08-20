@@ -48,6 +48,7 @@ mod mime_contract;
 #[cfg(test)]
 #[path = "tests/mime_tag_termination_contract.rs"]
 mod mime_tag_termination_contract;
+mod named_policy;
 #[cfg(test)]
 #[path = "tests/no_content_integrity_contract.rs"]
 mod no_content_integrity_contract;
@@ -97,6 +98,7 @@ pub use mime::{
     ContentRiskClass, MIME_CLASSIFIER_VERSION, MimeMismatch, MimeType, NoSniffStatus,
     ObservedMimeClassification,
 };
+pub use named_policy::HttpPolicyLimits;
 pub use policy::{
     AlpnHttp11Policy, DEFAULT_MAX_CHUNK_COUNT, DEFAULT_MAX_CONTENT_EXPANSION_RATIO,
     DEFAULT_MAX_DECODED_CONTENT_BYTES, DEFAULT_MAX_ENCODED_CONTENT_BYTES,
