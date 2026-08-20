@@ -40,6 +40,7 @@ def _payload() -> dict:
                 "path": ACTIVE_PATH,
                 "pull_request_number": 321,
                 "head_sha": ACTIVE_PR_HEAD,
+                "observed_head_sha": ACTIVE_PR_HEAD,
             }
         ],
         "registry_pages": [
@@ -122,6 +123,7 @@ class WorkflowRegistryActivePrOwnerContractTests(unittest.TestCase):
                     "path": ".github/workflows/other.yml",
                     "pull_request_number": 321,
                     "head_sha": ACTIVE_PR_HEAD,
+                    "observed_head_sha": ACTIVE_PR_HEAD,
                 }
             ],
         ):
@@ -153,6 +155,18 @@ class WorkflowRegistryActivePrOwnerContractTests(unittest.TestCase):
                     "pull_request_number"
                 ] = pull_request_number
                 payload["active_pr_workflow_owners"][0]["head_sha"] = head_sha
+                with self.assertRaises(self.audit.WorkflowAuditError):
+                    self.audit.audit_workflow_registry(payload)
+
+    def test_observed_owner_head_requires_exact_lowercase_sha(self) -> None:
+        """The second owner-head observation is independently syntax-validated."""
+
+        for observed_head_sha in ("C" * 40, "c" * 39):
+            with self.subTest(observed_head_sha=observed_head_sha):
+                payload = _payload()
+                payload["active_pr_workflow_owners"][0][
+                    "observed_head_sha"
+                ] = observed_head_sha
                 with self.assertRaises(self.audit.WorkflowAuditError):
                     self.audit.audit_workflow_registry(payload)
 
