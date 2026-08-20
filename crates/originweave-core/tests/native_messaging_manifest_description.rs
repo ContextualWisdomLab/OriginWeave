@@ -6,7 +6,7 @@ use originweave_core::{
 
 #[test]
 fn empty_native_messaging_host_description_is_not_chrome_valid() {
-    let document = NativeMessagingManifestDocument::parse(
+    let result = NativeMessagingManifestDocument::parse(
         br#"{
             "name":"com.contextualwisdom.originweave",
             "description":"",
@@ -15,12 +15,14 @@ fn empty_native_messaging_host_description_is_not_chrome_valid() {
             "allowed_origins":["chrome-extension://abcdefghijklmnopabcdefghijklmnop/"]
         }"#,
     )
-    .expect("the bounded document is syntactically object-shaped");
+    .map(|document| document.parse_host_manifest(NativeMessagingHostPlatform::Linux));
 
-    let error = document
-        .parse_host_manifest(NativeMessagingHostPlatform::Linux)
-        .expect_err("Chrome rejects an empty required native-host description");
-    assert_eq!(error, NativeMessagingManifestParseError::InvalidFieldValue);
+    assert!(matches!(
+        result,
+        Ok(Err(NativeMessagingManifestParseError::InvalidFieldValue))
+    ));
+
+    let error = NativeMessagingManifestParseError::InvalidFieldValue;
     assert_eq!(
         error.to_string(),
         "native messaging host manifest field has an invalid value"
