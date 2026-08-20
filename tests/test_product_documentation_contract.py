@@ -11,6 +11,14 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 class ProductDocumentationContractTests(unittest.TestCase):
     """Keep product requirements, technical design, diagrams, and traceability discoverable."""
 
+    @staticmethod
+    def _subsection(text: str, heading: str) -> str:
+        """Return one fourth-level documentation subsection."""
+        start = text.index(heading) + len(heading)
+        remainder = text[start:]
+        end = remainder.find("\n#### ")
+        return remainder if end == -1 else remainder[:end]
+
     def test_authoritative_product_documentation_graph_exists(self) -> None:
         """Major product decisions must not require reconstructing chat or PR history."""
         required_paths = {
@@ -56,6 +64,17 @@ class ProductDocumentationContractTests(unittest.TestCase):
         self.assertIn(
             "It remains draft evidence and cannot be treated as shipped behavior.",
             open_pull_requests,
+        )
+        bidi_status = self._subsection(
+            open_pull_requests, "#### #195/#198 WebDriver BiDi opening path status"
+        )
+        vpn_status = self._subsection(
+            open_pull_requests, "#### #149 VPN/profile intent status"
+        )
+        self.assertIn("Phase 1 is **in progress**, not shipped.", bidi_status)
+        self.assertIn(
+            "It remains draft evidence and cannot be treated as shipped behavior.",
+            vpn_status,
         )
 
     def test_root_architecture_links_the_authoritative_product_graph(self) -> None:

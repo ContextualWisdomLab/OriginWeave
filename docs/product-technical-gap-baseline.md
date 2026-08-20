@@ -30,6 +30,14 @@ Representative active workstreams at this snapshot were:
 
 Draft PR #198 is the current top WebDriver BiDi opening-response slice; its prerequisite #195 owns the bounded opening-request write. It remains draft evidence and cannot be treated as shipped behavior.
 
+#### #195/#198 WebDriver BiDi opening path status
+
+Phase 1 is **in progress**, not shipped. #195 and #198 provide bounded WebSocket opening-path evidence on active branches; framed BiDi commands, authenticated browser-process provenance, semantic task execution, and protected-main integration remain open.
+
+#### #149 VPN/profile intent status
+
+It remains draft evidence and cannot be treated as shipped behavior. #149 describes bounded WireGuard/IKEv2 profile authority, but it does not create a tunnel, route, DNS state, authenticated gateway, or connectivity proof.
+
 The current queue must be processed in dependency order. A green child branch cannot substitute for current checks and review on its prerequisite, synthetic merge, or eventual protected-main commit. PRs that only duplicate, supersede, or preserve stale branch topology should be closed with explicit replacement evidence rather than retained indefinitely.
 
 ### Review and merge authority
