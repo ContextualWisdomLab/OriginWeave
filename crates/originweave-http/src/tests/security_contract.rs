@@ -3,7 +3,7 @@
 use crate::HttpError;
 use crate::disposition::{parse_content_disposition, parse_redirect_metadata};
 use crate::field::{FieldBlock, FieldLine};
-use crate::mime::classify_observed_mime;
+use crate::mime::{MimeMismatch, MimeType, classify_mismatch, classify_observed_mime};
 
 fn fields(entries: &[(&str, &[u8])]) -> FieldBlock {
     FieldBlock::new(
@@ -89,4 +89,16 @@ fn extended_filename_requires_rfc8187_attr_chars_or_percent_encoding() {
             .expect("percent-encoded RFC 8187 filename")
             .expect("present content disposition");
     }
+}
+
+#[test]
+fn xml_signature_preserves_whatwg_computed_essence_for_mismatch_evidence() {
+    let supplied = MimeType::parse(b"text/xml").expect("valid XML MIME");
+    let observed = classify_observed_mime(b"<?xml version=\"1.0\"?><root/>", Some(&supplied));
+
+    assert_eq!(observed.mime_type().essence(), "text/xml");
+    assert_eq!(
+        classify_mismatch(Some(&supplied), &observed),
+        MimeMismatch::Match
+    );
 }
