@@ -88,6 +88,25 @@ pub enum BapTaskTransitionError {
     },
 }
 
+impl std::fmt::Display for BapTaskTransitionError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidTransition { from, event } => {
+                write!(
+                    formatter,
+                    "BAP task event {event:?} is invalid from state {from:?}"
+                )
+            }
+            Self::SequenceExhausted => write!(formatter, "BAP task transition sequence is exhausted"),
+            Self::TerminalState { state } => {
+                write!(formatter, "BAP task state {state:?} is terminal")
+            }
+        }
+    }
+}
+
+impl std::error::Error for BapTaskTransitionError {}
+
 /// A fail-closed lifecycle recovery failure.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BapTaskRestoreError {
@@ -99,6 +118,22 @@ pub enum BapTaskRestoreError {
         transition_sequence: u64,
     },
 }
+
+impl std::fmt::Display for BapTaskRestoreError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidSnapshot {
+                state,
+                transition_sequence,
+            } => write!(
+                formatter,
+                "BAP task snapshot state {state:?} with transition sequence {transition_sequence} is unreachable"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for BapTaskRestoreError {}
 
 /// Immutable receipt for one accepted in-memory lifecycle transition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
