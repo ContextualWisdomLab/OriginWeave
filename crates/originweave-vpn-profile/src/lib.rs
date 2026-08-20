@@ -426,9 +426,7 @@ fn looks_like_ipv4_number_component(value: &str) -> bool {
     let lowercase = value.to_ascii_lowercase();
     if let Some(hexadecimal) = lowercase.strip_prefix("0x") {
         return !hexadecimal.is_empty()
-            && hexadecimal
-                .bytes()
-                .all(|byte| byte.is_ascii_hexdigit());
+            && hexadecimal.bytes().all(|byte| byte.is_ascii_hexdigit());
     }
     !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit())
 }
