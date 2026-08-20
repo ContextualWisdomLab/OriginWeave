@@ -108,6 +108,14 @@ fn ikev2_server_rejects_url_and_port_authority_before_secret_import() {
 }
 
 #[test]
+fn gateway_hosts_reject_ambiguous_numeric_ipv4_spellings_before_secret_import() {
+    for host in ["2130706433", "127.1", "0177.0.0.1", "0x7f000001"] {
+        assert_wireguard_invalid_without_import(&format!("{host}:51820"));
+        assert_ikev2_invalid_without_import(host, "");
+    }
+}
+
+#[test]
 fn ikev2_server_rejects_every_dns_hostname_boundary_before_secret_import() {
     let overlong_host = "a".repeat(254);
     let overlong_label = format!("{}.example", "a".repeat(64));
