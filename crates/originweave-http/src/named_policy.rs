@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use crate::HttpError;
 use crate::policy::{
     AlpnHttp11Policy, DEFAULT_MAX_CHUNK_COUNT, DEFAULT_MAX_CONTENT_EXPANSION_RATIO,
     DEFAULT_MAX_DECODED_CONTENT_BYTES, DEFAULT_MAX_ENCODED_CONTENT_BYTES,
@@ -9,7 +10,6 @@ use crate::policy::{
     DEFAULT_MAX_TRAILER_FIELD_COUNT, DEFAULT_MAX_TRAILER_SECTION_BYTES, HttpClientPolicy,
     IntegrityRequirement,
 };
-use crate::HttpError;
 
 /// Named resource and decoding budgets for one bounded HTTP/1.1 exchange.
 ///
