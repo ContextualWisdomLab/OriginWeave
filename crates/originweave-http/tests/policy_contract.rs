@@ -155,9 +155,15 @@ fn named_defaults_match_the_complete_reviewed_resource_policy() {
     let limits = HttpPolicyLimits::strict_defaults();
     assert_eq!(limits.max_request_bytes, DEFAULT_MAX_REQUEST_BYTES);
     assert_eq!(limits.max_status_line_bytes, DEFAULT_MAX_STATUS_LINE_BYTES);
-    assert_eq!(limits.max_header_field_count, DEFAULT_MAX_HEADER_FIELD_COUNT);
+    assert_eq!(
+        limits.max_header_field_count,
+        DEFAULT_MAX_HEADER_FIELD_COUNT
+    );
     assert_eq!(limits.max_header_name_bytes, DEFAULT_MAX_HEADER_NAME_BYTES);
-    assert_eq!(limits.max_header_value_bytes, DEFAULT_MAX_HEADER_VALUE_BYTES);
+    assert_eq!(
+        limits.max_header_value_bytes,
+        DEFAULT_MAX_HEADER_VALUE_BYTES
+    );
     assert_eq!(
         limits.max_header_section_bytes,
         DEFAULT_MAX_HEADER_SECTION_BYTES
