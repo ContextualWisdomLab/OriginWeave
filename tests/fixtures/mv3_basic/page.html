@@ -12,6 +12,14 @@
   </main>
   <script>
     "use strict";
+    window.originweaveWorldSentinel = "page";
+    const publishPageWorld = () => {
+      document.documentElement.dataset.originweavePageWorld =
+        window.originweaveWorldSentinel;
+    };
+    publishPageWorld();
+    setInterval(publishPageWorld, 25);
+
     document.querySelector("#fixture-button").addEventListener("click", () => {
       document.querySelector("#fixture-output").textContent = "clicked";
     });
