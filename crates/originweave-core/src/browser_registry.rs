@@ -277,9 +277,7 @@ impl BrowserAuthorityRegistry {
             .map_err(|_error| BrowserRegistryError::UnknownNodeAuthority)?;
         let is_bound = self.node_by_external.iter().any(
             |((bound_context, bound_epoch, _external_identifier), node_id)| {
-                *bound_context == context
-                    && *bound_epoch == epoch
-                    && *node_id == handle.node_id()
+                *bound_context == context && *bound_epoch == epoch && *node_id == handle.node_id()
             },
         );
         if !is_bound {
