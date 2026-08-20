@@ -102,15 +102,52 @@ OriginWeave is not complete merely because every low-level primitive exists in s
 
 ## Evidence commands
 
-The volatile counts above were obtained from GitHub search rather than the first 100 results of the pull-request list endpoint:
+The volatile counts above are reproducible by paginating the complete open-PR inventory, flattening every page, and then inspecting each PR's exact head, checks, reviews, and review threads:
 
-```text
-gh api search/issues -f q='repo:ContextualWisdomLab/OriginWeave is:pr is:open'
-gh api search/issues -f q='repo:ContextualWisdomLab/OriginWeave is:pr is:open draft:true'
-gh api search/issues -f q='repo:ContextualWisdomLab/OriginWeave is:pr is:open draft:false'
+```bash
+gh api --paginate --slurp 'repos/ContextualWisdomLab/OriginWeave/pulls?state=open&per_page=100' \
+  > /tmp/originweave-open-pr-pages.json
+jq '[.[][]]' /tmp/originweave-open-pr-pages.json \
+  > /tmp/originweave-open-prs.json
+jq '{
+  open_pull_requests: length,
+  non_draft: (map(select(.draft == false)) | length),
+  draft: (map(select(.draft == true)) | length)
+}' /tmp/originweave-open-prs.json
+
 gh api repos/ContextualWisdomLab/OriginWeave/branches/main
 gh api repos/ContextualWisdomLab/OriginWeave/rulesets/18156473
 gh api 'repos/ContextualWisdomLab/OriginWeave/collaborators?affiliation=all&per_page=100'
+
+jq -r '.[].number' /tmp/originweave-open-prs.json | while read -r PR; do
+  PR_JSON="/tmp/originweave-pr-${PR}.json"
+  gh api "repos/ContextualWisdomLab/OriginWeave/pulls/$PR" > "$PR_JSON"
+  HEAD_SHA=$(jq -r '.head.sha' "$PR_JSON")
+
+  gh api --paginate --slurp \
+    "repos/ContextualWisdomLab/OriginWeave/commits/$HEAD_SHA/check-runs?per_page=100" \
+    > "/tmp/originweave-pr-${PR}-check-runs.json"
+  gh api --paginate --slurp \
+    "repos/ContextualWisdomLab/OriginWeave/pulls/$PR/reviews?per_page=100" \
+    > "/tmp/originweave-pr-${PR}-reviews.json"
+  gh api graphql --paginate --slurp \
+    -F owner=ContextualWisdomLab \
+    -F name=OriginWeave \
+    -F number="$PR" \
+    -f query='
+query($owner: String!, $name: String!, $number: Int!, $endCursor: String) {
+  repository(owner: $owner, name: $name) {
+    pullRequest(number: $number) {
+      reviewThreads(first: 100, after: $endCursor) {
+        nodes { id isResolved isOutdated }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+}' > "/tmp/originweave-pr-${PR}-review-threads.json"
+done
 ```
+
+The ruleset response determines the required workflow names; each PR's exact `HEAD_SHA` then determines which check runs, reviews, and unresolved threads are current. The saved PR JSON also preserves the exact base reference and branch ancestry input for the dependency graph.
 
 For standards and binding architecture, use [`doctoring.md`](doctoring.md), [`doctoring/browser-agent-protocols.md`](doctoring/browser-agent-protocols.md), [`PRD.md`](PRD.md), [`TRD.md`](TRD.md), [`product-roadmap.md`](product-roadmap.md), and linked ADR/UML/ERD/traceability records. Issues #199-#203 contain their own APA 7th standards and research traceability. This baseline intentionally records delivery state and never promotes planned adapters or active pull-request code to implemented behavior.
