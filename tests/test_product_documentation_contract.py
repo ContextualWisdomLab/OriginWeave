@@ -25,9 +25,28 @@ class ProductDocumentationContractTests(unittest.TestCase):
             "docs/OPERABILITY.md",
             "docs/API_CONTRACT.md",
             "docs/RELEASE_AND_ROLLBACK.md",
+            "docs/product-technical-gap-baseline.md",
         }
         missing = sorted(path for path in required_paths if not (ROOT / path).is_file())
         self.assertEqual(missing, [])
+
+    def test_product_technical_gap_baseline_records_live_delivery_state(self) -> None:
+        """Buyers and maintainers must see implementation gaps and current delivery blockers together."""
+        baseline = ROOT / "docs/product-technical-gap-baseline.md"
+        self.assertTrue(baseline.is_file())
+        text = baseline.read_text(encoding="utf-8")
+        for phrase in (
+            "Observed snapshot: 2026-08-20",
+            "Protected-main truth",
+            "Open pull requests",
+            "Open issues",
+            "#195",
+            "#149",
+            "reviewer-provisioning gap",
+            "Phase 1",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, text)
 
     def test_root_architecture_links_the_authoritative_product_graph(self) -> None:
         """Architecture readers must be able to reach requirements, decisions, diagrams, and data."""
@@ -39,6 +58,7 @@ class ProductDocumentationContractTests(unittest.TestCase):
             "docs/uml/README.md",
             "docs/erd/README.md",
             "docs/traceability/README.md",
+            "docs/product-technical-gap-baseline.md",
         ):
             with self.subTest(link=link):
                 self.assertIn(link, architecture)
