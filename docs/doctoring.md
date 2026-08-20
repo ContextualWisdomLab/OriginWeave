@@ -82,6 +82,12 @@ RFC 9530 defines `Content-Digest` and `Repr-Digest` as Structured Fields Diction
 
 RFC 9651 is the current Structured Fields standard and obsoletes RFC 8941, but its versioning contract preserves definitions written against the earlier RFC. Therefore OriginWeave does not accept RFC 9651-only Date or Display String parameter values for RFC 9530 unless a future field-definition update authorizes them. Regression tests cover duplicate keys, repeated field lines, SP/HTAB OWS, trailer merge and override, valid RFC 8941 parameters, invalid newer-version bare items, malformed dictionaries, and digest known-answer vectors. This distinction prevents both the original overly strict parser and a later accidental over-upgrade of the field grammar.
 
+### HTTP observed MIME text/binary boundary
+
+The WHATWG MIME Sniffing Standard defines binary-data bytes as `0x00..=0x08`, `0x0B`, `0x0E..=0x1A`, and `0x1C..=0x1F`. Its unknown-MIME algorithm treats a resource header containing none of those bytes as `text/plain`; valid UTF-8 is not a prerequisite. Bytes in `0x80..=0xFF` therefore do not become binary solely because the bounded sniff prefix is not valid UTF-8.
+
+OriginWeave applies that byte-level text/binary predicate only after its higher-priority reviewed signatures for PDF, images, archives, SVG, XML, HTML, and supplied JavaScript metadata. The classifier still reads only the bounded prefix, and downstream active-content handling remains fail-closed. Regression tests require non-UTF-8 high bytes without binary controls to remain passive `text/plain`, while binary control bytes retain `application/octet-stream`. This keeps observed evidence aligned with browser MIME-sniffing semantics without treating text decoding as authorization.
+
 ### Crawling policy
 
 RFC 9309 standardizes robots parsing, matching, error handling, and caching. It also states that robots rules are not access authorization. OriginWeave therefore requires robots evidence for public crawler mode while maintaining authentication, terms, rate, privacy, and retention policy as separate controls.
@@ -177,6 +183,8 @@ The Rust Project Developers. (2026). *Ipv4Addr in std::net* (Rust 1.97.1) [Softw
 The Rust Project Developers. (2026). *Ipv6Addr in std::net* (Rust 1.97.1) [Software documentation]. https://doc.rust-lang.org/stable/std/net/struct.Ipv6Addr.html
 
 The Rust Project Developers. (2026). *TcpStream in std::net* (Rust 1.97.1) [Software documentation]. https://doc.rust-lang.org/stable/std/net/struct.TcpStream.html
+
+Web Hypertext Application Technology Working Group. (2026). *MIME Sniffing Standard*. https://mimesniff.spec.whatwg.org/
 
 Web Hypertext Application Technology Working Group. (2026). *URL standard*. https://url.spec.whatwg.org/
 
