@@ -814,7 +814,13 @@ def main() -> int:
                         trial_number,
                     )
                 )
-            except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+            except (
+                OSError,
+                ValueError,
+                RuntimeError,
+                json.JSONDecodeError,
+                subprocess.TimeoutExpired,
+            ) as exc:
                 failed_trial: dict[str, Any] = {
                     "trial_number": trial_number,
                     "passed": False,

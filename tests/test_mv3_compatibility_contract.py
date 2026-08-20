@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import pathlib
 import runpy
+import subprocess
+import tempfile
 import unittest
 import unittest.mock
 
@@ -186,6 +188,33 @@ class ManifestV3CompatibilityContractTests(unittest.TestCase):
         ):
             with self.subTest(expected=expected):
                 self.assertIn(expected, runner)
+
+    def test_main_records_timeout_cleanup_as_one_failed_trial(self) -> None:
+        """A stuck browser teardown must not suppress bounded repeatability evidence."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="mv3_timeout_contract")
+        main = namespace["main"]
+        with tempfile.TemporaryDirectory(prefix="originweave-mv3-timeout-") as temp_dir:
+            fixture = pathlib.Path(temp_dir)
+            (fixture / "manifest.json").write_text("{}", encoding="utf-8")
+            evidence_print = unittest.mock.Mock()
+            with unittest.mock.patch.dict(
+                main.__globals__,
+                {
+                    "FIXTURE": fixture,
+                    "REPEATABILITY_TRIALS": 1,
+                    "_pinned_workspace_binary": lambda *_args: pathlib.Path("/controlled"),
+                    "_run_restart_trial": unittest.mock.Mock(
+                        side_effect=subprocess.TimeoutExpired("controlled-chromedriver", 5)
+                    ),
+                    "print": evidence_print,
+                },
+            ):
+                with self.assertRaisesRegex(RuntimeError, "0/1 trials passed"):
+                    main()
+
+        evidence = json.loads(evidence_print.call_args.args[0])
+        self.assertEqual(evidence["trial_results"][0]["failure_kind"], "runtime_error")
 
     def test_runner_preserves_safe_surface_failure_evidence(self) -> None:
         """A failed trial must identify the bounded fixture surface without leaking raw errors."""

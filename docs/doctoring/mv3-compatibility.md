@@ -70,6 +70,8 @@ Content-script injection and content-script JavaScript isolation are separate co
 
 The CI lane downloads the exact Chrome/ChromeDriver version from the official Chrome for Testing public bucket, records SHA-256 receipts for the downloaded archives, verifies the runtime-reported browser version, and emits bounded JSON compatibility evidence. A future release-quality matrix should additionally pin published artifact digests or equivalent immutable supply-chain identity when the upstream distribution exposes that identity in an authoritative machine-readable form.
 
+A bounded process-teardown timeout is recorded as one failed trial and does not suppress the remaining trial records or the aggregate evidence line. The repeatability gate still fails unless all required trials pass; cleanup failure is not converted into browser success.
+
 ## Primary references — APA 7th
 
 Chrome for Developers. (n.d.). *Extensions / Manifest V3*. Google. Retrieved August 9, 2026, from https://developer.chrome.com/docs/extensions/develop/migrate/what-is-mv3
