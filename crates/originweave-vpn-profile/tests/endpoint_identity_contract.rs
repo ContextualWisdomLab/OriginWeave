@@ -124,7 +124,10 @@ fn gateway_hosts_preserve_hex_prefixed_but_nonnumeric_dns_labels() -> Result<(),
         &wireguard_profile(&format!("{host}:51820")),
         &mut wireguard_importer,
     )?;
-    assert_eq!(wireguard.peers[0].endpoint.as_deref(), Some("0xnothex.example:51820"));
+    assert_eq!(
+        wireguard.peers[0].endpoint.as_deref(),
+        Some("0xnothex.example:51820")
+    );
     assert_eq!(wireguard_importer.0, 1);
 
     let mut ikev2_importer = CountingImporter::default();
