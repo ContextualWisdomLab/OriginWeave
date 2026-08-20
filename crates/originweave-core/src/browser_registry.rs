@@ -243,6 +243,50 @@ impl BrowserAuthorityRegistry {
         self.node_by_external.entry(key).or_insert(node_id);
         Ok(handle)
     }
+
+    /// Verify that an observed node handle is still live authority in this registry.
+    ///
+    /// This check must run immediately before a node-local browser action. It re-derives the
+    /// current session, context, origin, and document epoch from registry-owned state and also
+    /// requires the node identifier to remain present in the current document's private external
+    /// binding table. Caller-supplied or previously retired handles therefore cannot manufacture
+    /// authority merely by presenting a self-consistent tuple.
+    pub fn validate_node_handle(
+        &self,
+        handle: &ObservedNodeHandle,
+    ) -> Result<(), BrowserRegistryError> {
+        if !self.known_sessions.contains(&handle.browser_session()) {
+            return Err(BrowserRegistryError::UnknownBrowserSession);
+        }
+        let context = handle.browsing_context();
+        let expected_session = self
+            .context_session
+            .get(&context)
+            .copied()
+            .ok_or(BrowserRegistryError::UnknownBrowsingContext)?;
+        if expected_session != handle.browser_session() {
+            return Err(BrowserRegistryError::UnknownNodeAuthority);
+        }
+        let epoch = self.current_epoch(context)?;
+        let origin = self
+            .context_origin
+            .get(&context)
+            .ok_or(BrowserRegistryError::UnknownNodeAuthority)?;
+        handle
+            .validate_current(expected_session, context, origin, epoch)
+            .map_err(|_error| BrowserRegistryError::UnknownNodeAuthority)?;
+        let is_bound = self.node_by_external.iter().any(
+            |((bound_context, bound_epoch, _external_identifier), node_id)| {
+                *bound_context == context
+                    && *bound_epoch == epoch
+                    && *node_id == handle.node_id()
+            },
+        );
+        if !is_bound {
+            return Err(BrowserRegistryError::UnknownNodeAuthority);
+        }
+        Ok(())
+    }
 }
 
 impl Default for BrowserAuthorityRegistry {
@@ -269,6 +313,8 @@ pub enum BrowserRegistryError {
     },
     /// The context origin changed without first rotating the document epoch.
     OriginChangedWithoutDocumentAdvance,
+    /// The observed node handle is not a current node binding owned by this registry.
+    UnknownNodeAuthority,
     /// The registry exhausted one of its monotonic internal identifier spaces.
     IdentifierSpaceExhausted,
     /// A document epoch reached the maximum representable value.
@@ -297,6 +343,8 @@ impl fmt::Display for BrowserRegistryError {
             ),
             Self::OriginChangedWithoutDocumentAdvance => formatter
                 .write_str("browsing context origin changed without advancing the document epoch"),
+            Self::UnknownNodeAuthority => formatter
+                .write_str("observed node handle is not registered as current browser authority"),
             Self::IdentifierSpaceExhausted => {
                 formatter.write_str("browser authority identifier space is exhausted")
             }
@@ -617,6 +665,7 @@ mod tests {
                 actual: actual_values[0],
             },
             BrowserRegistryError::OriginChangedWithoutDocumentAdvance,
+            BrowserRegistryError::UnknownNodeAuthority,
             BrowserRegistryError::IdentifierSpaceExhausted,
             BrowserRegistryError::DocumentEpochExhausted,
             BrowserRegistryError::InternalAuthorityInvariant,
