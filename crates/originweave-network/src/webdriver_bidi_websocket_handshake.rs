@@ -427,6 +427,7 @@ fn write_request_with_clock(
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod opening_write_tests {
     use super::*;
     use std::{collections::VecDeque, net::TcpListener, thread};
@@ -500,42 +501,48 @@ mod opening_write_tests {
         assert!(!is_five(Ok(4)));
     }
 
-    fn join_loopback_server(
-        server: thread::JoinHandle<io::Result<()>>,
-    ) -> Result<(), Box<dyn Error>> {
+    fn join_loopback_server(server: thread::JoinHandle<io::Result<()>>) -> bool {
         match server.join() {
-            Ok(result) => result?,
-            Err(_) => return Err("loopback server thread panicked".into()),
+            Ok(result) => {
+                result.expect("loopback server must accept the client");
+                false
+            }
+            Err(_) => true,
         }
-        Ok(())
     }
 
     #[test]
-    fn bounded_writer_clears_real_socket_timeout_before_success() -> Result<(), Box<dyn Error>> {
-        let listener = TcpListener::bind(("127.0.0.1", 0))?;
-        let address = listener.local_addr()?;
+    fn bounded_writer_clears_real_socket_timeout_before_success() {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).expect("test listener must bind");
+        let address = listener
+            .local_addr()
+            .expect("test listener address must be available");
         let server = thread::spawn(move || listener.accept().map(|_| ()));
-        let mut stream = TcpStream::connect(address)?;
+        let mut stream = TcpStream::connect(address).expect("test client must connect");
         let start = Instant::now();
         let mut now = || start;
 
         let request_byte_count =
-            write_request_with_clock(&mut stream, b"opening", Duration::from_secs(1), &mut now)?;
+            write_request_with_clock(&mut stream, b"opening", Duration::from_secs(1), &mut now)
+                .expect("the opening request must be written");
 
         assert_eq!(request_byte_count, 7);
-        assert_eq!(stream.write_timeout()?, None);
-        join_loopback_server(server)
+        assert_eq!(
+            stream
+                .write_timeout()
+                .expect("the socket timeout must be inspectable"),
+            None
+        );
+        assert!(!join_loopback_server(server));
     }
 
     #[test]
-    fn panicked_loopback_server_is_reported() -> Result<(), Box<dyn Error>> {
+    fn panicked_loopback_server_is_reported() {
         let server = thread::spawn(|| -> io::Result<()> {
             std::panic::resume_unwind(Box::new("intentional test-only server panic"));
         });
 
-        let result = join_loopback_server(server);
-        assert!(result.is_err());
-        Ok(())
+        assert!(join_loopback_server(server));
     }
 
     #[test]
