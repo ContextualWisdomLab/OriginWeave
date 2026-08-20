@@ -72,22 +72,23 @@ class ManifestV3BrowserVersionDiagnosticTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(
             prefix="originweave-browser-version-contract-"
         ) as profile_dir:
-            with (
-                unittest.mock.patch.dict(
-                    globals_,
-                    {
-                        "_start_chromedriver": lambda _binary: (fake_driver, 43123),
-                        "_wait_for_driver": lambda _port: None,
-                        "_json_request": fake_json_request,
-                    },
-                ),
+            with unittest.mock.patch.dict(
+                globals_,
+                {
+                    "_start_chromedriver": lambda _binary: (fake_driver, 43123),
+                    "_wait_for_driver": lambda _port: None,
+                    "_json_request": fake_json_request,
+                },
             ):
                 with self.assertRaises(RuntimeError) as raised:
                     run_browser_pass(
                         pathlib.Path("/controlled/chrome"),
                         pathlib.Path("/controlled/chromedriver"),
                         "http://127.0.0.1:8080/page.html",
-                        profile_dir,
+                        pathlib.Path(profile_dir),
+                        pathlib.Path(profile_dir) / "extension",
+                        "initialized",
+                        namespace["INITIAL_EXTENSION_VERSION"],
                         "initialized",
                     )
 

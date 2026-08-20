@@ -5,8 +5,8 @@ This is a release/CI evidence runner, not a product browser adapter. It uses the
 W3C WebDriver HTTP protocol only to prove that a real Chrome for Testing build
 can load the controlled MV3 fixture and repeatedly exercise service-worker,
 content-script, storage, declarative-net-request, tabs, windows, scripting,
-commands, side-panel, bookmarks, history, downloads, real browser-click, and
-restart-persistence behavior.
+commands, side-panel, bookmarks, history, downloads, real browser-click,
+restart-persistence, and controlled extension update-migration behavior.
 """
 
 from __future__ import annotations
@@ -17,6 +17,7 @@ import json
 import os
 import pathlib
 import queue
+import shutil
 import string
 import subprocess
 import tempfile
@@ -34,6 +35,8 @@ PINNED_CHROME_RELATIVE_PATH = pathlib.PurePosixPath(
 PINNED_CHROMEDRIVER_RELATIVE_PATH = pathlib.PurePosixPath(
     ".mv3-browser/chromedriver-linux64/chromedriver"
 )
+INITIAL_EXTENSION_VERSION = "1.0.0"
+UPDATED_EXTENSION_VERSION = "1.0.1"
 REPEATABILITY_TRIALS = 3
 REQUEST_TIMEOUT_SECONDS = 5.0
 STARTUP_TIMEOUT_SECONDS = 20.0
@@ -50,6 +53,8 @@ SURFACE_EVIDENCE_KEYS = (
     "workerReply",
     "workerState",
     "workerStartCount",
+    "extensionVersion",
+    "storageMigration",
     "dnr",
     "tabs",
     "windows",
@@ -64,7 +69,18 @@ SURFACE_EVIDENCE_KEYS = (
     "downloadsDiagnostic",
 )
 SURFACE_EVIDENCE_VALUES = frozenset(
-    {"ready", "missing", "initialized", "persisted", "pong", "installed", "blocked"}
+    {
+        "ready",
+        "missing",
+        "initialized",
+        "persisted",
+        "current",
+        "migrated",
+        "invalid",
+        "pong",
+        "installed",
+        "blocked",
+    }
 )
 DOWNLOAD_DIAGNOSTIC_VALUES = frozenset(
     {
@@ -92,6 +108,9 @@ BOOKMARK_DIAGNOSTIC_VALUES = frozenset(
         "bookmark-complete-ready",
         "bookmark-not-evaluated",
     }
+)
+EXTENSION_VERSION_EVIDENCE_VALUES = frozenset(
+    {INITIAL_EXTENSION_VERSION, UPDATED_EXTENSION_VERSION, "missing"}
 )
 
 
@@ -127,6 +146,8 @@ def _safe_surface_value(key: str, value: str) -> str:
         return value if value in DOWNLOAD_DIAGNOSTIC_VALUES else "unexpected"
     if key == "bookmarksDiagnostic":
         return value if value in BOOKMARK_DIAGNOSTIC_VALUES else "unexpected"
+    if key == "extensionVersion":
+        return value if value in EXTENSION_VERSION_EVIDENCE_VALUES else "unexpected"
     return value if value in SURFACE_EVIDENCE_VALUES else "unexpected"
 
 
@@ -275,11 +296,20 @@ def _wait_for_extension_evidence(
     driver_port: int,
     session_id: str,
     expected_storage_persistence: str,
+    expected_extension_version: str,
+    expected_storage_migration: str,
 ) -> dict[str, str]:
     """Wait until every controlled MV3 fixture surface reports its expected result."""
 
     if expected_storage_persistence not in {"initialized", "persisted"}:
         raise ValueError("invalid storage persistence expectation")
+    if expected_extension_version not in {
+        INITIAL_EXTENSION_VERSION,
+        UPDATED_EXTENSION_VERSION,
+    }:
+        raise ValueError("invalid extension version expectation")
+    if expected_storage_migration not in {"initialized", "current", "migrated"}:
+        raise ValueError("invalid storage migration expectation")
     script = """
 return {
   content: document.documentElement.dataset.originweaveContentScript || "missing",
@@ -290,6 +320,10 @@ return {
   workerState: document.documentElement.dataset.originweaveWorkerState || "missing",
   workerStartCount:
     document.documentElement.dataset.originweaveWorkerStartCount || "missing",
+  extensionVersion:
+    document.documentElement.dataset.originweaveExtensionVersion || "missing",
+  storageMigration:
+    document.documentElement.dataset.originweaveStorageMigration || "missing",
   dnr: document.documentElement.dataset.originweaveDnr || "missing",
   tabs: document.documentElement.dataset.originweaveTabs || "missing",
   windows: document.documentElement.dataset.originweaveWindows || "missing",
@@ -313,6 +347,8 @@ return {
         "storagePersistence": expected_storage_persistence,
         "workerReply": "pong",
         "workerState": "installed",
+        "extensionVersion": expected_extension_version,
+        "storageMigration": expected_storage_migration,
         "dnr": "blocked",
         "tabs": "ready",
         "windows": "ready",
@@ -382,6 +418,32 @@ def _exercise_real_click(driver_port: int, session_id: str) -> str:
     if text != "clicked":
         raise RuntimeError("real click post-condition mismatch")
     return str(text)
+
+
+def _set_fixture_version(extension_dir: pathlib.Path, version: str) -> None:
+    """Set one controlled version only inside a trial-local extension copy."""
+
+    if version not in {INITIAL_EXTENSION_VERSION, UPDATED_EXTENSION_VERSION}:
+        raise ValueError("unsupported fixture extension version")
+    resolved_extension_dir = extension_dir.resolve()
+    if resolved_extension_dir == FIXTURE.resolve():
+        raise RuntimeError("refusing to mutate the checked-in MV3 fixture")
+    manifest_path = resolved_extension_dir / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(manifest, dict):
+        raise RuntimeError("MV3 fixture manifest must be a JSON object")
+    current_version = manifest.get("version")
+    if current_version not in {INITIAL_EXTENSION_VERSION, UPDATED_EXTENSION_VERSION}:
+        raise RuntimeError("MV3 fixture manifest has an unexpected version")
+    if version == INITIAL_EXTENSION_VERSION and current_version != INITIAL_EXTENSION_VERSION:
+        raise RuntimeError("cannot rewind the trial-local extension version")
+    if version == UPDATED_EXTENSION_VERSION and current_version != INITIAL_EXTENSION_VERSION:
+        raise RuntimeError("extension update must start from the initial version")
+    manifest["version"] = version
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
 
 
 def _teardown_driver_process(driver: subprocess.Popen[bytes]) -> Exception | None:
@@ -518,13 +580,16 @@ def _run_browser_pass(
     chrome_bin: pathlib.Path,
     chromedriver_bin: pathlib.Path,
     fixture_url: str,
-    profile_dir: str,
+    profile_dir: pathlib.Path,
+    extension_dir: pathlib.Path,
     expected_storage_persistence: str,
+    expected_extension_version: str,
+    expected_storage_migration: str,
 ) -> dict[str, Any]:
     """Run one fresh browser process against a shared bounded compatibility profile."""
 
     session_id: str | None = None
-    download_dir = pathlib.Path(profile_dir) / "downloads"
+    download_dir = profile_dir / "downloads"
     download_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     driver, driver_port = _start_chromedriver(chromedriver_bin)
     primary_error: BaseException | None = None
@@ -549,8 +614,8 @@ def _run_browser_pass(
                                 "--disable-dev-shm-usage",
                                 "--no-sandbox",
                                 f"--user-data-dir={profile_dir}",
-                                f"--disable-extensions-except={FIXTURE}",
-                                f"--load-extension={FIXTURE}",
+                                f"--disable-extensions-except={extension_dir}",
+                                f"--load-extension={extension_dir}",
                             ],
                             "prefs": {
                                 "download.default_directory": str(download_dir),
@@ -587,6 +652,8 @@ def _run_browser_pass(
             driver_port,
             session_id,
             expected_storage_persistence,
+            expected_extension_version,
+            expected_storage_migration,
         )
         click_result = _exercise_real_click(driver_port, session_id)
         worker_start_count = int(surfaces["workerStartCount"])
@@ -594,6 +661,8 @@ def _run_browser_pass(
             "browser_version": browser_version,
             "worker_start_count": worker_start_count,
             "storage_persistence": surfaces["storagePersistence"],
+            "extension_version": surfaces["extensionVersion"],
+            "storage_migration": surfaces["storageMigration"],
             "surfaces": {
                 "service-worker": surfaces["workerReply"] == "pong",
                 "content-script": surfaces["content"] == "ready",
@@ -660,17 +729,26 @@ def _run_restart_trial(
     fixture_url: str,
     trial_number: int,
 ) -> dict[str, Any]:
-    """Run one independent initial/restart pair and return credential-free evidence."""
+    """Run one independent initial/restart/update-migration trial."""
 
     trial_started = time.monotonic()
     with tempfile.TemporaryDirectory(
         prefix=f"originweave-mv3-trial-{trial_number}-"
-    ) as profile_dir:
+    ) as trial_root:
+        trial_dir = pathlib.Path(trial_root)
+        profile_dir = trial_dir / "profile"
+        extension_dir = trial_dir / "extension"
+        shutil.copytree(FIXTURE, extension_dir)
+        _set_fixture_version(extension_dir, INITIAL_EXTENSION_VERSION)
+
         initial = _run_browser_pass(
             chrome_bin,
             chromedriver_bin,
             fixture_url,
             profile_dir,
+            extension_dir,
+            "initialized",
+            INITIAL_EXTENSION_VERSION,
             "initialized",
         )
         restarted = _run_browser_pass(
@@ -678,20 +756,41 @@ def _run_restart_trial(
             chromedriver_bin,
             fixture_url,
             profile_dir,
+            extension_dir,
             "persisted",
+            INITIAL_EXTENSION_VERSION,
+            "current",
+        )
+
+        _set_fixture_version(extension_dir, UPDATED_EXTENSION_VERSION)
+        updated = _run_browser_pass(
+            chrome_bin,
+            chromedriver_bin,
+            fixture_url,
+            profile_dir,
+            extension_dir,
+            "persisted",
+            UPDATED_EXTENSION_VERSION,
+            "migrated",
         )
 
     initial_count = int(initial["worker_start_count"])
     restarted_count = int(restarted["worker_start_count"])
+    updated_count = int(updated["worker_start_count"])
     surfaces = {
-        name: bool(initial["surfaces"][name]) and bool(restarted["surfaces"][name])
+        name: bool(initial["surfaces"][name])
+        and bool(restarted["surfaces"][name])
+        and bool(updated["surfaces"][name])
         for name in initial["surfaces"]
     }
     surfaces.update(
         {
             "restart-persistence": restarted["storage_persistence"] == "persisted",
-            "worker-start-count": restarted_count > initial_count,
-            "storage-persistence": restarted["storage_persistence"] == "persisted",
+            "worker-start-count": restarted_count > initial_count
+            and updated_count > restarted_count,
+            "storage-persistence": updated["storage_persistence"] == "persisted",
+            "update-migration": updated["extension_version"] == UPDATED_EXTENSION_VERSION
+            and updated["storage_migration"] == "migrated",
         }
     )
     if not all(surfaces.values()):
@@ -700,18 +799,29 @@ def _run_restart_trial(
     return {
         "trial_number": trial_number,
         "passed": True,
-        "browser_version": restarted["browser_version"],
+        "browser_version": updated["browser_version"],
         "surfaces": surfaces,
         "browser_passes": [
             {
                 "phase": "initial",
                 "worker_start_count": initial_count,
                 "storage_persistence": initial["storage_persistence"],
+                "extension_version": initial["extension_version"],
+                "storage_migration": initial["storage_migration"],
             },
             {
                 "phase": "restart",
                 "worker_start_count": restarted_count,
                 "storage_persistence": restarted["storage_persistence"],
+                "extension_version": restarted["extension_version"],
+                "storage_migration": restarted["storage_migration"],
+            },
+            {
+                "phase": "update-migration",
+                "worker_start_count": updated_count,
+                "storage_persistence": updated["storage_persistence"],
+                "extension_version": updated["extension_version"],
+                "storage_migration": updated["storage_migration"],
             },
         ],
         "duration_ms": round((time.monotonic() - trial_started) * 1000),
@@ -766,7 +876,7 @@ def _pinned_workspace_binary(
 
 
 def main() -> int:
-    """Run three independent restart trials and emit bounded repeatability evidence."""
+    """Run three independent restart/update trials and emit bounded repeatability evidence."""
 
     chrome_bin = _pinned_workspace_binary(
         "CHROME_BIN",

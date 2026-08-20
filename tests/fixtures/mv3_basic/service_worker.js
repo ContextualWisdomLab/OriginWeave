@@ -3,6 +3,10 @@
 const DOWNLOAD_PAYLOAD = "OriginWeave deterministic MV3 download fixture.\n";
 const DOWNLOAD_POLL_ATTEMPTS = 100;
 const DOWNLOAD_POLL_INTERVAL_MS = 50;
+const INITIAL_FIXTURE_VERSION = "1.0.0";
+const UPDATED_FIXTURE_VERSION = "1.0.1";
+const INITIAL_SCHEMA_VERSION = 1;
+const UPDATED_SCHEMA_VERSION = 2;
 
 const workerStartPromise = (async () => {
   const values = await chrome.storage.local.get("originweave_worker_start_count");
@@ -18,6 +22,39 @@ async function ensureWorkerState() {
     await chrome.storage.local.set({ originweave_worker: "installed" });
   }
   return "installed";
+}
+
+async function ensureStorageMigrationState() {
+  const extensionVersion = chrome.runtime.getManifest().version;
+  const values = await chrome.storage.local.get("originweave_fixture_schema_version");
+  const currentSchemaVersion = values.originweave_fixture_schema_version;
+
+  if (extensionVersion === INITIAL_FIXTURE_VERSION) {
+    if (currentSchemaVersion === undefined) {
+      await chrome.storage.local.set({
+        originweave_fixture_schema_version: INITIAL_SCHEMA_VERSION,
+      });
+      return { extensionVersion, storageMigration: "initialized" };
+    }
+    if (currentSchemaVersion === INITIAL_SCHEMA_VERSION) {
+      return { extensionVersion, storageMigration: "current" };
+    }
+    return { extensionVersion, storageMigration: "invalid" };
+  }
+
+  if (extensionVersion === UPDATED_FIXTURE_VERSION) {
+    if (currentSchemaVersion === INITIAL_SCHEMA_VERSION) {
+      await chrome.storage.local.set({
+        originweave_fixture_schema_version: UPDATED_SCHEMA_VERSION,
+      });
+      return { extensionVersion, storageMigration: "migrated" };
+    }
+    if (currentSchemaVersion === UPDATED_SCHEMA_VERSION) {
+      return { extensionVersion, storageMigration: "migrated" };
+    }
+  }
+
+  return { extensionVersion, storageMigration: "invalid" };
 }
 
 async function waitForDownload(downloadId, expectedUrl) {
@@ -281,15 +318,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message !== "originweave-ping") {
     return false;
   }
-  Promise.all([ensureWorkerState(), workerStartPromise, exerciseCoreApis(sender)]).then(
-    ([worker, workerStartCount, coreApis]) => {
-      sendResponse({ reply: "pong", worker, workerStartCount, ...coreApis });
+  Promise.all([
+    ensureWorkerState(),
+    workerStartPromise,
+    ensureStorageMigrationState(),
+    exerciseCoreApis(sender),
+  ]).then(
+    ([worker, workerStartCount, migrationState, coreApis]) => {
+      sendResponse({
+        reply: "pong",
+        worker,
+        workerStartCount,
+        extensionVersion: migrationState.extensionVersion,
+        storageMigration: migrationState.storageMigration,
+        ...coreApis,
+      });
     },
     () => {
       sendResponse({
         reply: "pong",
         worker: "installed",
         workerStartCount: 0,
+        extensionVersion: "missing",
+        storageMigration: "invalid",
         tabs: "missing",
         windows: "missing",
         scripting: "missing",
