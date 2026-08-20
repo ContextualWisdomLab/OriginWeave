@@ -116,6 +116,45 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
             with self.subTest(expected=expected):
                 self.assertIn(expected, runner)
 
+    def test_agent_task_records_real_bounded_resource_evidence(self) -> None:
+        """The real task must report measured browser/runtime resource evidence."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_resource_contract")
+        runner = RUNNER.read_text(encoding="utf-8")
+        for expected in (
+            "_parse_linux_proc_status_rss_bytes",
+            "_sample_linux_process_rss_bytes",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, namespace)
+        for expected in (
+            '"goog:processID"',
+            '"browser_process_rss_bytes"',
+            '"semantic_observation_bytes"',
+            '"action_latency_ms"',
+            '"task_duration_ms"',
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, runner)
+
+    def test_linux_rss_parser_is_strict_and_overflow_safe(self) -> None:
+        """Runner-side RSS evidence must not accept ambiguous proc status input."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_rss_contract")
+        parser = namespace["_parse_linux_proc_status_rss_bytes"]
+        self.assertEqual(parser("Name:\tchrome\nVmRSS:\t123 kB\n"), 123 * 1024)
+        for malformed in (
+            "Name:\tchrome\n",
+            "VmRSS:\t0 kB\n",
+            "VmRSS:\t123 MB\n",
+            "VmRSS:\t123 kB extra\n",
+            "VmRSS:\t123 kB\nVmRSS:\t124 kB\n",
+            "VmRSS:\t18446744073709551616 kB\n",
+        ):
+            with self.subTest(malformed=malformed):
+                with self.assertRaises((ValueError, OverflowError)):
+                    parser(malformed)
+
     def test_agent_task_fixture_runs_under_the_existing_pinned_chrome_job(self) -> None:
         """No floating browser or second workflow may be introduced for this slice."""
 
