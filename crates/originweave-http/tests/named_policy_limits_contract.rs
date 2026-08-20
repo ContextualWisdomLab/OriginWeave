@@ -29,5 +29,8 @@ fn named_limits_bind_partial_changes_to_the_intended_budget() {
         policy.max_trailer_field_count(),
         DEFAULT_MAX_TRAILER_FIELD_COUNT
     );
-    assert_ne!(policy.max_header_name_bytes(), DEFAULT_MAX_HEADER_NAME_BYTES);
+    assert_ne!(
+        policy.max_header_name_bytes(),
+        DEFAULT_MAX_HEADER_NAME_BYTES
+    );
 }
