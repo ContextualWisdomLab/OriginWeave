@@ -773,6 +773,13 @@ def _exercise_real_click(driver_port: int, session_id: str) -> str:
     return str(text)
 
 
+def _validate_agent_task_submitted_state(state: object) -> None:
+    """Accept only the controlled submitted marker without echoing page state."""
+
+    if state != "submitted":
+        raise RuntimeError("Agent Task state post-condition failed")
+
+
 def _run_browser_pass(
     chrome_bin: pathlib.Path,
     chromedriver_bin: pathlib.Path,
@@ -1160,8 +1167,7 @@ def _run_agent_task_browser_pass(
             "GET",
             _element_command_path(session_id, result_element, "/text"),
         ).get("value")
-        if state != "submitted":
-            raise RuntimeError(f"Agent Task state post-condition failed: {state!r}")
+        _validate_agent_task_submitted_state(state)
         if text != AGENT_TASK_INPUT_VALUE:
             raise RuntimeError("Agent Task result did not match the synthetic typed value")
         structured_value_sha256 = _hash_agent_task_structured_value(text)
