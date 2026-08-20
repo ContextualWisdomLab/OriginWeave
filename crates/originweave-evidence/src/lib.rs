@@ -11,8 +11,8 @@ mod extraction_schema;
 mod sensitive_access;
 
 pub use extraction_schema::{
-    ExtractionCardinality, ExtractionField, ExtractionSchema, ExtractionSchemaError,
-    ExtractionSourceChannel, ExtractionValueType, MAX_EXTRACTION_FIELD_COUNT,
+    ExtractionCardinality, ExtractionField, ExtractionNormalizationRule, ExtractionSchema,
+    ExtractionSchemaError, ExtractionSourceChannel, ExtractionValueType, MAX_EXTRACTION_FIELD_COUNT,
     MAX_EXTRACTION_IDENTIFIER_BYTES,
 };
 pub use sensitive_access::{
