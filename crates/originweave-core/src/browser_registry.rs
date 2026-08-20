@@ -221,26 +221,26 @@ impl BrowserAuthorityRegistry {
                 actual: browser_session,
             });
         }
-        match self.context_origin.get(&browsing_context) {
+        let origin_is_unbound = match self.context_origin.get(&browsing_context) {
             Some(expected_origin) if expected_origin != origin => {
                 return Err(BrowserRegistryError::OriginChangedWithoutDocumentAdvance);
             }
-            Some(_expected_origin) => {}
-            None => {
-                self.context_origin.insert(browsing_context, origin.clone());
-            }
+            Some(_expected_origin) => false,
+            None => true,
+        };
+        let epoch = self.current_epoch(browsing_context)?;
+        let key = (browsing_context, epoch, external_identifier.to_owned());
+        let node_id = if let Some(existing) = self.node_by_external.get(&key) {
+            *existing
+        } else {
+            take_identifier(&mut self.next_node_id, self.maximum_identifier)?
+        };
+        let handle = observed_node_handle(browser_session, browsing_context, origin, epoch, node_id)?;
+        if origin_is_unbound {
+            self.context_origin.insert(browsing_context, origin.clone());
         }
-        self.current_epoch(browsing_context).and_then(|epoch| {
-            let key = (browsing_context, epoch, external_identifier.to_owned());
-            let node_id = if let Some(existing) = self.node_by_external.get(&key) {
-                *existing
-            } else {
-                let allocated = take_identifier(&mut self.next_node_id, self.maximum_identifier)?;
-                self.node_by_external.insert(key, allocated);
-                allocated
-            };
-            observed_node_handle(browser_session, browsing_context, origin, epoch, node_id)
-        })
+        self.node_by_external.entry(key).or_insert(node_id);
+        Ok(handle)
     }
 }
 
