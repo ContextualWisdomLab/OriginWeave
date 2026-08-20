@@ -74,6 +74,20 @@ Credential-free TLS evidence records the canonical origin, TCP peers, reference 
 
 The test-only rcgen 0.14.8 dependency creates a local CA and deterministic certificate-policy scenarios. It is not part of production arithmetic or trust. Tests cover trusted DNS identity, Common Name non-fallback, wrong name, untrusted root, expired and not-yet-valid validity, exact IPv4 and IPv6 SAN identity, TLS 1.2 and TLS 1.3, required and optional ALPN, and equality between TLS origin and TCP authority.
 
+### Bounded HTTP/1.1 exchange
+
+RFC 9112 defines the HTTP/1.1 start-line, header-section, body, framing, and
+connection-management rules. The active `originweave-http` slice consumes one
+already authenticated TLS stream, emits only generated `GET`/`HEAD` requests,
+requires `http/1.1` ALPN or an explicit direct-test absent-ALPN policy, and
+closes the stream after one exchange. Its parser uses strict CRLF syntax,
+bounded status and header sections, explicit `Content-Length` versus
+`Transfer-Encoding` conflict rejection, bounded `chunked` and close-delimited
+body reads, HTTP no-body semantics, and credential-free allow-listed response
+fields. It does not follow redirects, decode content codings, verify RFC 9530
+integrity fields, sniff MIME, persist content, or control Chromium. The
+remaining HTTP product gap stays separately merge-gated.
+
 ### Crawling policy
 
 RFC 9309 standardizes robots parsing, matching, error handling, and caching. It also states that robots rules are not access authorization. OriginWeave therefore requires robots evidence for public crawler mode while maintaining authentication, terms, rate, privacy, and retention policy as separate controls.
@@ -123,6 +137,10 @@ Eddy, W. M. (Ed.). (2022). *Transmission Control Protocol (TCP)* (RFC 9293). Int
 Evtimov, I., Zharmagambetov, A., Grattafiori, A., Guo, C., & Chaudhuri, K. (2025). *WASP: Benchmarking web agent security against prompt injection attacks*. arXiv. https://doi.org/10.48550/arXiv.2504.18575
 
 Fielding, R., Nottingham, M., & Reschke, J. (2022). *HTTP semantics* (RFC 9110). Internet Engineering Task Force. https://doi.org/10.17487/RFC9110
+
+Fielding, R., Nottingham, M., & Reschke, J. (2022, June). *HTTP/1.1* (RFC 9112). Internet Engineering Task Force. https://datatracker.ietf.org/doc/html/rfc9112
+
+Polli, M., Kinnear, E., & Bishop, M. (2024, February). *Digest fields* (RFC 9530). Internet Engineering Task Force. https://datatracker.ietf.org/doc/html/rfc9530
 
 Fugu Team, Sakana AI. (2026). *Sakana Fugu technical report* [Technical report]. arXiv. https://doi.org/10.48550/arXiv.2606.21228
 

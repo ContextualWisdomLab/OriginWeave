@@ -128,6 +128,29 @@ Owns authenticated TLS service identity over one existing `DirectTcpConnection` 
 
 This crate proves that the same exact direct TCP stream completed WebPKI authentication for the canonical origin. It does not parse HTTP, authorize a proxy, fetch revocation data, acquire system roots, control Chromium, or claim that server-presented certificate hashes are a reconstructed validation path.
 
+### `originweave-http` (active bounded slice)
+
+Owns one non-reusable HTTP/1.1 request/response exchange over an existing
+`AuthenticatedTlsConnection`:
+
+- explicit `GET` and `HEAD` method allow-list and canonical origin-form target;
+- generated `Host` and `Connection: close` fields, with no caller-supplied
+  proxy, authorization, cookie, or framing fields;
+- explicit `http/1.1` ALPN admission, with absent ALPN available only to an
+  explicit direct-test policy;
+- strict CRLF status/header parsing, bounded fields and header sections,
+  `Content-Length`/`Transfer-Encoding` ambiguity rejection, bounded chunked
+  framing, no-body semantics, and bounded close-delimited bodies;
+- credential-free allow-listed response metadata and inherited TLS evidence;
+- typed incomplete, timeout, framing, transfer/content-coding, body-budget,
+  redirect, and I/O failures.
+
+The active slice consumes and closes the authenticated stream. It does not
+follow redirects, decode content codings, verify RFC 9530 integrity fields,
+sniff MIME, create files, persist WARC/PROV records, control Chromium, or
+authorize an Agent action. Those remain separately reviewed authority
+boundaries.
+
 ### `originweave-resource`
 
 Owns validated task budgets and deterministic cumulative mitigation plans. Platform-specific telemetry and scheduling remain adapter concerns. A plan can independently spill observation cache, reduce the next batch, offload inference to CPU, pause the active agent, and reject new work. Hard RAM or VRAM pressure always stops the active agent and rejects admission; simultaneous pressures never collapse into one lossy enum value.
@@ -141,7 +164,7 @@ Owns universally value-redacted network evidence and source-bound provenance rec
 ```text
 originweave-session       isolated browser contexts and checkpoints
 originweave-proxy         separately approved proxy and final-target routing
-originweave-http          request, response, redirect, and elapsed-time budgets
+originweave-http          remaining redirect, integrity, MIME, download, and elapsed-time adapters
 originweave-observation   AX + DOM + layout + network semantic snapshots
 originweave-action        typed browser actions and post-condition verification
 originweave-secret        opaque secret broker and trusted fill channel

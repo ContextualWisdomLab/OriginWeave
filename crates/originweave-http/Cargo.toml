@@ -1,0 +1,24 @@
+[package]
+name = "originweave-http"
+description = "Bounded HTTP/1.1 exchange authority for OriginWeave."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish = false
+
+[dependencies]
+originweave-core = { path = "../originweave-core" }
+originweave-tls = { path = "../originweave-tls" }
+
+[dev-dependencies]
+originweave-destination = { path = "../originweave-destination" }
+originweave-network = { path = "../originweave-network" }
+rcgen = "=0.14.8"
+rustls = { version = "=0.23.42", default-features = false, features = ["ring", "std", "tls12"] }
+
+[lints]
+workspace = true

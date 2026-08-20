@@ -37,6 +37,7 @@ The repository is organized as independently consumable Rust crates:
 - `originweave-destination`: address classification, explicit destination policy, origin-bound DNS snapshots, connection pinning, rebinding detection, and redirect reauthorization.
 - `originweave-network`: direct-only, single-use TCP connection plans that bind an approved canonical address to the exact operating-system peer and emit credential-free evidence.
 - `originweave-tls`: single-use WebPKI handshakes over an existing verified TCP stream, with RFC 9525 DNS/IP identity, explicit roots and time, TLS 1.2/1.3, bounded ALPN and certificate evidence, and no reconnect or verifier bypass.
+- `originweave-http`: active-branch bounded HTTP/1.1 `GET`/`HEAD` exchanges over an authenticated TLS stream, with strict RFC 9112 framing and no redirect, proxy, persistence, or browser authority.
 - `originweave-resource`: task-level RAM, VRAM, thread, and frame-time budgets with cumulative mitigation plans.
 - `originweave-evidence`: universally value-redacted network evidence and source-bound provenance records.
 
