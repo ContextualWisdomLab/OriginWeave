@@ -1,22 +1,39 @@
 use std::{
     error::Error,
     fmt,
-    io::{self, Write},
+    io::{self, Read, Write},
     net::TcpStream,
+    thread,
     time::{Duration, Instant},
 };
 
+use base64::{Engine, engine::general_purpose::STANDARD};
 use originweave_core::VerifiedWebDriverBiDiSocketPeer;
+use sha1::{Digest, Sha1};
 
 use crate::{WebDriverBiDiTcpConnection, WebDriverBiDiTcpConnectionEvidence};
 
 const WEBSOCKET_CLIENT_KEY_LENGTH: usize = 24;
+const RFC6455_WEBSOCKET_GUID: &[u8] = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+const MAX_WEBSOCKET_OPENING_RESPONSE_BYTES: usize = 16 * 1024;
 
 /// Maximum wall-clock budget accepted for writing one bounded WebSocket opening request.
 ///
 /// This is an OriginWeave resource-safety ceiling, not an RFC 6455 protocol limit. The request is
 /// already bounded before this budget is applied. Callers may choose any smaller nonzero deadline.
 pub const MAX_WEBSOCKET_OPENING_WRITE_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Maximum wall-clock budget accepted for reading one bounded WebSocket opening response.
+///
+/// This is an OriginWeave resource-safety ceiling, not an RFC 6455 protocol limit. Callers may
+/// choose any smaller nonzero deadline.
+pub const MAX_WEBSOCKET_OPENING_RESPONSE_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Maximum bytes admitted while reading one WebSocket HTTP opening response.
+///
+/// The response is consumed only through its terminating `CRLF CRLF`; WebSocket frames are not
+/// read or interpreted by this boundary.
+pub const MAX_WEBSOCKET_OPENING_RESPONSE_SIZE: usize = MAX_WEBSOCKET_OPENING_RESPONSE_BYTES;
 
 fn is_base64_data_byte(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || matches!(byte, b'+' | b'/')
@@ -244,6 +261,537 @@ impl WebDriverBiDiWebSocketOpeningRequestSent {
     pub const fn write_timeout(&self) -> Duration {
         self.write_timeout
     }
+
+    /// Read and validate the bounded RFC 6455 server opening response on this exact stream.
+    ///
+    /// Success proves only an HTTP/1.1 `101 Switching Protocols` response with the required
+    /// `Upgrade`, `Connection`, and client-key-correlated `Sec-WebSocket-Accept` headers. The
+    /// response body, WebSocket frames, browser process identity, TLS, and browser/Agent authority
+    /// remain separate boundaries.
+    pub fn read_opening_response(
+        self,
+        response_timeout: Duration,
+    ) -> Result<WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketHandshakeResponseError>
+    {
+        if response_timeout.is_zero() || response_timeout > MAX_WEBSOCKET_OPENING_RESPONSE_TIMEOUT {
+            return Err(
+                WebDriverBiDiWebSocketHandshakeResponseError::InvalidResponseTimeout {
+                    response_timeout,
+                    maximum_timeout: MAX_WEBSOCKET_OPENING_RESPONSE_TIMEOUT,
+                },
+            );
+        }
+
+        let Self {
+            mut stream,
+            transport_evidence,
+            client_key,
+            request_byte_count,
+            write_timeout,
+        } = self;
+        let mut now = Instant::now;
+        let (response_status, response_byte_count) =
+            read_opening_response_with_clock(&mut stream, &client_key, response_timeout, &mut now)?;
+
+        Ok(WebDriverBiDiWebSocketEstablished {
+            stream,
+            transport_evidence,
+            client_key,
+            response_status,
+            response_byte_count,
+            response_timeout,
+            request_byte_count,
+            write_timeout,
+        })
+    }
+}
+
+/// A live verified stream after both RFC 6455 opening messages were validated.
+///
+/// This state does not implement WebSocket framing or grant browser, page, policy, or Agent
+/// authority. It retains the exact transport evidence and client key so later protocol stages can
+/// remain correlated with the verified peer and opening handshake.
+pub struct WebDriverBiDiWebSocketEstablished {
+    pub(crate) stream: TcpStream,
+    transport_evidence: WebDriverBiDiTcpConnectionEvidence,
+    client_key: WebDriverBiDiWebSocketClientKey,
+    response_status: u16,
+    response_byte_count: usize,
+    response_timeout: Duration,
+    request_byte_count: usize,
+    write_timeout: Duration,
+}
+
+impl fmt::Debug for WebDriverBiDiWebSocketEstablished {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("WebDriverBiDiWebSocketEstablished")
+            .field("stream_local_addr", &self.stream.local_addr().ok())
+            .field("transport_evidence", &self.transport_evidence)
+            .field(
+                "client_key",
+                &"<retained for WebSocket session correlation>",
+            )
+            .field("response_status", &self.response_status)
+            .field("response_byte_count", &self.response_byte_count)
+            .field("response_timeout", &self.response_timeout)
+            .field("request_byte_count", &self.request_byte_count)
+            .field("write_timeout", &self.write_timeout)
+            .finish()
+    }
+}
+
+impl WebDriverBiDiWebSocketEstablished {
+    /// Borrow the exact verified transport evidence retained with this live stream.
+    #[must_use]
+    pub const fn transport_evidence(&self) -> &WebDriverBiDiTcpConnectionEvidence {
+        &self.transport_evidence
+    }
+
+    /// Borrow the exact client key correlated with the validated server accept value.
+    #[must_use]
+    pub const fn client_key(&self) -> &WebDriverBiDiWebSocketClientKey {
+        &self.client_key
+    }
+
+    /// Return the validated HTTP status code, currently always `101` on success.
+    #[must_use]
+    pub const fn response_status(&self) -> u16 {
+        self.response_status
+    }
+
+    /// Return the number of HTTP opening-response bytes consumed through its header terminator.
+    #[must_use]
+    pub const fn response_byte_count(&self) -> usize {
+        self.response_byte_count
+    }
+
+    /// Return the total response deadline configured for this opening response.
+    #[must_use]
+    pub const fn response_timeout(&self) -> Duration {
+        self.response_timeout
+    }
+
+    /// Return the number of request bytes written before the response was read.
+    #[must_use]
+    pub const fn request_byte_count(&self) -> usize {
+        self.request_byte_count
+    }
+
+    /// Return the total write deadline configured for the preceding opening request.
+    #[must_use]
+    pub const fn write_timeout(&self) -> Duration {
+        self.write_timeout
+    }
+}
+
+/// Fail-closed errors while reading one bounded WebDriver BiDi WebSocket opening response.
+#[derive(Debug)]
+pub enum WebDriverBiDiWebSocketHandshakeResponseError {
+    /// The requested total response deadline was zero or above the reviewed resource ceiling.
+    InvalidResponseTimeout {
+        /// Rejected caller-supplied deadline.
+        response_timeout: Duration,
+        /// Maximum reviewed deadline accepted by this boundary.
+        maximum_timeout: Duration,
+    },
+    /// The monotonic total response deadline elapsed before validation completed.
+    ResponseDeadlineExceeded {
+        /// Number of response bytes consumed before the deadline elapsed.
+        bytes_read: usize,
+    },
+    /// The response exceeded the reviewed header-size ceiling before its terminator was found.
+    ResponseTooLarge {
+        /// Number of response bytes consumed before rejection.
+        bytes_read: usize,
+        /// Maximum response bytes admitted by this boundary.
+        maximum_bytes: usize,
+    },
+    /// Applying the operation-local nonblocking read mode failed.
+    ResponseReadModeConfigurationFailed {
+        /// Number of response bytes consumed before configuration failed.
+        bytes_read: usize,
+        /// Underlying operating-system error.
+        source: io::Error,
+    },
+    /// A bounded socket read timed out before the opening response was complete.
+    ResponseReadTimedOut {
+        /// Number of response bytes consumed before the timed-out operation.
+        bytes_read: usize,
+        /// Underlying operating-system error.
+        source: io::Error,
+    },
+    /// A non-recoverable socket read failed before the opening response was complete.
+    ResponseReadFailed {
+        /// Number of response bytes consumed before the failure.
+        bytes_read: usize,
+        /// Underlying operating-system error.
+        source: io::Error,
+    },
+    /// The peer closed the stream before sending a complete HTTP header block.
+    ResponseEndedBeforeHeaders {
+        /// Number of response bytes consumed before the peer closed the stream.
+        bytes_read: usize,
+    },
+    /// The HTTP response was not a valid, required WebSocket opening response.
+    MalformedResponse {
+        /// Stable, non-secret reason for the rejected response shape.
+        reason: &'static str,
+    },
+    /// The response's `Sec-WebSocket-Accept` did not correlate with the sent client key.
+    AcceptMismatch,
+    /// Restoring blocking mode failed after validation.
+    ReadModeCleanupFailed {
+        /// Underlying operating-system error.
+        source: io::Error,
+    },
+}
+
+impl fmt::Display for WebDriverBiDiWebSocketHandshakeResponseError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidResponseTimeout { .. } => formatter.write_str(
+                "WebDriver BiDi WebSocket opening response timeout is outside the reviewed bound",
+            ),
+            Self::ResponseDeadlineExceeded { .. } => formatter.write_str(
+                "WebDriver BiDi WebSocket opening response exceeded its monotonic deadline",
+            ),
+            Self::ResponseTooLarge { .. } => formatter.write_str(
+                "WebDriver BiDi WebSocket opening response exceeded its bounded header size",
+            ),
+            Self::ResponseReadModeConfigurationFailed { .. } => formatter.write_str(
+                "failed to configure bounded nonblocking WebDriver BiDi WebSocket response reads",
+            ),
+            Self::ResponseReadTimedOut { .. } => formatter.write_str(
+                "WebDriver BiDi WebSocket opening response timed out before completion",
+            ),
+            Self::ResponseReadFailed { .. } => formatter.write_str(
+                "WebDriver BiDi WebSocket opening response read failed before completion",
+            ),
+            Self::ResponseEndedBeforeHeaders { .. } => formatter.write_str(
+                "WebDriver BiDi WebSocket peer ended the stream before completing response headers",
+            ),
+            Self::MalformedResponse { .. } => formatter.write_str(
+                "WebDriver BiDi WebSocket opening response was malformed or missing a required header",
+            ),
+            Self::AcceptMismatch => formatter.write_str(
+                "WebDriver BiDi WebSocket opening response accept value did not match the client key",
+            ),
+            Self::ReadModeCleanupFailed { .. } => formatter.write_str(
+                "failed to restore blocking WebDriver BiDi WebSocket response reads before handoff",
+            ),
+        }
+    }
+}
+
+impl Error for WebDriverBiDiWebSocketHandshakeResponseError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::ResponseReadModeConfigurationFailed { source, .. }
+            | Self::ResponseReadTimedOut { source, .. }
+            | Self::ResponseReadFailed { source, .. }
+            | Self::ReadModeCleanupFailed { source } => Some(source),
+            Self::InvalidResponseTimeout { .. }
+            | Self::ResponseDeadlineExceeded { .. }
+            | Self::ResponseTooLarge { .. }
+            | Self::ResponseEndedBeforeHeaders { .. }
+            | Self::MalformedResponse { .. }
+            | Self::AcceptMismatch => None,
+        }
+    }
+}
+
+struct ParsedOpeningResponse {
+    status_code: u16,
+    byte_count: usize,
+}
+
+fn expected_accept_value(client_key: &WebDriverBiDiWebSocketClientKey) -> String {
+    let mut digest = Sha1::new();
+    digest.update(client_key.as_str().as_bytes());
+    digest.update(RFC6455_WEBSOCKET_GUID);
+    STANDARD.encode(digest.finalize())
+}
+
+fn is_http_token_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric()
+        || matches!(
+            byte,
+            b'!' | b'#'
+                | b'$'
+                | b'%'
+                | b'&'
+                | b'\''
+                | b'*'
+                | b'+'
+                | b'-'
+                | b'.'
+                | b'^'
+                | b'_'
+                | b'`'
+                | b'|'
+                | b'~'
+        )
+}
+
+fn has_header_token(value: &str, expected: &str) -> bool {
+    value
+        .split(',')
+        .map(str::trim)
+        .any(|token| token.eq_ignore_ascii_case(expected))
+}
+
+#[allow(clippy::collapsible_if)]
+fn parse_opening_response(
+    response: &[u8],
+    client_key: &WebDriverBiDiWebSocketClientKey,
+) -> Result<ParsedOpeningResponse, WebDriverBiDiWebSocketHandshakeResponseError> {
+    if !response.ends_with(b"\r\n\r\n") {
+        return Err(
+            WebDriverBiDiWebSocketHandshakeResponseError::MalformedResponse {
+                reason: "response is missing its CRLF header terminator",
+            },
+        );
+    }
+    let response_text = std::str::from_utf8(response).map_err(|_| {
+        WebDriverBiDiWebSocketHandshakeResponseError::MalformedResponse {
+            reason: "response headers are not valid UTF-8",
+        }
+    })?;
+    let header_text = &response_text[..response_text.len() - 4];
+    let (status_line, header_lines) = header_text
+        .split_once("\r\n")
+        .map_or((header_text, ""), |(line, rest)| (line, rest));
+    if status_line.bytes().any(|byte| byte < 0x20 || byte == 0x7f) {
+        return Err(
+            WebDriverBiDiWebSocketHandshakeResponseError::MalformedResponse {
+                reason: "status line contains a control byte",
+            },
+        );
+    }
+    let status_code = status_line
+        .strip_prefix("HTTP/1.1 ")
+        .and_then(|rest| rest.split_whitespace().next())
+        .and_then(|value| value.parse::<u16>().ok());
+    if status_code != Some(101) {
+        return Err(
+            WebDriverBiDiWebSocketHandshakeResponseError::MalformedResponse {
+                reason: "status line is not HTTP/1.1 101",
+            },
+        );
+    }
+
+    let mut upgrade = None;
+    let mut connection = None;
+    let mut accept = None;
+    for line in header_lines.split("\r\n") {
+        if line.is_empty()
+            || line
+                .as_bytes()
+                .first()
+                .is_some_and(|byte| matches!(byte, b' ' | b'\t'))
+        {
+            return Err(
+                WebDriverBiDiWebSocketHandshakeResponseError::MalformedResponse {
+                    reason: "header line is empty or folded",
+                },
+            );
+        }
+        let (name, value) = line.split_once(':').ok_or(
+            WebDriverBiDiWebSocketHandshakeResponseError::MalformedResponse {
+                reason: "header line has no colon",
+            },
+        )?;
+        if name.is_empty() || !name.bytes().all(is_http_token_byte) {
+            return Err(
+                WebDriverBiDiWebSocketHandshakeResponseError::MalformedResponse {
+                    reason: "header name is not an HTTP token",
+                },
+            );
+        }
+        let value = value.trim_matches([' ', '\t']);
+        if value.bytes().any(|byte| byte < 0x20 || byte == 0x7f) {
+            return Err(
+                WebDriverBiDiWebSocketHandshakeResponseError::MalformedResponse {
+                    reason: "header value contains a control byte",
+                },
+            );
+        }
+        if name.eq_ignore_ascii_case("upgrade") {
+            if upgrade.is_some() {
+                return Err(
+                    WebDriverBiDiWebSocketHandshakeResponseError::MalformedResponse {
+                        reason: "response repeats the Upgrade header",
+                    },
+                );
+            }
+            upgrade = Some(value);
+        } else if name.eq_ignore_ascii_case("connection") {
+            if connection.is_some() {
+                return Err(
+                    WebDriverBiDiWebSocketHandshakeResponseError::MalformedResponse {
+                        reason: "response repeats the Connection header",
+                    },
+                );
+            }
+            connection = Some(value);
+        } else if name.eq_ignore_ascii_case("sec-websocket-accept") {
+            if accept.is_some() {
+                return Err(
+                    WebDriverBiDiWebSocketHandshakeResponseError::MalformedResponse {
+                        reason: "response repeats the Sec-WebSocket-Accept header",
+                    },
+                );
+            }
+            accept = Some(value);
+        }
+    }
+
+    if !upgrade.is_some_and(|value| has_header_token(value, "websocket")) {
+        return Err(
+            WebDriverBiDiWebSocketHandshakeResponseError::MalformedResponse {
+                reason: "Upgrade header does not contain websocket",
+            },
+        );
+    }
+    if !connection.is_some_and(|value| has_header_token(value, "upgrade")) {
+        return Err(
+            WebDriverBiDiWebSocketHandshakeResponseError::MalformedResponse {
+                reason: "Connection header does not contain Upgrade",
+            },
+        );
+    }
+    let Some(accept) = accept else {
+        return Err(
+            WebDriverBiDiWebSocketHandshakeResponseError::MalformedResponse {
+                reason: "response has no Sec-WebSocket-Accept header",
+            },
+        );
+    };
+    if accept != expected_accept_value(client_key) {
+        return Err(WebDriverBiDiWebSocketHandshakeResponseError::AcceptMismatch);
+    }
+
+    Ok(ParsedOpeningResponse {
+        status_code: 101,
+        byte_count: response.len(),
+    })
+}
+
+trait OpeningResponseReader {
+    fn set_nonblocking(&self, nonblocking: bool) -> io::Result<()>;
+    fn read_response_bytes(&mut self, bytes: &mut [u8]) -> io::Result<usize>;
+}
+
+impl OpeningResponseReader for TcpStream {
+    fn set_nonblocking(&self, nonblocking: bool) -> io::Result<()> {
+        TcpStream::set_nonblocking(self, nonblocking)
+    }
+
+    fn read_response_bytes(&mut self, bytes: &mut [u8]) -> io::Result<usize> {
+        self.read(bytes)
+    }
+}
+
+fn read_opening_response_with_clock(
+    reader: &mut dyn OpeningResponseReader,
+    client_key: &WebDriverBiDiWebSocketClientKey,
+    response_timeout: Duration,
+    now: &mut dyn FnMut() -> Instant,
+) -> Result<(u16, usize), WebDriverBiDiWebSocketHandshakeResponseError> {
+    let deadline = now() + response_timeout;
+    let mut response = Vec::new();
+
+    reader.set_nonblocking(true).map_err(|source| {
+        WebDriverBiDiWebSocketHandshakeResponseError::ResponseReadModeConfigurationFailed {
+            bytes_read: 0,
+            source,
+        }
+    })?;
+
+    loop {
+        let remaining = deadline.saturating_duration_since(now());
+        if remaining.is_zero() {
+            return Err(
+                WebDriverBiDiWebSocketHandshakeResponseError::ResponseDeadlineExceeded {
+                    bytes_read: response.len(),
+                },
+            );
+        }
+        if response.len() >= MAX_WEBSOCKET_OPENING_RESPONSE_BYTES {
+            return Err(
+                WebDriverBiDiWebSocketHandshakeResponseError::ResponseTooLarge {
+                    bytes_read: response.len(),
+                    maximum_bytes: MAX_WEBSOCKET_OPENING_RESPONSE_BYTES,
+                },
+            );
+        }
+        let mut byte = [0_u8; 1];
+        match reader.read_response_bytes(&mut byte) {
+            Ok(0) => {
+                return Err(
+                    WebDriverBiDiWebSocketHandshakeResponseError::ResponseEndedBeforeHeaders {
+                        bytes_read: response.len(),
+                    },
+                );
+            }
+            Ok(1) => {
+                response.push(byte[0]);
+                if response.ends_with(b"\r\n\r\n") {
+                    if deadline.saturating_duration_since(now()).is_zero() {
+                        return Err(
+                            WebDriverBiDiWebSocketHandshakeResponseError::ResponseDeadlineExceeded {
+                                bytes_read: response.len(),
+                            },
+                        );
+                    }
+                    let parsed = parse_opening_response(&response, client_key)?;
+                    reader.set_nonblocking(false).map_err(|source| {
+                        WebDriverBiDiWebSocketHandshakeResponseError::ReadModeCleanupFailed {
+                            source,
+                        }
+                    })?;
+                    return Ok((parsed.status_code, parsed.byte_count));
+                }
+            }
+            Ok(_) => {
+                return Err(
+                    WebDriverBiDiWebSocketHandshakeResponseError::ResponseReadFailed {
+                        bytes_read: response.len(),
+                        source: io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            "response reader returned more bytes than requested",
+                        ),
+                    },
+                );
+            }
+            Err(source) if source.kind() == io::ErrorKind::Interrupted => {}
+            Err(source)
+                if matches!(
+                    source.kind(),
+                    io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock
+                ) =>
+            {
+                if deadline.saturating_duration_since(now()).is_zero() {
+                    return Err(
+                        WebDriverBiDiWebSocketHandshakeResponseError::ResponseReadTimedOut {
+                            bytes_read: response.len(),
+                            source,
+                        },
+                    );
+                }
+                thread::sleep(Duration::from_millis(1));
+            }
+            Err(source) => {
+                return Err(
+                    WebDriverBiDiWebSocketHandshakeResponseError::ResponseReadFailed {
+                        bytes_read: response.len(),
+                        source,
+                    },
+                );
+            }
+        }
+    }
 }
 
 /// Fail-closed errors while writing one bounded WebDriver BiDi WebSocket opening request.
@@ -395,19 +943,19 @@ fn write_request_with_clock(
                     );
                 }
             }
-            Err(source) if source.kind() == io::ErrorKind::Interrupted => {}
-            Err(source)
+            Err(source) => {
+                if source.kind() == io::ErrorKind::Interrupted {
+                    continue;
+                }
                 if matches!(
                     source.kind(),
                     io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock
-                ) =>
-            {
-                return Err(WebDriverBiDiWebSocketOpeningWriteError::WriteTimedOut {
-                    bytes_written,
-                    source,
-                });
-            }
-            Err(source) => {
+                ) {
+                    return Err(WebDriverBiDiWebSocketOpeningWriteError::WriteTimedOut {
+                        bytes_written,
+                        source,
+                    });
+                }
                 return Err(WebDriverBiDiWebSocketOpeningWriteError::WriteFailed {
                     bytes_written,
                     source,
@@ -479,6 +1027,281 @@ mod opening_write_tests {
                 WriteAction::Count(count) => Ok(count.min(bytes.len())),
                 WriteAction::Error(kind) => Err(io::Error::from(kind)),
             }
+        }
+    }
+
+    #[derive(Clone, Debug)]
+    enum ReadAction {
+        Byte(u8),
+        Count(usize),
+        End,
+        Error(io::ErrorKind),
+    }
+
+    #[derive(Debug)]
+    struct FakeReader {
+        actions: VecDeque<ReadAction>,
+        mode_error: Option<io::ErrorKind>,
+        cleanup_error: Option<io::ErrorKind>,
+    }
+
+    impl FakeReader {
+        fn new(actions: impl IntoIterator<Item = ReadAction>) -> Self {
+            Self {
+                actions: actions.into_iter().collect(),
+                mode_error: None,
+                cleanup_error: None,
+            }
+        }
+    }
+
+    impl OpeningResponseReader for FakeReader {
+        fn set_nonblocking(&self, nonblocking: bool) -> io::Result<()> {
+            let error = if nonblocking {
+                self.mode_error
+            } else {
+                self.cleanup_error
+            };
+            error.map_or(Ok(()), |kind| Err(io::Error::from(kind)))
+        }
+
+        fn read_response_bytes(&mut self, bytes: &mut [u8]) -> io::Result<usize> {
+            match self.actions.pop_front().unwrap_or(ReadAction::End) {
+                ReadAction::Byte(byte) => {
+                    bytes[0] = byte;
+                    Ok(1)
+                }
+                ReadAction::Count(count) => Ok(count),
+                ReadAction::End => Ok(0),
+                ReadAction::Error(kind) => Err(io::Error::from(kind)),
+            }
+        }
+    }
+
+    fn client_key() -> WebDriverBiDiWebSocketClientKey {
+        WebDriverBiDiWebSocketClientKey::new("dGhlIHNhbXBsZSBub25jZQ==")
+            .expect("test client key must be valid")
+    }
+
+    fn valid_response() -> Vec<u8> {
+        b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n".to_vec()
+    }
+
+    fn byte_actions(bytes: &[u8]) -> Vec<ReadAction> {
+        bytes.iter().copied().map(ReadAction::Byte).collect()
+    }
+
+    fn is_malformed_response(response: &[u8], key: &WebDriverBiDiWebSocketClientKey) -> bool {
+        matches!(
+            parse_opening_response(response, key),
+            Err(WebDriverBiDiWebSocketHandshakeResponseError::MalformedResponse { .. })
+        )
+    }
+
+    fn read_with_fake(
+        reader: &mut FakeReader,
+        now_values: impl IntoIterator<Item = Instant>,
+    ) -> Result<(u16, usize), WebDriverBiDiWebSocketHandshakeResponseError> {
+        let key = client_key();
+        let fallback = Instant::now();
+        let mut now_values = now_values.into_iter();
+        let mut now = || now_values.next().unwrap_or(fallback);
+        read_opening_response_with_clock(reader, &key, Duration::from_secs(1), &mut now)
+    }
+
+    #[test]
+    fn parser_accepts_case_insensitive_upgrade_tokens_and_rejects_malformed_headers() {
+        let key = client_key();
+        let response = b"HTTP/1.1 101 Switching Protocols\r\nUpGrAdE: WebSocket\r\nConnection: keep-alive, Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\nX-Test: retained\r\n\r\n";
+        let parsed = parse_opening_response(response, &key).expect("valid response");
+        assert_eq!(parsed.status_code, 101);
+        assert_eq!(parsed.byte_count, response.len());
+        assert!(!is_malformed_response(response, &key));
+
+        let malformed_responses = [
+            b"HTTP/1.1 101".to_vec(),
+            vec![0xff, b'\r', b'\n', b'\r', b'\n'],
+            b"HTTP/1.1 101\0 Switching Protocols\r\n\r\n".to_vec(),
+            b"HTTP/1.1 200 OK\r\n\r\n".to_vec(),
+            b"HTTP/1.1 101 Switching Protocols\r\n\r\n".to_vec(),
+            b"HTTP/1.1 101 Switching Protocols\r\n Upgrade: websocket\r\n\r\n".to_vec(),
+            b"HTTP/1.1 101 Switching Protocols\r\nUpgrade\r\n\r\n".to_vec(),
+            b"HTTP/1.1 101 Switching Protocols\r\nBad Header: value\r\n\r\n".to_vec(),
+            b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: web\x01socket\r\n\r\n".to_vec(),
+            b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nUpgrade: websocket\r\n\r\n".to_vec(),
+            b"HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nConnection: Upgrade\r\n\r\n".to_vec(),
+            b"HTTP/1.1 101 Switching Protocols\r\nSec-WebSocket-Accept: one\r\nSec-WebSocket-Accept: two\r\n\r\n".to_vec(),
+            b"HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n".to_vec(),
+            b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: h2c\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n".to_vec(),
+            b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n".to_vec(),
+            b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: keep-alive\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n".to_vec(),
+            b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n".to_vec(),
+        ];
+        for response in malformed_responses {
+            assert!(is_malformed_response(&response, &key));
+        }
+    }
+
+    #[test]
+    fn bounded_response_reader_covers_deadlines_size_io_and_cleanup() {
+        let start = Instant::now();
+
+        let mut valid_reader = FakeReader::new(byte_actions(&valid_response()));
+        let valid = read_with_fake(&mut valid_reader, [start]);
+        assert!(matches!(valid, Ok((101, 129))));
+
+        let mut interrupted_reader = FakeReader::new(
+            std::iter::once(ReadAction::Error(io::ErrorKind::Interrupted))
+                .chain(byte_actions(&valid_response())),
+        );
+        assert!(read_with_fake(&mut interrupted_reader, [start]).is_ok());
+
+        let mut mode_error_reader = FakeReader::new([]);
+        mode_error_reader.mode_error = Some(io::ErrorKind::InvalidInput);
+        assert!(matches!(
+            read_with_fake(&mut mode_error_reader, [start]),
+            Err(
+                WebDriverBiDiWebSocketHandshakeResponseError::ResponseReadModeConfigurationFailed {
+                    bytes_read: 0,
+                    ..
+                }
+            )
+        ));
+
+        let mut ended_reader = FakeReader::new([ReadAction::End]);
+        assert!(matches!(
+            read_with_fake(&mut ended_reader, [start]),
+            Err(
+                WebDriverBiDiWebSocketHandshakeResponseError::ResponseEndedBeforeHeaders {
+                    bytes_read: 0
+                }
+            )
+        ));
+
+        let mut count_reader = FakeReader::new([ReadAction::Count(2)]);
+        assert!(matches!(
+            read_with_fake(&mut count_reader, [start]),
+            Err(
+                WebDriverBiDiWebSocketHandshakeResponseError::ResponseReadFailed {
+                    bytes_read: 0,
+                    ..
+                }
+            )
+        ));
+
+        let mut failed_reader = FakeReader::new([ReadAction::Error(io::ErrorKind::BrokenPipe)]);
+        assert!(matches!(
+            read_with_fake(&mut failed_reader, [start]),
+            Err(
+                WebDriverBiDiWebSocketHandshakeResponseError::ResponseReadFailed {
+                    bytes_read: 0,
+                    ..
+                }
+            )
+        ));
+
+        let mut retrying_reader = FakeReader::new(
+            std::iter::once(ReadAction::Error(io::ErrorKind::WouldBlock))
+                .chain(byte_actions(&valid_response())),
+        );
+        assert!(read_with_fake(&mut retrying_reader, [start]).is_ok());
+
+        let mut timed_out_reader = FakeReader::new([ReadAction::Error(io::ErrorKind::TimedOut)]);
+        assert!(matches!(
+            read_with_fake(
+                &mut timed_out_reader,
+                [start, start, start + Duration::from_secs(1)]
+            ),
+            Err(
+                WebDriverBiDiWebSocketHandshakeResponseError::ResponseReadTimedOut {
+                    bytes_read: 0,
+                    ..
+                }
+            )
+        ));
+
+        let mut deadline_reader = FakeReader::new([ReadAction::End]);
+        assert!(matches!(
+            read_with_fake(
+                &mut deadline_reader,
+                [start, start + Duration::from_secs(1)]
+            ),
+            Err(
+                WebDriverBiDiWebSocketHandshakeResponseError::ResponseDeadlineExceeded {
+                    bytes_read: 0
+                }
+            )
+        ));
+
+        let mut late_response_reader = FakeReader::new(byte_actions(&valid_response()));
+        let mut late_response_times = vec![start; valid_response().len() + 1];
+        late_response_times.push(start + Duration::from_secs(1));
+        assert!(matches!(
+            read_with_fake(&mut late_response_reader, late_response_times),
+            Err(WebDriverBiDiWebSocketHandshakeResponseError::ResponseDeadlineExceeded { .. })
+        ));
+
+        let mut cleanup_reader = FakeReader::new(byte_actions(&valid_response()));
+        cleanup_reader.cleanup_error = Some(io::ErrorKind::InvalidInput);
+        assert!(matches!(
+            read_with_fake(&mut cleanup_reader, [start]),
+            Err(WebDriverBiDiWebSocketHandshakeResponseError::ReadModeCleanupFailed { .. })
+        ));
+
+        let mut too_large_reader = FakeReader::new(std::iter::repeat_n(
+            ReadAction::Byte(b'a'),
+            MAX_WEBSOCKET_OPENING_RESPONSE_BYTES,
+        ));
+        assert!(matches!(
+            read_with_fake(&mut too_large_reader, [start]),
+            Err(
+                WebDriverBiDiWebSocketHandshakeResponseError::ResponseTooLarge {
+                    bytes_read: MAX_WEBSOCKET_OPENING_RESPONSE_BYTES,
+                    maximum_bytes: MAX_WEBSOCKET_OPENING_RESPONSE_BYTES,
+                }
+            )
+        ));
+    }
+
+    #[test]
+    fn response_errors_have_deterministic_messages_and_sources() {
+        let source = io::Error::from(io::ErrorKind::InvalidInput);
+        let errors = [
+            WebDriverBiDiWebSocketHandshakeResponseError::InvalidResponseTimeout {
+                response_timeout: Duration::ZERO,
+                maximum_timeout: MAX_WEBSOCKET_OPENING_RESPONSE_TIMEOUT,
+            },
+            WebDriverBiDiWebSocketHandshakeResponseError::ResponseDeadlineExceeded {
+                bytes_read: 1,
+            },
+            WebDriverBiDiWebSocketHandshakeResponseError::ResponseTooLarge {
+                bytes_read: 1,
+                maximum_bytes: 1,
+            },
+            WebDriverBiDiWebSocketHandshakeResponseError::ResponseReadModeConfigurationFailed {
+                bytes_read: 1,
+                source: io::Error::from(io::ErrorKind::InvalidInput),
+            },
+            WebDriverBiDiWebSocketHandshakeResponseError::ResponseReadTimedOut {
+                bytes_read: 1,
+                source: io::Error::from(io::ErrorKind::TimedOut),
+            },
+            WebDriverBiDiWebSocketHandshakeResponseError::ResponseReadFailed {
+                bytes_read: 1,
+                source: io::Error::from(io::ErrorKind::BrokenPipe),
+            },
+            WebDriverBiDiWebSocketHandshakeResponseError::ResponseEndedBeforeHeaders {
+                bytes_read: 1,
+            },
+            WebDriverBiDiWebSocketHandshakeResponseError::MalformedResponse { reason: "test" },
+            WebDriverBiDiWebSocketHandshakeResponseError::AcceptMismatch,
+            WebDriverBiDiWebSocketHandshakeResponseError::ReadModeCleanupFailed { source },
+        ];
+        for (error, has_source) in errors.iter().zip([
+            false, false, false, true, true, true, false, false, false, true,
+        ]) {
+            assert!(!error.to_string().is_empty());
+            assert_eq!(error.source().is_some(), has_source);
         }
     }
 

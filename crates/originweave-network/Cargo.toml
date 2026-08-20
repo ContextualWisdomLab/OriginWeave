@@ -11,8 +11,10 @@ homepage.workspace = true
 publish = false
 
 [dependencies]
+base64 = "0.22.1"
 originweave-core = { path = "../originweave-core" }
 originweave-destination = { path = "../originweave-destination" }
+sha1 = "0.10.6"
 
 [lints]
 workspace = true

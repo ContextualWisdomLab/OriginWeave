@@ -1,10 +1,10 @@
 # Browser and Agent Protocol Standards Evidence
 
-- **Reviewed:** 2026-08-18
+- **Reviewed:** 2026-08-20
 - **Purpose:** primary-source evidence for OriginWeave browser compatibility and adapter boundaries
 - **Canonical research index:** [`../doctoring.md`](../doctoring.md)
 
-This addendum complements the main doctoring record. The main record already carries the WebDriver BiDi, WARC/ISO 28500 and W3C PROV-O evidence. This addendum records the current primary sources for Manifest V3, Chrome DevTools Protocol, WebMCP and Model Context Protocol so product documentation does not rely on uncited protocol names.
+This addendum complements the main doctoring record. The main record already carries the WebDriver BiDi, WARC/ISO 28500 and W3C PROV-O evidence. This addendum records the current primary sources for RFC 6455, Manifest V3, Chrome DevTools Protocol, WebMCP and Model Context Protocol so product documentation does not rely on uncited protocol names.
 
 ## WebDriver BiDi
 
@@ -17,6 +17,12 @@ WebDriver BiDi commands may execute concurrently and finish out of order. The Ed
 The same reviewed Editor’s Draft defines a closed `ErrorCode` vocabulary that currently includes `no such client window`. OriginWeave admits only the reviewed vocabulary at its bounded response-envelope parser and rejects unknown error-code text fail closed; adding a newly reviewed protocol code changes compatibility only and grants no browser, transport, node, policy, or Agent authority.
 
 Primary sources: World Wide Web Consortium, *WebDriver BiDi* (published Working Draft and current Editor’s Draft).
+
+## RFC 6455 WebSocket opening handshake
+
+RFC 6455 requires a client opening request to carry a fresh `Sec-WebSocket-Key` and requires a server upgrade response to return HTTP `101`, the `Upgrade: websocket` and `Connection: Upgrade` tokens, and a `Sec-WebSocket-Accept` value derived from that exact client key and the fixed WebSocket GUID. OriginWeave now validates this bounded response on the already peer-verified stream, with duplicate/security-header rejection, a response-size ceiling, and a monotonic deadline. This proves only the RFC 6455 opening exchange; it does not authenticate a browser process, implement WebSocket frames, or grant browser/Agent authority.
+
+Primary source: Internet Engineering Task Force, *The WebSocket Protocol* (RFC 6455).
 
 ## Chrome Manifest V3
 
@@ -88,5 +94,7 @@ World Wide Web Consortium. (2026, June 1). *WebDriver BiDi* (W3C Working Draft).
 World Wide Web Consortium. (2026, July 20). *WebDriver BiDi* (Editor’s Draft). https://w3c.github.io/webdriver-bidi/
 
 World Wide Web Consortium. (2026, August 5). *Accessible name and description computation 1.2* (W3C Working Draft). https://www.w3.org/TR/2026/WD-accname-1.2-20260805/
+
+Fette, I., & Melnikov, A. (2011). *The WebSocket protocol* (RFC 6455). Internet Engineering Task Force. https://www.rfc-editor.org/rfc/rfc6455
 
 International Organization for Standardization. (2017). *Information and documentation—WARC file format* (ISO Standard No. 28500:2017). https://www.iso.org/standard/68004.html
