@@ -1,5 +1,7 @@
 #![allow(clippy::expect_used)]
 
+use std::error::Error as _;
+
 use originweave_bap::{
     BapTaskEvent, BapTaskLifecycle, BapTaskRestoreError, BapTaskState, BapTaskTransitionError,
 };
@@ -97,4 +99,41 @@ fn restored_terminal_lifecycle_remains_terminal() {
         }),
     );
     assert_eq!(task.transition_sequence(), 9);
+}
+
+#[test]
+fn lifecycle_failures_use_the_standard_rust_error_contract() {
+    let mut created = BapTaskLifecycle::new();
+    let invalid_transition = created
+        .apply(BapTaskEvent::Start)
+        .expect_err("created task must reject start");
+    assert_eq!(
+        invalid_transition.to_string(),
+        "BAP task event Start is invalid from state Created"
+    );
+    assert!(invalid_transition.source().is_none());
+
+    let exhausted = BapTaskTransitionError::SequenceExhausted;
+    assert_eq!(
+        exhausted.to_string(),
+        "BAP task transition sequence is exhausted"
+    );
+    assert!(exhausted.source().is_none());
+
+    let terminal = BapTaskTransitionError::TerminalState {
+        state: BapTaskState::Cancelled,
+    };
+    assert_eq!(
+        terminal.to_string(),
+        "BAP task state Cancelled is terminal"
+    );
+    assert!(terminal.source().is_none());
+
+    let restore = BapTaskLifecycle::restore(BapTaskState::Created, 1)
+        .expect_err("unreachable snapshot must fail");
+    assert_eq!(
+        restore.to_string(),
+        "BAP task snapshot state Created with transition sequence 1 is unreachable"
+    );
+    assert!(restore.source().is_none());
 }
