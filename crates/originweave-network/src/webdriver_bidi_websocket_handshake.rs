@@ -500,6 +500,16 @@ mod opening_write_tests {
         assert!(!is_five(Ok(4)));
     }
 
+    fn join_loopback_server(
+        server: thread::JoinHandle<io::Result<()>>,
+    ) -> Result<(), Box<dyn Error>> {
+        match server.join() {
+            Ok(result) => result?,
+            Err(_) => return Err("loopback server thread panicked".into()),
+        }
+        Ok(())
+    }
+
     #[test]
     fn bounded_writer_clears_real_socket_timeout_before_success() -> Result<(), Box<dyn Error>> {
         let listener = TcpListener::bind(("127.0.0.1", 0))?;
@@ -514,10 +524,17 @@ mod opening_write_tests {
 
         assert_eq!(request_byte_count, 7);
         assert_eq!(stream.write_timeout()?, None);
-        match server.join() {
-            Ok(result) => result?,
-            Err(_) => return Err("loopback server thread panicked".into()),
-        }
+        join_loopback_server(server)
+    }
+
+    #[test]
+    fn panicked_loopback_server_is_reported() -> Result<(), Box<dyn Error>> {
+        let server = thread::spawn(|| -> io::Result<()> {
+            std::panic::resume_unwind(Box::new("intentional test-only server panic"));
+        });
+
+        let result = join_loopback_server(server);
+        assert!(result.is_err());
         Ok(())
     }
 
