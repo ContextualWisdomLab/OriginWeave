@@ -42,7 +42,7 @@ The current queue must be processed in dependency order. A green child branch ca
 
 ### Review and merge authority
 
-The active `CWL Central required workflows` ruleset requires one approving review, approval after the last push, resolved review threads, and configured required workflows. The previously observed collaborator inventory contained only `seonghobae` with administration and push permissions, creating a **reviewer-provisioning gap** for counted non-author approval.
+The active `CWL Central required workflows` ruleset requires two approving reviews, approval after the last push, resolved review threads, and configured required workflows. The current collaborator inventory contains only `seonghobae` with administration and push permissions, creating a **reviewer-provisioning gap** for counted non-author approval.
 
 This gap does not authorize self-approval, administrative bypass, stale-head merge, or weaker checks. Exact current-head checks, security gates, complete coverage, rustdoc/Clippy, thread resolution, and branch protection remain mandatory. Before any merge decision, re-fetch the exact ruleset, collaborators, PR head/base, reviews, unresolved threads, and required checks; do not assume this dated observation remains current.
 
