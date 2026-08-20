@@ -97,7 +97,9 @@ impl std::fmt::Display for BapTaskTransitionError {
                     "BAP task event {event:?} is invalid from state {from:?}"
                 )
             }
-            Self::SequenceExhausted => write!(formatter, "BAP task transition sequence is exhausted"),
+            Self::SequenceExhausted => {
+                write!(formatter, "BAP task transition sequence is exhausted")
+            }
             Self::TerminalState { state } => {
                 write!(formatter, "BAP task state {state:?} is terminal")
             }
