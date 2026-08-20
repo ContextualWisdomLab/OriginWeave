@@ -345,19 +345,37 @@ pub fn evaluate_model_invocation(
     }
 }
 
+/// Broker-derived necessity state for one raw full-field model disclosure.
+///
+/// This value is policy metadata only. A trusted broker/orchestrator must derive it from the actual
+/// bounded workflow after evaluating opaque-handle, deterministic transform, local rule, structured
+/// tool, and approved derived-value alternatives. Caller-provided metadata alone is not proof that
+/// raw model disclosure is necessary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ModelDisclosureNecessity {
+    /// The trusted boundary has not established whether a safer execution path can complete the task.
+    Unknown,
+    /// A safer execution path can complete the task without raw full-field model disclosure.
+    SaferAlternativeAvailable,
+    /// The trusted boundary established that the reviewed task requires raw full-field model disclosure.
+    FullFieldModelDisclosureRequired,
+}
+
 /// Result of composing an explicit full-field disclosure with a reviewed model invocation.
 ///
 /// This decision authorizes only the metadata composition boundary. It carries no protected field
 /// bytes and does not authenticate or invoke a provider, resolve an opaque handle, validate model
-/// output, enforce retention, or prove that a non-model execution path was unavailable.
+/// output, enforce retention, or itself prove that a non-model execution path was unavailable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ModelDisclosureDecision {
-    /// The exact full-field disclosure and reviewed model invocation both authorize the same field authority.
+    /// The exact disclosure, necessity, and reviewed model invocation authorize the same field authority.
     Authorized,
     /// Sensitive-data policy did not explicitly authorize complete-field disclosure.
     DisclosureNotAuthorized(DisclosureDecision),
     /// The disclosure authority and model invocation belong to different exact authority tuples.
     AuthorityMismatch,
+    /// A trusted boundary did not establish that raw full-field model disclosure is necessary.
+    NecessityNotEstablished(ModelDisclosureNecessity),
     /// Model-route or invocation policy denied the otherwise full-field-authorized request.
     InvocationDenied(ModelInvocationDecision),
 }
@@ -368,20 +386,27 @@ pub enum ModelDisclosureDecision {
 /// sensitive-data outcome remains non-authorizing for raw model input. The disclosure request must
 /// then carry the same complete [`SensitiveDataAuthority`] as the model invocation request; this
 /// prevents independently valid policy metadata for different tenant/task/field/purpose/destination/
-/// classification authorities from being combined. Only after those boundaries pass is the existing
-/// route/context/prompt/schema/token/expiry evaluator consulted. `trusted_time` must come from the
-/// same authoritative time domain as the reviewed invocation policy expiry.
+/// classification authorities from being combined. After exact authority binding, raw model input
+/// is authorized only when a trusted broker-derived [`ModelDisclosureNecessity`] explicitly records
+/// that the workflow requires full-field model disclosure. Unknown necessity or a known safer
+/// alternative fails closed before invocation-specific details are evaluated. Only after those
+/// boundaries pass is the existing route/context/prompt/schema/token/expiry evaluator consulted.
+/// `trusted_time` must come from the same authoritative time domain as the reviewed invocation policy
+/// expiry.
 ///
 /// An [`ModelDisclosureDecision::Authorized`] result still does not carry or disclose protected
-/// bytes. A trusted broker must independently prove that full-field model disclosure is necessary,
-/// authenticate the runtime/provider, resolve the value inside its transaction boundary, execute only
-/// the authorized route, validate output, and enforce retention/export policy.
+/// bytes. The trusted broker must derive necessity from the actual bounded workflow, authenticate the
+/// runtime/provider, resolve the value inside its transaction boundary, execute only the authorized
+/// route, validate output, and enforce retention/export policy. Supplying
+/// [`ModelDisclosureNecessity::FullFieldModelDisclosureRequired`] from an untrusted caller is not
+/// evidence that those duties were performed.
 #[must_use]
 pub fn evaluate_full_field_model_disclosure(
     disclosure_request: &SensitiveDataRequest,
     disclosure_scope: &DisclosureScope,
     invocation_request: &ModelInvocationRequest,
     invocation_scope: &ModelInvocationScope,
+    necessity: ModelDisclosureNecessity,
     trusted_time: u64,
 ) -> ModelDisclosureDecision {
     let disclosure_decision = evaluate_disclosure(disclosure_request, disclosure_scope);
@@ -398,6 +423,10 @@ pub fn evaluate_full_field_model_disclosure(
     );
     if invocation_authority_decision != DisclosureDecision::FullFieldDisclosure {
         return ModelDisclosureDecision::AuthorityMismatch;
+    }
+
+    if necessity != ModelDisclosureNecessity::FullFieldModelDisclosureRequired {
+        return ModelDisclosureDecision::NecessityNotEstablished(necessity);
     }
 
     let invocation_decision =
