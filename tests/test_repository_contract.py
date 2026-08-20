@@ -20,6 +20,7 @@ class RepositoryContractTests(unittest.TestCase):
             set(data["workspace"]["members"]),
             {
                 "crates/originweave-core",
+                "crates/originweave-bap",
                 "crates/originweave-policy",
                 "crates/originweave-destination",
                 "crates/originweave-network",
