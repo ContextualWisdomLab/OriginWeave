@@ -1,9 +1,11 @@
-"""Regression contract for portable, explicit ChromeDriver output decoding."""
+"""Regression contract for portable, bounded ChromeDriver output decoding."""
 
 from __future__ import annotations
 
 import ast
+import io
 import pathlib
+import runpy
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -11,7 +13,7 @@ RUNNER = ROOT / "scripts" / "ci" / "run_mv3_compatibility.py"
 
 
 class ChromeDriverSubprocessCompatibilityContractTests(unittest.TestCase):
-    """Keep subprocess decoding explicit instead of version-gated Popen kwargs."""
+    """Keep subprocess decoding explicit and bound retained startup-line memory."""
 
     def test_chromedriver_popen_uses_binary_pipe_with_explicit_utf8_decode(self) -> None:
         """Popen must avoid text-decoding kwargs and decode bounded output explicitly."""
@@ -38,6 +40,32 @@ class ChromeDriverSubprocessCompatibilityContractTests(unittest.TestCase):
 
         self.assertIn('raw_line_bytes.decode("utf-8", errors="replace")', source)
         self.assertIn("len(raw_line_bytes) > MAX_CHROMEDRIVER_STARTUP_LINE_BYTES", source)
+
+    def test_startup_output_reader_never_requests_an_unbounded_line(self) -> None:
+        """A newline-free subprocess record must be drained in bounded reads."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="mv3_startup_output_bound")
+        read_line = namespace["_read_chromedriver_startup_line"]
+        maximum = namespace["MAX_CHROMEDRIVER_STARTUP_LINE_BYTES"]
+
+        class RecordingStream(io.BytesIO):
+            def __init__(self, initial_bytes: bytes) -> None:
+                super().__init__(initial_bytes)
+                self.requested_sizes: list[int] = []
+
+            def readline(self, size: int = -1) -> bytes:
+                self.requested_sizes.append(size)
+                return super().readline(size)
+
+        stream = RecordingStream(b"x" * (maximum * 4) + b"\nnext\n")
+        raw_line, oversized = read_line(stream)
+
+        self.assertTrue(oversized)
+        self.assertLessEqual(len(raw_line), maximum + 1)
+        self.assertTrue(stream.requested_sizes)
+        self.assertNotIn(-1, stream.requested_sizes)
+        self.assertLessEqual(max(stream.requested_sizes), maximum + 1)
+        self.assertEqual(read_line(stream), (b"next\n", False))
 
 
 if __name__ == "__main__":
