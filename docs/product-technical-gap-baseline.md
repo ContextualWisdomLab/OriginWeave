@@ -13,15 +13,16 @@ This is a dated delivery baseline, not a substitute for the PRD, TRD, roadmap, o
 
 ### Open pull requests
 
-The live repository contained **100 open pull requests: 21 non-draft and 79 draft**. The non-draft set was:
+The live repository contained **100 open pull requests: 22 non-draft and 78 draft**. The non-draft set was:
 
 | Pull request | Base | Delivery state at snapshot |
 |---|---|---|
 | #194, #175, #173, #168, #166, #164, #163, #161, #160, #159, #158, #157, #156, #152, #124 | `main` | Ready/non-draft inventory; current review and check state must be re-fetched before merge |
 | #149 | `main` | WireGuard/IKEv2 profile authority; exact head `b2be2e7`, Rust contracts and Production coverage successful, remaining required workflows were queued |
+| #196 | `main` | This product/technical gap baseline; checks were queued after publication and merge remains review-gated |
 | #153, #151, #150, #148, #147 | stacked | Non-draft teardown/crash-recovery work; base-branch ordering applies |
 
-Draft PR #195 is the current WebDriver BiDi opening-write repair. Its exact head is `29a310c`; Rust contracts are successful and Production coverage was in progress after a coverage-branch repair. It remains draft evidence and cannot be treated as shipped behavior.
+Draft PR #195 is the current WebDriver BiDi opening-write repair. Its exact head is `4ff33b5`; Rust contracts and Production coverage were re-running after the test-only coverage repair. It remains draft evidence and cannot be treated as shipped behavior.
 
 The snapshot also retained an older open failure on #90 (`8721787d`): Rust contracts were successful but Production coverage was failing. That PR is not a protected-main implementation claim. The current exact head and check runs must be re-fetched before any action.
 
