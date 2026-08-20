@@ -9,7 +9,9 @@ fn restored_lifecycle_preserves_state_and_monotonic_sequence() {
     assert_eq!(task.state(), BapTaskState::Checkpointed);
     assert_eq!(task.transition_sequence(), 41);
 
-    let resumed = task.apply(BapTaskEvent::Resume).expect("resume restored task");
+    let resumed = task
+        .apply(BapTaskEvent::Resume)
+        .expect("resume restored task");
     assert_eq!(resumed.previous_state(), BapTaskState::Checkpointed);
     assert_eq!(resumed.current_state(), BapTaskState::Running);
     assert_eq!(resumed.sequence(), 42);

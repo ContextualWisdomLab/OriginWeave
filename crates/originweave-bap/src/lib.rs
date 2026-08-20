@@ -79,6 +79,8 @@ pub enum BapTaskTransitionError {
         /// Event that was rejected.
         event: BapTaskEvent,
     },
+    /// The lifecycle sequence reached its maximum representable value.
+    SequenceExhausted,
     /// A terminal task cannot be reopened or mutated by lifecycle events.
     TerminalState {
         /// Final state that rejected all further events.
@@ -142,6 +144,15 @@ impl BapTaskLifecycle {
         }
     }
 
+    /// Restore a lifecycle state and its last accepted transition sequence.
+    #[must_use]
+    pub const fn restore(state: BapTaskState, transition_sequence: u64) -> Self {
+        Self {
+            state,
+            transition_sequence,
+        }
+    }
+
     /// Return the current logical task state.
     #[must_use]
     pub const fn state(self) -> BapTaskState {
@@ -191,13 +202,16 @@ impl BapTaskLifecycle {
             }
         };
 
+        let Some(sequence) = self.transition_sequence.checked_add(1) else {
+            return Err(BapTaskTransitionError::SequenceExhausted);
+        };
         let previous_state = self.state;
         self.state = next_state;
-        self.transition_sequence += 1;
+        self.transition_sequence = sequence;
         Ok(BapTaskTransition {
             previous_state,
             current_state: next_state,
-            sequence: self.transition_sequence,
+            sequence,
         })
     }
 }
