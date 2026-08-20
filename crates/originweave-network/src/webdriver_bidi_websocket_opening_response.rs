@@ -597,7 +597,9 @@ mod tests {
         for error in errors {
             assert!(!error.to_string().is_empty());
             match &error {
-                WebDriverBiDiWebSocketOpeningReadError::ReadTimeoutConfigurationFailed { .. }
+                WebDriverBiDiWebSocketOpeningReadError::ReadTimeoutConfigurationFailed {
+                    ..
+                }
                 | WebDriverBiDiWebSocketOpeningReadError::ReadTimedOut { .. }
                 | WebDriverBiDiWebSocketOpeningReadError::ReadFailed { .. }
                 | WebDriverBiDiWebSocketOpeningReadError::ReadTimeoutCleanupFailed { .. } => {
