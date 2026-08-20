@@ -74,6 +74,25 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
                 self.assertIn(expected, runner)
         self.assertIn("Agent Task URL changed during submission", runner)
 
+    def test_agent_task_observes_computed_role_and_name_before_action(self) -> None:
+        """Real-browser evidence must bind the controlled targets to semantic role/name."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_semantics_contract")
+        runner = RUNNER.read_text(encoding="utf-8")
+        self.assertIn("_get_element_semantics", namespace)
+        for expected in (
+            '"/computedrole"',
+            '"/computedlabel"',
+            '"textbox"',
+            '"Task text"',
+            '"button"',
+            '"Submit task"',
+            '"input_semantics_verified"',
+            '"submit_semantics_verified"',
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, runner)
+
     def test_agent_task_fixture_runs_under_the_existing_pinned_chrome_job(self) -> None:
         """No floating browser or second workflow may be introduced for this slice."""
 
