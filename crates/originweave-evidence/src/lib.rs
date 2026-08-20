@@ -40,6 +40,8 @@ pub const MAX_METADATA_VALUE_BYTES: usize = 8_192;
 pub const MAX_PROVENANCE_TEXT_BYTES: usize = 8_192;
 /// Maximum byte length of one structured extracted-field identifier.
 pub const MAX_STRUCTURED_FIELD_NAME_BYTES: usize = 128;
+/// Maximum byte length of one capture or extraction-schema identifier.
+pub const MAX_CAPTURE_IDENTIFIER_BYTES: usize = MAX_STRUCTURED_FIELD_NAME_BYTES;
 
 /// An HTTP method recorded for network evidence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -502,3 +504,100 @@ fn valid_structured_field_name(field_name: &str) -> bool {
         .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
         && field_name.bytes().any(|byte| byte.is_ascii_alphanumeric())
 }
+
+/// Immutable identity binding for one structured extraction and its durable evidence artifacts.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CaptureManifest {
+    capture_id: String,
+    extraction_schema_id: String,
+    structured_value: StructuredValueEvidence,
+    warc_record_set_hash: String,
+    provenance_graph_hash: String,
+}
+
+impl CaptureManifest {
+    /// Bind one structured extraction to bounded capture/schema identifiers and durable artifact digests.
+    pub fn new(
+        capture_id: &str,
+        extraction_schema_id: &str,
+        structured_value: StructuredValueEvidence,
+        warc_record_set_hash: &str,
+        provenance_graph_hash: &str,
+    ) -> Result<Self, CaptureManifestError> {
+        if !valid_structured_field_name(capture_id) {
+            return Err(CaptureManifestError::InvalidCaptureId);
+        }
+        if !valid_structured_field_name(extraction_schema_id) {
+            return Err(CaptureManifestError::InvalidExtractionSchemaId);
+        }
+        if !valid_sha256(warc_record_set_hash) {
+            return Err(CaptureManifestError::InvalidWarcRecordSetHash);
+        }
+        if !valid_sha256(provenance_graph_hash) {
+            return Err(CaptureManifestError::InvalidProvenanceGraphHash);
+        }
+        Ok(Self {
+            capture_id: capture_id.to_owned(),
+            extraction_schema_id: extraction_schema_id.to_owned(),
+            structured_value,
+            warc_record_set_hash: warc_record_set_hash.to_owned(),
+            provenance_graph_hash: provenance_graph_hash.to_owned(),
+        })
+    }
+
+    /// Return the bounded capture identifier.
+    #[must_use]
+    pub fn capture_id(&self) -> &str {
+        &self.capture_id
+    }
+
+    /// Return the bounded extraction-schema identifier.
+    #[must_use]
+    pub fn extraction_schema_id(&self) -> &str {
+        &self.extraction_schema_id
+    }
+
+    /// Return the structured value evidence bound into this capture.
+    #[must_use]
+    pub const fn structured_value(&self) -> &StructuredValueEvidence {
+        &self.structured_value
+    }
+
+    /// Return the lowercase SHA-256 digest of the durable WARC record set.
+    #[must_use]
+    pub fn warc_record_set_hash(&self) -> &str {
+        &self.warc_record_set_hash
+    }
+
+    /// Return the lowercase SHA-256 digest of the durable provenance graph.
+    #[must_use]
+    pub fn provenance_graph_hash(&self) -> &str {
+        &self.provenance_graph_hash
+    }
+}
+
+/// A fail-closed reason why a capture manifest could not be constructed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CaptureManifestError {
+    /// The capture identifier was empty, oversized, or contained unsupported bytes.
+    InvalidCaptureId,
+    /// The extraction-schema identifier was empty, oversized, or contained unsupported bytes.
+    InvalidExtractionSchemaId,
+    /// The WARC record-set digest was not a canonical lowercase SHA-256 identifier.
+    InvalidWarcRecordSetHash,
+    /// The provenance-graph digest was not a canonical lowercase SHA-256 identifier.
+    InvalidProvenanceGraphHash,
+}
+
+impl std::fmt::Display for CaptureManifestError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::InvalidCaptureId => "invalid capture identifier",
+            Self::InvalidExtractionSchemaId => "invalid extraction schema identifier",
+            Self::InvalidWarcRecordSetHash => "invalid WARC record-set hash",
+            Self::InvalidProvenanceGraphHash => "invalid provenance graph hash",
+        })
+    }
+}
+
+impl std::error::Error for CaptureManifestError {}
