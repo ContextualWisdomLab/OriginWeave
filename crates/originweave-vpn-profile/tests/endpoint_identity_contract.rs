@@ -116,6 +116,25 @@ fn gateway_hosts_reject_ambiguous_numeric_ipv4_spellings_before_secret_import() 
 }
 
 #[test]
+fn gateway_hosts_preserve_hex_prefixed_but_nonnumeric_dns_labels() -> Result<(), ProfileError> {
+    let host = "0xnothex.example";
+
+    let mut wireguard_importer = CountingImporter::default();
+    let wireguard = import_wireguard_profile(
+        &wireguard_profile(&format!("{host}:51820")),
+        &mut wireguard_importer,
+    )?;
+    assert_eq!(wireguard.peers[0].endpoint.as_deref(), Some("0xnothex.example:51820"));
+    assert_eq!(wireguard_importer.0, 1);
+
+    let mut ikev2_importer = CountingImporter::default();
+    let ikev2 = parse_ikev2_profile(&ikev2_profile(host, ""), &mut ikev2_importer)?;
+    assert_eq!(ikev2.server, host);
+    assert_eq!(ikev2_importer.0, 1);
+    Ok(())
+}
+
+#[test]
 fn ikev2_server_rejects_every_dns_hostname_boundary_before_secret_import() {
     let overlong_host = "a".repeat(254);
     let overlong_label = format!("{}.example", "a".repeat(64));
