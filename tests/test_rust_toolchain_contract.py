@@ -10,6 +10,7 @@ from pathlib import Path
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 RUST_TOOLCHAIN = REPOSITORY_ROOT / "rust-toolchain.toml"
 CI_WORKFLOW = REPOSITORY_ROOT / ".github" / "workflows" / "ci.yml"
+HOURLY_WORKFLOW = REPOSITORY_ROOT / ".github" / "workflows" / "hourly-product-development.yml"
 DEPENDABOT = REPOSITORY_ROOT / ".github" / "dependabot.yml"
 
 
@@ -33,6 +34,10 @@ class RustToolchainContractTests(unittest.TestCase):
         workflow = CI_WORKFLOW.read_text(encoding="utf-8")
         self.assertEqual(workflow.count("nightly-2026-08-18"), 3)
         self.assertNotIn("nightly-2026-08-01", workflow)
+
+        hourly_workflow = HOURLY_WORKFLOW.read_text(encoding="utf-8")
+        self.assertEqual(hourly_workflow.count("nightly-2026-08-18"), 2)
+        self.assertNotIn("nightly-2026-08-01", hourly_workflow)
 
 
 if __name__ == "__main__":  # pragma: no cover
