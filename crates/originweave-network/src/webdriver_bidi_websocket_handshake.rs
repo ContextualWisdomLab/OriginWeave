@@ -148,10 +148,12 @@ impl WebDriverBiDiWebSocketHandshakePlan {
     /// The plan is consumed. Zero and over-ceiling deadlines fail closed. The writer retries only an
     /// interrupted system call; it never reconnects, resolves a name, selects a proxy, changes the
     /// destination, or retries after any other I/O failure. A partial write that cannot finish before
-    /// the same monotonic deadline is an error and yields no successful handoff. Success preserves
-    /// the live stream, exact transport evidence, and client key for a separately reviewed server
-    /// handshake validator. It does not read or validate the server response and therefore does not
-    /// establish WebSocket protocol state or browser/Agent authority.
+    /// the same monotonic deadline is an error and yields no successful handoff. Before success, the
+    /// operation-local socket write timeout is cleared so the next separately reviewed protocol stage
+    /// cannot inherit stale timeout authority. Success preserves the live stream, exact transport
+    /// evidence, and client key for a separately reviewed server handshake validator. It does not
+    /// read or validate the server response and therefore does not establish WebSocket protocol state
+    /// or browser/Agent authority.
     pub fn write_opening_request(
         self,
         write_timeout: Duration,
@@ -189,10 +191,11 @@ impl WebDriverBiDiWebSocketHandshakePlan {
 /// A live verified stream after the complete client opening request has been written.
 ///
 /// This state proves only that the exact bounded RFC 6455 client request reached the operating
-/// system's verified TCP stream before the configured deadline. It deliberately does not claim that
-/// the peer returned `101 Switching Protocols`, that `Sec-WebSocket-Accept` is valid, that a WebSocket
-/// is established, or that the peer is the expected Chromium/ChromeDriver process. Those remain
-/// separate fail-closed boundaries.
+/// system's verified TCP stream before the configured deadline and that this operation's socket write
+/// timeout was cleared before handoff. It deliberately does not claim that the peer returned `101
+/// Switching Protocols`, that `Sec-WebSocket-Accept` is valid, that a WebSocket is established, or
+/// that the peer is the expected Chromium/ChromeDriver process. Those remain separate fail-closed
+/// boundaries.
 pub struct WebDriverBiDiWebSocketOpeningRequestSent {
     pub(crate) stream: TcpStream,
     transport_evidence: WebDriverBiDiTcpConnectionEvidence,
@@ -284,6 +287,13 @@ pub enum WebDriverBiDiWebSocketOpeningWriteError {
         /// Underlying operating-system error.
         source: io::Error,
     },
+    /// Clearing the operation-local socket write timeout failed after all request bytes were sent.
+    WriteTimeoutCleanupFailed {
+        /// Number of request bytes already written before cleanup failed.
+        bytes_written: usize,
+        /// Underlying operating-system error.
+        source: io::Error,
+    },
 }
 
 impl fmt::Display for WebDriverBiDiWebSocketOpeningWriteError {
@@ -307,6 +317,9 @@ impl fmt::Display for WebDriverBiDiWebSocketOpeningWriteError {
             Self::WriteFailed { .. } => formatter.write_str(
                 "WebDriver BiDi WebSocket opening write failed before the request was complete",
             ),
+            Self::WriteTimeoutCleanupFailed { .. } => formatter.write_str(
+                "failed to clear the WebDriver BiDi WebSocket opening write timeout before handoff",
+            ),
         }
     }
 }
@@ -316,7 +329,8 @@ impl Error for WebDriverBiDiWebSocketOpeningWriteError {
         match self {
             Self::WriteTimeoutConfigurationFailed { source, .. }
             | Self::WriteTimedOut { source, .. }
-            | Self::WriteFailed { source, .. } => Some(source),
+            | Self::WriteFailed { source, .. }
+            | Self::WriteTimeoutCleanupFailed { source, .. } => Some(source),
             Self::InvalidWriteTimeout { .. }
             | Self::WriteDeadlineExceeded { .. }
             | Self::WriteZero { .. } => None,
@@ -326,12 +340,17 @@ impl Error for WebDriverBiDiWebSocketOpeningWriteError {
 
 trait OpeningRequestWriter {
     fn set_write_timeout(&self, timeout: Duration) -> io::Result<()>;
+    fn clear_write_timeout(&self) -> io::Result<()>;
     fn write_request_bytes(&mut self, bytes: &[u8]) -> io::Result<usize>;
 }
 
 impl OpeningRequestWriter for TcpStream {
     fn set_write_timeout(&self, timeout: Duration) -> io::Result<()> {
         TcpStream::set_write_timeout(self, Some(timeout))
+    }
+
+    fn clear_write_timeout(&self) -> io::Result<()> {
+        TcpStream::set_write_timeout(self, None)
     }
 
     fn write_request_bytes(&mut self, bytes: &[u8]) -> io::Result<usize> {
@@ -397,13 +416,20 @@ fn write_request_with_clock(
         }
     }
 
+    writer.clear_write_timeout().map_err(|source| {
+        WebDriverBiDiWebSocketOpeningWriteError::WriteTimeoutCleanupFailed {
+            bytes_written,
+            source,
+        }
+    })?;
+
     Ok(bytes_written)
 }
 
 #[cfg(test)]
 mod opening_write_tests {
     use super::*;
-    use std::collections::VecDeque;
+    use std::{collections::VecDeque, net::TcpListener, thread};
 
     #[derive(Debug)]
     enum WriteAction {
@@ -414,6 +440,7 @@ mod opening_write_tests {
     #[derive(Debug)]
     struct FakeWriter {
         timeout_error: Option<io::ErrorKind>,
+        clear_timeout_error: Option<io::ErrorKind>,
         actions: VecDeque<WriteAction>,
     }
 
@@ -421,6 +448,7 @@ mod opening_write_tests {
         fn new(actions: impl IntoIterator<Item = WriteAction>) -> Self {
             Self {
                 timeout_error: None,
+                clear_timeout_error: None,
                 actions: actions.into_iter().collect(),
             }
         }
@@ -429,6 +457,13 @@ mod opening_write_tests {
     impl OpeningRequestWriter for FakeWriter {
         fn set_write_timeout(&self, _timeout: Duration) -> io::Result<()> {
             if let Some(kind) = self.timeout_error {
+                return Err(io::Error::from(kind));
+            }
+            Ok(())
+        }
+
+        fn clear_write_timeout(&self) -> io::Result<()> {
+            if let Some(kind) = self.clear_timeout_error {
                 return Err(io::Error::from(kind));
             }
             Ok(())
@@ -463,6 +498,45 @@ mod opening_write_tests {
         };
         assert!(is_five(result));
         assert!(!is_five(Ok(4)));
+    }
+
+    #[test]
+    fn bounded_writer_clears_real_socket_timeout_before_success() {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind loopback listener");
+        let address = listener.local_addr().expect("read loopback address");
+        let server = thread::spawn(move || listener.accept().map(|_| ()));
+        let mut stream = TcpStream::connect(address).expect("connect loopback stream");
+        let start = Instant::now();
+        let mut now = || start;
+
+        let result = write_request_with_clock(
+            &mut stream,
+            b"opening",
+            Duration::from_secs(1),
+            &mut now,
+        );
+
+        assert!(matches!(result, Ok(7)));
+        assert_eq!(stream.write_timeout().expect("inspect write timeout"), None);
+        assert!(server.join().expect("join loopback server").is_ok());
+    }
+
+    #[test]
+    fn bounded_writer_rejects_cleanup_failure_without_success_handoff() {
+        let mut writer = FakeWriter::new([WriteAction::Count(1)]);
+        writer.clear_timeout_error = Some(io::ErrorKind::InvalidInput);
+        let start = Instant::now();
+        let mut now = || start;
+
+        let result =
+            write_request_with_clock(&mut writer, b"x", Duration::from_secs(1), &mut now);
+        assert!(matches!(
+            result,
+            Err(WebDriverBiDiWebSocketOpeningWriteError::WriteTimeoutCleanupFailed {
+                bytes_written: 1,
+                ..
+            })
+        ));
     }
 
     #[test]
@@ -631,6 +705,10 @@ mod opening_write_tests {
             bytes_written: 1,
             source: io::Error::from(io::ErrorKind::BrokenPipe),
         };
+        let cleanup = WebDriverBiDiWebSocketOpeningWriteError::WriteTimeoutCleanupFailed {
+            bytes_written: 1,
+            source: io::Error::from(io::ErrorKind::InvalidInput),
+        };
 
         assert!(!invalid.to_string().is_empty());
         assert!(!deadline.to_string().is_empty());
@@ -638,11 +716,13 @@ mod opening_write_tests {
         assert!(!timed_out.to_string().is_empty());
         assert!(!zero.to_string().is_empty());
         assert!(!failed.to_string().is_empty());
+        assert!(!cleanup.to_string().is_empty());
         assert!(invalid.source().is_none());
         assert!(deadline.source().is_none());
         assert!(configure.source().is_some());
         assert!(timed_out.source().is_some());
         assert!(zero.source().is_none());
         assert!(failed.source().is_some());
+        assert!(cleanup.source().is_some());
     }
 }
