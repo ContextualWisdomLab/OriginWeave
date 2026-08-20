@@ -140,6 +140,10 @@ class ManifestV3CompatibilityContractTests(unittest.TestCase):
             "sudo chmod 4755 .mv3-browser/chrome-linux64/chrome_sandbox",
             workflow,
         )
+        self.assertIn(
+            "CHROME_DEVEL_SANDBOX: ${{ github.workspace }}/.mv3-browser/chrome-linux64/chrome_sandbox",
+            workflow,
+        )
 
     def test_runner_accepts_real_chromedriver_element_ids_without_path_injection(self) -> None:
         """ChromeDriver dotted element IDs must work while path syntax stays fail-closed."""

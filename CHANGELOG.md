@@ -7,6 +7,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 ### Changed
 
 - Kept the real MV3 compatibility lane sandboxed by installing the pinned Chrome for Testing archive's root-owned `chrome_sandbox` helper instead of passing `--no-sandbox`.
+- Pointed the pinned Chrome for Testing process at its installed `CHROME_DEVEL_SANDBOX` helper so the raw archive uses the configured setuid sandbox.
 - Retained only an allow-listed WebDriver protocol error code in bounded MV3 trial evidence, keeping browser-controlled error messages and transport text out of diagnostics.
 
 ### Added

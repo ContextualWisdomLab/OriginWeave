@@ -8,7 +8,7 @@ OriginWeave uses Chromium as its compatibility kernel, so browser-extension comp
 
 The checked-in fixture is intentionally local-only. Its host permission is limited to loopback HTTP used by the deterministic test server. It contains no remote code, user credential, model call, external content, native-messaging host, or production PII. Chrome permissions remain distinct from the explicit OriginWeave extension-to-Agent grant implemented in `originweave-core`. Compatibility mutation tests create only controlled synthetic state inside the ephemeral test profile and must clean it up; successful API compatibility never grants the OriginWeave Agent ambient bookmarks/history/downloads authority.
 
-The compatibility runner preserves Chromium's renderer sandbox and does not pass `--no-sandbox`. Because the Chrome for Testing archive does not carry setuid ownership through extraction, the workflow installs its pinned `chrome_sandbox` helper as root-owned mode `4755` before execution. A runner environment that cannot start the pinned browser with sandboxing enabled is an infrastructure failure to repair or report, not a reason to weaken the browser security boundary.
+The compatibility runner preserves Chromium's renderer sandbox and does not pass `--no-sandbox`. Because the Chrome for Testing archive does not carry setuid ownership through extraction, the workflow installs its pinned `chrome_sandbox` helper as root-owned mode `4755` and sets `CHROME_DEVEL_SANDBOX` to that exact helper before execution. A runner environment that cannot start the pinned browser with sandboxing enabled is an infrastructure failure to repair or report, not a reason to weaken the browser security boundary.
 
 ## Supported-capability evidence matrix
 

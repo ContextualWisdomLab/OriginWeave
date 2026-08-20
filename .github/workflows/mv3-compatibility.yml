@@ -71,6 +71,7 @@ jobs:
         env:
           CHROME_BIN: ${{ github.workspace }}/.mv3-browser/chrome-linux64/chrome
           CHROMEDRIVER_BIN: ${{ github.workspace }}/.mv3-browser/chromedriver-linux64/chromedriver
+          CHROME_DEVEL_SANDBOX: ${{ github.workspace }}/.mv3-browser/chrome-linux64/chrome_sandbox
         run: |
           set -euo pipefail
           "$CHROME_BIN" --version
