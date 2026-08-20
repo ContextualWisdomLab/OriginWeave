@@ -189,16 +189,16 @@ query($owner: String!, $name: String!, $number: Int!, $endCursor: String) {
         head_sha: $head,
         base_sha: $pr[0].base.sha,
         required_status_checks: {
-          check_runs: [$checks[][]?],
+          check_runs: [$checks[]?.check_runs[]?],
           legacy_statuses: [$statuses[][]?]
         },
         workflow_runs: [$workflow_runs[0].workflow_runs[]?],
-        counted_approvals: [
+        counted_approvals: ([
           $reviews[][]?
           | select(.state == "APPROVED")
           | select(.submitted_at != null)
           | select(.commit_id == $head)
-        ],
+        ] | length),
         required_workflows: [
           $rules[][]?
           | select(.type == "workflows")
