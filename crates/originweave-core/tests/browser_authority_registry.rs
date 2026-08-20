@@ -196,6 +196,30 @@ fn context_origin_cannot_change_without_document_rotation() -> Result<(), Box<dy
 }
 
 #[test]
+fn failed_node_allocation_does_not_bind_context_origin() -> Result<(), Box<dyn Error>> {
+    let mut registry = BrowserAuthorityRegistry::with_identifier_limit(2);
+    let session = registry.register_session("webdriver-session")?;
+    let exhausted_context = registry.register_context(session, "exhaustion-source")?;
+    let clean_context = registry.register_context(session, "clean-context")?;
+    let first_origin = loopback_origin()?;
+    let second_origin = Origin::parse("http://localhost:43127")?;
+
+    registry.bind_node(session, exhausted_context, &first_origin, "node-one")?;
+    registry.bind_node(session, exhausted_context, &first_origin, "node-two")?;
+
+    assert_eq!(
+        registry.bind_node(session, clean_context, &first_origin, "node-three"),
+        Err(BrowserRegistryError::IdentifierSpaceExhausted)
+    );
+    assert_eq!(
+        registry.bind_node(session, clean_context, &second_origin, "node-three"),
+        Err(BrowserRegistryError::IdentifierSpaceExhausted),
+        "a failed allocation must not leave behind origin authority"
+    );
+    Ok(())
+}
+
+#[test]
 fn external_identifiers_are_bounded_without_assuming_protocol_syntax() -> Result<(), Box<dyn Error>>
 {
     let mut registry = BrowserAuthorityRegistry::new();
