@@ -7,7 +7,7 @@
 //! `originweave-core` into one bounded exact TCP connection, binds an RFC 6455
 //! opening request to that verified plain stream, and can write that exact request
 //! under one bounded deadline and validate its bounded RFC 6455 opening response
-//! without implementing WebSocket framing or granting browser, WebSocket, TLS,
+//! and one bounded frame at a time without granting browser, WebSocket, TLS,
 //! policy, or Agent authority.
 
 #![forbid(unsafe_code)]
@@ -26,9 +26,12 @@ pub use webdriver_bidi_connection::{
     WebDriverBiDiTcpConnectionEvidence, WebDriverBiDiTcpConnectionPlan,
 };
 pub use webdriver_bidi_websocket_handshake::{
+    MAX_WEBSOCKET_FRAME_PAYLOAD_SIZE, MAX_WEBSOCKET_FRAME_TIMEOUT,
     MAX_WEBSOCKET_OPENING_RESPONSE_SIZE, MAX_WEBSOCKET_OPENING_RESPONSE_TIMEOUT,
     MAX_WEBSOCKET_OPENING_WRITE_TIMEOUT, WebDriverBiDiWebSocketClientKey,
-    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketHandshakeError,
+    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrame,
+    WebDriverBiDiWebSocketFrameError, WebDriverBiDiWebSocketHandshakeError,
     WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketHandshakeResponseError,
-    WebDriverBiDiWebSocketOpeningRequestSent, WebDriverBiDiWebSocketOpeningWriteError,
+    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketOpeningRequestSent,
+    WebDriverBiDiWebSocketOpeningWriteError,
 };

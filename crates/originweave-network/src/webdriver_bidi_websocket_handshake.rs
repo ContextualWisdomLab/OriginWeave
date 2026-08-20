@@ -16,6 +16,7 @@ use crate::{WebDriverBiDiTcpConnection, WebDriverBiDiTcpConnectionEvidence};
 const WEBSOCKET_CLIENT_KEY_LENGTH: usize = 24;
 const RFC6455_WEBSOCKET_GUID: &[u8] = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 const MAX_WEBSOCKET_OPENING_RESPONSE_BYTES: usize = 16 * 1024;
+const MAX_WEBSOCKET_FRAME_PAYLOAD_BYTES: usize = 1024 * 1024;
 
 /// Maximum wall-clock budget accepted for writing one bounded WebSocket opening request.
 ///
@@ -34,6 +35,12 @@ pub const MAX_WEBSOCKET_OPENING_RESPONSE_TIMEOUT: Duration = Duration::from_secs
 /// The response is consumed only through its terminating `CRLF CRLF`; WebSocket frames are not
 /// read or interpreted by this boundary.
 pub const MAX_WEBSOCKET_OPENING_RESPONSE_SIZE: usize = MAX_WEBSOCKET_OPENING_RESPONSE_BYTES;
+
+/// Maximum payload bytes admitted for one WebSocket frame.
+pub const MAX_WEBSOCKET_FRAME_PAYLOAD_SIZE: usize = MAX_WEBSOCKET_FRAME_PAYLOAD_BYTES;
+
+/// Maximum wall-clock budget accepted for one bounded WebSocket frame I/O operation.
+pub const MAX_WEBSOCKET_FRAME_TIMEOUT: Duration = Duration::from_secs(5);
 
 fn is_base64_data_byte(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || matches!(byte, b'+' | b'/')
@@ -93,6 +100,28 @@ impl WebDriverBiDiWebSocketClientKey {
     /// Borrow the exact canonical value for `Sec-WebSocket-Key` serialization.
     #[must_use]
     pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// Caller-supplied RFC 6455 mask key for one client-to-server frame.
+///
+/// RFC 6455 requires every client frame to carry a fresh, unpredictable four-byte key. This type
+/// preserves that requirement at the API boundary without inventing an entropy source; callers must
+/// obtain a fresh key from an approved randomness source for every frame.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct WebDriverBiDiWebSocketMaskKey([u8; 4]);
+
+impl WebDriverBiDiWebSocketMaskKey {
+    /// Admit one four-byte caller-supplied frame mask key.
+    #[must_use]
+    pub const fn new(value: [u8; 4]) -> Self {
+        Self(value)
+    }
+
+    /// Borrow the exact four-byte key used on the wire.
+    #[must_use]
+    pub const fn as_bytes(&self) -> &[u8; 4] {
         &self.0
     }
 }
@@ -382,6 +411,268 @@ impl WebDriverBiDiWebSocketEstablished {
     #[must_use]
     pub const fn write_timeout(&self) -> Duration {
         self.write_timeout
+    }
+
+    /// Write one unfragmented, masked UTF-8 text frame on this verified stream.
+    ///
+    /// The operation consumes the established state and returns it only after the complete frame
+    /// is written and the temporary socket timeout is cleared. The caller must provide a fresh,
+    /// unpredictable masking key for this frame; it is never exposed in evidence or debug output.
+    /// This method does not translate JSON, create a BiDi session, or grant browser/Agent authority.
+    pub fn write_text_frame(
+        self,
+        text: &str,
+        masking_key: WebDriverBiDiWebSocketMaskKey,
+        frame_timeout: Duration,
+    ) -> Result<Self, WebDriverBiDiWebSocketFrameError> {
+        validate_frame_timeout(frame_timeout)?;
+        if text.len() > MAX_WEBSOCKET_FRAME_PAYLOAD_BYTES {
+            return Err(WebDriverBiDiWebSocketFrameError::FrameTooLarge {
+                payload_bytes: text.len(),
+                maximum_bytes: MAX_WEBSOCKET_FRAME_PAYLOAD_BYTES,
+            });
+        }
+
+        let frame = serialize_text_frame(text.as_bytes(), masking_key);
+        let Self {
+            mut stream,
+            transport_evidence,
+            client_key,
+            response_status,
+            response_byte_count,
+            response_timeout,
+            request_byte_count,
+            write_timeout,
+        } = self;
+        let mut now = Instant::now;
+        write_frame_with_clock(&mut stream, &frame, frame_timeout, &mut now)?;
+        Ok(Self {
+            stream,
+            transport_evidence,
+            client_key,
+            response_status,
+            response_byte_count,
+            response_timeout,
+            request_byte_count,
+            write_timeout,
+        })
+    }
+
+    /// Read one bounded RFC 6455 frame from this verified stream.
+    ///
+    /// Server-to-client frames must be unmasked. Data and continuation frames are returned one at
+    /// a time so a later message layer can enforce fragmentation and JSON semantics; control frames
+    /// are returned to that layer for protocol handling. Reserved bits/opcodes, oversized payloads,
+    /// noncanonical lengths, and incomplete reads fail closed. No frame grants browser/Agent
+    /// authority.
+    pub fn read_frame(
+        self,
+        frame_timeout: Duration,
+    ) -> Result<(Self, WebDriverBiDiWebSocketFrame), WebDriverBiDiWebSocketFrameError> {
+        validate_frame_timeout(frame_timeout)?;
+        let Self {
+            mut stream,
+            transport_evidence,
+            client_key,
+            response_status,
+            response_byte_count,
+            response_timeout,
+            request_byte_count,
+            write_timeout,
+        } = self;
+        let mut now = Instant::now;
+        let frame = read_frame_with_clock(&mut stream, frame_timeout, &mut now)?;
+        Ok((
+            Self {
+                stream,
+                transport_evidence,
+                client_key,
+                response_status,
+                response_byte_count,
+                response_timeout,
+                request_byte_count,
+                write_timeout,
+            },
+            frame,
+        ))
+    }
+}
+
+/// One validated WebSocket frame received from the established peer.
+#[derive(Debug, Eq, PartialEq)]
+pub struct WebDriverBiDiWebSocketFrame {
+    fin: bool,
+    opcode: u8,
+    payload: Vec<u8>,
+}
+
+impl WebDriverBiDiWebSocketFrame {
+    /// Return whether this is the final frame in its message.
+    #[must_use]
+    pub const fn fin(&self) -> bool {
+        self.fin
+    }
+
+    /// Return the RFC 6455 opcode without interpreting application semantics.
+    #[must_use]
+    pub const fn opcode(&self) -> u8 {
+        self.opcode
+    }
+
+    /// Borrow the bounded, unmasked application payload.
+    #[must_use]
+    pub fn payload(&self) -> &[u8] {
+        &self.payload
+    }
+}
+
+fn validate_frame_timeout(frame_timeout: Duration) -> Result<(), WebDriverBiDiWebSocketFrameError> {
+    if frame_timeout.is_zero() || frame_timeout > MAX_WEBSOCKET_FRAME_TIMEOUT {
+        return Err(WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout {
+            frame_timeout,
+            maximum_timeout: MAX_WEBSOCKET_FRAME_TIMEOUT,
+        });
+    }
+    Ok(())
+}
+
+/// Fail-closed errors while reading or writing one bounded WebSocket frame.
+#[derive(Debug)]
+pub enum WebDriverBiDiWebSocketFrameError {
+    /// The requested frame I/O deadline was zero or above the reviewed resource ceiling.
+    InvalidFrameTimeout {
+        /// Rejected caller-supplied deadline.
+        frame_timeout: Duration,
+        /// Maximum reviewed deadline accepted by this boundary.
+        maximum_timeout: Duration,
+    },
+    /// The frame payload exceeded the reviewed memory ceiling.
+    FrameTooLarge {
+        /// Rejected payload length in bytes.
+        payload_bytes: usize,
+        /// Maximum payload length admitted by this boundary.
+        maximum_bytes: usize,
+    },
+    /// Applying the operation-local nonblocking read mode failed.
+    FrameReadModeConfigurationFailed {
+        /// Underlying operating-system error.
+        source: io::Error,
+    },
+    /// A bounded socket read timed out before the frame was complete.
+    FrameReadTimedOut {
+        /// Number of frame bytes consumed before timeout.
+        bytes_read: usize,
+        /// Underlying operating-system error.
+        source: io::Error,
+    },
+    /// A non-recoverable socket read failed before the frame was complete.
+    FrameReadFailed {
+        /// Number of frame bytes consumed before failure.
+        bytes_read: usize,
+        /// Underlying operating-system error.
+        source: io::Error,
+    },
+    /// The peer ended the stream before the frame was complete.
+    FrameEnded {
+        /// Number of frame bytes consumed before EOF.
+        bytes_read: usize,
+    },
+    /// The frame header violated RFC 6455 or the no-extension policy.
+    MalformedFrame {
+        /// Stable, non-secret reason for rejection.
+        reason: &'static str,
+    },
+    /// Applying the operation-local write timeout failed.
+    FrameWriteModeConfigurationFailed {
+        /// Number of frame bytes already written before configuration failed.
+        bytes_written: usize,
+        /// Underlying operating-system error.
+        source: io::Error,
+    },
+    /// A bounded socket write timed out before the frame was complete.
+    FrameWriteTimedOut {
+        /// Number of frame bytes written before timeout.
+        bytes_written: usize,
+        /// Underlying operating-system error.
+        source: io::Error,
+    },
+    /// A non-recoverable socket write failed before the frame was complete.
+    FrameWriteFailed {
+        /// Number of frame bytes written before failure.
+        bytes_written: usize,
+        /// Underlying operating-system error.
+        source: io::Error,
+    },
+    /// The stream reported zero progress before the frame was complete.
+    FrameWriteZero {
+        /// Number of frame bytes written before zero progress.
+        bytes_written: usize,
+    },
+    /// Clearing the temporary write timeout failed before handoff.
+    FrameWriteCleanupFailed {
+        /// Underlying operating-system error.
+        source: io::Error,
+    },
+}
+
+impl fmt::Display for WebDriverBiDiWebSocketFrameError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidFrameTimeout { .. } => formatter
+                .write_str("WebDriver BiDi WebSocket frame timeout is outside the reviewed bound"),
+            Self::FrameTooLarge { .. } => {
+                formatter.write_str("WebDriver BiDi WebSocket frame payload exceeded its bound")
+            }
+            Self::FrameReadModeConfigurationFailed { .. } => {
+                formatter.write_str("failed to configure bounded WebSocket frame reads")
+            }
+            Self::FrameReadTimedOut { .. } => {
+                formatter.write_str("WebDriver BiDi WebSocket frame read timed out")
+            }
+            Self::FrameReadFailed { .. } => {
+                formatter.write_str("WebDriver BiDi WebSocket frame read failed")
+            }
+            Self::FrameEnded { .. } => {
+                formatter.write_str("WebDriver BiDi WebSocket peer ended the frame stream")
+            }
+            Self::MalformedFrame { .. } => {
+                formatter.write_str("WebDriver BiDi WebSocket frame was malformed")
+            }
+            Self::FrameWriteModeConfigurationFailed { .. } => {
+                formatter.write_str("failed to configure bounded WebSocket frame writes")
+            }
+            Self::FrameWriteTimedOut { .. } => {
+                formatter.write_str("WebDriver BiDi WebSocket frame write timed out")
+            }
+            Self::FrameWriteFailed { .. } => {
+                formatter.write_str("WebDriver BiDi WebSocket frame write failed")
+            }
+            Self::FrameWriteZero { .. } => {
+                formatter.write_str("WebDriver BiDi WebSocket frame write made no progress")
+            }
+            Self::FrameWriteCleanupFailed { .. } => {
+                formatter.write_str("failed to clear the WebDriver BiDi WebSocket frame timeout")
+            }
+        }
+    }
+}
+
+impl Error for WebDriverBiDiWebSocketFrameError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::FrameReadModeConfigurationFailed { source }
+            | Self::FrameReadTimedOut { source, .. }
+            | Self::FrameReadFailed { source, .. }
+            | Self::FrameWriteModeConfigurationFailed { source, .. }
+            | Self::FrameWriteTimedOut { source, .. }
+            | Self::FrameWriteFailed { source, .. }
+            | Self::FrameWriteCleanupFailed { source } => Some(source),
+            Self::InvalidFrameTimeout { .. }
+            | Self::FrameTooLarge { .. }
+            | Self::FrameEnded { .. }
+            | Self::MalformedFrame { .. }
+            | Self::FrameWriteZero { .. } => None,
+        }
     }
 }
 
@@ -693,6 +984,260 @@ impl OpeningResponseReader for TcpStream {
     }
 }
 
+fn serialize_text_frame(payload: &[u8], masking_key: WebDriverBiDiWebSocketMaskKey) -> Vec<u8> {
+    let mut frame = Vec::with_capacity(payload.len() + 14);
+    frame.push(0x81);
+    match payload.len() {
+        0..=125 => frame.push(0x80 | payload.len() as u8),
+        126..=65_535 => {
+            frame.push(0x80 | 126);
+            frame.extend_from_slice(&(payload.len() as u16).to_be_bytes());
+        }
+        length => {
+            frame.push(0x80 | 127);
+            frame.extend_from_slice(&(length as u64).to_be_bytes());
+        }
+    }
+    frame.extend_from_slice(masking_key.as_bytes());
+    frame.extend(
+        payload.iter().enumerate().map(|(index, byte)| {
+            byte ^ masking_key.as_bytes()[index % masking_key.as_bytes().len()]
+        }),
+    );
+    frame
+}
+
+trait FrameWriter {
+    fn set_write_timeout(&self, timeout: Option<Duration>) -> io::Result<()>;
+    fn write_frame_bytes(&mut self, bytes: &[u8]) -> io::Result<usize>;
+}
+
+impl FrameWriter for TcpStream {
+    fn set_write_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
+        TcpStream::set_write_timeout(self, timeout)
+    }
+
+    fn write_frame_bytes(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        self.write(bytes)
+    }
+}
+
+fn write_frame_with_clock(
+    writer: &mut dyn FrameWriter,
+    frame: &[u8],
+    frame_timeout: Duration,
+    now: &mut dyn FnMut() -> Instant,
+) -> Result<usize, WebDriverBiDiWebSocketFrameError> {
+    let deadline = now() + frame_timeout;
+    let mut bytes_written = 0;
+    while bytes_written < frame.len() {
+        let remaining = deadline.saturating_duration_since(now());
+        if remaining.is_zero() {
+            return Err(WebDriverBiDiWebSocketFrameError::FrameWriteTimedOut {
+                bytes_written,
+                source: io::Error::new(io::ErrorKind::TimedOut, "frame write deadline elapsed"),
+            });
+        }
+        writer
+            .set_write_timeout(Some(remaining))
+            .map_err(|source| {
+                WebDriverBiDiWebSocketFrameError::FrameWriteModeConfigurationFailed {
+                    bytes_written,
+                    source,
+                }
+            })?;
+        match writer.write_frame_bytes(&frame[bytes_written..]) {
+            Ok(0) => {
+                return Err(WebDriverBiDiWebSocketFrameError::FrameWriteZero { bytes_written });
+            }
+            Ok(written) => bytes_written += written,
+            Err(source) => {
+                if source.kind() == io::ErrorKind::Interrupted {
+                    continue;
+                }
+                if matches!(
+                    source.kind(),
+                    io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock
+                ) {
+                    if deadline.saturating_duration_since(now()).is_zero() {
+                        return Err(WebDriverBiDiWebSocketFrameError::FrameWriteTimedOut {
+                            bytes_written,
+                            source,
+                        });
+                    }
+                    thread::sleep(Duration::from_millis(1));
+                    continue;
+                }
+                return Err(WebDriverBiDiWebSocketFrameError::FrameWriteFailed {
+                    bytes_written,
+                    source,
+                });
+            }
+        }
+    }
+    writer
+        .set_write_timeout(None)
+        .map_err(|source| WebDriverBiDiWebSocketFrameError::FrameWriteCleanupFailed { source })?;
+    Ok(bytes_written)
+}
+
+fn read_frame_with_clock(
+    reader: &mut dyn OpeningResponseReader,
+    frame_timeout: Duration,
+    now: &mut dyn FnMut() -> Instant,
+) -> Result<WebDriverBiDiWebSocketFrame, WebDriverBiDiWebSocketFrameError> {
+    let deadline = now() + frame_timeout;
+    reader.set_nonblocking(true).map_err(|source| {
+        WebDriverBiDiWebSocketFrameError::FrameReadModeConfigurationFailed { source }
+    })?;
+    let mut bytes_read = 0;
+    let mut header = [0_u8; 2];
+    read_frame_bytes_with_clock(reader, &mut header, &mut bytes_read, deadline, now)?;
+    let first = header[0];
+    let second = header[1];
+    if first & 0x70 != 0 {
+        return Err(WebDriverBiDiWebSocketFrameError::MalformedFrame {
+            reason: "reserved frame bits are not negotiated",
+        });
+    }
+    let fin = first & 0x80 != 0;
+    let opcode = first & 0x0f;
+    match opcode {
+        0x0..=0x2 => {}
+        0x8..=0xa => {
+            if !fin {
+                return Err(WebDriverBiDiWebSocketFrameError::MalformedFrame {
+                    reason: "control frames must not be fragmented",
+                });
+            }
+        }
+        _ => {
+            return Err(WebDriverBiDiWebSocketFrameError::MalformedFrame {
+                reason: "frame opcode is reserved or unsupported",
+            });
+        }
+    }
+    if second & 0x80 != 0 {
+        return Err(WebDriverBiDiWebSocketFrameError::MalformedFrame {
+            reason: "server-to-client frames must not be masked",
+        });
+    }
+    let length_code = second & 0x7f;
+    let payload_length = match length_code {
+        0..=125 => u64::from(length_code),
+        126 => {
+            let mut extended = [0_u8; 2];
+            read_frame_bytes_with_clock(reader, &mut extended, &mut bytes_read, deadline, now)?;
+            let length = u64::from(u16::from_be_bytes(extended));
+            if length < 126 {
+                return Err(WebDriverBiDiWebSocketFrameError::MalformedFrame {
+                    reason: "frame length encoding is not minimal",
+                });
+            }
+            length
+        }
+        _ => {
+            let mut extended = [0_u8; 8];
+            read_frame_bytes_with_clock(reader, &mut extended, &mut bytes_read, deadline, now)?;
+            if extended[0] & 0x80 != 0 {
+                return Err(WebDriverBiDiWebSocketFrameError::MalformedFrame {
+                    reason: "frame length uses the reserved high bit",
+                });
+            }
+            let length = u64::from_be_bytes(extended);
+            if length < 65_536 {
+                return Err(WebDriverBiDiWebSocketFrameError::MalformedFrame {
+                    reason: "frame length encoding is not minimal",
+                });
+            }
+            length
+        }
+    };
+    if payload_length > MAX_WEBSOCKET_FRAME_PAYLOAD_BYTES as u64 {
+        return Err(WebDriverBiDiWebSocketFrameError::FrameTooLarge {
+            payload_bytes: payload_length.min(usize::MAX as u64) as usize,
+            maximum_bytes: MAX_WEBSOCKET_FRAME_PAYLOAD_BYTES,
+        });
+    }
+    if opcode >= 0x8 && payload_length > 125 {
+        return Err(WebDriverBiDiWebSocketFrameError::MalformedFrame {
+            reason: "control frame payload exceeds 125 bytes",
+        });
+    }
+    let payload_length = payload_length as usize;
+    let mut payload = vec![0_u8; payload_length];
+    read_frame_bytes_with_clock(reader, &mut payload, &mut bytes_read, deadline, now)?;
+    reader.set_nonblocking(false).map_err(|source| {
+        WebDriverBiDiWebSocketFrameError::FrameReadFailed { bytes_read, source }
+    })?;
+    Ok(WebDriverBiDiWebSocketFrame {
+        fin,
+        opcode,
+        payload,
+    })
+}
+
+fn read_frame_bytes_with_clock(
+    reader: &mut dyn OpeningResponseReader,
+    destination: &mut [u8],
+    bytes_read: &mut usize,
+    deadline: Instant,
+    now: &mut dyn FnMut() -> Instant,
+) -> Result<(), WebDriverBiDiWebSocketFrameError> {
+    let mut offset = 0;
+    while offset < destination.len() {
+        let remaining = deadline.saturating_duration_since(now());
+        if remaining.is_zero() {
+            return Err(WebDriverBiDiWebSocketFrameError::FrameReadTimedOut {
+                bytes_read: *bytes_read,
+                source: io::Error::new(io::ErrorKind::TimedOut, "frame read deadline elapsed"),
+            });
+        }
+        match reader.read_response_bytes(&mut destination[offset..]) {
+            Ok(0) => {
+                return Err(WebDriverBiDiWebSocketFrameError::FrameEnded {
+                    bytes_read: *bytes_read,
+                });
+            }
+            Ok(read) if read > destination.len() - offset => {
+                return Err(WebDriverBiDiWebSocketFrameError::FrameReadFailed {
+                    bytes_read: *bytes_read,
+                    source: io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "frame reader returned more bytes than requested",
+                    ),
+                });
+            }
+            Ok(read) => {
+                offset += read;
+                *bytes_read += read;
+            }
+            Err(source) if source.kind() == io::ErrorKind::Interrupted => {}
+            Err(source)
+                if matches!(
+                    source.kind(),
+                    io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock
+                ) =>
+            {
+                if deadline.saturating_duration_since(now()).is_zero() {
+                    return Err(WebDriverBiDiWebSocketFrameError::FrameReadTimedOut {
+                        bytes_read: *bytes_read,
+                        source,
+                    });
+                }
+                thread::sleep(Duration::from_millis(1));
+            }
+            Err(source) => {
+                return Err(WebDriverBiDiWebSocketFrameError::FrameReadFailed {
+                    bytes_read: *bytes_read,
+                    source,
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
 fn read_opening_response_with_clock(
     reader: &mut dyn OpeningResponseReader,
     client_key: &WebDriverBiDiWebSocketClientKey,
@@ -978,7 +1523,13 @@ fn write_request_with_clock(
 #[allow(clippy::expect_used)]
 mod opening_write_tests {
     use super::*;
-    use std::{collections::VecDeque, net::TcpListener, thread};
+    use std::{
+        collections::VecDeque,
+        net::{Shutdown, TcpListener},
+        thread,
+    };
+
+    use originweave_core::WebDriverBiDiWebSocketEndpoint;
 
     #[derive(Debug)]
     enum WriteAction {
@@ -1027,6 +1578,21 @@ mod opening_write_tests {
                 WriteAction::Count(count) => Ok(count.min(bytes.len())),
                 WriteAction::Error(kind) => Err(io::Error::from(kind)),
             }
+        }
+    }
+
+    impl FrameWriter for FakeWriter {
+        fn set_write_timeout(&self, timeout: Option<Duration>) -> io::Result<()> {
+            let error = if timeout.is_some() {
+                self.timeout_error
+            } else {
+                self.clear_timeout_error
+            };
+            error.map_or(Ok(()), |kind| Err(io::Error::from(kind)))
+        }
+
+        fn write_frame_bytes(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            self.write_request_bytes(bytes)
         }
     }
 
@@ -1107,6 +1673,16 @@ mod opening_write_tests {
         let mut now_values = now_values.into_iter();
         let mut now = || now_values.next().unwrap_or(fallback);
         read_opening_response_with_clock(reader, &key, Duration::from_secs(1), &mut now)
+    }
+
+    fn read_frame_with_fake(
+        reader: &mut FakeReader,
+        now_values: impl IntoIterator<Item = Instant>,
+    ) -> Result<WebDriverBiDiWebSocketFrame, WebDriverBiDiWebSocketFrameError> {
+        let fallback = Instant::now();
+        let mut now_values = now_values.into_iter();
+        let mut now = || now_values.next().unwrap_or(fallback);
+        read_frame_with_clock(reader, Duration::from_secs(1), &mut now)
     }
 
     #[test]
@@ -1536,5 +2112,364 @@ mod opening_write_tests {
         assert!(zero.source().is_none());
         assert!(failed.source().is_some());
         assert!(cleanup.source().is_some());
+    }
+
+    #[test]
+    fn frame_codec_reader_writer_and_errors_are_fully_bounded() {
+        let masking_key = WebDriverBiDiWebSocketMaskKey::new([0x37, 0xfa, 0x21, 0x3d]);
+        assert_eq!(masking_key.as_bytes(), &[0x37, 0xfa, 0x21, 0x3d]);
+        for payload in [vec![b'x'; 125], vec![b'x'; 126], vec![b'x'; 65_536]] {
+            let frame = serialize_text_frame(&payload, masking_key);
+            assert_eq!(frame[0], 0x81);
+            assert_ne!(frame[1] & 0x80, 0);
+            let mask_offset = match payload.len() {
+                0..=125 => 2,
+                126..=65_535 => 4,
+                _ => 10,
+            };
+            assert_eq!(&frame[mask_offset..mask_offset + 4], masking_key.as_bytes());
+        }
+
+        let start = Instant::now();
+        let valid = [0x81, 0x01, b'x'];
+        let mut valid_reader = FakeReader::new(byte_actions(&valid));
+        let valid_frame = read_frame_with_fake(&mut valid_reader, [start]).expect("valid frame");
+        assert!(valid_frame.fin());
+        assert_eq!(valid_frame.opcode(), 0x1);
+        assert_eq!(valid_frame.payload(), b"x");
+
+        let mut ping_reader = FakeReader::new([ReadAction::Byte(0x89), ReadAction::Byte(0)]);
+        let ping = read_frame_with_fake(&mut ping_reader, [start]).expect("ping frame");
+        assert!(ping.fin());
+        assert_eq!(ping.opcode(), 0x9);
+
+        let mut continuation_reader =
+            FakeReader::new([ReadAction::Byte(0x00), ReadAction::Byte(0)]);
+        let continuation =
+            read_frame_with_fake(&mut continuation_reader, [start]).expect("continuation frame");
+        assert!(!continuation.fin());
+        assert_eq!(continuation.opcode(), 0);
+
+        let mut extended_16 = FakeReader::new(
+            byte_actions(&[0x81, 126, 0, 126])
+                .into_iter()
+                .chain([ReadAction::Count(126)]),
+        );
+        assert_eq!(
+            read_frame_with_fake(&mut extended_16, [start])
+                .expect("extended frame")
+                .payload()
+                .len(),
+            126
+        );
+        let mut extended_64 = FakeReader::new(
+            byte_actions(&[0x81, 127, 0, 0, 0, 0, 0, 1, 0, 0])
+                .into_iter()
+                .chain([ReadAction::Count(65_536)]),
+        );
+        assert_eq!(
+            read_frame_with_fake(&mut extended_64, [start])
+                .expect("large extended frame")
+                .payload()
+                .len(),
+            65_536
+        );
+        let mut extended_16_error = FakeReader::new([
+            ReadAction::Byte(0x81),
+            ReadAction::Byte(126),
+            ReadAction::Error(io::ErrorKind::BrokenPipe),
+        ]);
+        assert!(read_frame_with_fake(&mut extended_16_error, [start]).is_err());
+        let mut extended_64_error = FakeReader::new([
+            ReadAction::Byte(0x81),
+            ReadAction::Byte(127),
+            ReadAction::Error(io::ErrorKind::BrokenPipe),
+        ]);
+        assert!(read_frame_with_fake(&mut extended_64_error, [start]).is_err());
+
+        let mut oversized_header = vec![0x81, 127];
+        oversized_header
+            .extend_from_slice(&((MAX_WEBSOCKET_FRAME_PAYLOAD_BYTES as u64) + 1).to_be_bytes());
+        let mut malformed_readers = vec![
+            vec![0xc1, 0],
+            vec![0x09, 0],
+            vec![0x83, 0],
+            vec![0x81, 0x80],
+            vec![0x81, 126, 0, 1],
+            vec![0x81, 127, 0x80, 0, 0, 0, 0, 0, 0, 0],
+            vec![0x81, 127, 0, 0, 0, 0, 0, 0, 0xff, 0xff],
+            vec![0x89, 126, 0, 126],
+            oversized_header,
+        ];
+        for bytes in malformed_readers.drain(..) {
+            let mut reader = FakeReader::new(byte_actions(&bytes));
+            assert!(read_frame_with_fake(&mut reader, [start]).is_err());
+        }
+        let mut count_reader = FakeReader::new([ReadAction::Count(3)]);
+        assert!(read_frame_with_fake(&mut count_reader, [start]).is_err());
+        let mut ended_reader = FakeReader::new([ReadAction::Byte(0x81), ReadAction::End]);
+        assert!(read_frame_with_fake(&mut ended_reader, [start]).is_err());
+        let mut interrupted_reader = FakeReader::new(
+            std::iter::once(ReadAction::Error(io::ErrorKind::Interrupted))
+                .chain(byte_actions(&valid)),
+        );
+        assert!(read_frame_with_fake(&mut interrupted_reader, [start]).is_ok());
+        for kind in [io::ErrorKind::TimedOut, io::ErrorKind::WouldBlock] {
+            let mut retrying_reader = FakeReader::new(
+                std::iter::once(ReadAction::Error(kind)).chain(byte_actions(&valid)),
+            );
+            assert!(read_frame_with_fake(&mut retrying_reader, [start]).is_ok());
+        }
+        let mut payload_error_reader = FakeReader::new([
+            ReadAction::Byte(0x81),
+            ReadAction::Byte(1),
+            ReadAction::Error(io::ErrorKind::BrokenPipe),
+        ]);
+        assert!(read_frame_with_fake(&mut payload_error_reader, [start]).is_err());
+        let mut failed_reader = FakeReader::new([ReadAction::Error(io::ErrorKind::BrokenPipe)]);
+        assert!(read_frame_with_fake(&mut failed_reader, [start]).is_err());
+        let mut mode_reader = FakeReader::new([]);
+        mode_reader.mode_error = Some(io::ErrorKind::InvalidInput);
+        assert!(read_frame_with_fake(&mut mode_reader, [start]).is_err());
+        let mut timeout_reader = FakeReader::new([ReadAction::Error(io::ErrorKind::WouldBlock)]);
+        assert!(
+            read_frame_with_fake(
+                &mut timeout_reader,
+                [start, start, start + Duration::from_secs(1)]
+            )
+            .is_err()
+        );
+        let mut deadline_reader = FakeReader::new([]);
+        assert!(
+            read_frame_with_fake(
+                &mut deadline_reader,
+                [start, start + Duration::from_secs(1)]
+            )
+            .is_err()
+        );
+        let mut cleanup_reader = FakeReader::new(byte_actions(&valid));
+        cleanup_reader.cleanup_error = Some(io::ErrorKind::InvalidInput);
+        assert!(read_frame_with_fake(&mut cleanup_reader, [start]).is_err());
+
+        let mut writer = FakeWriter::new([
+            WriteAction::Count(1),
+            WriteAction::Error(io::ErrorKind::Interrupted),
+            WriteAction::Count(99),
+        ]);
+        let mut now = || start;
+        assert_eq!(
+            write_frame_with_clock(&mut writer, b"hello", Duration::from_secs(1), &mut now)
+                .expect("frame write"),
+            5
+        );
+        let mut empty_writer = FakeWriter::new([]);
+        let mut empty_now = || start;
+        assert_eq!(
+            write_frame_with_clock(
+                &mut empty_writer,
+                b"",
+                Duration::from_secs(1),
+                &mut empty_now
+            )
+            .expect("empty frame write"),
+            0
+        );
+        let mut deadline_writer = FakeWriter::new([]);
+        let mut deadline_times = VecDeque::from([start, start + Duration::from_secs(1)]);
+        let mut deadline_now = || deadline_times.pop_front().unwrap_or(start);
+        assert!(
+            write_frame_with_clock(
+                &mut deadline_writer,
+                b"x",
+                Duration::from_secs(1),
+                &mut deadline_now
+            )
+            .is_err()
+        );
+        let mut zero_writer = FakeWriter::new([WriteAction::Count(0)]);
+        let mut zero_now = || start;
+        assert!(
+            write_frame_with_clock(
+                &mut zero_writer,
+                b"x",
+                Duration::from_secs(1),
+                &mut zero_now
+            )
+            .is_err()
+        );
+        for kind in [io::ErrorKind::TimedOut, io::ErrorKind::WouldBlock] {
+            let mut writer = FakeWriter::new([WriteAction::Error(kind)]);
+            let mut times = VecDeque::from([start, start, start + Duration::from_secs(1)]);
+            let mut now = || times.pop_front().unwrap_or(start);
+            assert!(
+                write_frame_with_clock(&mut writer, b"x", Duration::from_secs(1), &mut now)
+                    .is_err()
+            );
+        }
+        let mut retrying_writer = FakeWriter::new([
+            WriteAction::Error(io::ErrorKind::WouldBlock),
+            WriteAction::Count(1),
+        ]);
+        let mut retrying_now = || start;
+        assert_eq!(
+            write_frame_with_clock(
+                &mut retrying_writer,
+                b"x",
+                Duration::from_secs(1),
+                &mut retrying_now
+            )
+            .expect("retrying frame write"),
+            1
+        );
+        let mut interrupted_writer = FakeWriter::new([
+            WriteAction::Error(io::ErrorKind::Interrupted),
+            WriteAction::Count(1),
+        ]);
+        let mut interrupted_now = || start;
+        assert_eq!(
+            write_frame_with_clock(
+                &mut interrupted_writer,
+                b"x",
+                Duration::from_secs(1),
+                &mut interrupted_now
+            )
+            .expect("interrupted frame write"),
+            1
+        );
+        let mut failed_writer = FakeWriter::new([WriteAction::Error(io::ErrorKind::BrokenPipe)]);
+        let mut failed_now = || start;
+        assert!(
+            write_frame_with_clock(
+                &mut failed_writer,
+                b"x",
+                Duration::from_secs(1),
+                &mut failed_now
+            )
+            .is_err()
+        );
+        let mut configuration_writer = FakeWriter::new([]);
+        configuration_writer.timeout_error = Some(io::ErrorKind::InvalidInput);
+        let mut configuration_now = || start;
+        assert!(
+            write_frame_with_clock(
+                &mut configuration_writer,
+                b"x",
+                Duration::from_secs(1),
+                &mut configuration_now
+            )
+            .is_err()
+        );
+        let mut cleanup_writer = FakeWriter::new([WriteAction::Count(1)]);
+        cleanup_writer.clear_timeout_error = Some(io::ErrorKind::InvalidInput);
+        let mut cleanup_now = || start;
+        assert!(
+            write_frame_with_clock(
+                &mut cleanup_writer,
+                b"x",
+                Duration::from_secs(1),
+                &mut cleanup_now
+            )
+            .is_err()
+        );
+
+        for timeout in [
+            Duration::ZERO,
+            MAX_WEBSOCKET_FRAME_TIMEOUT + Duration::from_nanos(1),
+        ] {
+            assert!(validate_frame_timeout(timeout).is_err());
+        }
+        let errors = [
+            WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout {
+                frame_timeout: Duration::ZERO,
+                maximum_timeout: MAX_WEBSOCKET_FRAME_TIMEOUT,
+            },
+            WebDriverBiDiWebSocketFrameError::FrameTooLarge {
+                payload_bytes: 2,
+                maximum_bytes: 1,
+            },
+            WebDriverBiDiWebSocketFrameError::FrameReadModeConfigurationFailed {
+                source: io::Error::from(io::ErrorKind::InvalidInput),
+            },
+            WebDriverBiDiWebSocketFrameError::FrameReadTimedOut {
+                bytes_read: 1,
+                source: io::Error::from(io::ErrorKind::TimedOut),
+            },
+            WebDriverBiDiWebSocketFrameError::FrameReadFailed {
+                bytes_read: 1,
+                source: io::Error::from(io::ErrorKind::BrokenPipe),
+            },
+            WebDriverBiDiWebSocketFrameError::FrameEnded { bytes_read: 1 },
+            WebDriverBiDiWebSocketFrameError::MalformedFrame { reason: "test" },
+            WebDriverBiDiWebSocketFrameError::FrameWriteModeConfigurationFailed {
+                bytes_written: 1,
+                source: io::Error::from(io::ErrorKind::InvalidInput),
+            },
+            WebDriverBiDiWebSocketFrameError::FrameWriteTimedOut {
+                bytes_written: 1,
+                source: io::Error::from(io::ErrorKind::TimedOut),
+            },
+            WebDriverBiDiWebSocketFrameError::FrameWriteFailed {
+                bytes_written: 1,
+                source: io::Error::from(io::ErrorKind::BrokenPipe),
+            },
+            WebDriverBiDiWebSocketFrameError::FrameWriteZero { bytes_written: 1 },
+            WebDriverBiDiWebSocketFrameError::FrameWriteCleanupFailed {
+                source: io::Error::from(io::ErrorKind::InvalidInput),
+            },
+        ];
+        for (error, has_source) in errors.iter().zip([
+            false, false, true, true, true, false, false, true, true, true, false, true,
+        ]) {
+            assert!(!error.to_string().is_empty());
+            assert_eq!(error.source().is_some(), has_source);
+        }
+    }
+
+    #[test]
+    fn established_frame_write_discards_locally_revoked_streams() {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).expect("test listener must bind");
+        let address = listener
+            .local_addr()
+            .expect("test listener address must be available");
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("test server must accept");
+            stream
+                .write_all(&valid_response())
+                .expect("test server must write response");
+        });
+
+        let endpoint = WebDriverBiDiWebSocketEndpoint::new(&format!(
+            "ws://{address}/session/01234567-89ab-cdef-0123-456789abcdef"
+        ))
+        .expect("test endpoint must be valid");
+        let correlated = endpoint
+            .correlate_session_id("01234567-89ab-cdef-0123-456789abcdef")
+            .expect("test session must correlate");
+        let target = correlated
+            .into_explicit_connect_target()
+            .expect("test target must be explicit");
+        let connection =
+            crate::WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)
+                .expect("test connection plan must be valid")
+                .connect()
+                .expect("test connection must succeed");
+        let sent = WebDriverBiDiWebSocketHandshakePlan::new(connection, client_key())
+            .expect("test handshake plan must be valid")
+            .write_opening_request(Duration::from_secs(1))
+            .expect("test opening request must be written");
+        let established = sent
+            .read_opening_response(Duration::from_secs(1))
+            .expect("test opening response must be valid");
+        let _ = established.stream.shutdown(Shutdown::Both);
+        assert!(
+            established
+                .write_text_frame(
+                    "x",
+                    WebDriverBiDiWebSocketMaskKey::new([0x37, 0xfa, 0x21, 0x3d]),
+                    Duration::from_secs(1),
+                )
+                .is_err()
+        );
+        assert!(server.join().is_ok());
     }
 }
