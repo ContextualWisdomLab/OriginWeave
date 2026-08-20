@@ -61,8 +61,7 @@ fn extraction_fields_fail_closed_on_type_incompatible_normalization() {
 }
 
 #[test]
-fn existing_fields_default_to_verbatim_normalization()
--> Result<(), ExtractionSchemaError> {
+fn existing_fields_default_to_verbatim_normalization() -> Result<(), ExtractionSchemaError> {
     let field = ExtractionField::new(
         "unit_price",
         ExtractionValueType::Decimal,
