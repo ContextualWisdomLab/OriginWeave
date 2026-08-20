@@ -88,6 +88,18 @@ pub enum BapTaskTransitionError {
     },
 }
 
+/// A fail-closed lifecycle recovery failure.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BapTaskRestoreError {
+    /// The supplied state and transition sequence cannot arise from this state machine.
+    InvalidSnapshot {
+        /// Logical state supplied by the durable recovery boundary.
+        state: BapTaskState,
+        /// Last accepted transition sequence supplied by the durable recovery boundary.
+        transition_sequence: u64,
+    },
+}
+
 /// Immutable receipt for one accepted in-memory lifecycle transition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BapTaskTransition {
@@ -145,12 +157,24 @@ impl BapTaskLifecycle {
     }
 
     /// Restore a lifecycle state and its last accepted transition sequence.
-    #[must_use]
-    pub const fn restore(state: BapTaskState, transition_sequence: u64) -> Self {
-        Self {
+    ///
+    /// Recovery accepts only state/sequence pairs that are reachable through
+    /// this exact state machine. This prevents corrupt or stale durable metadata
+    /// from manufacturing an impossible execution state.
+    pub const fn restore(
+        state: BapTaskState,
+        transition_sequence: u64,
+    ) -> Result<Self, BapTaskRestoreError> {
+        if !reachable_snapshot(state, transition_sequence) {
+            return Err(BapTaskRestoreError::InvalidSnapshot {
+                state,
+                transition_sequence,
+            });
+        }
+        Ok(Self {
             state,
             transition_sequence,
-        }
+        })
     }
 
     /// Return the current logical task state.
@@ -213,5 +237,24 @@ impl BapTaskLifecycle {
             current_state: next_state,
             sequence,
         })
+    }
+}
+
+const fn reachable_snapshot(state: BapTaskState, transition_sequence: u64) -> bool {
+    match state {
+        BapTaskState::Created => transition_sequence == 0,
+        BapTaskState::Admitted => transition_sequence == 1,
+        BapTaskState::Running => transition_sequence >= 2 && transition_sequence.is_multiple_of(2),
+        BapTaskState::WaitingForApproval
+        | BapTaskState::WaitingForExternalInput
+        | BapTaskState::Checkpointed => {
+            transition_sequence >= 3 && !transition_sequence.is_multiple_of(2)
+        }
+        BapTaskState::Succeeded => {
+            transition_sequence >= 3 && !transition_sequence.is_multiple_of(2)
+        }
+        BapTaskState::Failed | BapTaskState::Cancelled | BapTaskState::Expired => {
+            transition_sequence >= 1
+        }
     }
 }
