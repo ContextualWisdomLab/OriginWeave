@@ -67,6 +67,67 @@ class ChromeDriverSubprocessCompatibilityContractTests(unittest.TestCase):
         self.assertLessEqual(max(stream.requested_sizes), maximum + 1)
         self.assertEqual(read_line(stream), (b"next\n", False))
 
+    def test_startup_port_parser_treats_malformed_candidates_as_non_authoritative(self) -> None:
+        """Malformed candidate records must be ignorable while a later valid record can win."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="mv3_startup_port_parser")
+        parse_bound_port = namespace["_parse_chromedriver_bound_port"]
+        prefix = namespace["CHROMEDRIVER_BOUND_PORT_PREFIX"].encode("ascii")
+        maximum = namespace["MAX_CHROMEDRIVER_STARTUP_LINE_BYTES"]
+
+        self.assertIsNone(parse_bound_port(prefix + b"not-a-port.\n", False))
+        self.assertIsNone(parse_bound_port(prefix + b"9515\n", False))
+        self.assertIsNone(parse_bound_port(prefix + b"9515.\n", True))
+        self.assertIsNone(parse_bound_port(b"ordinary ChromeDriver diagnostic\n", False))
+        self.assertIsNone(parse_bound_port(prefix + b"0.\n", False))
+        self.assertIsNone(parse_bound_port(prefix + b"65536.\n", False))
+        self.assertEqual(parse_bound_port(prefix + b"9515.\n", False), 9515)
+        self.assertLess(len(prefix) + len(b"9515.\n"), maximum)
+
+    def test_chromedriver_startup_recovers_after_malformed_candidate(self) -> None:
+        """One malformed candidate must not prevent a later valid bound-port record."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="mv3_startup_recovery")
+        start_chromedriver = namespace["_start_chromedriver"]
+        prefix = namespace["CHROMEDRIVER_BOUND_PORT_PREFIX"].encode("ascii")
+        subprocess_module = namespace["subprocess"]
+
+        class FakeDriver:
+            def __init__(self) -> None:
+                self.stdout = io.BytesIO(
+                    prefix + b"not-a-port.\n" + prefix + b"9515.\n"
+                )
+                self.terminate_calls = 0
+                self.kill_calls = 0
+                self.wait_calls = 0
+
+            def terminate(self) -> None:
+                self.terminate_calls += 1
+
+            def kill(self) -> None:
+                self.kill_calls += 1
+
+            def wait(self, timeout: float | None = None) -> int:
+                del timeout
+                self.wait_calls += 1
+                return 0
+
+        fake_driver = FakeDriver()
+        original_popen = subprocess_module.Popen
+        subprocess_module.Popen = lambda *args, **kwargs: fake_driver
+        try:
+            returned_driver, bound_port = start_chromedriver(
+                pathlib.Path("/reviewed/chromedriver")
+            )
+        finally:
+            subprocess_module.Popen = original_popen
+
+        self.assertIs(returned_driver, fake_driver)
+        self.assertEqual(bound_port, 9515)
+        self.assertEqual(fake_driver.terminate_calls, 0)
+        self.assertEqual(fake_driver.kill_calls, 0)
+        self.assertEqual(fake_driver.wait_calls, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -33,6 +33,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Made malformed or oversized ChromeDriver startup-port candidate records non-authoritative within the existing bounded startup wait, so later valid startup output may recover while exact pinned-build `/status` identity remains mandatory before session creation.
 - Treated a failed graceful ChromeDriver termination as recoverable when the bounded hard-kill fallback successfully reaps the process, while preserving unrecovered fallback failures as teardown errors.
 - Classified Manifest V3 bookmark create/get/remove failures as allow-listed stage tokens so raw Chrome bookmark errors and fixture titles cannot enter runner evidence.
 - Recorded the current Chrome Extensions `chrome.bookmarks` primary reference in APA 7th form and stated that the active bookmark-diagnostic lane proves one controlled loopback lifecycle in pinned Chromium, not Agent bookmark authority.
