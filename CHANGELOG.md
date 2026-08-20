@@ -45,6 +45,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Overlong chunked trailer lines now fail as `TrailerSectionTooLarge` against the trailer-section budget, while malformed trailer line endings retain their chunked-syntax error classification.
 - MIME essence construction now enforces its parameter-free contract: reviewed type/subtype inputs that introduce MIME parameters fail closed instead of manufacturing a parameterized `MimeType`.
 - Observed HTTP MIME text/binary fallback now follows the WHATWG byte-level binary-data definition: nonbinary high bytes remain passive `text/plain` even when the sniff prefix is not valid UTF-8, while binary control bytes still fall back to `application/octet-stream`.
+- Observed HTTP XML signature evidence now records the WHATWG-computed `text/xml` essence so a supplied `text/xml` value produces an exact MIME match instead of a false mismatch; the evidence-bearing classifier version is now `originweave-mime-signatures-2`.
 - Invalid `X-Content-Type-Options` metadata now fails with the dedicated `InvalidNoSniffDirective` error instead of being misclassified as malformed `Content-Type` MIME syntax.
 - Replaced single resource-pressure directives with a cumulative mitigation plan so simultaneous RAM, VRAM, frame, model, and admission pressure cannot discard required actions.
 - Changed generic network capture from finite deny-lists or safe-name allow-lists to unconditional value redaction. Typed metadata values and bodies now require a separate schema-specific capture contract.
