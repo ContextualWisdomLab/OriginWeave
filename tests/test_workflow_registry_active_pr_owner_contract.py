@@ -156,6 +156,17 @@ class WorkflowRegistryActivePrOwnerContractTests(unittest.TestCase):
                 with self.assertRaises(self.audit.WorkflowAuditError):
                     self.audit.audit_workflow_registry(payload)
 
+    def test_owner_head_movement_during_collection_fails_closed(self) -> None:
+        """A moved contributor head cannot keep suppressing an orphan candidate."""
+
+        payload = _payload()
+        payload["active_pr_workflow_owners"][0]["observed_head_sha"] = "c" * 40
+        with self.assertRaisesRegex(
+            self.audit.WorkflowAuditError,
+            "active PR workflow head moved during collection",
+        ):
+            self.audit.audit_workflow_registry(payload)
+
 
 if __name__ == "__main__":
     unittest.main()
