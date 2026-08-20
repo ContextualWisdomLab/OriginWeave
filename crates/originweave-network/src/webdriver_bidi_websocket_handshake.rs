@@ -501,21 +501,33 @@ mod opening_write_tests {
     }
 
     #[test]
-    fn bounded_writer_clears_real_socket_timeout_before_success() -> io::Result<()> {
-        let listener = TcpListener::bind(("127.0.0.1", 0))?;
-        let address = listener.local_addr()?;
+    fn bounded_writer_clears_real_socket_timeout_before_success() {
+        let listener = TcpListener::bind(("127.0.0.1", 0))
+            .expect("loopback listener must bind for the real socket timeout regression");
+        let address = listener
+            .local_addr()
+            .expect("bound loopback listener must expose its local address");
         let server = thread::spawn(move || listener.accept().map(|_| ()));
-        let mut stream = TcpStream::connect(address)?;
+        let mut stream = TcpStream::connect(address)
+            .expect("client must connect to the already-bound loopback listener");
         let start = Instant::now();
         let mut now = || start;
 
-        let result =
-            write_request_with_clock(&mut stream, b"opening", Duration::from_secs(1), &mut now);
+        let request_byte_count =
+            write_request_with_clock(&mut stream, b"opening", Duration::from_secs(1), &mut now)
+                .expect("bounded opening write must complete on the connected loopback stream");
 
-        assert!(matches!(result, Ok(7)));
-        assert_eq!(stream.write_timeout()?, None);
-        assert!(matches!(server.join(), Ok(Ok(()))));
-        Ok(())
+        assert_eq!(request_byte_count, 7);
+        assert_eq!(
+            stream
+                .write_timeout()
+                .expect("live stream must expose its cleared write timeout"),
+            None
+        );
+        server
+            .join()
+            .expect("loopback server thread must not panic")
+            .expect("loopback server must accept the client connection");
     }
 
     #[test]
@@ -526,15 +538,22 @@ mod opening_write_tests {
         let mut now = || start;
 
         let result = write_request_with_clock(&mut writer, b"x", Duration::from_secs(1), &mut now);
-        assert!(matches!(
-            result,
-            Err(
-                WebDriverBiDiWebSocketOpeningWriteError::WriteTimeoutCleanupFailed {
-                    bytes_written: 1,
-                    ..
-                }
-            )
-        ));
+        let is_cleanup_failure =
+            |candidate: Result<usize, WebDriverBiDiWebSocketOpeningWriteError>| {
+                matches!(
+                    candidate,
+                    Err(
+                        WebDriverBiDiWebSocketOpeningWriteError::WriteTimeoutCleanupFailed {
+                            bytes_written: 1,
+                            ..
+                        }
+                    )
+                )
+            };
+        assert!(is_cleanup_failure(result));
+        assert!(!is_cleanup_failure(Err(
+            WebDriverBiDiWebSocketOpeningWriteError::WriteZero { bytes_written: 1 }
+        )));
     }
 
     #[test]
