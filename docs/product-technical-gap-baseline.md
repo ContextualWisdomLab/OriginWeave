@@ -14,14 +14,14 @@ This is a dated delivery baseline, not a substitute for the PRD, TRD, roadmap, a
 
 ### Open pull requests
 
-The live repository contained **149 open pull requests: 38 non-draft and 111 draft**. The volume and stack depth are themselves a product-delivery risk: review, exact-head checks, dependency order, and integration truth can drift faster than a buyer-visible vertical slice reaches protected `main`.
+The live repository contained **148 open pull requests: 38 non-draft and 110 draft**. The volume and stack depth are themselves a product-delivery risk: review, exact-head checks, dependency order, and integration truth can drift faster than a buyer-visible vertical slice reaches protected `main`.
 
 Representative active workstreams at this snapshot were:
 
 | Workstream | Representative active PR evidence | Delivery boundary |
 |---|---|---|
 | Product baseline | #196 | Ready/non-draft documentation PR; this refreshed inventory and the completion issues below remain review-gated |
-| WebDriver BiDi transport | #188 through #198 | #198, exact head `924f260cac885a8c66c81de1101c1ba183d00e74`, validates the RFC 6455 opening response on top of #195; the stack still does not by itself complete framed BiDi browser commands, authenticated browser-process provenance, semantic task execution, or protected-main shipment |
+| WebDriver BiDi transport | #188 through #198 | #198, exact head `2e01bcd0fb3057b4a78c2f5dd58a5efd86bc26f2`, validates the RFC 6455 opening response on top of #195; the stack still does not by itself complete framed BiDi browser commands, authenticated browser-process provenance, semantic task execution, or protected-main shipment |
 | MCP adapter | #168 and #170 | Typed MCP routing and conservative `tools/list` metadata are active-PR foundations; complete authenticated transport, durable task lifecycle, cancellation/resume, and browser execution remain open under #200 |
 | Controlled Chromium and recovery | #65, #70-#73, #100, #105, #142-#153 and descendants | Real pinned-browser fixture, semantic location, resource, crash, and teardown evidence exists on active stacks; evidence does not transfer across heads or prerequisites |
 | Manifest V3 and native messaging | #27 and its active extension/native-host stack, including #154 and #169 | Compatibility and Agent-authority isolation remain incomplete until exact release artifacts and platform matrices are proven |
@@ -80,7 +80,7 @@ The hourly product-development loop is operational infrastructure, not proof tha
 | P1 | Buyers can install, update, verify, and roll back a supported product | **Not shipped** | #201; signed Windows/macOS/Linux/headless artifacts, Chromium revision manifest, updater security, patch SLA, SBOM, SLSA provenance, and recovery |
 | P1 | Enterprise teams can provision, approve, audit, operate, and recover the service | **Not shipped** | #202; Keyverse-compatible OIDC/SCIM, tenant isolation, policy/approval/evidence UI, SLO/incident controls, data residency, CSAP/SOC 2 evidence mapping, WCAG 2.2, Figma File ID, and Storybook |
 | P0 | A release has reproducible proof of usefulness, safety, evidence completeness, and recovery | **No product-wide release gate** | #203; deterministic, compatibility, adversarial, recovery, and enterprise suites with statistical reporting and an exact-artifact commercial acceptance gate |
-| P0 | Valid changes reach protected `main` without authority improvisation or unbounded stack growth | **Blocked / high integration debt** | Shrink the 149-PR queue in dependency order, provision legitimate review authority, require exact-current evidence, and close duplicates/superseded branches |
+| P0 | Valid changes reach protected `main` without authority improvisation or unbounded stack growth | **Blocked / high integration debt** | Shrink the 148-PR queue in dependency order, provision legitimate review authority, require exact-current evidence, and close duplicates/superseded branches |
 
 ## Commercial completion definition
 
@@ -99,7 +99,7 @@ OriginWeave is not complete merely because every low-level primitive exists in s
 
 ## Next executable queue
 
-1. Re-fetch all 149 PRs and compute the dependency graph, exact heads/bases, reviews, unresolved threads, current required checks, duplicate/supersession relationships, and branch ancestry.
+1. Re-fetch all 148 PRs and compute the dependency graph, exact heads/bases, reviews, unresolved threads, current required checks, duplicate/supersession relationships, and branch ancestry.
 2. Integrate merge-ready root PRs first; restack and independently revalidate only the immediate children. Close obsolete alternatives instead of carrying parallel truth.
 3. Finish the #9/#28 browser-network and Chromium vertical slice, including the #195/#198 WebSocket opening path and the remaining framed BiDi command/response, semantic observation, policy, action, post-condition, and recovery boundaries.
 4. Finish #27 and #10 as separate security tracks; neither should be hidden inside the first browser PR.
