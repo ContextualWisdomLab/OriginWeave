@@ -52,7 +52,10 @@ fn schema_binds_versioned_typed_fields_to_explicit_source_channels() {
 
     assert_eq!(schema.version(), "product-card-v1");
     assert_eq!(schema.fields().len(), 2);
-    assert_eq!(schema.field("product_name").unwrap().identifier(), "product_name");
+    assert_eq!(
+        schema.field("product_name").unwrap().identifier(),
+        "product_name"
+    );
     assert_eq!(
         schema.field("product_name").unwrap().value_type(),
         ExtractionValueType::Text
@@ -84,10 +87,22 @@ fn schema_binds_versioned_typed_fields_to_explicit_source_channels() {
 #[test]
 fn field_accepts_all_reviewed_value_and_source_channel_variants() {
     let cases = [
-        (ExtractionValueType::Text, ExtractionSourceChannel::SemanticNode),
-        (ExtractionValueType::Integer, ExtractionSourceChannel::StructuredData),
-        (ExtractionValueType::Decimal, ExtractionSourceChannel::TableCell),
-        (ExtractionValueType::Boolean, ExtractionSourceChannel::NetworkResponse),
+        (
+            ExtractionValueType::Text,
+            ExtractionSourceChannel::SemanticNode,
+        ),
+        (
+            ExtractionValueType::Integer,
+            ExtractionSourceChannel::StructuredData,
+        ),
+        (
+            ExtractionValueType::Decimal,
+            ExtractionSourceChannel::TableCell,
+        ),
+        (
+            ExtractionValueType::Boolean,
+            ExtractionSourceChannel::NetworkResponse,
+        ),
         (
             ExtractionValueType::Timestamp,
             ExtractionSourceChannel::ModelInterpretation,
@@ -182,13 +197,16 @@ fn field_requires_a_nonempty_duplicate_free_source_channel_set() {
 #[test]
 fn schema_rejects_invalid_version_empty_fields_duplicate_fields_and_field_overflow() {
     assert_eq!(
-        ExtractionSchema::new("Product Schema", vec![field(
-            "product_name",
-            ExtractionValueType::Text,
-            ExtractionCardinality::One,
-            true,
-            &[ExtractionSourceChannel::SemanticNode],
-        )]),
+        ExtractionSchema::new(
+            "Product Schema",
+            vec![field(
+                "product_name",
+                ExtractionValueType::Text,
+                ExtractionCardinality::One,
+                true,
+                &[ExtractionSourceChannel::SemanticNode],
+            )]
+        ),
         Err(ExtractionSchemaError::InvalidIdentifier)
     );
     assert_eq!(
