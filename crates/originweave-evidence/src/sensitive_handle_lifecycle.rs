@@ -56,7 +56,7 @@ impl TryFrom<SensitiveHandleLifecycleEvidenceInput> for SensitiveHandleLifecycle
             || input.maximum_uses == 0
             || input.resolution_count > input.maximum_uses
             || input.revoked_epoch_seconds.is_some_and(|revoked| {
-                revoked < input.issued_epoch_seconds || revoked > input.expires_epoch_seconds
+                revoked < input.issued_epoch_seconds || revoked >= input.expires_epoch_seconds
             })
         {
             return Err(SensitiveEvidenceError::InvalidLifecycle);
