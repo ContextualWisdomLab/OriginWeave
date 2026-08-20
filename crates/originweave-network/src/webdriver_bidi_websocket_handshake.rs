@@ -509,12 +509,8 @@ mod opening_write_tests {
         let start = Instant::now();
         let mut now = || start;
 
-        let result = write_request_with_clock(
-            &mut stream,
-            b"opening",
-            Duration::from_secs(1),
-            &mut now,
-        );
+        let result =
+            write_request_with_clock(&mut stream, b"opening", Duration::from_secs(1), &mut now);
 
         assert!(matches!(result, Ok(7)));
         assert_eq!(stream.write_timeout().expect("inspect write timeout"), None);
@@ -528,14 +524,15 @@ mod opening_write_tests {
         let start = Instant::now();
         let mut now = || start;
 
-        let result =
-            write_request_with_clock(&mut writer, b"x", Duration::from_secs(1), &mut now);
+        let result = write_request_with_clock(&mut writer, b"x", Duration::from_secs(1), &mut now);
         assert!(matches!(
             result,
-            Err(WebDriverBiDiWebSocketOpeningWriteError::WriteTimeoutCleanupFailed {
-                bytes_written: 1,
-                ..
-            })
+            Err(
+                WebDriverBiDiWebSocketOpeningWriteError::WriteTimeoutCleanupFailed {
+                    bytes_written: 1,
+                    ..
+                }
+            )
         ));
     }
 
