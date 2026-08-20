@@ -4,15 +4,17 @@
 //!
 //! The model route and invocation policy are not raw-value disclosure authority. This contract
 //! requires the exact sensitive-data authority to authorize full-field disclosure, requires that
-//! authority to be the same authority carried by the reviewed model invocation, and then requires
-//! the invocation policy itself to authorize. It carries no protected bytes and performs no model I/O.
+//! authority to be the same authority carried by the reviewed model invocation, requires the
+//! trusted broker to establish that no safer execution path can complete the workflow, and then
+//! requires the invocation policy itself to authorize. It carries no protected bytes and performs
+//! no model I/O.
 
 use originweave_core::Origin;
 use originweave_policy::{
     DataClassification, DisclosureDecision, DisclosureScope, ModelDisclosureDecision,
-    ModelInvocationDecision, ModelInvocationRequest, ModelInvocationScope, ModelRouteDecision,
-    ModelRouteRequest, ModelRouteScope, SensitiveDataAuthority, SensitiveDataRequest,
-    evaluate_full_field_model_disclosure,
+    ModelDisclosureNecessity, ModelInvocationDecision, ModelInvocationRequest, ModelInvocationScope,
+    ModelRouteDecision, ModelRouteRequest, ModelRouteScope, SensitiveDataAuthority,
+    SensitiveDataRequest, evaluate_full_field_model_disclosure,
 };
 
 fn authority(task_id: &str) -> SensitiveDataAuthority {
@@ -92,6 +94,7 @@ fn full_field_disclosure_and_exact_reviewed_invocation_are_authorized() {
             &disclosure_scope,
             &invocation_request,
             &invocation_scope,
+            ModelDisclosureNecessity::FullFieldModelDisclosureRequired,
             999,
         ),
         ModelDisclosureDecision::Authorized
@@ -120,6 +123,7 @@ fn every_non_full_field_outcome_remains_non_authorizing_for_raw_model_input() {
                 &disclosure_scope,
                 &invocation_request,
                 &invocation_scope,
+                ModelDisclosureNecessity::FullFieldModelDisclosureRequired,
                 999,
             ),
             ModelDisclosureDecision::DisclosureNotAuthorized(decision)
@@ -143,10 +147,40 @@ fn disclosure_authority_cannot_be_composed_with_another_tasks_valid_invocation()
             &disclosure_scope,
             &invocation_request,
             &invocation_scope,
+            ModelDisclosureNecessity::FullFieldModelDisclosureRequired,
             999,
         ),
         ModelDisclosureDecision::AuthorityMismatch
     );
+}
+
+#[test]
+fn safer_execution_path_or_unknown_necessity_blocks_raw_model_input() {
+    for necessity in [
+        ModelDisclosureNecessity::Unknown,
+        ModelDisclosureNecessity::SaferAlternativeAvailable,
+    ] {
+        let exact_authority = authority("task-42");
+        let disclosure_request = SensitiveDataRequest::new(exact_authority.clone());
+        let disclosure_scope = DisclosureScope::new(
+            exact_authority.clone(),
+            DisclosureDecision::FullFieldDisclosure,
+        );
+        let invocation_request = invocation_request(exact_authority.clone(), "provider-private");
+        let invocation_scope = invocation_scope(exact_authority);
+
+        assert_eq!(
+            evaluate_full_field_model_disclosure(
+                &disclosure_request,
+                &disclosure_scope,
+                &invocation_request,
+                &invocation_scope,
+                necessity,
+                999,
+            ),
+            ModelDisclosureDecision::NecessityNotEstablished(necessity)
+        );
+    }
 }
 
 #[test]
@@ -166,6 +200,7 @@ fn invocation_denial_is_preserved_after_full_field_disclosure_authority() {
             &disclosure_scope,
             &invocation_request,
             &invocation_scope,
+            ModelDisclosureNecessity::FullFieldModelDisclosureRequired,
             999,
         ),
         ModelDisclosureDecision::InvocationDenied(ModelInvocationDecision::RouteDenied(
