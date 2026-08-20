@@ -6,7 +6,7 @@ use crate::field::{FieldBlock, is_token_byte};
 use crate::{HttpError, MAX_MIME_SNIFF_BYTES};
 
 /// Version of the conservative byte-signature table used by OriginWeave.
-pub const MIME_CLASSIFIER_VERSION: &str = "originweave-mime-signatures-1";
+pub const MIME_CLASSIFIER_VERSION: &str = "originweave-mime-signatures-2";
 
 /// One syntactically validated MIME type and bounded parameter set.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -219,7 +219,7 @@ pub(crate) fn classify_observed_mime(
     } else if starts_ascii_case_insensitive(trimmed, b"<svg") {
         internal_mime("image", "svg+xml")
     } else if starts_ascii_case_insensitive(trimmed, b"<?xml") {
-        internal_mime("application", "xml")
+        internal_mime("text", "xml")
     } else if looks_like_html(trimmed) {
         internal_mime("text", "html")
     } else if supplied.is_some_and(is_javascript_mime) && is_plain_text(prefix) {
