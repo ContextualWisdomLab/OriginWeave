@@ -248,6 +248,14 @@ fn parse_extended_filename(value: &[u8]) -> Result<String, HttpError> {
     String::from_utf8(bytes).map_err(|_error| HttpError::InvalidContentDisposition)
 }
 
+fn is_rfc8187_attr_char(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric()
+        || matches!(
+            byte,
+            b'!' | b'#' | b'$' | b'&' | b'+' | b'-' | b'.' | b'^' | b'_' | b'`' | b'|' | b'~'
+        )
+}
+
 fn percent_decode(input: &[u8]) -> Result<Vec<u8>, HttpError> {
     let mut output = Vec::with_capacity(input.len());
     let mut index = 0_usize;
@@ -262,7 +270,7 @@ fn percent_decode(input: &[u8]) -> Result<Vec<u8>, HttpError> {
             output.push((hex_value(input[index + 1]) << 4) | hex_value(input[index + 2]));
             index += 3;
         } else {
-            if !input[index].is_ascii() {
+            if !is_rfc8187_attr_char(input[index]) {
                 return Err(HttpError::InvalidContentDisposition);
             }
             output.push(input[index]);
