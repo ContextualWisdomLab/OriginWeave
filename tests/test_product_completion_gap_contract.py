@@ -44,6 +44,23 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             with self.subTest(stale_phrase=stale_phrase):
                 self.assertNotIn(stale_phrase, text)
 
+    def test_evidence_commands_reproduce_inventory_checks_and_review_state(self) -> None:
+        """The evidence procedure must paginate the queue and inspect each exact PR head."""
+        text = BASELINE.read_text(encoding="utf-8")
+        evidence = text.split("## Evidence commands", 1)[1]
+
+        for phrase in (
+            "--paginate --slurp 'repos/ContextualWisdomLab/OriginWeave/pulls?state=open&per_page=100'",
+            "jq '[.[][]]'",
+            '"repos/ContextualWisdomLab/OriginWeave/pulls/$PR"',
+            '"repos/ContextualWisdomLab/OriginWeave/commits/$HEAD_SHA/check-runs?per_page=100"',
+            '"repos/ContextualWisdomLab/OriginWeave/pulls/$PR/reviews?per_page=100"',
+            "reviewThreads(first: 100, after: $endCursor)",
+            "rulesets/18156473",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, evidence)
+
 
 if __name__ == "__main__":
     unittest.main()
