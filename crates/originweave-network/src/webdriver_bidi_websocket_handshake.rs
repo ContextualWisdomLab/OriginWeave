@@ -476,9 +476,11 @@ mod opening_write_tests {
             |candidate: Result<usize, WebDriverBiDiWebSocketOpeningWriteError>| {
                 matches!(
                     candidate,
-                    Err(WebDriverBiDiWebSocketOpeningWriteError::WriteDeadlineExceeded {
-                        bytes_written: 1
-                    })
+                    Err(
+                        WebDriverBiDiWebSocketOpeningWriteError::WriteDeadlineExceeded {
+                            bytes_written: 1
+                        }
+                    )
                 )
             };
         assert!(is_deadline_after_one(result));
@@ -504,9 +506,11 @@ mod opening_write_tests {
             |candidate: Result<usize, WebDriverBiDiWebSocketOpeningWriteError>| {
                 matches!(
                     candidate,
-                    Err(WebDriverBiDiWebSocketOpeningWriteError::WriteDeadlineExceeded {
-                        bytes_written: 0
-                    })
+                    Err(
+                        WebDriverBiDiWebSocketOpeningWriteError::WriteDeadlineExceeded {
+                            bytes_written: 0
+                        }
+                    )
                 )
             };
         assert!(is_deadline_before_write(deadline));
@@ -522,13 +526,12 @@ mod opening_write_tests {
             Duration::from_secs(1),
             &mut zero_now,
         );
-        let is_zero_write =
-            |candidate: Result<usize, WebDriverBiDiWebSocketOpeningWriteError>| {
-                matches!(
-                    candidate,
-                    Err(WebDriverBiDiWebSocketOpeningWriteError::WriteZero { bytes_written: 0 })
-                )
-            };
+        let is_zero_write = |candidate: Result<usize, WebDriverBiDiWebSocketOpeningWriteError>| {
+            matches!(
+                candidate,
+                Err(WebDriverBiDiWebSocketOpeningWriteError::WriteZero { bytes_written: 0 })
+            )
+        };
         assert!(is_zero_write(zero));
         assert!(!is_zero_write(Err(
             WebDriverBiDiWebSocketOpeningWriteError::WriteDeadlineExceeded { bytes_written: 0 }
