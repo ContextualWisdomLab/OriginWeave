@@ -1,7 +1,7 @@
 # Manifest V3 compatibility evidence baseline
 
 - **Status:** Active implementation evidence for issue #27
-- **Reviewed:** 2026-08-16
+- **Reviewed:** 2026-08-20
 - **Pinned browser:** Chrome for Testing `150.0.7871.129`, Chromium revision `r1639810`
 
 OriginWeave uses Chromium as its compatibility kernel, so browser-extension compatibility must be demonstrated with executable Chromium evidence rather than inferred from architecture alone. The protected-main lane exercises a controlled unpacked Manifest V3 extension against one exact Chrome for Testing build and proves service-worker, content-script, storage, declarative-network-request, tabs, windows, scripting, commands, side-panel, bookmarks/history read compatibility, restart persistence, repeatability, and one real WebDriver click/post-condition. Active stacked compatibility work adds downloads, bounded bookmark/history mutation, profile isolation, explicit extension update/version-migration evidence, and an exact content-script isolated-world check. OriginWeave does **not claim 100% Chrome extension compatibility**.
@@ -45,6 +45,12 @@ For downloads compatibility specifically, the current official Chrome Extensions
 ## WebDriver transport-protocol diagnostic boundary
 
 RFC 9112 requires a well-formed HTTP/1.1 status-line and a message body that matches the announced framing. W3C WebDriver sends commands over that HTTP transport. When ChromeDriver returns a malformed status-line or an incomplete body, the compatibility runner raises only `WebDriver transport protocol failure`. Raw status-line text, partial body bytes, paths, URLs, or tokens must not enter exception text or trial evidence. This classification lets `main` record the failure in `trial_results` instead of aborting the compatibility run with an unclassified parser exception.
+
+## ChromeDriver startup-record robustness boundary
+
+ChromeDriver startup stdout is diagnostic input, not authority. The compatibility runner retains at most `MAX_CHROMEDRIVER_STARTUP_LINE_BYTES + 1` bytes from one record and drains the remainder through bounded reads. A prefixed record that is oversized, lacks the required terminal period, carries a non-decimal port, or names a port outside `1..65535` is treated as non-authoritative and ignored while the existing bounded startup wait continues. A later well-formed candidate can therefore recover from malformed-but-expected startup diagnostics without turning the malformed record into success.
+
+A syntactically valid reported port is still insufficient authority. Before a WebDriver session is created, the loopback `/status` endpoint must identify the exact pinned ChromeDriver build. If no valid candidate appears before EOF or the startup deadline, or if the status endpoint identifies a foreign build, startup still fails closed and the process is reaped through the reviewed bounded teardown path.
 
 ## Click post-condition diagnostic boundary
 

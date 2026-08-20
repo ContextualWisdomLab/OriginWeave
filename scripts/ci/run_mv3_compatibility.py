@@ -467,6 +467,25 @@ def _read_chromedriver_startup_line(stream: Any) -> tuple[bytes, bool]:
     return raw_line_bytes, oversized
 
 
+def _parse_chromedriver_bound_port(raw_line_bytes: bytes, oversized: bool) -> int | None:
+    """Return one bounded authoritative startup port or ignore a malformed candidate."""
+
+    if oversized or not raw_line_bytes.startswith(
+        CHROMEDRIVER_BOUND_PORT_PREFIX.encode("ascii")
+    ):
+        return None
+
+    raw_line = raw_line_bytes.decode("utf-8", errors="replace")
+    line = raw_line.rstrip("\r\n")
+    if not line.endswith("."):
+        return None
+    port_text = line[len(CHROMEDRIVER_BOUND_PORT_PREFIX) : -1]
+    if not port_text.isdecimal():
+        return None
+    port = int(port_text)
+    return port if 1 <= port <= 65_535 else None
+
+
 def _start_chromedriver(
     chromedriver_bin: pathlib.Path,
 ) -> tuple[subprocess.Popen[bytes], int]:
@@ -494,7 +513,6 @@ def _start_chromedriver(
         raise startup_error
 
     startup_events: queue.Queue[tuple[str, int | None]] = queue.Queue(maxsize=1)
-    port_prefix_bytes = CHROMEDRIVER_BOUND_PORT_PREFIX.encode("ascii")
 
     def publish(event: tuple[str, int | None]) -> None:
         try:
@@ -507,24 +525,8 @@ def _start_chromedriver(
             raw_line_bytes, oversized = _read_chromedriver_startup_line(driver.stdout)
             if not raw_line_bytes:
                 break
-            if not raw_line_bytes.startswith(port_prefix_bytes):
-                continue
-            if oversized:
-                publish(("invalid", None))
-                continue
-
-            raw_line = raw_line_bytes.decode("utf-8", errors="replace")
-            line = raw_line.rstrip("\r\n")
-            if not line.endswith("."):
-                publish(("invalid", None))
-                continue
-            port_text = line[len(CHROMEDRIVER_BOUND_PORT_PREFIX) : -1]
-            if not port_text.isdecimal():
-                publish(("invalid", None))
-                continue
-            port = int(port_text)
-            if not 1 <= port <= 65_535:
-                publish(("invalid", None))
+            port = _parse_chromedriver_bound_port(raw_line_bytes, oversized)
+            if port is None:
                 continue
             publish(("ready", port))
         publish(("eof", None))
