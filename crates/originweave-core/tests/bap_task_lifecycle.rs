@@ -1,8 +1,6 @@
 #![allow(clippy::expect_used)]
 
-use originweave_core::{
-    BapTaskEvent, BapTaskLifecycle, BapTaskState, BapTaskTransitionError,
-};
+use originweave_core::{BapTaskEvent, BapTaskLifecycle, BapTaskState, BapTaskTransitionError};
 
 #[test]
 fn bap_task_lifecycle_follows_the_reviewed_resumable_path() {
