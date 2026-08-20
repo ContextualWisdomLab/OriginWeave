@@ -31,12 +31,19 @@ jobs:
           source = source_path.read_text(encoding='utf-8')
           old = 'nightly-2026-08-01'
           new = 'nightly-2026-08-18'
-          count = source.count(old)
-          if count != 2:
-              raise SystemExit(f'expected exactly 2 predecessor selectors, found {count}')
+          old_count = source.count(old)
+          new_count = source.count(new)
+          if old_count == 2 and new_count == 0:
+              refreshed_source = source.replace(old, new)
+          elif old_count == 0 and new_count == 2:
+              refreshed_source = source
+          else:
+              raise SystemExit(
+                  f'expected exactly two selectors in one state, found old={old_count}, new={new_count}'
+              )
           output = Path('nightly-refresh-artifact/hourly-product-development.yml')
           output.parent.mkdir(parents=True, exist_ok=True)
-          output.write_text(source.replace(old, new), encoding='utf-8')
+          output.write_text(refreshed_source, encoding='utf-8')
           refreshed = output.read_text(encoding='utf-8')
           if old in refreshed or refreshed.count(new) < 2:
               raise SystemExit('nightly refresh artifact failed its replacement contract')
