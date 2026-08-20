@@ -10,7 +10,7 @@ use std::fmt;
 
 use crate::{
     NativeMessagingHostManifest, NativeMessagingHostManifestError, NativeMessagingHostName,
-    NativeMessagingHostNameError, NativeMessagingHostPlatform,
+    NativeMessagingHostNameError, NativeMessagingHostPlatform, MAX_NATIVE_MESSAGING_ALLOWED_ORIGINS,
 };
 
 /// Maximum UTF-8 byte length accepted for one native-messaging host manifest document.
@@ -269,6 +269,11 @@ impl<'a> ManifestJsonParser<'a> {
             return Ok(values);
         }
         loop {
+            if values.len() == MAX_NATIVE_MESSAGING_ALLOWED_ORIGINS {
+                return Err(NativeMessagingManifestParseError::Manifest(
+                    NativeMessagingHostManifestError::TooManyAllowedOrigins,
+                ));
+            }
             if self.peek_byte() != Some(b'"') {
                 return Err(NativeMessagingManifestParseError::InvalidFieldType);
             }
