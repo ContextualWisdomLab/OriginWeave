@@ -572,6 +572,15 @@ def main(argv: list[str] | None = None) -> int:
     arguments = parser.parse_args(argv)
     try:
         evidence = audit_workflow_registry(_read_payload(arguments.input))
+    except WorkflowAuditHttpStatusError as error:
+        message = (
+            f"workflow registry audit failed: {error}; "
+            f"retryable={'true' if error.retryable else 'false'}"
+        )
+        if error.retry_after_seconds is not None:
+            message += f"; retry_after_seconds={error.retry_after_seconds}"
+        print(message, file=sys.stderr)
+        return 1
     except (OSError, WorkflowAuditError) as error:
         print(f"workflow registry audit failed: {error}", file=sys.stderr)
         return 1
