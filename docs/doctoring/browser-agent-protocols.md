@@ -1,10 +1,10 @@
 # Browser and Agent Protocol Standards Evidence
 
-- **Reviewed:** 2026-08-10
+- **Reviewed:** 2026-08-21
 - **Purpose:** primary-source evidence for OriginWeave browser compatibility and adapter boundaries
 - **Canonical research index:** [`../doctoring.md`](../doctoring.md)
 
-This addendum complements the main doctoring record. The main record already carries the WebDriver BiDi, WARC/ISO 28500 and W3C PROV-O evidence. This addendum records the current primary sources for Manifest V3, Chrome DevTools Protocol, WebMCP and Model Context Protocol so product documentation does not rely on uncited protocol names.
+This addendum complements the main doctoring record. The main record already carries the WebDriver BiDi, WARC/ISO 28500 and W3C PROV-O evidence. This addendum records the current primary sources for Manifest V3, Chrome native messaging, Chrome DevTools Protocol, WebMCP and Model Context Protocol so product documentation does not rely on uncited protocol names.
 
 ## WebDriver BiDi
 
@@ -19,6 +19,14 @@ Chrome's current manifest documentation identifies Manifest V3 as the current ex
 A Chrome extension permission remains separate from an OriginWeave Agent capability. Passing MV3 compatibility tests does not prove Agent-authority isolation, and a correct extension-grant kernel does not prove a real Chrome extension API works.
 
 Primary source: Chrome for Developers, *Manifest file format* and *Manifest Version*.
+
+## Chrome native messaging
+
+Chrome's native-messaging contract launches each registered native host in a separate process and exchanges UTF-8 JSON messages over standard input and standard output. Each message is prefixed by a 32-bit unsigned length in native byte order. Chrome documents a 1 MiB maximum for a message sent from the native host to Chrome and a 64 MiB maximum for a message sent from Chrome to the native host. Chrome also passes the calling extension origin to the native host process, but that process argument is not itself OriginWeave authorization.
+
+OriginWeave therefore keeps native-messaging framing as a narrow byte-level boundary. Manifest and operating-system registration, process identity and supervision, caller-origin binding, JSON schema validation, extension-to-host authority, Agent capability, and secret disclosure remain separately reviewed fail-closed layers.
+
+Primary source: Chrome for Developers, *Native messaging*.
 
 ## Chrome DevTools Protocol
 
@@ -49,10 +57,11 @@ The main [`docs/doctoring.md`](../doctoring.md) records the stable W3C PROV-O Re
 1. Version adapter contracts independently from OriginWeave session/context/action/evidence types.
 2. Pin exact Chromium/CDP compatibility evidence at release time.
 3. Keep WebDriver BiDi's Working Draft status visible in compatibility claims.
-4. Keep WebMCP experimental/optional and propagate untrusted-content semantics.
-5. Keep MCP browser state application-level rather than equating protocol transport/session metadata with browser authority.
-6. Test Manifest V3 compatibility and extension-to-Agent authority isolation as separate evidence classes.
-7. Treat WARC/PROV as provenance representations, not policy or truth escalation.
+4. Treat native-messaging framing as a bounded transport codec, never as host registration, process identity, Agent capability, or secret authority.
+5. Keep WebMCP experimental/optional and propagate untrusted-content semantics.
+6. Keep MCP browser state application-level rather than equating protocol transport/session metadata with browser authority.
+7. Test Manifest V3 compatibility and extension-to-Agent authority isolation as separate evidence classes.
+8. Treat WARC/PROV as provenance representations, not policy or truth escalation.
 
 ## References — APA 7th
 
@@ -61,6 +70,8 @@ Chrome DevTools Protocol. (n.d.). *Chrome DevTools Protocol—Latest (tip-of-tre
 Google Chrome Developers. (n.d.). *Manifest file format*. Chrome for Developers. Retrieved August 10, 2026, from https://developer.chrome.com/docs/extensions/reference/manifest
 
 Google Chrome Developers. (n.d.). *Manifest Version*. Chrome for Developers. Retrieved August 10, 2026, from https://developer.chrome.com/docs/extensions/reference/manifest/manifest-version
+
+Google Chrome Developers. (n.d.). *Native messaging*. Chrome for Developers. Retrieved August 21, 2026, from https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging
 
 Google Chrome Developers. (2026). *WebMCP*. Chrome for Developers. https://developer.chrome.com/docs/ai/webmcp
 
