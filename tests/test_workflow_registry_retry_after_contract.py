@@ -83,9 +83,9 @@ class WorkflowRegistryRetryAfterContractTests(unittest.TestCase):
         self.assertIsNone(raised_without_hint.exception.retry_after_seconds)
 
     def test_retry_after_is_preserved_for_reviewed_transient_statuses(self) -> None:
-        """429 and transient server failures expose the same bounded wait hint."""
+        """Request timeout, rate limiting, and transient server failures expose bounded wait hints."""
 
-        for status_code in (429, 500, 502, 503, 504):
+        for status_code in (408, 429, 500, 502, 503, 504):
             with self.subTest(status_code=status_code):
                 with self.assertRaises(self.audit.WorkflowAuditHttpStatusError) as raised:
                     self.audit.audit_workflow_registry(_payload(status_code, 120))
