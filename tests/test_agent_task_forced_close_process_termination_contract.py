@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pathlib
 import runpy
+import subprocess
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -91,6 +92,40 @@ class AgentTaskForcedCloseProcessTerminationContractTests(unittest.TestCase):
         self.assertLess(shutdown, root_wait)
         self.assertLess(root_wait, failure_return)
         self.assertLess(set_wait, failure_return)
+
+    def test_forced_close_driver_shutdown_timeout_is_bounded_and_typed(self) -> None:
+        """A wedged ChromeDriver after SIGKILL must become failure evidence, not escape."""
+
+        namespace = runpy.run_path(
+            str(RUNNER), run_name="forced_close_driver_shutdown_timeout_contract"
+        )
+        shutdown = namespace["_terminate_owned_process_bounded"]
+        timeout_seconds = namespace["PROCESS_EXIT_TIMEOUT_SECONDS"]
+
+        class WedgedProcess:
+            def __init__(self) -> None:
+                self.terminated = False
+                self.killed = False
+                self.wait_timeouts: list[float] = []
+
+            def terminate(self) -> None:
+                self.terminated = True
+
+            def kill(self) -> None:
+                self.killed = True
+
+            def wait(self, timeout: float) -> int:
+                self.wait_timeouts.append(timeout)
+                raise subprocess.TimeoutExpired("chromedriver", timeout)
+
+        process = WedgedProcess()
+        terminated, failure_type = shutdown(process)
+
+        self.assertIs(process.terminated, True)
+        self.assertIs(process.killed, True)
+        self.assertEqual(process.wait_timeouts, [timeout_seconds, timeout_seconds])
+        self.assertIs(terminated, False)
+        self.assertEqual(failure_type, "TimeoutExpired")
 
     def test_forced_close_trial_preserves_failure_process_set_teardown_evidence(self) -> None:
         """False root/set teardown evidence must survive the trial failure envelope."""
