@@ -68,7 +68,8 @@ class AgentTaskForcedCloseSessionCleanupContractTests(unittest.TestCase):
 
         self.assertNotIn("contextlib.suppress(Exception)", browser_pass)
         self.assertIn("session_cleanup_failure_type", browser_pass)
-        self.assertIn("_delete_webdriver_session_bounded(driver_port, session_id)", browser_pass)
+        cleanup_call = browser_pass.index("_delete_webdriver_session_bounded(")
+        self.assertIn("driver_port, session_id", browser_pass[cleanup_call:cleanup_call + 160])
         self.assertIn('"session_cleanup_failure_type"', browser_pass)
         self.assertIn('"WebDriverSessionCleanupError"', browser_pass)
 
