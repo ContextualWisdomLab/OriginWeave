@@ -6,6 +6,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Added
 
+- Bound Chrome native-messaging byte framing with native-endian 32-bit lengths, exact one-frame matching, direction-specific 1 MiB host-to-Chrome and 64 MiB Chrome-to-host limits, and UTF-8 fail-closed validation without granting process, JSON, Agent, or secret authority.
 - Bound explicit extension-to-Agent grants to exclusive trusted-time expiry in addition to extension identity, session, browsing context, and canonical origin, so a same-origin grant cannot be reused at or after the deadline.
 - Bound explicit extension-to-Agent grants to the exact canonical origin in addition to extension identity, session, and browsing context, so a same-session navigation or port change cannot reuse the grant.
 - Rust workspace for independently reusable core, policy, destination, network, TLS, resource, and evidence modules.
