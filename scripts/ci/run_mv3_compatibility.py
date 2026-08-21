@@ -79,6 +79,16 @@ DOWNLOAD_DIAGNOSTIC_VALUES = frozenset(
         "download-not-evaluated",
     }
 )
+WEBDRIVER_ERROR_CODES = frozenset(
+    {
+        "invalid argument",
+        "no such element",
+        "session not created",
+        "stale element reference",
+        "timeout",
+        "unknown error",
+    }
+)
 
 
 class CompatibilitySurfaceError(RuntimeError):
@@ -91,6 +101,14 @@ class CompatibilitySurfaceError(RuntimeError):
             if key in observed
         }
         super().__init__("Manifest V3 fixture surfaces did not converge")
+
+
+class WebDriverProtocolError(RuntimeError):
+    """Report one allow-listed WebDriver error code without browser-controlled text."""
+
+    def __init__(self, code: object, _message: object) -> None:
+        self.code = code if isinstance(code, str) and code in WEBDRIVER_ERROR_CODES else "unknown"
+        super().__init__(f"WebDriver protocol error: {self.code}")
 
 
 class WebDriverSessionCleanupError(RuntimeError):
@@ -119,6 +137,8 @@ def _failure_evidence(error: BaseException) -> dict[str, Any]:
 
     if isinstance(error, CompatibilitySurfaceError):
         return {"failure_kind": "surface_mismatch", "observed": error.observed}
+    if isinstance(error, WebDriverProtocolError):
+        return {"failure_kind": "webdriver_protocol_error", "error_code": error.code}
     if isinstance(error, json.JSONDecodeError):
         return {"failure_kind": "json_decode_error"}
     if isinstance(error, OSError):
@@ -177,6 +197,7 @@ def _json_request(
 
     body = None if payload is None else json.dumps(payload).encode("utf-8")
     connection = http.client.HTTPConnection("127.0.0.1", driver_port, timeout=timeout)
+    transport_protocol_failed = False
     try:
         try:
             connection.request(
@@ -188,20 +209,30 @@ def _json_request(
             response = connection.getresponse()
             raw = response.read(MAX_WEBDRIVER_RESPONSE_BYTES + 1)
         except http.client.HTTPException:
-            raise RuntimeError("WebDriver transport protocol failure") from None
+            transport_protocol_failed = True
+        if transport_protocol_failed:
+            raise RuntimeError("WebDriver transport protocol failure")
         if len(raw) > MAX_WEBDRIVER_RESPONSE_BYTES:
             raise RuntimeError("WebDriver response exceeded the bounded JSON limit")
-        if response.status >= 400:
-            raise RuntimeError(f"WebDriver HTTP {response.status} error")
     finally:
         connection.close()
 
-    decoded = json.loads(raw.decode("utf-8"))
+    try:
+        decoded = json.loads(raw.decode("utf-8"))
+    except json.JSONDecodeError:
+        if response.status >= 400:
+            raise RuntimeError(f"WebDriver HTTP {response.status} error") from None
+        raise
     if not isinstance(decoded, dict):
         raise RuntimeError("WebDriver returned a non-object JSON payload")
+    if response.status >= 400:
+        value = decoded.get("value")
+        if isinstance(value, dict) and value.get("error"):
+            raise WebDriverProtocolError(value.get("error"), value.get("message"))
+        raise RuntimeError(f"WebDriver HTTP {response.status} error")
     value = decoded.get("value")
     if isinstance(value, dict) and value.get("error"):
-        raise RuntimeError("WebDriver returned a protocol error")
+        raise WebDriverProtocolError(value.get("error"), value.get("message"))
     return decoded
 
 
@@ -530,7 +561,6 @@ def _run_browser_pass(
                                 "--disable-component-update",
                                 "--disable-sync",
                                 "--disable-dev-shm-usage",
-                                "--no-sandbox",
                                 f"--user-data-dir={profile_dir}",
                                 f"--disable-extensions-except={FIXTURE}",
                                 f"--load-extension={FIXTURE}",
@@ -787,7 +817,13 @@ def main() -> int:
                         trial_number,
                     )
                 )
-            except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+            except (
+                OSError,
+                ValueError,
+                RuntimeError,
+                json.JSONDecodeError,
+                subprocess.TimeoutExpired,
+            ) as exc:
                 failed_trial: dict[str, Any] = {
                     "trial_number": trial_number,
                     "passed": False,

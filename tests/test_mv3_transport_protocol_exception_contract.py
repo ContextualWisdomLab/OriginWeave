@@ -1,4 +1,4 @@
-"""Regression contract for bounded WebDriver transport-protocol failures."""
+"""Regression contracts for bounded MV3 transport failures and their release notes."""
 
 from __future__ import annotations
 
@@ -9,13 +9,14 @@ import unittest.mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 RUNNER = ROOT / "scripts" / "ci" / "run_mv3_compatibility.py"
+CHANGELOG = ROOT / "CHANGELOG.md"
 
 
 class ManifestV3TransportProtocolExceptionContractTests(unittest.TestCase):
     """Keep recoverable HTTP parser failures inside the typed runner boundary."""
 
     def test_http_protocol_exceptions_are_classified_without_raw_transport_text(self) -> None:
-        """BadStatusLine and IncompleteRead must become one bounded RuntimeError."""
+        """Parser failures must become bounded errors with no retained raw exception chain."""
 
         namespace = runpy.run_path(str(RUNNER), run_name="mv3_transport_contract")
         json_request = namespace["_json_request"]
@@ -64,6 +65,29 @@ class ManifestV3TransportProtocolExceptionContractTests(unittest.TestCase):
                 self.assertNotIn("secret-token", rendered)
                 self.assertNotIn("/home/runner/private", rendered)
                 self.assertNotIn("example.invalid", rendered)
+                self.assertIsNone(raised.exception.__cause__)
+                self.assertIsNone(raised.exception.__context__)
+
+    def test_unreleased_changelog_change_type_headings_are_unique(self) -> None:
+        """Keep each Keep a Changelog change type singular within Unreleased."""
+
+        text = CHANGELOG.read_text(encoding="utf-8")
+        marker = "## [Unreleased]"
+        self.assertIn(marker, text)
+        unreleased = text.split(marker, 1)[1]
+        next_release = unreleased.find("\n## [")
+        if next_release >= 0:
+            unreleased = unreleased[:next_release]
+        headings = [
+            line.strip()
+            for line in unreleased.splitlines()
+            if line.startswith("### ")
+        ]
+        self.assertEqual(
+            len(headings),
+            len(set(headings)),
+            f"duplicate Unreleased change-type headings: {headings}",
+        )
 
 
 if __name__ == "__main__":

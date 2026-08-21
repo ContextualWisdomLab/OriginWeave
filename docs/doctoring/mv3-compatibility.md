@@ -1,12 +1,14 @@
 # Manifest V3 compatibility evidence baseline
 
 - **Status:** Active implementation evidence for issue #27
-- **Reviewed:** 2026-08-20
+- **Reviewed:** 2026-08-21
 - **Pinned browser:** Chrome for Testing `150.0.7871.129`, Chromium revision `r1639810`
 
 OriginWeave uses Chromium as its compatibility kernel, so browser-extension compatibility must be demonstrated with executable Chromium evidence rather than inferred from architecture alone. The protected-main lane exercises a controlled unpacked Manifest V3 extension against one exact Chrome for Testing build and proves service-worker, content-script, storage, declarative-network-request, tabs, windows, scripting, commands, side-panel, bookmarks/history read compatibility, restart persistence, repeatability, and one real WebDriver click/post-condition. Active stacked compatibility work adds downloads, bounded bookmark/history mutation, profile isolation, explicit extension update/version-migration evidence, and an exact content-script isolated-world check. OriginWeave does **not claim 100% Chrome extension compatibility**.
 
 The checked-in fixture is intentionally local-only. Its host permission is limited to loopback HTTP used by the deterministic test server. It contains no remote code, user credential, model call, external content, native-messaging host, or production PII. Chrome permissions remain distinct from the explicit OriginWeave extension-to-Agent grant implemented in `originweave-core`. Compatibility mutation tests create only controlled synthetic state inside the ephemeral test profile and must clean it up; successful API compatibility never grants the OriginWeave Agent ambient bookmarks/history/downloads authority.
+
+The compatibility runner preserves Chromium's renderer sandbox and does not pass `--no-sandbox`. Because the Chrome for Testing archive does not carry setuid ownership through extraction, the workflow installs its pinned `chrome_sandbox` helper as root-owned mode `4755` and sets `CHROME_DEVEL_SANDBOX` to that exact helper before execution. A runner environment that cannot start the pinned browser with sandboxing enabled is an infrastructure failure to repair or report, not a reason to weaken the browser security boundary.
 
 ## Supported-capability evidence matrix
 
@@ -44,7 +46,7 @@ For downloads compatibility specifically, the current official Chrome Extensions
 
 ## WebDriver transport-protocol diagnostic boundary
 
-RFC 9112 requires a well-formed HTTP/1.1 status-line and a message body that matches the announced framing. W3C WebDriver sends commands over that HTTP transport. When ChromeDriver returns a malformed status-line or an incomplete body, the compatibility runner raises only `WebDriver transport protocol failure`. Raw status-line text, partial body bytes, paths, URLs, or tokens must not enter exception text or trial evidence. This classification lets `main` record the failure in `trial_results` instead of aborting the compatibility run with an unclassified parser exception.
+RFC 9112 requires a well-formed HTTP/1.1 status-line and a message body that matches the announced framing. W3C WebDriver sends commands over that HTTP transport. When ChromeDriver returns a malformed status-line or an incomplete body, the compatibility runner raises only `WebDriver transport protocol failure`; when a WebDriver response supplies a recognized protocol error, it retains only an allow-listed error code. Raw status-line text, partial body bytes, paths, URLs, browser messages, or tokens must not enter exception text or trial evidence. This classification lets `main` record the failure in `trial_results` instead of aborting the compatibility run with an unclassified parser exception.
 
 ## ChromeDriver startup-record robustness boundary
 
@@ -67,6 +69,8 @@ Content-script injection and content-script JavaScript isolation are separate co
 ## Supply-chain and repeatability evidence
 
 The CI lane downloads the exact Chrome/ChromeDriver version from the official Chrome for Testing public bucket, records SHA-256 receipts for the downloaded archives, verifies the runtime-reported browser version, and emits bounded JSON compatibility evidence. A future release-quality matrix should additionally pin published artifact digests or equivalent immutable supply-chain identity when the upstream distribution exposes that identity in an authoritative machine-readable form.
+
+A bounded process-teardown timeout is recorded as one failed trial and does not suppress the remaining trial records or the aggregate evidence line. The repeatability gate still fails unless all required trials pass; cleanup failure is not converted into browser success.
 
 ## Primary references — APA 7th
 
