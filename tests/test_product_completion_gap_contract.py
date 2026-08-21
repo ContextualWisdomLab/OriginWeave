@@ -17,9 +17,9 @@ class ProductCompletionGapContractTests(unittest.TestCase):
         text = BASELINE.read_text(encoding="utf-8")
 
         for phrase in (
-            "148 open pull requests",
+            "150 open pull requests",
             "38 non-draft",
-            "110 draft",
+            "112 draft",
             "#198",
             "#199",
             "#200",
@@ -39,6 +39,8 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "100 open pull requests",
             "22 non-draft",
             "78 draft",
+            "148 open pull requests",
+            "110 draft",
             "79 draft PRs",
         ):
             with self.subTest(stale_phrase=stale_phrase):
@@ -61,26 +63,42 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             '"repos/ContextualWisdomLab/OriginWeave/commits/$HEAD_SHA/statuses?per_page=100"',
             '"repos/ContextualWisdomLab/OriginWeave/pulls/$PR/reviews?per_page=100"',
             '"repos/ContextualWisdomLab/OriginWeave/actions/runs?head_sha=$HEAD_SHA&per_page=100"',
-            "workflow_runs: [$workflow_runs[]?.workflow_runs[]?],",
+            '"$EVIDENCE_DIR/pr-${PR}-head-commit.json"',
+            "check_runs: [$checks[][].check_runs[]?],",
+            "legacy_statuses: [$statuses[][][]?]",
+            "workflow_runs: [$workflow_runs[][].workflow_runs[]?],",
             "reviewThreads(first: 100, after: $endCursor)",
             "rules/branches/main?per_page=100",
             '"$EVIDENCE_DIR/main-branch-rule-pages.json"',
+            '"$EVIDENCE_DIR/collaborator-pages.json"',
+            '"$EVIDENCE_DIR/collaborators.json"',
+            '"$EVIDENCE_DIR/pr-${PR}-merge-verdict.json.tmp"',
             '.state == "APPROVED"',
             ".submitted_at != null",
             ".commit_id == $head",
+            "group_by(.reviewer)",
+            "required_approving_review_count",
+            "require_last_push_approval",
+            "$head_commit[0].committer.login",
+            "$pr[0].user.login",
             '.type == "workflows"',
             ".parameters.workflows",
             "required_status_checks",
             '"$EVIDENCE_DIR/pr-${PR}-merge-verdict.json"',
             "for ATTEMPT in 1 2 3; do",
             "RECHECKED_HEAD_SHA=",
-            '[[ "$RECHECKED_HEAD_SHA" == "$HEAD_SHA" ]]',
+            "RECHECKED_BASE_SHA=",
+            'if [[ "$RECHECKED_HEAD_SHA" == "$HEAD_SHA" && "$RECHECKED_BASE_SHA" == "$BASE_SHA" ]]; then',
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, shell)
 
         self.assertNotIn("while :; do", shell)
         self.assertNotIn("/tmp/originweave-open-pr", shell)
+        self.assertNotIn("check_runs: [$checks[]?.check_runs[]?],", shell)
+        self.assertNotIn("legacy_statuses: [$statuses[][]?]", shell)
+        self.assertNotIn("workflow_runs: [$workflow_runs[]?.workflow_runs[]?],", shell)
+        self.assertNotIn("$reviews[][]?\n          | select(.state", shell)
 
 
 if __name__ == "__main__":

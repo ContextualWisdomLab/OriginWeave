@@ -14,7 +14,7 @@ This is a dated delivery baseline, not a substitute for the PRD, TRD, roadmap, a
 
 ### Open pull requests
 
-The live repository contained **148 open pull requests: 38 non-draft and 110 draft**. The volume and stack depth are themselves a product-delivery risk: review, exact-head checks, dependency order, and integration truth can drift faster than a buyer-visible vertical slice reaches protected `main`.
+The live repository contained **150 open pull requests: 38 non-draft and 112 draft**. The volume and stack depth are themselves a product-delivery risk: review, exact-head checks, dependency order, and integration truth can drift faster than a buyer-visible vertical slice reaches protected `main`.
 
 Representative active workstreams at this snapshot were:
 
@@ -80,7 +80,7 @@ The hourly product-development loop is operational infrastructure, not proof tha
 | P1 | Buyers can install, update, verify, and roll back a supported product | **Not shipped** | #201; signed Windows/macOS/Linux/headless artifacts, Chromium revision manifest, updater security, patch SLA, SBOM, SLSA provenance, and recovery |
 | P1 | Enterprise teams can provision, approve, audit, operate, and recover the service | **Not shipped** | #202; Keyverse-compatible OIDC/SCIM, tenant isolation, policy/approval/evidence UI, SLO/incident controls, data residency, CSAP/SOC 2 evidence mapping, WCAG 2.2, Figma File ID, and Storybook |
 | P0 | A release has reproducible proof of usefulness, safety, evidence completeness, and recovery | **No product-wide release gate** | #203; deterministic, compatibility, adversarial, recovery, and enterprise suites with statistical reporting and an exact-artifact commercial acceptance gate |
-| P0 | Valid changes reach protected `main` without authority improvisation or unbounded stack growth | **Blocked / high integration debt** | Shrink the 148-PR queue in dependency order, provision legitimate review authority, require exact-current evidence, and close duplicates/superseded branches |
+| P0 | Valid changes reach protected `main` without authority improvisation or unbounded stack growth | **Blocked / high integration debt** | Shrink the 150-PR queue in dependency order, provision legitimate review authority, require exact-current evidence, and close duplicates/superseded branches |
 
 ## Commercial completion definition
 
@@ -99,7 +99,7 @@ OriginWeave is not complete merely because every low-level primitive exists in s
 
 ## Next executable queue
 
-1. Re-fetch all 148 PRs and compute the dependency graph, exact heads/bases, reviews, unresolved threads, current required checks, duplicate/supersession relationships, and branch ancestry.
+1. Re-fetch all 150 PRs and compute the dependency graph, exact heads/bases, reviews, unresolved threads, current required checks, duplicate/supersession relationships, and branch ancestry.
 2. Integrate merge-ready root PRs first; restack and independently revalidate only the immediate children. Close obsolete alternatives instead of carrying parallel truth.
 3. Finish the #9/#28 browser-network and Chromium vertical slice, including the #195/#198 WebSocket opening path and the remaining framed BiDi command/response, semantic observation, policy, action, post-condition, and recovery boundaries.
 4. Finish #27 and #10 as separate security tracks; neither should be hidden inside the first browser PR.
@@ -144,9 +144,16 @@ jq '[.[][]]' "$EVIDENCE_DIR/collaborator-pages.json" \
 jq -r '.[].number' "$EVIDENCE_DIR/open-prs.json" | while read -r PR; do
   STABLE_HEAD=false
   for ATTEMPT in 1 2 3; do
+    VERDICT_PATH="$EVIDENCE_DIR/pr-${PR}-merge-verdict.json"
+    VERDICT_TMP="$EVIDENCE_DIR/pr-${PR}-merge-verdict.json.tmp"
+    rm -f "$VERDICT_PATH" "$VERDICT_TMP" "$EVIDENCE_DIR/pr-${PR}-rechecked.json"
     PR_JSON="$EVIDENCE_DIR/pr-${PR}.json"
     gh api "repos/ContextualWisdomLab/OriginWeave/pulls/$PR" > "$PR_JSON"
     HEAD_SHA=$(jq -r '.head.sha' "$PR_JSON")
+    BASE_SHA=$(jq -r '.base.sha' "$PR_JSON")
+
+    gh api "repos/ContextualWisdomLab/OriginWeave/commits/$HEAD_SHA" \
+      > "$EVIDENCE_DIR/pr-${PR}-head-commit.json"
 
     gh api --paginate --slurp \
       "repos/ContextualWisdomLab/OriginWeave/commits/$HEAD_SHA/check-runs?per_page=100" \
@@ -184,48 +191,86 @@ query($owner: String!, $name: String!, $number: Int!, $endCursor: String) {
       --slurpfile reviews "$EVIDENCE_DIR/pr-${PR}-reviews.json" \
       --slurpfile workflow_runs "$EVIDENCE_DIR/pr-${PR}-workflow-runs.json" \
       --slurpfile rules "$EVIDENCE_DIR/main-branch-rules.json" \
+      --slurpfile collaborators "$EVIDENCE_DIR/collaborators.json" \
+      --slurpfile head_commit "$EVIDENCE_DIR/pr-${PR}-head-commit.json" \
       --slurpfile threads "$EVIDENCE_DIR/pr-${PR}-review-threads.json" \
-      '{
-        head_sha: $head,
-        base_sha: $pr[0].base.sha,
-        required_status_checks: {
-          check_runs: [$checks[]?.check_runs[]?],
-          legacy_statuses: [$statuses[][]?]
-        },
-        workflow_runs: [$workflow_runs[]?.workflow_runs[]?],
-        counted_approvals: ([
-          $reviews[][]?
-          | select(.state == "APPROVED")
-          | select(.submitted_at != null)
-          | select(.commit_id == $head)
-        ] | length),
-        required_workflows: [
+      --arg base "$BASE_SHA" \
+      '(
+        [
           $rules[][]?
-          | select(.type == "workflows")
-          | .parameters.workflows[]
-        ],
-        unresolved_threads: [
-          $threads[]?.data.repository.pullRequest.reviewThreads.nodes[]?
-          | select(.isResolved == false and .isOutdated == false)
-        ]
-      }' > "$EVIDENCE_DIR/pr-${PR}-merge-verdict.json"
+          | select(.type == "pull_request")
+          | .parameters
+        ] | first // {}
+      ) as $pull_request_parameters
+      | ($head_commit[0].committer.login // $head_commit[0].author.login // "") as $last_push_actor
+      | (
+          [
+            $reviews[][][]?
+            | {reviewer: .user.login, state, submitted_at, commit_id}
+            | select(.submitted_at != null)
+            | select(.reviewer != $pr[0].user.login)
+            | select(.reviewer as $reviewer |
+                any($collaborators[][]?;
+                  .login == $reviewer and
+                  (.permissions.push == true or
+                   .permissions.maintain == true or
+                   .permissions.admin == true)))
+          ]
+          | group_by(.reviewer)
+          | map(sort_by(.submitted_at) | last)
+          | map(select(
+              ($pull_request_parameters.require_last_push_approval != true)
+              or .reviewer != $last_push_actor
+            ))
+          | map(select(.state == "APPROVED" and .commit_id == $head))
+        ) as $current_approvals
+      | ($pull_request_parameters.required_approving_review_count // 0) as $required_review_count
+      | {
+          head_sha: $head,
+          base_sha: $base,
+          required_status_checks: {
+            check_runs: [$checks[][].check_runs[]?],
+            legacy_statuses: [$statuses[][][]?]
+          },
+          workflow_runs: [$workflow_runs[][].workflow_runs[]?],
+          counted_approvals: ($current_approvals | length),
+          required_approving_review_count: $required_review_count,
+          require_last_push_approval: ($pull_request_parameters.require_last_push_approval // false),
+          approval_gate_satisfied: (($current_approvals | length) >= $required_review_count),
+          required_workflows: [
+            $rules[][]?
+            | select(.type == "workflows")
+            | .parameters.workflows[]
+          ],
+          unresolved_threads: [
+            $threads[][].data.repository.pullRequest.reviewThreads.nodes[]?
+            | select(.isResolved == false and .isOutdated == false)
+          ]
+        }' > "$VERDICT_TMP"
 
+    RECHECKED_PR_JSON="$EVIDENCE_DIR/pr-${PR}-rechecked.json"
     RECHECKED_HEAD_SHA=$(gh api "repos/ContextualWisdomLab/OriginWeave/pulls/$PR" \
+      | tee "$RECHECKED_PR_JSON" \
       | jq -r '.head.sha')
-    if [[ "$RECHECKED_HEAD_SHA" == "$HEAD_SHA" ]]; then
+    RECHECKED_BASE_SHA=$(jq -r '.base.sha' "$RECHECKED_PR_JSON")
+    if [[ "$RECHECKED_HEAD_SHA" == "$HEAD_SHA" && "$RECHECKED_BASE_SHA" == "$BASE_SHA" ]]; then
+      mv "$VERDICT_TMP" "$VERDICT_PATH"
+      mv "$RECHECKED_PR_JSON" "$PR_JSON"
       STABLE_HEAD=true
       break
     fi
-    printf 'Discarding moving-head evidence for PR #%s (%s -> %s) and retrying.\n' \
-      "$PR" "$HEAD_SHA" "$RECHECKED_HEAD_SHA" >&2
+    rm -f "$VERDICT_TMP" "$RECHECKED_PR_JSON"
+    printf 'Discarding moving head/base evidence for PR #%s (head %s -> %s, base %s -> %s) and retrying.\n' \
+      "$PR" "$HEAD_SHA" "$RECHECKED_HEAD_SHA" "$BASE_SHA" "$RECHECKED_BASE_SHA" >&2
   done
   if [[ "$STABLE_HEAD" != true ]]; then
-    printf 'Unable to collect stable exact-head evidence for PR #%s after 3 attempts.\n' "$PR" >&2
+    rm -f "$EVIDENCE_DIR"/pr-${PR}-*.json
+    printf 'Unable to collect stable exact-head/base evidence for PR #%s after 3 attempts.\n' "$PR" >&2
     exit 1
   fi
 done
 ```
 
-The branch-scoped rules response determines the active rules affecting `main`; each PR's exact `HEAD_SHA` then determines which check runs, legacy statuses, workflow runs, reviews, and unresolved threads are current. The saved merge verdict binds counted approvals to `APPROVED`, non-null submission times, and the exact head, while preserving required workflow rules. The saved PR JSON also preserves the exact base reference and branch ancestry input for the dependency graph. Evidence is retained only when the post-collection `RECHECKED_HEAD_SHA` equals the collected `HEAD_SHA`; a moving head fails after three bounded attempts.
+The branch-scoped rules response determines the active rules affecting `main`; each PR's exact `HEAD_SHA` then determines which check runs, legacy statuses, workflow runs, reviews, and unresolved threads are current. The saved merge verdict binds counted approvals to the latest review per eligible collaborator, excludes the PR author and (when required) the last-push actor, applies the required approval count and last-push rule, and requires `APPROVED` on the exact head. The saved PR JSON also preserves the exact base reference and branch ancestry input for the dependency graph. Evidence is retained only when both `RECHECKED_HEAD_SHA` and `RECHECKED_BASE_SHA` match the collected values; a moving head or base discards the temporary verdict, and three failed attempts leave no unstable merge verdict.
 
 For standards and binding architecture, use [`doctoring.md`](doctoring.md), [`doctoring/browser-agent-protocols.md`](doctoring/browser-agent-protocols.md), [`PRD.md`](PRD.md), [`TRD.md`](TRD.md), [`product-roadmap.md`](product-roadmap.md), and linked ADR/UML/ERD/traceability records. Issues #199-#203 contain their own APA 7th standards and research traceability. This baseline intentionally records delivery state and never promotes planned adapters or active pull-request code to implemented behavior.
