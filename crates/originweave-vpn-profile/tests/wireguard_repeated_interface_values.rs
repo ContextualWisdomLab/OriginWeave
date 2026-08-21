@@ -33,6 +33,28 @@ fn wireguard_interface_accumulates_repeated_address_and_dns_fields() -> Result<(
         normalized.dns_servers,
         vec!["1.1.1.1".to_owned(), "2606:4700:4700::1111".to_owned()]
     );
+    assert_eq!(normalized.dns_search_domains, Vec::<String>::new());
+    assert_eq!(importer.calls, 1);
+    Ok(())
+}
+
+#[test]
+fn wireguard_dns_preserves_search_domains_separately_from_dns_servers() -> Result<(), ProfileError> {
+    let profile = format!(
+        "[Interface]\nAddress=10.0.0.2/32\nDNS=1.1.1.1,corp.example\nDNS=fd00::53,svc.corp.example\nPrivateKey={VALID_WIREGUARD_KEY}\n"
+    );
+    let mut importer = RecordingImporter::default();
+
+    let normalized = import_wireguard_profile(&profile, &mut importer)?;
+
+    assert_eq!(
+        normalized.dns_servers,
+        vec!["1.1.1.1".to_owned(), "fd00::53".to_owned()]
+    );
+    assert_eq!(
+        normalized.dns_search_domains,
+        vec!["corp.example".to_owned(), "svc.corp.example".to_owned()]
+    );
     assert_eq!(importer.calls, 1);
     Ok(())
 }
