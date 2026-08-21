@@ -107,6 +107,12 @@ fn next_pong_masking_key(
     next_key().ok_or(WebDriverBiDiLocateNodesExchangeError::PongMaskingKeyUnavailable)
 }
 
+fn map_established_frame_result(
+    result: Result<WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrameError>,
+) -> Result<WebDriverBiDiWebSocketEstablished, WebDriverBiDiLocateNodesExchangeError> {
+    result.map_err(WebDriverBiDiLocateNodesExchangeError::Frame)
+}
+
 impl WebDriverBiDiWebSocketEstablished {
     /// Exchange one exact bounded `browsingContext.locateNodes` command on this verified stream.
     ///
@@ -142,9 +148,11 @@ impl WebDriverBiDiWebSocketEstablished {
         WebDriverBiDiLocateNodesExchangeError,
     > {
         let started_at = Instant::now();
-        let mut established = self
-            .write_text_frame(command.as_json(), command_masking_key, exchange_timeout)
-            .map_err(WebDriverBiDiLocateNodesExchangeError::Frame)?;
+        let mut established = map_established_frame_result(self.write_text_frame(
+            command.as_json(),
+            command_masking_key,
+            exchange_timeout,
+        ))?;
 
         loop {
             let remaining_timeout =
@@ -159,9 +167,11 @@ impl WebDriverBiDiWebSocketEstablished {
                     let masking_key = next_pong_masking_key(next_pong_key)?;
                     let remaining_timeout =
                         remaining_exchange_budget(exchange_timeout, started_at.elapsed())?;
-                    established = established
-                        .write_pong_frame(frame.payload(), masking_key, remaining_timeout)
-                        .map_err(WebDriverBiDiLocateNodesExchangeError::Frame)?;
+                    established = map_established_frame_result(established.write_pong_frame(
+                        frame.payload(),
+                        masking_key,
+                        remaining_timeout,
+                    ))?;
                 }
                 0xa => {}
                 0x1 if frame.fin() => {
@@ -230,10 +240,10 @@ mod tests {
         assert_eq!(next_pong_masking_key(&mut available).ok(), Some(expected));
 
         let mut unavailable = || None;
-        assert!(matches!(
-            next_pong_masking_key(&mut unavailable),
-            Err(WebDriverBiDiLocateNodesExchangeError::PongMaskingKeyUnavailable)
-        ));
+        assert_eq!(
+            format!("{:?}", next_pong_masking_key(&mut unavailable)),
+            "Err(PongMaskingKeyUnavailable)"
+        );
     }
 
     #[test]
