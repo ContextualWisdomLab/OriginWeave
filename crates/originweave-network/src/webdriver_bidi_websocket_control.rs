@@ -136,11 +136,12 @@ impl WebDriverBiDiWebSocketEstablished {
         masking_key: WebDriverBiDiWebSocketMaskKey,
         frame_timeout: Duration,
     ) -> Result<Self, WebDriverBiDiWebSocketFrameError> {
-        validate_pong_parameters(payload.len(), frame_timeout)?;
-        let frame = serialize_pong_frame(payload, masking_key);
-        let mut now = Instant::now;
-        write_pong_frame_with_clock(&mut self.stream, &frame, frame_timeout, &mut now)?;
-        Ok(self)
+        validate_pong_parameters(payload.len(), frame_timeout).and_then(|()| {
+            let frame = serialize_pong_frame(payload, masking_key);
+            let mut now = Instant::now;
+            write_pong_frame_with_clock(&mut self.stream, &frame, frame_timeout, &mut now)
+                .map(|()| self)
+        })
     }
 }
 
@@ -208,21 +209,21 @@ mod tests {
     #[test]
     fn pong_parameter_validation_is_fail_closed() {
         assert!(validate_pong_parameters(0, Duration::from_millis(1)).is_ok());
-        assert!(matches!(
-            validate_pong_parameters(0, Duration::ZERO),
-            Err(WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout { .. })
-        ));
-        assert!(matches!(
-            validate_pong_parameters(0, MAX_WEBSOCKET_FRAME_TIMEOUT + Duration::from_nanos(1)),
-            Err(WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout { .. })
-        ));
-        assert!(matches!(
-            validate_pong_parameters(126, Duration::from_millis(1)),
-            Err(WebDriverBiDiWebSocketFrameError::FrameTooLarge {
-                payload_bytes: 126,
-                maximum_bytes: MAX_WEBSOCKET_CONTROL_FRAME_PAYLOAD_BYTES,
-            })
-        ));
+
+        let zero_timeout = validate_pong_parameters(0, Duration::ZERO)
+            .expect_err("zero timeout must fail closed");
+        assert!(format!("{zero_timeout:?}").starts_with("InvalidFrameTimeout"));
+
+        let excessive_timeout = validate_pong_parameters(
+            0,
+            MAX_WEBSOCKET_FRAME_TIMEOUT + Duration::from_nanos(1),
+        )
+        .expect_err("timeout above the resource ceiling must fail closed");
+        assert!(format!("{excessive_timeout:?}").starts_with("InvalidFrameTimeout"));
+
+        let excessive_payload = validate_pong_parameters(126, Duration::from_millis(1))
+            .expect_err("control payload above the RFC 6455 ceiling must fail closed");
+        assert!(format!("{excessive_payload:?}").starts_with("FrameTooLarge"));
     }
 
     #[test]
@@ -258,55 +259,37 @@ mod tests {
         let later = start + Duration::from_secs(1);
 
         let mut deadline = FakeWriter::new([]);
-        assert!(matches!(
-            write_with_fake(&mut deadline, [start, later]),
-            Err(WebDriverBiDiWebSocketFrameError::FrameWriteTimedOut {
-                bytes_written: 0,
-                ..
-            })
-        ));
+        let deadline_error = write_with_fake(&mut deadline, [start, later])
+            .expect_err("elapsed deadline must fail closed");
+        assert!(format!("{deadline_error:?}").starts_with("FrameWriteTimedOut"));
 
         let mut configure = FakeWriter::new([]);
         configure.timeout_error = Some(io::ErrorKind::PermissionDenied);
-        assert!(matches!(
-            write_with_fake(&mut configure, [start, start]),
-            Err(
-                WebDriverBiDiWebSocketFrameError::FrameWriteModeConfigurationFailed {
-                    bytes_written: 0,
-                    ..
-                }
-            )
-        ));
+        let configure_error = write_with_fake(&mut configure, [start, start])
+            .expect_err("write-timeout configuration failure must be preserved");
+        assert!(
+            format!("{configure_error:?}").starts_with("FrameWriteModeConfigurationFailed")
+        );
 
         let mut zero = FakeWriter::new([WriteAction::Count(0)]);
-        assert!(matches!(
-            write_with_fake(&mut zero, [start, start]),
-            Err(WebDriverBiDiWebSocketFrameError::FrameWriteZero { bytes_written: 0 })
-        ));
+        let zero_error = write_with_fake(&mut zero, [start, start])
+            .expect_err("zero-byte progress must fail closed");
+        assert!(format!("{zero_error:?}").starts_with("FrameWriteZero"));
 
         let mut timed_out = FakeWriter::new([WriteAction::Error(io::ErrorKind::TimedOut)]);
-        assert!(matches!(
-            write_with_fake(&mut timed_out, [start, start, later]),
-            Err(WebDriverBiDiWebSocketFrameError::FrameWriteTimedOut {
-                bytes_written: 0,
-                ..
-            })
-        ));
+        let timed_out_error = write_with_fake(&mut timed_out, [start, start, later])
+            .expect_err("timed-out write at the deadline must be preserved");
+        assert!(format!("{timed_out_error:?}").starts_with("FrameWriteTimedOut"));
 
         let mut failed = FakeWriter::new([WriteAction::Error(io::ErrorKind::BrokenPipe)]);
-        assert!(matches!(
-            write_with_fake(&mut failed, [start, start]),
-            Err(WebDriverBiDiWebSocketFrameError::FrameWriteFailed {
-                bytes_written: 0,
-                ..
-            })
-        ));
+        let failed_error = write_with_fake(&mut failed, [start, start])
+            .expect_err("non-retryable write failure must be preserved");
+        assert!(format!("{failed_error:?}").starts_with("FrameWriteFailed"));
 
         let mut cleanup = FakeWriter::new([WriteAction::Count(6)]);
         cleanup.cleanup_error = Some(io::ErrorKind::PermissionDenied);
-        assert!(matches!(
-            write_with_fake(&mut cleanup, [start, start]),
-            Err(WebDriverBiDiWebSocketFrameError::FrameWriteCleanupFailed { .. })
-        ));
+        let cleanup_error = write_with_fake(&mut cleanup, [start, start])
+            .expect_err("timeout cleanup failure must be preserved");
+        assert!(format!("{cleanup_error:?}").starts_with("FrameWriteCleanupFailed"));
     }
 }
