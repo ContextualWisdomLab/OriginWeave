@@ -88,9 +88,9 @@ fn remaining_exchange_budget(
 ) -> Result<Duration, WebDriverBiDiLocateNodesExchangeError> {
     match exchange_timeout.checked_sub(elapsed) {
         Some(remaining) if !remaining.is_zero() => Ok(remaining),
-        Some(_) | None => Err(WebDriverBiDiLocateNodesExchangeError::ExchangeDeadlineExceeded {
-            exchange_timeout,
-        }),
+        Some(_) | None => Err(
+            WebDriverBiDiLocateNodesExchangeError::ExchangeDeadlineExceeded { exchange_timeout },
+        ),
     }
 }
 
