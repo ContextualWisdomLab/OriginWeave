@@ -21,6 +21,11 @@ const RESPONSE_DOCUMENT: &str =
     r#"{"type":"success","id":7,"result":{"nodes":[{"type":"node","sharedId":"shared-1"}]}}"#;
 const PING_PAYLOAD: &[u8] = b"keepalive";
 
+type EstablishedPingServer = (
+    originweave_network::WebDriverBiDiWebSocketEstablished,
+    thread::JoinHandle<io::Result<()>>,
+);
+
 fn connect(
     endpoint: &str,
 ) -> Result<originweave_network::WebDriverBiDiTcpConnection, Box<dyn Error>> {
@@ -101,15 +106,7 @@ fn locate_nodes_command() -> Result<WebDriverBiDiLocateNodesCommand, Box<dyn Err
     )?)
 }
 
-fn establish_with_ping(
-    keep_open: Duration,
-) -> Result<
-    (
-        originweave_network::WebDriverBiDiWebSocketEstablished,
-        thread::JoinHandle<io::Result<()>>,
-    ),
-    Box<dyn Error>,
-> {
+fn establish_with_ping(keep_open: Duration) -> Result<EstablishedPingServer, Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let server = thread::spawn(move || -> io::Result<()> {
