@@ -190,8 +190,7 @@ impl WebDriverBiDiWebSocketEstablished {
                 if control_frame_count == MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE {
                     return Err(
                         WebDriverBiDiLocateNodesExchangeError::ControlFrameLimitExceeded {
-                            maximum_control_frames:
-                                MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE,
+                            maximum_control_frames: MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE,
                         },
                     );
                 }
