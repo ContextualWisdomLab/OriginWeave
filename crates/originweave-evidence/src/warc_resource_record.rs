@@ -18,7 +18,7 @@ pub enum WarcResourceRecordError {
     InvalidRecordId,
     /// The date was not a bounded UTC RFC 3339 timestamp.
     InvalidDate,
-    /// The content type was empty or contained unsafe whitespace/control input.
+    /// The content type was not a bounded, syntactically valid MIME media type.
     InvalidContentType,
     /// A record field or payload exceeded its retention limit.
     LimitExceeded,
@@ -229,11 +229,109 @@ fn is_leap_year(year: u16) -> bool {
 }
 
 fn valid_content_type(content_type: &str) -> bool {
-    !content_type.is_empty()
-        && content_type.len() <= MAX_WARC_CONTENT_TYPE_BYTES
-        && !content_type
-            .chars()
-            .any(|character| character.is_control() || character.is_whitespace())
+    if content_type.is_empty() || content_type.len() > MAX_WARC_CONTENT_TYPE_BYTES {
+        return false;
+    }
+
+    let mut parts = content_type.split(';');
+    let Some(essence) = parts.next() else {
+        return false;
+    };
+    let essence = trim_ows_end(essence);
+    let Some((media_type, media_subtype)) = essence.split_once('/') else {
+        return false;
+    };
+    if !valid_mime_token(media_type) || !valid_mime_token(media_subtype) {
+        return false;
+    }
+
+    parts.all(valid_mime_parameter)
+}
+
+fn valid_mime_parameter(parameter: &str) -> bool {
+    let parameter = trim_ows(parameter);
+    let Some((attribute, value)) = parameter.split_once('=') else {
+        return false;
+    };
+    valid_mime_token(attribute) && valid_mime_parameter_value(value)
+}
+
+fn valid_mime_parameter_value(value: &str) -> bool {
+    if valid_mime_token(value) {
+        return true;
+    }
+
+    let bytes = value.as_bytes();
+    if bytes.len() < 2 || bytes.first() != Some(&b'"') || bytes.last() != Some(&b'"') {
+        return false;
+    }
+
+    let mut escaped = false;
+    for byte in bytes[1..bytes.len() - 1].iter().copied() {
+        if escaped {
+            if !valid_quoted_pair_byte(byte) {
+                return false;
+            }
+            escaped = false;
+        } else if byte == b'\\' {
+            escaped = true;
+        } else if !valid_quoted_text_byte(byte) {
+            return false;
+        }
+    }
+    !escaped
+}
+
+const fn valid_mime_token(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    if bytes.is_empty() {
+        return false;
+    }
+    let mut index = 0;
+    while index < bytes.len() {
+        if !is_mime_token_byte(bytes[index]) {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+
+const fn is_mime_token_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric()
+        || matches!(
+            byte,
+            b'!' | b'#'
+                | b'$'
+                | b'%'
+                | b'&'
+                | b'\''
+                | b'*'
+                | b'+'
+                | b'-'
+                | b'.'
+                | b'^'
+                | b'_'
+                | b'`'
+                | b'|'
+                | b'~'
+        )
+}
+
+const fn valid_quoted_text_byte(byte: u8) -> bool {
+    byte == b'\t' || byte == b' ' || byte == b'!' || (byte >= 0x23 && byte <= 0x5b) || (byte >= 0x5d && byte <= 0x7e)
+}
+
+const fn valid_quoted_pair_byte(byte: u8) -> bool {
+    byte == b'\t' || byte == b' ' || (byte >= 0x21 && byte <= 0x7e)
+}
+
+fn trim_ows(value: &str) -> &str {
+    value.trim_matches(|character| matches!(character, ' ' | '\t'))
+}
+
+fn trim_ows_end(value: &str) -> &str {
+    value.trim_end_matches(|character| matches!(character, ' ' | '\t'))
 }
 
 fn sha256_digest(payload: &[u8]) -> String {
