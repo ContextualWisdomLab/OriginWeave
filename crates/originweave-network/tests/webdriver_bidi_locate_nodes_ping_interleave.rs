@@ -145,7 +145,7 @@ fn locate_nodes_exchange_answers_ping_and_ignores_unsolicited_pong_before_respon
     let exchanged = established.exchange_locate_nodes(
         command,
         WebDriverBiDiWebSocketMaskKey::new([0x11, 0x22, 0x33, 0x44]),
-        || pong_keys.next(),
+        &mut || pong_keys.next(),
         Duration::from_millis(500),
     );
 
