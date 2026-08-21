@@ -36,7 +36,7 @@ The protocol does not:
 - accept raw page text as policy;
 - collapse origin/destination/route/TCP/TLS/HTTP authority into one URL field;
 - treat protocol authentication alone as task authorization;
-- guarantee every future Chromium/CDP/WebMCP feature.
+- guarantee every future Chromium/CDP/WebMCP/MCP feature.
 
 ## 4. Versioning
 
@@ -110,8 +110,10 @@ Rules:
 - secret-handle max-use semantics remain independent of request idempotency.
 
 The active BAP lifecycle implementation exposes an in-memory command receipt that
-identifies an exact key/task/event retry. It does not persist the receipt or claim
-that a retry has been deduplicated until a durable runtime adapter exists.
+identifies an exact tenant/key/task/event retry namespace. The caller-supplied tenant
+identifier scopes retry identity only; it is not authentication or authorization
+evidence. The receipt is not persisted and does not claim that a retry has been
+deduplicated until a durable runtime adapter exists.
 
 ## 8. Deadline and cancellation
 
