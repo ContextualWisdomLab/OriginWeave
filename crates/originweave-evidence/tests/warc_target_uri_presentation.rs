@@ -46,6 +46,28 @@ fn warc_target_uri_rejects_invisible_formatting_characters_before_serialization(
 }
 
 #[test]
+fn warc_target_uri_rejects_control_and_whitespace_before_provenance_comparison() {
+    let source_provenance = provenance("https://example.com/item");
+    for target_uri in [
+        "https://example.com/item\rshadow",
+        "https://example.com/item shadow",
+    ] {
+        assert_eq!(
+            WarcResourceRecord::new(
+                RECORD_ID,
+                DATE,
+                target_uri,
+                "text/plain",
+                Vec::new(),
+                source_provenance.clone(),
+            ),
+            Err(WarcResourceRecordError::InvalidTargetUri),
+            "target_uri={target_uri:?}"
+        );
+    }
+}
+
+#[test]
 fn warc_target_uri_preserves_printable_unicode_path_text() {
     let target_uri = "https://example.com/상품/상세";
     let record = WarcResourceRecord::new(
