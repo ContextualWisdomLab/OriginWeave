@@ -198,7 +198,7 @@ fn valid_utc_date(date: &str) -> bool {
     let hour = two_digits(bytes[11], bytes[12]);
     let minute = two_digits(bytes[14], bytes[15]);
     let second = two_digits(bytes[17], bytes[18]);
-    valid_calendar_date(year, month, day) && hour < 24 && minute < 60 && second <= 60
+    valid_calendar_date(year, month, day) && hour < 24 && minute < 60 && second < 60
 }
 
 fn four_digits(first: u8, second: u8, third: u8, fourth: u8) -> u16 {
