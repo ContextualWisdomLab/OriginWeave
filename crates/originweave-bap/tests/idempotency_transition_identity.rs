@@ -50,3 +50,32 @@ fn replay_rejects_same_state_and_sequence_from_a_different_transition_path() {
     assert_eq!(other_task.state(), BapTaskState::Running);
     assert_eq!(other_task.transition_sequence(), 4);
 }
+
+#[test]
+fn restored_snapshot_without_last_transition_identity_cannot_replay_receipt() {
+    let mut source_task = BapTaskLifecycle::new();
+    let receipt = source_task
+        .apply_or_replay(
+            None,
+            "request-admit",
+            "tenant-1",
+            "task-1",
+            BapTaskEvent::Admit,
+        )
+        .expect("source admit receipt");
+
+    let mut restored = BapTaskLifecycle::restore(BapTaskState::Admitted, 1)
+        .expect("reachable admitted snapshot");
+    assert_eq!(
+        restored.apply_or_replay(
+            Some(&receipt),
+            "request-admit",
+            "tenant-1",
+            "task-1",
+            BapTaskEvent::Admit,
+        ),
+        Err(BapCommandReceiptError::ReplayStateMismatch)
+    );
+    assert_eq!(restored.state(), BapTaskState::Admitted);
+    assert_eq!(restored.transition_sequence(), 1);
+}
