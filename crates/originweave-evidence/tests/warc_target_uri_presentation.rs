@@ -5,8 +5,7 @@ use originweave_evidence::{
     WarcResourceRecordError,
 };
 
-const SOURCE_HASH: &str =
-    "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+const SOURCE_HASH: &str = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 const RECORD_ID: &str = "urn:uuid:123e4567-e89b-12d3-a456-426614174000";
 const DATE: &str = "2026-08-21T00:00:00Z";
 
