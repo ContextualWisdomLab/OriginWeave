@@ -11,8 +11,9 @@ use originweave_core::{
     WebDriverBiDiWebSocketEndpoint,
 };
 use originweave_network::{
-    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
-    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
+    WebDriverBiDiLocateNodesExchangeError, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
+    WebDriverBiDiWebSocketMaskKey, MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -258,4 +259,61 @@ fn locate_nodes_exchange_charges_ping_callback_time_to_exchange_deadline()
         "WebDriver BiDi locateNodes exchange exhausted its 500ms end-to-end deadline before the next operation"
     );
     join_ping_server(server)
+}
+
+#[test]
+fn locate_nodes_exchange_bounds_valid_interleaved_control_frames() -> Result<(), Box<dyn Error>> {
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let local_addr = listener.local_addr()?;
+    let server = thread::spawn(move || -> io::Result<()> {
+        let (mut stream, _) = listener.accept()?;
+        read_opening_request(&mut stream)?;
+        stream.write_all(
+            b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n",
+        )?;
+        let _command = read_masked_client_frame(&mut stream, 0x81)?;
+
+        let mut frames = Vec::with_capacity(
+            (MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE + 1) * 2 + RESPONSE_DOCUMENT.len() + 2,
+        );
+        for _ in 0..=MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE {
+            frames.extend_from_slice(&[0x8a, 0]);
+        }
+        let response_length = u8::try_from(RESPONSE_DOCUMENT.len()).map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "test response exceeded one-byte length",
+            )
+        })?;
+        frames.extend_from_slice(&[0x81, response_length]);
+        frames.extend_from_slice(RESPONSE_DOCUMENT.as_bytes());
+        stream.write_all(&frames)
+    });
+
+    let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+    let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?;
+    let plan = WebDriverBiDiWebSocketHandshakePlan::new(connect(&endpoint)?, key)?;
+    let written = plan.write_opening_request(Duration::from_millis(500))?;
+    let established = written.read_opening_response(Duration::from_millis(500))?;
+    let exchanged = established.exchange_locate_nodes(
+        locate_nodes_command()?,
+        WebDriverBiDiWebSocketMaskKey::new([0x11, 0x22, 0x33, 0x44]),
+        &mut || None,
+        Duration::from_millis(500),
+    );
+
+    let server_result = server
+        .join()
+        .map_err(|_| io::Error::other("control-frame limit test server panicked"))?;
+    assert!(server_result.is_ok(), "{server_result:?}");
+    let error = exchanged
+        .err()
+        .ok_or_else(|| io::Error::other("control-frame flood unexpectedly reached response"))?;
+    assert!(matches!(
+        error,
+        WebDriverBiDiLocateNodesExchangeError::ControlFrameLimitExceeded {
+            maximum_control_frames,
+        } if maximum_control_frames == MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE
+    ));
+    Ok(())
 }
