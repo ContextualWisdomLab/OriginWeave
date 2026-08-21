@@ -133,6 +133,28 @@ fn exact_retry_replays_retained_receipt_without_reapplying_transition() {
 }
 
 #[test]
+fn retained_receipt_from_a_different_lifecycle_fails_closed() {
+    let mut source_task = BapTaskLifecycle::new();
+    let receipt = source_task
+        .apply_or_replay(None, "request-1", "tenant-1", "task-1", BapTaskEvent::Admit)
+        .expect("source receipt");
+
+    let mut unrelated_task = BapTaskLifecycle::new();
+    assert_eq!(
+        unrelated_task.apply_or_replay(
+            Some(&receipt),
+            "request-1",
+            "tenant-1",
+            "task-1",
+            BapTaskEvent::Admit,
+        ),
+        Err(BapCommandReceiptError::ReplayStateMismatch)
+    );
+    assert_eq!(unrelated_task.state(), BapTaskState::Created);
+    assert_eq!(unrelated_task.transition_sequence(), 0);
+}
+
+#[test]
 fn conflicting_retry_fails_closed_without_mutating_lifecycle() {
     let mut task = BapTaskLifecycle::new();
     let receipt = task
