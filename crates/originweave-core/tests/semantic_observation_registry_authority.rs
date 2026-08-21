@@ -5,10 +5,8 @@ use originweave_core::{
     SemanticNodeObservation, SemanticNodeObservationError, SemanticNodeObservationInput,
 };
 
-fn bound_observation_fixture() -> Result<
-    (BrowserAuthorityRegistry, ObservedNodeHandle),
-    Box<dyn std::error::Error>,
-> {
+fn bound_observation_fixture()
+-> Result<(BrowserAuthorityRegistry, ObservedNodeHandle), Box<dyn std::error::Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
     let session = registry.register_session("semantic-session")?;
     let context = registry.register_context(session, "semantic-context")?;
@@ -34,7 +32,8 @@ fn input(handle: ObservedNodeHandle) -> SemanticNodeObservationInput {
 }
 
 #[test]
-fn semantic_observation_rejects_forged_primary_node_authority() -> Result<(), Box<dyn std::error::Error>> {
+fn semantic_observation_rejects_forged_primary_node_authority()
+-> Result<(), Box<dyn std::error::Error>> {
     let (registry, bound) = bound_observation_fixture()?;
     let forged = ObservedNodeHandle::new(
         bound.browser_session(),
@@ -52,7 +51,8 @@ fn semantic_observation_rejects_forged_primary_node_authority() -> Result<(), Bo
 }
 
 #[test]
-fn semantic_observation_rejects_forged_related_node_authority() -> Result<(), Box<dyn std::error::Error>> {
+fn semantic_observation_rejects_forged_related_node_authority()
+-> Result<(), Box<dyn std::error::Error>> {
     let (registry, bound) = bound_observation_fixture()?;
     let forged_child = ObservedNodeHandle::new(
         bound.browser_session(),
