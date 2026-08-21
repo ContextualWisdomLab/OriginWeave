@@ -197,6 +197,7 @@ def _json_request(
 
     body = None if payload is None else json.dumps(payload).encode("utf-8")
     connection = http.client.HTTPConnection("127.0.0.1", driver_port, timeout=timeout)
+    transport_protocol_failed = False
     try:
         try:
             connection.request(
@@ -208,7 +209,9 @@ def _json_request(
             response = connection.getresponse()
             raw = response.read(MAX_WEBDRIVER_RESPONSE_BYTES + 1)
         except http.client.HTTPException:
-            raise RuntimeError("WebDriver transport protocol failure") from None
+            transport_protocol_failed = True
+        if transport_protocol_failed:
+            raise RuntimeError("WebDriver transport protocol failure")
         if len(raw) > MAX_WEBDRIVER_RESPONSE_BYTES:
             raise RuntimeError("WebDriver response exceeded the bounded JSON limit")
     finally:
