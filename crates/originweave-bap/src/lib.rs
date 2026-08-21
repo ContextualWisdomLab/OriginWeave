@@ -477,6 +477,9 @@ impl BapTaskLifecycle {
         task_id: &str,
         event: BapTaskEvent,
     ) -> Result<BapCommandReceipt, BapCommandReceiptError> {
+        validate_idempotency_key(idempotency_key)?;
+        validate_tenant_id(tenant_id)?;
+        validate_task_id(task_id)?;
         if let Some(receipt) = existing_receipt {
             if !receipt.matches(idempotency_key, tenant_id, task_id, event) {
                 return Err(BapCommandReceiptError::IdempotencyConflict);
