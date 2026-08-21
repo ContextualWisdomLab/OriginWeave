@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
 FITNESS = DOCS / "DOCUMENTATION_FITNESS.md"
 MATURITY = DOCS / "evidence" / "2026-08-10-active-pr-maturity.md"
+BASELINE = DOCS / "product-technical-gap-baseline.md"
 
 
 def active_pr_row(text: str, pr_number: int) -> str:
@@ -28,6 +29,20 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.fitness = FITNESS.read_text(encoding="utf-8")
         cls.maturity = MATURITY.read_text(encoding="utf-8")
+        cls.baseline = BASELINE.read_text(encoding="utf-8")
+
+    def test_latest_live_pr_snapshot_is_recorded_in_the_product_baseline(self) -> None:
+        """The baseline must preserve exact heads for the newest active product slices."""
+        for marker in (
+            "Current exact-head active PR evidence",
+            "| #73 | Draft | `da99395b09b419845b4a1222a0725482e9231466` | `7861d88d21ed0f0adaeb467957e809826f835071` |",
+            "| #208 | Draft | `0841d2ab3d8b5e60a03c0a8e818cf438e2716829` | `c3b6e1a475dce333f6115e5113cae9c07974835f` |",
+            "| #209 | Draft | `0841d2ab3d8b5e60a03c0a8e818cf438e2716829` | `69bc738bd45a1b61a4673b122dc3eec8814baa22` |",
+            "| #210 | Draft | `69bc738bd45a1b61a4673b122dc3eec8814baa22` | `999979a511c3a890ba93a1a09da8810858877940` |",
+            "| #211 | Draft | `c3b6e1a475dce333f6115e5113cae9c07974835f` | `f6e3a3adcfb9cc7a60ef1d79e2aeee27ba54c084` |",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, self.baseline)
 
     def test_dependency_stacks_are_explicit_and_non_shipped(self) -> None:
         """Current browser, network, sensitive and compatibility stacks stay active-only."""

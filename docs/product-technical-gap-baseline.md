@@ -14,21 +14,36 @@ This is a dated delivery baseline, not a substitute for the PRD, TRD, roadmap, a
 
 ### Open pull requests
 
-The live repository contained **150 open pull requests: 40 non-draft and 110 draft** after PRs #70 and #71 moved to Ready for review. The volume and stack depth are themselves a product-delivery risk: review, exact-head checks, dependency order, and integration truth can drift faster than a buyer-visible vertical slice reaches protected `main`.
+The live repository contained **150 open pull requests: 40 non-draft and 110 draft** after PRs #70 and #71 moved to Ready for review. The current snapshot also includes the newer #73 and #208–#211 product slices below. The volume and stack depth are themselves a product-delivery risk: review, exact-head checks, dependency order, and integration truth can drift faster than a buyer-visible vertical slice reaches protected `main`.
 
 Representative active workstreams at this snapshot were:
 
 | Workstream | Representative active PR evidence | Delivery boundary |
 |---|---|---|
 | Product baseline | #196 | Ready/non-draft documentation PR; this refreshed inventory and the completion issues below remain review-gated |
-| WebDriver BiDi transport | #188 through #198 | #198, exact head `2e01bcd0fb3057b4a78c2f5dd58a5efd86bc26f2`, validates the RFC 6455 opening response on top of #195; the stack still does not by itself complete framed BiDi browser commands, authenticated browser-process provenance, semantic task execution, or protected-main shipment |
+| WebDriver BiDi transport | #188 through #205 | #205, exact head `c5746a61ede9e0214be9c1feeff7f4f1af790016`, exercises a bounded `locateNodes` exchange on top of the opening-path stack; the stack still does not by itself complete authenticated browser-process provenance, semantic task execution, or protected-main shipment |
 | MCP adapter | #168 and #170 | Typed MCP routing and conservative `tools/list` metadata are active-PR foundations; complete authenticated transport, durable task lifecycle, cancellation/resume, and browser execution remain open under #200 |
 | Controlled Chromium and recovery | #65, #70-#73, #100, #105, #142-#153 and descendants | Real pinned-browser fixture, semantic location, resource, crash, and teardown evidence exists on active stacks; evidence does not transfer across heads or prerequisites |
+| BAP and durable-evidence tracks | #208-#211 | Resumable lifecycle, schema-bound extraction, bounded WARC resources, and exact idempotent receipts are active-PR foundations; authenticated transport, durable ownership, replay, and browser side-effect reconciliation remain open |
 | Manifest V3 and native messaging | #27 and its active extension/native-host stack, including #154 and #169 | Compatibility and Agent-authority isolation remain incomplete until exact release artifacts and platform matrices are proven |
 | Sensitive-data and model route policy | #10 and its active policy stacks | Deterministic policy values exist, but trusted broker execution, retention/deletion, runtime isolation, and auditable product workflows remain open |
 | VPN/profile intent | #149 | Bounded WireGuard/IKEv2 profile authority is active-PR evidence; it does not create a tunnel, route, DNS state, authenticated gateway, or connectivity proof |
 
-Draft PR #198 is the current top WebDriver BiDi opening-response slice; its prerequisite #195 owns the bounded opening-request write. It remains draft evidence and cannot be treated as shipped behavior.
+Draft PR #205 is the current top WebDriver BiDi locate-nodes slice; its opening-path prerequisites #195 and #198 remain draft evidence and cannot be treated as shipped behavior.
+
+#### Current exact-head active PR evidence
+
+The following newest product slices were re-fetched from GitHub for this snapshot. Their exact base/head pairs are recorded so later checks, reviews, and restacks cannot be confused with predecessor evidence:
+
+| PR | State | Exact base head | Exact head |
+|---|---|---|---|
+| #73 | Draft | `da99395b09b419845b4a1222a0725482e9231466` | `7861d88d21ed0f0adaeb467957e809826f835071` |
+| #208 | Draft | `0841d2ab3d8b5e60a03c0a8e818cf438e2716829` | `c3b6e1a475dce333f6115e5113cae9c07974835f` |
+| #209 | Draft | `0841d2ab3d8b5e60a03c0a8e818cf438e2716829` | `69bc738bd45a1b61a4673b122dc3eec8814baa22` |
+| #210 | Draft | `69bc738bd45a1b61a4673b122dc3eec8814baa22` | `999979a511c3a890ba93a1a09da8810858877940` |
+| #211 | Draft | `c3b6e1a475dce333f6115e5113cae9c07974835f` | `f6e3a3adcfb9cc7a60ef1d79e2aeee27ba54c084` |
+
+These rows are delivery evidence only. #73's latest Strix remediation is locally verified but its required policy workflows remain queued; #208–#211 are stacked product-gap foundations with no protected-main promotion. None has counted independent approval in the current collaborator inventory.
 
 #### #195/#198 WebDriver BiDi opening path status
 
