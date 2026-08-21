@@ -114,7 +114,7 @@ impl WebDriverBiDiWebSocketEstablished {
     /// text frame using `command_masking_key`. Valid server Ping frames are answered with a masked
     /// Pong carrying the exact Ping application data, while unsolicited valid Pong frames are
     /// consumed without changing BiDi state. Each Ping obtains a fresh unpredictable client mask
-    /// from `next_pong_masking_key`; exhausting that caller-owned entropy source fails closed and
+    /// from `next_pong_key`; exhausting that caller-owned entropy source fails closed and
     /// consumes the transport rather than reusing a masking key. Close, binary, continuation,
     /// fragmented data, and reserved shapes are not reinterpreted as a BiDi response.
     ///
@@ -135,7 +135,7 @@ impl WebDriverBiDiWebSocketEstablished {
         self,
         command: WebDriverBiDiLocateNodesCommand,
         command_masking_key: WebDriverBiDiWebSocketMaskKey,
-        mut next_pong_masking_key: impl FnMut() -> Option<WebDriverBiDiWebSocketMaskKey>,
+        mut next_pong_key: impl FnMut() -> Option<WebDriverBiDiWebSocketMaskKey>,
         exchange_timeout: Duration,
     ) -> Result<
         (Self, ValidatedWebDriverBiDiLocateNodesResult),
@@ -156,7 +156,7 @@ impl WebDriverBiDiWebSocketEstablished {
 
             match frame.opcode() {
                 0x9 => {
-                    let masking_key = next_pong_masking_key(&mut next_pong_masking_key)?;
+                    let masking_key = next_pong_masking_key(&mut next_pong_key)?;
                     let remaining_timeout =
                         remaining_exchange_budget(exchange_timeout, started_at.elapsed())?;
                     established = established
@@ -259,7 +259,11 @@ mod tests {
 
         let missing_mask = WebDriverBiDiLocateNodesExchangeError::PongMaskingKeyUnavailable;
         assert!(missing_mask.source().is_none());
-        assert!(missing_mask.to_string().contains("fresh caller-supplied Pong masking key"));
+        assert!(
+            missing_mask
+                .to_string()
+                .contains("fresh caller-supplied Pong masking key")
+        );
 
         let shape = WebDriverBiDiLocateNodesExchangeError::UnexpectedResponseFrame {
             fin: false,

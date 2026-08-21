@@ -48,7 +48,10 @@ fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     Ok(())
 }
 
-fn read_masked_client_frame(stream: &mut TcpStream, expected_first_byte: u8) -> io::Result<Vec<u8>> {
+fn read_masked_client_frame(
+    stream: &mut TcpStream,
+    expected_first_byte: u8,
+) -> io::Result<Vec<u8>> {
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
     let mut header = [0_u8; 2];
     stream.read_exact(&mut header)?;
@@ -99,8 +102,8 @@ fn locate_nodes_command() -> Result<WebDriverBiDiLocateNodesCommand, Box<dyn Err
 }
 
 #[test]
-fn locate_nodes_exchange_answers_ping_and_ignores_unsolicited_pong_before_response(
-) -> Result<(), Box<dyn Error>> {
+fn locate_nodes_exchange_answers_ping_and_ignores_unsolicited_pong_before_response()
+-> Result<(), Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let server = thread::spawn(move || -> io::Result<(Vec<u8>, Vec<u8>)> {
@@ -111,14 +114,20 @@ fn locate_nodes_exchange_answers_ping_and_ignores_unsolicited_pong_before_respon
         )?;
         let command = read_masked_client_frame(&mut stream, 0x81)?;
         let ping_length = u8::try_from(PING_PAYLOAD.len()).map_err(|_| {
-            io::Error::new(io::ErrorKind::InvalidData, "test Ping payload exceeded one-byte length")
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "test Ping payload exceeded one-byte length",
+            )
         })?;
         stream.write_all(&[0x89, ping_length])?;
         stream.write_all(PING_PAYLOAD)?;
         let pong = read_masked_client_frame(&mut stream, 0x8a)?;
         stream.write_all(&[0x8a, 0])?;
         let response_length = u8::try_from(RESPONSE_DOCUMENT.len()).map_err(|_| {
-            io::Error::new(io::ErrorKind::InvalidData, "test response exceeded one-byte length")
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "test response exceeded one-byte length",
+            )
         })?;
         stream.write_all(&[0x81, response_length])?;
         stream.write_all(RESPONSE_DOCUMENT.as_bytes())?;
