@@ -67,10 +67,7 @@ impl Fixture {
             enabled: true,
             visible: true,
             selected: None,
-            supported_actions: BTreeSet::from([
-                NodeActionKind::Click,
-                NodeActionKind::TypeText,
-            ]),
+            supported_actions: BTreeSet::from([NodeActionKind::Click, NodeActionKind::TypeText]),
             evidence_channels: BTreeSet::from([
                 ObservationChannel::Accessibility,
                 ObservationChannel::Dom,
@@ -151,7 +148,12 @@ fn semantic_node_rejects_live_relationships_from_other_authority() -> Result<(),
     let origin = fixture.origin.clone();
     let other_context_node = fixture
         .registry
-        .bind_node(fixture.session, other_context, &origin, "other-context-node")
+        .bind_node(
+            fixture.session,
+            other_context,
+            &origin,
+            "other-context-node",
+        )
         .map_err(|error| error.to_string())?;
     parent_input.parent = Some(other_context_node);
     assert_eq!(
@@ -168,8 +170,8 @@ fn semantic_node_rejects_live_relationships_from_other_authority() -> Result<(),
         .registry
         .register_context(other_session, "other-session-context")
         .map_err(|error| error.to_string())?;
-    let other_origin = Origin::parse("https://other.example")
-        .map_err(|error| format!("{error:?}"))?;
+    let other_origin =
+        Origin::parse("https://other.example").map_err(|error| format!("{error:?}"))?;
     let other_session_node = fixture
         .registry
         .bind_node(
@@ -242,8 +244,7 @@ fn reviewed_text_bounds_are_inclusive_and_visible_text_is_optional() -> Result<(
 fn semantic_node_rejects_missing_provenance_and_unbounded_text() -> Result<(), String> {
     let mut fixture = Fixture::new()?;
 
-    let mut missing_provenance =
-        fixture.input("button".to_owned(), "Submit".to_owned(), None)?;
+    let mut missing_provenance = fixture.input("button".to_owned(), "Submit".to_owned(), None)?;
     missing_provenance.evidence_channels.clear();
     assert_eq!(
         SemanticNodeObservation::new(missing_provenance, &fixture.registry).err(),
