@@ -77,6 +77,7 @@ fn resource_record_rejects_invalid_identifiers_dates_content_and_limits() {
         "urn:uuid:123e4567-e89b-12d3-a456-42661417400",
         "urn:uuid:123e4567_e89b-12d3-a456-426614174000",
         "urn:uuid:123e4567-e89b-12d3-a456-42661417400z",
+        "xrn:uuid:123e4567-e89b-12d3-a456-426614174000",
     ] {
         assert_eq!(
             valid(record_id, DATE, "text/plain", Vec::new()),
@@ -95,6 +96,15 @@ fn resource_record_rejects_invalid_identifiers_dates_content_and_limits() {
         "2026-08-21T00:00:00+00:00",
         "2026-08-21T00:00:00.123",
         "2026-08-21T00:00:00.XZ",
+        "2026-08-21T00:00:00.Z",
+        "2026x08-21T00:00:00Z",
+        "2026-08x21T00:00:00Z",
+        "2026-08-21T00x00:00Z",
+        "2026-08-21T00:00x00Z",
+        "2026-08-21T00:00:00.12345678901234567890Z",
+        "2026-08-21T00:00:00X",
+        "2026-08-21T00:61:00Z",
+        "2026-08-21T00:00:61Z",
     ] {
         assert_eq!(
             valid(RECORD_ID, date, "text/plain", Vec::new()),

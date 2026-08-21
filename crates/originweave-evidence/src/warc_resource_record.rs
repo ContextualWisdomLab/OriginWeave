@@ -175,7 +175,7 @@ fn valid_utc_date(date: &str) -> bool {
     }
     let has_fraction = bytes[19] == b'.';
     if has_fraction {
-        if bytes.last() != Some(&b'Z') || !(22..=MAX_WARC_DATE_BYTES).contains(&bytes.len()) {
+        if bytes.last() != Some(&b'Z') || bytes.len() < 22 {
             return false;
         }
         let fraction = &bytes[20..bytes.len() - 1];
