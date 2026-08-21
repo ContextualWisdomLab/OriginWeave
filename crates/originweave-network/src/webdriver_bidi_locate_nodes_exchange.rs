@@ -135,7 +135,7 @@ impl WebDriverBiDiWebSocketEstablished {
         self,
         command: WebDriverBiDiLocateNodesCommand,
         command_masking_key: WebDriverBiDiWebSocketMaskKey,
-        mut next_pong_key: impl FnMut() -> Option<WebDriverBiDiWebSocketMaskKey>,
+        next_pong_key: &mut dyn FnMut() -> Option<WebDriverBiDiWebSocketMaskKey>,
         exchange_timeout: Duration,
     ) -> Result<
         (Self, ValidatedWebDriverBiDiLocateNodesResult),
@@ -156,7 +156,7 @@ impl WebDriverBiDiWebSocketEstablished {
 
             match frame.opcode() {
                 0x9 => {
-                    let masking_key = next_pong_masking_key(&mut next_pong_key)?;
+                    let masking_key = next_pong_masking_key(next_pong_key)?;
                     let remaining_timeout =
                         remaining_exchange_budget(exchange_timeout, started_at.elapsed())?;
                     established = established
