@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import pathlib
 import runpy
 import unittest
@@ -60,6 +61,25 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
         ) as raised:
             validate_state(hostile_state)
         self.assertNotIn(hostile_state, str(raised.exception))
+
+    def test_agent_task_session_cleanup_never_suppresses_programming_failures(self) -> None:
+        """Unexpected cleanup defects must fail closed instead of becoming successful evidence."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_cleanup_contract")
+        self.assertIn("_cleanup_agent_task_browser_session", namespace)
+        cleanup_session = namespace["_cleanup_agent_task_browser_session"]
+        browser_pass_source = inspect.getsource(namespace["_run_agent_task_browser_pass"])
+        self.assertNotIn("contextlib.suppress(Exception)", browser_pass_source)
+
+        def unexpected_cleanup_failure(*_args: object, **_kwargs: object) -> dict[str, object]:
+            raise AssertionError("unexpected cleanup programming failure")
+
+        cleanup_session.__globals__["_json_request"] = unexpected_cleanup_failure
+        with self.assertRaisesRegex(
+            AssertionError,
+            r"^unexpected cleanup programming failure$",
+        ):
+            cleanup_session(9515, "session-1")
 
     def test_agent_task_submission_preserves_the_loaded_url(self) -> None:
         """Submission must prove that the controlled action did not navigate away."""
