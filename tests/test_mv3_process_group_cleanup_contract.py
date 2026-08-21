@@ -1,11 +1,15 @@
-"""Regression contract for session-cleanup causality during process-group teardown."""
+"""Regression contracts for bounded process-group cleanup."""
 
 from __future__ import annotations
 
+import os
 import pathlib
 import runpy
 import signal
+import subprocess
+import sys
 import tempfile
+import time
 import unittest
 import unittest.mock
 
@@ -14,7 +18,7 @@ RUNNER = ROOT / "scripts" / "ci" / "run_mv3_compatibility.py"
 
 
 class ManifestV3ProcessGroupCleanupContractTests(unittest.TestCase):
-    """Preserve the reviewed session failure when process-group signaling also fails."""
+    """Prove cleanup causality and descendant process-group termination."""
 
     @staticmethod
     def _surfaces() -> dict[str, str]:
@@ -114,6 +118,62 @@ class ManifestV3ProcessGroupCleanupContractTests(unittest.TestCase):
             "ChromeDriver process teardown also failed: PermissionError",
             getattr(raised.exception, "__notes__", []),
         )
+
+    @unittest.skipUnless(os.name == "posix" and hasattr(os, "killpg"), "requires POSIX process groups")
+    def test_teardown_reaps_descendant_that_ignores_sigterm_after_leader_exits(self) -> None:
+        """A fast-exiting leader cannot make a SIGTERM-resistant descendant look reaped."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="mv3_real_group_cleanup_contract")
+        teardown_driver_process = namespace["_teardown_driver_process"]
+        child_program = (
+            "import signal,time\n"
+            "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+            "print('ready', flush=True)\n"
+            "time.sleep(60)\n"
+        )
+        leader_program = (
+            "import subprocess,sys,time\n"
+            f"child = subprocess.Popen([sys.executable, '-c', {child_program!r}], "
+            "stdout=subprocess.PIPE, text=True)\n"
+            "assert child.stdout is not None\n"
+            "assert child.stdout.readline().strip() == 'ready'\n"
+            "print(child.pid, flush=True)\n"
+            "time.sleep(60)\n"
+        )
+        driver = subprocess.Popen(
+            [sys.executable, "-c", leader_program],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            start_new_session=True,
+        )
+        self.assertIsNotNone(driver.stdout)
+        assert driver.stdout is not None
+        child_pid = int(driver.stdout.readline().strip())
+        self.assertGreater(child_pid, 0)
+        process_group_id = driver.pid
+
+        try:
+            self.assertIsNone(teardown_driver_process(driver))
+            deadline = time.monotonic() + 1.0
+            while time.monotonic() < deadline:
+                try:
+                    os.killpg(process_group_id, 0)
+                except ProcessLookupError:
+                    break
+                time.sleep(0.05)
+            else:
+                self.fail("process-group teardown left a SIGTERM-resistant descendant alive")
+        finally:
+            try:
+                os.killpg(process_group_id, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            try:
+                driver.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                driver.kill()
+                driver.wait(timeout=5)
 
 
 if __name__ == "__main__":
