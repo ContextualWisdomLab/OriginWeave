@@ -127,13 +127,14 @@ class AgentTaskForcedCloseProcessTerminationContractTests(unittest.TestCase):
                 raise subprocess.TimeoutExpired("chromedriver", timeout)
 
         process = WedgedProcess()
-        terminated, failure_type = shutdown(process)
+        terminated, failure_type, kill_fallback_used = shutdown(process)
 
         self.assertIs(process.terminated, True)
         self.assertIs(process.killed, True)
         self.assertEqual(process.wait_timeouts, [timeout_seconds, timeout_seconds])
         self.assertIs(terminated, False)
         self.assertEqual(failure_type, "TimeoutExpired")
+        self.assertIs(kill_fallback_used, True)
 
     def test_forced_close_trial_preserves_cleanup_failure_without_overwriting_browser_failure(self) -> None:
         """A teardown timeout must remain separate from the original browser failure type."""
