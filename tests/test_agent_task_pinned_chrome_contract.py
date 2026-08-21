@@ -142,6 +142,10 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
         self.assertIn("not a product browser adapter", traceability)
         self.assertIn("pinned Chrome", fitness)
         self.assertIn("not a browser adapter", fitness)
+        self.assertIn("browser-computed role/name", changelog)
+        self.assertIn("PR #71", traceability)
+        self.assertIn("computed role/name", traceability)
+        self.assertIn("computed role/name", fitness)
 
 
 if __name__ == "__main__":

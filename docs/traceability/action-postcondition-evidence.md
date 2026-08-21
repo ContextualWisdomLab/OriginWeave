@@ -63,6 +63,14 @@ PR #70 reuses the existing pinned Chrome for Testing workflow and executes the #
 
 This is real WebDriver evidence for a controlled local fixture, not a product browser adapter. It does not establish WebDriver BiDi/CDP authority translation, OriginWeave semantic observation or node handles, policy-authorized typed action dispatch, trusted browser-process attribution, or protected-main product runtime completion.
 
+### PR #71 — browser-computed semantic role/name evidence before action
+
+**Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
+
+PR #71 extends the pinned-Chrome fixture lane by reading WebDriver's browser-computed role and accessible name for the controlled input and submit button before sending input or clicking. The exact expected values are `textbox` / `Task text` and `button` / `Submit task`; the repeatability gate requires both semantic checks in every successful trial.
+
+This is bounded browser-computed evidence for a synthetic test target, not the OriginWeave semantic observation adapter. CSS locators remain test-harness selectors, and the lane does not create OriginWeave node handles, source-channel provenance, policy authority, or permission to execute page-advertised actions.
+
 ## 4. Non-transitive success semantics
 
 The intended first-slice chain is:
@@ -88,7 +96,7 @@ VerifiedActionOutcomeEvidence type existence -/> proof of real Chromium executio
 controlled fixture success -/> proof of an OriginWeave product browser runtime
 ```
 
-PR #64 now rejects a caller-supplied observation timestamp that predates caller-supplied dispatch time, but the type cannot independently prove the clock source, that a real browser actually dispatched the action, that the supplied provenance belongs to the claimed browser target/node, or that the observed state was caused by that action. PR #70 proves real Chromium execution against the controlled fixture, but its test-harness CSS locators and direct WebDriver calls are not the OriginWeave adapter/runtime composition required under issue #28.
+PR #64 now rejects a caller-supplied observation timestamp that predates caller-supplied dispatch time, but the type cannot independently prove the clock source, that a real browser actually dispatched the action, that the supplied provenance belongs to the claimed browser target/node, or that the observed state was caused by that action. PR #70 proves real Chromium execution against the controlled fixture and PR #71 adds browser-computed role/name evidence, but their test-harness CSS locators and direct WebDriver calls are not the OriginWeave adapter/runtime composition required under issue #28.
 
 ## 5. Active prerequisite graph for issue #28
 
@@ -102,9 +110,10 @@ The first real Chromium vertical slice remains distributed across bounded active
 - PR #51 — bounded browser-task telemetry plus one explicitly supplied Linux PID `VmRSS` sampler; Chromium process discovery/process-set attribution remains outside that slice;
 - PR #64 — verified and caller-timestamp-ordered post-condition action-outcome evidence; and
 - PR #65 — controlled hostile local Agent Task workflow fixture; and
-- PR #70 — real WebDriver execution of that fixture on pinned Chrome, without claiming a product browser adapter.
+- PR #70 — real WebDriver execution of that fixture on pinned Chrome, without claiming a product browser adapter; and
+- PR #71 — browser-computed role/name evidence before controlled action, without claiming a product semantic observer.
 
-These active PRs are non-shipped evidence. PR #70 proves a bounded browser-level fixture flow, but the active set does not itself compose WebDriver BiDi/CDP transport, OriginWeave authority translation, trusted Chromium process attribution, policy-authorized real input dispatch, causal post-condition observation, or deterministic end-to-end teardown/recovery into one protected-main runtime.
+These active PRs are non-shipped evidence. PR #70/#71 prove bounded browser-level and semantic evidence, but the active set does not itself compose WebDriver BiDi/CDP transport, OriginWeave authority translation, trusted Chromium process attribution, policy-authorized real input dispatch, causal post-condition observation, or deterministic end-to-end teardown/recovery into one protected-main runtime.
 
 ## 6. Remaining issue #28 boundary
 
@@ -122,4 +131,4 @@ This dossier does **not** close issue #28. Material remaining work includes:
 
 ## 7. Documentation fitness consequence
 
-The ADR/PRD/TRD/Architecture/UML/ERD graph remains **DESIGN-SUFFICIENT / PROTECTED-MAIN-PARTIAL**. PR #64 narrows a typed evidence gap, PR #65 supplies the controlled fixture, and PR #70 supplies real WebDriver evidence for that fixture. Neither introduces a new trust domain, deployed component, persistence owner, database schema, or independent architecture decision, so a new ADR or physical ERD entity would overstate the implementation. Detailed real-Chromium dispatch/post-condition sequence diagrams should be reconciled when the executable adapter chain stabilizes rather than manufacturing as-built detail before that runtime exists.
+The ADR/PRD/TRD/Architecture/UML/ERD graph remains **DESIGN-SUFFICIENT / PROTECTED-MAIN-PARTIAL**. PR #64 narrows a typed evidence gap, PR #65 supplies the controlled fixture, and PR #70/#71 supply real WebDriver and browser-computed semantic evidence for that fixture. Neither introduces a new trust domain, deployed component, persistence owner, database schema, or independent architecture decision, so a new ADR or physical ERD entity would overstate the implementation. Detailed real-Chromium dispatch/post-condition sequence diagrams should be reconciled when the executable adapter chain stabilizes rather than manufacturing as-built detail before that runtime exists.
