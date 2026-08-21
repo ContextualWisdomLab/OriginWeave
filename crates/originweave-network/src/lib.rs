@@ -30,7 +30,9 @@ pub use webdriver_bidi_connection::{
     WebDriverBiDiTcpConnection, WebDriverBiDiTcpConnectionError,
     WebDriverBiDiTcpConnectionEvidence, WebDriverBiDiTcpConnectionPlan,
 };
-pub use webdriver_bidi_locate_nodes_exchange::WebDriverBiDiLocateNodesExchangeError;
+pub use webdriver_bidi_locate_nodes_exchange::{
+    MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE, WebDriverBiDiLocateNodesExchangeError,
+};
 pub use webdriver_bidi_websocket_handshake::{
     MAX_WEBSOCKET_FRAME_PAYLOAD_SIZE, MAX_WEBSOCKET_FRAME_TIMEOUT,
     MAX_WEBSOCKET_OPENING_RESPONSE_SIZE, MAX_WEBSOCKET_OPENING_RESPONSE_TIMEOUT,
