@@ -48,6 +48,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Security
 
+- WARC target URI admission rejects control, whitespace, bidirectional-control, zero-width, soft-hyphen, Arabic-letter-mark, word-joiner/isolate, and BOM formatting characters before line-oriented WARC header serialization, while preserving ordinary printable Unicode path text.
 - Raw page content cannot become a trusted instruction.
 - Raw secrets are rejected and secret-capable actions require an opaque broker handle.
 - Crawler mode is read-only, must pair with the public-crawl purpose, and fails closed without an applicable robots-policy decision.
