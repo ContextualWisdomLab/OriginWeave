@@ -15,21 +15,16 @@ fn frame_with_declared_length(declared_length: u32, payload: &[u8]) -> Vec<u8> {
 #[test]
 fn native_messaging_frames_use_native_endian_byte_length_and_round_trip_utf8() {
     let payload = r#"{"message":"안녕"}"#;
-    let encoded = encode_native_messaging_frame(
-        payload,
-        NativeMessagingFrameDirection::ChromeToHost,
-    )
-    .expect("bounded payload should encode");
+    let encoded =
+        encode_native_messaging_frame(payload, NativeMessagingFrameDirection::ChromeToHost)
+            .expect("bounded payload should encode");
 
     let declared = u32::from_ne_bytes(encoded[..4].try_into().expect("four-byte header"));
     assert_eq!(declared as usize, payload.len());
     assert_eq!(&encoded[4..], payload.as_bytes());
     assert_eq!(
-        decode_native_messaging_frame(
-            &encoded,
-            NativeMessagingFrameDirection::ChromeToHost,
-        )
-        .expect("encoded payload should decode"),
+        decode_native_messaging_frame(&encoded, NativeMessagingFrameDirection::ChromeToHost,)
+            .expect("encoded payload should decode"),
         payload
     );
 }
@@ -43,10 +38,7 @@ fn native_messaging_decode_rejects_truncated_header_and_length_mismatch() {
 
     let truncated = frame_with_declared_length(5, b"{} ");
     assert_eq!(
-        decode_native_messaging_frame(
-            &truncated,
-            NativeMessagingFrameDirection::HostToChrome,
-        ),
+        decode_native_messaging_frame(&truncated, NativeMessagingFrameDirection::HostToChrome,),
         Err(NativeMessagingFrameError::LengthMismatch {
             declared_bytes: 5,
             actual_bytes: 3,
@@ -91,10 +83,36 @@ fn native_messaging_decode_enforces_direction_specific_chrome_limits_before_body
 }
 
 #[test]
+fn native_messaging_encode_enforces_host_to_chrome_limit() {
+    let maximum_payload = "x".repeat(1_048_576);
+    let encoded = encode_native_messaging_frame(
+        &maximum_payload,
+        NativeMessagingFrameDirection::HostToChrome,
+    )
+    .expect("Chrome accepts a native host message at the documented byte limit");
+    assert_eq!(encoded.len(), 4 + maximum_payload.len());
+
+    let oversized_payload = "x".repeat(1_048_577);
+    assert_eq!(
+        encode_native_messaging_frame(
+            &oversized_payload,
+            NativeMessagingFrameDirection::HostToChrome,
+        ),
+        Err(NativeMessagingFrameError::PayloadTooLarge {
+            declared_bytes: 1_048_577,
+            maximum_bytes: 1_048_576,
+        })
+    );
+}
+
+#[test]
 fn native_messaging_decode_rejects_non_utf8_payload_without_reflecting_bytes() {
     let frame = frame_with_declared_length(2, &[0xff, 0xfe]);
     let error = decode_native_messaging_frame(&frame, NativeMessagingFrameDirection::HostToChrome)
         .expect_err("non-UTF-8 native message must fail closed");
     assert_eq!(error, NativeMessagingFrameError::InvalidUtf8);
-    assert_eq!(error.to_string(), "native-messaging payload is not valid UTF-8");
+    assert_eq!(
+        error.to_string(),
+        "native-messaging payload is not valid UTF-8"
+    );
 }
