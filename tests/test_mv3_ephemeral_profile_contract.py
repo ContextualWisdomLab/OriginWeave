@@ -83,6 +83,14 @@ class ManifestV3EphemeralProfileContractTests(unittest.TestCase):
         driver.pid = 4242
         driver.wait.return_value = 0
 
+        def fake_kill_process_group(process_group_id: int, process_signal: int) -> None:
+            self.assertEqual(process_group_id, driver.pid)
+            if process_signal == signal.SIGTERM:
+                return
+            if process_signal == 0:
+                raise ProcessLookupError
+            raise AssertionError(f"unexpected process-group signal: {process_signal}")
+
         with tempfile.TemporaryDirectory(prefix="originweave-mv3-cleanup-") as profile_dir:
             with (
                 unittest.mock.patch.dict(
@@ -94,7 +102,9 @@ class ManifestV3EphemeralProfileContractTests(unittest.TestCase):
                         ),
                     },
                 ),
-                unittest.mock.patch.object(globals_["os"], "killpg") as kill_process_group,
+                unittest.mock.patch.object(
+                    globals_["os"], "killpg", side_effect=fake_kill_process_group
+                ) as kill_process_group,
             ):
                 with self.assertRaisesRegex(RuntimeError, "controlled startup failure"):
                     run_browser_pass(
@@ -105,7 +115,13 @@ class ManifestV3EphemeralProfileContractTests(unittest.TestCase):
                         "initialized",
                     )
 
-        kill_process_group.assert_called_once_with(driver.pid, signal.SIGTERM)
+        self.assertEqual(
+            kill_process_group.call_args_list,
+            [
+                unittest.mock.call(driver.pid, signal.SIGTERM),
+                unittest.mock.call(driver.pid, 0),
+            ],
+        )
         driver.wait.assert_called_once_with(timeout=5)
         driver.terminate.assert_not_called()
         driver.kill.assert_not_called()
