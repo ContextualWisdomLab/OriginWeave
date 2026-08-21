@@ -1,8 +1,9 @@
 #![allow(clippy::expect_used)]
 
 use originweave_bap::{
-    BapCommandReceipt, BapTaskEvent, BapTaskLifecycle, BapTaskRestoreError, BapTaskState,
-    BapTaskTransition,
+    BapCommandReceipt, BapCommandReceiptError, BapTaskEvent, BapTaskLifecycle,
+    BapTaskRestoreError, BapTaskState, BapTaskTransition, MAX_BAP_IDEMPOTENCY_KEY_BYTES,
+    MAX_BAP_TASK_ID_BYTES, MAX_BAP_TENANT_ID_BYTES,
 };
 
 #[test]
@@ -84,6 +85,54 @@ fn persisted_receipt_fields_can_be_reconstructed_for_cross_process_replay() {
     assert_eq!(replay, restored_receipt);
     assert_eq!(restored_lifecycle.state(), BapTaskState::Admitted);
     assert_eq!(restored_lifecycle.transition_sequence(), 1);
+}
+
+#[test]
+fn persisted_receipt_restore_revalidates_retry_metadata() {
+    let mut lifecycle = BapTaskLifecycle::new();
+    let transition = lifecycle
+        .apply(BapTaskEvent::Admit)
+        .expect("admit must succeed");
+
+    assert_eq!(
+        BapCommandReceipt::restore("", "tenant-a", "task-a", transition),
+        Err(BapCommandReceiptError::InvalidIdempotencyKey)
+    );
+    assert_eq!(
+        BapCommandReceipt::restore(
+            &"x".repeat(MAX_BAP_IDEMPOTENCY_KEY_BYTES + 1),
+            "tenant-a",
+            "task-a",
+            transition,
+        ),
+        Err(BapCommandReceiptError::IdempotencyKeyLimitExceeded)
+    );
+    assert_eq!(
+        BapCommandReceipt::restore("retry-1", "", "task-a", transition),
+        Err(BapCommandReceiptError::InvalidTenantId)
+    );
+    assert_eq!(
+        BapCommandReceipt::restore(
+            "retry-1",
+            &"x".repeat(MAX_BAP_TENANT_ID_BYTES + 1),
+            "task-a",
+            transition,
+        ),
+        Err(BapCommandReceiptError::TenantIdLimitExceeded)
+    );
+    assert_eq!(
+        BapCommandReceipt::restore("retry-1", "tenant-a", "", transition),
+        Err(BapCommandReceiptError::InvalidTaskId)
+    );
+    assert_eq!(
+        BapCommandReceipt::restore(
+            "retry-1",
+            "tenant-a",
+            &"x".repeat(MAX_BAP_TASK_ID_BYTES + 1),
+            transition,
+        ),
+        Err(BapCommandReceiptError::TaskIdLimitExceeded)
+    );
 }
 
 #[test]

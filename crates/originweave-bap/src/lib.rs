@@ -336,6 +336,28 @@ impl BapCommandReceipt {
         }
     }
 
+    /// Reconstruct one command receipt from persisted retry metadata and validated transition evidence.
+    ///
+    /// This revalidates the bounded retry identifiers before reconstructing the immutable receipt.
+    /// It does not authenticate the persistence boundary, authorize the tenant or task, or prove that
+    /// the supplied transition was durably committed with any external browser or network side effect.
+    pub fn restore(
+        idempotency_key: &str,
+        tenant_id: &str,
+        task_id: &str,
+        transition: BapTaskTransition,
+    ) -> Result<Self, BapCommandReceiptError> {
+        validate_idempotency_key(idempotency_key)?;
+        validate_tenant_id(tenant_id)?;
+        validate_task_id(task_id)?;
+        Ok(Self::from_validated(
+            idempotency_key,
+            tenant_id,
+            task_id,
+            transition,
+        ))
+    }
+
     /// Return the opaque retry key supplied by the caller.
     #[must_use]
     pub fn idempotency_key(&self) -> &str {
