@@ -170,6 +170,7 @@ fn resource_record_accepts_valid_mime_parameters_and_rejects_malformed_media_typ
         "text/plain; charset=utf-8",
         "application/http; msgtype=response",
         "multipart/form-data; boundary=example-boundary",
+        "text/plain; note=\"a;b\"",
     ] {
         let record = build(content_type).expect("valid WARC MIME media type");
         assert_eq!(record.content_type(), content_type);
