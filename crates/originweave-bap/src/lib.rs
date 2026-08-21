@@ -230,17 +230,6 @@ pub struct BapCommandReceipt {
 }
 
 impl BapCommandReceipt {
-    /// Validate and create a receipt for an already accepted lifecycle transition.
-    pub fn new(
-        idempotency_key: &str,
-        task_id: &str,
-        transition: BapTaskTransition,
-    ) -> Result<Self, BapCommandReceiptError> {
-        validate_idempotency_key(idempotency_key)?;
-        validate_task_id(task_id)?;
-        Ok(Self::from_validated(idempotency_key, task_id, transition))
-    }
-
     fn from_validated(idempotency_key: &str, task_id: &str, transition: BapTaskTransition) -> Self {
         Self {
             idempotency_key: idempotency_key.to_owned(),
@@ -395,7 +384,9 @@ impl BapTaskLifecycle {
     /// Apply one lifecycle event and bind the accepted transition to a retry receipt.
     ///
     /// This remains an in-memory contract: it identifies an exact retry but does
-    /// not provide durable deduplication or side-effect suppression.
+    /// not provide durable deduplication or side-effect suppression. Receipts can
+    /// only be minted at this accepted-command boundary; callers cannot rebind an
+    /// already accepted transition to different retry or task metadata afterward.
     pub fn apply_with_receipt(
         &mut self,
         idempotency_key: &str,
