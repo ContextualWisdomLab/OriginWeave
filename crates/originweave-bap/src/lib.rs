@@ -10,6 +10,8 @@
 
 /// Maximum UTF-8 byte length of a mutating command's idempotency key.
 pub const MAX_BAP_IDEMPOTENCY_KEY_BYTES: usize = 128;
+/// Maximum UTF-8 byte length of a BAP tenant namespace identifier.
+pub const MAX_BAP_TENANT_ID_BYTES: usize = 128;
 /// Maximum UTF-8 byte length of a BAP task identifier.
 pub const MAX_BAP_TASK_ID_BYTES: usize = 128;
 
@@ -184,6 +186,10 @@ pub enum BapCommandReceiptError {
     InvalidIdempotencyKey,
     /// The idempotency key exceeded its byte bound.
     IdempotencyKeyLimitExceeded,
+    /// The tenant namespace identifier was empty or contained unsupported input.
+    InvalidTenantId,
+    /// The tenant namespace identifier exceeded its byte bound.
+    TenantIdLimitExceeded,
     /// The task identifier was empty or contained unsupported input.
     InvalidTaskId,
     /// The task identifier exceeded its byte bound.
@@ -202,6 +208,10 @@ impl std::fmt::Display for BapCommandReceiptError {
             Self::IdempotencyKeyLimitExceeded => {
                 write!(formatter, "BAP idempotency key exceeds its byte limit")
             }
+            Self::InvalidTenantId => write!(formatter, "BAP tenant ID is invalid"),
+            Self::TenantIdLimitExceeded => {
+                write!(formatter, "BAP tenant ID exceeds its byte limit")
+            }
             Self::InvalidTaskId => write!(formatter, "BAP task ID is invalid"),
             Self::TaskIdLimitExceeded => write!(formatter, "BAP task ID exceeds its byte limit"),
             Self::TransitionRejected { error } => error.fmt(formatter),
@@ -215,24 +225,33 @@ impl std::error::Error for BapCommandReceiptError {
             Self::TransitionRejected { error } => Some(error),
             Self::InvalidIdempotencyKey
             | Self::IdempotencyKeyLimitExceeded
+            | Self::InvalidTenantId
+            | Self::TenantIdLimitExceeded
             | Self::InvalidTaskId
             | Self::TaskIdLimitExceeded => None,
         }
     }
 }
 
-/// An immutable receipt binding one accepted lifecycle command to its retry key.
+/// An immutable receipt binding one accepted lifecycle command to its retry namespace and key.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BapCommandReceipt {
     idempotency_key: String,
+    tenant_id: String,
     task_id: String,
     transition: BapTaskTransition,
 }
 
 impl BapCommandReceipt {
-    fn from_validated(idempotency_key: &str, task_id: &str, transition: BapTaskTransition) -> Self {
+    fn from_validated(
+        idempotency_key: &str,
+        tenant_id: &str,
+        task_id: &str,
+        transition: BapTaskTransition,
+    ) -> Self {
         Self {
             idempotency_key: idempotency_key.to_owned(),
+            tenant_id: tenant_id.to_owned(),
             task_id: task_id.to_owned(),
             transition,
         }
@@ -242,6 +261,14 @@ impl BapCommandReceipt {
     #[must_use]
     pub fn idempotency_key(&self) -> &str {
         &self.idempotency_key
+    }
+
+    /// Return the caller-supplied tenant namespace bound to this receipt.
+    ///
+    /// This value scopes retry identity only. It is not authentication or authorization evidence.
+    #[must_use]
+    pub fn tenant_id(&self) -> &str {
+        &self.tenant_id
     }
 
     /// Return the task identity bound to this receipt.
@@ -262,10 +289,19 @@ impl BapCommandReceipt {
         self.transition
     }
 
-    /// Return whether a retry has the exact same task, key, and lifecycle event.
+    /// Return whether a retry has the exact same tenant, task, key, and lifecycle event.
     #[must_use]
-    pub fn matches(&self, idempotency_key: &str, task_id: &str, event: BapTaskEvent) -> bool {
-        self.idempotency_key == idempotency_key && self.task_id == task_id && self.event() == event
+    pub fn matches(
+        &self,
+        idempotency_key: &str,
+        tenant_id: &str,
+        task_id: &str,
+        event: BapTaskEvent,
+    ) -> bool {
+        self.idempotency_key == idempotency_key
+            && self.tenant_id == tenant_id
+            && self.task_id == task_id
+            && self.event() == event
     }
 }
 
@@ -383,23 +419,27 @@ impl BapTaskLifecycle {
 
     /// Apply one lifecycle event and bind the accepted transition to a retry receipt.
     ///
-    /// This remains an in-memory contract: it identifies an exact retry but does
-    /// not provide durable deduplication or side-effect suppression. Receipts can
-    /// only be minted at this accepted-command boundary; callers cannot rebind an
-    /// already accepted transition to different retry or task metadata afterward.
+    /// This remains an in-memory contract: it identifies an exact retry within the caller-supplied
+    /// tenant namespace but does not authenticate that namespace, authorize the operation, provide
+    /// durable deduplication, or suppress side effects. Receipts can only be minted at this
+    /// accepted-command boundary; callers cannot rebind an accepted transition to different retry,
+    /// tenant, or task metadata afterward.
     pub fn apply_with_receipt(
         &mut self,
         idempotency_key: &str,
+        tenant_id: &str,
         task_id: &str,
         event: BapTaskEvent,
     ) -> Result<BapCommandReceipt, BapCommandReceiptError> {
         validate_idempotency_key(idempotency_key)?;
+        validate_tenant_id(tenant_id)?;
         validate_task_id(task_id)?;
         let transition = self
             .apply(event)
             .map_err(|error| BapCommandReceiptError::TransitionRejected { error })?;
         Ok(BapCommandReceipt::from_validated(
             idempotency_key,
+            tenant_id,
             task_id,
             transition,
         ))
@@ -412,6 +452,16 @@ fn validate_idempotency_key(value: &str) -> Result<(), BapCommandReceiptError> {
     }
     if value.is_empty() || !value.bytes().all(valid_identifier_byte) {
         return Err(BapCommandReceiptError::InvalidIdempotencyKey);
+    }
+    Ok(())
+}
+
+fn validate_tenant_id(value: &str) -> Result<(), BapCommandReceiptError> {
+    if value.len() > MAX_BAP_TENANT_ID_BYTES {
+        return Err(BapCommandReceiptError::TenantIdLimitExceeded);
+    }
+    if value.is_empty() || !value.bytes().all(valid_identifier_byte) {
+        return Err(BapCommandReceiptError::InvalidTenantId);
     }
     Ok(())
 }
