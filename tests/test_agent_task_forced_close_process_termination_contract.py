@@ -30,6 +30,7 @@ class AgentTaskForcedCloseProcessTerminationContractTests(unittest.TestCase):
             "_wait_for_linux_process_identity_exit",
             "_wait_for_linux_process_identity_set_exit",
             '"driver_process_terminated"',
+            '"driver_kill_fallback_used"',
             '"browser_process_terminated"',
             '"chromium_process_set_terminated"',
         ):
@@ -55,6 +56,7 @@ class AgentTaskForcedCloseProcessTerminationContractTests(unittest.TestCase):
                 "forced_close_detected": True,
                 "session_survived": True,
                 "driver_process_terminated": True,
+                "driver_kill_fallback_used": False,
                 "browser_process_terminated": False,
                 "chromium_process_set_terminated": False,
             }
@@ -67,6 +69,7 @@ class AgentTaskForcedCloseProcessTerminationContractTests(unittest.TestCase):
             1,
         )
         self.assertIs(result["driver_process_terminated"], True)
+        self.assertIs(result["driver_kill_fallback_used"], False)
         self.assertIs(result["browser_process_terminated"], False)
         self.assertIs(result["chromium_process_set_terminated"], False)
 
@@ -81,10 +84,12 @@ class AgentTaskForcedCloseProcessTerminationContractTests(unittest.TestCase):
         for expected in (
             "browser_failure_type",
             "driver_cleanup_failure_type",
+            "driver_kill_fallback_used",
             "except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:",
             'browser_failure_type = type(exc).__name__',
             "failure_evidence",
             '"driver_process_terminated": driver_process_terminated',
+            '"driver_kill_fallback_used": driver_kill_fallback_used',
             '"browser_process_terminated": browser_process_terminated',
             'failure_evidence["chromium_process_set_terminated"]',
         ):
@@ -136,6 +141,78 @@ class AgentTaskForcedCloseProcessTerminationContractTests(unittest.TestCase):
         self.assertEqual(failure_type, "TimeoutExpired")
         self.assertIs(kill_fallback_used, True)
 
+    def test_forced_close_driver_shutdown_records_successful_kill_fallback(self) -> None:
+        """A successful SIGKILL fallback must remain explicit in cleanup evidence."""
+
+        namespace = runpy.run_path(
+            str(RUNNER), run_name="forced_close_driver_kill_fallback_contract"
+        )
+        shutdown = namespace["_terminate_owned_process_bounded"]
+        timeout_seconds = namespace["PROCESS_EXIT_TIMEOUT_SECONDS"]
+
+        class KillRecoversProcess:
+            def __init__(self) -> None:
+                self.terminated = False
+                self.killed = False
+                self.wait_timeouts: list[float] = []
+
+            def terminate(self) -> None:
+                self.terminated = True
+
+            def kill(self) -> None:
+                self.killed = True
+
+            def wait(self, timeout: float) -> int:
+                self.wait_timeouts.append(timeout)
+                if len(self.wait_timeouts) == 1:
+                    raise subprocess.TimeoutExpired("chromedriver", timeout)
+                return 0
+
+        process = KillRecoversProcess()
+        terminated, failure_type, kill_fallback_used = shutdown(process)
+
+        self.assertIs(process.terminated, True)
+        self.assertIs(process.killed, True)
+        self.assertEqual(process.wait_timeouts, [timeout_seconds, timeout_seconds])
+        self.assertIs(terminated, True)
+        self.assertIsNone(failure_type)
+        self.assertIs(kill_fallback_used, True)
+
+    def test_forced_close_driver_shutdown_records_graceful_termination(self) -> None:
+        """A graceful terminate path must not claim the SIGKILL fallback was used."""
+
+        namespace = runpy.run_path(
+            str(RUNNER), run_name="forced_close_driver_graceful_shutdown_contract"
+        )
+        shutdown = namespace["_terminate_owned_process_bounded"]
+        timeout_seconds = namespace["PROCESS_EXIT_TIMEOUT_SECONDS"]
+
+        class GracefulProcess:
+            def __init__(self) -> None:
+                self.terminated = False
+                self.killed = False
+                self.wait_timeouts: list[float] = []
+
+            def terminate(self) -> None:
+                self.terminated = True
+
+            def kill(self) -> None:
+                self.killed = True
+
+            def wait(self, timeout: float) -> int:
+                self.wait_timeouts.append(timeout)
+                return 0
+
+        process = GracefulProcess()
+        terminated, failure_type, kill_fallback_used = shutdown(process)
+
+        self.assertIs(process.terminated, True)
+        self.assertIs(process.killed, False)
+        self.assertEqual(process.wait_timeouts, [timeout_seconds])
+        self.assertIs(terminated, True)
+        self.assertIsNone(failure_type)
+        self.assertIs(kill_fallback_used, False)
+
     def test_forced_close_trial_preserves_cleanup_failure_without_overwriting_browser_failure(self) -> None:
         """A teardown timeout must remain separate from the original browser failure type."""
 
@@ -154,6 +231,7 @@ class AgentTaskForcedCloseProcessTerminationContractTests(unittest.TestCase):
                 "failure_type": "RuntimeError",
                 "cleanup_failure_type": "TimeoutExpired",
                 "driver_process_terminated": False,
+                "driver_kill_fallback_used": True,
                 "browser_process_terminated": True,
                 "chromium_process_set_terminated": True,
             }
@@ -169,6 +247,7 @@ class AgentTaskForcedCloseProcessTerminationContractTests(unittest.TestCase):
         self.assertEqual(result["failure_type"], "RuntimeError")
         self.assertEqual(result["cleanup_failure_type"], "TimeoutExpired")
         self.assertIs(result["driver_process_terminated"], False)
+        self.assertIs(result["driver_kill_fallback_used"], True)
         self.assertIs(result["browser_process_terminated"], True)
         self.assertIs(result["chromium_process_set_terminated"], True)
         self.assertIs(result["profile_cleaned"], True)
@@ -190,6 +269,7 @@ class AgentTaskForcedCloseProcessTerminationContractTests(unittest.TestCase):
             return {
                 "failure_type": "RuntimeError",
                 "driver_process_terminated": True,
+                "driver_kill_fallback_used": False,
                 "browser_process_terminated": False,
                 "chromium_process_set_terminated": False,
             }
@@ -204,6 +284,7 @@ class AgentTaskForcedCloseProcessTerminationContractTests(unittest.TestCase):
         self.assertIs(result["passed"], False)
         self.assertEqual(result["failure_type"], "RuntimeError")
         self.assertIs(result["driver_process_terminated"], True)
+        self.assertIs(result["driver_kill_fallback_used"], False)
         self.assertIs(result["browser_process_terminated"], False)
         self.assertIs(result["chromium_process_set_terminated"], False)
         self.assertIs(result["profile_cleaned"], True)
@@ -225,6 +306,7 @@ class AgentTaskForcedCloseProcessTerminationContractTests(unittest.TestCase):
             return {
                 "failure_type": "RuntimeError",
                 "driver_process_terminated": True,
+                "driver_kill_fallback_used": False,
                 "browser_process_terminated": True,
             }
 
@@ -237,6 +319,7 @@ class AgentTaskForcedCloseProcessTerminationContractTests(unittest.TestCase):
         )
         self.assertIs(result["passed"], False)
         self.assertIs(result["driver_process_terminated"], True)
+        self.assertIs(result["driver_kill_fallback_used"], False)
         self.assertIs(result["browser_process_terminated"], True)
         self.assertNotIn("chromium_process_set_terminated", result)
         self.assertIs(result["profile_cleaned"], True)
@@ -250,6 +333,7 @@ class AgentTaskForcedCloseProcessTerminationContractTests(unittest.TestCase):
         gate = runner[start:end]
         for expected in (
             'trial.get("driver_process_terminated") is True',
+            'isinstance(trial.get("driver_kill_fallback_used"), bool)',
             'trial.get("browser_process_terminated") is True',
             'trial.get("chromium_process_set_terminated") is True',
         ):
