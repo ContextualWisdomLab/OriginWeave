@@ -466,12 +466,6 @@ impl BapTaskLifecycle {
                 transition_sequence,
             });
         };
-        let transition = BapTaskTransition::restore(
-            transition.previous_state(),
-            transition.current_state(),
-            transition.sequence(),
-            transition.event(),
-        )?;
         if transition.current_state() != state || transition.sequence() != transition_sequence {
             return Err(BapTaskRestoreError::InvalidTransitionEvidence {
                 state,
