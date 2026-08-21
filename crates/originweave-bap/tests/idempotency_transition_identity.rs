@@ -5,8 +5,12 @@ use originweave_bap::{BapCommandReceiptError, BapTaskEvent, BapTaskLifecycle, Ba
 #[test]
 fn replay_rejects_same_state_and_sequence_from_a_different_transition_path() {
     let mut source_task = BapTaskLifecycle::new();
-    source_task.apply(BapTaskEvent::Admit).expect("admit source");
-    source_task.apply(BapTaskEvent::Start).expect("start source");
+    source_task
+        .apply(BapTaskEvent::Admit)
+        .expect("admit source");
+    source_task
+        .apply(BapTaskEvent::Start)
+        .expect("start source");
     source_task
         .apply(BapTaskEvent::WaitForApproval)
         .expect("wait source");
@@ -26,7 +30,9 @@ fn replay_rejects_same_state_and_sequence_from_a_different_transition_path() {
     other_task
         .apply(BapTaskEvent::WaitForExternalInput)
         .expect("wait other");
-    other_task.apply(BapTaskEvent::Resume).expect("resume other");
+    other_task
+        .apply(BapTaskEvent::Resume)
+        .expect("resume other");
 
     assert_eq!(source_task.state(), BapTaskState::Running);
     assert_eq!(other_task.state(), BapTaskState::Running);
@@ -64,8 +70,8 @@ fn restored_snapshot_without_last_transition_identity_cannot_replay_receipt() {
         )
         .expect("source admit receipt");
 
-    let mut restored = BapTaskLifecycle::restore(BapTaskState::Admitted, 1)
-        .expect("reachable admitted snapshot");
+    let mut restored =
+        BapTaskLifecycle::restore(BapTaskState::Admitted, 1).expect("reachable admitted snapshot");
     assert_eq!(
         restored.apply_or_replay(
             Some(&receipt),
