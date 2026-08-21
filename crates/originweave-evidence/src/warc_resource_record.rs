@@ -233,10 +233,11 @@ fn valid_content_type(content_type: &str) -> bool {
         return false;
     }
 
-    let mut parts = content_type.split(';');
-    let Some(essence) = parts.next() else {
-        return false;
-    };
+    let (essence, mut parameters) = content_type
+        .split_once(';')
+        .map_or((content_type, None), |(essence, parameters)| {
+            (essence, Some(parameters))
+        });
     let essence = trim_ows_end(essence);
     let Some((media_type, media_subtype)) = essence.split_once('/') else {
         return false;
@@ -245,7 +246,35 @@ fn valid_content_type(content_type: &str) -> bool {
         return false;
     }
 
-    parts.all(valid_mime_parameter)
+    while let Some(parameter_text) = parameters {
+        let (parameter, remaining) = split_mime_parameter(parameter_text);
+        if !valid_mime_parameter(parameter) {
+            return false;
+        }
+        parameters = remaining;
+    }
+    true
+}
+
+fn split_mime_parameter(value: &str) -> (&str, Option<&str>) {
+    let mut quoted = false;
+    let mut escaped = false;
+    for (index, byte) in value.bytes().enumerate() {
+        if quoted {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == b'"' {
+                quoted = false;
+            }
+        } else if byte == b'"' {
+            quoted = true;
+        } else if byte == b';' {
+            return (&value[..index], Some(&value[index + 1..]));
+        }
+    }
+    (value, None)
 }
 
 fn valid_mime_parameter(parameter: &str) -> bool {
