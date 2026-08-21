@@ -1,7 +1,8 @@
 #![allow(clippy::expect_used)]
 
 use originweave_bap::{
-    BapTaskEvent, BapTaskLifecycle, BapTaskRestoreError, BapTaskState, BapTaskTransition,
+    BapCommandReceipt, BapTaskEvent, BapTaskLifecycle, BapTaskRestoreError, BapTaskState,
+    BapTaskTransition,
 };
 
 #[test]
@@ -39,6 +40,50 @@ fn exact_transition_evidence_restores_receipt_replay_without_second_mutation() {
     assert_eq!(replay, receipt);
     assert_eq!(restored.state(), BapTaskState::Admitted);
     assert_eq!(restored.transition_sequence(), 1);
+}
+
+#[test]
+fn persisted_receipt_fields_can_be_reconstructed_for_cross_process_replay() {
+    let mut lifecycle = BapTaskLifecycle::new();
+    let issued = lifecycle
+        .apply_with_receipt("retry-1", "tenant-a", "task-a", BapTaskEvent::Admit)
+        .expect("initial command must be accepted");
+    let accepted = issued.transition();
+
+    let restored_transition = BapTaskTransition::restore(
+        accepted.previous_state(),
+        accepted.current_state(),
+        accepted.sequence(),
+        accepted.event(),
+    )
+    .expect("persisted transition evidence must restore");
+    let restored_receipt = BapCommandReceipt::restore(
+        issued.idempotency_key(),
+        issued.tenant_id(),
+        issued.task_id(),
+        restored_transition,
+    )
+    .expect("persisted receipt fields must restore after process loss");
+    let mut restored_lifecycle = BapTaskLifecycle::restore_with_transition(
+        accepted.current_state(),
+        accepted.sequence(),
+        Some(restored_transition),
+    )
+    .expect("persisted lifecycle evidence must restore");
+
+    let replay = restored_lifecycle
+        .apply_or_replay(
+            Some(&restored_receipt),
+            "retry-1",
+            "tenant-a",
+            "task-a",
+            BapTaskEvent::Admit,
+        )
+        .expect("restored receipt must replay without repeating the transition");
+
+    assert_eq!(replay, restored_receipt);
+    assert_eq!(restored_lifecycle.state(), BapTaskState::Admitted);
+    assert_eq!(restored_lifecycle.transition_sequence(), 1);
 }
 
 #[test]
