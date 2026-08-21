@@ -331,11 +331,11 @@ const fn valid_quoted_pair_byte(byte: u8) -> bool {
 }
 
 fn trim_ows(value: &str) -> &str {
-    value.trim_matches(|character| matches!(character, ' ' | '\t'))
+    value.trim_matches([' ', '\t'])
 }
 
 fn trim_ows_end(value: &str) -> &str {
-    value.trim_end_matches(|character| matches!(character, ' ' | '\t'))
+    value.trim_end_matches([' ', '\t'])
 }
 
 fn sha256_digest(payload: &[u8]) -> String {
