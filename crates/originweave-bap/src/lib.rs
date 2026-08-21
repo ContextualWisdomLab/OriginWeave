@@ -196,6 +196,8 @@ pub enum BapCommandReceiptError {
     TaskIdLimitExceeded,
     /// A retained receipt did not bind the exact retry command that attempted to reuse it.
     IdempotencyConflict,
+    /// The retained receipt's accepted transition does not match this lifecycle's current state.
+    ReplayStateMismatch,
     /// The lifecycle event could not be accepted for the current task state.
     TransitionRejected {
         /// The lifecycle failure preserved by the receipt boundary.
@@ -220,6 +222,10 @@ impl std::fmt::Display for BapCommandReceiptError {
                 formatter,
                 "BAP idempotency key conflicts with the retained command receipt"
             ),
+            Self::ReplayStateMismatch => write!(
+                formatter,
+                "BAP retained command receipt does not match the current lifecycle state"
+            ),
             Self::TransitionRejected { error } => error.fmt(formatter),
         }
     }
@@ -235,7 +241,8 @@ impl std::error::Error for BapCommandReceiptError {
             | Self::TenantIdLimitExceeded
             | Self::InvalidTaskId
             | Self::TaskIdLimitExceeded
-            | Self::IdempotencyConflict => None,
+            | Self::IdempotencyConflict
+            | Self::ReplayStateMismatch => None,
         }
     }
 }
@@ -455,11 +462,13 @@ impl BapTaskLifecycle {
     /// Apply a new command or replay an exact retained command receipt without a second transition.
     ///
     /// A caller that has already looked up a retained receipt may supply it here. Exact tenant,
-    /// idempotency-key, task, and event equality returns that immutable receipt without mutating the
-    /// lifecycle again. Any supplied mismatch fails closed. `None` follows the normal validation and
-    /// transition path in [`Self::apply_with_receipt`]. This helper does not provide receipt storage,
-    /// concurrent exclusion, authentication, authorization, or suppression of browser/network side
-    /// effects; those remain responsibilities of their owning runtime boundaries.
+    /// idempotency-key, task, and event equality plus an exact match between the receipt's accepted
+    /// transition and this lifecycle's current state/sequence returns that immutable receipt without
+    /// mutating the lifecycle again. Command mismatch or stale/foreign lifecycle state fails closed.
+    /// `None` follows the normal validation and transition path in [`Self::apply_with_receipt`]. This
+    /// helper does not provide receipt storage, concurrent exclusion, authentication, authorization,
+    /// or suppression of browser/network side effects; those remain responsibilities of their owning
+    /// runtime boundaries.
     pub fn apply_or_replay(
         &mut self,
         existing_receipt: Option<&BapCommandReceipt>,
@@ -469,10 +478,16 @@ impl BapTaskLifecycle {
         event: BapTaskEvent,
     ) -> Result<BapCommandReceipt, BapCommandReceiptError> {
         if let Some(receipt) = existing_receipt {
-            if receipt.matches(idempotency_key, tenant_id, task_id, event) {
-                return Ok(receipt.clone());
+            if !receipt.matches(idempotency_key, tenant_id, task_id, event) {
+                return Err(BapCommandReceiptError::IdempotencyConflict);
             }
-            return Err(BapCommandReceiptError::IdempotencyConflict);
+            let transition = receipt.transition();
+            if self.state != transition.current_state()
+                || self.transition_sequence != transition.sequence()
+            {
+                return Err(BapCommandReceiptError::ReplayStateMismatch);
+            }
+            return Ok(receipt.clone());
         }
         self.apply_with_receipt(idempotency_key, tenant_id, task_id, event)
     }
