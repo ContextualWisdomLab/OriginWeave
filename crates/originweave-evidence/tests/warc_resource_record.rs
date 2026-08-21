@@ -196,6 +196,7 @@ fn resource_record_accepts_valid_mime_parameters_and_rejects_malformed_media_typ
         "text/plain; note=\"unterminated",
         "text/plain; note=\"a\"b\"",
         "text/plain; note=\"a\nb\"",
+        "text/plain; note=\"\\\nb\"",
         "text/plain; note=\"\\\u{7f}\"",
     ] {
         assert_eq!(
