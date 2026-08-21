@@ -32,6 +32,22 @@ pub enum WarcResourceRecordError {
     UnverifiedProvenance,
 }
 
+impl fmt::Display for WarcResourceRecordError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::InvalidRecordId => "invalid WARC record identifier",
+            Self::InvalidDate => "invalid WARC date",
+            Self::InvalidContentType => "invalid WARC content type",
+            Self::LimitExceeded => "WARC resource record limit exceeded",
+            Self::InvalidTargetUri => "invalid WARC target URI",
+            Self::TargetUriMismatch => "WARC target URI does not match provenance",
+            Self::UnverifiedProvenance => "WARC provenance is not independently verified",
+        })
+    }
+}
+
+impl std::error::Error for WarcResourceRecordError {}
+
 /// An immutable, bounded WARC `resource` record over already-authorized bytes.
 #[derive(Clone, PartialEq, Eq)]
 pub struct WarcResourceRecord {
