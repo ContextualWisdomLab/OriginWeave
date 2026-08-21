@@ -15,13 +15,21 @@ use crate::webdriver_bidi_websocket_handshake::{
     WebDriverBiDiWebSocketMaskKey,
 };
 
+/// Maximum number of valid RFC 6455 Ping/Pong control frames one `locateNodes` exchange will process.
+///
+/// RFC 6455 permits control frames to be interleaved with data frames; this OriginWeave-owned
+/// resource budget prevents a peer from turning that permission into an unbounded control-frame loop
+/// before the correlated BiDi response arrives. The end-to-end exchange deadline remains an
+/// independent wall-clock bound.
+pub const MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE: usize = 64;
+
 /// Fail-closed failures while exchanging one bounded WebDriver BiDi `locateNodes` command.
 ///
 /// Every variant preserves the first causal boundary. Frame I/O retains the existing bounded
 /// WebSocket error, raw response bytes must pass the core pre-parser admission contract, and the
 /// admitted document must correlate to the exact consumed command before result nodes are returned.
-/// Protocol-shape, exhausted-deadline, and missing caller entropy refusals have no nested source
-/// because none masks an underlying I/O or parser failure.
+/// Protocol-shape, resource-budget, exhausted-deadline, and missing caller entropy refusals have no
+/// nested source because none masks an underlying I/O or parser failure.
 #[derive(Debug)]
 pub enum WebDriverBiDiLocateNodesExchangeError {
     /// Bounded WebSocket frame write or read failed.
@@ -30,6 +38,11 @@ pub enum WebDriverBiDiLocateNodesExchangeError {
     ExchangeDeadlineExceeded {
         /// Original caller-supplied deadline budget for the complete exchange.
         exchange_timeout: Duration,
+    },
+    /// The peer exceeded the local resource budget for interleaved Ping/Pong frames.
+    ControlFrameLimitExceeded {
+        /// Maximum number of control frames admitted for one exchange.
+        maximum_control_frames: usize,
     },
     /// A server Ping required a fresh client masking key, but the caller supplied none.
     PongMaskingKeyUnavailable,
@@ -57,6 +70,12 @@ impl fmt::Display for WebDriverBiDiLocateNodesExchangeError {
                 formatter,
                 "WebDriver BiDi locateNodes exchange exhausted its {exchange_timeout:?} end-to-end deadline before the next operation"
             ),
+            Self::ControlFrameLimitExceeded {
+                maximum_control_frames,
+            } => write!(
+                formatter,
+                "WebDriver BiDi locateNodes exchange exceeded the maximum {maximum_control_frames} interleaved control frames"
+            ),
             Self::PongMaskingKeyUnavailable => formatter.write_str(
                 "WebDriver BiDi locateNodes exchange received Ping without a fresh caller-supplied Pong masking key",
             ),
@@ -83,6 +102,7 @@ impl Error for WebDriverBiDiLocateNodesExchangeError {
             Self::ResponseDocument(error) => Some(error),
             Self::LocateNodesResponse(error) => Some(error),
             Self::ExchangeDeadlineExceeded { .. }
+            | Self::ControlFrameLimitExceeded { .. }
             | Self::PongMaskingKeyUnavailable
             | Self::UnexpectedResponseFrame { .. } => None,
         }
@@ -127,8 +147,10 @@ impl WebDriverBiDiWebSocketEstablished {
     /// `exchange_timeout` is one end-to-end budget for every command write, control-frame read/write,
     /// and response read. Elapsed time is subtracted before every subsequent operation and the budget
     /// is never reset. The underlying frame boundary independently caps each frame at its existing
-    /// size ceiling, while the single exchange deadline bounds a peer that sends repeated valid
-    /// control frames. Any failure consumes this transport state and yields no reusable WebSocket
+    /// size ceiling. In addition, at most [`MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE`] valid
+    /// Ping/Pong frames are processed before the exchange fails closed, so RFC 6455 control-frame
+    /// interleaving cannot create an unbounded iteration budget even when the wall-clock deadline has
+    /// not yet expired. Any failure consumes this transport state and yields no reusable WebSocket
     /// stream, preventing a partially written/read protocol state from becoming later authority.
     ///
     /// The final complete text payload passes the existing bounded UTF-8/document admission,
@@ -153,6 +175,7 @@ impl WebDriverBiDiWebSocketEstablished {
             command_masking_key,
             exchange_timeout,
         ))?;
+        let mut control_frame_count = 0_usize;
 
         loop {
             let remaining_timeout =
@@ -161,8 +184,21 @@ impl WebDriverBiDiWebSocketEstablished {
                 .read_frame(remaining_timeout)
                 .map_err(WebDriverBiDiLocateNodesExchangeError::Frame)?;
             established = next_established;
+            let opcode = frame.opcode();
 
-            match frame.opcode() {
+            if matches!(opcode, 0x9 | 0xa) {
+                if control_frame_count == MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE {
+                    return Err(
+                        WebDriverBiDiLocateNodesExchangeError::ControlFrameLimitExceeded {
+                            maximum_control_frames:
+                                MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE,
+                        },
+                    );
+                }
+                control_frame_count += 1;
+            }
+
+            match opcode {
                 0x9 => {
                     let masking_key = next_pong_masking_key(next_pong_key)?;
                     let remaining_timeout =
@@ -187,7 +223,7 @@ impl WebDriverBiDiWebSocketEstablished {
                     return Err(
                         WebDriverBiDiLocateNodesExchangeError::UnexpectedResponseFrame {
                             fin: frame.fin(),
-                            opcode: frame.opcode(),
+                            opcode,
                         },
                     );
                 }
@@ -207,7 +243,8 @@ mod tests {
     use crate::{MAX_WEBSOCKET_FRAME_TIMEOUT, WebDriverBiDiWebSocketFrameError};
 
     use super::{
-        WebDriverBiDiLocateNodesExchangeError, next_pong_masking_key, remaining_exchange_budget,
+        MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE, WebDriverBiDiLocateNodesExchangeError,
+        next_pong_masking_key, remaining_exchange_budget,
     };
 
     #[test]
@@ -266,6 +303,16 @@ mod tests {
         };
         assert!(deadline.source().is_none());
         assert!(deadline.to_string().contains("end-to-end deadline"));
+
+        let control_limit = WebDriverBiDiLocateNodesExchangeError::ControlFrameLimitExceeded {
+            maximum_control_frames: MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE,
+        };
+        assert!(control_limit.source().is_none());
+        assert!(
+            control_limit
+                .to_string()
+                .contains("maximum 64 interleaved control frames")
+        );
 
         let missing_mask = WebDriverBiDiLocateNodesExchangeError::PongMaskingKeyUnavailable;
         assert!(missing_mask.source().is_none());
