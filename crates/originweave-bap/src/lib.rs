@@ -261,7 +261,7 @@ impl std::fmt::Debug for BapCommandReceipt {
         formatter
             .debug_struct("BapCommandReceipt")
             .field("idempotency_key_byte_count", &self.idempotency_key.len())
-            .field("task_id", &self.task_id)
+            .field("task_id_byte_count", &self.task_id.len())
             .field("transition", &self.transition)
             .finish()
     }
