@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import pathlib
 import runpy
+import subprocess
+import tempfile
 import unittest
 import unittest.mock
 
@@ -121,6 +123,30 @@ class ManifestV3CompatibilityContractTests(unittest.TestCase):
         self.assertNotIn("urllib.request", runner)
         self.assertNotIn("urllib.error", runner)
 
+    def test_runner_preserves_chromium_sandbox(self) -> None:
+        """The real-browser compatibility lane must not disable Chromium sandboxing."""
+
+        runner = RUNNER.read_text(encoding="utf-8")
+        self.assertNotIn('"--no-sandbox"', runner)
+
+    def test_workflow_installs_chromium_sandbox_helper(self) -> None:
+        """The downloaded Chrome for Testing build must have its setuid sandbox installed."""
+
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("chrome_sandbox", workflow)
+        self.assertIn(
+            "sudo chown root:root .mv3-browser/chrome-linux64/chrome_sandbox",
+            workflow,
+        )
+        self.assertIn(
+            "sudo chmod 4755 .mv3-browser/chrome-linux64/chrome_sandbox",
+            workflow,
+        )
+        self.assertIn(
+            "CHROME_DEVEL_SANDBOX: ${{ github.workspace }}/.mv3-browser/chrome-linux64/chrome_sandbox",
+            workflow,
+        )
+
     def test_runner_accepts_real_chromedriver_element_ids_without_path_injection(self) -> None:
         """ChromeDriver dotted element IDs must work while path syntax stays fail-closed."""
 
@@ -162,6 +188,33 @@ class ManifestV3CompatibilityContractTests(unittest.TestCase):
         ):
             with self.subTest(expected=expected):
                 self.assertIn(expected, runner)
+
+    def test_main_records_timeout_cleanup_as_one_failed_trial(self) -> None:
+        """A stuck browser teardown must not suppress bounded repeatability evidence."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="mv3_timeout_contract")
+        main = namespace["main"]
+        with tempfile.TemporaryDirectory(prefix="originweave-mv3-timeout-") as temp_dir:
+            fixture = pathlib.Path(temp_dir)
+            (fixture / "manifest.json").write_text("{}", encoding="utf-8")
+            evidence_print = unittest.mock.Mock()
+            with unittest.mock.patch.dict(
+                main.__globals__,
+                {
+                    "FIXTURE": fixture,
+                    "REPEATABILITY_TRIALS": 1,
+                    "_pinned_workspace_binary": lambda *_args: pathlib.Path("/controlled"),
+                    "_run_restart_trial": unittest.mock.Mock(
+                        side_effect=subprocess.TimeoutExpired("controlled-chromedriver", 5)
+                    ),
+                    "print": evidence_print,
+                },
+            ):
+                with self.assertRaisesRegex(RuntimeError, "0/1 trials passed"):
+                    main()
+
+        evidence = json.loads(evidence_print.call_args.args[0])
+        self.assertEqual(evidence["trial_results"][0]["failure_kind"], "runtime_error")
 
     def test_runner_preserves_safe_surface_failure_evidence(self) -> None:
         """A failed trial must identify the bounded fixture surface without leaking raw errors."""
@@ -236,6 +289,59 @@ class ManifestV3CompatibilityContractTests(unittest.TestCase):
                 self.assertNotIn("secret-token", rendered)
                 self.assertNotIn("/home/runner/private", rendered)
                 self.assertNotIn("example.invalid", rendered)
+
+    def test_webdriver_error_keeps_only_an_allowlisted_code(self) -> None:
+        """Session-start failures must expose a bounded code without browser text."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="mv3_contract")
+        protocol_error = namespace["WebDriverProtocolError"]
+        error = protocol_error("session not created", "secret browser diagnostic")
+        self.assertEqual(str(error), "WebDriver protocol error: session not created")
+        self.assertEqual(error.code, "session not created")
+        unknown = protocol_error("untrusted code", "secret browser diagnostic")
+        self.assertEqual(str(unknown), "WebDriver protocol error: unknown")
+        self.assertEqual(unknown.code, "unknown")
+
+    def test_webdriver_http_error_keeps_json_error_code(self) -> None:
+        """HTTP 500 session failures must retain only the bounded WebDriver code."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="mv3_contract")
+        json_request = namespace["_json_request"]
+        protocol_error = namespace["WebDriverProtocolError"]
+        http_module = namespace["http"]
+
+        class FakeResponse:
+            status = 500
+
+            def read(self, _limit: int) -> bytes:
+                return json.dumps(
+                    {
+                        "value": {
+                            "error": "session not created",
+                            "message": "secret browser diagnostic",
+                        }
+                    }
+                ).encode("utf-8")
+
+        class FakeConnection:
+            def request(self, *_args: object, **_kwargs: object) -> None:
+                return None
+
+            def getresponse(self) -> FakeResponse:
+                return FakeResponse()
+
+            def close(self) -> None:
+                return None
+
+        with unittest.mock.patch.object(
+            http_module.client,
+            "HTTPConnection",
+            return_value=FakeConnection(),
+        ):
+            with self.assertRaises(protocol_error) as raised:
+                json_request(9515, "POST", "/session", {})
+        self.assertEqual(raised.exception.code, "session not created")
+        self.assertNotIn("secret browser diagnostic", str(raised.exception))
 
     def test_chromedriver_startup_timeout_does_not_retain_raw_last_error(self) -> None:
         """Startup timeout diagnostics must classify transient errors without copying raw text."""
