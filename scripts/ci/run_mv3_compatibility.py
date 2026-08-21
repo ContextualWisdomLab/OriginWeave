@@ -780,34 +780,34 @@ def _validate_agent_task_submitted_state(state: object) -> None:
         raise RuntimeError("Agent Task state post-condition failed")
 
 
-def _terminate_owned_process_bounded(process: Any) -> tuple[bool, str | None]:
-    """Terminate one owned child under bounded waits and retain typed failure evidence."""
+def _terminate_owned_process_bounded(process: Any) -> tuple[bool, str | None, bool]:
+    """Terminate one owned child under bounded waits and retain typed fallback evidence."""
 
     try:
         process.terminate()
     except ProcessLookupError:
-        return True, None
+        return True, None, False
     except OSError as exc:
-        return False, type(exc).__name__
+        return False, type(exc).__name__, False
 
     try:
         process.wait(timeout=PROCESS_EXIT_TIMEOUT_SECONDS)
-        return True, None
+        return True, None, False
     except subprocess.TimeoutExpired:
         try:
             process.kill()
         except ProcessLookupError:
-            return True, None
+            return True, None, True
         except OSError as exc:
-            return False, type(exc).__name__
+            return False, type(exc).__name__, True
 
     try:
         process.wait(timeout=PROCESS_EXIT_TIMEOUT_SECONDS)
-        return True, None
+        return True, None, True
     except subprocess.TimeoutExpired as exc:
-        return False, type(exc).__name__
+        return False, type(exc).__name__, True
     except OSError as exc:
-        return False, type(exc).__name__
+        return False, type(exc).__name__, True
 
 
 def _run_browser_pass(
@@ -1461,6 +1461,7 @@ def _run_agent_task_forced_close_browser_pass(
     browser_failure_type: str | None = None
     driver_process_terminated: bool | None = None
     driver_cleanup_failure_type: str | None = None
+    driver_kill_fallback_used = False
     result: dict[str, Any] | None = None
     driver = subprocess.Popen(
         [str(chromedriver_bin), f"--port={driver_port}", "--allowed-ips=127.0.0.1"],
@@ -1612,9 +1613,11 @@ def _run_agent_task_forced_close_browser_pass(
                     _webdriver_path(session_id, ""),
                     {},
                 )
-        driver_process_terminated, driver_cleanup_failure_type = (
-            _terminate_owned_process_bounded(driver)
-        )
+        (
+            driver_process_terminated,
+            driver_cleanup_failure_type,
+            driver_kill_fallback_used,
+        ) = _terminate_owned_process_bounded(driver)
 
     if browser_process_id is None or browser_process_start_time_ticks is None:
         raise RuntimeError("Agent Task forced-close browser process identity was not captured")
@@ -1631,6 +1634,7 @@ def _run_agent_task_forced_close_browser_pass(
         failure_evidence: dict[str, Any] = {
             "failure_type": browser_failure_type or driver_cleanup_failure_type,
             "driver_process_terminated": driver_process_terminated,
+            "driver_kill_fallback_used": driver_kill_fallback_used,
             "browser_process_terminated": browser_process_terminated,
         }
         if browser_failure_type is not None and driver_cleanup_failure_type is not None:
@@ -1651,6 +1655,7 @@ def _run_agent_task_forced_close_browser_pass(
     if not chromium_process_set_terminated:
         raise RuntimeError("Agent Task forced-close Chromium process set did not terminate")
     result["driver_process_terminated"] = True
+    result["driver_kill_fallback_used"] = driver_kill_fallback_used
     result["browser_process_terminated"] = True
     result["chromium_process_set_terminated"] = True
     return result
@@ -1705,6 +1710,9 @@ def _run_agent_task_forced_close_trial(
         driver_process_terminated = result.get("driver_process_terminated")
         if not isinstance(driver_process_terminated, bool):
             raise RuntimeError("Agent Task forced-close browser pass returned invalid driver teardown evidence")
+        driver_kill_fallback_used = result.get("driver_kill_fallback_used")
+        if not isinstance(driver_kill_fallback_used, bool):
+            raise RuntimeError("Agent Task forced-close browser pass returned invalid driver fallback evidence")
         browser_process_terminated = result.get("browser_process_terminated")
         if not isinstance(browser_process_terminated, bool):
             raise RuntimeError("Agent Task forced-close browser pass returned invalid teardown evidence")
@@ -1713,6 +1721,7 @@ def _run_agent_task_forced_close_trial(
             "passed": False,
             "failure_type": returned_failure_type,
             "driver_process_terminated": driver_process_terminated,
+            "driver_kill_fallback_used": driver_kill_fallback_used,
             "browser_process_terminated": browser_process_terminated,
             "profile_cleaned": True,
             "duration_ms": duration_ms,
@@ -1740,6 +1749,7 @@ def _run_agent_task_forced_close_trial(
         "forced_close_detected": result["forced_close_detected"],
         "session_survived": result["session_survived"],
         "driver_process_terminated": result["driver_process_terminated"],
+        "driver_kill_fallback_used": result["driver_kill_fallback_used"],
         "browser_process_terminated": result["browser_process_terminated"],
         "chromium_process_set_terminated": result["chromium_process_set_terminated"],
         "profile_cleaned": True,
@@ -1943,6 +1953,7 @@ def main() -> int:
             trial.get("forced_close_detected") is True
             and trial.get("session_survived") is True
             and trial.get("driver_process_terminated") is True
+            and isinstance(trial.get("driver_kill_fallback_used"), bool)
             and trial.get("browser_process_terminated") is True
             and trial.get("chromium_process_set_terminated") is True
             and trial.get("profile_cleaned") is True
