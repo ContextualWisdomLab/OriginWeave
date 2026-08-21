@@ -473,6 +473,17 @@ def _validate_agent_task_submitted_state(state: object) -> None:
         raise RuntimeError("Agent Task state post-condition failed")
 
 
+def _cleanup_agent_task_browser_session(driver_port: int, session_id: str) -> None:
+    """Delete one Agent Task WebDriver session without suppressing cleanup failures."""
+
+    _json_request(
+        driver_port,
+        "DELETE",
+        _webdriver_path(session_id, ""),
+        {},
+    )
+
+
 def _run_agent_task_browser_pass(
     chrome_bin: pathlib.Path,
     chromedriver_bin: pathlib.Path,
@@ -620,20 +631,16 @@ def _run_agent_task_browser_pass(
             "duration_ms": round((time.monotonic() - started) * 1000),
         }
     finally:
-        if session_id is not None:
-            with contextlib.suppress(Exception):
-                _json_request(
-                    driver_port,
-                    "DELETE",
-                    _webdriver_path(session_id, ""),
-                    {},
-                )
-        driver.terminate()
         try:
-            driver.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            driver.kill()
-            driver.wait(timeout=5)
+            if session_id is not None:
+                _cleanup_agent_task_browser_session(driver_port, session_id)
+        finally:
+            driver.terminate()
+            try:
+                driver.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                driver.kill()
+                driver.wait(timeout=5)
 
 
 def _run_agent_task_trial(
