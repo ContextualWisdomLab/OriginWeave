@@ -107,6 +107,72 @@ fn receipt_preserves_lifecycle_failure_without_mutating_the_task() {
 }
 
 #[test]
+fn exact_retry_replays_retained_receipt_without_reapplying_transition() {
+    let mut task = BapTaskLifecycle::new();
+    let receipt = task
+        .apply_or_replay(
+            None,
+            "request-1",
+            "tenant-1",
+            "task-1",
+            BapTaskEvent::Admit,
+        )
+        .expect("initial receipt");
+
+    assert_eq!(task.state(), BapTaskState::Admitted);
+    assert_eq!(task.transition_sequence(), 1);
+
+    for _ in 0..100 {
+        let replay = task
+            .apply_or_replay(
+                Some(&receipt),
+                "request-1",
+                "tenant-1",
+                "task-1",
+                BapTaskEvent::Admit,
+            )
+            .expect("exact retry");
+        assert_eq!(replay, receipt);
+        assert_eq!(task.state(), BapTaskState::Admitted);
+        assert_eq!(task.transition_sequence(), 1);
+    }
+}
+
+#[test]
+fn conflicting_retry_fails_closed_without_mutating_lifecycle() {
+    let mut task = BapTaskLifecycle::new();
+    let receipt = task
+        .apply_or_replay(
+            None,
+            "request-1",
+            "tenant-1",
+            "task-1",
+            BapTaskEvent::Admit,
+        )
+        .expect("initial receipt");
+
+    for (idempotency_key, tenant_id, task_id, event) in [
+        ("request-2", "tenant-1", "task-1", BapTaskEvent::Admit),
+        ("request-1", "tenant-2", "task-1", BapTaskEvent::Admit),
+        ("request-1", "tenant-1", "task-2", BapTaskEvent::Admit),
+        ("request-1", "tenant-1", "task-1", BapTaskEvent::Start),
+    ] {
+        assert_eq!(
+            task.apply_or_replay(
+                Some(&receipt),
+                idempotency_key,
+                tenant_id,
+                task_id,
+                event,
+            ),
+            Err(BapCommandReceiptError::IdempotencyConflict)
+        );
+        assert_eq!(task.state(), BapTaskState::Admitted);
+        assert_eq!(task.transition_sequence(), 1);
+    }
+}
+
+#[test]
 fn receipt_errors_have_standard_error_contracts() {
     let error = BapCommandReceiptError::InvalidTaskId;
     assert_eq!(error.to_string(), "BAP task ID is invalid");
@@ -131,6 +197,11 @@ fn receipt_errors_have_standard_error_contracts() {
         BapCommandReceiptError::TaskIdLimitExceeded.to_string(),
         "BAP task ID exceeds its byte limit"
     );
+    assert_eq!(
+        BapCommandReceiptError::IdempotencyConflict.to_string(),
+        "BAP idempotency key conflicts with the retained command receipt"
+    );
+    assert!(BapCommandReceiptError::IdempotencyConflict.source().is_none());
     let transition = BapCommandReceiptError::TransitionRejected {
         error: originweave_bap::BapTaskTransitionError::SequenceExhausted,
     };
