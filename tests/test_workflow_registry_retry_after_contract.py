@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
+import io
+import json
 import pathlib
+import tempfile
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -52,6 +56,17 @@ class WorkflowRegistryRetryAfterContractTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.audit = _load_module()
 
+    def _run_cli(self, payload: dict) -> tuple[int, str]:
+        """Run the operator CLI against one bounded local evidence document."""
+
+        with tempfile.TemporaryDirectory(prefix="originweave-workflow-audit-") as directory:
+            input_path = pathlib.Path(directory) / "registry.json"
+            input_path.write_text(json.dumps(payload), encoding="utf-8")
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                exit_code = self.audit.main([str(input_path)])
+        return exit_code, stderr.getvalue()
+
     def test_rate_limited_403_becomes_retryable_only_with_bounded_retry_after(self) -> None:
         """A collected 403 may be retried only when the collector retained Retry-After."""
 
@@ -86,6 +101,26 @@ class WorkflowRegistryRetryAfterContractTests(unittest.TestCase):
                     self.audit.audit_workflow_registry(_payload(status_code, 30))
                 self.assertFalse(raised.exception.retryable)
                 self.assertEqual(raised.exception.retry_after_seconds, 30)
+
+    def test_cli_preserves_retryable_recollection_guidance(self) -> None:
+        """Operator stderr must retain the typed bounded wait decision on failure."""
+
+        exit_code, diagnostic = self._run_cli(_payload(403, 30))
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn("registry page 1 did not return HTTP 200", diagnostic)
+        self.assertIn("retryable=true", diagnostic)
+        self.assertIn("retry_after_seconds=30", diagnostic)
+
+    def test_cli_preserves_nonretryable_decision_without_promoting_hint(self) -> None:
+        """A retained delay on a non-reviewed status must stay explicitly non-retryable."""
+
+        exit_code, diagnostic = self._run_cli(_payload(404, 30))
+
+        self.assertEqual(exit_code, 1)
+        self.assertIn("registry page 1 did not return HTTP 200", diagnostic)
+        self.assertIn("retryable=false", diagnostic)
+        self.assertIn("retry_after_seconds=30", diagnostic)
 
     def test_retry_after_rejects_ambiguous_or_unbounded_values(self) -> None:
         """Retry guidance is a bounded integer, not a bool, negative, or huge wait."""
