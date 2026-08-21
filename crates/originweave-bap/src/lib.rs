@@ -126,6 +126,20 @@ pub enum BapTaskRestoreError {
         /// Last accepted transition sequence supplied by the durable recovery boundary.
         transition_sequence: u64,
     },
+    /// A non-created snapshot omitted the exact last accepted transition evidence.
+    MissingTransitionEvidence {
+        /// Logical state supplied by the durable recovery boundary.
+        state: BapTaskState,
+        /// Last accepted transition sequence supplied by the durable recovery boundary.
+        transition_sequence: u64,
+    },
+    /// Supplied last-transition evidence is inconsistent with the lifecycle state machine or snapshot.
+    InvalidTransitionEvidence {
+        /// Logical state the evidence attempted to restore.
+        state: BapTaskState,
+        /// Transition sequence the evidence attempted to restore.
+        transition_sequence: u64,
+    },
 }
 
 impl std::fmt::Display for BapTaskRestoreError {
@@ -137,6 +151,20 @@ impl std::fmt::Display for BapTaskRestoreError {
             } => write!(
                 formatter,
                 "BAP task snapshot state {state:?} with transition sequence {transition_sequence} is unreachable"
+            ),
+            Self::MissingTransitionEvidence {
+                state,
+                transition_sequence,
+            } => write!(
+                formatter,
+                "BAP task snapshot state {state:?} with transition sequence {transition_sequence} is missing last-transition evidence"
+            ),
+            Self::InvalidTransitionEvidence {
+                state,
+                transition_sequence,
+            } => write!(
+                formatter,
+                "BAP task transition evidence for state {state:?} with transition sequence {transition_sequence} is invalid"
             ),
         }
     }
@@ -176,6 +204,32 @@ impl BapTaskTransition {
     #[must_use]
     pub const fn event(self) -> BapTaskEvent {
         self.event
+    }
+
+    /// Reconstruct and validate one accepted transition from durable primitive evidence.
+    ///
+    /// This validates lifecycle consistency only. It does not authenticate the persistence
+    /// boundary, authorize the task, or grant browser, network, model, secret, or approval authority.
+    pub fn restore(
+        previous_state: BapTaskState,
+        current_state: BapTaskState,
+        sequence: u64,
+        event: BapTaskEvent,
+    ) -> Result<Self, BapTaskRestoreError> {
+        let invalid = || BapTaskRestoreError::InvalidTransitionEvidence {
+            state: current_state,
+            transition_sequence: sequence,
+        };
+        let Some(previous_sequence) = sequence.checked_sub(1) else {
+            return Err(invalid());
+        };
+        let mut lifecycle =
+            BapTaskLifecycle::restore(previous_state, previous_sequence).map_err(|_| invalid())?;
+        let transition = lifecycle.apply(event).map_err(|_| invalid())?;
+        if transition.current_state() != current_state {
+            return Err(invalid());
+        }
+        Ok(transition)
     }
 }
 
@@ -383,6 +437,49 @@ impl BapTaskLifecycle {
             transition_sequence,
             last_transition: None,
         })
+    }
+
+    /// Restore a lifecycle with exact validated last-transition evidence.
+    ///
+    /// Every non-created snapshot requires the exact most recently accepted transition so a
+    /// retained command receipt cannot replay against state and sequence alone. This validates
+    /// lifecycle consistency only; the caller remains responsible for the integrity and
+    /// authenticity of the persistence boundary supplying the evidence.
+    pub fn restore_with_transition(
+        state: BapTaskState,
+        transition_sequence: u64,
+        last_transition: Option<BapTaskTransition>,
+    ) -> Result<Self, BapTaskRestoreError> {
+        let mut lifecycle = Self::restore(state, transition_sequence)?;
+        if transition_sequence == 0 {
+            if last_transition.is_some() {
+                return Err(BapTaskRestoreError::InvalidTransitionEvidence {
+                    state,
+                    transition_sequence,
+                });
+            }
+            return Ok(lifecycle);
+        }
+        let Some(transition) = last_transition else {
+            return Err(BapTaskRestoreError::MissingTransitionEvidence {
+                state,
+                transition_sequence,
+            });
+        };
+        let transition = BapTaskTransition::restore(
+            transition.previous_state(),
+            transition.current_state(),
+            transition.sequence(),
+            transition.event(),
+        )?;
+        if transition.current_state() != state || transition.sequence() != transition_sequence {
+            return Err(BapTaskRestoreError::InvalidTransitionEvidence {
+                state,
+                transition_sequence,
+            });
+        }
+        lifecycle.last_transition = Some(transition);
+        Ok(lifecycle)
     }
 
     /// Return the current logical task state.
