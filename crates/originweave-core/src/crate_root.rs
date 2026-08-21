@@ -7,7 +7,9 @@ use std::fmt;
 
 #[path = "lib.rs"]
 mod base;
+mod native_messaging_frame;
 pub use base::*;
+pub use native_messaging_frame::*;
 
 impl fmt::Display for NativeMessagingHostNameError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
