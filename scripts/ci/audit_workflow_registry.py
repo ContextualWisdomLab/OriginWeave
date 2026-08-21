@@ -35,7 +35,7 @@ _DISABLED_STATES = {
     "disabled_manually",
 }
 _ALLOWED_STATES = {"active", *_DISABLED_STATES}
-_RETRYABLE_HTTP_STATUSES = {429, 500, 502, 503, 504}
+_RETRYABLE_HTTP_STATUSES = {408, 429, 500, 502, 503, 504}
 
 
 class WorkflowAuditError(ValueError):
