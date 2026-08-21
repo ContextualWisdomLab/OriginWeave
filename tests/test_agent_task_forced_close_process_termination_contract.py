@@ -26,8 +26,10 @@ class AgentTaskForcedCloseProcessTerminationContractTests(unittest.TestCase):
             "_read_linux_proc_stat_process_identity",
             "_snapshot_linux_process_evidence",
             "_read_linux_process_identity_set",
+            "_terminate_owned_process_bounded",
             "_wait_for_linux_process_identity_exit",
             "_wait_for_linux_process_identity_set_exit",
+            '"driver_process_terminated"',
             '"browser_process_terminated"',
             '"chromium_process_set_terminated"',
         ):
@@ -52,6 +54,7 @@ class AgentTaskForcedCloseProcessTerminationContractTests(unittest.TestCase):
                 "browser_version": namespace["PINNED_CHROME_VERSION"],
                 "forced_close_detected": True,
                 "session_survived": True,
+                "driver_process_terminated": True,
                 "browser_process_terminated": False,
                 "chromium_process_set_terminated": False,
             }
@@ -63,6 +66,7 @@ class AgentTaskForcedCloseProcessTerminationContractTests(unittest.TestCase):
             "http://127.0.0.1/fixture",
             1,
         )
+        self.assertIs(result["driver_process_terminated"], True)
         self.assertIs(result["browser_process_terminated"], False)
         self.assertIs(result["chromium_process_set_terminated"], False)
 
@@ -76,19 +80,23 @@ class AgentTaskForcedCloseProcessTerminationContractTests(unittest.TestCase):
 
         for expected in (
             "browser_failure_type",
+            "driver_cleanup_failure_type",
             "except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:",
             'browser_failure_type = type(exc).__name__',
             "failure_evidence",
+            '"driver_process_terminated": driver_process_terminated',
             '"browser_process_terminated": browser_process_terminated',
             'failure_evidence["chromium_process_set_terminated"]',
         ):
             with self.subTest(expected=expected):
                 self.assertIn(expected, browser_pass)
 
-        shutdown = browser_pass.index("driver.wait(timeout=5)")
+        shutdown = browser_pass.index("_terminate_owned_process_bounded(driver)")
         root_wait = browser_pass.index("_wait_for_linux_process_identity_exit(")
         set_wait = browser_pass.index("_wait_for_linux_process_identity_set_exit(")
-        failure_return = browser_pass.index("if browser_failure_type is not None:")
+        failure_return = browser_pass.index(
+            "if browser_failure_type is not None or driver_cleanup_failure_type is not None:"
+        )
         self.assertLess(shutdown, root_wait)
         self.assertLess(root_wait, failure_return)
         self.assertLess(set_wait, failure_return)
@@ -127,6 +135,43 @@ class AgentTaskForcedCloseProcessTerminationContractTests(unittest.TestCase):
         self.assertIs(terminated, False)
         self.assertEqual(failure_type, "TimeoutExpired")
 
+    def test_forced_close_trial_preserves_cleanup_failure_without_overwriting_browser_failure(self) -> None:
+        """A teardown timeout must remain separate from the original browser failure type."""
+
+        namespace = runpy.run_path(
+            str(RUNNER), run_name="forced_close_cleanup_failure_trial"
+        )
+        trial = namespace["_run_agent_task_forced_close_trial"]
+
+        def fake_browser_pass(
+            _chrome_bin: pathlib.Path,
+            _chromedriver_bin: pathlib.Path,
+            _fixture_url: str,
+            _profile_dir: str,
+        ) -> dict[str, object]:
+            return {
+                "failure_type": "RuntimeError",
+                "cleanup_failure_type": "TimeoutExpired",
+                "driver_process_terminated": False,
+                "browser_process_terminated": True,
+                "chromium_process_set_terminated": True,
+            }
+
+        trial.__globals__["_run_agent_task_forced_close_browser_pass"] = fake_browser_pass
+        result = trial(
+            pathlib.Path("/unused/chrome"),
+            pathlib.Path("/unused/chromedriver"),
+            "http://127.0.0.1/fixture",
+            3,
+        )
+        self.assertIs(result["passed"], False)
+        self.assertEqual(result["failure_type"], "RuntimeError")
+        self.assertEqual(result["cleanup_failure_type"], "TimeoutExpired")
+        self.assertIs(result["driver_process_terminated"], False)
+        self.assertIs(result["browser_process_terminated"], True)
+        self.assertIs(result["chromium_process_set_terminated"], True)
+        self.assertIs(result["profile_cleaned"], True)
+
     def test_forced_close_trial_preserves_failure_process_set_teardown_evidence(self) -> None:
         """False root/set teardown evidence must survive the trial failure envelope."""
 
@@ -143,6 +188,7 @@ class AgentTaskForcedCloseProcessTerminationContractTests(unittest.TestCase):
         ) -> dict[str, object]:
             return {
                 "failure_type": "RuntimeError",
+                "driver_process_terminated": True,
                 "browser_process_terminated": False,
                 "chromium_process_set_terminated": False,
             }
@@ -156,6 +202,7 @@ class AgentTaskForcedCloseProcessTerminationContractTests(unittest.TestCase):
         )
         self.assertIs(result["passed"], False)
         self.assertEqual(result["failure_type"], "RuntimeError")
+        self.assertIs(result["driver_process_terminated"], True)
         self.assertIs(result["browser_process_terminated"], False)
         self.assertIs(result["chromium_process_set_terminated"], False)
         self.assertIs(result["profile_cleaned"], True)
@@ -176,6 +223,7 @@ class AgentTaskForcedCloseProcessTerminationContractTests(unittest.TestCase):
         ) -> dict[str, object]:
             return {
                 "failure_type": "RuntimeError",
+                "driver_process_terminated": True,
                 "browser_process_terminated": True,
             }
 
@@ -187,18 +235,20 @@ class AgentTaskForcedCloseProcessTerminationContractTests(unittest.TestCase):
             2,
         )
         self.assertIs(result["passed"], False)
+        self.assertIs(result["driver_process_terminated"], True)
         self.assertIs(result["browser_process_terminated"], True)
         self.assertNotIn("chromium_process_set_terminated", result)
         self.assertIs(result["profile_cleaned"], True)
 
     def test_main_forced_close_gate_requires_process_termination(self) -> None:
-        """Compatibility success must reject a live forced-close browser identity."""
+        """Compatibility success must reject a live forced-close process identity."""
 
         runner = RUNNER.read_text(encoding="utf-8")
         start = runner.index("forced_close_surfaces_complete = all(")
         end = runner.index("\n\n        evidence = {", start)
         gate = runner[start:end]
         for expected in (
+            'trial.get("driver_process_terminated") is True',
             'trial.get("browser_process_terminated") is True',
             'trial.get("chromium_process_set_terminated") is True',
         ):
