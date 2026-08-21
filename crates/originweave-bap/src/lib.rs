@@ -8,6 +8,11 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+/// Maximum UTF-8 byte length of a mutating command's idempotency key.
+pub const MAX_BAP_IDEMPOTENCY_KEY_BYTES: usize = 128;
+/// Maximum UTF-8 byte length of a BAP task identifier.
+pub const MAX_BAP_TASK_ID_BYTES: usize = 128;
+
 /// Durable logical state of one governed BAP task.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BapTaskState {
@@ -143,6 +148,7 @@ pub struct BapTaskTransition {
     previous_state: BapTaskState,
     current_state: BapTaskState,
     sequence: u64,
+    event: BapTaskEvent,
 }
 
 impl BapTaskTransition {
@@ -162,6 +168,115 @@ impl BapTaskTransition {
     #[must_use]
     pub const fn sequence(self) -> u64 {
         self.sequence
+    }
+
+    /// Return the accepted lifecycle event represented by this receipt.
+    #[must_use]
+    pub const fn event(self) -> BapTaskEvent {
+        self.event
+    }
+}
+
+/// A validation or lifecycle failure while issuing a BAP command receipt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BapCommandReceiptError {
+    /// The idempotency key was empty or contained unsupported input.
+    InvalidIdempotencyKey,
+    /// The idempotency key exceeded its byte bound.
+    IdempotencyKeyLimitExceeded,
+    /// The task identifier was empty or contained unsupported input.
+    InvalidTaskId,
+    /// The task identifier exceeded its byte bound.
+    TaskIdLimitExceeded,
+    /// The lifecycle event could not be accepted for the current task state.
+    TransitionRejected {
+        /// The lifecycle failure preserved by the receipt boundary.
+        error: BapTaskTransitionError,
+    },
+}
+
+impl std::fmt::Display for BapCommandReceiptError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidIdempotencyKey => write!(formatter, "BAP idempotency key is invalid"),
+            Self::IdempotencyKeyLimitExceeded => {
+                write!(formatter, "BAP idempotency key exceeds its byte limit")
+            }
+            Self::InvalidTaskId => write!(formatter, "BAP task ID is invalid"),
+            Self::TaskIdLimitExceeded => write!(formatter, "BAP task ID exceeds its byte limit"),
+            Self::TransitionRejected { error } => error.fmt(formatter),
+        }
+    }
+}
+
+impl std::error::Error for BapCommandReceiptError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::TransitionRejected { error } => Some(error),
+            Self::InvalidIdempotencyKey
+            | Self::IdempotencyKeyLimitExceeded
+            | Self::InvalidTaskId
+            | Self::TaskIdLimitExceeded => None,
+        }
+    }
+}
+
+/// An immutable receipt binding one accepted lifecycle command to its retry key.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BapCommandReceipt {
+    idempotency_key: String,
+    task_id: String,
+    transition: BapTaskTransition,
+}
+
+impl BapCommandReceipt {
+    /// Validate and create a receipt for an already accepted lifecycle transition.
+    pub fn new(
+        idempotency_key: &str,
+        task_id: &str,
+        transition: BapTaskTransition,
+    ) -> Result<Self, BapCommandReceiptError> {
+        validate_idempotency_key(idempotency_key)?;
+        validate_task_id(task_id)?;
+        Ok(Self::from_validated(idempotency_key, task_id, transition))
+    }
+
+    fn from_validated(idempotency_key: &str, task_id: &str, transition: BapTaskTransition) -> Self {
+        Self {
+            idempotency_key: idempotency_key.to_owned(),
+            task_id: task_id.to_owned(),
+            transition,
+        }
+    }
+
+    /// Return the opaque retry key supplied by the caller.
+    #[must_use]
+    pub fn idempotency_key(&self) -> &str {
+        &self.idempotency_key
+    }
+
+    /// Return the task identity bound to this receipt.
+    #[must_use]
+    pub fn task_id(&self) -> &str {
+        &self.task_id
+    }
+
+    /// Return the accepted lifecycle event.
+    #[must_use]
+    pub const fn event(&self) -> BapTaskEvent {
+        self.transition.event()
+    }
+
+    /// Return the immutable transition evidence carried by this receipt.
+    #[must_use]
+    pub const fn transition(&self) -> BapTaskTransition {
+        self.transition
+    }
+
+    /// Return whether a retry has the exact same task, key, and lifecycle event.
+    #[must_use]
+    pub fn matches(&self, idempotency_key: &str, task_id: &str, event: BapTaskEvent) -> bool {
+        self.idempotency_key == idempotency_key && self.task_id == task_id && self.event() == event
     }
 }
 
@@ -273,8 +388,55 @@ impl BapTaskLifecycle {
             previous_state,
             current_state: next_state,
             sequence,
+            event,
         })
     }
+
+    /// Apply one lifecycle event and bind the accepted transition to a retry receipt.
+    ///
+    /// This remains an in-memory contract: it identifies an exact retry but does
+    /// not provide durable deduplication or side-effect suppression.
+    pub fn apply_with_receipt(
+        &mut self,
+        idempotency_key: &str,
+        task_id: &str,
+        event: BapTaskEvent,
+    ) -> Result<BapCommandReceipt, BapCommandReceiptError> {
+        validate_idempotency_key(idempotency_key)?;
+        validate_task_id(task_id)?;
+        let transition = self
+            .apply(event)
+            .map_err(|error| BapCommandReceiptError::TransitionRejected { error })?;
+        Ok(BapCommandReceipt::from_validated(
+            idempotency_key,
+            task_id,
+            transition,
+        ))
+    }
+}
+
+fn validate_idempotency_key(value: &str) -> Result<(), BapCommandReceiptError> {
+    if value.len() > MAX_BAP_IDEMPOTENCY_KEY_BYTES {
+        return Err(BapCommandReceiptError::IdempotencyKeyLimitExceeded);
+    }
+    if value.is_empty() || !value.bytes().all(valid_identifier_byte) {
+        return Err(BapCommandReceiptError::InvalidIdempotencyKey);
+    }
+    Ok(())
+}
+
+fn validate_task_id(value: &str) -> Result<(), BapCommandReceiptError> {
+    if value.len() > MAX_BAP_TASK_ID_BYTES {
+        return Err(BapCommandReceiptError::TaskIdLimitExceeded);
+    }
+    if value.is_empty() || !value.bytes().all(valid_identifier_byte) {
+        return Err(BapCommandReceiptError::InvalidTaskId);
+    }
+    Ok(())
+}
+
+const fn valid_identifier_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~')
 }
 
 const fn reachable_snapshot(state: BapTaskState, transition_sequence: u64) -> bool {

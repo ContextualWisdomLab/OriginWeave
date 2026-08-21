@@ -136,6 +136,10 @@ Owns validated task budgets and deterministic cumulative mitigation plans. Platf
 
 Owns universally value-redacted network evidence and source-bound provenance records. Generic network records retain only bounded method, canonical origin, unambiguous bounded path, and bounded field names. Body capture, typed metadata values, WARC serialization, object storage, retention, encryption, and legal policy remain future bounded modules.
 
+### `originweave-bap`
+
+The active BAP lane owns the in-memory task lifecycle and immutable command-receipt contract. A receipt binds a bounded idempotency key and task identifier to one accepted lifecycle event; it can identify an exact retry but is not durable deduplication, authentication, policy authority, transport, browser state, or side-effect suppression.
+
 ## 6. Planned modules
 
 ```text

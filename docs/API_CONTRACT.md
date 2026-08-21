@@ -109,6 +109,10 @@ Rules:
 - idempotency retention is bounded and declared;
 - secret-handle max-use semantics remain independent of request idempotency.
 
+The active BAP lifecycle implementation exposes an in-memory command receipt that
+identifies an exact key/task/event retry. It does not persist the receipt or claim
+that a retry has been deduplicated until a durable runtime adapter exists.
+
 ## 8. Deadline and cancellation
 
 Requests use one end-to-end deadline. Lower layers consume the remaining budget rather than reset a fresh unlimited timeout.
