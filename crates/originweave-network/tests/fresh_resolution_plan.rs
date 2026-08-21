@@ -41,7 +41,7 @@ fn connection_plan_requires_a_current_fresh_resolution_authority() -> Result<(),
     assert_eq!(plan.resolution_authorized_at(), Duration::from_secs(12));
 
     let connection = plan
-        .connect()
+        .connect(Duration::from_secs(12))
         .map_err(|error| format!("connect fresh loopback plan: {error}"))?;
     assert_eq!(connection.evidence().requested_socket(), socket);
     assert_eq!(connection.evidence().observed_peer(), socket);
@@ -60,6 +60,29 @@ fn expired_resolution_cannot_create_a_connection_plan() -> Result<(), String> {
         Duration::from_secs(1),
         1,
     );
+
+    assert!(matches!(
+        result,
+        Err(NetworkError::DestinationNotApproved { ref source, .. })
+            if source.to_string().contains("expired")
+    ));
+    Ok(())
+}
+
+#[test]
+fn connection_plan_rechecks_freshness_at_socket_use_time() -> Result<(), String> {
+    let snapshot = fresh_loopback_snapshot()?;
+    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8080);
+    let plan = FreshConnectionPlan::new(
+        &snapshot,
+        Duration::from_secs(12),
+        socket,
+        Duration::from_secs(1),
+        1,
+    )
+    .map_err(|error| format!("authorize fresh connection plan: {error}"))?;
+
+    let result = plan.connect(Duration::from_secs(15));
 
     assert!(matches!(
         result,
