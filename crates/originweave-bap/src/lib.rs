@@ -194,6 +194,8 @@ pub enum BapCommandReceiptError {
     InvalidTaskId,
     /// The task identifier exceeded its byte bound.
     TaskIdLimitExceeded,
+    /// A retained receipt did not bind the exact retry command that attempted to reuse it.
+    IdempotencyConflict,
     /// The lifecycle event could not be accepted for the current task state.
     TransitionRejected {
         /// The lifecycle failure preserved by the receipt boundary.
@@ -214,6 +216,10 @@ impl std::fmt::Display for BapCommandReceiptError {
             }
             Self::InvalidTaskId => write!(formatter, "BAP task ID is invalid"),
             Self::TaskIdLimitExceeded => write!(formatter, "BAP task ID exceeds its byte limit"),
+            Self::IdempotencyConflict => write!(
+                formatter,
+                "BAP idempotency key conflicts with the retained command receipt"
+            ),
             Self::TransitionRejected { error } => error.fmt(formatter),
         }
     }
@@ -228,7 +234,8 @@ impl std::error::Error for BapCommandReceiptError {
             | Self::InvalidTenantId
             | Self::TenantIdLimitExceeded
             | Self::InvalidTaskId
-            | Self::TaskIdLimitExceeded => None,
+            | Self::TaskIdLimitExceeded
+            | Self::IdempotencyConflict => None,
         }
     }
 }
@@ -443,6 +450,31 @@ impl BapTaskLifecycle {
             task_id,
             transition,
         ))
+    }
+
+    /// Apply a new command or replay an exact retained command receipt without a second transition.
+    ///
+    /// A caller that has already looked up a retained receipt may supply it here. Exact tenant,
+    /// idempotency-key, task, and event equality returns that immutable receipt without mutating the
+    /// lifecycle again. Any supplied mismatch fails closed. `None` follows the normal validation and
+    /// transition path in [`Self::apply_with_receipt`]. This helper does not provide receipt storage,
+    /// concurrent exclusion, authentication, authorization, or suppression of browser/network side
+    /// effects; those remain responsibilities of their owning runtime boundaries.
+    pub fn apply_or_replay(
+        &mut self,
+        existing_receipt: Option<&BapCommandReceipt>,
+        idempotency_key: &str,
+        tenant_id: &str,
+        task_id: &str,
+        event: BapTaskEvent,
+    ) -> Result<BapCommandReceipt, BapCommandReceiptError> {
+        if let Some(receipt) = existing_receipt {
+            if receipt.matches(idempotency_key, tenant_id, task_id, event) {
+                return Ok(receipt.clone());
+            }
+            return Err(BapCommandReceiptError::IdempotencyConflict);
+        }
+        self.apply_with_receipt(idempotency_key, tenant_id, task_id, event)
     }
 }
 
