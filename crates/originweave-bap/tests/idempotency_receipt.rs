@@ -177,6 +177,35 @@ fn stale_receipt_after_lifecycle_advances_fails_closed() {
 }
 
 #[test]
+fn replay_requires_exact_sequence_even_when_current_state_matches() {
+    let mut task = BapTaskLifecycle::new();
+    task.apply(BapTaskEvent::Admit).expect("admit task");
+    let receipt = task
+        .apply_or_replay(None, "request-2", "tenant-1", "task-1", BapTaskEvent::Start)
+        .expect("start receipt");
+    task.apply(BapTaskEvent::WaitForApproval)
+        .expect("wait for approval");
+    task.apply(BapTaskEvent::Resume).expect("resume task");
+
+    assert_eq!(task.state(), BapTaskState::Running);
+    assert_eq!(task.transition_sequence(), 4);
+    assert_eq!(receipt.transition().current_state(), BapTaskState::Running);
+    assert_eq!(receipt.transition().sequence(), 2);
+    assert_eq!(
+        task.apply_or_replay(
+            Some(&receipt),
+            "request-2",
+            "tenant-1",
+            "task-1",
+            BapTaskEvent::Start,
+        ),
+        Err(BapCommandReceiptError::ReplayStateMismatch)
+    );
+    assert_eq!(task.state(), BapTaskState::Running);
+    assert_eq!(task.transition_sequence(), 4);
+}
+
+#[test]
 fn conflicting_retry_fails_closed_without_mutating_lifecycle() {
     let mut task = BapTaskLifecycle::new();
     let receipt = task
