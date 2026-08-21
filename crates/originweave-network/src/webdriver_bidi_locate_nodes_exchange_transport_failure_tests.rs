@@ -64,7 +64,7 @@ fn read_masked_client_text_frame(stream: &mut TcpStream) -> io::Result<()> {
             stream.read_exact(&mut extended)?;
             u64::from(u16::from_be_bytes(extended))
         }
-        127 => {
+        _ => {
             let mut extended = [0_u8; 8];
             stream.read_exact(&mut extended)?;
             u64::from_be_bytes(extended)
