@@ -4,24 +4,51 @@ use std::error::Error as _;
 
 use originweave_bap::{
     BapCommandReceiptError, BapTaskEvent, BapTaskLifecycle, BapTaskState,
-    MAX_BAP_IDEMPOTENCY_KEY_BYTES, MAX_BAP_TASK_ID_BYTES,
+    MAX_BAP_IDEMPOTENCY_KEY_BYTES, MAX_BAP_TASK_ID_BYTES, MAX_BAP_TENANT_ID_BYTES,
 };
 
 #[test]
-fn receipt_binds_task_event_and_transition_for_replay_identification() {
+fn receipt_binds_tenant_task_event_and_transition_for_replay_identification() {
     let mut task = BapTaskLifecycle::new();
     let receipt = task
-        .apply_with_receipt("request-1", "task-1", BapTaskEvent::Admit)
+        .apply_with_receipt("request-1", "tenant-1", "task-1", BapTaskEvent::Admit)
         .expect("receipt");
 
     assert_eq!(receipt.idempotency_key(), "request-1");
+    assert_eq!(receipt.tenant_id(), "tenant-1");
     assert_eq!(receipt.task_id(), "task-1");
     assert_eq!(receipt.event(), BapTaskEvent::Admit);
     assert_eq!(receipt.transition().current_state(), BapTaskState::Admitted);
-    assert!(receipt.matches("request-1", "task-1", BapTaskEvent::Admit));
-    assert!(!receipt.matches("request-2", "task-1", BapTaskEvent::Admit));
-    assert!(!receipt.matches("request-1", "task-2", BapTaskEvent::Admit));
-    assert!(!receipt.matches("request-1", "task-1", BapTaskEvent::Start));
+    assert!(receipt.matches(
+        "request-1",
+        "tenant-1",
+        "task-1",
+        BapTaskEvent::Admit
+    ));
+    assert!(!receipt.matches(
+        "request-2",
+        "tenant-1",
+        "task-1",
+        BapTaskEvent::Admit
+    ));
+    assert!(!receipt.matches(
+        "request-1",
+        "tenant-2",
+        "task-1",
+        BapTaskEvent::Admit
+    ));
+    assert!(!receipt.matches(
+        "request-1",
+        "tenant-1",
+        "task-2",
+        BapTaskEvent::Admit
+    ));
+    assert!(!receipt.matches(
+        "request-1",
+        "tenant-1",
+        "task-1",
+        BapTaskEvent::Start
+    ));
 }
 
 #[test]
@@ -50,11 +77,25 @@ fn receipt_rejects_unbounded_or_ambiguous_identifiers() {
         &"x".repeat(MAX_BAP_IDEMPOTENCY_KEY_BYTES + 1),
     ] {
         assert_eq!(
-            task.apply_with_receipt(key, "task-1", BapTaskEvent::Admit),
+            task.apply_with_receipt(key, "tenant-1", "task-1", BapTaskEvent::Admit),
             if key.len() > MAX_BAP_IDEMPOTENCY_KEY_BYTES {
                 Err(BapCommandReceiptError::IdempotencyKeyLimitExceeded)
             } else {
                 Err(BapCommandReceiptError::InvalidIdempotencyKey)
+            }
+        );
+    }
+    for tenant_id in [
+        "",
+        "tenant with space",
+        &"x".repeat(MAX_BAP_TENANT_ID_BYTES + 1),
+    ] {
+        assert_eq!(
+            task.apply_with_receipt("request-1", tenant_id, "task-1", BapTaskEvent::Admit),
+            if tenant_id.len() > MAX_BAP_TENANT_ID_BYTES {
+                Err(BapCommandReceiptError::TenantIdLimitExceeded)
+            } else {
+                Err(BapCommandReceiptError::InvalidTenantId)
             }
         );
     }
@@ -64,7 +105,7 @@ fn receipt_rejects_unbounded_or_ambiguous_identifiers() {
         &"x".repeat(MAX_BAP_TASK_ID_BYTES + 1),
     ] {
         assert_eq!(
-            task.apply_with_receipt("request-1", task_id, BapTaskEvent::Admit),
+            task.apply_with_receipt("request-1", "tenant-1", task_id, BapTaskEvent::Admit),
             if task_id.len() > MAX_BAP_TASK_ID_BYTES {
                 Err(BapCommandReceiptError::TaskIdLimitExceeded)
             } else {
@@ -78,7 +119,12 @@ fn receipt_rejects_unbounded_or_ambiguous_identifiers() {
 fn receipt_preserves_lifecycle_failure_without_mutating_the_task() {
     let mut task = BapTaskLifecycle::new();
     assert_eq!(
-        task.apply_with_receipt("request-1", "task-1", BapTaskEvent::Start),
+        task.apply_with_receipt(
+            "request-1",
+            "tenant-1",
+            "task-1",
+            BapTaskEvent::Start
+        ),
         Err(BapCommandReceiptError::TransitionRejected {
             error: originweave_bap::BapTaskTransitionError::InvalidTransition {
                 from: BapTaskState::Created,
@@ -102,6 +148,14 @@ fn receipt_errors_have_standard_error_contracts() {
     assert_eq!(
         BapCommandReceiptError::IdempotencyKeyLimitExceeded.to_string(),
         "BAP idempotency key exceeds its byte limit"
+    );
+    assert_eq!(
+        BapCommandReceiptError::InvalidTenantId.to_string(),
+        "BAP tenant ID is invalid"
+    );
+    assert_eq!(
+        BapCommandReceiptError::TenantIdLimitExceeded.to_string(),
+        "BAP tenant ID exceeds its byte limit"
     );
     assert_eq!(
         BapCommandReceiptError::TaskIdLimitExceeded.to_string(),
