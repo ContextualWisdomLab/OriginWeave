@@ -39,7 +39,8 @@ fn wireguard_interface_accumulates_repeated_address_and_dns_fields() -> Result<(
 }
 
 #[test]
-fn wireguard_dns_preserves_search_domains_separately_from_dns_servers() -> Result<(), ProfileError> {
+fn wireguard_dns_preserves_search_domains_separately_from_dns_servers() -> Result<(), ProfileError>
+{
     let profile = format!(
         "[Interface]\nAddress=10.0.0.2/32\nDNS=1.1.1.1,corp.example\nDNS=fd00::53,svc.corp.example\nPrivateKey={VALID_WIREGUARD_KEY}\n"
     );
