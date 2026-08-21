@@ -47,15 +47,21 @@ fn resource_record_binds_verified_provenance_and_emits_deterministic_warc_bytes(
         record.to_warc_bytes(),
         b"WARC/1.1\r\nWARC-Type: resource\r\nWARC-Record-ID: <urn:uuid:123e4567-e89b-12d3-a456-426614174000>\r\nWARC-Date: 2026-08-21T00:00:00Z\r\nWARC-Target-URI: https://example.com/item\r\nContent-Type: text/plain\r\nWARC-Block-Digest: sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824\r\nContent-Length: 5\r\n\r\nhello\r\n\r\n"
     );
-    WarcResourceRecord::new(
-        RECORD_ID,
+    for date in [
         "2026-08-21T00:00:00.123Z",
-        "https://example.com/item",
-        "text/plain",
-        Vec::new(),
-        provenance("https://example.com/item", VerificationResult::Verified),
-    )
-    .expect("fractional UTC date");
+        "2024-02-29T00:00:00Z",
+        "2000-02-29T00:00:00Z",
+    ] {
+        WarcResourceRecord::new(
+            RECORD_ID,
+            date,
+            "https://example.com/item",
+            "text/plain",
+            Vec::new(),
+            provenance("https://example.com/item", VerificationResult::Verified),
+        )
+        .expect("valid UTC date");
+    }
 }
 
 #[test]
@@ -91,6 +97,10 @@ fn resource_record_rejects_invalid_identifiers_dates_content_and_limits() {
         "2026-08-21 00:00:00Z",
         "2026-13-21T00:00:00Z",
         "2026-08-32T00:00:00Z",
+        "2026-02-29T00:00:00Z",
+        "2024-02-30T00:00:00Z",
+        "2026-04-31T00:00:00Z",
+        "1900-02-29T00:00:00Z",
         "2026-08-21T24:00:00Z",
         "2026-0x-21T00:00:00Z",
         "2026-08-21T00:00:00+00:00",
