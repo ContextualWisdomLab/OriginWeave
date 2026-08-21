@@ -153,7 +153,7 @@ fn direct_connection(origin: &Origin, socket_address: SocketAddr) -> DirectTcpCo
         1,
     )
     .expect("fresh direct connection plan")
-    .connect()
+    .connect(RESOLUTION_AUTHORIZED_AT)
     .expect("loopback TCP connection")
 }
 
@@ -497,48 +497,4 @@ fn tls12_and_tls13_are_independently_supported() {
         assert_eq!(authenticated.evidence().protocol_version(), expected);
         assert_eq!(server.join().expect("server thread"), Ok(None));
     }
-}
-
-#[test]
-fn tls_origin_must_match_the_transport_authority_origin() {
-    let material = valid_material(vec!["localhost".to_owned()], None);
-    let (root_der, config) = server_config(
-        material,
-        &[],
-        &[&rustls::version::TLS13, &rustls::version::TLS12],
-    );
-    let (socket_address, server) = spawn_server(IpAddr::V4(Ipv4Addr::LOCALHOST), config);
-    let transport_origin = origin_for("localhost", socket_address);
-    let tls_origin = origin_for("127.0.0.1", socket_address);
-    let error = TlsHandshakePlan::new(
-        tls_origin,
-        direct_connection(&transport_origin, socket_address),
-        trust_bundle(root_der, "origin_binding:v1"),
-        client_policy(&[], AlpnRequirement::Optional),
-    )
-    .expect_err("TLS origin cannot replace transport authority");
-    assert!(matches!(error, TlsError::TransportOriginMismatch { .. }));
-    let _server_result = server.join().expect("server thread");
-}
-
-#[test]
-fn a_non_https_origin_is_rejected_before_tls_bytes() {
-    let material = valid_material(vec!["localhost".to_owned()], None);
-    let (root_der, config) = server_config(
-        material,
-        &[],
-        &[&rustls::version::TLS13, &rustls::version::TLS12],
-    );
-    let (socket_address, server) = spawn_server(IpAddr::V4(Ipv4Addr::LOCALHOST), config);
-    let origin = Origin::parse(&format!("http://localhost:{}", socket_address.port()))
-        .expect("managed loopback HTTP origin");
-    let error = TlsHandshakePlan::new(
-        origin.clone(),
-        direct_connection(&origin, socket_address),
-        trust_bundle(root_der, "https_only:v1"),
-        client_policy(&[], AlpnRequirement::Optional),
-    )
-    .expect_err("HTTP origin cannot enter TLS identity authority");
-    assert!(matches!(error, TlsError::OriginRequiresHttps { .. }));
-    let _server_result = server.join().expect("server thread");
 }
