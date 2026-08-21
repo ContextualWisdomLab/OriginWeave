@@ -101,6 +101,51 @@ fn locate_nodes_command() -> Result<WebDriverBiDiLocateNodesCommand, Box<dyn Err
     )?)
 }
 
+fn establish_with_ping(
+    keep_open: Duration,
+) -> Result<
+    (
+        originweave_network::WebDriverBiDiWebSocketEstablished,
+        thread::JoinHandle<io::Result<()>>,
+    ),
+    Box<dyn Error>,
+> {
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let local_addr = listener.local_addr()?;
+    let server = thread::spawn(move || -> io::Result<()> {
+        let (mut stream, _) = listener.accept()?;
+        read_opening_request(&mut stream)?;
+        stream.write_all(
+            b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n",
+        )?;
+        let _command = read_masked_client_frame(&mut stream, 0x81)?;
+        let ping_length = u8::try_from(PING_PAYLOAD.len()).map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "test Ping payload exceeded one-byte length",
+            )
+        })?;
+        stream.write_all(&[0x89, ping_length])?;
+        stream.write_all(PING_PAYLOAD)?;
+        thread::sleep(keep_open);
+        Ok(())
+    });
+
+    let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+    let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?;
+    let plan = WebDriverBiDiWebSocketHandshakePlan::new(connect(&endpoint)?, key)?;
+    let written = plan.write_opening_request(Duration::from_millis(500))?;
+    let established = written.read_opening_response(Duration::from_millis(500))?;
+    Ok((established, server))
+}
+
+fn join_ping_server(server: thread::JoinHandle<io::Result<()>>) -> Result<(), Box<dyn Error>> {
+    let result = server
+        .join()
+        .map_err(|_| io::Error::other("Ping failure test server panicked"))?;
+    Ok(result?)
+}
+
 #[test]
 fn locate_nodes_exchange_answers_ping_and_ignores_unsolicited_pong_before_response()
 -> Result<(), Box<dyn Error>> {
@@ -170,4 +215,50 @@ fn locate_nodes_exchange_answers_ping_and_ignores_unsolicited_pong_before_respon
         local_addr
     );
     Ok(())
+}
+
+#[test]
+fn locate_nodes_exchange_fails_closed_when_ping_entropy_is_unavailable()
+-> Result<(), Box<dyn Error>> {
+    let (established, server) = establish_with_ping(Duration::from_millis(100))?;
+    let exchanged = established.exchange_locate_nodes(
+        locate_nodes_command()?,
+        WebDriverBiDiWebSocketMaskKey::new([0x11, 0x22, 0x33, 0x44]),
+        &mut || None,
+        Duration::from_millis(500),
+    );
+
+    let error = exchanged
+        .err()
+        .ok_or_else(|| io::Error::other("Ping without masking entropy unexpectedly succeeded"))?;
+    assert_eq!(
+        error.to_string(),
+        "WebDriver BiDi locateNodes exchange received Ping without a fresh caller-supplied Pong masking key"
+    );
+    join_ping_server(server)
+}
+
+#[test]
+fn locate_nodes_exchange_charges_ping_callback_time_to_exchange_deadline()
+-> Result<(), Box<dyn Error>> {
+    let (established, server) = establish_with_ping(Duration::from_millis(650))?;
+    let pong_key = WebDriverBiDiWebSocketMaskKey::new([0x51, 0x52, 0x53, 0x54]);
+    let exchanged = established.exchange_locate_nodes(
+        locate_nodes_command()?,
+        WebDriverBiDiWebSocketMaskKey::new([0x11, 0x22, 0x33, 0x44]),
+        &mut || {
+            thread::sleep(Duration::from_millis(550));
+            Some(pong_key)
+        },
+        Duration::from_millis(500),
+    );
+
+    let error = exchanged
+        .err()
+        .ok_or_else(|| io::Error::other("slow Ping callback unexpectedly reset the exchange deadline"))?;
+    assert_eq!(
+        error.to_string(),
+        "WebDriver BiDi locateNodes exchange exhausted its 500ms end-to-end deadline before the next operation"
+    );
+    join_ping_server(server)
 }
