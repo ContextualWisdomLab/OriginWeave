@@ -91,12 +91,9 @@ pub fn encode_native_messaging_frame(
         });
     }
 
-    let declared_length = u32::try_from(payload_bytes.len()).map_err(|_| {
-        NativeMessagingFrameError::PayloadTooLarge {
-            declared_bytes: payload_bytes.len(),
-            maximum_bytes,
-        }
-    })?;
+    // Both reviewed Chrome direction limits are far below u32::MAX, so the
+    // preceding bound proves this conversion cannot truncate.
+    let declared_length = payload_bytes.len() as u32;
     let mut frame = Vec::with_capacity(NATIVE_MESSAGING_LENGTH_BYTES + payload_bytes.len());
     frame.extend_from_slice(&declared_length.to_ne_bytes());
     frame.extend_from_slice(payload_bytes);
