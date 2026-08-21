@@ -155,6 +155,28 @@ fn retained_receipt_from_a_different_lifecycle_fails_closed() {
 }
 
 #[test]
+fn stale_receipt_after_lifecycle_advances_fails_closed() {
+    let mut task = BapTaskLifecycle::new();
+    let receipt = task
+        .apply_or_replay(None, "request-1", "tenant-1", "task-1", BapTaskEvent::Admit)
+        .expect("initial receipt");
+    task.apply(BapTaskEvent::Start).expect("start task");
+
+    assert_eq!(
+        task.apply_or_replay(
+            Some(&receipt),
+            "request-1",
+            "tenant-1",
+            "task-1",
+            BapTaskEvent::Admit,
+        ),
+        Err(BapCommandReceiptError::ReplayStateMismatch)
+    );
+    assert_eq!(task.state(), BapTaskState::Running);
+    assert_eq!(task.transition_sequence(), 2);
+}
+
+#[test]
 fn conflicting_retry_fails_closed_without_mutating_lifecycle() {
     let mut task = BapTaskLifecycle::new();
     let receipt = task
@@ -210,6 +232,11 @@ fn receipt_errors_have_standard_error_contracts() {
             .source()
             .is_none()
     );
+    assert_eq!(
+        BapCommandReceiptError::ReplayStateMismatch.to_string(),
+        "BAP retained command receipt does not match the current lifecycle state"
+    );
+    assert!(BapCommandReceiptError::ReplayStateMismatch.source().is_none());
     let transition = BapCommandReceiptError::TransitionRejected {
         error: originweave_bap::BapTaskTransitionError::SequenceExhausted,
     };
