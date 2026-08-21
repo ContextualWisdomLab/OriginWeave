@@ -85,6 +85,36 @@ fn wireguard_prefixless_allowed_ips_normalize_to_host_routes() {
 }
 
 #[test]
+fn wireguard_rejects_noncanonical_decimal_scalars_before_secret_import() {
+    for profile in [
+        format!(
+            "[Interface]\nAddress=10.0.0.2/32\nMTU=01420\nPrivateKey={VALID_WIREGUARD_KEY}\n"
+        ),
+        format!(
+            "[Interface]\nAddress=10.0.0.2/32\nListenPort=051820\nPrivateKey={VALID_WIREGUARD_KEY}\n"
+        ),
+        format!(
+            "[Interface]\nAddress=10.0.0.2/32\nPrivateKey={VALID_WIREGUARD_KEY}\n[Peer]\nPublicKey={VALID_WIREGUARD_KEY}\nEndpoint=vpn.example:051820\nAllowedIPs=10.0.0.0/8\n"
+        ),
+        format!(
+            "[Interface]\nAddress=10.0.0.2/32\nPrivateKey={VALID_WIREGUARD_KEY}\n[Peer]\nPublicKey={VALID_WIREGUARD_KEY}\nAllowedIPs=10.0.0.0/8\nPersistentKeepalive=025\n"
+        ),
+    ] {
+        reject_wireguard(&profile);
+    }
+}
+
+#[test]
+fn ikev2_rejects_noncanonical_decimal_timers_before_secret_import() {
+    for timer in ["DpdSeconds=030", "RekeySeconds=03600"] {
+        let profile = format!(
+            "[IKEv2]\nServer=vpn.example\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8\n{timer}\n"
+        );
+        reject_ikev2(&profile);
+    }
+}
+
+#[test]
 fn ikev2_rejects_invalid_traffic_selector_syntax_before_secret_import() {
     for selector in [
         "999.0.0.0/8",
