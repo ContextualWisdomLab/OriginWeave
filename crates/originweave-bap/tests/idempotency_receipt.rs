@@ -18,22 +18,27 @@ fn receipt_binds_task_event_and_transition_for_replay_identification() {
     assert_eq!(receipt.task_id(), "task-1");
     assert_eq!(receipt.event(), BapTaskEvent::Admit);
     assert_eq!(receipt.transition().current_state(), BapTaskState::Admitted);
-    let direct =
-        originweave_bap::BapCommandReceipt::new("request-2", "task-1", receipt.transition())
-            .expect("direct receipt");
-    assert_eq!(direct.idempotency_key(), "request-2");
-    assert_eq!(
-        originweave_bap::BapCommandReceipt::new("", "task-1", receipt.transition()),
-        Err(BapCommandReceiptError::InvalidIdempotencyKey)
-    );
-    assert_eq!(
-        originweave_bap::BapCommandReceipt::new("request-2", "", receipt.transition()),
-        Err(BapCommandReceiptError::InvalidTaskId)
-    );
     assert!(receipt.matches("request-1", "task-1", BapTaskEvent::Admit));
     assert!(!receipt.matches("request-2", "task-1", BapTaskEvent::Admit));
     assert!(!receipt.matches("request-1", "task-2", BapTaskEvent::Admit));
     assert!(!receipt.matches("request-1", "task-1", BapTaskEvent::Start));
+}
+
+#[test]
+fn receipt_cannot_be_minted_from_an_already_accepted_transition() {
+    let source = include_str!("../src/lib.rs");
+    let receipt_impl = source
+        .split("impl BapCommandReceipt {")
+        .nth(1)
+        .expect("receipt impl")
+        .split("/// Deterministic fail-closed BAP task-lifecycle kernel.")
+        .next()
+        .expect("receipt impl boundary");
+
+    assert!(
+        !receipt_impl.contains("pub fn new("),
+        "public receipt construction can rebind an accepted transition to arbitrary retry/task metadata",
+    );
 }
 
 #[test]
