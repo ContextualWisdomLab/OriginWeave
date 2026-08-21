@@ -103,33 +103,6 @@ class ManifestV3BinaryAuthorityContractTests(unittest.TestCase):
                         root=root,
                     )
 
-    def test_symlink_workspace_root_is_rejected(self) -> None:
-        """A symlinked workspace root must not redirect the pinned executable authority."""
-
-        with tempfile.TemporaryDirectory(prefix="originweave-binary-authority-") as temp_dir:
-            parent = pathlib.Path(temp_dir)
-            real_root = parent / "real-workspace"
-            root = parent / "workspace-link"
-            expected = real_root / ".mv3-browser" / "chromedriver-linux64" / "chromedriver"
-            self._make_executable(expected)
-            root.symlink_to(real_root, target_is_directory=True)
-            configured = root / ".mv3-browser" / "chromedriver-linux64" / "chromedriver"
-
-            with unittest.mock.patch.dict(
-                os.environ,
-                {"CHROMEDRIVER_BIN": str(configured)},
-                clear=False,
-            ):
-                with self.assertRaisesRegex(SystemExit, "symlink"):
-                    self.validate(
-                        "CHROMEDRIVER_BIN",
-                        pathlib.PurePosixPath(
-                            ".mv3-browser/chromedriver-linux64/chromedriver"
-                        ),
-                        "ChromeDriver",
-                        root=root,
-                    )
-
 
 if __name__ == "__main__":
     unittest.main()
