@@ -150,6 +150,7 @@ class ManifestV3ProcessGroupCleanupContractTests(unittest.TestCase):
         self.assertIsNotNone(driver.stdout)
         assert driver.stdout is not None
         child_pid = int(driver.stdout.readline().strip())
+        driver.stdout.close()
         self.assertGreater(child_pid, 0)
         process_group_id = driver.pid
 
