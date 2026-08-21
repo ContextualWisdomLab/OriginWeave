@@ -106,6 +106,8 @@ pub struct WireGuardProfile {
     pub addresses: Vec<String>,
     /// Optional DNS server addresses from the profile.
     pub dns_servers: Vec<String>,
+    /// Optional DNS search domains from wg-quick `DNS` entries.
+    pub dns_search_domains: Vec<String>,
     /// Optional interface MTU.
     pub mtu: Option<u16>,
     /// Optional local UDP listen port.
@@ -366,13 +368,6 @@ fn validate_ip_network(value: &str) -> Result<(), ProfileError> {
     Ok(())
 }
 
-fn validate_ip_address(value: &str) -> Result<(), ProfileError> {
-    value
-        .parse::<std::net::IpAddr>()
-        .map(|_| ())
-        .map_err(|_| ProfileError::InvalidValue)
-}
-
 fn split_network_list(value: &str) -> Result<Vec<String>, ProfileError> {
     let items = split_bounded_list(value)?;
     for item in &items {
@@ -401,14 +396,6 @@ fn split_wireguard_allowed_ips(value: &str) -> Result<Vec<String>, ProfileError>
         .collect()
 }
 
-fn split_ip_address_list(value: &str) -> Result<Vec<String>, ProfileError> {
-    let items = split_bounded_list(value)?;
-    for item in &items {
-        validate_ip_address(item)?;
-    }
-    Ok(items)
-}
-
 fn validate_dns_hostname(value: &str) -> bool {
     value.len() <= 253
         && value.split('.').all(|label| {
@@ -420,6 +407,37 @@ fn validate_dns_hostname(value: &str) -> bool {
                     .bytes()
                     .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
         })
+}
+
+fn extend_wireguard_dns(
+    dns_servers: &mut Option<Vec<String>>,
+    dns_search_domains: &mut Option<Vec<String>>,
+    value: &str,
+) -> Result<(), ProfileError> {
+    let items = split_bounded_list(value)?;
+    let current_count = dns_servers.as_ref().map_or(0, Vec::len)
+        + dns_search_domains.as_ref().map_or(0, Vec::len);
+    if current_count + items.len() > MAX_LIST_ITEMS {
+        return Err(ProfileError::TooManyItems);
+    }
+
+    let mut new_servers = Vec::new();
+    let mut new_search_domains = Vec::new();
+    for item in items {
+        if item.parse::<std::net::IpAddr>().is_ok() {
+            new_servers.push(item);
+        } else if validate_dns_hostname(&item) {
+            new_search_domains.push(item);
+        } else {
+            return Err(ProfileError::InvalidValue);
+        }
+    }
+
+    dns_servers.get_or_insert_default().extend(new_servers);
+    dns_search_domains
+        .get_or_insert_default()
+        .extend(new_search_domains);
+    Ok(())
 }
 
 fn looks_like_ipv4_number_component(value: &str) -> bool {
@@ -590,6 +608,7 @@ fn import_wireguard_profile_once(
     let mut section: Option<WireGuardSection> = None;
     let mut addresses: Option<Vec<String>> = None;
     let mut dns_servers: Option<Vec<String>> = None;
+    let mut dns_search_domains: Option<Vec<String>> = None;
     let mut mtu: Option<u16> = None;
     let mut listen_port: Option<u16> = None;
     let mut private_key: Option<SecretReference> = None;
@@ -626,7 +645,7 @@ fn import_wireguard_profile_once(
                     extend_bounded_list(&mut addresses, split_wireguard_allowed_ips(value)?)?;
                 }
                 "DNS" => {
-                    extend_bounded_list(&mut dns_servers, split_ip_address_list(value)?)?;
+                    extend_wireguard_dns(&mut dns_servers, &mut dns_search_domains, value)?;
                 }
                 "MTU" => set_once(&mut mtu, parse_u16(value)?)?,
                 "ListenPort" => set_once(&mut listen_port, parse_u16(value)?)?,
@@ -695,6 +714,7 @@ fn import_wireguard_profile_once(
     Ok(WireGuardProfile {
         addresses: addresses.ok_or(ProfileError::MissingField)?,
         dns_servers: dns_servers.unwrap_or_default(),
+        dns_search_domains: dns_search_domains.unwrap_or_default(),
         mtu,
         listen_port,
         private_key: private_key.ok_or(ProfileError::MissingField)?,
@@ -1099,7 +1119,7 @@ mod tests {
         for profile in [
             "[IKEv2]\nServer=s\nAuth=unknown\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
             "[IKEv2]\nServer=s\nAuth=psk\nPsk=k\nUsername=u\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
-            "[IKEv2]\nServer=s\nAuth=eap\nUsername=u\nPassword=p\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
+            "[IKEv2]\nServer=s\nAuth=eap\nUsername=u\nPassword=p\nPsk=k\nProposal=aes256gcm16-prfsha256-ecp256\nTrafficSelectors=10.0.0.0/8",
             "[IKEv2]\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
             "[IKEv2]\nServer=s\nAuth=psk\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8",
             "[IKEv2]\nServer=s\nAuth=eap\nPassword=p\nProposal=aes256gcm16-prfsha256-ecp256\nTrafficSelectors=10.0.0.0/8",
