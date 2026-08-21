@@ -86,7 +86,7 @@ pub enum ExtractionSchemaError {
 impl fmt::Display for ExtractionSchemaError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
-            Self::InvalidIdentifier => "invalid extraction schema identifier",
+            Self::InvalidIdentifier => "invalid extraction schema or field identifier",
             Self::LimitExceeded => "extraction schema limit exceeded",
             Self::MissingSourceChannel => "extraction field requires at least one source channel",
             Self::DuplicateSourceChannel => "extraction field contains a duplicate source channel",
@@ -169,7 +169,7 @@ impl ExtractionField {
             cardinality,
             required,
             normalization_rule,
-            source_channels: source_channels.to_vec(),
+            source_channels: seen_channels.into_iter().collect(),
         })
     }
 
