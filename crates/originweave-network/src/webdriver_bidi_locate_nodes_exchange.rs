@@ -1,4 +1,8 @@
-use std::{error::Error, fmt, time::Duration};
+use std::{
+    error::Error,
+    fmt,
+    time::{Duration, Instant},
+};
 
 use originweave_core::{
     BoundedWebDriverBiDiResponseDocument, ValidatedWebDriverBiDiLocateNodesResult,
@@ -16,12 +20,17 @@ use crate::webdriver_bidi_websocket_handshake::{
 /// Every variant preserves the first causal boundary. Frame I/O retains the existing bounded
 /// WebSocket error, raw response bytes must pass the core pre-parser admission contract, and the
 /// admitted document must correlate to the exact consumed command before result nodes are returned.
-/// An unexpected frame shape has no nested source because it is a protocol-shape refusal rather than
-/// an underlying I/O or parser failure.
+/// Protocol-shape and exhausted-deadline refusals have no nested source because neither masks an
+/// underlying I/O or parser failure.
 #[derive(Debug)]
 pub enum WebDriverBiDiLocateNodesExchangeError {
     /// Bounded WebSocket frame write or read failed.
     Frame(WebDriverBiDiWebSocketFrameError),
+    /// The single end-to-end exchange deadline was exhausted before response read could proceed.
+    ExchangeDeadlineExceeded {
+        /// Original caller-supplied deadline budget for the complete write/read exchange.
+        exchange_timeout: Duration,
+    },
     /// The first returned frame was not one complete text message.
     UnexpectedResponseFrame {
         /// Whether the returned frame carried the RFC 6455 FIN bit.
@@ -41,6 +50,10 @@ impl fmt::Display for WebDriverBiDiLocateNodesExchangeError {
             Self::Frame(error) => write!(
                 formatter,
                 "WebDriver BiDi locateNodes WebSocket frame exchange failed: {error}"
+            ),
+            Self::ExchangeDeadlineExceeded { exchange_timeout } => write!(
+                formatter,
+                "WebDriver BiDi locateNodes exchange exhausted its {exchange_timeout:?} end-to-end deadline before response read"
             ),
             Self::UnexpectedResponseFrame { fin, opcode } => write!(
                 formatter,
@@ -64,8 +77,20 @@ impl Error for WebDriverBiDiLocateNodesExchangeError {
             Self::Frame(error) => Some(error),
             Self::ResponseDocument(error) => Some(error),
             Self::LocateNodesResponse(error) => Some(error),
-            Self::UnexpectedResponseFrame { .. } => None,
+            Self::ExchangeDeadlineExceeded { .. } | Self::UnexpectedResponseFrame { .. } => None,
         }
+    }
+}
+
+fn remaining_exchange_budget(
+    exchange_timeout: Duration,
+    elapsed: Duration,
+) -> Result<Duration, WebDriverBiDiLocateNodesExchangeError> {
+    match exchange_timeout.checked_sub(elapsed) {
+        Some(remaining) if !remaining.is_zero() => Ok(remaining),
+        Some(_) | None => Err(WebDriverBiDiLocateNodesExchangeError::ExchangeDeadlineExceeded {
+            exchange_timeout,
+        }),
     }
 }
 
@@ -79,10 +104,11 @@ impl WebDriverBiDiWebSocketEstablished {
     /// Its exact payload bytes then pass the existing bounded UTF-8/document admission, complete
     /// WebDriver BiDi response parser, exact command-id correlation, and wire-derived node admission.
     ///
-    /// `frame_timeout` is independently enforced by the existing bounded write and bounded read
-    /// operations, so a successful exchange may consume up to two such operation budgets. Any
-    /// failure consumes this transport state and yields no reusable WebSocket stream, preventing a
-    /// partially written/read protocol state from being promoted into subsequent authority.
+    /// `exchange_timeout` is one end-to-end budget for the write/read exchange. The bounded write
+    /// receives that budget first; after it succeeds, elapsed time is subtracted and only the
+    /// positive remainder is supplied to the bounded read. The budget is never reset between those
+    /// operations. Any failure consumes this transport state and yields no reusable WebSocket stream,
+    /// preventing a partially written/read protocol state from being promoted into later authority.
     ///
     /// Success returns the same exact peer-verified WebSocket stream plus untrusted normalized node
     /// evidence. It does not authenticate Chromium/ChromeDriver process provenance, prove current
@@ -92,16 +118,18 @@ impl WebDriverBiDiWebSocketEstablished {
         self,
         command: WebDriverBiDiLocateNodesCommand,
         masking_key: WebDriverBiDiWebSocketMaskKey,
-        frame_timeout: Duration,
+        exchange_timeout: Duration,
     ) -> Result<
         (Self, ValidatedWebDriverBiDiLocateNodesResult),
         WebDriverBiDiLocateNodesExchangeError,
     > {
+        let started_at = Instant::now();
         let established = self
-            .write_text_frame(command.as_json(), masking_key, frame_timeout)
+            .write_text_frame(command.as_json(), masking_key, exchange_timeout)
             .map_err(WebDriverBiDiLocateNodesExchangeError::Frame)?;
+        let remaining_timeout = remaining_exchange_budget(exchange_timeout, started_at.elapsed())?;
         let (established, frame) = established
-            .read_frame(frame_timeout)
+            .read_frame(remaining_timeout)
             .map_err(WebDriverBiDiLocateNodesExchangeError::Frame)?;
 
         if !frame.fin() || frame.opcode() != 0x1 {
@@ -137,10 +165,10 @@ mod tests {
     #[test]
     fn exchange_budget_consumes_elapsed_time_instead_of_resetting_for_read() {
         let total = Duration::from_millis(500);
-        assert_eq!(
+        assert!(matches!(
             remaining_exchange_budget(total, Duration::from_millis(175)),
-            Ok(Duration::from_millis(325))
-        );
+            Ok(remaining) if remaining == Duration::from_millis(325)
+        ));
         assert!(matches!(
             remaining_exchange_budget(total, total),
             Err(WebDriverBiDiLocateNodesExchangeError::ExchangeDeadlineExceeded {
@@ -169,6 +197,12 @@ mod tests {
                 .to_string()
                 .contains("WebSocket frame exchange failed")
         );
+
+        let deadline = WebDriverBiDiLocateNodesExchangeError::ExchangeDeadlineExceeded {
+            exchange_timeout: Duration::from_millis(500),
+        };
+        assert!(deadline.source().is_none());
+        assert!(deadline.to_string().contains("end-to-end deadline"));
 
         let shape = WebDriverBiDiLocateNodesExchangeError::UnexpectedResponseFrame {
             fin: false,
