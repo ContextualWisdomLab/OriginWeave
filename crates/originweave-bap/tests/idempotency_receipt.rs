@@ -236,7 +236,11 @@ fn receipt_errors_have_standard_error_contracts() {
         BapCommandReceiptError::ReplayStateMismatch.to_string(),
         "BAP retained command receipt does not match the current lifecycle state"
     );
-    assert!(BapCommandReceiptError::ReplayStateMismatch.source().is_none());
+    assert!(
+        BapCommandReceiptError::ReplayStateMismatch
+            .source()
+            .is_none()
+    );
     let transition = BapCommandReceiptError::TransitionRejected {
         error: originweave_bap::BapTaskTransitionError::SequenceExhausted,
     };
