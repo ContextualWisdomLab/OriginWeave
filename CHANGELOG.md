@@ -47,6 +47,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Security
 
+- Hardened the controlled pinned-Chrome fixture server against symlink escapes outside its fixture root and made numeric `/proc` process snapshots skip symlinked or non-directory entries before reading status files.
 - Raw page content cannot become a trusted instruction.
 - Raw secrets are rejected and secret-capable actions require an opaque broker handle.
 - Crawler mode is read-only, must pair with the public-crawl purpose, and fails closed without an applicable robots-policy decision.

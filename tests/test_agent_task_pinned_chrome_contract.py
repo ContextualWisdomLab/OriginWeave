@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import http.client
 import pathlib
 import runpy
+import tempfile
 import unittest
+import unittest.mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 RUNNER = ROOT / "scripts" / "ci" / "run_mv3_compatibility.py"
@@ -171,6 +174,54 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
             "browser_process_rss_bytes = _sample_linux_process_rss_bytes(browser_process_id)",
             runner,
         )
+
+    def test_process_snapshot_ignores_symlinked_proc_entries(self) -> None:
+        """The proc snapshot must not follow a symlink presented as a PID entry."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_proc_symlink_contract")
+        with tempfile.TemporaryDirectory() as directory:
+            temporary_root = pathlib.Path(directory)
+            target = temporary_root / "target"
+            target.mkdir()
+            (target / "status").write_text(
+                "Name:\tchrome\nPid:\t123\nPPid:\t1\nVmRSS:\t1 kB\n",
+                encoding="utf-8",
+            )
+            symlinked_entry = temporary_root / "123"
+            symlinked_entry.symlink_to(target, target_is_directory=True)
+            with unittest.mock.patch.object(
+                pathlib.Path, "iterdir", return_value=iter((symlinked_entry,))
+            ):
+                evidence = namespace["_snapshot_linux_process_evidence"]()
+
+        self.assertEqual(evidence, {})
+
+    def test_fixture_server_does_not_follow_symlinks_outside_fixture_root(self) -> None:
+        """The controlled fixture server must not disclose a linked outside file."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_fixture_symlink_contract")
+        with tempfile.TemporaryDirectory() as directory:
+            temporary_root = pathlib.Path(directory)
+            fixture_root = temporary_root / "fixture"
+            fixture_root.mkdir()
+            (fixture_root / "index.html").write_text("fixture", encoding="utf-8")
+            secret_path = temporary_root / "secret.txt"
+            secret_path.write_text("not-for-the-fixture", encoding="utf-8")
+            (fixture_root / "linked.txt").symlink_to(secret_path)
+            server, thread = namespace["_start_fixture_server"](fixture_root)
+            try:
+                connection = http.client.HTTPConnection(
+                    "127.0.0.1", server.server_port, timeout=2
+                )
+                connection.request("GET", "/linked.txt")
+                response = connection.getresponse()
+                body = response.read()
+                connection.close()
+            finally:
+                namespace["_stop_fixture_server"](server, thread)
+
+        self.assertIn(response.status, {403, 404})
+        self.assertNotIn(b"not-for-the-fixture", body)
 
     def test_process_set_tolerates_descendant_without_resident_rss(self) -> None:
         """A sampled child with no resident RSS must not invalidate the whole tree."""

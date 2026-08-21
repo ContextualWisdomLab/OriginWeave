@@ -164,9 +164,9 @@ Active #65 supplies a deterministic synthetic local web fixture with a labelled 
 
 ### 3.20 Bounded browser process-set resource evidence
 
-Active #51→#66 establishes two distinct layers: #51 owns single explicitly supplied Linux PID sampling and the bounded telemetry value boundary; #66 owns bounded duplicate-safe aggregation/sampling over an exact caller-owned PID set. #66's exact current contract rejects empty, zero-PID, duplicate, oversized and overflow states and fails closed if any member cannot be sampled.
+Active #51→#66 establishes two distinct layers: #51 owns single explicitly supplied Linux PID sampling and the bounded telemetry value boundary; #66 owns bounded duplicate-safe aggregation/sampling over an exact caller-owned PID set. Active #72 adds bounded Agent Task resource evidence, and #73 extends the controlled pinned-Chrome lane with one sampled numeric `/proc` process set while rejecting symlinked entries and fixture paths that resolve outside the synthetic fixture root. These are exact-head test-harness contracts, not production browser attribution. #66's exact current contract rejects empty, zero-PID, duplicate, oversized and overflow states and fails closed if any member cannot be sampled.
 
-**Resolution:** aggregate resource measurement must not silently undercount a known caller-owned process set, but process membership remains an external attribution responsibility. The implementation does not discover Chromium PIDs, prove process ancestry/task ownership, walk cgroups, sample GPU/VRAM or create a durable telemetry store.
+**Resolution:** aggregate resource measurement must not silently undercount a known caller-owned process set, and controlled fixtures must not turn symlinks into authority to read outside their root. Process membership remains an external attribution responsibility. The implementation does not discover Chromium PIDs in the product runtime, prove process ancestry/task ownership, walk cgroups, sample GPU/VRAM or create a durable telemetry store.
 
 ## 4. Durable product decisions captured by the canonical graph
 

@@ -56,6 +56,18 @@ class QuietFixtureHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, _format: str, *args: object) -> None:
         """Suppress request logs because the fixture contains no diagnostic value."""
 
+    def translate_path(self, path: str) -> str:
+        """Resolve requests only when their final path remains inside the fixture root."""
+
+        translated = pathlib.Path(super().translate_path(path))
+        fixture_root = pathlib.Path(self.directory).resolve()
+        try:
+            resolved = translated.resolve(strict=False)
+            resolved.relative_to(fixture_root)
+        except (OSError, ValueError):
+            return str(fixture_root / ".originweave-rejected-fixture-path")
+        return str(resolved)
+
 
 def _free_loopback_port() -> int:
     """Reserve and release one loopback TCP port for a short-lived local service."""
@@ -304,6 +316,8 @@ def _snapshot_linux_process_evidence() -> dict[int, tuple[int, int | None]]:
     for entry in proc_root.iterdir():
         raw_process_id = entry.name
         if not raw_process_id.isascii() or not raw_process_id.isdigit():
+            continue
+        if entry.is_symlink() or not entry.is_dir():
             continue
         process_id = int(raw_process_id, 10)
         if process_id <= 0:
