@@ -19,36 +19,11 @@ fn receipt_binds_tenant_task_event_and_transition_for_replay_identification() {
     assert_eq!(receipt.task_id(), "task-1");
     assert_eq!(receipt.event(), BapTaskEvent::Admit);
     assert_eq!(receipt.transition().current_state(), BapTaskState::Admitted);
-    assert!(receipt.matches(
-        "request-1",
-        "tenant-1",
-        "task-1",
-        BapTaskEvent::Admit
-    ));
-    assert!(!receipt.matches(
-        "request-2",
-        "tenant-1",
-        "task-1",
-        BapTaskEvent::Admit
-    ));
-    assert!(!receipt.matches(
-        "request-1",
-        "tenant-2",
-        "task-1",
-        BapTaskEvent::Admit
-    ));
-    assert!(!receipt.matches(
-        "request-1",
-        "tenant-1",
-        "task-2",
-        BapTaskEvent::Admit
-    ));
-    assert!(!receipt.matches(
-        "request-1",
-        "tenant-1",
-        "task-1",
-        BapTaskEvent::Start
-    ));
+    assert!(receipt.matches("request-1", "tenant-1", "task-1", BapTaskEvent::Admit));
+    assert!(!receipt.matches("request-2", "tenant-1", "task-1", BapTaskEvent::Admit));
+    assert!(!receipt.matches("request-1", "tenant-2", "task-1", BapTaskEvent::Admit));
+    assert!(!receipt.matches("request-1", "tenant-1", "task-2", BapTaskEvent::Admit));
+    assert!(!receipt.matches("request-1", "tenant-1", "task-1", BapTaskEvent::Start));
 }
 
 #[test]
@@ -119,12 +94,7 @@ fn receipt_rejects_unbounded_or_ambiguous_identifiers() {
 fn receipt_preserves_lifecycle_failure_without_mutating_the_task() {
     let mut task = BapTaskLifecycle::new();
     assert_eq!(
-        task.apply_with_receipt(
-            "request-1",
-            "tenant-1",
-            "task-1",
-            BapTaskEvent::Start
-        ),
+        task.apply_with_receipt("request-1", "tenant-1", "task-1", BapTaskEvent::Start),
         Err(BapCommandReceiptError::TransitionRejected {
             error: originweave_bap::BapTaskTransitionError::InvalidTransition {
                 from: BapTaskState::Created,
