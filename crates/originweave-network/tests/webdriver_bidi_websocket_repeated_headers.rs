@@ -49,7 +49,9 @@ fn read_opening_request(stream: &mut std::net::TcpStream) -> io::Result<()> {
     Ok(())
 }
 
-fn exercise_response(response: Vec<u8>) -> Result<(), WebDriverBiDiWebSocketHandshakeResponseError> {
+fn exercise_response(
+    response: Vec<u8>,
+) -> Result<(), WebDriverBiDiWebSocketHandshakeResponseError> {
     let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind loopback fixture");
     let local_addr = listener.local_addr().expect("fixture address");
     let server = thread::spawn(move || -> io::Result<()> {
@@ -88,7 +90,10 @@ Sec-WebSocket-Accept: {RFC6455_SAMPLE_ACCEPT}\r\n\r\n"
     .into_bytes();
 
     let result = exercise_response(response);
-    assert!(result.is_ok(), "RFC 9110 list-valued fields must combine: {result:?}");
+    assert!(
+        result.is_ok(),
+        "RFC 9110 list-valued fields must combine: {result:?}"
+    );
 }
 
 #[test]
