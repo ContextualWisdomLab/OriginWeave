@@ -11,7 +11,7 @@ fn extraction_schema_errors_implement_standard_error_contract() {
     for (error, message) in [
         (
             ExtractionSchemaError::InvalidIdentifier,
-            "invalid extraction schema identifier",
+            "invalid extraction schema or field identifier",
         ),
         (
             ExtractionSchemaError::LimitExceeded,
