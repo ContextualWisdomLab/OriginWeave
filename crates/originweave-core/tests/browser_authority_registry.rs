@@ -2,7 +2,7 @@ use std::error::Error;
 
 use originweave_core::{
     BrowserAuthorityRegistry, BrowserRegistryError, BrowserSessionId, DocumentEpoch,
-    MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES, NodeHandleError, Origin,
+    MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES, NodeHandleError, ObservedNodeHandle, Origin,
 };
 
 fn loopback_origin() -> Result<Origin, Box<dyn Error>> {
@@ -64,6 +64,10 @@ fn public_default_and_error_contracts_are_usable_from_an_adapter() -> Result<(),
         (
             BrowserRegistryError::OriginChangedWithoutDocumentAdvance,
             "browsing context origin changed without advancing the document epoch".to_owned(),
+        ),
+        (
+            BrowserRegistryError::UnknownNodeAuthority,
+            "observed node handle is not registered as current browser authority".to_owned(),
         ),
         (
             BrowserRegistryError::IdentifierSpaceExhausted,
@@ -158,6 +162,20 @@ fn retired_context_and_session_authority_cannot_be_reused() -> Result<(), Box<dy
     assert_ne!(replacement_session, session);
     let next_context = registry.register_context(replacement_session, "top-level-context")?;
     assert_ne!(next_context, replacement_context);
+    Ok(())
+}
+
+#[test]
+fn advancing_a_retired_context_is_rejected() -> Result<(), Box<dyn Error>> {
+    let mut registry = BrowserAuthorityRegistry::new();
+    let session = registry.register_session("webdriver-session")?;
+    let context = registry.register_context(session, "top-level-context")?;
+
+    registry.remove_context(context)?;
+    assert_eq!(
+        registry.advance_document(context),
+        Err(BrowserRegistryError::UnknownBrowsingContext)
+    );
     Ok(())
 }
 
@@ -281,6 +299,81 @@ fn unknown_internal_authority_is_rejected_before_node_binding() -> Result<(), Bo
     let origin = loopback_origin()?;
     assert_eq!(
         registry.bind_node(unknown, context, &origin, "node"),
+        Err(BrowserRegistryError::UnknownBrowserSession)
+    );
+    Ok(())
+}
+
+#[test]
+fn registry_revalidates_live_node_authority_and_rejects_forged_or_retired_handles()
+-> Result<(), Box<dyn Error>> {
+    let mut registry = BrowserAuthorityRegistry::new();
+    let owner = registry.register_session("owner-session")?;
+    let other = registry.register_session("other-session")?;
+    let context = registry.register_context(owner, "top-level-context")?;
+    let origin = loopback_origin()?;
+    let live = registry.bind_node(owner, context, &origin, "backend-node-17")?;
+
+    assert_eq!(registry.validate_node_handle(&live), Ok(()));
+
+    let forged_node = ObservedNodeHandle::new(
+        owner,
+        context,
+        origin.clone(),
+        live.document_epoch(),
+        live.node_id() + 1,
+    )?;
+    assert_eq!(
+        registry.validate_node_handle(&forged_node),
+        Err(BrowserRegistryError::UnknownNodeAuthority)
+    );
+
+    let wrong_session = ObservedNodeHandle::new(
+        other,
+        context,
+        origin.clone(),
+        live.document_epoch(),
+        live.node_id(),
+    )?;
+    assert_eq!(
+        registry.validate_node_handle(&wrong_session),
+        Err(BrowserRegistryError::UnknownNodeAuthority)
+    );
+
+    let unbound_context = registry.register_context(owner, "unbound-context")?;
+    let synthetic_unbound = ObservedNodeHandle::new(
+        owner,
+        unbound_context,
+        origin.clone(),
+        DocumentEpoch::new(1)?,
+        777,
+    )?;
+    assert_eq!(
+        registry.validate_node_handle(&synthetic_unbound),
+        Err(BrowserRegistryError::UnknownNodeAuthority)
+    );
+
+    let next_epoch = registry.advance_document(context)?;
+    assert_eq!(next_epoch.value(), 2);
+    assert_eq!(
+        registry.validate_node_handle(&live),
+        Err(BrowserRegistryError::UnknownNodeAuthority)
+    );
+
+    let replacement = registry.bind_node(owner, context, &origin, "backend-node-17")?;
+    assert_eq!(registry.validate_node_handle(&replacement), Ok(()));
+
+    registry.remove_context(context)?;
+    assert_eq!(
+        registry.validate_node_handle(&replacement),
+        Err(BrowserRegistryError::UnknownBrowsingContext)
+    );
+
+    let session_context = registry.register_context(owner, "session-retirement")?;
+    let session_handle = registry.bind_node(owner, session_context, &origin, "session-node")?;
+    registry.remove_session(owner)?;
+    assert_eq!(
+        registry.validate_node_handle(&session_handle),
         Err(BrowserRegistryError::UnknownBrowserSession)
     );
     Ok(())
