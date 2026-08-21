@@ -18,8 +18,8 @@ class ProductCompletionGapContractTests(unittest.TestCase):
 
         for phrase in (
             "150 open pull requests",
-            "39 non-draft",
-            "111 draft",
+            "40 non-draft",
+            "110 draft",
             "#198",
             "#199",
             "#200",
@@ -40,7 +40,6 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "22 non-draft",
             "78 draft",
             "148 open pull requests",
-            "110 draft",
             "79 draft PRs",
         ):
             with self.subTest(stale_phrase=stale_phrase):
