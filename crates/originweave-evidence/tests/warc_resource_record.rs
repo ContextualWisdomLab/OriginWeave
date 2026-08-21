@@ -154,6 +154,47 @@ fn resource_record_rejects_invalid_identifiers_dates_content_and_limits() {
 }
 
 #[test]
+fn resource_record_accepts_valid_mime_parameters_and_rejects_malformed_media_types() {
+    let build = |content_type| {
+        WarcResourceRecord::new(
+            RECORD_ID,
+            DATE,
+            "https://example.com/item",
+            content_type,
+            Vec::new(),
+            provenance("https://example.com/item", VerificationResult::Verified),
+        )
+    };
+
+    for content_type in [
+        "text/plain; charset=utf-8",
+        "application/http; msgtype=response",
+        "multipart/form-data; boundary=example-boundary",
+    ] {
+        let record = build(content_type).expect("valid WARC MIME media type");
+        assert_eq!(record.content_type(), content_type);
+    }
+
+    for content_type in [
+        "plain",
+        "/plain",
+        "text/",
+        "text//plain",
+        "text/plain;",
+        "text/plain; charset",
+        "text/plain; =utf-8",
+        "text/plain; charset=",
+        "text/(plain)",
+    ] {
+        assert_eq!(
+            build(content_type),
+            Err(WarcResourceRecordError::InvalidContentType),
+            "content_type={content_type:?}"
+        );
+    }
+}
+
+#[test]
 fn resource_record_rejects_provenance_drift_and_unverified_sources() {
     assert_eq!(
         WarcResourceRecord::new(
