@@ -221,26 +221,69 @@ impl BrowserAuthorityRegistry {
                 actual: browser_session,
             });
         }
-        match self.context_origin.get(&browsing_context) {
+        let origin_is_unbound = match self.context_origin.get(&browsing_context) {
             Some(expected_origin) if expected_origin != origin => {
                 return Err(BrowserRegistryError::OriginChangedWithoutDocumentAdvance);
             }
-            Some(_expected_origin) => {}
-            None => {
-                self.context_origin.insert(browsing_context, origin.clone());
-            }
+            Some(_expected_origin) => false,
+            None => true,
+        };
+        let epoch = self.current_epoch(browsing_context)?;
+        let key = (browsing_context, epoch, external_identifier.to_owned());
+        let node_id = if let Some(existing) = self.node_by_external.get(&key) {
+            *existing
+        } else {
+            take_identifier(&mut self.next_node_id, self.maximum_identifier)?
+        };
+        let handle =
+            observed_node_handle(browser_session, browsing_context, origin, epoch, node_id)?;
+        if origin_is_unbound {
+            self.context_origin.insert(browsing_context, origin.clone());
         }
-        self.current_epoch(browsing_context).and_then(|epoch| {
-            let key = (browsing_context, epoch, external_identifier.to_owned());
-            let node_id = if let Some(existing) = self.node_by_external.get(&key) {
-                *existing
-            } else {
-                let allocated = take_identifier(&mut self.next_node_id, self.maximum_identifier)?;
-                self.node_by_external.insert(key, allocated);
-                allocated
-            };
-            observed_node_handle(browser_session, browsing_context, origin, epoch, node_id)
-        })
+        self.node_by_external.entry(key).or_insert(node_id);
+        Ok(handle)
+    }
+
+    /// Verify that an observed node handle is still live authority in this registry.
+    ///
+    /// This check must run immediately before a node-local browser action. It re-derives the
+    /// current session, context, origin, and document epoch from registry-owned state and also
+    /// requires the node identifier to remain present in the current document's private external
+    /// binding table. Caller-supplied or previously retired handles therefore cannot manufacture
+    /// authority merely by presenting a self-consistent tuple.
+    pub fn validate_node_handle(
+        &self,
+        handle: &ObservedNodeHandle,
+    ) -> Result<(), BrowserRegistryError> {
+        if !self.known_sessions.contains(&handle.browser_session()) {
+            return Err(BrowserRegistryError::UnknownBrowserSession);
+        }
+        let context = handle.browsing_context();
+        let expected_session = self
+            .context_session
+            .get(&context)
+            .copied()
+            .ok_or(BrowserRegistryError::UnknownBrowsingContext)?;
+        if expected_session != handle.browser_session() {
+            return Err(BrowserRegistryError::UnknownNodeAuthority);
+        }
+        let epoch = self.current_epoch(context)?;
+        let origin = self
+            .context_origin
+            .get(&context)
+            .ok_or(BrowserRegistryError::UnknownNodeAuthority)?;
+        handle
+            .validate_current(expected_session, context, origin, epoch)
+            .map_err(|_error| BrowserRegistryError::UnknownNodeAuthority)?;
+        let is_bound = self.node_by_external.iter().any(
+            |((bound_context, bound_epoch, _external_identifier), node_id)| {
+                *bound_context == context && *bound_epoch == epoch && *node_id == handle.node_id()
+            },
+        );
+        if !is_bound {
+            return Err(BrowserRegistryError::UnknownNodeAuthority);
+        }
+        Ok(())
     }
 }
 
@@ -268,6 +311,8 @@ pub enum BrowserRegistryError {
     },
     /// The context origin changed without first rotating the document epoch.
     OriginChangedWithoutDocumentAdvance,
+    /// The observed node handle is not a current node binding owned by this registry.
+    UnknownNodeAuthority,
     /// The registry exhausted one of its monotonic internal identifier spaces.
     IdentifierSpaceExhausted,
     /// A document epoch reached the maximum representable value.
@@ -296,6 +341,8 @@ impl fmt::Display for BrowserRegistryError {
             ),
             Self::OriginChangedWithoutDocumentAdvance => formatter
                 .write_str("browsing context origin changed without advancing the document epoch"),
+            Self::UnknownNodeAuthority => formatter
+                .write_str("observed node handle is not registered as current browser authority"),
             Self::IdentifierSpaceExhausted => {
                 formatter.write_str("browser authority identifier space is exhausted")
             }
@@ -390,6 +437,84 @@ mod tests {
         assert_eq!(
             observed_node_handle(sessions[0], contexts[0], &origins[0], epochs[0], 0),
             Err(BrowserRegistryError::InternalAuthorityInvariant)
+        );
+    }
+
+    #[test]
+    fn bind_node_fails_closed_on_corrupted_internal_authority_state() {
+        let mut registry = BrowserAuthorityRegistry::new();
+        let sessions = values(registry.register_session("corrupt-session"));
+        assert_eq!(sessions.len(), 1);
+        let session = sessions[0];
+        let contexts = values(registry.register_context(session, "corrupt-context"));
+        assert_eq!(contexts.len(), 1);
+        let context = contexts[0];
+        let origins = values(Origin::parse("http://127.0.0.1:43127"));
+        assert_eq!(origins.len(), 1);
+        let origin = &origins[0];
+        let epochs = values(registry.current_epoch(context));
+        assert_eq!(epochs.len(), 1);
+        let epoch = epochs[0];
+
+        registry.context_epoch.remove(&context);
+        assert_eq!(
+            registry.bind_node(session, context, origin, "missing-epoch"),
+            Err(BrowserRegistryError::UnknownBrowsingContext)
+        );
+        registry.context_epoch.insert(context, epoch);
+
+        registry
+            .node_by_external
+            .insert((context, epoch, "invalid-node".to_owned()), 0);
+        assert_eq!(
+            registry.bind_node(session, context, origin, "invalid-node"),
+            Err(BrowserRegistryError::InternalAuthorityInvariant)
+        );
+    }
+
+    #[test]
+    fn validation_binding_predicate_checks_each_authority_dimension() {
+        let mut registry = BrowserAuthorityRegistry::new();
+        let sessions = values(registry.register_session("predicate-session"));
+        let contexts = values(registry.register_context(sessions[0], "first-context"));
+        let second_contexts = values(registry.register_context(sessions[0], "second-context"));
+        let origins = values(Origin::parse("http://127.0.0.1:43127"));
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(contexts.len(), 1);
+        assert_eq!(second_contexts.len(), 1);
+        assert_eq!(origins.len(), 1);
+
+        let first = values(registry.bind_node(sessions[0], contexts[0], &origins[0], "first-node"));
+        let second =
+            values(registry.bind_node(sessions[0], second_contexts[0], &origins[0], "second-node"));
+        assert_eq!(first.len(), 1);
+        assert_eq!(second.len(), 1);
+        assert_eq!(registry.validate_node_handle(&second[0]), Ok(()));
+
+        let current_epochs = values(registry.current_epoch(contexts[0]));
+        let future_epochs = values(DocumentEpoch::new(2));
+        assert_eq!(current_epochs.len(), 1);
+        assert_eq!(future_epochs.len(), 1);
+        registry.node_by_external.insert(
+            (contexts[0], future_epochs[0], "synthetic-node".to_owned()),
+            9_999,
+        );
+        let forged = values(ObservedNodeHandle::new(
+            sessions[0],
+            contexts[0],
+            origins[0].clone(),
+            current_epochs[0],
+            9_999,
+        ));
+        assert_eq!(forged.len(), 1);
+        assert_eq!(
+            registry.validate_node_handle(&forged[0]),
+            Err(BrowserRegistryError::UnknownNodeAuthority)
+        );
+        registry.context_epoch.remove(&contexts[0]);
+        assert_eq!(
+            registry.validate_node_handle(&forged[0]),
+            Err(BrowserRegistryError::UnknownBrowsingContext)
         );
     }
 
@@ -584,6 +709,7 @@ mod tests {
                 actual: actual_values[0],
             },
             BrowserRegistryError::OriginChangedWithoutDocumentAdvance,
+            BrowserRegistryError::UnknownNodeAuthority,
             BrowserRegistryError::IdentifierSpaceExhausted,
             BrowserRegistryError::DocumentEpochExhausted,
             BrowserRegistryError::InternalAuthorityInvariant,

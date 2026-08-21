@@ -28,7 +28,8 @@ pub use contracts::{
     RobotsDecision, SecretDelivery, SessionMode,
 };
 pub use extension_authority::{
-    ExtensionAccessDecision, ExtensionAccessRequest, ExtensionAgentGrant, evaluate_extension_access,
+    AgentTaskId, AgentTaskIdError, ExtensionAccessDecision, ExtensionAccessRequest,
+    ExtensionAgentGrant, evaluate_extension_access,
 };
 pub use semantic_action_binding::{SemanticNodeActionBinding, SemanticNodeActionBindingError};
 pub use semantic_action_target::{SemanticNodeActionTarget, SemanticNodeActionTargetError};
