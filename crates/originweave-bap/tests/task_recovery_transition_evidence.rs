@@ -41,12 +41,17 @@ fn exact_transition_evidence_restores_receipt_replay_without_second_mutation() {
 
 #[test]
 fn recovery_requires_transition_evidence_after_any_accepted_transition() {
+    let missing = BapTaskRestoreError::MissingTransitionEvidence {
+        state: BapTaskState::Admitted,
+        transition_sequence: 1,
+    };
+    assert_eq!(
+        missing.to_string(),
+        "BAP task snapshot state Admitted with transition sequence 1 is missing last-transition evidence"
+    );
     assert_eq!(
         BapTaskLifecycle::restore_with_transition(BapTaskState::Admitted, 1, None),
-        Err(BapTaskRestoreError::MissingTransitionEvidence {
-            state: BapTaskState::Admitted,
-            transition_sequence: 1,
-        })
+        Err(missing)
     );
 
     assert_eq!(
@@ -63,6 +68,10 @@ fn transition_restore_rejects_zero_unreachable_invalid_and_mismatched_evidence()
         state,
         transition_sequence,
     };
+    assert_eq!(
+        invalid(BapTaskState::Running, 2).to_string(),
+        "BAP task transition evidence for state Running with transition sequence 2 is invalid"
+    );
 
     assert_eq!(
         BapTaskTransition::restore(
