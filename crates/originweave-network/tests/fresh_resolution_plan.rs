@@ -1,5 +1,4 @@
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener};
-use std::thread;
 use std::time::Duration;
 
 use originweave_core::Origin;
@@ -44,7 +43,7 @@ fn connection_plan_requires_a_current_fresh_resolution_authority() -> Result<(),
     assert_eq!(plan.resolution_authorized_at(), Duration::from_secs(12));
 
     let connection = plan
-        .connect_at(Duration::from_secs(12))
+        .connect(Duration::from_secs(12))
         .map_err(|error| format!("connect fresh loopback plan: {error}"))?;
     assert_eq!(connection.evidence().requested_socket(), socket);
     assert_eq!(connection.evidence().observed_peer(), socket);
@@ -91,7 +90,7 @@ fn plan_must_still_be_fresh_at_actual_socket_use() -> Result<(), String> {
     )
     .map_err(|error| format!("authorize fresh connection plan: {error}"))?;
 
-    let result = plan.connect_at(Duration::from_secs(15));
+    let result = plan.connect(Duration::from_secs(15));
     assert!(matches!(
         result,
         Err(NetworkError::DestinationNotApproved {
@@ -119,7 +118,7 @@ fn socket_use_time_cannot_regress_before_plan_authorization() -> Result<(), Stri
     )
     .map_err(|error| format!("authorize fresh connection plan: {error}"))?;
 
-    let result = plan.connect_at(Duration::from_secs(11));
+    let result = plan.connect(Duration::from_secs(11));
     assert!(matches!(
         result,
         Err(NetworkError::DestinationNotApproved {
@@ -130,40 +129,6 @@ fn socket_use_time_cannot_regress_before_plan_authorization() -> Result<(), Stri
             ..
         }) if approved_at == Duration::from_secs(12)
             && current_time == Duration::from_secs(11)
-    ));
-    Ok(())
-}
-
-#[test]
-fn compatibility_connect_path_expires_from_real_monotonic_elapsed_time() -> Result<(), String> {
-    let origin = Origin::parse("http://localhost")
-        .map_err(|error| format!("loopback origin fixture is invalid: {error:?}"))?;
-    let snapshot = FreshResolutionSnapshot::approve(
-        origin,
-        [IpAddr::V4(Ipv4Addr::LOCALHOST)],
-        &DestinationPolicy::from_allowed_classes([AddressClass::Loopback]),
-        Duration::from_secs(10),
-        Duration::from_millis(1),
-    )
-    .map_err(|error| format!("short-lived snapshot is invalid: {error}"))?;
-    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9);
-    let plan = FreshConnectionPlan::new(
-        &snapshot,
-        Duration::from_secs(10),
-        socket,
-        Duration::from_secs(1),
-        1,
-    )
-    .map_err(|error| format!("authorize short-lived connection plan: {error}"))?;
-
-    thread::sleep(Duration::from_millis(5));
-    let result = plan.connect();
-    assert!(matches!(
-        result,
-        Err(NetworkError::DestinationNotApproved {
-            source: DestinationError::ResolutionApprovalExpired { .. },
-            ..
-        })
     ));
     Ok(())
 }
