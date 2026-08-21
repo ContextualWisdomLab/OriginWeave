@@ -136,4 +136,18 @@ fn lifecycle_restore_rejects_transition_from_a_different_snapshot() {
             transition_sequence: 2,
         })
     );
+
+    lifecycle
+        .apply(BapTaskEvent::WaitForApproval)
+        .expect("wait must succeed");
+    let resumed = lifecycle
+        .apply(BapTaskEvent::Resume)
+        .expect("resume must succeed");
+    assert_eq!(
+        BapTaskLifecycle::restore_with_transition(BapTaskState::Running, 2, Some(resumed)),
+        Err(BapTaskRestoreError::InvalidTransitionEvidence {
+            state: BapTaskState::Running,
+            transition_sequence: 2,
+        })
+    );
 }
