@@ -67,8 +67,25 @@ fn warc_target_uri_rejects_control_and_whitespace_before_provenance_comparison()
 }
 
 #[test]
-fn warc_target_uri_preserves_printable_unicode_path_text() {
+fn warc_target_uri_rejects_raw_unicode_because_warc_uses_rfc3986_uri_syntax() {
     let target_uri = "https://example.com/상품/상세";
+
+    assert_eq!(
+        WarcResourceRecord::new(
+            RECORD_ID,
+            DATE,
+            target_uri,
+            "text/plain",
+            Vec::new(),
+            provenance(target_uri),
+        ),
+        Err(WarcResourceRecordError::InvalidTargetUri),
+    );
+}
+
+#[test]
+fn warc_target_uri_accepts_percent_encoded_utf8_path_octets() {
+    let target_uri = "https://example.com/%EC%83%81%ED%92%88/%EC%83%81%EC%84%B8";
     let record = WarcResourceRecord::new(
         RECORD_ID,
         DATE,
@@ -77,7 +94,7 @@ fn warc_target_uri_preserves_printable_unicode_path_text() {
         Vec::new(),
         provenance(target_uri),
     )
-    .expect("printable Unicode target URI");
+    .expect("RFC 3986 percent-encoded target URI");
 
     assert_eq!(record.target_uri(), target_uri);
 }
