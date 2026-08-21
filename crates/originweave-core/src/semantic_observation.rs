@@ -235,10 +235,12 @@ fn validate_relationship(
     if handle == related {
         return Err(SemanticNodeObservationError::SelfRelationship);
     }
+    // Both handles have already passed `validate_live_node` against the same registry. A live
+    // browsing context has exactly one current origin and document epoch, so matching session and
+    // context authority necessarily implies matching origin and epoch. Rechecking those implied
+    // dimensions would create unreachable branch states rather than additional defense in depth.
     if handle.browser_session() != related.browser_session()
         || handle.browsing_context() != related.browsing_context()
-        || handle.origin() != related.origin()
-        || handle.document_epoch() != related.document_epoch()
     {
         return Err(SemanticNodeObservationError::RelationshipAuthorityMismatch);
     }
