@@ -17,6 +17,8 @@
 mod connection;
 mod webdriver_bidi_connection;
 mod webdriver_bidi_locate_nodes_exchange;
+#[cfg(test)]
+mod webdriver_bidi_locate_nodes_exchange_transport_failure_tests;
 mod webdriver_bidi_websocket_control;
 mod webdriver_bidi_websocket_handshake;
 
