@@ -9,6 +9,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Bound explicit extension-to-Agent grants to a nonzero host-assigned Agent Task identity, so a grant that otherwise matches extension, session, browsing context, origin, expiry, and capability fails closed when reused by a different task.
 - Bound explicit extension-to-Agent grants to exclusive trusted-time expiry in addition to extension identity, session, browsing context, and canonical origin, so a same-origin grant cannot be reused at or after the deadline.
 - Bound explicit extension-to-Agent grants to the exact canonical origin in addition to extension identity, session, and browsing context, so a same-session navigation or port change cannot reuse the grant.
+- Added a bounded browser-protocol authority registry that maps opaque session, browsing-context, and node identifiers to registry-local identities, rotates document epochs, and revalidates live node handles before actions.
 - Rust workspace for independently reusable core, policy, destination, network, TLS, resource, and evidence modules.
 - Canonical HTTPS and loopback-origin boundary with case-normalized schemes and hosts, default-port normalization, IPv4/IPv6 handling, browser-special numeric-host rejection, and explicit malformed-input errors.
 - Typed browser actions, capabilities, risk classes, execution modes, robots decisions, secret-delivery contracts, immutable canonical action-intent digests, and intent-bound approval scopes.
@@ -26,7 +27,6 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Cumulative interactive-first RAM, VRAM, batch, local-model, admission, pause, and compositor-pressure mitigation plans, including active-consumer reduction at exact hard limits.
 - Universally value-redacted network evidence with explicit path, metadata, and provenance bounds; ambiguous path rejection; validated source URLs; lowercase SHA-256 identifiers; and verification state.
 - Authority-bound, bounded semantic node observations with typed node-local action evidence and explicit observation-channel provenance for the first Chromium vertical slice; observation metadata grants no execution authority.
-- Bounded typed semantic node queries over reviewed role, accessible-name, and node-action evidence, without exposing raw DOM/protocol selector languages or granting execution authority.
 - Rust 1.97.1 build contract, strict Clippy and rustdoc gates, and exact production function, line, region, and branch coverage enforcement.
 - Hourly bounded OpenCode product-development workflow using `NVIDIA_NIM_API_KEY`, an unprivileged disposable workspace, loopback-only model broker, independently verified patches, and publication through a dedicated `OPENCODE_PR_TOKEN` that cannot review or merge.
 - Architecture, agent, security, contribution, research, database naming, roadmap, quality-gate, and TLS service-identity ADR documentation.
