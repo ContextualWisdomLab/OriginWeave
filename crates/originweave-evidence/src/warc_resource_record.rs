@@ -71,6 +71,12 @@ impl WarcResourceRecord {
         payload: Vec<u8>,
         provenance: ProvenanceRecord,
     ) -> Result<Self, WarcResourceRecordError> {
+        if record_id.len() > MAX_WARC_RECORD_ID_BYTES {
+            return Err(WarcResourceRecordError::LimitExceeded);
+        }
+        if warc_date.len() > MAX_WARC_DATE_BYTES {
+            return Err(WarcResourceRecordError::LimitExceeded);
+        }
         if !valid_record_id(record_id) {
             return Err(WarcResourceRecordError::InvalidRecordId);
         }
