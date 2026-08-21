@@ -15,7 +15,9 @@ use originweave_network::{
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
 const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
 
-fn connect(endpoint: &str) -> Result<originweave_network::WebDriverBiDiTcpConnection, Box<dyn Error>> {
+fn connect(
+    endpoint: &str,
+) -> Result<originweave_network::WebDriverBiDiTcpConnection, Box<dyn Error>> {
     let admitted = WebDriverBiDiWebSocketEndpoint::new(endpoint)?;
     let correlated = admitted.correlate_session_id(SESSION_ID)?;
     let target = correlated.into_explicit_connect_target()?;
@@ -92,7 +94,10 @@ fn established_stream_writes_masked_pong_with_exact_ping_payload() -> Result<(),
         Duration::from_millis(500),
     )?;
     assert_eq!(
-        established.transport_evidence().verified_peer().socket_addr(),
+        established
+            .transport_evidence()
+            .verified_peer()
+            .socket_addr(),
         local_addr
     );
     drop(established);
