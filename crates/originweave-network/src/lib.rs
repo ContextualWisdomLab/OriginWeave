@@ -15,6 +15,7 @@
 
 mod connection;
 mod webdriver_bidi_connection;
+mod webdriver_bidi_websocket_control;
 mod webdriver_bidi_websocket_handshake;
 
 pub use connection::{
