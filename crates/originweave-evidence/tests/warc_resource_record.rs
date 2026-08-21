@@ -20,6 +20,43 @@ fn provenance(source_url: &str, verification: VerificationResult) -> ProvenanceR
     .expect("provenance")
 }
 
+fn assert_standard_error_contract<E: std::error::Error + Send + Sync + 'static>() {}
+
+#[test]
+fn warc_resource_record_error_implements_standard_error_contract() {
+    assert_standard_error_contract::<WarcResourceRecordError>();
+
+    for (error, message) in [
+        (
+            WarcResourceRecordError::InvalidRecordId,
+            "invalid WARC record identifier",
+        ),
+        (WarcResourceRecordError::InvalidDate, "invalid WARC date"),
+        (
+            WarcResourceRecordError::InvalidContentType,
+            "invalid WARC content type",
+        ),
+        (
+            WarcResourceRecordError::LimitExceeded,
+            "WARC resource record limit exceeded",
+        ),
+        (
+            WarcResourceRecordError::InvalidTargetUri,
+            "invalid WARC target URI",
+        ),
+        (
+            WarcResourceRecordError::TargetUriMismatch,
+            "WARC target URI does not match provenance",
+        ),
+        (
+            WarcResourceRecordError::UnverifiedProvenance,
+            "WARC provenance is not independently verified",
+        ),
+    ] {
+        assert_eq!(error.to_string(), message);
+    }
+}
+
 #[test]
 fn resource_record_binds_verified_provenance_and_emits_deterministic_warc_bytes() {
     let record = WarcResourceRecord::new(
