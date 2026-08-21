@@ -780,6 +780,21 @@ def _validate_agent_task_submitted_state(state: object) -> None:
         raise RuntimeError("Agent Task state post-condition failed")
 
 
+def _delete_webdriver_session_bounded(driver_port: int, session_id: str) -> str | None:
+    """Delete one validated WebDriver session and retain only reviewed failure types."""
+
+    try:
+        _json_request(
+            driver_port,
+            "DELETE",
+            _webdriver_path(session_id, ""),
+            {},
+        )
+    except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+        return type(exc).__name__
+    return None
+
+
 def _terminate_owned_process_bounded(process: Any) -> tuple[bool, str | None, bool]:
     """Terminate one owned child under bounded waits and retain typed fallback evidence."""
 
@@ -1459,6 +1474,7 @@ def _run_agent_task_forced_close_browser_pass(
     browser_process_start_time_ticks: int | None = None
     chromium_process_identities: tuple[tuple[int, int], ...] | None = None
     browser_failure_type: str | None = None
+    session_cleanup_failure_type: str | None = None
     driver_process_terminated: bool | None = None
     driver_cleanup_failure_type: str | None = None
     driver_kill_fallback_used = False
@@ -1606,13 +1622,9 @@ def _run_agent_task_forced_close_browser_pass(
             raise
     finally:
         if session_id is not None:
-            with contextlib.suppress(Exception):
-                _json_request(
-                    driver_port,
-                    "DELETE",
-                    _webdriver_path(session_id, ""),
-                    {},
-                )
+            session_cleanup_failure_type = _delete_webdriver_session_bounded(
+                driver_port, session_id
+            )
         (
             driver_process_terminated,
             driver_cleanup_failure_type,
@@ -1630,14 +1642,31 @@ def _run_agent_task_forced_close_browser_pass(
         chromium_process_set_terminated = _wait_for_linux_process_identity_set_exit(
             chromium_process_identities
         )
-    if browser_failure_type is not None or driver_cleanup_failure_type is not None:
+    if (
+        browser_failure_type is not None
+        or session_cleanup_failure_type is not None
+        or driver_cleanup_failure_type is not None
+    ):
+        primary_failure_type = browser_failure_type
+        if primary_failure_type is None and session_cleanup_failure_type is not None:
+            primary_failure_type = "WebDriverSessionCleanupError"
+        if primary_failure_type is None:
+            primary_failure_type = driver_cleanup_failure_type
+        if primary_failure_type is None:
+            raise RuntimeError("Agent Task forced-close failure evidence lost its primary type")
         failure_evidence: dict[str, Any] = {
-            "failure_type": browser_failure_type or driver_cleanup_failure_type,
+            "failure_type": primary_failure_type,
             "driver_process_terminated": driver_process_terminated,
             "driver_kill_fallback_used": driver_kill_fallback_used,
             "browser_process_terminated": browser_process_terminated,
         }
-        if browser_failure_type is not None and driver_cleanup_failure_type is not None:
+        if session_cleanup_failure_type is not None:
+            failure_evidence["session_cleanup_failure_type"] = (
+                session_cleanup_failure_type
+            )
+        if driver_cleanup_failure_type is not None and (
+            browser_failure_type is not None or session_cleanup_failure_type is not None
+        ):
             failure_evidence["cleanup_failure_type"] = driver_cleanup_failure_type
         if chromium_process_set_terminated is not None:
             failure_evidence["chromium_process_set_terminated"] = (
@@ -1726,6 +1755,18 @@ def _run_agent_task_forced_close_trial(
             "profile_cleaned": True,
             "duration_ms": duration_ms,
         }
+        if "session_cleanup_failure_type" in result:
+            session_cleanup_failure_type = result["session_cleanup_failure_type"]
+            if (
+                not isinstance(session_cleanup_failure_type, str)
+                or not session_cleanup_failure_type
+            ):
+                raise RuntimeError(
+                    "Agent Task forced-close browser pass returned invalid session cleanup failure evidence"
+                )
+            failure_evidence["session_cleanup_failure_type"] = (
+                session_cleanup_failure_type
+            )
         if "cleanup_failure_type" in result:
             cleanup_failure_type = result["cleanup_failure_type"]
             if not isinstance(cleanup_failure_type, str) or not cleanup_failure_type:
