@@ -210,15 +210,13 @@ mod tests {
     fn pong_parameter_validation_is_fail_closed() {
         assert!(validate_pong_parameters(0, Duration::from_millis(1)).is_ok());
 
-        let zero_timeout = validate_pong_parameters(0, Duration::ZERO)
-            .expect_err("zero timeout must fail closed");
+        let zero_timeout =
+            validate_pong_parameters(0, Duration::ZERO).expect_err("zero timeout must fail closed");
         assert!(format!("{zero_timeout:?}").starts_with("InvalidFrameTimeout"));
 
-        let excessive_timeout = validate_pong_parameters(
-            0,
-            MAX_WEBSOCKET_FRAME_TIMEOUT + Duration::from_nanos(1),
-        )
-        .expect_err("timeout above the resource ceiling must fail closed");
+        let excessive_timeout =
+            validate_pong_parameters(0, MAX_WEBSOCKET_FRAME_TIMEOUT + Duration::from_nanos(1))
+                .expect_err("timeout above the resource ceiling must fail closed");
         assert!(format!("{excessive_timeout:?}").starts_with("InvalidFrameTimeout"));
 
         let excessive_payload = validate_pong_parameters(126, Duration::from_millis(1))
@@ -267,9 +265,7 @@ mod tests {
         configure.timeout_error = Some(io::ErrorKind::PermissionDenied);
         let configure_error = write_with_fake(&mut configure, [start, start])
             .expect_err("write-timeout configuration failure must be preserved");
-        assert!(
-            format!("{configure_error:?}").starts_with("FrameWriteModeConfigurationFailed")
-        );
+        assert!(format!("{configure_error:?}").starts_with("FrameWriteModeConfigurationFailed"));
 
         let mut zero = FakeWriter::new([WriteAction::Count(0)]);
         let zero_error = write_with_fake(&mut zero, [start, start])
