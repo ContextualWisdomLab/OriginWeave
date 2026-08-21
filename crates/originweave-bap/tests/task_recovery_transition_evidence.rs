@@ -43,6 +43,15 @@ fn exact_transition_evidence_restores_receipt_replay_without_second_mutation() {
 
 #[test]
 fn recovery_requires_transition_evidence_after_any_accepted_transition() {
+    let invalid_snapshot = BapTaskRestoreError::InvalidSnapshot {
+        state: BapTaskState::Created,
+        transition_sequence: 1,
+    };
+    assert_eq!(
+        BapTaskLifecycle::restore_with_transition(BapTaskState::Created, 1, None),
+        Err(invalid_snapshot)
+    );
+
     let missing = BapTaskRestoreError::MissingTransitionEvidence {
         state: BapTaskState::Admitted,
         transition_sequence: 1,
