@@ -248,12 +248,23 @@ impl std::error::Error for BapCommandReceiptError {
 }
 
 /// An immutable receipt binding one accepted lifecycle command to its retry namespace and key.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct BapCommandReceipt {
     idempotency_key: String,
     tenant_id: String,
     task_id: String,
     transition: BapTaskTransition,
+}
+
+impl std::fmt::Debug for BapCommandReceipt {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("BapCommandReceipt")
+            .field("idempotency_key_byte_count", &self.idempotency_key.len())
+            .field("task_id", &self.task_id)
+            .field("transition", &self.transition)
+            .finish()
+    }
 }
 
 impl BapCommandReceipt {
