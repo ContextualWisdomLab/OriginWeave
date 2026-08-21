@@ -253,9 +253,9 @@ fn locate_nodes_exchange_charges_ping_callback_time_to_exchange_deadline()
         Duration::from_millis(500),
     );
 
-    let error = exchanged
-        .err()
-        .ok_or_else(|| io::Error::other("slow Ping callback unexpectedly reset the exchange deadline"))?;
+    let error = exchanged.err().ok_or_else(|| {
+        io::Error::other("slow Ping callback unexpectedly reset the exchange deadline")
+    })?;
     assert_eq!(
         error.to_string(),
         "WebDriver BiDi locateNodes exchange exhausted its 500ms end-to-end deadline before the next operation"
