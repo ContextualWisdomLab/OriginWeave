@@ -106,6 +106,38 @@ fn native_messaging_encode_enforces_host_to_chrome_limit() {
 }
 
 #[test]
+fn native_messaging_errors_are_deterministic_and_payload_free() {
+    let errors = [
+        (
+            NativeMessagingFrameError::TruncatedHeader,
+            "native-messaging frame is missing its four-byte header",
+        ),
+        (
+            NativeMessagingFrameError::PayloadTooLarge {
+                declared_bytes: 2,
+                maximum_bytes: 1,
+            },
+            "native-messaging payload exceeds the direction limit",
+        ),
+        (
+            NativeMessagingFrameError::LengthMismatch {
+                declared_bytes: 2,
+                actual_bytes: 1,
+            },
+            "native-messaging frame length does not match its header",
+        ),
+        (
+            NativeMessagingFrameError::InvalidUtf8,
+            "native-messaging payload is not valid UTF-8",
+        ),
+    ];
+
+    for (error, expected) in errors {
+        assert_eq!(error.to_string(), expected);
+    }
+}
+
+#[test]
 fn native_messaging_decode_rejects_non_utf8_payload_without_reflecting_bytes() {
     let frame = frame_with_declared_length(2, &[0xff, 0xfe]);
     let error = decode_native_messaging_frame(&frame, NativeMessagingFrameDirection::HostToChrome)
