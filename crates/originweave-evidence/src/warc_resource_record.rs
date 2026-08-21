@@ -192,16 +192,40 @@ fn valid_utc_date(date: &str) -> bool {
     {
         return false;
     }
+    let year = four_digits(bytes[0], bytes[1], bytes[2], bytes[3]);
     let month = two_digits(bytes[5], bytes[6]);
     let day = two_digits(bytes[8], bytes[9]);
     let hour = two_digits(bytes[11], bytes[12]);
     let minute = two_digits(bytes[14], bytes[15]);
     let second = two_digits(bytes[17], bytes[18]);
-    (1..=12).contains(&month) && (1..=31).contains(&day) && hour < 24 && minute < 60 && second <= 60
+    valid_calendar_date(year, month, day) && hour < 24 && minute < 60 && second <= 60
+}
+
+fn four_digits(first: u8, second: u8, third: u8, fourth: u8) -> u16 {
+    u16::from(first - b'0') * 1000
+        + u16::from(second - b'0') * 100
+        + u16::from(third - b'0') * 10
+        + u16::from(fourth - b'0')
 }
 
 fn two_digits(high: u8, low: u8) -> u8 {
     (high - b'0') * 10 + (low - b'0')
+}
+
+fn valid_calendar_date(year: u16, month: u8, day: u8) -> bool {
+    if !(1..=12).contains(&month) {
+        return false;
+    }
+    let days_in_month = if month == 2 {
+        if is_leap_year(year) { 29 } else { 28 }
+    } else {
+        30 + ((month + month / 8) % 2)
+    };
+    (1..=days_in_month).contains(&day)
+}
+
+fn is_leap_year(year: u16) -> bool {
+    year.is_multiple_of(400) || (year.is_multiple_of(4) && !year.is_multiple_of(100))
 }
 
 fn valid_content_type(content_type: &str) -> bool {
