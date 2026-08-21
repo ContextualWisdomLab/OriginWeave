@@ -1,176 +1,142 @@
 use std::collections::BTreeSet;
 
 use originweave_core::{
-    BrowserSessionId, BrowsingContextId, DocumentEpoch, NodeActionKind, NodeHandleError,
-    ObservationChannel, ObservedNodeHandle, Origin, SemanticNodeActionTarget,
+    BrowserAuthorityRegistry, BrowserRegistryError, BrowserSessionId, BrowsingContextId,
+    NodeActionKind, ObservationChannel, Origin, SemanticNodeActionTarget,
     SemanticNodeActionTargetError, SemanticNodeObservation, SemanticNodeObservationInput,
 };
 
-fn observation() -> Result<SemanticNodeObservation, String> {
-    let handle = ObservedNodeHandle::new(
-        BrowserSessionId::new(7).map_err(|error| error.to_string())?,
-        BrowsingContextId::new(11).map_err(|error| error.to_string())?,
-        Origin::parse("https://example.com").map_err(|error| format!("{error:?}"))?,
-        DocumentEpoch::new(3).map_err(|error| error.to_string())?,
-        17,
+struct ObservationFixture {
+    registry: BrowserAuthorityRegistry,
+    session: BrowserSessionId,
+    context: BrowsingContextId,
+    observation: SemanticNodeObservation,
+}
+
+fn observation_fixture() -> Result<ObservationFixture, String> {
+    let mut registry = BrowserAuthorityRegistry::new();
+    let session = registry
+        .register_session("semantic-action-session")
+        .map_err(|error| error.to_string())?;
+    let context = registry
+        .register_context(session, "semantic-action-context")
+        .map_err(|error| error.to_string())?;
+    let origin = Origin::parse("https://example.com").map_err(|error| format!("{error:?}"))?;
+    let handle = registry
+        .bind_node(session, context, &origin, "semantic-action-node")
+        .map_err(|error| error.to_string())?;
+    let observation = SemanticNodeObservation::new(
+        SemanticNodeObservationInput {
+            handle,
+            parent: None,
+            children: Vec::new(),
+            role: "button".to_owned(),
+            accessible_name: "Save draft".to_owned(),
+            visible_text: Some("Save draft".to_owned()),
+            enabled: true,
+            visible: true,
+            selected: None,
+            supported_actions: BTreeSet::from([NodeActionKind::Click]),
+            evidence_channels: BTreeSet::from([ObservationChannel::Accessibility]),
+        },
+        &registry,
     )
     .map_err(|error| error.to_string())?;
 
-    SemanticNodeObservation::new(SemanticNodeObservationInput {
-        handle,
-        parent: None,
-        children: Vec::new(),
-        role: "button".to_owned(),
-        accessible_name: "Save draft".to_owned(),
-        visible_text: Some("Save draft".to_owned()),
-        enabled: true,
-        visible: true,
-        selected: None,
-        supported_actions: BTreeSet::from([NodeActionKind::Click]),
-        evidence_channels: BTreeSet::from([ObservationChannel::Accessibility]),
+    Ok(ObservationFixture {
+        registry,
+        session,
+        context,
+        observation,
     })
-    .map_err(|error| error.to_string())
 }
 
 #[test]
 fn advertised_node_action_becomes_an_authority_bound_target() -> Result<(), String> {
-    let observed = observation()?;
-    let target = SemanticNodeActionTarget::from_observation(&observed, NodeActionKind::Click)
-        .map_err(|error| error.to_string())?;
+    let fixture = observation_fixture()?;
+    let target =
+        SemanticNodeActionTarget::from_observation(&fixture.observation, NodeActionKind::Click)
+            .map_err(|error| error.to_string())?;
 
-    assert_eq!(target.handle(), observed.handle());
+    assert_eq!(target.handle(), fixture.observation.handle());
     assert_eq!(target.action(), NodeActionKind::Click);
     Ok(())
 }
 
 #[test]
 fn unsupported_node_action_fails_closed_without_minting_authority() -> Result<(), String> {
-    let observed = observation()?;
+    let fixture = observation_fixture()?;
     assert_eq!(
-        SemanticNodeActionTarget::from_observation(&observed, NodeActionKind::TypeText).err(),
+        SemanticNodeActionTarget::from_observation(&fixture.observation, NodeActionKind::TypeText)
+            .err(),
         Some(SemanticNodeActionTargetError::UnsupportedAction)
     );
     Ok(())
 }
 
 #[test]
-fn node_action_target_revalidates_exact_browser_authority() -> Result<(), String> {
-    let observed = observation()?;
-    let target = SemanticNodeActionTarget::from_observation(&observed, NodeActionKind::Click)
-        .map_err(|error| error.to_string())?;
-    let current_origin =
-        Origin::parse("https://example.com").map_err(|error| format!("{error:?}"))?;
+fn node_action_target_revalidates_live_registry_authority() -> Result<(), String> {
+    let fixture = observation_fixture()?;
+    let target =
+        SemanticNodeActionTarget::from_observation(&fixture.observation, NodeActionKind::Click)
+            .map_err(|error| error.to_string())?;
 
     target
-        .validate_current(
-            BrowserSessionId::new(7).map_err(|error| error.to_string())?,
-            BrowsingContextId::new(11).map_err(|error| error.to_string())?,
-            &current_origin,
-            DocumentEpoch::new(3).map_err(|error| error.to_string())?,
-        )
+        .validate_current(&fixture.registry)
         .map_err(|error| error.to_string())?;
     Ok(())
 }
 
 #[test]
-fn node_action_target_rejects_cross_session_authority() -> Result<(), String> {
-    let observed = observation()?;
-    let target = SemanticNodeActionTarget::from_observation(&observed, NodeActionKind::Click)
+fn node_action_target_rejects_retired_context_authority() -> Result<(), String> {
+    let mut fixture = observation_fixture()?;
+    let target =
+        SemanticNodeActionTarget::from_observation(&fixture.observation, NodeActionKind::Click)
+            .map_err(|error| error.to_string())?;
+    fixture
+        .registry
+        .remove_context(fixture.context)
         .map_err(|error| error.to_string())?;
-    let current_origin =
-        Origin::parse("https://example.com").map_err(|error| format!("{error:?}"))?;
-    let observed_session = BrowserSessionId::new(7).map_err(|error| error.to_string())?;
-    let current_session = BrowserSessionId::new(8).map_err(|error| error.to_string())?;
 
     assert_eq!(
-        target
-            .validate_current(
-                current_session,
-                BrowsingContextId::new(11).map_err(|error| error.to_string())?,
-                &current_origin,
-                DocumentEpoch::new(3).map_err(|error| error.to_string())?,
-            )
-            .err(),
-        Some(NodeHandleError::BrowserSessionMismatch {
-            observed: observed_session,
-            current: current_session,
-        })
+        target.validate_current(&fixture.registry).err(),
+        Some(BrowserRegistryError::UnknownBrowsingContext)
     );
     Ok(())
 }
 
 #[test]
-fn node_action_target_rejects_cross_context_authority() -> Result<(), String> {
-    let observed = observation()?;
-    let target = SemanticNodeActionTarget::from_observation(&observed, NodeActionKind::Click)
+fn node_action_target_rejects_retired_session_authority() -> Result<(), String> {
+    let mut fixture = observation_fixture()?;
+    let target =
+        SemanticNodeActionTarget::from_observation(&fixture.observation, NodeActionKind::Click)
+            .map_err(|error| error.to_string())?;
+    fixture
+        .registry
+        .remove_session(fixture.session)
         .map_err(|error| error.to_string())?;
-    let current_origin =
-        Origin::parse("https://example.com").map_err(|error| format!("{error:?}"))?;
-    let observed_context = BrowsingContextId::new(11).map_err(|error| error.to_string())?;
-    let current_context = BrowsingContextId::new(12).map_err(|error| error.to_string())?;
 
     assert_eq!(
-        target
-            .validate_current(
-                BrowserSessionId::new(7).map_err(|error| error.to_string())?,
-                current_context,
-                &current_origin,
-                DocumentEpoch::new(3).map_err(|error| error.to_string())?,
-            )
-            .err(),
-        Some(NodeHandleError::BrowsingContextMismatch {
-            observed: observed_context,
-            current: current_context,
-        })
-    );
-    Ok(())
-}
-
-#[test]
-fn node_action_target_rejects_cross_origin_authority() -> Result<(), String> {
-    let observed = observation()?;
-    let target = SemanticNodeActionTarget::from_observation(&observed, NodeActionKind::Click)
-        .map_err(|error| error.to_string())?;
-    let current_origin =
-        Origin::parse("https://other.example").map_err(|error| format!("{error:?}"))?;
-
-    assert_eq!(
-        target
-            .validate_current(
-                BrowserSessionId::new(7).map_err(|error| error.to_string())?,
-                BrowsingContextId::new(11).map_err(|error| error.to_string())?,
-                &current_origin,
-                DocumentEpoch::new(3).map_err(|error| error.to_string())?,
-            )
-            .err(),
-        Some(NodeHandleError::OriginMismatch)
+        target.validate_current(&fixture.registry).err(),
+        Some(BrowserRegistryError::UnknownBrowserSession)
     );
     Ok(())
 }
 
 #[test]
 fn node_action_target_rejects_stale_document_authority() -> Result<(), String> {
-    let observed = observation()?;
-    let target = SemanticNodeActionTarget::from_observation(&observed, NodeActionKind::Click)
+    let mut fixture = observation_fixture()?;
+    let target =
+        SemanticNodeActionTarget::from_observation(&fixture.observation, NodeActionKind::Click)
+            .map_err(|error| error.to_string())?;
+    fixture
+        .registry
+        .advance_document(fixture.context)
         .map_err(|error| error.to_string())?;
-    let current_origin =
-        Origin::parse("https://example.com").map_err(|error| format!("{error:?}"))?;
-    let observed_epoch = DocumentEpoch::new(3).map_err(|error| error.to_string())?;
-    let current_epoch = DocumentEpoch::new(4).map_err(|error| error.to_string())?;
 
     assert_eq!(
-        target
-            .validate_current(
-                BrowserSessionId::new(7).map_err(|error| error.to_string())?,
-                BrowsingContextId::new(11).map_err(|error| error.to_string())?,
-                &current_origin,
-                current_epoch,
-            )
-            .err(),
-        Some(NodeHandleError::StaleDocumentEpoch {
-            observed: observed_epoch,
-            current: current_epoch,
-        })
+        target.validate_current(&fixture.registry).err(),
+        Some(BrowserRegistryError::UnknownNodeAuthority)
     );
     Ok(())
 }
