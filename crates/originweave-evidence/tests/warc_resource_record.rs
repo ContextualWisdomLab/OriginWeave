@@ -171,6 +171,12 @@ fn resource_record_accepts_valid_mime_parameters_and_rejects_malformed_media_typ
         "application/http; msgtype=response",
         "multipart/form-data; boundary=example-boundary",
         "text/plain; note=\"a;b\"",
+        "text/plain; note=\"a;b\"; charset=utf-8",
+        "text/plain; note=\"a\\;b\"",
+        "text/plain; note=\"\t !\"",
+        "text/plain; note=\"\\\t\"",
+        "text/plain; note=\"\\ \"",
+        "text/plain; note=\"\\!\"",
     ] {
         let record = build(content_type).expect("valid WARC MIME media type");
         assert_eq!(record.content_type(), content_type);
@@ -186,6 +192,11 @@ fn resource_record_accepts_valid_mime_parameters_and_rejects_malformed_media_typ
         "text/plain; =utf-8",
         "text/plain; charset=",
         "text/(plain)",
+        "text/plain; note=(x",
+        "text/plain; note=\"unterminated",
+        "text/plain; note=\"a\"b\"",
+        "text/plain; note=\"a\nb\"",
+        "text/plain; note=\"\\\u{7f}\"",
     ] {
         assert_eq!(
             build(content_type),
