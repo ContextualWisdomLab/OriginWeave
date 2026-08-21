@@ -319,7 +319,11 @@ const fn is_mime_token_byte(byte: u8) -> bool {
 }
 
 const fn valid_quoted_text_byte(byte: u8) -> bool {
-    byte == b'\t' || byte == b' ' || byte == b'!' || (byte >= 0x23 && byte <= 0x5b) || (byte >= 0x5d && byte <= 0x7e)
+    byte == b'\t'
+        || byte == b' '
+        || byte == b'!'
+        || (byte >= 0x23 && byte <= 0x5b)
+        || (byte >= 0x5d && byte <= 0x7e)
 }
 
 const fn valid_quoted_pair_byte(byte: u8) -> bool {
