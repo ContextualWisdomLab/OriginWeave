@@ -132,7 +132,7 @@ mod tests {
 
     use crate::{MAX_WEBSOCKET_FRAME_TIMEOUT, WebDriverBiDiWebSocketFrameError};
 
-    use super::{remaining_exchange_budget, WebDriverBiDiLocateNodesExchangeError};
+    use super::{WebDriverBiDiLocateNodesExchangeError, remaining_exchange_budget};
 
     #[test]
     fn exchange_budget_consumes_elapsed_time_instead_of_resetting_for_read() {
