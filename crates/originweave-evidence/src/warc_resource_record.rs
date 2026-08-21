@@ -24,7 +24,7 @@ pub enum WarcResourceRecordError {
     InvalidContentType,
     /// A record field or payload exceeded its retention limit.
     LimitExceeded,
-    /// The WARC target URI contained a disallowed control or invisible formatting character.
+    /// The WARC target URI contained octets outside RFC 3986 URI syntax.
     InvalidTargetUri,
     /// The WARC target URI differed from its provenance source URL.
     TargetUriMismatch,
@@ -259,16 +259,17 @@ fn is_leap_year(year: u16) -> bool {
 }
 
 fn valid_target_uri_presentation(target_uri: &str) -> bool {
-    !target_uri.chars().any(disallowed_target_uri_character)
+    target_uri.bytes().all(is_rfc3986_uri_byte)
 }
 
-fn disallowed_target_uri_character(character: char) -> bool {
-    let code_point = character as u32;
-    character.is_control()
-        || character.is_whitespace()
+const fn is_rfc3986_uri_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric()
         || matches!(
-            code_point,
-            0x00ad | 0x061c | 0x200b..=0x200f | 0x2028..=0x202e | 0x2060..=0x206f | 0xfeff
+            byte,
+            b'-' | b'.' | b'_' | b'~'
+                | b':' | b'/' | b'?' | b'#' | b'[' | b']' | b'@'
+                | b'!' | b'$' | b'&' | b'\'' | b'(' | b')' | b'*' | b'+' | b',' | b';' | b'='
+                | b'%'
         )
 }
 
