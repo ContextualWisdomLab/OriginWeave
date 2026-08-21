@@ -115,6 +115,8 @@ fn resource_record_rejects_invalid_identifiers_dates_content_and_limits() {
         "2026-08-21T00:00:00X",
         "2026-08-21T00:61:00Z",
         "2026-08-21T00:00:61Z",
+        "2026-08-21T12:34:60Z",
+        "2026-06-30T23:58:60Z",
     ] {
         assert_eq!(
             valid(RECORD_ID, date, "text/plain", Vec::new()),
