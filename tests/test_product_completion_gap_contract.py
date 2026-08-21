@@ -18,8 +18,8 @@ class ProductCompletionGapContractTests(unittest.TestCase):
 
         for phrase in (
             "150 open pull requests",
-            "38 non-draft",
-            "112 draft",
+            "39 non-draft",
+            "111 draft",
             "#198",
             "#199",
             "#200",
