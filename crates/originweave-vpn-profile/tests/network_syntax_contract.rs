@@ -44,6 +44,7 @@ fn wireguard_rejects_invalid_interface_network_syntax_before_secret_import() {
         "[Interface]\nAddress=10.0.0.2/+32\nPrivateKey=k",
         "[Interface]\nAddress=10.0.0.2/032\nPrivateKey=k",
         "[Interface]\nAddress=10.0.0.2/32\nDNS=999.1.1.1\nPrivateKey=k",
+        "[Interface]\nAddress=10.0.0.2/32\nDNS=bad_domain\nPrivateKey=k",
     ] {
         reject_wireguard(profile);
     }
