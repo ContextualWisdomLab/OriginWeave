@@ -15,7 +15,7 @@ class ManifestV3TransportProtocolExceptionContractTests(unittest.TestCase):
     """Keep recoverable HTTP parser failures inside the typed runner boundary."""
 
     def test_http_protocol_exceptions_are_classified_without_raw_transport_text(self) -> None:
-        """BadStatusLine and IncompleteRead must become one bounded RuntimeError."""
+        """Parser failures must become bounded errors with no retained raw exception chain."""
 
         namespace = runpy.run_path(str(RUNNER), run_name="mv3_transport_contract")
         json_request = namespace["_json_request"]
@@ -64,6 +64,8 @@ class ManifestV3TransportProtocolExceptionContractTests(unittest.TestCase):
                 self.assertNotIn("secret-token", rendered)
                 self.assertNotIn("/home/runner/private", rendered)
                 self.assertNotIn("example.invalid", rendered)
+                self.assertIsNone(raised.exception.__cause__)
+                self.assertIsNone(raised.exception.__context__)
 
 
 if __name__ == "__main__":
