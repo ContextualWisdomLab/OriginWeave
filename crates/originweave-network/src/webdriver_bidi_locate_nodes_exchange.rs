@@ -165,22 +165,24 @@ mod tests {
     #[test]
     fn exchange_budget_consumes_elapsed_time_instead_of_resetting_for_read() {
         let total = Duration::from_millis(500);
-        assert!(matches!(
-            remaining_exchange_budget(total, Duration::from_millis(175)),
-            Ok(remaining) if remaining == Duration::from_millis(325)
-        ));
-        assert!(matches!(
-            remaining_exchange_budget(total, total),
-            Err(WebDriverBiDiLocateNodesExchangeError::ExchangeDeadlineExceeded {
-                exchange_timeout
-            }) if exchange_timeout == total
-        ));
-        assert!(matches!(
-            remaining_exchange_budget(total, Duration::from_millis(501)),
-            Err(WebDriverBiDiLocateNodesExchangeError::ExchangeDeadlineExceeded {
-                exchange_timeout
-            }) if exchange_timeout == total
-        ));
+        assert_eq!(
+            format!(
+                "{:?}",
+                remaining_exchange_budget(total, Duration::from_millis(175))
+            ),
+            "Ok(325ms)"
+        );
+        assert_eq!(
+            format!("{:?}", remaining_exchange_budget(total, total)),
+            "Err(ExchangeDeadlineExceeded { exchange_timeout: 500ms })"
+        );
+        assert_eq!(
+            format!(
+                "{:?}",
+                remaining_exchange_budget(total, Duration::from_millis(501))
+            ),
+            "Err(ExchangeDeadlineExceeded { exchange_timeout: 500ms })"
+        );
     }
 
     #[test]

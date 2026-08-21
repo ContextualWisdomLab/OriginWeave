@@ -150,7 +150,8 @@ fn establish_with_server_frame(response_frame: &[u8]) -> EstablishedFixture {
 }
 
 fn locate_nodes_command() -> WebDriverBiDiLocateNodesCommand {
-    let query = WebDriverBiDiAccessibilityQuery::new(Some("button"), Some("Checkout"), 2);
+    let name = "x".repeat(512);
+    let query = WebDriverBiDiAccessibilityQuery::new(Some("button"), Some(&name), 2);
     assert!(query.is_ok(), "{query:?}");
     let Ok(query) = query else {
         unreachable!("asserted valid test query")
@@ -258,6 +259,37 @@ fn established_stream_exchanges_exact_locate_nodes_command_and_correlates_wire_r
             assert_eq!(actual_command, expected_command);
         }
     }
+}
+
+#[test]
+fn exchange_deadline_is_not_reset_after_the_frame_write() {
+    let response_frame = server_frame(0x81, RESPONSE_DOCUMENT.as_bytes());
+    assert!(response_frame.is_ok(), "{response_frame:?}");
+    let Ok(response_frame) = response_frame else {
+        return;
+    };
+    let fixture = establish_with_server_frame(&response_frame);
+    assert!(fixture.is_ok(), "{fixture:?}");
+    let Ok((_, established, server)) = fixture else {
+        return;
+    };
+
+    let error = established.exchange_locate_nodes(
+        locate_nodes_command(),
+        WebDriverBiDiWebSocketMaskKey::new([0x11, 0x22, 0x33, 0x44]),
+        Duration::from_micros(20),
+    );
+    assert!(error.is_err(), "{error:?}");
+    let Err(error) = error else {
+        unreachable!("asserted exhausted exchange deadline")
+    };
+    assert_eq!(
+        error.to_string(),
+        "WebDriver BiDi locateNodes exchange exhausted its 20µs end-to-end deadline before response read"
+    );
+
+    let server_result = server.join();
+    assert!(server_result.is_ok(), "{server_result:?}");
 }
 
 #[test]
