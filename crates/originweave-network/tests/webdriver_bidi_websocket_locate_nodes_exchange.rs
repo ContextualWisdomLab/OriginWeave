@@ -177,6 +177,7 @@ fn exchange_error(
     let error = established.exchange_locate_nodes(
         locate_nodes_command(),
         WebDriverBiDiWebSocketMaskKey::new([0x11, 0x22, 0x33, 0x44]),
+        || None,
         frame_timeout,
     );
     assert!(error.is_err(), "{error:?}");
@@ -224,6 +225,7 @@ fn established_stream_exchanges_exact_locate_nodes_command_and_correlates_wire_r
     let exchanged = established.exchange_locate_nodes(
         command,
         WebDriverBiDiWebSocketMaskKey::new([0x11, 0x22, 0x33, 0x44]),
+        || None,
         Duration::from_millis(500),
     );
     assert!(exchanged.is_ok(), "{exchanged:?}");
@@ -277,6 +279,7 @@ fn exchange_deadline_is_not_reset_after_the_frame_write() {
     let error = established.exchange_locate_nodes(
         locate_nodes_command(),
         WebDriverBiDiWebSocketMaskKey::new([0x11, 0x22, 0x33, 0x44]),
+        || None,
         Duration::from_micros(20),
     );
     assert!(error.is_err(), "{error:?}");
@@ -285,7 +288,7 @@ fn exchange_deadline_is_not_reset_after_the_frame_write() {
     };
     assert_eq!(
         error.to_string(),
-        "WebDriver BiDi locateNodes exchange exhausted its 20µs end-to-end deadline before response read"
+        "WebDriver BiDi locateNodes exchange exhausted its 20µs end-to-end deadline before the next operation"
     );
 
     let server_result = server.join();
@@ -311,6 +314,7 @@ fn exchange_rejects_a_non_final_or_non_text_response_frame() {
         let error = established.exchange_locate_nodes(
             locate_nodes_command(),
             WebDriverBiDiWebSocketMaskKey::new([0x11, 0x22, 0x33, 0x44]),
+            || None,
             Duration::from_millis(500),
         );
         assert!(error.is_err(), "{error:?}");

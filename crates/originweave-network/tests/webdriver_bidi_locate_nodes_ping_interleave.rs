@@ -99,7 +99,7 @@ fn locate_nodes_command() -> Result<WebDriverBiDiLocateNodesCommand, Box<dyn Err
 }
 
 #[test]
-fn locate_nodes_exchange_answers_interleaved_ping_before_admitting_response(
+fn locate_nodes_exchange_answers_ping_and_ignores_unsolicited_pong_before_response(
 ) -> Result<(), Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
@@ -110,12 +110,13 @@ fn locate_nodes_exchange_answers_interleaved_ping_before_admitting_response(
             b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n",
         )?;
         let command = read_masked_client_frame(&mut stream, 0x81)?;
-        let mut ping_frame = vec![0x89, u8::try_from(PING_PAYLOAD.len()).map_err(|_| {
+        let ping_length = u8::try_from(PING_PAYLOAD.len()).map_err(|_| {
             io::Error::new(io::ErrorKind::InvalidData, "test Ping payload exceeded one-byte length")
-        })?];
-        ping_frame.extend_from_slice(PING_PAYLOAD);
-        stream.write_all(&ping_frame)?;
+        })?;
+        stream.write_all(&[0x89, ping_length])?;
+        stream.write_all(PING_PAYLOAD)?;
         let pong = read_masked_client_frame(&mut stream, 0x8a)?;
+        stream.write_all(&[0x8a, 0])?;
         let response_length = u8::try_from(RESPONSE_DOCUMENT.len()).map_err(|_| {
             io::Error::new(io::ErrorKind::InvalidData, "test response exceeded one-byte length")
         })?;
@@ -131,15 +132,17 @@ fn locate_nodes_exchange_answers_interleaved_ping_before_admitting_response(
     let established = written.read_opening_response(Duration::from_millis(500))?;
     let command = locate_nodes_command()?;
     let expected_command = command.as_json().as_bytes().to_vec();
+    let mut pong_keys = [WebDriverBiDiWebSocketMaskKey::new([0x51, 0x52, 0x53, 0x54])].into_iter();
     let exchanged = established.exchange_locate_nodes(
         command,
         WebDriverBiDiWebSocketMaskKey::new([0x11, 0x22, 0x33, 0x44]),
+        || pong_keys.next(),
         Duration::from_millis(500),
     );
 
     let server_result = server
         .join()
-        .map_err(|_| io::Error::other("interleaved Ping test server panicked"))?;
+        .map_err(|_| io::Error::other("interleaved control-frame test server panicked"))?;
     assert!(exchanged.is_ok(), "{exchanged:?}");
     assert!(server_result.is_ok(), "{server_result:?}");
     let (received_command, received_pong) = server_result?;
