@@ -39,7 +39,7 @@ fn direct_connection(
         1,
     )
     .expect("fresh direct connection plan")
-    .connect_at(RESOLUTION_AUTHORIZED_AT)
+    .connect(RESOLUTION_AUTHORIZED_AT)
     .expect("loopback TCP connection")
 }
 
