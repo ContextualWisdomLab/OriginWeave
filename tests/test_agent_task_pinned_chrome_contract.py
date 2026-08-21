@@ -185,6 +185,10 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
         self.assertIn("PR #71", traceability)
         self.assertIn("computed role/name", traceability)
         self.assertIn("computed role/name", fitness)
+        self.assertIn("browser-process RSS", changelog)
+        self.assertIn("PR #72", traceability)
+        self.assertIn("resource evidence", traceability)
+        self.assertIn("resource evidence", fitness)
 
 
 if __name__ == "__main__":

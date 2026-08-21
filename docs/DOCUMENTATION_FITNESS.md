@@ -164,9 +164,9 @@ Active #65 supplies a deterministic synthetic local web fixture with a labelled 
 
 ### 3.20 Bounded browser process-set resource evidence
 
-Active #51→#66 establishes two distinct layers: #51 owns single explicitly supplied Linux PID sampling and the bounded telemetry value boundary; #66 owns bounded duplicate-safe aggregation/sampling over an exact caller-owned PID set. #66's exact current contract rejects empty, zero-PID, duplicate, oversized and overflow states and fails closed if any member cannot be sampled.
+Active #51→#66 establishes two distinct layers: #51 owns single explicitly supplied Linux PID sampling and the bounded telemetry value boundary; #66 owns bounded duplicate-safe aggregation/sampling over an exact caller-owned PID set. #66's exact current contract rejects empty, zero-PID, duplicate, oversized and overflow states and fails closed if any member cannot be sampled. Active PR #72 records browser-process RSS, semantic-observation bytes, action latency, and task duration for the controlled pinned-Chrome fixture from bounded trusted adapter inputs.
 
-**Resolution:** aggregate resource measurement must not silently undercount a known caller-owned process set, but process membership remains an external attribution responsibility. The implementation does not discover Chromium PIDs, prove process ancestry/task ownership, walk cgroups, sample GPU/VRAM or create a durable telemetry store.
+**Resolution:** aggregate resource measurement must not silently undercount a known caller-owned process set, but process membership remains an external attribution responsibility. PR #72 is bounded resource evidence for test repeatability; it does not discover Chromium PIDs, prove process ancestry/task ownership, walk cgroups, sample GPU/VRAM or create a durable telemetry store, and does not turn the fixture into a product resource adapter.
 
 ## 4. Durable product decisions captured by the canonical graph
 
