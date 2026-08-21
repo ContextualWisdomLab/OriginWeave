@@ -5,7 +5,7 @@
 //! disclose protected values, persist artifacts, execute models, or grant any
 //! browser, network, secret, approval, or storage authority.
 
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, fmt};
 
 /// Maximum encoded byte length for an extraction schema or field identifier.
 pub const MAX_EXTRACTION_IDENTIFIER_BYTES: usize = 128;
@@ -82,6 +82,24 @@ pub enum ExtractionSchemaError {
     /// A schema declared the same field identifier more than once.
     DuplicateField,
 }
+
+impl fmt::Display for ExtractionSchemaError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::InvalidIdentifier => "invalid extraction schema identifier",
+            Self::LimitExceeded => "extraction schema limit exceeded",
+            Self::MissingSourceChannel => "extraction field requires at least one source channel",
+            Self::DuplicateSourceChannel => "extraction field contains a duplicate source channel",
+            Self::InvalidNormalizationRule => {
+                "extraction normalization rule is incompatible with the field value type"
+            }
+            Self::MissingField => "extraction schema requires at least one field",
+            Self::DuplicateField => "extraction schema contains a duplicate field identifier",
+        })
+    }
+}
+
+impl std::error::Error for ExtractionSchemaError {}
 
 /// One typed field declared by a versioned extraction schema.
 #[derive(Debug, Clone, PartialEq, Eq)]
