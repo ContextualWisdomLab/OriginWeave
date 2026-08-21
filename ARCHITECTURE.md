@@ -138,7 +138,7 @@ Owns universally value-redacted network evidence and source-bound provenance rec
 
 ### `originweave-bap`
 
-The active BAP lane owns the in-memory task lifecycle and immutable command-receipt contract. A receipt binds a bounded idempotency key and task identifier to one accepted lifecycle event; it can identify an exact retry but is not durable deduplication, authentication, policy authority, transport, browser state, or side-effect suppression.
+The active BAP lane owns the in-memory task lifecycle and immutable command-receipt contract. A receipt binds a bounded tenant namespace, idempotency key, and task identifier to one accepted lifecycle event; the caller-supplied tenant namespace scopes retry identity only and is not authentication. The receipt can identify an exact retry but is not durable deduplication, policy authority, transport, browser state, or side-effect suppression.
 
 ## 6. Planned modules
 

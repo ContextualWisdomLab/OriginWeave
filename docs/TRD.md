@@ -127,9 +127,11 @@ Navigation, document replacement, or another adapter-defined actionable-document
 Commands that can be replayed through retries or operator recovery require explicit idempotency semantics. Idempotency keys are scoped at least by tenant/task/action contract and cannot turn a semantically different action into the same request.
 
 The active `originweave-bap` lifecycle lane provides only the bounded in-memory
-portion of this contract: an immutable command receipt binds a key and task ID to
-one accepted lifecycle transition. Durable storage, tenant scope, concurrent
-deduplication, and externally visible side-effect suppression remain unimplemented.
+portion of this contract: an immutable command receipt binds a tenant namespace,
+key, and task ID to one accepted lifecycle transition. The caller-supplied tenant
+namespace scopes retry identity only; it is not authenticated tenant authority.
+Durable storage, authenticated tenant binding, concurrent deduplication, and
+externally visible side-effect suppression remain unimplemented.
 
 ## 6. Network authority stack
 
