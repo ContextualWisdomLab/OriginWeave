@@ -71,7 +71,7 @@ ADR lifecycle is separate and remains `Proposed`, `Accepted`, `Superseded`, `Dep
 | WebDriver BiDi / CDP / WebMCP / MCP are adapters, not internal authority | ACCEPTED_ARCHITECTURE | PRD Section 9.8; TRD Section 12 | Protocol adapter implementation remains Planned/active under issue #28; active PR #40 may not be called shipped |
 | Manifest V3 compatibility is preserved upstream where practical | PARTIAL | ADR 0001; issue #27; Proposed ADR 0013 | Protected main has pinned real-Chromium compatibility evidence for service worker/content script/storage/DNR/tabs/windows/scripting/commands/side panel/bookmarks/history/restart/repeatability; active PR #43 adds real bounded downloads evidence; full issue #27 matrix remains incomplete |
 | Extension permission does not imply OriginWeave Agent capability | PARTIAL | protected-main extension authority kernel; Proposed ADR 0013 | Core extension-to-Agent authority isolation exists on protected main; complete managed-extension/native-messaging/enterprise release policy remains incomplete |
-| WARC/PROV-oriented durable evidence adapters | PLANNED | ADR 0003; PRD-EVD-005 | Source/provenance kernel foundation exists; persistence/export adapters remain Planned |
+| WARC/PROV-oriented durable evidence adapters | PARTIAL | ADR 0003; PRD-EVD-005 | The active extraction lane adds a verified, bounded in-memory WARC 1.1 `resource` record contract; durable persistence/export adapters remain Planned |
 | Origin Map visualizes value/action provenance | PLANNED | PRD-EVD-004; this traceability record | No shipped UI claim |
 | Browser / Runtime / Observe / Capture / Governor / Policy / Evidence / Protocol / SDK product surfaces | PARTIAL | PRD Section 6 | Some foundations exist under crates; named commercial surfaces are not all shipped artifacts |
 | Constrained GPU phase scheduling for browser rendering vs local inference | PARTIAL | PRD-RES-005; TRD Section 10 | Deterministic resource plan exists; real GPU scheduler/telemetry remains Planned |
@@ -99,7 +99,7 @@ ADR lifecycle is separate and remains `Proposed`, `Accepted`, `Superseded`, `Dep
 | Purpose-bound sensitive-data policy/evidence | `originweave-policy` + evidence foundations; active lifecycle/reservation work #45/#46 | ADR 0007; issue #10 | PARTIAL |
 | Trusted sensitive-data broker/storage/lifecycle | future bounded service/crate | issue #10; PRD/TRD/data governance | PLANNED |
 | BiDi/CDP/WebMCP/MCP | future/versioned adapter crates; registry prerequisite active in #40 | protocol compatibility tests required | PLANNED |
-| WARC/PROV persistence | persistence/export adapters | doctoring + future conformance tests | PLANNED |
+| WARC/PROV persistence | persistence/export adapters | doctoring + future conformance tests | PARTIAL - active extraction lane has a bounded in-memory WARC `resource` contract; durable persistence and PROV serialization remain Planned |
 
 ## 5. Requirement-to-ADR trace
 

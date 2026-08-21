@@ -134,7 +134,7 @@ Owns validated task budgets and deterministic cumulative mitigation plans. Platf
 
 ### `originweave-evidence`
 
-Owns universally value-redacted network evidence and source-bound provenance records. Generic network records retain only bounded method, canonical origin, unambiguous bounded path, and bounded field names. Body capture, typed metadata values, WARC serialization, object storage, retention, encryption, and legal policy remain future bounded modules.
+Owns universally value-redacted network evidence and source-bound provenance records. Generic network records retain only bounded method, canonical origin, unambiguous bounded path, and bounded field names. The active extraction lane adds a verified, bounded in-memory WARC 1.1 `resource` record contract over already-authorized bytes; object storage, retention, encryption, legal policy, request/response capture, and PROV export remain future bounded modules.
 
 ## 6. Planned modules
 

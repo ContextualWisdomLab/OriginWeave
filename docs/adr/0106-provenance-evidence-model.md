@@ -9,6 +9,14 @@
 
 OriginWeave must not merely act; it must let a user, operator, auditor, or downstream system establish what was observed, authorized, executed, and verified. Browser logs alone are not sufficient because they collapse observation, policy, action, network identity, approvals, and post-conditions. At the same time, evidence can itself contain sensitive or attacker-controlled content. The product needs a durable model compatible with web-archive and provenance concepts without claiming that every conceptual record is already persisted.
 
+## Active implementation boundary
+
+The extraction lane currently implements one bounded, verified in-memory WARC 1.1
+`resource` record contract over already-authorized bytes. It binds the WARC target
+URI to independently verified provenance, computes a SHA-256 block digest, and
+emits deterministic record bytes. This is active-PR evidence rather than a claim
+of durable storage, tenant retention, request/response capture, or PROV export.
+
 ## Decision drivers
 
 - `Browse. Act. Prove.` requires evidence as a first-class product output.
