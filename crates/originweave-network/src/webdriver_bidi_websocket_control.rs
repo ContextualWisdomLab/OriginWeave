@@ -6,8 +6,8 @@ use std::{
 };
 
 use crate::{
-    MAX_WEBSOCKET_FRAME_TIMEOUT, WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrameError,
-    WebDriverBiDiWebSocketMaskKey,
+    MAX_WEBSOCKET_FRAME_TIMEOUT, WebDriverBiDiWebSocketEstablished,
+    WebDriverBiDiWebSocketFrameError, WebDriverBiDiWebSocketMaskKey,
 };
 
 const MAX_WEBSOCKET_CONTROL_FRAME_PAYLOAD_BYTES: usize = 125;
@@ -31,10 +31,7 @@ fn validate_pong_parameters(
     Ok(())
 }
 
-fn serialize_pong_frame(
-    payload: &[u8],
-    masking_key: WebDriverBiDiWebSocketMaskKey,
-) -> Vec<u8> {
+fn serialize_pong_frame(payload: &[u8], masking_key: WebDriverBiDiWebSocketMaskKey) -> Vec<u8> {
     let mut frame = Vec::with_capacity(payload.len() + 6);
     frame.push(0x8a);
     frame.push(0x80 | payload.len() as u8);
@@ -75,7 +72,10 @@ fn write_pong_frame_with_clock(
         if remaining.is_zero() {
             return Err(WebDriverBiDiWebSocketFrameError::FrameWriteTimedOut {
                 bytes_written,
-                source: io::Error::new(io::ErrorKind::TimedOut, "Pong frame write deadline elapsed"),
+                source: io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "Pong frame write deadline elapsed",
+                ),
             });
         }
         writer
@@ -213,10 +213,7 @@ mod tests {
             Err(WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout { .. })
         ));
         assert!(matches!(
-            validate_pong_parameters(
-                0,
-                MAX_WEBSOCKET_FRAME_TIMEOUT + Duration::from_nanos(1)
-            ),
+            validate_pong_parameters(0, MAX_WEBSOCKET_FRAME_TIMEOUT + Duration::from_nanos(1)),
             Err(WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout { .. })
         ));
         assert!(matches!(
@@ -252,9 +249,7 @@ mod tests {
             WriteAction::Error(io::ErrorKind::WouldBlock),
             WriteAction::Count(6),
         ]);
-        assert!(
-            write_with_fake(&mut would_block, [start, start, start, start]).is_ok()
-        );
+        assert!(write_with_fake(&mut would_block, [start, start, start, start]).is_ok());
     }
 
     #[test]
@@ -275,10 +270,12 @@ mod tests {
         configure.timeout_error = Some(io::ErrorKind::PermissionDenied);
         assert!(matches!(
             write_with_fake(&mut configure, [start, start]),
-            Err(WebDriverBiDiWebSocketFrameError::FrameWriteModeConfigurationFailed {
-                bytes_written: 0,
-                ..
-            })
+            Err(
+                WebDriverBiDiWebSocketFrameError::FrameWriteModeConfigurationFailed {
+                    bytes_written: 0,
+                    ..
+                }
+            )
         ));
 
         let mut zero = FakeWriter::new([WriteAction::Count(0)]);
