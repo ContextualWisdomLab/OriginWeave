@@ -39,6 +39,8 @@ REPEATABILITY_TRIALS = 3
 REQUEST_TIMEOUT_SECONDS = 5.0
 STARTUP_TIMEOUT_SECONDS = 20.0
 FIXTURE_TIMEOUT_SECONDS = 20.0
+PROCESS_GROUP_EXIT_TIMEOUT_SECONDS = 5.0
+PROCESS_GROUP_EXIT_POLL_SECONDS = 0.05
 MAX_WEBDRIVER_RESPONSE_BYTES = 1_048_576
 MAX_CHROMEDRIVER_STARTUP_LINE_BYTES = 512
 CHROMEDRIVER_BOUND_PORT_PREFIX = "ChromeDriver was started successfully on port "
@@ -397,14 +399,51 @@ def _exercise_real_click(driver_port: int, session_id: str) -> str:
     return str(text)
 
 
+def _wait_for_process_group_exit(process_group_id: int) -> Exception | None:
+    """Wait a bounded interval until one isolated process group no longer exists."""
+
+    deadline = time.monotonic() + PROCESS_GROUP_EXIT_TIMEOUT_SECONDS
+    while True:
+        try:
+            os.killpg(process_group_id, 0)
+        except ProcessLookupError:
+            return None
+        except OSError as error:
+            return error
+        if time.monotonic() >= deadline:
+            return RuntimeError(
+                "ChromeDriver process group remained alive after bounded teardown"
+            )
+        time.sleep(PROCESS_GROUP_EXIT_POLL_SECONDS)
+
+
+def _kill_and_reap_process_group(
+    driver: subprocess.Popen[bytes], process_group_id: int
+) -> Exception | None:
+    """Force one surviving isolated process group down and verify bounded disappearance."""
+
+    try:
+        os.killpg(process_group_id, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    except OSError as kill_error:
+        return kill_error
+    try:
+        driver.wait(timeout=5)
+    except (OSError, subprocess.TimeoutExpired) as wait_error:
+        return wait_error
+    return _wait_for_process_group_exit(process_group_id)
+
+
 def _teardown_driver_process(driver: subprocess.Popen[bytes]) -> Exception | None:
     """Reap ChromeDriver and, for real Popen instances, its isolated process group.
 
     Production ChromeDriver launches expose a positive `pid` and run in a fresh
-    process session, so teardown first signals the entire process group with
-    bounded SIGTERM→SIGKILL recovery. A pid-less test double retains the older
-    bounded leader-only path so cleanup-failure contracts can isolate session
-    semantics without sending operating-system signals.
+    process session. Teardown signals the group with SIGTERM, reaps the leader,
+    verifies whether descendants still occupy the group, and applies bounded
+    SIGKILL recovery before reporting success. A pid-less test double retains the
+    older bounded leader-only path so cleanup-failure contracts can isolate
+    session semantics without sending operating-system signals.
     """
 
     driver_pid = getattr(driver, "pid", None)
@@ -418,19 +457,8 @@ def _teardown_driver_process(driver: subprocess.Popen[bytes]) -> Exception | Non
                 return wait_error
             return None
         except OSError as terminate_error:
-            try:
-                os.killpg(driver_pid, signal.SIGKILL)
-                driver.wait(timeout=5)
-            except ProcessLookupError:
-                try:
-                    driver.wait(timeout=5)
-                except (OSError, subprocess.TimeoutExpired) as wait_error:
-                    terminate_error.add_note(
-                        "bounded ChromeDriver process-group fallback reap failed: "
-                        f"{type(wait_error).__name__}"
-                    )
-                    return terminate_error
-            except (OSError, subprocess.TimeoutExpired) as fallback_error:
+            fallback_error = _kill_and_reap_process_group(driver, driver_pid)
+            if fallback_error is not None:
                 terminate_error.add_note(
                     "bounded ChromeDriver process-group kill fallback also failed: "
                     f"{type(fallback_error).__name__}"
@@ -440,21 +468,18 @@ def _teardown_driver_process(driver: subprocess.Popen[bytes]) -> Exception | Non
 
         try:
             driver.wait(timeout=5)
-            return None
         except subprocess.TimeoutExpired:
-            try:
-                os.killpg(driver_pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            except OSError as kill_error:
-                return kill_error
-            try:
-                driver.wait(timeout=5)
-            except (OSError, subprocess.TimeoutExpired) as wait_error:
-                return wait_error
-            return None
+            return _kill_and_reap_process_group(driver, driver_pid)
         except OSError as wait_error:
             return wait_error
+
+        try:
+            os.killpg(driver_pid, 0)
+        except ProcessLookupError:
+            return None
+        except OSError as probe_error:
+            return probe_error
+        return _kill_and_reap_process_group(driver, driver_pid)
 
     try:
         driver.terminate()
