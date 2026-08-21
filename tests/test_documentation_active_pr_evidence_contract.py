@@ -9,6 +9,7 @@ DOCS = ROOT / "docs"
 FITNESS = DOCS / "DOCUMENTATION_FITNESS.md"
 MATURITY = DOCS / "evidence" / "2026-08-10-active-pr-maturity.md"
 BASELINE = DOCS / "product-technical-gap-baseline.md"
+CHANGELOG = ROOT / "CHANGELOG.md"
 
 
 def active_pr_row(text: str, pr_number: int) -> str:
@@ -30,6 +31,7 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         cls.fitness = FITNESS.read_text(encoding="utf-8")
         cls.maturity = MATURITY.read_text(encoding="utf-8")
         cls.baseline = BASELINE.read_text(encoding="utf-8")
+        cls.changelog = CHANGELOG.read_text(encoding="utf-8")
 
     def test_latest_live_pr_snapshot_is_recorded_in_the_product_baseline(self) -> None:
         """The baseline must preserve exact heads for the newest active product slices."""
@@ -43,6 +45,16 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, self.baseline)
+
+    def test_baseline_refresh_changelog_matches_the_live_snapshot(self) -> None:
+        """The changelog must classify and state the same baseline refresh."""
+        refresh = "Refreshed the product and technical gap baseline with the current open-PR inventory"
+        added = self.changelog.split("### Added", 1)[1].split("### Changed", 1)[0]
+        changed = self.changelog.split("### Changed", 1)[1].split("### Security", 1)[0]
+        self.assertIn(refresh, added)
+        self.assertNotIn(refresh, changed)
+        self.assertIn("150 open pull requests, 110 drafts", self.changelog)
+        self.assertNotIn("150 open pull requests, 112 drafts", self.changelog)
 
     def test_dependency_stacks_are_explicit_and_non_shipped(self) -> None:
         """Current browser, network, sensitive and compatibility stacks stay active-only."""
