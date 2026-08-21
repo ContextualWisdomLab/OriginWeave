@@ -4,13 +4,6 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
-### Changed
-
-- Kept the real MV3 compatibility lane sandboxed by installing the pinned Chrome for Testing archive's root-owned `chrome_sandbox` helper instead of passing `--no-sandbox`.
-- Pointed the pinned Chrome for Testing process at its installed `CHROME_DEVEL_SANDBOX` helper so the raw archive uses the configured setuid sandbox.
-- Recorded bounded ChromeDriver teardown timeouts as failed MV3 trials so cleanup faults preserve repeatability evidence instead of aborting the evidence line.
-- Retained only an allow-listed WebDriver protocol error code in bounded MV3 trial evidence, keeping browser-controlled error messages and transport text out of diagnostics.
-
 ### Added
 
 - Bound explicit extension-to-Agent grants to exclusive trusted-time expiry in addition to extension identity, session, browsing context, and canonical origin, so a same-origin grant cannot be reused at or after the deadline.
@@ -40,6 +33,11 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Kept the real MV3 compatibility lane sandboxed by installing the pinned Chrome for Testing archive's root-owned `chrome_sandbox` helper instead of passing `--no-sandbox`.
+- Pointed the pinned Chrome for Testing process at its installed `CHROME_DEVEL_SANDBOX` helper so the raw archive uses the configured setuid sandbox.
+- Recorded bounded ChromeDriver teardown timeouts as failed MV3 trials so cleanup faults preserve repeatability evidence instead of aborting the evidence line.
+- Retained only an allow-listed WebDriver protocol error code in bounded MV3 trial evidence, keeping browser-controlled error messages and transport text out of diagnostics.
+- Discarded raw HTTP parser exception context when classifying recoverable WebDriver transport-protocol failures, so malformed status-line or incomplete-body data cannot survive on the sanitized `RuntimeError` object through Python exception chaining.
 - Preserved Chromium's renderer sandbox in the real Manifest V3 compatibility runner by removing the `--no-sandbox` launch override; environments that cannot run the pinned browser with sandboxing enabled must fail the compatibility lane rather than weaken the security boundary.
 - Made malformed or oversized ChromeDriver startup-port candidate records non-authoritative within the existing bounded startup wait, so later valid startup output may recover while exact pinned-build `/status` identity remains mandatory before session creation.
 - Treated a failed graceful ChromeDriver termination as recoverable when the bounded hard-kill fallback successfully reaps the process, while preserving unrecovered fallback failures as teardown errors.
