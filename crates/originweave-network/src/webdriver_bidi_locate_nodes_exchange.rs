@@ -188,17 +188,146 @@ impl WebDriverBiDiWebSocketEstablished {
 
 #[cfg(test)]
 mod tests {
-    use std::{error::Error as _, time::Duration};
+    use std::{
+        error::Error as _,
+        io::{self, Read, Write},
+        net::{Shutdown, TcpListener, TcpStream},
+        thread,
+        time::Duration,
+    };
 
     use originweave_core::{
+        WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesCommand,
         WebDriverBiDiLocateNodesResponseDocumentError, WebDriverBiDiResponseDocumentAdmissionError,
+        WebDriverBiDiWebSocketEndpoint,
     };
 
-    use crate::{MAX_WEBSOCKET_FRAME_TIMEOUT, WebDriverBiDiWebSocketFrameError};
+    use crate::{
+        MAX_WEBSOCKET_FRAME_TIMEOUT, WebDriverBiDiTcpConnectionPlan,
+        WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketFrameError,
+        WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
+    };
 
     use super::{
-        WebDriverBiDiLocateNodesExchangeError, next_pong_masking_key, remaining_exchange_budget,
+        WebDriverBiDiLocateNodesExchangeError, WebDriverBiDiWebSocketEstablished,
+        next_pong_masking_key, remaining_exchange_budget,
     };
+
+    const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
+    const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
+    const PING_PAYLOAD: &[u8] = b"x";
+
+    fn connect(
+        endpoint: &str,
+    ) -> Result<crate::WebDriverBiDiTcpConnection, Box<dyn std::error::Error>> {
+        let admitted = WebDriverBiDiWebSocketEndpoint::new(endpoint)?;
+        let correlated = admitted.correlate_session_id(SESSION_ID)?;
+        let target = correlated.into_explicit_connect_target()?;
+        let plan = WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)?;
+        Ok(plan.connect()?)
+    }
+
+    fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
+        stream.set_read_timeout(Some(Duration::from_secs(2)))?;
+        let mut request = Vec::new();
+        let mut buffer = [0_u8; 512];
+        while !request.ends_with(b"\r\n\r\n") {
+            let count = stream.read(&mut buffer)?;
+            if count == 0 {
+                return Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "client opening request ended before the header terminator",
+                ));
+            }
+            request.extend_from_slice(&buffer[..count]);
+        }
+        Ok(())
+    }
+
+    fn read_masked_client_text_frame(stream: &mut TcpStream) -> io::Result<()> {
+        stream.set_read_timeout(Some(Duration::from_secs(2)))?;
+        let mut header = [0_u8; 2];
+        stream.read_exact(&mut header)?;
+        if header[0] != 0x81 || header[1] & 0x80 == 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "client command was not one final masked text frame",
+            ));
+        }
+        let payload_length = match header[1] & 0x7f {
+            value @ 0..=125 => usize::from(value),
+            126 => {
+                let mut extended = [0_u8; 2];
+                stream.read_exact(&mut extended)?;
+                usize::from(u16::from_be_bytes(extended))
+            }
+            127 => {
+                let mut extended = [0_u8; 8];
+                stream.read_exact(&mut extended)?;
+                usize::try_from(u64::from_be_bytes(extended)).map_err(|_| {
+                    io::Error::new(io::ErrorKind::InvalidData, "client command length overflowed")
+                })?
+            }
+            _ => unreachable!("7-bit WebSocket payload marker"),
+        };
+        let mut mask = [0_u8; 4];
+        stream.read_exact(&mut mask)?;
+        let mut payload = vec![0_u8; payload_length];
+        stream.read_exact(&mut payload)?;
+        Ok(())
+    }
+
+    fn locate_nodes_command(
+    ) -> Result<WebDriverBiDiLocateNodesCommand, Box<dyn std::error::Error>> {
+        let query =
+            WebDriverBiDiAccessibilityQuery::new(Some("button"), Some("Checkout"), 2)?;
+        Ok(WebDriverBiDiLocateNodesCommand::new(
+            7,
+            "top-level-context",
+            &query,
+        )?)
+    }
+
+    fn establish_with_ping(
+        keep_open: Duration,
+    ) -> Result<
+        (
+            WebDriverBiDiWebSocketEstablished,
+            thread::JoinHandle<io::Result<()>>,
+        ),
+        Box<dyn std::error::Error>,
+    > {
+        let listener = TcpListener::bind(("127.0.0.1", 0))?;
+        let local_addr = listener.local_addr()?;
+        let server = thread::spawn(move || -> io::Result<()> {
+            let (mut stream, _) = listener.accept()?;
+            read_opening_request(&mut stream)?;
+            stream.write_all(
+                b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n",
+            )?;
+            read_masked_client_text_frame(&mut stream)?;
+            stream.write_all(&[0x89, PING_PAYLOAD.len() as u8])?;
+            stream.write_all(PING_PAYLOAD)?;
+            thread::sleep(keep_open);
+            Ok(())
+        });
+
+        let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+        let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?;
+        let plan = WebDriverBiDiWebSocketHandshakePlan::new(connect(&endpoint)?, key)?;
+        let written = plan.write_opening_request(Duration::from_millis(500))?;
+        let established = written.read_opening_response(Duration::from_millis(500))?;
+        Ok((established, server))
+    }
+
+    fn join_server(
+        server: thread::JoinHandle<io::Result<()>>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let result = server
+            .join()
+            .map_err(|_| io::Error::other("Ping failure test server panicked"))?;
+        Ok(result?)
+    }
 
     #[test]
     fn exchange_budget_consumes_elapsed_time_instead_of_resetting() {
@@ -225,15 +354,87 @@ mod tests {
 
     #[test]
     fn pong_masking_key_source_fails_closed_when_entropy_is_unavailable() {
-        let expected = crate::WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]);
+        let expected = WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]);
         let mut available = || Some(expected);
         assert_eq!(next_pong_masking_key(&mut available).ok(), Some(expected));
 
         let mut unavailable = || None;
-        assert!(matches!(
-            next_pong_masking_key(&mut unavailable),
-            Err(WebDriverBiDiLocateNodesExchangeError::PongMaskingKeyUnavailable)
-        ));
+        let unavailable_error = next_pong_masking_key(&mut unavailable);
+        assert_eq!(
+            format!("{unavailable_error:?}"),
+            "Err(PongMaskingKeyUnavailable)"
+        );
+    }
+
+    #[test]
+    fn ping_exchange_fails_closed_when_pong_entropy_is_unavailable(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let (established, server) = establish_with_ping(Duration::from_millis(100))?;
+        let exchanged = established.exchange_locate_nodes(
+            locate_nodes_command()?,
+            WebDriverBiDiWebSocketMaskKey::new([0x11, 0x22, 0x33, 0x44]),
+            &mut || None,
+            Duration::from_secs(1),
+        );
+        let error = exchanged.err().ok_or_else(|| {
+            io::Error::other("Ping without caller entropy unexpectedly succeeded")
+        })?;
+        assert_eq!(
+            error.to_string(),
+            "WebDriver BiDi locateNodes exchange received Ping without a fresh caller-supplied Pong masking key"
+        );
+        join_server(server)
+    }
+
+    #[test]
+    fn ping_exchange_charges_entropy_callback_time_to_the_end_to_end_deadline(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let (established, server) = establish_with_ping(Duration::from_millis(650))?;
+        let pong_key = WebDriverBiDiWebSocketMaskKey::new([0x51, 0x52, 0x53, 0x54]);
+        let exchanged = established.exchange_locate_nodes(
+            locate_nodes_command()?,
+            WebDriverBiDiWebSocketMaskKey::new([0x11, 0x22, 0x33, 0x44]),
+            &mut || {
+                thread::sleep(Duration::from_millis(550));
+                Some(pong_key)
+            },
+            Duration::from_millis(500),
+        );
+        let error = exchanged.err().ok_or_else(|| {
+            io::Error::other("slow Pong entropy callback unexpectedly reset the exchange deadline")
+        })?;
+        assert_eq!(
+            error.to_string(),
+            "WebDriver BiDi locateNodes exchange exhausted its 500ms end-to-end deadline before the next operation"
+        );
+        join_server(server)
+    }
+
+    #[test]
+    fn ping_exchange_preserves_pong_write_failure_as_the_first_causal_error(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let (established, server) = establish_with_ping(Duration::from_millis(100))?;
+        let shutdown_stream = established.stream.try_clone()?;
+        let pong_key = WebDriverBiDiWebSocketMaskKey::new([0x51, 0x52, 0x53, 0x54]);
+        let exchanged = established.exchange_locate_nodes(
+            locate_nodes_command()?,
+            WebDriverBiDiWebSocketMaskKey::new([0x11, 0x22, 0x33, 0x44]),
+            &mut || {
+                assert!(shutdown_stream.shutdown(Shutdown::Both).is_ok());
+                Some(pong_key)
+            },
+            Duration::from_secs(1),
+        );
+        let error = exchanged
+            .err()
+            .ok_or_else(|| io::Error::other("revoked Pong stream unexpectedly remained usable"))?;
+        assert!(
+            error
+                .to_string()
+                .starts_with("WebDriver BiDi locateNodes WebSocket frame exchange failed:")
+        );
+        assert!(error.source().is_some());
+        join_server(server)
     }
 
     #[test]
