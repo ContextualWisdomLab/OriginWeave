@@ -51,6 +51,27 @@ fn semantic_observation_rejects_forged_primary_node_authority()
 }
 
 #[test]
+fn semantic_observation_rejects_forged_parent_node_authority()
+-> Result<(), Box<dyn std::error::Error>> {
+    let (registry, bound) = bound_observation_fixture()?;
+    let forged_parent = ObservedNodeHandle::new(
+        bound.browser_session(),
+        bound.browsing_context(),
+        bound.origin().clone(),
+        bound.document_epoch(),
+        bound.node_id() + 10_000,
+    )?;
+    let mut observation_input = input(bound);
+    observation_input.parent = Some(forged_parent);
+
+    assert_eq!(
+        SemanticNodeObservation::new(observation_input, &registry).err(),
+        Some(SemanticNodeObservationError::UnknownNodeAuthority)
+    );
+    Ok(())
+}
+
+#[test]
 fn semantic_observation_rejects_forged_related_node_authority()
 -> Result<(), Box<dyn std::error::Error>> {
     let (registry, bound) = bound_observation_fixture()?;
