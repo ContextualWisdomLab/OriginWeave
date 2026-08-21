@@ -78,6 +78,13 @@ session creation
 -> task close/recovery
 ```
 
+Active PR #70 exercises the controlled local Agent Task fixture on the pinned
+Chrome for Testing build through real WebDriver input, same-document
+post-condition observation and ephemeral-profile cleanup. That lane proves
+browser-level fixture execution only; it does not replace the OriginWeave
+BiDi/CDP authority adapter, semantic node contract, policy dispatch or
+protected-main runtime acceptance required by issue #28.
+
 ### 3.5 Buyer acceptance
 
 Versioned task packs measure repeatable product outcomes rather than one lucky agent run. The benchmark artifact records browser build, OriginWeave version, model/provider/reasoning configuration, seed where supported, policy profile, hardware profile and source fixtures.

@@ -11,6 +11,9 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 RUNNER = ROOT / "scripts" / "ci" / "run_mv3_compatibility.py"
 FIXTURE = ROOT / "tests" / "fixtures" / "agent_task_basic" / "index.html"
 WORKFLOW = ROOT / ".github" / "workflows" / "mv3-compatibility.yml"
+CHANGELOG = ROOT / "CHANGELOG.md"
+TRACEABILITY = ROOT / "docs" / "traceability" / "action-postcondition-evidence.md"
+FITNESS = ROOT / "docs" / "DOCUMENTATION_FITNESS.md"
 
 
 class AgentTaskPinnedChromeContractTests(unittest.TestCase):
@@ -106,6 +109,20 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
         self.assertNotIn("google-chrome-stable", runner.lower())
         self.assertNotIn("COPILOT_GITHUB_TOKEN", runner)
         self.assertNotIn("NVIDIA_NIM_API_KEY", runner)
+
+    def test_documentation_separates_active_browser_evidence_from_product_runtime(self) -> None:
+        """Documentation must record the real fixture evidence without shipping the adapter claim."""
+
+        changelog = CHANGELOG.read_text(encoding="utf-8")
+        traceability = TRACEABILITY.read_text(encoding="utf-8")
+        fitness = FITNESS.read_text(encoding="utf-8")
+        self.assertIn("Real pinned-Chrome WebDriver evidence", changelog)
+        self.assertIn("does not claim a shipped OriginWeave browser adapter", changelog)
+        self.assertIn("PR #70", traceability)
+        self.assertIn("real WebDriver", traceability)
+        self.assertIn("not a product browser adapter", traceability)
+        self.assertIn("pinned Chrome", fitness)
+        self.assertIn("not a browser adapter", fitness)
 
 
 if __name__ == "__main__":
