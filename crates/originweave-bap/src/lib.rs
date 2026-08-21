@@ -329,6 +329,7 @@ impl BapCommandReceipt {
 pub struct BapTaskLifecycle {
     state: BapTaskState,
     transition_sequence: u64,
+    last_transition: Option<BapTaskTransition>,
 }
 
 impl Default for BapTaskLifecycle {
@@ -344,6 +345,7 @@ impl BapTaskLifecycle {
         Self {
             state: BapTaskState::Created,
             transition_sequence: 0,
+            last_transition: None,
         }
     }
 
@@ -351,7 +353,10 @@ impl BapTaskLifecycle {
     ///
     /// Recovery accepts only state/sequence pairs that are reachable through
     /// this exact state machine. This prevents corrupt or stale durable metadata
-    /// from manufacturing an impossible execution state.
+    /// from manufacturing an impossible execution state. The snapshot does not
+    /// authenticate the identity of the last accepted transition, so a retained
+    /// command receipt cannot be replayed against a restored snapshot until a
+    /// later durable boundary explicitly restores that transition evidence.
     pub const fn restore(
         state: BapTaskState,
         transition_sequence: u64,
@@ -365,6 +370,7 @@ impl BapTaskLifecycle {
         Ok(Self {
             state,
             transition_sequence,
+            last_transition: None,
         })
     }
 
@@ -421,14 +427,16 @@ impl BapTaskLifecycle {
             return Err(BapTaskTransitionError::SequenceExhausted);
         };
         let previous_state = self.state;
-        self.state = next_state;
-        self.transition_sequence = sequence;
-        Ok(BapTaskTransition {
+        let transition = BapTaskTransition {
             previous_state,
             current_state: next_state,
             sequence,
             event,
-        })
+        };
+        self.state = next_state;
+        self.transition_sequence = sequence;
+        self.last_transition = Some(transition);
+        Ok(transition)
     }
 
     /// Apply one lifecycle event and bind the accepted transition to a retry receipt.
@@ -463,12 +471,12 @@ impl BapTaskLifecycle {
     ///
     /// A caller that has already looked up a retained receipt may supply it here. Exact tenant,
     /// idempotency-key, task, and event equality plus an exact match between the receipt's accepted
-    /// transition and this lifecycle's current state/sequence returns that immutable receipt without
-    /// mutating the lifecycle again. Command mismatch or stale/foreign lifecycle state fails closed.
-    /// `None` follows the normal validation and transition path in [`Self::apply_with_receipt`]. This
-    /// helper does not provide receipt storage, concurrent exclusion, authentication, authorization,
-    /// or suppression of browser/network side effects; those remain responsibilities of their owning
-    /// runtime boundaries.
+    /// transition and this lifecycle's most recently accepted transition returns that immutable receipt
+    /// without mutating the lifecycle again. Command mismatch or stale/foreign/divergent lifecycle
+    /// history fails closed. `None` follows the normal validation and transition path in
+    /// [`Self::apply_with_receipt`]. This helper does not provide receipt storage, concurrent exclusion,
+    /// authentication, authorization, or suppression of browser/network side effects; those remain
+    /// responsibilities of their owning runtime boundaries.
     pub fn apply_or_replay(
         &mut self,
         existing_receipt: Option<&BapCommandReceipt>,
@@ -487,6 +495,7 @@ impl BapTaskLifecycle {
             let transition = receipt.transition();
             if self.state != transition.current_state()
                 || self.transition_sequence != transition.sequence()
+                || self.last_transition != Some(transition)
             {
                 return Err(BapCommandReceiptError::ReplayStateMismatch);
             }
