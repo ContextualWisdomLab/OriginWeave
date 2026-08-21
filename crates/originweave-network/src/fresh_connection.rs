@@ -1,5 +1,5 @@
 use std::net::SocketAddr;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use originweave_destination::{DestinationError, FreshResolutionSnapshot};
 
@@ -18,7 +18,6 @@ pub struct FreshConnectionPlan {
     resolution_approved_at: Duration,
     resolution_valid_until: Duration,
     resolution_authorized_at: Duration,
-    authorized_instant: Instant,
 }
 
 impl FreshConnectionPlan {
@@ -49,7 +48,6 @@ impl FreshConnectionPlan {
             resolution_approved_at: fresh_evidence.resolution_approved_at(),
             resolution_valid_until: fresh_evidence.resolution_valid_until(),
             resolution_authorized_at: fresh_evidence.authorized_at(),
-            authorized_instant: Instant::now(),
         })
     }
 
@@ -71,30 +69,15 @@ impl FreshConnectionPlan {
         self.resolution_authorized_at
     }
 
-    /// Open the exact approved socket using the elapsed monotonic time since plan authorization.
-    ///
-    /// This compatibility path anchors a process-local [`Instant`] when the
-    /// caller-supplied trusted resolution time is admitted. Actual elapsed time
-    /// is added to that authorization value before socket I/O, so callers that
-    /// do not supply a second timestamp cannot replay a plan indefinitely after
-    /// its freshness window expires. New authority-bearing call sites should use
-    /// [`FreshConnectionPlan::connect_at`] with their trusted monotonic clock.
-    pub fn connect(self) -> Result<DirectTcpConnection, NetworkError> {
-        let current_time = self
-            .resolution_authorized_at
-            .saturating_add(self.authorized_instant.elapsed());
-        self.connect_at(current_time)
-    }
-
     /// Open the exact approved socket only while resolution authority is still fresh.
     ///
-    /// `current_time` must come from the same trusted monotonic clock domain used
-    /// when this plan was created. Freshness is re-authorized immediately before
-    /// socket I/O so a plan cannot be created inside the validity window and then
-    /// replayed after that authority expires. A time earlier than the plan's own
-    /// authorization checkpoint fails closed. The plan remains single-use because
-    /// this method consumes `self`.
-    pub fn connect_at(self, current_time: Duration) -> Result<DirectTcpConnection, NetworkError> {
+    /// `current_time` must come from the same caller-owned trusted monotonic clock
+    /// domain used when this plan was created. Freshness is re-authorized immediately
+    /// before socket I/O so a plan cannot be created inside the validity window and
+    /// replayed after expiry. A supplied time earlier than the plan's own authorization
+    /// checkpoint fails closed instead of permitting clock regression. The plan remains
+    /// single-use because this method consumes `self`.
+    pub fn connect(self, current_time: Duration) -> Result<DirectTcpConnection, NetworkError> {
         if current_time < self.resolution_authorized_at {
             return Err(NetworkError::DestinationNotApproved {
                 socket_address: self.socket_address,
