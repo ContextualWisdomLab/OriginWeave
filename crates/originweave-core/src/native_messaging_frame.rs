@@ -64,9 +64,7 @@ impl fmt::Display for NativeMessagingFrameError {
             Self::LengthMismatch { .. } => {
                 formatter.write_str("native-messaging frame length does not match its header")
             }
-            Self::InvalidUtf8 => {
-                formatter.write_str("native-messaging payload is not valid UTF-8")
-            }
+            Self::InvalidUtf8 => formatter.write_str("native-messaging payload is not valid UTF-8"),
         }
     }
 }
