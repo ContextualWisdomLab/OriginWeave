@@ -28,6 +28,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Universally value-redacted network evidence with explicit path, metadata, and provenance bounds; ambiguous path rejection; validated source URLs; lowercase SHA-256 identifiers; and verification state.
 - Authority-bound, bounded semantic node observations with typed node-local action evidence and explicit observation-channel provenance for the first Chromium vertical slice; observation metadata grants no execution authority.
 - Bounded typed semantic node queries over reviewed role, accessible-name, and node-action evidence, without exposing raw DOM/protocol selector languages or granting execution authority.
+- Authority-bound semantic node action targets accept only observation-advertised node-local actions and revalidate the exact node binding against the live browser authority registry before later use, so retired or stale handles cannot be revived by caller-supplied authority tuples.
 - Rust 1.97.1 build contract, strict Clippy and rustdoc gates, and exact production function, line, region, and branch coverage enforcement.
 - Hourly bounded OpenCode product-development workflow using `NVIDIA_NIM_API_KEY`, an unprivileged disposable workspace, loopback-only model broker, independently verified patches, and publication through a dedicated `OPENCODE_PR_TOKEN` that cannot review or merge.
 - Architecture, agent, security, contribution, research, database naming, roadmap, quality-gate, and TLS service-identity ADR documentation.
