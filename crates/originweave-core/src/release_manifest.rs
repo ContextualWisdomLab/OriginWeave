@@ -14,8 +14,6 @@ pub const MAX_RELEASE_ARTIFACTS: usize = 64;
 pub const MAX_RELEASE_ARTIFACT_NAME_BYTES: usize = 128;
 /// Maximum UTF-8 byte length admitted for one Chromium revision token.
 pub const MAX_RELEASE_REVISION_BYTES: usize = 128;
-/// Maximum UTF-8 byte length admitted for one canonical Rust toolchain token.
-pub const MAX_RELEASE_TOOLCHAIN_BYTES: usize = 64;
 
 /// Buyer-visible release channel bound by a release manifest.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -36,12 +34,13 @@ pub struct ReleaseBuildIdentity {
 }
 
 impl ReleaseBuildIdentity {
-    /// Construct bounded build identity from a canonical Rust toolchain token and lock digest.
+    /// Construct build identity from the exact repository-pinned Rust toolchain and lock digest.
     ///
-    /// The dependency-lock digest must use the exact `sha256:` prefix followed by 64 lowercase
-    /// hexadecimal digits. Constructing this value does not prove reproducibility or authenticate
-    /// the build environment; it only prevents those two identity fields from being omitted or
-    /// represented ambiguously in a release manifest.
+    /// The Rust toolchain must match the protected repository baseline exactly; moving aliases
+    /// and alternate versions fail closed. The dependency-lock digest must use the exact
+    /// `sha256:` prefix followed by 64 lowercase hexadecimal digits. Constructing this value does
+    /// not prove reproducibility or authenticate the build environment; it only prevents those
+    /// two identity fields from being omitted or represented ambiguously in a release manifest.
     pub fn new(
         rust_toolchain: &str,
         dependency_lock_sha256: &str,
@@ -58,7 +57,7 @@ impl ReleaseBuildIdentity {
         })
     }
 
-    /// Return the exact canonical Rust toolchain token.
+    /// Return the exact repository-pinned Rust toolchain token.
     #[must_use]
     pub fn rust_toolchain(&self) -> &str {
         &self.rust_toolchain
@@ -74,7 +73,7 @@ impl ReleaseBuildIdentity {
 /// Validation error for release build-identity evidence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReleaseBuildIdentityError {
-    /// Rust toolchain is not a canonical bounded token.
+    /// Rust toolchain does not match the exact repository-pinned baseline.
     InvalidRustToolchain,
     /// Dependency-lock digest is not a canonical lowercase SHA-256 digest.
     InvalidDependencyLockDigest,
@@ -83,9 +82,8 @@ pub enum ReleaseBuildIdentityError {
 impl fmt::Display for ReleaseBuildIdentityError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidRustToolchain => {
-                formatter.write_str("release Rust toolchain is not a canonical bounded token")
-            }
+            Self::InvalidRustToolchain => formatter
+                .write_str("release Rust toolchain must match the exact repository-pinned baseline"),
             Self::InvalidDependencyLockDigest => formatter.write_str(
                 "release dependency lock digest must be sha256: followed by 64 lowercase hexadecimal digits",
             ),
@@ -172,13 +170,13 @@ pub struct ReleaseManifest {
 impl ReleaseManifest {
     /// Construct an inert release manifest from exact identity evidence.
     ///
-    /// Source identity is a full 40-digit lowercase Git commit SHA. Chromium revision and Rust
-    /// toolchain are bounded canonical ASCII tokens, while dependency-lock identity is a
-    /// canonical lowercase SHA-256 digest. Artifact names must be unique under ASCII case folding
-    /// so one manifest cannot bind two names that collide on a case-insensitive target
-    /// filesystem; original spelling is preserved and artifacts are sorted deterministically
-    /// before storage. Constructing this value does not authenticate any artifact, prove
-    /// reproducibility, or authorize release or installation.
+    /// Source identity is a full 40-digit lowercase Git commit SHA. Chromium revision is a
+    /// bounded canonical ASCII token, Rust toolchain identity is the exact repository pin, and
+    /// dependency-lock identity is a canonical lowercase SHA-256 digest. Artifact names must be
+    /// unique under ASCII case folding so one manifest cannot bind two names that collide on a
+    /// case-insensitive target filesystem; original spelling is preserved and artifacts are
+    /// sorted deterministically before storage. Constructing this value does not authenticate any
+    /// artifact, prove reproducibility, or authorize release or installation.
     pub fn new<I>(
         source_commit: &str,
         chromium_revision: &str,
