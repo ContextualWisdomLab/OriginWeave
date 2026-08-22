@@ -179,6 +179,29 @@ fn reconciliation_requires_explicit_resolution_and_dead_letter_is_terminal() {
     );
 }
 
+#[test]
+fn running_task_may_dead_letter_but_pre_dispatch_task_may_not() {
+    let mut running = running_task();
+    let transition = running
+        .apply(BapTaskEvent::DeadLetter)
+        .expect("dead-letter running task");
+    assert_eq!(transition.previous_state(), BapTaskState::Running);
+    assert_eq!(transition.current_state(), BapTaskState::DeadLettered);
+    assert_eq!(transition.sequence(), 3);
+    assert!(running.state().is_terminal());
+
+    let mut created = BapTaskLifecycle::new();
+    assert_eq!(
+        created.apply(BapTaskEvent::DeadLetter),
+        Err(BapTaskTransitionError::InvalidTransition {
+            from: BapTaskState::Created,
+            event: BapTaskEvent::DeadLetter,
+        })
+    );
+    assert_eq!(created.state(), BapTaskState::Created);
+    assert_eq!(created.transition_sequence(), 0);
+}
+
 fn running_task() -> BapTaskLifecycle {
     let mut task = BapTaskLifecycle::new();
     task.apply(BapTaskEvent::Admit).expect("admit");
