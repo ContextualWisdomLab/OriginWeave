@@ -1254,13 +1254,14 @@ pub mod release_acceptance {
             match self {
                 Self::EmptyLimitationClaim => formatter
                     .write_str("declared release limitation must name an unsupported claim"),
-                Self::InvalidLimitationClaim => formatter
-                    .write_str("declared release limitation claim contains a control character"),
+                Self::InvalidLimitationClaim => formatter.write_str(
+                    "declared release limitation claim contains an unsafe presentation character",
+                ),
                 Self::EmptyLimitationConsequence => formatter.write_str(
                     "declared release limitation must state a buyer-visible consequence",
                 ),
                 Self::InvalidLimitationConsequence => formatter.write_str(
-                    "declared release limitation consequence contains a control character",
+                    "declared release limitation consequence contains an unsafe presentation character",
                 ),
                 Self::DuplicateSuite(suite) => write!(
                     formatter,
