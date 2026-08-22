@@ -65,7 +65,8 @@ fn stale_recovery_receipt_cannot_signal_redispatch() {
     let recovery =
         BapCommandRecovery::new(receipt, BapExternalSideEffectOutcome::ConfirmedNoSideEffect);
 
-    lifecycle.apply(BapTaskEvent::Start).expect("advance task");
+    let advance = lifecycle.apply(BapTaskEvent::Start);
+    assert!(advance.is_ok(), "{advance:?}");
 
     assert_eq!(
         recovery.permits_redispatch(&mut lifecycle),
