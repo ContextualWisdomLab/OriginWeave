@@ -174,6 +174,44 @@ fn session_authority_failures_are_exercised_in_the_unit_crate() {
 }
 
 #[test]
+fn direct_fail_closed_registry_paths_are_exercised_in_the_unit_crate() {
+    let mut registry = BrowserAuthorityRegistry::new();
+    let unknown_sessions = values(BrowserSessionId::new(999));
+    assert_eq!(unknown_sessions.len(), 1);
+    let unknown = unknown_sessions[0];
+
+    let sessions = values(registry.register_session("direct-path-session"));
+    assert_eq!(sessions.len(), 1);
+    let session = sessions[0];
+    let contexts = values(registry.register_context(session, "direct-path-context"));
+    assert_eq!(contexts.len(), 1);
+    let context = contexts[0];
+    let origins = values(Origin::parse("http://127.0.0.1:43127"));
+    let changed_origins = values(Origin::parse("http://localhost:43127"));
+    assert_eq!(origins.len(), 1);
+    assert_eq!(changed_origins.len(), 1);
+
+    assert_eq!(
+        registry.bind_node(unknown, context, &origins[0], "unknown-session-node"),
+        Err(BrowserRegistryError::UnknownBrowserSession)
+    );
+    assert_eq!(
+        values(registry.bind_node(session, context, &origins[0], "live-node")).len(),
+        1
+    );
+    assert_eq!(
+        registry.bind_node(session, context, &changed_origins[0], "changed-origin-node"),
+        Err(BrowserRegistryError::OriginChangedWithoutDocumentAdvance)
+    );
+
+    assert_eq!(registry.remove_context(context), Ok(()));
+    assert_eq!(
+        registry.remove_context(context),
+        Err(BrowserRegistryError::UnknownBrowsingContext)
+    );
+}
+
+#[test]
 fn session_retirement_covers_unit_success_and_unknown_paths() {
     let mut registry = BrowserAuthorityRegistry::new();
     let sessions = values(registry.register_session("retirement-unit-session"));
