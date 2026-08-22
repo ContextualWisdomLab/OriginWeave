@@ -50,11 +50,7 @@ impl BapTaskState {
     pub const fn is_terminal(self) -> bool {
         matches!(
             self,
-            Self::Succeeded
-                | Self::Failed
-                | Self::Cancelled
-                | Self::Expired
-                | Self::DeadLettered
+            Self::Succeeded | Self::Failed | Self::Cancelled | Self::Expired | Self::DeadLettered
         )
     }
 }
@@ -281,10 +277,9 @@ impl BapTaskLifecycle {
             (BapTaskState::Running, BapTaskEvent::RequireReconciliation) => {
                 BapTaskState::ReconciliationRequired
             }
-            (
-                BapTaskState::ReconciliationRequired,
-                BapTaskEvent::ResolveReconciliation,
-            ) => BapTaskState::Running,
+            (BapTaskState::ReconciliationRequired, BapTaskEvent::ResolveReconciliation) => {
+                BapTaskState::Running
+            }
             (
                 BapTaskState::Running | BapTaskState::ReconciliationRequired,
                 BapTaskEvent::DeadLetter,
