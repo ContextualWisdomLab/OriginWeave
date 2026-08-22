@@ -5,12 +5,8 @@ use originweave_bap::{
 
 fn accepted_receipt() -> originweave_bap::BapCommandReceipt {
     let mut lifecycle = BapTaskLifecycle::new();
-    let receipt = lifecycle.apply_with_receipt(
-        "retry-key",
-        "tenant-a",
-        "task-a",
-        BapTaskEvent::Admit,
-    );
+    let receipt =
+        lifecycle.apply_with_receipt("retry-key", "tenant-a", "task-a", BapTaskEvent::Admit);
     assert!(receipt.is_ok(), "{receipt:?}");
     let Ok(receipt) = receipt else {
         unreachable!("asserted valid command receipt")
