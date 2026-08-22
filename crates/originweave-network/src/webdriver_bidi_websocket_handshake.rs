@@ -872,8 +872,8 @@ fn parse_opening_response(
         );
     }
 
-    let mut upgrade = None;
-    let mut connection = None;
+    let mut upgrade_has_websocket = false;
+    let mut connection_has_upgrade = false;
     let mut accept = None;
     for line in header_lines.split("\r\n") {
         if line.is_empty()
@@ -909,23 +909,9 @@ fn parse_opening_response(
             );
         }
         if name.eq_ignore_ascii_case("upgrade") {
-            if upgrade.is_some() {
-                return Err(
-                    WebDriverBiDiWebSocketHandshakeResponseError::MalformedResponse {
-                        reason: "response repeats the Upgrade header",
-                    },
-                );
-            }
-            upgrade = Some(value);
+            upgrade_has_websocket |= has_header_token(value, "websocket");
         } else if name.eq_ignore_ascii_case("connection") {
-            if connection.is_some() {
-                return Err(
-                    WebDriverBiDiWebSocketHandshakeResponseError::MalformedResponse {
-                        reason: "response repeats the Connection header",
-                    },
-                );
-            }
-            connection = Some(value);
+            connection_has_upgrade |= has_header_token(value, "upgrade");
         } else if name.eq_ignore_ascii_case("sec-websocket-accept") {
             if accept.is_some() {
                 return Err(
@@ -938,14 +924,14 @@ fn parse_opening_response(
         }
     }
 
-    if !upgrade.is_some_and(|value| has_header_token(value, "websocket")) {
+    if !upgrade_has_websocket {
         return Err(
             WebDriverBiDiWebSocketHandshakeResponseError::MalformedResponse {
                 reason: "Upgrade header does not contain websocket",
             },
         );
     }
-    if !connection.is_some_and(|value| has_header_token(value, "upgrade")) {
+    if !connection_has_upgrade {
         return Err(
             WebDriverBiDiWebSocketHandshakeResponseError::MalformedResponse {
                 reason: "Connection header does not contain Upgrade",
