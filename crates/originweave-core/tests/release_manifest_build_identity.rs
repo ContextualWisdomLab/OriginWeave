@@ -1,8 +1,6 @@
 use std::error::Error;
 
-use originweave_core::release_manifest::{
-    MAX_RELEASE_TOOLCHAIN_BYTES, ReleaseBuildIdentity, ReleaseBuildIdentityError,
-};
+use originweave_core::release_manifest::{ReleaseBuildIdentity, ReleaseBuildIdentityError};
 
 fn sha256_digest(hex_digit: char) -> String {
     format!("sha256:{}", hex_digit.to_string().repeat(64))
@@ -21,7 +19,7 @@ fn release_build_identity_binds_exact_toolchain_and_dependency_lock() -> Result<
 #[test]
 fn release_build_identity_rejects_ambiguous_or_unbounded_evidence() {
     let digest = sha256_digest('b');
-    let overlong_toolchain = "a".repeat(MAX_RELEASE_TOOLCHAIN_BYTES + 1);
+    let overlong_toolchain = "a".repeat(65);
 
     for invalid_toolchain in [
         "",
