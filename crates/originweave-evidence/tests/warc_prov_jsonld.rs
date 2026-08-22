@@ -10,6 +10,8 @@ const SOURCE_HASH: &str = "sha256:0123456789abcdef0123456789abcdef0123456789abcd
 const RECORD_ID: &str = "urn:uuid:123e4567-e89b-12d3-a456-426614174000";
 const DATE: &str = "2026-08-22T12:00:00Z";
 const SOFTWARE_COMMIT_SHA: &str = "0123456789abcdef0123456789abcdef01234567";
+const WARC_RECORD_DIGEST_IRI: &str =
+    "tag:contextualwisdomlab.github.io,2026:OriginWeave/warcRecordDigest";
 const PAYLOAD_COMPLETENESS_IRI: &str =
     "tag:contextualwisdomlab.github.io,2026:OriginWeave/warcPayloadCompleteness";
 const TRUNCATION_REASON_IRI: &str =
@@ -107,7 +109,7 @@ fn warc_prov_bundle_emits_deterministic_prov_o_json_ld_without_raw_payload() {
             "{\"@id\":\"urn:uuid:123e4567-e89b-12d3-a456-426614174000#source\",\"@type\":\"prov:Entity\",\"prov:atLocation\":{\"@id\":\"https://example.com/item\"},\"prov:value\":\"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\"},",
             "{\"@id\":\"urn:uuid:123e4567-e89b-12d3-a456-426614174000#capture\",\"@type\":\"prov:Activity\",\"prov:startedAtTime\":{\"@value\":\"2026-08-22T12:00:00Z\",\"@type\":\"xsd:dateTime\"},\"prov:used\":{\"@id\":\"urn:uuid:123e4567-e89b-12d3-a456-426614174000#source\"},\"prov:wasAssociatedWith\":{\"@id\":\"https://github.com/ContextualWisdomLab/OriginWeave/commit/0123456789abcdef0123456789abcdef01234567\"}},",
             "{\"@id\":\"https://github.com/ContextualWisdomLab/OriginWeave/commit/0123456789abcdef0123456789abcdef01234567\",\"@type\":\"prov:SoftwareAgent\"},",
-            "{\"@id\":\"urn:uuid:123e4567-e89b-12d3-a456-426614174000\",\"@type\":\"prov:Entity\",\"prov:value\":\"sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824\",\"tag:contextualwisdomlab.github.io,2026:OriginWeave/warcPayloadCompleteness\":\"complete\",\"prov:wasDerivedFrom\":{\"@id\":\"urn:uuid:123e4567-e89b-12d3-a456-426614174000#source\"},\"prov:wasGeneratedBy\":{\"@id\":\"urn:uuid:123e4567-e89b-12d3-a456-426614174000#capture\"}}",
+            "{\"@id\":\"urn:uuid:123e4567-e89b-12d3-a456-426614174000\",\"@type\":\"prov:Entity\",\"prov:value\":\"sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824\",\"tag:contextualwisdomlab.github.io,2026:OriginWeave/warcRecordDigest\":\"sha256:b6ea360a1ec548527ff5ed9c03966b05c8afd5c2b882bee259e362effb0fe0a8\",\"tag:contextualwisdomlab.github.io,2026:OriginWeave/warcPayloadCompleteness\":\"complete\",\"prov:wasDerivedFrom\":{\"@id\":\"urn:uuid:123e4567-e89b-12d3-a456-426614174000#source\"},\"prov:wasGeneratedBy\":{\"@id\":\"urn:uuid:123e4567-e89b-12d3-a456-426614174000#capture\"}}",
             "]}"
         )
     );
@@ -206,4 +208,10 @@ fn warc_prov_bundle_distinguishes_distinct_warc_serializations() {
         text_prov, binary_prov,
         "provenance must distinguish WARC records whose serialized headers differ"
     );
+    assert!(text_prov.contains(&format!(
+        "\"{WARC_RECORD_DIGEST_IRI}\":\"sha256:b6ea360a1ec548527ff5ed9c03966b05c8afd5c2b882bee259e362effb0fe0a8\""
+    )));
+    assert!(binary_prov.contains(&format!(
+        "\"{WARC_RECORD_DIGEST_IRI}\":\"sha256:9c59979535d4a1b3589c0fe2d17837c4ddb0e4cf911854d9aae362903ff83db9\""
+    )));
 }
