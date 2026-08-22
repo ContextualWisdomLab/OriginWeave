@@ -1167,8 +1167,8 @@ pub mod release_acceptance {
     impl DeclaredLimitation {
         /// Construct one explicit buyer-visible release limitation.
         ///
-        /// Whitespace-only claims or consequences fail closed because they cannot
-        /// narrow a release claim or communicate a usable buyer consequence.
+        /// Empty/whitespace-only values and embedded control characters fail closed because
+        /// they cannot safely represent one unambiguous buyer-visible release limitation.
         pub fn new(
             unsupported_claim: impl Into<String>,
             buyer_consequence: impl Into<String>,
@@ -1177,9 +1177,15 @@ pub mod release_acceptance {
             if unsupported_claim.trim().is_empty() {
                 return Err(ReleaseDecisionError::EmptyLimitationClaim);
             }
+            if unsupported_claim.chars().any(char::is_control) {
+                return Err(ReleaseDecisionError::InvalidLimitationClaim);
+            }
             let buyer_consequence = buyer_consequence.into();
             if buyer_consequence.trim().is_empty() {
                 return Err(ReleaseDecisionError::EmptyLimitationConsequence);
+            }
+            if buyer_consequence.chars().any(char::is_control) {
+                return Err(ReleaseDecisionError::InvalidLimitationConsequence);
             }
             Ok(Self {
                 unsupported_claim,
@@ -1218,8 +1224,12 @@ pub mod release_acceptance {
     pub enum ReleaseDecisionError {
         /// A declared limitation did not identify the unsupported release claim.
         EmptyLimitationClaim,
+        /// A declared limitation claim contained a control character.
+        InvalidLimitationClaim,
         /// A declared limitation did not state the buyer-visible consequence.
         EmptyLimitationConsequence,
+        /// A declared limitation consequence contained a control character.
+        InvalidLimitationConsequence,
         /// The same suite appeared more than once instead of one authoritative result.
         DuplicateSuite(BenchmarkSuite),
     }
@@ -1229,8 +1239,13 @@ pub mod release_acceptance {
             match self {
                 Self::EmptyLimitationClaim => formatter
                     .write_str("declared release limitation must name an unsupported claim"),
+                Self::InvalidLimitationClaim => formatter
+                    .write_str("declared release limitation claim contains a control character"),
                 Self::EmptyLimitationConsequence => formatter.write_str(
                     "declared release limitation must state a buyer-visible consequence",
+                ),
+                Self::InvalidLimitationConsequence => formatter.write_str(
+                    "declared release limitation consequence contains a control character",
                 ),
                 Self::DuplicateSuite(suite) => write!(
                     formatter,
