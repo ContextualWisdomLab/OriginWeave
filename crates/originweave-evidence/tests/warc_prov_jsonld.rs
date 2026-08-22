@@ -2,13 +2,18 @@
 
 use originweave_evidence::{
     EvidenceSourceKind, MAX_PROV_SOFTWARE_COMMIT_SHA_BYTES, ProvenanceRecord, VerificationResult,
-    WarcProvBundle, WarcProvBundleError, WarcResourceRecord,
+    WarcPayloadCompleteness, WarcProvBundle, WarcProvBundleError, WarcResourceRecord,
+    WarcTruncationReason,
 };
 
 const SOURCE_HASH: &str = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 const RECORD_ID: &str = "urn:uuid:123e4567-e89b-12d3-a456-426614174000";
 const DATE: &str = "2026-08-22T12:00:00Z";
 const SOFTWARE_COMMIT_SHA: &str = "0123456789abcdef0123456789abcdef01234567";
+const PAYLOAD_COMPLETENESS_IRI: &str =
+    "tag:contextualwisdomlab.github.io,2026:OriginWeave/warcPayloadCompleteness";
+const TRUNCATION_REASON_IRI: &str =
+    "tag:contextualwisdomlab.github.io,2026:OriginWeave/warcTruncationReason";
 
 fn resource_record() -> WarcResourceRecord {
     let provenance = ProvenanceRecord::new(
@@ -26,6 +31,27 @@ fn resource_record() -> WarcResourceRecord {
         "text/plain",
         b"hello".to_vec(),
         provenance,
+    )
+    .expect("WARC resource record")
+}
+
+fn resource_record_with_completeness(completeness: WarcPayloadCompleteness) -> WarcResourceRecord {
+    let provenance = ProvenanceRecord::new(
+        "https://example.com/item",
+        "body",
+        SOURCE_HASH,
+        EvidenceSourceKind::NetworkResponse,
+        VerificationResult::Verified,
+    )
+    .expect("verified provenance");
+    WarcResourceRecord::new_with_completeness(
+        RECORD_ID,
+        DATE,
+        "https://example.com/item",
+        "text/plain",
+        b"hello".to_vec(),
+        provenance,
+        completeness,
     )
     .expect("WARC resource record")
 }
@@ -113,4 +139,38 @@ fn warc_prov_bundle_rejects_noncanonical_or_oversized_software_revisions() {
         WarcProvBundle::new(&record, &"a".repeat(MAX_PROV_SOFTWARE_COMMIT_SHA_BYTES + 1)),
         Err(WarcProvBundleError::LimitExceeded)
     );
+}
+
+#[test]
+fn warc_prov_bundle_preserves_warc_payload_completeness_for_replay() {
+    let complete = WarcProvBundle::new(
+        &resource_record_with_completeness(WarcPayloadCompleteness::Complete),
+        SOFTWARE_COMMIT_SHA,
+    )
+    .expect("complete PROV bundle");
+    let complete_json = complete.to_json_ld();
+    assert!(complete_json.contains(&format!(
+        "\"{PAYLOAD_COMPLETENESS_IRI}\":\"complete\""
+    )));
+    assert!(!complete_json.contains(TRUNCATION_REASON_IRI));
+
+    for (reason, token) in [
+        (WarcTruncationReason::Length, "length"),
+        (WarcTruncationReason::Time, "time"),
+        (WarcTruncationReason::Disconnect, "disconnect"),
+        (WarcTruncationReason::Unspecified, "unspecified"),
+    ] {
+        let truncated = WarcProvBundle::new(
+            &resource_record_with_completeness(WarcPayloadCompleteness::Truncated(reason)),
+            SOFTWARE_COMMIT_SHA,
+        )
+        .expect("truncated PROV bundle");
+        let truncated_json = truncated.to_json_ld();
+        assert!(truncated_json.contains(&format!(
+            "\"{PAYLOAD_COMPLETENESS_IRI}\":\"truncated\""
+        )));
+        assert!(truncated_json.contains(&format!(
+            "\"{TRUNCATION_REASON_IRI}\":\"{token}\""
+        )));
+    }
 }
