@@ -36,11 +36,14 @@ fn impossible_restored_snapshots_fail_closed() {
         (BapTaskState::WaitingForExternalInput, 4),
         (BapTaskState::Checkpointed, 2),
         (BapTaskState::Checkpointed, 4),
+        (BapTaskState::ReconciliationRequired, 2),
+        (BapTaskState::ReconciliationRequired, 4),
         (BapTaskState::Succeeded, 2),
         (BapTaskState::Succeeded, 4),
         (BapTaskState::Failed, 0),
         (BapTaskState::Cancelled, 0),
         (BapTaskState::Expired, 0),
+        (BapTaskState::DeadLettered, 2),
     ] {
         assert_eq!(
             BapTaskLifecycle::restore(state, sequence),
@@ -63,10 +66,13 @@ fn valid_restored_snapshot_classes_remain_accepted() {
         (BapTaskState::WaitingForApproval, 3),
         (BapTaskState::WaitingForExternalInput, 5),
         (BapTaskState::Checkpointed, 7),
+        (BapTaskState::ReconciliationRequired, 3),
         (BapTaskState::Succeeded, 3),
         (BapTaskState::Failed, 1),
         (BapTaskState::Cancelled, 2),
         (BapTaskState::Expired, 4),
+        (BapTaskState::DeadLettered, 3),
+        (BapTaskState::DeadLettered, 4),
     ] {
         let task = BapTaskLifecycle::restore(state, sequence).expect("reachable snapshot");
         assert_eq!(task.state(), state);
