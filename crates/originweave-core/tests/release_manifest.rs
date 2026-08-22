@@ -64,11 +64,28 @@ fn release_artifact_rejects_ambiguous_names_and_noncanonical_digests() {
         "artifact..bin",
         "artifact-.bin-",
         "artifact-µ.bin",
+        "CON",
+        "con.zip",
+        "PRN.tar.zst",
+        "aux.bin",
+        "NUL.spdx.json",
+        "COM1",
+        "com9.zip",
+        "LPT1",
+        "lpt9.tar.zst",
         overlong_name.as_str(),
     ] {
         assert_eq!(
             ReleaseArtifact::new(invalid_name, &valid_digest),
-            Err(ReleaseArtifactError::InvalidName)
+            Err(ReleaseArtifactError::InvalidName),
+            "reserved or ambiguous artifact name must fail closed: {invalid_name}"
+        );
+    }
+
+    for valid_name in ["console.bin", "com10.bin", "lpt10.tar.zst"] {
+        assert!(
+            ReleaseArtifact::new(valid_name, &valid_digest).is_ok(),
+            "non-device artifact name must remain admissible: {valid_name}"
         );
     }
 
