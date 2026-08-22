@@ -26,6 +26,26 @@ fn limitation_metadata_enforces_exact_utf8_byte_budget() -> Result<(), ReleaseDe
 }
 
 #[test]
+fn borrowed_limitation_text_covers_every_validation_exit() {
+    assert_eq!(
+        DeclaredLimitation::new("", "bounded buyer consequence"),
+        Err(ReleaseDecisionError::EmptyLimitationClaim)
+    );
+    assert_eq!(
+        DeclaredLimitation::new("bounded_claim", ""),
+        Err(ReleaseDecisionError::EmptyLimitationConsequence)
+    );
+    assert_eq!(
+        DeclaredLimitation::new("forged\nclaim", "bounded buyer consequence"),
+        Err(ReleaseDecisionError::InvalidLimitationClaim)
+    );
+    assert_eq!(
+        DeclaredLimitation::new("bounded_claim", "forged\nconsequence"),
+        Err(ReleaseDecisionError::InvalidLimitationConsequence)
+    );
+}
+
+#[test]
 fn limitation_byte_budget_applies_to_international_text() {
     let korean_character = "가";
     let repeated =
