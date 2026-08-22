@@ -12,9 +12,10 @@ use crate::{
     MAX_WEBSOCKET_FRAME_PAYLOAD_SIZE, MAX_WEBSOCKET_OPENING_RESPONSE_TIMEOUT,
     MAX_WEBSOCKET_OPENING_WRITE_TIMEOUT, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketEstablished,
-    WebDriverBiDiWebSocketFrameError, WebDriverBiDiWebSocketHandshakeError,
-    WebDriverBiDiWebSocketHandshakeResponseError, WebDriverBiDiWebSocketMaskKey,
-    WebDriverBiDiWebSocketOpeningRequestSent, WebDriverBiDiWebSocketOpeningWriteError,
+    WebDriverBiDiWebSocketFrame, WebDriverBiDiWebSocketFrameError,
+    WebDriverBiDiWebSocketHandshakeError, WebDriverBiDiWebSocketHandshakeResponseError,
+    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketOpeningRequestSent,
+    WebDriverBiDiWebSocketOpeningWriteError,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -93,12 +94,53 @@ fn established() -> (
     (established, server)
 }
 
+fn read_server_frame(
+    frame: &[u8],
+) -> Result<WebDriverBiDiWebSocketFrame, WebDriverBiDiWebSocketFrameError> {
+    let (plan, listener) = loopback_plan("ws");
+    let frame = frame.to_vec();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept()?;
+        stream.set_read_timeout(Some(Duration::from_secs(2)))?;
+        let mut opening = Vec::new();
+        let mut byte = [0_u8; 1];
+        while !opening.ends_with(b"\r\n\r\n") {
+            stream.read_exact(&mut byte)?;
+            opening.push(byte[0]);
+        }
+        stream.write_all(
+            b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n",
+        )?;
+        stream.write_all(&frame)
+    });
+    let connection = plan.connect().expect("test connection must succeed");
+    let established = WebDriverBiDiWebSocketHandshakePlan::new(connection, client_key())
+        .expect("test handshake plan must be valid")
+        .write_opening_request(Duration::from_millis(500))
+        .expect("test opening request must be written")
+        .read_opening_response(Duration::from_millis(500))
+        .expect("test opening response must be valid");
+    let result = established
+        .read_frame(Duration::from_millis(500))
+        .map(|(_, frame)| frame);
+    join_server(server);
+    result
+}
+
 #[test]
-fn public_client_key_guard_rejects_noncanonical_length() {
-    assert!(matches!(
-        WebDriverBiDiWebSocketClientKey::new("AAAAAAAAAAAAAAAAAAAA=="),
-        Err(WebDriverBiDiWebSocketHandshakeError::InvalidClientKey)
-    ));
+fn public_client_key_guard_rejects_each_noncanonical_shape() {
+    for invalid_key in [
+        "AAAAAAAAAAAAAAAAAAAA==",
+        "dGhlIHNhbXBsZSBub25jZ!==",
+        "dGhlIHNhbXBsZSBub25jZR==",
+        "dGhlIHNhbXBsZSBub25jZQA=",
+        "dGhlIHNhbXBsZSBub25jZQ=A",
+    ] {
+        assert!(matches!(
+            WebDriverBiDiWebSocketClientKey::new(invalid_key),
+            Err(WebDriverBiDiWebSocketHandshakeError::InvalidClientKey)
+        ));
+    }
 }
 
 #[test]
@@ -169,4 +211,25 @@ fn public_text_frame_guard_rejects_payload_above_reviewed_ceiling() {
         }) if payload_bytes == oversized.len() && maximum_bytes == MAX_WEBSOCKET_FRAME_PAYLOAD_SIZE
     ));
     join_server(server);
+}
+
+#[test]
+fn close_frame_validation_covers_each_payload_shape_in_unit_build() {
+    let empty = read_server_frame(&[0x88, 0x00]).expect("empty Close frame must be valid");
+    assert_eq!(empty.opcode(), 0x8);
+    assert!(empty.payload().is_empty());
+
+    assert!(matches!(
+        read_server_frame(&[0x88, 0x01, 0x00]),
+        Err(WebDriverBiDiWebSocketFrameError::MalformedFrame { .. })
+    ));
+
+    let valid_reason = read_server_frame(&[0x88, 0x04, 0x03, 0xe8, b'o', b'k'])
+        .expect("valid Close reason must be accepted");
+    assert_eq!(valid_reason.payload(), &[0x03, 0xe8, b'o', b'k']);
+
+    assert!(matches!(
+        read_server_frame(&[0x88, 0x03, 0x03, 0xe8, 0xff]),
+        Err(WebDriverBiDiWebSocketFrameError::MalformedFrame { .. })
+    ));
 }
