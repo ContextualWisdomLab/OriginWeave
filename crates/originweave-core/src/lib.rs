@@ -267,7 +267,7 @@ impl BrowsingContextId {
         Ok(Self(value))
     }
 
-    /// Return the browsing-context identifier.
+    /// Return the validated browsing-context identifier.
     #[must_use]
     pub const fn value(self) -> u64 {
         self.0
