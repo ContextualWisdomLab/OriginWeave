@@ -149,9 +149,7 @@ fn warc_prov_bundle_preserves_warc_payload_completeness_for_replay() {
     )
     .expect("complete PROV bundle");
     let complete_json = complete.to_json_ld();
-    assert!(complete_json.contains(&format!(
-        "\"{PAYLOAD_COMPLETENESS_IRI}\":\"complete\""
-    )));
+    assert!(complete_json.contains(&format!("\"{PAYLOAD_COMPLETENESS_IRI}\":\"complete\"")));
     assert!(!complete_json.contains(TRUNCATION_REASON_IRI));
 
     for (reason, token) in [
@@ -166,11 +164,7 @@ fn warc_prov_bundle_preserves_warc_payload_completeness_for_replay() {
         )
         .expect("truncated PROV bundle");
         let truncated_json = truncated.to_json_ld();
-        assert!(truncated_json.contains(&format!(
-            "\"{PAYLOAD_COMPLETENESS_IRI}\":\"truncated\""
-        )));
-        assert!(truncated_json.contains(&format!(
-            "\"{TRUNCATION_REASON_IRI}\":\"{token}\""
-        )));
+        assert!(truncated_json.contains(&format!("\"{PAYLOAD_COMPLETENESS_IRI}\":\"truncated\"")));
+        assert!(truncated_json.contains(&format!("\"{TRUNCATION_REASON_IRI}\":\"{token}\"")));
     }
 }
