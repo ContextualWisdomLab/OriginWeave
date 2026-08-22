@@ -75,6 +75,56 @@ fn release_report_bounds_declared_limitation_count_before_cloning()
 }
 
 #[test]
+fn resource_bounds_vector_iterator_preserves_every_release_decision_branch()
+-> Result<(), ReleaseDecisionError> {
+    assert_eq!(
+        decide_release(passing_results(), &[])?.decision(),
+        ReleaseDecision::Accepted
+    );
+
+    let mut failed = passing_results();
+    failed[0].1 = BenchmarkSuiteOutcome::Failed;
+    assert_eq!(
+        decide_release(failed, &[])?.decision(),
+        ReleaseDecision::Rejected
+    );
+
+    let mut inconclusive = passing_results();
+    inconclusive[0].1 = BenchmarkSuiteOutcome::Inconclusive;
+    assert_eq!(
+        decide_release(inconclusive, &[])?.decision(),
+        ReleaseDecision::Inconclusive
+    );
+
+    let mut missing = passing_results();
+    assert!(missing.pop().is_some());
+    assert_eq!(
+        decide_release(missing, &[])?.decision(),
+        ReleaseDecision::Inconclusive
+    );
+
+    assert_eq!(
+        decide_release(
+            vec![
+                (
+                    BenchmarkSuite::ControlledDeterministic,
+                    BenchmarkSuiteOutcome::Passed,
+                ),
+                (
+                    BenchmarkSuite::ControlledDeterministic,
+                    BenchmarkSuiteOutcome::Passed,
+                ),
+            ],
+            &[],
+        ),
+        Err(ReleaseDecisionError::DuplicateSuite(
+            BenchmarkSuite::ControlledDeterministic
+        ))
+    );
+    Ok(())
+}
+
+#[test]
 fn release_resource_limit_errors_have_deterministic_standard_error_contracts() {
     let cases = [
         (
