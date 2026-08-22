@@ -128,6 +128,7 @@ fn provenance_rejects_credential_bearing_or_ambiguous_source_urls() {
         "https://example.com/bad\\path",
         "https://example.com/\n",
         "https://example.com/a/%2f/b",
+        "https://example.com/[segment]",
     ] {
         assert_eq!(
             ProvenanceRecord::new(
