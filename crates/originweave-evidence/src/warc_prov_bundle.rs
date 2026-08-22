@@ -137,7 +137,8 @@ impl WarcProvBundle {
     /// generated record entity; truncated records also retain the exact WARC truncation token.
     #[must_use]
     pub fn to_json_ld(&self) -> String {
-        let completeness_attributes = warc_payload_completeness_attributes(self.payload_completeness);
+        let completeness_attributes =
+            warc_payload_completeness_attributes(self.payload_completeness);
         format!(
             "{{\"@context\":{{\"prov\":\"http://www.w3.org/ns/prov#\",\"xsd\":\"http://www.w3.org/2001/XMLSchema#\"}},\"@graph\":[{{\"@id\":\"{}\",\"@type\":\"prov:Entity\",\"prov:atLocation\":{{\"@id\":\"{}\"}},\"prov:value\":\"{}\"}},{{\"@id\":\"{}\",\"@type\":\"prov:Activity\",\"prov:startedAtTime\":{{\"@value\":\"{}\",\"@type\":\"xsd:dateTime\"}},\"prov:used\":{{\"@id\":\"{}\"}},\"prov:wasAssociatedWith\":{{\"@id\":\"{}\"}}}},{{\"@id\":\"{}\",\"@type\":\"prov:SoftwareAgent\"}},{{\"@id\":\"{}\",\"@type\":\"prov:Entity\",\"prov:value\":\"{}\",{},\"prov:wasDerivedFrom\":{{\"@id\":\"{}\"}},\"prov:wasGeneratedBy\":{{\"@id\":\"{}\"}}}}]}}",
             self.source_entity_id,
