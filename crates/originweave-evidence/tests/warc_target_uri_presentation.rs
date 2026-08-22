@@ -104,6 +104,29 @@ fn warc_target_uri_rejects_ascii_characters_outside_rfc3986_uri_syntax() {
 }
 
 #[test]
+fn warc_target_uri_rejects_malformed_percent_encoding() {
+    for target_uri in [
+        "https://example.com/%",
+        "https://example.com/%2",
+        "https://example.com/%GG",
+        "https://example.com/%0G",
+    ] {
+        assert_eq!(
+            WarcResourceRecord::new(
+                RECORD_ID,
+                DATE,
+                target_uri,
+                "text/plain",
+                Vec::new(),
+                provenance(target_uri),
+            ),
+            Err(WarcResourceRecordError::InvalidTargetUri),
+            "target_uri={target_uri:?}"
+        );
+    }
+}
+
+#[test]
 fn warc_target_uri_accepts_percent_encoded_utf8_path_octets() {
     let target_uri = "https://example.com/%EC%83%81%ED%92%88/%EC%83%81%EC%84%B8";
     let record = WarcResourceRecord::new(
