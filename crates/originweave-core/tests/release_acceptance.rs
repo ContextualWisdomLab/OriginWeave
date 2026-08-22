@@ -313,3 +313,33 @@ fn decision_is_independent_of_evidence_input_order() {
         decide_release(passing_results(), &[])
     );
 }
+
+#[test]
+fn release_report_bounds_declared_limitation_count_before_cloning()
+-> Result<(), ReleaseDecisionError> {
+    let limitation = declared_limitation()?;
+    let maximum = vec![
+        limitation.clone();
+        originweave_core::release_acceptance::MAX_DECLARED_RELEASE_LIMITATIONS
+    ];
+    let report = decide_release(passing_results(), &maximum)?;
+
+    assert_eq!(
+        report.decision(),
+        ReleaseDecision::AcceptedWithDeclaredLimitations
+    );
+    assert_eq!(
+        report.declared_limitations().len(),
+        originweave_core::release_acceptance::MAX_DECLARED_RELEASE_LIMITATIONS
+    );
+
+    let too_many = vec![
+        limitation;
+        originweave_core::release_acceptance::MAX_DECLARED_RELEASE_LIMITATIONS + 1
+    ];
+    assert_eq!(
+        decide_release(passing_results(), &too_many),
+        Err(ReleaseDecisionError::TooManyDeclaredLimitations)
+    );
+    Ok(())
+}
