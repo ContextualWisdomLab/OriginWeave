@@ -152,6 +152,18 @@ fn duplicate_suite_evidence_fails_closed_instead_of_overwriting_results() {
 }
 
 #[test]
+fn duplicate_suite_evidence_in_vector_input_also_fails_closed() {
+    let duplicate_suite = BenchmarkSuite::ControlledDeterministic;
+    let mut evidence = passing_results();
+    evidence.push((duplicate_suite, BenchmarkSuiteOutcome::Failed));
+
+    assert_eq!(
+        decide_release(evidence, false),
+        Err(ReleaseDecisionError::DuplicateSuite(duplicate_suite))
+    );
+}
+
+#[test]
 fn decision_is_independent_of_evidence_input_order() {
     let mut reversed = passing_results();
     reversed.reverse();
