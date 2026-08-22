@@ -130,6 +130,78 @@ fn cancellation_and_expiry_cover_pre_dispatch_and_suspended_states() {
     }
 }
 
+#[test]
+fn reconciliation_requires_explicit_resolution_and_dead_letter_is_terminal() {
+    let mut task = running_task();
+    let required = task
+        .apply(BapTaskEvent::RequireReconciliation)
+        .expect("require reconciliation");
+    assert_eq!(required.previous_state(), BapTaskState::Running);
+    assert_eq!(
+        required.current_state(),
+        BapTaskState::ReconciliationRequired
+    );
+    assert!(!task.state().is_terminal());
+
+    assert_eq!(
+        task.apply(BapTaskEvent::Resume),
+        Err(BapTaskTransitionError::InvalidTransition {
+            from: BapTaskState::ReconciliationRequired,
+            event: BapTaskEvent::Resume,
+        })
+    );
+    assert_eq!(
+        task.apply(BapTaskEvent::Succeed),
+        Err(BapTaskTransitionError::InvalidTransition {
+            from: BapTaskState::ReconciliationRequired,
+            event: BapTaskEvent::Succeed,
+        })
+    );
+    assert_eq!(task.transition_sequence(), 3);
+
+    task.apply(BapTaskEvent::ResolveReconciliation)
+        .expect("resolve reconciliation");
+    assert_eq!(task.state(), BapTaskState::Running);
+
+    task.apply(BapTaskEvent::RequireReconciliation)
+        .expect("require reconciliation again");
+    let dead_lettered = task
+        .apply(BapTaskEvent::DeadLetter)
+        .expect("dead-letter unresolved task");
+    assert_eq!(dead_lettered.current_state(), BapTaskState::DeadLettered);
+    assert!(task.state().is_terminal());
+
+    assert_eq!(
+        task.apply(BapTaskEvent::Resume),
+        Err(BapTaskTransitionError::TerminalState {
+            state: BapTaskState::DeadLettered,
+        })
+    );
+}
+
+#[test]
+fn running_task_may_dead_letter_but_pre_dispatch_task_may_not() {
+    let mut running = running_task();
+    let transition = running
+        .apply(BapTaskEvent::DeadLetter)
+        .expect("dead-letter running task");
+    assert_eq!(transition.previous_state(), BapTaskState::Running);
+    assert_eq!(transition.current_state(), BapTaskState::DeadLettered);
+    assert_eq!(transition.sequence(), 3);
+    assert!(running.state().is_terminal());
+
+    let mut created = BapTaskLifecycle::new();
+    assert_eq!(
+        created.apply(BapTaskEvent::DeadLetter),
+        Err(BapTaskTransitionError::InvalidTransition {
+            from: BapTaskState::Created,
+            event: BapTaskEvent::DeadLetter,
+        })
+    );
+    assert_eq!(created.state(), BapTaskState::Created);
+    assert_eq!(created.transition_sequence(), 0);
+}
+
 fn running_task() -> BapTaskLifecycle {
     let mut task = BapTaskLifecycle::new();
     task.apply(BapTaskEvent::Admit).expect("admit");
