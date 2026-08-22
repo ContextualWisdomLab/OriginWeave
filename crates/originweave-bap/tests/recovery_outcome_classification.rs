@@ -114,10 +114,8 @@ fn terminal_lifecycle_never_signals_redispatch_even_for_confirmed_no_side_effect
         };
         assert!(lifecycle.state().is_terminal());
 
-        let recovery = BapCommandRecovery::new(
-            receipt,
-            BapExternalSideEffectOutcome::ConfirmedNoSideEffect,
-        );
+        let recovery =
+            BapCommandRecovery::new(receipt, BapExternalSideEffectOutcome::ConfirmedNoSideEffect);
         assert_eq!(recovery.permits_redispatch(&lifecycle), Ok(false));
     }
 }
