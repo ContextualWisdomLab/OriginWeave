@@ -102,8 +102,7 @@ fn exchange_budget_above_per_frame_ceiling_remains_a_valid_end_to_end_budget() {
     let Ok(target) = target else {
         return;
     };
-    let connection_plan =
-        WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1);
+    let connection_plan = WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1);
     assert!(connection_plan.is_ok(), "{connection_plan:?}");
     let Ok(connection_plan) = connection_plan else {
         return;
