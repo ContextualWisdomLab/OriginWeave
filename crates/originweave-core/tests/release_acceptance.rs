@@ -231,7 +231,7 @@ fn any_known_threshold_failure_rejects_release_and_identifies_the_suite()
 fn known_failure_remains_rejected_when_other_evidence_is_incomplete()
 -> Result<(), ReleaseDecisionError> {
     let report = decide_release(
-        [
+        vec![
             (
                 BenchmarkSuite::ControlledDeterministic,
                 BenchmarkSuiteOutcome::Failed,
@@ -270,7 +270,7 @@ fn duplicate_suite_evidence_fails_closed_instead_of_overwriting_results() {
         let expected_error = ReleaseDecisionError::DuplicateSuite(duplicate_suite);
         assert_eq!(
             decide_release(
-                [
+                vec![
                     (duplicate_suite, BenchmarkSuiteOutcome::Passed),
                     (duplicate_suite, BenchmarkSuiteOutcome::Failed),
                 ],
