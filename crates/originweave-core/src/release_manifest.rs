@@ -38,7 +38,8 @@ impl ReleaseArtifact {
     ///
     /// The digest must use the exact `sha256:` prefix followed by 64 lowercase hexadecimal
     /// digits. Artifact names are ASCII leaf names and cannot contain path separators,
-    /// traversal-like double dots, leading punctuation, or trailing punctuation.
+    /// traversal-like double dots, leading or trailing punctuation, or Windows reserved device
+    /// basenames (including those basenames followed by extensions).
     pub fn new(name: &str, sha256_digest: &str) -> Result<Self, ReleaseArtifactError> {
         if !valid_artifact_name(name) {
             return Err(ReleaseArtifactError::InvalidName);
@@ -215,6 +216,7 @@ fn valid_artifact_name(name: &str) -> bool {
         || name.len() > MAX_RELEASE_ARTIFACT_NAME_BYTES
         || !name.is_ascii()
         || name.contains("..")
+        || windows_reserved_device_basename(name)
     {
         return false;
     }
@@ -224,6 +226,27 @@ fn valid_artifact_name(name: &str) -> bool {
         && bytes
             .iter()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(*byte, b'.' | b'_' | b'-'))
+}
+
+fn windows_reserved_device_basename(name: &str) -> bool {
+    let basename = match name.find('.') {
+        Some(dot_index) => &name[..dot_index],
+        None => name,
+    };
+
+    if basename.eq_ignore_ascii_case("CON")
+        || basename.eq_ignore_ascii_case("PRN")
+        || basename.eq_ignore_ascii_case("AUX")
+        || basename.eq_ignore_ascii_case("NUL")
+    {
+        return true;
+    }
+
+    let bytes = basename.as_bytes();
+    bytes.len() == 4
+        && (basename[..3].eq_ignore_ascii_case("COM")
+            || basename[..3].eq_ignore_ascii_case("LPT"))
+        && matches!(bytes[3], b'1'..=b'9')
 }
 
 fn valid_sha256_digest(digest: &str) -> bool {
