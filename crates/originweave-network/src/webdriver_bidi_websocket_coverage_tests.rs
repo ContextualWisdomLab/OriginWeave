@@ -7,6 +7,7 @@ use std::{
 
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 
+use crate::webdriver_bidi_websocket_handshake::WebDriverBiDiWebSocketHandshakePlan;
 use crate::{
     MAX_WEBSOCKET_FRAME_PAYLOAD_SIZE, MAX_WEBSOCKET_OPENING_RESPONSE_TIMEOUT,
     MAX_WEBSOCKET_OPENING_WRITE_TIMEOUT, WebDriverBiDiTcpConnectionPlan,
@@ -15,7 +16,6 @@ use crate::{
     WebDriverBiDiWebSocketHandshakeResponseError, WebDriverBiDiWebSocketMaskKey,
     WebDriverBiDiWebSocketOpeningRequestSent, WebDriverBiDiWebSocketOpeningWriteError,
 };
-use crate::webdriver_bidi_websocket_handshake::WebDriverBiDiWebSocketHandshakePlan;
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
 
@@ -29,10 +29,9 @@ fn loopback_plan(scheme: &str) -> (WebDriverBiDiTcpConnectionPlan, TcpListener) 
     let address = listener
         .local_addr()
         .expect("test listener address must be available");
-    let endpoint = WebDriverBiDiWebSocketEndpoint::new(&format!(
-        "{scheme}://{address}/session/{SESSION_ID}"
-    ))
-    .expect("test endpoint must be valid");
+    let endpoint =
+        WebDriverBiDiWebSocketEndpoint::new(&format!("{scheme}://{address}/session/{SESSION_ID}"))
+            .expect("test endpoint must be valid");
     let correlated = endpoint
         .correlate_session_id(SESSION_ID)
         .expect("test session must correlate");
