@@ -88,9 +88,7 @@ fn wireguard_prefixless_allowed_ips_normalize_to_host_routes() {
 #[test]
 fn wireguard_rejects_noncanonical_decimal_scalars_before_secret_import() {
     for profile in [
-        format!(
-            "[Interface]\nAddress=10.0.0.2/32\nMTU=01420\nPrivateKey={VALID_WIREGUARD_KEY}\n"
-        ),
+        format!("[Interface]\nAddress=10.0.0.2/32\nMTU=01420\nPrivateKey={VALID_WIREGUARD_KEY}\n"),
         format!(
             "[Interface]\nAddress=10.0.0.2/32\nListenPort=051820\nPrivateKey={VALID_WIREGUARD_KEY}\n"
         ),
@@ -103,6 +101,14 @@ fn wireguard_rejects_noncanonical_decimal_scalars_before_secret_import() {
     ] {
         reject_wireguard(&profile);
     }
+}
+
+#[test]
+fn wireguard_rejects_zero_mtu_before_secret_import() {
+    let profile = format!(
+        "[Interface]\nAddress=10.0.0.2/32\nMTU=0\nPrivateKey={VALID_WIREGUARD_KEY}\n"
+    );
+    reject_wireguard(&profile);
 }
 
 #[test]
