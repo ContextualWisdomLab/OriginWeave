@@ -36,6 +36,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 - Added an active BAP in-memory command receipt that binds bounded tenant namespaces, idempotency keys, and task identities to accepted lifecycle transitions without claiming authenticated tenant authority, durable deduplication, or side-effect suppression.
 - Receipt replay now additionally requires the lifecycle's actual most recently accepted transition to equal the retained receipt transition; same-state/same-sequence divergent histories and state-only restored snapshots fail closed instead of replaying ambiguous command evidence.
+- Crash-recovery redispatch classification now validates its retained BAP command receipt against the lifecycle's exact most recently accepted transition before signaling that a confirmed-no-side-effect command may be reconsidered; stale or divergent recovery evidence fails closed with the typed receipt error and never becomes redispatch authorization.
 - Separated logical origin authority from resolved network destination authority; an origin grant no longer implies permission to connect to every resolver result.
 - Separated resolved-address authorization from direct transport evidence; an approved IP now becomes a usable stream only after the operating system reports the exact requested IP and port.
 - Separated exact TCP peer proof from authenticated TLS service identity; an observed peer becomes an authenticated HTTPS stream only after explicit-root, fixed-time, SAN-bound WebPKI verification over that same stream.
