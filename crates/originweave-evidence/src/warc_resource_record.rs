@@ -13,6 +13,39 @@ pub const MAX_WARC_CONTENT_TYPE_BYTES: usize = 256;
 /// Maximum resource payload retained by one immutable WARC record.
 pub const MAX_WARC_PAYLOAD_BYTES: usize = 1_048_576;
 
+/// Standard WARC 1.1 reason for a deliberately or unexpectedly truncated record block.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WarcTruncationReason {
+    /// Capture stopped because the configured maximum length was reached.
+    Length,
+    /// Capture stopped because the configured maximum capture time was reached.
+    Time,
+    /// Capture stopped because the network connection disconnected.
+    Disconnect,
+    /// Capture stopped for another or unknown reason.
+    Unspecified,
+}
+
+impl WarcTruncationReason {
+    const fn warc_token(self) -> &'static str {
+        match self {
+            Self::Length => "length",
+            Self::Time => "time",
+            Self::Disconnect => "disconnect",
+            Self::Unspecified => "unspecified",
+        }
+    }
+}
+
+/// Whether the retained WARC record block is complete or explicitly truncated.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WarcPayloadCompleteness {
+    /// The retained record block is complete for the caller-authorized capture.
+    Complete,
+    /// The retained record block is partial for the stated WARC 1.1 truncation reason.
+    Truncated(WarcTruncationReason),
+}
+
 /// A validation failure while constructing an immutable WARC resource record.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WarcResourceRecordError {
@@ -58,6 +91,7 @@ pub struct WarcResourceRecord {
     payload: Vec<u8>,
     block_digest: String,
     provenance: ProvenanceRecord,
+    completeness: WarcPayloadCompleteness,
 }
 
 impl fmt::Debug for WarcResourceRecord {
@@ -69,6 +103,7 @@ impl fmt::Debug for WarcResourceRecord {
             .field("content_type", &self.content_type)
             .field("payload_byte_count", &self.payload.len())
             .field("block_digest", &self.block_digest)
+            .field("completeness", &self.completeness)
             .field(
                 "provenance_verification_result",
                 &self.provenance.verification_result(),
@@ -78,7 +113,7 @@ impl fmt::Debug for WarcResourceRecord {
 }
 
 impl WarcResourceRecord {
-    /// Validate and construct one resource record without contacting a live origin.
+    /// Validate and construct one complete resource record without contacting a live origin.
     pub fn new(
         record_id: &str,
         warc_date: &str,
@@ -86,6 +121,31 @@ impl WarcResourceRecord {
         content_type: &str,
         payload: Vec<u8>,
         provenance: ProvenanceRecord,
+    ) -> Result<Self, WarcResourceRecordError> {
+        Self::new_with_completeness(
+            record_id,
+            warc_date,
+            target_uri,
+            content_type,
+            payload,
+            provenance,
+            WarcPayloadCompleteness::Complete,
+        )
+    }
+
+    /// Validate and construct one resource record with explicit capture completeness.
+    ///
+    /// Truncated records retain the caller-provided partial block and emit the standard WARC 1.1
+    /// `WARC-Truncated` reason. This constructor never truncates an oversized payload implicitly;
+    /// the retained block must still satisfy [`MAX_WARC_PAYLOAD_BYTES`].
+    pub fn new_with_completeness(
+        record_id: &str,
+        warc_date: &str,
+        target_uri: &str,
+        content_type: &str,
+        payload: Vec<u8>,
+        provenance: ProvenanceRecord,
+        completeness: WarcPayloadCompleteness,
     ) -> Result<Self, WarcResourceRecordError> {
         if record_id.len() > MAX_WARC_RECORD_ID_BYTES {
             return Err(WarcResourceRecordError::LimitExceeded);
@@ -127,6 +187,7 @@ impl WarcResourceRecord {
             block_digest: sha256_digest(&payload),
             payload,
             provenance,
+            completeness,
         })
     }
 
@@ -172,14 +233,27 @@ impl WarcResourceRecord {
         &self.provenance
     }
 
+    /// Return whether the retained block is complete or explicitly truncated.
+    #[must_use]
+    pub const fn completeness(&self) -> WarcPayloadCompleteness {
+        self.completeness
+    }
+
     /// Serialize this bounded resource record as deterministic WARC 1.1 bytes.
     #[must_use]
     pub fn to_warc_bytes(&self) -> Vec<u8> {
+        let truncated_header = match self.completeness {
+            WarcPayloadCompleteness::Complete => String::new(),
+            WarcPayloadCompleteness::Truncated(reason) => {
+                format!("WARC-Truncated: {}\r\n", reason.warc_token())
+            }
+        };
         let header = format!(
-            "WARC/1.1\r\nWARC-Type: resource\r\nWARC-Record-ID: <{}>\r\nWARC-Date: {}\r\nWARC-Target-URI: {}\r\nContent-Type: {}\r\nWARC-Block-Digest: {}\r\nContent-Length: {}\r\n\r\n",
+            "WARC/1.1\r\nWARC-Type: resource\r\nWARC-Record-ID: <{}>\r\nWARC-Date: {}\r\nWARC-Target-URI: {}\r\n{}Content-Type: {}\r\nWARC-Block-Digest: {}\r\nContent-Length: {}\r\n\r\n",
             self.record_id,
             self.warc_date,
             self.target_uri,
+            truncated_header,
             self.content_type,
             self.block_digest,
             self.payload.len()
