@@ -105,6 +105,7 @@ fn warc_target_uri_rejects_ascii_characters_outside_rfc3986_uri_syntax() {
 
 #[test]
 fn warc_target_uri_rejects_malformed_percent_encoding() {
+    let source_provenance = provenance("https://example.com/valid");
     for target_uri in [
         "https://example.com/%",
         "https://example.com/%2",
@@ -118,7 +119,7 @@ fn warc_target_uri_rejects_malformed_percent_encoding() {
                 target_uri,
                 "text/plain",
                 Vec::new(),
-                provenance(target_uri),
+                source_provenance.clone(),
             ),
             Err(WarcResourceRecordError::InvalidTargetUri),
             "target_uri={target_uri:?}"
