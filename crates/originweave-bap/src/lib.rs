@@ -621,6 +621,37 @@ impl BapTaskLifecycle {
         ))
     }
 
+    /// Validate one exact retained command receipt against the current lifecycle without mutation.
+    ///
+    /// Exact tenant, idempotency-key, task, and event equality must match the retained receipt, and
+    /// that receipt's accepted transition must equal this lifecycle's most recently accepted
+    /// transition. Stale, foreign, divergent-history, or state-only restored lifecycles fail closed.
+    /// This validates retry identity and lifecycle position only; it does not authenticate persisted
+    /// evidence, authorize redispatch, or suppress browser/network side effects.
+    pub fn validate_replay(
+        &self,
+        receipt: &BapCommandReceipt,
+        idempotency_key: &str,
+        tenant_id: &str,
+        task_id: &str,
+        event: BapTaskEvent,
+    ) -> Result<(), BapCommandReceiptError> {
+        validate_idempotency_key(idempotency_key)?;
+        validate_tenant_id(tenant_id)?;
+        validate_task_id(task_id)?;
+        if !receipt.matches(idempotency_key, tenant_id, task_id, event) {
+            return Err(BapCommandReceiptError::IdempotencyConflict);
+        }
+        let transition = receipt.transition();
+        if self.state != transition.current_state()
+            || self.transition_sequence != transition.sequence()
+            || self.last_transition != Some(transition)
+        {
+            return Err(BapCommandReceiptError::ReplayStateMismatch);
+        }
+        Ok(())
+    }
+
     /// Apply a new command or replay an exact retained command receipt without a second transition.
     ///
     /// A caller that has already looked up a retained receipt may supply it here. Exact tenant,
@@ -639,20 +670,8 @@ impl BapTaskLifecycle {
         task_id: &str,
         event: BapTaskEvent,
     ) -> Result<BapCommandReceipt, BapCommandReceiptError> {
-        validate_idempotency_key(idempotency_key)?;
-        validate_tenant_id(tenant_id)?;
-        validate_task_id(task_id)?;
         if let Some(receipt) = existing_receipt {
-            if !receipt.matches(idempotency_key, tenant_id, task_id, event) {
-                return Err(BapCommandReceiptError::IdempotencyConflict);
-            }
-            let transition = receipt.transition();
-            if self.state != transition.current_state()
-                || self.transition_sequence != transition.sequence()
-                || self.last_transition != Some(transition)
-            {
-                return Err(BapCommandReceiptError::ReplayStateMismatch);
-            }
+            self.validate_replay(receipt, idempotency_key, tenant_id, task_id, event)?;
             return Ok(receipt.clone());
         }
         self.apply_with_receipt(idempotency_key, tenant_id, task_id, event)
