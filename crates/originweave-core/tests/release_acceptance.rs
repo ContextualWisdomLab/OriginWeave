@@ -84,8 +84,8 @@ fn limitation_rejects_control_characters_in_release_metadata() {
 #[test]
 fn limitation_rejects_ambiguous_unicode_formatting_characters() {
     for character in [
-        '\u{00ad}', '\u{061c}', '\u{200b}', '\u{200f}', '\u{2028}', '\u{202e}', '\u{2060}',
-        '\u{2066}', '\u{206f}', '\u{feff}',
+        '\u{00ad}', '\u{061c}', '\u{180e}', '\u{200b}', '\u{200f}', '\u{2028}', '\u{202e}',
+        '\u{2060}', '\u{2066}', '\u{206f}', '\u{feff}',
     ] {
         assert_eq!(
             DeclaredLimitation::new(
