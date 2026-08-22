@@ -210,7 +210,9 @@ fn validate_close_status_code(
     }
 
     let status_code = u16::from_be_bytes([frame.payload()[0], frame.payload()[1]]);
-    if !(1000..=4999).contains(&status_code) || matches!(status_code, 1005 | 1006 | 1015) {
+    if !(1000..=4999).contains(&status_code)
+        || matches!(status_code, 1004 | 1005 | 1006 | 1015)
+    {
         return Err(raw::WebDriverBiDiWebSocketFrameError::MalformedFrame {
             reason: "Close frame status code is not valid on the wire",
         });
