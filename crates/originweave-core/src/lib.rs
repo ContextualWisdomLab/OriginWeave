@@ -1094,6 +1094,12 @@ pub fn evaluate_extension_access(
 pub mod release_acceptance {
     use std::fmt;
 
+    /// Maximum UTF-8 byte length retained for either buyer-visible limitation field.
+    pub const MAX_RELEASE_LIMITATION_TEXT_BYTES: usize = 1024;
+
+    /// Maximum number of buyer-visible limitations retained in one release report.
+    pub const MAX_DECLARED_RELEASE_LIMITATIONS: usize = 64;
+
     /// One mandatory benchmark suite in the release acceptance contract.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum BenchmarkSuite {
@@ -1167,8 +1173,9 @@ pub mod release_acceptance {
     impl DeclaredLimitation {
         /// Construct one explicit buyer-visible release limitation.
         ///
-        /// Empty/whitespace-only values and ambiguous presentation characters fail closed because
-        /// they cannot safely represent one unambiguous buyer-visible release limitation.
+        /// Empty/whitespace-only values, fields exceeding the fixed UTF-8 byte budget,
+        /// and ambiguous presentation characters fail closed because they cannot safely
+        /// represent one unambiguous, resource-bounded buyer-visible release limitation.
         pub fn new(
             unsupported_claim: impl Into<String>,
             buyer_consequence: impl Into<String>,
@@ -1176,6 +1183,9 @@ pub mod release_acceptance {
             let unsupported_claim = unsupported_claim.into();
             if unsupported_claim.trim().is_empty() {
                 return Err(ReleaseDecisionError::EmptyLimitationClaim);
+            }
+            if unsupported_claim.len() > MAX_RELEASE_LIMITATION_TEXT_BYTES {
+                return Err(ReleaseDecisionError::LimitationClaimTooLong);
             }
             if unsupported_claim
                 .chars()
@@ -1186,6 +1196,9 @@ pub mod release_acceptance {
             let buyer_consequence = buyer_consequence.into();
             if buyer_consequence.trim().is_empty() {
                 return Err(ReleaseDecisionError::EmptyLimitationConsequence);
+            }
+            if buyer_consequence.len() > MAX_RELEASE_LIMITATION_TEXT_BYTES {
+                return Err(ReleaseDecisionError::LimitationConsequenceTooLong);
             }
             if buyer_consequence
                 .chars()
@@ -1255,12 +1268,18 @@ pub mod release_acceptance {
     pub enum ReleaseDecisionError {
         /// A declared limitation did not identify the unsupported release claim.
         EmptyLimitationClaim,
+        /// A declared limitation claim exceeded the fixed UTF-8 byte budget.
+        LimitationClaimTooLong,
         /// A declared limitation claim contained an unsafe presentation character.
         InvalidLimitationClaim,
         /// A declared limitation did not state the buyer-visible consequence.
         EmptyLimitationConsequence,
+        /// A declared limitation consequence exceeded the fixed UTF-8 byte budget.
+        LimitationConsequenceTooLong,
         /// A declared limitation consequence contained an unsafe presentation character.
         InvalidLimitationConsequence,
+        /// One release report supplied more buyer-visible limitations than the fixed resource budget.
+        TooManyDeclaredLimitations,
         /// The same suite appeared more than once instead of one authoritative result.
         DuplicateSuite(BenchmarkSuite),
     }
@@ -1270,14 +1289,22 @@ pub mod release_acceptance {
             match self {
                 Self::EmptyLimitationClaim => formatter
                     .write_str("declared release limitation must name an unsupported claim"),
+                Self::LimitationClaimTooLong => formatter
+                    .write_str("declared release limitation claim exceeds the byte budget"),
                 Self::InvalidLimitationClaim => formatter.write_str(
                     "declared release limitation claim contains an unsafe presentation character",
                 ),
                 Self::EmptyLimitationConsequence => formatter.write_str(
                     "declared release limitation must state a buyer-visible consequence",
                 ),
+                Self::LimitationConsequenceTooLong => formatter.write_str(
+                    "declared release limitation consequence exceeds the byte budget",
+                ),
                 Self::InvalidLimitationConsequence => formatter.write_str(
                     "declared release limitation consequence contains an unsafe presentation character",
+                ),
+                Self::TooManyDeclaredLimitations => formatter.write_str(
+                    "benchmark release decision contains too many declared limitations",
                 ),
                 Self::DuplicateSuite(suite) => write!(
                     formatter,
@@ -1334,13 +1361,14 @@ pub mod release_acceptance {
 
     /// Produce one deterministic release decision from mandatory suite outcomes.
     ///
-    /// Duplicate suite evidence fails closed rather than selecting an arbitrary
-    /// result. A known mandatory-threshold failure is always rejected, even when
-    /// other suites are missing or inconclusive; all such evidence gaps remain in
-    /// the returned report. Without a known failure, missing or inconclusive
-    /// evidence is never promoted to acceptance. Accepted-with-limitations requires
-    /// at least one validated [`DeclaredLimitation`], so the decision cannot be
-    /// detached from the exact narrowed claim and buyer-visible consequence.
+    /// Duplicate suite evidence and excessive declared-limitation cardinality fail
+    /// closed rather than selecting or retaining an attacker-controlled unbounded set.
+    /// A known mandatory-threshold failure is always rejected, even when other suites
+    /// are missing or inconclusive; all such evidence gaps remain in the returned
+    /// report. Without a known failure, missing or inconclusive evidence is never
+    /// promoted to acceptance. Accepted-with-limitations requires at least one
+    /// validated [`DeclaredLimitation`], so the decision cannot be detached from the
+    /// exact narrowed claim and buyer-visible consequence.
     pub fn decide_release<I>(
         results: I,
         declared_limitations: &[DeclaredLimitation],
@@ -1348,6 +1376,10 @@ pub mod release_acceptance {
     where
         I: IntoIterator<Item = (BenchmarkSuite, BenchmarkSuiteOutcome)>,
     {
+        if declared_limitations.len() > MAX_DECLARED_RELEASE_LIMITATIONS {
+            return Err(ReleaseDecisionError::TooManyDeclaredLimitations);
+        }
+
         let mut outcomes = [None; BenchmarkSuite::ALL.len()];
         for (suite, outcome) in results {
             let slot = &mut outcomes[suite.index()];
