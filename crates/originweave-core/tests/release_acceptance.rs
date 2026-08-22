@@ -82,6 +82,26 @@ fn limitation_rejects_control_characters_in_release_metadata() {
 }
 
 #[test]
+fn limitation_rejects_ambiguous_unicode_formatting_characters() {
+    for character in ['\u{202e}', '\u{200b}', '\u{00ad}', '\u{2066}', '\u{feff}'] {
+        assert_eq!(
+            DeclaredLimitation::new(
+                format!("linux_arm64{character}forged_release_claim"),
+                "Linux ARM64 is unsupported."
+            ),
+            Err(ReleaseDecisionError::InvalidLimitationClaim)
+        );
+        assert_eq!(
+            DeclaredLimitation::new(
+                "linux_arm64",
+                format!("Linux ARM64 is unsupported.{character}forged_release_consequence")
+            ),
+            Err(ReleaseDecisionError::InvalidLimitationConsequence)
+        );
+    }
+}
+
+#[test]
 fn limitation_errors_have_deterministic_standard_error_contracts() {
     let cases = [
         (
