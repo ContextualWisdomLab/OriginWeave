@@ -20,6 +20,9 @@ mod webdriver_bidi_locate_nodes_exchange;
 #[cfg(test)]
 mod webdriver_bidi_locate_nodes_exchange_transport_failure_tests;
 mod webdriver_bidi_websocket_control;
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod webdriver_bidi_websocket_coverage_tests;
 mod webdriver_bidi_websocket_handshake;
 
 pub use connection::{

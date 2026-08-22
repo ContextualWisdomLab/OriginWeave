@@ -463,8 +463,9 @@ impl WebDriverBiDiWebSocketEstablished {
     /// Server-to-client frames must be unmasked. Data and continuation frames are returned one at
     /// a time so a later message layer can enforce fragmentation and JSON semantics; control frames
     /// are returned to that layer for protocol handling. Reserved bits/opcodes, oversized payloads,
-    /// noncanonical lengths, and incomplete reads fail closed. No frame grants browser/Agent
-    /// authority.
+    /// noncanonical lengths, and incomplete reads fail closed. Close frames additionally enforce the
+    /// RFC 6455 payload shape and UTF-8 reason contract before the frame is returned. No frame grants
+    /// browser/Agent authority.
     pub fn read_frame(
         self,
         frame_timeout: Duration,
@@ -577,7 +578,7 @@ pub enum WebDriverBiDiWebSocketFrameError {
         /// Number of frame bytes consumed before EOF.
         bytes_read: usize,
     },
-    /// The frame header violated RFC 6455 or the no-extension policy.
+    /// The frame header or RFC 6455 control-frame payload violated the protocol contract.
     MalformedFrame {
         /// Stable, non-secret reason for rejection.
         reason: &'static str,
@@ -1153,6 +1154,18 @@ fn read_frame_with_clock(
     let payload_length = payload_length as usize;
     let mut payload = vec![0_u8; payload_length];
     read_frame_bytes_with_clock(reader, &mut payload, &mut bytes_read, deadline, now)?;
+    if opcode == 0x8 {
+        if payload.len() == 1 {
+            return Err(WebDriverBiDiWebSocketFrameError::MalformedFrame {
+                reason: "Close frame payload must be empty or begin with a two-byte status code",
+            });
+        }
+        if payload.len() > 1 && std::str::from_utf8(&payload[2..]).is_err() {
+            return Err(WebDriverBiDiWebSocketFrameError::MalformedFrame {
+                reason: "Close frame reason is not valid UTF-8",
+            });
+        }
+    }
     reader.set_nonblocking(false).map_err(|source| {
         WebDriverBiDiWebSocketFrameError::FrameReadFailed { bytes_read, source }
     })?;
