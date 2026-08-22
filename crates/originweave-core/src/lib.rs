@@ -1167,7 +1167,7 @@ pub mod release_acceptance {
     impl DeclaredLimitation {
         /// Construct one explicit buyer-visible release limitation.
         ///
-        /// Empty/whitespace-only values and embedded control characters fail closed because
+        /// Empty/whitespace-only values and ambiguous presentation characters fail closed because
         /// they cannot safely represent one unambiguous buyer-visible release limitation.
         pub fn new(
             unsupported_claim: impl Into<String>,
@@ -1177,14 +1177,20 @@ pub mod release_acceptance {
             if unsupported_claim.trim().is_empty() {
                 return Err(ReleaseDecisionError::EmptyLimitationClaim);
             }
-            if unsupported_claim.chars().any(char::is_control) {
+            if unsupported_claim
+                .chars()
+                .any(disallowed_release_limitation_character)
+            {
                 return Err(ReleaseDecisionError::InvalidLimitationClaim);
             }
             let buyer_consequence = buyer_consequence.into();
             if buyer_consequence.trim().is_empty() {
                 return Err(ReleaseDecisionError::EmptyLimitationConsequence);
             }
-            if buyer_consequence.chars().any(char::is_control) {
+            if buyer_consequence
+                .chars()
+                .any(disallowed_release_limitation_character)
+            {
                 return Err(ReleaseDecisionError::InvalidLimitationConsequence);
             }
             Ok(Self {
@@ -1206,6 +1212,15 @@ pub mod release_acceptance {
         }
     }
 
+    fn disallowed_release_limitation_character(character: char) -> bool {
+        let code_point = character as u32;
+        character.is_control()
+            || matches!(
+                code_point,
+                0x00ad | 0x061c | 0x200b..=0x200f | 0x2028..=0x202e | 0x2060..=0x206f | 0xfeff
+            )
+    }
+
     /// Deterministic release decision produced from mandatory suite evidence.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum ReleaseDecision {
@@ -1224,11 +1239,11 @@ pub mod release_acceptance {
     pub enum ReleaseDecisionError {
         /// A declared limitation did not identify the unsupported release claim.
         EmptyLimitationClaim,
-        /// A declared limitation claim contained a control character.
+        /// A declared limitation claim contained an unsafe presentation character.
         InvalidLimitationClaim,
         /// A declared limitation did not state the buyer-visible consequence.
         EmptyLimitationConsequence,
-        /// A declared limitation consequence contained a control character.
+        /// A declared limitation consequence contained an unsafe presentation character.
         InvalidLimitationConsequence,
         /// The same suite appeared more than once instead of one authoritative result.
         DuplicateSuite(BenchmarkSuite),
