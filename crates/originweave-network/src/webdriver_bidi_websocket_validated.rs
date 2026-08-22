@@ -18,7 +18,12 @@ pub struct WebDriverBiDiWebSocketHandshakePlan(raw::WebDriverBiDiWebSocketHandsh
 
 impl fmt::Debug for WebDriverBiDiWebSocketHandshakePlan {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(formatter)
+        formatter
+            .debug_struct("WebDriverBiDiWebSocketHandshakePlan")
+            .field("verified_peer", self.0.verified_peer())
+            .field("client_key", &"<redacted WebSocket client nonce>")
+            .field("request_byte_count", &self.0.request_bytes().len())
+            .finish()
     }
 }
 
