@@ -33,6 +33,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Bounded each buyer-visible release-limitation field to 1,024 UTF-8 bytes and each release report to 64 declared limitations, rejecting oversize metadata and excessive cardinality before the report clones retained limitation state.
 - Separated logical origin authority from resolved network destination authority; an origin grant no longer implies permission to connect to every resolver result.
 - Separated resolved-address authorization from direct transport evidence; an approved IP now becomes a usable stream only after the operating system reports the exact requested IP and port.
 - Separated exact TCP peer proof from authenticated TLS service identity; an observed peer becomes an authenticated HTTPS stream only after explicit-root, fixed-time, SAN-bound WebPKI verification over that same stream.
