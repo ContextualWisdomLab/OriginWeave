@@ -10,7 +10,7 @@ use originweave_core::VerifiedWebDriverBiDiSocketPeer;
 
 use crate::{
     WebDriverBiDiTcpConnection, WebDriverBiDiTcpConnectionEvidence,
-    webdriver_bidi_websocket_handshake as raw,
+    webdriver_bidi_websocket_handshake_raw as raw,
 };
 
 /// Inert RFC 6455 opening request bound to one already-verified plain BiDi TCP connection.

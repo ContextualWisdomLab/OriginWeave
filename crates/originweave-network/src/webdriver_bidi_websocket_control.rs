@@ -7,7 +7,7 @@ use std::{
 
 use crate::{
     MAX_WEBSOCKET_FRAME_TIMEOUT, WebDriverBiDiWebSocketFrameError, WebDriverBiDiWebSocketMaskKey,
-    webdriver_bidi_websocket_handshake::WebDriverBiDiWebSocketEstablished,
+    webdriver_bidi_websocket_handshake_raw::WebDriverBiDiWebSocketEstablished,
 };
 
 const MAX_WEBSOCKET_CONTROL_FRAME_PAYLOAD_BYTES: usize = 125;
