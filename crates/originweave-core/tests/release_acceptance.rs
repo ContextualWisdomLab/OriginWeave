@@ -10,41 +10,38 @@ fn passing_results() -> Vec<(BenchmarkSuite, BenchmarkSuiteOutcome)> {
         .collect()
 }
 
-fn declared_limitation() -> DeclaredLimitation {
-    let Ok(limitation) = DeclaredLimitation::new(
+fn declared_limitation() -> Result<DeclaredLimitation, ReleaseDecisionError> {
+    DeclaredLimitation::new(
         "linux_arm64",
         "Linux ARM64 is not included in the declared release support profile.",
-    ) else {
-        panic!("fixture limitation must be valid");
-    };
-    limitation
+    )
 }
 
 #[test]
-fn complete_passing_evidence_is_accepted_without_declared_limitations() {
-    let Ok(report) = decide_release(passing_results(), &[]) else {
-        panic!("complete unique suite evidence must produce a report");
-    };
+fn complete_passing_evidence_is_accepted_without_declared_limitations(
+) -> Result<(), ReleaseDecisionError> {
+    let report = decide_release(passing_results(), &[])?;
 
     assert_eq!(report.decision(), ReleaseDecision::Accepted);
     assert!(report.failed_suites().is_empty());
     assert!(report.inconclusive_suites().is_empty());
     assert!(report.missing_suites().is_empty());
     assert!(report.declared_limitations().is_empty());
+    Ok(())
 }
 
 #[test]
-fn complete_passing_evidence_preserves_declared_limitation_details() {
-    let limitation = declared_limitation();
-    let Ok(report) = decide_release(passing_results(), std::slice::from_ref(&limitation)) else {
-        panic!("complete unique suite evidence must produce a report");
-    };
+fn complete_passing_evidence_preserves_declared_limitation_details(
+) -> Result<(), ReleaseDecisionError> {
+    let limitation = declared_limitation()?;
+    let report = decide_release(passing_results(), std::slice::from_ref(&limitation))?;
 
     assert_eq!(
         report.decision(),
         ReleaseDecision::AcceptedWithDeclaredLimitations
     );
     assert_eq!(report.declared_limitations(), &[limitation]);
+    Ok(())
 }
 
 #[test]
@@ -67,36 +64,58 @@ fn limitation_requires_a_buyer_visible_consequence() {
 }
 
 #[test]
-fn limitation_exposes_the_exact_narrowed_claim_and_consequence() {
-    let limitation = declared_limitation();
+fn limitation_errors_have_deterministic_standard_error_contracts() {
+    let cases = [
+        (
+            ReleaseDecisionError::EmptyLimitationClaim,
+            "declared release limitation must name an unsupported claim",
+        ),
+        (
+            ReleaseDecisionError::EmptyLimitationConsequence,
+            "declared release limitation must state a buyer-visible consequence",
+        ),
+    ];
+
+    for (error, expected_message) in cases {
+        assert_eq!(error.to_string(), expected_message);
+        let standard_error: &dyn std::error::Error = &error;
+        assert!(standard_error.source().is_none());
+    }
+}
+
+#[test]
+fn limitation_exposes_the_exact_narrowed_claim_and_consequence(
+) -> Result<(), ReleaseDecisionError> {
+    let limitation = declared_limitation()?;
 
     assert_eq!(limitation.unsupported_claim(), "linux_arm64");
     assert_eq!(
         limitation.buyer_consequence(),
         "Linux ARM64 is not included in the declared release support profile."
     );
+    Ok(())
 }
 
 #[test]
-fn every_mandatory_suite_is_required_for_acceptance() {
+fn every_mandatory_suite_is_required_for_acceptance() -> Result<(), ReleaseDecisionError> {
     for omitted_suite in BenchmarkSuite::ALL {
         let evidence = passing_results()
             .into_iter()
             .filter(|(suite, _)| *suite != omitted_suite)
             .collect::<Vec<_>>();
 
-        let Ok(report) = decide_release(evidence, &[]) else {
-            panic!("remaining suite identities must be unique");
-        };
+        let report = decide_release(evidence, &[])?;
 
         assert_eq!(report.decision(), ReleaseDecision::Inconclusive);
         assert_eq!(report.missing_suites(), &[omitted_suite]);
         assert!(report.failed_suites().is_empty());
     }
+    Ok(())
 }
 
 #[test]
-fn explicit_inconclusive_suite_evidence_cannot_be_promoted_to_acceptance() {
+fn explicit_inconclusive_suite_evidence_cannot_be_promoted_to_acceptance(
+) -> Result<(), ReleaseDecisionError> {
     for inconclusive_suite in BenchmarkSuite::ALL {
         let evidence = passing_results()
             .into_iter()
@@ -108,20 +127,20 @@ fn explicit_inconclusive_suite_evidence_cannot_be_promoted_to_acceptance() {
                 }
             })
             .collect::<Vec<_>>();
-        let limitation = declared_limitation();
+        let limitation = declared_limitation()?;
 
-        let Ok(report) = decide_release(evidence, std::slice::from_ref(&limitation)) else {
-            panic!("suite identities must be unique");
-        };
+        let report = decide_release(evidence, std::slice::from_ref(&limitation))?;
 
         assert_eq!(report.decision(), ReleaseDecision::Inconclusive);
         assert_eq!(report.inconclusive_suites(), &[inconclusive_suite]);
         assert_eq!(report.declared_limitations(), &[limitation]);
     }
+    Ok(())
 }
 
 #[test]
-fn any_known_threshold_failure_rejects_release_and_identifies_the_suite() {
+fn any_known_threshold_failure_rejects_release_and_identifies_the_suite(
+) -> Result<(), ReleaseDecisionError> {
     for failed_suite in BenchmarkSuite::ALL {
         let evidence = passing_results()
             .into_iter()
@@ -133,21 +152,21 @@ fn any_known_threshold_failure_rejects_release_and_identifies_the_suite() {
                 }
             })
             .collect::<Vec<_>>();
-        let limitation = declared_limitation();
+        let limitation = declared_limitation()?;
 
-        let Ok(report) = decide_release(evidence, std::slice::from_ref(&limitation)) else {
-            panic!("suite identities must be unique");
-        };
+        let report = decide_release(evidence, std::slice::from_ref(&limitation))?;
 
         assert_eq!(report.decision(), ReleaseDecision::Rejected);
         assert_eq!(report.failed_suites(), &[failed_suite]);
         assert_eq!(report.declared_limitations(), &[limitation]);
     }
+    Ok(())
 }
 
 #[test]
-fn known_failure_remains_rejected_when_other_evidence_is_incomplete() {
-    let Ok(report) = decide_release(
+fn known_failure_remains_rejected_when_other_evidence_is_incomplete(
+) -> Result<(), ReleaseDecisionError> {
+    let report = decide_release(
         [
             (
                 BenchmarkSuite::ControlledDeterministic,
@@ -159,9 +178,7 @@ fn known_failure_remains_rejected_when_other_evidence_is_incomplete() {
             ),
         ],
         &[],
-    ) else {
-        panic!("suite identities must be unique");
-    };
+    )?;
 
     assert_eq!(report.decision(), ReleaseDecision::Rejected);
     assert_eq!(
@@ -180,30 +197,32 @@ fn known_failure_remains_rejected_when_other_evidence_is_incomplete() {
             BenchmarkSuite::EnterpriseOperability,
         ]
     );
+    Ok(())
 }
 
 #[test]
 fn duplicate_suite_evidence_fails_closed_instead_of_overwriting_results() {
     for duplicate_suite in BenchmarkSuite::ALL {
-        let Err(error) = decide_release(
-            [
-                (duplicate_suite, BenchmarkSuiteOutcome::Passed),
-                (duplicate_suite, BenchmarkSuiteOutcome::Failed),
-            ],
-            &[],
-        ) else {
-            panic!("duplicate suite evidence must fail closed");
-        };
-
-        assert_eq!(error, ReleaseDecisionError::DuplicateSuite(duplicate_suite));
+        let expected_error = ReleaseDecisionError::DuplicateSuite(duplicate_suite);
         assert_eq!(
-            error.to_string(),
+            decide_release(
+                [
+                    (duplicate_suite, BenchmarkSuiteOutcome::Passed),
+                    (duplicate_suite, BenchmarkSuiteOutcome::Failed),
+                ],
+                &[],
+            ),
+            Err(expected_error)
+        );
+
+        assert_eq!(
+            expected_error.to_string(),
             format!(
                 "benchmark release evidence contains duplicate suite: {}",
                 duplicate_suite.as_str()
             )
         );
-        let standard_error: &dyn std::error::Error = &error;
+        let standard_error: &dyn std::error::Error = &expected_error;
         assert!(standard_error.source().is_none());
     }
 }
