@@ -15,7 +15,9 @@ use originweave_network::{
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
 const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
 
-fn exchange_server_close_frame(frame: &[u8]) -> Result<WebDriverBiDiWebSocketFrameError, Box<dyn Error>> {
+fn exchange_server_close_frame(
+    frame: &[u8],
+) -> Result<WebDriverBiDiWebSocketFrameError, Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let frame = frame.to_vec();
@@ -34,13 +36,12 @@ fn exchange_server_close_frame(frame: &[u8]) -> Result<WebDriverBiDiWebSocketFra
         stream.write_all(&frame)
     });
 
-    let endpoint = WebDriverBiDiWebSocketEndpoint::new(&format!(
-        "ws://{local_addr}/session/{SESSION_ID}"
-    ))?;
+    let endpoint =
+        WebDriverBiDiWebSocketEndpoint::new(&format!("ws://{local_addr}/session/{SESSION_ID}"))?;
     let correlated = endpoint.correlate_session_id(SESSION_ID)?;
     let target = correlated.into_explicit_connect_target()?;
-    let connection = WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)?
-        .connect()?;
+    let connection =
+        WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)?.connect()?;
     let client_key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?;
     let handshake = WebDriverBiDiWebSocketHandshakePlan::new(connection, client_key)?;
     let opening = handshake.write_opening_request(Duration::from_millis(500))?;
@@ -65,8 +66,7 @@ fn close_frame_rejects_one_byte_body_and_invalid_utf8_reason() -> Result<(), Box
         WebDriverBiDiWebSocketFrameError::MalformedFrame { .. }
     ));
 
-    let invalid_utf8_reason =
-        exchange_server_close_frame(&[0x88, 0x04, 0x03, 0xe8, 0xff, 0xff])?;
+    let invalid_utf8_reason = exchange_server_close_frame(&[0x88, 0x04, 0x03, 0xe8, 0xff, 0xff])?;
     assert!(matches!(
         invalid_utf8_reason,
         WebDriverBiDiWebSocketFrameError::MalformedFrame { .. }
