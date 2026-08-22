@@ -150,6 +150,17 @@ fn release_manifest_rejects_invalid_identity_missing_duplicate_and_unbounded_evi
         Err(ReleaseManifestError::DuplicateArtifactName)
     );
 
+    let case_collision = ReleaseArtifact::new("ORIGINWEAVE.BIN", &sha256_digest('6'))?;
+    assert_eq!(
+        ReleaseManifest::new(
+            SOURCE_COMMIT,
+            CHROMIUM_REVISION,
+            ReleaseChannel::Stable,
+            vec![artifact.clone(), case_collision],
+        ),
+        Err(ReleaseManifestError::DuplicateArtifactName)
+    );
+
     let mut too_many = Vec::new();
     for index in 0..=MAX_RELEASE_ARTIFACTS {
         too_many.push(ReleaseArtifact::new(
