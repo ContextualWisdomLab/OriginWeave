@@ -19,6 +19,37 @@ const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
 const RESPONSE_DOCUMENT: &str =
     r#"{"type":"success","id":7,"result":{"nodes":[{"type":"node","sharedId":"shared-1"}]}}"#;
 
+fn read_client_text_frame(stream: &mut impl Read) {
+    let mut header = [0_u8; 2];
+    stream
+        .read_exact(&mut header)
+        .expect("command frame header must arrive");
+    assert_eq!(header[0], 0x81);
+    assert_ne!(header[1] & 0x80, 0);
+
+    let payload_length = match header[1] & 0x7f {
+        value @ 0..=125 => usize::from(value),
+        126 => {
+            let mut extended = [0_u8; 2];
+            stream
+                .read_exact(&mut extended)
+                .expect("16-bit command length must arrive");
+            usize::from(u16::from_be_bytes(extended))
+        }
+        127 => panic!("test command must not require a 64-bit WebSocket length"),
+        _ => unreachable!("7-bit WebSocket payload marker"),
+    };
+
+    let mut mask = [0_u8; 4];
+    stream
+        .read_exact(&mut mask)
+        .expect("command mask must arrive");
+    let mut payload = vec![0_u8; payload_length];
+    stream
+        .read_exact(&mut payload)
+        .expect("command payload must arrive");
+}
+
 #[test]
 fn exchange_budget_above_per_frame_ceiling_remains_a_valid_end_to_end_budget() {
     let listener = TcpListener::bind(("127.0.0.1", 0)).expect("test listener must bind");
@@ -45,22 +76,7 @@ fn exchange_budget_above_per_frame_ceiling_remains_a_valid_end_to_end_budget() {
             )
             .expect("opening response must be written");
 
-        let mut header = [0_u8; 2];
-        stream
-            .read_exact(&mut header)
-            .expect("command frame header must arrive");
-        assert_eq!(header[0], 0x81);
-        assert_ne!(header[1] & 0x80, 0);
-        let payload_length = usize::from(header[1] & 0x7f);
-        assert!(payload_length <= 125, "fixture command must use short frame encoding");
-        let mut mask = [0_u8; 4];
-        stream
-            .read_exact(&mut mask)
-            .expect("command mask must arrive");
-        let mut payload = vec![0_u8; payload_length];
-        stream
-            .read_exact(&mut payload)
-            .expect("command payload must arrive");
+        read_client_text_frame(&mut stream);
 
         let response = RESPONSE_DOCUMENT.as_bytes();
         let response_length = u8::try_from(response.len()).expect("response must fit short frame");
@@ -72,10 +88,9 @@ fn exchange_budget_above_per_frame_ceiling_remains_a_valid_end_to_end_budget() {
             .expect("response payload must be written");
     });
 
-    let endpoint = WebDriverBiDiWebSocketEndpoint::new(&format!(
-        "ws://{address}/session/{SESSION_ID}"
-    ))
-    .expect("test endpoint must be valid");
+    let endpoint =
+        WebDriverBiDiWebSocketEndpoint::new(&format!("ws://{address}/session/{SESSION_ID}"))
+            .expect("test endpoint must be valid");
     let correlated = endpoint
         .correlate_session_id(SESSION_ID)
         .expect("test session must correlate");
