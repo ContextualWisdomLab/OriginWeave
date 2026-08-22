@@ -212,6 +212,59 @@ fn direct_fail_closed_registry_paths_are_exercised_in_the_unit_crate() {
 }
 
 #[test]
+fn unit_cfg_allocation_rotation_and_retirement_edges_are_exercised() {
+    let mut registry = BrowserAuthorityRegistry::with_identifier_limit(1);
+    let sessions = values(registry.register_session("capacity-session"));
+    assert_eq!(sessions.len(), 1);
+    let session = sessions[0];
+    assert_eq!(
+        registry.register_session("capacity-session-two"),
+        Err(BrowserRegistryError::IdentifierSpaceExhausted)
+    );
+
+    let contexts = values(registry.register_context(session, "capacity-context"));
+    assert_eq!(contexts.len(), 1);
+    let context = contexts[0];
+    assert_eq!(
+        registry.register_context(session, "capacity-context-two"),
+        Err(BrowserRegistryError::IdentifierSpaceExhausted)
+    );
+
+    let origins = values(Origin::parse("http://127.0.0.1:43127"));
+    assert_eq!(origins.len(), 1);
+    let origin = &origins[0];
+    let handles = values(registry.bind_node(session, context, origin, "capacity-node"));
+    assert_eq!(handles.len(), 1);
+    let handle = &handles[0];
+    assert_eq!(
+        registry.bind_node(session, context, origin, "capacity-node-two"),
+        Err(BrowserRegistryError::IdentifierSpaceExhausted)
+    );
+
+    let forged = values(ObservedNodeHandle::new(
+        session,
+        context,
+        origin.clone(),
+        handle.document_epoch(),
+        handle.node_id() + 1,
+    ));
+    assert_eq!(forged.len(), 1);
+    assert_eq!(
+        registry.remove_node(&forged[0]),
+        Err(BrowserRegistryError::UnknownNodeAuthority)
+    );
+
+    let next_epochs = values(registry.advance_document(context));
+    assert_eq!(next_epochs.len(), 1);
+    assert_eq!(next_epochs[0].value(), 2);
+    assert_eq!(registry.remove_context(context), Ok(()));
+    assert_eq!(
+        registry.advance_document(context),
+        Err(BrowserRegistryError::UnknownBrowsingContext)
+    );
+}
+
+#[test]
 fn session_retirement_covers_unit_success_and_unknown_paths() {
     let mut registry = BrowserAuthorityRegistry::new();
     let sessions = values(registry.register_session("retirement-unit-session"));
