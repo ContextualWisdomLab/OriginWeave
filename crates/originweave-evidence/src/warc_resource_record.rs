@@ -349,7 +349,26 @@ fn is_leap_year(year: u16) -> bool {
 }
 
 fn valid_target_uri_presentation(target_uri: &str) -> bool {
-    target_uri.bytes().all(is_rfc3986_uri_byte)
+    let bytes = target_uri.as_bytes();
+    let mut index = 0_usize;
+    while index < bytes.len() {
+        let byte = bytes[index];
+        if !is_rfc3986_uri_byte(byte) {
+            return false;
+        }
+        if byte == b'%' {
+            if index + 2 >= bytes.len()
+                || !bytes[index + 1].is_ascii_hexdigit()
+                || !bytes[index + 2].is_ascii_hexdigit()
+            {
+                return false;
+            }
+            index += 3;
+        } else {
+            index += 1;
+        }
+    }
+    true
 }
 
 const fn is_rfc3986_uri_byte(byte: u8) -> bool {
