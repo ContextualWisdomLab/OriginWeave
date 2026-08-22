@@ -60,6 +60,17 @@ fn crash_recovery_distinguishes_external_side_effect_outcomes_without_unsafe_rep
 }
 
 #[test]
+fn recovery_validation_requires_only_read_only_lifecycle_access() {
+    let (lifecycle, receipt) = accepted_receipt();
+    let recovery =
+        BapCommandRecovery::new(receipt, BapExternalSideEffectOutcome::ConfirmedNoSideEffect);
+
+    assert_eq!(recovery.permits_redispatch(&lifecycle), Ok(true));
+    assert_eq!(lifecycle.state(), BapTaskState::Admitted);
+    assert_eq!(lifecycle.transition_sequence(), 1);
+}
+
+#[test]
 fn stale_recovery_receipt_cannot_signal_redispatch() {
     let (mut lifecycle, receipt) = accepted_receipt();
     let recovery =
