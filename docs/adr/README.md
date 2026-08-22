@@ -57,6 +57,14 @@ Proposed ADR files are reviewable target architecture without becoming Accepted 
 
 ADR 0013 and ADR 0014 exist only on this documentation branch until it integrates. After integration, this subsection remains historical provenance rather than an active-PR claim; both decisions remain Proposed until a later policy-compliant change explicitly changes their lifecycle.
 
+### Proposed decisions introduced by active feature work
+
+| ADR | Decision | Status | Governs |
+|---|---|---|---|
+| [0016](0016-bap-task-lifecycle-authority.md) | BAP task lifecycle and state authority | Proposed | BAP task states, transitions, recovery validation, transition sequencing, and authority separation |
+
+ADR 0016 belongs to the active BAP lifecycle feature branch. Indexing it makes the branch documentation graph complete while preserving its Proposed lifecycle and active-PR, non-protected-main maturity.
+
 Other active feature PRs may contain additional Proposed ADRs. Those files are not part of this canonical documentation line until integrated or deliberately reconciled here. Historical PR checks, stale branch state, or chat decisions never transfer ADR acceptance across a changed head.
 
 ## Index completeness rule

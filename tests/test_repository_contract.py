@@ -60,6 +60,7 @@ class RepositoryContractTests(unittest.TestCase):
             "docs/adr/0005-direct-socket-binding.md",
             "docs/adr/0006-tls-server-identity.md",
             "docs/adr/0009-hourly-agent-credential-boundary.md",
+            "docs/adr/0016-bap-task-lifecycle-authority.md",
             "docs/superpowers/specs/2026-08-06-resolved-destination-policy-design.md",
             "docs/superpowers/specs/2026-08-06-direct-socket-binding-design.md",
             "docs/superpowers/specs/2026-08-06-tls-server-identity-design.md",
