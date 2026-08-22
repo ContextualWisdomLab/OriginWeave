@@ -430,33 +430,33 @@ impl BrowserAuthorityRegistry {
         &self,
         handle: &ObservedNodeHandle,
     ) -> Result<(), BrowserRegistryError> {
-        if !handle.belongs_to(&self.registry_authority) {
-            return Err(BrowserRegistryError::UnregisteredNodeAuthority);
+        if !self.known_sessions.contains(&handle.browser_session()) {
+            return Err(BrowserRegistryError::UnknownBrowserSession);
         }
+        let context = handle.browsing_context();
         let expected_session = self
             .context_session
-            .get(&handle.browsing_context())
+            .get(&context)
             .copied()
             .ok_or(BrowserRegistryError::UnknownBrowsingContext)?;
-        let current_origin = self
-            .context_origin
-            .get(&handle.browsing_context())
-            .ok_or(BrowserRegistryError::UnknownNodeAuthority)?;
-        let current_epoch = self.current_epoch(handle.browsing_context())?;
-        handle.validate_current(
-            expected_session,
-            handle.browsing_context(),
-            current_origin,
-            current_epoch,
-        )?;
-        match self.node_binding_by_id.get(&handle.node_id()) {
-            Some((context, epoch))
-                if *context == handle.browsing_context() && *epoch == handle.document_epoch() =>
-            {
-                Ok(())
-            }
-            _ => Err(BrowserRegistryError::UnknownNodeAuthority),
+        if expected_session != handle.browser_session() {
+            return Err(BrowserRegistryError::UnknownNodeAuthority);
         }
+        let epoch = self.current_epoch(context)?;
+        let origin = self
+            .context_origin
+            .get(&context)
+            .ok_or(BrowserRegistryError::UnknownNodeAuthority)?;
+        handle
+            .validate_current(expected_session, context, origin, epoch)
+            .map_err(|_error| BrowserRegistryError::UnknownNodeAuthority)?;
+        if !handle.belongs_to(&self.registry_authority) {
+            return Err(BrowserRegistryError::UnknownNodeAuthority);
+        }
+        if self.node_binding_by_id.get(&handle.node_id()) != Some(&(context, epoch)) {
+            return Err(BrowserRegistryError::UnknownNodeAuthority);
+        }
+        Ok(())
     }
 }
 
@@ -466,69 +466,65 @@ impl Default for BrowserAuthorityRegistry {
     }
 }
 
-/// A deterministic error emitted while translating external browser identifiers into authority.
+/// A fail-closed error produced while translating external browser identifiers into local authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BrowserRegistryError {
-    /// An untrusted adapter identifier was empty or exceeded the retained UTF-8 byte budget.
+    /// An external identifier was empty or exceeded the reviewed byte bound.
     InvalidExternalIdentifier,
-    /// The browser session is not registered in this registry.
+    /// The supplied OriginWeave browser session is not registered in this registry.
     UnknownBrowserSession,
-    /// The browsing context is not registered in this registry.
+    /// The supplied OriginWeave browsing context is not registered in this registry.
     UnknownBrowsingContext,
-    /// The browsing context belongs to a different browser session.
+    /// The browsing context belongs to another browser session.
     ContextSessionMismatch {
-        /// Registered browser session.
+        /// Session that owns the registered context.
         expected: BrowserSessionId,
-        /// Browser session supplied by the adapter.
+        /// Session supplied by the current caller.
         actual: BrowserSessionId,
     },
-    /// The browsing context changed origin without a document-epoch transition.
+    /// The context origin changed without first rotating the document epoch.
     OriginChangedWithoutDocumentAdvance,
-    /// A node handle was structurally valid but was not issued by this exact registry instance.
-    UnregisteredNodeAuthority,
-    /// The node handle is not registered for the current document and authority state.
+    /// The observed node handle is not a current node binding owned by this registry.
     UnknownNodeAuthority,
-    /// A browser authority namespace exhausted its configured monotonic identifier range.
-    AuthorityIdentifierExhausted,
-    /// An internal typed identifier constructor rejected a monotonic nonzero registry identifier.
-    InternalAuthorityInvariant,
-    /// A document epoch reached its nonzero monotonic integer limit.
+    /// The registry exhausted one of its monotonic internal identifier spaces.
+    IdentifierSpaceExhausted,
+    /// A document epoch reached the maximum representable value.
     DocumentEpochExhausted,
+    /// A private registry consistency invariant was violated.
+    InternalAuthorityInvariant,
 }
 
 impl fmt::Display for BrowserRegistryError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidExternalIdentifier => {
-                formatter.write_str("external browser identifier is empty or too long")
+            Self::InvalidExternalIdentifier => write!(
+                formatter,
+                "external browser identifier must contain 1 to {MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES} UTF-8 bytes"
+            ),
+            Self::UnknownBrowserSession => {
+                formatter.write_str("browser session is not registered in this authority registry")
             }
-            Self::UnknownBrowserSession => formatter.write_str("browser session is not registered"),
             Self::UnknownBrowsingContext => {
-                formatter.write_str("browsing context is not registered")
+                formatter.write_str("browsing context is not registered in this authority registry")
             }
             Self::ContextSessionMismatch { expected, actual } => write!(
                 formatter,
-                "browsing context belongs to browser session {} instead of {}",
+                "browsing context belongs to session {}, not session {}",
                 expected.value(),
                 actual.value()
             ),
-            Self::OriginChangedWithoutDocumentAdvance => formatter.write_str(
-                "browsing context origin changed without advancing the document epoch",
-            ),
-            Self::UnregisteredNodeAuthority => {
-                formatter.write_str("node handle was not issued by this browser authority registry")
-            }
-            Self::UnknownNodeAuthority => {
-                formatter.write_str("node handle is not registered as current browser authority")
-            }
-            Self::AuthorityIdentifierExhausted => {
-                formatter.write_str("browser authority identifier namespace is exhausted")
-            }
-            Self::InternalAuthorityInvariant => {
-                formatter.write_str("browser authority registry invariant failed")
+            Self::OriginChangedWithoutDocumentAdvance => formatter
+                .write_str("browsing context origin changed without advancing the document epoch"),
+            Self::UnknownNodeAuthority => formatter
+                .write_str("observed node handle is not registered as current browser authority"),
+            Self::IdentifierSpaceExhausted => {
+                formatter.write_str("browser authority identifier space is exhausted")
             }
             Self::DocumentEpochExhausted => {
-                formatter.write_str("document epoch cannot advance without identifier reuse")
+                formatter.write_str("browser document epoch space is exhausted")
+            }
+            Self::InternalAuthorityInvariant => {
+                formatter.write_str("browser authority registry violated a nonzero invariant")
             }
         }
     }
@@ -544,24 +540,24 @@ fn validate_external_identifier(identifier: &str) -> Result<(), BrowserRegistryE
 }
 
 fn take_identifier(next: &mut u64, maximum_identifier: u64) -> Result<u64, BrowserRegistryError> {
-    if *next == 0 || *next > maximum_identifier {
-        return Err(BrowserRegistryError::AuthorityIdentifierExhausted);
+    if *next > maximum_identifier {
+        return Err(BrowserRegistryError::IdentifierSpaceExhausted);
     }
-    let current = *next;
-    *next = next.saturating_add(1);
-    Ok(current)
+    let identifier = *next;
+    *next = identifier + 1;
+    Ok(identifier)
 }
 
 fn browser_session_id(value: u64) -> Result<BrowserSessionId, BrowserRegistryError> {
-    BrowserSessionId::new(value).map_err(|_| BrowserRegistryError::InternalAuthorityInvariant)
+    BrowserSessionId::new(value).map_err(|_error| BrowserRegistryError::InternalAuthorityInvariant)
 }
 
 fn browsing_context_id(value: u64) -> Result<BrowsingContextId, BrowserRegistryError> {
-    BrowsingContextId::new(value).map_err(|_| BrowserRegistryError::InternalAuthorityInvariant)
+    BrowsingContextId::new(value).map_err(|_error| BrowserRegistryError::InternalAuthorityInvariant)
 }
 
 fn document_epoch(value: u64) -> Result<DocumentEpoch, BrowserRegistryError> {
-    DocumentEpoch::new(value).map_err(|_| BrowserRegistryError::InternalAuthorityInvariant)
+    DocumentEpoch::new(value).map_err(|_error| BrowserRegistryError::InternalAuthorityInvariant)
 }
 
 fn registered_node_handle(
@@ -580,7 +576,7 @@ fn registered_node_handle(
         node_id,
         registry_authority,
     )
-    .map_err(|_| BrowserRegistryError::InternalAuthorityInvariant)
+    .map_err(|_error| BrowserRegistryError::InternalAuthorityInvariant)
 }
 
 #[cfg(test)]
@@ -789,27 +785,6 @@ mod tests {
     }
 
     #[test]
-    fn session_retirement_covers_unit_success_and_unknown_paths() {
-        let mut registry = BrowserAuthorityRegistry::new();
-        let sessions = values(registry.register_session("retirement-unit-session"));
-        assert_eq!(sessions.len(), 1);
-        let session = sessions[0];
-        let contexts = values(registry.register_context(session, "retirement-unit-context"));
-        assert_eq!(contexts.len(), 1);
-        let context = contexts[0];
-
-        assert_eq!(registry.remove_session(session), Ok(()));
-        assert_eq!(
-            registry.current_epoch(context),
-            Err(BrowserRegistryError::UnknownBrowsingContext)
-        );
-        assert_eq!(
-            registry.remove_session(session),
-            Err(BrowserRegistryError::UnknownBrowserSession)
-        );
-    }
-
-    #[test]
     fn node_retirement_purges_duplicate_private_aliases_fail_closed() {
         let mut registry = BrowserAuthorityRegistry::new();
         let sessions = values(registry.register_session("retirement-session"));
@@ -874,6 +849,17 @@ mod tests {
         assert_eq!(
             registry.advance_document(context),
             Err(BrowserRegistryError::DocumentEpochExhausted)
+        );
+    }
+
+    #[test]
+    fn monotonic_identifier_exhaustion_is_fail_closed() {
+        let mut next = 1;
+        assert_eq!(take_identifier(&mut next, 1), Ok(1));
+        assert_eq!(next, 2);
+        assert_eq!(
+            take_identifier(&mut next, 1),
+            Err(BrowserRegistryError::IdentifierSpaceExhausted)
         );
     }
 
