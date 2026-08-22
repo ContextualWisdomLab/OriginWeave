@@ -39,7 +39,8 @@ fn every_mandatory_suite_is_required_for_acceptance() {
             .filter(|(suite, _)| *suite != omitted_suite)
             .collect::<Vec<_>>();
 
-        let report = decide_release(evidence, false).expect("remaining suite identities are unique");
+        let report =
+            decide_release(evidence, false).expect("remaining suite identities are unique");
 
         assert_eq!(report.decision(), ReleaseDecision::Inconclusive);
         assert_eq!(report.missing_suites(), &[omitted_suite]);
