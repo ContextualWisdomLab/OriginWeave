@@ -2,9 +2,7 @@ use std::fmt;
 
 use sha2::{Digest, Sha256};
 
-use crate::{
-    ProvenanceRecord, WarcPayloadCompleteness, WarcResourceRecord, WarcTruncationReason,
-};
+use crate::{ProvenanceRecord, WarcPayloadCompleteness, WarcResourceRecord, WarcTruncationReason};
 
 const ORIGINWEAVE_COMMIT_URL_PREFIX: &str =
     "https://github.com/ContextualWisdomLab/OriginWeave/commit/";
