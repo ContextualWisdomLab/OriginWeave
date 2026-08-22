@@ -40,12 +40,12 @@ fn crash_recovery_distinguishes_external_side_effect_outcomes_without_unsafe_rep
     ];
 
     for (outcome, expected_action, expected_redispatch) in cases {
-        let (mut lifecycle, receipt) = accepted_receipt();
+        let (lifecycle, receipt) = accepted_receipt();
         let recovery = BapCommandRecovery::new(receipt, outcome);
         assert_eq!(recovery.external_outcome(), outcome);
         assert_eq!(recovery.required_action(), expected_action);
         assert_eq!(
-            recovery.permits_redispatch(&mut lifecycle),
+            recovery.permits_redispatch(&lifecycle),
             Ok(expected_redispatch)
         );
         assert_eq!(lifecycle.state(), BapTaskState::Admitted);
@@ -80,7 +80,7 @@ fn stale_recovery_receipt_cannot_signal_redispatch() {
     assert!(advance.is_ok(), "{advance:?}");
 
     assert_eq!(
-        recovery.permits_redispatch(&mut lifecycle),
+        recovery.permits_redispatch(&lifecycle),
         Err(BapCommandReceiptError::ReplayStateMismatch)
     );
     assert_eq!(lifecycle.state(), BapTaskState::Running);
