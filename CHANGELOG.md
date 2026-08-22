@@ -46,7 +46,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Security
 
-- Release-acceptance limitation metadata rejects embedded controls plus bidirectional, invisible, and other ambiguous Unicode presentation characters while preserving ordinary international text, so buyer-visible narrowed claims and consequences cannot forge or visually reorder release statements.
+- Release-acceptance limitation metadata rejects embedded controls, U+2028/U+2029 line and paragraph separators, and Unicode 17.0.0 `Default_Ignorable_Code_Point` characters while preserving ordinary international text, so buyer-visible narrowed claims and consequences cannot forge or invisibly alter release statements.
 - Raw page content cannot become a trusted instruction.
 - Raw secrets are rejected and secret-capable actions require an opaque broker handle.
 - Crawler mode is read-only, must pair with the public-crawl purpose, and fails closed without an applicable robots-policy decision.
@@ -55,7 +55,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Shortened, integer, hexadecimal, and legacy octal-looking IPv4 host spellings are rejected so the policy origin cannot diverge from Chromium host interpretation.
 - IPv4-mapped IPv6 is canonicalized before destination classification and pin comparison so mapped private or loopback addresses cannot bypass IPv4 policy.
 - The default destination policy permits only public addresses and denies unspecified, loopback, private, shared, link-local, metadata, documentation, benchmarking, multicast, broadcast, transition, and protocol-reserved destinations.
-- Azure platform IP `168.63.129.16` and Amazon EKS Pod Identity endpoints `169.254.170.23` and `fd00:ec2::23` are classified as metadata or platform services before broader public, link-local, or unique-local rules.
+- Azure platform IP `168.63.129.16` and Amazon EKS Pod Identity endpoints `169.254.170.23` and `fd00:ec2::23` are classified as metadata or platform services before broader address-range rules.
 - Resolver answers are rejected when empty or larger than 256 addresses, preventing an unbounded resolver response from entering policy state.
 - `localhost` may approve only loopback addresses, while literal IPv4 and IPv6 origins may approve only the exact canonical address encoded in the origin.
 - Resolver answers must remain a non-empty subset of the origin-bound approved address set; any newly introduced address fails closed as a possible DNS-rebinding event.
