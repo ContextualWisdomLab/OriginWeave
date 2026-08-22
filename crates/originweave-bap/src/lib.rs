@@ -30,6 +30,12 @@ pub enum BapTaskState {
     WaitingForExternalInput,
     /// Execution is suspended at a compatible recoverable checkpoint.
     Checkpointed,
+    /// Execution is suspended until an explicit reconciliation decision is recorded.
+    ///
+    /// The lifecycle state does not itself persist or authenticate reconciliation
+    /// evidence. A durable owner must preserve the complete evidence that caused
+    /// the task to enter this state before resolution is considered.
+    ReconciliationRequired,
     /// The declared post-condition completed successfully.
     Succeeded,
     /// The task reached a terminal execution failure.
@@ -38,6 +44,11 @@ pub enum BapTaskState {
     Cancelled,
     /// The task exceeded its allowed lifetime and cannot resume.
     Expired,
+    /// The task was terminally removed from automatic execution after governed handling.
+    ///
+    /// Durable dead-letter evidence remains the responsibility of the persistence
+    /// boundary; this in-memory marker must not be treated as the evidence itself.
+    DeadLettered,
 }
 
 impl BapTaskState {
@@ -46,7 +57,7 @@ impl BapTaskState {
     pub const fn is_terminal(self) -> bool {
         matches!(
             self,
-            Self::Succeeded | Self::Failed | Self::Cancelled | Self::Expired
+            Self::Succeeded | Self::Failed | Self::Cancelled | Self::Expired | Self::DeadLettered
         )
     }
 }
@@ -64,8 +75,14 @@ pub enum BapTaskEvent {
     WaitForExternalInput,
     /// Suspend a running task at a recoverable checkpoint.
     Checkpoint,
-    /// Resume a suspended task into governed execution.
+    /// Resume a normal suspended task into governed execution.
     Resume,
+    /// Suspend a running task because its external outcome requires reconciliation.
+    RequireReconciliation,
+    /// Explicitly resolve a reconciliation hold and return the task to governed execution.
+    ResolveReconciliation,
+    /// Terminally remove a running or reconciliation-held task from automatic execution.
+    DeadLetter,
     /// Record successful completion after the declared post-condition is verified.
     Succeed,
     /// Record terminal task failure.
@@ -514,6 +531,9 @@ impl BapTaskLifecycle {
     ///
     /// Rejected events leave both state and sequence unchanged. Terminal states
     /// reject every later event before evaluating any normal transition rule.
+    /// Reconciliation cannot use the generic `Resume` event: it requires the
+    /// explicit `ResolveReconciliation` event so ambiguous external outcomes
+    /// cannot silently re-enter execution.
     pub fn apply(
         &mut self,
         event: BapTaskEvent,
@@ -538,6 +558,16 @@ impl BapTaskLifecycle {
                 | BapTaskState::Checkpointed,
                 BapTaskEvent::Resume,
             ) => BapTaskState::Running,
+            (BapTaskState::Running, BapTaskEvent::RequireReconciliation) => {
+                BapTaskState::ReconciliationRequired
+            }
+            (BapTaskState::ReconciliationRequired, BapTaskEvent::ResolveReconciliation) => {
+                BapTaskState::Running
+            }
+            (
+                BapTaskState::Running | BapTaskState::ReconciliationRequired,
+                BapTaskEvent::DeadLetter,
+            ) => BapTaskState::DeadLettered,
             (BapTaskState::Running, BapTaskEvent::Succeed) => BapTaskState::Succeeded,
             (_, BapTaskEvent::Fail) => BapTaskState::Failed,
             (_, BapTaskEvent::Cancel) => BapTaskState::Cancelled,
@@ -670,7 +700,8 @@ const fn reachable_snapshot(state: BapTaskState, transition_sequence: u64) -> bo
         BapTaskState::Running => transition_sequence >= 2 && transition_sequence.is_multiple_of(2),
         BapTaskState::WaitingForApproval
         | BapTaskState::WaitingForExternalInput
-        | BapTaskState::Checkpointed => {
+        | BapTaskState::Checkpointed
+        | BapTaskState::ReconciliationRequired => {
             transition_sequence >= 3 && !transition_sequence.is_multiple_of(2)
         }
         BapTaskState::Succeeded => {
@@ -679,5 +710,6 @@ const fn reachable_snapshot(state: BapTaskState, transition_sequence: u64) -> bo
         BapTaskState::Failed | BapTaskState::Cancelled | BapTaskState::Expired => {
             transition_sequence >= 1
         }
+        BapTaskState::DeadLettered => transition_sequence >= 3,
     }
 }
