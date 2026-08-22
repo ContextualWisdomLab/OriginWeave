@@ -648,6 +648,16 @@ mod tests {
             registry.bind_node(session, other_context, origin, "other-node"),
             Err(BrowserRegistryError::InternalAuthorityInvariant)
         );
+
+        let zero_epoch = registry.current_epoch(context)?;
+        registry
+            .node_by_external
+            .insert((context, zero_epoch, "zero-node".to_owned()), 0);
+        registry.node_binding_by_id.insert(0, (context, zero_epoch));
+        assert_eq!(
+            registry.bind_node(session, context, origin, "zero-node"),
+            Err(BrowserRegistryError::InternalAuthorityInvariant)
+        );
         Ok(())
     }
 
