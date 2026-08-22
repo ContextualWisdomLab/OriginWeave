@@ -65,19 +65,19 @@ fn limitation_requires_a_buyer_visible_consequence() {
 
 #[test]
 fn limitation_rejects_control_characters_in_release_metadata() {
-    assert!(
+    assert_eq!(
         DeclaredLimitation::new(
             "linux_arm64\nforged_release_claim",
             "Linux ARM64 is unsupported."
-        )
-        .is_err()
+        ),
+        Err(ReleaseDecisionError::InvalidLimitationClaim)
     );
-    assert!(
+    assert_eq!(
         DeclaredLimitation::new(
             "linux_arm64",
             "Linux ARM64 is unsupported.\rforged_release_consequence"
-        )
-        .is_err()
+        ),
+        Err(ReleaseDecisionError::InvalidLimitationConsequence)
     );
 }
 
@@ -89,8 +89,16 @@ fn limitation_errors_have_deterministic_standard_error_contracts() {
             "declared release limitation must name an unsupported claim",
         ),
         (
+            ReleaseDecisionError::InvalidLimitationClaim,
+            "declared release limitation claim contains a control character",
+        ),
+        (
             ReleaseDecisionError::EmptyLimitationConsequence,
             "declared release limitation must state a buyer-visible consequence",
+        ),
+        (
+            ReleaseDecisionError::InvalidLimitationConsequence,
+            "declared release limitation consequence contains a control character",
         ),
     ];
 
