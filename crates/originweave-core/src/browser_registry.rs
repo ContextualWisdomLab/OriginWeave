@@ -583,14 +583,8 @@ mod tests {
         assert_eq!(first, same);
         assert_ne!(first, different);
 
-        let registered = ObservedNodeHandle::registered(
-            session,
-            context,
-            origin,
-            epoch,
-            1,
-            Arc::new(()),
-        )?;
+        let registered =
+            ObservedNodeHandle::registered(session, context, origin, epoch, 1, Arc::new(()))?;
         assert_ne!(first, registered);
         Ok(())
     }
