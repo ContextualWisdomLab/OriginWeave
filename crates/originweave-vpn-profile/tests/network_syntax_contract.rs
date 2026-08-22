@@ -104,10 +104,20 @@ fn wireguard_rejects_noncanonical_decimal_scalars_before_secret_import() {
 }
 
 #[test]
-fn wireguard_rejects_zero_mtu_before_secret_import() {
-    let profile = format!(
-        "[Interface]\nAddress=10.0.0.2/32\nMTU=0\nPrivateKey={VALID_WIREGUARD_KEY}\n"
+fn overflowing_decimal_scalars_fail_before_secret_import() {
+    let wireguard = format!(
+        "[Interface]\nAddress=10.0.0.2/32\nMTU=65536\nPrivateKey={VALID_WIREGUARD_KEY}\n"
     );
+    reject_wireguard(&wireguard);
+
+    let ikev2 = "[IKEv2]\nServer=vpn.example\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8\nDpdSeconds=4294967296\n";
+    reject_ikev2(ikev2);
+}
+
+#[test]
+fn wireguard_rejects_zero_mtu_before_secret_import() {
+    let profile =
+        format!("[Interface]\nAddress=10.0.0.2/32\nMTU=0\nPrivateKey={VALID_WIREGUARD_KEY}\n");
     reject_wireguard(&profile);
 }
 
