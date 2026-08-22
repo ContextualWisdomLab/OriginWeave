@@ -82,6 +82,8 @@ RFC 9309 standardizes robots parsing, matching, error handling, and caching. It 
 
 W3C PROV-O supplies interoperable Entity, Activity, Agent, derivation, attribution, and responsibility concepts. ISO 28500:2017, confirmed in 2023, defines WARC storage for protocol payloads, control information, metadata, transformations, duplicate detection, integrity, and segmentation. OriginWeave uses source hashes and locators in the safety kernel, then adds WARC and PROV adapters as separately testable modules.
 
+WARC 1.1 defines `WARC-Truncated` as explicit record-block completeness evidence with standard reason tokens `length`, `time`, `disconnect`, and `unspecified`; `Content-Length` still reports the bytes actually retained in the truncated block. OriginWeave therefore requires callers to represent completeness explicitly: complete records omit the field, truncated records preserve one typed standard reason, and an oversized retained block remains a limit error rather than being silently truncated. This contract describes evidence already retained by the caller; it does not authorize capture, persistence, or retention.
+
 ### AI risk and prompt injection
 
 NIST AI 600-1 provides generative-AI lifecycle risk guidance. WASP demonstrates that web-navigation agents can follow low-effort indirect prompt injections. OriginWeave therefore separates trusted instructions, untrusted observations, and protected secrets at type and process boundaries rather than rely on prompting alone.
@@ -133,6 +135,8 @@ Internet Assigned Numbers Authority. (2025, October 9). *IPv4 special-purpose ad
 Internet Assigned Numbers Authority. (2025, October 9). *IPv6 special-purpose address space*. https://www.iana.org/assignments/iana-ipv6-special-registry/iana-ipv6-special-registry.xhtml
 
 Internet Assigned Numbers Authority. (2025, October 10). *IPv6 global unicast address space*. https://www.iana.org/assignments/ipv6-unicast-address-assignments/ipv6-unicast-address-assignments.xhtml
+
+International Internet Preservation Consortium. (n.d.). *The WARC format 1.1*. Retrieved August 22, 2026, from https://iipc.github.io/warc-specifications/specifications/warc-format/warc-1.1/
 
 International Organization for Standardization. (2017). *Information and documentation—WARC file format* (ISO Standard No. 28500:2017). https://www.iso.org/standard/68004.html
 
