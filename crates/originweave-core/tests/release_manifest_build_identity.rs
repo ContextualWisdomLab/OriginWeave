@@ -25,6 +25,10 @@ fn release_build_identity_rejects_ambiguous_or_unbounded_evidence() {
 
     for invalid_toolchain in [
         "",
+        "stable",
+        "beta",
+        "nightly",
+        "1.98.0",
         " 1.97.1",
         "1.97.1 ",
         "rust 1.97.1",
