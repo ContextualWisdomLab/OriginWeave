@@ -19,16 +19,18 @@ mod semantic_observation;
 
 pub use browser_registry::{
     BrowserAuthorityRegistry, BrowserRegistryError, MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES,
+    ObservedNodeHandle,
 };
 pub use contracts::{
     ActionIntentDigest, ActionIntentDigestError, ActionKind, ActionRequest, ApprovalEvidence,
     ApprovalScope, BrowserSessionId, BrowsingContextId, Capability, DocumentEpoch,
     ExecutionPurpose, ExtensionAgentCapability, ExtensionId, ExtensionIdError, InstructionSource,
-    NodeHandleError, ObservedNodeHandle, Origin, OriginError, PolicyContext, RiskClass,
-    RobotsDecision, SecretDelivery, SessionMode,
+    NodeHandleError, Origin, OriginError, PolicyContext, RiskClass, RobotsDecision, SecretDelivery,
+    SessionMode,
 };
 pub use extension_authority::{
-    ExtensionAccessDecision, ExtensionAccessRequest, ExtensionAgentGrant, evaluate_extension_access,
+    AgentTaskId, AgentTaskIdError, ExtensionAccessDecision, ExtensionAccessRequest,
+    ExtensionAgentGrant, evaluate_extension_access,
 };
 pub use semantic_action_binding::{SemanticNodeActionBinding, SemanticNodeActionBindingError};
 pub use semantic_action_target::{SemanticNodeActionTarget, SemanticNodeActionTargetError};

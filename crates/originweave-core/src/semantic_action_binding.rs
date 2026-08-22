@@ -1,8 +1,7 @@
 use std::fmt;
 
 use crate::{
-    ActionRequest, BrowserSessionId, BrowsingContextId, DocumentEpoch, NodeHandleError, Origin,
-    SemanticNodeActionTarget,
+    ActionRequest, BrowserAuthorityRegistry, BrowserRegistryError, SemanticNodeActionTarget,
 };
 
 /// One semantic node target explicitly paired with the business action request it would serve.
@@ -40,20 +39,12 @@ impl SemanticNodeActionBinding {
         &self.request
     }
 
-    /// Revalidate exact browser authority immediately before a later dispatch boundary.
+    /// Revalidate exact registry-owned browser authority immediately before a later dispatch.
     pub fn validate_current(
         &self,
-        current_session: BrowserSessionId,
-        current_context: BrowsingContextId,
-        current_origin: &Origin,
-        current_epoch: DocumentEpoch,
-    ) -> Result<(), NodeHandleError> {
-        self.target.validate_current(
-            current_session,
-            current_context,
-            current_origin,
-            current_epoch,
-        )
+        registry: &BrowserAuthorityRegistry,
+    ) -> Result<(), BrowserRegistryError> {
+        self.target.validate_current(registry)
     }
 }
 
