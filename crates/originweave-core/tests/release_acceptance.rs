@@ -83,7 +83,10 @@ fn limitation_rejects_control_characters_in_release_metadata() {
 
 #[test]
 fn limitation_rejects_ambiguous_unicode_formatting_characters() {
-    for character in ['\u{202e}', '\u{200b}', '\u{00ad}', '\u{2066}', '\u{feff}'] {
+    for character in [
+        '\u{00ad}', '\u{061c}', '\u{200b}', '\u{200f}', '\u{2028}', '\u{202e}', '\u{2060}',
+        '\u{2066}', '\u{206f}', '\u{feff}',
+    ] {
         assert_eq!(
             DeclaredLimitation::new(
                 format!("linux_arm64{character}forged_release_claim"),
@@ -102,6 +105,21 @@ fn limitation_rejects_ambiguous_unicode_formatting_characters() {
 }
 
 #[test]
+fn limitation_preserves_unambiguous_international_buyer_text() -> Result<(), ReleaseDecisionError> {
+    let limitation = DeclaredLimitation::new(
+        "한국어_운영환경",
+        "이 운영환경은 현재 지원 범위에 포함되지 않습니다.",
+    )?;
+
+    assert_eq!(limitation.unsupported_claim(), "한국어_운영환경");
+    assert_eq!(
+        limitation.buyer_consequence(),
+        "이 운영환경은 현재 지원 범위에 포함되지 않습니다."
+    );
+    Ok(())
+}
+
+#[test]
 fn limitation_errors_have_deterministic_standard_error_contracts() {
     let cases = [
         (
@@ -110,7 +128,7 @@ fn limitation_errors_have_deterministic_standard_error_contracts() {
         ),
         (
             ReleaseDecisionError::InvalidLimitationClaim,
-            "declared release limitation claim contains a control character",
+            "declared release limitation claim contains an unsafe presentation character",
         ),
         (
             ReleaseDecisionError::EmptyLimitationConsequence,
@@ -118,7 +136,7 @@ fn limitation_errors_have_deterministic_standard_error_contracts() {
         ),
         (
             ReleaseDecisionError::InvalidLimitationConsequence,
-            "declared release limitation consequence contains a control character",
+            "declared release limitation consequence contains an unsafe presentation character",
         ),
     ];
 
