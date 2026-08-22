@@ -1,9 +1,13 @@
 use std::fmt;
 
+use sha2::{Digest, Sha256};
+
 use crate::{WarcPayloadCompleteness, WarcResourceRecord, WarcTruncationReason};
 
 const ORIGINWEAVE_COMMIT_URL_PREFIX: &str =
     "https://github.com/ContextualWisdomLab/OriginWeave/commit/";
+const WARC_RECORD_DIGEST_IRI: &str =
+    "tag:contextualwisdomlab.github.io,2026:OriginWeave/warcRecordDigest";
 const WARC_PAYLOAD_COMPLETENESS_IRI: &str =
     "tag:contextualwisdomlab.github.io,2026:OriginWeave/warcPayloadCompleteness";
 const WARC_TRUNCATION_REASON_IRI: &str =
@@ -34,9 +38,9 @@ impl std::error::Error for WarcProvBundleError {}
 
 /// A deterministic PROV-O JSON-LD projection over one validated WARC resource record.
 ///
-/// The bundle contains identifiers, hashes, source location, capture time, explicit WARC payload
-/// completeness, and the exact OriginWeave software revision. It deliberately does not retain or
-/// emit the WARC payload.
+/// The bundle contains identifiers, source and record hashes, source location, capture time,
+/// explicit WARC payload completeness, and the exact OriginWeave software revision. It
+/// deliberately does not retain or emit the WARC payload.
 #[derive(Clone, PartialEq, Eq)]
 pub struct WarcProvBundle {
     record_entity_id: String,
@@ -48,6 +52,7 @@ pub struct WarcProvBundle {
     source_hash: String,
     warc_date: String,
     block_digest: String,
+    warc_record_digest: String,
     payload_completeness: WarcPayloadCompleteness,
 }
 
@@ -84,6 +89,7 @@ impl WarcProvBundle {
         let source_entity_id = format!("{}#source", record.record_id());
         let capture_activity_id = format!("{}#capture", record.record_id());
         let software_agent_id = format!("{ORIGINWEAVE_COMMIT_URL_PREFIX}{software_commit_sha}");
+        let warc_record_digest = sha256_digest(&record.to_warc_bytes());
 
         Ok(Self {
             record_entity_id,
@@ -95,6 +101,7 @@ impl WarcProvBundle {
             source_hash: record.provenance().source_hash().to_owned(),
             warc_date: record.warc_date().to_owned(),
             block_digest: record.block_digest().to_owned(),
+            warc_record_digest,
             payload_completeness: record.completeness(),
         })
     }
@@ -132,15 +139,17 @@ impl WarcProvBundle {
     /// Serialize the bundle as deterministic compact W3C PROV-O JSON-LD.
     ///
     /// All interpolated values originate from the validated WARC record or the canonical
-    /// lower-case software commit identifier, so no raw payload bytes enter this document.
-    /// WARC payload completeness is retained as OriginWeave-owned absolute-IRI attributes on the
-    /// generated record entity; truncated records also retain the exact WARC truncation token.
+    /// lower-case software commit identifier, so no raw payload bytes enter this document. The
+    /// payload block digest binds the retained resource bytes while `warcRecordDigest` binds the
+    /// complete deterministic WARC serialization, including its headers. WARC payload completeness
+    /// is retained as an OriginWeave-owned absolute-IRI attribute; truncated records also retain
+    /// the exact WARC truncation token.
     #[must_use]
     pub fn to_json_ld(&self) -> String {
         let completeness_attributes =
             warc_payload_completeness_attributes(self.payload_completeness);
         format!(
-            "{{\"@context\":{{\"prov\":\"http://www.w3.org/ns/prov#\",\"xsd\":\"http://www.w3.org/2001/XMLSchema#\"}},\"@graph\":[{{\"@id\":\"{}\",\"@type\":\"prov:Entity\",\"prov:atLocation\":{{\"@id\":\"{}\"}},\"prov:value\":\"{}\"}},{{\"@id\":\"{}\",\"@type\":\"prov:Activity\",\"prov:startedAtTime\":{{\"@value\":\"{}\",\"@type\":\"xsd:dateTime\"}},\"prov:used\":{{\"@id\":\"{}\"}},\"prov:wasAssociatedWith\":{{\"@id\":\"{}\"}}}},{{\"@id\":\"{}\",\"@type\":\"prov:SoftwareAgent\"}},{{\"@id\":\"{}\",\"@type\":\"prov:Entity\",\"prov:value\":\"{}\",{},\"prov:wasDerivedFrom\":{{\"@id\":\"{}\"}},\"prov:wasGeneratedBy\":{{\"@id\":\"{}\"}}}}]}}",
+            "{{\"@context\":{{\"prov\":\"http://www.w3.org/ns/prov#\",\"xsd\":\"http://www.w3.org/2001/XMLSchema#\"}},\"@graph\":[{{\"@id\":\"{}\",\"@type\":\"prov:Entity\",\"prov:atLocation\":{{\"@id\":\"{}\"}},\"prov:value\":\"{}\"}},{{\"@id\":\"{}\",\"@type\":\"prov:Activity\",\"prov:startedAtTime\":{{\"@value\":\"{}\",\"@type\":\"xsd:dateTime\"}},\"prov:used\":{{\"@id\":\"{}\"}},\"prov:wasAssociatedWith\":{{\"@id\":\"{}\"}}}},{{\"@id\":\"{}\",\"@type\":\"prov:SoftwareAgent\"}},{{\"@id\":\"{}\",\"@type\":\"prov:Entity\",\"prov:value\":\"{}\",\"{WARC_RECORD_DIGEST_IRI}\":\"{}\",{},\"prov:wasDerivedFrom\":{{\"@id\":\"{}\"}},\"prov:wasGeneratedBy\":{{\"@id\":\"{}\"}}}}]}}",
             self.source_entity_id,
             self.source_url,
             self.source_hash,
@@ -151,6 +160,7 @@ impl WarcProvBundle {
             self.software_agent_id,
             self.record_entity_id,
             self.block_digest,
+            self.warc_record_digest,
             completeness_attributes,
             self.source_entity_id,
             self.capture_activity_id,
@@ -177,6 +187,15 @@ const fn warc_truncation_reason_token(reason: WarcTruncationReason) -> &'static 
         WarcTruncationReason::Disconnect => "disconnect",
         WarcTruncationReason::Unspecified => "unspecified",
     }
+}
+
+fn sha256_digest(bytes: &[u8]) -> String {
+    let digest = Sha256::digest(bytes);
+    let mut encoded = String::from("sha256:");
+    for byte in digest {
+        encoded.push_str(&format!("{byte:02x}"));
+    }
+    encoded
 }
 
 fn valid_software_commit_sha(software_commit_sha: &str) -> bool {
