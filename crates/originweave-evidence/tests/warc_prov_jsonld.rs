@@ -60,6 +60,12 @@ fn warc_prov_bundle_exposes_stable_capture_identities_and_standard_errors() {
         "https://github.com/ContextualWisdomLab/OriginWeave/commit/0123456789abcdef0123456789abcdef01234567"
     );
     assert_eq!(bundle.software_commit_sha(), SOFTWARE_COMMIT_SHA);
+
+    let debug = format!("{bundle:?}");
+    assert!(debug.contains(RECORD_ID));
+    assert!(!debug.contains("https://example.com/item"));
+    assert!(!debug.contains(SOURCE_HASH));
+    assert!(!debug.contains("hello"));
 }
 
 #[test]
