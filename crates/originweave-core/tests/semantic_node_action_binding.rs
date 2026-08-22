@@ -74,8 +74,9 @@ fn action_request(source: Origin, target: Origin) -> Result<ActionRequest, Strin
 #[test]
 fn node_action_binding_preserves_node_target_and_business_request() -> Result<(), String> {
     let fixture = observation_fixture()?;
-    let target = SemanticNodeActionTarget::from_observation(&fixture.observation, NodeActionKind::Click)
-        .map_err(|error| error.to_string())?;
+    let target =
+        SemanticNodeActionTarget::from_observation(&fixture.observation, NodeActionKind::Click)
+            .map_err(|error| error.to_string())?;
     let request = action_request(
         origin("https://app.example")?,
         origin("https://next.example")?,
@@ -92,8 +93,9 @@ fn node_action_binding_preserves_node_target_and_business_request() -> Result<()
 #[test]
 fn node_action_binding_rejects_request_from_another_document_origin() -> Result<(), String> {
     let fixture = observation_fixture()?;
-    let target = SemanticNodeActionTarget::from_observation(&fixture.observation, NodeActionKind::Click)
-        .map_err(|error| error.to_string())?;
+    let target =
+        SemanticNodeActionTarget::from_observation(&fixture.observation, NodeActionKind::Click)
+            .map_err(|error| error.to_string())?;
     let request = action_request(
         origin("https://other.example")?,
         origin("https://next.example")?,
@@ -110,8 +112,9 @@ fn node_action_binding_rejects_request_from_another_document_origin() -> Result<
 fn node_action_binding_does_not_conflate_source_node_with_navigation_target() -> Result<(), String>
 {
     let fixture = observation_fixture()?;
-    let target = SemanticNodeActionTarget::from_observation(&fixture.observation, NodeActionKind::Click)
-        .map_err(|error| error.to_string())?;
+    let target =
+        SemanticNodeActionTarget::from_observation(&fixture.observation, NodeActionKind::Click)
+            .map_err(|error| error.to_string())?;
     let destination = origin("https://destination.example")?;
     let request = action_request(origin("https://app.example")?, destination.clone())?;
 
@@ -123,10 +126,12 @@ fn node_action_binding_does_not_conflate_source_node_with_navigation_target() ->
 }
 
 #[test]
-fn node_action_binding_revalidates_registry_owned_authority_before_dispatch() -> Result<(), String> {
+fn node_action_binding_revalidates_registry_owned_authority_before_dispatch() -> Result<(), String>
+{
     let fixture = observation_fixture()?;
-    let target = SemanticNodeActionTarget::from_observation(&fixture.observation, NodeActionKind::Click)
-        .map_err(|error| error.to_string())?;
+    let target =
+        SemanticNodeActionTarget::from_observation(&fixture.observation, NodeActionKind::Click)
+            .map_err(|error| error.to_string())?;
     let request = action_request(
         origin("https://app.example")?,
         origin("https://next.example")?,
@@ -143,8 +148,9 @@ fn node_action_binding_revalidates_registry_owned_authority_before_dispatch() ->
 #[test]
 fn node_action_binding_rejects_stale_document_before_dispatch() -> Result<(), String> {
     let mut fixture = observation_fixture()?;
-    let target = SemanticNodeActionTarget::from_observation(&fixture.observation, NodeActionKind::Click)
-        .map_err(|error| error.to_string())?;
+    let target =
+        SemanticNodeActionTarget::from_observation(&fixture.observation, NodeActionKind::Click)
+            .map_err(|error| error.to_string())?;
     let request = action_request(
         origin("https://app.example")?,
         origin("https://next.example")?,
@@ -166,8 +172,9 @@ fn node_action_binding_rejects_stale_document_before_dispatch() -> Result<(), St
 #[test]
 fn node_action_binding_rejects_retired_session_before_dispatch() -> Result<(), String> {
     let mut fixture = observation_fixture()?;
-    let target = SemanticNodeActionTarget::from_observation(&fixture.observation, NodeActionKind::Click)
-        .map_err(|error| error.to_string())?;
+    let target =
+        SemanticNodeActionTarget::from_observation(&fixture.observation, NodeActionKind::Click)
+            .map_err(|error| error.to_string())?;
     let request = action_request(
         origin("https://app.example")?,
         origin("https://next.example")?,
