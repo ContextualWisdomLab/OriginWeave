@@ -105,9 +105,8 @@ fn wireguard_rejects_noncanonical_decimal_scalars_before_secret_import() {
 
 #[test]
 fn overflowing_decimal_scalars_fail_before_secret_import() {
-    let wireguard = format!(
-        "[Interface]\nAddress=10.0.0.2/32\nMTU=65536\nPrivateKey={VALID_WIREGUARD_KEY}\n"
-    );
+    let wireguard =
+        format!("[Interface]\nAddress=10.0.0.2/32\nMTU=65536\nPrivateKey={VALID_WIREGUARD_KEY}\n");
     reject_wireguard(&wireguard);
 
     let ikev2 = "[IKEv2]\nServer=vpn.example\nAuth=psk\nPsk=k\nProposal=aes256gcm16-prfsha384-ecp384\nTrafficSelectors=10.0.0.0/8\nDpdSeconds=4294967296\n";
