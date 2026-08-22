@@ -14,22 +14,23 @@ fn passing_results() -> Vec<(BenchmarkSuite, BenchmarkSuiteOutcome)> {
 fn limitation_metadata_enforces_exact_utf8_byte_budget() -> Result<(), ReleaseDecisionError> {
     let maximum_claim = "c".repeat(MAX_RELEASE_LIMITATION_TEXT_BYTES);
     let maximum_consequence = "x".repeat(MAX_RELEASE_LIMITATION_TEXT_BYTES);
-    let limitation = DeclaredLimitation::new(maximum_claim.clone(), maximum_consequence.clone())?;
+    let limitation = DeclaredLimitation::new(
+        maximum_claim.as_str(),
+        maximum_consequence.as_str(),
+    )?;
 
     assert_eq!(limitation.unsupported_claim(), maximum_claim.as_str());
     assert_eq!(limitation.buyer_consequence(), maximum_consequence.as_str());
+
+    let oversized_claim = "c".repeat(MAX_RELEASE_LIMITATION_TEXT_BYTES + 1);
     assert_eq!(
-        DeclaredLimitation::new(
-            "c".repeat(MAX_RELEASE_LIMITATION_TEXT_BYTES + 1),
-            "bounded buyer consequence"
-        ),
+        DeclaredLimitation::new(oversized_claim.as_str(), "bounded buyer consequence"),
         Err(ReleaseDecisionError::LimitationClaimTooLong)
     );
+
+    let oversized_consequence = "x".repeat(MAX_RELEASE_LIMITATION_TEXT_BYTES + 1);
     assert_eq!(
-        DeclaredLimitation::new(
-            "bounded_claim",
-            "x".repeat(MAX_RELEASE_LIMITATION_TEXT_BYTES + 1)
-        ),
+        DeclaredLimitation::new("bounded_claim", oversized_consequence.as_str()),
         Err(ReleaseDecisionError::LimitationConsequenceTooLong)
     );
     Ok(())
@@ -42,7 +43,7 @@ fn limitation_byte_budget_applies_to_international_text() {
         korean_character.repeat(MAX_RELEASE_LIMITATION_TEXT_BYTES / korean_character.len() + 1);
     assert!(repeated.len() > MAX_RELEASE_LIMITATION_TEXT_BYTES);
     assert_eq!(
-        DeclaredLimitation::new(repeated, "지원 범위를 설명하는 구매자 안내"),
+        DeclaredLimitation::new(repeated.as_str(), "지원 범위를 설명하는 구매자 안내"),
         Err(ReleaseDecisionError::LimitationClaimTooLong)
     );
 }
