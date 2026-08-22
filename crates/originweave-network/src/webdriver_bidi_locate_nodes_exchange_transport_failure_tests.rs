@@ -118,7 +118,7 @@ fn locate_nodes_exchange_preserves_pong_write_failure_after_ping() -> Result<(),
     let plan = WebDriverBiDiWebSocketHandshakePlan::new(connect(&endpoint)?, key)?;
     let written = plan.write_opening_request(Duration::from_millis(500))?;
     let established = written.read_opening_response(Duration::from_millis(500))?;
-    let shutdown_stream = established.stream.try_clone()?;
+    let shutdown_stream = established.try_clone_stream_for_test()?;
     let pong_key = WebDriverBiDiWebSocketMaskKey::new([0x51, 0x52, 0x53, 0x54]);
     let exchanged = established.exchange_locate_nodes(
         locate_nodes_command()?,
