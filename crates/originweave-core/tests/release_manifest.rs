@@ -82,7 +82,7 @@ fn release_artifact_rejects_ambiguous_names_and_noncanonical_digests() {
         );
     }
 
-    for valid_name in ["console.bin", "com10.bin", "lpt10.tar.zst"] {
+    for valid_name in ["console.bin", "com10.bin", "lpt10.tar.zst", "data.bin"] {
         assert!(
             ReleaseArtifact::new(valid_name, &valid_digest).is_ok(),
             "non-device artifact name must remain admissible: {valid_name}"
