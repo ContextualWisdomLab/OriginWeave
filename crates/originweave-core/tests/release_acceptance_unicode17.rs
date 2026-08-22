@@ -1,9 +1,11 @@
 use originweave_core::release_acceptance::{DeclaredLimitation, ReleaseDecisionError};
 
+const UNICODE_17_DEFAULT_IGNORABLE_CODE_POINT_COUNT: usize = 4_174;
+
 #[test]
 fn limitation_rejects_unicode_17_default_ignorable_code_points() -> Result<(), &'static str> {
-    // Unicode 17.0.0 DerivedCoreProperties.txt, Default_Ignorable_Code_Point.
-    // Endpoints plus a midpoint make every reviewed inclusive range executable evidence.
+    // Unicode 17.0.0 DerivedCoreProperties.txt (2025-07-30),
+    // Default_Ignorable_Code_Point. The reviewed ranges contain exactly 4,174 code points.
     let ranges = [
         (0x00ad_u32, 0x00ad_u32),
         (0x034f, 0x034f),
@@ -23,12 +25,13 @@ fn limitation_rejects_unicode_17_default_ignorable_code_points() -> Result<(), &
         (0x1d173, 0x1d17a),
         (0xe0000, 0xe0fff),
     ];
+    let mut tested_code_points = 0_usize;
 
     for (start, end) in ranges {
-        let midpoint = start + (end - start) / 2;
-        for code_point in [start, midpoint, end] {
+        for code_point in start..=end {
             let character = char::from_u32(code_point)
                 .ok_or("reviewed Unicode 17 default-ignorable range must contain scalar values")?;
+            tested_code_points += 1;
 
             assert_eq!(
                 DeclaredLimitation::new(
@@ -49,6 +52,10 @@ fn limitation_rejects_unicode_17_default_ignorable_code_points() -> Result<(), &
         }
     }
 
+    assert_eq!(
+        tested_code_points, UNICODE_17_DEFAULT_IGNORABLE_CODE_POINT_COUNT,
+        "reviewed Unicode 17 Default_Ignorable_Code_Point ranges must match the authoritative cardinality",
+    );
     Ok(())
 }
 
