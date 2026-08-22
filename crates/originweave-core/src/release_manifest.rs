@@ -244,8 +244,7 @@ fn windows_reserved_device_basename(name: &str) -> bool {
 
     let bytes = basename.as_bytes();
     bytes.len() == 4
-        && (basename[..3].eq_ignore_ascii_case("COM")
-            || basename[..3].eq_ignore_ascii_case("LPT"))
+        && (basename[..3].eq_ignore_ascii_case("COM") || basename[..3].eq_ignore_ascii_case("LPT"))
         && matches!(bytes[3], b'1'..=b'9')
 }
 
