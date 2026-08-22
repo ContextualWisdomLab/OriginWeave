@@ -24,6 +24,7 @@ pub use sensitive_access::{
 };
 pub use warc_prov_bundle::{
     MAX_PROV_SOFTWARE_COMMIT_SHA_BYTES, WarcProvBundle, WarcProvBundleError,
+    WarcProvBundleVerificationError,
 };
 pub use warc_resource_record::{
     MAX_WARC_CONTENT_TYPE_BYTES, MAX_WARC_DATE_BYTES, MAX_WARC_PAYLOAD_BYTES,
