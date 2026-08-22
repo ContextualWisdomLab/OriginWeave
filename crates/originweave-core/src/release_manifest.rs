@@ -357,14 +357,16 @@ fn valid_revision(revision: &str) -> bool {
 }
 
 fn valid_toolchain(toolchain: &str) -> bool {
-    if toolchain.is_empty() || toolchain.len() > MAX_RELEASE_TOOLCHAIN_BYTES || !toolchain.is_ascii()
+    if toolchain.is_empty()
+        || toolchain.len() > MAX_RELEASE_TOOLCHAIN_BYTES
+        || !toolchain.is_ascii()
     {
         return false;
     }
     let bytes = toolchain.as_bytes();
     bytes[0].is_ascii_alphanumeric()
         && bytes[bytes.len() - 1].is_ascii_alphanumeric()
-        && bytes.iter().all(|byte| {
-            byte.is_ascii_alphanumeric() || matches!(*byte, b'.' | b'_' | b'-' | b'+')
-        })
+        && bytes
+            .iter()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(*byte, b'.' | b'_' | b'-' | b'+'))
 }
