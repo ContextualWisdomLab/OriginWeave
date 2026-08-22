@@ -1,0 +1,255 @@
+//! Fail-closed identity binding for release artifacts.
+//!
+//! The types in this module are deliberately inert metadata contracts. They bind an exact
+//! source commit, Chromium revision, release channel, and artifact digests without granting
+//! signing, publication, installation, update, rollback, or release authority.
+
+use std::collections::BTreeSet;
+use std::error::Error;
+use std::fmt;
+
+/// Maximum number of artifacts admitted by one release manifest.
+pub const MAX_RELEASE_ARTIFACTS: usize = 64;
+/// Maximum UTF-8 byte length admitted for one canonical artifact leaf name.
+pub const MAX_RELEASE_ARTIFACT_NAME_BYTES: usize = 128;
+/// Maximum UTF-8 byte length admitted for one Chromium revision token.
+pub const MAX_RELEASE_REVISION_BYTES: usize = 128;
+
+/// Buyer-visible release channel bound by a release manifest.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReleaseChannel {
+    /// Stable release channel.
+    Stable,
+    /// Beta release channel.
+    Beta,
+    /// Development release channel.
+    Development,
+}
+
+/// One canonical release artifact identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReleaseArtifact {
+    name: String,
+    sha256_digest: String,
+}
+
+impl ReleaseArtifact {
+    /// Construct one artifact from a canonical leaf name and lowercase SHA-256 digest.
+    ///
+    /// The digest must use the exact `sha256:` prefix followed by 64 lowercase hexadecimal
+    /// digits. Artifact names are ASCII leaf names and cannot contain path separators,
+    /// traversal-like double dots, leading punctuation, or trailing punctuation.
+    pub fn new(name: &str, sha256_digest: &str) -> Result<Self, ReleaseArtifactError> {
+        if !valid_artifact_name(name) {
+            return Err(ReleaseArtifactError::InvalidName);
+        }
+        if !valid_sha256_digest(sha256_digest) {
+            return Err(ReleaseArtifactError::InvalidDigest);
+        }
+        Ok(Self {
+            name: name.to_owned(),
+            sha256_digest: sha256_digest.to_owned(),
+        })
+    }
+
+    /// Return the canonical artifact leaf name.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Return the canonical lowercase `sha256:` artifact digest.
+    #[must_use]
+    pub fn sha256_digest(&self) -> &str {
+        &self.sha256_digest
+    }
+}
+
+/// Validation error for one release artifact.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReleaseArtifactError {
+    /// The artifact name is not a canonical bounded leaf name.
+    InvalidName,
+    /// The artifact digest is not a canonical lowercase SHA-256 digest.
+    InvalidDigest,
+}
+
+impl fmt::Display for ReleaseArtifactError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidName => {
+                formatter.write_str("release artifact name is not a canonical bounded leaf name")
+            }
+            Self::InvalidDigest => formatter.write_str(
+                "release artifact digest must be sha256: followed by 64 lowercase hexadecimal digits",
+            ),
+        }
+    }
+}
+
+impl Error for ReleaseArtifactError {}
+
+/// Deterministic, bounded identity manifest for one OriginWeave release candidate.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReleaseManifest {
+    source_commit: String,
+    chromium_revision: String,
+    channel: ReleaseChannel,
+    artifacts: Vec<ReleaseArtifact>,
+}
+
+impl ReleaseManifest {
+    /// Construct an inert release manifest from exact identity evidence.
+    ///
+    /// Source identity is a full 40-digit lowercase Git commit SHA. Chromium revision is a
+    /// bounded canonical ASCII token. Artifact names must be unique and are sorted
+    /// deterministically before storage. Constructing this value does not authenticate any
+    /// artifact and does not authorize release or installation.
+    pub fn new<I>(
+        source_commit: &str,
+        chromium_revision: &str,
+        channel: ReleaseChannel,
+        artifacts: I,
+    ) -> Result<Self, ReleaseManifestError>
+    where
+        I: IntoIterator<Item = ReleaseArtifact>,
+    {
+        if !valid_source_commit(source_commit) {
+            return Err(ReleaseManifestError::InvalidSourceCommit);
+        }
+        if !valid_revision(chromium_revision) {
+            return Err(ReleaseManifestError::InvalidChromiumRevision);
+        }
+
+        let mut admitted = Vec::new();
+        let mut artifact_names = BTreeSet::new();
+        for artifact in artifacts {
+            if admitted.len() >= MAX_RELEASE_ARTIFACTS {
+                return Err(ReleaseManifestError::TooManyArtifacts);
+            }
+            if !artifact_names.insert(artifact.name.clone()) {
+                return Err(ReleaseManifestError::DuplicateArtifactName);
+            }
+            admitted.push(artifact);
+        }
+        if admitted.is_empty() {
+            return Err(ReleaseManifestError::MissingArtifacts);
+        }
+        admitted.sort_by(|left, right| left.name.cmp(&right.name));
+
+        Ok(Self {
+            source_commit: source_commit.to_owned(),
+            chromium_revision: chromium_revision.to_owned(),
+            channel,
+            artifacts: admitted,
+        })
+    }
+
+    /// Return the exact lowercase source commit bound by this manifest.
+    #[must_use]
+    pub fn source_commit(&self) -> &str {
+        &self.source_commit
+    }
+
+    /// Return the canonical Chromium revision token bound by this manifest.
+    #[must_use]
+    pub fn chromium_revision(&self) -> &str {
+        &self.chromium_revision
+    }
+
+    /// Return the release channel bound by this manifest.
+    #[must_use]
+    pub const fn channel(&self) -> ReleaseChannel {
+        self.channel
+    }
+
+    /// Return artifacts sorted deterministically by canonical name.
+    #[must_use]
+    pub fn artifacts(&self) -> &[ReleaseArtifact] {
+        &self.artifacts
+    }
+}
+
+/// Validation error for release-manifest identity evidence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReleaseManifestError {
+    /// Source commit is not a full lowercase Git SHA-1 identity.
+    InvalidSourceCommit,
+    /// Chromium revision is not a canonical bounded release token.
+    InvalidChromiumRevision,
+    /// No release artifacts were supplied.
+    MissingArtifacts,
+    /// Artifact inventory exceeds the bounded release-manifest limit.
+    TooManyArtifacts,
+    /// Artifact inventory repeats a canonical artifact name.
+    DuplicateArtifactName,
+}
+
+impl fmt::Display for ReleaseManifestError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidSourceCommit => formatter.write_str(
+                "release source commit must be exactly 40 lowercase hexadecimal digits",
+            ),
+            Self::InvalidChromiumRevision => {
+                formatter.write_str("Chromium revision must be a canonical bounded release token")
+            }
+            Self::MissingArtifacts => {
+                formatter.write_str("release manifest must contain at least one artifact")
+            }
+            Self::TooManyArtifacts => {
+                formatter.write_str("release manifest exceeds the artifact-count limit")
+            }
+            Self::DuplicateArtifactName => {
+                formatter.write_str("release manifest contains a duplicate artifact name")
+            }
+        }
+    }
+}
+
+impl Error for ReleaseManifestError {}
+
+fn valid_artifact_name(name: &str) -> bool {
+    if name.is_empty()
+        || name.len() > MAX_RELEASE_ARTIFACT_NAME_BYTES
+        || !name.is_ascii()
+        || name.contains("..")
+    {
+        return false;
+    }
+    let bytes = name.as_bytes();
+    bytes[0].is_ascii_alphanumeric()
+        && bytes[bytes.len() - 1].is_ascii_alphanumeric()
+        && bytes.iter().all(|byte| {
+            byte.is_ascii_alphanumeric() || matches!(*byte, b'.' | b'_' | b'-')
+        })
+}
+
+fn valid_sha256_digest(digest: &str) -> bool {
+    let Some(hex) = digest.strip_prefix("sha256:") else {
+        return false;
+    };
+    hex.len() == 64
+        && hex
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
+}
+
+fn valid_source_commit(source_commit: &str) -> bool {
+    source_commit.len() == 40
+        && source_commit
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
+}
+
+fn valid_revision(revision: &str) -> bool {
+    if revision.is_empty() || revision.len() > MAX_RELEASE_REVISION_BYTES || !revision.is_ascii() {
+        return false;
+    }
+    let bytes = revision.as_bytes();
+    bytes[0].is_ascii_alphanumeric()
+        && bytes[bytes.len() - 1].is_ascii_alphanumeric()
+        && bytes.iter().all(|byte| {
+            byte.is_ascii_alphanumeric() || matches!(*byte, b'.' | b'_' | b'-' | b'+' | b':' | b'@')
+        })
+}
