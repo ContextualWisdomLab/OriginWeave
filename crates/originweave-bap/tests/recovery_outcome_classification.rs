@@ -86,3 +86,38 @@ fn stale_recovery_receipt_cannot_signal_redispatch() {
     assert_eq!(lifecycle.state(), BapTaskState::Running);
     assert_eq!(lifecycle.transition_sequence(), 2);
 }
+
+#[test]
+fn terminal_lifecycle_never_signals_redispatch_even_for_confirmed_no_side_effect() {
+    for terminal_event in [
+        BapTaskEvent::Succeed,
+        BapTaskEvent::Fail,
+        BapTaskEvent::Cancel,
+        BapTaskEvent::Expire,
+        BapTaskEvent::DeadLetter,
+    ] {
+        let mut lifecycle = BapTaskLifecycle::new();
+        let admit = lifecycle.apply(BapTaskEvent::Admit);
+        assert!(admit.is_ok(), "{admit:?}");
+        let start = lifecycle.apply(BapTaskEvent::Start);
+        assert!(start.is_ok(), "{start:?}");
+
+        let receipt = lifecycle.apply_with_receipt(
+            "terminal-retry-key",
+            "tenant-a",
+            "task-a",
+            terminal_event,
+        );
+        assert!(receipt.is_ok(), "{receipt:?}");
+        let Ok(receipt) = receipt else {
+            unreachable!("asserted valid terminal command receipt")
+        };
+        assert!(lifecycle.state().is_terminal());
+
+        let recovery = BapCommandRecovery::new(
+            receipt,
+            BapExternalSideEffectOutcome::ConfirmedNoSideEffect,
+        );
+        assert_eq!(recovery.permits_redispatch(&lifecycle), Ok(false));
+    }
+}
