@@ -267,7 +267,7 @@ impl BrowsingContextId {
         Ok(Self(value))
     }
 
-    /// Return the validated browsing-context identifier.
+    /// Return the browsing-context identifier.
     #[must_use]
     pub const fn value(self) -> u64 {
         self.0
@@ -1217,7 +1217,7 @@ pub mod release_acceptance {
         character.is_control()
             || matches!(
                 code_point,
-                0x00ad | 0x061c | 0x200b..=0x200f | 0x2028..=0x202e | 0x2060..=0x206f | 0xfeff
+                0x00ad | 0x061c | 0x180e | 0x200b..=0x200f | 0x2028..=0x202e | 0x2060..=0x206f | 0xfeff
             )
     }
 
