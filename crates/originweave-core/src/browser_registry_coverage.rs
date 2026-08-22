@@ -165,3 +165,24 @@ fn session_authority_failures_are_exercised_in_the_unit_crate() {
         })
     );
 }
+
+#[test]
+fn session_retirement_covers_unit_success_and_unknown_paths() {
+    let mut registry = BrowserAuthorityRegistry::new();
+    let sessions = values(registry.register_session("retirement-unit-session"));
+    assert_eq!(sessions.len(), 1);
+    let session = sessions[0];
+    let contexts = values(registry.register_context(session, "retirement-unit-context"));
+    assert_eq!(contexts.len(), 1);
+    let context = contexts[0];
+
+    assert_eq!(registry.remove_session(session), Ok(()));
+    assert_eq!(
+        registry.current_epoch(context),
+        Err(BrowserRegistryError::UnknownBrowsingContext)
+    );
+    assert_eq!(
+        registry.remove_session(session),
+        Err(BrowserRegistryError::UnknownBrowserSession)
+    );
+}
