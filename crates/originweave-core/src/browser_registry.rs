@@ -3,9 +3,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use crate::contracts::ObservedNodeHandle as NodeTuple;
-use crate::{
-    BrowserSessionId, BrowsingContextId, DocumentEpoch, NodeHandleError, Origin,
-};
+use crate::{BrowserSessionId, BrowsingContextId, DocumentEpoch, NodeHandleError, Origin};
 
 /// Maximum UTF-8 byte length of an opaque browser-protocol identifier retained by the registry.
 pub const MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES: usize = 512;
@@ -565,6 +563,8 @@ fn registered_node_handle(
 
 #[cfg(test)]
 mod tests {
+    use std::error::Error;
+
     use super::*;
 
     fn values<T, E>(result: Result<T, E>) -> Vec<T> {
@@ -572,35 +572,31 @@ mod tests {
     }
 
     #[test]
-    fn unregistered_handle_equality_covers_all_authority_states() {
-        let session = BrowserSessionId::new(1).expect("nonzero session");
-        let context = BrowsingContextId::new(1).expect("nonzero context");
-        let epoch = DocumentEpoch::new(1).expect("nonzero epoch");
-        let origin = Origin::parse("http://127.0.0.1:43127").expect("valid loopback origin");
-        let first = ObservedNodeHandle::new(session, context, origin.clone(), epoch, 1)
-            .expect("valid handle");
-        let same = ObservedNodeHandle::new(session, context, origin.clone(), epoch, 1)
-            .expect("valid handle");
-        let different = ObservedNodeHandle::new(session, context, origin, epoch, 2)
-            .expect("valid handle");
+    fn unregistered_handle_equality_covers_all_authority_states() -> Result<(), Box<dyn Error>> {
+        let session = BrowserSessionId::new(1)?;
+        let context = BrowsingContextId::new(1)?;
+        let epoch = DocumentEpoch::new(1)?;
+        let origin = Origin::parse("http://127.0.0.1:43127")?;
+        let first = ObservedNodeHandle::new(session, context, origin.clone(), epoch, 1)?;
+        let same = ObservedNodeHandle::new(session, context, origin.clone(), epoch, 1)?;
+        let different = ObservedNodeHandle::new(session, context, origin.clone(), epoch, 2)?;
         assert_eq!(first, same);
         assert_ne!(first, different);
 
-        let authority = Arc::new(());
         let registered = ObservedNodeHandle::registered(
             session,
             context,
-            Origin::parse("http://127.0.0.1:43127").expect("valid loopback origin"),
+            origin,
             epoch,
             1,
-            authority,
-        )
-        .expect("valid registered handle");
+            Arc::new(()),
+        )?;
         assert_ne!(first, registered);
+        Ok(())
     }
 
     #[test]
-    fn helper_invariants_and_reverse_index_corruption_fail_closed() {
+    fn helper_invariants_and_reverse_index_corruption_fail_closed() -> Result<(), Box<dyn Error>> {
         assert_eq!(
             browser_session_id(0),
             Err(BrowserRegistryError::InternalAuthorityInvariant)
@@ -622,23 +618,23 @@ mod tests {
         assert_eq!(contexts.len(), 1);
         assert_eq!(epochs.len(), 1);
         assert_eq!(origins.len(), 1);
-        assert!(registered_node_handle(
-            sessions[0],
-            contexts[0],
-            &origins[0],
-            epochs[0],
-            0,
-            Arc::new(())
-        )
-        .is_err());
+        assert!(
+            registered_node_handle(
+                sessions[0],
+                contexts[0],
+                &origins[0],
+                epochs[0],
+                0,
+                Arc::new(())
+            )
+            .is_err()
+        );
 
         let mut registry = BrowserAuthorityRegistry::new();
-        let session = registry.register_session("corrupt-session").expect("session");
-        let context = registry.register_context(session, "corrupt-context").expect("context");
+        let session = registry.register_session("corrupt-session")?;
+        let context = registry.register_context(session, "corrupt-context")?;
         let origin = &origins[0];
-        let handle = registry
-            .bind_node(session, context, origin, "node")
-            .expect("registered node");
+        let handle = registry.bind_node(session, context, origin, "node")?;
         registry.node_binding_by_id.remove(&handle.node_id());
         assert_eq!(
             registry.bind_node(session, context, origin, "node"),
@@ -649,32 +645,31 @@ mod tests {
             .node_binding_by_id
             .insert(handle.node_id(), (context, epochs[0]));
         registry.node_by_external.clear();
-        let other_context = registry
-            .register_context(session, "other-context")
-            .expect("other context");
-        registry
-            .node_by_external
-            .insert((other_context, epochs[0], "other-node".to_owned()), handle.node_id());
+        let other_context = registry.register_context(session, "other-context")?;
+        registry.node_by_external.insert(
+            (other_context, epochs[0], "other-node".to_owned()),
+            handle.node_id(),
+        );
         assert_eq!(
             registry.bind_node(session, other_context, origin, "other-node"),
             Err(BrowserRegistryError::InternalAuthorityInvariant)
         );
+        Ok(())
     }
 
     #[test]
-    fn validation_reverse_index_rejects_missing_binding() {
+    fn validation_reverse_index_rejects_missing_binding() -> Result<(), Box<dyn Error>> {
         let mut registry = BrowserAuthorityRegistry::new();
-        let session = registry.register_session("session").expect("session");
-        let context = registry.register_context(session, "context").expect("context");
-        let origin = Origin::parse("http://127.0.0.1:43127").expect("origin");
-        let handle = registry
-            .bind_node(session, context, &origin, "node")
-            .expect("node");
+        let session = registry.register_session("session")?;
+        let context = registry.register_context(session, "context")?;
+        let origin = Origin::parse("http://127.0.0.1:43127")?;
+        let handle = registry.bind_node(session, context, &origin, "node")?;
         registry.node_binding_by_id.remove(&handle.node_id());
         assert_eq!(
             registry.validate_node_handle(&handle),
             Err(BrowserRegistryError::UnknownNodeAuthority)
         );
+        Ok(())
     }
 
     #[test]
