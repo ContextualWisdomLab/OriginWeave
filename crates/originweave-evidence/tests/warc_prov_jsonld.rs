@@ -121,6 +121,7 @@ fn warc_prov_bundle_rejects_noncanonical_or_oversized_software_revisions() {
     let record = resource_record();
     for software_commit_sha in [
         "",
+        "0000000000000000000000000000000000000000",
         "0123456789abcdef0123456789abcdef0123456",
         "0123456789abcdef0123456789abcdef0123456G",
         "0123456789ABCDEF0123456789ABCDEF01234567",
