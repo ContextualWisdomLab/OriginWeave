@@ -168,3 +168,42 @@ fn warc_prov_bundle_preserves_warc_payload_completeness_for_replay() {
         assert!(truncated_json.contains(&format!("\"{TRUNCATION_REASON_IRI}\":\"{token}\"")));
     }
 }
+
+#[test]
+fn warc_prov_bundle_distinguishes_distinct_warc_serializations() {
+    let record_with_content_type = |content_type: &str| {
+        let provenance = ProvenanceRecord::new(
+            "https://example.com/item",
+            "body",
+            SOURCE_HASH,
+            EvidenceSourceKind::NetworkResponse,
+            VerificationResult::Verified,
+        )
+        .expect("verified provenance");
+        WarcResourceRecord::new(
+            RECORD_ID,
+            DATE,
+            "https://example.com/item",
+            content_type,
+            b"hello".to_vec(),
+            provenance,
+        )
+        .expect("WARC resource record")
+    };
+
+    let text_record = record_with_content_type("text/plain");
+    let binary_record = record_with_content_type("application/octet-stream");
+    assert_ne!(text_record.to_warc_bytes(), binary_record.to_warc_bytes());
+
+    let text_prov = WarcProvBundle::new(&text_record, SOFTWARE_COMMIT_SHA)
+        .expect("text PROV bundle")
+        .to_json_ld();
+    let binary_prov = WarcProvBundle::new(&binary_record, SOFTWARE_COMMIT_SHA)
+        .expect("binary PROV bundle")
+        .to_json_ld();
+
+    assert_ne!(
+        text_prov, binary_prov,
+        "provenance must distinguish WARC records whose serialized headers differ"
+    );
+}
