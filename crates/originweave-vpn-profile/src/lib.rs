@@ -415,8 +415,8 @@ fn extend_wireguard_dns(
     value: &str,
 ) -> Result<(), ProfileError> {
     let items = split_bounded_list(value)?;
-    let current_count = dns_servers.as_ref().map_or(0, Vec::len)
-        + dns_search_domains.as_ref().map_or(0, Vec::len);
+    let current_count =
+        dns_servers.as_ref().map_or(0, Vec::len) + dns_search_domains.as_ref().map_or(0, Vec::len);
     if current_count + items.len() > MAX_LIST_ITEMS {
         return Err(ProfileError::TooManyItems);
     }
@@ -499,7 +499,7 @@ fn parse_nonzero_udp_port(value: &str) -> Result<u16, ProfileError> {
     let port = value
         .parse::<u16>()
         .map_err(|_| ProfileError::InvalidValue)?;
-    if port == 0 {
+    if port == 0 || value != port.to_string() {
         return Err(ProfileError::InvalidValue);
     }
     Ok(port)
@@ -529,14 +529,26 @@ fn parse_u16(value: &str) -> Result<u16, ProfileError> {
     if !value.bytes().all(|byte| byte.is_ascii_digit()) {
         return Err(ProfileError::InvalidValue);
     }
-    value.parse::<u16>().map_err(|_| ProfileError::InvalidValue)
+    let parsed = value
+        .parse::<u16>()
+        .map_err(|_| ProfileError::InvalidValue)?;
+    if value != parsed.to_string() {
+        return Err(ProfileError::InvalidValue);
+    }
+    Ok(parsed)
 }
 
 fn parse_u32(value: &str) -> Result<u32, ProfileError> {
     if !value.bytes().all(|byte| byte.is_ascii_digit()) {
         return Err(ProfileError::InvalidValue);
     }
-    value.parse::<u32>().map_err(|_| ProfileError::InvalidValue)
+    let parsed = value
+        .parse::<u32>()
+        .map_err(|_| ProfileError::InvalidValue)?;
+    if value != parsed.to_string() {
+        return Err(ProfileError::InvalidValue);
+    }
+    Ok(parsed)
 }
 
 fn parse_boolean(value: &str) -> Result<bool, ProfileError> {
@@ -647,7 +659,13 @@ fn import_wireguard_profile_once(
                 "DNS" => {
                     extend_wireguard_dns(&mut dns_servers, &mut dns_search_domains, value)?;
                 }
-                "MTU" => set_once(&mut mtu, parse_u16(value)?)?,
+                "MTU" => {
+                    let value = parse_u16(value)?;
+                    if value == 0 {
+                        return Err(ProfileError::InvalidValue);
+                    }
+                    set_once(&mut mtu, value)?;
+                }
                 "ListenPort" => set_once(&mut listen_port, parse_u16(value)?)?,
                 "PrivateKey" => {
                     let secret = import_bounded_secret(
