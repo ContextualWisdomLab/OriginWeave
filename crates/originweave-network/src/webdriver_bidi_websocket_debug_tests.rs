@@ -23,10 +23,9 @@ fn handshake_plan_debug_redacts_client_nonce() {
             .expect("test loopback connection must be accepted");
     });
 
-    let endpoint = WebDriverBiDiWebSocketEndpoint::new(&format!(
-        "ws://{address}/session/{SESSION_ID}"
-    ))
-    .expect("test endpoint must be valid");
+    let endpoint =
+        WebDriverBiDiWebSocketEndpoint::new(&format!("ws://{address}/session/{SESSION_ID}"))
+            .expect("test endpoint must be valid");
     let correlated = endpoint
         .correlate_session_id(SESSION_ID)
         .expect("test session must correlate");
@@ -37,8 +36,8 @@ fn handshake_plan_debug_redacts_client_nonce() {
         .expect("test connection plan must be valid")
         .connect()
         .expect("test connection must succeed");
-    let client_key = WebDriverBiDiWebSocketClientKey::new(CLIENT_KEY)
-        .expect("test client key must be valid");
+    let client_key =
+        WebDriverBiDiWebSocketClientKey::new(CLIENT_KEY).expect("test client key must be valid");
     let handshake = WebDriverBiDiWebSocketHandshakePlan::new(connection, client_key)
         .expect("test handshake plan must be valid");
 
