@@ -1153,6 +1153,53 @@ pub mod release_acceptance {
         Inconclusive,
     }
 
+    /// One explicit narrowed release claim and its buyer-visible consequence.
+    ///
+    /// An accepted-with-limitations decision cannot be produced from an opaque
+    /// boolean. Every limitation must name the unsupported claim and state the
+    /// consequence that a buyer must account for in the declared support profile.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct DeclaredLimitation {
+        unsupported_claim: String,
+        buyer_consequence: String,
+    }
+
+    impl DeclaredLimitation {
+        /// Construct one explicit buyer-visible release limitation.
+        ///
+        /// Whitespace-only claims or consequences fail closed because they cannot
+        /// narrow a release claim or communicate a usable buyer consequence.
+        pub fn new(
+            unsupported_claim: impl Into<String>,
+            buyer_consequence: impl Into<String>,
+        ) -> Result<Self, ReleaseDecisionError> {
+            let unsupported_claim = unsupported_claim.into();
+            if unsupported_claim.trim().is_empty() {
+                return Err(ReleaseDecisionError::EmptyLimitationClaim);
+            }
+            let buyer_consequence = buyer_consequence.into();
+            if buyer_consequence.trim().is_empty() {
+                return Err(ReleaseDecisionError::EmptyLimitationConsequence);
+            }
+            Ok(Self {
+                unsupported_claim,
+                buyer_consequence,
+            })
+        }
+
+        /// Return the exact unsupported or narrowed release claim.
+        #[must_use]
+        pub fn unsupported_claim(&self) -> &str {
+            &self.unsupported_claim
+        }
+
+        /// Return the exact consequence exposed to buyers and operators.
+        #[must_use]
+        pub fn buyer_consequence(&self) -> &str {
+            &self.buyer_consequence
+        }
+    }
+
     /// Deterministic release decision produced from mandatory suite evidence.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum ReleaseDecision {
@@ -1169,6 +1216,10 @@ pub mod release_acceptance {
     /// Fail-closed input error while constructing a release decision.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum ReleaseDecisionError {
+        /// A declared limitation did not identify the unsupported release claim.
+        EmptyLimitationClaim,
+        /// A declared limitation did not state the buyer-visible consequence.
+        EmptyLimitationConsequence,
         /// The same suite appeared more than once instead of one authoritative result.
         DuplicateSuite(BenchmarkSuite),
     }
@@ -1176,6 +1227,12 @@ pub mod release_acceptance {
     impl fmt::Display for ReleaseDecisionError {
         fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
+                Self::EmptyLimitationClaim => {
+                    formatter.write_str("declared release limitation must name an unsupported claim")
+                }
+                Self::EmptyLimitationConsequence => formatter.write_str(
+                    "declared release limitation must state a buyer-visible consequence",
+                ),
                 Self::DuplicateSuite(suite) => write!(
                     formatter,
                     "benchmark release evidence contains duplicate suite: {}",
@@ -1194,6 +1251,7 @@ pub mod release_acceptance {
         failed_suites: Vec<BenchmarkSuite>,
         inconclusive_suites: Vec<BenchmarkSuite>,
         missing_suites: Vec<BenchmarkSuite>,
+        declared_limitations: Vec<DeclaredLimitation>,
     }
 
     impl ReleaseDecisionReport {
@@ -1220,6 +1278,12 @@ pub mod release_acceptance {
         pub fn missing_suites(&self) -> &[BenchmarkSuite] {
             &self.missing_suites
         }
+
+        /// Return the exact buyer-visible limitations retained with this decision.
+        #[must_use]
+        pub fn declared_limitations(&self) -> &[DeclaredLimitation] {
+            &self.declared_limitations
+        }
     }
 
     /// Produce one deterministic release decision from mandatory suite outcomes.
@@ -1228,10 +1292,12 @@ pub mod release_acceptance {
     /// result. A known mandatory-threshold failure is always rejected, even when
     /// other suites are missing or inconclusive; all such evidence gaps remain in
     /// the returned report. Without a known failure, missing or inconclusive
-    /// evidence is never promoted to acceptance.
+    /// evidence is never promoted to acceptance. Accepted-with-limitations requires
+    /// at least one validated [`DeclaredLimitation`], so the decision cannot be
+    /// detached from the exact narrowed claim and buyer-visible consequence.
     pub fn decide_release<I>(
         results: I,
-        has_declared_limitations: bool,
+        declared_limitations: &[DeclaredLimitation],
     ) -> Result<ReleaseDecisionReport, ReleaseDecisionError>
     where
         I: IntoIterator<Item = (BenchmarkSuite, BenchmarkSuiteOutcome)>,
@@ -1261,10 +1327,10 @@ pub mod release_acceptance {
             ReleaseDecision::Rejected
         } else if !inconclusive_suites.is_empty() || !missing_suites.is_empty() {
             ReleaseDecision::Inconclusive
-        } else if has_declared_limitations {
-            ReleaseDecision::AcceptedWithDeclaredLimitations
-        } else {
+        } else if declared_limitations.is_empty() {
             ReleaseDecision::Accepted
+        } else {
+            ReleaseDecision::AcceptedWithDeclaredLimitations
         };
 
         Ok(ReleaseDecisionReport {
@@ -1272,6 +1338,7 @@ pub mod release_acceptance {
             failed_suites,
             inconclusive_suites,
             missing_suites,
+            declared_limitations: declared_limitations.to_vec(),
         })
     }
 }
