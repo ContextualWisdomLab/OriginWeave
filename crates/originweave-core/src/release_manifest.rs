@@ -102,9 +102,11 @@ impl ReleaseManifest {
     /// Construct an inert release manifest from exact identity evidence.
     ///
     /// Source identity is a full 40-digit lowercase Git commit SHA. Chromium revision is a
-    /// bounded canonical ASCII token. Artifact names must be unique and are sorted
-    /// deterministically before storage. Constructing this value does not authenticate any
-    /// artifact and does not authorize release or installation.
+    /// bounded canonical ASCII token. Artifact names must be unique under ASCII case folding
+    /// so one manifest cannot bind two names that collide on a case-insensitive target
+    /// filesystem; original spelling is preserved and artifacts are sorted deterministically
+    /// before storage. Constructing this value does not authenticate any artifact and does not
+    /// authorize release or installation.
     pub fn new<I>(
         source_commit: &str,
         chromium_revision: &str,
@@ -127,7 +129,7 @@ impl ReleaseManifest {
             if admitted.len() >= MAX_RELEASE_ARTIFACTS {
                 return Err(ReleaseManifestError::TooManyArtifacts);
             }
-            if !artifact_names.insert(artifact.name.clone()) {
+            if !artifact_names.insert(artifact.name.to_ascii_lowercase()) {
                 return Err(ReleaseManifestError::DuplicateArtifactName);
             }
             admitted.push(artifact);
@@ -181,7 +183,7 @@ pub enum ReleaseManifestError {
     MissingArtifacts,
     /// Artifact inventory exceeds the bounded release-manifest limit.
     TooManyArtifacts,
-    /// Artifact inventory repeats a canonical artifact name.
+    /// Artifact inventory repeats an ASCII-case-folded artifact name.
     DuplicateArtifactName,
 }
 
