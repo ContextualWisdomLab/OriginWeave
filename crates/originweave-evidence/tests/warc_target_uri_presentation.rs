@@ -125,6 +125,22 @@ fn warc_target_uri_rejects_general_delimiters_in_path_segments() {
 }
 
 #[test]
+fn warc_target_uri_preserves_brackets_in_ipv6_authority() {
+    let target_uri = "https://[::1]:8443/path";
+    let record = WarcResourceRecord::new(
+        RECORD_ID,
+        DATE,
+        target_uri,
+        "text/plain",
+        Vec::new(),
+        provenance(target_uri),
+    )
+    .expect("RFC 3986 bracketed IPv6 authority");
+
+    assert_eq!(record.target_uri(), target_uri);
+}
+
+#[test]
 fn warc_target_uri_rejects_malformed_percent_encoding() {
     let source_provenance = provenance("https://example.com/valid");
     for target_uri in [
