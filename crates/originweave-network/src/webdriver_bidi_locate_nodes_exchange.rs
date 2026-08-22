@@ -11,8 +11,8 @@ use originweave_core::{
 };
 
 use crate::webdriver_bidi_websocket_handshake::{
-    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrameError,
-    WebDriverBiDiWebSocketMaskKey,
+    MAX_WEBSOCKET_FRAME_TIMEOUT, WebDriverBiDiWebSocketEstablished,
+    WebDriverBiDiWebSocketFrameError, WebDriverBiDiWebSocketMaskKey,
 };
 
 /// Maximum number of valid RFC 6455 Ping/Pong control frames one `locateNodes` exchange will process.
@@ -121,6 +121,14 @@ fn remaining_exchange_budget(
     }
 }
 
+fn remaining_frame_operation_budget(
+    exchange_timeout: Duration,
+    elapsed: Duration,
+) -> Result<Duration, WebDriverBiDiLocateNodesExchangeError> {
+    remaining_exchange_budget(exchange_timeout, elapsed)
+        .map(|remaining| remaining.min(MAX_WEBSOCKET_FRAME_TIMEOUT))
+}
+
 fn next_pong_masking_key(
     next_key: &mut dyn FnMut() -> Option<WebDriverBiDiWebSocketMaskKey>,
 ) -> Result<WebDriverBiDiWebSocketMaskKey, WebDriverBiDiLocateNodesExchangeError> {
@@ -145,13 +153,16 @@ impl WebDriverBiDiWebSocketEstablished {
     /// fragmented data, and reserved shapes are not reinterpreted as a BiDi response.
     ///
     /// `exchange_timeout` is one end-to-end budget for every command write, control-frame read/write,
-    /// and response read. Elapsed time is subtracted before every subsequent operation and the budget
-    /// is never reset. The underlying frame boundary independently caps each frame at its existing
-    /// size ceiling. In addition, at most [`MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE`] valid
-    /// Ping/Pong frames are processed before the exchange fails closed, so RFC 6455 control-frame
-    /// interleaving cannot create an unbounded iteration budget even when the wall-clock deadline has
-    /// not yet expired. Any failure consumes this transport state and yields no reusable WebSocket
-    /// stream, preventing a partially written/read protocol state from becoming later authority.
+    /// and response read. Elapsed time is subtracted before every operation and the budget is never
+    /// reset. Each individual frame operation is additionally capped at the established frame
+    /// timeout ceiling, so a longer end-to-end exchange budget remains valid without widening the
+    /// per-operation I/O bound. The underlying frame boundary independently caps each frame at its
+    /// existing size ceiling. In addition, at most
+    /// [`MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE`] valid Ping/Pong frames are processed before
+    /// the exchange fails closed, so RFC 6455 control-frame interleaving cannot create an unbounded
+    /// iteration budget even when the wall-clock deadline has not yet expired. Any failure consumes
+    /// this transport state and yields no reusable WebSocket stream, preventing a partially
+    /// written/read protocol state from becoming later authority.
     ///
     /// The final complete text payload passes the existing bounded UTF-8/document admission,
     /// complete WebDriver BiDi response parser, exact command-id correlation, and wire-derived node
@@ -170,16 +181,18 @@ impl WebDriverBiDiWebSocketEstablished {
         WebDriverBiDiLocateNodesExchangeError,
     > {
         let started_at = Instant::now();
+        let write_timeout =
+            remaining_frame_operation_budget(exchange_timeout, started_at.elapsed())?;
         let mut established = map_established_frame_result(self.write_text_frame(
             command.as_json(),
             command_masking_key,
-            exchange_timeout,
+            write_timeout,
         ))?;
         let mut control_frame_count = 0_usize;
 
         loop {
             let remaining_timeout =
-                remaining_exchange_budget(exchange_timeout, started_at.elapsed())?;
+                remaining_frame_operation_budget(exchange_timeout, started_at.elapsed())?;
             let (next_established, frame) = established
                 .read_frame(remaining_timeout)
                 .map_err(WebDriverBiDiLocateNodesExchangeError::Frame)?;
@@ -201,7 +214,7 @@ impl WebDriverBiDiWebSocketEstablished {
                 0x9 => {
                     let masking_key = next_pong_masking_key(next_pong_key)?;
                     let remaining_timeout =
-                        remaining_exchange_budget(exchange_timeout, started_at.elapsed())?;
+                        remaining_frame_operation_budget(exchange_timeout, started_at.elapsed())?;
                     established = map_established_frame_result(established.write_pong_frame(
                         frame.payload(),
                         masking_key,
@@ -243,7 +256,7 @@ mod tests {
 
     use super::{
         MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE, WebDriverBiDiLocateNodesExchangeError,
-        next_pong_masking_key, remaining_exchange_budget,
+        next_pong_masking_key, remaining_exchange_budget, remaining_frame_operation_budget,
     };
 
     #[test]
@@ -266,6 +279,22 @@ mod tests {
                 remaining_exchange_budget(total, Duration::from_millis(501))
             ),
             "Err(ExchangeDeadlineExceeded { exchange_timeout: 500ms })"
+        );
+    }
+
+    #[test]
+    fn exchange_budget_caps_each_frame_operation_without_resetting_total_time() {
+        assert_eq!(
+            remaining_frame_operation_budget(Duration::from_secs(6), Duration::ZERO).ok(),
+            Some(MAX_WEBSOCKET_FRAME_TIMEOUT)
+        );
+        assert_eq!(
+            remaining_frame_operation_budget(Duration::from_secs(6), Duration::from_secs(2)).ok(),
+            Some(Duration::from_secs(4))
+        );
+        assert!(
+            remaining_frame_operation_budget(Duration::from_secs(6), Duration::from_secs(6))
+                .is_err()
         );
     }
 
