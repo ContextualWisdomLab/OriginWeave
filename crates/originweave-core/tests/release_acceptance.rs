@@ -18,8 +18,8 @@ fn declared_limitation() -> Result<DeclaredLimitation, ReleaseDecisionError> {
 }
 
 #[test]
-fn complete_passing_evidence_is_accepted_without_declared_limitations(
-) -> Result<(), ReleaseDecisionError> {
+fn complete_passing_evidence_is_accepted_without_declared_limitations()
+-> Result<(), ReleaseDecisionError> {
     let report = decide_release(passing_results(), &[])?;
 
     assert_eq!(report.decision(), ReleaseDecision::Accepted);
@@ -31,8 +31,8 @@ fn complete_passing_evidence_is_accepted_without_declared_limitations(
 }
 
 #[test]
-fn complete_passing_evidence_preserves_declared_limitation_details(
-) -> Result<(), ReleaseDecisionError> {
+fn complete_passing_evidence_preserves_declared_limitation_details()
+-> Result<(), ReleaseDecisionError> {
     let limitation = declared_limitation()?;
     let report = decide_release(passing_results(), std::slice::from_ref(&limitation))?;
 
@@ -84,8 +84,8 @@ fn limitation_errors_have_deterministic_standard_error_contracts() {
 }
 
 #[test]
-fn limitation_exposes_the_exact_narrowed_claim_and_consequence(
-) -> Result<(), ReleaseDecisionError> {
+fn limitation_exposes_the_exact_narrowed_claim_and_consequence() -> Result<(), ReleaseDecisionError>
+{
     let limitation = declared_limitation()?;
 
     assert_eq!(limitation.unsupported_claim(), "linux_arm64");
@@ -114,8 +114,8 @@ fn every_mandatory_suite_is_required_for_acceptance() -> Result<(), ReleaseDecis
 }
 
 #[test]
-fn explicit_inconclusive_suite_evidence_cannot_be_promoted_to_acceptance(
-) -> Result<(), ReleaseDecisionError> {
+fn explicit_inconclusive_suite_evidence_cannot_be_promoted_to_acceptance()
+-> Result<(), ReleaseDecisionError> {
     for inconclusive_suite in BenchmarkSuite::ALL {
         let evidence = passing_results()
             .into_iter()
@@ -139,8 +139,8 @@ fn explicit_inconclusive_suite_evidence_cannot_be_promoted_to_acceptance(
 }
 
 #[test]
-fn any_known_threshold_failure_rejects_release_and_identifies_the_suite(
-) -> Result<(), ReleaseDecisionError> {
+fn any_known_threshold_failure_rejects_release_and_identifies_the_suite()
+-> Result<(), ReleaseDecisionError> {
     for failed_suite in BenchmarkSuite::ALL {
         let evidence = passing_results()
             .into_iter()
@@ -164,8 +164,8 @@ fn any_known_threshold_failure_rejects_release_and_identifies_the_suite(
 }
 
 #[test]
-fn known_failure_remains_rejected_when_other_evidence_is_incomplete(
-) -> Result<(), ReleaseDecisionError> {
+fn known_failure_remains_rejected_when_other_evidence_is_incomplete()
+-> Result<(), ReleaseDecisionError> {
     let report = decide_release(
         [
             (
