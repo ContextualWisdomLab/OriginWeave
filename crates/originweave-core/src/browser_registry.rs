@@ -401,6 +401,29 @@ impl BrowserAuthorityRegistry {
         Ok(handle)
     }
 
+    /// Retire one exact live node handle without advancing the document epoch.
+    ///
+    /// This revokes only registry-local node authority. It is intended for relevant same-document
+    /// mutations that invalidate one actionable node while leaving the surrounding browsing
+    /// context and document epoch current. Retirement does not claim that Chromium destroyed the
+    /// underlying DOM/backend node, and the monotonic node identifier is never reused.
+    pub fn remove_node(
+        &mut self,
+        handle: &ObservedNodeHandle,
+    ) -> Result<(), BrowserRegistryError> {
+        self.validate_node_handle(handle)?;
+        let node_id = handle.node_id();
+        let context = handle.browsing_context();
+        let epoch = handle.document_epoch();
+        self.node_binding_by_id.remove(&node_id);
+        self.node_by_external.retain(
+            |(binding_context, binding_epoch, _external), bound_node_id| {
+                *binding_context != context || *binding_epoch != epoch || *bound_node_id != node_id
+            },
+        );
+        Ok(())
+    }
+
     /// Verify that an observed node handle is still live authority in this registry.
     ///
     /// This check must run immediately before a node-local browser action. It re-derives the
