@@ -1,7 +1,6 @@
 use originweave_core::release_acceptance::{
-    BenchmarkSuite, BenchmarkSuiteOutcome, DeclaredLimitation, ReleaseDecision,
-    ReleaseDecisionError, MAX_DECLARED_RELEASE_LIMITATIONS, MAX_RELEASE_LIMITATION_TEXT_BYTES,
-    decide_release,
+    BenchmarkSuite, BenchmarkSuiteOutcome, DeclaredLimitation, MAX_DECLARED_RELEASE_LIMITATIONS,
+    MAX_RELEASE_LIMITATION_TEXT_BYTES, ReleaseDecision, ReleaseDecisionError, decide_release,
 };
 
 fn passing_results() -> Vec<(BenchmarkSuite, BenchmarkSuiteOutcome)> {
@@ -18,10 +17,7 @@ fn limitation_metadata_enforces_exact_utf8_byte_budget() -> Result<(), ReleaseDe
     let limitation = DeclaredLimitation::new(maximum_claim.clone(), maximum_consequence.clone())?;
 
     assert_eq!(limitation.unsupported_claim(), maximum_claim.as_str());
-    assert_eq!(
-        limitation.buyer_consequence(),
-        maximum_consequence.as_str()
-    );
+    assert_eq!(limitation.buyer_consequence(), maximum_consequence.as_str());
     assert_eq!(
         DeclaredLimitation::new(
             "c".repeat(MAX_RELEASE_LIMITATION_TEXT_BYTES + 1),
@@ -42,9 +38,8 @@ fn limitation_metadata_enforces_exact_utf8_byte_budget() -> Result<(), ReleaseDe
 #[test]
 fn limitation_byte_budget_applies_to_international_text() {
     let korean_character = "가";
-    let repeated = korean_character.repeat(
-        MAX_RELEASE_LIMITATION_TEXT_BYTES / korean_character.len() + 1,
-    );
+    let repeated =
+        korean_character.repeat(MAX_RELEASE_LIMITATION_TEXT_BYTES / korean_character.len() + 1);
     assert!(repeated.len() > MAX_RELEASE_LIMITATION_TEXT_BYTES);
     assert_eq!(
         DeclaredLimitation::new(repeated, "지원 범위를 설명하는 구매자 안내"),
