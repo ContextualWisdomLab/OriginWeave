@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 use std::fmt;
 
-use crate::ObservedNodeHandle;
+use crate::{BrowserAuthorityRegistry, ObservedNodeHandle};
 
 /// Maximum UTF-8 byte length retained for one semantic node role.
 pub const MAX_SEMANTIC_ROLE_BYTES: usize = 64;
@@ -95,7 +95,14 @@ pub struct SemanticNodeObservation {
 
 impl SemanticNodeObservation {
     /// Validate reviewed text, relationship, authority, and provenance bounds.
-    pub fn new(input: SemanticNodeObservationInput) -> Result<Self, SemanticNodeObservationError> {
+    ///
+    /// Every primary or related node handle must still be live authority owned by
+    /// `registry`. Caller-constructed, retired, stale, or otherwise unbound handles
+    /// fail closed before page-derived semantic metadata can become an observation.
+    pub fn new(
+        input: SemanticNodeObservationInput,
+        registry: &BrowserAuthorityRegistry,
+    ) -> Result<Self, SemanticNodeObservationError> {
         if input.role.is_empty() {
             return Err(SemanticNodeObservationError::EmptyRole);
         }
@@ -118,10 +125,13 @@ impl SemanticNodeObservation {
         if input.children.len() > MAX_SEMANTIC_CHILDREN {
             return Err(SemanticNodeObservationError::TooManyChildren);
         }
+        validate_live_node(registry, &input.handle)?;
         if let Some(parent) = input.parent.as_ref() {
+            validate_live_node(registry, parent)?;
             validate_relationship(&input.handle, parent)?;
         }
         for (index, child) in input.children.iter().enumerate() {
+            validate_live_node(registry, child)?;
             validate_relationship(&input.handle, child)?;
             if input.children[..index].contains(child) {
                 return Err(SemanticNodeObservationError::DuplicateChild);
@@ -322,6 +332,15 @@ impl fmt::Display for SemanticNodeQueryError {
 
 impl std::error::Error for SemanticNodeQueryError {}
 
+fn validate_live_node(
+    registry: &BrowserAuthorityRegistry,
+    handle: &ObservedNodeHandle,
+) -> Result<(), SemanticNodeObservationError> {
+    registry
+        .validate_node_handle(handle)
+        .map_err(|_error| SemanticNodeObservationError::UnknownNodeAuthority)
+}
+
 fn validate_relationship(
     handle: &ObservedNodeHandle,
     related: &ObservedNodeHandle,
@@ -329,10 +348,12 @@ fn validate_relationship(
     if handle == related {
         return Err(SemanticNodeObservationError::SelfRelationship);
     }
+    // Both handles have already passed `validate_live_node` against the same registry. A live
+    // browsing context has exactly one current origin and document epoch, so matching session and
+    // context authority necessarily implies matching origin and epoch. Rechecking those implied
+    // dimensions would create unreachable branch states rather than additional defense in depth.
     if handle.browser_session() != related.browser_session()
         || handle.browsing_context() != related.browsing_context()
-        || handle.origin() != related.origin()
-        || handle.document_epoch() != related.document_epoch()
     {
         return Err(SemanticNodeObservationError::RelationshipAuthorityMismatch);
     }
@@ -354,6 +375,8 @@ pub enum SemanticNodeObservationError {
     MissingEvidenceChannel,
     /// The child relationship list exceeded [`MAX_SEMANTIC_CHILDREN`].
     TooManyChildren,
+    /// A supplied node handle is not current authority owned by the active browser registry.
+    UnknownNodeAuthority,
     /// A relationship crossed the observation's session, context, origin, or document authority.
     RelationshipAuthorityMismatch,
     /// The observation attempted to relate the node to itself.
@@ -378,6 +401,9 @@ impl fmt::Display for SemanticNodeObservationError {
             Self::TooManyChildren => {
                 formatter.write_str("semantic node observation exceeds 128 child relationships")
             }
+            Self::UnknownNodeAuthority => formatter.write_str(
+                "semantic node observation contains node authority not owned by the active browser registry",
+            ),
             Self::RelationshipAuthorityMismatch => formatter.write_str(
                 "semantic node relationship crosses its session, context, origin, or document authority",
             ),

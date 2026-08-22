@@ -1,35 +1,40 @@
 use std::collections::BTreeSet;
 
 use originweave_core::{
-    BrowserSessionId, BrowsingContextId, DocumentEpoch, MAX_ACCESSIBLE_NAME_BYTES,
-    MAX_SEMANTIC_ROLE_BYTES, NodeActionKind, ObservationChannel, ObservedNodeHandle, Origin,
-    SemanticNodeObservation, SemanticNodeObservationInput, SemanticNodeQuery,
-    SemanticNodeQueryError,
+    BrowserAuthorityRegistry, MAX_ACCESSIBLE_NAME_BYTES, MAX_SEMANTIC_ROLE_BYTES, NodeActionKind,
+    ObservationChannel, Origin, SemanticNodeObservation, SemanticNodeObservationInput,
+    SemanticNodeQuery, SemanticNodeQueryError,
 };
 
 fn observation() -> Result<SemanticNodeObservation, String> {
-    let handle = ObservedNodeHandle::new(
-        BrowserSessionId::new(7).map_err(|error| error.to_string())?,
-        BrowsingContextId::new(11).map_err(|error| error.to_string())?,
-        Origin::parse("https://example.com").map_err(|error| format!("{error:?}"))?,
-        DocumentEpoch::new(3).map_err(|error| error.to_string())?,
-        17,
-    )
-    .map_err(|error| error.to_string())?;
+    let mut registry = BrowserAuthorityRegistry::new();
+    let session = registry
+        .register_session("semantic-query-session")
+        .map_err(|error| error.to_string())?;
+    let context = registry
+        .register_context(session, "semantic-query-context")
+        .map_err(|error| error.to_string())?;
+    let origin = Origin::parse("https://example.com").map_err(|error| format!("{error:?}"))?;
+    let handle = registry
+        .bind_node(session, context, &origin, "semantic-query-node")
+        .map_err(|error| error.to_string())?;
 
-    SemanticNodeObservation::new(SemanticNodeObservationInput {
-        handle,
-        parent: None,
-        children: Vec::new(),
-        role: "textbox".to_owned(),
-        accessible_name: "Email address".to_owned(),
-        visible_text: Some("name@example.test".to_owned()),
-        enabled: true,
-        visible: true,
-        selected: None,
-        supported_actions: BTreeSet::from([NodeActionKind::Click, NodeActionKind::TypeText]),
-        evidence_channels: BTreeSet::from([ObservationChannel::Accessibility]),
-    })
+    SemanticNodeObservation::new(
+        SemanticNodeObservationInput {
+            handle,
+            parent: None,
+            children: Vec::new(),
+            role: "textbox".to_owned(),
+            accessible_name: "Email address".to_owned(),
+            visible_text: Some("name@example.test".to_owned()),
+            enabled: true,
+            visible: true,
+            selected: None,
+            supported_actions: BTreeSet::from([NodeActionKind::Click, NodeActionKind::TypeText]),
+            evidence_channels: BTreeSet::from([ObservationChannel::Accessibility]),
+        },
+        &registry,
+    )
     .map_err(|error| error.to_string())
 }
 
