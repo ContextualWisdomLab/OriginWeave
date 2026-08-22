@@ -92,7 +92,7 @@ No persistent database migration is introduced. A release can roll back the Chro
 
 ## Open follow-ups
 
-- Complete issue #27's compatibility matrix and production isolation acceptance. Exclusive trusted-time expiry on origin-bound `ExtensionAgentGrant` evaluation is the next protected-main candidate; task identity binding remains open.
+- Complete issue #27's compatibility matrix and production isolation acceptance. Exact Agent Task identity binding, canonical-origin binding, and exclusive trusted-time expiry are implemented on active PR #40 and remain active-PR evidence until protected integration.
 - Define managed-extension identity/update semantics.
 - Implement the native-messaging allow-list/process boundary before claiming support.
 - Integrate the complete Agent Task browser vertical slice under issue #28.
@@ -105,4 +105,12 @@ Supersede this ADR if Chromium adopts a materially different extension authority
 
 ## References
 
-Primary browser/extension/protocol evidence and APA 7 references are maintained in [`../doctoring/browser-agent-protocols.md`](../doctoring/browser-agent-protocols.md) and [`../doctoring.md`](../doctoring.md). Related decisions include ADR 0001, ADR 0002, ADR 0007, ADR 0010, ADR 0101, ADR 0104, and ADR 0107.
+The following primary Chrome extension documentation directly supports this ADR's service-worker execution plane, untrusted-message boundary, and separately bounded native-messaging decision:
+
+Google Chrome. (2023, May 2). *Extension service worker basics*. Chrome for Developers. https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/basics
+
+Google Chrome. (2023, February 27). *Native messaging*. Chrome for Developers. https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging
+
+Google Chrome. (2025, December 3). *Message passing*. Chrome for Developers. https://developer.chrome.com/docs/extensions/develop/concepts/messaging
+
+Additional primary browser/extension/protocol evidence and APA 7 references are maintained in [`../doctoring/browser-agent-protocols.md`](../doctoring/browser-agent-protocols.md) and [`../doctoring.md`](../doctoring.md). Related decisions include ADR 0001, ADR 0002, ADR 0007, ADR 0010, ADR 0101, ADR 0104, and ADR 0107.
