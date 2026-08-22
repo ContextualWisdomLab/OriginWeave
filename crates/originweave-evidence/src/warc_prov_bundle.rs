@@ -36,6 +36,38 @@ impl fmt::Display for WarcProvBundleError {
 
 impl std::error::Error for WarcProvBundleError {}
 
+/// A deterministic offline verification failure between a PROV bundle and a WARC record.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WarcProvBundleVerificationError {
+    /// The WARC record identifier differs from the identifier bound into the PROV bundle.
+    RecordIdentityMismatch,
+    /// The independently verified source URL or source digest differs from the PROV bundle.
+    SourceEvidenceMismatch,
+    /// The WARC capture timestamp differs from the timestamp bound into the PROV bundle.
+    CaptureTimeMismatch,
+    /// The retained WARC payload digest differs from the digest bound into the PROV bundle.
+    PayloadDigestMismatch,
+    /// The WARC complete-versus-truncated state differs from the state bound into the bundle.
+    PayloadCompletenessMismatch,
+    /// The digest of the deterministic WARC serialization differs from the bundle binding.
+    WarcRecordDigestMismatch,
+}
+
+impl fmt::Display for WarcProvBundleVerificationError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::RecordIdentityMismatch => "WARC PROV record identity does not match",
+            Self::SourceEvidenceMismatch => "WARC PROV source evidence does not match",
+            Self::CaptureTimeMismatch => "WARC PROV capture time does not match",
+            Self::PayloadDigestMismatch => "WARC PROV payload digest does not match",
+            Self::PayloadCompletenessMismatch => "WARC PROV payload completeness does not match",
+            Self::WarcRecordDigestMismatch => "WARC PROV serialized record digest does not match",
+        })
+    }
+}
+
+impl std::error::Error for WarcProvBundleVerificationError {}
+
 /// A deterministic PROV-O JSON-LD projection over one validated WARC resource record.
 ///
 /// The bundle contains identifiers, source and record hashes, source location, capture time,
@@ -134,6 +166,38 @@ impl WarcProvBundle {
     #[must_use]
     pub fn software_commit_sha(&self) -> &str {
         &self.software_commit_sha
+    }
+
+    /// Verify offline that one validated WARC record is exactly the record bound by this bundle.
+    ///
+    /// Verification is deterministic and performs no network, DNS, browser, model, persistence,
+    /// or authority operation. A matching digest proves byte identity only; it does not
+    /// authenticate the actor that produced either value or establish factual correctness.
+    pub fn verify_record(
+        &self,
+        record: &WarcResourceRecord,
+    ) -> Result<(), WarcProvBundleVerificationError> {
+        if self.record_entity_id != record.record_id() {
+            return Err(WarcProvBundleVerificationError::RecordIdentityMismatch);
+        }
+        if self.source_url != record.provenance().source_url()
+            || self.source_hash != record.provenance().source_hash()
+        {
+            return Err(WarcProvBundleVerificationError::SourceEvidenceMismatch);
+        }
+        if self.warc_date != record.warc_date() {
+            return Err(WarcProvBundleVerificationError::CaptureTimeMismatch);
+        }
+        if self.block_digest != record.block_digest() {
+            return Err(WarcProvBundleVerificationError::PayloadDigestMismatch);
+        }
+        if self.payload_completeness != record.completeness() {
+            return Err(WarcProvBundleVerificationError::PayloadCompletenessMismatch);
+        }
+        if self.warc_record_digest != sha256_digest(&record.to_warc_bytes()) {
+            return Err(WarcProvBundleVerificationError::WarcRecordDigestMismatch);
+        }
+        Ok(())
     }
 
     /// Serialize the bundle as deterministic compact W3C PROV-O JSON-LD.
