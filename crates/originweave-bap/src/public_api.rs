@@ -106,17 +106,18 @@ impl BapCommandRecovery {
     /// transition before a confirmed absence of the external side effect can produce `true`.
     /// Stale, foreign, state-only restored, or divergent lifecycle history therefore fails
     /// closed with the underlying typed receipt error instead of emitting a redispatch signal.
-    /// The supplied lifecycle is not mutated when an existing receipt is validated.
+    /// Validation requires only read access to the lifecycle and cannot mutate an already accepted
+    /// transition or consume mutable execution authority.
     ///
     /// `Ok(true)` is still not authorization to redispatch. The caller must separately
     /// authenticate recovery evidence and revalidate tenant, policy, destination, secret,
     /// browser, and any other current authority before dispatching the command again.
     pub fn permits_redispatch(
         &self,
-        lifecycle: &mut BapTaskLifecycle,
+        lifecycle: &BapTaskLifecycle,
     ) -> Result<bool, BapCommandReceiptError> {
-        lifecycle.apply_or_replay(
-            Some(&self.receipt),
+        lifecycle.validate_replay(
+            &self.receipt,
             self.receipt.idempotency_key(),
             self.receipt.tenant_id(),
             self.receipt.task_id(),
