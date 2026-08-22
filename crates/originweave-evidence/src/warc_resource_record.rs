@@ -351,9 +351,13 @@ fn is_leap_year(year: u16) -> bool {
 fn valid_target_uri_presentation(target_uri: &str) -> bool {
     let bytes = target_uri.as_bytes();
     let mut index = 0_usize;
+    let mut slash_count = 0_usize;
     while index < bytes.len() {
         let byte = bytes[index];
         if !is_rfc3986_uri_byte(byte) {
+            return false;
+        }
+        if matches!(byte, b'[' | b']') && slash_count > 2 {
             return false;
         }
         if byte == b'%' {
@@ -365,6 +369,9 @@ fn valid_target_uri_presentation(target_uri: &str) -> bool {
             }
             index += 3;
         } else {
+            if byte == b'/' {
+                slash_count += 1;
+            }
             index += 1;
         }
     }
