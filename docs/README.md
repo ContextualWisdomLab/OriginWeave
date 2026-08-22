@@ -86,4 +86,10 @@ Proposed ADRs are reviewable architecture memory, not shipped behavior and not a
 
 The second group exists only on this documentation branch until the branch integrates. After integration, the heading remains useful historical provenance; it does not promote either ADR from Proposed to Accepted and it does not claim that the described runtime capability is implemented.
 
+### Active feature proposed decisions
+
+- [ADR 0015: Release manifest identity boundary](adr/0015-release-manifest-identity.md)
+
+ADR 0015 is active-PR architecture evidence for the release-manifest identity slice. Its presence in this index keeps the documentation graph complete without promoting the Proposed decision or its implementation to protected-main truth.
+
 See the [ADR index](adr/README.md) for status rules, required decision structure, supersession rules, and active feature ADRs. The index and each ADR's own status metadata must agree; a PR body, chat transcript, automation prompt, or stale issue reference cannot change ADR status.
