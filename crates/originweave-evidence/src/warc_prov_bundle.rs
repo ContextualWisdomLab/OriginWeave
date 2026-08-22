@@ -1,9 +1,13 @@
 use std::fmt;
 
-use crate::WarcResourceRecord;
+use crate::{WarcPayloadCompleteness, WarcResourceRecord, WarcTruncationReason};
 
 const ORIGINWEAVE_COMMIT_URL_PREFIX: &str =
     "https://github.com/ContextualWisdomLab/OriginWeave/commit/";
+const WARC_PAYLOAD_COMPLETENESS_IRI: &str =
+    "tag:contextualwisdomlab.github.io,2026:OriginWeave/warcPayloadCompleteness";
+const WARC_TRUNCATION_REASON_IRI: &str =
+    "tag:contextualwisdomlab.github.io,2026:OriginWeave/warcTruncationReason";
 
 /// Exact byte length accepted for a canonical Git SHA-1 software revision.
 pub const MAX_PROV_SOFTWARE_COMMIT_SHA_BYTES: usize = 40;
@@ -30,8 +34,9 @@ impl std::error::Error for WarcProvBundleError {}
 
 /// A deterministic PROV-O JSON-LD projection over one validated WARC resource record.
 ///
-/// The bundle contains identifiers, hashes, source location, capture time, and the exact
-/// OriginWeave software revision. It deliberately does not retain or emit the WARC payload.
+/// The bundle contains identifiers, hashes, source location, capture time, explicit WARC payload
+/// completeness, and the exact OriginWeave software revision. It deliberately does not retain or
+/// emit the WARC payload.
 #[derive(Clone, PartialEq, Eq)]
 pub struct WarcProvBundle {
     record_entity_id: String,
@@ -43,6 +48,7 @@ pub struct WarcProvBundle {
     source_hash: String,
     warc_date: String,
     block_digest: String,
+    payload_completeness: WarcPayloadCompleteness,
 }
 
 impl fmt::Debug for WarcProvBundle {
@@ -53,6 +59,7 @@ impl fmt::Debug for WarcProvBundle {
             .field("source_entity_id", &self.source_entity_id)
             .field("capture_activity_id", &self.capture_activity_id)
             .field("software_agent_id", &self.software_agent_id)
+            .field("payload_completeness", &self.payload_completeness)
             .finish_non_exhaustive()
     }
 }
@@ -88,6 +95,7 @@ impl WarcProvBundle {
             source_hash: record.provenance().source_hash().to_owned(),
             warc_date: record.warc_date().to_owned(),
             block_digest: record.block_digest().to_owned(),
+            payload_completeness: record.completeness(),
         })
     }
 
@@ -125,10 +133,13 @@ impl WarcProvBundle {
     ///
     /// All interpolated values originate from the validated WARC record or the canonical
     /// lower-case software commit identifier, so no raw payload bytes enter this document.
+    /// WARC payload completeness is retained as OriginWeave-owned absolute-IRI attributes on the
+    /// generated record entity; truncated records also retain the exact WARC truncation token.
     #[must_use]
     pub fn to_json_ld(&self) -> String {
+        let completeness_attributes = warc_payload_completeness_attributes(self.payload_completeness);
         format!(
-            "{{\"@context\":{{\"prov\":\"http://www.w3.org/ns/prov#\",\"xsd\":\"http://www.w3.org/2001/XMLSchema#\"}},\"@graph\":[{{\"@id\":\"{}\",\"@type\":\"prov:Entity\",\"prov:atLocation\":{{\"@id\":\"{}\"}},\"prov:value\":\"{}\"}},{{\"@id\":\"{}\",\"@type\":\"prov:Activity\",\"prov:startedAtTime\":{{\"@value\":\"{}\",\"@type\":\"xsd:dateTime\"}},\"prov:used\":{{\"@id\":\"{}\"}},\"prov:wasAssociatedWith\":{{\"@id\":\"{}\"}}}},{{\"@id\":\"{}\",\"@type\":\"prov:SoftwareAgent\"}},{{\"@id\":\"{}\",\"@type\":\"prov:Entity\",\"prov:value\":\"{}\",\"prov:wasDerivedFrom\":{{\"@id\":\"{}\"}},\"prov:wasGeneratedBy\":{{\"@id\":\"{}\"}}}}]}}",
+            "{{\"@context\":{{\"prov\":\"http://www.w3.org/ns/prov#\",\"xsd\":\"http://www.w3.org/2001/XMLSchema#\"}},\"@graph\":[{{\"@id\":\"{}\",\"@type\":\"prov:Entity\",\"prov:atLocation\":{{\"@id\":\"{}\"}},\"prov:value\":\"{}\"}},{{\"@id\":\"{}\",\"@type\":\"prov:Activity\",\"prov:startedAtTime\":{{\"@value\":\"{}\",\"@type\":\"xsd:dateTime\"}},\"prov:used\":{{\"@id\":\"{}\"}},\"prov:wasAssociatedWith\":{{\"@id\":\"{}\"}}}},{{\"@id\":\"{}\",\"@type\":\"prov:SoftwareAgent\"}},{{\"@id\":\"{}\",\"@type\":\"prov:Entity\",\"prov:value\":\"{}\",{},\"prov:wasDerivedFrom\":{{\"@id\":\"{}\"}},\"prov:wasGeneratedBy\":{{\"@id\":\"{}\"}}}}]}}",
             self.source_entity_id,
             self.source_url,
             self.source_hash,
@@ -139,9 +150,31 @@ impl WarcProvBundle {
             self.software_agent_id,
             self.record_entity_id,
             self.block_digest,
+            completeness_attributes,
             self.source_entity_id,
             self.capture_activity_id,
         )
+    }
+}
+
+fn warc_payload_completeness_attributes(completeness: WarcPayloadCompleteness) -> String {
+    match completeness {
+        WarcPayloadCompleteness::Complete => {
+            format!("\"{WARC_PAYLOAD_COMPLETENESS_IRI}\":\"complete\"")
+        }
+        WarcPayloadCompleteness::Truncated(reason) => format!(
+            "\"{WARC_PAYLOAD_COMPLETENESS_IRI}\":\"truncated\",\"{WARC_TRUNCATION_REASON_IRI}\":\"{}\"",
+            warc_truncation_reason_token(reason)
+        ),
+    }
+}
+
+const fn warc_truncation_reason_token(reason: WarcTruncationReason) -> &'static str {
+    match reason {
+        WarcTruncationReason::Length => "length",
+        WarcTruncationReason::Time => "time",
+        WarcTruncationReason::Disconnect => "disconnect",
+        WarcTruncationReason::Unspecified => "unspecified",
     }
 }
 
