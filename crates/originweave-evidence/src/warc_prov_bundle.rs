@@ -2,7 +2,9 @@ use std::fmt;
 
 use sha2::{Digest, Sha256};
 
-use crate::{WarcPayloadCompleteness, WarcResourceRecord, WarcTruncationReason};
+use crate::{
+    ProvenanceRecord, WarcPayloadCompleteness, WarcResourceRecord, WarcTruncationReason,
+};
 
 const ORIGINWEAVE_COMMIT_URL_PREFIX: &str =
     "https://github.com/ContextualWisdomLab/OriginWeave/commit/";
@@ -41,7 +43,7 @@ impl std::error::Error for WarcProvBundleError {}
 pub enum WarcProvBundleVerificationError {
     /// The WARC record identifier differs from the identifier bound into the PROV bundle.
     RecordIdentityMismatch,
-    /// The independently verified source URL or source digest differs from the PROV bundle.
+    /// The independently verified source provenance differs from the provenance bound into the bundle.
     SourceEvidenceMismatch,
     /// The WARC capture timestamp differs from the timestamp bound into the PROV bundle.
     CaptureTimeMismatch,
@@ -70,9 +72,9 @@ impl std::error::Error for WarcProvBundleVerificationError {}
 
 /// A deterministic PROV-O JSON-LD projection over one validated WARC resource record.
 ///
-/// The bundle contains identifiers, source and record hashes, source location, capture time,
-/// explicit WARC payload completeness, and the exact OriginWeave software revision. It
-/// deliberately does not retain or emit the WARC payload.
+/// The bundle contains identifiers, exact validated source provenance, record hashes, source
+/// location, capture time, explicit WARC payload completeness, and the exact OriginWeave software
+/// revision. It deliberately does not retain or emit the WARC payload.
 #[derive(Clone, PartialEq, Eq)]
 pub struct WarcProvBundle {
     record_entity_id: String,
@@ -80,8 +82,7 @@ pub struct WarcProvBundle {
     capture_activity_id: String,
     software_agent_id: String,
     software_commit_sha: String,
-    source_url: String,
-    source_hash: String,
+    source_provenance: ProvenanceRecord,
     warc_date: String,
     block_digest: String,
     warc_record_digest: String,
@@ -129,8 +130,7 @@ impl WarcProvBundle {
             capture_activity_id,
             software_agent_id,
             software_commit_sha: software_commit_sha.to_owned(),
-            source_url: record.provenance().source_url().to_owned(),
-            source_hash: record.provenance().source_hash().to_owned(),
+            source_provenance: record.provenance().clone(),
             warc_date: record.warc_date().to_owned(),
             block_digest: record.block_digest().to_owned(),
             warc_record_digest,
@@ -170,9 +170,11 @@ impl WarcProvBundle {
 
     /// Verify offline that one validated WARC record is exactly the record bound by this bundle.
     ///
-    /// Verification is deterministic and performs no network, DNS, browser, model, persistence,
-    /// or authority operation. A matching digest proves byte identity only; it does not
-    /// authenticate the actor that produced either value or establish factual correctness.
+    /// Verification includes the complete validated [`ProvenanceRecord`] rather than only the
+    /// source URL and digest, so locator or evidence-channel drift cannot collapse into a match.
+    /// It is deterministic and performs no network, DNS, browser, model, persistence, or authority
+    /// operation. A matching digest proves byte identity only; it does not authenticate the actor
+    /// that produced either value or establish factual correctness.
     pub fn verify_record(
         &self,
         record: &WarcResourceRecord,
@@ -180,9 +182,7 @@ impl WarcProvBundle {
         if self.record_entity_id != record.record_id() {
             return Err(WarcProvBundleVerificationError::RecordIdentityMismatch);
         }
-        if self.source_url != record.provenance().source_url()
-            || self.source_hash != record.provenance().source_hash()
-        {
+        if self.source_provenance != *record.provenance() {
             return Err(WarcProvBundleVerificationError::SourceEvidenceMismatch);
         }
         if self.warc_date != record.warc_date() {
@@ -207,7 +207,8 @@ impl WarcProvBundle {
     /// payload block digest binds the retained resource bytes while `warcRecordDigest` binds the
     /// complete deterministic WARC serialization, including its headers. WARC payload completeness
     /// is retained as an OriginWeave-owned absolute-IRI attribute; truncated records also retain
-    /// the exact WARC truncation token.
+    /// the exact WARC truncation token. The JSON-LD projection exposes source URL and digest while
+    /// offline verification additionally preserves the exact validated source locator and channel.
     #[must_use]
     pub fn to_json_ld(&self) -> String {
         let completeness_attributes =
@@ -215,8 +216,8 @@ impl WarcProvBundle {
         format!(
             "{{\"@context\":{{\"prov\":\"http://www.w3.org/ns/prov#\",\"xsd\":\"http://www.w3.org/2001/XMLSchema#\"}},\"@graph\":[{{\"@id\":\"{}\",\"@type\":\"prov:Entity\",\"prov:atLocation\":{{\"@id\":\"{}\"}},\"prov:value\":\"{}\"}},{{\"@id\":\"{}\",\"@type\":\"prov:Activity\",\"prov:startedAtTime\":{{\"@value\":\"{}\",\"@type\":\"xsd:dateTime\"}},\"prov:used\":{{\"@id\":\"{}\"}},\"prov:wasAssociatedWith\":{{\"@id\":\"{}\"}}}},{{\"@id\":\"{}\",\"@type\":\"prov:SoftwareAgent\"}},{{\"@id\":\"{}\",\"@type\":\"prov:Entity\",\"prov:value\":\"{}\",\"{WARC_RECORD_DIGEST_IRI}\":\"{}\",{},\"prov:wasDerivedFrom\":{{\"@id\":\"{}\"}},\"prov:wasGeneratedBy\":{{\"@id\":\"{}\"}}}}]}}",
             self.source_entity_id,
-            self.source_url,
-            self.source_hash,
+            self.source_provenance.source_url(),
+            self.source_provenance.source_hash(),
             self.capture_activity_id,
             self.warc_date,
             self.source_entity_id,
