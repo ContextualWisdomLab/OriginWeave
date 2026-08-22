@@ -153,11 +153,11 @@ impl WebDriverBiDiWebSocketEstablished {
     /// fragmented data, and reserved shapes are not reinterpreted as a BiDi response.
     ///
     /// `exchange_timeout` is one end-to-end budget for every command write, control-frame read/write,
-    /// and response read. Elapsed time is subtracted before every operation and the budget is never
-    /// reset. Each individual frame operation is additionally capped at the established frame
-    /// timeout ceiling, so a longer end-to-end exchange budget remains valid without widening the
-    /// per-operation I/O bound. The underlying frame boundary independently caps each frame at its
-    /// existing size ceiling. In addition, at most
+    /// and response read. Elapsed time is subtracted before every subsequent operation and the budget
+    /// is never reset. Each individual frame operation is additionally capped at the established
+    /// frame timeout ceiling, so a longer end-to-end exchange budget remains valid without widening
+    /// the per-operation I/O bound. The underlying frame boundary independently caps each frame at
+    /// its existing size ceiling. In addition, at most
     /// [`MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE`] valid Ping/Pong frames are processed before
     /// the exchange fails closed, so RFC 6455 control-frame interleaving cannot create an unbounded
     /// iteration budget even when the wall-clock deadline has not yet expired. Any failure consumes
@@ -181,8 +181,7 @@ impl WebDriverBiDiWebSocketEstablished {
         WebDriverBiDiLocateNodesExchangeError,
     > {
         let started_at = Instant::now();
-        let write_timeout =
-            remaining_frame_operation_budget(exchange_timeout, started_at.elapsed())?;
+        let write_timeout = exchange_timeout.min(MAX_WEBSOCKET_FRAME_TIMEOUT);
         let mut established = map_established_frame_result(self.write_text_frame(
             command.as_json(),
             command_masking_key,
