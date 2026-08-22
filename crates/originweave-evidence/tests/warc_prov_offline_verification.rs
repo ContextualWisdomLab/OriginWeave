@@ -16,22 +16,20 @@ const SOURCE_URL: &str = "https://example.com/item";
 const OTHER_SOURCE_URL: &str = "https://example.com/other";
 const SOFTWARE_COMMIT_SHA: &str = "0123456789abcdef0123456789abcdef01234567";
 
-fn record_with_provenance(
+fn record(
     record_id: &str,
     date: &str,
     source_url: &str,
-    source_locator: &str,
     source_hash: &str,
-    source_kind: EvidenceSourceKind,
     content_type: &str,
     payload: &[u8],
     completeness: WarcPayloadCompleteness,
 ) -> WarcResourceRecord {
     let provenance = ProvenanceRecord::new(
         source_url,
-        source_locator,
+        "body",
         source_hash,
-        source_kind,
+        EvidenceSourceKind::NetworkResponse,
         VerificationResult::Verified,
     )
     .expect("verified provenance");
@@ -47,26 +45,28 @@ fn record_with_provenance(
     .expect("WARC resource record")
 }
 
-fn record(
-    record_id: &str,
-    date: &str,
-    source_url: &str,
-    source_hash: &str,
-    content_type: &str,
-    payload: &[u8],
-    completeness: WarcPayloadCompleteness,
+fn baseline_record_with_source_evidence(
+    source_locator: &str,
+    source_kind: EvidenceSourceKind,
 ) -> WarcResourceRecord {
-    record_with_provenance(
-        record_id,
-        date,
-        source_url,
-        "body",
-        source_hash,
-        EvidenceSourceKind::NetworkResponse,
-        content_type,
-        payload,
-        completeness,
+    let provenance = ProvenanceRecord::new(
+        SOURCE_URL,
+        source_locator,
+        SOURCE_HASH,
+        source_kind,
+        VerificationResult::Verified,
     )
+    .expect("verified provenance");
+    WarcResourceRecord::new_with_completeness(
+        RECORD_ID,
+        DATE,
+        SOURCE_URL,
+        "text/plain",
+        b"hello".to_vec(),
+        provenance,
+        WarcPayloadCompleteness::Complete,
+    )
+    .expect("WARC resource record")
 }
 
 fn baseline_record() -> WarcResourceRecord {
@@ -153,31 +153,14 @@ fn warc_prov_bundle_offline_verification_accepts_only_the_exact_bound_record() {
             WarcProvBundleVerificationError::SourceEvidenceMismatch,
         ),
         (
-            record_with_provenance(
-                RECORD_ID,
-                DATE,
-                SOURCE_URL,
+            baseline_record_with_source_evidence(
                 "different-body",
-                SOURCE_HASH,
                 EvidenceSourceKind::NetworkResponse,
-                "text/plain",
-                b"hello",
-                WarcPayloadCompleteness::Complete,
             ),
             WarcProvBundleVerificationError::SourceEvidenceMismatch,
         ),
         (
-            record_with_provenance(
-                RECORD_ID,
-                DATE,
-                SOURCE_URL,
-                "body",
-                SOURCE_HASH,
-                EvidenceSourceKind::StructuredData,
-                "text/plain",
-                b"hello",
-                WarcPayloadCompleteness::Complete,
-            ),
+            baseline_record_with_source_evidence("body", EvidenceSourceKind::StructuredData),
             WarcProvBundleVerificationError::SourceEvidenceMismatch,
         ),
         (
