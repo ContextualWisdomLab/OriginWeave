@@ -20,6 +20,7 @@ mod webdriver_bidi_websocket_control;
 #[allow(clippy::expect_used)]
 mod webdriver_bidi_websocket_coverage_tests;
 mod webdriver_bidi_websocket_handshake;
+mod webdriver_bidi_websocket_validated;
 
 pub use connection::{
     ConnectionPlan, DirectTcpConnection, MAX_CONNECT_TIMEOUT, MAX_CONNECTION_ATTEMPTS,
@@ -33,9 +34,11 @@ pub use webdriver_bidi_websocket_handshake::{
     MAX_WEBSOCKET_FRAME_PAYLOAD_SIZE, MAX_WEBSOCKET_FRAME_TIMEOUT,
     MAX_WEBSOCKET_OPENING_RESPONSE_SIZE, MAX_WEBSOCKET_OPENING_RESPONSE_TIMEOUT,
     MAX_WEBSOCKET_OPENING_WRITE_TIMEOUT, WebDriverBiDiWebSocketClientKey,
-    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrame,
-    WebDriverBiDiWebSocketFrameError, WebDriverBiDiWebSocketHandshakeError,
-    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketHandshakeResponseError,
-    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketOpeningRequestSent,
-    WebDriverBiDiWebSocketOpeningWriteError,
+    WebDriverBiDiWebSocketFrame, WebDriverBiDiWebSocketFrameError,
+    WebDriverBiDiWebSocketHandshakeError, WebDriverBiDiWebSocketHandshakeResponseError,
+    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketOpeningWriteError,
+};
+pub use webdriver_bidi_websocket_validated::{
+    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketHandshakePlan,
+    WebDriverBiDiWebSocketOpeningRequestSent,
 };
