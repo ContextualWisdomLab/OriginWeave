@@ -8,6 +8,7 @@ use originweave_network::{
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
 const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
+const REDACTED_CLIENT_KEY: &str = "<redacted WebSocket client nonce>";
 
 fn connect(endpoint: &str) -> originweave_network::WebDriverBiDiTcpConnection {
     let admitted = WebDriverBiDiWebSocketEndpoint::new(endpoint);
@@ -36,6 +37,57 @@ fn connect(endpoint: &str) -> originweave_network::WebDriverBiDiTcpConnection {
         unreachable!("asserted loopback connection")
     };
     connection
+}
+
+#[test]
+fn client_key_debug_redacts_websocket_nonce() {
+    let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY);
+    assert!(key.is_ok(), "{key:?}");
+    let Ok(key) = key else {
+        return;
+    };
+
+    let debug = format!("{key:?}");
+    assert!(debug.contains(REDACTED_CLIENT_KEY));
+    assert!(!debug.contains(RFC6455_SAMPLE_KEY));
+}
+
+#[test]
+fn handshake_plan_debug_redacts_websocket_nonce() {
+    let listener = TcpListener::bind(("127.0.0.1", 0));
+    assert!(listener.is_ok(), "{listener:?}");
+    let Ok(listener) = listener else {
+        return;
+    };
+    let local_addr = listener.local_addr();
+    assert!(local_addr.is_ok(), "{local_addr:?}");
+    let Ok(local_addr) = local_addr else {
+        return;
+    };
+    let server = thread::spawn(move || listener.accept().map(|_| ()));
+
+    let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+    let connection = connect(&endpoint);
+    let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY);
+    assert!(key.is_ok(), "{key:?}");
+    let Ok(key) = key else {
+        return;
+    };
+    let plan = WebDriverBiDiWebSocketHandshakePlan::new(connection, key);
+    assert!(plan.is_ok(), "{plan:?}");
+    let Ok(plan) = plan else {
+        return;
+    };
+
+    let debug = format!("{plan:?}");
+    assert!(debug.contains(REDACTED_CLIENT_KEY));
+    assert!(!debug.contains(RFC6455_SAMPLE_KEY));
+
+    let server_result = server.join();
+    assert!(server_result.is_ok(), "{server_result:?}");
+    if let Ok(accept_result) = server_result {
+        assert!(accept_result.is_ok(), "{accept_result:?}");
+    }
 }
 
 #[test]
