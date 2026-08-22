@@ -15,9 +15,9 @@ use originweave_network::{
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
 const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
 
-fn exchange_server_close_frame(
+fn exchange_server_frame(
     frame: &[u8],
-) -> Result<WebDriverBiDiWebSocketFrameError, Box<dyn Error>> {
+) -> Result<Result<(), WebDriverBiDiWebSocketFrameError>, Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let frame = frame.to_vec();
@@ -46,30 +46,30 @@ fn exchange_server_close_frame(
     let handshake = WebDriverBiDiWebSocketHandshakePlan::new(connection, client_key)?;
     let opening = handshake.write_opening_request(Duration::from_millis(500))?;
     let established = opening.read_opening_response(Duration::from_millis(500))?;
-    let result = established.read_frame(Duration::from_millis(500));
+    let result = established
+        .read_frame(Duration::from_millis(500))
+        .map(|_| ());
 
     let server_result = server
         .join()
         .map_err(|_| io::Error::other("close-frame validation test server panicked"))?;
     server_result?;
 
-    result
-        .err()
-        .ok_or_else(|| io::Error::other("invalid RFC 6455 Close frame was admitted").into())
+    Ok(result)
 }
 
 #[test]
-fn close_frame_rejects_one_byte_body_and_invalid_utf8_reason() -> Result<(), Box<dyn Error>> {
-    let one_byte_body = exchange_server_close_frame(&[0x88, 0x01, 0x00])?;
+fn close_frame_enforces_payload_shape_and_utf8_reason() -> Result<(), Box<dyn Error>> {
     assert!(matches!(
-        one_byte_body,
-        WebDriverBiDiWebSocketFrameError::MalformedFrame { .. }
+        exchange_server_frame(&[0x88, 0x01, 0x00])?,
+        Err(WebDriverBiDiWebSocketFrameError::MalformedFrame { .. })
+    ));
+    assert!(matches!(
+        exchange_server_frame(&[0x88, 0x04, 0x03, 0xe8, 0xff, 0xff])?,
+        Err(WebDriverBiDiWebSocketFrameError::MalformedFrame { .. })
     ));
 
-    let invalid_utf8_reason = exchange_server_close_frame(&[0x88, 0x04, 0x03, 0xe8, 0xff, 0xff])?;
-    assert!(matches!(
-        invalid_utf8_reason,
-        WebDriverBiDiWebSocketFrameError::MalformedFrame { .. }
-    ));
+    assert!(exchange_server_frame(&[0x88, 0x00])?.is_ok());
+    assert!(exchange_server_frame(&[0x88, 0x04, 0x03, 0xe8, b'o', b'k'])?.is_ok());
     Ok(())
 }
