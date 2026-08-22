@@ -80,6 +80,9 @@ fn network_evidence_rejects_non_path_inputs() {
         "/bad\npath",
         "/bad path",
         "/windows\\path",
+        "/[segment]",
+        "/raw|pipe",
+        "/raw-한글",
     ] {
         assert_eq!(
             NetworkEvidence::capture(
