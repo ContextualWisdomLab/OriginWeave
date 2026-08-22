@@ -1,7 +1,7 @@
 use originweave_core::release_acceptance::{DeclaredLimitation, ReleaseDecisionError};
 
 #[test]
-fn limitation_rejects_unicode_17_default_ignorable_code_points() {
+fn limitation_rejects_unicode_17_default_ignorable_code_points() -> Result<(), &'static str> {
     // Unicode 17.0.0 DerivedCoreProperties.txt, Default_Ignorable_Code_Point.
     // Endpoints plus a midpoint make every reviewed inclusive range executable evidence.
     let ranges = [
@@ -28,7 +28,7 @@ fn limitation_rejects_unicode_17_default_ignorable_code_points() {
         let midpoint = start + (end - start) / 2;
         for code_point in [start, midpoint, end] {
             let character = char::from_u32(code_point)
-                .expect("Unicode 17 default-ignorable range contains only scalar values");
+                .ok_or("reviewed Unicode 17 default-ignorable range must contain scalar values")?;
 
             assert_eq!(
                 DeclaredLimitation::new(
@@ -48,6 +48,8 @@ fn limitation_rejects_unicode_17_default_ignorable_code_points() {
             );
         }
     }
+
+    Ok(())
 }
 
 #[test]
