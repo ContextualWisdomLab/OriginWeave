@@ -100,15 +100,31 @@ impl BapCommandRecovery {
         self.external_outcome.required_action()
     }
 
-    /// Return whether redispatch may be considered after normal authority and policy revalidation.
+    /// Return whether redispatch may be considered for the current exact lifecycle state.
     ///
-    /// Only a confirmed absence of the external side effect permits consideration
-    /// of redispatch. `true` is not authorization to redispatch.
-    #[must_use]
-    pub const fn permits_redispatch(&self) -> bool {
-        matches!(
+    /// The retained receipt must still match the lifecycle's exact most recently accepted
+    /// transition before a confirmed absence of the external side effect can produce `true`.
+    /// Stale, foreign, state-only restored, or divergent lifecycle history therefore fails
+    /// closed with the underlying typed receipt error instead of emitting a redispatch signal.
+    /// The supplied lifecycle is not mutated when an existing receipt is validated.
+    ///
+    /// `Ok(true)` is still not authorization to redispatch. The caller must separately
+    /// authenticate recovery evidence and revalidate tenant, policy, destination, secret,
+    /// browser, and any other current authority before dispatching the command again.
+    pub fn permits_redispatch(
+        &self,
+        lifecycle: &mut BapTaskLifecycle,
+    ) -> Result<bool, BapCommandReceiptError> {
+        lifecycle.apply_or_replay(
+            Some(&self.receipt),
+            self.receipt.idempotency_key(),
+            self.receipt.tenant_id(),
+            self.receipt.task_id(),
+            self.receipt.event(),
+        )?;
+        Ok(matches!(
             self.required_action(),
             BapRecoveryAction::RevalidateBeforeRedispatch
-        )
+        ))
     }
 }
