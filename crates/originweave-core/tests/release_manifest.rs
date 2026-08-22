@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use originweave_core::release_manifest::{
-    MAX_RELEASE_ARTIFACTS, MAX_RELEASE_ARTIFACT_NAME_BYTES, MAX_RELEASE_REVISION_BYTES,
+    MAX_RELEASE_ARTIFACT_NAME_BYTES, MAX_RELEASE_ARTIFACTS, MAX_RELEASE_REVISION_BYTES,
     ReleaseArtifact, ReleaseArtifactError, ReleaseChannel, ReleaseManifest, ReleaseManifestError,
 };
 
@@ -13,11 +13,9 @@ fn sha256_digest(hex_digit: char) -> String {
 }
 
 #[test]
-fn release_manifest_binds_and_canonicalizes_exact_artifact_evidence() -> Result<(), Box<dyn Error>> {
-    let runtime = ReleaseArtifact::new(
-        "originweave-linux-x86_64.tar.zst",
-        &sha256_digest('a'),
-    )?;
+fn release_manifest_binds_and_canonicalizes_exact_artifact_evidence() -> Result<(), Box<dyn Error>>
+{
+    let runtime = ReleaseArtifact::new("originweave-linux-x86_64.tar.zst", &sha256_digest('a'))?;
     let sbom = ReleaseArtifact::new("originweave.spdx.json", &sha256_digest('b'))?;
 
     let manifest = ReleaseManifest::new(
@@ -35,15 +33,9 @@ fn release_manifest_binds_and_canonicalizes_exact_artifact_evidence() -> Result<
         manifest.artifacts()[0].name(),
         "originweave-linux-x86_64.tar.zst"
     );
-    assert_eq!(
-        manifest.artifacts()[0].sha256_digest(),
-        sha256_digest('a')
-    );
+    assert_eq!(manifest.artifacts()[0].sha256_digest(), sha256_digest('a'));
     assert_eq!(manifest.artifacts()[1].name(), "originweave.spdx.json");
-    assert_eq!(
-        manifest.artifacts()[1].sha256_digest(),
-        sha256_digest('b')
-    );
+    assert_eq!(manifest.artifacts()[1].sha256_digest(), sha256_digest('b'));
     Ok(())
 }
 
@@ -82,8 +74,8 @@ fn release_artifact_rejects_ambiguous_names_and_noncanonical_digests() {
 }
 
 #[test]
-fn release_manifest_rejects_invalid_identity_missing_duplicate_and_unbounded_evidence(
-) -> Result<(), Box<dyn Error>> {
+fn release_manifest_rejects_invalid_identity_missing_duplicate_and_unbounded_evidence()
+-> Result<(), Box<dyn Error>> {
     let artifact = ReleaseArtifact::new("originweave.bin", &sha256_digest('d'))?;
 
     for invalid_commit in [
