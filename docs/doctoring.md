@@ -82,6 +82,8 @@ RFC 9309 standardizes robots parsing, matching, error handling, and caching. It 
 
 W3C PROV-O supplies interoperable Entity, Activity, Agent, derivation, attribution, and responsibility concepts. ISO 28500:2017, confirmed in 2023, defines WARC storage for protocol payloads, control information, metadata, transformations, duplicate detection, integrity, and segmentation. OriginWeave uses source hashes and locators in the safety kernel, then adds WARC and PROV adapters as separately testable modules.
 
+The versioned `ExtractionSchema` is an admission and interpretation contract for typed extracted fields: each field is bounded, declares a value type, cardinality, normalization rule, and a canonical duplicate-free set of reviewed source-channel classes. That declaration does not create browser, network, model, secret, storage, retention, disclosure, or governance authority. PROV/WARC interoperability is therefore layered after the schema contract rather than inferred from it.
+
 ### AI risk and prompt injection
 
 NIST AI 600-1 provides generative-AI lifecycle risk guidance. WASP demonstrates that web-navigation agents can follow low-effort indirect prompt injections. OriginWeave therefore separates trusted instructions, untrusted observations, and protected secrets at type and process boundaries rather than rely on prompting alone.
