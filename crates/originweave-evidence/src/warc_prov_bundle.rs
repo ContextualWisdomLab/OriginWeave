@@ -266,4 +266,5 @@ fn valid_software_commit_sha(software_commit_sha: &str) -> bool {
         && software_commit_sha
             .bytes()
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        && software_commit_sha.bytes().any(|byte| byte != b'0')
 }
