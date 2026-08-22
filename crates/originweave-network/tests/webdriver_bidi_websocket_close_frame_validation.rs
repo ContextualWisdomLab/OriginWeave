@@ -76,7 +76,7 @@ fn close_frame_enforces_payload_shape_and_utf8_reason() -> Result<(), Box<dyn Er
 
 #[test]
 fn close_frame_rejects_forbidden_wire_status_codes() -> Result<(), Box<dyn Error>> {
-    for status_code in [999_u16, 1005, 1006, 1015, 5000] {
+    for status_code in [999_u16, 1004, 1005, 1006, 1015, 5000] {
         let [high, low] = status_code.to_be_bytes();
         assert!(matches!(
             exchange_server_frame(&[0x88, 0x02, high, low])?,
