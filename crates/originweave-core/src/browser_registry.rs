@@ -405,19 +405,17 @@ impl BrowserAuthorityRegistry {
     ///
     /// This revokes only registry-local node authority. It is intended for relevant same-document
     /// mutations that invalidate one actionable node while leaving the surrounding browsing
-    /// context and document epoch current. Retirement does not claim that Chromium destroyed the
-    /// underlying DOM/backend node, and the monotonic node identifier is never reused.
+    /// context and document epoch current. The node identifier is globally unique inside one
+    /// registry, so retirement purges every external alias that refers to that identifier; this
+    /// also fails safe if private lookup state was duplicated or corrupted. Retirement does not
+    /// claim that Chromium destroyed the underlying DOM/backend node, and the monotonic node
+    /// identifier is never reused.
     pub fn remove_node(&mut self, handle: &ObservedNodeHandle) -> Result<(), BrowserRegistryError> {
         self.validate_node_handle(handle)?;
         let node_id = handle.node_id();
-        let context = handle.browsing_context();
-        let epoch = handle.document_epoch();
         self.node_binding_by_id.remove(&node_id);
-        self.node_by_external.retain(
-            |(binding_context, binding_epoch, _external), bound_node_id| {
-                *binding_context != context || *binding_epoch != epoch || *bound_node_id != node_id
-            },
-        );
+        self.node_by_external
+            .retain(|_key, bound_node_id| *bound_node_id != node_id);
         Ok(())
     }
 
@@ -583,8 +581,6 @@ fn registered_node_handle(
 
 #[cfg(test)]
 mod tests {
-    use std::error::Error;
-
     use super::*;
 
     fn values<T, E>(result: Result<T, E>) -> Vec<T> {
@@ -592,25 +588,61 @@ mod tests {
     }
 
     #[test]
-    fn unregistered_handle_equality_covers_all_authority_states() -> Result<(), Box<dyn Error>> {
-        let session = BrowserSessionId::new(1)?;
-        let context = BrowsingContextId::new(1)?;
-        let epoch = DocumentEpoch::new(1)?;
-        let origin = Origin::parse("http://127.0.0.1:43127")?;
-        let first = ObservedNodeHandle::new(session, context, origin.clone(), epoch, 1)?;
-        let same = ObservedNodeHandle::new(session, context, origin.clone(), epoch, 1)?;
-        let different = ObservedNodeHandle::new(session, context, origin.clone(), epoch, 2)?;
-        assert_eq!(first, same);
-        assert_ne!(first, different);
+    fn unregistered_handle_equality_covers_all_authority_states() {
+        let sessions = values(BrowserSessionId::new(1));
+        let contexts = values(BrowsingContextId::new(1));
+        let epochs = values(DocumentEpoch::new(1));
+        let origins = values(Origin::parse("http://127.0.0.1:43127"));
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(contexts.len(), 1);
+        assert_eq!(epochs.len(), 1);
+        assert_eq!(origins.len(), 1);
+        let session = sessions[0];
+        let context = contexts[0];
+        let epoch = epochs[0];
+        let origin = origins[0].clone();
 
-        let registered =
-            ObservedNodeHandle::registered(session, context, origin, epoch, 1, Arc::new(()))?;
-        assert_ne!(first, registered);
-        Ok(())
+        let first = values(ObservedNodeHandle::new(
+            session,
+            context,
+            origin.clone(),
+            epoch,
+            1,
+        ));
+        let same = values(ObservedNodeHandle::new(
+            session,
+            context,
+            origin.clone(),
+            epoch,
+            1,
+        ));
+        let different = values(ObservedNodeHandle::new(
+            session,
+            context,
+            origin.clone(),
+            epoch,
+            2,
+        ));
+        assert_eq!(first.len(), 1);
+        assert_eq!(same.len(), 1);
+        assert_eq!(different.len(), 1);
+        assert_eq!(first[0], same[0]);
+        assert_ne!(first[0], different[0]);
+
+        let registered = values(ObservedNodeHandle::registered(
+            session,
+            context,
+            origin,
+            epoch,
+            1,
+            Arc::new(()),
+        ));
+        assert_eq!(registered.len(), 1);
+        assert_ne!(first[0], registered[0]);
     }
 
     #[test]
-    fn helper_invariants_and_reverse_index_corruption_fail_closed() -> Result<(), Box<dyn Error>> {
+    fn helper_invariants_and_reverse_index_corruption_fail_closed() {
         assert_eq!(
             browser_session_id(0),
             Err(BrowserRegistryError::InternalAuthorityInvariant)
@@ -645,10 +677,16 @@ mod tests {
         );
 
         let mut registry = BrowserAuthorityRegistry::new();
-        let session = registry.register_session("corrupt-session")?;
-        let context = registry.register_context(session, "corrupt-context")?;
+        let registered_sessions = values(registry.register_session("corrupt-session"));
+        assert_eq!(registered_sessions.len(), 1);
+        let session = registered_sessions[0];
+        let registered_contexts = values(registry.register_context(session, "corrupt-context"));
+        assert_eq!(registered_contexts.len(), 1);
+        let context = registered_contexts[0];
         let origin = &origins[0];
-        let handle = registry.bind_node(session, context, origin, "node")?;
+        let handles = values(registry.bind_node(session, context, origin, "node"));
+        assert_eq!(handles.len(), 1);
+        let handle = &handles[0];
         registry.node_binding_by_id.remove(&handle.node_id());
         assert_eq!(
             registry.bind_node(session, context, origin, "node"),
@@ -659,7 +697,9 @@ mod tests {
             .node_binding_by_id
             .insert(handle.node_id(), (context, epochs[0]));
         registry.node_by_external.clear();
-        let other_context = registry.register_context(session, "other-context")?;
+        let other_contexts = values(registry.register_context(session, "other-context"));
+        assert_eq!(other_contexts.len(), 1);
+        let other_context = other_contexts[0];
         registry.node_by_external.insert(
             (other_context, epochs[0], "other-node".to_owned()),
             handle.node_id(),
@@ -669,7 +709,9 @@ mod tests {
             Err(BrowserRegistryError::InternalAuthorityInvariant)
         );
 
-        let zero_epoch = registry.current_epoch(context)?;
+        let zero_epochs = values(registry.current_epoch(context));
+        assert_eq!(zero_epochs.len(), 1);
+        let zero_epoch = zero_epochs[0];
         registry
             .node_by_external
             .insert((context, zero_epoch, "zero-node".to_owned()), 0);
@@ -678,66 +720,136 @@ mod tests {
             registry.bind_node(session, context, origin, "zero-node"),
             Err(BrowserRegistryError::InternalAuthorityInvariant)
         );
-        Ok(())
     }
 
     #[test]
-    fn validation_reverse_index_rejects_missing_binding() -> Result<(), Box<dyn Error>> {
+    fn validation_reverse_index_rejects_missing_binding() {
         let mut registry = BrowserAuthorityRegistry::new();
-        let session = registry.register_session("session")?;
-        let context = registry.register_context(session, "context")?;
-        let origin = Origin::parse("http://127.0.0.1:43127")?;
-        let handle = registry.bind_node(session, context, &origin, "node")?;
+        let sessions = values(registry.register_session("session"));
+        assert_eq!(sessions.len(), 1);
+        let session = sessions[0];
+        let contexts = values(registry.register_context(session, "context"));
+        assert_eq!(contexts.len(), 1);
+        let context = contexts[0];
+        let origins = values(Origin::parse("http://127.0.0.1:43127"));
+        assert_eq!(origins.len(), 1);
+        let handles = values(registry.bind_node(session, context, &origins[0], "node"));
+        assert_eq!(handles.len(), 1);
+        let handle = &handles[0];
         registry.node_binding_by_id.remove(&handle.node_id());
         assert_eq!(
-            registry.validate_node_handle(&handle),
+            registry.validate_node_handle(handle),
             Err(BrowserRegistryError::UnknownNodeAuthority)
         );
-        Ok(())
     }
 
     #[test]
-    fn node_retirement_preserves_unrelated_private_bindings() -> Result<(), Box<dyn Error>> {
+    fn unit_cfg_error_propagation_covers_private_fail_closed_boundaries() {
         let mut registry = BrowserAuthorityRegistry::new();
-        let session = registry.register_session("retirement-session")?;
-        let context = registry.register_context(session, "retirement-context")?;
-        let other_context = registry.register_context(session, "other-retirement-context")?;
-        let origin = Origin::parse("http://127.0.0.1:43127")?;
-        let target = registry.bind_node(session, context, &origin, "target-node")?;
-        let sibling = registry.bind_node(session, context, &origin, "sibling-node")?;
-        let other = registry.bind_node(session, other_context, &origin, "other-node")?;
+        let sessions = values(registry.register_session("boundary-session"));
+        assert_eq!(sessions.len(), 1);
+        let session = sessions[0];
+        assert_eq!(
+            registry.register_context(session, ""),
+            Err(BrowserRegistryError::InvalidExternalIdentifier)
+        );
 
-        let future_epoch = DocumentEpoch::new(target.document_epoch().value() + 1)?;
-        let future_key = (context, future_epoch, "future-sibling-alias".to_owned());
+        let contexts = values(registry.register_context(session, "boundary-context"));
+        assert_eq!(contexts.len(), 1);
+        let context = contexts[0];
+        let origins = values(Origin::parse("http://127.0.0.1:43127"));
+        assert_eq!(origins.len(), 1);
+        let origin = &origins[0];
+        assert_eq!(
+            registry.bind_node(session, context, origin, ""),
+            Err(BrowserRegistryError::InvalidExternalIdentifier)
+        );
+
+        let epochs = values(registry.current_epoch(context));
+        assert_eq!(epochs.len(), 1);
+        let epoch = epochs[0];
+        registry.context_epoch.remove(&context);
+        assert_eq!(
+            registry.bind_node(session, context, origin, "missing-epoch-node"),
+            Err(BrowserRegistryError::UnknownBrowsingContext)
+        );
+
+        registry.context_epoch.insert(context, epoch);
+        let handles = values(registry.bind_node(session, context, origin, "live-node"));
+        assert_eq!(handles.len(), 1);
+        registry.context_epoch.remove(&context);
+        assert_eq!(
+            registry.validate_node_handle(&handles[0]),
+            Err(BrowserRegistryError::UnknownBrowsingContext)
+        );
+    }
+
+    #[test]
+    fn node_retirement_purges_duplicate_private_aliases_fail_closed() {
+        let mut registry = BrowserAuthorityRegistry::new();
+        let sessions = values(registry.register_session("retirement-session"));
+        assert_eq!(sessions.len(), 1);
+        let session = sessions[0];
+        let contexts = values(registry.register_context(session, "retirement-context"));
+        let other_contexts = values(registry.register_context(session, "other-retirement-context"));
+        assert_eq!(contexts.len(), 1);
+        assert_eq!(other_contexts.len(), 1);
+        let context = contexts[0];
+        let other_context = other_contexts[0];
+        let origins = values(Origin::parse("http://127.0.0.1:43127"));
+        assert_eq!(origins.len(), 1);
+        let origin = &origins[0];
+        let targets = values(registry.bind_node(session, context, origin, "target-node"));
+        let siblings = values(registry.bind_node(session, context, origin, "sibling-node"));
+        let others = values(registry.bind_node(session, other_context, origin, "other-node"));
+        assert_eq!(targets.len(), 1);
+        assert_eq!(siblings.len(), 1);
+        assert_eq!(others.len(), 1);
+        let target = &targets[0];
+        let sibling = &siblings[0];
+        let other = &others[0];
+
+        let epochs = values(DocumentEpoch::new(target.document_epoch().value() + 1));
+        assert_eq!(epochs.len(), 1);
+        let future_key = (context, epochs[0], "corrupt-future-alias".to_owned());
+        let cross_context_key = (
+            other_context,
+            target.document_epoch(),
+            "corrupt-cross-context-alias".to_owned(),
+        );
         registry
             .node_by_external
-            .insert(future_key.clone(), sibling.node_id());
+            .insert(future_key.clone(), target.node_id());
+        registry
+            .node_by_external
+            .insert(cross_context_key.clone(), target.node_id());
 
-        registry.remove_node(&target)?;
+        assert_eq!(registry.remove_node(target), Ok(()));
 
-        assert_eq!(registry.validate_node_handle(&sibling), Ok(()));
-        assert_eq!(registry.validate_node_handle(&other), Ok(()));
-        assert_eq!(
-            registry.node_by_external.get(&future_key),
-            Some(&sibling.node_id())
-        );
-        Ok(())
+        assert_eq!(registry.validate_node_handle(sibling), Ok(()));
+        assert_eq!(registry.validate_node_handle(other), Ok(()));
+        assert_eq!(registry.node_by_external.get(&future_key), None);
+        assert_eq!(registry.node_by_external.get(&cross_context_key), None);
+        assert_eq!(registry.node_binding_by_id.get(&target.node_id()), None);
     }
 
     #[test]
-    fn document_epoch_exhaustion_is_fail_closed() -> Result<(), Box<dyn Error>> {
+    fn document_epoch_exhaustion_is_fail_closed() {
         let mut registry = BrowserAuthorityRegistry::new();
-        let session = registry.register_session("epoch-session")?;
-        let context = registry.register_context(session, "epoch-context")?;
-        registry
-            .context_epoch
-            .insert(context, DocumentEpoch::new(u64::MAX)?);
+        let sessions = values(registry.register_session("epoch-session"));
+        assert_eq!(sessions.len(), 1);
+        let session = sessions[0];
+        let contexts = values(registry.register_context(session, "epoch-context"));
+        assert_eq!(contexts.len(), 1);
+        let context = contexts[0];
+        let maximum_epochs = values(DocumentEpoch::new(u64::MAX));
+        assert_eq!(maximum_epochs.len(), 1);
+        registry.context_epoch.insert(context, maximum_epochs[0]);
 
         assert_eq!(
             registry.advance_document(context),
             Err(BrowserRegistryError::DocumentEpochExhausted)
         );
-        Ok(())
     }
 
     #[test]
