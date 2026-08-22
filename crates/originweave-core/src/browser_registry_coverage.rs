@@ -265,6 +265,91 @@ fn unit_cfg_allocation_rotation_and_retirement_edges_are_exercised() {
 }
 
 #[test]
+fn unit_cfg_adapter_surface_exercises_accessors_equality_default_and_errors() {
+    let mut registry = BrowserAuthorityRegistry::default();
+    let sessions = values(registry.register_session("adapter-surface-session"));
+    assert_eq!(sessions.len(), 1);
+    let session = sessions[0];
+    let contexts = values(registry.register_context(session, "adapter-surface-context"));
+    assert_eq!(contexts.len(), 1);
+    let context = contexts[0];
+    let origins = values(Origin::parse("http://127.0.0.1:43127"));
+    assert_eq!(origins.len(), 1);
+    let origin = origins[0].clone();
+    let handles = values(registry.bind_node(session, context, &origin, "adapter-surface-node"));
+    assert_eq!(handles.len(), 1);
+    let handle = &handles[0];
+
+    assert_eq!(handle.browser_session(), session);
+    assert_eq!(handle.browsing_context(), context);
+    assert_eq!(handle.origin(), &origin);
+    assert_eq!(handle.document_epoch().value(), 1);
+    assert_ne!(handle.node_id(), 0);
+
+    let unregistered_same = values(ObservedNodeHandle::new(
+        session,
+        context,
+        origin.clone(),
+        handle.document_epoch(),
+        handle.node_id(),
+    ));
+    assert_eq!(unregistered_same.len(), 1);
+    let second_unregistered_same = values(ObservedNodeHandle::new(
+        session,
+        context,
+        origin.clone(),
+        handle.document_epoch(),
+        handle.node_id(),
+    ));
+    assert_eq!(second_unregistered_same.len(), 1);
+    assert_ne!(*handle, unregistered_same[0]);
+    assert_eq!(unregistered_same[0], second_unregistered_same[0]);
+
+    let unregistered_other = values(ObservedNodeHandle::new(
+        session,
+        context,
+        origin.clone(),
+        handle.document_epoch(),
+        handle.node_id() + 1,
+    ));
+    assert_eq!(unregistered_other.len(), 1);
+    assert_ne!(unregistered_same[0], unregistered_other[0]);
+
+    assert_eq!(
+        registry.validate_node_handle(&unregistered_same[0]),
+        Err(BrowserRegistryError::UnknownNodeAuthority)
+    );
+    assert_eq!(registry.remove_node(handle), Ok(()));
+    assert_eq!(
+        registry.validate_node_handle(handle),
+        Err(BrowserRegistryError::UnknownNodeAuthority)
+    );
+    assert_eq!(registry.remove_context(context), Ok(()));
+    assert_eq!(
+        registry.bind_node(session, context, &origin, "retired-context-node"),
+        Err(BrowserRegistryError::UnknownBrowsingContext)
+    );
+
+    let display_cases = [
+        BrowserRegistryError::InvalidExternalIdentifier,
+        BrowserRegistryError::UnknownBrowserSession,
+        BrowserRegistryError::UnknownBrowsingContext,
+        BrowserRegistryError::ContextSessionMismatch {
+            expected: session,
+            actual: session,
+        },
+        BrowserRegistryError::OriginChangedWithoutDocumentAdvance,
+        BrowserRegistryError::UnknownNodeAuthority,
+        BrowserRegistryError::IdentifierSpaceExhausted,
+        BrowserRegistryError::DocumentEpochExhausted,
+        BrowserRegistryError::InternalAuthorityInvariant,
+    ];
+    for error in display_cases {
+        assert!(!error.to_string().is_empty());
+    }
+}
+
+#[test]
 fn session_retirement_covers_unit_success_and_unknown_paths() {
     let mut registry = BrowserAuthorityRegistry::new();
     let sessions = values(registry.register_session("retirement-unit-session"));
