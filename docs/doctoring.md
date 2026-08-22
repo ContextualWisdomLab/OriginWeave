@@ -86,6 +86,10 @@ The test-only rcgen 0.14.8 dependency creates a local CA and deterministic certi
 
 Microsoft's Win32 filename guidance requires applications not to assume case sensitivity and reserves device basenames including `CON`, `PRN`, `AUX`, `NUL`, `COM1` through `COM9`, and `LPT1` through `LPT9`, including those names followed by extensions. The same documentation also identifies non-ASCII superscript-digit device aliases. OriginWeave's release-manifest identity therefore rejects ASCII-case-folded duplicate artifact names and those reserved ASCII device basenames; its ASCII-only artifact grammar separately excludes the superscript aliases. These checks make one admitted artifact inventory portable across case-sensitive and default case-insensitive target filesystems without rewriting the stored artifact spelling. They remain identity hygiene only and do not grant signing, publication, installation, update, rollback, or release authority.
 
+### Git source identity admission
+
+Git's protocol grammar distinguishes an ordinary 40-hex object identifier from `zero-id = 40*"0"`. The pack protocol uses that all-zero sentinel to represent absent refs and create/delete reference state rather than a concrete source object. OriginWeave therefore requires release-manifest `source_commit` and WARC PROV `software_commit_sha` values to be canonical lowercase 40-hex identifiers with at least one nonzero digit. This is an identity-admission rule only: it prevents a null Git sentinel from being represented as a concrete software revision, but does not prove repository reachability, GitHub authenticity, commit trust, provenance, or release authority.
+
 ### Crawling policy
 
 RFC 9309 standardizes robots parsing, matching, error handling, and caching. It also states that robots rules are not access authorization. OriginWeave therefore requires robots evidence for public crawler mode while maintaining authentication, terms, rate, privacy, and retention policy as separate controls.
@@ -143,6 +147,10 @@ Evtimov, I., Zharmagambetov, A., Grattafiori, A., Guo, C., & Chaudhuri, K. (2025
 Fielding, R., Nottingham, M., & Reschke, J. (2022). *HTTP semantics* (RFC 9110). Internet Engineering Task Force. https://doi.org/10.17487/RFC9110
 
 Fugu Team, Sakana AI. (2026). *Sakana Fugu technical report* [Technical report]. arXiv. https://doi.org/10.48550/arXiv.2606.21228
+
+Git. (2025). *gitprotocol-common documentation*. https://git-scm.com/docs/gitprotocol-common
+
+Git. (2026). *gitprotocol-pack documentation*. https://git-scm.com/docs/gitprotocol-pack
 
 Huston, G., & Buraglio, N. (2024). *Expanding the IPv6 documentation space* (RFC 9637). Internet Engineering Task Force. https://doi.org/10.17487/RFC9637
 
