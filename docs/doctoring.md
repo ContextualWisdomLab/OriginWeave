@@ -86,6 +86,8 @@ The versioned `ExtractionSchema` is an admission and interpretation contract for
 
 WARC 1.1 defines `WARC-Truncated` as explicit record-block completeness evidence with standard reason tokens `length`, `time`, `disconnect`, and `unspecified`; `Content-Length` still reports the bytes actually retained in the truncated block. OriginWeave therefore requires callers to represent completeness explicitly: complete records omit the field, truncated records preserve one typed standard reason, and an oversized retained block remains a limit error rather than being silently truncated. This contract describes evidence already retained by the caller; it does not authorize capture, persistence, or retention.
 
+PROV-O's RDF model remains extensible with domain-specific properties, while JSON-LD 1.1 permits absolute IRIs as property keys. The active WARC-to-PROV adapter therefore carries `WarcPayloadCompleteness` onto the generated record Entity using OriginWeave-owned absolute `tag:` IRIs rather than overloading `prov:value` or inventing a W3C PROV property. Complete records emit only `warcPayloadCompleteness=complete`; truncated records emit `warcPayloadCompleteness=truncated` plus the exact standard WARC truncation reason. These attributes preserve replay evidence; they do not grant capture, persistence, retention, export, replay execution, browser, network, or model authority.
+
 ### AI risk and prompt injection
 
 NIST AI 600-1 provides generative-AI lifecycle risk guidance. WASP demonstrates that web-navigation agents can follow low-effort indirect prompt injections. OriginWeave therefore separates trusted instructions, untrusted observations, and protected secrets at type and process boundaries rather than rely on prompting alone.
@@ -171,6 +173,8 @@ The Rust Project Developers. (2026). *TcpStream in std::net* (Rust 1.97.1) [Soft
 Web Hypertext Application Technology Working Group. (2026). *URL standard*. https://url.spec.whatwg.org/
 
 World Wide Web Consortium. (2013). *PROV-O: The PROV ontology*. https://www.w3.org/TR/prov-o/
+
+World Wide Web Consortium. (2020). *JSON-LD 1.1: A JSON-based serialization for linked data*. https://www.w3.org/TR/json-ld11/
 
 World Wide Web Consortium. (2026, June 1). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260601/
 
