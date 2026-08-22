@@ -11,6 +11,7 @@ use originweave_core::VerifiedWebDriverBiDiSocketPeer;
 use crate::{WebDriverBiDiTcpConnection, WebDriverBiDiTcpConnectionEvidence};
 
 const WEBSOCKET_CLIENT_KEY_LENGTH: usize = 24;
+const REDACTED_WEBSOCKET_CLIENT_NONCE: &str = "<redacted WebSocket client nonce>";
 
 /// Maximum wall-clock budget accepted for writing one bounded WebSocket opening request.
 ///
@@ -60,9 +61,19 @@ impl Error for WebDriverBiDiWebSocketHandshakeError {}
 /// RFC 6455 requires `Sec-WebSocket-Key` to be a nonce of 16 bytes encoded with base64. This type
 /// validates only the canonical wire representation, including zero padding bits. It does not
 /// generate entropy: callers remain responsible for supplying a fresh, unpredictable 16-byte nonce
-/// for each connection attempt.
-#[derive(Debug, Eq, PartialEq)]
+/// for each connection attempt. Its [`fmt::Debug`] representation deliberately redacts the nonce so
+/// diagnostic output cannot disclose handshake material.
+#[derive(Eq, PartialEq)]
 pub struct WebDriverBiDiWebSocketClientKey(String);
+
+impl fmt::Debug for WebDriverBiDiWebSocketClientKey {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_tuple("WebDriverBiDiWebSocketClientKey")
+            .field(&REDACTED_WEBSOCKET_CLIENT_NONCE)
+            .finish()
+    }
+}
 
 impl WebDriverBiDiWebSocketClientKey {
     /// Admit one canonical base64 client key representing exactly 16 bytes.
@@ -87,16 +98,27 @@ impl WebDriverBiDiWebSocketClientKey {
 /// the fixed WebSocket version-13 request required for the admitted `/session/<session-id>` resource
 /// and retains the exact client key required to validate a later `Sec-WebSocket-Accept` response.
 /// Secure `wss` targets fail closed here and require a separate authenticated TLS transport boundary
-/// before any WebSocket bytes may be written.
+/// before any WebSocket bytes may be written. Its [`fmt::Debug`] representation omits the serialized
+/// request and redacts the client nonce because the request embeds that nonce in `Sec-WebSocket-Key`.
 ///
 /// Construction performs no socket write, TLS operation, response parsing, `Sec-WebSocket-Accept`
 /// validation, WebSocket framing, Chromium/ChromeDriver process authentication, browser action, or
 /// Agent-authority grant.
-#[derive(Debug)]
 pub struct WebDriverBiDiWebSocketHandshakePlan {
     connection: WebDriverBiDiTcpConnection,
     client_key: WebDriverBiDiWebSocketClientKey,
     request: Vec<u8>,
+}
+
+impl fmt::Debug for WebDriverBiDiWebSocketHandshakePlan {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("WebDriverBiDiWebSocketHandshakePlan")
+            .field("verified_peer", self.connection.verified_peer())
+            .field("client_nonce", &REDACTED_WEBSOCKET_CLIENT_NONCE)
+            .field("request_byte_count", &self.request.len())
+            .finish()
+    }
 }
 
 impl WebDriverBiDiWebSocketHandshakePlan {
