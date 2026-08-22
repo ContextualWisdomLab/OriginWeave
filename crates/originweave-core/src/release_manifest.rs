@@ -188,9 +188,8 @@ pub enum ReleaseManifestError {
 impl fmt::Display for ReleaseManifestError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidSourceCommit => formatter.write_str(
-                "release source commit must be exactly 40 lowercase hexadecimal digits",
-            ),
+            Self::InvalidSourceCommit => formatter
+                .write_str("release source commit must be exactly 40 lowercase hexadecimal digits"),
             Self::InvalidChromiumRevision => {
                 formatter.write_str("Chromium revision must be a canonical bounded release token")
             }
@@ -220,9 +219,9 @@ fn valid_artifact_name(name: &str) -> bool {
     let bytes = name.as_bytes();
     bytes[0].is_ascii_alphanumeric()
         && bytes[bytes.len() - 1].is_ascii_alphanumeric()
-        && bytes.iter().all(|byte| {
-            byte.is_ascii_alphanumeric() || matches!(*byte, b'.' | b'_' | b'-')
-        })
+        && bytes
+            .iter()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(*byte, b'.' | b'_' | b'-'))
 }
 
 fn valid_sha256_digest(digest: &str) -> bool {
