@@ -340,6 +340,7 @@ fn valid_source_commit(source_commit: &str) -> bool {
         && source_commit
             .bytes()
             .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
+        && source_commit.bytes().any(|byte| byte != b'0')
 }
 
 fn valid_revision(revision: &str) -> bool {
