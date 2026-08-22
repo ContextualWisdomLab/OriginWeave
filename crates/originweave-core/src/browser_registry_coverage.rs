@@ -18,6 +18,8 @@ fn repeated_node_binding_exercises_the_unit_crate_existing_node_path() {
 
     let contexts = values(registry.register_context(session, "unit-context"));
     assert_eq!(contexts.len(), 1);
+    let repeated_contexts = values(registry.register_context(session, "unit-context"));
+    assert_eq!(repeated_contexts, contexts);
     let context = contexts[0];
 
     let origins = values(Origin::parse("http://127.0.0.1:43127"));
@@ -67,6 +69,11 @@ fn node_validation_rejects_each_missing_authority_boundary() {
     let mut registry = BrowserAuthorityRegistry::new();
     assert_eq!(
         registry.register_session(""),
+        Err(BrowserRegistryError::InvalidExternalIdentifier)
+    );
+    let oversized_identifier = "x".repeat(513);
+    assert_eq!(
+        registry.register_session(&oversized_identifier),
         Err(BrowserRegistryError::InvalidExternalIdentifier)
     );
     let known_sessions = values(registry.register_session("validation-session"));
