@@ -1227,9 +1227,8 @@ pub mod release_acceptance {
     impl fmt::Display for ReleaseDecisionError {
         fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
             match self {
-                Self::EmptyLimitationClaim => {
-                    formatter.write_str("declared release limitation must name an unsupported claim")
-                }
+                Self::EmptyLimitationClaim => formatter
+                    .write_str("declared release limitation must name an unsupported claim"),
                 Self::EmptyLimitationConsequence => formatter.write_str(
                     "declared release limitation must state a buyer-visible consequence",
                 ),
