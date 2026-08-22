@@ -62,10 +62,8 @@ fn crash_recovery_distinguishes_external_side_effect_outcomes_without_unsafe_rep
 #[test]
 fn stale_recovery_receipt_cannot_signal_redispatch() {
     let (mut lifecycle, receipt) = accepted_receipt();
-    let recovery = BapCommandRecovery::new(
-        receipt,
-        BapExternalSideEffectOutcome::ConfirmedNoSideEffect,
-    );
+    let recovery =
+        BapCommandRecovery::new(receipt, BapExternalSideEffectOutcome::ConfirmedNoSideEffect);
 
     lifecycle.apply(BapTaskEvent::Start).expect("advance task");
 
