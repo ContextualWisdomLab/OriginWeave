@@ -9,11 +9,14 @@ Issue #201 requires commercial OriginWeave releases to bind an exact OriginWeave
 
 A smaller durable boundary is nevertheless required before packaging work can safely compose: one deterministic, bounded manifest identity for a release candidate. Without an explicit contract, equivalent release inventories can be represented differently, exact build inputs can be omitted or represented ambiguously, moving toolchain aliases can resolve to different compiler identities over time, case-insensitive target filesystems can collapse distinct names, and host-specific device namespaces can reinterpret an apparent artifact leaf name.
 
+Git protocol grammar distinguishes a 40-zero `zero-id` from ordinary object identifiers, and push protocol uses that zero-id as the sentinel for absent/create/delete reference state. A release manifest that admitted the all-zero value as a concrete source commit could therefore claim an exact source identity that does not identify a real Git object. OriginWeave rejects that sentinel at admission rather than relying on later publication or provenance layers to reinterpret it.
+
 ## Decision drivers
 
 - One release-candidate identity must not depend on caller ordering.
 - The manifest must not omit or ambiguously represent the exact Rust toolchain and dependency-lock identity used for the candidate.
 - The Rust toolchain field must not accept moving aliases or an alternate compiler version as though it were the repository-pinned build identity.
+- Source commit identity must distinguish a concrete Git object identifier from Git's all-zero protocol sentinel.
 - Artifact references must remain leaf identities rather than filesystem paths.
 - The same manifest must be unambiguous on supported case-sensitive and case-insensitive platforms.
 - Manifest construction must remain inert metadata admission and must not grant signing, publication, installation, update, rollback, or release authority.
@@ -21,7 +24,7 @@ A smaller durable boundary is nevertheless required before packaging work can sa
 
 ## Assumptions and authority boundaries
 
-- Source identity is a full 40-character lowercase Git commit SHA.
+- Source identity is a full 40-character lowercase Git commit SHA and must not be Git's all-zero `zero-id` sentinel.
 - Chromium identity is a bounded canonical ASCII release token; this ADR does not claim that the token alone authenticates Chromium bytes.
 - A release channel is explicit (`Stable`, `Beta`, or `Development`) metadata, not authorization to publish or promote a release.
 - Rust toolchain identity is the exact protected-repository baseline `1.97.1`; moving aliases such as `stable`, `beta`, and `nightly`, and alternate versions, are not admissible release build identities. Binding the exact token does not prove that a build actually used it.
@@ -42,13 +45,13 @@ Rejected for this slice. Destructively rewriting admitted artifact spelling woul
 
 ### Canonical admission with preserved spelling and collision guards
 
-Selected. Preserve the admitted artifact spelling, sort artifacts deterministically by that spelling, bind exact build-identity fields separately, require the repository-pinned Rust compiler identity, and reject names whose ASCII-case-folded identities collide or whose basenames are reserved Win32 device names.
+Selected. Preserve the admitted artifact spelling, sort artifacts deterministically by that spelling, bind exact build-identity fields separately, require the repository-pinned Rust compiler identity, reject Git's all-zero source-identity sentinel, and reject names whose ASCII-case-folded identities collide or whose basenames are reserved Win32 device names.
 
 ## Decision
 
 OriginWeave release-manifest admission is a deterministic, bounded, fail-closed identity contract:
 
-1. `source_commit` must be exactly 40 lowercase hexadecimal digits.
+1. `source_commit` must be exactly 40 lowercase hexadecimal digits and must not be the all-zero Git `zero-id` sentinel.
 2. `chromium_revision` must be a non-empty bounded canonical ASCII token.
 3. `channel` must be an explicit `ReleaseChannel` variant.
 4. `rust_toolchain` must equal the protected repository's exact pinned Rust toolchain `1.97.1`. Moving aliases (`stable`, `beta`, `nightly`) and alternate versions fail closed until the protected baseline and this binding decision are deliberately changed together.
@@ -65,7 +68,7 @@ Constructing or possessing a valid manifest does **not** authenticate an artifac
 
 ## Consequences
 
-The release candidate receives one bounded build-and-artifact identity representation that is stable across caller order, records the exact repository-pinned Rust toolchain and dependency-lock evidence, and avoids known case-insensitive and Win32 device-name collisions. Packaging, signing, provenance, and update layers can compose on top of this contract without inheriting ambient authority from it.
+The release candidate receives one bounded build-and-artifact identity representation that is stable across caller order, records a concrete non-null Git source identity plus the exact repository-pinned Rust toolchain and dependency-lock evidence, and avoids known case-insensitive and Win32 device-name collisions. Packaging, signing, provenance, and update layers can compose on top of this contract without inheriting ambient authority from it.
 
 Changing the protected Rust baseline now requires deliberate convergence of the repository toolchain pin, release-manifest admission contract, tests, and this ADR. A moving channel alias cannot silently change the compiler identity represented by a release manifest.
 
@@ -73,17 +76,17 @@ The contract is intentionally narrower than issue #201's final release manifest.
 
 ## Failure and degraded behavior
 
-Malformed, ambiguous, duplicate, unbounded, empty, moving-alias, or alternate-version identity evidence fails closed before a manifest is produced. A Rust toolchain other than the exact protected baseline, or an invalid dependency-lock identity, is rejected before a manifest can carry that build evidence. There is no fallback that silently rewrites an invalid name, substitutes another toolchain or dependency-lock digest, accepts an alternate digest representation, drops an artifact, or substitutes another release channel.
+Malformed, ambiguous, duplicate, unbounded, empty, null-sentinel, moving-alias, or alternate-version identity evidence fails closed before a manifest is produced. A source identity equal to Git's 40-zero `zero-id`, a Rust toolchain other than the exact protected baseline, or an invalid dependency-lock identity is rejected before a manifest can carry that evidence. There is no fallback that silently rewrites an invalid name, substitutes another source commit, toolchain, or dependency-lock digest, accepts an alternate digest representation, drops an artifact, or substitutes another release channel.
 
 A caller that cannot provide canonical evidence does not receive a release manifest. That failure is not converted into permission to sign, publish, install, or update through another path.
 
 ## Security / privacy / governance impact
 
-The boundary reduces omitted-build-identity, moving-toolchain ambiguity, path-confusion, and cross-platform filename ambiguity without introducing credentials or protected values. It does not alter GitHub governance, reviewer authority, release signing authority, or protected-main policy. Scheduled development agents remain unable to merge, tag, publish, sign, or change release authority.
+The boundary reduces null-source-identity, omitted-build-identity, moving-toolchain ambiguity, path-confusion, and cross-platform filename ambiguity without introducing credentials or protected values. It does not alter GitHub governance, reviewer authority, release signing authority, or protected-main policy. Scheduled development agents remain unable to merge, tag, publish, sign, or change release authority.
 
 ## Tests and acceptance evidence
 
-The owning `originweave-core` tests must cover valid deterministic ordering, exact artifact and dependency-lock digests, the exact pinned Rust toolchain, moving aliases and alternate toolchain versions, malformed toolchain inputs, identifier bounds, malformed names, path/traversal-like names, case-only collisions, Win32 reserved device basenames with and without extensions, neighboring admissible names, exact inventory bounds, duplicate names, channel and build-identity access, and deterministic standard error contracts.
+The owning `originweave-core` tests must cover valid deterministic ordering, exact artifact and dependency-lock digests, one concrete non-null 40-character source commit, rejection of Git's all-zero source sentinel, the exact pinned Rust toolchain, moving aliases and alternate toolchain versions, malformed toolchain inputs, identifier bounds, malformed names, path/traversal-like names, case-only collisions, Win32 reserved device basenames with and without extensions, neighboring admissible names, exact inventory bounds, duplicate names, channel and build-identity access, and deterministic standard error contracts.
 
 Owned production function, line, region, and branch coverage remains exactly 100% on the unchanged reviewed head. CI/security/scanner evidence is exact-head evidence only; predecessor or model-only evidence cannot satisfy acceptance.
 
@@ -105,5 +108,9 @@ After acceptance and external release artifacts depend on this schema, any incom
 Supersede this ADR when a versioned external release-manifest specification replaces the in-process identity primitive, when the protected Rust baseline changes under a reviewed migration, or when supported-platform packaging requires a stronger canonical filename identity. Reversal must preserve fail-closed build and artifact identity and cannot make possession of metadata equivalent to release authority.
 
 ## References
+
+Git. (2025). *gitprotocol-common documentation*. https://git-scm.com/docs/gitprotocol-common
+
+Git. (2026). *gitprotocol-pack documentation*. https://git-scm.com/docs/gitprotocol-pack
 
 Microsoft. (n.d.). *Naming files, paths, and namespaces*. Microsoft Learn. Retrieved August 23, 2026, from https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file
