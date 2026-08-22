@@ -1,8 +1,8 @@
 use std::fmt;
 
 use crate::{
-    BrowserSessionId, BrowsingContextId, DocumentEpoch, NodeActionKind, NodeHandleError,
-    ObservedNodeHandle, Origin, SemanticNodeObservation,
+    BrowserAuthorityRegistry, BrowserRegistryError, NodeActionKind, ObservedNodeHandle,
+    SemanticNodeObservation,
 };
 
 /// One node-local action bound to the exact browser authority that produced its observation.
@@ -45,20 +45,15 @@ impl SemanticNodeActionTarget {
         self.action
     }
 
-    /// Revalidate session, context, origin, and document authority immediately before later use.
+    /// Revalidate this target against current registry-owned browser authority before later use.
+    ///
+    /// The exact node binding must still be live in `registry`; a caller cannot revive a retired
+    /// or stale target merely by presenting a self-consistent session/context/origin/epoch tuple.
     pub fn validate_current(
         &self,
-        current_session: BrowserSessionId,
-        current_context: BrowsingContextId,
-        current_origin: &Origin,
-        current_epoch: DocumentEpoch,
-    ) -> Result<(), NodeHandleError> {
-        self.handle.validate_current(
-            current_session,
-            current_context,
-            current_origin,
-            current_epoch,
-        )
+        registry: &BrowserAuthorityRegistry,
+    ) -> Result<(), BrowserRegistryError> {
+        registry.validate_node_handle(&self.handle)
     }
 }
 
