@@ -54,7 +54,10 @@ fn reconciliation_receipt_replays_after_transition_backed_restore() {
     let resolution = restored
         .apply(BapTaskEvent::ResolveReconciliation)
         .expect("resolve reconciliation");
-    assert_eq!(resolution.previous_state(), BapTaskState::ReconciliationRequired);
+    assert_eq!(
+        resolution.previous_state(),
+        BapTaskState::ReconciliationRequired
+    );
     assert_eq!(resolution.current_state(), BapTaskState::Running);
     assert_eq!(resolution.sequence(), 4);
 }
@@ -89,12 +92,9 @@ fn dead_letter_receipt_replays_but_terminal_state_stays_closed() {
     let restored_receipt =
         BapCommandReceipt::restore("dead-letter-1", "tenant-a", "task-a", transition)
             .expect("restore receipt");
-    let mut restored = BapTaskLifecycle::restore_with_transition(
-        BapTaskState::DeadLettered,
-        4,
-        Some(transition),
-    )
-    .expect("restore lifecycle");
+    let mut restored =
+        BapTaskLifecycle::restore_with_transition(BapTaskState::DeadLettered, 4, Some(transition))
+            .expect("restore lifecycle");
     let replay = restored
         .apply_or_replay(
             Some(&restored_receipt),
