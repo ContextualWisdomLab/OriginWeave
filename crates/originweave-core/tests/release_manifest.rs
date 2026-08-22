@@ -122,6 +122,7 @@ fn release_manifest_rejects_invalid_identity_missing_duplicate_and_unbounded_evi
 
     for invalid_commit in [
         "",
+        "0000000000000000000000000000000000000000",
         "0123456789abcdef0123456789abcdef0123456",
         "0123456789ABCDEF0123456789ABCDEF01234567",
         "g123456789abcdef0123456789abcdef01234567",
