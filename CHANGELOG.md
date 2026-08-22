@@ -34,6 +34,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Added explicit WARC 1.1 payload completeness to resource records: complete records omit `WARC-Truncated`, while truncated records preserve the standard `length`, `time`, `disconnect`, or `unspecified` reason and keep `Content-Length` equal to the retained block size; oversized retained blocks still fail closed rather than being truncated implicitly.
 - Added a bounded immutable WARC 1.1 resource-record contract on the active extraction lane, binding deterministic bytes and SHA-256 block digests to verified provenance and exposing its typed construction failures through deterministic `Display` and `std::error::Error` contracts without claiming durable persistence or PROV export.
 - Separated logical origin authority from resolved network destination authority; an origin grant no longer implies permission to connect to every resolver result.
 - Separated resolved-address authorization from direct transport evidence; an approved IP now becomes a usable stream only after the operating system reports the exact requested IP and port.
@@ -48,7 +49,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Security
 
-- WARC target URI admission rejects control, whitespace, bidirectional-control, zero-width, soft-hyphen, Arabic-letter-mark, word-joiner/isolate, and BOM formatting characters before line-oriented WARC header serialization, while preserving ordinary printable Unicode path text.
+- WARC target URI admission accepts only RFC 3986 ASCII URI presentation; raw Unicode, controls, whitespace, and other non-URI bytes are rejected before line-oriented WARC header serialization, while percent-encoded UTF-8 octets remain admissible when the URI otherwise satisfies the same bounded provenance contract.
 - Raw page content cannot become a trusted instruction.
 - Raw secrets are rejected and secret-capable actions require an opaque broker handle.
 - Crawler mode is read-only, must pair with the public-crawl purpose, and fails closed without an applicable robots-policy decision.
