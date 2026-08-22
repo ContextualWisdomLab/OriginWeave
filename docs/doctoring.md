@@ -82,6 +82,8 @@ RFC 9309 standardizes robots parsing, matching, error handling, and caching. It 
 
 W3C PROV-O supplies interoperable Entity, Activity, Agent, derivation, attribution, and responsibility concepts. ISO 28500:2017, confirmed in 2023, defines WARC storage for protocol payloads, control information, metadata, transformations, duplicate detection, integrity, and segmentation. OriginWeave uses source hashes and locators in the safety kernel, then adds WARC and PROV adapters as separately testable modules.
 
+RFC 3986 remains Internet Standard STD 66 for generic URI syntax and is updated by RFC 7320 and RFC 8820 without replacing its path grammar. Section 3.3 defines each path segment as `*pchar`, where literal path characters are unreserved characters, sub-delimiters, `:`, or `@`; `/` separates segments and other reserved characters such as `[` and `]` are not literal `pchar`. OriginWeave provenance URL admission therefore accepts only that literal ASCII `pchar` set plus validated percent-encoded octets and explicit slash separators. Existing stricter evidence-safety rules continue to reject encoded separators, dot-segment ambiguity, controls, whitespace, query strings, fragments, backslashes, and credential-bearing authority. This is URI-presentation validation only; it does not authorize the source origin, destination, network access, capture, disclosure, or retention.
+
 ### AI risk and prompt injection
 
 NIST AI 600-1 provides generative-AI lifecycle risk guidance. WASP demonstrates that web-navigation agents can follow low-effort indirect prompt injections. OriginWeave therefore separates trusted instructions, untrusted observations, and protected secrets at type and process boundaries rather than rely on prompting alone.
@@ -105,6 +107,8 @@ Amazon Web Services. (n.d.). *Set up the Amazon EKS Pod Identity Agent*. Retriev
 Autio, C., Schwartz, R., Dunietz, J., Jain, S., Stanley, M., Tabassi, E., Hall, P., & Roberts, K. (2024). *Artificial intelligence risk management framework: Generative artificial intelligence profile* (NIST AI 600-1). National Institute of Standards and Technology. https://doi.org/10.6028/NIST.AI.600-1
 
 Barth, A. (2011). *The web origin concept* (RFC 6454). Internet Engineering Task Force. https://doi.org/10.17487/RFC6454
+
+Berners-Lee, T., Fielding, R., & Masinter, L. (2005). *Uniform resource identifier (URI): Generic syntax* (RFC 3986; STD 66). Internet Engineering Task Force. https://doi.org/10.17487/RFC3986
 
 Bonica, R., Cotton, M., Haberman, B., & Vegoda, L. (2017). *Updates to the special-purpose IP address registries* (RFC 8190). Internet Engineering Task Force. https://doi.org/10.17487/RFC8190
 
