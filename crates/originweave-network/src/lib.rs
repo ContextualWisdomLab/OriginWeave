@@ -16,10 +16,10 @@
 mod connection;
 mod webdriver_bidi_connection;
 mod webdriver_bidi_websocket_control;
-mod webdriver_bidi_websocket_handshake;
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod webdriver_bidi_websocket_coverage_tests;
+mod webdriver_bidi_websocket_handshake;
 
 pub use connection::{
     ConnectionPlan, DirectTcpConnection, MAX_CONNECT_TIMEOUT, MAX_CONNECTION_ATTEMPTS,
