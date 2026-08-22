@@ -2,7 +2,8 @@ use std::error::Error;
 
 use originweave_core::release_manifest::{
     MAX_RELEASE_ARTIFACT_NAME_BYTES, MAX_RELEASE_ARTIFACTS, MAX_RELEASE_REVISION_BYTES,
-    ReleaseArtifact, ReleaseArtifactError, ReleaseChannel, ReleaseManifest, ReleaseManifestError,
+    ReleaseArtifact, ReleaseArtifactError, ReleaseBuildIdentity, ReleaseChannel, ReleaseManifest,
+    ReleaseManifestError,
 };
 
 const SOURCE_COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
@@ -10,6 +11,11 @@ const CHROMIUM_REVISION: &str = "150.0.7871.129";
 
 fn sha256_digest(hex_digit: char) -> String {
     format!("sha256:{}", hex_digit.to_string().repeat(64))
+}
+
+fn build_identity() -> ReleaseBuildIdentity {
+    ReleaseBuildIdentity::new("1.97.1", &sha256_digest('9'))
+        .expect("release build identity fixture must be canonical")
 }
 
 #[test]
@@ -22,12 +28,18 @@ fn release_manifest_binds_and_canonicalizes_exact_artifact_evidence() -> Result<
         SOURCE_COMMIT,
         CHROMIUM_REVISION,
         ReleaseChannel::Stable,
+        build_identity(),
         vec![sbom, runtime],
     )?;
 
     assert_eq!(manifest.source_commit(), SOURCE_COMMIT);
     assert_eq!(manifest.chromium_revision(), CHROMIUM_REVISION);
     assert_eq!(manifest.channel(), ReleaseChannel::Stable);
+    assert_eq!(manifest.build_identity().rust_toolchain(), "1.97.1");
+    assert_eq!(
+        manifest.build_identity().dependency_lock_sha256(),
+        sha256_digest('9')
+    );
     assert_eq!(manifest.artifacts().len(), 2);
     assert_eq!(
         manifest.artifacts()[0].name(),
@@ -42,6 +54,7 @@ fn release_manifest_binds_and_canonicalizes_exact_artifact_evidence() -> Result<
         SOURCE_COMMIT,
         "chromium_150-0+build:1@stable",
         ReleaseChannel::Development,
+        build_identity(),
         vec![punctuation],
     )?;
     assert_eq!(
@@ -119,6 +132,7 @@ fn release_manifest_rejects_invalid_identity_missing_duplicate_and_unbounded_evi
                 invalid_commit,
                 CHROMIUM_REVISION,
                 ReleaseChannel::Development,
+                build_identity(),
                 vec![artifact.clone()],
             ),
             Err(ReleaseManifestError::InvalidSourceCommit)
@@ -140,6 +154,7 @@ fn release_manifest_rejects_invalid_identity_missing_duplicate_and_unbounded_evi
                 SOURCE_COMMIT,
                 invalid_revision,
                 ReleaseChannel::Beta,
+                build_identity(),
                 vec![artifact.clone()],
             ),
             Err(ReleaseManifestError::InvalidChromiumRevision)
@@ -151,6 +166,7 @@ fn release_manifest_rejects_invalid_identity_missing_duplicate_and_unbounded_evi
             SOURCE_COMMIT,
             CHROMIUM_REVISION,
             ReleaseChannel::Stable,
+            build_identity(),
             Vec::new(),
         ),
         Err(ReleaseManifestError::MissingArtifacts)
@@ -162,6 +178,7 @@ fn release_manifest_rejects_invalid_identity_missing_duplicate_and_unbounded_evi
             SOURCE_COMMIT,
             CHROMIUM_REVISION,
             ReleaseChannel::Stable,
+            build_identity(),
             vec![artifact.clone(), duplicate],
         ),
         Err(ReleaseManifestError::DuplicateArtifactName)
@@ -173,6 +190,7 @@ fn release_manifest_rejects_invalid_identity_missing_duplicate_and_unbounded_evi
             SOURCE_COMMIT,
             CHROMIUM_REVISION,
             ReleaseChannel::Stable,
+            build_identity(),
             vec![artifact.clone(), case_collision],
         ),
         Err(ReleaseManifestError::DuplicateArtifactName)
@@ -190,6 +208,7 @@ fn release_manifest_rejects_invalid_identity_missing_duplicate_and_unbounded_evi
             SOURCE_COMMIT,
             CHROMIUM_REVISION,
             ReleaseChannel::Stable,
+            build_identity(),
             too_many,
         ),
         Err(ReleaseManifestError::TooManyArtifacts)

@@ -1,8 +1,8 @@
 //! Fail-closed identity binding for release artifacts.
 //!
 //! The types in this module are deliberately inert metadata contracts. They bind an exact
-//! source commit, Chromium revision, release channel, and artifact digests without granting
-//! signing, publication, installation, update, rollback, or release authority.
+//! source commit, Chromium revision, release channel, build identity, and artifact digests
+//! without granting signing, publication, installation, update, rollback, or release authority.
 
 use std::collections::BTreeSet;
 use std::error::Error;
@@ -14,6 +14,8 @@ pub const MAX_RELEASE_ARTIFACTS: usize = 64;
 pub const MAX_RELEASE_ARTIFACT_NAME_BYTES: usize = 128;
 /// Maximum UTF-8 byte length admitted for one Chromium revision token.
 pub const MAX_RELEASE_REVISION_BYTES: usize = 128;
+/// Maximum UTF-8 byte length admitted for one canonical Rust toolchain token.
+pub const MAX_RELEASE_TOOLCHAIN_BYTES: usize = 64;
 
 /// Buyer-visible release channel bound by a release manifest.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,6 +27,73 @@ pub enum ReleaseChannel {
     /// Development release channel.
     Development,
 }
+
+/// Exact build identity retained by one release manifest.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReleaseBuildIdentity {
+    rust_toolchain: String,
+    dependency_lock_sha256: String,
+}
+
+impl ReleaseBuildIdentity {
+    /// Construct bounded build identity from a canonical Rust toolchain token and lock digest.
+    ///
+    /// The dependency-lock digest must use the exact `sha256:` prefix followed by 64 lowercase
+    /// hexadecimal digits. Constructing this value does not prove reproducibility or authenticate
+    /// the build environment; it only prevents those two identity fields from being omitted or
+    /// represented ambiguously in a release manifest.
+    pub fn new(
+        rust_toolchain: &str,
+        dependency_lock_sha256: &str,
+    ) -> Result<Self, ReleaseBuildIdentityError> {
+        if !valid_toolchain(rust_toolchain) {
+            return Err(ReleaseBuildIdentityError::InvalidRustToolchain);
+        }
+        if !valid_sha256_digest(dependency_lock_sha256) {
+            return Err(ReleaseBuildIdentityError::InvalidDependencyLockDigest);
+        }
+        Ok(Self {
+            rust_toolchain: rust_toolchain.to_owned(),
+            dependency_lock_sha256: dependency_lock_sha256.to_owned(),
+        })
+    }
+
+    /// Return the exact canonical Rust toolchain token.
+    #[must_use]
+    pub fn rust_toolchain(&self) -> &str {
+        &self.rust_toolchain
+    }
+
+    /// Return the exact lowercase `sha256:` dependency-lock digest.
+    #[must_use]
+    pub fn dependency_lock_sha256(&self) -> &str {
+        &self.dependency_lock_sha256
+    }
+}
+
+/// Validation error for release build-identity evidence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReleaseBuildIdentityError {
+    /// Rust toolchain is not a canonical bounded token.
+    InvalidRustToolchain,
+    /// Dependency-lock digest is not a canonical lowercase SHA-256 digest.
+    InvalidDependencyLockDigest,
+}
+
+impl fmt::Display for ReleaseBuildIdentityError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidRustToolchain => {
+                formatter.write_str("release Rust toolchain is not a canonical bounded token")
+            }
+            Self::InvalidDependencyLockDigest => formatter.write_str(
+                "release dependency lock digest must be sha256: followed by 64 lowercase hexadecimal digits",
+            ),
+        }
+    }
+}
+
+impl Error for ReleaseBuildIdentityError {}
 
 /// One canonical release artifact identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -96,22 +165,25 @@ pub struct ReleaseManifest {
     source_commit: String,
     chromium_revision: String,
     channel: ReleaseChannel,
+    build_identity: ReleaseBuildIdentity,
     artifacts: Vec<ReleaseArtifact>,
 }
 
 impl ReleaseManifest {
     /// Construct an inert release manifest from exact identity evidence.
     ///
-    /// Source identity is a full 40-digit lowercase Git commit SHA. Chromium revision is a
-    /// bounded canonical ASCII token. Artifact names must be unique under ASCII case folding
+    /// Source identity is a full 40-digit lowercase Git commit SHA. Chromium revision and Rust
+    /// toolchain are bounded canonical ASCII tokens, while dependency-lock identity is a
+    /// canonical lowercase SHA-256 digest. Artifact names must be unique under ASCII case folding
     /// so one manifest cannot bind two names that collide on a case-insensitive target
     /// filesystem; original spelling is preserved and artifacts are sorted deterministically
-    /// before storage. Constructing this value does not authenticate any artifact and does not
-    /// authorize release or installation.
+    /// before storage. Constructing this value does not authenticate any artifact, prove
+    /// reproducibility, or authorize release or installation.
     pub fn new<I>(
         source_commit: &str,
         chromium_revision: &str,
         channel: ReleaseChannel,
+        build_identity: ReleaseBuildIdentity,
         artifacts: I,
     ) -> Result<Self, ReleaseManifestError>
     where
@@ -144,6 +216,7 @@ impl ReleaseManifest {
             source_commit: source_commit.to_owned(),
             chromium_revision: chromium_revision.to_owned(),
             channel,
+            build_identity,
             artifacts: admitted,
         })
     }
@@ -164,6 +237,12 @@ impl ReleaseManifest {
     #[must_use]
     pub const fn channel(&self) -> ReleaseChannel {
         self.channel
+    }
+
+    /// Return the exact build identity bound by this manifest.
+    #[must_use]
+    pub const fn build_identity(&self) -> &ReleaseBuildIdentity {
+        &self.build_identity
     }
 
     /// Return artifacts sorted deterministically by canonical name.
@@ -274,5 +353,18 @@ fn valid_revision(revision: &str) -> bool {
         && bytes[bytes.len() - 1].is_ascii_alphanumeric()
         && bytes.iter().all(|byte| {
             byte.is_ascii_alphanumeric() || matches!(*byte, b'.' | b'_' | b'-' | b'+' | b':' | b'@')
+        })
+}
+
+fn valid_toolchain(toolchain: &str) -> bool {
+    if toolchain.is_empty() || toolchain.len() > MAX_RELEASE_TOOLCHAIN_BYTES || !toolchain.is_ascii()
+    {
+        return false;
+    }
+    let bytes = toolchain.as_bytes();
+    bytes[0].is_ascii_alphanumeric()
+        && bytes[bytes.len() - 1].is_ascii_alphanumeric()
+        && bytes.iter().all(|byte| {
+            byte.is_ascii_alphanumeric() || matches!(*byte, b'.' | b'_' | b'-' | b'+')
         })
 }
