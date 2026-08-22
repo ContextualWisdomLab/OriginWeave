@@ -10,7 +10,7 @@ use originweave_core::{
     WebDriverBiDiResponseDocumentAdmissionError,
 };
 
-use crate::webdriver_bidi_websocket_handshake::{
+use crate::{
     MAX_WEBSOCKET_FRAME_TIMEOUT, WebDriverBiDiWebSocketEstablished,
     WebDriverBiDiWebSocketFrameError, WebDriverBiDiWebSocketMaskKey,
 };
