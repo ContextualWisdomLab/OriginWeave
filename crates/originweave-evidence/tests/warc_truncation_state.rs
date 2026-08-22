@@ -8,8 +8,7 @@ use originweave_evidence::{
 const RECORD_ID: &str = "urn:uuid:01234567-89ab-cdef-0123-456789abcdef";
 const DATE: &str = "2026-08-22T00:00:00Z";
 const SOURCE_URL: &str = "https://example.com/resource";
-const SOURCE_HASH: &str =
-    "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+const SOURCE_HASH: &str = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
 fn verified_provenance() -> ProvenanceRecord {
     ProvenanceRecord::new(
