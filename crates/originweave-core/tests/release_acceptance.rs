@@ -64,6 +64,24 @@ fn limitation_requires_a_buyer_visible_consequence() {
 }
 
 #[test]
+fn limitation_rejects_control_characters_in_release_metadata() {
+    assert!(
+        DeclaredLimitation::new(
+            "linux_arm64\nforged_release_claim",
+            "Linux ARM64 is unsupported."
+        )
+        .is_err()
+    );
+    assert!(
+        DeclaredLimitation::new(
+            "linux_arm64",
+            "Linux ARM64 is unsupported.\rforged_release_consequence"
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn limitation_errors_have_deterministic_standard_error_contracts() {
     let cases = [
         (
