@@ -407,10 +407,7 @@ impl BrowserAuthorityRegistry {
     /// mutations that invalidate one actionable node while leaving the surrounding browsing
     /// context and document epoch current. Retirement does not claim that Chromium destroyed the
     /// underlying DOM/backend node, and the monotonic node identifier is never reused.
-    pub fn remove_node(
-        &mut self,
-        handle: &ObservedNodeHandle,
-    ) -> Result<(), BrowserRegistryError> {
+    pub fn remove_node(&mut self, handle: &ObservedNodeHandle) -> Result<(), BrowserRegistryError> {
         self.validate_node_handle(handle)?;
         let node_id = handle.node_id();
         let context = handle.browsing_context();
@@ -695,6 +692,50 @@ mod tests {
         assert_eq!(
             registry.validate_node_handle(&handle),
             Err(BrowserRegistryError::UnknownNodeAuthority)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn node_retirement_preserves_unrelated_private_bindings() -> Result<(), Box<dyn Error>> {
+        let mut registry = BrowserAuthorityRegistry::new();
+        let session = registry.register_session("retirement-session")?;
+        let context = registry.register_context(session, "retirement-context")?;
+        let other_context = registry.register_context(session, "other-retirement-context")?;
+        let origin = Origin::parse("http://127.0.0.1:43127")?;
+        let target = registry.bind_node(session, context, &origin, "target-node")?;
+        let sibling = registry.bind_node(session, context, &origin, "sibling-node")?;
+        let other = registry.bind_node(session, other_context, &origin, "other-node")?;
+
+        let future_epoch = DocumentEpoch::new(target.document_epoch().value() + 1)?;
+        let future_key = (context, future_epoch, "future-sibling-alias".to_owned());
+        registry
+            .node_by_external
+            .insert(future_key.clone(), sibling.node_id());
+
+        registry.remove_node(&target)?;
+
+        assert_eq!(registry.validate_node_handle(&sibling), Ok(()));
+        assert_eq!(registry.validate_node_handle(&other), Ok(()));
+        assert_eq!(
+            registry.node_by_external.get(&future_key),
+            Some(&sibling.node_id())
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn document_epoch_exhaustion_is_fail_closed() -> Result<(), Box<dyn Error>> {
+        let mut registry = BrowserAuthorityRegistry::new();
+        let session = registry.register_session("epoch-session")?;
+        let context = registry.register_context(session, "epoch-context")?;
+        registry
+            .context_epoch
+            .insert(context, DocumentEpoch::new(u64::MAX)?);
+
+        assert_eq!(
+            registry.advance_document(context),
+            Err(BrowserRegistryError::DocumentEpochExhausted)
         );
         Ok(())
     }
