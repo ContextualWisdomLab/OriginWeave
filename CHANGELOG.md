@@ -47,7 +47,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Security
 
-- Release-acceptance limitation metadata rejects embedded controls, U+2028/U+2029 line and paragraph separators, and Unicode 17.0.0 `Default_Ignorable_Code_Point` characters while preserving ordinary international text, so buyer-visible narrowed claims and consequences cannot forge or invisibly alter release statements.
+- Release-acceptance limitation metadata rejects embedded controls, U+2028/U+2029 line and paragraph separators, and Unicode 17.0.0 `Default_Ignorable_Code_Point` characters as a deliberately conservative high-assurance metadata profile. This prevents invisible or presentation-dependent release claims, but intentionally does not promise unrestricted natural-language typography: Unicode 17 documents legitimate orthographic uses for U+200C ZWNJ and U+200D ZWJ, so text requiring join controls is outside this bounded metadata profile.
 - Raw page content cannot become a trusted instruction.
 - Raw secrets are rejected and secret-capable actions require an opaque broker handle.
 - Crawler mode is read-only, must pair with the public-crawl purpose, and fails closed without an applicable robots-policy decision.
