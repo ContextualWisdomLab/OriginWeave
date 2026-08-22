@@ -1,6 +1,8 @@
 use std::error::Error;
 
-use originweave_core::{BrowserAuthorityRegistry, BrowserRegistryError, ObservedNodeHandle, Origin};
+use originweave_core::{
+    BrowserAuthorityRegistry, BrowserRegistryError, ObservedNodeHandle, Origin,
+};
 
 #[test]
 fn same_document_node_retirement_revokes_authority_without_reusing_identity()
