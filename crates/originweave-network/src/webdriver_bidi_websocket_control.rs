@@ -6,8 +6,7 @@ use std::{
 };
 
 use crate::{
-    MAX_WEBSOCKET_FRAME_TIMEOUT, WebDriverBiDiWebSocketFrameError,
-    WebDriverBiDiWebSocketMaskKey,
+    MAX_WEBSOCKET_FRAME_TIMEOUT, WebDriverBiDiWebSocketFrameError, WebDriverBiDiWebSocketMaskKey,
     webdriver_bidi_websocket_handshake::WebDriverBiDiWebSocketEstablished,
 };
 

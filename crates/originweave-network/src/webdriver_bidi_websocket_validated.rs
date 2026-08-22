@@ -53,8 +53,10 @@ impl WebDriverBiDiWebSocketHandshakePlan {
     pub fn write_opening_request(
         self,
         write_timeout: Duration,
-    ) -> Result<WebDriverBiDiWebSocketOpeningRequestSent, raw::WebDriverBiDiWebSocketOpeningWriteError>
-    {
+    ) -> Result<
+        WebDriverBiDiWebSocketOpeningRequestSent,
+        raw::WebDriverBiDiWebSocketOpeningWriteError,
+    > {
         self.0
             .write_opening_request(write_timeout)
             .map(WebDriverBiDiWebSocketOpeningRequestSent)
@@ -187,7 +189,8 @@ impl WebDriverBiDiWebSocketEstablished {
     pub fn read_frame(
         self,
         frame_timeout: Duration,
-    ) -> Result<(Self, raw::WebDriverBiDiWebSocketFrame), raw::WebDriverBiDiWebSocketFrameError> {
+    ) -> Result<(Self, raw::WebDriverBiDiWebSocketFrame), raw::WebDriverBiDiWebSocketFrameError>
+    {
         let (established, frame) = self.0.read_frame(frame_timeout)?;
         validate_close_status_code(&frame)?;
         Ok((Self(established), frame))
