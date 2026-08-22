@@ -7,12 +7,13 @@
 
 Issue #201 requires commercial OriginWeave releases to bind an exact OriginWeave source identity, Chromium revision, release channel, build identity, and the artifacts buyers install or verify. That larger release lifecycle will later add signing, SBOM/SLSA provenance, updater trust, rollback, platform support, and operational acceptance. Those authorities do not yet exist in the current source tree.
 
-A smaller durable boundary is nevertheless required before packaging work can safely compose: one deterministic, bounded manifest identity for a release candidate. Without an explicit contract, equivalent release inventories can be represented differently, exact build inputs can be omitted or represented ambiguously, case-insensitive target filesystems can collapse distinct names, and host-specific device namespaces can reinterpret an apparent artifact leaf name.
+A smaller durable boundary is nevertheless required before packaging work can safely compose: one deterministic, bounded manifest identity for a release candidate. Without an explicit contract, equivalent release inventories can be represented differently, exact build inputs can be omitted or represented ambiguously, moving toolchain aliases can resolve to different compiler identities over time, case-insensitive target filesystems can collapse distinct names, and host-specific device namespaces can reinterpret an apparent artifact leaf name.
 
 ## Decision drivers
 
 - One release-candidate identity must not depend on caller ordering.
 - The manifest must not omit or ambiguously represent the exact Rust toolchain and dependency-lock identity used for the candidate.
+- The Rust toolchain field must not accept moving aliases or an alternate compiler version as though it were the repository-pinned build identity.
 - Artifact references must remain leaf identities rather than filesystem paths.
 - The same manifest must be unambiguous on supported case-sensitive and case-insensitive platforms.
 - Manifest construction must remain inert metadata admission and must not grant signing, publication, installation, update, rollback, or release authority.
@@ -23,7 +24,7 @@ A smaller durable boundary is nevertheless required before packaging work can sa
 - Source identity is a full 40-character lowercase Git commit SHA.
 - Chromium identity is a bounded canonical ASCII release token; this ADR does not claim that the token alone authenticates Chromium bytes.
 - A release channel is explicit (`Stable`, `Beta`, or `Development`) metadata, not authorization to publish or promote a release.
-- Rust toolchain identity is a non-empty bounded canonical ASCII token; binding that token does not prove that a build actually used it.
+- Rust toolchain identity is the exact protected-repository baseline `1.97.1`; moving aliases such as `stable`, `beta`, and `nightly`, and alternate versions, are not admissible release build identities. Binding the exact token does not prove that a build actually used it.
 - Dependency-lock identity is an exact lowercase `sha256:` digest; binding that digest does not authenticate the dependency source, build environment, or resulting artifact.
 - Every admitted artifact carries a bounded ASCII leaf name and an exact lowercase `sha256:` digest.
 - The manifest contains no private signing material, credentials, secrets, installer authority, network authority, or update authority.
@@ -41,7 +42,7 @@ Rejected for this slice. Destructively rewriting admitted artifact spelling woul
 
 ### Canonical admission with preserved spelling and collision guards
 
-Selected. Preserve the admitted artifact spelling, sort artifacts deterministically by that spelling, bind exact build-identity fields separately, and reject names whose ASCII-case-folded identities collide or whose basenames are reserved Win32 device names.
+Selected. Preserve the admitted artifact spelling, sort artifacts deterministically by that spelling, bind exact build-identity fields separately, require the repository-pinned Rust compiler identity, and reject names whose ASCII-case-folded identities collide or whose basenames are reserved Win32 device names.
 
 ## Decision
 
@@ -50,7 +51,7 @@ OriginWeave release-manifest admission is a deterministic, bounded, fail-closed 
 1. `source_commit` must be exactly 40 lowercase hexadecimal digits.
 2. `chromium_revision` must be a non-empty bounded canonical ASCII token.
 3. `channel` must be an explicit `ReleaseChannel` variant.
-4. `rust_toolchain` must be a non-empty bounded canonical ASCII token beginning and ending with an alphanumeric byte; internal bytes are limited to alphanumerics, `.`, `_`, `-`, and `+`.
+4. `rust_toolchain` must equal the protected repository's exact pinned Rust toolchain `1.97.1`. Moving aliases (`stable`, `beta`, `nightly`) and alternate versions fail closed until the protected baseline and this binding decision are deliberately changed together.
 5. `dependency_lock_sha256` must be exactly `sha256:` followed by 64 lowercase hexadecimal digits.
 6. The artifact inventory must be non-empty and contain at most 64 entries.
 7. Each artifact name must be a bounded ASCII leaf name containing only alphanumerics, `.`, `_`, and `-`; it cannot contain path separators, traversal-like `..`, leading punctuation, or trailing punctuation.
@@ -64,23 +65,25 @@ Constructing or possessing a valid manifest does **not** authenticate an artifac
 
 ## Consequences
 
-The release candidate receives one bounded build-and-artifact identity representation that is stable across caller order, records exact Rust toolchain and dependency-lock evidence, and avoids known case-insensitive and Win32 device-name collisions. Packaging, signing, provenance, and update layers can compose on top of this contract without inheriting ambient authority from it.
+The release candidate receives one bounded build-and-artifact identity representation that is stable across caller order, records the exact repository-pinned Rust toolchain and dependency-lock evidence, and avoids known case-insensitive and Win32 device-name collisions. Packaging, signing, provenance, and update layers can compose on top of this contract without inheriting ambient authority from it.
+
+Changing the protected Rust baseline now requires deliberate convergence of the repository toolchain pin, release-manifest admission contract, tests, and this ADR. A moving channel alias cannot silently change the compiler identity represented by a release manifest.
 
 The contract is intentionally narrower than issue #201's final release manifest. Additional fields such as adapter versions, build environment, signing identity, timestamp, SBOM/provenance references, and platform package identity remain future reviewed work rather than being inferred from this primitive.
 
 ## Failure and degraded behavior
 
-Malformed, ambiguous, duplicate, unbounded, or empty identity evidence fails closed before a manifest is produced. Invalid Rust toolchain or dependency-lock identity is rejected before a manifest can carry that build evidence. There is no fallback that silently rewrites an invalid name, substitutes another toolchain or dependency-lock digest, accepts an alternate digest representation, drops an artifact, or substitutes another release channel.
+Malformed, ambiguous, duplicate, unbounded, empty, moving-alias, or alternate-version identity evidence fails closed before a manifest is produced. A Rust toolchain other than the exact protected baseline, or an invalid dependency-lock identity, is rejected before a manifest can carry that build evidence. There is no fallback that silently rewrites an invalid name, substitutes another toolchain or dependency-lock digest, accepts an alternate digest representation, drops an artifact, or substitutes another release channel.
 
 A caller that cannot provide canonical evidence does not receive a release manifest. That failure is not converted into permission to sign, publish, install, or update through another path.
 
 ## Security / privacy / governance impact
 
-The boundary reduces omitted-build-identity, path-confusion, and cross-platform filename ambiguity without introducing credentials or protected values. It does not alter GitHub governance, reviewer authority, release signing authority, or protected-main policy. Scheduled development agents remain unable to merge, tag, publish, sign, or change release authority.
+The boundary reduces omitted-build-identity, moving-toolchain ambiguity, path-confusion, and cross-platform filename ambiguity without introducing credentials or protected values. It does not alter GitHub governance, reviewer authority, release signing authority, or protected-main policy. Scheduled development agents remain unable to merge, tag, publish, sign, or change release authority.
 
 ## Tests and acceptance evidence
 
-The owning `originweave-core` tests must cover valid deterministic ordering, exact artifact and dependency-lock digests, valid and malformed Rust toolchain tokens, identifier bounds, malformed names, path/traversal-like names, case-only collisions, Win32 reserved device basenames with and without extensions, neighboring admissible names, exact inventory bounds, duplicate names, channel and build-identity access, and deterministic standard error contracts.
+The owning `originweave-core` tests must cover valid deterministic ordering, exact artifact and dependency-lock digests, the exact pinned Rust toolchain, moving aliases and alternate toolchain versions, malformed toolchain inputs, identifier bounds, malformed names, path/traversal-like names, case-only collisions, Win32 reserved device basenames with and without extensions, neighboring admissible names, exact inventory bounds, duplicate names, channel and build-identity access, and deterministic standard error contracts.
 
 Owned production function, line, region, and branch coverage remains exactly 100% on the unchanged reviewed head. CI/security/scanner evidence is exact-head evidence only; predecessor or model-only evidence cannot satisfy acceptance.
 
@@ -88,7 +91,7 @@ Owned production function, line, region, and branch coverage remains exactly 100
 
 This is a new admission primitive with no protected-main persisted manifest migration. If the contract proves incompatible before acceptance, the Proposed ADR and owning feature branch can be revised or withdrawn without granting legacy inputs grandfathered authority.
 
-After acceptance and external release artifacts depend on this schema, any incompatible identity change requires an explicit versioning/migration decision rather than silent parser broadening.
+After acceptance and external release artifacts depend on this schema, any incompatible identity change requires an explicit versioning/migration decision rather than silent parser broadening. A future Rust upgrade must change the repository baseline and release-manifest contract together rather than relying on a moving alias.
 
 ## Open follow-ups
 
@@ -99,7 +102,7 @@ After acceptance and external release artifacts depend on this schema, any incom
 
 ## Supersession / reversal conditions
 
-Supersede this ADR when a versioned external release-manifest specification replaces the in-process identity primitive, or when supported-platform packaging requires a stronger canonical filename identity. Reversal must preserve fail-closed build and artifact identity and cannot make possession of metadata equivalent to release authority.
+Supersede this ADR when a versioned external release-manifest specification replaces the in-process identity primitive, when the protected Rust baseline changes under a reviewed migration, or when supported-platform packaging requires a stronger canonical filename identity. Reversal must preserve fail-closed build and artifact identity and cannot make possession of metadata equivalent to release authority.
 
 ## References
 
