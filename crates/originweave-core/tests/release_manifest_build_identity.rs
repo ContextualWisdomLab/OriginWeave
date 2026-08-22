@@ -9,7 +9,8 @@ fn sha256_digest(hex_digit: char) -> String {
 }
 
 #[test]
-fn release_build_identity_binds_exact_toolchain_and_dependency_lock() -> Result<(), Box<dyn Error>> {
+fn release_build_identity_binds_exact_toolchain_and_dependency_lock() -> Result<(), Box<dyn Error>>
+{
     let identity = ReleaseBuildIdentity::new("1.97.1", &sha256_digest('a'))?;
 
     assert_eq!(identity.rust_toolchain(), "1.97.1");
