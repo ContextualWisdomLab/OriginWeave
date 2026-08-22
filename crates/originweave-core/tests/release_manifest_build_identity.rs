@@ -61,7 +61,7 @@ fn release_build_identity_errors_are_standard_source_free_rust_errors() {
     let errors = [
         (
             ReleaseBuildIdentityError::InvalidRustToolchain,
-            "release Rust toolchain is not a canonical bounded token",
+            "release Rust toolchain must match the exact repository-pinned baseline",
         ),
         (
             ReleaseBuildIdentityError::InvalidDependencyLockDigest,
