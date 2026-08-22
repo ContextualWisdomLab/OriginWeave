@@ -1,6 +1,6 @@
 use originweave_core::release_acceptance::{
-    BenchmarkSuite, BenchmarkSuiteOutcome, DeclaredLimitation, ReleaseDecision, ReleaseDecisionError,
-    decide_release,
+    BenchmarkSuite, BenchmarkSuiteOutcome, DeclaredLimitation, ReleaseDecision,
+    ReleaseDecisionError, decide_release,
 };
 
 fn passing_results() -> Vec<(BenchmarkSuite, BenchmarkSuiteOutcome)> {
