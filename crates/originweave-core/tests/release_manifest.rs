@@ -236,7 +236,7 @@ fn release_manifest_errors_are_standard_source_free_rust_errors() {
     let manifest_errors = [
         (
             ReleaseManifestError::InvalidSourceCommit,
-            "release source commit must be exactly 40 lowercase hexadecimal digits",
+            "release source commit must be a non-null 40-digit lowercase Git object identity",
         ),
         (
             ReleaseManifestError::InvalidChromiumRevision,
