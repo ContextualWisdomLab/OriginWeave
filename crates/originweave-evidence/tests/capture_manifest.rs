@@ -3,9 +3,9 @@
 use originweave_evidence::{
     CAPTURE_MANIFEST_VERSION, CaptureManifest, CaptureManifestError,
     CaptureManifestVerificationError, EvidenceSourceKind, ExtractionCardinality, ExtractionField,
-    ExtractionSchema, ExtractionSourceChannel, ExtractionValueType, MAX_CAPTURE_MANIFEST_RECORDS,
-    ProvenanceRecord, VerificationResult, WarcProvBundle, WarcProvBundleVerificationError,
-    WarcResourceRecord,
+    ExtractionNormalizationRule, ExtractionSchema, ExtractionSourceChannel, ExtractionValueType,
+    MAX_CAPTURE_MANIFEST_RECORDS, ProvenanceRecord, VerificationResult, WarcProvBundle,
+    WarcProvBundleVerificationError, WarcResourceRecord,
 };
 
 const SOURCE_HASH: &str = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
@@ -25,6 +25,59 @@ fn schema(version: &str) -> ExtractionSchema {
     )
     .expect("field contract");
     ExtractionSchema::new(version, vec![field]).expect("schema contract")
+}
+
+fn schema_covering_all_semantics(version: &str) -> ExtractionSchema {
+    let text = ExtractionField::new_with_normalization(
+        "title",
+        ExtractionValueType::Text,
+        ExtractionCardinality::One,
+        true,
+        ExtractionNormalizationRule::TrimTextWhitespace,
+        &[
+            ExtractionSourceChannel::SemanticNode,
+            ExtractionSourceChannel::StructuredData,
+            ExtractionSourceChannel::TableCell,
+            ExtractionSourceChannel::NetworkResponse,
+            ExtractionSourceChannel::ModelInterpretation,
+        ],
+    )
+    .expect("text field");
+    let integer = ExtractionField::new(
+        "quantity",
+        ExtractionValueType::Integer,
+        ExtractionCardinality::ZeroOrOne,
+        false,
+        &[ExtractionSourceChannel::NetworkResponse],
+    )
+    .expect("integer field");
+    let decimal = ExtractionField::new(
+        "price",
+        ExtractionValueType::Decimal,
+        ExtractionCardinality::Many,
+        true,
+        &[ExtractionSourceChannel::StructuredData],
+    )
+    .expect("decimal field");
+    let boolean = ExtractionField::new(
+        "available",
+        ExtractionValueType::Boolean,
+        ExtractionCardinality::Many,
+        false,
+        &[ExtractionSourceChannel::TableCell],
+    )
+    .expect("boolean field");
+    let timestamp = ExtractionField::new_with_normalization(
+        "captured_at",
+        ExtractionValueType::Timestamp,
+        ExtractionCardinality::One,
+        true,
+        ExtractionNormalizationRule::Rfc3339Utc,
+        &[ExtractionSourceChannel::SemanticNode],
+    )
+    .expect("timestamp field");
+    ExtractionSchema::new(version, vec![text, integer, decimal, boolean, timestamp])
+        .expect("complete semantic schema")
 }
 
 fn resource_record(record_id: &str, payload: &[u8]) -> WarcResourceRecord {
@@ -85,6 +138,68 @@ fn capture_manifest_binds_schema_warc_prov_and_software_identity_without_payload
     assert!(!json.contains("secret-like-captured-payload"));
     assert!(!json.contains("https://example.com/item"));
     assert!(!json.contains(SOURCE_HASH));
+}
+
+#[test]
+fn capture_manifest_schema_digest_binds_every_typed_schema_dimension() {
+    let record = resource_record(RECORD_ID_A, b"schema-sensitive");
+    let bundle = WarcProvBundle::new(&record, SOFTWARE_COMMIT_SHA).expect("PROV bundle");
+    let complete_schema = schema_covering_all_semantics("catalog-semantic-v1");
+    let minimal_schema = schema("catalog-semantic-v1");
+
+    let complete = CaptureManifest::new(&complete_schema, &[(&record, &bundle)])
+        .expect("complete manifest");
+    let minimal =
+        CaptureManifest::new(&minimal_schema, &[(&record, &bundle)]).expect("minimal manifest");
+
+    assert_ne!(complete.schema_digest(), minimal.schema_digest());
+    assert_ne!(complete, minimal);
+}
+
+#[test]
+fn capture_manifest_error_contracts_preserve_typed_causes() {
+    let missing = CaptureManifestError::MissingRecord;
+    assert_eq!(
+        missing.to_string(),
+        "capture manifest requires at least one record"
+    );
+    assert!(std::error::Error::source(&missing).is_none());
+
+    let limit = CaptureManifestError::LimitExceeded;
+    assert_eq!(limit.to_string(), "capture manifest record limit exceeded");
+    assert!(std::error::Error::source(&limit).is_none());
+
+    let duplicate = CaptureManifestError::DuplicateRecord;
+    assert_eq!(
+        duplicate.to_string(),
+        "capture manifest contains a duplicate WARC record"
+    );
+    assert!(std::error::Error::source(&duplicate).is_none());
+
+    let software = CaptureManifestError::SoftwareRevisionMismatch;
+    assert_eq!(
+        software.to_string(),
+        "capture manifest records do not share one OriginWeave software revision"
+    );
+    assert!(std::error::Error::source(&software).is_none());
+
+    let mismatch = CaptureManifestError::BundleMismatch(
+        WarcProvBundleVerificationError::RecordIdentityMismatch,
+    );
+    assert!(mismatch.to_string().contains("WARC/PROV mismatch"));
+    assert!(std::error::Error::source(&mismatch).is_some());
+
+    let identity = CaptureManifestVerificationError::IdentityMismatch;
+    assert_eq!(identity.to_string(), "capture manifest identity does not match");
+    assert!(std::error::Error::source(&identity).is_none());
+
+    let invalid = CaptureManifestVerificationError::InvalidCandidate(mismatch);
+    assert!(
+        invalid
+            .to_string()
+            .starts_with("invalid capture manifest verification candidate:")
+    );
+    assert!(std::error::Error::source(&invalid).is_some());
 }
 
 #[test]
