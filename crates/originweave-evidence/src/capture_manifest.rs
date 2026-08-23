@@ -37,10 +37,16 @@ pub enum CaptureManifestError {
 impl fmt::Display for CaptureManifestError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::MissingRecord => formatter.write_str("capture manifest requires at least one record"),
+            Self::MissingRecord => {
+                formatter.write_str("capture manifest requires at least one record")
+            }
             Self::LimitExceeded => formatter.write_str("capture manifest record limit exceeded"),
-            Self::DuplicateRecord => formatter.write_str("capture manifest contains a duplicate WARC record"),
-            Self::BundleMismatch(error) => write!(formatter, "capture manifest WARC/PROV mismatch: {error}"),
+            Self::DuplicateRecord => {
+                formatter.write_str("capture manifest contains a duplicate WARC record")
+            }
+            Self::BundleMismatch(error) => {
+                write!(formatter, "capture manifest WARC/PROV mismatch: {error}")
+            }
             Self::SoftwareRevisionMismatch => formatter.write_str(
                 "capture manifest records do not share one OriginWeave software revision",
             ),
@@ -72,9 +78,14 @@ pub enum CaptureManifestVerificationError {
 impl fmt::Display for CaptureManifestVerificationError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::IdentityMismatch => formatter.write_str("capture manifest identity does not match"),
+            Self::IdentityMismatch => {
+                formatter.write_str("capture manifest identity does not match")
+            }
             Self::InvalidCandidate(error) => {
-                write!(formatter, "invalid capture manifest verification candidate: {error}")
+                write!(
+                    formatter,
+                    "invalid capture manifest verification candidate: {error}"
+                )
             }
         }
     }
@@ -265,7 +276,10 @@ fn extraction_schema_digest(schema: &ExtractionSchema) -> String {
     for field in schema.fields() {
         update_length_prefixed(&mut hasher, field.identifier().as_bytes());
         update_length_prefixed(&mut hasher, extraction_value_type_token(field.value_type()));
-        update_length_prefixed(&mut hasher, extraction_cardinality_token(field.cardinality()));
+        update_length_prefixed(
+            &mut hasher,
+            extraction_cardinality_token(field.cardinality()),
+        );
         hasher.update([u8::from(field.required())]);
         update_length_prefixed(
             &mut hasher,
