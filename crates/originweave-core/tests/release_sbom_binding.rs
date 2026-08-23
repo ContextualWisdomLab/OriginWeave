@@ -56,6 +56,42 @@ fn spdx_sbom_binding_requires_manifest_backed_sbom_and_described_artifacts()
 }
 
 #[test]
+fn spdx_sbom_binding_retains_exact_described_artifact_identity() -> Result<(), Box<dyn Error>> {
+    let original_manifest = release_manifest()?;
+    let changed_manifest = ReleaseManifest::new(
+        SOURCE_COMMIT,
+        CHROMIUM_REVISION,
+        ReleaseChannel::Stable,
+        ReleaseBuildIdentity::new("1.97.1", &sha256_digest('9'))?,
+        vec![
+            ReleaseArtifact::new("originweave-linux-x86_64.tar.zst", &sha256_digest('d'))?,
+            ReleaseArtifact::new("originweave-native-host.bin", &sha256_digest('b'))?,
+            ReleaseArtifact::new("originweave.spdx.jsonld", &sha256_digest('c'))?,
+        ],
+    )?;
+    let described_names = vec![
+        "originweave-native-host.bin",
+        "originweave-linux-x86_64.tar.zst",
+    ];
+
+    let original_binding = ReleaseSbomBinding::new(
+        &original_manifest,
+        "originweave.spdx.jsonld",
+        ReleaseSbomFormat::Spdx30JsonLd,
+        described_names.clone(),
+    )?;
+    let changed_binding = ReleaseSbomBinding::new(
+        &changed_manifest,
+        "originweave.spdx.jsonld",
+        ReleaseSbomFormat::Spdx30JsonLd,
+        described_names,
+    )?;
+
+    assert_ne!(original_binding, changed_binding);
+    Ok(())
+}
+
+#[test]
 fn spdx_sbom_binding_fails_closed_on_missing_or_ambiguous_manifest_identity()
 -> Result<(), Box<dyn Error>> {
     let manifest = release_manifest()?;
