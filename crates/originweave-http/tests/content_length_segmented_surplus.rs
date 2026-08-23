@@ -11,7 +11,7 @@ use originweave_destination::{AddressClass, DestinationPolicy, ResolutionSnapsho
 use originweave_http::{
     HttpClientPolicy, HttpError, HttpExchangePlan, HttpMethod, HttpRequestTarget,
 };
-use originweave_network::{ConnectionPlan, DirectTcpConnection};
+use originweave_network::ConnectionPlan;
 use originweave_tls::{
     AlpnRequirement, TlsClientPolicy, TlsHandshakePlan, TrustBundleIdentifier, TrustRootBundle,
 };
