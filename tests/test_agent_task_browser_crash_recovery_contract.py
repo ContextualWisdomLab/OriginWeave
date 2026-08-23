@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import http.client
+import os
 import pathlib
 import runpy
 import signal
@@ -12,6 +13,9 @@ from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 RUNNER = ROOT / "scripts" / "ci" / "run_mv3_compatibility.py"
+ORIGINAL_OS_CLOSE = os.close
+ORIGINAL_PIDFD_OPEN = getattr(os, "pidfd_open", None)
+ORIGINAL_PIDFD_SEND_SIGNAL = getattr(signal, "pidfd_send_signal", None)
 
 
 class AgentTaskBrowserCrashRecoveryContractTests(unittest.TestCase):
@@ -248,6 +252,16 @@ class AgentTaskBrowserCrashRecoveryContractTests(unittest.TestCase):
         ):
             with self.subTest(expected=expected):
                 self.assertIn(expected, runner)
+
+    def test_zz_signal_boundary_tests_restore_process_wide_modules(self) -> None:
+        """Mocked pidfd helpers must not leak process-wide module mutations."""
+
+        self.assertIs(os.close, ORIGINAL_OS_CLOSE)
+        self.assertIs(getattr(os, "pidfd_open", None), ORIGINAL_PIDFD_OPEN)
+        self.assertIs(
+            getattr(signal, "pidfd_send_signal", None),
+            ORIGINAL_PIDFD_SEND_SIGNAL,
+        )
 
 
 if __name__ == "__main__":
