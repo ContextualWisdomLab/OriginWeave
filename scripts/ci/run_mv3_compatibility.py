@@ -2172,8 +2172,11 @@ def _run_agent_task_browser_crash_browser_pass(
             browser_process_id,
             process_evidence,
         )
-        chromium_process_identities = _read_linux_process_identity_set(
-            chromium_process_ids
+        chromium_process_identities, _pre_shutdown_exit_count = (
+            _read_linux_process_identity_set(
+                chromium_process_ids,
+                required_root_identity=browser_process_identity,
+            )
         )
         if not _signal_linux_process_identity(browser_process_identity, signal.SIGKILL):
             raise RuntimeError("Agent Task browser process identity changed before crash signal")
