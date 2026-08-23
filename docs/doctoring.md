@@ -80,7 +80,7 @@ Microsoft's Win32 filename guidance requires applications not to assume case sen
 
 ### Release SBOM identity
 
-SPDX 3.0.1 defines a software bill of materials as a collection of SPDX elements describing a single package and defines JSON-LD as an RDF serialization for SPDX data. Conformant SPDX JSON-LD additionally requires structural validation against the versioned SPDX JSON Schema and semantic validation against the SPDX ontology. OriginWeave's first release-SBOM slice deliberately does not claim that content-level conformance: it binds only a declared SPDX 3.0.1 JSON-LD SBOM artifact identity and the exact release-artifact names it is intended to describe to one immutable `ReleaseManifest`. The SBOM artifact and every described artifact must already be admitted by that manifest; empty inventories, foreign identities, duplicates, and case-drifted names fail closed. Generation, content validation, package/component completeness, signatures, provenance, publication, installation, update, rollback, and release authority remain separate reviewed boundaries.
+SPDX 3.0.1 defines JSON-LD as an RDF serialization for SPDX data and requires conformant JSON-LD to pass both the versioned JSON Schema and the SPDX ontology/SHACL constraints. Its serialization prose requires the global context `https://spdx.org/rdf/3.0.1/spdx-context.jsonld`, defines `spdxId` and `type` as aliases for JSON-LD `@id` and `@type`, and says additional namespace mappings may be defined in a separate context object. The official SPDX 3.0.1 JSON Schema simultaneously constrains top-level `@context` to the exact global-context string. Because an arbitrary inline JSON-LD context object can also contain semantic controls such as `@import`, `@base`, or `@vocab`, or redefine SPDX aliases, OriginWeave does not approximate “namespace mapping” by accepting every object. The preliminary envelope gate follows the official schema's exact-string identity and rejects context composition until a reviewed schema-aware validator can reconcile the prose/schema tension without granting ambient or redefinition authority. This gate deliberately does not claim full content-level conformance: it binds a declared SPDX 3.0.1 JSON-LD SBOM artifact identity and exact release-artifact names to one immutable `ReleaseManifest`, while generation, full structural/semantic validation, package/component completeness, signatures, provenance, publication, installation, update, rollback, and release authority remain separate reviewed boundaries.
 
 ### Git source identity admission
 
@@ -177,6 +177,10 @@ Sakana AI. (2026, June 22). *Sakana Fugu: One model to command them all*. https:
 Sheffer, Y., Saint-Andre, P., & Fossati, T. (2022). *Recommendations for secure use of Transport Layer Security (TLS) and Datagram Transport Layer Security (DTLS)* (RFC 9325). Internet Engineering Task Force. https://doi.org/10.17487/RFC9325
 
 SPDX Workgroup. (2026). *SPDX specification 3.0.1*. The Linux Foundation. https://spdx.github.io/spdx-spec/v3.0.1/
+
+SPDX Workgroup. (2026). *SPDX specification 3.0.1: Model and serializations*. The Linux Foundation. https://spdx.github.io/spdx-spec/v3.0.1/serializations/
+
+SPDX Workgroup. (2026). *SPDX 3.0.1 JSON Schema*. The Linux Foundation. https://spdx.org/schema/3.0.1/spdx-json-schema.json
 
 The Rust Project Developers. (2026). *Ipv4Addr in std::net* (Rust 1.97.1) [Software documentation]. https://doc.rust-lang.org/stable/std/net/struct.Ipv4Addr.html
 
