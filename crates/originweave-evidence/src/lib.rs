@@ -7,11 +7,16 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+mod capture_manifest;
 mod extraction_schema;
 mod sensitive_access;
 mod warc_prov_bundle;
 mod warc_resource_record;
 
+pub use capture_manifest::{
+    CAPTURE_MANIFEST_VERSION, CaptureManifest, CaptureManifestError, CaptureManifestRecord,
+    CaptureManifestVerificationError, MAX_CAPTURE_MANIFEST_RECORDS,
+};
 pub use extraction_schema::{
     ExtractionCardinality, ExtractionField, ExtractionNormalizationRule, ExtractionSchema,
     ExtractionSchemaError, ExtractionSourceChannel, ExtractionValueType,
