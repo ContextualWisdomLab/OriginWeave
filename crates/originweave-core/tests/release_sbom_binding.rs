@@ -196,16 +196,15 @@ fn spdx_sbom_binding_fails_closed_on_missing_or_ambiguous_manifest_identity()
 #[test]
 fn spdx_sbom_binding_rejects_self_description() -> Result<(), Box<dyn Error>> {
     let manifest = release_manifest()?;
-    let binding = ReleaseSbomBinding::new(
-        &manifest,
-        "originweave.spdx.jsonld",
-        ReleaseSbomFormat::Spdx30JsonLd,
-        vec!["originweave.spdx.jsonld"],
-    );
 
-    assert!(
-        binding.is_err(),
-        "release SBOM identity must fail closed when the SBOM artifact describes itself"
+    assert_eq!(
+        ReleaseSbomBinding::new(
+            &manifest,
+            "originweave.spdx.jsonld",
+            ReleaseSbomFormat::Spdx30JsonLd,
+            vec!["originweave.spdx.jsonld"],
+        ),
+        Err(ReleaseSbomBindingError::SelfDescribedSbomArtifact)
     );
     Ok(())
 }
@@ -220,6 +219,10 @@ fn spdx_sbom_binding_errors_are_standard_source_free_rust_errors() {
         (
             ReleaseSbomBindingError::MissingDescribedArtifacts,
             "release SBOM must describe at least one release artifact",
+        ),
+        (
+            ReleaseSbomBindingError::SelfDescribedSbomArtifact,
+            "release SBOM must not describe its own artifact",
         ),
         (
             ReleaseSbomBindingError::UnknownDescribedArtifact,
