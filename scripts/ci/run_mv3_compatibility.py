@@ -1274,20 +1274,27 @@ def _run_agent_task_browser_pass(
         browser_process_id,
         browser_process_start_time_ticks,
     )
+    chromium_process_set_terminated: bool | None = None
+    if chromium_process_identities is not None:
+        chromium_process_set_terminated = _wait_for_linux_process_identity_set_exit(
+            chromium_process_identities
+        )
     if browser_failure_type is not None:
-        return {
+        failure_evidence: dict[str, Any] = {
             "failure_type": browser_failure_type,
             "browser_process_terminated": browser_process_terminated,
         }
+        if chromium_process_set_terminated is not None:
+            failure_evidence["chromium_process_set_terminated"] = (
+                chromium_process_set_terminated
+            )
+        return failure_evidence
     if result is None:
         raise RuntimeError("Agent Task browser pass returned no result after shutdown")
-    if chromium_process_identities is None:
+    if chromium_process_set_terminated is None:
         raise RuntimeError("Agent Task Chromium process identities were not captured")
     if chromium_process_pre_shutdown_exit_count is None:
         raise RuntimeError("Agent Task Chromium pre-shutdown exit count was not captured")
-    chromium_process_set_terminated = _wait_for_linux_process_identity_set_exit(
-        chromium_process_identities
-    )
     if not browser_process_terminated:
         raise RuntimeError("Agent Task browser process did not terminate")
     if not chromium_process_set_terminated:
@@ -1350,7 +1357,7 @@ def _run_agent_task_trial(
         browser_process_terminated = result.get("browser_process_terminated")
         if not isinstance(browser_process_terminated, bool):
             raise RuntimeError("Agent Task browser pass returned invalid teardown evidence")
-        return {
+        failure_evidence: dict[str, Any] = {
             "trial_number": trial_number,
             "passed": False,
             "failure_type": returned_failure_type,
@@ -1358,6 +1365,16 @@ def _run_agent_task_trial(
             "profile_cleaned": True,
             "duration_ms": duration_ms,
         }
+        if "chromium_process_set_terminated" in result:
+            chromium_process_set_terminated = result["chromium_process_set_terminated"]
+            if not isinstance(chromium_process_set_terminated, bool):
+                raise RuntimeError(
+                    "Agent Task browser pass returned invalid process-set teardown evidence"
+                )
+            failure_evidence["chromium_process_set_terminated"] = (
+                chromium_process_set_terminated
+            )
+        return failure_evidence
 
     return {
         "trial_number": trial_number,
@@ -1455,6 +1472,10 @@ def _run_agent_task_forced_close_browser_pass(
 
     driver_port = _free_loopback_port()
     session_id: str | None = None
+    browser_process_id: int | None = None
+    browser_process_start_time_ticks: int | None = None
+    chromium_process_identities: tuple[tuple[int, int], ...] | None = None
+    result: dict[str, Any] | None = None
     driver = subprocess.Popen(
         [str(chromedriver_bin), f"--port={driver_port}", "--allowed-ips=127.0.0.1"],
         stdout=subprocess.DEVNULL,
@@ -1499,11 +1520,22 @@ def _run_agent_task_forced_close_browser_pass(
             raise RuntimeError("ChromeDriver forced-close capabilities are malformed")
         session_id = _path_token(raw_session_id, "session identifier")
         browser_version = capabilities.get("browserVersion")
+        browser_process_id = capabilities.get("goog:processID")
         if browser_version != PINNED_CHROME_VERSION:
             raise RuntimeError(
                 f"unexpected forced-close Chrome version: expected {PINNED_CHROME_VERSION}, "
                 f"got {browser_version!r}"
             )
+        if (
+            isinstance(browser_process_id, bool)
+            or not isinstance(browser_process_id, int)
+            or browser_process_id <= 0
+        ):
+            raise RuntimeError("ChromeDriver did not return a valid forced-close browser process id")
+        browser_process_identity = _read_linux_proc_stat_process_identity(browser_process_id)
+        if browser_process_identity is None:
+            raise RuntimeError("Agent Task forced-close browser process identity disappeared")
+        browser_process_start_time_ticks = browser_process_identity[1]
 
         survivor_context = _json_request(
             driver_port,
@@ -1549,6 +1581,21 @@ def _run_agent_task_forced_close_browser_pass(
         if loaded_url != fixture_url:
             raise RuntimeError("Agent Task forced-close probe did not load its fixture URL")
 
+        process_evidence = _snapshot_linux_process_evidence()
+        chromium_process_ids = _discover_linux_process_tree_ids(
+            browser_process_id,
+            process_evidence,
+        )
+        chromium_process_identities, _pre_shutdown_exit_count = (
+            _read_linux_process_identity_set(
+                chromium_process_ids,
+                required_root_identity=(
+                    browser_process_id,
+                    browser_process_start_time_ticks,
+                ),
+            )
+        )
+
         forced_close_detected = _force_close_agent_task_context(driver_port, session_id)
         if not forced_close_detected:
             raise RuntimeError("Agent Task forced-close probe did not detect the close")
@@ -1567,7 +1614,7 @@ def _run_agent_task_forced_close_browser_pass(
         if not isinstance(surviving_url, str):
             raise RuntimeError("Agent Task survivor context was not usable after forced close")
 
-        return {
+        result = {
             "browser_version": browser_version,
             "forced_close_detected": forced_close_detected,
             "session_survived": True,
@@ -1587,6 +1634,27 @@ def _run_agent_task_forced_close_browser_pass(
         except subprocess.TimeoutExpired:
             driver.kill()
             driver.wait(timeout=5)
+
+    if browser_process_id is None or browser_process_start_time_ticks is None:
+        raise RuntimeError("Agent Task forced-close browser process identity was not captured")
+    if chromium_process_identities is None:
+        raise RuntimeError("Agent Task forced-close Chromium process identities were not captured")
+    browser_process_terminated = _wait_for_linux_process_identity_exit(
+        browser_process_id,
+        browser_process_start_time_ticks,
+    )
+    chromium_process_set_terminated = _wait_for_linux_process_identity_set_exit(
+        chromium_process_identities
+    )
+    if result is None:
+        raise RuntimeError("Agent Task forced-close browser pass returned no result after shutdown")
+    if not browser_process_terminated:
+        raise RuntimeError("Agent Task forced-close browser process did not terminate")
+    if not chromium_process_set_terminated:
+        raise RuntimeError("Agent Task forced-close Chromium process set did not terminate")
+    result["browser_process_terminated"] = True
+    result["chromium_process_set_terminated"] = True
+    return result
 
 
 def _run_agent_task_forced_close_trial(
@@ -1644,6 +1712,8 @@ def _run_agent_task_forced_close_trial(
         "browser_version": result["browser_version"],
         "forced_close_detected": result["forced_close_detected"],
         "session_survived": result["session_survived"],
+        "browser_process_terminated": result["browser_process_terminated"],
+        "chromium_process_set_terminated": result["chromium_process_set_terminated"],
         "profile_cleaned": True,
         "duration_ms": duration_ms,
     }
@@ -1849,6 +1919,8 @@ def main() -> int:
         forced_close_surfaces_complete = all(
             trial.get("forced_close_detected") is True
             and trial.get("session_survived") is True
+            and trial.get("browser_process_terminated") is True
+            and trial.get("chromium_process_set_terminated") is True
             and trial.get("profile_cleaned") is True
             for trial in forced_close_trials
             if trial.get("passed") is True
