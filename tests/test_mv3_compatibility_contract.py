@@ -120,6 +120,14 @@ class ManifestV3CompatibilityContractTests(unittest.TestCase):
         self.assertNotIn("urllib.request", runner)
         self.assertNotIn("urllib.error", runner)
 
+    def test_runner_cleanup_cannot_suppress_untyped_failures(self) -> None:
+        """Cleanup failures must stay typed evidence instead of becoming false-green runs."""
+
+        runner = RUNNER.read_text(encoding="utf-8")
+        self.assertNotIn("contextlib.suppress(Exception)", runner)
+        self.assertIn("_delete_webdriver_session_bounded", runner)
+        self.assertIn("_terminate_owned_process_bounded", runner)
+
     def test_runner_accepts_real_chromedriver_element_ids_without_path_injection(self) -> None:
         """ChromeDriver dotted element IDs must work while path syntax stays fail-closed."""
 
