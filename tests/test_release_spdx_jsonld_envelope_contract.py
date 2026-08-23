@@ -66,6 +66,19 @@ class ReleaseSpdxJsonLdEnvelopeContractTests(unittest.TestCase):
         self.assertEqual(summary["context"], CONTEXT)
         self.assertEqual(summary["spdx_document_count"], 1)
 
+    def test_context_extensions_cannot_add_ambient_remote_authority(self) -> None:
+        self._assert_error_code(
+            self._payload(
+                [{"type": "SpdxDocument"}],
+                context=[CONTEXT, "https://example.invalid/moving-context.jsonld"],
+            ),
+            "invalid_context",
+        )
+        self._assert_error_code(
+            self._payload([{"type": "SpdxDocument"}], context=[CONTEXT, None]),
+            "invalid_context",
+        )
+
     def test_context_must_match_exact_spdx_3_0_1_identity(self) -> None:
         self._assert_error_code(
             self._payload(
