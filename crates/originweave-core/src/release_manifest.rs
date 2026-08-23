@@ -173,6 +173,18 @@ impl ReleaseSbomFormat {
             Self::Spdx30JsonLd => "3.0.1",
         }
     }
+
+    /// Return the exact global JSON-LD context URI required by this SPDX format.
+    ///
+    /// This versioned identifier is inert serialization metadata for downstream validation and
+    /// serialization. It does not validate SBOM bytes, authenticate artifacts, or grant release
+    /// authority.
+    #[must_use]
+    pub const fn json_ld_context_uri(self) -> &'static str {
+        match self {
+            Self::Spdx30JsonLd => "https://spdx.org/rdf/3.0.1/spdx-context.jsonld",
+        }
+    }
 }
 
 /// Inert binding between one release manifest and its declared SPDX SBOM artifact identity.
