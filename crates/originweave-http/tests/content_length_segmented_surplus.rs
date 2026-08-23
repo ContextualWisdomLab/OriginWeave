@@ -8,7 +8,9 @@ use std::time::Duration;
 
 use originweave_core::Origin;
 use originweave_destination::{AddressClass, DestinationPolicy, ResolutionSnapshot};
-use originweave_http::{HttpClientPolicy, HttpError, HttpExchangePlan, HttpMethod, HttpRequestTarget};
+use originweave_http::{
+    HttpClientPolicy, HttpError, HttpExchangePlan, HttpMethod, HttpRequestTarget,
+};
 use originweave_network::{ConnectionPlan, DirectTcpConnection};
 use originweave_tls::{
     AlpnRequirement, TlsClientPolicy, TlsHandshakePlan, TrustBundleIdentifier, TrustRootBundle,
@@ -38,9 +40,10 @@ fn certificate_authority() -> (Vec<u8>, Issuer<'static, KeyPair>) {
         KeyUsagePurpose::KeyCertSign,
         KeyUsagePurpose::CrlSign,
     ];
-    parameters
-        .distinguished_name
-        .push(DnType::CommonName, "OriginWeave segmented surplus test root");
+    parameters.distinguished_name.push(
+        DnType::CommonName,
+        "OriginWeave segmented surplus test root",
+    );
     let key_pair = KeyPair::generate().expect("test CA key generation");
     let certificate = parameters
         .self_signed(&key_pair)
@@ -96,9 +99,7 @@ fn read_request(tls: &mut StreamOwned<ServerConnection, std::net::TcpStream>) {
     }
 }
 
-fn spawn_segmented_surplus_server(
-    config: Arc<ServerConfig>,
-) -> (SocketAddr, JoinHandle<()>) {
+fn spawn_segmented_surplus_server(config: Arc<ServerConfig>) -> (SocketAddr, JoinHandle<()>) {
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("loopback listener");
     let socket_address = listener.local_addr().expect("listener address");
     let handle = thread::spawn(move || {
@@ -112,10 +113,8 @@ fn spawn_segmented_surplus_server(
         let connection = ServerConnection::new(config).expect("server TLS connection");
         let mut tls = StreamOwned::new(connection, stream);
         read_request(&mut tls);
-        tls.write_all(
-            b"HTTP/1.1 200 OK\r\nContent-Length: 1\r\nConnection: close\r\n\r\nx",
-        )
-        .expect("write declared response");
+        tls.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 1\r\nConnection: close\r\n\r\nx")
+            .expect("write declared response");
         tls.flush().expect("flush declared response");
         thread::sleep(SEGMENT_DELAY);
         let _ = tls.write_all(b"y");
