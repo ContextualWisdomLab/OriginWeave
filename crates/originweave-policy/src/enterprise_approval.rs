@@ -110,6 +110,7 @@ pub struct EnterpriseApprovalRequest {
     decision_actor: Option<ApprovalPrincipalRef>,
     requested_at_epoch_seconds: u64,
     expires_at_epoch_seconds: u64,
+    last_transition_at_epoch_seconds: u64,
     max_uses: u32,
     uses_consumed: u32,
     state: ApprovalLifecycleState,
@@ -143,6 +144,7 @@ impl EnterpriseApprovalRequest {
             decision_actor: None,
             requested_at_epoch_seconds,
             expires_at_epoch_seconds,
+            last_transition_at_epoch_seconds: requested_at_epoch_seconds,
             max_uses,
             uses_consumed: 0,
             state: ApprovalLifecycleState::ApprovalRequested,
@@ -197,6 +199,16 @@ impl EnterpriseApprovalRequest {
         self.state
     }
 
+    fn ensure_monotonic_transition_time(
+        &self,
+        now_epoch_seconds: u64,
+    ) -> Result<(), ApprovalLifecycleError> {
+        if now_epoch_seconds < self.last_transition_at_epoch_seconds {
+            return Err(ApprovalLifecycleError::NonMonotonicTime);
+        }
+        Ok(())
+    }
+
     /// Approve a pending request as a distinct checker.
     ///
     /// `now_epoch_seconds` must be trusted control-plane time. Expiry is
@@ -209,7 +221,9 @@ impl EnterpriseApprovalRequest {
         if self.state != ApprovalLifecycleState::ApprovalRequested {
             return Err(ApprovalLifecycleError::InvalidState(self.state));
         }
+        self.ensure_monotonic_transition_time(now_epoch_seconds)?;
         if now_epoch_seconds >= self.expires_at_epoch_seconds {
+            self.last_transition_at_epoch_seconds = now_epoch_seconds;
             self.state = ApprovalLifecycleState::Expired;
             return Err(ApprovalLifecycleError::Expired);
         }
@@ -217,6 +231,7 @@ impl EnterpriseApprovalRequest {
             return Err(ApprovalLifecycleError::SelfApproval);
         }
         self.decision_actor = Some(approver);
+        self.last_transition_at_epoch_seconds = now_epoch_seconds;
         self.state = ApprovalLifecycleState::Approved;
         Ok(())
     }
@@ -232,7 +247,9 @@ impl EnterpriseApprovalRequest {
         if self.state != ApprovalLifecycleState::ApprovalRequested {
             return Err(ApprovalLifecycleError::InvalidState(self.state));
         }
+        self.ensure_monotonic_transition_time(now_epoch_seconds)?;
         if now_epoch_seconds >= self.expires_at_epoch_seconds {
+            self.last_transition_at_epoch_seconds = now_epoch_seconds;
             self.state = ApprovalLifecycleState::Expired;
             return Err(ApprovalLifecycleError::Expired);
         }
@@ -240,6 +257,7 @@ impl EnterpriseApprovalRequest {
             return Err(ApprovalLifecycleError::SelfApproval);
         }
         self.decision_actor = Some(actor);
+        self.last_transition_at_epoch_seconds = now_epoch_seconds;
         self.state = ApprovalLifecycleState::Denied;
         Ok(())
     }
@@ -255,13 +273,16 @@ impl EnterpriseApprovalRequest {
         if self.state != ApprovalLifecycleState::ApprovalRequested {
             return Err(ApprovalLifecycleError::InvalidState(self.state));
         }
+        self.ensure_monotonic_transition_time(now_epoch_seconds)?;
         if now_epoch_seconds >= self.expires_at_epoch_seconds {
+            self.last_transition_at_epoch_seconds = now_epoch_seconds;
             self.state = ApprovalLifecycleState::Expired;
             return Err(ApprovalLifecycleError::Expired);
         }
         if actor != &self.requester {
             return Err(ApprovalLifecycleError::RequesterMismatch);
         }
+        self.last_transition_at_epoch_seconds = now_epoch_seconds;
         self.state = ApprovalLifecycleState::Withdrawn;
         Ok(())
     }
@@ -279,7 +300,9 @@ impl EnterpriseApprovalRequest {
         if self.state != ApprovalLifecycleState::Approved {
             return Err(ApprovalLifecycleError::InvalidState(self.state));
         }
+        self.ensure_monotonic_transition_time(now_epoch_seconds)?;
         if now_epoch_seconds >= self.expires_at_epoch_seconds {
+            self.last_transition_at_epoch_seconds = now_epoch_seconds;
             self.state = ApprovalLifecycleState::Expired;
             return Err(ApprovalLifecycleError::Expired);
         }
@@ -287,6 +310,7 @@ impl EnterpriseApprovalRequest {
             return Err(ApprovalLifecycleError::ScopeMismatch);
         }
         self.uses_consumed += 1;
+        self.last_transition_at_epoch_seconds = now_epoch_seconds;
         if self.uses_consumed == self.max_uses {
             self.state = ApprovalLifecycleState::Consumed;
         }
@@ -304,13 +328,16 @@ impl EnterpriseApprovalRequest {
         if self.state != ApprovalLifecycleState::Approved {
             return Err(ApprovalLifecycleError::InvalidState(self.state));
         }
+        self.ensure_monotonic_transition_time(now_epoch_seconds)?;
         if now_epoch_seconds >= self.expires_at_epoch_seconds {
+            self.last_transition_at_epoch_seconds = now_epoch_seconds;
             self.state = ApprovalLifecycleState::Expired;
             return Err(ApprovalLifecycleError::Expired);
         }
         if self.decision_actor.as_ref() != Some(actor) {
             return Err(ApprovalLifecycleError::DecisionActorMismatch);
         }
+        self.last_transition_at_epoch_seconds = now_epoch_seconds;
         self.state = ApprovalLifecycleState::Revoked;
         Ok(())
     }
@@ -327,6 +354,8 @@ pub enum ApprovalLifecycleError {
     NonDelegableAction,
     /// The requested transition is not valid from the current terminal or pending state.
     InvalidState(ApprovalLifecycleState),
+    /// Trusted transition time moved backward relative to the last accepted lifecycle event.
+    NonMonotonicTime,
     /// The requester attempted to act as their own checker.
     SelfApproval,
     /// A withdrawal actor did not match the original requester.
@@ -351,6 +380,9 @@ impl fmt::Display for ApprovalLifecycleError {
                 formatter,
                 "approval transition is invalid from state {state:?}"
             ),
+            Self::NonMonotonicTime => {
+                formatter.write_str("approval transition time moved backward")
+            }
             Self::SelfApproval => formatter.write_str("maker and checker must be distinct"),
             Self::RequesterMismatch => formatter.write_str("approval requester does not match"),
             Self::DecisionActorMismatch => {
