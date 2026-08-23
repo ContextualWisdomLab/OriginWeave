@@ -2,11 +2,11 @@
 """Bounded, fail-closed SPDX 3.0.1 JSON-LD envelope verification.
 
 This verifier deliberately checks only the serialization envelope needed before deeper
-schema/ontology validation: exact versioned global context identity, a bounded top-level
-JSON object, a bounded object-only ``@graph``, and exactly one ``SpdxDocument`` element.
-It does not claim full SPDX structural or semantic conformance, artifact authenticity,
-SBOM completeness, provenance, signing, publication, installation, update, or rollback
-authority.
+schema/ontology validation: required versioned global context identity with optional local
+namespace mappings, a bounded top-level JSON object, a bounded object-only ``@graph``, and
+exactly one ``SpdxDocument`` element. It does not claim full SPDX structural or semantic
+conformance, artifact authenticity, SBOM completeness, provenance, signing, publication,
+installation, update, or rollback authority.
 """
 
 from __future__ import annotations
@@ -48,6 +48,25 @@ def _reject_nonfinite_constant(_value: str) -> None:
     raise ValueError("non-finite JSON number")
 
 
+def _has_required_spdx_context(context: Any) -> bool:
+    """Accept the required SPDX context plus only inline namespace-mapping objects.
+
+    SPDX 3.0.1 permits additional namespace mappings in a separate JSON-LD context
+    object. Requiring the versioned SPDX URI first keeps the governing vocabulary
+    explicit, while rejecting later string/``null`` contexts prevents this envelope
+    gate from admitting additional ambient remote-context authority.
+    """
+
+    if context == SPDX_3_0_1_CONTEXT:
+        return True
+    return (
+        isinstance(context, list)
+        and len(context) >= 2
+        and context[0] == SPDX_3_0_1_CONTEXT
+        and all(isinstance(extension, dict) for extension in context[1:])
+    )
+
+
 def validate_spdx_3_0_1_jsonld_bytes(payload: bytes) -> dict[str, int | str]:
     """Validate the bounded SPDX 3.0.1 JSON-LD serialization envelope.
 
@@ -78,7 +97,7 @@ def validate_spdx_3_0_1_jsonld_bytes(payload: bytes) -> dict[str, int | str]:
 
     if not isinstance(decoded, dict) or set(decoded) != {"@context", "@graph"}:
         raise SpdxJsonLdEnvelopeError("invalid_top_level")
-    if decoded["@context"] != SPDX_3_0_1_CONTEXT:
+    if not _has_required_spdx_context(decoded["@context"]):
         raise SpdxJsonLdEnvelopeError("invalid_context")
 
     graph = decoded["@graph"]
