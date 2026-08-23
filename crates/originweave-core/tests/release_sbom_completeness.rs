@@ -46,5 +46,9 @@ fn release_sbom_binding_rejects_incomplete_manifest_inventory() -> Result<(), Bo
         ),
         Err(ReleaseSbomBindingError::IncompleteDescribedArtifacts)
     );
+    assert_eq!(
+        ReleaseSbomBindingError::IncompleteDescribedArtifacts.to_string(),
+        "release SBOM must describe every non-SBOM release artifact"
+    );
     Ok(())
 }
