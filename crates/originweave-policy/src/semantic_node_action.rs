@@ -50,6 +50,25 @@ impl PolicyAuthorizedSemanticNodeAction {
     ) -> Result<(), BrowserRegistryError> {
         self.binding.validate_current(registry)
     }
+
+    /// Revalidate registry-owned browser authority and invoke one dispatch callback in the same call.
+    ///
+    /// The registry must be the trusted adapter's current authority registry for the action that is
+    /// about to be dispatched. The callback is never invoked if the retained node binding is stale,
+    /// retired, forged, or belongs to another registry. A successful callback invocation does not
+    /// authenticate the adapter, grant destination, secret, or approval authority, or prove the
+    /// action's post-condition; those remain separate execution boundaries.
+    pub fn dispatch_if_current<R, F>(
+        &self,
+        registry: &BrowserAuthorityRegistry,
+        dispatch: F,
+    ) -> Result<R, BrowserRegistryError>
+    where
+        F: FnOnce(&SemanticNodeActionBinding) -> R,
+    {
+        self.validate_current(registry)?;
+        Ok(dispatch(&self.binding))
+    }
 }
 
 /// A fail-closed outcome that did not produce a policy-authorized semantic-node action.
