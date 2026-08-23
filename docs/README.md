@@ -89,7 +89,8 @@ The second group exists only on this documentation branch until the branch integ
 ### Active feature proposed decisions
 
 - [ADR 0015: Release manifest identity boundary](adr/0015-release-manifest-identity.md)
+- [ADR 0016: Release SBOM identity binding](adr/0016-release-sbom-identity.md)
 
-ADR 0015 is active-PR architecture evidence for the release-manifest identity slice. Its presence in this index keeps the documentation graph complete without promoting the Proposed decision or its implementation to protected-main truth.
+ADR 0015 is active-PR architecture evidence for the release-manifest identity slice. ADR 0016 is stacked active-PR architecture evidence for the release-SBOM identity slice. Their presence in this index keeps the documentation graph complete without promoting either Proposed decision or its implementation to protected-main truth.
 
 See the [ADR index](adr/README.md) for status rules, required decision structure, supersession rules, and active feature ADRs. The index and each ADR's own status metadata must agree; a PR body, chat transcript, automation prompt, or stale issue reference cannot change ADR status.
