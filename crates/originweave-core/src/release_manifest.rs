@@ -193,14 +193,15 @@ pub struct ReleaseSbomBinding {
 }
 
 impl ReleaseSbomBinding {
-    /// Bind a declared SPDX SBOM artifact to exact artifacts in one release manifest.
+    /// Bind a declared SPDX SBOM artifact to every other artifact in one release manifest.
     ///
     /// The complete bounded release-manifest identity is retained in the binding. The SBOM
     /// artifact name and every described artifact name must match that manifest exactly. The SBOM
-    /// artifact itself cannot be admitted as one of its described artifacts. At least one other
-    /// described artifact is required, duplicates fail closed, and exact described artifact
-    /// identities plus their public names are sorted deterministically. The release manifest's own
-    /// admission bound therefore also bounds this inventory.
+    /// artifact itself cannot be admitted as one of its described artifacts. Every other manifest
+    /// artifact must be described exactly once; missing, foreign, self-described, and duplicate
+    /// entries fail closed. Exact described artifact identities plus their public names are sorted
+    /// deterministically. The release manifest's own admission bound therefore also bounds this
+    /// inventory.
     pub fn new<'a, I>(
         manifest: &ReleaseManifest,
         sbom_artifact_name: &str,
@@ -238,6 +239,9 @@ impl ReleaseSbomBinding {
         }
         if described_artifacts.is_empty() {
             return Err(ReleaseSbomBindingError::MissingDescribedArtifacts);
+        }
+        if described_artifacts.len() + 1 != manifest.artifacts().len() {
+            return Err(ReleaseSbomBindingError::IncompleteDescribedArtifacts);
         }
         described_artifacts.sort_by(|left, right| left.name.cmp(&right.name));
         let described_artifact_names = described_artifacts
@@ -305,6 +309,8 @@ pub enum ReleaseSbomBindingError {
     UnknownSbomArtifact,
     /// No release artifacts were declared as described by the SBOM.
     MissingDescribedArtifacts,
+    /// The SBOM omitted at least one non-SBOM artifact from the same release manifest.
+    IncompleteDescribedArtifacts,
     /// The SBOM artifact was also declared as an artifact that the SBOM describes.
     SelfDescribedSbomArtifact,
     /// A described artifact name is absent from the release manifest.
@@ -320,6 +326,9 @@ impl fmt::Display for ReleaseSbomBindingError {
                 .write_str("release SBOM artifact is not present in the bound release manifest"),
             Self::MissingDescribedArtifacts => {
                 formatter.write_str("release SBOM must describe at least one release artifact")
+            }
+            Self::IncompleteDescribedArtifacts => {
+                formatter.write_str("release SBOM must describe every non-SBOM release artifact")
             }
             Self::SelfDescribedSbomArtifact => {
                 formatter.write_str("release SBOM must not describe its own artifact")
