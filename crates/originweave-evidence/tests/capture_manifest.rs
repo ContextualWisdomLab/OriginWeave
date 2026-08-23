@@ -1,11 +1,11 @@
 #![allow(clippy::expect_used)]
 
 use originweave_evidence::{
-    CaptureManifest, CaptureManifestError, CaptureManifestVerificationError, EvidenceSourceKind,
-    ExtractionCardinality, ExtractionField, ExtractionSchema, ExtractionSourceChannel,
-    ExtractionValueType, ProvenanceRecord, VerificationResult, WarcProvBundle,
-    WarcProvBundleVerificationError, WarcResourceRecord, CAPTURE_MANIFEST_VERSION,
-    MAX_CAPTURE_MANIFEST_RECORDS,
+    CAPTURE_MANIFEST_VERSION, CaptureManifest, CaptureManifestError,
+    CaptureManifestVerificationError, EvidenceSourceKind, ExtractionCardinality, ExtractionField,
+    ExtractionSchema, ExtractionSourceChannel, ExtractionValueType, MAX_CAPTURE_MANIFEST_RECORDS,
+    ProvenanceRecord, VerificationResult, WarcProvBundle, WarcProvBundleVerificationError,
+    WarcResourceRecord,
 };
 
 const SOURCE_HASH: &str = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
@@ -65,8 +65,16 @@ fn capture_manifest_binds_schema_warc_prov_and_software_identity_without_payload
     assert_eq!(manifest.software_commit_sha(), SOFTWARE_COMMIT_SHA);
     assert_eq!(manifest.records().len(), 1);
     assert_eq!(manifest.records()[0].warc_record_id(), RECORD_ID_A);
-    assert!(manifest.records()[0].warc_record_digest().starts_with("sha256:"));
-    assert!(manifest.records()[0].prov_json_ld_digest().starts_with("sha256:"));
+    assert!(
+        manifest.records()[0]
+            .warc_record_digest()
+            .starts_with("sha256:")
+    );
+    assert!(
+        manifest.records()[0]
+            .prov_json_ld_digest()
+            .starts_with("sha256:")
+    );
     assert!(manifest.manifest_digest().starts_with("sha256:"));
     assert_eq!(manifest.verify(&schema, &[(&record, &bundle)]), Ok(()));
 
@@ -87,16 +95,10 @@ fn capture_manifest_is_order_independent_and_rejects_empty_duplicate_or_oversize
     let bundle_a = WarcProvBundle::new(&record_a, SOFTWARE_COMMIT_SHA).expect("PROV A");
     let bundle_b = WarcProvBundle::new(&record_b, SOFTWARE_COMMIT_SHA).expect("PROV B");
 
-    let first = CaptureManifest::new(
-        &schema,
-        &[(&record_b, &bundle_b), (&record_a, &bundle_a)],
-    )
-    .expect("first manifest");
-    let second = CaptureManifest::new(
-        &schema,
-        &[(&record_a, &bundle_a), (&record_b, &bundle_b)],
-    )
-    .expect("second manifest");
+    let first = CaptureManifest::new(&schema, &[(&record_b, &bundle_b), (&record_a, &bundle_a)])
+        .expect("first manifest");
+    let second = CaptureManifest::new(&schema, &[(&record_a, &bundle_a), (&record_b, &bundle_b)])
+        .expect("second manifest");
     assert_eq!(first, second);
     assert_eq!(first.records()[0].warc_record_id(), RECORD_ID_A);
     assert_eq!(first.records()[1].warc_record_id(), RECORD_ID_B);
@@ -106,10 +108,7 @@ fn capture_manifest_is_order_independent_and_rejects_empty_duplicate_or_oversize
         Err(CaptureManifestError::MissingRecord)
     );
     assert_eq!(
-        CaptureManifest::new(
-            &schema,
-            &[(&record_a, &bundle_a), (&record_a, &bundle_a)],
-        ),
+        CaptureManifest::new(&schema, &[(&record_a, &bundle_a), (&record_a, &bundle_a)],),
         Err(CaptureManifestError::DuplicateRecord)
     );
 
@@ -149,8 +148,8 @@ fn capture_manifest_verification_fails_closed_on_schema_or_record_drift() {
     let original_schema = schema("catalog-v1");
     let record = resource_record(RECORD_ID_A, b"original");
     let bundle = WarcProvBundle::new(&record, SOFTWARE_COMMIT_SHA).expect("PROV bundle");
-    let manifest = CaptureManifest::new(&original_schema, &[(&record, &bundle)])
-        .expect("capture manifest");
+    let manifest =
+        CaptureManifest::new(&original_schema, &[(&record, &bundle)]).expect("capture manifest");
 
     assert_eq!(
         manifest.verify(&schema("catalog-v2"), &[(&record, &bundle)]),
@@ -158,8 +157,8 @@ fn capture_manifest_verification_fails_closed_on_schema_or_record_drift() {
     );
 
     let changed_record = resource_record(RECORD_ID_A, b"changed");
-    let changed_bundle = WarcProvBundle::new(&changed_record, SOFTWARE_COMMIT_SHA)
-        .expect("changed PROV bundle");
+    let changed_bundle =
+        WarcProvBundle::new(&changed_record, SOFTWARE_COMMIT_SHA).expect("changed PROV bundle");
     assert_eq!(
         manifest.verify(&original_schema, &[(&changed_record, &changed_bundle)]),
         Err(CaptureManifestVerificationError::IdentityMismatch)
