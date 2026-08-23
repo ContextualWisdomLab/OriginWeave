@@ -13,7 +13,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import pathlib
+import stat
 import sys
 from collections.abc import Iterable
 from typing import Any
@@ -118,9 +120,19 @@ def validate_spdx_3_0_1_jsonld_bytes(payload: bytes) -> dict[str, int | str]:
     }
 
 
+def _nonblocking_read_opener(path: str, flags: int) -> int:
+    """Open one local candidate without allowing a FIFO/device open to wait indefinitely."""
+
+    return os.open(path, flags | getattr(os, "O_NONBLOCK", 0))
+
+
 def _read_bounded(path: pathlib.Path) -> bytes:
+    """Read one bounded regular-file candidate without accepting streaming file types."""
+
     try:
-        with path.open("rb") as source:
+        with open(path, "rb", opener=_nonblocking_read_opener) as source:
+            if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
+                raise SpdxJsonLdEnvelopeError("invalid_file_type")
             payload = source.read(MAX_SPDX_JSONLD_BYTES + 1)
     except OSError as error:
         raise SpdxJsonLdEnvelopeError("read_failed") from error
