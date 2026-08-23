@@ -323,7 +323,7 @@ fn windows_reserved_device_basename(name: &str) -> bool {
     let bytes = basename.as_bytes();
     bytes.len() == 4
         && (basename[..3].eq_ignore_ascii_case("COM") || basename[..3].eq_ignore_ascii_case("LPT"))
-        && matches!(bytes[3], b'0'..=b'9')
+        && bytes[3].is_ascii_digit()
 }
 
 fn valid_sha256_digest(digest: &str) -> bool {
