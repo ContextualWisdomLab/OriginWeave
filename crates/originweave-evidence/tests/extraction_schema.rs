@@ -141,6 +141,26 @@ fn field_accepts_all_reviewed_value_and_source_channel_variants()
 }
 
 #[test]
+fn field_rejects_contradictory_required_cardinality_contracts() {
+    assert!(ExtractionField::new(
+        "optional_exactly_one",
+        ExtractionValueType::Text,
+        ExtractionCardinality::One,
+        false,
+        &[ExtractionSourceChannel::SemanticNode],
+    )
+    .is_err());
+    assert!(ExtractionField::new(
+        "required_zero_or_one",
+        ExtractionValueType::Text,
+        ExtractionCardinality::ZeroOrOne,
+        true,
+        &[ExtractionSourceChannel::SemanticNode],
+    )
+    .is_err());
+}
+
+#[test]
 fn field_rejects_empty_malformed_or_overlong_identifiers() {
     assert_eq!(
         ExtractionField::new(
