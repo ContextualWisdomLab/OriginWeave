@@ -177,24 +177,26 @@ impl ReleaseSbomFormat {
 
 /// Inert binding between one release manifest and its declared SPDX SBOM artifact identity.
 ///
-/// This value proves only that the named SBOM and described artifacts are already admitted by
-/// the same immutable [`ReleaseManifest`]. It does not parse or validate SPDX content, prove that
-/// the SBOM actually describes those artifacts, authenticate any digest, or grant release
-/// authority.
+/// This value proves only that the named SBOM and exact described artifact identities are already
+/// admitted by the same immutable [`ReleaseManifest`]. It retains each described artifact digest
+/// so a same-name artifact change produces a different binding. It does not parse or validate SPDX
+/// content, prove that the SBOM actually describes those artifacts, authenticate any digest, or
+/// grant release authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReleaseSbomBinding {
     format: ReleaseSbomFormat,
     sbom_artifact: ReleaseArtifact,
     described_artifact_names: Vec<String>,
+    described_artifacts: Vec<ReleaseArtifact>,
 }
 
 impl ReleaseSbomBinding {
     /// Bind a declared SPDX SBOM artifact to exact artifacts in one release manifest.
     ///
     /// The SBOM artifact name and every described artifact name must match the manifest exactly.
-    /// At least one described artifact is required, duplicates fail closed, and stored described
-    /// names are sorted deterministically. The release manifest's own admission bound therefore
-    /// also bounds this inventory.
+    /// At least one described artifact is required, duplicates fail closed, and exact described
+    /// artifact identities plus their public names are sorted deterministically. The release
+    /// manifest's own admission bound therefore also bounds this inventory.
     pub fn new<'a, I>(
         manifest: &ReleaseManifest,
         sbom_artifact_name: &str,
@@ -212,30 +214,35 @@ impl ReleaseSbomBinding {
             return Err(ReleaseSbomBindingError::UnknownSbomArtifact);
         };
 
-        let mut described = Vec::new();
+        let mut described_artifacts = Vec::new();
         let mut seen = BTreeSet::new();
         for artifact_name in described_artifact_names {
-            if !manifest
+            let Some(artifact) = manifest
                 .artifacts()
                 .iter()
-                .any(|artifact| artifact.name() == artifact_name)
-            {
+                .find(|artifact| artifact.name() == artifact_name)
+            else {
                 return Err(ReleaseSbomBindingError::UnknownDescribedArtifact);
-            }
+            };
             if !seen.insert(artifact_name.to_owned()) {
                 return Err(ReleaseSbomBindingError::DuplicateDescribedArtifact);
             }
-            described.push(artifact_name.to_owned());
+            described_artifacts.push(artifact.clone());
         }
-        if described.is_empty() {
+        if described_artifacts.is_empty() {
             return Err(ReleaseSbomBindingError::MissingDescribedArtifacts);
         }
-        described.sort();
+        described_artifacts.sort_by(|left, right| left.name.cmp(&right.name));
+        let described_artifact_names = described_artifacts
+            .iter()
+            .map(|artifact| artifact.name().to_owned())
+            .collect();
 
         Ok(Self {
             format,
             sbom_artifact: sbom_artifact.clone(),
-            described_artifact_names: described,
+            described_artifact_names,
+            described_artifacts,
         })
     }
 
