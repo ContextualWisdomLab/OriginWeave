@@ -66,6 +66,22 @@ class ReleaseSpdxJsonLdEnvelopeContractTests(unittest.TestCase):
         self.assertEqual(summary["context"], CONTEXT)
         self.assertEqual(summary["spdx_document_count"], 1)
 
+    def test_inline_context_cannot_import_or_rebind_spdx_semantics(self) -> None:
+        hostile_contexts = [
+            [CONTEXT, {"@import": "https://example.invalid/moving-context.jsonld"}],
+            [CONTEXT, {"@base": "https://example.invalid/base/"}],
+            [CONTEXT, {"@vocab": "https://example.invalid/vocab#"}],
+            [CONTEXT, {"type": "https://example.invalid/NotSpdxDocument"}],
+            [CONTEXT, {"spdxId": "https://example.invalid/not-id"}],
+        ]
+
+        for context in hostile_contexts:
+            with self.subTest(context=context):
+                self._assert_error_code(
+                    self._payload([{"type": "SpdxDocument"}], context=context),
+                    "invalid_context",
+                )
+
     def test_context_extensions_cannot_add_ambient_remote_authority(self) -> None:
         self._assert_error_code(
             self._payload(
