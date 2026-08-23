@@ -17,6 +17,9 @@ fn origin_rejects_browser_special_numeric_hosts() {
         "https://0177.0.0.1",
         "https://1.2.3.04",
         "https://example.127",
+        "https://0x",
+        "https://1.2.3.0x",
+        "https://example.0X",
     ] {
         assert_eq!(
             Origin::parse(input),
@@ -30,18 +33,6 @@ fn origin_rejects_browser_special_numeric_hosts() {
             .expect("canonical dotted-decimal IPv4")
             .as_str(),
         "https://127.0.0.1"
-    );
-    assert_eq!(
-        Origin::parse("https://0x")
-            .expect("an empty hexadecimal suffix is a DNS label, not an IPv4 number")
-            .as_str(),
-        "https://0x"
-    );
-    assert_eq!(
-        Origin::parse("https://1.2.3.0x")
-            .expect("an empty hexadecimal final label remains a DNS authority")
-            .as_str(),
-        "https://1.2.3.0x"
     );
     assert_eq!(
         Origin::parse("https://0xg")

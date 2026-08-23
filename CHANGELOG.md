@@ -9,8 +9,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Bound explicit extension-to-Agent grants to a nonzero host-assigned Agent Task identity, so a grant that otherwise matches extension, session, browsing context, origin, expiry, and capability fails closed when reused by a different task.
 - Bound explicit extension-to-Agent grants to exclusive trusted-time expiry in addition to extension identity, session, browsing context, and canonical origin, so a same-origin grant cannot be reused at or after the deadline.
 - Bound explicit extension-to-Agent grants to the exact canonical origin in addition to extension identity, session, and browsing context, so a same-session navigation or port change cannot reuse the grant.
+- Added a bounded browser-protocol authority registry that maps opaque session, browsing-context, and node identifiers to registry-local identities, rotates document epochs, and revalidates live node handles before actions.
 - Rust workspace for independently reusable core, policy, destination, network, TLS, resource, and evidence modules.
-- Versioned browser-protocol adapter metadata that distinguishes WebDriver BiDi from pinned CDP, binds bounded adapter/browser revision tokens to an explicit duplicate-free capability set, and grants no browser, action, network, or secret authority by protocol kind alone.
 - Canonical HTTPS and loopback-origin boundary with case-normalized schemes and hosts, default-port normalization, IPv4/IPv6 handling, browser-special numeric-host rejection, and explicit malformed-input errors.
 - Typed browser actions, capabilities, risk classes, execution modes, robots decisions, secret-delivery contracts, immutable canonical action-intent digests, and intent-bound approval scopes.
 - Deterministic fail-closed policy evaluation for untrusted instructions, origin grants, crawler restrictions, execution-mode and purpose consistency, approvals, and brokered secrets.
@@ -48,12 +48,14 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Security
 
+- Registry-issued node validation authenticates registry-instance issuance before session or context lookup, so caller-constructed and cross-registry handles cannot probe whether numeric browser-session identifiers are currently registered.
 - Raw page content cannot become a trusted instruction.
 - Raw secrets are rejected and secret-capable actions require an opaque broker handle.
 - Crawler mode is read-only, must pair with the public-crawl purpose, and fails closed without an applicable robots-policy decision.
 - State-changing actions are same-origin by default.
 - R3 and R4 approvals are bound to the exact action, target origin, and immutable digest of the complete canonical action intent; R5 legal consent is non-delegable.
 - Shortened, integer, hexadecimal, and legacy octal-looking IPv4 host spellings are rejected so the policy origin cannot diverge from Chromium host interpretation.
+- Bare hexadecimal-prefix host labels such as `0x`, including terminal `.0x` and `.0X` spellings, are rejected as browser-special numeric hosts rather than admitted as DNS authorities.
 - IPv4-mapped IPv6 is canonicalized before destination classification and pin comparison so mapped private or loopback addresses cannot bypass IPv4 policy.
 - The default destination policy permits only public addresses and denies unspecified, loopback, private, shared, link-local, metadata, documentation, benchmarking, multicast, broadcast, transition, and protocol-reserved destinations.
 - Azure platform IP `168.63.129.16` and Amazon EKS Pod Identity endpoints `169.254.170.23` and `fd00:ec2::23` are classified as metadata or platform services before broader public, link-local, or unique-local rules.
