@@ -48,6 +48,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Security
 
+- The SPDX 3.0.1 release-envelope gate now requires the exact versioned global-context string and rejects context arrays, `@import`, `@base`, `@vocab`, and alias/term-rebinding attempts until reviewed schema-aware validation can prove extension semantics without ambient or reinterpretation authority.
 - Release artifact admission rejects `COM0` through `COM9` and `LPT0` through `LPT9` case-insensitively, including extensions, so package names cannot become Windows device or Microsoft synchronization conflicts in buyer environments.
 - Raw page content cannot become a trusted instruction.
 - Raw secrets are rejected and secret-capable actions require an opaque broker handle.
