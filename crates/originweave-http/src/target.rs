@@ -6,7 +6,6 @@ use sha2::{Digest, Sha256};
 use crate::HttpError;
 
 const MAX_REQUEST_TARGET_BYTES: usize = 8_192;
-const MAX_EVIDENCE_PATH_PREFIX_BYTES: usize = 256;
 const HEX_UPPER: &[u8; 16] = b"0123456789ABCDEF";
 
 /// One canonical origin-bound HTTP origin-form request target.
@@ -65,8 +64,7 @@ impl HttpRequestTarget {
         }
         let query_index = encoded.find('?');
         let path_end = query_index.unwrap_or(encoded.len());
-        let prefix_end = evidence_path_prefix_end(encoded.as_bytes(), path_end);
-        let path_prefix = encoded[..prefix_end].to_owned();
+        let path_prefix = format!("<redacted-path:{path_end}-bytes>");
         let target_hash = target_identifier(&origin, encoded.as_bytes());
         Ok(Self {
             origin,
@@ -101,7 +99,9 @@ impl HttpRequestTarget {
         self.query_present
     }
 
-    /// Return the bounded encoded path prefix retained without query values.
+    /// Return credential-safe structural path evidence without retaining raw path bytes.
+    ///
+    /// The exact request-target identity remains available through [`Self::target_hash`].
     #[must_use]
     pub const fn path_prefix(&self) -> &str {
         self.path_prefix.as_str()
@@ -118,18 +118,6 @@ impl fmt::Debug for HttpRequestTarget {
             .field("path_prefix_byte_count", &self.path_prefix.len())
             .finish()
     }
-}
-
-fn evidence_path_prefix_end(encoded: &[u8], path_end: usize) -> usize {
-    let bounded_end = path_end.min(MAX_EVIDENCE_PATH_PREFIX_BYTES);
-    if bounded_end == path_end {
-        return bounded_end;
-    }
-    let tail_start = bounded_end.saturating_sub(2);
-    encoded[tail_start..bounded_end]
-        .iter()
-        .position(|byte| *byte == b'%')
-        .map_or(bounded_end, |offset| tail_start + offset)
 }
 
 fn is_origin_form_ascii(byte: u8) -> bool {
