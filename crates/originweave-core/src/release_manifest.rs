@@ -196,8 +196,9 @@ impl ReleaseSbomBinding {
     /// Bind a declared SPDX SBOM artifact to exact artifacts in one release manifest.
     ///
     /// The complete bounded release-manifest identity is retained in the binding. The SBOM
-    /// artifact name and every described artifact name must match that manifest exactly. At least
-    /// one described artifact is required, duplicates fail closed, and exact described artifact
+    /// artifact name and every described artifact name must match that manifest exactly. The SBOM
+    /// artifact itself cannot be admitted as one of its described artifacts. At least one other
+    /// described artifact is required, duplicates fail closed, and exact described artifact
     /// identities plus their public names are sorted deterministically. The release manifest's own
     /// admission bound therefore also bounds this inventory.
     pub fn new<'a, I>(
@@ -220,6 +221,9 @@ impl ReleaseSbomBinding {
         let mut described_artifacts = Vec::new();
         let mut seen = BTreeSet::new();
         for artifact_name in described_artifact_names {
+            if artifact_name == sbom_artifact.name() {
+                return Err(ReleaseSbomBindingError::SelfDescribedSbomArtifact);
+            }
             let Some(artifact) = manifest
                 .artifacts()
                 .iter()
@@ -282,6 +286,8 @@ pub enum ReleaseSbomBindingError {
     UnknownSbomArtifact,
     /// No release artifacts were declared as described by the SBOM.
     MissingDescribedArtifacts,
+    /// The SBOM artifact was also declared as an artifact that the SBOM describes.
+    SelfDescribedSbomArtifact,
     /// A described artifact name is absent from the release manifest.
     UnknownDescribedArtifact,
     /// A described artifact name was repeated.
@@ -295,6 +301,9 @@ impl fmt::Display for ReleaseSbomBindingError {
                 .write_str("release SBOM artifact is not present in the bound release manifest"),
             Self::MissingDescribedArtifacts => {
                 formatter.write_str("release SBOM must describe at least one release artifact")
+            }
+            Self::SelfDescribedSbomArtifact => {
+                formatter.write_str("release SBOM must not describe its own artifact")
             }
             Self::UnknownDescribedArtifact => formatter.write_str(
                 "release SBOM describes an artifact that is not present in the bound release manifest",
