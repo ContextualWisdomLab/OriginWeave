@@ -942,7 +942,13 @@ def _run_restart_trial(
                 profile_dir,
                 "persisted",
             )
-        except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+        except (
+            OSError,
+            ValueError,
+            RuntimeError,
+            json.JSONDecodeError,
+            subprocess.TimeoutExpired,
+        ) as exc:
             failure_type = type(exc).__name__
     profile_cleaned = not profile_path.exists()
     if not profile_cleaned:
@@ -1314,7 +1320,13 @@ def _run_agent_task_trial(
                 fixture_url,
                 profile_dir,
             )
-        except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+        except (
+            OSError,
+            ValueError,
+            RuntimeError,
+            json.JSONDecodeError,
+            subprocess.TimeoutExpired,
+        ) as exc:
             failure_type = type(exc).__name__
     profile_cleaned = not profile_path.exists()
     if not profile_cleaned:
@@ -1600,7 +1612,13 @@ def _run_agent_task_forced_close_trial(
                 fixture_url,
                 profile_dir,
             )
-        except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+        except (
+            OSError,
+            ValueError,
+            RuntimeError,
+            json.JSONDecodeError,
+            subprocess.TimeoutExpired,
+        ) as exc:
             failure_type = type(exc).__name__
     profile_cleaned = not profile_path.exists()
     if not profile_cleaned:
