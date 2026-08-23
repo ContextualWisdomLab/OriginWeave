@@ -178,12 +178,14 @@ impl ReleaseSbomFormat {
 /// Inert binding between one release manifest and its declared SPDX SBOM artifact identity.
 ///
 /// This value proves only that the named SBOM and exact described artifact identities are already
-/// admitted by the same immutable [`ReleaseManifest`]. It retains each described artifact digest
-/// so a same-name artifact change produces a different binding. It does not parse or validate SPDX
-/// content, prove that the SBOM actually describes those artifacts, authenticate any digest, or
-/// grant release authority.
+/// admitted by the same immutable [`ReleaseManifest`]. It retains the complete bounded release
+/// manifest identity and each described artifact digest, so any source, Chromium, channel, build,
+/// artifact-inventory, or described-artifact change produces a different binding. It does not
+/// parse or validate SPDX content, prove that the SBOM actually describes those artifacts,
+/// authenticate any digest, or grant release authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReleaseSbomBinding {
+    release_manifest: ReleaseManifest,
     format: ReleaseSbomFormat,
     sbom_artifact: ReleaseArtifact,
     described_artifact_names: Vec<String>,
@@ -193,10 +195,11 @@ pub struct ReleaseSbomBinding {
 impl ReleaseSbomBinding {
     /// Bind a declared SPDX SBOM artifact to exact artifacts in one release manifest.
     ///
-    /// The SBOM artifact name and every described artifact name must match the manifest exactly.
-    /// At least one described artifact is required, duplicates fail closed, and exact described
-    /// artifact identities plus their public names are sorted deterministically. The release
-    /// manifest's own admission bound therefore also bounds this inventory.
+    /// The complete bounded release-manifest identity is retained in the binding. The SBOM
+    /// artifact name and every described artifact name must match that manifest exactly. At least
+    /// one described artifact is required, duplicates fail closed, and exact described artifact
+    /// identities plus their public names are sorted deterministically. The release manifest's own
+    /// admission bound therefore also bounds this inventory.
     pub fn new<'a, I>(
         manifest: &ReleaseManifest,
         sbom_artifact_name: &str,
@@ -239,6 +242,7 @@ impl ReleaseSbomBinding {
             .collect();
 
         Ok(Self {
+            release_manifest: manifest.clone(),
             format,
             sbom_artifact: sbom_artifact.clone(),
             described_artifact_names,
