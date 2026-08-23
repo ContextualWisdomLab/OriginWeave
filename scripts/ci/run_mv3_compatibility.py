@@ -154,6 +154,7 @@ def _wait_for_driver(driver_port: int) -> None:
             OSError,
             json.JSONDecodeError,
             http.client.BadStatusLine,
+            http.client.IncompleteRead,
         ) as exc:
             last_error = exc
         time.sleep(0.1)
