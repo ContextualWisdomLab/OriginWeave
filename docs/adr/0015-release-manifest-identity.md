@@ -109,8 +109,8 @@ Supersede this ADR when a versioned external release-manifest specification repl
 
 ## References
 
-Git. (2025). *gitprotocol-common documentation*. https://git-scm.com/docs/gitprotocol-common
+Git. (2026). *gitprotocol-common documentation (Git 2.55.0)*. https://git-scm.com/docs/gitprotocol-common/2.55.0
 
-Git. (2026). *gitprotocol-pack documentation*. https://git-scm.com/docs/gitprotocol-pack
+Git. (2026). *gitprotocol-pack documentation (Git 2.55.0)*. https://git-scm.com/docs/gitprotocol-pack/2.55.0
 
 Microsoft. (n.d.). *Naming files, paths, and namespaces*. Microsoft Learn. Retrieved August 23, 2026, from https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file
