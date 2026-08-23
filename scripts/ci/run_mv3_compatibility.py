@@ -85,7 +85,7 @@ def _path_token(value: str, label: str) -> str:
 
 
 def _webdriver_path(session_id: str, suffix: str) -> str:
-    """Build a bounded WebDriver element command path from validated identifiers."""
+    """Build a bounded ChromeDriver path from a validated session identifier."""
 
     safe_session = _path_token(session_id, "session identifier")
     if suffix and not suffix.startswith("/"):
