@@ -17,20 +17,14 @@ fn approval_scope() -> ApprovalScope {
 }
 
 fn principal(subject: &str) -> ApprovalPrincipalRef {
-    ApprovalPrincipalRef::new("https://id.example", subject)
-        .expect("test principal must be valid")
+    ApprovalPrincipalRef::new("https://id.example", subject).expect("test principal must be valid")
 }
 
 #[test]
 fn deny_expires_at_deadline_and_then_rejects_further_transitions() {
-    let mut request = EnterpriseApprovalRequest::new(
-        approval_scope(),
-        principal("maker"),
-        100,
-        200,
-        1,
-    )
-    .expect("approval request must be valid");
+    let mut request =
+        EnterpriseApprovalRequest::new(approval_scope(), principal("maker"), 100, 200, 1)
+            .expect("approval request must be valid");
     let checker = principal("checker");
 
     assert_eq!(
@@ -49,14 +43,8 @@ fn deny_expires_at_deadline_and_then_rejects_further_transitions() {
 #[test]
 fn withdraw_expires_at_deadline_and_then_rejects_further_transitions() {
     let maker = principal("maker");
-    let mut request = EnterpriseApprovalRequest::new(
-        approval_scope(),
-        maker.clone(),
-        100,
-        200,
-        1,
-    )
-    .expect("approval request must be valid");
+    let mut request = EnterpriseApprovalRequest::new(approval_scope(), maker.clone(), 100, 200, 1)
+        .expect("approval request must be valid");
 
     assert_eq!(
         request.withdraw(&maker, 200),
@@ -74,14 +62,9 @@ fn withdraw_expires_at_deadline_and_then_rejects_further_transitions() {
 #[test]
 fn revoke_expires_at_deadline_and_then_rejects_further_transitions() {
     let checker = principal("checker");
-    let mut request = EnterpriseApprovalRequest::new(
-        approval_scope(),
-        principal("maker"),
-        100,
-        200,
-        1,
-    )
-    .expect("approval request must be valid");
+    let mut request =
+        EnterpriseApprovalRequest::new(approval_scope(), principal("maker"), 100, 200, 1)
+            .expect("approval request must be valid");
     request
         .approve(checker.clone(), 150)
         .expect("approval before deadline must succeed");
