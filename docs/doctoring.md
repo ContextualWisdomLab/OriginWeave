@@ -84,7 +84,7 @@ The test-only rcgen 0.14.8 dependency creates a local CA and deterministic certi
 
 ### Release artifact filename portability
 
-Microsoft's Win32 filename guidance requires applications not to assume case sensitivity and reserves device basenames including `CON`, `PRN`, `AUX`, `NUL`, `COM1` through `COM9`, and `LPT1` through `LPT9`, including those names followed by extensions. The same documentation also identifies non-ASCII superscript-digit device aliases. OriginWeave's release-manifest identity therefore rejects ASCII-case-folded duplicate artifact names and those reserved ASCII device basenames; its ASCII-only artifact grammar separately excludes the superscript aliases. These checks make one admitted artifact inventory portable across case-sensitive and default case-insensitive target filesystems without rewriting the stored artifact spelling. They remain identity hygiene only and do not grant signing, publication, installation, update, rollback, or release authority.
+Microsoft's Win32 filename guidance requires applications not to assume case sensitivity and reserves device basenames including `CON`, `PRN`, `AUX`, `NUL`, `COM1` through `COM9`, and `LPT1` through `LPT9`, including those names followed by extensions. The same documentation identifies non-ASCII superscript-digit device aliases and also documents `COM0` as a possible `Global??` Win32 namespace symlink. Separately, Microsoft's current OneDrive and SharePoint restrictions reject `COM0` through `COM9` and `LPT0` through `LPT9`. OriginWeave therefore adopts the stricter portable release-artifact deny set: ASCII-case-folded duplicate names and `CON`, `PRN`, `AUX`, `NUL`, `COM0` through `COM9`, and `LPT0` through `LPT9`, including extensions, are rejected so an admitted artifact does not become a device or synchronization conflict in a buyer environment. The ASCII-only grammar separately excludes the superscript aliases. These checks preserve the original artifact spelling and remain identity hygiene only; they do not grant signing, publication, installation, update, rollback, or release authority.
 
 ### Git source identity admission
 
@@ -170,7 +170,11 @@ Microsoft. (2025, July 25). *Azure IP address 168.63.129.16 overview*. Microsoft
 
 Microsoft. (n.d.). *Naming files, paths, and namespaces*. Microsoft Learn. Retrieved August 23, 2026, from https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file
 
+<<<<<<< HEAD
 Model Context Protocol. (2026, July 28). *Specification: 2026-07-28*. https://modelcontextprotocol.io/specification/2026-07-28
+=======
+Microsoft. (n.d.). *Restrictions and limitations in OneDrive and SharePoint*. Microsoft Support. Retrieved August 23, 2026, from https://support.microsoft.com/en-US/onedrive/restrictions-and-limitations-in-onedrive-and-sharepoint
+>>>>>>> 45f024dc (docs(doctoring): record portable COM0 and LPT0 exclusions)
 
 Nielsen, S., Cetin, E., Schwendeman, P., Sun, Q., Xu, J., & Tang, Y. (2025). *Learning to orchestrate agents in natural language with the Conductor* [Preprint]. arXiv. https://doi.org/10.48550/arXiv.2512.04388
 
