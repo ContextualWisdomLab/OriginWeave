@@ -18,7 +18,7 @@ class ReleaseSpdxJsonLdEnvelopeContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.namespace = runpy.run_path(str(VALIDATOR), run_name="release_spdx_envelope_contract")
-        cls.validate = cls.namespace["validate_spdx_3_0_1_jsonld_bytes"]
+        cls.validate = staticmethod(cls.namespace["validate_spdx_3_0_1_jsonld_bytes"])
         cls.error_type = cls.namespace["SpdxJsonLdEnvelopeError"]
         cls.max_bytes = cls.namespace["MAX_SPDX_JSONLD_BYTES"]
         cls.max_graph_objects = cls.namespace["MAX_SPDX_GRAPH_OBJECTS"]
