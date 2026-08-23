@@ -71,6 +71,8 @@ pub enum ExtractionSchemaError {
     InvalidIdentifier,
     /// An identifier or field collection exceeded its bounded limit.
     LimitExceeded,
+    /// A field's required flag contradicted its declared cardinality.
+    InvalidCardinalityRequirement,
     /// A field did not declare any reviewed source channel.
     MissingSourceChannel,
     /// A field declared the same source channel more than once.
@@ -88,6 +90,9 @@ impl fmt::Display for ExtractionSchemaError {
         formatter.write_str(match self {
             Self::InvalidIdentifier => "invalid extraction schema or field identifier",
             Self::LimitExceeded => "extraction schema limit exceeded",
+            Self::InvalidCardinalityRequirement => {
+                "extraction field required flag is incompatible with the declared cardinality"
+            }
             Self::MissingSourceChannel => "extraction field requires at least one source channel",
             Self::DuplicateSourceChannel => "extraction field contains a duplicate source channel",
             Self::InvalidNormalizationRule => {
@@ -141,6 +146,16 @@ impl ExtractionField {
         source_channels: &[ExtractionSourceChannel],
     ) -> Result<Self, ExtractionSchemaError> {
         validate_identifier(identifier)?;
+
+        let cardinality_requirement_is_compatible = match cardinality {
+            ExtractionCardinality::One => required,
+            ExtractionCardinality::ZeroOrOne => !required,
+            ExtractionCardinality::Many => true,
+        };
+        if !cardinality_requirement_is_compatible {
+            return Err(ExtractionSchemaError::InvalidCardinalityRequirement);
+        }
+
         if source_channels.is_empty() {
             return Err(ExtractionSchemaError::MissingSourceChannel);
         }
