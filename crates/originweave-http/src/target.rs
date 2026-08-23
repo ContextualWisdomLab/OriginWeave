@@ -63,15 +63,13 @@ impl HttpRequestTarget {
             });
         }
         let query_index = encoded.find('?');
-        let path_end = query_index.unwrap_or(encoded.len());
-        let path_prefix = format!("<redacted-path:{path_end}-bytes>");
         let target_hash = target_identifier(&origin, encoded.as_bytes());
         Ok(Self {
             origin,
             encoded_path_and_query: encoded,
             target_hash,
             query_present: query_index.is_some(),
-            path_prefix,
+            path_prefix: "/".to_owned(),
         })
     }
 
@@ -99,7 +97,7 @@ impl HttpRequestTarget {
         self.query_present
     }
 
-    /// Return credential-safe structural path evidence without retaining raw path bytes.
+    /// Return the credential-safe root path prefix retained for structural evidence.
     ///
     /// The exact request-target identity remains available through [`Self::target_hash`].
     #[must_use]
