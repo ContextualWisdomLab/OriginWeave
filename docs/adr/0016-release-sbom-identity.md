@@ -7,7 +7,7 @@
 
 Issue #201 requires acquisition-grade release evidence, including a software bill of materials tied to the same immutable release identity buyers verify. ADR 0015 deliberately stops at a bounded release-manifest identity and does not claim SBOM content conformance, provenance, signing, publication, installation, update, rollback, or release authority.
 
-SPDX 3.0.1 defines JSON-LD serialization and separate structural and semantic validation requirements. Every SPDX 3.0.1 JSON-LD document must reference the versioned global context `https://spdx.org/rdf/3.0.1/spdx-context.jsonld` at the top level. A serialization must not define more than one `SpdxDocument`. Full SPDX JSON-LD conformance additionally requires structural validation against the versioned SPDX JSON Schema and semantic validation against the SPDX OWL ontology/SHACL constraints.
+SPDX 3.0.1 defines JSON-LD serialization and separate structural and semantic validation requirements. Every SPDX 3.0.1 JSON-LD document must reference the versioned global context `https://spdx.org/rdf/3.0.1/spdx-context.jsonld` at the top level, while the specification explicitly permits additional namespace mappings in a separate object within the context. JSON-LD 1.1 permits a context to be an array of context entries, so a document can retain the required SPDX context while adding local namespace mappings. A serialization must not define more than one `SpdxDocument`. Full SPDX JSON-LD conformance additionally requires structural validation against the versioned SPDX JSON Schema and semantic validation against the SPDX OWL ontology/SHACL constraints.
 
 OriginWeave therefore separates four claims that must not be collapsed:
 
@@ -22,6 +22,8 @@ This slice implements claims 1 through 3 only. Claim 4 remains a later independe
 
 - SBOM identity must not drift away from the exact release manifest it supplements.
 - The supported SPDX JSON-LD format must expose its exact specification version and required versioned global context identity rather than rely on an ambient or moving context.
+- Standards-permitted inline namespace mappings must not be rejected merely because `@context` is represented as a JSON-LD context array.
+- Additional remote context strings must not become ambient authority through the narrow envelope gate.
 - Actual serialized bytes must not be accepted merely because metadata says they are SPDX 3.0.1 JSON-LD.
 - Envelope parsing must be bounded before deeper semantic use and reject malformed UTF-8, malformed JSON, duplicate JSON object members, non-finite JSON constants, unexpected top-level members, non-object graph entries, excessive graph cardinality, and zero or multiple `SpdxDocument` objects.
 - Error diagnostics must not reflect attacker- or supplier-controlled document bytes.
@@ -37,7 +39,7 @@ This slice implements claims 1 through 3 only. Claim 4 remains a later independe
 - `ReleaseSbomBinding` can reference only exact, case-sensitive artifact names already present in one `ReleaseManifest`.
 - The SBOM artifact is represented by the existing manifest-backed `ReleaseArtifact`, including its lowercase SHA-256 identity, and cannot also appear in the binding's described-artifact set.
 - Every other artifact admitted by that release manifest must be retained in the described-artifact set exactly once. This is an OriginWeave release-inventory completeness rule, not a general SPDX modeling assertion.
-- `scripts/release/validate_spdx_jsonld.py` consumes actual bytes only for a narrow envelope check. It accepts at most 16 MiB, requires strict UTF-8 JSON, requires exactly the top-level `@context` and `@graph` members, requires the exact SPDX 3.0.1 global context string, bounds the graph to 65,536 objects, requires each graph entry to be an object with a string `type`, and requires exactly one object whose type is `SpdxDocument`.
+- `scripts/release/validate_spdx_jsonld.py` consumes actual bytes only for a narrow envelope check. It accepts at most 16 MiB, requires strict UTF-8 JSON, requires exactly the top-level `@context` and `@graph` members, and requires either the exact SPDX 3.0.1 global context string or a JSON-LD context array whose first entry is that exact URI and whose remaining entries are inline mapping objects. Later remote-context strings and `null` entries are rejected. The verifier bounds the graph to 65,536 objects, requires each graph entry to be an object with a string `type`, and requires exactly one object whose type is `SpdxDocument`.
 - The envelope verifier deliberately does not fetch remote contexts or schemas, resolve external identifiers, authenticate artifacts, validate the SPDX JSON Schema, evaluate the SPDX ontology/SHACL constraints, infer package completeness, or grant any signing/release/update authority.
 - Full conformance still requires validation of the same serialized bytes against reviewed SPDX 3.0.1 structural and semantic resources plus OriginWeave product-completeness rules.
 
@@ -46,6 +48,14 @@ This slice implements claims 1 through 3 only. Claim 4 remains a later independe
 ### Trust the declared SBOM format without reading bytes
 
 Rejected. A manifest can correctly identify an artifact while the artifact bytes contain the wrong context, malformed JSON, an ambiguous duplicate-key object, or multiple `SpdxDocument` definitions.
+
+### Require `@context` to be only the SPDX global-context string
+
+Rejected. SPDX 3.0.1 explicitly permits additional namespace mappings in a separate object within the context, and JSON-LD 1.1 permits context arrays. Rejecting that representation would turn a fail-closed release gate into a standards-incompatible false negative.
+
+### Permit arbitrary additional JSON-LD context entries
+
+Rejected for this bounded gate. Later remote context strings or `null` entries would broaden authority beyond the pinned SPDX vocabulary and make downstream interpretation dependent on ambient external resources. This slice admits only inline context objects after the exact versioned SPDX URI; deeper semantic validity remains the responsibility of the full SPDX verifier.
 
 ### Treat a general-purpose JSON parse as SPDX conformance
 
@@ -83,26 +93,26 @@ OriginWeave adopts the following release-SBOM boundary:
 6. Foreign, duplicate, incomplete, and case-drifted described artifact identities fail closed.
 7. Described artifact identities are stored deterministically and the manifest's existing bound transitively limits the inventory.
 8. Before deeper SPDX processing, actual candidate JSON-LD bytes may pass through `validate_spdx_3_0_1_jsonld_bytes`.
-9. That verifier admits only non-empty strict-UTF-8 payloads no larger than 16 MiB, rejects duplicate JSON keys and non-finite constants, requires exactly the top-level `@context` and `@graph` members, requires the exact versioned context, allows at most 65,536 graph objects, requires object entries with string `type`, and requires exactly one `SpdxDocument`.
+9. That verifier admits only non-empty strict-UTF-8 payloads no larger than 16 MiB, rejects duplicate JSON keys and non-finite constants, requires exactly the top-level `@context` and `@graph` members, and requires the versioned SPDX context either as the exact context string or as the first entry of a JSON-LD context array followed only by inline mapping objects. It rejects additional remote context strings or `null`, allows at most 65,536 graph objects, requires object entries with string `type`, and requires exactly one `SpdxDocument`.
 10. Validation errors expose stable error codes and generic diagnostics without reflecting document bytes.
 11. Envelope success is not a certificate of SPDX JSON Schema validity, semantic ontology/SHACL validity, package/component completeness, artifact authenticity, provenance, signatures, publication, installation, update, rollback, or release authority.
-12. No verifier fallback may substitute another SPDX version, relax the context, discard duplicate keys, silently truncate a graph, fetch an ambient remote resource, or convert malformed content into success.
+12. No verifier fallback may substitute another SPDX version, discard the required pinned context, discard duplicate keys, silently truncate a graph, fetch an ambient remote resource, or convert malformed content into success.
 
 ## Consequences
 
-Downstream release tooling receives an exact versioned serialization identity, a non-circular and release-inventory-complete identity join, and a bounded first check over actual bytes. A candidate cannot pass this layer with the wrong SPDX context, an extra top-level field, malformed JSON, duplicate members, a non-object graph entry, an unbounded graph, or zero/multiple `SpdxDocument` objects.
+Downstream release tooling receives an exact versioned serialization identity, a non-circular and release-inventory-complete identity join, and a bounded first check over actual bytes. A standards-valid document can use the required SPDX context together with inline namespace mappings without being rejected solely for using JSON-LD's context-array form. A candidate cannot pass this layer with the wrong SPDX context, an additional remote context string, an extra top-level field, malformed JSON, duplicate members, a non-object graph entry, an unbounded graph, or zero/multiple `SpdxDocument` objects.
 
 The boundary remains intentionally narrower than a commercial SBOM generator or complete verifier. The official SPDX 3.0.1 specification requires structural validation against the JSON Schema and semantic validation against the OWL ontology/SHACL constraints; those checks, package/component completeness, root-element rules, artifact digest verification, provenance, signing, and integrated release acceptance remain separate work. Envelope success must never be presented as full SPDX conformance.
 
 ## Failure and degraded behavior
 
-Manifest-binding failures occur before a binding is produced. Envelope failures return deterministic redacted error codes and no document-controlled value is echoed into the diagnostic. Oversized input is rejected before JSON parsing. Invalid UTF-8, invalid JSON, duplicate keys, incorrect context, invalid top-level shape, non-object graph entries, excessive graph cardinality, and invalid `SpdxDocument` cardinality all fail closed.
+Manifest-binding failures occur before a binding is produced. Envelope failures return deterministic redacted error codes and no document-controlled value is echoed into the diagnostic. Oversized input is rejected before JSON parsing. Invalid UTF-8, invalid JSON, duplicate keys, missing or incorrect required context, disallowed ambient context entries, invalid top-level shape, non-object graph entries, excessive graph cardinality, and invalid `SpdxDocument` cardinality all fail closed.
 
 Failure at either layer does not authorize release through another path. There is no alternate version fallback, network context fallback, permissive parse mode, or silent default success.
 
 ## Security / privacy / governance impact
 
-The boundary reduces supply-chain ambiguity without introducing ambient network authority. Bounded parsing constrains memory exposure before deeper validation, duplicate-key rejection prevents parser interpretation drift, exact context matching prevents version drift, and redacted diagnostics prevent supplier-controlled SBOM bytes from being reflected into CI/release logs. The verifier introduces no secrets, personal data, signing material, privileged network access, reviewer authority, or release authority.
+The boundary reduces supply-chain ambiguity without introducing ambient network authority. Bounded parsing constrains memory exposure before deeper validation, duplicate-key rejection prevents parser interpretation drift, the pinned versioned SPDX context prevents version drift, inline mapping objects preserve standards interoperability, disallowing later remote context strings prevents an envelope pass from authorizing an additional moving context, and redacted diagnostics prevent supplier-controlled SBOM bytes from being reflected into CI/release logs. The verifier introduces no secrets, personal data, signing material, privileged network access, reviewer authority, or release authority.
 
 ## Tests and acceptance evidence
 
@@ -111,7 +121,8 @@ The Rust identity tests must continue to prove exact SPDX specification/context 
 The Python release-verifier contract tests must prove:
 
 - exact SPDX 3.0.1 context and one `SpdxDocument` are admitted;
-- wrong context and unexpected top-level members fail closed;
+- the required SPDX context plus an inline namespace-mapping object is admitted;
+- wrong context, an additional remote context string, and unexpected top-level members fail closed;
 - duplicate JSON keys, malformed UTF-8, non-finite constants, invalid graph entries, excessive graph size, and zero/multiple documents fail closed; and
 - hostile external bytes never appear in diagnostics.
 
@@ -138,3 +149,5 @@ Supersede this ADR when a versioned external release/SBOM specification replaces
 SPDX Workgroup. (2026). *SPDX specification 3.0.1*. The Linux Foundation. https://spdx.github.io/spdx-spec/v3.0.1/
 
 SPDX Workgroup. (2026). *SPDX specification 3.0.1: Model and serializations*. The Linux Foundation. https://spdx.github.io/spdx-spec/v3.0.1/serializations/
+
+World Wide Web Consortium. (2020, July 16). *JSON-LD 1.1: A JSON-based serialization for linked data*. https://www.w3.org/TR/json-ld11/
