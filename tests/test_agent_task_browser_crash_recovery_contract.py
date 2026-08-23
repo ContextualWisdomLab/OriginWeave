@@ -6,6 +6,7 @@ import http.client
 import pathlib
 import runpy
 import signal
+import subprocess
 import unittest
 from unittest import mock
 
@@ -156,6 +157,29 @@ class AgentTaskBrowserCrashRecoveryContractTests(unittest.TestCase):
 
         cleanup(ExitedDriver())
         self.assertEqual(events, ["poll", ("wait", 5)])
+
+    def test_crash_trial_records_driver_teardown_timeout_as_failed_trial(self) -> None:
+        """A bounded ChromeDriver teardown timeout must fail one trial without aborting the run."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_browser_crash_timeout")
+        run_trial = namespace["_run_agent_task_browser_crash_trial"]
+
+        def driver_teardown_timeout(*_args: object, **_kwargs: object) -> dict[str, object]:
+            raise subprocess.TimeoutExpired(cmd="chromedriver", timeout=5)
+
+        run_trial.__globals__["_run_agent_task_browser_crash_browser_pass"] = (
+            driver_teardown_timeout
+        )
+        result = run_trial(
+            pathlib.Path("/controlled/chrome"),
+            pathlib.Path("/controlled/chromedriver"),
+            "http://127.0.0.1/agent-task",
+            1,
+        )
+
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["failure_type"], "TimeoutExpired")
+        self.assertTrue(result["profile_cleaned"])
 
     def test_crash_session_cleanup_ignores_only_reviewed_transport_failures(self) -> None:
         """Expected post-crash transport loss is bounded, while programming failures propagate."""
