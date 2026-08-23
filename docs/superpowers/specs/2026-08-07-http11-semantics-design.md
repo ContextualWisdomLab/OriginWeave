@@ -466,7 +466,7 @@ The crate records an extension-versus-MIME mismatch classification but does not 
 
 ## Redirect metadata
 
-For status `300`, `301`, `302`, `303`, `305`, `307`, or `308`, a single valid `Location` value produces:
+For status `300`, `301`, `302`, `303`, `307`, or `308`, a single valid `Location` value produces:
 
 ```rust
 pub struct RedirectMetadata {
