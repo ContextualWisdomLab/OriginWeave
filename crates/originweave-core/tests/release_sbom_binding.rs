@@ -199,6 +199,15 @@ fn spdx_sbom_binding_fails_closed_on_missing_or_ambiguous_manifest_identity()
             &manifest,
             "originweave.spdx.jsonld",
             ReleaseSbomFormat::Spdx30JsonLd,
+            vec!["originweave-linux-x86_64.tar.zst"],
+        ),
+        Err(ReleaseSbomBindingError::IncompleteDescribedArtifacts)
+    );
+    assert_eq!(
+        ReleaseSbomBinding::new(
+            &manifest,
+            "originweave.spdx.jsonld",
+            ReleaseSbomFormat::Spdx30JsonLd,
             vec!["not-in-release.bin"],
         ),
         Err(ReleaseSbomBindingError::UnknownDescribedArtifact)
@@ -253,6 +262,10 @@ fn spdx_sbom_binding_errors_are_standard_source_free_rust_errors() {
         (
             ReleaseSbomBindingError::MissingDescribedArtifacts,
             "release SBOM must describe at least one release artifact",
+        ),
+        (
+            ReleaseSbomBindingError::IncompleteDescribedArtifacts,
+            "release SBOM must describe every non-SBOM release artifact",
         ),
         (
             ReleaseSbomBindingError::SelfDescribedSbomArtifact,
