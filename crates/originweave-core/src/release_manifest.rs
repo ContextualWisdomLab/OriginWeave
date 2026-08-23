@@ -254,6 +254,15 @@ impl ReleaseSbomBinding {
         })
     }
 
+    /// Return the complete exact release manifest retained by this SBOM binding.
+    ///
+    /// This is inert identity evidence for downstream verification and provenance composition. It
+    /// does not authenticate the manifest, validate SBOM content, or grant release authority.
+    #[must_use]
+    pub const fn release_manifest(&self) -> &ReleaseManifest {
+        &self.release_manifest
+    }
+
     /// Return the declared SPDX serialization format.
     #[must_use]
     pub const fn format(&self) -> ReleaseSbomFormat {
@@ -262,7 +271,7 @@ impl ReleaseSbomBinding {
 
     /// Return the exact SPDX specification version represented by the declared format.
     #[must_use]
-    pub const fn spdx_specification_version(&self) -> &'static str {
+    pub const fn spdx_specification_version(self) -> &'static str {
         self.format.spdx_specification_version()
     }
 
@@ -276,6 +285,16 @@ impl ReleaseSbomBinding {
     #[must_use]
     pub fn described_artifact_names(&self) -> &[String] {
         &self.described_artifact_names
+    }
+
+    /// Return exact described artifact identities in deterministic lexical order.
+    ///
+    /// These name-and-digest identities are retained from the same admitted release manifest and
+    /// are suitable for later verification joins. Their presence alone does not authenticate
+    /// artifact bytes or prove that the SBOM content describes them.
+    #[must_use]
+    pub fn described_artifacts(&self) -> &[ReleaseArtifact] {
+        &self.described_artifacts
     }
 }
 
