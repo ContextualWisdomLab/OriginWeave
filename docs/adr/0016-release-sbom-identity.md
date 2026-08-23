@@ -14,8 +14,8 @@ Those two official 3.0.1 resources therefore expose an interoperability tension:
 OriginWeave separates four claims that must not be collapsed:
 
 1. the declared SPDX serialization identity;
-2. the immutable release-manifest/SBOM artifact identity join;
-3. a narrow, bounded check of the actual JSON-LD serialization envelope; and
+2. the immutable release-manifest/SBOM artifact identity join, including the exact manifest-backed SBOM SHA-256 digest;
+3. a narrow, bounded check of the actual JSON-LD serialization envelope over those exact candidate bytes; and
 4. full SPDX content conformance and product-specific package/component completeness.
 
 This slice implements claims 1 through 3 only. Claim 4 remains a later independently reviewed release gate.
@@ -27,30 +27,37 @@ This slice implements claims 1 through 3 only. Claim 4 remains a later independe
 - The preliminary envelope gate must not interpret arbitrary JSON-LD context controls or term redefinitions as harmless namespace declarations.
 - The gate should remain structurally compatible with the official SPDX 3.0.1 JSON Schema until a reviewed schema-aware extension policy exists.
 - Actual serialized bytes must not be accepted merely because metadata says they are SPDX 3.0.1 JSON-LD.
+- A syntactically valid but substituted SPDX document must not satisfy release evidence when its bytes do not match the exact SBOM artifact digest already admitted by the release manifest.
 - Envelope parsing must be bounded before deeper semantic use and reject malformed UTF-8, malformed JSON, duplicate JSON object members, non-finite JSON constants, unexpected top-level members, non-object graph entries, excessive graph cardinality, and zero or multiple `SpdxDocument` objects.
-- Error diagnostics must not reflect attacker- or supplier-controlled document bytes.
+- Error diagnostics must not reflect attacker- or supplier-controlled document bytes or release digest values.
 - The SBOM artifact itself must already be an admitted release artifact with a manifest-bound SHA-256 identity.
 - Every non-SBOM release artifact in the bound manifest must be represented exactly once in the described-artifact inventory.
 - Empty, incomplete, duplicate, foreign, self-described, and case-drifted artifact identities must fail closed.
-- Partial envelope validation must not be represented as SPDX JSON Schema/OWL/SHACL conformance, package completeness, provenance, signing, publication, installation, update, rollback, or release authority.
+- Partial digest/envelope validation must not be represented as SPDX JSON Schema/OWL/SHACL conformance, cryptographic provenance, signing, publication, installation, update, rollback, or release authority.
 
 ## Assumptions and authority boundaries
 
 - ADR 0015 remains the owning decision for release-manifest identity admission.
 - `ReleaseSbomFormat::Spdx30JsonLd` identifies SPDX 3.0.1 serialized as JSON-LD and exposes the exact required global context URI.
 - `ReleaseSbomBinding` can reference only exact, case-sensitive artifact names already present in one `ReleaseManifest`.
-- The SBOM artifact is represented by the existing manifest-backed `ReleaseArtifact`, including its lowercase SHA-256 identity, and cannot also appear in the binding's described-artifact set.
+- The SBOM artifact is represented by the existing manifest-backed `ReleaseArtifact`, including its lowercase `sha256:` identity, and cannot also appear in the binding's described-artifact set.
 - Every other artifact admitted by that release manifest must be retained in the described-artifact set exactly once. This is an OriginWeave release-inventory completeness rule, not a general SPDX modeling assertion.
-- `scripts/release/validate_spdx_jsonld.py` consumes actual bytes only for a narrow envelope check. It accepts at most 16 MiB, requires strict UTF-8 JSON, requires exactly the top-level `@context` and `@graph` members, and requires `@context` to equal the exact SPDX 3.0.1 global-context string. Context arrays and inline/remote context extensions fail closed at this stage.
-- The exact-string choice is deliberately narrower than the SPDX serialization prose because the official 3.0.1 JSON Schema itself uses that exact-string constraint and because this preliminary verifier does not implement complete JSON-LD context semantics or collision detection against the pinned SPDX context.
-- The envelope verifier does not fetch remote contexts or schemas, resolve external identifiers, authenticate artifacts, validate the full SPDX JSON Schema, evaluate the SPDX ontology/SHACL constraints, infer package completeness, or grant any signing/release/update authority.
-- Full conformance still requires validation of the same serialized bytes against reviewed SPDX 3.0.1 structural and semantic resources plus OriginWeave product-completeness rules.
+- `scripts/release/validate_spdx_jsonld.py` consumes actual bytes for a narrow envelope check. It accepts at most 16 MiB, requires strict UTF-8 JSON, requires exactly the top-level `@context` and `@graph` members, and requires `@context` to equal the exact SPDX 3.0.1 global-context string. Context arrays and inline/remote context extensions fail closed at this stage.
+- Release admission that composes those bytes with `ReleaseSbomBinding` uses `validate_release_spdx_3_0_1_jsonld_bytes` and supplies the exact canonical lowercase `sha256:` identity from `ReleaseSbomBinding::sbom_artifact()`. The helper recomputes SHA-256 from the bounded candidate bytes and rejects malformed expected identities or mismatches before promoting envelope evidence.
+- Digest equality proves correspondence to the declared manifest artifact identity only. It does not authenticate who produced the manifest or bytes and does not replace provenance, signature, transparency, reproducibility, or release-approval checks.
+- The exact-string context choice is deliberately narrower than the SPDX serialization prose because the official 3.0.1 JSON Schema itself uses that exact-string constraint and because this preliminary verifier does not implement complete JSON-LD context semantics or collision detection against the pinned SPDX context.
+- The verifier does not fetch remote contexts or schemas, resolve external identifiers, validate the full SPDX JSON Schema, evaluate the SPDX ontology/SHACL constraints, infer package completeness, or grant any signing/release/update authority.
+- Full conformance still requires validation of the same digest-bound serialized bytes against reviewed SPDX 3.0.1 structural and semantic resources plus OriginWeave product-completeness rules.
 
 ## Options considered
 
 ### Trust the declared SBOM format without reading bytes
 
-Rejected. A manifest can correctly identify an artifact while the artifact bytes contain the wrong context, malformed JSON, an ambiguous duplicate-key object, or multiple `SpdxDocument` definitions.
+Rejected. A manifest can correctly identify an artifact while a different candidate file is supplied, or while the candidate bytes contain the wrong context, malformed JSON, an ambiguous duplicate-key object, or multiple `SpdxDocument` definitions.
+
+### Validate an SPDX envelope without binding the bytes to the declared artifact digest
+
+Rejected for release admission. A completely valid SPDX document for another release could pass the envelope gate and be associated with the wrong `ReleaseSbomBinding`. The release-facing helper therefore hashes the exact bounded candidate bytes and compares the canonical `sha256:` identity to the manifest-backed SBOM artifact before returning release evidence.
 
 ### Admit the exact SPDX context plus arbitrary inline context objects
 
@@ -78,7 +85,7 @@ Rejected. A non-empty manifest-backed subset can look well formed while silently
 
 ### Allow the SBOM artifact to describe itself
 
-Rejected for OriginWeave's release identity contract. A self-referential described-artifact set makes the artifact-to-SBOM join circular at the exact-digest boundary later verification must evaluate. This is an OriginWeave integrity rule, not a claim that SPDX generally forbids such a relationship.
+Rejected for OriginWeave's release identity contract. A self-referential described-artifact set makes the artifact-to-SBOM join circular at the exact-digest boundary verification must evaluate. This is an OriginWeave integrity rule, not a claim that SPDX generally forbids such a relationship.
 
 ## Decision
 
@@ -91,29 +98,30 @@ OriginWeave adopts the following release-SBOM boundary:
 5. The SBOM artifact itself cannot be one of its described artifact identities.
 6. Foreign, duplicate, incomplete, and case-drifted described artifact identities fail closed.
 7. Described artifact identities are stored deterministically and the manifest's existing bound transitively limits the inventory.
-8. Before deeper SPDX processing, actual candidate JSON-LD bytes may pass through `validate_spdx_3_0_1_jsonld_bytes`.
-9. That verifier admits only non-empty strict-UTF-8 payloads no larger than 16 MiB, rejects duplicate JSON keys and non-finite constants, requires exactly the top-level `@context` and `@graph` members, and requires `@context` to equal the exact versioned SPDX 3.0.1 context string. Context arrays and all additional context entries fail closed. It allows at most 65,536 graph objects, requires object entries with string `type`, and requires exactly one raw `SpdxDocument` under the pinned alias semantics.
-10. Validation errors expose stable error codes and generic diagnostics without reflecting document bytes.
-11. Envelope success is not a certificate of complete SPDX JSON Schema validity, semantic ontology/SHACL validity, package/component completeness, artifact authenticity, provenance, signatures, publication, installation, update, rollback, or release authority.
-12. No verifier fallback may substitute another SPDX version, discard the required pinned context, reinterpret an unvalidated context extension, discard duplicate keys, silently truncate a graph, fetch an ambient remote resource, or convert malformed content into success.
+8. Release-facing validation of actual candidate bytes uses `validate_release_spdx_3_0_1_jsonld_bytes` with the exact `sha256:` identity from the manifest-backed SBOM artifact. The expected digest must be `sha256:` followed by 64 lowercase hexadecimal digits; the verifier recomputes SHA-256 over the same bounded bytes and a mismatch fails closed with a value-redacted typed error.
+9. Only after exact digest correspondence is established do those candidate bytes pass through the narrow `validate_spdx_3_0_1_jsonld_bytes` envelope contract. The lower-level function remains available for composition and testing but is not by itself release-artifact correspondence evidence.
+10. The envelope verifier admits only non-empty strict-UTF-8 payloads no larger than 16 MiB, rejects duplicate JSON keys and non-finite constants, requires exactly the top-level `@context` and `@graph` members, and requires `@context` to equal the exact versioned SPDX 3.0.1 context string. Context arrays and all additional context entries fail closed. It allows at most 65,536 graph objects, requires object entries with string `type`, and requires exactly one raw `SpdxDocument` under the pinned alias semantics.
+11. Validation errors expose stable error codes and generic diagnostics without reflecting document bytes or expected digest values.
+12. Digest/envelope success is not a certificate of complete SPDX JSON Schema validity, semantic ontology/SHACL validity, package/component completeness, producer authenticity, provenance, signatures, publication, installation, update, rollback, or release authority.
+13. No verifier fallback may substitute another SPDX version, discard the required pinned context or expected artifact digest, reinterpret an unvalidated context extension, discard duplicate keys, silently truncate a graph, fetch an ambient remote resource, or convert malformed or mismatched content into success.
 
 ## Consequences
 
-Downstream release tooling receives an exact versioned serialization identity, a non-circular and release-inventory-complete identity join, and a bounded first check over actual bytes. A candidate cannot pass this layer with the wrong SPDX context, a context array that can alter JSON-LD interpretation, an extra top-level field, malformed JSON, duplicate members, a non-object graph entry, an unbounded graph, or zero/multiple `SpdxDocument` objects.
+Downstream release tooling receives an exact versioned serialization identity, a non-circular and release-inventory-complete identity join, and a bounded first check over the exact bytes named by that join. A syntactically valid SPDX document for a different artifact cannot satisfy the release-facing helper merely because its envelope is valid. A candidate also cannot pass this layer with the wrong SPDX context, a context array that can alter JSON-LD interpretation, an extra top-level field, malformed JSON, duplicate members, a non-object graph entry, an unbounded graph, or zero/multiple `SpdxDocument` objects.
 
 The exact-context rule can reject a serialization that the SPDX 3.0.1 prose intends to allow through additional namespace mappings. That false negative is accepted at this preliminary gate because the same version's official structural schema currently requires the exact string and because OriginWeave does not yet possess a reviewed, schema-aware rule capable of proving that an extension object is namespace-only and non-colliding. Support for such mappings must be added only together with pinned full structural/semantic validation or another equally strong proof of interpretation.
 
-The boundary remains intentionally narrower than a commercial SBOM generator or complete verifier. The official SPDX 3.0.1 specification requires structural validation against the JSON Schema and semantic validation against the OWL ontology/SHACL constraints; those checks, package/component completeness, root-element rules, artifact digest verification, provenance, signing, and integrated release acceptance remain separate work. Envelope success must never be presented as full SPDX conformance.
+The boundary remains intentionally narrower than a commercial SBOM generator or complete verifier. The official SPDX 3.0.1 specification requires structural validation against the JSON Schema and semantic validation against the OWL ontology/SHACL constraints; those checks, package/component completeness, root-element rules, producer/provenance authentication, signing, and integrated release acceptance remain separate work. Digest/envelope success must never be presented as full SPDX conformance or signed supply-chain provenance.
 
 ## Failure and degraded behavior
 
-Manifest-binding failures occur before a binding is produced. Envelope failures return deterministic redacted error codes and no document-controlled value is echoed into the diagnostic. Oversized input is rejected before JSON parsing. Invalid UTF-8, invalid JSON, duplicate keys, missing or incorrect required context, context arrays/extensions, invalid top-level shape, non-object graph entries, excessive graph cardinality, and invalid `SpdxDocument` cardinality all fail closed.
+Manifest-binding failures occur before a binding is produced. Release-facing byte verification rejects a malformed expected digest or candidate-byte digest mismatch with deterministic value-redacted error codes. Envelope failures likewise return deterministic redacted error codes and no document-controlled value is echoed into the diagnostic. Oversized input is rejected before hashing or JSON parsing. Invalid UTF-8, invalid JSON, duplicate keys, missing or incorrect required context, context arrays/extensions, invalid top-level shape, non-object graph entries, excessive graph cardinality, and invalid `SpdxDocument` cardinality all fail closed.
 
-Failure at either layer does not authorize release through another path. There is no alternate version fallback, network context fallback, permissive parse mode, or silent default success.
+Failure at either layer does not authorize release through another path. There is no alternate digest, alternate version fallback, network context fallback, permissive parse mode, or silent default success.
 
 ## Security / privacy / governance impact
 
-The boundary reduces supply-chain ambiguity without introducing ambient network authority. Bounded parsing constrains memory exposure before deeper validation, duplicate-key rejection prevents parser interpretation drift, and the pinned exact SPDX context prevents version drift, remote `@import`, `@base`/`@vocab` mutation, and term/alias rebinding from being treated as already-admitted envelope semantics. Redacted diagnostics prevent supplier-controlled SBOM bytes from being reflected into CI/release logs. The verifier introduces no secrets, personal data, signing material, privileged network access, reviewer authority, or release authority.
+The boundary reduces supply-chain ambiguity without introducing ambient network authority. Exact SHA-256 correspondence prevents a different but otherwise valid SPDX document from being promoted under the manifest-backed SBOM identity. Bounded parsing constrains memory exposure before deeper validation, duplicate-key rejection prevents parser interpretation drift, and the pinned exact SPDX context prevents version drift, remote `@import`, `@base`/`@vocab` mutation, and term/alias rebinding from being treated as already-admitted envelope semantics. Redacted diagnostics prevent supplier-controlled SBOM bytes or expected digest values from being reflected into CI/release logs. The verifier introduces no secrets, personal data, signing material, privileged network access, reviewer authority, or release authority.
 
 ## Tests and acceptance evidence
 
@@ -121,6 +129,9 @@ The Rust identity tests must continue to prove exact SPDX specification/context 
 
 The Python release-verifier contract tests must prove:
 
+- exact candidate bytes match the canonical lowercase manifest-backed `sha256:` identity;
+- a valid but substituted SPDX document fails closed on digest mismatch without reflecting document-controlled bytes;
+- malformed, uppercase, truncated, or prefixless expected digests fail closed;
 - exact SPDX 3.0.1 context and one `SpdxDocument` are admitted;
 - context arrays, including apparently simple namespace mappings, fail closed until schema-aware extension validation exists;
 - `@import`, `@base`, `@vocab`, `type`, and `spdxId` context overrides fail closed;
@@ -132,15 +143,15 @@ Repository Python contracts, Rust 1.97.1 formatting/check/tests/Clippy/rustdoc, 
 
 ## Migration and rollback
 
-This remains a pre-release branch with no protected-main persisted SBOM schema migration. The verifier has no network or durable state. Before acceptance it can be revised or withdrawn with its owning branch. If a durable external release/SBOM format depends on this boundary, incompatible context, size, graph, or error-contract changes require explicit versioning and migration rather than silent parser broadening.
+This remains a pre-release branch with no protected-main persisted SBOM schema migration. The verifier has no network or durable state. Before acceptance it can be revised or withdrawn with its owning branch. If a durable external release/SBOM format depends on this boundary, incompatible digest, context, size, graph, or error-contract changes require explicit versioning and migration rather than silent parser broadening.
 
 ## Open follow-ups
 
 - Generate deterministic SPDX 3.0.1 SBOM content for supported release packages.
-- Validate the same candidate bytes against reviewed, immutable SPDX 3.0.1 JSON Schema and OWL/SHACL resources using offline-verifiable identities.
+- Validate the same digest-bound candidate bytes against reviewed, immutable SPDX 3.0.1 JSON Schema and OWL/SHACL resources using offline-verifiable identities.
 - Reconcile the SPDX 3.0.1 prose allowance for additional namespace mappings with the official 3.0.1 JSON Schema's exact-string `@context` constraint before admitting context composition.
 - Define package/component completeness and root-element rules for OriginWeave distribution artifacts.
-- Verify the bound SBOM artifact digest before content admission and compose the result with SLSA provenance, signing identity, timestamps, platform packages, reproducibility evidence, and updater trust.
+- Compose the digest-bound SBOM result with SLSA provenance, signing identity, timestamps, platform packages, reproducibility evidence, and updater trust.
 - Complete issue #201's integrated release acceptance and rollback/freeze-protection architecture.
 
 ## Supersession / reversal conditions
