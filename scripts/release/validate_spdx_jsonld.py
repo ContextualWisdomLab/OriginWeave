@@ -67,7 +67,8 @@ def validate_spdx_3_0_1_jsonld_bytes(payload: bytes) -> dict[str, int | str]:
     External document bytes are never included in raised errors. Successful validation
     proves only the narrow envelope contract documented by this module; callers must still
     perform the official SPDX JSON Schema and OWL/SHACL validation before claiming SPDX
-    conformance.
+    conformance. Excessive JSON nesting is treated as invalid external input instead of
+    escaping the typed, value-redacted validation boundary.
     """
 
     if not isinstance(payload, bytes) or not payload or len(payload) > MAX_SPDX_JSONLD_BYTES:
@@ -86,7 +87,7 @@ def validate_spdx_3_0_1_jsonld_bytes(payload: bytes) -> dict[str, int | str]:
         )
     except _DuplicateJsonKey as error:
         raise SpdxJsonLdEnvelopeError("duplicate_key") from error
-    except (json.JSONDecodeError, ValueError) as error:
+    except (json.JSONDecodeError, RecursionError, ValueError) as error:
         raise SpdxJsonLdEnvelopeError("invalid_json") from error
 
     if not isinstance(decoded, dict) or set(decoded) != {"@context", "@graph"}:
