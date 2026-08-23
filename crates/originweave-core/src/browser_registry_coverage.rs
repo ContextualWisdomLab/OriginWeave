@@ -150,9 +150,8 @@ fn issued_handles_report_retired_authority_boundaries() {
     let context_sessions = values(context_registry.register_session("context-retirement-session"));
     assert_eq!(context_sessions.len(), 1);
     let context_session = context_sessions[0];
-    let contexts = values(
-        context_registry.register_context(context_session, "context-retirement-context"),
-    );
+    let contexts =
+        values(context_registry.register_context(context_session, "context-retirement-context"));
     assert_eq!(contexts.len(), 1);
     let context = contexts[0];
     let context_handles = values(context_registry.bind_node(
