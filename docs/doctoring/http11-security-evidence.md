@@ -26,11 +26,13 @@ OriginWeave's observed classifier follows that byte-level contract after higher-
 
 The same WHATWG unknown-MIME signature table defines an exact `<?xml` signature whose computed MIME type is `text/xml`. OriginWeave therefore records `text/xml` for that observed signature rather than normalizing it to the related `application/xml` alias. This distinction is evidence-significant: a supplied `Content-Type: text/xml` must compare as an exact essence match when the observed prefix is the standard XML signature. Because that observable classifier output is persisted as evidence, this contract change advances the classifier version from `originweave-mime-signatures-1` to `originweave-mime-signatures-2`.
 
-## Request-target diagnostic redaction
+## Request-target diagnostic and evidence redaction
 
-An HTTP origin-form request target can legitimately contain a query component, and application query values can carry credentials or other protected material even when the surrounding origin and path are authorized. OriginWeave therefore treats the complete encoded path-and-query as wire-only request state rather than safe diagnostic text. `HttpRequestTarget` uses an explicit structural `Debug` implementation that records only the canonical origin, the domain-separated exact-target digest, whether a query exists, and the byte count of the bounded path prefix. It never formats the raw `encoded_path_and_query` or the retained path-prefix bytes.
+An HTTP origin-form request target can legitimately contain credentials or other protected material in either query values or path segments. Authorization of the surrounding origin and path shape does not make those bytes safe for logs or immutable evidence. OriginWeave therefore treats the complete encoded path-and-query as wire-only request state: it is retained only by `HttpRequestTarget` long enough to serialize the exact request and is omitted from structural `Debug` output.
 
-The regression contract constructs a target with credential-shaped query values and requires its debug representation to omit the field name, query parameter names, and query values. The complete target remains available only through the deliberate `path_and_query()` API for the request serializer; diagnostic formatting cannot accidentally turn it into log or evidence content.
+Credential-free request evidence records the canonical origin, a domain-separated SHA-256 identifier for the exact encoded target, whether a query component exists, and a structural marker of the form `<redacted-path:N-bytes>`, where `N` is the encoded path byte count before `?`. The raw path and query bytes are not retained in `HttpExchangeEvidence`. The exact target remains cryptographically bound through `target_hash`, so removing human-readable path bytes does not weaken immutable request identity.
+
+Regression evidence uses a request whose path itself contains `credential-value` and whose query contains `q=secret`. The authenticated loopback server must still receive the exact wire request, while both the evidence accessor and the evidence `Debug` representation must omit those credential-shaped bytes. This proves that diagnostic/evidence redaction does not rewrite network behavior or silently replace exact target identity with a lossy string.
 
 ## Verification contract
 
@@ -42,7 +44,8 @@ The exact pull-request head must demonstrate:
 - preservation of existing control, path, device-name, bidi, length, dot, and whitespace restrictions;
 - WHATWG byte-level text/binary classification, including passive non-UTF-8 high bytes and binary control-byte rejection;
 - exact WHATWG XML signature evidence as `text/xml`, with supplied `text/xml` producing `MimeMismatch::Match` and the classifier version reflecting the changed evidence semantics;
-- request-target debug output that cannot expose raw path/query bytes or credential-shaped query values;
+- exact request-target wire serialization while credential-free evidence retains only the target digest, query-presence flag, and structural encoded-path byte count;
+- request-target and exchange-evidence debug output that cannot expose raw path/query bytes or credential-shaped values;
 - Rust formatting, workspace checks, tests, Clippy, and rustdoc;
 - exact 100% production function, line, region, statement, and branch coverage;
 - Security Scan, SAST, all operationally required current review gates, and branch-protection gates.
