@@ -103,7 +103,7 @@ pub enum ApprovalLifecycleState {
 /// The caller supplies trusted control-plane epoch seconds to transition methods.
 /// Model output, page content, or another untrusted source must never supply that
 /// time value. This type performs no I/O and does not persist or authenticate data.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct EnterpriseApprovalRequest {
     scope: ApprovalScope,
     requester: ApprovalPrincipalRef,
