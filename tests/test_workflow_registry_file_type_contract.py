@@ -34,8 +34,12 @@ class WorkflowRegistryFileTypeContractTests(unittest.TestCase):
 
             def write_candidate() -> None:
                 writer_started.set()
-                with candidate.open("wb") as sink:
-                    sink.write(b"{}")
+                try:
+                    with candidate.open("wb") as sink:
+                        sink.write(b"{}")
+                except BrokenPipeError:
+                    # Expected when the reader rejects the FIFO before consuming bytes.
+                    return
 
             writer = threading.Thread(target=write_candidate, daemon=True)
             writer.start()
