@@ -199,6 +199,18 @@ class AgentTaskBrowserCrashRecoveryContractTests(unittest.TestCase):
         cleanup_session.__globals__["_json_request"] = unexpected_request
         cleanup_session(9222, None)
 
+    def test_crash_lane_binds_sampled_process_set_to_exact_root_identity(self) -> None:
+        """Crash sampling must preserve the prerequisite root-identity integrity contract."""
+
+        runner = RUNNER.read_text(encoding="utf-8")
+        crash_lane = runner.split(
+            "def _run_agent_task_browser_crash_browser_pass", 1
+        )[1].split("def _run_agent_task_browser_crash_trial", 1)[0]
+        self.assertIn(
+            "required_root_identity=browser_process_identity",
+            crash_lane,
+        )
+
     def test_crash_lane_is_required_for_success_evidence(self) -> None:
         """The real-browser evidence must retain deterministic crash and teardown proof."""
 
