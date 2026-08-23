@@ -41,10 +41,15 @@ class ReleaseSpdxJsonLdFileTypeContractTests(unittest.TestCase):
             writer.start()
             self.assertTrue(writer_started.wait(timeout=1.0))
 
-            with self.assertRaises(envelope_error) as captured:
-                read_bounded(candidate)
+            try:
+                with self.assertRaises(envelope_error) as captured:
+                    read_bounded(candidate)
+            finally:
+                if writer.is_alive():
+                    with candidate.open("rb", buffering=0) as release_reader:
+                        release_reader.read(2)
+                writer.join(timeout=1.0)
 
-            writer.join(timeout=1.0)
             self.assertFalse(writer.is_alive(), "FIFO writer remained blocked after rejection")
             self.assertEqual(captured.exception.code, "invalid_file_type")
 
