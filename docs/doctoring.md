@@ -134,9 +134,9 @@ Fielding, R., Nottingham, M., & Reschke, J. (2022). *HTTP semantics* (RFC 9110).
 
 Fugu Team, Sakana AI. (2026). *Sakana Fugu technical report* [Technical report]. arXiv. https://doi.org/10.48550/arXiv.2606.21228
 
-Git. (2025). *gitprotocol-common documentation*. https://git-scm.com/docs/gitprotocol-common
+Git. (2026). *gitprotocol-common documentation (Git 2.55.0)*. https://git-scm.com/docs/gitprotocol-common/2.55.0
 
-Git. (2026). *gitprotocol-pack documentation*. https://git-scm.com/docs/gitprotocol-pack
+Git. (2026). *gitprotocol-pack documentation (Git 2.55.0)*. https://git-scm.com/docs/gitprotocol-pack/2.55.0
 
 Huston, G., & Buraglio, N. (2024). *Expanding the IPv6 documentation space* (RFC 9637). Internet Engineering Task Force. https://doi.org/10.17487/RFC9637
 
