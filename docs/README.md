@@ -44,7 +44,7 @@ The PRD/TRD/Architecture/ADR/UML/ERD/data-governance/traceability/security/opera
 - [Safety-kernel implementation plan](superpowers/plans/2026-08-05-agent-safety-kernel.md)
 - [Resolved-destination policy design](superpowers/specs/2026-08-06-resolved-destination-policy-design.md)
 - [Resolved-destination policy implementation plan](superpowers/plans/2026-08-06-resolved-destination-policy.md)
-- [Direct socket binding design](superpowers/specs/2026-08-06-direct-socket-binding-design.md)
+- [Direct socket binding design](superpowers/specs/2026-08-06-direct-socket-binding.md)
 - [Direct socket binding implementation plan](superpowers/plans/2026-08-06-direct-socket-binding.md)
 - [TLS service-identity design](superpowers/specs/2026-08-06-tls-server-identity-design.md)
 - [TLS service-identity implementation plan](superpowers/plans/2026-08-06-tls-server-identity.md)
@@ -91,5 +91,7 @@ The second group exists only on this documentation branch until the branch integ
 - [ADR 0016: BAP task lifecycle and state authority](adr/0016-bap-task-lifecycle-authority.md)
 
 ADR 0016 is owned by this active BAP lifecycle feature branch and remains Proposed. Its presence here makes the branch documentation graph complete without presenting the decision or implementation as protected-main truth before integration.
+
+After protected-main integration, retain this subsection only when it is intentionally serving as historical provenance; otherwise protected-main reconciliation must remove it. In either case, integration alone does not change ADR 0016 from Proposed or assert implementation maturity.
 
 See the [ADR index](adr/README.md) for status rules, required decision structure, supersession rules, and active feature ADRs. The index and each ADR's own status metadata must agree; a PR body, chat transcript, automation prompt, or stale issue reference cannot change ADR status.
