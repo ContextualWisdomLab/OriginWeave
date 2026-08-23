@@ -671,7 +671,7 @@ mod tests {
                 &origins[0],
                 epochs[0],
                 0,
-                Arc::new(())
+                Arc::new(()),
             )
             .is_err()
         );
@@ -758,12 +758,8 @@ mod tests {
         let context = contexts[0];
         let origins = values(Origin::parse("http://127.0.0.1:43127"));
         assert_eq!(origins.len(), 1);
-        let handles = values(registry.bind_node(
-            owner,
-            context,
-            &origins[0],
-            "corrupt-context-node",
-        ));
+        let handles =
+            values(registry.bind_node(owner, context, &origins[0], "corrupt-context-node"));
         assert_eq!(handles.len(), 1);
 
         registry.context_session.insert(context, attacker);
@@ -786,15 +782,13 @@ mod tests {
         let corrupt_origins = values(Origin::parse("http://127.0.0.1:43128"));
         assert_eq!(origins.len(), 1);
         assert_eq!(corrupt_origins.len(), 1);
-        let handles = values(registry.bind_node(
-            session,
-            context,
-            &origins[0],
-            "corrupt-origin-node",
-        ));
+        let handles =
+            values(registry.bind_node(session, context, &origins[0], "corrupt-origin-node"));
         assert_eq!(handles.len(), 1);
 
-        registry.context_origin.insert(context, corrupt_origins[0].clone());
+        registry
+            .context_origin
+            .insert(context, corrupt_origins[0].clone());
         assert_eq!(
             registry.validate_node_handle(&handles[0]),
             Err(BrowserRegistryError::UnknownNodeAuthority)
@@ -835,6 +829,14 @@ mod tests {
         registry.context_epoch.insert(context, epoch);
         let handles = values(registry.bind_node(session, context, origin, "live-node"));
         assert_eq!(handles.len(), 1);
+
+        registry.context_origin.remove(&context);
+        assert_eq!(
+            registry.validate_node_handle(&handles[0]),
+            Err(BrowserRegistryError::UnknownNodeAuthority)
+        );
+
+        registry.context_origin.insert(context, origin.clone());
         registry.context_epoch.remove(&context);
         assert_eq!(
             registry.validate_node_handle(&handles[0]),
