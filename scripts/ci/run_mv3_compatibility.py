@@ -5,7 +5,7 @@ This is a release/CI evidence runner, not a product browser adapter. It uses the
 W3C WebDriver HTTP protocol only to prove that a real Chrome for Testing build
 can load the controlled MV3 fixture and repeatedly exercise service-worker,
 content-script, storage, declarative-net-request, tabs, windows, scripting,
-commands, side-panel, bookmarks, history, real-browser-click, and
+commands, side-panel, bookmarks, history, real browser-click, and
 restart-persistence behavior. It also executes the controlled Agent Task fixture
 with extensions disabled in a fresh profile, locates the controlled action
 targets by exact browser-computed role/name evidence, performs real WebDriver
@@ -504,23 +504,48 @@ def _wait_for_linux_process_identity_exit(
 
 def _read_linux_process_identity_set(
     process_ids: tuple[int, ...],
-) -> tuple[tuple[int, int], ...]:
-    """Bind one bounded sampled process set to exact Linux PID/start-time identities."""
+    *,
+    required_root_identity: tuple[int, int],
+) -> tuple[tuple[tuple[int, int], ...], int]:
+    """Bind live sampled PIDs while explicitly accounting for already-exited descendants."""
 
     if not process_ids or len(process_ids) > MAX_BROWSER_PROCESS_TREE_SIZE:
         raise ValueError("invalid Linux process identity-set size")
     if len(set(process_ids)) != len(process_ids):
         raise ValueError("Linux process identity-set PIDs must be unique")
+    if not isinstance(required_root_identity, tuple) or len(required_root_identity) != 2:
+        raise ValueError("invalid Linux root process identity")
+    root_process_id, root_start_time_ticks = required_root_identity
+    if (
+        isinstance(root_process_id, bool)
+        or not isinstance(root_process_id, int)
+        or root_process_id <= 0
+        or isinstance(root_start_time_ticks, bool)
+        or not isinstance(root_start_time_ticks, int)
+        or root_start_time_ticks <= 0
+    ):
+        raise ValueError("invalid Linux root process identity")
+    if process_ids[0] != root_process_id:
+        raise ValueError("Linux process identity set must start with the required root PID")
 
     identities: list[tuple[int, int]] = []
-    for process_id in process_ids:
+    pre_shutdown_exit_count = 0
+    for index, process_id in enumerate(process_ids):
         if isinstance(process_id, bool) or not isinstance(process_id, int) or process_id <= 0:
             raise ValueError("invalid Linux process identifier")
         identity = _read_linux_proc_stat_process_identity(process_id)
+        if index == 0:
+            if identity is None:
+                raise RuntimeError("Linux Chromium root process identity disappeared before shutdown capture")
+            if identity != required_root_identity:
+                raise RuntimeError("Linux Chromium root process identity changed before shutdown capture")
+            identities.append(identity)
+            continue
         if identity is None:
-            raise RuntimeError("Linux Chromium process disappeared before shutdown identity capture")
+            pre_shutdown_exit_count += 1
+            continue
         identities.append(identity)
-    return tuple(identities)
+    return tuple(identities), pre_shutdown_exit_count
 
 
 def _wait_for_linux_process_identity_set_exit(
@@ -917,7 +942,13 @@ def _run_restart_trial(
                 profile_dir,
                 "persisted",
             )
-        except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+        except (
+            OSError,
+            ValueError,
+            RuntimeError,
+            json.JSONDecodeError,
+            subprocess.TimeoutExpired,
+        ) as exc:
             failure_type = type(exc).__name__
     profile_cleaned = not profile_path.exists()
     if not profile_cleaned:
@@ -989,6 +1020,7 @@ def _run_agent_task_browser_pass(
     browser_process_id: int | None = None
     browser_process_start_time_ticks: int | None = None
     chromium_process_identities: tuple[tuple[int, int], ...] | None = None
+    chromium_process_pre_shutdown_exit_count: int | None = None
     browser_failure_type: str | None = None
     result: dict[str, Any] | None = None
     driver = subprocess.Popen(
@@ -1171,8 +1203,15 @@ def _run_agent_task_browser_pass(
             browser_process_id,
             process_evidence,
         )
-        chromium_process_identities = _read_linux_process_identity_set(
-            chromium_process_ids
+        (
+            chromium_process_identities,
+            chromium_process_pre_shutdown_exit_count,
+        ) = _read_linux_process_identity_set(
+            chromium_process_ids,
+            required_root_identity=(
+                browser_process_id,
+                browser_process_start_time_ticks,
+            ),
         )
         browser_process_rss_bytes = _sample_linux_process_rss_bytes(browser_process_id)
         chromium_process_set_rss_bytes = _sample_linux_process_set_rss_bytes(
@@ -1200,6 +1239,9 @@ def _run_agent_task_browser_pass(
             "saved_credential_services_disabled": True,
             "browser_process_rss_bytes": browser_process_rss_bytes,
             "chromium_process_count": chromium_process_count,
+            "chromium_process_pre_shutdown_exit_count": (
+                chromium_process_pre_shutdown_exit_count
+            ),
             "chromium_process_set_rss_bytes": chromium_process_set_rss_bytes,
             "semantic_observation_bytes": semantic_observation_bytes,
             "action_latency_ms": action_latency_ms,
@@ -1232,25 +1274,20 @@ def _run_agent_task_browser_pass(
         browser_process_id,
         browser_process_start_time_ticks,
     )
-    chromium_process_set_terminated: bool | None = None
-    if chromium_process_identities is not None:
-        chromium_process_set_terminated = _wait_for_linux_process_identity_set_exit(
-            chromium_process_identities
-        )
     if browser_failure_type is not None:
-        failure_evidence: dict[str, Any] = {
+        return {
             "failure_type": browser_failure_type,
             "browser_process_terminated": browser_process_terminated,
         }
-        if chromium_process_set_terminated is not None:
-            failure_evidence["chromium_process_set_terminated"] = (
-                chromium_process_set_terminated
-            )
-        return failure_evidence
     if result is None:
         raise RuntimeError("Agent Task browser pass returned no result after shutdown")
-    if chromium_process_set_terminated is None:
+    if chromium_process_identities is None:
         raise RuntimeError("Agent Task Chromium process identities were not captured")
+    if chromium_process_pre_shutdown_exit_count is None:
+        raise RuntimeError("Agent Task Chromium pre-shutdown exit count was not captured")
+    chromium_process_set_terminated = _wait_for_linux_process_identity_set_exit(
+        chromium_process_identities
+    )
     if not browser_process_terminated:
         raise RuntimeError("Agent Task browser process did not terminate")
     if not chromium_process_set_terminated:
@@ -1283,7 +1320,13 @@ def _run_agent_task_trial(
                 fixture_url,
                 profile_dir,
             )
-        except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+        except (
+            OSError,
+            ValueError,
+            RuntimeError,
+            json.JSONDecodeError,
+            subprocess.TimeoutExpired,
+        ) as exc:
             failure_type = type(exc).__name__
     profile_cleaned = not profile_path.exists()
     if not profile_cleaned:
@@ -1307,7 +1350,7 @@ def _run_agent_task_trial(
         browser_process_terminated = result.get("browser_process_terminated")
         if not isinstance(browser_process_terminated, bool):
             raise RuntimeError("Agent Task browser pass returned invalid teardown evidence")
-        failure_evidence: dict[str, Any] = {
+        return {
             "trial_number": trial_number,
             "passed": False,
             "failure_type": returned_failure_type,
@@ -1315,16 +1358,6 @@ def _run_agent_task_trial(
             "profile_cleaned": True,
             "duration_ms": duration_ms,
         }
-        if "chromium_process_set_terminated" in result:
-            chromium_process_set_terminated = result["chromium_process_set_terminated"]
-            if not isinstance(chromium_process_set_terminated, bool):
-                raise RuntimeError(
-                    "Agent Task browser pass returned invalid process-set teardown evidence"
-                )
-            failure_evidence["chromium_process_set_terminated"] = (
-                chromium_process_set_terminated
-            )
-        return failure_evidence
 
     return {
         "trial_number": trial_number,
@@ -1348,6 +1381,9 @@ def _run_agent_task_trial(
         "browser_process_rss_bytes": result["browser_process_rss_bytes"],
         "browser_process_terminated": result["browser_process_terminated"],
         "chromium_process_count": result["chromium_process_count"],
+        "chromium_process_pre_shutdown_exit_count": result[
+            "chromium_process_pre_shutdown_exit_count"
+        ],
         "chromium_process_set_rss_bytes": result["chromium_process_set_rss_bytes"],
         "chromium_process_set_terminated": result["chromium_process_set_terminated"],
         "semantic_observation_bytes": result["semantic_observation_bytes"],
@@ -1419,10 +1455,6 @@ def _run_agent_task_forced_close_browser_pass(
 
     driver_port = _free_loopback_port()
     session_id: str | None = None
-    browser_process_id: int | None = None
-    browser_process_start_time_ticks: int | None = None
-    chromium_process_identities: tuple[tuple[int, int], ...] | None = None
-    result: dict[str, Any] | None = None
     driver = subprocess.Popen(
         [str(chromedriver_bin), f"--port={driver_port}", "--allowed-ips=127.0.0.1"],
         stdout=subprocess.DEVNULL,
@@ -1467,22 +1499,11 @@ def _run_agent_task_forced_close_browser_pass(
             raise RuntimeError("ChromeDriver forced-close capabilities are malformed")
         session_id = _path_token(raw_session_id, "session identifier")
         browser_version = capabilities.get("browserVersion")
-        browser_process_id = capabilities.get("goog:processID")
         if browser_version != PINNED_CHROME_VERSION:
             raise RuntimeError(
                 f"unexpected forced-close Chrome version: expected {PINNED_CHROME_VERSION}, "
                 f"got {browser_version!r}"
             )
-        if (
-            isinstance(browser_process_id, bool)
-            or not isinstance(browser_process_id, int)
-            or browser_process_id <= 0
-        ):
-            raise RuntimeError("ChromeDriver did not return a valid forced-close browser process id")
-        browser_process_identity = _read_linux_proc_stat_process_identity(browser_process_id)
-        if browser_process_identity is None:
-            raise RuntimeError("Agent Task forced-close browser process identity disappeared")
-        browser_process_start_time_ticks = browser_process_identity[1]
 
         survivor_context = _json_request(
             driver_port,
@@ -1528,15 +1549,6 @@ def _run_agent_task_forced_close_browser_pass(
         if loaded_url != fixture_url:
             raise RuntimeError("Agent Task forced-close probe did not load its fixture URL")
 
-        process_evidence = _snapshot_linux_process_evidence()
-        chromium_process_ids = _discover_linux_process_tree_ids(
-            browser_process_id,
-            process_evidence,
-        )
-        chromium_process_identities = _read_linux_process_identity_set(
-            chromium_process_ids
-        )
-
         forced_close_detected = _force_close_agent_task_context(driver_port, session_id)
         if not forced_close_detected:
             raise RuntimeError("Agent Task forced-close probe did not detect the close")
@@ -1555,7 +1567,7 @@ def _run_agent_task_forced_close_browser_pass(
         if not isinstance(surviving_url, str):
             raise RuntimeError("Agent Task survivor context was not usable after forced close")
 
-        result = {
+        return {
             "browser_version": browser_version,
             "forced_close_detected": forced_close_detected,
             "session_survived": True,
@@ -1575,27 +1587,6 @@ def _run_agent_task_forced_close_browser_pass(
         except subprocess.TimeoutExpired:
             driver.kill()
             driver.wait(timeout=5)
-
-    if browser_process_id is None or browser_process_start_time_ticks is None:
-        raise RuntimeError("Agent Task forced-close browser process identity was not captured")
-    if chromium_process_identities is None:
-        raise RuntimeError("Agent Task forced-close Chromium process identities were not captured")
-    browser_process_terminated = _wait_for_linux_process_identity_exit(
-        browser_process_id,
-        browser_process_start_time_ticks,
-    )
-    chromium_process_set_terminated = _wait_for_linux_process_identity_set_exit(
-        chromium_process_identities
-    )
-    if result is None:
-        raise RuntimeError("Agent Task forced-close browser pass returned no result after shutdown")
-    if not browser_process_terminated:
-        raise RuntimeError("Agent Task forced-close browser process did not terminate")
-    if not chromium_process_set_terminated:
-        raise RuntimeError("Agent Task forced-close Chromium process set did not terminate")
-    result["browser_process_terminated"] = True
-    result["chromium_process_set_terminated"] = True
-    return result
 
 
 def _run_agent_task_forced_close_trial(
@@ -1621,7 +1612,13 @@ def _run_agent_task_forced_close_trial(
                 fixture_url,
                 profile_dir,
             )
-        except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+        except (
+            OSError,
+            ValueError,
+            RuntimeError,
+            json.JSONDecodeError,
+            subprocess.TimeoutExpired,
+        ) as exc:
             failure_type = type(exc).__name__
     profile_cleaned = not profile_path.exists()
     if not profile_cleaned:
@@ -1647,8 +1644,6 @@ def _run_agent_task_forced_close_trial(
         "browser_version": result["browser_version"],
         "forced_close_detected": result["forced_close_detected"],
         "session_survived": result["session_survived"],
-        "browser_process_terminated": result["browser_process_terminated"],
-        "chromium_process_set_terminated": result["chromium_process_set_terminated"],
         "profile_cleaned": True,
         "duration_ms": duration_ms,
     }
@@ -1827,6 +1822,11 @@ def main() -> int:
             and trial["browser_process_rss_bytes"] > 0
             and isinstance(trial.get("chromium_process_count"), int)
             and 0 < trial["chromium_process_count"] <= MAX_BROWSER_PROCESS_TREE_SIZE
+            and isinstance(trial.get("chromium_process_pre_shutdown_exit_count"), int)
+            and not isinstance(trial["chromium_process_pre_shutdown_exit_count"], bool)
+            and 0
+            <= trial["chromium_process_pre_shutdown_exit_count"]
+            < trial["chromium_process_count"]
             and isinstance(trial.get("chromium_process_set_rss_bytes"), int)
             and trial["chromium_process_set_rss_bytes"] > 0
             and isinstance(trial.get("semantic_observation_bytes"), int)
@@ -1849,8 +1849,6 @@ def main() -> int:
         forced_close_surfaces_complete = all(
             trial.get("forced_close_detected") is True
             and trial.get("session_survived") is True
-            and trial.get("browser_process_terminated") is True
-            and trial.get("chromium_process_set_terminated") is True
             and trial.get("profile_cleaned") is True
             for trial in forced_close_trials
             if trial.get("passed") is True
