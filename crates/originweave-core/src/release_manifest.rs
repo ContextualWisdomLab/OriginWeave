@@ -253,7 +253,7 @@ impl ReleaseManifest {
 /// Validation error for release-manifest identity evidence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReleaseManifestError {
-    /// Source commit is not a full lowercase Git SHA-1 identity.
+    /// Source commit is not a non-null full lowercase 40-hex Git object identity.
     InvalidSourceCommit,
     /// Chromium revision is not a canonical bounded release token.
     InvalidChromiumRevision,
@@ -268,8 +268,9 @@ pub enum ReleaseManifestError {
 impl fmt::Display for ReleaseManifestError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidSourceCommit => formatter
-                .write_str("release source commit must be exactly 40 lowercase hexadecimal digits"),
+            Self::InvalidSourceCommit => formatter.write_str(
+                "release source commit must be a non-null 40-digit lowercase Git object identity",
+            ),
             Self::InvalidChromiumRevision => {
                 formatter.write_str("Chromium revision must be a canonical bounded release token")
             }
