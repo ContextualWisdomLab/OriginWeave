@@ -73,6 +73,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 ### Security
 
 - Explicit proxy server identifiers require ASCII decimal port tokens before numeric range parsing, preventing Rust-specific leading-plus spellings from widening proxy authority.
+- Release artifact admission rejects `COM0` through `COM9` and `LPT0` through `LPT9` case-insensitively, including extensions, so package names cannot become Windows device or Microsoft synchronization conflicts in buyer environments.
 - Raw page content cannot become a trusted instruction.
 - Raw secrets are rejected and secret-capable actions require an opaque broker handle.
 - Crawler mode is read-only, must pair with the public-crawl purpose, and fails closed without an applicable robots-policy decision.
