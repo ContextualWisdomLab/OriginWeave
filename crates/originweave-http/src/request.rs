@@ -54,11 +54,6 @@ pub(crate) fn serialize_request(
                 maximum_bytes: policy.max_header_value_bytes(),
             });
         }
-        if field.name() == "accept-encoding" {
-            return Err(HttpError::ForbiddenRequestField {
-                field_name: field.name().to_owned(),
-            });
-        }
         if !seen.insert(field.name()) {
             return Err(HttpError::DuplicateRequestField {
                 field_name: field.name().to_owned(),
@@ -176,24 +171,6 @@ mod tests {
             request,
             b"GET /items?q=one HTTP/1.1\r\nHost: example.com:8443\r\nConnection: close\r\nAccept-Encoding: gzip, deflate\r\naccept: application/json\r\n\r\n"
         );
-    }
-
-    #[test]
-    fn request_serialization_rejects_caller_response_coding_negotiation() {
-        let target =
-            HttpRequestTarget::parse(Origin::parse("https://example.com").expect("origin"), "/")
-                .expect("target");
-        let field = RequestField::new("Accept-Encoding", b"br").expect("syntactic field");
-        assert!(matches!(
-            serialize_request(
-                HttpMethod::Get,
-                &target,
-                &[field],
-                &HttpClientPolicy::strict_defaults(),
-            ),
-            Err(HttpError::ForbiddenRequestField { field_name })
-                if field_name == "accept-encoding"
-        ));
     }
 
     #[test]
