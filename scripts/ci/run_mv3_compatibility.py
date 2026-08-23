@@ -85,7 +85,7 @@ def _path_token(value: str, label: str) -> str:
 
 
 def _webdriver_path(session_id: str, suffix: str) -> str:
-    """Build a bounded ChromeDriver path from a validated session identifier."""
+    """Build a bounded WebDriver element command path from validated identifiers."""
 
     safe_session = _path_token(session_id, "session identifier")
     if suffix and not suffix.startswith("/"):
@@ -152,8 +152,6 @@ def _wait_for_driver(driver_port: int) -> None:
                 return
         except (
             OSError,
-            ValueError,
-            RuntimeError,
             json.JSONDecodeError,
             http.client.BadStatusLine,
         ) as exc:
