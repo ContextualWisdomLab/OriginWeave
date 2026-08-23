@@ -12,8 +12,10 @@ from __future__ import annotations
 import argparse
 import datetime
 import json
+import os
 import pathlib
 import re
+import stat
 import sys
 from typing import Any
 
@@ -534,11 +536,19 @@ def _parse_bounded_json_integer(value: str) -> int:
     return int(value)
 
 
+def _nonblocking_read_opener(path: str, flags: int) -> int:
+    """Open audit input without allowing a FIFO/device open to wait indefinitely."""
+
+    return os.open(path, flags | getattr(os, "O_NONBLOCK", 0))
+
+
 def _read_payload(path: pathlib.Path) -> dict[str, Any]:
-    """Read at most four mebibytes of unambiguous UTF-8 JSON audit evidence."""
+    """Read at most four mebibytes from one regular UTF-8 JSON evidence file."""
 
     try:
-        with path.open("rb") as source:
+        with open(path, "rb", opener=_nonblocking_read_opener) as source:
+            if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
+                raise WorkflowAuditError("input must be a regular file")
             content = source.read(_MAX_INPUT_BYTES + 1)
     except OSError as error:
         raise WorkflowAuditError("input is not readable UTF-8 JSON") from error
