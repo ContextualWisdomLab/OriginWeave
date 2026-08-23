@@ -92,6 +92,52 @@ fn spdx_sbom_binding_retains_exact_described_artifact_identity() -> Result<(), B
 }
 
 #[test]
+fn spdx_sbom_binding_retains_exact_release_manifest_identity() -> Result<(), Box<dyn Error>> {
+    let original_manifest = release_manifest()?;
+    let changed_source_manifest = ReleaseManifest::new(
+        "89abcdef0123456789abcdef0123456789abcdef",
+        CHROMIUM_REVISION,
+        ReleaseChannel::Stable,
+        ReleaseBuildIdentity::new("1.97.1", &sha256_digest('9'))?,
+        original_manifest.artifacts().iter().cloned(),
+    )?;
+    let changed_channel_manifest = ReleaseManifest::new(
+        SOURCE_COMMIT,
+        CHROMIUM_REVISION,
+        ReleaseChannel::Beta,
+        ReleaseBuildIdentity::new("1.97.1", &sha256_digest('9'))?,
+        original_manifest.artifacts().iter().cloned(),
+    )?;
+    let described_names = vec![
+        "originweave-native-host.bin",
+        "originweave-linux-x86_64.tar.zst",
+    ];
+
+    let original_binding = ReleaseSbomBinding::new(
+        &original_manifest,
+        "originweave.spdx.jsonld",
+        ReleaseSbomFormat::Spdx30JsonLd,
+        described_names.clone(),
+    )?;
+    let changed_source_binding = ReleaseSbomBinding::new(
+        &changed_source_manifest,
+        "originweave.spdx.jsonld",
+        ReleaseSbomFormat::Spdx30JsonLd,
+        described_names.clone(),
+    )?;
+    let changed_channel_binding = ReleaseSbomBinding::new(
+        &changed_channel_manifest,
+        "originweave.spdx.jsonld",
+        ReleaseSbomFormat::Spdx30JsonLd,
+        described_names,
+    )?;
+
+    assert_ne!(original_binding, changed_source_binding);
+    assert_ne!(original_binding, changed_channel_binding);
+    Ok(())
+}
+
+#[test]
 fn spdx_sbom_binding_fails_closed_on_missing_or_ambiguous_manifest_identity()
 -> Result<(), Box<dyn Error>> {
     let manifest = release_manifest()?;
