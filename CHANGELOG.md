@@ -6,7 +6,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Added
 
-- Added a bounded enterprise maker-checker approval lifecycle with opaque principal references, exact immutable-scope approval, distinct maker/checker enforcement, bounded expiry and use counts, monotonic trusted-time transitions, and fail-closed terminal states.
+- Added a bounded enterprise maker-checker approval lifecycle with opaque principal references, exact immutable-scope approval, distinct maker/checker enforcement, bounded expiry and use counts, monotonic trusted-time transitions, fail-closed terminal states, and non-cloneable one-shot policy-evaluation uses so consumed enterprise authority cannot be replayed as reusable approval evidence.
 - Bound explicit extension-to-Agent grants to exclusive trusted-time expiry in addition to extension identity, session, browsing context, and canonical origin, so a same-origin grant cannot be reused at or after the deadline.
 - Bound explicit extension-to-Agent grants to the exact canonical origin in addition to extension identity, session, and browsing context, so a same-session navigation or port change cannot reuse the grant.
 - Rust workspace for independently reusable core, policy, destination, network, TLS, resource, and evidence modules.
@@ -52,6 +52,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Crawler mode is read-only, must pair with the public-crawl purpose, and fails closed without an applicable robots-policy decision.
 - State-changing actions are same-origin by default.
 - R3 and R4 approvals are bound to the exact action, target origin, and immutable digest of the complete canonical action intent; R5 legal consent is non-delegable.
+- Consumed enterprise maker-checker approvals expose only a non-cloneable one-shot policy-evaluation use; denial still burns the consumed use and the reusable caller policy context is not upgraded with enterprise approval evidence.
 - Shortened, integer, hexadecimal, and legacy octal-looking IPv4 host spellings are rejected so the policy origin cannot diverge from Chromium host interpretation.
 - IPv4-mapped IPv6 is canonicalized before destination classification and pin comparison so mapped private or loopback addresses cannot bypass IPv4 policy.
 - The default destination policy permits only public addresses and denies unspecified, loopback, private, shared, link-local, metadata, documentation, benchmarking, multicast, broadcast, transition, and protocol-reserved destinations.

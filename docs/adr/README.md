@@ -57,6 +57,14 @@ Proposed ADR files are reviewable target architecture without becoming Accepted 
 
 ADR 0013 and ADR 0014 exist only on this documentation branch until it integrates. After integration, this subsection remains historical provenance rather than an active-PR claim; both decisions remain Proposed until a later policy-compliant change explicitly changes their lifecycle.
 
+### Proposed decision introduced by enterprise approval development
+
+| ADR | Decision | Status | Governs |
+|---|---|---|---|
+| [0017](0017-enterprise-maker-checker-approval.md) | Enterprise maker-checker approval lifecycle | Proposed | immutable approval scope, role separation, trusted-time transitions, terminal states and bounded one-shot use |
+
+ADR 0017 is branch-local reviewable architecture until its owning enterprise approval change integrates. It remains Proposed and does not override Accepted ADR 0002 or protected-main implementation truth.
+
 Other active feature PRs may contain additional Proposed ADRs. Those files are not part of this canonical documentation line until integrated or deliberately reconciled here. Historical PR checks, stale branch state, or chat decisions never transfer ADR acceptance across a changed head.
 
 ## Index completeness rule
