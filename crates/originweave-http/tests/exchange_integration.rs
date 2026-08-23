@@ -213,7 +213,7 @@ fn authenticated_http11_get_uses_the_exact_tls_stream_and_returns_complete_evide
     assert_eq!(evidence.method(), HttpMethod::Get);
     assert_eq!(evidence.status_code(), 200);
     assert!(evidence.query_present());
-    assert_eq!(evidence.path_prefix(), "/reset/credential-value");
+    assert_eq!(evidence.path_prefix(), "<redacted-path:23-bytes>");
     let evidence_debug = format!("{evidence:?}");
     assert!(!evidence_debug.contains("credential-value"));
     assert!(!evidence_debug.contains("q=secret"));
