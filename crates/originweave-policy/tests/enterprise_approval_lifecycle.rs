@@ -2,7 +2,7 @@
 
 use std::error::Error;
 
-use originweave_core::{ActionIntentDigest, ActionKind, ApprovalEvidence, ApprovalScope, Origin};
+use originweave_core::{ActionIntentDigest, ActionKind, ApprovalScope, Origin};
 use originweave_policy::{
     ApprovalLifecycleError, ApprovalLifecycleState, ApprovalPrincipalRef,
     ApprovalPrincipalRefError, EnterpriseApprovalRequest,
@@ -103,10 +103,9 @@ fn distinct_checker_approves_exact_intent_and_single_use_consumes_it() {
     assert_eq!(request.state(), ApprovalLifecycleState::Approved);
     assert_eq!(request.decision_actor(), Some(&checker));
 
-    let evidence = request
+    let _approval_use = request
         .consume(&scope, 120)
         .expect("approved exact scope must be consumable");
-    assert_eq!(evidence, ApprovalEvidence::UserConfirmed(scope));
     assert_eq!(request.uses_consumed(), 1);
     assert_eq!(request.state(), ApprovalLifecycleState::Consumed);
 }
@@ -212,16 +211,14 @@ fn bounded_multi_use_approval_consumes_exactly_the_configured_count() {
         .approve(principal("https://id.example", "checker"), 110)
         .expect("approval must succeed");
 
-    assert!(matches!(
-        request.consume(&scope, 120),
-        Ok(ApprovalEvidence::UserConfirmed(_))
-    ));
+    let _first_use = request
+        .consume(&scope, 120)
+        .expect("first configured approval use must succeed");
     assert_eq!(request.state(), ApprovalLifecycleState::Approved);
     assert_eq!(request.uses_consumed(), 1);
-    assert!(matches!(
-        request.consume(&scope, 130),
-        Ok(ApprovalEvidence::UserConfirmed(_))
-    ));
+    let _second_use = request
+        .consume(&scope, 130)
+        .expect("second configured approval use must succeed");
     assert_eq!(request.state(), ApprovalLifecycleState::Consumed);
     assert_eq!(request.uses_consumed(), 2);
     assert_eq!(

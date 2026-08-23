@@ -7,7 +7,9 @@
 
 use std::fmt;
 
-use originweave_core::{ActionKind, ApprovalEvidence, ApprovalScope};
+use originweave_core::{
+    ActionKind, ActionRequest, ApprovalEvidence, ApprovalScope, PolicyContext,
+};
 
 const MAX_PRINCIPAL_REFERENCE_BYTES: usize = 256;
 
@@ -96,6 +98,46 @@ pub enum ApprovalLifecycleState {
     Consumed,
     /// The approving checker revoked an approved, not-yet-exhausted request.
     Revoked,
+}
+
+/// One consumed, non-replayable enterprise approval use.
+///
+/// This value is intentionally not [`Clone`]. It is created only by
+/// [`EnterpriseApprovalRequest::consume`] after exact-scope, trusted-time, and
+/// use-count checks succeed. [`Self::evaluate`] consumes the value, injects the
+/// approved scope into a private copy of the supplied policy context, and then
+/// delegates to the normal fail-closed policy evaluator. The use is burned even
+/// when policy evaluation denies the action or requires a different approval.
+///
+/// ```compile_fail
+/// # use originweave_core::{ActionRequest, PolicyContext};
+/// # use originweave_policy::EnterpriseApprovalUse;
+/// # fn replay_is_rejected(
+/// #     approval_use: EnterpriseApprovalUse,
+/// #     request: &ActionRequest,
+/// #     context: &PolicyContext,
+/// # ) {
+/// let _ = approval_use.evaluate(request, context);
+/// let _ = approval_use.evaluate(request, context);
+/// # }
+/// ```
+#[derive(Debug, PartialEq, Eq)]
+pub struct EnterpriseApprovalUse {
+    scope: ApprovalScope,
+}
+
+impl EnterpriseApprovalUse {
+    /// Evaluate exactly one action using this already-consumed approval use.
+    ///
+    /// The caller-provided context is cloned so the reusable caller context is
+    /// never upgraded with replayable approval evidence. This value itself is
+    /// consumed regardless of the resulting decision.
+    #[must_use]
+    pub fn evaluate(self, request: &ActionRequest, context: &PolicyContext) -> crate::Decision {
+        let mut one_shot_context = context.clone();
+        one_shot_context.set_approval(ApprovalEvidence::UserConfirmed(self.scope));
+        crate::evaluate(request, &one_shot_context)
+    }
 }
 
 /// A deterministic enterprise approval request bound to one immutable action intent.
@@ -290,13 +332,13 @@ impl EnterpriseApprovalRequest {
     /// Consume one use of an approved request for the exact immutable scope.
     ///
     /// `now_epoch_seconds` must be trusted control-plane time. Scope mismatch
-    /// does not consume a use. Successful consumption emits user-confirmation
-    /// evidence only for the request's exact scope.
+    /// does not consume a use. Successful consumption returns a non-cloneable
+    /// [`EnterpriseApprovalUse`] rather than replayable approval evidence.
     pub fn consume(
         &mut self,
         required_scope: &ApprovalScope,
         now_epoch_seconds: u64,
-    ) -> Result<ApprovalEvidence, ApprovalLifecycleError> {
+    ) -> Result<EnterpriseApprovalUse, ApprovalLifecycleError> {
         if self.state != ApprovalLifecycleState::Approved {
             return Err(ApprovalLifecycleError::InvalidState(self.state));
         }
@@ -314,7 +356,9 @@ impl EnterpriseApprovalRequest {
         if self.uses_consumed == self.max_uses {
             self.state = ApprovalLifecycleState::Consumed;
         }
-        Ok(ApprovalEvidence::UserConfirmed(self.scope.clone()))
+        Ok(EnterpriseApprovalUse {
+            scope: self.scope.clone(),
+        })
     }
 
     /// Revoke an approved request as the exact checker that approved it.

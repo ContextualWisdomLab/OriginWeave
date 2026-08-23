@@ -12,7 +12,7 @@ mod sensitive_data;
 
 pub use enterprise_approval::{
     ApprovalLifecycleError, ApprovalLifecycleState, ApprovalPrincipalRef,
-    ApprovalPrincipalRefError, EnterpriseApprovalRequest,
+    ApprovalPrincipalRefError, EnterpriseApprovalRequest, EnterpriseApprovalUse,
 };
 pub use sensitive_data::{
     DataClassification, DisclosureDecision, DisclosureScope, HandleUseDecision, HandleUseRequest,
