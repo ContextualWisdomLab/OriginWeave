@@ -62,8 +62,9 @@ ADR 0013 and ADR 0014 exist only on this documentation branch until it integrate
 | ADR | Decision | Status | Governs |
 |---|---|---|---|
 | [0015](0015-release-manifest-identity.md) | Release manifest identity boundary | Proposed | bounded release-candidate metadata identity, deterministic artifact ordering, cross-platform filename collision guards, and explicit exclusion of signing/publication/install/update authority |
+| [0016](0016-release-sbom-identity.md) | Release SBOM identity binding | Proposed | exact manifest-backed SPDX 3.0.1 SBOM artifact identity and described-artifact membership without content-conformance or release authority claims |
 
-ADR 0015 is active-PR architecture evidence for the release-manifest identity slice. Indexing it satisfies canonical discovery without promoting the Proposed decision or its implementation to protected-main truth.
+ADR 0015 is active-PR architecture evidence for the release-manifest identity slice. ADR 0016 is stacked active-PR architecture evidence for the release-SBOM identity slice. Indexing them satisfies canonical discovery without promoting either Proposed decision or its implementation to protected-main truth.
 
 Other active feature PRs may contain additional Proposed ADRs. Those files are not part of this canonical documentation line until integrated or deliberately reconciled here. Historical PR checks, stale branch state, or chat decisions never transfer ADR acceptance across a changed head.
 
