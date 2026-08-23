@@ -29,7 +29,6 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Authority-bound, bounded semantic node observations with typed node-local action evidence and explicit observation-channel provenance for the first Chromium vertical slice; observation metadata grants no execution authority.
 - Bounded typed semantic node queries over reviewed role, accessible-name, and node-action evidence, without exposing raw DOM/protocol selector languages or granting execution authority.
 - Authority-bound semantic node action targets accept only observation-advertised node-local actions and revalidate the exact node binding against the live browser authority registry before later use, so retired or stale handles cannot be revived by caller-supplied authority tuples.
-- Same-call semantic-node dispatch boundary that revalidates exact browser session, browsing context, canonical origin, and document epoch before invoking an already policy-authorized adapter callback, while keeping adapter execution outcome and post-condition proof separate.
 - Rust 1.97.1 build contract, strict Clippy and rustdoc gates, and exact production function, line, region, and branch coverage enforcement.
 - Hourly bounded OpenCode product-development workflow using `NVIDIA_NIM_API_KEY`, an unprivileged disposable workspace, loopback-only model broker, independently verified patches, and publication through a dedicated `OPENCODE_PR_TOKEN` that cannot review or merge.
 - Architecture, agent, security, contribution, research, database naming, roadmap, quality-gate, and TLS service-identity ADR documentation.
@@ -52,12 +51,14 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Security
 
+- Registry-issued node validation authenticates registry-instance issuance before session or context lookup, so caller-constructed and cross-registry handles cannot probe whether numeric browser-session identifiers are currently registered.
 - Raw page content cannot become a trusted instruction.
 - Raw secrets are rejected and secret-capable actions require an opaque broker handle.
 - Crawler mode is read-only, must pair with the public-crawl purpose, and fails closed without an applicable robots-policy decision.
 - State-changing actions are same-origin by default.
 - R3 and R4 approvals are bound to the exact action, target origin, and immutable digest of the complete canonical action intent; R5 legal consent is non-delegable.
 - Shortened, integer, hexadecimal, and legacy octal-looking IPv4 host spellings are rejected so the policy origin cannot diverge from Chromium host interpretation.
+- Bare hexadecimal-prefix host labels such as `0x`, including terminal `.0x` and `.0X` spellings, are rejected as browser-special numeric hosts rather than admitted as DNS authorities.
 - IPv4-mapped IPv6 is canonicalized before destination classification and pin comparison so mapped private or loopback addresses cannot bypass IPv4 policy.
 - The default destination policy permits only public addresses and denies unspecified, loopback, private, shared, link-local, metadata, documentation, benchmarking, multicast, broadcast, transition, and protocol-reserved destinations.
 - Azure platform IP `168.63.129.16` and Amazon EKS Pod Identity endpoints `169.254.170.23` and `fd00:ec2::23` are classified as metadata or platform services before broader public, link-local, or unique-local rules.
