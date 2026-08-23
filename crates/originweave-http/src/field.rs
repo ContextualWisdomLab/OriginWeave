@@ -15,6 +15,7 @@ const FORBIDDEN_REQUEST_FIELDS: &[&str] = &[
     "authorization",
     "proxy-authorization",
     "cookie",
+    "accept-encoding",
 ];
 
 /// One validated non-authoritative HTTP request field.
