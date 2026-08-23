@@ -30,9 +30,9 @@ The same WHATWG unknown-MIME signature table defines an exact `<?xml` signature 
 
 An HTTP origin-form request target can legitimately contain credentials or other protected material in either query values or path segments. Authorization of the surrounding origin and path shape does not make those bytes safe for logs or immutable evidence. OriginWeave therefore treats the complete encoded path-and-query as wire-only request state: it is retained only by `HttpRequestTarget` long enough to serialize the exact request and is omitted from structural `Debug` output.
 
-Credential-free request evidence records the canonical origin, a domain-separated SHA-256 identifier for the exact encoded target, whether a query component exists, and a structural marker of the form `<redacted-path:N-bytes>`, where `N` is the encoded path byte count before `?`. The raw path and query bytes are not retained in `HttpExchangeEvidence`. The exact target remains cryptographically bound through `target_hash`, so removing human-readable path bytes does not weaken immutable request identity.
+Credential-free request evidence records the canonical origin, a domain-separated SHA-256 identifier for the exact encoded target, whether a query component exists, and only the constant root path prefix `/`. No raw path or query bytes, path segments, or encoded-path length are retained in `HttpExchangeEvidence`. The exact target remains cryptographically bound through `target_hash`, so removing human-readable path bytes does not weaken immutable request identity.
 
-Regression evidence uses a request whose path itself contains `credential-value` and whose query contains `q=secret`. The authenticated loopback server must still receive the exact wire request, while both the evidence accessor and the evidence `Debug` representation must omit those credential-shaped bytes. This proves that diagnostic/evidence redaction does not rewrite network behavior or silently replace exact target identity with a lossy string.
+Regression evidence uses a request whose path itself contains `credential-value` and whose query contains `q=secret`. The authenticated loopback server must still receive the exact wire request, while the evidence accessor returns only `/` and the evidence `Debug` representation must omit both credential-shaped values. This proves that diagnostic/evidence redaction does not rewrite network behavior or silently replace exact target identity with a lossy string.
 
 ## Verification contract
 
@@ -44,7 +44,7 @@ The exact pull-request head must demonstrate:
 - preservation of existing control, path, device-name, bidi, length, dot, and whitespace restrictions;
 - WHATWG byte-level text/binary classification, including passive non-UTF-8 high bytes and binary control-byte rejection;
 - exact WHATWG XML signature evidence as `text/xml`, with supplied `text/xml` producing `MimeMismatch::Match` and the classifier version reflecting the changed evidence semantics;
-- exact request-target wire serialization while credential-free evidence retains only the target digest, query-presence flag, and structural encoded-path byte count;
+- exact request-target wire serialization while credential-free evidence retains only the target digest, query-presence flag, and constant root prefix `/`;
 - request-target and exchange-evidence debug output that cannot expose raw path/query bytes or credential-shaped values;
 - Rust formatting, workspace checks, tests, Clippy, and rustdoc;
 - exact 100% production function, line, region, statement, and branch coverage;
