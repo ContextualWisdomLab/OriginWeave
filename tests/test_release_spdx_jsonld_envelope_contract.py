@@ -148,6 +148,24 @@ class ReleaseSpdxJsonLdEnvelopeContractTests(unittest.TestCase):
         ).encode("utf-8")
         self._assert_error_code(payload, "invalid_json")
 
+    def test_excessive_json_nesting_fails_with_typed_redacted_error(self) -> None:
+        marker = "buyer-secret-marker-must-not-reach-release-diagnostics"
+        depth = 10_000
+        payload = (
+            '{"@context":"'
+            + CONTEXT
+            + '","@graph":[{"type":"SpdxDocument","nested":'
+            + "[" * depth
+            + '"'
+            + marker
+            + '"'
+            + "]" * depth
+            + "}]}"
+        ).encode("utf-8")
+
+        error = self._assert_error_code(payload, "invalid_json")
+        self.assertNotIn(marker, str(error))
+
     def test_empty_and_oversized_payloads_fail_before_semantic_use(self) -> None:
         self._assert_error_code(b"", "invalid_size")
         self._assert_error_code(b" " * (self.max_bytes + 1), "invalid_size")
