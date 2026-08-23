@@ -10,7 +10,7 @@ fn request_targets_preserve_authority_and_encode_non_ascii_bytes() {
     assert_eq!(target.origin(), &origin);
     assert_eq!(target.path_and_query(), "/%ED%95%9C%EA%B8%80?q=%EA%B0%92");
     assert!(target.query_present());
-    assert_eq!(target.path_prefix(), "<redacted-path:19-bytes>");
+    assert_eq!(target.path_prefix(), "/");
     assert!(target.target_hash().starts_with("sha256:"));
     assert_eq!(target.target_hash().len(), 71);
 }
@@ -26,16 +26,12 @@ fn request_targets_preserve_valid_percent_escape_spelling() {
 }
 
 #[test]
-fn request_target_path_evidence_retains_only_encoded_path_length() {
+fn request_target_path_evidence_retains_only_the_root_prefix() {
     let origin = Origin::parse("https://example.com").expect("origin");
     let credential_shaped_path = format!("/reset/{}/é", "secret-value".repeat(20));
     let target = HttpRequestTarget::parse(origin, &credential_shaped_path).expect("target");
-    let path_end = target.path_and_query().find('?').unwrap_or(target.path_and_query().len());
 
-    assert_eq!(
-        target.path_prefix(),
-        format!("<redacted-path:{path_end}-bytes>")
-    );
+    assert_eq!(target.path_prefix(), "/");
     assert!(!target.path_prefix().contains("secret-value"));
     assert!(!target.path_prefix().contains("reset"));
 }
