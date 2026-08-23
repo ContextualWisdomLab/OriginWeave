@@ -50,6 +50,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Security
 
+- Registry-issued node validation authenticates registry-instance issuance before session or context lookup, so caller-constructed and cross-registry handles cannot probe whether numeric browser-session identifiers are currently registered.
 - Raw page content cannot become a trusted instruction.
 - Raw secrets are rejected and secret-capable actions require an opaque broker handle.
 - Crawler mode is read-only, must pair with the public-crawl purpose, and fails closed without an applicable robots-policy decision.

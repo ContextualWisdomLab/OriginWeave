@@ -430,6 +430,9 @@ impl BrowserAuthorityRegistry {
         &self,
         handle: &ObservedNodeHandle,
     ) -> Result<(), BrowserRegistryError> {
+        if !handle.belongs_to(&self.registry_authority) {
+            return Err(BrowserRegistryError::UnknownNodeAuthority);
+        }
         if !self.known_sessions.contains(&handle.browser_session()) {
             return Err(BrowserRegistryError::UnknownBrowserSession);
         }
@@ -450,9 +453,6 @@ impl BrowserAuthorityRegistry {
         handle
             .validate_current(expected_session, context, origin, epoch)
             .map_err(|_error| BrowserRegistryError::UnknownNodeAuthority)?;
-        if !handle.belongs_to(&self.registry_authority) {
-            return Err(BrowserRegistryError::UnknownNodeAuthority);
-        }
         if self.node_binding_by_id.get(&handle.node_id()) != Some(&(context, epoch)) {
             return Err(BrowserRegistryError::UnknownNodeAuthority);
         }
@@ -671,7 +671,7 @@ mod tests {
                 &origins[0],
                 epochs[0],
                 0,
-                Arc::new(())
+                Arc::new(()),
             )
             .is_err()
         );
@@ -744,6 +744,58 @@ mod tests {
     }
 
     #[test]
+    fn issued_handle_rejects_private_context_session_corruption() {
+        let mut registry = BrowserAuthorityRegistry::new();
+        let owners = values(registry.register_session("corrupt-owner-session"));
+        let attackers = values(registry.register_session("corrupt-attacker-session"));
+        assert_eq!(owners.len(), 1);
+        assert_eq!(attackers.len(), 1);
+        let owner = owners[0];
+        let attacker = attackers[0];
+
+        let contexts = values(registry.register_context(owner, "corrupt-context-session"));
+        assert_eq!(contexts.len(), 1);
+        let context = contexts[0];
+        let origins = values(Origin::parse("http://127.0.0.1:43127"));
+        assert_eq!(origins.len(), 1);
+        let handles =
+            values(registry.bind_node(owner, context, &origins[0], "corrupt-context-node"));
+        assert_eq!(handles.len(), 1);
+
+        registry.context_session.insert(context, attacker);
+        assert_eq!(
+            registry.validate_node_handle(&handles[0]),
+            Err(BrowserRegistryError::UnknownNodeAuthority)
+        );
+    }
+
+    #[test]
+    fn issued_handle_rejects_private_context_origin_corruption() {
+        let mut registry = BrowserAuthorityRegistry::new();
+        let sessions = values(registry.register_session("corrupt-origin-session"));
+        assert_eq!(sessions.len(), 1);
+        let session = sessions[0];
+        let contexts = values(registry.register_context(session, "corrupt-origin-context"));
+        assert_eq!(contexts.len(), 1);
+        let context = contexts[0];
+        let origins = values(Origin::parse("http://127.0.0.1:43127"));
+        let corrupt_origins = values(Origin::parse("http://127.0.0.1:43128"));
+        assert_eq!(origins.len(), 1);
+        assert_eq!(corrupt_origins.len(), 1);
+        let handles =
+            values(registry.bind_node(session, context, &origins[0], "corrupt-origin-node"));
+        assert_eq!(handles.len(), 1);
+
+        registry
+            .context_origin
+            .insert(context, corrupt_origins[0].clone());
+        assert_eq!(
+            registry.validate_node_handle(&handles[0]),
+            Err(BrowserRegistryError::UnknownNodeAuthority)
+        );
+    }
+
+    #[test]
     fn unit_cfg_error_propagation_covers_private_fail_closed_boundaries() {
         let mut registry = BrowserAuthorityRegistry::new();
         let sessions = values(registry.register_session("boundary-session"));
@@ -777,6 +829,14 @@ mod tests {
         registry.context_epoch.insert(context, epoch);
         let handles = values(registry.bind_node(session, context, origin, "live-node"));
         assert_eq!(handles.len(), 1);
+
+        registry.context_origin.remove(&context);
+        assert_eq!(
+            registry.validate_node_handle(&handles[0]),
+            Err(BrowserRegistryError::UnknownNodeAuthority)
+        );
+
+        registry.context_origin.insert(context, origin.clone());
         registry.context_epoch.remove(&context);
         assert_eq!(
             registry.validate_node_handle(&handles[0]),
