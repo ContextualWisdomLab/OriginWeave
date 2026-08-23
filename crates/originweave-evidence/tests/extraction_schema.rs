@@ -137,7 +137,40 @@ fn field_accepts_all_reviewed_value_and_source_channel_variants()
         assert_eq!(field.cardinality(), ExtractionCardinality::Many);
         assert_eq!(field.source_channels(), &[source_channel]);
     }
+
+    let required_many = field(
+        "required_many",
+        ExtractionValueType::Text,
+        ExtractionCardinality::Many,
+        true,
+        &[ExtractionSourceChannel::SemanticNode],
+    )?;
+    assert!(required_many.required());
     Ok(())
+}
+
+#[test]
+fn field_rejects_contradictory_required_cardinality_contracts() {
+    assert_eq!(
+        ExtractionField::new(
+            "optional_exactly_one",
+            ExtractionValueType::Text,
+            ExtractionCardinality::One,
+            false,
+            &[ExtractionSourceChannel::SemanticNode],
+        ),
+        Err(ExtractionSchemaError::InvalidCardinalityRequirement)
+    );
+    assert_eq!(
+        ExtractionField::new(
+            "required_zero_or_one",
+            ExtractionValueType::Text,
+            ExtractionCardinality::ZeroOrOne,
+            true,
+            &[ExtractionSourceChannel::SemanticNode],
+        ),
+        Err(ExtractionSchemaError::InvalidCardinalityRequirement)
+    );
 }
 
 #[test]
