@@ -81,7 +81,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - ALPN selection is restricted to the caller's bounded allow-list, while absence is either explicitly recorded or rejected by policy.
 - Revocation is reported as not configured; the product makes no OCSP or CRL validation claim without supplied revocation evidence.
 - HTTP/1.1 status, framing, content coding, integrity, MIME, disposition, and redirect decisions never depend on the untrusted reason phrase; exact reason bytes are available only as bounded diagnostics and are not copied into credential-free evidence.
-- HTTP request-target diagnostics and immutable exchange evidence omit raw path and query bytes; the exact target remains bound by its domain-separated SHA-256 digest, while evidence retains only query presence and a structural `<redacted-path:N-bytes>` encoded-path length marker.
+- HTTP request-target diagnostics and immutable exchange evidence omit raw path and query bytes; the exact target remains bound by its domain-separated SHA-256 digest, while evidence retains only query presence and the constant root path prefix `/`.
 - Safe `Content-Disposition` filename metadata rejects Windows reserved device names using both ASCII digits and the Windows-recognized ISO/IEC 8859-1 superscript digits in `COM`/`LPT` names before any later download handoff.
 - Every generic network header and query value is redacted before evidence leaves the trusted boundary, including conventionally benign field names containing attacker-controlled bytes.
 - Evidence capture enforces count and byte bounds and rejects credential-bearing source URLs, query strings, fragments, controls, whitespace, malformed percent escapes, encoded separators, dot segments, and backslash paths.
