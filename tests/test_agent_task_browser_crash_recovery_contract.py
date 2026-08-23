@@ -44,13 +44,26 @@ class AgentTaskBrowserCrashRecoveryContractTests(unittest.TestCase):
         signal_identity.__globals__["_read_linux_proc_stat_process_identity"] = (
             lambda _process_id: (777, 99)
         )
-        signal_identity.__globals__["os"].pidfd_open = lambda process_id, _flags=0: opened.append(process_id) or 12
-        signal_identity.__globals__["signal"].pidfd_send_signal = (
-            lambda pidfd, sig, *_args, **_kwargs: signalled.append((pidfd, sig))
-        )
-        signal_identity.__globals__["os"].close = lambda _fd: None
-
-        self.assertFalse(signal_identity((777, 42), signal.SIGKILL))
+        os_module = signal_identity.__globals__["os"]
+        signal_module = signal_identity.__globals__["signal"]
+        with (
+            mock.patch.object(
+                os_module,
+                "pidfd_open",
+                side_effect=lambda process_id, _flags=0: opened.append(process_id) or 12,
+                create=True,
+            ),
+            mock.patch.object(
+                signal_module,
+                "pidfd_send_signal",
+                side_effect=lambda pidfd, sig, *_args, **_kwargs: signalled.append(
+                    (pidfd, sig)
+                ),
+                create=True,
+            ),
+            mock.patch.object(os_module, "close", side_effect=lambda _fd: None),
+        ):
+            self.assertFalse(signal_identity((777, 42), signal.SIGKILL))
         self.assertEqual(opened, [])
         self.assertEqual(signalled, [])
 
@@ -66,13 +79,26 @@ class AgentTaskBrowserCrashRecoveryContractTests(unittest.TestCase):
         signal_identity.__globals__["_read_linux_proc_stat_process_identity"] = (
             lambda _process_id: next(identities)
         )
-        signal_identity.__globals__["os"].pidfd_open = lambda _process_id, _flags=0: 12
-        signal_identity.__globals__["signal"].pidfd_send_signal = (
-            lambda pidfd, sig, *_args, **_kwargs: signalled.append((pidfd, sig))
-        )
-        signal_identity.__globals__["os"].close = closed.append
-
-        self.assertFalse(signal_identity((777, 42), signal.SIGKILL))
+        os_module = signal_identity.__globals__["os"]
+        signal_module = signal_identity.__globals__["signal"]
+        with (
+            mock.patch.object(
+                os_module,
+                "pidfd_open",
+                side_effect=lambda _process_id, _flags=0: 12,
+                create=True,
+            ),
+            mock.patch.object(
+                signal_module,
+                "pidfd_send_signal",
+                side_effect=lambda pidfd, sig, *_args, **_kwargs: signalled.append(
+                    (pidfd, sig)
+                ),
+                create=True,
+            ),
+            mock.patch.object(os_module, "close", side_effect=closed.append),
+        ):
+            self.assertFalse(signal_identity((777, 42), signal.SIGKILL))
         self.assertEqual(signalled, [])
         self.assertEqual(closed, [12])
 
@@ -87,13 +113,26 @@ class AgentTaskBrowserCrashRecoveryContractTests(unittest.TestCase):
         signal_identity.__globals__["_read_linux_proc_stat_process_identity"] = (
             lambda _process_id: (777, 42)
         )
-        signal_identity.__globals__["os"].pidfd_open = lambda _process_id, _flags=0: 12
-        signal_identity.__globals__["signal"].pidfd_send_signal = (
-            lambda pidfd, sig, *_args, **_kwargs: signalled.append((pidfd, sig))
-        )
-        signal_identity.__globals__["os"].close = closed.append
-
-        self.assertTrue(signal_identity((777, 42), signal.SIGKILL))
+        os_module = signal_identity.__globals__["os"]
+        signal_module = signal_identity.__globals__["signal"]
+        with (
+            mock.patch.object(
+                os_module,
+                "pidfd_open",
+                side_effect=lambda _process_id, _flags=0: 12,
+                create=True,
+            ),
+            mock.patch.object(
+                signal_module,
+                "pidfd_send_signal",
+                side_effect=lambda pidfd, sig, *_args, **_kwargs: signalled.append(
+                    (pidfd, sig)
+                ),
+                create=True,
+            ),
+            mock.patch.object(os_module, "close", side_effect=closed.append),
+        ):
+            self.assertTrue(signal_identity((777, 42), signal.SIGKILL))
         self.assertEqual(signalled, [(12, signal.SIGKILL)])
         self.assertEqual(closed, [12])
 
@@ -107,15 +146,28 @@ class AgentTaskBrowserCrashRecoveryContractTests(unittest.TestCase):
         signal_identity.__globals__["_read_linux_proc_stat_process_identity"] = (
             lambda _process_id: (777, 42)
         )
-        signal_identity.__globals__["os"].pidfd_open = lambda _process_id, _flags=0: 12
 
         def exited_before_signal(*_args: object, **_kwargs: object) -> None:
             raise ProcessLookupError("process exited before pidfd signal")
 
-        signal_identity.__globals__["signal"].pidfd_send_signal = exited_before_signal
-        signal_identity.__globals__["os"].close = closed.append
-
-        self.assertFalse(signal_identity((777, 42), signal.SIGKILL))
+        os_module = signal_identity.__globals__["os"]
+        signal_module = signal_identity.__globals__["signal"]
+        with (
+            mock.patch.object(
+                os_module,
+                "pidfd_open",
+                side_effect=lambda _process_id, _flags=0: 12,
+                create=True,
+            ),
+            mock.patch.object(
+                signal_module,
+                "pidfd_send_signal",
+                side_effect=exited_before_signal,
+                create=True,
+            ),
+            mock.patch.object(os_module, "close", side_effect=closed.append),
+        ):
+            self.assertFalse(signal_identity((777, 42), signal.SIGKILL))
         self.assertEqual(closed, [12])
 
     def test_proc_stat_identity_treats_read_time_esrch_as_process_exit(self) -> None:
