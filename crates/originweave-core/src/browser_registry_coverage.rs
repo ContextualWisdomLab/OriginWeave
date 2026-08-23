@@ -104,7 +104,7 @@ fn node_validation_rejects_each_missing_authority_boundary() {
     assert_eq!(unknown_handle.len(), 1);
     assert_eq!(
         registry.validate_node_handle(&unknown_handle[0]),
-        Err(BrowserRegistryError::UnknownBrowserSession)
+        Err(BrowserRegistryError::UnknownNodeAuthority)
     );
 
     let mismatched_handle = values(ObservedNodeHandle::new(
@@ -136,7 +136,59 @@ fn node_validation_rejects_each_missing_authority_boundary() {
     assert_eq!(registry.remove_context(context), Ok(()));
     assert_eq!(
         registry.validate_node_handle(&unbound_handle[0]),
+        Err(BrowserRegistryError::UnknownNodeAuthority)
+    );
+}
+
+#[test]
+fn issued_handles_report_retired_authority_boundaries() {
+    let origins = values(Origin::parse("http://127.0.0.1:43127"));
+    assert_eq!(origins.len(), 1);
+    let origin = &origins[0];
+
+    let mut context_registry = BrowserAuthorityRegistry::new();
+    let context_sessions = values(context_registry.register_session("context-retirement-session"));
+    assert_eq!(context_sessions.len(), 1);
+    let context_session = context_sessions[0];
+    let contexts = values(
+        context_registry.register_context(context_session, "context-retirement-context"),
+    );
+    assert_eq!(contexts.len(), 1);
+    let context = contexts[0];
+    let context_handles = values(context_registry.bind_node(
+        context_session,
+        context,
+        origin,
+        "context-retirement-node",
+    ));
+    assert_eq!(context_handles.len(), 1);
+    let context_handle = &context_handles[0];
+    assert_eq!(context_registry.remove_context(context), Ok(()));
+    assert_eq!(
+        context_registry.validate_node_handle(context_handle),
         Err(BrowserRegistryError::UnknownBrowsingContext)
+    );
+
+    let mut session_registry = BrowserAuthorityRegistry::new();
+    let sessions = values(session_registry.register_session("session-retirement-session"));
+    assert_eq!(sessions.len(), 1);
+    let session = sessions[0];
+    let session_contexts =
+        values(session_registry.register_context(session, "session-retirement-context"));
+    assert_eq!(session_contexts.len(), 1);
+    let session_context = session_contexts[0];
+    let session_handles = values(session_registry.bind_node(
+        session,
+        session_context,
+        origin,
+        "session-retirement-node",
+    ));
+    assert_eq!(session_handles.len(), 1);
+    let session_handle = &session_handles[0];
+    assert_eq!(session_registry.remove_session(session), Ok(()));
+    assert_eq!(
+        session_registry.validate_node_handle(session_handle),
+        Err(BrowserRegistryError::UnknownBrowserSession)
     );
 }
 
