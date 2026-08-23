@@ -2,9 +2,7 @@
 
 use std::error::Error;
 
-use originweave_core::{
-    ActionIntentDigest, ActionKind, ApprovalEvidence, ApprovalScope, Origin,
-};
+use originweave_core::{ActionIntentDigest, ActionKind, ApprovalEvidence, ApprovalScope, Origin};
 use originweave_policy::{
     ApprovalLifecycleError, ApprovalLifecycleState, ApprovalPrincipalRef,
     ApprovalPrincipalRefError, EnterpriseApprovalRequest,
