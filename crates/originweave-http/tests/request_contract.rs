@@ -213,6 +213,7 @@ fn authority_credentials_and_framing_are_caller_forbidden() {
         "Authorization",
         "Proxy-Authorization",
         "Cookie",
+        "Accept-Encoding",
     ] {
         assert!(matches!(
             RequestField::new(forbidden, b"secret-value"),
