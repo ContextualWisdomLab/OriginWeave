@@ -814,7 +814,13 @@ def _delete_webdriver_session_bounded(driver_port: int, session_id: str) -> str 
             _webdriver_path(session_id, ""),
             {},
         )
-    except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+    except (
+        OSError,
+        ValueError,
+        RuntimeError,
+        json.JSONDecodeError,
+        http.client.HTTPException,
+    ) as exc:
         return type(exc).__name__
     return None
 
