@@ -7,9 +7,7 @@
 
 use std::fmt;
 
-use originweave_core::{
-    ActionKind, ActionRequest, ApprovalEvidence, ApprovalScope, PolicyContext,
-};
+use originweave_core::{ActionKind, ActionRequest, ApprovalEvidence, ApprovalScope, PolicyContext};
 
 const MAX_PRINCIPAL_REFERENCE_BYTES: usize = 256;
 
