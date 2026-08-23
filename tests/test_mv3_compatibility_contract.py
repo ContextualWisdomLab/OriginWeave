@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import http.client
 import json
 import pathlib
 import runpy
@@ -127,6 +128,21 @@ class ManifestV3CompatibilityContractTests(unittest.TestCase):
         self.assertNotIn("contextlib.suppress(Exception)", runner)
         self.assertIn("_delete_webdriver_session_bounded", runner)
         self.assertIn("_terminate_owned_process_bounded", runner)
+
+    def test_runner_session_cleanup_classifies_http_protocol_failure(self) -> None:
+        """Malformed ChromeDriver HTTP during cleanup must remain typed evidence."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="mv3_cleanup_http_failure")
+        delete_session = namespace["_delete_webdriver_session_bounded"]
+
+        def fail_with_bad_status(*_args: object, **_kwargs: object) -> dict[str, object]:
+            raise http.client.BadStatusLine("malformed status line")
+
+        delete_session.__globals__["_json_request"] = fail_with_bad_status
+        self.assertEqual(
+            delete_session(9515, "controlled-session"),
+            "BadStatusLine",
+        )
 
     def test_runner_accepts_real_chromedriver_element_ids_without_path_injection(self) -> None:
         """ChromeDriver dotted element IDs must work while path syntax stays fail-closed."""
