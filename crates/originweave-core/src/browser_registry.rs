@@ -430,6 +430,9 @@ impl BrowserAuthorityRegistry {
         &self,
         handle: &ObservedNodeHandle,
     ) -> Result<(), BrowserRegistryError> {
+        if !handle.belongs_to(&self.registry_authority) {
+            return Err(BrowserRegistryError::UnknownNodeAuthority);
+        }
         if !self.known_sessions.contains(&handle.browser_session()) {
             return Err(BrowserRegistryError::UnknownBrowserSession);
         }
@@ -450,9 +453,6 @@ impl BrowserAuthorityRegistry {
         handle
             .validate_current(expected_session, context, origin, epoch)
             .map_err(|_error| BrowserRegistryError::UnknownNodeAuthority)?;
-        if !handle.belongs_to(&self.registry_authority) {
-            return Err(BrowserRegistryError::UnknownNodeAuthority);
-        }
         if self.node_binding_by_id.get(&handle.node_id()) != Some(&(context, epoch)) {
             return Err(BrowserRegistryError::UnknownNodeAuthority);
         }
