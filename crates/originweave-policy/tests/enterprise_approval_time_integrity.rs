@@ -2,8 +2,7 @@
 
 use originweave_core::{ActionIntentDigest, ActionKind, ApprovalScope, Origin};
 use originweave_policy::{
-    ApprovalLifecycleError, ApprovalLifecycleState, ApprovalPrincipalRef,
-    EnterpriseApprovalRequest,
+    ApprovalLifecycleError, ApprovalLifecycleState, ApprovalPrincipalRef, EnterpriseApprovalRequest,
 };
 
 const VALID_INTENT: &str =
