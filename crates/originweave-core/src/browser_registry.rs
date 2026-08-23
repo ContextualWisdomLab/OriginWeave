@@ -744,6 +744,36 @@ mod tests {
     }
 
     #[test]
+    fn issued_handle_rejects_private_context_session_corruption() {
+        let mut registry = BrowserAuthorityRegistry::new();
+        let owners = values(registry.register_session("corrupt-owner-session"));
+        let attackers = values(registry.register_session("corrupt-attacker-session"));
+        assert_eq!(owners.len(), 1);
+        assert_eq!(attackers.len(), 1);
+        let owner = owners[0];
+        let attacker = attackers[0];
+
+        let contexts = values(registry.register_context(owner, "corrupt-context-session"));
+        assert_eq!(contexts.len(), 1);
+        let context = contexts[0];
+        let origins = values(Origin::parse("http://127.0.0.1:43127"));
+        assert_eq!(origins.len(), 1);
+        let handles = values(registry.bind_node(
+            owner,
+            context,
+            &origins[0],
+            "corrupt-context-node",
+        ));
+        assert_eq!(handles.len(), 1);
+
+        registry.context_session.insert(context, attacker);
+        assert_eq!(
+            registry.validate_node_handle(&handles[0]),
+            Err(BrowserRegistryError::UnknownNodeAuthority)
+        );
+    }
+
+    #[test]
     fn unit_cfg_error_propagation_covers_private_fail_closed_boundaries() {
         let mut registry = BrowserAuthorityRegistry::new();
         let sessions = values(registry.register_session("boundary-session"));
