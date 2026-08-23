@@ -113,16 +113,17 @@ fn terminal_task_never_reopens_or_advances_history() {
 
 #[test]
 fn cancellation_and_expiry_cover_pre_dispatch_and_suspended_states() {
-    for (state, setup) in [
-        (BapTaskState::Created, 0_u8),
-        (BapTaskState::Admitted, 1),
-        (BapTaskState::Running, 2),
-        (BapTaskState::WaitingForApproval, 3),
-        (BapTaskState::WaitingForExternalInput, 4),
-        (BapTaskState::Checkpointed, 5),
+    for state in [
+        BapTaskState::Created,
+        BapTaskState::Admitted,
+        BapTaskState::Running,
+        BapTaskState::WaitingForApproval,
+        BapTaskState::WaitingForExternalInput,
+        BapTaskState::Checkpointed,
+        BapTaskState::ReconciliationRequired,
     ] {
         for terminal_event in [BapTaskEvent::Cancel, BapTaskEvent::Expire] {
-            let mut task = task_in_state(setup);
+            let mut task = task_in_state(state);
             assert_eq!(task.state(), state);
             task.apply(terminal_event).expect("terminal interruption");
             assert!(task.state().is_terminal());
@@ -209,27 +210,44 @@ fn running_task() -> BapTaskLifecycle {
     task
 }
 
-fn task_in_state(setup: u8) -> BapTaskLifecycle {
+fn task_in_state(target: BapTaskState) -> BapTaskLifecycle {
     let mut task = BapTaskLifecycle::new();
-    if setup >= 1 {
-        task.apply(BapTaskEvent::Admit).expect("admit");
+    if target == BapTaskState::Created {
+        return task;
     }
-    if setup >= 2 {
-        task.apply(BapTaskEvent::Start).expect("start");
+
+    task.apply(BapTaskEvent::Admit).expect("admit");
+    if target == BapTaskState::Admitted {
+        return task;
     }
-    match setup {
-        3 => {
+
+    task.apply(BapTaskEvent::Start).expect("start");
+    match target {
+        BapTaskState::Running => {}
+        BapTaskState::WaitingForApproval => {
             task.apply(BapTaskEvent::WaitForApproval)
                 .expect("wait approval");
         }
-        4 => {
+        BapTaskState::WaitingForExternalInput => {
             task.apply(BapTaskEvent::WaitForExternalInput)
                 .expect("wait external");
         }
-        5 => {
+        BapTaskState::Checkpointed => {
             task.apply(BapTaskEvent::Checkpoint).expect("checkpoint");
         }
-        _ => {}
+        BapTaskState::ReconciliationRequired => {
+            task.apply(BapTaskEvent::RequireReconciliation)
+                .expect("require reconciliation");
+        }
+        BapTaskState::Created
+        | BapTaskState::Admitted
+        | BapTaskState::Succeeded
+        | BapTaskState::Failed
+        | BapTaskState::Cancelled
+        | BapTaskState::Expired
+        | BapTaskState::DeadLettered => {
+            unreachable!("task_in_state only constructs non-terminal lifecycle states")
+        }
     }
     task
 }
