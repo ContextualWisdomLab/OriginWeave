@@ -59,14 +59,9 @@ fn policy_context(capabilities: BTreeSet<Capability>) -> PolicyContext {
 #[test]
 fn consumed_enterprise_approval_is_one_shot_policy_input() {
     let approval_scope = scope();
-    let mut approval = EnterpriseApprovalRequest::new(
-        approval_scope.clone(),
-        principal("maker"),
-        100,
-        200,
-        1,
-    )
-    .expect("approval request must be valid");
+    let mut approval =
+        EnterpriseApprovalRequest::new(approval_scope.clone(), principal("maker"), 100, 200, 1)
+            .expect("approval request must be valid");
     approval
         .approve(principal("checker"), 110)
         .expect("distinct checker must approve");
@@ -93,14 +88,9 @@ fn consumed_enterprise_approval_is_one_shot_policy_input() {
 #[test]
 fn policy_denial_burns_the_already_consumed_approval_use() {
     let approval_scope = scope();
-    let mut approval = EnterpriseApprovalRequest::new(
-        approval_scope.clone(),
-        principal("maker"),
-        100,
-        200,
-        1,
-    )
-    .expect("approval request must be valid");
+    let mut approval =
+        EnterpriseApprovalRequest::new(approval_scope.clone(), principal("maker"), 100, 200, 1)
+            .expect("approval request must be valid");
     approval
         .approve(principal("checker"), 110)
         .expect("distinct checker must approve");
