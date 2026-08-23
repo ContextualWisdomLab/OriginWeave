@@ -18,6 +18,10 @@ fn extraction_schema_errors_implement_standard_error_contract() {
             "extraction schema limit exceeded",
         ),
         (
+            ExtractionSchemaError::InvalidCardinalityRequirement,
+            "extraction field required flag is incompatible with the declared cardinality",
+        ),
+        (
             ExtractionSchemaError::MissingSourceChannel,
             "extraction field requires at least one source channel",
         ),
