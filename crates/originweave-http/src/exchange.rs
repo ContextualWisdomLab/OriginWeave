@@ -442,7 +442,35 @@ fn read_exact_content(
         }
         output.extend_from_slice(&scratch[..byte_count]);
     }
+    confirm_content_length_termination(connection, deadline, timeout)?;
     Ok(output)
+}
+
+fn confirm_content_length_termination(
+    connection: &mut AuthenticatedTlsConnection,
+    deadline: Instant,
+    timeout: Duration,
+) -> Result<(), HttpError> {
+    set_read_deadline(connection, deadline, timeout).and_then(|()| {
+        let mut sentinel = [0_u8; 1];
+        let result = classify_content_length_terminator(
+            connection.stream_mut().read(&mut sentinel),
+            timeout,
+        );
+        ensure_before_deadline(deadline, timeout).and(result)
+    })
+}
+
+fn classify_content_length_terminator(
+    result: io::Result<usize>,
+    timeout: Duration,
+) -> Result<(), HttpError> {
+    match result {
+        Ok(0) => Ok(()),
+        Ok(byte_count) => Err(HttpError::UnexpectedResponseBytes { byte_count }),
+        Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => Ok(()),
+        Err(error) => Err(classify_read_error(error, timeout)),
+    }
 }
 
 fn read_chunked_body(
@@ -903,6 +931,36 @@ mod tests {
         let eof = require_read_progress(0).expect_err("clean EOF");
         assert_variant(&eof, &HttpError::IncompleteResponse);
         assert_eq!(require_read_progress(3).expect("read progress"), 3);
+    }
+
+    #[test]
+    fn content_length_terminator_accepts_transport_end_and_rejects_surplus() {
+        let timeout = Duration::from_secs(1);
+        classify_content_length_terminator(Ok(0), timeout).expect("clean transport end");
+        classify_content_length_terminator(
+            Err(io::Error::from(io::ErrorKind::UnexpectedEof)),
+            timeout,
+        )
+        .expect("incomplete TLS close after complete Content-Length body");
+
+        let surplus =
+            classify_content_length_terminator(Ok(1), timeout).expect_err("surplus response byte");
+        match surplus {
+            HttpError::UnexpectedResponseBytes { byte_count } => assert_eq!(byte_count, 1),
+            other => panic!("unexpected surplus classification: {other:?}"),
+        }
+
+        for kind in [io::ErrorKind::TimedOut, io::ErrorKind::WouldBlock] {
+            let error = classify_content_length_terminator(Err(io::Error::from(kind)), timeout)
+                .expect_err("terminator timeout");
+            assert_variant(&error, &HttpError::HttpExchangeTimedOut { timeout });
+        }
+        let ordinary = classify_content_length_terminator(
+            Err(io::Error::from(io::ErrorKind::ConnectionReset)),
+            timeout,
+        )
+        .expect_err("terminator I/O failure");
+        assert_variant(&ordinary, &io_failure());
     }
 
     #[test]
