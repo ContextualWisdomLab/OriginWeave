@@ -1,8 +1,8 @@
 use std::fmt;
 
 use originweave_core::{
-    BrowserSessionId, BrowsingContextId, DocumentEpoch, NodeHandleError, Origin, PolicyContext,
-    RiskClass, SemanticNodeActionBinding,
+    BrowserAuthorityRegistry, BrowserRegistryError, PolicyContext, RiskClass,
+    SemanticNodeActionBinding,
 };
 
 use crate::{Decision, DenialReason, evaluate};
@@ -39,20 +39,16 @@ impl PolicyAuthorizedSemanticNodeAction {
         &self.binding
     }
 
-    /// Revalidate browser session, context, origin, and document epoch immediately before dispatch.
+    /// Revalidate registry-owned browser authority immediately before dispatch.
+    ///
+    /// The exact node binding retained by the policy-authorized action must still be live in the
+    /// supplied registry. Caller-presented session/context/origin/epoch tuples cannot revive a
+    /// retired, stale, forged, or cross-registry node target.
     pub fn validate_current(
         &self,
-        current_session: BrowserSessionId,
-        current_context: BrowsingContextId,
-        current_origin: &Origin,
-        current_epoch: DocumentEpoch,
-    ) -> Result<(), NodeHandleError> {
-        self.binding.validate_current(
-            current_session,
-            current_context,
-            current_origin,
-            current_epoch,
-        )
+        registry: &BrowserAuthorityRegistry,
+    ) -> Result<(), BrowserRegistryError> {
+        self.binding.validate_current(registry)
     }
 }
 

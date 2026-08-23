@@ -1,11 +1,11 @@
 use std::collections::BTreeSet;
 
 use originweave_core::{
-    ActionIntentDigest, ActionKind, ActionRequest, ApprovalEvidence, BrowserSessionId,
-    BrowsingContextId, Capability, DocumentEpoch, ExecutionPurpose, InstructionSource,
-    NodeActionKind, ObservationChannel, ObservedNodeHandle, Origin, PolicyContext, RiskClass,
-    RobotsDecision, SecretDelivery, SemanticNodeActionBinding, SemanticNodeActionTarget,
-    SemanticNodeObservation, SemanticNodeObservationInput, SessionMode,
+    ActionIntentDigest, ActionKind, ActionRequest, ApprovalEvidence, BrowserAuthorityRegistry,
+    BrowserRegistryError, BrowsingContextId, Capability, ExecutionPurpose, InstructionSource,
+    NodeActionKind, ObservationChannel, Origin, PolicyContext, RiskClass, RobotsDecision,
+    SecretDelivery, SemanticNodeActionBinding, SemanticNodeActionTarget, SemanticNodeObservation,
+    SemanticNodeObservationInput, SessionMode,
 };
 use originweave_policy::{
     DenialReason, PolicyAuthorizedSemanticNodeAction, SemanticNodePolicyAuthorizationError,
@@ -14,6 +14,12 @@ use originweave_policy::{
 const VALID_INTENT: &str =
     "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
+struct BindingFixture {
+    registry: BrowserAuthorityRegistry,
+    context: BrowsingContextId,
+    binding: SemanticNodeActionBinding,
+}
+
 fn origin(value: &str) -> Result<Origin, String> {
     Origin::parse(value).map_err(|error| format!("{error:?}"))
 }
@@ -21,29 +27,34 @@ fn origin(value: &str) -> Result<Origin, String> {
 fn binding(
     action: ActionKind,
     instruction_source: InstructionSource,
-) -> Result<SemanticNodeActionBinding, String> {
+) -> Result<BindingFixture, String> {
+    let mut registry = BrowserAuthorityRegistry::new();
+    let session = registry
+        .register_session("semantic-policy-session")
+        .map_err(|error| error.to_string())?;
+    let context = registry
+        .register_context(session, "semantic-policy-context")
+        .map_err(|error| error.to_string())?;
     let site = origin("https://app.example")?;
-    let handle = ObservedNodeHandle::new(
-        BrowserSessionId::new(7).map_err(|error| error.to_string())?,
-        BrowsingContextId::new(11).map_err(|error| error.to_string())?,
-        site.clone(),
-        DocumentEpoch::new(3).map_err(|error| error.to_string())?,
-        17,
+    let handle = registry
+        .bind_node(session, context, &site, "semantic-policy-node")
+        .map_err(|error| error.to_string())?;
+    let observation = SemanticNodeObservation::new(
+        SemanticNodeObservationInput {
+            handle,
+            parent: None,
+            children: Vec::new(),
+            role: "button".to_owned(),
+            accessible_name: "Continue".to_owned(),
+            visible_text: Some("Continue".to_owned()),
+            enabled: true,
+            visible: true,
+            selected: None,
+            supported_actions: BTreeSet::from([NodeActionKind::Click]),
+            evidence_channels: BTreeSet::from([ObservationChannel::Accessibility]),
+        },
+        &registry,
     )
-    .map_err(|error| error.to_string())?;
-    let observation = SemanticNodeObservation::new(SemanticNodeObservationInput {
-        handle,
-        parent: None,
-        children: Vec::new(),
-        role: "button".to_owned(),
-        accessible_name: "Continue".to_owned(),
-        visible_text: Some("Continue".to_owned()),
-        enabled: true,
-        visible: true,
-        selected: None,
-        supported_actions: BTreeSet::from([NodeActionKind::Click]),
-        evidence_channels: BTreeSet::from([ObservationChannel::Accessibility]),
-    })
     .map_err(|error| error.to_string())?;
     let target = SemanticNodeActionTarget::from_observation(&observation, NodeActionKind::Click)
         .map_err(|error| error.to_string())?;
@@ -55,7 +66,14 @@ fn binding(
         SecretDelivery::None,
         ActionIntentDigest::parse(VALID_INTENT).map_err(|error| format!("{error:?}"))?,
     );
-    SemanticNodeActionBinding::new(target, request).map_err(|error| error.to_string())
+    let binding =
+        SemanticNodeActionBinding::new(target, request).map_err(|error| error.to_string())?;
+
+    Ok(BindingFixture {
+        registry,
+        context,
+        binding,
+    })
 }
 
 fn context(action: ActionKind) -> Result<PolicyContext, String> {
@@ -73,27 +91,31 @@ fn context(action: ActionKind) -> Result<PolicyContext, String> {
 
 #[test]
 fn semantic_node_action_becomes_policy_authorized_only_after_allow() -> Result<(), String> {
-    let binding = binding(ActionKind::Navigate, InstructionSource::User)?;
+    let fixture = binding(ActionKind::Navigate, InstructionSource::User)?;
     let context = context(ActionKind::Navigate)?;
 
-    let authorized = PolicyAuthorizedSemanticNodeAction::authorize(binding.clone(), &context)
-        .map_err(|error| error.to_string())?;
+    let authorized =
+        PolicyAuthorizedSemanticNodeAction::authorize(fixture.binding.clone(), &context)
+            .map_err(|error| error.to_string())?;
 
-    assert_eq!(authorized.binding(), &binding);
+    assert_eq!(authorized.binding(), &fixture.binding);
     assert_eq!(
         authorized.binding().request().action(),
         ActionKind::Navigate
     );
+    authorized
+        .validate_current(&fixture.registry)
+        .map_err(|error| error.to_string())?;
     Ok(())
 }
 
 #[test]
 fn semantic_node_action_preserves_approval_required_as_non_authorized() -> Result<(), String> {
-    let binding = binding(ActionKind::Purchase, InstructionSource::User)?;
+    let fixture = binding(ActionKind::Purchase, InstructionSource::User)?;
     let context = context(ActionKind::Purchase)?;
 
     assert_eq!(
-        PolicyAuthorizedSemanticNodeAction::authorize(binding, &context).err(),
+        PolicyAuthorizedSemanticNodeAction::authorize(fixture.binding, &context).err(),
         Some(SemanticNodePolicyAuthorizationError::ApprovalRequired(
             RiskClass::R4
         ))
@@ -103,11 +125,11 @@ fn semantic_node_action_preserves_approval_required_as_non_authorized() -> Resul
 
 #[test]
 fn semantic_node_action_preserves_policy_denial_as_non_authorized() -> Result<(), String> {
-    let binding = binding(ActionKind::Navigate, InstructionSource::WebContent)?;
+    let fixture = binding(ActionKind::Navigate, InstructionSource::WebContent)?;
     let context = context(ActionKind::Navigate)?;
 
     assert_eq!(
-        PolicyAuthorizedSemanticNodeAction::authorize(binding, &context).err(),
+        PolicyAuthorizedSemanticNodeAction::authorize(fixture.binding, &context).err(),
         Some(SemanticNodePolicyAuthorizationError::Denied(
             DenialReason::UntrustedInstructionSource
         ))
@@ -118,22 +140,20 @@ fn semantic_node_action_preserves_policy_denial_as_non_authorized() -> Result<()
 #[test]
 fn policy_authorized_semantic_node_action_still_revalidates_browser_authority() -> Result<(), String>
 {
-    let binding = binding(ActionKind::Navigate, InstructionSource::User)?;
+    let mut fixture = binding(ActionKind::Navigate, InstructionSource::User)?;
     let context = context(ActionKind::Navigate)?;
-    let authorized = PolicyAuthorizedSemanticNodeAction::authorize(binding, &context)
+    let authorized = PolicyAuthorizedSemanticNodeAction::authorize(fixture.binding, &context)
         .map_err(|error| error.to_string())?;
 
-    let error = authorized
-        .validate_current(
-            BrowserSessionId::new(7).map_err(|error| error.to_string())?,
-            BrowsingContextId::new(11).map_err(|error| error.to_string())?,
-            &origin("https://app.example")?,
-            DocumentEpoch::new(4).map_err(|error| error.to_string())?,
-        )
-        .err()
-        .ok_or_else(|| "stale document epoch unexpectedly authorized".to_owned())?;
+    fixture
+        .registry
+        .advance_document(fixture.context)
+        .map_err(|error| error.to_string())?;
 
-    assert!(error.to_string().contains("stale"));
+    assert_eq!(
+        authorized.validate_current(&fixture.registry).err(),
+        Some(BrowserRegistryError::UnknownNodeAuthority)
+    );
     Ok(())
 }
 
