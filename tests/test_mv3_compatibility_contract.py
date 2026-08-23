@@ -144,6 +144,23 @@ class ManifestV3CompatibilityContractTests(unittest.TestCase):
             "BadStatusLine",
         )
 
+    def test_runner_startup_retries_http_protocol_failure(self) -> None:
+        """A transient malformed ChromeDriver startup response must be retried boundedly."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="mv3_startup_http_failure")
+        wait_for_driver = namespace["_wait_for_driver"]
+        attempts = [0]
+
+        def transient_bad_status(*_args: object, **_kwargs: object) -> dict[str, object]:
+            attempts[0] += 1
+            if attempts[0] == 1:
+                raise http.client.BadStatusLine("malformed status line")
+            return {"value": {"ready": True}}
+
+        wait_for_driver.__globals__["_json_request"] = transient_bad_status
+        wait_for_driver(9515)
+        self.assertEqual(attempts[0], 2)
+
     def test_runner_accepts_real_chromedriver_element_ids_without_path_injection(self) -> None:
         """ChromeDriver dotted element IDs must work while path syntax stays fail-closed."""
 
