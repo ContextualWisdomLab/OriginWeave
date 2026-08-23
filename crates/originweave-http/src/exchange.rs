@@ -945,10 +945,10 @@ mod tests {
 
         let surplus =
             classify_content_length_terminator(Ok(1), timeout).expect_err("surplus response byte");
-        match surplus {
-            HttpError::UnexpectedResponseBytes { byte_count } => assert_eq!(byte_count, 1),
-            other => panic!("unexpected surplus classification: {other:?}"),
-        }
+        assert!(matches!(
+            surplus,
+            HttpError::UnexpectedResponseBytes { byte_count: 1 }
+        ));
 
         for kind in [io::ErrorKind::TimedOut, io::ErrorKind::WouldBlock] {
             let error = classify_content_length_terminator(Err(io::Error::from(kind)), timeout)
