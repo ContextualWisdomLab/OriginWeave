@@ -78,6 +78,10 @@ The test-only rcgen 0.14.8 dependency creates a local CA and deterministic certi
 
 Microsoft's Win32 filename guidance requires applications not to assume case sensitivity and reserves device basenames including `CON`, `PRN`, `AUX`, `NUL`, `COM1` through `COM9`, and `LPT1` through `LPT9`, including those names followed by extensions. The same documentation identifies non-ASCII superscript-digit device aliases and also documents `COM0` as a possible `Global??` Win32 namespace symlink. Separately, Microsoft's current OneDrive and SharePoint restrictions reject `COM0` through `COM9` and `LPT0` through `LPT9`. OriginWeave therefore adopts the stricter portable release-artifact deny set: ASCII-case-folded duplicate names and `CON`, `PRN`, `AUX`, `NUL`, `COM0` through `COM9`, and `LPT0` through `LPT9`, including extensions, are rejected so an admitted artifact does not become a device or synchronization conflict in a buyer environment. The ASCII-only grammar separately excludes the superscript aliases. These checks preserve the original artifact spelling and remain identity hygiene only; they do not grant signing, publication, installation, update, rollback, or release authority.
 
+### Release SBOM identity
+
+SPDX 3.0.1 defines a software bill of materials as a collection of SPDX elements describing a single package and defines JSON-LD as an RDF serialization for SPDX data. Conformant SPDX JSON-LD additionally requires structural validation against the versioned SPDX JSON Schema and semantic validation against the SPDX ontology. OriginWeave's first release-SBOM slice deliberately does not claim that content-level conformance: it binds only a declared SPDX 3.0.1 JSON-LD SBOM artifact identity and the exact release-artifact names it is intended to describe to one immutable `ReleaseManifest`. The SBOM artifact and every described artifact must already be admitted by that manifest; empty inventories, foreign identities, duplicates, and case-drifted names fail closed. Generation, content validation, package/component completeness, signatures, provenance, publication, installation, update, rollback, and release authority remain separate reviewed boundaries.
+
 ### Git source identity admission
 
 Git's protocol grammar distinguishes an ordinary 40-hex object identifier from `zero-id = 40*"0"`. The pack protocol uses that all-zero sentinel to represent absent refs and create/delete reference state rather than a concrete source object. OriginWeave therefore requires release-manifest `source_commit` and WARC PROV `software_commit_sha` values to be canonical lowercase 40-hex identifiers with at least one nonzero digit. This is an identity-admission rule only: it prevents a null Git sentinel from being represented as a concrete software revision, but does not prove repository reachability, GitHub authenticity, commit trust, provenance, or release authority.
@@ -171,6 +175,8 @@ Sakana AI. (2026, April 24). *Sakana Fugu: A multi-agent orchestration system as
 Sakana AI. (2026, June 22). *Sakana Fugu: One model to command them all*. https://sakana.ai/fugu-release/
 
 Sheffer, Y., Saint-Andre, P., & Fossati, T. (2022). *Recommendations for secure use of Transport Layer Security (TLS) and Datagram Transport Layer Security (DTLS)* (RFC 9325). Internet Engineering Task Force. https://doi.org/10.17487/RFC9325
+
+SPDX Workgroup. (2026). *SPDX specification 3.0.1*. The Linux Foundation. https://spdx.github.io/spdx-spec/v3.0.1/
 
 The Rust Project Developers. (2026). *Ipv4Addr in std::net* (Rust 1.97.1) [Software documentation]. https://doc.rust-lang.org/stable/std/net/struct.Ipv4Addr.html
 
