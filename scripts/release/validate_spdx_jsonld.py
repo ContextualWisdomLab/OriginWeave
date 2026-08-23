@@ -4,14 +4,18 @@
 This verifier deliberately checks only the serialization envelope needed before deeper
 schema/ontology validation: the exact versioned global context identity required by the
 official SPDX 3.0.1 JSON Schema, a bounded top-level JSON object, a bounded object-only
-``@graph``, and exactly one ``SpdxDocument`` element. It does not claim full SPDX structural
-or semantic conformance, artifact authenticity, SBOM completeness, provenance, signing,
-publication, installation, update, or rollback authority.
+``@graph``, and exactly one ``SpdxDocument`` element. A release-facing helper additionally
+binds candidate bytes to the canonical SHA-256 identity already declared by the release
+manifest. It does not claim full SPDX structural or semantic conformance, artifact
+authenticity, SBOM completeness, provenance, signing, publication, installation, update, or
+rollback authority.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
+import hmac
 import json
 import os
 import pathlib
@@ -118,6 +122,42 @@ def validate_spdx_3_0_1_jsonld_bytes(payload: bytes) -> dict[str, int | str]:
         "graph_object_count": len(graph),
         "spdx_document_count": document_count,
     }
+
+
+def _valid_expected_sha256_digest(value: object) -> bool:
+    """Return whether a release-artifact digest uses the canonical manifest spelling."""
+
+    if not isinstance(value, str) or not value.startswith("sha256:") or len(value) != 71:
+        return False
+    return all(character in "0123456789abcdef" for character in value[7:])
+
+
+def validate_release_spdx_3_0_1_jsonld_bytes(
+    payload: bytes,
+    expected_sha256_digest: str,
+) -> dict[str, int | str]:
+    """Validate exact release SBOM bytes against their manifest-backed digest and envelope.
+
+    The expected digest is inert identity evidence supplied by the already-admitted release
+    manifest. Candidate bytes must remain within the same bounded input contract, and a valid
+    but substituted SPDX document fails before its contents can be promoted as release evidence.
+    Diagnostics never reflect document-controlled values or the expected digest. Digest equality
+    does not authenticate the manifest or grant signing, publication, installation, or update
+    authority.
+    """
+
+    if not isinstance(payload, bytes) or not payload or len(payload) > MAX_SPDX_JSONLD_BYTES:
+        raise SpdxJsonLdEnvelopeError("invalid_size")
+    if not _valid_expected_sha256_digest(expected_sha256_digest):
+        raise SpdxJsonLdEnvelopeError("invalid_expected_digest")
+
+    actual_sha256_digest = "sha256:" + hashlib.sha256(payload).hexdigest()
+    if not hmac.compare_digest(actual_sha256_digest, expected_sha256_digest):
+        raise SpdxJsonLdEnvelopeError("digest_mismatch")
+
+    summary = validate_spdx_3_0_1_jsonld_bytes(payload)
+    summary["artifact_sha256"] = actual_sha256_digest
+    return summary
 
 
 def _nonblocking_read_opener(path: str, flags: int) -> int:
