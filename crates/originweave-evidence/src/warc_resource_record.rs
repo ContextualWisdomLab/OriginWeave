@@ -49,7 +49,7 @@ pub enum WarcPayloadCompleteness {
 /// A validation failure while constructing an immutable WARC resource record.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WarcResourceRecordError {
-    /// The record identifier was not a bounded UUID URN.
+    /// The record identifier was not a bounded non-nil UUID URN.
     InvalidRecordId,
     /// The date was not a bounded UTC RFC 3339 timestamp.
     InvalidDate,
@@ -270,6 +270,7 @@ fn valid_record_id(record_id: &str) -> bool {
     if bytes.len() != MAX_WARC_RECORD_ID_BYTES || !record_id.starts_with("urn:uuid:") {
         return false;
     }
+    let mut has_nonzero_hex = false;
     for (index, byte) in bytes[9..].iter().copied().enumerate() {
         if matches!(index, 8 | 13 | 18 | 23) {
             if byte != b'-' {
@@ -277,9 +278,11 @@ fn valid_record_id(record_id: &str) -> bool {
             }
         } else if !byte.is_ascii_hexdigit() {
             return false;
+        } else if byte != b'0' {
+            has_nonzero_hex = true;
         }
     }
-    true
+    has_nonzero_hex
 }
 
 fn valid_utc_date(date: &str) -> bool {

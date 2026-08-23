@@ -117,6 +117,7 @@ fn resource_record_rejects_invalid_identifiers_dates_content_and_limits() {
     for record_id in [
         "",
         "http://example.com/record",
+        "urn:uuid:00000000-0000-0000-0000-000000000000",
         "urn:uuid:123e4567-e89b-12d3-a456-42661417400",
         "urn:uuid:123e4567_e89b-12d3-a456-426614174000",
         "urn:uuid:123e4567-e89b-12d3-a456-42661417400z",
