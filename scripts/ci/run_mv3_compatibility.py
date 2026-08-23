@@ -150,7 +150,13 @@ def _wait_for_driver(driver_port: int) -> None:
             status = _json_request(driver_port, "GET", "/status", timeout=1.0)
             if status.get("value", {}).get("ready") is True:
                 return
-        except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+        except (
+            OSError,
+            ValueError,
+            RuntimeError,
+            json.JSONDecodeError,
+            http.client.BadStatusLine,
+        ) as exc:
             last_error = exc
         time.sleep(0.1)
     raise RuntimeError(f"ChromeDriver did not become ready: {last_error}")
