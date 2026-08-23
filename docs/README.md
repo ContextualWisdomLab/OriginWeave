@@ -86,4 +86,10 @@ Proposed ADRs are reviewable architecture memory, not shipped behavior and not a
 
 The second group exists only on this documentation branch until the branch integrates. After integration, the heading remains useful historical provenance; it does not promote either ADR from Proposed to Accepted and it does not claim that the described runtime capability is implemented.
 
+### Proposed decision introduced by enterprise approval development
+
+- [ADR 0017: Enterprise maker-checker approval lifecycle](adr/0017-enterprise-maker-checker-approval.md)
+
+ADR 0017 is branch-local reviewable architecture until its owning enterprise approval change integrates. It remains Proposed and does not override Accepted ADR 0002 or protected-main implementation truth.
+
 See the [ADR index](adr/README.md) for status rules, required decision structure, supersession rules, and active feature ADRs. The index and each ADR's own status metadata must agree; a PR body, chat transcript, automation prompt, or stale issue reference cannot change ADR status.
