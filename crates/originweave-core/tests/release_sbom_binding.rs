@@ -138,6 +138,40 @@ fn spdx_sbom_binding_retains_exact_release_manifest_identity() -> Result<(), Box
 }
 
 #[test]
+fn spdx_sbom_binding_exposes_exact_bound_identities() -> Result<(), Box<dyn Error>> {
+    let manifest = release_manifest()?;
+    let binding = ReleaseSbomBinding::new(
+        &manifest,
+        "originweave.spdx.jsonld",
+        ReleaseSbomFormat::Spdx30JsonLd,
+        vec![
+            "originweave-native-host.bin",
+            "originweave-linux-x86_64.tar.zst",
+        ],
+    )?;
+
+    assert_eq!(binding.release_manifest(), &manifest);
+    assert_eq!(binding.described_artifacts().len(), 2);
+    assert_eq!(
+        binding.described_artifacts()[0].name(),
+        "originweave-linux-x86_64.tar.zst"
+    );
+    assert_eq!(
+        binding.described_artifacts()[0].sha256_digest(),
+        sha256_digest('a')
+    );
+    assert_eq!(
+        binding.described_artifacts()[1].name(),
+        "originweave-native-host.bin"
+    );
+    assert_eq!(
+        binding.described_artifacts()[1].sha256_digest(),
+        sha256_digest('b')
+    );
+    Ok(())
+}
+
+#[test]
 fn spdx_sbom_binding_fails_closed_on_missing_or_ambiguous_manifest_identity()
 -> Result<(), Box<dyn Error>> {
     let manifest = release_manifest()?;
