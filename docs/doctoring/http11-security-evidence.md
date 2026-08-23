@@ -1,6 +1,6 @@
 # HTTP/1.1 Redirect, Download-Metadata, and MIME Security Evidence
 
-This document is an authoritative doctoring addendum for ADR 0011. It records primary-source evidence that changed the bounded HTTP/1.1 redirect, download-metadata, and observed-MIME contracts. References use APA 7th style.
+This document is an authoritative doctoring addendum for ADR 0011. It records primary-source evidence that changed the bounded HTTP/1.1 redirect, download-metadata, framing, and observed-MIME contracts. References use APA 7th style.
 
 ## Redirect-reference authority
 
@@ -34,6 +34,16 @@ Credential-free request evidence records the canonical origin, a domain-separate
 
 Regression evidence uses a request whose path itself contains `credential-value` and whose query contains `q=secret`. The authenticated loopback server must still receive the exact wire request, while the evidence accessor returns only `/` and the evidence `Debug` representation must omit both credential-shaped values. This proves that diagnostic/evidence redaction does not rewrite network behavior or silently replace exact target identity with a lossy string.
 
+## Content-Length termination and segmented surplus bytes
+
+RFC 9112 makes the determined message-body length authoritative: when `Content-Length` governs framing, the recipient reads exactly that amount as the response body. It separately warns that bytes remaining after a complete response cannot safely be interpreted as another response because that creates response-splitting and cache-poisoning risk. OriginWeave's single-use request serializer also sends `Connection: close`, so the reviewed exchange does not reuse the authenticated connection for another HTTP message.
+
+The strict OriginWeave contract therefore treats a complete `Content-Length` response as incomplete evidence until a deadline-bound post-body sentinel read reaches transport termination. A byte received after the declared body is rejected as `UnexpectedResponseBytes` even when it arrives in a later TCP/TLS record instead of the same read that contained the response head. This makes framing rejection invariant to network segmentation rather than an artifact of buffering.
+
+TLS closure is handled narrowly. If the exact declared body has already been authenticated and received, rustls can surface a missing peer `close_notify` as `UnexpectedEof`; that condition is accepted only as termination of this post-body sentinel. The same condition before the declared `Content-Length` has been satisfied remains `IncompleteResponse`, and timeouts or ordinary transport failures remain typed failures. The compatibility exception therefore cannot turn a truncated body, authentication failure, policy denial, or surplus byte into success.
+
+Regression evidence uses a real loopback TLS server that flushes a one-byte declared body, delays, then sends one additional byte in a later segment. The exchange must reject that delayed byte rather than returning the already-complete declared body as successful evidence.
+
 ## Verification contract
 
 The exact pull-request head must demonstrate:
@@ -46,6 +56,8 @@ The exact pull-request head must demonstrate:
 - exact WHATWG XML signature evidence as `text/xml`, with supplied `text/xml` producing `MimeMismatch::Match` and the classifier version reflecting the changed evidence semantics;
 - exact request-target wire serialization while credential-free evidence retains only the target digest, query-presence flag, and constant root prefix `/`;
 - request-target and exchange-evidence debug output that cannot expose raw path/query bytes or credential-shaped values;
+- rejection of `Content-Length` surplus bytes regardless of whether they are coalesced with the head or arrive in a later TLS/TCP segment;
+- preservation of fail-closed truncation semantics before the declared body length while allowing only the reviewed post-body TLS `UnexpectedEof` termination case;
 - Rust formatting, workspace checks, tests, Clippy, and rustdoc;
 - exact 100% production function, line, region, statement, and branch coverage;
 - Security Scan, SAST, all operationally required current review gates, and branch-protection gates.
@@ -53,6 +65,8 @@ The exact pull-request head must demonstrate:
 ## References
 
 Berners-Lee, T., Fielding, R., & Masinter, L. (2005). *Uniform resource identifier (URI): Generic syntax* (RFC 3986). Internet Engineering Task Force. https://doi.org/10.17487/RFC3986
+
+Fielding, R., Nottingham, M., & Reschke, J. (2022). *HTTP/1.1* (RFC 9112). Internet Engineering Task Force. https://doi.org/10.17487/RFC9112
 
 Microsoft. (n.d.). *Naming files, paths, and namespaces*. Microsoft Learn. Retrieved August 7, 2026, from https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file
 
