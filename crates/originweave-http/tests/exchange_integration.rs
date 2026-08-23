@@ -186,11 +186,8 @@ fn authenticated_http11_get_uses_the_exact_tls_stream_and_returns_complete_evide
     let (socket_address, server) = spawn_http_server(config, wire_response);
     let origin = origin_for(socket_address);
     let connection = authenticated_connection(&origin, socket_address, root_der, b"http/1.1");
-    let target = HttpRequestTarget::parse(
-        origin.clone(),
-        "/reset/credential-value?q=secret",
-    )
-    .expect("target");
+    let target = HttpRequestTarget::parse(origin.clone(), "/reset/credential-value?q=secret")
+        .expect("target");
     let policy = HttpClientPolicy::strict_defaults();
     let expected_policy = policy.clone();
 
@@ -328,9 +325,7 @@ fn authenticated_http11_get_uses_the_exact_tls_stream_and_returns_complete_evide
         .expect("HTTP server thread")
         .expect("HTTP server result");
     let request = String::from_utf8(request).expect("ASCII request");
-    assert!(request.starts_with(
-        "GET /reset/credential-value?q=secret HTTP/1.1\r\n"
-    ));
+    assert!(request.starts_with("GET /reset/credential-value?q=secret HTTP/1.1\r\n"));
     assert!(request.contains(&format!("Host: localhost:{}\r\n", socket_address.port())));
     assert!(request.contains("Connection: close\r\n"));
 }
