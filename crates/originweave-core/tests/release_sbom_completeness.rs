@@ -2,7 +2,7 @@ use std::error::Error;
 
 use originweave_core::release_manifest::{
     ReleaseArtifact, ReleaseBuildIdentity, ReleaseChannel, ReleaseManifest, ReleaseSbomBinding,
-    ReleaseSbomFormat,
+    ReleaseSbomBindingError, ReleaseSbomFormat,
 };
 
 const SOURCE_COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
@@ -26,17 +26,25 @@ fn release_sbom_binding_rejects_incomplete_manifest_inventory() -> Result<(), Bo
         ],
     )?;
 
-    let error = ReleaseSbomBinding::new(
+    let complete_binding = ReleaseSbomBinding::new(
         &manifest,
         "originweave.spdx.jsonld",
         ReleaseSbomFormat::Spdx30JsonLd,
-        vec!["originweave-linux-x86_64.tar.zst"],
-    )
-    .expect_err("incomplete release SBOM inventory must fail closed");
+        vec![
+            "originweave-linux-x86_64.tar.zst",
+            "originweave-native-host.bin",
+        ],
+    )?;
+    assert_eq!(complete_binding.described_artifacts().len(), 2);
 
     assert_eq!(
-        error.to_string(),
-        "release SBOM must describe every non-SBOM release artifact"
+        ReleaseSbomBinding::new(
+            &manifest,
+            "originweave.spdx.jsonld",
+            ReleaseSbomFormat::Spdx30JsonLd,
+            vec!["originweave-linux-x86_64.tar.zst"],
+        ),
+        Err(ReleaseSbomBindingError::IncompleteDescribedArtifacts)
     );
     Ok(())
 }
