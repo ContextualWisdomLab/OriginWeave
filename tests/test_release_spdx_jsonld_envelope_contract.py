@@ -55,6 +55,17 @@ class ReleaseSpdxJsonLdEnvelopeContractTests(unittest.TestCase):
         self.assertEqual(summary["graph_object_count"], 2)
         self.assertEqual(summary["spdx_document_count"], 1)
 
+    def test_required_global_context_allows_additional_namespace_mapping(self) -> None:
+        summary = self.validate(
+            self._payload(
+                [{"type": "SpdxDocument"}],
+                context=[CONTEXT, {"buyer": "https://example.invalid/spdx/buyer#"}],
+            )
+        )
+
+        self.assertEqual(summary["context"], CONTEXT)
+        self.assertEqual(summary["spdx_document_count"], 1)
+
     def test_context_must_match_exact_spdx_3_0_1_identity(self) -> None:
         self._assert_error_code(
             self._payload(
