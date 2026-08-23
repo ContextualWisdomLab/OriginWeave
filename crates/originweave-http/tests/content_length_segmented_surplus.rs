@@ -1,6 +1,6 @@
 #![allow(clippy::expect_used)]
 
-use std::io::{Read, Write};
+use std::io::{self, Read, Write};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
@@ -87,16 +87,17 @@ fn server_config(material: CertificateMaterial) -> (Vec<u8>, Arc<ServerConfig>) 
     (material.root_der, Arc::new(config))
 }
 
-fn read_request(tls: &mut StreamOwned<ServerConnection, std::net::TcpStream>) {
+fn read_request(tls: &mut StreamOwned<ServerConnection, std::net::TcpStream>) -> io::Result<()> {
     let mut request = Vec::new();
     let mut scratch = [0_u8; 512];
     while !request.windows(4).any(|window| window == b"\r\n\r\n") {
         match tls.read(&mut scratch) {
             Ok(0) => break,
             Ok(count) => request.extend_from_slice(&scratch[..count]),
-            Err(error) => panic!("server request read failed: {error}"),
+            Err(error) => return Err(error),
         }
     }
+    Ok(())
 }
 
 fn spawn_segmented_surplus_server(config: Arc<ServerConfig>) -> (SocketAddr, JoinHandle<()>) {
@@ -112,7 +113,7 @@ fn spawn_segmented_surplus_server(config: Arc<ServerConfig>) -> (SocketAddr, Joi
             .expect("write timeout");
         let connection = ServerConnection::new(config).expect("server TLS connection");
         let mut tls = StreamOwned::new(connection, stream);
-        read_request(&mut tls);
+        read_request(&mut tls).expect("server request read");
         tls.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 1\r\nConnection: close\r\n\r\nx")
             .expect("write declared response");
         tls.flush().expect("flush declared response");
