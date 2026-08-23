@@ -126,8 +126,23 @@ def _json_request(
         if len(raw) > MAX_WEBDRIVER_RESPONSE_BYTES:
             raise RuntimeError("WebDriver response exceeded the bounded JSON limit")
         if response.status >= 400:
-            detail = raw.decode("utf-8", errors="replace")
-            raise RuntimeError(f"WebDriver HTTP {response.status}: {detail}")
+            try:
+                error_payload = json.loads(raw.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                error_payload = None
+            error_value = (
+                error_payload.get("value")
+                if isinstance(error_payload, dict)
+                else None
+            )
+            if (
+                isinstance(error_value, dict)
+                and error_value.get("error") == "no such window"
+            ):
+                raise RuntimeError(
+                    "WebDriver error: no such window: response details redacted"
+                )
+            raise RuntimeError(f"WebDriver HTTP {response.status}")
     finally:
         connection.close()
 
@@ -136,7 +151,11 @@ def _json_request(
         raise RuntimeError("WebDriver returned a non-object JSON payload")
     value = decoded.get("value")
     if isinstance(value, dict) and value.get("error"):
-        raise RuntimeError(f"WebDriver error: {value.get('error')}: {value.get('message')}")
+        if value.get("error") == "no such window":
+            raise RuntimeError(
+                "WebDriver error: no such window: response details redacted"
+            )
+        raise RuntimeError("WebDriver returned an error response")
     return decoded
 
 
