@@ -35,7 +35,7 @@ fn spdx_sbom_binding_requires_manifest_backed_sbom_and_described_artifacts()
         &manifest,
         "originweave.spdx.jsonld",
         ReleaseSbomFormat::Spdx30JsonLd,
-        [
+        vec![
             "originweave-native-host.bin",
             "originweave-linux-x86_64.tar.zst",
         ],
@@ -65,7 +65,7 @@ fn spdx_sbom_binding_fails_closed_on_missing_or_ambiguous_manifest_identity()
             &manifest,
             "missing.spdx.jsonld",
             ReleaseSbomFormat::Spdx30JsonLd,
-            ["originweave-linux-x86_64.tar.zst"],
+            vec!["originweave-linux-x86_64.tar.zst"],
         ),
         Err(ReleaseSbomBindingError::UnknownSbomArtifact)
     );
@@ -74,7 +74,7 @@ fn spdx_sbom_binding_fails_closed_on_missing_or_ambiguous_manifest_identity()
             &manifest,
             "originweave.spdx.jsonld",
             ReleaseSbomFormat::Spdx30JsonLd,
-            std::iter::empty::<&str>(),
+            Vec::<&str>::new(),
         ),
         Err(ReleaseSbomBindingError::MissingDescribedArtifacts)
     );
@@ -83,7 +83,7 @@ fn spdx_sbom_binding_fails_closed_on_missing_or_ambiguous_manifest_identity()
             &manifest,
             "originweave.spdx.jsonld",
             ReleaseSbomFormat::Spdx30JsonLd,
-            ["not-in-release.bin"],
+            vec!["not-in-release.bin"],
         ),
         Err(ReleaseSbomBindingError::UnknownDescribedArtifact)
     );
@@ -92,7 +92,7 @@ fn spdx_sbom_binding_fails_closed_on_missing_or_ambiguous_manifest_identity()
             &manifest,
             "originweave.spdx.jsonld",
             ReleaseSbomFormat::Spdx30JsonLd,
-            [
+            vec![
                 "originweave-linux-x86_64.tar.zst",
                 "originweave-linux-x86_64.tar.zst",
             ],
@@ -104,7 +104,7 @@ fn spdx_sbom_binding_fails_closed_on_missing_or_ambiguous_manifest_identity()
             &manifest,
             "originweave.spdx.jsonld",
             ReleaseSbomFormat::Spdx30JsonLd,
-            ["ORIGINWEAVE-LINUX-X86_64.TAR.ZST"],
+            vec!["ORIGINWEAVE-LINUX-X86_64.TAR.ZST"],
         ),
         Err(ReleaseSbomBindingError::UnknownDescribedArtifact)
     );
