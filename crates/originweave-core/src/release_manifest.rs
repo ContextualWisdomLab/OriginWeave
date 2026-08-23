@@ -271,7 +271,7 @@ impl ReleaseSbomBinding {
 
     /// Return the exact SPDX specification version represented by the declared format.
     #[must_use]
-    pub const fn spdx_specification_version(self) -> &'static str {
+    pub const fn spdx_specification_version(&self) -> &'static str {
         self.format.spdx_specification_version()
     }
 
