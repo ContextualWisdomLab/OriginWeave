@@ -7,8 +7,13 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+mod enterprise_approval;
 mod sensitive_data;
 
+pub use enterprise_approval::{
+    ApprovalLifecycleError, ApprovalLifecycleState, ApprovalPrincipalRef,
+    ApprovalPrincipalRefError, EnterpriseApprovalRequest,
+};
 pub use sensitive_data::{
     DataClassification, DisclosureDecision, DisclosureScope, HandleUseDecision, HandleUseRequest,
     SensitiveDataAuthority, SensitiveDataRequest, SensitiveValueHandleScope, evaluate_disclosure,
