@@ -342,7 +342,9 @@ pub enum ApprovalLifecycleError {
 impl fmt::Display for ApprovalLifecycleError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidValidityWindow => formatter.write_str("approval validity window is invalid"),
+            Self::InvalidValidityWindow => {
+                formatter.write_str("approval validity window is invalid")
+            }
             Self::InvalidUseLimit => formatter.write_str("approval use limit must be nonzero"),
             Self::NonDelegableAction => formatter.write_str("action is not delegable by approval"),
             Self::InvalidState(state) => write!(
