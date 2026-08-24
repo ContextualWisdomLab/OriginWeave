@@ -147,8 +147,8 @@ fn capture_manifest_schema_digest_binds_every_typed_schema_dimension() {
     let complete_schema = schema_covering_all_semantics("catalog-semantic-v1");
     let minimal_schema = schema("catalog-semantic-v1");
 
-    let complete = CaptureManifest::new(&complete_schema, &[(&record, &bundle)])
-        .expect("complete manifest");
+    let complete =
+        CaptureManifest::new(&complete_schema, &[(&record, &bundle)]).expect("complete manifest");
     let minimal =
         CaptureManifest::new(&minimal_schema, &[(&record, &bundle)]).expect("minimal manifest");
 
@@ -190,7 +190,10 @@ fn capture_manifest_error_contracts_preserve_typed_causes() {
     assert!(std::error::Error::source(&mismatch).is_some());
 
     let identity = CaptureManifestVerificationError::IdentityMismatch;
-    assert_eq!(identity.to_string(), "capture manifest identity does not match");
+    assert_eq!(
+        identity.to_string(),
+        "capture manifest identity does not match"
+    );
     assert!(std::error::Error::source(&identity).is_none());
 
     let invalid = CaptureManifestVerificationError::InvalidCandidate(mismatch);
