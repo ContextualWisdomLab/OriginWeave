@@ -95,6 +95,28 @@ fn mcp_tools_list_request_requires_complete_request_metadata() {
 }
 
 #[test]
+fn mcp_tools_list_bounds_protocol_metadata_before_cross_field_comparison() {
+    let oversized_protocol_version = format!("{MCP_PROTOCOL_VERSION}0");
+
+    for (header, metadata) in [
+        (oversized_protocol_version.as_str(), MCP_PROTOCOL_VERSION),
+        (MCP_PROTOCOL_VERSION, oversized_protocol_version.as_str()),
+    ] {
+        assert_eq!(
+            ValidatedMcpToolsListRequest::new(
+                Some(header),
+                Some(metadata),
+                true,
+                MCP_TOOLS_LIST_METHOD,
+                MCP_TOOLS_LIST_METHOD,
+                None,
+            ),
+            Err(McpToolsListBoundaryError::UnsupportedProtocolVersion)
+        );
+    }
+}
+
+#[test]
 fn mcp_tools_list_validates_each_method_before_cross_field_comparison() {
     let oversized_method = "a".repeat(MAX_MCP_METHOD_NAME_BYTES + 1);
 
