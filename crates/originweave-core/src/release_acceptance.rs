@@ -201,19 +201,19 @@ pub enum ReleaseDecisionError {
 impl fmt::Display for ReleaseDecisionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::EmptyLimitationClaim => formatter
-                .write_str("declared release limitation must name an unsupported claim"),
-            Self::LimitationClaimTooLong => formatter
-                .write_str("declared release limitation claim exceeds the byte budget"),
+            Self::EmptyLimitationClaim => {
+                formatter.write_str("declared release limitation must name an unsupported claim")
+            }
+            Self::LimitationClaimTooLong => {
+                formatter.write_str("declared release limitation claim exceeds the byte budget")
+            }
             Self::InvalidLimitationClaim => formatter.write_str(
                 "declared release limitation claim contains an unsafe presentation character",
             ),
-            Self::EmptyLimitationConsequence => formatter.write_str(
-                "declared release limitation must state a buyer-visible consequence",
-            ),
-            Self::LimitationConsequenceTooLong => formatter.write_str(
-                "declared release limitation consequence exceeds the byte budget",
-            ),
+            Self::EmptyLimitationConsequence => formatter
+                .write_str("declared release limitation must state a buyer-visible consequence"),
+            Self::LimitationConsequenceTooLong => formatter
+                .write_str("declared release limitation consequence exceeds the byte budget"),
             Self::InvalidLimitationConsequence => formatter.write_str(
                 "declared release limitation consequence contains an unsafe presentation character",
             ),
