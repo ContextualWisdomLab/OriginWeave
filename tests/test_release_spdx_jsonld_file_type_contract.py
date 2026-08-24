@@ -14,7 +14,7 @@ VALIDATOR = ROOT / "scripts" / "release" / "validate_spdx_jsonld.py"
 
 
 class ReleaseSpdxJsonLdFileTypeContractTests(unittest.TestCase):
-    """Prevent streaming/special files from bypassing the bounded release-input contract."""
+    """Prevent streaming/indirect files from bypassing the bounded release-input contract."""
 
     def test_fifo_candidate_is_rejected_before_document_bytes_are_accepted(self) -> None:
         """A named pipe is not an immutable bounded release artifact input."""
@@ -51,6 +51,25 @@ class ReleaseSpdxJsonLdFileTypeContractTests(unittest.TestCase):
                 writer.join(timeout=1.0)
 
             self.assertFalse(writer.is_alive(), "FIFO writer remained blocked after rejection")
+            self.assertEqual(captured.exception.code, "invalid_file_type")
+
+    def test_symlink_candidate_is_rejected_instead_of_following_indirect_release_input(self) -> None:
+        """A symlink is not the regular local artifact path whose bytes are being admitted."""
+
+        namespace = runpy.run_path(str(VALIDATOR), run_name="spdx_symlink_contract")
+        read_bounded = namespace["_read_bounded"]
+        envelope_error = namespace["SpdxJsonLdEnvelopeError"]
+
+        with tempfile.TemporaryDirectory(prefix="originweave-spdx-symlink-") as directory:
+            root = pathlib.Path(directory)
+            target = root / "actual.spdx.jsonld"
+            target.write_bytes(b"{}")
+            candidate = root / "candidate.spdx.jsonld"
+            candidate.symlink_to(target.name)
+
+            with self.assertRaises(envelope_error) as captured:
+                read_bounded(candidate)
+
             self.assertEqual(captured.exception.code, "invalid_file_type")
 
 
