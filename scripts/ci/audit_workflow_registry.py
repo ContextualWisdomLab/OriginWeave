@@ -632,6 +632,7 @@ def _open_output_descriptor(path: pathlib.Path, create_new: bool) -> int:
     nofollow = getattr(os, "O_NOFOLLOW", 0)
     directory = getattr(os, "O_DIRECTORY", 0)
     cloexec = getattr(os, "O_CLOEXEC", 0)
+    nonblock = getattr(os, "O_NONBLOCK", 0)
     if not nofollow or not directory or os.open not in os.supports_dir_fd:
         raise WorkflowAuditError("secure direct-file output is unavailable")
 
@@ -663,7 +664,7 @@ def _open_output_descriptor(path: pathlib.Path, create_new: bool) -> int:
             os.close(parent_fd)
             parent_fd = next_fd
 
-        flags = os.O_WRONLY | nofollow | cloexec
+        flags = os.O_WRONLY | nonblock | nofollow | cloexec
         if create_new:
             flags |= os.O_CREAT | os.O_EXCL
         try:
@@ -681,7 +682,7 @@ def _open_output_descriptor(path: pathlib.Path, create_new: bool) -> int:
 
 
 def _write_output(path: pathlib.Path, serialized: str) -> None:
-    """Write evidence to one directly named regular file without path inheritance."""
+    """Write evidence to one directly named, singly linked regular file."""
 
     candidate_stat: os.stat_result | None
     try:
@@ -696,6 +697,8 @@ def _write_output(path: pathlib.Path, serialized: str) -> None:
             raise WorkflowAuditError("output must not be a symbolic link")
         if not stat.S_ISREG(candidate_stat.st_mode):
             raise WorkflowAuditError("output must be a regular file")
+        if candidate_stat.st_nlink != 1:
+            raise WorkflowAuditError("output must have exactly one hard link")
 
     descriptor: int | None = None
     try:
@@ -703,6 +706,8 @@ def _write_output(path: pathlib.Path, serialized: str) -> None:
         opened_stat = os.fstat(descriptor)
         if not stat.S_ISREG(opened_stat.st_mode):
             raise WorkflowAuditError("output must be a regular file")
+        if opened_stat.st_nlink != 1:
+            raise WorkflowAuditError("output must have exactly one hard link")
         if candidate_stat is not None and (
             candidate_stat.st_dev,
             candidate_stat.st_ino,
