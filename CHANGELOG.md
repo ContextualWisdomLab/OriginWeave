@@ -92,6 +92,6 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### References
 
-Web Hypertext Application Technology Working Group. (2026). *URL standard*. https://url.spec.whatwg.org/
+Web Hypertext Application Technology Working Group. (2026). *URL standard*. Retrieved August 24, 2026, from https://url.spec.whatwg.org/
 
 [Unreleased]: https://github.com/ContextualWisdomLab/OriginWeave/compare/main...HEAD
