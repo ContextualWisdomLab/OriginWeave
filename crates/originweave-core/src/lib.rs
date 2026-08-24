@@ -165,9 +165,6 @@ fn parse_bracketed_ipv6(authority: &str) -> Result<(String, Option<u16>, bool), 
 }
 
 fn parse_port(port_text: &str) -> Result<u16, OriginError> {
-    if port_text.is_empty() || !port_text.bytes().all(|byte| byte.is_ascii_digit()) {
-        return Err(OriginError::InvalidPort);
-    }
     let port = port_text
         .parse::<u16>()
         .map_err(|_error| OriginError::InvalidPort)?;
