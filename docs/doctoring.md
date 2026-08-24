@@ -76,7 +76,7 @@ The test-only rcgen 0.14.8 dependency creates a local CA and deterministic certi
 
 ### Release artifact filename portability
 
-Microsoft's Win32 filename guidance requires applications not to assume case sensitivity and reserves device basenames including `CON`, `PRN`, `AUX`, `NUL`, `COM1` through `COM9`, and `LPT1` through `LPT9`, including those names followed by extensions. The same documentation identifies non-ASCII superscript-digit device aliases and also documents `COM0` as a possible `Global??` Win32 namespace symlink. Separately, Microsoft's current OneDrive and SharePoint restrictions reject `COM0` through `COM9` and `LPT0` through `LPT9`. OriginWeave therefore adopts the stricter portable release-artifact deny set: ASCII-case-folded duplicate names and `CON`, `PRN`, `AUX`, `NUL`, `COM0` through `COM9`, and `LPT0` through `LPT9`, including extensions, are rejected so an admitted artifact does not become a device or synchronization conflict in a buyer environment. The ASCII-only grammar separately excludes the superscript aliases. These checks preserve the original artifact spelling and remain identity hygiene only; they do not grant signing, publication, installation, update, rollback, or release authority.
+Microsoft's Win32 filename guidance requires applications not to assume case sensitivity and reserves device basenames including `CON`, `PRN`, `AUX`, `NUL`, `COM1` through `COM9`, and `LPT1` through `LPT9`, including those names followed by extensions. The same documentation identifies non-ASCII superscript-digit device aliases and also documents `COM0` as a possible `Global??` Win32 namespace symlink. Separately, Microsoft's current OneDrive and SharePoint restrictions reject `COM0` through `COM9` and `LPT0` through `LPT9` and additional names including `desktop.ini`. OriginWeave therefore adopts a bounded release-artifact identity deny set: ASCII-case-folded duplicate names and `CON`, `PRN`, `AUX`, `NUL`, `COM0` through `COM9`, and `LPT0` through `LPT9`, including extensions, are rejected. The ASCII-only grammar separately excludes the superscript aliases. This bounded filename rule is not a complete OneDrive or SharePoint synchronization-compatibility guarantee; packaging or synchronization validation for a target service must separately enforce that service's full current restrictions. These checks preserve the original artifact spelling and remain identity hygiene only; they do not grant signing, publication, installation, update, rollback, or release authority.
 
 ### Git source identity admission
 
@@ -134,9 +134,9 @@ Fielding, R., Nottingham, M., & Reschke, J. (2022). *HTTP semantics* (RFC 9110).
 
 Fugu Team, Sakana AI. (2026). *Sakana Fugu technical report* [Technical report]. arXiv. https://doi.org/10.48550/arXiv.2606.21228
 
-Git. (2026). *gitprotocol-common documentation (Git 2.55.0)*. https://git-scm.com/docs/gitprotocol-common/2.55.0
+Git. (2025). *gitprotocol-common documentation (Git 2.50.0)*. https://git-scm.com/docs/gitprotocol-common/2.50.0
 
-Git. (2026). *gitprotocol-pack documentation (Git 2.55.0)*. https://git-scm.com/docs/gitprotocol-pack/2.55.0
+Git. (2026). *gitprotocol-pack documentation (Git 2.54.0)*. https://git-scm.com/docs/gitprotocol-pack/2.54.0
 
 Huston, G., & Buraglio, N. (2024). *Expanding the IPv6 documentation space* (RFC 9637). Internet Engineering Task Force. https://doi.org/10.17487/RFC9637
 
