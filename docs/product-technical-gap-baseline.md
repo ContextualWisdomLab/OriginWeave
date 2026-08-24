@@ -199,9 +199,6 @@ jq -r '.[].number' "$EVIDENCE_DIR/open-prs.json" | while read -r PR; do
     HEAD_SHA=$(jq -r '.head.sha' "$PR_JSON")
     BASE_SHA=$(jq -r '.base.sha' "$PR_JSON")
 
-    gh api "repos/ContextualWisdomLab/OriginWeave/commits/$HEAD_SHA" \
-      > "$EVIDENCE_DIR/pr-${PR}-head-commit.json"
-
     gh api --paginate --slurp \
       "repos/ContextualWisdomLab/OriginWeave/commits/$HEAD_SHA/check-runs?per_page=100" \
       > "$EVIDENCE_DIR/pr-${PR}-check-runs.json"
@@ -239,7 +236,6 @@ query($owner: String!, $name: String!, $number: Int!, $endCursor: String) {
       --slurpfile workflow_runs "$EVIDENCE_DIR/pr-${PR}-workflow-runs.json" \
       --slurpfile rules "$EVIDENCE_DIR/main-branch-rules.json" \
       --slurpfile collaborators "$EVIDENCE_DIR/collaborators.json" \
-      --slurpfile head_commit "$EVIDENCE_DIR/pr-${PR}-head-commit.json" \
       --slurpfile threads "$EVIDENCE_DIR/pr-${PR}-review-threads.json" \
       --arg base "$BASE_SHA" \
       '(
@@ -249,7 +245,6 @@ query($owner: String!, $name: String!, $number: Int!, $endCursor: String) {
           | .parameters
         ] | first // {}
       ) as $pull_request_parameters
-      | ($head_commit[0].committer.login // $head_commit[0].author.login // "") as $last_push_actor
       | (
           [
             $reviews[][][]?
@@ -265,13 +260,10 @@ query($owner: String!, $name: String!, $number: Int!, $endCursor: String) {
           ]
           | group_by(.reviewer)
           | map(sort_by(.submitted_at) | last)
-          | map(select(
-              ($pull_request_parameters.require_last_push_approval != true)
-              or .reviewer != $last_push_actor
-            ))
           | map(select(.state == "APPROVED" and .commit_id == $head))
         ) as $current_approvals
       | ($pull_request_parameters.required_approving_review_count // 0) as $required_review_count
+      | ($pull_request_parameters.require_last_push_approval // false) as $require_last_push_approval
       | {
           head_sha: $head,
           base_sha: $base,
@@ -282,8 +274,18 @@ query($owner: String!, $name: String!, $number: Int!, $endCursor: String) {
           workflow_runs: [$workflow_runs[][].workflow_runs[]?],
           counted_approvals: ($current_approvals | length),
           required_approving_review_count: $required_review_count,
-          require_last_push_approval: ($pull_request_parameters.require_last_push_approval // false),
-          approval_gate_satisfied: (($current_approvals | length) >= $required_review_count),
+          require_last_push_approval: $require_last_push_approval,
+          last_push_approval_authority: (
+            if $require_last_push_approval == true
+            then "github_rule_evaluation_required"
+            else "not_required"
+            end
+          ),
+          approval_gate_satisfied: (
+            if $pull_request_parameters.require_last_push_approval == true then false
+            else (($current_approvals | length) >= $required_review_count)
+            end
+          ),
           required_workflows: [
             $rules[][]?
             | select(.type == "workflows")
@@ -318,6 +320,6 @@ query($owner: String!, $name: String!, $number: Int!, $endCursor: String) {
 done
 ```
 
-The branch-scoped rules response determines the active rules affecting `main`; each PR's exact `HEAD_SHA` then determines which check runs, legacy statuses, workflow runs, reviews, and unresolved threads are current. The saved merge verdict binds counted approvals to the latest review per eligible collaborator, excludes the PR author and (when required) the last-push actor, applies the required approval count and last-push rule, and requires `APPROVED` on the exact head. The saved PR JSON also preserves the exact base reference and branch ancestry input for the dependency graph. Evidence is retained only when both `RECHECKED_HEAD_SHA` and `RECHECKED_BASE_SHA` match the collected values; a moving head or base discards the temporary verdict, and three failed attempts leave no unstable merge verdict.
+The branch-scoped rules response determines the active rules affecting `main`; each PR's exact `HEAD_SHA` then determines which check runs, legacy statuses, workflow runs, reviews, and unresolved threads are current. The saved merge verdict binds counted approvals to the latest review per eligible collaborator, excludes the PR author, and requires `APPROVED` on the exact head. It deliberately does **not** infer GitHub's actual last-push actor from commit author or committer metadata: when `require_last_push_approval` is active, this portable evidence procedure records `github_rule_evaluation_required` and keeps `approval_gate_satisfied` false until GitHub's authoritative rule evaluation is consulted. The saved PR JSON also preserves the exact base reference and branch ancestry input for the dependency graph. Evidence is retained only when both `RECHECKED_HEAD_SHA` and `RECHECKED_BASE_SHA` match the collected values; a moving head or base discards the temporary verdict, and three failed attempts leave no unstable merge verdict.
 
 For standards and binding architecture, use [`doctoring.md`](doctoring.md), [`doctoring/browser-agent-protocols.md`](doctoring/browser-agent-protocols.md), [`PRD.md`](PRD.md), [`TRD.md`](TRD.md), [`product-roadmap.md`](product-roadmap.md), and linked ADR/UML/ERD/traceability records. Issues #199-#203 contain their own APA 7th standards and research traceability. This baseline intentionally records delivery state and never promotes planned adapters or active pull-request code to implemented behavior.
