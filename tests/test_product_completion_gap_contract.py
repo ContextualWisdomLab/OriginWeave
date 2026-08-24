@@ -65,7 +65,6 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             '"repos/ContextualWisdomLab/OriginWeave/commits/$HEAD_SHA/statuses?per_page=100"',
             '"repos/ContextualWisdomLab/OriginWeave/pulls/$PR/reviews?per_page=100"',
             '"repos/ContextualWisdomLab/OriginWeave/actions/runs?head_sha=$HEAD_SHA&per_page=100"',
-            '"$EVIDENCE_DIR/pr-${PR}-head-commit.json"',
             "check_runs: [$checks[][].check_runs[]?],",
             "legacy_statuses: [$statuses[][][]?]",
             "workflow_runs: [$workflow_runs[][].workflow_runs[]?],",
@@ -81,7 +80,9 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "group_by(.reviewer)",
             "required_approving_review_count",
             "require_last_push_approval",
-            "$head_commit[0].committer.login",
+            "last_push_approval_authority",
+            '"github_rule_evaluation_required"',
+            "if $pull_request_parameters.require_last_push_approval == true then false",
             "$pr[0].user.login",
             '.type == "workflows"',
             ".parameters.workflows",
@@ -101,6 +102,9 @@ class ProductCompletionGapContractTests(unittest.TestCase):
         self.assertNotIn("legacy_statuses: [$statuses[][]?]", shell)
         self.assertNotIn("workflow_runs: [$workflow_runs[]?.workflow_runs[]?],", shell)
         self.assertNotIn("$reviews[][]?\n          | select(.state", shell)
+        self.assertNotIn("head-commit.json", shell)
+        self.assertNotIn("$head_commit[0].committer.login", shell)
+        self.assertNotIn("$head_commit[0].author.login", shell)
 
 
 if __name__ == "__main__":
