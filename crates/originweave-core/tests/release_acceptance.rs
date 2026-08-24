@@ -1,6 +1,6 @@
 use originweave_core::release_acceptance::{
-    BenchmarkSuite, BenchmarkSuiteOutcome, DeclaredLimitation, ReleaseDecision,
-    ReleaseDecisionError, decide_release,
+    BenchmarkSuite, BenchmarkSuiteOutcome, DeclaredLimitation, MAX_DECLARED_RELEASE_LIMITATIONS,
+    ReleaseDecision, ReleaseDecisionError, decide_release,
 };
 
 fn passing_results() -> Vec<(BenchmarkSuite, BenchmarkSuiteOutcome)> {
@@ -137,6 +137,10 @@ fn limitation_errors_have_deterministic_standard_error_contracts() {
         (
             ReleaseDecisionError::InvalidLimitationConsequence,
             "declared release limitation consequence contains an unsafe presentation character",
+        ),
+        (
+            ReleaseDecisionError::DuplicateLimitationClaim,
+            "benchmark release decision contains duplicate limitation claim",
         ),
     ];
 
@@ -326,9 +330,24 @@ fn conflicting_consequences_for_one_limitation_claim_fail_closed()
         "Linux ARM64 is supported only for evaluation deployments.",
     )?;
 
-    assert!(
-        decide_release(passing_results(), &[first, conflicting]).is_err(),
-        "one unsupported claim must not retain contradictory buyer consequences"
+    assert_eq!(
+        decide_release(passing_results(), &[first, conflicting]),
+        Err(ReleaseDecisionError::DuplicateLimitationClaim)
+    );
+    Ok(())
+}
+
+#[test]
+fn duplicate_limitation_claim_fails_closed_even_when_consequence_matches()
+-> Result<(), ReleaseDecisionError> {
+    let limitation = declared_limitation()?;
+
+    assert_eq!(
+        decide_release(
+            passing_results(),
+            &[limitation.clone(), limitation],
+        ),
+        Err(ReleaseDecisionError::DuplicateLimitationClaim)
     );
     Ok(())
 }
@@ -336,11 +355,14 @@ fn conflicting_consequences_for_one_limitation_claim_fail_closed()
 #[test]
 fn release_report_bounds_declared_limitation_count_before_cloning()
 -> Result<(), ReleaseDecisionError> {
-    let limitation = declared_limitation()?;
-    let maximum = vec![
-        limitation.clone();
-        originweave_core::release_acceptance::MAX_DECLARED_RELEASE_LIMITATIONS
-    ];
+    let maximum = (0..MAX_DECLARED_RELEASE_LIMITATIONS)
+        .map(|index| {
+            DeclaredLimitation::new(
+                format!("unsupported_profile_{index}"),
+                "This profile is excluded from the declared support profile.",
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let report = decide_release(passing_results(), &maximum)?;
 
     assert_eq!(
@@ -349,13 +371,17 @@ fn release_report_bounds_declared_limitation_count_before_cloning()
     );
     assert_eq!(
         report.declared_limitations().len(),
-        originweave_core::release_acceptance::MAX_DECLARED_RELEASE_LIMITATIONS
+        MAX_DECLARED_RELEASE_LIMITATIONS
     );
 
-    let too_many = vec![
-        limitation;
-        originweave_core::release_acceptance::MAX_DECLARED_RELEASE_LIMITATIONS + 1
-    ];
+    let too_many = (0..=MAX_DECLARED_RELEASE_LIMITATIONS)
+        .map(|index| {
+            DeclaredLimitation::new(
+                format!("unsupported_profile_{index}"),
+                "This profile is excluded from the declared support profile.",
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     assert_eq!(
         decide_release(passing_results(), &too_many),
         Err(ReleaseDecisionError::TooManyDeclaredLimitations)
