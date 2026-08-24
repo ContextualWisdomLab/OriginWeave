@@ -23,6 +23,7 @@ import json
 import math
 import os
 import pathlib
+import select
 import signal
 import socket
 import string
@@ -509,6 +510,68 @@ def _signal_linux_process_identity(
         except ProcessLookupError:
             return False
         return True
+    finally:
+        os.close(pidfd)
+
+
+def _signal_and_wait_for_linux_process_identity_termination(
+    process_identity: tuple[int, int],
+    signal_number: int,
+    *,
+    timeout_seconds: float = PROCESS_EXIT_TIMEOUT_SECONDS,
+) -> bool:
+    """Signal one exact Linux identity and await termination on that same pidfd."""
+
+    if not isinstance(process_identity, tuple) or len(process_identity) != 2:
+        raise ValueError("invalid Linux process identity")
+    process_id, start_time_ticks = process_identity
+    if isinstance(process_id, bool) or not isinstance(process_id, int) or process_id <= 0:
+        raise ValueError("invalid Linux process identifier")
+    if (
+        isinstance(start_time_ticks, bool)
+        or not isinstance(start_time_ticks, int)
+        or start_time_ticks <= 0
+    ):
+        raise ValueError("invalid Linux process start time")
+    if (
+        isinstance(signal_number, bool)
+        or not isinstance(signal_number, int)
+        or signal_number <= 0
+    ):
+        raise ValueError("invalid Linux process signal")
+    if (
+        isinstance(timeout_seconds, bool)
+        or not isinstance(timeout_seconds, (int, float))
+        or timeout_seconds < 0
+        or not math.isfinite(timeout_seconds)
+    ):
+        raise ValueError("invalid Linux process termination timeout")
+
+    expected_identity = (process_id, start_time_ticks)
+    if _read_linux_proc_stat_process_identity(process_id) != expected_identity:
+        return False
+    pidfd_open = getattr(os, "pidfd_open", None)
+    pidfd_send_signal = getattr(signal, "pidfd_send_signal", None)
+    if not callable(pidfd_open) or not callable(pidfd_send_signal):
+        raise RuntimeError("Linux pidfd signalling is unavailable")
+    try:
+        pidfd = pidfd_open(process_id, 0)
+    except ProcessLookupError:
+        return False
+    try:
+        if _read_linux_proc_stat_process_identity(process_id) != expected_identity:
+            return False
+        try:
+            pidfd_send_signal(pidfd, signal_number)
+        except ProcessLookupError:
+            return False
+        readable, _writable, _exceptional = select.select(
+            [pidfd],
+            [],
+            [],
+            float(timeout_seconds),
+        )
+        return bool(readable)
     finally:
         os.close(pidfd)
 
@@ -2178,25 +2241,14 @@ def _run_agent_task_browser_crash_browser_pass(
                 required_root_identity=browser_process_identity,
             )
         )
-        if not _signal_linux_process_identity(browser_process_identity, signal.SIGKILL):
-            raise RuntimeError("Agent Task browser process identity changed before crash signal")
-
-        deadline = time.monotonic() + PROCESS_EXIT_TIMEOUT_SECONDS
-        while True:
-            try:
-                _json_request(
-                    driver_port,
-                    "GET",
-                    _webdriver_path(session_id, "/url"),
-                    timeout=1.0,
-                )
-            except (OSError, RuntimeError, json.JSONDecodeError):
-                browser_process_crash_detected = True
-                break
-            remaining_seconds = deadline - time.monotonic()
-            if remaining_seconds <= 0:
-                raise RuntimeError("Agent Task browser remained usable after SIGKILL")
-            time.sleep(min(0.05, remaining_seconds))
+        if not _signal_and_wait_for_linux_process_identity_termination(
+            browser_process_identity,
+            signal.SIGKILL,
+        ):
+            raise RuntimeError(
+                "Agent Task browser process was not observed terminated after crash signal"
+            )
+        browser_process_crash_detected = True
     finally:
         _cleanup_crashed_browser_session(driver_port, session_id)
         _stop_crashed_driver(driver)
