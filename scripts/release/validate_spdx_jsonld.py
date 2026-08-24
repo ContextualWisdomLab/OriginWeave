@@ -334,9 +334,10 @@ def _read_bounded(path: pathlib.Path) -> bytes:
         finally:
             _EXPECTED_PARENT_IDENTITIES.reset(identity_token)
     except OSError as error:
+        redacted_error = OSError(error.errno, "release SBOM file operation failed")
         if error.errno in {errno.ELOOP, errno.ENOTDIR}:
-            raise SpdxJsonLdEnvelopeError("invalid_file_type") from error
-        raise SpdxJsonLdEnvelopeError("read_failed") from error
+            raise SpdxJsonLdEnvelopeError("invalid_file_type") from redacted_error
+        raise SpdxJsonLdEnvelopeError("read_failed") from redacted_error
     if not payload or len(payload) > MAX_SPDX_JSONLD_BYTES:
         raise SpdxJsonLdEnvelopeError("invalid_size")
     return payload
