@@ -343,10 +343,7 @@ fn duplicate_limitation_claim_fails_closed_even_when_consequence_matches()
     let limitation = declared_limitation()?;
 
     assert_eq!(
-        decide_release(
-            passing_results(),
-            &[limitation.clone(), limitation],
-        ),
+        decide_release(passing_results(), &[limitation.clone(), limitation],),
         Err(ReleaseDecisionError::DuplicateLimitationClaim)
     );
     Ok(())
