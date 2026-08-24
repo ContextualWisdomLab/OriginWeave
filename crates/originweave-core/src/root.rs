@@ -7,9 +7,10 @@
 #![deny(missing_docs)]
 
 #[path = "lib.rs"]
-mod contracts;
+mod core_contracts;
+use core_contracts as contracts;
 
-pub use contracts::{
+pub use core_contracts::{
     ActionIntentDigest, ActionIntentDigestError, ActionKind, ActionRequest, AgentTaskId,
     AgentTaskIdError, ApprovalEvidence, ApprovalScope,
     AuthorityExtensionAccessDecision as ExtensionAccessDecision,
