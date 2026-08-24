@@ -6,8 +6,7 @@ use originweave_evidence::{
     ProvenanceRecord, VerificationResult, WarcProvBundle, WarcResourceRecord,
 };
 
-const SOURCE_HASH: &str =
-    "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+const SOURCE_HASH: &str = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 const RECORD_ID: &str = "urn:uuid:123e4567-e89b-12d3-a456-426614174000";
 const SOFTWARE_COMMIT_SHA: &str = "0123456789abcdef0123456789abcdef01234567";
 
