@@ -139,6 +139,28 @@ class ReleaseSpdxJsonLdEnvelopeContractTests(unittest.TestCase):
             "invalid_document_count",
         )
 
+    def test_nested_second_spdx_document_fails_closed(self) -> None:
+        self._assert_error_code(
+            self._payload(
+                [
+                    {"type": "CreationInfo", "@id": "_:creation", "specVersion": "3.0.1"},
+                    {
+                        "type": "SpdxDocument",
+                        "spdxId": "https://example.invalid/spdx/document",
+                        "creationInfo": "_:creation",
+                        "element": [
+                            {
+                                "type": "SpdxDocument",
+                                "spdxId": "https://example.invalid/spdx/nested-document",
+                                "creationInfo": "_:creation",
+                            }
+                        ],
+                    },
+                ]
+            ),
+            "invalid_document_count",
+        )
+
     def test_invalid_utf8_and_nonfinite_json_fail_closed(self) -> None:
         self._assert_error_code(b"\xff", "invalid_utf8")
         payload = (
