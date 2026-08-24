@@ -148,6 +148,13 @@ class ReleaseSpdxJsonLdEnvelopeContractTests(unittest.TestCase):
         ).encode("utf-8")
         self._assert_error_code(payload, "invalid_json")
 
+        overflow_payload = (
+            '{"@context":"'
+            + CONTEXT
+            + '","@graph":[{"type":"SpdxDocument","score":1e400}]}'
+        ).encode("utf-8")
+        self._assert_error_code(overflow_payload, "invalid_json")
+
     def test_excessive_json_nesting_fails_with_typed_redacted_error(self) -> None:
         marker = "buyer-secret-marker-must-not-reach-release-diagnostics"
         depth = 10_000
