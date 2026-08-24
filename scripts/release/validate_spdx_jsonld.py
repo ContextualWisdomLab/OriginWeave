@@ -162,12 +162,44 @@ def validate_release_spdx_3_0_1_jsonld_bytes(
 
 
 def _nonblocking_read_opener(path: str, flags: int) -> int:
-    """Open one local candidate without following symlinks or waiting on special files."""
+    """Open one candidate through a no-follow descriptor-relative component walk.
 
-    return os.open(
-        path,
-        flags | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_NOFOLLOW", 0),
-    )
+    Opening every ancestor relative to an already-open directory descriptor prevents a
+    pathname swap from redirecting a later component through a transient symlink. Platforms
+    that cannot provide both ``O_NOFOLLOW`` and descriptor-relative ``os.open`` fail closed
+    instead of silently weakening this direct-path release boundary.
+    """
+
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    directory = getattr(os, "O_DIRECTORY", 0)
+    cloexec = getattr(os, "O_CLOEXEC", 0)
+    if not nofollow or not directory or os.open not in os.supports_dir_fd:
+        raise OSError(errno.ENOTSUP, "secure descriptor-relative open is unavailable")
+
+    candidate = pathlib.Path(path)
+    components = list(candidate.parts)
+    if candidate.is_absolute():
+        anchor = candidate.anchor
+        components = components[1:]
+    else:
+        anchor = "."
+    if not components or any(component in {"", ".", ".."} for component in components):
+        raise OSError(errno.ELOOP, "indirect path component is not permitted")
+
+    directory_flags = os.O_RDONLY | directory | nofollow | cloexec
+    parent_fd = os.open(anchor, directory_flags)
+    try:
+        for component in components[:-1]:
+            next_fd = os.open(component, directory_flags, dir_fd=parent_fd)
+            os.close(parent_fd)
+            parent_fd = next_fd
+        return os.open(
+            components[-1],
+            flags | getattr(os, "O_NONBLOCK", 0) | nofollow | cloexec,
+            dir_fd=parent_fd,
+        )
+    finally:
+        os.close(parent_fd)
 
 
 def _require_direct_parent_chain(path: pathlib.Path) -> None:
@@ -200,7 +232,7 @@ def _read_bounded(path: pathlib.Path) -> bytes:
             _require_direct_parent_chain(path)
             payload = source.read(MAX_SPDX_JSONLD_BYTES + 1)
     except OSError as error:
-        if error.errno == errno.ELOOP:
+        if error.errno in {errno.ELOOP, errno.ENOTDIR}:
             raise SpdxJsonLdEnvelopeError("invalid_file_type") from error
         raise SpdxJsonLdEnvelopeError("read_failed") from error
     if not payload or len(payload) > MAX_SPDX_JSONLD_BYTES:
