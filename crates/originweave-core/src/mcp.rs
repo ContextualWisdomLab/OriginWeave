@@ -20,6 +20,9 @@ pub const MCP_TOOLS_CALL_METHOD: &str = "tools/call";
 /// The MCP discovery method accepted by the typed tools-list boundary.
 pub const MCP_TOOLS_LIST_METHOD: &str = "tools/list";
 
+/// Maximum accepted MCP method-name length in bytes.
+pub const MAX_MCP_METHOD_NAME_BYTES: usize = 64;
+
 /// Maximum accepted MCP tool-name length in bytes.
 pub const MAX_MCP_TOOL_NAME_BYTES: usize = 128;
 
@@ -223,6 +226,8 @@ pub enum McpToolsListBoundaryError {
     UnsupportedProtocolVersion,
     /// The structured request metadata omitted the required client-capabilities object.
     MissingClientCapabilities,
+    /// The request method violates the bounded ASCII MCP routing syntax.
+    InvalidMethod,
     /// MCP routing method metadata disagrees with the method in the request body.
     MethodHeaderBodyMismatch,
     /// The request method is not the supported `tools/list` operation.
@@ -248,6 +253,9 @@ impl fmt::Display for McpToolsListBoundaryError {
             }
             Self::MissingClientCapabilities => {
                 formatter.write_str("MCP request metadata client capabilities are required")
+            }
+            Self::InvalidMethod => {
+                formatter.write_str("MCP method violates the bounded ASCII routing syntax")
             }
             Self::MethodHeaderBodyMismatch => {
                 formatter.write_str("MCP method header does not match the request body")
@@ -284,9 +292,10 @@ impl ValidatedMcpToolsListRequest {
     /// Both the required transport protocol-version header and structured request `_meta`
     /// protocol version must be present, equal, and exactly [`MCP_PROTOCOL_VERSION`]. A trusted
     /// structured parser must also attest that the required `_meta` client-capabilities object was
-    /// present; its contents grant no OriginWeave authority. The routing/body method must agree.
-    /// Any supplied cursor fails closed because [`mcp_tools_list_page`] emits no continuation
-    /// cursor; accepting one would silently invent pagination state that OriginWeave never issued.
+    /// present; its contents grant no OriginWeave authority. Each untrusted method value is
+    /// shape-validated before comparison. The routing/body method must then agree exactly. Any
+    /// supplied cursor fails closed because [`mcp_tools_list_page`] emits no continuation cursor;
+    /// accepting one would silently invent pagination state that OriginWeave never issued.
     pub fn new(
         protocol_version_header: Option<&str>,
         protocol_version_metadata: Option<&str>,
@@ -308,6 +317,9 @@ impl ValidatedMcpToolsListRequest {
         }
         if !client_capabilities_present {
             return Err(McpToolsListBoundaryError::MissingClientCapabilities);
+        }
+        if !valid_method(routing_method) || !valid_method(body_method) {
+            return Err(McpToolsListBoundaryError::InvalidMethod);
         }
         if routing_method != body_method {
             return Err(McpToolsListBoundaryError::MethodHeaderBodyMismatch);
@@ -338,6 +350,8 @@ pub enum McpToolBoundaryError {
     UnsupportedProtocolVersion,
     /// MCP routing metadata disagrees with the method or tool name in the body.
     HeaderBodyMismatch,
+    /// The request method violates the bounded ASCII MCP routing syntax.
+    InvalidMethod,
     /// The request method is not the supported `tools/call` operation.
     UnsupportedMethod,
     /// The tool name violates the bounded ASCII MCP routing syntax.
@@ -354,6 +368,9 @@ impl fmt::Display for McpToolBoundaryError {
             }
             Self::HeaderBodyMismatch => {
                 formatter.write_str("MCP routing headers do not match the request body")
+            }
+            Self::InvalidMethod => {
+                formatter.write_str("MCP method violates the bounded ASCII routing syntax")
             }
             Self::UnsupportedMethod => formatter
                 .write_str("only MCP tools/call requests can enter the typed action boundary"),
@@ -382,9 +399,9 @@ impl ValidatedMcpToolCall {
     /// Routing integrity is intentionally narrower than authorization. A
     /// successful value proves only that the untrusted protocol version,
     /// routing metadata, body method, and body tool name agree with one
-    /// explicitly supported mapping. Each untrusted tool name is shape-validated
-    /// before cross-field comparison so malformed or oversized names cannot
-    /// bypass the bounded routing syntax through mismatch handling.
+    /// explicitly supported mapping. Each untrusted method and tool name is
+    /// shape-validated before cross-field comparison so malformed or oversized
+    /// metadata cannot bypass the bounded routing syntax through mismatch handling.
     pub fn new(
         protocol_version: &str,
         routing_method: &str,
@@ -394,6 +411,9 @@ impl ValidatedMcpToolCall {
     ) -> Result<Self, McpToolBoundaryError> {
         if protocol_version != MCP_PROTOCOL_VERSION {
             return Err(McpToolBoundaryError::UnsupportedProtocolVersion);
+        }
+        if !valid_method(routing_method) || !valid_method(body_method) {
+            return Err(McpToolBoundaryError::InvalidMethod);
         }
         if !valid_tool_name(routing_tool_name) || !valid_tool_name(body_tool_name) {
             return Err(McpToolBoundaryError::InvalidToolName);
@@ -423,6 +443,15 @@ impl ValidatedMcpToolCall {
     pub const fn action_kind(&self) -> ActionKind {
         self.action_kind
     }
+}
+
+fn valid_method(method: &str) -> bool {
+    if method.is_empty() || method.len() > MAX_MCP_METHOD_NAME_BYTES {
+        return false;
+    }
+    method
+        .bytes()
+        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.' | b'/'))
 }
 
 fn valid_tool_name(tool_name: &str) -> bool {
