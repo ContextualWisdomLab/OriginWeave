@@ -230,6 +230,9 @@ fn validate_path(path: &str) -> Result<(), EvidenceError> {
             index += 3;
             continue;
         }
+        if !is_rfc3986_pchar(byte) {
+            return Err(EvidenceError::InvalidPath);
+        }
         segment.push(byte);
         index += 1;
     }
@@ -237,6 +240,32 @@ fn validate_path(path: &str) -> Result<(), EvidenceError> {
         return Err(EvidenceError::InvalidPath);
     }
     Ok(())
+}
+
+const fn is_rfc3986_pchar(byte: u8) -> bool {
+    matches!(
+        byte,
+        b'A'..=b'Z'
+            | b'a'..=b'z'
+            | b'0'..=b'9'
+            | b'-'
+            | b'.'
+            | b'_'
+            | b'~'
+            | b'!'
+            | b'$'
+            | b'&'
+            | b'\''
+            | b'('
+            | b')'
+            | b'*'
+            | b'+'
+            | b','
+            | b';'
+            | b'='
+            | b':'
+            | b'@'
+    )
 }
 
 const fn hexadecimal_value(byte: u8) -> Option<u8> {
