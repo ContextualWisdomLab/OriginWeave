@@ -170,15 +170,34 @@ def _nonblocking_read_opener(path: str, flags: int) -> int:
     )
 
 
+def _require_direct_parent_chain(path: pathlib.Path) -> None:
+    """Reject any existing ancestor that is not a direct directory entry."""
+
+    parent = path.parent
+    while parent != parent.parent:
+        if not stat.S_ISDIR(parent.lstat().st_mode):
+            raise SpdxJsonLdEnvelopeError("invalid_file_type")
+        parent = parent.parent
+
+
 def _read_bounded(path: pathlib.Path) -> bytes:
     """Read one bounded direct regular-file candidate without accepting indirect/streaming paths."""
 
     try:
-        if not stat.S_ISREG(path.lstat().st_mode):
+        _require_direct_parent_chain(path)
+        candidate_stat = path.lstat()
+        if not stat.S_ISREG(candidate_stat.st_mode):
             raise SpdxJsonLdEnvelopeError("invalid_file_type")
         with open(path, "rb", opener=_nonblocking_read_opener) as source:
-            if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
+            opened_stat = os.fstat(source.fileno())
+            if not stat.S_ISREG(opened_stat.st_mode):
                 raise SpdxJsonLdEnvelopeError("invalid_file_type")
+            if (candidate_stat.st_dev, candidate_stat.st_ino) != (
+                opened_stat.st_dev,
+                opened_stat.st_ino,
+            ):
+                raise SpdxJsonLdEnvelopeError("invalid_file_type")
+            _require_direct_parent_chain(path)
             payload = source.read(MAX_SPDX_JSONLD_BYTES + 1)
     except OSError as error:
         if error.errno == errno.ELOOP:
