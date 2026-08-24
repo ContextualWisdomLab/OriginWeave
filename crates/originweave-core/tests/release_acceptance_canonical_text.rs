@@ -1,6 +1,21 @@
 use originweave_core::release_acceptance::{DeclaredLimitation, ReleaseDecisionError};
 
 #[test]
+fn limitation_accepts_canonical_boundary_text() {
+    let limitation = DeclaredLimitation::new(
+        "linux_arm64",
+        "Linux ARM64 is excluded from the support profile.",
+    )
+    .expect("canonical limitation text must remain accepted");
+
+    assert_eq!(limitation.unsupported_claim(), "linux_arm64");
+    assert_eq!(
+        limitation.buyer_consequence(),
+        "Linux ARM64 is excluded from the support profile."
+    );
+}
+
+#[test]
 fn limitation_rejects_surrounding_whitespace_that_changes_claim_identity() {
     for unsupported_claim in [" linux_arm64", "linux_arm64 ", "\tlinux_arm64"] {
         assert_eq!(
