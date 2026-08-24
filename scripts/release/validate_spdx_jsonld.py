@@ -82,6 +82,31 @@ def _has_required_spdx_context(context: Any) -> bool:
     return context == SPDX_3_0_1_CONTEXT
 
 
+def _count_spdx_documents(value: Any) -> int:
+    """Count SPDX document elements at any depth without recursive interpreter use.
+
+    SPDX element collections may inline other elements below the top-level graph. The
+    serialization contract admits at most one ``SpdxDocument`` element, so a nested second
+    document must not evade the preliminary envelope gate merely because it is not a direct
+    ``@graph`` member. The walk is iterative and remains bounded by the already size-bounded
+    parsed input.
+    """
+
+    count = 0
+    pending = [value]
+    while pending:
+        current = pending.pop()
+        if isinstance(current, dict):
+            if current.get("type") == "SpdxDocument":
+                count += 1
+                if count > 1:
+                    return count
+            pending.extend(current.values())
+        elif isinstance(current, list):
+            pending.extend(current)
+    return count
+
+
 def validate_spdx_3_0_1_jsonld_bytes(payload: bytes) -> dict[str, int | str]:
     """Validate the bounded SPDX 3.0.1 JSON-LD serialization envelope.
 
@@ -123,13 +148,11 @@ def validate_spdx_3_0_1_jsonld_bytes(payload: bytes) -> dict[str, int | str]:
     if len(graph) > MAX_SPDX_GRAPH_OBJECTS:
         raise SpdxJsonLdEnvelopeError("too_many_graph_objects")
 
-    document_count = 0
     for element in graph:
         if not isinstance(element, dict) or not isinstance(element.get("type"), str):
             raise SpdxJsonLdEnvelopeError("invalid_graph_object")
-        if element["type"] == "SpdxDocument":
-            document_count += 1
 
+    document_count = _count_spdx_documents(graph)
     if document_count != 1:
         raise SpdxJsonLdEnvelopeError("invalid_document_count")
 
