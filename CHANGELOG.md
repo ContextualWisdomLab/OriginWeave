@@ -6,19 +6,22 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Added
 
-- Exact sensitive-data model-route admission that binds the complete existing sensitive authority to bounded provider, model, region, retention-policy, training-policy, reviewed subprocessor-policy, and export-policy identifiers; the compatibility constructor defaults export to `no-export`, and route admission remains explicitly separate from protected-value disclosure, export execution, provider authentication, runtime region attestation, model invocation, and fallback selection.
 - In-process authoritative sensitive-handle use reservation and first-revocation-wins lifecycle state that owns the bounded use count, records task-completion/policy-change/key-rotation/session-termination/suspicious-use revocation causes, blocks all future reservations after revocation, increments only after exact scope/classification/expiry/use-limit authorization, and leaves denied reservations unconsumed; this is a policy primitive only and does not claim durable broker storage, protected-value resolution, or cross-process transactionality.
+- Refreshed the product and technical gap baseline with the 2026-08-24 live inventory: 158 open pull requests (44 ready, 114 draft), refreshed exact base/head evidence for the #208–#222 release, enterprise-approval, BAP, and WARC/PROV chains, the governance issue additions #212 and #215, and a required-check provider-failure record for the fail-closed Strix re-dispatches on #208/#218/#220.
+- Added a dated product and technical gap baseline that separates protected-main implementation truth, active pull-request evidence, live review/check blockers, and the next buyer-visible Phase 1 acceptance work.
+- Refreshed the product and technical gap baseline with the current open-PR inventory and exact base/head evidence for the newest Chromium, BAP, extraction, WARC, and idempotency slices.
 - Bound explicit extension-to-Agent grants to exclusive trusted-time expiry in addition to extension identity, session, browsing context, and canonical origin, so a same-origin grant cannot be reused at or after the deadline.
 - Bound explicit extension-to-Agent grants to the exact canonical origin in addition to extension identity, session, and browsing context, so a same-session navigation or port change cannot reuse the grant.
 - Rust workspace for independently reusable core, policy, destination, network, TLS, resource, and evidence modules.
 - Canonical HTTPS and loopback-origin boundary with case-normalized schemes and hosts, default-port normalization, IPv4/IPv6 handling, browser-special numeric-host rejection, and explicit malformed-input errors.
 - Typed browser actions, capabilities, risk classes, execution modes, robots decisions, secret-delivery contracts, immutable canonical action-intent digests, and intent-bound approval scopes.
+- Protected `main` includes deterministic MCP `2026-07-28` stateless tool-routing foundations with bounded names, a single reviewed tool-to-action registry shared by routing and discovery metadata, and fail-closed policy binding that grants no ambient authority. The complete MCP adapter, transport serialization, discovery response handling, OAuth, browser I/O, and persistence remain planned until separately integrated.
 - Deterministic fail-closed policy evaluation for untrusted instructions, origin grants, crawler restrictions, execution-mode and purpose consistency, approvals, and brokered secrets.
 - Fail-closed resolved-destination policy with IPv4/IPv6 special-purpose and reviewed cloud-platform endpoint classification, IPv4-mapped canonicalization, explicit class grants, non-empty origin-bound DNS snapshots capped at 256 resolver addresses, concrete connection pinning, DNS-set expansion detection, and per-hop redirect reauthorization.
 - Direct-only `originweave-network` TCP boundary with explicit canonical `SocketAddr` authority, zero IPv6 flow and scope metadata unless separately modeled, a non-cloneable single-use plan, a 30-second per-attempt timeout ceiling, at most four attempts, exact `peer_addr` verification before stream exposure, and no hostname re-resolution or ambient proxy inheritance.
 - Authenticated `originweave-tls` service-identity boundary that consumes an existing verified TCP stream, requires exact TLS-origin and transport-origin equality, derives RFC 9525 DNS or literal-IP reference identity only from the canonical HTTPS origin, validates WebPKI with explicit roots and fixed time, permits only TLS 1.2 and TLS 1.3, and never reconnects or resolves.
 - Bounded TLS policy for total handshake time, ALPN identifiers, trust-root count and bytes, and server-presented certificate count and bytes, with explicit optional-versus-required ALPN behavior and `NotConfigured` revocation evidence.
-- Credential-free TLS evidence containing canonical origin, requested and observed peer, DNS/IP reference identity, TLS version, cipher-suite identifier, selected ALPN or explicit absence, leaf certificate and SPKI hashes, server-presented certificate hashes and bounds, trust-bundle identity and hash, validity interval, fixed verification time, revocation configuration, and measured handshake duration.
+- Credential-free TLS evidence containing canonical origin, TCP peers, reference identity, TLS version, cipher-suite identifier, selected ALPN or explicit absence, leaf certificate and SPKI hashes, server-presented certificate hashes and bounds, trust-bundle identity and hash, validity interval, fixed verification time, revocation configuration, and measured handshake duration.
 - Credential-free connection and redirect evidence containing canonical addresses, destination classes, target digests, hop numbers, and approved-address counts.
 - Credential-free verified TCP evidence containing the logical origin, requested socket, observed peer, destination class, successful attempt number, and per-attempt timeout.
 - Standard `Display` and `std::error::Error` contracts for destination, redirect, digest, direct-network, and TLS failures, including preserved destination-policy, rustls, and operating-system sources where applicable.
@@ -35,6 +38,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Aligned the hourly product-development branch-coverage toolchain and its one-shot materializer with the reviewed `nightly-2026-08-18` pin, and corrected the official Dependabot Rust-toolchain reference.
 - Separated logical origin authority from resolved network destination authority; an origin grant no longer implies permission to connect to every resolver result.
 - Separated resolved-address authorization from direct transport evidence; an approved IP now becomes a usable stream only after the operating system reports the exact requested IP and port.
 - Separated exact TCP peer proof from authenticated TLS service identity; an observed peer becomes an authenticated HTTPS stream only after explicit-root, fixed-time, SAN-bound WebPKI verification over that same stream.
@@ -43,8 +47,16 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Updated the first Chromium slice to distinguish implemented origin, destination, direct TCP, and TLS identity kernels from the remaining trusted DNS adapter, proxy/PAC, HTTP budget, MIME, download, and Chromium integration required before safe navigation can be claimed.
 - Separated hourly product PR publication authority from the organization review and merge system, and added live default-branch and release-blocker rechecks immediately before publication.
 - Made the agent-development contract work-conserving: completing one bounded slice, RCA, review request, check, merge, or documentation change is an intermediate state; maintenance must return to the live queue, treat waits as item-local, and perform a mandatory exit sweep before terminating while executable OriginWeave work remains.
+- Hardened the dated baseline evidence collector with fail-fast isolated artifacts, paginated branch and collaborator rules, and post-collection exact-head revalidation.
+- Flattened every paginated workflow-run page in the baseline merge verdict so exact-head evidence cannot silently discard later runs.
+- Hardened the baseline evidence procedure with exact-head legacy status and workflow-run capture, counted approval binding, required-workflow recording, merge verdict artifacts, and bounded moving-head retries.
 - Moved autonomous-agent Cargo targets and Python bytecode caches outside the proposed source tree and prefetched locked Cargo dependencies for offline verification.
 - Updated research doctoring to pin Chromium canonicalizer evidence to an immutable revision, add RFC 9293, RFC 5280, RFC 8446, RFC 9525, rustls 0.23.42, and Rust `TcpStream` evidence, distinguish the April 2026 Fugu beta from the June 2026 release, and treat vendor benchmark claims as first-party evidence rather than independent validation.
+- Tightened the product-baseline contract so the BiDi opening path and VPN/profile evidence retain their explicit not-shipped status within their own documentation sections.
+- Refreshed the product and technical gap baseline against the 2026-08-21 live inventory: 150 open pull requests, 110 drafts, and the new hardened-runner/MV3 evidence gap issue #206.
+- Tightened the baseline completion-gap contract so superseded inventory counts (including the 2026-08-21 150/40/110 snapshot) can no longer pass as current evidence.
+- Refreshed the baseline's merge-authority statement to the live ruleset: two approving reviews are required, while the collaborator inventory still contains only the solo maintainer.
+- Corrected the baseline evidence collector to flatten every paginated input, apply current reviewer and last-push approval semantics, and discard verdicts when either the PR head or base moves.
 
 ### Security
 
@@ -73,6 +85,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Revocation is reported as not configured; the product makes no OCSP or CRL validation claim without supplied revocation evidence.
 - Every generic network header and query value is redacted before evidence leaves the trusted boundary, including conventionally benign field names containing attacker-controlled bytes.
 - Evidence capture enforces count and byte bounds and rejects credential-bearing source URLs, query strings, fragments, controls, whitespace, malformed percent escapes, encoded separators, dot segments, and backslash paths.
+- Network-evidence paths and provenance source URL paths accept only RFC 3986 literal `pchar` syntax plus validated percent-encoded octets and slash separators, preventing raw general delimiters such as `[` and `]` or other invalid URI-presentation bytes from entering either evidence surface.
 - Hard RAM and VRAM pressure pauses the active agent and rejects new admission; hard VRAM pressure also offloads a resident local model.
 - The hourly product agent has no Git metadata or repository authority. A separate post-verification publisher opens one PR and cannot approve or merge it.
 - The unprivileged OpenCode user is restricted to loopback egress during model execution, preventing runner-wide allow-listed endpoints from becoming direct source-exfiltration channels.
