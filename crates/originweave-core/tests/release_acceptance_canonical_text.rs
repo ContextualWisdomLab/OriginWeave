@@ -58,3 +58,38 @@ fn limitation_rejects_surrounding_whitespace_in_buyer_consequence() {
         );
     }
 }
+
+#[test]
+fn limitation_rejects_non_nfc_claim_identity() {
+    let nfc_claim = "caf\u{e9}";
+    let canonically_equivalent_nfd_claim = "cafe\u{301}";
+
+    assert!(
+        DeclaredLimitation::new(
+            nfc_claim,
+            "This normalized claim remains a supported buyer-visible spelling.",
+        )
+        .is_ok(),
+        "NFC international text must remain admissible",
+    );
+    assert_eq!(
+        DeclaredLimitation::new(
+            canonically_equivalent_nfd_claim,
+            "This decomposed spelling must not create a second claim identity.",
+        ),
+        Err(ReleaseDecisionError::InvalidLimitationClaim),
+        "canonically equivalent NFD text must not bypass limitation identity",
+    );
+}
+
+#[test]
+fn limitation_rejects_non_nfc_buyer_consequence() {
+    assert_eq!(
+        DeclaredLimitation::new(
+            "linux_arm64",
+            "Cafe\u{301} support is excluded from this profile.",
+        ),
+        Err(ReleaseDecisionError::InvalidLimitationConsequence),
+        "buyer-visible consequences must use one canonical Unicode spelling",
+    );
+}
