@@ -1,29 +1,55 @@
+use originweave_core::Origin;
 use originweave_evidence::{
-    MAX_SENSITIVE_IDENTIFIER_BYTES, SensitiveEvidenceError, SensitiveHandleLifecycleEvidence,
+    SensitiveAccessClass, SensitiveAccessEvidence, SensitiveAccessEvidenceInput,
+    SensitiveAccessOutcome, SensitiveEvidenceError, SensitiveHandleLifecycleEvidence,
     SensitiveHandleLifecycleEvidenceInput,
 };
 
-fn valid_input() -> SensitiveHandleLifecycleEvidenceInput {
-    SensitiveHandleLifecycleEvidenceInput {
+type TestResult = Result<(), String>;
+
+fn valid_access_evidence() -> Result<SensitiveAccessEvidence, String> {
+    let destination =
+        Origin::parse("https://shipping.example").map_err(|error| format!("{error:?}"))?;
+    SensitiveAccessEvidence::try_from(SensitiveAccessEvidenceInput {
         request_id: "request-42".to_owned(),
         decision_id: "decision-42".to_owned(),
-        issued_epoch_seconds: 1_720_000_000,
-        expires_epoch_seconds: 1_720_000_300,
+        tenant_id: "tenant-7".to_owned(),
+        actor_id: "workload-fulfillment".to_owned(),
+        task_id: "task-42".to_owned(),
+        field_ids: vec!["shipping.address".to_owned()],
+        purpose_id: "fulfill-shipment".to_owned(),
+        destination,
+        classification: SensitiveAccessClass::PersonalData,
+        outcome: SensitiveAccessOutcome::OpaqueHandleOnly,
+        policy_version: "sensitive-policy-v3".to_owned(),
+        approval_reference: None,
+        decision_epoch_seconds: 1_720_000_000,
+        disclosure_epoch_seconds: None,
+        retention_deadline_epoch_seconds: Some(1_720_003_600),
+    })
+    .map_err(|error| format!("{error:?}"))
+}
+
+fn valid_input() -> Result<SensitiveHandleLifecycleEvidenceInput, String> {
+    Ok(SensitiveHandleLifecycleEvidenceInput {
+        access_evidence: valid_access_evidence()?,
+        issued_epoch_seconds: 1_720_000_001,
+        expires_epoch_seconds: 1_720_000_301,
         maximum_uses: 2,
         resolution_count: 1,
         revoked_epoch_seconds: None,
-    }
+    })
 }
 
 #[test]
-fn records_bounded_handle_lifecycle_without_handle_or_secret_material()
--> Result<(), SensitiveEvidenceError> {
-    let evidence = SensitiveHandleLifecycleEvidence::try_from(valid_input())?;
+fn records_bounded_handle_lifecycle_without_handle_or_secret_material() -> TestResult {
+    let evidence = SensitiveHandleLifecycleEvidence::try_from(valid_input()?)
+        .map_err(|error| format!("{error:?}"))?;
 
     assert_eq!(evidence.request_id(), "request-42");
     assert_eq!(evidence.decision_id(), "decision-42");
-    assert_eq!(evidence.issued_epoch_seconds(), 1_720_000_000);
-    assert_eq!(evidence.expires_epoch_seconds(), 1_720_000_300);
+    assert_eq!(evidence.issued_epoch_seconds(), 1_720_000_001);
+    assert_eq!(evidence.expires_epoch_seconds(), 1_720_000_301);
     assert_eq!(evidence.maximum_uses(), 2);
     assert_eq!(evidence.resolution_count(), 1);
     assert_eq!(evidence.revoked_epoch_seconds(), None);
@@ -36,13 +62,13 @@ fn records_bounded_handle_lifecycle_without_handle_or_secret_material()
 }
 
 #[test]
-fn records_revocation_time_without_storing_revocation_payloads()
--> Result<(), SensitiveEvidenceError> {
-    let mut input = valid_input();
+fn records_revocation_time_without_storing_revocation_payloads() -> TestResult {
+    let mut input = valid_input()?;
     input.revoked_epoch_seconds = Some(1_720_000_120);
     input.resolution_count = 2;
 
-    let evidence = SensitiveHandleLifecycleEvidence::try_from(input)?;
+    let evidence = SensitiveHandleLifecycleEvidence::try_from(input)
+        .map_err(|error| format!("{error:?}"))?;
 
     assert_eq!(evidence.revoked_epoch_seconds(), Some(1_720_000_120));
     assert!(evidence.is_revoked());
@@ -51,38 +77,13 @@ fn records_revocation_time_without_storing_revocation_payloads()
 }
 
 #[test]
-fn rejects_invalid_request_or_decision_identifiers() {
-    let invalid_request_ids = [
-        String::new(),
-        "-".repeat(3),
-        "bad/request".to_owned(),
-        "a".repeat(MAX_SENSITIVE_IDENTIFIER_BYTES + 1),
-    ];
-    for request_id in invalid_request_ids {
-        let mut input = valid_input();
-        input.request_id = request_id;
-        assert_eq!(
-            SensitiveHandleLifecycleEvidence::try_from(input),
-            Err(SensitiveEvidenceError::InvalidIdentifier)
-        );
-    }
-
-    let mut invalid_decision = valid_input();
-    invalid_decision.decision_id = String::new();
-    assert_eq!(
-        SensitiveHandleLifecycleEvidence::try_from(invalid_decision),
-        Err(SensitiveEvidenceError::InvalidIdentifier)
-    );
-}
-
-#[test]
-fn rejects_zero_or_non_increasing_handle_lifetime() {
+fn rejects_zero_or_non_increasing_handle_lifetime() -> TestResult {
     for (issued, expires) in [
-        (0, 1_720_000_300),
-        (1_720_000_300, 1_720_000_300),
-        (1_720_000_301, 1_720_000_300),
+        (0, 1_720_000_301),
+        (1_720_000_301, 1_720_000_301),
+        (1_720_000_302, 1_720_000_301),
     ] {
-        let mut input = valid_input();
+        let mut input = valid_input()?;
         input.issued_epoch_seconds = issued;
         input.expires_epoch_seconds = expires;
         assert_eq!(
@@ -90,33 +91,36 @@ fn rejects_zero_or_non_increasing_handle_lifetime() {
             Err(SensitiveEvidenceError::InvalidLifecycle)
         );
     }
+    Ok(())
 }
 
 #[test]
-fn rejects_zero_use_limit_or_resolution_count_above_limit() {
-    let mut zero_limit = valid_input();
+fn rejects_zero_use_limit_or_resolution_count_above_limit() -> TestResult {
+    let mut zero_limit = valid_input()?;
     zero_limit.maximum_uses = 0;
     assert_eq!(
         SensitiveHandleLifecycleEvidence::try_from(zero_limit),
         Err(SensitiveEvidenceError::InvalidLifecycle)
     );
 
-    let mut overused = valid_input();
+    let mut overused = valid_input()?;
     overused.resolution_count = overused.maximum_uses + 1;
     assert_eq!(
         SensitiveHandleLifecycleEvidence::try_from(overused),
         Err(SensitiveEvidenceError::InvalidLifecycle)
     );
+    Ok(())
 }
 
 #[test]
-fn rejects_revocation_outside_handle_lifetime() {
-    for revoked in [1_719_999_999, 1_720_000_300, 1_720_000_301] {
-        let mut input = valid_input();
+fn rejects_revocation_outside_handle_lifetime() -> TestResult {
+    for revoked in [1_720_000_000, 1_720_000_301, 1_720_000_302] {
+        let mut input = valid_input()?;
         input.revoked_epoch_seconds = Some(revoked);
         assert_eq!(
             SensitiveHandleLifecycleEvidence::try_from(input),
             Err(SensitiveEvidenceError::InvalidLifecycle)
         );
     }
+    Ok(())
 }
