@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import errno
 import json
 import os
 import pathlib
@@ -359,7 +360,7 @@ def _validate_workflow_record(
     default_branch_sha: str,
     observed_at: str,
 ) -> dict[str, Any]:
-    """Validate and classify one exported GitHub Actions workflow record."""
+    """Validate and classify one exported GitHub Actions workflow registry record."""
 
     raw_record = _require_exact_fields(
         raw_record,
@@ -537,20 +538,36 @@ def _parse_bounded_json_integer(value: str) -> int:
 
 
 def _nonblocking_read_opener(path: str, flags: int) -> int:
-    """Open audit input without allowing a FIFO/device open to wait indefinitely."""
+    """Open audit input without following a final symlink or blocking on a stream."""
 
-    return os.open(path, flags | getattr(os, "O_NONBLOCK", 0))
+    return os.open(
+        path,
+        flags | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_NOFOLLOW", 0),
+    )
 
 
 def _read_payload(path: pathlib.Path) -> dict[str, Any]:
-    """Read at most four mebibytes from one regular UTF-8 JSON evidence file."""
+    """Read at most four mebibytes from one direct regular UTF-8 JSON evidence file."""
 
     try:
+        candidate_stat = path.lstat()
+        if stat.S_ISLNK(candidate_stat.st_mode):
+            raise WorkflowAuditError("input must not be a symbolic link")
+        if not stat.S_ISREG(candidate_stat.st_mode):
+            raise WorkflowAuditError("input must be a regular file")
         with open(path, "rb", opener=_nonblocking_read_opener) as source:
-            if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
+            opened_stat = os.fstat(source.fileno())
+            if not stat.S_ISREG(opened_stat.st_mode):
                 raise WorkflowAuditError("input must be a regular file")
+            if (candidate_stat.st_dev, candidate_stat.st_ino) != (
+                opened_stat.st_dev,
+                opened_stat.st_ino,
+            ):
+                raise WorkflowAuditError("input file identity changed during read")
             content = source.read(_MAX_INPUT_BYTES + 1)
     except OSError as error:
+        if error.errno == errno.ELOOP:
+            raise WorkflowAuditError("input must not be a symbolic link") from error
         raise WorkflowAuditError("input is not readable UTF-8 JSON") from error
     if len(content) > _MAX_INPUT_BYTES:
         raise WorkflowAuditError("input exceeds the four-mebibyte audit bound")
