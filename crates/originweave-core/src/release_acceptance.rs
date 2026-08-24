@@ -6,6 +6,8 @@
 
 use std::fmt;
 
+use unicode_normalization::is_nfc;
+
 /// Maximum UTF-8 byte length retained for either buyer-visible limitation field.
 pub const MAX_RELEASE_LIMITATION_TEXT_BYTES: usize = 1024;
 
@@ -85,10 +87,11 @@ pub struct DeclaredLimitation {
 impl DeclaredLimitation {
     /// Construct one explicit buyer-visible release limitation.
     ///
-    /// Empty/whitespace-only values, surrounding whitespace, fields exceeding the
-    /// fixed UTF-8 byte budget, and ambiguous presentation characters fail closed
-    /// because they cannot safely represent one canonical, resource-bounded
-    /// buyer-visible release limitation.
+    /// Empty/whitespace-only values, surrounding whitespace, non-NFC Unicode,
+    /// fields exceeding the fixed UTF-8 byte budget, and ambiguous presentation
+    /// characters fail closed because they cannot safely represent one canonical,
+    /// resource-bounded buyer-visible release limitation. Accepted text is retained
+    /// byte-for-byte; this constructor never normalizes caller input implicitly.
     pub fn new(
         unsupported_claim: impl Into<String>,
         buyer_consequence: impl Into<String>,
@@ -102,6 +105,9 @@ impl DeclaredLimitation {
         }
         if unsupported_claim.len() > MAX_RELEASE_LIMITATION_TEXT_BYTES {
             return Err(ReleaseDecisionError::LimitationClaimTooLong);
+        }
+        if !is_nfc(&unsupported_claim) {
+            return Err(ReleaseDecisionError::InvalidLimitationClaim);
         }
         if unsupported_claim
             .chars()
@@ -118,6 +124,9 @@ impl DeclaredLimitation {
         }
         if buyer_consequence.len() > MAX_RELEASE_LIMITATION_TEXT_BYTES {
             return Err(ReleaseDecisionError::LimitationConsequenceTooLong);
+        }
+        if !is_nfc(&buyer_consequence) {
+            return Err(ReleaseDecisionError::InvalidLimitationConsequence);
         }
         if buyer_consequence
             .chars()
@@ -189,13 +198,13 @@ pub enum ReleaseDecisionError {
     EmptyLimitationClaim,
     /// A declared limitation claim exceeded the fixed UTF-8 byte budget.
     LimitationClaimTooLong,
-    /// A declared limitation claim contained an unsafe presentation character.
+    /// A declared limitation claim was not canonical NFC text or was presentation-unsafe.
     InvalidLimitationClaim,
     /// A declared limitation did not state the buyer-visible consequence.
     EmptyLimitationConsequence,
     /// A declared limitation consequence exceeded the fixed UTF-8 byte budget.
     LimitationConsequenceTooLong,
-    /// A declared limitation consequence contained an unsafe presentation character.
+    /// A limitation consequence was not canonical NFC text or was presentation-unsafe.
     InvalidLimitationConsequence,
     /// One release report supplied more buyer-visible limitations than the fixed resource budget.
     TooManyDeclaredLimitations,
@@ -215,14 +224,14 @@ impl fmt::Display for ReleaseDecisionError {
                 formatter.write_str("declared release limitation claim exceeds the byte budget")
             }
             Self::InvalidLimitationClaim => formatter.write_str(
-                "declared release limitation claim contains an unsafe presentation character",
+                "declared release limitation claim is not canonical NFC text or contains an unsafe presentation character",
             ),
             Self::EmptyLimitationConsequence => formatter
                 .write_str("declared release limitation must state a buyer-visible consequence"),
             Self::LimitationConsequenceTooLong => formatter
                 .write_str("declared release limitation consequence exceeds the byte budget"),
             Self::InvalidLimitationConsequence => formatter.write_str(
-                "declared release limitation consequence contains an unsafe presentation character",
+                "declared release limitation consequence is not canonical NFC text or contains an unsafe presentation character",
             ),
             Self::TooManyDeclaredLimitations => formatter
                 .write_str("benchmark release decision contains too many declared limitations"),
