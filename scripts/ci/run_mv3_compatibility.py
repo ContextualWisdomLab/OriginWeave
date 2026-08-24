@@ -621,6 +621,76 @@ def _wait_for_linux_process_identity_set_exit(
         time.sleep(min(0.05, remaining_seconds))
 
 
+def _wait_for_linux_process_teardown(
+    root_process_id: int,
+    root_start_time_ticks: int,
+    process_identities: tuple[tuple[int, int], ...],
+    *,
+    timeout_seconds: float = PROCESS_EXIT_TIMEOUT_SECONDS,
+) -> tuple[bool, bool]:
+    """Observe root and sampled-set termination under one bounded shared deadline."""
+
+    if (
+        isinstance(root_process_id, bool)
+        or not isinstance(root_process_id, int)
+        or root_process_id <= 0
+    ):
+        raise ValueError("invalid Linux root process identifier")
+    if (
+        isinstance(root_start_time_ticks, bool)
+        or not isinstance(root_start_time_ticks, int)
+        or root_start_time_ticks <= 0
+    ):
+        raise ValueError("invalid Linux root process start time")
+    if not process_identities or len(process_identities) > MAX_BROWSER_PROCESS_TREE_SIZE:
+        raise ValueError("invalid Linux process identity-set size")
+
+    expected: dict[int, tuple[int, int]] = {}
+    for identity in process_identities:
+        if not isinstance(identity, tuple) or len(identity) != 2:
+            raise ValueError("invalid Linux process identity")
+        process_id, start_time_ticks = identity
+        if isinstance(process_id, bool) or not isinstance(process_id, int) or process_id <= 0:
+            raise ValueError("invalid Linux process identifier")
+        if (
+            isinstance(start_time_ticks, bool)
+            or not isinstance(start_time_ticks, int)
+            or start_time_ticks <= 0
+        ):
+            raise ValueError("invalid Linux process start time")
+        if process_id in expected:
+            raise ValueError("Linux process identity-set PIDs must be unique")
+        expected[process_id] = identity
+
+    root_identity = (root_process_id, root_start_time_ticks)
+    if expected.get(root_process_id) != root_identity:
+        raise ValueError("Linux root process identity must belong to the sampled process set")
+    if (
+        isinstance(timeout_seconds, bool)
+        or not isinstance(timeout_seconds, (int, float))
+        or timeout_seconds < 0
+        or not math.isfinite(timeout_seconds)
+    ):
+        raise ValueError("invalid Linux process teardown timeout")
+
+    deadline = time.monotonic() + float(timeout_seconds)
+    while True:
+        live_process_ids: set[int] = set()
+        for process_id, expected_identity in expected.items():
+            current_identity = _read_linux_proc_stat_process_identity(process_id)
+            if current_identity == expected_identity:
+                live_process_ids.add(process_id)
+
+        root_terminated = root_process_id not in live_process_ids
+        process_set_terminated = not live_process_ids
+        if process_set_terminated:
+            return root_terminated, True
+        remaining_seconds = deadline - time.monotonic()
+        if remaining_seconds <= 0:
+            return root_terminated, False
+        time.sleep(min(0.05, remaining_seconds))
+
+
 def _sample_linux_process_rss_bytes(process_id: int) -> int:
     """Read one attributed Linux process RSS through a bounded ``/proc`` status file."""
 
@@ -1770,15 +1840,22 @@ def _run_agent_task_forced_close_browser_pass(
 
     if browser_process_id is None or browser_process_start_time_ticks is None:
         raise RuntimeError("Agent Task forced-close browser process identity was not captured")
-    browser_process_terminated = _wait_for_linux_process_identity_exit(
-        browser_process_id,
-        browser_process_start_time_ticks,
+    full_process_set_captured = chromium_process_identities is not None
+    teardown_identities = (
+        chromium_process_identities
+        if chromium_process_identities is not None
+        else ((browser_process_id, browser_process_start_time_ticks),)
     )
-    chromium_process_set_terminated: bool | None = None
-    if chromium_process_identities is not None:
-        chromium_process_set_terminated = _wait_for_linux_process_identity_set_exit(
-            chromium_process_identities
+    browser_process_terminated, observed_process_set_terminated = (
+        _wait_for_linux_process_teardown(
+            browser_process_id,
+            browser_process_start_time_ticks,
+            teardown_identities,
         )
+    )
+    chromium_process_set_terminated = (
+        observed_process_set_terminated if full_process_set_captured else None
+    )
     if (
         browser_failure_type is not None
         or session_cleanup_failure_type is not None
