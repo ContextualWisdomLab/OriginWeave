@@ -14,7 +14,7 @@ AUDITOR = ROOT / "scripts" / "ci" / "audit_workflow_registry.py"
 
 
 class WorkflowRegistryFileTypeContractTests(unittest.TestCase):
-    """Prevent streaming OS file types from bypassing bounded audit-input semantics."""
+    """Prevent indirect or streaming OS file types from becoming audit evidence."""
 
     def test_fifo_input_is_rejected_before_registry_bytes_are_accepted(self) -> None:
         """A named pipe is not immutable operator-collected registry evidence."""
@@ -55,6 +55,26 @@ class WorkflowRegistryFileTypeContractTests(unittest.TestCase):
                 writer.join(timeout=1.0)
 
             self.assertFalse(writer.is_alive(), "FIFO writer remained blocked after rejection")
+
+    def test_symbolic_link_input_is_rejected_before_target_bytes_are_accepted(self) -> None:
+        """Audit evidence must name the collected regular file directly, not through a symlink."""
+
+        namespace = runpy.run_path(str(AUDITOR), run_name="workflow_symlink_contract")
+        read_payload = namespace["_read_payload"]
+        audit_error = namespace["WorkflowAuditError"]
+
+        with tempfile.TemporaryDirectory(prefix="originweave-workflow-symlink-") as directory:
+            root = pathlib.Path(directory)
+            target = root / "collected-registry.json"
+            target.write_text("{}", encoding="utf-8")
+            candidate = root / "registry.json"
+            try:
+                candidate.symlink_to(target)
+            except OSError as error:
+                self.skipTest(f"symbolic links are unavailable on this platform: {error}")
+
+            with self.assertRaisesRegex(audit_error, "input must not be a symbolic link"):
+                read_payload(candidate)
 
 
 if __name__ == "__main__":
