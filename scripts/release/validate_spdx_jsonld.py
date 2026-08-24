@@ -110,21 +110,30 @@ def _count_spdx_documents(value: Any) -> int:
 def validate_spdx_3_0_1_jsonld_bytes(payload: bytes) -> dict[str, int | str]:
     """Validate the bounded SPDX 3.0.1 JSON-LD serialization envelope.
 
-    External document bytes are never included in raised errors. Successful validation
-    proves only the narrow envelope contract documented by this module; callers must still
-    perform the official SPDX JSON Schema and OWL/SHACL validation before claiming SPDX
-    conformance. Excessive JSON nesting is treated as invalid external input instead of
-    escaping the typed, value-redacted validation boundary.
+    External document bytes are never included in raised errors or retained by their
+    exception chain. Successful validation proves only the narrow envelope contract
+    documented by this module; callers must still perform the official SPDX JSON Schema and
+    OWL/SHACL validation before claiming SPDX conformance. Excessive JSON nesting is treated
+    as invalid external input instead of escaping the typed, value-redacted validation
+    boundary.
     """
 
     if not isinstance(payload, bytes) or not payload or len(payload) > MAX_SPDX_JSONLD_BYTES:
         raise SpdxJsonLdEnvelopeError("invalid_size")
 
+    invalid_utf8 = False
     try:
         text = payload.decode("utf-8", errors="strict")
-    except UnicodeDecodeError as error:
-        raise SpdxJsonLdEnvelopeError("invalid_utf8") from error
+    except UnicodeDecodeError:
+        invalid_utf8 = True
+        text = ""
+    if invalid_utf8:
+        # UnicodeDecodeError retains the complete input bytes in its ``object`` attribute.
+        # Raise only after leaving the handler so the public error keeps no payload-bearing
+        # ``__cause__`` or ``__context__`` reference.
+        raise SpdxJsonLdEnvelopeError("invalid_utf8")
 
+    parse_error_code: str | None = None
     try:
         decoded = json.loads(
             text,
@@ -132,10 +141,17 @@ def validate_spdx_3_0_1_jsonld_bytes(payload: bytes) -> dict[str, int | str]:
             parse_constant=_reject_nonfinite_constant,
             parse_float=_finite_json_float,
         )
-    except _DuplicateJsonKey as error:
-        raise SpdxJsonLdEnvelopeError("duplicate_key") from error
-    except (json.JSONDecodeError, RecursionError, ValueError) as error:
-        raise SpdxJsonLdEnvelopeError("invalid_json") from error
+    except _DuplicateJsonKey:
+        parse_error_code = "duplicate_key"
+        decoded = None
+    except (json.JSONDecodeError, RecursionError, ValueError):
+        parse_error_code = "invalid_json"
+        decoded = None
+    if parse_error_code is not None:
+        # JSONDecodeError retains the complete decoded document in its ``doc`` attribute.
+        # Do not chain parser exceptions that could therefore turn private SBOM bytes into
+        # logging, tracing, or support-bundle data downstream.
+        raise SpdxJsonLdEnvelopeError(parse_error_code)
 
     if not isinstance(decoded, dict) or set(decoded) != {"@context", "@graph"}:
         raise SpdxJsonLdEnvelopeError("invalid_top_level")
