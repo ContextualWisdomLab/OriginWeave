@@ -67,8 +67,8 @@ fn records_revocation_time_without_storing_revocation_payloads() -> TestResult {
     input.revoked_epoch_seconds = Some(1_720_000_120);
     input.resolution_count = 2;
 
-    let evidence = SensitiveHandleLifecycleEvidence::try_from(input)
-        .map_err(|error| format!("{error:?}"))?;
+    let evidence =
+        SensitiveHandleLifecycleEvidence::try_from(input).map_err(|error| format!("{error:?}"))?;
 
     assert_eq!(evidence.revoked_epoch_seconds(), Some(1_720_000_120));
     assert!(evidence.is_revoked());
