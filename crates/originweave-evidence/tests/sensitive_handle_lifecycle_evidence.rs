@@ -77,6 +77,22 @@ fn records_revocation_time_without_storing_revocation_payloads() -> TestResult {
 }
 
 #[test]
+fn records_revocation_at_exact_expiry_boundary() -> TestResult {
+    let mut input = valid_input()?;
+    input.revoked_epoch_seconds = Some(input.expires_epoch_seconds);
+
+    let evidence =
+        SensitiveHandleLifecycleEvidence::try_from(input).map_err(|error| format!("{error:?}"))?;
+
+    assert_eq!(
+        evidence.revoked_epoch_seconds(),
+        Some(evidence.expires_epoch_seconds())
+    );
+    assert!(evidence.is_revoked());
+    Ok(())
+}
+
+#[test]
 fn rejects_zero_or_non_increasing_handle_lifetime() -> TestResult {
     for (issued, expires) in [
         (0, 1_720_000_301),
@@ -113,8 +129,8 @@ fn rejects_zero_use_limit_or_resolution_count_above_limit() -> TestResult {
 }
 
 #[test]
-fn rejects_revocation_outside_handle_lifetime() -> TestResult {
-    for revoked in [1_720_000_000, 1_720_000_301, 1_720_000_302] {
+fn rejects_revocation_before_issue_or_after_expiry() -> TestResult {
+    for revoked in [1_720_000_000, 1_720_000_302] {
         let mut input = valid_input()?;
         input.revoked_epoch_seconds = Some(revoked);
         assert_eq!(
