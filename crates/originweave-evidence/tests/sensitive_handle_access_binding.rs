@@ -11,8 +11,8 @@ fn access_evidence(
     outcome: SensitiveAccessOutcome,
     decision_epoch_seconds: u64,
 ) -> Result<SensitiveAccessEvidence, String> {
-    let destination = Origin::parse("https://checkout.example.com")
-        .map_err(|error| format!("{error:?}"))?;
+    let destination =
+        Origin::parse("https://checkout.example.com").map_err(|error| format!("{error:?}"))?;
     SensitiveAccessEvidence::try_from(SensitiveAccessEvidenceInput {
         request_id: "request-42".to_owned(),
         decision_id: "decision-42".to_owned(),
@@ -50,11 +50,9 @@ fn lifecycle_input(
 #[test]
 fn lifecycle_identity_retains_complete_opaque_handle_access_receipt() -> TestResult {
     let access = access_evidence(SensitiveAccessOutcome::OpaqueHandleOnly, 1_720_000_000)?;
-    let evidence = SensitiveHandleLifecycleEvidence::try_from(lifecycle_input(
-        access.clone(),
-        1_720_000_001,
-    ))
-    .map_err(|error| format!("{error:?}"))?;
+    let evidence =
+        SensitiveHandleLifecycleEvidence::try_from(lifecycle_input(access.clone(), 1_720_000_001))
+            .map_err(|error| format!("{error:?}"))?;
 
     assert_eq!(evidence.access_evidence(), &access);
     assert_eq!(evidence.request_id(), access.request_id());
