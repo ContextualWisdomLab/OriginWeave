@@ -85,9 +85,10 @@ pub struct DeclaredLimitation {
 impl DeclaredLimitation {
     /// Construct one explicit buyer-visible release limitation.
     ///
-    /// Empty/whitespace-only values, fields exceeding the fixed UTF-8 byte budget,
-    /// and ambiguous presentation characters fail closed because they cannot safely
-    /// represent one unambiguous, resource-bounded buyer-visible release limitation.
+    /// Empty/whitespace-only values, surrounding whitespace, fields exceeding the
+    /// fixed UTF-8 byte budget, and ambiguous presentation characters fail closed
+    /// because they cannot safely represent one canonical, resource-bounded
+    /// buyer-visible release limitation.
     pub fn new(
         unsupported_claim: impl Into<String>,
         buyer_consequence: impl Into<String>,
@@ -95,6 +96,9 @@ impl DeclaredLimitation {
         let unsupported_claim = unsupported_claim.into();
         if unsupported_claim.trim().is_empty() {
             return Err(ReleaseDecisionError::EmptyLimitationClaim);
+        }
+        if unsupported_claim.trim() != unsupported_claim {
+            return Err(ReleaseDecisionError::InvalidLimitationClaim);
         }
         if unsupported_claim.len() > MAX_RELEASE_LIMITATION_TEXT_BYTES {
             return Err(ReleaseDecisionError::LimitationClaimTooLong);
@@ -108,6 +112,9 @@ impl DeclaredLimitation {
         let buyer_consequence = buyer_consequence.into();
         if buyer_consequence.trim().is_empty() {
             return Err(ReleaseDecisionError::EmptyLimitationConsequence);
+        }
+        if buyer_consequence.trim() != buyer_consequence {
+            return Err(ReleaseDecisionError::InvalidLimitationConsequence);
         }
         if buyer_consequence.len() > MAX_RELEASE_LIMITATION_TEXT_BYTES {
             return Err(ReleaseDecisionError::LimitationConsequenceTooLong);
