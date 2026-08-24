@@ -16,6 +16,10 @@ The WHATWG URL host parser and Chromium canonicalizer classify shortened decimal
 
 The exact Chromium regression evidence is pinned to revision `446d05d21720f0b3505ec21057b3e9f909784262`. A mutable `HEAD` reference is not sufficient for a reproducible security contract.
 
+### Browser origin port syntax
+
+The WHATWG URL Standard port state accepts ASCII decimal digits while accumulating an explicit port and treats any other code point in that state as a validation error. Rust 1.97.1 `u16::from_str`, by contrast, accepts an optional leading `+` before decimal digits. OriginWeave therefore does not delegate browser-origin port grammar directly to integer parsing: every explicit origin port token must be non-empty and contain only ASCII decimal digits before `u16` range parsing. This prevents values such as `https://example.com:+443` from being canonicalized into browser authority even though Rust accepts the numeric spelling. The guard changes no default-port normalization, host parsing, destination authority, DNS, socket, or TLS semantics.
+
 ### Extension-to-Agent grant origin binding
 
 RFC 6454 defines a web origin as the scheme, host, and port tuple that browsers use to isolate authority. An OriginWeave `extension_grant` that is bound only to extension identity, session, and browsing context would remain valid after the same context navigates to another origin. OriginWeave therefore requires the grant and the request to carry the same canonical origin. A host change or a non-default port change is a different origin and cannot reuse the grant. This is grant-scope isolation only; it does not install an extension, parse Chrome messages, or mint Agent capabilities from Manifest V3 permissions.
@@ -173,6 +177,8 @@ The Rust Project Developers. (2026). *Ipv4Addr in std::net* (Rust 1.97.1) [Softw
 The Rust Project Developers. (2026). *Ipv6Addr in std::net* (Rust 1.97.1) [Software documentation]. https://doc.rust-lang.org/stable/std/net/struct.Ipv6Addr.html
 
 The Rust Project Developers. (2026). *TcpStream in std::net* (Rust 1.97.1) [Software documentation]. https://doc.rust-lang.org/stable/std/net/struct.TcpStream.html
+
+The Rust Project Developers. (2026). *u16 in std* (Rust 1.97.1) [Software documentation]. https://doc.rust-lang.org/stable/std/primitive.u16.html
 
 Web Hypertext Application Technology Working Group. (2026). *URL standard*. https://url.spec.whatwg.org/
 
