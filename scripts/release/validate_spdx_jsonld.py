@@ -18,6 +18,7 @@ import errno
 import hashlib
 import hmac
 import json
+import math
 import os
 import pathlib
 import stat
@@ -53,6 +54,15 @@ def _object_without_duplicates(pairs: Iterable[tuple[str, Any]]) -> dict[str, An
 
 def _reject_nonfinite_constant(_value: str) -> None:
     raise ValueError("non-finite JSON number")
+
+
+def _finite_json_float(value: str) -> float:
+    """Parse one JSON float only when its binary representation remains finite."""
+
+    parsed = float(value)
+    if not math.isfinite(parsed):
+        raise ValueError("non-finite JSON number")
+    return parsed
 
 
 def _has_required_spdx_context(context: Any) -> bool:
@@ -91,6 +101,7 @@ def validate_spdx_3_0_1_jsonld_bytes(payload: bytes) -> dict[str, int | str]:
             text,
             object_pairs_hook=_object_without_duplicates,
             parse_constant=_reject_nonfinite_constant,
+            parse_float=_finite_json_float,
         )
     except _DuplicateJsonKey as error:
         raise SpdxJsonLdEnvelopeError("duplicate_key") from error
