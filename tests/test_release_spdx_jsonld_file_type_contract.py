@@ -72,6 +72,35 @@ class ReleaseSpdxJsonLdFileTypeContractTests(unittest.TestCase):
 
             self.assertEqual(captured.exception.code, "invalid_file_type")
 
+    def test_candidate_path_replaced_after_open_is_rejected(self) -> None:
+        """The admitted descriptor must still own the candidate path after the bounded read."""
+
+        namespace = runpy.run_path(str(VALIDATOR), run_name="spdx_leaf_swap_contract")
+        read_bounded = namespace["_read_bounded"]
+        envelope_error = namespace["SpdxJsonLdEnvelopeError"]
+        original_opener = namespace["_nonblocking_read_opener"]
+
+        with tempfile.TemporaryDirectory(prefix="originweave-spdx-leaf-swap-") as directory:
+            root = pathlib.Path(directory)
+            candidate = root / "candidate.spdx.jsonld"
+            displaced = root / "displaced.spdx.jsonld"
+            candidate.write_bytes(b'{"@context":"https://spdx.org/rdf/3.0.1/spdx-context.jsonld","@graph":[{"type":"SpdxDocument"}]}')
+
+            def swap_after_open(path: str, flags: int) -> int:
+                descriptor = original_opener(path, flags)
+                candidate.rename(displaced)
+                candidate.write_bytes(b"{}")
+                return descriptor
+
+            read_bounded.__globals__["_nonblocking_read_opener"] = swap_after_open
+
+            with self.assertRaises(envelope_error) as captured:
+                read_bounded(candidate)
+
+            self.assertEqual(captured.exception.code, "invalid_file_type")
+            self.assertEqual(candidate.read_bytes(), b"{}")
+            self.assertTrue(displaced.exists())
+
 
 if __name__ == "__main__":
     unittest.main()
