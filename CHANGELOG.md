@@ -6,6 +6,9 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Added
 
+- Refreshed the product and technical gap baseline with the 2026-08-24 live inventory: 158 open pull requests (44 ready, 114 draft), refreshed exact base/head evidence for the #208–#222 release, enterprise-approval, BAP, and WARC/PROV chains, the governance issue additions #212 and #215, and a required-check provider-failure record for the fail-closed Strix re-dispatches on #208/#218/#220.
+- Added a dated product and technical gap baseline that separates protected-main implementation truth, active pull-request evidence, live review/check blockers, and the next buyer-visible Phase 1 acceptance work.
+- Refreshed the product and technical gap baseline with the current open-PR inventory and exact base/head evidence for the newest Chromium, BAP, extraction, WARC, and idempotency slices.
 - Bound explicit extension-to-Agent grants to exclusive trusted-time expiry in addition to extension identity, session, browsing context, and canonical origin, so a same-origin grant cannot be reused at or after the deadline.
 - Bound explicit extension-to-Agent grants to the exact canonical origin in addition to extension identity, session, and browsing context, so a same-session navigation or port change cannot reuse the grant.
 - Rust workspace for independently reusable core, policy, destination, network, TLS, resource, and evidence modules.
@@ -41,8 +44,16 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Updated the first Chromium slice to distinguish implemented origin, destination, direct TCP, and TLS identity kernels from the remaining trusted DNS adapter, proxy/PAC, HTTP budget, MIME, download, and Chromium integration required before safe navigation can be claimed.
 - Separated hourly product PR publication authority from the organization review and merge system, and added live default-branch and release-blocker rechecks immediately before publication.
 - Made the agent-development contract work-conserving: completing one bounded slice, RCA, review request, check, merge, or documentation change is an intermediate state; maintenance must return to the live queue, treat waits as item-local, and perform a mandatory exit sweep before terminating while executable OriginWeave work remains.
+- Hardened the dated baseline evidence collector with fail-fast isolated artifacts, paginated branch and collaborator rules, and post-collection exact-head revalidation.
+- Flattened every paginated workflow-run page in the baseline merge verdict so exact-head evidence cannot silently discard later runs.
+- Hardened the baseline evidence procedure with exact-head legacy status and workflow-run capture, counted approval binding, required-workflow recording, merge verdict artifacts, and bounded moving-head retries.
 - Moved autonomous-agent Cargo targets and Python bytecode caches outside the proposed source tree and prefetched locked Cargo dependencies for offline verification.
 - Updated research doctoring to pin Chromium canonicalizer evidence to an immutable revision, add RFC 9293, RFC 5280, RFC 8446, RFC 9525, rustls 0.23.42, and Rust `TcpStream` evidence, distinguish the April 2026 Fugu beta from the June 2026 release, and treat vendor benchmark claims as first-party evidence rather than independent validation.
+- Tightened the product-baseline contract so the BiDi opening path and VPN/profile evidence retain their explicit not-shipped status within their own documentation sections.
+- Refreshed the product and technical gap baseline against the 2026-08-21 live inventory: 150 open pull requests, 110 drafts, and the new hardened-runner/MV3 evidence gap issue #206.
+- Tightened the baseline completion-gap contract so superseded inventory counts (including the 2026-08-21 150/40/110 snapshot) can no longer pass as current evidence.
+- Refreshed the baseline's merge-authority statement to the live ruleset: two approving reviews are required, while the collaborator inventory still contains only the solo maintainer.
+- Corrected the baseline evidence collector to flatten every paginated input, apply current reviewer and last-push approval semantics, and discard verdicts when either the PR head or base moves.
 
 ### Security
 
