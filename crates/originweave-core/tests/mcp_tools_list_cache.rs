@@ -1,8 +1,8 @@
 use std::error::Error;
 
 use originweave_core::mcp::{
-    MCP_PROTOCOL_VERSION, MCP_TOOLS_LIST_METHOD, McpCacheScope, McpResultType,
-    McpToolsListBoundaryError, ValidatedMcpToolsListRequest, mcp_tools_list_page,
+    MAX_MCP_METHOD_NAME_BYTES, MCP_PROTOCOL_VERSION, MCP_TOOLS_LIST_METHOD, McpCacheScope,
+    McpResultType, McpToolsListBoundaryError, ValidatedMcpToolsListRequest, mcp_tools_list_page,
     supported_mcp_tools,
 };
 
@@ -92,6 +92,30 @@ fn mcp_tools_list_request_requires_complete_request_metadata() {
         ),
         Err(McpToolsListBoundaryError::MissingClientCapabilities)
     );
+}
+
+#[test]
+fn mcp_tools_list_validates_each_method_before_cross_field_comparison() {
+    let oversized_method = "a".repeat(MAX_MCP_METHOD_NAME_BYTES + 1);
+
+    for (routing_method, body_method) in [
+        ("tools list", MCP_TOOLS_LIST_METHOD),
+        (MCP_TOOLS_LIST_METHOD, "tools list"),
+        (oversized_method.as_str(), MCP_TOOLS_LIST_METHOD),
+        (MCP_TOOLS_LIST_METHOD, oversized_method.as_str()),
+    ] {
+        assert_eq!(
+            ValidatedMcpToolsListRequest::new(
+                Some(MCP_PROTOCOL_VERSION),
+                Some(MCP_PROTOCOL_VERSION),
+                true,
+                routing_method,
+                body_method,
+                None,
+            ),
+            Err(McpToolsListBoundaryError::InvalidMethod)
+        );
+    }
 }
 
 #[test]
