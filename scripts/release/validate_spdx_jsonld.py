@@ -14,6 +14,7 @@ rollback authority.
 from __future__ import annotations
 
 import argparse
+import contextvars
 import errno
 import hashlib
 import hmac
@@ -29,6 +30,9 @@ from typing import Any
 SPDX_3_0_1_CONTEXT = "https://spdx.org/rdf/3.0.1/spdx-context.jsonld"
 MAX_SPDX_JSONLD_BYTES = 16 * 1024 * 1024
 MAX_SPDX_GRAPH_OBJECTS = 65_536
+_EXPECTED_PARENT_IDENTITIES: contextvars.ContextVar[tuple[tuple[int, int], ...]] = (
+    contextvars.ContextVar("spdx_expected_parent_identities", default=())
+)
 
 
 class SpdxJsonLdEnvelopeError(ValueError):
@@ -172,13 +176,60 @@ def validate_release_spdx_3_0_1_jsonld_bytes(
     return summary
 
 
+def _path_components(path: pathlib.Path) -> tuple[str, list[str]]:
+    """Return the direct lexical anchor and components used by the secure open walk."""
+
+    components = list(path.parts)
+    if path.is_absolute():
+        anchor = path.anchor
+        components = components[1:]
+    else:
+        anchor = "."
+    if not components or any(component in {"", ".", ".."} for component in components):
+        raise OSError(errno.ELOOP, "indirect path component is not permitted")
+    return anchor, components
+
+
+def _direct_parent_identities(path: pathlib.Path) -> tuple[tuple[int, int], ...]:
+    """Capture the exact directory identities that own one direct candidate path."""
+
+    anchor, components = _path_components(path)
+    current = pathlib.Path(anchor)
+    identities: list[tuple[int, int]] = []
+    for component in [None, *components[:-1]]:
+        if component is not None:
+            current = current / component
+        parent_stat = current.lstat()
+        if not stat.S_ISDIR(parent_stat.st_mode):
+            raise SpdxJsonLdEnvelopeError("invalid_file_type")
+        identities.append((parent_stat.st_dev, parent_stat.st_ino))
+    return tuple(identities)
+
+
+def _require_expected_directory_identity(
+    descriptor: int,
+    expected_identity: tuple[int, int],
+) -> None:
+    """Fail the descriptor walk when an admitted directory identity has changed."""
+
+    opened_stat = os.fstat(descriptor)
+    if not stat.S_ISDIR(opened_stat.st_mode) or (
+        opened_stat.st_dev,
+        opened_stat.st_ino,
+    ) != expected_identity:
+        raise OSError(errno.ELOOP, "direct path parent identity changed")
+
+
 def _nonblocking_read_opener(path: str, flags: int) -> int:
-    """Open one candidate through a no-follow descriptor-relative component walk.
+    """Open one candidate through an identity-bound descriptor-relative component walk.
 
     Opening every ancestor relative to an already-open directory descriptor prevents a
-    pathname swap from redirecting a later component through a transient symlink. Platforms
-    that cannot provide both ``O_NOFOLLOW`` and descriptor-relative ``os.open`` fail closed
-    instead of silently weakening this direct-path release boundary.
+    pathname swap from redirecting a later component through a transient symlink. Every
+    opened directory must also retain the identity captured by the caller before leaf
+    admission, so replacing a parent with a different real directory cannot preserve trust
+    merely by hard-linking the same leaf inode into the replacement. Platforms that cannot
+    provide both ``O_NOFOLLOW`` and descriptor-relative ``os.open`` fail closed instead of
+    silently weakening this direct-path release boundary.
     """
 
     nofollow = getattr(os, "O_NOFOLLOW", 0)
@@ -188,22 +239,20 @@ def _nonblocking_read_opener(path: str, flags: int) -> int:
         raise OSError(errno.ENOTSUP, "secure descriptor-relative open is unavailable")
 
     candidate = pathlib.Path(path)
-    components = list(candidate.parts)
-    if candidate.is_absolute():
-        anchor = candidate.anchor
-        components = components[1:]
-    else:
-        anchor = "."
-    if not components or any(component in {"", ".", ".."} for component in components):
-        raise OSError(errno.ELOOP, "indirect path component is not permitted")
+    anchor, components = _path_components(candidate)
+    expected_parent_identities = _EXPECTED_PARENT_IDENTITIES.get()
+    if len(expected_parent_identities) != len(components):
+        raise OSError(errno.ELOOP, "direct path parent identity is unavailable")
 
     directory_flags = os.O_RDONLY | directory | nofollow | cloexec
     parent_fd = os.open(anchor, directory_flags)
     try:
-        for component in components[:-1]:
+        _require_expected_directory_identity(parent_fd, expected_parent_identities[0])
+        for index, component in enumerate(components[:-1], start=1):
             next_fd = os.open(component, directory_flags, dir_fd=parent_fd)
             os.close(parent_fd)
             parent_fd = next_fd
+            _require_expected_directory_identity(parent_fd, expected_parent_identities[index])
         return os.open(
             components[-1],
             flags | getattr(os, "O_NONBLOCK", 0) | nofollow | cloexec,
@@ -213,42 +262,38 @@ def _nonblocking_read_opener(path: str, flags: int) -> int:
         os.close(parent_fd)
 
 
-def _require_direct_parent_chain(path: pathlib.Path) -> None:
-    """Reject any existing ancestor that is not a direct directory entry."""
-
-    parent = path.parent
-    while parent != parent.parent:
-        if not stat.S_ISDIR(parent.lstat().st_mode):
-            raise SpdxJsonLdEnvelopeError("invalid_file_type")
-        parent = parent.parent
-
-
 def _read_bounded(path: pathlib.Path) -> bytes:
-    """Read one bounded direct regular-file candidate without accepting indirect/streaming paths."""
+    """Read one bounded direct regular-file candidate with stable path-owner identities."""
 
     try:
-        _require_direct_parent_chain(path)
+        expected_parent_identities = _direct_parent_identities(path)
         candidate_stat = path.lstat()
         if not stat.S_ISREG(candidate_stat.st_mode):
             raise SpdxJsonLdEnvelopeError("invalid_file_type")
-        with open(path, "rb", opener=_nonblocking_read_opener) as source:
-            opened_stat = os.fstat(source.fileno())
-            if not stat.S_ISREG(opened_stat.st_mode):
-                raise SpdxJsonLdEnvelopeError("invalid_file_type")
-            if (candidate_stat.st_dev, candidate_stat.st_ino) != (
-                opened_stat.st_dev,
-                opened_stat.st_ino,
-            ):
-                raise SpdxJsonLdEnvelopeError("invalid_file_type")
-            _require_direct_parent_chain(path)
-            payload = source.read(MAX_SPDX_JSONLD_BYTES + 1)
-            _require_direct_parent_chain(path)
-            final_stat = path.lstat()
-            if not stat.S_ISREG(final_stat.st_mode) or (
-                final_stat.st_dev,
-                final_stat.st_ino,
-            ) != (opened_stat.st_dev, opened_stat.st_ino):
-                raise SpdxJsonLdEnvelopeError("invalid_file_type")
+        identity_token = _EXPECTED_PARENT_IDENTITIES.set(expected_parent_identities)
+        try:
+            with open(path, "rb", opener=_nonblocking_read_opener) as source:
+                opened_stat = os.fstat(source.fileno())
+                if not stat.S_ISREG(opened_stat.st_mode):
+                    raise SpdxJsonLdEnvelopeError("invalid_file_type")
+                if (candidate_stat.st_dev, candidate_stat.st_ino) != (
+                    opened_stat.st_dev,
+                    opened_stat.st_ino,
+                ):
+                    raise SpdxJsonLdEnvelopeError("invalid_file_type")
+                if _direct_parent_identities(path) != expected_parent_identities:
+                    raise SpdxJsonLdEnvelopeError("invalid_file_type")
+                payload = source.read(MAX_SPDX_JSONLD_BYTES + 1)
+                if _direct_parent_identities(path) != expected_parent_identities:
+                    raise SpdxJsonLdEnvelopeError("invalid_file_type")
+                final_stat = path.lstat()
+                if not stat.S_ISREG(final_stat.st_mode) or (
+                    final_stat.st_dev,
+                    final_stat.st_ino,
+                ) != (opened_stat.st_dev, opened_stat.st_ino):
+                    raise SpdxJsonLdEnvelopeError("invalid_file_type")
+        finally:
+            _EXPECTED_PARENT_IDENTITIES.reset(identity_token)
     except OSError as error:
         if error.errno in {errno.ELOOP, errno.ENOTDIR}:
             raise SpdxJsonLdEnvelopeError("invalid_file_type") from error
