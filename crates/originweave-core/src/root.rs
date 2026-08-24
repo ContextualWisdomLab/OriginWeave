@@ -1,29 +1,21 @@
 //! Shared security and governance contracts for OriginWeave.
 //!
-//! The crate keeps deterministic authority contracts independent from browser-engine
-//! integration so the browser shell, headless runtime, MCP adapter, and enterprise
-//! policy service can compose them without ambient authority inheritance.
+//! The historical core contracts remain source-compatible while adapter-specific
+//! boundaries can live in focused modules without changing their authority model.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
-use std::fmt;
-
 #[path = "lib.rs"]
-mod legacy_contracts;
-pub use legacy_contracts::*;
+mod contracts;
 
-impl fmt::Display for NativeMessagingHostNameError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::InvalidHostName => formatter.write_str(
-                "native-messaging host name violates the reviewed Chrome identity syntax",
-            ),
-        }
-    }
-}
+pub use contracts::*;
 
-impl std::error::Error for NativeMessagingHostNameError {}
+/// Stateless MCP routing validation that maps only explicit tools to typed actions.
+pub mod mcp;
+
+mod native_messaging;
+pub use native_messaging::*;
 
 mod native_messaging_manifest;
 pub use native_messaging_manifest::{

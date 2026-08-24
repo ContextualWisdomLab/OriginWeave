@@ -1,7 +1,7 @@
 # Manifest V3 compatibility evidence baseline
 
 - **Status:** Active implementation evidence for issue #27
-- **Reviewed:** 2026-08-15
+- **Reviewed:** 2026-08-24
 - **Pinned browser:** Chrome for Testing `150.0.7871.129`, Chromium revision `r1639810`
 
 OriginWeave uses Chromium as its compatibility kernel, so browser-extension compatibility must be demonstrated with executable Chromium evidence rather than inferred from architecture alone. The protected-main lane exercises a controlled unpacked Manifest V3 extension against one exact Chrome for Testing build and proves service-worker, content-script, storage, declarative-network-request, tabs, windows, scripting, commands, side-panel, bookmarks/history read compatibility, restart persistence, repeatability, and one real WebDriver click/post-condition. Active stacked compatibility work adds downloads, bounded bookmark/history mutation, profile isolation, explicit extension update/version-migration evidence, and an exact content-script isolated-world check. OriginWeave does **not claim 100% Chrome extension compatibility**.
@@ -48,7 +48,7 @@ Content-script injection and content-script JavaScript isolation are separate co
 
 ## Native-messaging protocol boundary
 
-Chrome's current native-messaging documentation defines a separate native-host process communicating over `stdin`/`stdout`; each JSON message is UTF-8 encoded and preceded by a 32-bit message length in native byte order. Chrome caps a message sent by the native host to the browser at 1 MB and a message sent by the browser to the native host at 64 MiB. Draft PR #154 implements the bounded binary framing/resource boundary in reusable Rust and now exposes a fail-closed UTF-8 decode boundary: it rejects oversized encoder input before allocation, rejects an oversized advertised decoder length before payload slicing, requires the complete frame length to equal the advertised byte count so truncation and trailing data fail closed, and rejects invalid UTF-8 before a caller can treat framed bytes as native-messaging text. It still does not validate JSON syntax or semantics, trust the decoded text, launch or authenticate a native-host process, validate operating-system registration, or convert Chrome `nativeMessaging` permission into OriginWeave Agent authority.
+Chrome's current native-messaging documentation defines a separate native-host process communicating over `stdin`/`stdout`; each JSON message is UTF-8 encoded and preceded by a 32-bit message length in native byte order. Chrome caps a message sent by the native host to the browser at 1 MB and a message sent by the browser to the native host at 64 MiB. Draft PR #154 implements the bounded binary framing/resource boundary in reusable Rust and exposes a fail-closed UTF-8 decode boundary: it rejects oversized encoder input before allocation, rejects an oversized advertised decoder length before payload slicing, requires the complete frame length to equal the advertised byte count so truncation and trailing data fail closed, and rejects invalid UTF-8 before a caller can treat framed bytes as native-messaging text. It still does not validate JSON syntax or semantics, trust the decoded text, launch or authenticate a native-host process, validate operating-system registration, or convert Chrome `nativeMessaging` permission into OriginWeave Agent authority.
 
 ## Supply-chain and repeatability evidence
 
@@ -68,7 +68,7 @@ Chrome for Developers. (n.d.). *chrome.history*. Google. Retrieved August 11, 20
 
 Chrome for Developers. (n.d.). *Manifest file format*. Google. Retrieved August 9, 2026, from https://developer.chrome.com/docs/extensions/reference/manifest
 
-Chrome for Developers. (n.d.). *Native messaging*. Google. Retrieved August 14, 2026, from https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging
+Chrome for Developers. (n.d.). *Native messaging*. Google. Retrieved August 24, 2026, from https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging
 
 Bynens, M. (2023, June 12). *Chrome for Testing*. Chrome for Developers. https://developer.chrome.com/docs/automation-and-testing/chrome-for-testing
 
