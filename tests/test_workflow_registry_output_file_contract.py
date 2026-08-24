@@ -43,14 +43,18 @@ def _payload() -> dict:
 
 
 class WorkflowRegistryOutputFileContractTests(unittest.TestCase):
-    """Prevent an audit output path from inheriting ambient symlink authority."""
+    """Prevent an audit output path from inheriting ambient link authority."""
+
+    def _main(self):
+        """Load the audit CLI entrypoint without executing its process wrapper."""
+
+        namespace = runpy.run_path(str(AUDITOR), run_name="workflow_output_file_contract")
+        return namespace["main"]
 
     def test_symbolic_link_output_cannot_overwrite_its_target(self) -> None:
         """A caller-controlled symlink must never redirect canonical audit evidence output."""
 
-        namespace = runpy.run_path(str(AUDITOR), run_name="workflow_output_file_contract")
-        main = namespace["main"]
-
+        main = self._main()
         with tempfile.TemporaryDirectory(prefix="originweave-workflow-output-") as directory:
             root = pathlib.Path(directory)
             source = root / "registry.json"
@@ -62,6 +66,25 @@ class WorkflowRegistryOutputFileContractTests(unittest.TestCase):
                 output.symlink_to(target)
             except OSError as error:
                 self.skipTest(f"symbolic links are unavailable on this platform: {error}")
+
+            self.assertEqual(main([str(source), "--output", str(output)]), 1)
+            self.assertEqual(target.read_text(encoding="utf-8"), "sentinel\n")
+
+    def test_hard_link_output_cannot_overwrite_its_peer(self) -> None:
+        """A caller-controlled hard link must not grant write authority to a peer path."""
+
+        main = self._main()
+        with tempfile.TemporaryDirectory(prefix="originweave-workflow-output-") as directory:
+            root = pathlib.Path(directory)
+            source = root / "registry.json"
+            source.write_text(json.dumps(_payload()), encoding="utf-8")
+            target = root / "operator-owned.txt"
+            target.write_text("sentinel\n", encoding="utf-8")
+            output = root / "audit.json"
+            try:
+                output.hardlink_to(target)
+            except OSError as error:
+                self.skipTest(f"hard links are unavailable on this platform: {error}")
 
             self.assertEqual(main([str(source), "--output", str(output)]), 1)
             self.assertEqual(target.read_text(encoding="utf-8"), "sentinel\n")
