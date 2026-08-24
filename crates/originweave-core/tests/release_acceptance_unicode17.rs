@@ -3,6 +3,18 @@ use originweave_core::release_acceptance::{DeclaredLimitation, ReleaseDecisionEr
 const UNICODE_17_DEFAULT_IGNORABLE_CODE_POINT_COUNT: usize = 4_174;
 
 #[test]
+fn generic_constructor_input_shapes_cover_fail_closed_empty_boundaries() {
+    assert_eq!(
+        DeclaredLimitation::new(String::new(), "Linux ARM64 is unsupported."),
+        Err(ReleaseDecisionError::EmptyLimitationClaim),
+    );
+    assert_eq!(
+        DeclaredLimitation::new("linux_arm64", String::new()),
+        Err(ReleaseDecisionError::EmptyLimitationConsequence),
+    );
+}
+
+#[test]
 fn limitation_rejects_unicode_17_default_ignorable_code_points() -> Result<(), &'static str> {
     // Unicode 17.0.0 DerivedCoreProperties.txt (2025-07-30),
     // Default_Ignorable_Code_Point. The reviewed ranges contain exactly 4,174 code points.
