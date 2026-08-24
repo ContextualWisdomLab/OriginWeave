@@ -57,7 +57,6 @@ Rust 1.97.1 documents `TcpStream::connect_timeout` as attempting a connection to
 OriginWeave therefore creates a separate direct-only network kernel. A non-cloneable plan accepts one canonical `SocketAddr` already authorized by a `ResolutionSnapshot`, rejects port zero and unbounded timeouts or attempts, calls `connect_timeout` with that exact address, and checks `peer_addr` before exposing the stream. Requested and observed peers must match in both IP and port. IPv4-mapped IPv6 is rejected at this layer when the snapshot authorized its canonical IPv4 form.
 
 This proof is deliberately narrower than safe browser navigation. It does not validate TLS server names, certificates, certificate chains, or ALPN; it does not authorize a proxy or PAC route; it does not parse HTTP or bound response resources; and it does not prove that Chromium's Network Service consumed the verified stream. Those remain separate merge-gated adapters. TCP peer equality is transport evidence, not application identity.
-
 ### TLS service identity
 
 RFC 9846 is the current Standards Track TLS 1.3 specification and obsoletes RFC 8446. It defines a secure channel over a reliable, ordered byte stream and explicitly leaves application service-identity interpretation to the integrating protocol. It points application protocols to RFC 9525. RFC 9846 also reiterates that 0-RTT has weaker forward-secrecy and replay properties than ordinary 1-RTT application data. OriginWeave therefore cites RFC 9846 as the current TLS 1.3 authority, permits TLS 1.2 only for application interoperability, prefers TLS 1.3 through rustls ordering, and disables 0-RTT in the first slice.
@@ -117,7 +116,6 @@ Barth, A. (2011). *The web origin concept* (RFC 6454). Internet Engineering Task
 Berners-Lee, T., Fielding, R., & Masinter, L. (2005). *Uniform resource identifier (URI): Generic syntax* (RFC 3986; STD 66). Internet Engineering Task Force. https://doi.org/10.17487/RFC3986
 
 Bonica, R., Cotton, M., Haberman, B., & Vegoda, L. (2017). *Updates to the special-purpose IP address registries* (RFC 8190). Internet Engineering Task Force. https://doi.org/10.17487/RFC8190
-
 Chromium Authors. (n.d.). *Proxy support in Chrome* [Source documentation]. Chromium. https://chromium.googlesource.com/chromium/src/+/a3e71ebfa307d8760eb68b777e2998a869940092/net/docs/proxy.md
 
 Chromium Authors. (2026). *URL canonicalizer unit tests* [Source code]. Chromium. https://chromium.googlesource.com/chromium/src/+/446d05d21720f0b3505ec21057b3e9f909784262/url/url_canon_unittest.cc
@@ -148,7 +146,7 @@ International Organization for Standardization. (2017). *Information and documen
 
 Koster, M., Illyes, G., Zeller, H., & Sassman, L. (2022). *Robots Exclusion Protocol* (RFC 9309). Internet Engineering Task Force. https://doi.org/10.17487/RFC9309
 
-Linux Kernel Documentation. (n.d.). *The /proc filesystem*. Retrieved August 25, 2026, from https://www.kernel.org/doc/html/latest/filesystems/proc.html
+Linux Kernel Documentation. (n.d.). *The /proc filesystem*. Retrieved August 15, 2026, from https://www.kernel.org/doc/html/latest/filesystems/proc.html
 
 Lodderstedt, T., Bradley, J., Labunets, A., & Fett, D. (2025). *OAuth 2.0 security best current practice* (RFC 9700). Internet Engineering Task Force. https://doi.org/10.17487/RFC9700
 
@@ -177,7 +175,6 @@ Sheffer, Y., Saint-Andre, P., & Fossati, T. (2022). *Recommendations for secure 
 The Rust Project Developers. (2026). *Ipv4Addr in std::net* (Rust 1.97.1) [Software documentation]. https://doc.rust-lang.org/stable/std/net/struct.Ipv4Addr.html
 
 The Rust Project Developers. (2026). *Ipv6Addr in std::net* (Rust 1.97.1) [Software documentation]. https://doc.rust-lang.org/stable/std/net/struct.Ipv6Addr.html
-
 The Rust Project Developers. (2026). *TcpStream in std::net* (Rust 1.97.1) [Software documentation]. https://doc.rust-lang.org/stable/std/net/struct.TcpStream.html
 
 Web Hypertext Application Technology Working Group. (2026). *URL standard*. https://url.spec.whatwg.org/
