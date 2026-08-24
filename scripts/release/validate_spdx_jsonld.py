@@ -14,6 +14,7 @@ rollback authority.
 from __future__ import annotations
 
 import argparse
+import errno
 import hashlib
 import hmac
 import json
@@ -161,20 +162,27 @@ def validate_release_spdx_3_0_1_jsonld_bytes(
 
 
 def _nonblocking_read_opener(path: str, flags: int) -> int:
-    """Open one local candidate without allowing a FIFO/device open to wait indefinitely."""
+    """Open one local candidate without following symlinks or waiting on special files."""
 
-    return os.open(path, flags | getattr(os, "O_NONBLOCK", 0))
+    return os.open(
+        path,
+        flags | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_NOFOLLOW", 0),
+    )
 
 
 def _read_bounded(path: pathlib.Path) -> bytes:
-    """Read one bounded regular-file candidate without accepting streaming file types."""
+    """Read one bounded direct regular-file candidate without accepting indirect/streaming paths."""
 
     try:
+        if not stat.S_ISREG(path.lstat().st_mode):
+            raise SpdxJsonLdEnvelopeError("invalid_file_type")
         with open(path, "rb", opener=_nonblocking_read_opener) as source:
             if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
                 raise SpdxJsonLdEnvelopeError("invalid_file_type")
             payload = source.read(MAX_SPDX_JSONLD_BYTES + 1)
     except OSError as error:
+        if error.errno == errno.ELOOP:
+            raise SpdxJsonLdEnvelopeError("invalid_file_type") from error
         raise SpdxJsonLdEnvelopeError("read_failed") from error
     if not payload or len(payload) > MAX_SPDX_JSONLD_BYTES:
         raise SpdxJsonLdEnvelopeError("invalid_size")
