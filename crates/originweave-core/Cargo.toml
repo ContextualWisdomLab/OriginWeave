@@ -11,7 +11,7 @@ homepage.workspace = true
 publish = false
 
 [lib]
-path = "src/crate_root.rs"
+path = "src/root.rs"
 
 [dependencies]
 
