@@ -2,21 +2,23 @@
 //!
 //! A trusted broker can use this value object to record when a handle was
 //! issued, when it expires, how many uses it permits, how many resolutions were
-//! observed, and when it was revoked. The evidence intentionally has no field
-//! for the opaque handle token or the protected value behind that token.
+//! observed, and when it was revoked. The lifecycle retains the complete
+//! credential-free sensitive-access receipt that authorized opaque-handle use,
+//! while intentionally excluding the opaque handle token and protected value.
 
-use crate::sensitive_access::{SensitiveEvidenceError, valid_identifier};
+use crate::sensitive_access::{
+    SensitiveAccessEvidence, SensitiveAccessOutcome, SensitiveEvidenceError,
+};
 
 /// Unvalidated metadata describing one opaque sensitive-value handle lifecycle.
 ///
-/// This input records correlation identifiers and bounded lifecycle counters
-/// only. It cannot carry the opaque handle token or a protected value.
+/// The embedded access receipt binds the lifecycle to the tenant, actor, task,
+/// field set, purpose, destination, classification, policy version, and exact
+/// opaque-handle authorization without carrying protected values.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SensitiveHandleLifecycleEvidenceInput {
-    /// Correlation identifier for the sensitive-data access request.
-    pub request_id: String,
-    /// Identifier for the policy decision that authorized or denied the handle.
-    pub decision_id: String,
+    /// Credential-free access receipt that authorized this opaque handle.
+    pub access_evidence: SensitiveAccessEvidence,
     /// Trusted Unix epoch second when the handle was issued.
     pub issued_epoch_seconds: u64,
     /// Trusted Unix epoch second after which the handle is no longer valid.
@@ -26,17 +28,20 @@ pub struct SensitiveHandleLifecycleEvidenceInput {
     /// Number of broker resolutions already observed for the handle.
     pub resolution_count: u32,
     /// Trusted Unix epoch second when the handle was revoked, when applicable.
+    ///
+    /// A revocation recorded exactly at expiry is retained as a terminal audit
+    /// event even though it cannot extend or restore handle validity.
     pub revoked_epoch_seconds: Option<u64>,
 }
 
 /// Immutable credential-free evidence about one opaque handle lifecycle.
 ///
-/// The value deliberately excludes both the opaque handle token and the secret
-/// or protected value that the broker can resolve from it.
+/// The value retains the exact credential-free sensitive-access receipt that
+/// authorized opaque-handle use, but deliberately excludes both the opaque
+/// handle token and the secret or protected value that the broker can resolve.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SensitiveHandleLifecycleEvidence {
-    request_id: String,
-    decision_id: String,
+    access_evidence: SensitiveAccessEvidence,
     issued_epoch_seconds: u64,
     expires_epoch_seconds: u64,
     maximum_uses: u32,
@@ -48,23 +53,21 @@ impl TryFrom<SensitiveHandleLifecycleEvidenceInput> for SensitiveHandleLifecycle
     type Error = SensitiveEvidenceError;
 
     fn try_from(input: SensitiveHandleLifecycleEvidenceInput) -> Result<Self, Self::Error> {
-        if !valid_identifier(&input.request_id) || !valid_identifier(&input.decision_id) {
-            return Err(SensitiveEvidenceError::InvalidIdentifier);
-        }
-        if input.issued_epoch_seconds == 0
+        if input.access_evidence.outcome() != SensitiveAccessOutcome::OpaqueHandleOnly
+            || input.issued_epoch_seconds == 0
+            || input.issued_epoch_seconds < input.access_evidence.decision_epoch_seconds()
             || input.expires_epoch_seconds <= input.issued_epoch_seconds
             || input.maximum_uses == 0
             || input.resolution_count > input.maximum_uses
             || input.revoked_epoch_seconds.is_some_and(|revoked| {
-                revoked < input.issued_epoch_seconds || revoked >= input.expires_epoch_seconds
+                revoked < input.issued_epoch_seconds || revoked > input.expires_epoch_seconds
             })
         {
             return Err(SensitiveEvidenceError::InvalidLifecycle);
         }
 
         Ok(Self {
-            request_id: input.request_id,
-            decision_id: input.decision_id,
+            access_evidence: input.access_evidence,
             issued_epoch_seconds: input.issued_epoch_seconds,
             expires_epoch_seconds: input.expires_epoch_seconds,
             maximum_uses: input.maximum_uses,
@@ -75,16 +78,22 @@ impl TryFrom<SensitiveHandleLifecycleEvidenceInput> for SensitiveHandleLifecycle
 }
 
 impl SensitiveHandleLifecycleEvidence {
+    /// Return the credential-free access receipt that authorized this opaque handle.
+    #[must_use]
+    pub const fn access_evidence(&self) -> &SensitiveAccessEvidence {
+        &self.access_evidence
+    }
+
     /// Return the originating sensitive-data access request identifier.
     #[must_use]
     pub fn request_id(&self) -> &str {
-        &self.request_id
+        self.access_evidence.request_id()
     }
 
     /// Return the policy decision identifier associated with the handle.
     #[must_use]
     pub fn decision_id(&self) -> &str {
-        &self.decision_id
+        self.access_evidence.decision_id()
     }
 
     /// Return the trusted handle issuance time as a Unix epoch second.
