@@ -5,13 +5,28 @@ fn limitation_accepts_canonical_boundary_text() {
     let limitation = DeclaredLimitation::new(
         "linux_arm64",
         "Linux ARM64 is excluded from the support profile.",
-    )
-    .expect("canonical limitation text must remain accepted");
+    );
 
-    assert_eq!(limitation.unsupported_claim(), "linux_arm64");
     assert_eq!(
-        limitation.buyer_consequence(),
-        "Linux ARM64 is excluded from the support profile."
+        limitation
+            .as_ref()
+            .map(|value| (value.unsupported_claim(), value.buyer_consequence())),
+        Ok((
+            "linux_arm64",
+            "Linux ARM64 is excluded from the support profile."
+        ))
+    );
+}
+
+#[test]
+fn limitation_rejects_empty_fields_for_the_canonical_string_input_shape() {
+    assert_eq!(
+        DeclaredLimitation::new("", "Linux ARM64 is excluded from the support profile."),
+        Err(ReleaseDecisionError::EmptyLimitationClaim),
+    );
+    assert_eq!(
+        DeclaredLimitation::new("linux_arm64", ""),
+        Err(ReleaseDecisionError::EmptyLimitationConsequence),
     );
 }
 
