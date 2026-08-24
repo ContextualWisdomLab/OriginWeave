@@ -315,6 +315,25 @@ fn decision_is_independent_of_evidence_input_order() {
 }
 
 #[test]
+fn conflicting_consequences_for_one_limitation_claim_fail_closed()
+-> Result<(), ReleaseDecisionError> {
+    let first = DeclaredLimitation::new(
+        "linux_arm64",
+        "Linux ARM64 is excluded from the support profile.",
+    )?;
+    let conflicting = DeclaredLimitation::new(
+        "linux_arm64",
+        "Linux ARM64 is supported only for evaluation deployments.",
+    )?;
+
+    assert!(
+        decide_release(passing_results(), &[first, conflicting]).is_err(),
+        "one unsupported claim must not retain contradictory buyer consequences"
+    );
+    Ok(())
+}
+
+#[test]
 fn release_report_bounds_declared_limitation_count_before_cloning()
 -> Result<(), ReleaseDecisionError> {
     let limitation = declared_limitation()?;
