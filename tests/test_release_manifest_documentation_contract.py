@@ -31,9 +31,15 @@ class ReleaseManifestDocumentationContractTests(unittest.TestCase):
 
     def test_git_protocol_references_pin_the_verified_manual_revisions(self) -> None:
         """Protocol evidence must resolve to the manual revisions that contain the cited rules."""
+        expected_citations = (
+            "Git. (2025). *gitprotocol-common documentation (Git 2.50.0)*.",
+            "Git. (2026). *gitprotocol-pack documentation (Git 2.54.0)*.",
+        )
         for path in (ADR_PATH, DOCTORING_PATH):
             text = path.read_text(encoding="utf-8")
             with self.subTest(path=path):
+                for citation in expected_citations:
+                    self.assertIn(citation, text)
                 self.assertIn("gitprotocol-common/2.50.0", text)
                 self.assertIn("gitprotocol-pack/2.54.0", text)
                 self.assertNotIn("gitprotocol-common/2.55.0", text)
