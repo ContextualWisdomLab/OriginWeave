@@ -224,14 +224,14 @@ impl fmt::Display for ReleaseDecisionError {
                 formatter.write_str("declared release limitation claim exceeds the byte budget")
             }
             Self::InvalidLimitationClaim => formatter.write_str(
-                "declared release limitation claim is not canonical NFC text or contains an unsafe presentation character",
+                "declared release limitation claim contains an unsafe presentation character",
             ),
             Self::EmptyLimitationConsequence => formatter
                 .write_str("declared release limitation must state a buyer-visible consequence"),
             Self::LimitationConsequenceTooLong => formatter
                 .write_str("declared release limitation consequence exceeds the byte budget"),
             Self::InvalidLimitationConsequence => formatter.write_str(
-                "declared release limitation consequence is not canonical NFC text or contains an unsafe presentation character",
+                "declared release limitation consequence contains an unsafe presentation character",
             ),
             Self::TooManyDeclaredLimitations => formatter
                 .write_str("benchmark release decision contains too many declared limitations"),
