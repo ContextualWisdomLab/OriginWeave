@@ -62,6 +62,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 ### Security
 
 - The SPDX 3.0.1 release-envelope gate requires the exact versioned global-context string and rejects context arrays, `@import`, `@base`, `@vocab`, and alias/term-rebinding attempts until reviewed schema-aware validation can prove extension semantics without ambient or reinterpretation authority.
+- SPDX JSON-LD release-file admission now requires a direct regular-file leaf reached through a no-follow descriptor-relative path walk and revalidates the final leaf's device/inode identity after the bounded read, so symlinks, FIFOs, swapped ancestors, and post-open pathname replacement fail closed instead of silently changing the artifact path identity.
 - Release artifact admission rejects `COM0` through `COM9` and `LPT0` through `LPT9` case-insensitively, including extensions, as bounded filename identity hygiene. OneDrive and SharePoint impose additional restrictions, including `desktop.ini`, that this validator does not model; this is not a complete OneDrive or SharePoint synchronization-compatibility guarantee.
 - Raw page content cannot become a trusted instruction.
 - Raw secrets are rejected and secret-capable actions require an opaque broker handle.
