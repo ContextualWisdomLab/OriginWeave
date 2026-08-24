@@ -538,12 +538,54 @@ def _parse_bounded_json_integer(value: str) -> int:
 
 
 def _nonblocking_read_opener(path: str, flags: int) -> int:
-    """Open audit input without following a final symlink or blocking on a stream."""
+    """Open audit input through a no-follow descriptor-relative component walk."""
 
-    return os.open(
-        path,
-        flags | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_NOFOLLOW", 0),
-    )
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    directory = getattr(os, "O_DIRECTORY", 0)
+    cloexec = getattr(os, "O_CLOEXEC", 0)
+    if not nofollow or not directory or os.open not in os.supports_dir_fd:
+        raise WorkflowAuditError("secure direct-file open is unavailable")
+
+    candidate = pathlib.Path(path)
+    components = list(candidate.parts)
+    if candidate.is_absolute():
+        anchor = candidate.anchor
+        components = components[1:]
+    else:
+        anchor = "."
+    if not components or any(component in {"", ".", ".."} for component in components):
+        raise WorkflowAuditError("input path is ambiguous")
+
+    directory_flags = os.O_RDONLY | directory | nofollow | cloexec
+    try:
+        parent_fd = os.open(anchor, directory_flags)
+    except OSError as error:
+        raise WorkflowAuditError("input is not readable UTF-8 JSON") from error
+
+    try:
+        for component in components[:-1]:
+            try:
+                next_fd = os.open(component, directory_flags, dir_fd=parent_fd)
+            except OSError as error:
+                if error.errno in {errno.ELOOP, errno.ENOTDIR}:
+                    raise WorkflowAuditError(
+                        "input must not use a symbolic-link parent"
+                    ) from error
+                raise
+            os.close(parent_fd)
+            parent_fd = next_fd
+        try:
+            return os.open(
+                components[-1],
+                flags | getattr(os, "O_NONBLOCK", 0) | nofollow | cloexec,
+                dir_fd=parent_fd,
+            )
+        except OSError as error:
+            if error.errno == errno.ELOOP:
+                raise WorkflowAuditError("input must not be a symbolic link") from error
+            raise
+    finally:
+        os.close(parent_fd)
 
 
 def _read_payload(path: pathlib.Path) -> dict[str, Any]:
