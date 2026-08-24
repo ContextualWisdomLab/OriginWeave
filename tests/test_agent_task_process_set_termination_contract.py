@@ -24,32 +24,49 @@ class AgentTaskProcessSetTerminationContractTests(unittest.TestCase):
             with self.subTest(expected=expected):
                 self.assertIn(expected, namespace)
 
-    def test_process_identity_set_reader_preserves_order_and_rejects_ambiguity(self) -> None:
-        """Every sampled process must bind to one exact start time before shutdown."""
+    def test_process_identity_set_reader_preserves_root_and_tolerates_exited_children(self) -> None:
+        """Short-lived descendants may exit after the snapshot, but root identity stays exact."""
 
         namespace = runpy.run_path(str(RUNNER), run_name="agent_task_process_set_reader")
         reader = namespace["_read_linux_process_identity_set"]
         original_reader = reader.__globals__["_read_linux_proc_stat_process_identity"]
+        identities = {10: (10, 101), 20: (20, 202), 30: (30, 303)}
         try:
-            identities = {10: (10, 101), 20: (20, 202), 30: (30, 303)}
             reader.__globals__["_read_linux_proc_stat_process_identity"] = identities.get
             self.assertEqual(
-                reader((10, 20, 30)),
-                ((10, 101), (20, 202), (30, 303)),
+                reader((10, 20, 30), required_root_identity=(10, 101)),
+                (((10, 101), (20, 202), (30, 303)), 0),
             )
 
             reader.__globals__["_read_linux_proc_stat_process_identity"] = (
                 lambda process_id: None if process_id == 20 else identities[process_id]
             )
-            with self.assertRaisesRegex(RuntimeError, "disappeared before shutdown"):
-                reader((10, 20, 30))
+            self.assertEqual(
+                reader((10, 20, 30), required_root_identity=(10, 101)),
+                (((10, 101), (30, 303)), 1),
+            )
+
+            reader.__globals__["_read_linux_proc_stat_process_identity"] = (
+                lambda process_id: None if process_id == 10 else identities[process_id]
+            )
+            with self.assertRaisesRegex(RuntimeError, "root process identity disappeared"):
+                reader((10, 20, 30), required_root_identity=(10, 101))
+
+            reader.__globals__["_read_linux_proc_stat_process_identity"] = identities.get
+            with self.assertRaisesRegex(RuntimeError, "root process identity changed"):
+                reader((10, 20, 30), required_root_identity=(10, 999))
         finally:
             reader.__globals__["_read_linux_proc_stat_process_identity"] = original_reader
 
-        for process_ids in ((), (10, 10)):
-            with self.subTest(process_ids=process_ids):
+        for process_ids, root_identity in (
+            ((), (10, 101)),
+            ((10, 10), (10, 101)),
+            ((10, 20), (20, 202)),
+            ((10, 20), (10, 0)),
+        ):
+            with self.subTest(process_ids=process_ids, root_identity=root_identity):
                 with self.assertRaises(ValueError):
-                    reader(process_ids)
+                    reader(process_ids, required_root_identity=root_identity)
 
     def test_process_set_exit_waiter_uses_one_deadline_and_detects_any_live_identity(self) -> None:
         """A reused PID is exited evidence, but any exact surviving identity fails closed."""
@@ -89,11 +106,12 @@ class AgentTaskProcessSetTerminationContractTests(unittest.TestCase):
                     waiter(process_identities, timeout_seconds=timeout_seconds)
 
     def test_successful_agent_task_requires_entire_sampled_process_set_to_terminate(self) -> None:
-        """Successful acceptance must not stop at proof for the Chrome root process alone."""
+        """Successful acceptance must preserve already-exited descendants as explicit evidence."""
 
         runner = RUNNER.read_text(encoding="utf-8")
         for expected in (
             "chromium_process_identities",
+            "chromium_process_pre_shutdown_exit_count",
             '"chromium_process_set_terminated"',
             'result["chromium_process_set_terminated"]',
             'trial.get("chromium_process_set_terminated") is True',

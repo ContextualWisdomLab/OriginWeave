@@ -24,9 +24,11 @@ class AgentTaskSharedTeardownDeadlineContractTests(unittest.TestCase):
         self.assertNotIn("_wait_for_linux_process_identity_exit(", browser_pass)
         self.assertNotIn("_wait_for_linux_process_identity_set_exit(", browser_pass)
 
-        shutdown = browser_pass.index("driver.wait(timeout=5)")
+        shutdown = browser_pass.index("_terminate_owned_process_bounded(")
         teardown_wait = browser_pass.index("_wait_for_linux_process_teardown(")
-        failure_return = browser_pass.index("if browser_failure_type is not None:")
+        failure_return = browser_pass.index(
+            "or driver_cleanup_failure_type is not None"
+        )
         self.assertLess(shutdown, teardown_wait)
         self.assertLess(teardown_wait, failure_return)
 
