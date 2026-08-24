@@ -24,6 +24,10 @@ RFC 6454 defines a web origin as the scheme, host, and port tuple that browsers 
 
 RFC 9700 is the current Best Current Practice for OAuth 2.0 security. It requires access tokens to be restricted in lifetime and treats long-lived bearer credentials as a standing authorization risk. An OriginWeave `extension_grant` that matches extension identity, session, browsing context, and canonical origin but has no exclusive expiry remains usable after the Agent Task window ends. OriginWeave therefore requires the grant to carry an exclusive `expires_at_epoch_seconds` deadline and the request to carry trusted `now_epoch_seconds`. Evaluation fails closed when `now >= expires_at`, matching the existing sensitive-handle exclusive-expiry rule. Page, extension, and model clocks are not trusted time. This slice does not bind task identity, install an extension, or mint Agent capabilities from Manifest V3 permissions.
 
+### Release-limitation presentation safety
+
+Unicode 17.0 defines `Default_Ignorable_Code_Point` in the Unicode Character Database and records the exact derived set in the versioned `DerivedCoreProperties.txt` data file. Those characters can be invisible or alter presentation without supplying an ordinary visible glyph. OriginWeave therefore treats the Unicode 17.0 derived property as a pinned presentation-safety input for buyer-visible release-limitation metadata, in addition to rejecting control characters and non-canonical leading or trailing whitespace. The admitted text is not silently normalized: accepted content retains its exact bytes, while ambiguous presentation characters and surrounding whitespace fail closed so one release claim cannot acquire multiple stored spellings. This is a bounded metadata-identity policy, not a claim of complete Unicode spoofing resistance or semantic text equivalence.
+
 ### Resolved destination and redirect safety
 
 Canonical origin identity is not a network-destination authorization. The IANA IPv4 and IPv6 Special-Purpose Address Space registries enumerate blocks whose source, destination, forwardability, globally reachable, and protocol-reserved properties differ. Both registries were last updated on 9 October 2025 and explicitly warn that registry presence does not guarantee routability in a particular local or global context. RFC 6890 established the common special-purpose registry fields, and RFC 8190 replaced the ambiguous `global` field with `globally reachable`.
@@ -173,6 +177,8 @@ The Rust Project Developers. (2026). *Ipv4Addr in std::net* (Rust 1.97.1) [Softw
 The Rust Project Developers. (2026). *Ipv6Addr in std::net* (Rust 1.97.1) [Software documentation]. https://doc.rust-lang.org/stable/std/net/struct.Ipv6Addr.html
 
 The Rust Project Developers. (2026). *TcpStream in std::net* (Rust 1.97.1) [Software documentation]. https://doc.rust-lang.org/stable/std/net/struct.TcpStream.html
+
+The Unicode Consortium. (2025). *DerivedCoreProperties-17.0.0.txt* [Data file]. https://www.unicode.org/Public/17.0.0/ucd/DerivedCoreProperties.txt
 
 Web Hypertext Application Technology Working Group. (2026). *URL standard*. https://url.spec.whatwg.org/
 
