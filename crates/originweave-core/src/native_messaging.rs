@@ -203,7 +203,7 @@ impl fmt::Display for NativeMessagingFrameError {
 
 impl std::error::Error for NativeMessagingFrameError {}
 
-/// Return Chrome's payload ceiling for one native-messaging direction.
+/// Return OriginWeave's reviewed payload ceiling for one native-messaging direction.
 #[must_use]
 pub const fn native_messaging_payload_limit(direction: NativeMessagingFrameDirection) -> usize {
     match direction {
@@ -215,7 +215,7 @@ pub const fn native_messaging_payload_limit(direction: NativeMessagingFrameDirec
 /// Encode one complete native-messaging frame with a native-endian 32-bit length prefix.
 ///
 /// The payload is rejected before allocation when it exceeds the direction-specific
-/// Chrome limit. The returned bytes are framing only and carry no trust or Agent authority.
+/// OriginWeave limit. The returned bytes are framing only and carry no trust or Agent authority.
 pub fn encode_native_messaging_frame(
     direction: NativeMessagingFrameDirection,
     payload: &[u8],
