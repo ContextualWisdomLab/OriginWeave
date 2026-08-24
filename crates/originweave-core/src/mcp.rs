@@ -290,12 +290,13 @@ impl ValidatedMcpToolsListRequest {
     /// Validate the stateless request envelope for the current fixed `tools/list` catalog.
     ///
     /// Both the required transport protocol-version header and structured request `_meta`
-    /// protocol version must be present, equal, and exactly [`MCP_PROTOCOL_VERSION`]. A trusted
-    /// structured parser must also attest that the required `_meta` client-capabilities object was
-    /// present; its contents grant no OriginWeave authority. Each untrusted method value is
-    /// shape-validated before comparison. The routing/body method must then agree exactly. Any
-    /// supplied cursor fails closed because [`mcp_tools_list_page`] emits no continuation cursor;
-    /// accepting one would silently invent pagination state that OriginWeave never issued.
+    /// protocol version must be present, individually bounded to the exact supported-version
+    /// length before cross-field comparison, equal, and exactly [`MCP_PROTOCOL_VERSION`]. A
+    /// trusted structured parser must also attest that the required `_meta` client-capabilities
+    /// object was present; its contents grant no OriginWeave authority. Each untrusted method
+    /// value is shape-validated before comparison. The routing/body method must then agree exactly.
+    /// Any supplied cursor fails closed because [`mcp_tools_list_page`] emits no continuation
+    /// cursor; accepting one would silently invent pagination state that OriginWeave never issued.
     pub fn new(
         protocol_version_header: Option<&str>,
         protocol_version_metadata: Option<&str>,
@@ -309,6 +310,11 @@ impl ValidatedMcpToolsListRequest {
         let protocol_version_metadata = protocol_version_metadata
             .ok_or(McpToolsListBoundaryError::MissingProtocolVersionMetadata)?;
 
+        if protocol_version_header.len() > MCP_PROTOCOL_VERSION.len()
+            || protocol_version_metadata.len() > MCP_PROTOCOL_VERSION.len()
+        {
+            return Err(McpToolsListBoundaryError::UnsupportedProtocolVersion);
+        }
         if protocol_version_header != protocol_version_metadata {
             return Err(McpToolsListBoundaryError::ProtocolVersionHeaderBodyMismatch);
         }
