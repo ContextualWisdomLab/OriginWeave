@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+import os
 import pathlib
 import runpy
 import tempfile
 import unittest
+import unittest.mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 AUDITOR = ROOT / "scripts" / "ci" / "audit_workflow_registry.py"
@@ -88,6 +90,39 @@ class WorkflowRegistryOutputFileContractTests(unittest.TestCase):
 
             self.assertEqual(main([str(source), "--output", str(output)]), 1)
             self.assertEqual(target.read_text(encoding="utf-8"), "sentinel\n")
+
+    def test_hard_link_race_after_descriptor_check_cannot_alias_output(self) -> None:
+        """A hard link added after descriptor inspection must not gain write authority."""
+
+        main = self._main()
+        with tempfile.TemporaryDirectory(prefix="originweave-workflow-output-") as directory:
+            root = pathlib.Path(directory)
+            source = root / "registry.json"
+            source.write_text(json.dumps(_payload()), encoding="utf-8")
+            output = root / "audit.json"
+            output.write_text("sentinel\n", encoding="utf-8")
+            peer = root / "raced-peer.txt"
+            real_fstat = os.fstat
+            fstat_calls = 0
+
+            def fstat_with_hard_link_race(descriptor: int) -> os.stat_result:
+                nonlocal fstat_calls
+                result = real_fstat(descriptor)
+                fstat_calls += 1
+                if fstat_calls == 2:
+                    try:
+                        peer.hardlink_to(output)
+                    except OSError as error:
+                        self.skipTest(
+                            f"hard links are unavailable on this platform: {error}"
+                        )
+                return result
+
+            with unittest.mock.patch("os.fstat", side_effect=fstat_with_hard_link_race):
+                self.assertEqual(main([str(source), "--output", str(output)]), 1)
+
+            self.assertEqual(output.read_text(encoding="utf-8"), "sentinel\n")
+            self.assertEqual(peer.read_text(encoding="utf-8"), "sentinel\n")
 
 
 if __name__ == "__main__":
