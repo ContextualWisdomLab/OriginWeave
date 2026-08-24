@@ -18,6 +18,16 @@ fn declared_limitation() -> Result<DeclaredLimitation, ReleaseDecisionError> {
 }
 
 #[test]
+fn generic_constructor_input_shapes_cover_success_paths_in_this_test_crate() {
+    assert!(
+        DeclaredLimitation::new(String::from("linux_arm64"), "Linux ARM64 is unsupported.").is_ok()
+    );
+    assert!(
+        DeclaredLimitation::new("linux_arm64", String::from("Linux ARM64 is unsupported.")).is_ok()
+    );
+}
+
+#[test]
 fn complete_passing_evidence_is_accepted_without_declared_limitations()
 -> Result<(), ReleaseDecisionError> {
     let report = decide_release(passing_results(), &[])?;
