@@ -175,6 +175,10 @@ fn mcp_tools_list_request_errors_are_source_free_and_non_echoing() {
             "MCP request metadata client capabilities are required",
         ),
         (
+            McpToolsListBoundaryError::InvalidMethod,
+            "MCP method violates the bounded ASCII routing syntax",
+        ),
+        (
             McpToolsListBoundaryError::MethodHeaderBodyMismatch,
             "MCP method header does not match the request body",
         ),
