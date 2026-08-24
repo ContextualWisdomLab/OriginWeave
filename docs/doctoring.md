@@ -18,7 +18,7 @@ The exact Chromium regression evidence is pinned to revision `446d05d21720f0b350
 
 ### Browser origin port syntax
 
-The WHATWG URL Standard port state accepts ASCII decimal digits while accumulating an explicit port and treats any other code point in that state as a validation error. Rust 1.97.1 `u16::from_str`, by contrast, accepts an optional leading `+` before decimal digits. OriginWeave therefore does not delegate browser-origin port grammar directly to integer parsing: every explicit origin port token must be non-empty and contain only ASCII decimal digits before `u16` range parsing. This prevents values such as `https://example.com:+443` from being canonicalized into browser authority even though Rust accepts the numeric spelling. The guard changes no default-port normalization, host parsing, destination authority, DNS, socket, or TLS semantics.
+In the WHATWG URL Standard port state, ASCII digits are accumulated into the port buffer. EOF, `/`, `?`, `#`, and, for special URLs, `\` terminate the port state; any other code point is a `port-invalid` validation error. When the buffered port is committed, values outside the unsigned 16-bit range fail as `port-out-of-range`. Rust 1.97.1 `u16::from_str`, by contrast, accepts an optional leading `+` before decimal digits. OriginWeave therefore does not delegate browser-origin port-token grammar directly to integer parsing: every explicit origin port token must be non-empty and contain only ASCII decimal digits before `u16` range parsing. This rejects values such as `https://example.com:+443` without misclassifying URL delimiters as port digits; parsing of path, query, fragment, and other origin syntax remains a separate boundary. The guard changes no default-port normalization, host parsing, destination authority, DNS, socket, or TLS semantics.
 
 ### Extension-to-Agent grant origin binding
 
@@ -122,7 +122,7 @@ Chromium Authors. (n.d.). *Proxy support in Chrome* [Source documentation]. Chro
 
 Chromium Authors. (2026). *URL canonicalizer unit tests* [Source code]. Chromium. https://chromium.googlesource.com/chromium/src/+/446d05d21720f0b3505ec21057b3e9f909784262/url/url_canon_unittest.cc
 
-Cooper, D., Santesson, S., Farrell, S., Boeyen, S., Housley, R., & Polk, W. (2008). *Internet X.509 public key infrastructure certificate and certificate revocation list (CRL) profile* (RFC 5280). Internet Engineering Task Force. https://doi.org/10.17487/RFC5280
+Cooper, D., Santesson, S., Farrell, S., Boeyen, R., Housley, R., & Polk, W. (2008). *Internet X.509 public key infrastructure certificate and certificate revocation list (CRL) profile* (RFC 5280). Internet Engineering Task Force. https://doi.org/10.17487/RFC5280
 
 Cotton, M., Vegoda, L., Bonica, R., & Haberman, B. (2013). *Special-purpose IP address registries* (RFC 6890). Internet Engineering Task Force. https://doi.org/10.17487/RFC6890
 
@@ -178,9 +178,9 @@ The Rust Project Developers. (2026). *Ipv6Addr in std::net* (Rust 1.97.1) [Softw
 
 The Rust Project Developers. (2026). *TcpStream in std::net* (Rust 1.97.1) [Software documentation]. https://doc.rust-lang.org/stable/std/net/struct.TcpStream.html
 
-The Rust Project Developers. (2026). *u16 in std* (Rust 1.97.1) [Software documentation]. https://doc.rust-lang.org/stable/std/primitive.u16.html
+The Rust Project Developers. (2026). *u16 in std* (Rust 1.97.1) [Software documentation]. https://doc.rust-lang.org/1.97.1/std/primitive.u16.html
 
-Web Hypertext Application Technology Working Group. (2026). *URL standard*. https://url.spec.whatwg.org/
+Web Hypertext Application Technology Working Group. (2026). *URL standard*. Retrieved August 24, 2026, from https://url.spec.whatwg.org/
 
 World Wide Web Consortium. (2013). *PROV-O: The PROV ontology*. https://www.w3.org/TR/prov-o/
 
