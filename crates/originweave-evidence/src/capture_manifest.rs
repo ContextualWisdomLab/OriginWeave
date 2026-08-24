@@ -249,6 +249,24 @@ impl CaptureManifest {
         sha256_digest(self.to_json().as_bytes())
     }
 
+    /// Require candidate bytes to be the exact deterministic serialization of this manifest.
+    ///
+    /// This verification deliberately does not parse or normalize JSON: whitespace, member-order,
+    /// encoding, or other serialization drift is an identity mismatch even when a generic JSON
+    /// parser could assign equivalent data semantics. It performs no network, browser, persistence,
+    /// model, signing, or authority action and does not authenticate the producer of either value.
+    pub fn verify_serialized_json(
+        &self,
+        candidate: &[u8],
+    ) -> Result<(), CaptureManifestVerificationError> {
+        let expected = self.to_json();
+        if candidate == expected.as_bytes() {
+            Ok(())
+        } else {
+            Err(CaptureManifestVerificationError::IdentityMismatch)
+        }
+    }
+
     /// Reconstruct a candidate manifest offline and require exact immutable identity equality.
     ///
     /// Malformed candidate inputs remain distinguishable from a valid-but-different manifest.
