@@ -32,8 +32,16 @@ fn borrowed_limitation_text_covers_every_validation_exit() {
         Err(ReleaseDecisionError::EmptyLimitationClaim)
     );
     assert_eq!(
+        DeclaredLimitation::new(" bounded_claim", "bounded buyer consequence"),
+        Err(ReleaseDecisionError::InvalidLimitationClaim)
+    );
+    assert_eq!(
         DeclaredLimitation::new("bounded_claim", ""),
         Err(ReleaseDecisionError::EmptyLimitationConsequence)
+    );
+    assert_eq!(
+        DeclaredLimitation::new("bounded_claim", "bounded buyer consequence "),
+        Err(ReleaseDecisionError::InvalidLimitationConsequence)
     );
     assert_eq!(
         DeclaredLimitation::new("forged\nclaim", "bounded buyer consequence"),
