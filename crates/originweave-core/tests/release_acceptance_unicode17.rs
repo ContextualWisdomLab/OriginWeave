@@ -9,22 +9,14 @@ fn generic_constructor_input_shapes_cover_fail_closed_empty_boundaries() {
         Err(ReleaseDecisionError::EmptyLimitationClaim),
     );
     assert!(
-        DeclaredLimitation::new(
-            String::from("linux_arm64"),
-            "Linux ARM64 is unsupported."
-        )
-        .is_ok()
+        DeclaredLimitation::new(String::from("linux_arm64"), "Linux ARM64 is unsupported.").is_ok()
     );
     assert_eq!(
         DeclaredLimitation::new("linux_arm64", String::new()),
         Err(ReleaseDecisionError::EmptyLimitationConsequence),
     );
     assert!(
-        DeclaredLimitation::new(
-            "linux_arm64",
-            String::from("Linux ARM64 is unsupported.")
-        )
-        .is_ok()
+        DeclaredLimitation::new("linux_arm64", String::from("Linux ARM64 is unsupported.")).is_ok()
     );
 }
 
