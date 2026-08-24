@@ -56,29 +56,85 @@ impl BapExternalSideEffectOutcome {
     }
 }
 
-/// Receipt-bound crash-recovery classification for one accepted BAP command.
+/// Validation failure for one crash-recovery evidence digest identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BapRecoveryEvidenceDigestError {
+    /// The digest was not canonical lowercase SHA-256 identity evidence.
+    InvalidFormat,
+}
+
+impl std::fmt::Display for BapRecoveryEvidenceDigestError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidFormat => formatter.write_str(
+                "recovery evidence digest must be sha256: followed by 64 lowercase hexadecimal digits",
+            ),
+        }
+    }
+}
+
+impl std::error::Error for BapRecoveryEvidenceDigestError {}
+
+/// Canonical SHA-256 identity for durable crash-recovery evidence.
 ///
-/// Binding the external outcome to the immutable command receipt prevents a
-/// recovery classification from floating free of the retry namespace, task,
-/// lifecycle event, and accepted transition. Construction does not authenticate
-/// the classification or grant authority; callers must validate the external
-/// evidence at their durable trust boundary.
+/// The digest identifies the exact evidence object a durable recovery boundary must authenticate
+/// before relying on an external side-effect classification. Possession of this identity does not
+/// authenticate the evidence, prove the classified outcome, or grant retry, browser, network,
+/// secret, approval, or storage authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BapRecoveryEvidenceDigest(String);
+
+impl BapRecoveryEvidenceDigest {
+    /// Parse one exact `sha256:` identity with 64 lowercase hexadecimal digits.
+    pub fn parse(value: &str) -> Result<Self, BapRecoveryEvidenceDigestError> {
+        let Some(hex_digest) = value.strip_prefix("sha256:") else {
+            return Err(BapRecoveryEvidenceDigestError::InvalidFormat);
+        };
+        if hex_digest.len() != 64 {
+            return Err(BapRecoveryEvidenceDigestError::InvalidFormat);
+        }
+        if hex_digest
+            .bytes()
+            .any(|byte| !matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
+        {
+            return Err(BapRecoveryEvidenceDigestError::InvalidFormat);
+        }
+        Ok(Self(value.to_owned()))
+    }
+
+    /// Return the canonical lowercase SHA-256 identity.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// Receipt- and evidence-bound crash-recovery classification for one accepted BAP command.
+///
+/// Binding the external outcome to both the immutable command receipt and exact recovery-evidence
+/// digest prevents a recovery classification from floating free of the retry namespace, task,
+/// lifecycle event, accepted transition, or the durable evidence object that supports the outcome.
+/// Construction does not authenticate the classification or evidence and grants no authority;
+/// callers must validate the evidence at their durable trust boundary.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BapCommandRecovery {
     receipt: BapCommandReceipt,
     external_outcome: BapExternalSideEffectOutcome,
+    evidence_digest: BapRecoveryEvidenceDigest,
 }
 
 impl BapCommandRecovery {
-    /// Bind one caller-supplied external outcome classification to an accepted command receipt.
+    /// Bind one external outcome classification and evidence identity to an accepted command receipt.
     #[must_use]
     pub const fn new(
         receipt: BapCommandReceipt,
         external_outcome: BapExternalSideEffectOutcome,
+        evidence_digest: BapRecoveryEvidenceDigest,
     ) -> Self {
         Self {
             receipt,
             external_outcome,
+            evidence_digest,
         }
     }
 
@@ -92,6 +148,12 @@ impl BapCommandRecovery {
     #[must_use]
     pub const fn external_outcome(&self) -> BapExternalSideEffectOutcome {
         self.external_outcome
+    }
+
+    /// Return the exact recovery-evidence digest bound to this classification.
+    #[must_use]
+    pub const fn evidence_digest(&self) -> &BapRecoveryEvidenceDigest {
+        &self.evidence_digest
     }
 
     /// Return the minimum fail-closed handling required by the external outcome.
@@ -112,8 +174,9 @@ impl BapCommandRecovery {
     /// transition or consume mutable execution authority.
     ///
     /// `Ok(true)` is still not authorization to redispatch. The caller must separately
-    /// authenticate recovery evidence and revalidate tenant, policy, destination, secret,
-    /// browser, and any other current authority before dispatching the command again.
+    /// authenticate the exact recovery evidence identified by [`Self::evidence_digest`] and
+    /// revalidate tenant, policy, destination, secret, browser, and any other current authority
+    /// before dispatching the command again.
     pub fn permits_redispatch(
         &self,
         lifecycle: &BapTaskLifecycle,
