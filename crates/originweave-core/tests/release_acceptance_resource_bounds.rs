@@ -36,11 +36,19 @@ fn borrowed_limitation_text_covers_every_validation_exit() {
         Err(ReleaseDecisionError::InvalidLimitationClaim)
     );
     assert_eq!(
+        DeclaredLimitation::new("cafe\u{301}", "bounded buyer consequence"),
+        Err(ReleaseDecisionError::InvalidLimitationClaim)
+    );
+    assert_eq!(
         DeclaredLimitation::new("bounded_claim", ""),
         Err(ReleaseDecisionError::EmptyLimitationConsequence)
     );
     assert_eq!(
         DeclaredLimitation::new("bounded_claim", "bounded buyer consequence "),
+        Err(ReleaseDecisionError::InvalidLimitationConsequence)
+    );
+    assert_eq!(
+        DeclaredLimitation::new("bounded_claim", "cafe\u{301} buyer consequence"),
         Err(ReleaseDecisionError::InvalidLimitationConsequence)
     );
     assert_eq!(
