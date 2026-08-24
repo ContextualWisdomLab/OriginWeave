@@ -1280,6 +1280,8 @@ pub mod release_acceptance {
         InvalidLimitationConsequence,
         /// One release report supplied more buyer-visible limitations than the fixed resource budget.
         TooManyDeclaredLimitations,
+        /// More than one limitation used the same unsupported claim identity.
+        DuplicateLimitationClaim,
         /// The same suite appeared more than once instead of one authoritative result.
         DuplicateSuite(BenchmarkSuite),
     }
@@ -1305,6 +1307,9 @@ pub mod release_acceptance {
                 ),
                 Self::TooManyDeclaredLimitations => formatter.write_str(
                     "benchmark release decision contains too many declared limitations",
+                ),
+                Self::DuplicateLimitationClaim => formatter.write_str(
+                    "benchmark release decision contains duplicate limitation claim",
                 ),
                 Self::DuplicateSuite(suite) => write!(
                     formatter,
@@ -1361,14 +1366,15 @@ pub mod release_acceptance {
 
     /// Produce one deterministic release decision from mandatory suite outcomes.
     ///
-    /// Duplicate suite evidence and excessive declared-limitation cardinality fail
-    /// closed rather than selecting or retaining an attacker-controlled unbounded set.
-    /// A known mandatory-threshold failure is always rejected, even when other suites
-    /// are missing or inconclusive; all such evidence gaps remain in the returned
-    /// report. Without a known failure, missing or inconclusive evidence is never
-    /// promoted to acceptance. Accepted-with-limitations requires at least one
-    /// validated [`DeclaredLimitation`], so the decision cannot be detached from the
-    /// exact narrowed claim and buyer-visible consequence.
+    /// Duplicate suite evidence, duplicate buyer-visible limitation claim identities,
+    /// and excessive declared-limitation cardinality fail closed rather than selecting
+    /// or retaining ambiguous or attacker-controlled release metadata. A known
+    /// mandatory-threshold failure is always rejected, even when other suites are
+    /// missing or inconclusive; all such evidence gaps remain in the returned report.
+    /// Without a known failure, missing or inconclusive evidence is never promoted to
+    /// acceptance. Accepted-with-limitations requires at least one validated
+    /// [`DeclaredLimitation`], so the decision cannot be detached from the exact
+    /// narrowed claim and buyer-visible consequence.
     pub fn decide_release<I>(
         results: I,
         declared_limitations: &[DeclaredLimitation],
@@ -1378,6 +1384,13 @@ pub mod release_acceptance {
     {
         if declared_limitations.len() > MAX_DECLARED_RELEASE_LIMITATIONS {
             return Err(ReleaseDecisionError::TooManyDeclaredLimitations);
+        }
+
+        let mut limitation_claims = std::collections::BTreeSet::new();
+        for limitation in declared_limitations {
+            if !limitation_claims.insert(limitation.unsupported_claim()) {
+                return Err(ReleaseDecisionError::DuplicateLimitationClaim);
+            }
         }
 
         let mut outcomes = [None; BenchmarkSuite::ALL.len()];
