@@ -3,14 +3,19 @@
 from __future__ import annotations
 
 import http.client
+import os
 import pathlib
 import runpy
 import signal
+import subprocess
 import unittest
 from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 RUNNER = ROOT / "scripts" / "ci" / "run_mv3_compatibility.py"
+ORIGINAL_OS_CLOSE = os.close
+ORIGINAL_PIDFD_OPEN = getattr(os, "pidfd_open", None)
+ORIGINAL_PIDFD_SEND_SIGNAL = getattr(signal, "pidfd_send_signal", None)
 
 
 class AgentTaskBrowserCrashRecoveryContractTests(unittest.TestCase):
@@ -39,13 +44,26 @@ class AgentTaskBrowserCrashRecoveryContractTests(unittest.TestCase):
         signal_identity.__globals__["_read_linux_proc_stat_process_identity"] = (
             lambda _process_id: (777, 99)
         )
-        signal_identity.__globals__["os"].pidfd_open = lambda process_id, _flags=0: opened.append(process_id) or 12
-        signal_identity.__globals__["signal"].pidfd_send_signal = (
-            lambda pidfd, sig, *_args, **_kwargs: signalled.append((pidfd, sig))
-        )
-        signal_identity.__globals__["os"].close = lambda _fd: None
-
-        self.assertFalse(signal_identity((777, 42), signal.SIGKILL))
+        os_module = signal_identity.__globals__["os"]
+        signal_module = signal_identity.__globals__["signal"]
+        with (
+            mock.patch.object(
+                os_module,
+                "pidfd_open",
+                side_effect=lambda process_id, _flags=0: opened.append(process_id) or 12,
+                create=True,
+            ),
+            mock.patch.object(
+                signal_module,
+                "pidfd_send_signal",
+                side_effect=lambda pidfd, sig, *_args, **_kwargs: signalled.append(
+                    (pidfd, sig)
+                ),
+                create=True,
+            ),
+            mock.patch.object(os_module, "close", side_effect=lambda _fd: None),
+        ):
+            self.assertFalse(signal_identity((777, 42), signal.SIGKILL))
         self.assertEqual(opened, [])
         self.assertEqual(signalled, [])
 
@@ -61,13 +79,26 @@ class AgentTaskBrowserCrashRecoveryContractTests(unittest.TestCase):
         signal_identity.__globals__["_read_linux_proc_stat_process_identity"] = (
             lambda _process_id: next(identities)
         )
-        signal_identity.__globals__["os"].pidfd_open = lambda _process_id, _flags=0: 12
-        signal_identity.__globals__["signal"].pidfd_send_signal = (
-            lambda pidfd, sig, *_args, **_kwargs: signalled.append((pidfd, sig))
-        )
-        signal_identity.__globals__["os"].close = closed.append
-
-        self.assertFalse(signal_identity((777, 42), signal.SIGKILL))
+        os_module = signal_identity.__globals__["os"]
+        signal_module = signal_identity.__globals__["signal"]
+        with (
+            mock.patch.object(
+                os_module,
+                "pidfd_open",
+                side_effect=lambda _process_id, _flags=0: 12,
+                create=True,
+            ),
+            mock.patch.object(
+                signal_module,
+                "pidfd_send_signal",
+                side_effect=lambda pidfd, sig, *_args, **_kwargs: signalled.append(
+                    (pidfd, sig)
+                ),
+                create=True,
+            ),
+            mock.patch.object(os_module, "close", side_effect=closed.append),
+        ):
+            self.assertFalse(signal_identity((777, 42), signal.SIGKILL))
         self.assertEqual(signalled, [])
         self.assertEqual(closed, [12])
 
@@ -82,13 +113,26 @@ class AgentTaskBrowserCrashRecoveryContractTests(unittest.TestCase):
         signal_identity.__globals__["_read_linux_proc_stat_process_identity"] = (
             lambda _process_id: (777, 42)
         )
-        signal_identity.__globals__["os"].pidfd_open = lambda _process_id, _flags=0: 12
-        signal_identity.__globals__["signal"].pidfd_send_signal = (
-            lambda pidfd, sig, *_args, **_kwargs: signalled.append((pidfd, sig))
-        )
-        signal_identity.__globals__["os"].close = closed.append
-
-        self.assertTrue(signal_identity((777, 42), signal.SIGKILL))
+        os_module = signal_identity.__globals__["os"]
+        signal_module = signal_identity.__globals__["signal"]
+        with (
+            mock.patch.object(
+                os_module,
+                "pidfd_open",
+                side_effect=lambda _process_id, _flags=0: 12,
+                create=True,
+            ),
+            mock.patch.object(
+                signal_module,
+                "pidfd_send_signal",
+                side_effect=lambda pidfd, sig, *_args, **_kwargs: signalled.append(
+                    (pidfd, sig)
+                ),
+                create=True,
+            ),
+            mock.patch.object(os_module, "close", side_effect=closed.append),
+        ):
+            self.assertTrue(signal_identity((777, 42), signal.SIGKILL))
         self.assertEqual(signalled, [(12, signal.SIGKILL)])
         self.assertEqual(closed, [12])
 
@@ -102,15 +146,28 @@ class AgentTaskBrowserCrashRecoveryContractTests(unittest.TestCase):
         signal_identity.__globals__["_read_linux_proc_stat_process_identity"] = (
             lambda _process_id: (777, 42)
         )
-        signal_identity.__globals__["os"].pidfd_open = lambda _process_id, _flags=0: 12
 
         def exited_before_signal(*_args: object, **_kwargs: object) -> None:
             raise ProcessLookupError("process exited before pidfd signal")
 
-        signal_identity.__globals__["signal"].pidfd_send_signal = exited_before_signal
-        signal_identity.__globals__["os"].close = closed.append
-
-        self.assertFalse(signal_identity((777, 42), signal.SIGKILL))
+        os_module = signal_identity.__globals__["os"]
+        signal_module = signal_identity.__globals__["signal"]
+        with (
+            mock.patch.object(
+                os_module,
+                "pidfd_open",
+                side_effect=lambda _process_id, _flags=0: 12,
+                create=True,
+            ),
+            mock.patch.object(
+                signal_module,
+                "pidfd_send_signal",
+                side_effect=exited_before_signal,
+                create=True,
+            ),
+            mock.patch.object(os_module, "close", side_effect=closed.append),
+        ):
+            self.assertFalse(signal_identity((777, 42), signal.SIGKILL))
         self.assertEqual(closed, [12])
 
     def test_proc_stat_identity_treats_read_time_esrch_as_process_exit(self) -> None:
@@ -157,6 +214,29 @@ class AgentTaskBrowserCrashRecoveryContractTests(unittest.TestCase):
         cleanup(ExitedDriver())
         self.assertEqual(events, ["poll", ("wait", 5)])
 
+    def test_crash_trial_records_driver_teardown_timeout_as_failed_trial(self) -> None:
+        """A bounded ChromeDriver teardown timeout must fail one trial without aborting the run."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_browser_crash_timeout")
+        run_trial = namespace["_run_agent_task_browser_crash_trial"]
+
+        def driver_teardown_timeout(*_args: object, **_kwargs: object) -> dict[str, object]:
+            raise subprocess.TimeoutExpired(cmd="chromedriver", timeout=5)
+
+        run_trial.__globals__["_run_agent_task_browser_crash_browser_pass"] = (
+            driver_teardown_timeout
+        )
+        result = run_trial(
+            pathlib.Path("/controlled/chrome"),
+            pathlib.Path("/controlled/chromedriver"),
+            "http://127.0.0.1/agent-task",
+            1,
+        )
+
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["failure_type"], "TimeoutExpired")
+        self.assertTrue(result["profile_cleaned"])
+
     def test_crash_session_cleanup_ignores_only_reviewed_transport_failures(self) -> None:
         """Expected post-crash transport loss is bounded, while programming failures propagate."""
 
@@ -199,6 +279,18 @@ class AgentTaskBrowserCrashRecoveryContractTests(unittest.TestCase):
         cleanup_session.__globals__["_json_request"] = unexpected_request
         cleanup_session(9222, None)
 
+    def test_crash_lane_binds_sampled_process_set_to_exact_root_identity(self) -> None:
+        """Crash sampling must preserve the prerequisite root-identity integrity contract."""
+
+        runner = RUNNER.read_text(encoding="utf-8")
+        crash_lane = runner.split(
+            "def _run_agent_task_browser_crash_browser_pass", 1
+        )[1].split("def _run_agent_task_browser_crash_trial", 1)[0]
+        self.assertIn(
+            "required_root_identity=browser_process_identity",
+            crash_lane,
+        )
+
     def test_crash_lane_is_required_for_success_evidence(self) -> None:
         """The real-browser evidence must retain deterministic crash and teardown proof."""
 
@@ -212,6 +304,16 @@ class AgentTaskBrowserCrashRecoveryContractTests(unittest.TestCase):
         ):
             with self.subTest(expected=expected):
                 self.assertIn(expected, runner)
+
+    def test_zz_signal_boundary_tests_restore_process_wide_modules(self) -> None:
+        """Mocked pidfd helpers must not leak process-wide module mutations."""
+
+        self.assertIs(os.close, ORIGINAL_OS_CLOSE)
+        self.assertIs(getattr(os, "pidfd_open", None), ORIGINAL_PIDFD_OPEN)
+        self.assertIs(
+            getattr(signal, "pidfd_send_signal", None),
+            ORIGINAL_PIDFD_SEND_SIGNAL,
+        )
 
 
 if __name__ == "__main__":

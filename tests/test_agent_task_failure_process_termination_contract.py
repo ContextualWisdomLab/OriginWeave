@@ -26,7 +26,8 @@ class AgentTaskFailureProcessTerminationContractTests(unittest.TestCase):
         for expected in (
             "browser_failure_type: str | None = None",
             "browser_failure_type = type(exc).__name__",
-            '"failure_type": browser_failure_type',
+            "primary_failure_type = browser_failure_type",
+            '"failure_type": primary_failure_type',
             '"browser_process_terminated": browser_process_terminated',
         ):
             with self.subTest(expected=expected):
