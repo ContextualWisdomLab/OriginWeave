@@ -242,6 +242,13 @@ def _read_bounded(path: pathlib.Path) -> bytes:
                 raise SpdxJsonLdEnvelopeError("invalid_file_type")
             _require_direct_parent_chain(path)
             payload = source.read(MAX_SPDX_JSONLD_BYTES + 1)
+            _require_direct_parent_chain(path)
+            final_stat = path.lstat()
+            if not stat.S_ISREG(final_stat.st_mode) or (
+                final_stat.st_dev,
+                final_stat.st_ino,
+            ) != (opened_stat.st_dev, opened_stat.st_ino):
+                raise SpdxJsonLdEnvelopeError("invalid_file_type")
     except OSError as error:
         if error.errno in {errno.ELOOP, errno.ENOTDIR}:
             raise SpdxJsonLdEnvelopeError("invalid_file_type") from error
