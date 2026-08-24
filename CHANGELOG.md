@@ -13,6 +13,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Bound explicit extension-to-Agent grants to exclusive trusted-time expiry in addition to extension identity, session, browsing context, and canonical origin, so a same-origin grant cannot be reused at or after the deadline.
 - Bound explicit extension-to-Agent grants to the exact canonical origin in addition to extension identity, session, and browsing context, so a same-session navigation or port change cannot reuse the grant.
 - Added a bounded browser-protocol authority registry that maps opaque session, browsing-context, and node identifiers to registry-local identities, rotates document epochs, and revalidates live node handles before actions.
+- Versioned browser-protocol adapter metadata that distinguishes WebDriver BiDi from pinned CDP, binds bounded adapter/browser revision tokens to an explicit duplicate-free capability set, and grants no browser, action, network, or secret authority by protocol kind alone.
 - Rust workspace for independently reusable core, policy, destination, network, TLS, resource, and evidence modules.
 - Canonical HTTPS and loopback-origin boundary with case-normalized schemes and hosts, default-port normalization, IPv4/IPv6 handling, browser-special numeric-host rejection, and explicit malformed-input errors.
 - Typed browser actions, capabilities, risk classes, execution modes, robots decisions, secret-delivery contracts, immutable canonical action-intent digests, and intent-bound approval scopes.
