@@ -76,6 +76,51 @@ class WorkflowRegistryFileTypeContractTests(unittest.TestCase):
             with self.assertRaisesRegex(audit_error, "input must not be a symbolic link"):
                 read_payload(candidate)
 
+    @unittest.skipUnless(hasattr(os, "symlink") and hasattr(os, "link"), "requires links")
+    def test_parent_swap_to_symlink_during_open_fails_closed(self) -> None:
+        """A transient ancestor symlink must not redirect the actual evidence-file open."""
+
+        namespace = runpy.run_path(str(AUDITOR), run_name="workflow_parent_swap_contract")
+        read_payload = namespace["_read_payload"]
+        audit_error = namespace["WorkflowAuditError"]
+        original_opener = namespace["_nonblocking_read_opener"]
+
+        with tempfile.TemporaryDirectory(prefix="originweave-workflow-parent-swap-") as directory:
+            root = pathlib.Path(directory)
+            direct_directory = root / "direct"
+            direct_directory.mkdir()
+            actual_directory = root / "actual"
+            actual_directory.mkdir()
+
+            actual_candidate = actual_directory / "registry.json"
+            actual_candidate.write_text("{}", encoding="utf-8")
+            direct_candidate = direct_directory / "registry.json"
+            try:
+                os.link(actual_candidate, direct_candidate)
+            except OSError as error:
+                self.skipTest(f"hard links are unavailable on this platform: {error}")
+            parked_directory = root / "direct-parked"
+
+            def swapping_opener(path: str, flags: int) -> int:
+                direct_directory.rename(parked_directory)
+                try:
+                    direct_directory.symlink_to(actual_directory.name, target_is_directory=True)
+                except OSError as error:
+                    parked_directory.rename(direct_directory)
+                    self.skipTest(f"directory symlinks are unavailable on this platform: {error}")
+                try:
+                    return original_opener(path, flags)
+                finally:
+                    direct_directory.unlink()
+                    parked_directory.rename(direct_directory)
+
+            read_payload.__globals__["_nonblocking_read_opener"] = swapping_opener
+            try:
+                with self.assertRaisesRegex(audit_error, "input must not use a symbolic-link parent"):
+                    read_payload(direct_candidate)
+            finally:
+                read_payload.__globals__["_nonblocking_read_opener"] = original_opener
+
 
 if __name__ == "__main__":
     unittest.main()
