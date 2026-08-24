@@ -48,7 +48,9 @@ Content-script injection and content-script JavaScript isolation are separate co
 
 ## Native-messaging protocol boundary
 
-Chrome's current native-messaging documentation defines a separate native-host process communicating over `stdin`/`stdout`; each JSON message is UTF-8 encoded and preceded by a 32-bit message length in native byte order. Chrome caps a message sent by the native host to the browser at 1 MB and a message sent by the browser to the native host at 64 MiB. Draft PR #154 implements the bounded binary framing/resource boundary in reusable Rust and exposes a fail-closed UTF-8 decode boundary: it rejects oversized encoder input before allocation, rejects an oversized advertised decoder length before payload slicing, requires the complete frame length to equal the advertised byte count so truncation and trailing data fail closed, and rejects invalid UTF-8 before a caller can treat framed bytes as native-messaging text. It still does not validate JSON syntax or semantics, trust the decoded text, launch or authenticate a native-host process, validate operating-system registration, or convert Chrome `nativeMessaging` permission into OriginWeave Agent authority.
+Chrome's native-messaging protocol uses a UTF-8 JSON message preceded by a 32-bit payload length in native byte order. Chrome's documented protocol ceiling is 1 MB for a message sent by the native host to the browser and 4 GB for a message sent by the browser to the native host. Current Chromium source independently enforces the 1 MiB incoming-host ceiling before delivering host data. Its extension-to-host write path encodes the payload length through a checked `uint32_t`; the nearby 64 MiB value is the upper bucket used by the `Extensions.NativeMessaging.MessageSize.Extension` histogram, not an enforced Chrome protocol ceiling. The reviewed source content is identified by Chromium blob `9d205a90d70b0c1c9f0b3b1c5f296528f6b21755`.
+
+Draft PR #154 therefore mirrors Chrome's 1 MiB host-to-browser safety boundary but deliberately applies a stricter **OriginWeave-owned 64 MiB resource ceiling** to browser-to-host frames. That local bound limits allocation and buffering below Chrome's protocol envelope; it must not be described as a Chrome compatibility maximum. The reusable Rust boundary rejects oversized encoder input before allocation, rejects an oversized advertised decoder length before payload slicing, requires the complete frame length to equal the advertised byte count so truncation and trailing data fail closed, and rejects invalid UTF-8 before a caller can treat framed bytes as native-messaging text. It still does not validate JSON syntax or semantics, trust the decoded text, launch or authenticate a native-host process, validate operating-system registration, or convert Chrome `nativeMessaging` permission into OriginWeave Agent authority.
 
 ## Supply-chain and repeatability evidence
 
@@ -69,6 +71,8 @@ Chrome for Developers. (n.d.). *chrome.history*. Google. Retrieved August 11, 20
 Chrome for Developers. (n.d.). *Manifest file format*. Google. Retrieved August 9, 2026, from https://developer.chrome.com/docs/extensions/reference/manifest
 
 Chrome for Developers. (n.d.). *Native messaging*. Google. Retrieved August 24, 2026, from https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging
+
+Chromium Authors. (2026). *native_message_process_host.cc* [Source code, blob `9d205a90d70b0c1c9f0b3b1c5f296528f6b21755`]. Chromium. https://chromium.googlesource.com/chromium/src/+/refs/heads/main/chrome/browser/extensions/api/messaging/native_message_process_host.cc
 
 Bynens, M. (2023, June 12). *Chrome for Testing*. Chrome for Developers. https://developer.chrome.com/docs/automation-and-testing/chrome-for-testing
 
