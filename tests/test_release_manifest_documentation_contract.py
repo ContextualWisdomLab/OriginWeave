@@ -7,6 +7,7 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 ADR_PATH = ROOT / "docs/adr/0015-release-manifest-identity.md"
+CHANGELOG_PATH = ROOT / "CHANGELOG.md"
 DOCTORING_PATH = ROOT / "docs/doctoring.md"
 
 
@@ -16,9 +17,10 @@ class ReleaseManifestDocumentationContractTests(unittest.TestCase):
     def test_sync_compatibility_claim_matches_the_actual_filename_validator(self) -> None:
         """Reserved-device guards must not be presented as full OneDrive/SharePoint compatibility."""
         adr = ADR_PATH.read_text(encoding="utf-8")
+        changelog = CHANGELOG_PATH.read_text(encoding="utf-8")
         doctoring = DOCTORING_PATH.read_text(encoding="utf-8")
 
-        for text in (adr, doctoring):
+        for text in (adr, changelog, doctoring):
             with self.subTest(document=text[:40]):
                 self.assertIn("desktop.ini", text)
                 self.assertIn(
@@ -28,6 +30,10 @@ class ReleaseManifestDocumentationContractTests(unittest.TestCase):
 
         self.assertNotIn("common buyer synchronization paths", adr)
         self.assertNotIn("does not become a device or synchronization conflict", adr)
+        self.assertNotIn(
+            "cannot become Windows device or Microsoft synchronization conflicts",
+            changelog,
+        )
 
     def test_git_protocol_references_pin_the_verified_manual_revisions(self) -> None:
         """Protocol evidence must resolve to the manual revisions that contain the cited rules."""
