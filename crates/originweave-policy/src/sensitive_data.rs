@@ -304,6 +304,7 @@ impl SensitiveHandleUseState {
     /// The supplied time must come from the trusted broker boundary. Revocation,
     /// exact-scope, expiry, and use-limit denial leaves the authoritative count
     /// unchanged.
+    #[must_use]
     pub fn reserve_use(
         &mut self,
         authority: SensitiveDataAuthority,
