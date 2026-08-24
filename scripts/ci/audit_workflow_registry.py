@@ -682,7 +682,7 @@ def _open_output_descriptor(path: pathlib.Path, create_new: bool) -> int:
 
 
 def _write_output(path: pathlib.Path, serialized: str) -> None:
-    """Write evidence to one directly named, singly linked regular file."""
+    """Create one directly named, singly linked regular evidence output file."""
 
     candidate_stat: os.stat_result | None
     try:
@@ -716,7 +716,8 @@ def _write_output(path: pathlib.Path, serialized: str) -> None:
             opened_stat.st_ino,
         ):
             raise WorkflowAuditError("output file identity changed before write")
-        os.ftruncate(descriptor, 0)
+        if candidate_stat is not None:
+            raise WorkflowAuditError("output file already exists")
         with os.fdopen(descriptor, "w", encoding="utf-8") as destination:
             descriptor = None
             destination.write(serialized)
