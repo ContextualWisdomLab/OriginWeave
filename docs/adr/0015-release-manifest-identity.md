@@ -18,7 +18,7 @@ Git protocol grammar distinguishes a 40-zero `zero-id` from ordinary object iden
 - The Rust toolchain field must not accept moving aliases or an alternate compiler version as though it were the repository-pinned build identity.
 - Source commit identity must distinguish a concrete Git object identifier from Git's all-zero protocol sentinel.
 - Artifact references must remain leaf identities rather than filesystem paths.
-- The same manifest must be unambiguous on supported case-sensitive and case-insensitive platforms and common buyer synchronization paths.
+- The same manifest must avoid the explicitly modeled ASCII case-fold and Windows reserved-device basename collisions; that bounded rule is not a complete OneDrive or SharePoint synchronization-compatibility guarantee.
 - Manifest construction must remain inert metadata admission and must not grant signing, publication, installation, update, rollback, or release authority.
 - Inputs must be bounded and fail closed before later packaging, signing, or updater layers consume them.
 
@@ -45,7 +45,7 @@ Rejected for this slice. Destructively rewriting admitted artifact spelling woul
 
 ### Canonical admission with preserved spelling and collision guards
 
-Selected. Preserve the admitted artifact spelling, sort artifacts deterministically by that spelling, bind exact build-identity fields separately, require the repository-pinned Rust compiler identity, reject Git's all-zero source-identity sentinel, and reject names whose ASCII-case-folded identities collide or whose basenames are reserved or operationally device-like across supported Windows and Microsoft synchronization paths.
+Selected. Preserve the admitted artifact spelling, sort artifacts deterministically by that spelling, bind exact build-identity fields separately, require the repository-pinned Rust compiler identity, reject Git's all-zero source-identity sentinel, and reject names whose ASCII-case-folded identities collide or whose basenames fall within the explicitly modeled Windows reserved-device deny set.
 
 ## Decision
 
@@ -58,7 +58,7 @@ OriginWeave release-manifest admission is a deterministic, bounded, fail-closed 
 5. `dependency_lock_sha256` must be exactly `sha256:` followed by 64 lowercase hexadecimal digits.
 6. The artifact inventory must be non-empty and contain at most 64 entries.
 7. Each artifact name must be a bounded ASCII leaf name containing only alphanumerics, `.`, `_`, and `-`; it cannot contain path separators, traversal-like `..`, leading punctuation, or trailing punctuation.
-8. Artifact basenames `CON`, `PRN`, `AUX`, `NUL`, `COM0` through `COM9`, and `LPT0` through `LPT9` are rejected case-insensitively, including when followed by an extension. Microsoft Win32 filename guidance explicitly reserves `COM1`-`COM9` and `LPT1`-`LPT9` and documents `COM0` as a possible Win32 namespace symlink; Microsoft OneDrive and SharePoint additionally reject `COM0`-`COM9` and `LPT0`-`LPT9`. OriginWeave deliberately adopts that stricter portable artifact-name set rather than accept a release leaf name that can become a device or synchronization conflict in a buyer environment. The artifact grammar already rejects the non-ASCII superscript-digit Win32 aliases.
+8. Artifact basenames `CON`, `PRN`, `AUX`, `NUL`, `COM0` through `COM9`, and `LPT0` through `LPT9` are rejected case-insensitively, including when followed by an extension. Microsoft Win32 filename guidance explicitly reserves `COM1`-`COM9` and `LPT1`-`LPT9` and documents `COM0` as a possible Win32 namespace symlink; Microsoft OneDrive and SharePoint also restrict additional names, including `desktop.ini`, that this validator does not model. OriginWeave deliberately enforces the listed reserved-device deny set as bounded filename identity hygiene. This is not a complete OneDrive or SharePoint synchronization-compatibility guarantee; packaging or synchronization validation for a target service must separately enforce that service's full current restrictions. The artifact grammar already rejects the non-ASCII superscript-digit Win32 aliases.
 9. Artifact names must be unique under ASCII case folding while their original admitted spelling is retained.
 10. Each artifact digest must be exactly `sha256:` followed by 64 lowercase hexadecimal digits.
 11. Admitted artifacts are stored in deterministic name order.
@@ -68,7 +68,7 @@ Constructing or possessing a valid manifest does **not** authenticate an artifac
 
 ## Consequences
 
-The release candidate receives one bounded build-and-artifact identity representation that is stable across caller order, records a concrete non-null Git source identity plus the exact repository-pinned Rust toolchain and dependency-lock evidence, and avoids known case-insensitive, Win32 device-name, and Microsoft synchronization-name collisions. Packaging, signing, provenance, and update layers can compose on top of this contract without inheriting ambient authority from it.
+The release candidate receives one bounded build-and-artifact identity representation that is stable across caller order, records a concrete non-null Git source identity plus the exact repository-pinned Rust toolchain and dependency-lock evidence, and avoids the explicitly modeled ASCII case-fold and Windows reserved-device basename ambiguities. Packaging, signing, provenance, synchronization validation, and update layers can compose on top of this contract without inheriting ambient authority from it.
 
 Changing the protected Rust baseline now requires deliberate convergence of the repository toolchain pin, release-manifest admission contract, tests, and this ADR. A moving channel alias cannot silently change the compiler identity represented by a release manifest.
 
@@ -86,7 +86,7 @@ The boundary reduces null-source-identity, omitted-build-identity, moving-toolch
 
 ## Tests and acceptance evidence
 
-The owning `originweave-core` tests must cover valid deterministic ordering, exact artifact and dependency-lock digests, one concrete non-null 40-character source commit, rejection of Git's all-zero source sentinel, the exact pinned Rust toolchain, moving aliases and alternate toolchain versions, malformed toolchain inputs, identifier bounds, malformed names, path/traversal-like names, case-only collisions, `COM0`-`COM9` and `LPT0`-`LPT9` device/synchronization-conflict basenames with and without extensions, neighboring admissible names such as `COM10` and `LPT10`, exact inventory bounds, duplicate names, channel and build-identity access, and deterministic standard error contracts.
+The owning `originweave-core` tests must cover valid deterministic ordering, exact artifact and dependency-lock digests, one concrete non-null 40-character source commit, rejection of Git's all-zero source sentinel, the exact pinned Rust toolchain, moving aliases and alternate toolchain versions, malformed toolchain inputs, identifier bounds, malformed names, path/traversal-like names, case-only collisions, `COM0`-`COM9` and `LPT0`-`LPT9` reserved-device basenames with and without extensions, neighboring admissible names such as `COM10` and `LPT10`, exact inventory bounds, duplicate names, channel and build-identity access, and deterministic standard error contracts. Documentation regression tests also keep this bounded filename claim distinct from broader OneDrive/SharePoint restrictions such as `desktop.ini`.
 
 Owned production function, line, region, and branch coverage remains exactly 100% on the unchanged reviewed head. CI/security/scanner evidence is exact-head evidence only; predecessor or model-only evidence cannot satisfy acceptance.
 
@@ -109,9 +109,9 @@ Supersede this ADR when a versioned external release-manifest specification repl
 
 ## References
 
-Git. (2026). *gitprotocol-common documentation (Git 2.55.0)*. https://git-scm.com/docs/gitprotocol-common/2.55.0
+Git. (2025). *gitprotocol-common documentation (Git 2.50.0)*. https://git-scm.com/docs/gitprotocol-common/2.50.0
 
-Git. (2026). *gitprotocol-pack documentation (Git 2.55.0)*. https://git-scm.com/docs/gitprotocol-pack/2.55.0
+Git. (2026). *gitprotocol-pack documentation (Git 2.54.0)*. https://git-scm.com/docs/gitprotocol-pack/2.54.0
 
 Microsoft. (n.d.). *Naming files, paths, and namespaces*. Microsoft Learn. Retrieved August 23, 2026, from https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file
 

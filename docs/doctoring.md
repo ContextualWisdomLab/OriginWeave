@@ -8,6 +8,8 @@ This document records external evidence that changes OriginWeave architecture, t
 
 The 1 June 2026 WebDriver BiDi Working Draft defines a bidirectional remote-control protocol, events, commands, and user contexts. Because it remains a W3C Working Draft, OriginWeave places BiDi behind a versioned adapter and Web Platform Tests-derived contract tests rather than make it the internal authority model.
 
+The final Model Context Protocol `2026-07-28` specification defines the currently reviewed MCP generation. Its stateless request model carries protocol metadata per request and standard Streamable HTTP routing metadata for MCP operations; its Tools surface defines bounded, case-sensitive tool names and requires clients to treat tool annotations as untrusted unless supplied by a trusted server. OriginWeave therefore keeps MCP outside the product authority model. Active PR #168 implements only a bounded Rust `tools/call` routing/action-policy foundation for that exact generation; the complete transport, request-metadata, discovery, OAuth, browser, secret, and persistence adapter remains planned and cannot be inferred from the core routing primitive.
+
 ### Browser origin equivalence
 
 The WHATWG URL host parser and Chromium canonicalizer classify shortened decimal, integer, hexadecimal, legacy octal-looking, and mixed-component numeric hosts as IPv4 or broken IPv4 candidates rather than ordinary DNS names. Chromium's regression suite includes values such as `192`, `0xC0a80001`, `030052000001`, and mixed hexadecimal components. A non-final empty `0x` component can participate in Chromium's multi-part IPv4 truncation behavior, but a final `0x` label does not produce an IPv4 number because stripping its prefix leaves no digits; it remains a domain label. Chromium also warns that broken IP-like hosts must not be connected because another resolver could accept them. OriginWeave therefore admits only canonical dotted-decimal IPv4 into its policy origin type, rejects browser-special numeric spellings before DNS validation, and preserves final non-numeric DNS labels such as `0x`.
@@ -76,7 +78,7 @@ The test-only rcgen 0.14.8 dependency creates a local CA and deterministic certi
 
 ### Release artifact filename portability
 
-Microsoft's Win32 filename guidance requires applications not to assume case sensitivity and reserves device basenames including `CON`, `PRN`, `AUX`, `NUL`, `COM1` through `COM9`, and `LPT1` through `LPT9`, including those names followed by extensions. The same documentation identifies non-ASCII superscript-digit device aliases and also documents `COM0` as a possible `Global??` Win32 namespace symlink. Separately, Microsoft's current OneDrive and SharePoint restrictions reject `COM0` through `COM9` and `LPT0` through `LPT9`. OriginWeave therefore adopts the stricter portable release-artifact deny set: ASCII-case-folded duplicate names and `CON`, `PRN`, `AUX`, `NUL`, `COM0` through `COM9`, and `LPT0` through `LPT9`, including extensions, are rejected so an admitted artifact does not become a device or synchronization conflict in a buyer environment. The ASCII-only grammar separately excludes the superscript aliases. These checks preserve the original artifact spelling and remain identity hygiene only; they do not grant signing, publication, installation, update, rollback, or release authority.
+Microsoft's Win32 filename guidance requires applications not to assume case sensitivity and reserves device basenames including `CON`, `PRN`, `AUX`, `NUL`, `COM1` through `COM9`, and `LPT1` through `LPT9`, including those names followed by extensions. The same documentation identifies non-ASCII superscript-digit device aliases and also documents `COM0` as a possible `Global??` Win32 namespace symlink. Separately, Microsoft's current OneDrive and SharePoint restrictions reject `COM0` through `COM9` and `LPT0` through `LPT9` and additional names including `desktop.ini`. OriginWeave therefore adopts a bounded release-artifact identity deny set: ASCII-case-folded duplicate names and `CON`, `PRN`, `AUX`, `NUL`, `COM0` through `COM9`, and `LPT0` through `LPT9`, including extensions, are rejected. The ASCII-only grammar separately excludes the superscript aliases. This bounded filename rule is not a complete OneDrive or SharePoint synchronization-compatibility guarantee; packaging or synchronization validation for a target service must separately enforce that service's full current restrictions. These checks preserve the original artifact spelling and remain identity hygiene only; they do not grant signing, publication, installation, update, rollback, or release authority.
 
 ### Release SBOM identity
 
@@ -93,6 +95,8 @@ RFC 9309 standardizes robots parsing, matching, error handling, and caching. It 
 ### Provenance and capture
 
 W3C PROV-O supplies interoperable Entity, Activity, Agent, derivation, attribution, and responsibility concepts. ISO 28500:2017, confirmed in 2023, defines WARC storage for protocol payloads, control information, metadata, transformations, duplicate detection, integrity, and segmentation. OriginWeave uses source hashes and locators in the safety kernel, then adds WARC and PROV adapters as separately testable modules.
+
+RFC 3986 remains Internet Standard STD 66 for generic URI syntax. RFC 8820 is the current URI design-and-ownership Best Current Practice; it obsoletes RFC 7320 and updates RFC 3986 without replacing RFC 3986's path grammar. Section 3.3 of RFC 3986 defines each path segment as `*pchar`, where literal path characters are unreserved characters, sub-delimiters, `:`, or `@`; `/` separates segments and other reserved characters such as `[` and `]` are not literal `pchar`. OriginWeave's shared evidence-path validator therefore applies that literal ASCII `pchar` set plus validated percent-encoded octets and explicit slash separators to both `NetworkEvidence::capture` paths and provenance source-URL paths. Existing stricter evidence-safety rules continue to reject encoded separators, dot-segment ambiguity, controls, whitespace, query strings, fragments, backslashes, and credential-bearing authority. This fail-closed syntax tightening affects both evidence surfaces; it does not authorize the source origin, destination, network access, capture, disclosure, or retention.
 
 ### AI risk and prompt injection
 
@@ -118,6 +122,8 @@ Autio, C., Schwartz, R., Dunietz, J., Jain, S., Stanley, M., Tabassi, E., Hall, 
 
 Barth, A. (2011). *The web origin concept* (RFC 6454). Internet Engineering Task Force. https://doi.org/10.17487/RFC6454
 
+Berners-Lee, T., Fielding, R., & Masinter, L. (2005). *Uniform resource identifier (URI): Generic syntax* (RFC 3986; STD 66). Internet Engineering Task Force. https://doi.org/10.17487/RFC3986
+
 Bonica, R., Cotton, M., Haberman, B., & Vegoda, L. (2017). *Updates to the special-purpose IP address registries* (RFC 8190). Internet Engineering Task Force. https://doi.org/10.17487/RFC8190
 
 Chromium Authors. (n.d.). *Proxy support in Chrome* [Source documentation]. Chromium. https://chromium.googlesource.com/chromium/src/+/a3e71ebfa307d8760eb68b777e2998a869940092/net/docs/proxy.md
@@ -138,9 +144,9 @@ Fielding, R., Nottingham, M., & Reschke, J. (2022). *HTTP semantics* (RFC 9110).
 
 Fugu Team, Sakana AI. (2026). *Sakana Fugu technical report* [Technical report]. arXiv. https://doi.org/10.48550/arXiv.2606.21228
 
-Git. (2026). *gitprotocol-common documentation (Git 2.55.0)*. https://git-scm.com/docs/gitprotocol-common/2.55.0
+Git. (2025). *gitprotocol-common documentation (Git 2.50.0)*. https://git-scm.com/docs/gitprotocol-common/2.50.0
 
-Git. (2026). *gitprotocol-pack documentation (Git 2.55.0)*. https://git-scm.com/docs/gitprotocol-pack/2.55.0
+Git. (2026). *gitprotocol-pack documentation (Git 2.54.0)*. https://git-scm.com/docs/gitprotocol-pack/2.54.0
 
 Huston, G., & Buraglio, N. (2024). *Expanding the IPv6 documentation space* (RFC 9637). Internet Engineering Task Force. https://doi.org/10.17487/RFC9637
 
@@ -162,7 +168,13 @@ Microsoft. (n.d.). *Naming files, paths, and namespaces*. Microsoft Learn. Retri
 
 Microsoft. (n.d.). *Restrictions and limitations in OneDrive and SharePoint*. Microsoft Support. Retrieved August 23, 2026, from https://support.microsoft.com/en-US/onedrive/restrictions-and-limitations-in-onedrive-and-sharepoint
 
+Model Context Protocol. (2026, July 28). *Specification: 2026-07-28*. https://modelcontextprotocol.io/specification/2026-07-28
+
 Nielsen, S., Cetin, E., Schwendeman, P., Sun, Q., Xu, J., & Tang, Y. (2025). *Learning to orchestrate agents in natural language with the Conductor* [Preprint]. arXiv. https://doi.org/10.48550/arXiv.2512.04388
+
+Nottingham, M. (2014). *URI design and ownership* (RFC 7320). Internet Engineering Task Force. https://doi.org/10.17487/RFC7320
+
+Nottingham, M. (2020). *URI design and ownership* (RFC 8820; BCP 190). Internet Engineering Task Force. https://doi.org/10.17487/RFC8820
 
 Rescorla, E. (2026). *The Transport Layer Security (TLS) protocol version 1.3* (RFC 9846). Internet Engineering Task Force. https://doi.org/10.17487/RFC9846
 
