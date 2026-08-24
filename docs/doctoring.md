@@ -102,6 +102,10 @@ TRINITY uses a compact learned coordinator to select models and assign Thinker, 
 
 These results motivate explicit OriginWeave configuration for model routing, workflow stage, decomposition, recursion depth, permitted access, role assignment, and role-specific reasoning effort. They do not justify always using multiple agents. OriginWeave must compare bounded single-model, routed-model, and deeper multi-agent configurations through task-success, safety, variance, token, and compute ablations. No learned coordinator may expand browser capabilities, origins, destinations, approvals, secrets, or deterministic policy.
 
+### Linux process RSS measurement
+
+The Linux kernel `/proc/<pid>/status` interface reports `VmRSS` in `kB`, and the kernel proc documentation defines those memory-size fields in 1024-byte units (Linux Kernel Documentation, n.d.). OriginWeave therefore interprets an explicitly supplied Linux process `VmRSS` record by multiplying the validated unsigned `kB` value by 1,024 with checked arithmetic before it can enter resource-governor telemetry. This is an ABI interpretation and measurement-normalization rule only: the caller remains responsible for selecting and owning the PID, and the boundary does not discover Chromium processes, aggregate descendants or cgroups, measure GPU/heap state, or provide cross-platform sampling.
+
 ## References
 
 Amazon Web Services. (n.d.). *Set up the Amazon EKS Pod Identity Agent*. Retrieved August 6, 2026, from https://docs.aws.amazon.com/eks/latest/userguide/pod-id-agent-setup.html
@@ -143,6 +147,8 @@ Internet Assigned Numbers Authority. (2025, October 10). *IPv6 global unicast ad
 International Organization for Standardization. (2017). *Information and documentation—WARC file format* (ISO Standard No. 28500:2017). https://www.iso.org/standard/68004.html
 
 Koster, M., Illyes, G., Zeller, H., & Sassman, L. (2022). *Robots Exclusion Protocol* (RFC 9309). Internet Engineering Task Force. https://doi.org/10.17487/RFC9309
+
+Linux Kernel Documentation. (n.d.). *The /proc filesystem*. Retrieved August 25, 2026, from https://www.kernel.org/doc/html/latest/filesystems/proc.html
 
 Lodderstedt, T., Bradley, J., Labunets, A., & Fett, D. (2025). *OAuth 2.0 security best current practice* (RFC 9700). Internet Engineering Task Force. https://doi.org/10.17487/RFC9700
 
