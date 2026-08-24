@@ -28,6 +28,9 @@ pub struct SensitiveHandleLifecycleEvidenceInput {
     /// Number of broker resolutions already observed for the handle.
     pub resolution_count: u32,
     /// Trusted Unix epoch second when the handle was revoked, when applicable.
+    ///
+    /// A revocation recorded exactly at expiry is retained as a terminal audit
+    /// event even though it cannot extend or restore handle validity.
     pub revoked_epoch_seconds: Option<u64>,
 }
 
@@ -57,7 +60,7 @@ impl TryFrom<SensitiveHandleLifecycleEvidenceInput> for SensitiveHandleLifecycle
             || input.maximum_uses == 0
             || input.resolution_count > input.maximum_uses
             || input.revoked_epoch_seconds.is_some_and(|revoked| {
-                revoked < input.issued_epoch_seconds || revoked >= input.expires_epoch_seconds
+                revoked < input.issued_epoch_seconds || revoked > input.expires_epoch_seconds
             })
         {
             return Err(SensitiveEvidenceError::InvalidLifecycle);
