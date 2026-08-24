@@ -23,6 +23,8 @@ import json
 import math
 import os
 import pathlib
+import select
+import signal
 import socket
 import string
 import subprocess
@@ -479,7 +481,7 @@ def _read_linux_proc_stat_process_identity(process_id: int) -> tuple[int, int] |
     try:
         with stat_path.open("r", encoding="utf-8", errors="strict") as stat_file:
             stat_text = stat_file.read(MAX_PROC_STAT_CHARACTERS + 1)
-    except FileNotFoundError:
+    except (FileNotFoundError, ProcessLookupError):
         return None
     if len(stat_text) > MAX_PROC_STAT_CHARACTERS:
         raise RuntimeError("Linux proc stat exceeded the bounded text limit")
@@ -487,6 +489,111 @@ def _read_linux_proc_stat_process_identity(process_id: int) -> tuple[int, int] |
     if identity[0] != process_id:
         raise RuntimeError("Linux proc stat identity did not match its directory")
     return identity
+
+
+def _signal_linux_process_identity(
+    process_identity: tuple[int, int],
+    signal_number: int,
+) -> bool:
+    """Signal only one exact Linux PID/start-time identity through a pidfd."""
+
+    if not isinstance(process_identity, tuple) or len(process_identity) != 2:
+        raise ValueError("invalid Linux process identity")
+    process_id, start_time_ticks = process_identity
+    if isinstance(process_id, bool) or not isinstance(process_id, int) or process_id <= 0:
+        raise ValueError("invalid Linux process identifier")
+    if (
+        isinstance(start_time_ticks, bool)
+        or not isinstance(start_time_ticks, int)
+        or start_time_ticks <= 0
+    ):
+        raise ValueError("invalid Linux process start time")
+    if isinstance(signal_number, bool) or not isinstance(signal_number, int) or signal_number <= 0:
+        raise ValueError("invalid Linux process signal")
+
+    expected_identity = (process_id, start_time_ticks)
+    if _read_linux_proc_stat_process_identity(process_id) != expected_identity:
+        return False
+    pidfd_open = getattr(os, "pidfd_open", None)
+    pidfd_send_signal = getattr(signal, "pidfd_send_signal", None)
+    if not callable(pidfd_open) or not callable(pidfd_send_signal):
+        raise RuntimeError("Linux pidfd signalling is unavailable")
+    try:
+        pidfd = pidfd_open(process_id, 0)
+    except ProcessLookupError:
+        return False
+    try:
+        if _read_linux_proc_stat_process_identity(process_id) != expected_identity:
+            return False
+        try:
+            pidfd_send_signal(pidfd, signal_number)
+        except ProcessLookupError:
+            return False
+        return True
+    finally:
+        os.close(pidfd)
+
+
+def _signal_and_wait_for_linux_process_identity_termination(
+    process_identity: tuple[int, int],
+    signal_number: int,
+    *,
+    timeout_seconds: float = PROCESS_EXIT_TIMEOUT_SECONDS,
+) -> bool:
+    """Signal one exact Linux identity and await termination on that same pidfd."""
+
+    if not isinstance(process_identity, tuple) or len(process_identity) != 2:
+        raise ValueError("invalid Linux process identity")
+    process_id, start_time_ticks = process_identity
+    if isinstance(process_id, bool) or not isinstance(process_id, int) or process_id <= 0:
+        raise ValueError("invalid Linux process identifier")
+    if (
+        isinstance(start_time_ticks, bool)
+        or not isinstance(start_time_ticks, int)
+        or start_time_ticks <= 0
+    ):
+        raise ValueError("invalid Linux process start time")
+    if (
+        isinstance(signal_number, bool)
+        or not isinstance(signal_number, int)
+        or signal_number <= 0
+    ):
+        raise ValueError("invalid Linux process signal")
+    if (
+        isinstance(timeout_seconds, bool)
+        or not isinstance(timeout_seconds, (int, float))
+        or timeout_seconds < 0
+        or not math.isfinite(timeout_seconds)
+    ):
+        raise ValueError("invalid Linux process termination timeout")
+
+    expected_identity = (process_id, start_time_ticks)
+    if _read_linux_proc_stat_process_identity(process_id) != expected_identity:
+        return False
+    pidfd_open = getattr(os, "pidfd_open", None)
+    pidfd_send_signal = getattr(signal, "pidfd_send_signal", None)
+    if not callable(pidfd_open) or not callable(pidfd_send_signal):
+        raise RuntimeError("Linux pidfd signalling is unavailable")
+    try:
+        pidfd = pidfd_open(process_id, 0)
+    except ProcessLookupError:
+        return False
+    try:
+        if _read_linux_proc_stat_process_identity(process_id) != expected_identity:
+            return False
+        try:
+            pidfd_send_signal(pidfd, signal_number)
+        except ProcessLookupError:
+            return False
+        readable, _writable, _exceptional = select.select(
+            [pidfd],
+            [],
+            [],
+            float(timeout_seconds),
+        )
+        return bool(readable)
+    finally:
+        os.close(pidfd)
 
 
 def _wait_for_linux_process_identity_exit(
@@ -1941,6 +2048,242 @@ def _run_agent_task_forced_close_trial(
     }
 
 
+def _cleanup_crashed_browser_session(driver_port: int, session_id: str | None) -> None:
+    """Delete a crash session while ignoring only reviewed post-crash transport loss."""
+
+    if session_id is None:
+        return
+    try:
+        _json_request(
+            driver_port,
+            "DELETE",
+            _webdriver_path(session_id, ""),
+            {},
+        )
+    except (OSError, RuntimeError, json.JSONDecodeError, http.client.IncompleteRead):
+        return
+
+
+def _stop_crashed_driver(driver: subprocess.Popen[Any]) -> None:
+    """Reap ChromeDriver without re-signalling a child that already exited."""
+
+    if driver.poll() is not None:
+        driver.wait(timeout=5)
+        return
+    driver.terminate()
+    try:
+        driver.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        driver.kill()
+        driver.wait(timeout=5)
+
+
+def _run_agent_task_browser_crash_browser_pass(
+    chrome_bin: pathlib.Path,
+    chromedriver_bin: pathlib.Path,
+    fixture_url: str,
+    profile_dir: str,
+) -> dict[str, Any]:
+    """Kill one exact browser root and prove crash detection plus sampled teardown."""
+
+    _require_pristine_agent_task_profile(profile_dir)
+    driver_port = _free_loopback_port()
+    session_id: str | None = None
+    browser_process_id: int | None = None
+    browser_process_start_time_ticks: int | None = None
+    chromium_process_identities: tuple[tuple[int, int], ...] | None = None
+    browser_version: str | None = None
+    browser_process_crash_detected = False
+    driver = subprocess.Popen(
+        [str(chromedriver_bin), f"--port={driver_port}", "--allowed-ips=127.0.0.1"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    try:
+        _wait_for_driver(driver_port)
+        session = _json_request(
+            driver_port,
+            "POST",
+            "/session",
+            {
+                "capabilities": {
+                    "alwaysMatch": {
+                        "browserName": "chrome",
+                        "goog:chromeOptions": {
+                            "binary": str(chrome_bin),
+                            "prefs": {
+                                "credentials_enable_service": False,
+                                "profile.password_manager_enabled": False,
+                            },
+                            "args": [
+                                "--headless=new",
+                                "--no-first-run",
+                                "--disable-default-apps",
+                                "--disable-component-update",
+                                "--disable-sync",
+                                "--disable-dev-shm-usage",
+                                "--no-sandbox",
+                                "--disable-extensions",
+                                f"--user-data-dir={profile_dir}",
+                            ],
+                        },
+                    }
+                }
+            },
+        ).get("value", {})
+        if not isinstance(session, dict):
+            raise RuntimeError("ChromeDriver browser-crash session response is malformed")
+        raw_session_id = session.get("sessionId")
+        capabilities = session.get("capabilities", {})
+        if not isinstance(raw_session_id, str):
+            raise RuntimeError("ChromeDriver did not return a browser-crash session id")
+        if not isinstance(capabilities, dict):
+            raise RuntimeError("ChromeDriver browser-crash capabilities are malformed")
+        session_id = _path_token(raw_session_id, "session identifier")
+        browser_version = capabilities.get("browserVersion")
+        browser_process_id = capabilities.get("goog:processID")
+        if browser_version != PINNED_CHROME_VERSION:
+            raise RuntimeError(
+                f"unexpected browser-crash Chrome version: expected {PINNED_CHROME_VERSION}, "
+                f"got {browser_version!r}"
+            )
+        if (
+            isinstance(browser_process_id, bool)
+            or not isinstance(browser_process_id, int)
+            or browser_process_id <= 0
+        ):
+            raise RuntimeError("ChromeDriver did not return a valid browser-crash process id")
+        browser_process_identity = _read_linux_proc_stat_process_identity(browser_process_id)
+        if browser_process_identity is None:
+            raise RuntimeError("Agent Task browser-crash process identity disappeared")
+        browser_process_start_time_ticks = browser_process_identity[1]
+
+        _json_request(
+            driver_port,
+            "POST",
+            _webdriver_path(session_id, "/url"),
+            {"url": fixture_url},
+        )
+        loaded_url = _json_request(
+            driver_port,
+            "GET",
+            _webdriver_path(session_id, "/url"),
+        ).get("value")
+        if loaded_url != fixture_url:
+            raise RuntimeError("Agent Task browser-crash probe did not load its fixture URL")
+
+        process_evidence = _snapshot_linux_process_evidence()
+        chromium_process_ids = _discover_linux_process_tree_ids(
+            browser_process_id,
+            process_evidence,
+        )
+        chromium_process_identities, _pre_shutdown_exit_count = (
+            _read_linux_process_identity_set(
+                chromium_process_ids,
+                required_root_identity=browser_process_identity,
+            )
+        )
+        if not _signal_and_wait_for_linux_process_identity_termination(
+            browser_process_identity,
+            signal.SIGKILL,
+        ):
+            raise RuntimeError(
+                "Agent Task browser process was not observed terminated after crash signal"
+            )
+        browser_process_crash_detected = True
+    finally:
+        _cleanup_crashed_browser_session(driver_port, session_id)
+        _stop_crashed_driver(driver)
+
+    if (
+        browser_process_id is None
+        or browser_process_start_time_ticks is None
+        or chromium_process_identities is None
+        or browser_version is None
+    ):
+        raise RuntimeError("Agent Task browser-crash teardown identities were not captured")
+    browser_process_terminated, chromium_process_set_terminated = (
+        _wait_for_linux_process_teardown(
+            browser_process_id,
+            browser_process_start_time_ticks,
+            chromium_process_identities,
+        )
+    )
+    if not browser_process_crash_detected:
+        raise RuntimeError("Agent Task browser-process crash was not detected")
+    if not browser_process_terminated:
+        raise RuntimeError("Agent Task browser-crash root process did not terminate")
+    if not chromium_process_set_terminated:
+        raise RuntimeError("Agent Task browser-crash Chromium process set did not terminate")
+    return {
+        "browser_version": browser_version,
+        "browser_process_crash_detected": True,
+        "browser_process_terminated": True,
+        "chromium_process_set_terminated": True,
+    }
+
+
+def _run_agent_task_browser_crash_trial(
+    chrome_bin: pathlib.Path,
+    chromedriver_bin: pathlib.Path,
+    fixture_url: str,
+    trial_number: int,
+) -> dict[str, Any]:
+    """Run one isolated browser-root crash trial and retain cleanup evidence."""
+
+    trial_started = time.monotonic()
+    profile_path: pathlib.Path
+    result: dict[str, Any] | None = None
+    failure_type: str | None = None
+    with tempfile.TemporaryDirectory(
+        prefix=f"originweave-agent-task-browser-crash-{trial_number}-"
+    ) as profile_dir:
+        profile_path = pathlib.Path(profile_dir)
+        try:
+            result = _run_agent_task_browser_crash_browser_pass(
+                chrome_bin,
+                chromedriver_bin,
+                fixture_url,
+                profile_dir,
+            )
+        except (
+            OSError,
+            ValueError,
+            RuntimeError,
+            json.JSONDecodeError,
+            subprocess.TimeoutExpired,
+        ) as exc:
+            failure_type = type(exc).__name__
+    profile_cleaned = not profile_path.exists()
+    if not profile_cleaned:
+        raise RuntimeError(
+            f"Agent Task browser-crash profile cleanup failed in trial {trial_number}"
+        )
+
+    duration_ms = round((time.monotonic() - trial_started) * 1000)
+    if failure_type is not None:
+        return {
+            "trial_number": trial_number,
+            "passed": False,
+            "failure_type": failure_type,
+            "profile_cleaned": True,
+            "duration_ms": duration_ms,
+        }
+    if result is None:
+        raise RuntimeError("Agent Task browser-crash browser pass returned no result")
+    return {
+        "trial_number": trial_number,
+        "passed": True,
+        "browser_version": result["browser_version"],
+        "browser_process_crash_detected": result["browser_process_crash_detected"],
+        "browser_process_terminated": result["browser_process_terminated"],
+        "chromium_process_set_terminated": result["chromium_process_set_terminated"],
+        "profile_cleaned": True,
+        "duration_ms": duration_ms,
+    }
+
+
 def _start_fixture_server(
     directory: pathlib.Path,
 ) -> tuple[http.server.ThreadingHTTPServer, threading.Thread]:
@@ -2076,6 +2419,26 @@ def main() -> int:
                     }
                 )
 
+        browser_crash_trials: list[dict[str, Any]] = []
+        for trial_number in range(1, AGENT_TASK_REPEATABILITY_TRIALS + 1):
+            try:
+                browser_crash_trials.append(
+                    _run_agent_task_browser_crash_trial(
+                        chrome_bin,
+                        chromedriver_bin,
+                        agent_task_url,
+                        trial_number,
+                    )
+                )
+            except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+                browser_crash_trials.append(
+                    {
+                        "trial_number": trial_number,
+                        "passed": False,
+                        "failure_type": type(exc).__name__,
+                    }
+                )
+
         agent_task_successful_trials = sum(
             1 for trial in agent_task_trials if trial.get("passed") is True
         )
@@ -2144,6 +2507,20 @@ def main() -> int:
             for trial in forced_close_trials
             if trial.get("passed") is True
         )
+        browser_crash_successful_trials = sum(
+            1 for trial in browser_crash_trials if trial.get("passed") is True
+        )
+        browser_crash_profiles_cleaned = all(
+            trial.get("profile_cleaned") is True for trial in browser_crash_trials
+        )
+        browser_crash_surfaces_complete = all(
+            trial.get("browser_process_crash_detected") is True
+            and trial.get("browser_process_terminated") is True
+            and trial.get("chromium_process_set_terminated") is True
+            and trial.get("profile_cleaned") is True
+            for trial in browser_crash_trials
+            if trial.get("passed") is True
+        )
 
         evidence = {
             "chrome_version": PINNED_CHROME_VERSION,
@@ -2171,6 +2548,12 @@ def main() -> int:
                     "successful_trials": forced_close_successful_trials,
                     "profiles_cleaned": forced_close_profiles_cleaned,
                     "trial_results": forced_close_trials,
+                },
+                "browser_crash": {
+                    "repeatability_trials": AGENT_TASK_REPEATABILITY_TRIALS,
+                    "successful_trials": browser_crash_successful_trials,
+                    "profiles_cleaned": browser_crash_profiles_cleaned,
+                    "trial_results": browser_crash_trials,
                 },
             },
             "duration_ms": round((time.monotonic() - started) * 1000),
@@ -2206,6 +2589,17 @@ def main() -> int:
             raise RuntimeError(
                 "Agent Task forced-close recovery gate failed: "
                 f"{forced_close_successful_trials}/{AGENT_TASK_REPEATABILITY_TRIALS} "
+                "trials passed"
+            )
+        if not browser_crash_profiles_cleaned:
+            raise RuntimeError("Agent Task browser-crash profile cleanup gate failed")
+        if (
+            browser_crash_successful_trials != AGENT_TASK_REPEATABILITY_TRIALS
+            or not browser_crash_surfaces_complete
+        ):
+            raise RuntimeError(
+                "Agent Task browser-crash recovery gate failed: "
+                f"{browser_crash_successful_trials}/{AGENT_TASK_REPEATABILITY_TRIALS} "
                 "trials passed"
             )
         return 0
