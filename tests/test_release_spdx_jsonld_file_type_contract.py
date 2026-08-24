@@ -101,6 +101,37 @@ class ReleaseSpdxJsonLdFileTypeContractTests(unittest.TestCase):
             self.assertEqual(candidate.read_bytes(), b"{}")
             self.assertTrue(displaced.exists())
 
+    def test_parent_directory_replaced_with_same_leaf_inode_is_rejected(self) -> None:
+        """A release path must retain its admitted parent-directory identity through opening."""
+
+        namespace = runpy.run_path(str(VALIDATOR), run_name="spdx_parent_identity_contract")
+        read_bounded = namespace["_read_bounded"]
+        envelope_error = namespace["SpdxJsonLdEnvelopeError"]
+        original_opener = namespace["_nonblocking_read_opener"]
+
+        with tempfile.TemporaryDirectory(prefix="originweave-spdx-parent-identity-") as directory:
+            root = pathlib.Path(directory)
+            parent = root / "candidate-parent"
+            displaced_parent = root / "displaced-parent"
+            parent.mkdir()
+            candidate = parent / "candidate.spdx.jsonld"
+            candidate.write_bytes(b'{"@context":"https://spdx.org/rdf/3.0.1/spdx-context.jsonld","@graph":[{"type":"SpdxDocument"}]}')
+            original_inode = candidate.stat().st_ino
+
+            def replace_parent_before_open(path: str, flags: int) -> int:
+                parent.rename(displaced_parent)
+                parent.mkdir()
+                os.link(displaced_parent / candidate.name, parent / candidate.name)
+                self.assertEqual((parent / candidate.name).stat().st_ino, original_inode)
+                return original_opener(path, flags)
+
+            read_bounded.__globals__["_nonblocking_read_opener"] = replace_parent_before_open
+
+            with self.assertRaises(envelope_error) as captured:
+                read_bounded(candidate)
+
+            self.assertEqual(captured.exception.code, "invalid_file_type")
+
 
 if __name__ == "__main__":
     unittest.main()
