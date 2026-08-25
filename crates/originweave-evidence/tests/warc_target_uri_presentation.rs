@@ -22,12 +22,12 @@ fn provenance(source_url: &str) -> ProvenanceRecord {
 
 #[test]
 fn warc_target_uri_rejects_invisible_formatting_characters_before_serialization() {
+    let source_provenance = provenance("https://example.com/valid");
     for formatting_character in [
         '\u{00ad}', '\u{061c}', '\u{200b}', '\u{200e}', '\u{202e}', '\u{2066}', '\u{2060}',
         '\u{feff}',
     ] {
         let target_uri = format!("https://example.com/item{formatting_character}shadow");
-        let source_provenance = provenance(&target_uri);
 
         assert_eq!(
             WarcResourceRecord::new(
@@ -36,7 +36,7 @@ fn warc_target_uri_rejects_invisible_formatting_characters_before_serialization(
                 &target_uri,
                 "text/plain",
                 Vec::new(),
-                source_provenance,
+                source_provenance.clone(),
             ),
             Err(WarcResourceRecordError::InvalidTargetUri),
             "target_uri={target_uri:?}"
@@ -77,7 +77,7 @@ fn warc_target_uri_rejects_raw_unicode_because_warc_uses_rfc3986_uri_syntax() {
             target_uri,
             "text/plain",
             Vec::new(),
-            provenance(target_uri),
+            provenance("https://example.com/valid"),
         ),
         Err(WarcResourceRecordError::InvalidTargetUri),
     );
@@ -85,6 +85,7 @@ fn warc_target_uri_rejects_raw_unicode_because_warc_uses_rfc3986_uri_syntax() {
 
 #[test]
 fn warc_target_uri_rejects_ascii_characters_outside_rfc3986_uri_syntax() {
+    let source_provenance = provenance("https://example.com/valid");
     for invalid_character in ['<', '>', '"', '{', '}', '|', '^', '`'] {
         let target_uri = format!("https://example.com/item{invalid_character}shadow");
 
@@ -95,7 +96,7 @@ fn warc_target_uri_rejects_ascii_characters_outside_rfc3986_uri_syntax() {
                 &target_uri,
                 "text/plain",
                 Vec::new(),
-                provenance(&target_uri),
+                source_provenance.clone(),
             ),
             Err(WarcResourceRecordError::InvalidTargetUri),
             "target_uri={target_uri:?}"
@@ -105,6 +106,7 @@ fn warc_target_uri_rejects_ascii_characters_outside_rfc3986_uri_syntax() {
 
 #[test]
 fn warc_target_uri_rejects_general_delimiters_in_path_segments() {
+    let source_provenance = provenance("https://example.com/valid");
     for target_uri in [
         "https://example.com/[segment]",
         "https://example.com/item]shadow",
@@ -116,7 +118,7 @@ fn warc_target_uri_rejects_general_delimiters_in_path_segments() {
                 target_uri,
                 "text/plain",
                 Vec::new(),
-                provenance(target_uri),
+                source_provenance.clone(),
             ),
             Err(WarcResourceRecordError::InvalidTargetUri),
             "target_uri={target_uri:?}"
