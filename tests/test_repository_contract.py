@@ -177,6 +177,20 @@ class RepositoryContractTests(unittest.TestCase):
             self.assertNotIn("TraceWeave", text, relative)
             self.assertNotIn("ProofRail", text, relative)
 
+    def test_rust_standard_error_references_live_in_doctoring(self) -> None:
+        """Material Rust API references belong in doctoring, not the changelog."""
+
+        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        doctoring = (ROOT / "docs/doctoring.md").read_text(encoding="utf-8")
+        rust_api_references = (
+            "https://doc.rust-lang.org/1.97.1/std/fmt/trait.Display.html",
+            "https://doc.rust-lang.org/1.97.1/std/error/trait.Error.html",
+        )
+        for reference in rust_api_references:
+            with self.subTest(reference=reference):
+                self.assertIn(reference, doctoring)
+                self.assertNotIn(reference, changelog)
+
     def test_database_contract_requires_two_word_snake_case(self) -> None:
         """Persistent naming policy must include the mandated canonical form."""
 
