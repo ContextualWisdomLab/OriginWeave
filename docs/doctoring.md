@@ -16,6 +16,12 @@ The WHATWG URL host parser and Chromium canonicalizer classify shortened decimal
 
 The exact Chromium regression evidence is pinned to revision `446d05d21720f0b3505ec21057b3e9f909784262`. A mutable `HEAD` reference is not sufficient for a reproducible security contract.
 
+### Enterprise principal display safety
+
+Unicode Standard Annex #9, Revision 51 for Unicode 17.0.0, defines directional formatting characters under the `Bidi_Control` property, including the Arabic letter mark, left/right marks, explicit embeddings and overrides, and directional isolates and their terminators. These code points affect bidirectional presentation while remaining part of the logical character sequence; the annex also warns that directional overrides have security implications and should be avoided where possible.
+
+`ApprovalPrincipalRef` is an exact opaque `(issuer, subject)` authority identifier that is likely to appear in audit and operator surfaces. Allowing hidden bidirectional formatting would let two logically different references compare distinctly while one can be presented with misleading visual order. OriginWeave therefore rejects exactly the Unicode 17.0.0 `Bidi_Control` set in principal-reference components in addition to ordinary control characters, surrounding whitespace, empty values, and the byte bound. This is a presentation-safety invariant, not Unicode normalization, script restriction, confusable folding, authentication, or identity resolution; other Unicode format characters remain admissible unless a separately reviewed invariant rejects them.
+
 ### Extension-to-Agent grant origin binding
 
 RFC 6454 defines a web origin as the scheme, host, and port tuple that browsers use to isolate authority. An OriginWeave `extension_grant` that is bound only to extension identity, session, and browsing context would remain valid after the same context navigates to another origin. OriginWeave therefore requires the grant and the request to carry the same canonical origin. A host change or a non-default port change is a different origin and cannot reuse the grant. This is grant-scope isolation only; it does not install an extension, parse Chrome messages, or mint Agent capabilities from Manifest V3 permissions.
@@ -173,6 +179,8 @@ The Rust Project Developers. (2026). *Ipv4Addr in std::net* (Rust 1.97.1) [Softw
 The Rust Project Developers. (2026). *Ipv6Addr in std::net* (Rust 1.97.1) [Software documentation]. https://doc.rust-lang.org/stable/std/net/struct.Ipv6Addr.html
 
 The Rust Project Developers. (2026). *TcpStream in std::net* (Rust 1.97.1) [Software documentation]. https://doc.rust-lang.org/stable/std/net/struct.TcpStream.html
+
+Unicode Consortium. (2025, August 13). *Unicode bidirectional algorithm* (Unicode Standard Annex #9, Revision 51, Unicode 17.0.0). https://www.unicode.org/reports/tr9/
 
 Web Hypertext Application Technology Working Group. (2026). *URL standard*. https://url.spec.whatwg.org/
 
