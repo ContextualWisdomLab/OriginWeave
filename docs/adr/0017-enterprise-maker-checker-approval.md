@@ -55,7 +55,7 @@ Rejected. `PolicyContext` is a reusable policy input and is cloneable by design.
 
 ### Return a linear, non-cloneable approval-use value
 
-Selected. A successful lifecycle consumption produces exactly one `EnterpriseApprovalUse`. Its policy-evaluation operation consumes `self`, requires current trusted time, rejects time rollback, direct deadline expiry, or a shared terminal expiry/revocation observed by the issuing request before evaluation begins, injects the exact approved scope only into a private cloned context for that one evaluation, and delegates to the ordinary fail-closed evaluator.
+Selected. A successful lifecycle consumption produces exactly one `EnterpriseApprovalUse`. Its policy-evaluation operation consumes `self`, requires current trusted time, rejects any request whose action/origin/intent differs from the retained exact scope before exposing lifecycle or time state, then rejects time rollback, direct deadline expiry, or a shared terminal expiry/revocation observed by the issuing request before evaluation begins. Only a still-valid exact-scope use injects approval into a private cloned context for that one evaluation and delegates to the ordinary fail-closed evaluator.
 
 ## Decision
 
@@ -65,15 +65,15 @@ A pending request may be approved or denied only by a principal distinct from th
 
 `consume` is permitted only from `Approved`, before expiry, and for an exactly equal `ApprovalScope`. A scope mismatch does not spend a use. A successful consume increments lifecycle accounting immediately and returns a non-cloneable `EnterpriseApprovalUse` that retains the exact scope, consumption time, exclusive expiry deadline, and a shared one-way terminal invalidation signal. The request becomes `Consumed` when the configured use count is exhausted. If a later consume attempt observes the expiry deadline while the request is still `Approved`, it records shared `Expired` invalidation before entering `Expired`; outstanding uses from the same live request then fail closed even if their evaluator supplies an earlier timestamp.
 
-`EnterpriseApprovalUse::evaluate_at(self, request, context, now_epoch_seconds)` consumes the approval-use value. It first rejects trusted time earlier than the recorded consumption time with `NonMonotonicTime`, rejects evaluation at or after the retained exclusive deadline with `Expired`, and then checks the issuing request's shared terminal invalidation. An observed `Expired` invalidation returns `Expired`; an observed `Revoked` invalidation returns `InvalidState(Revoked)`. Only then does it clone the supplied policy context privately, install `ApprovalEvidence::UserConfirmed` for the retained exact scope in that private copy, and delegate to the normal deterministic policy evaluator. The caller's reusable context is not upgraded. The approval use is burned regardless of whether evaluation returns a policy decision or fails the evaluation-time validity checks.
+`EnterpriseApprovalUse::evaluate_at(self, request, context, now_epoch_seconds)` consumes the approval-use value. It first reconstructs the exact `ApprovalScope` from the supplied request's action, canonical target origin, and immutable action-intent digest and returns `ScopeMismatch` if that scope differs from the retained approved scope. This scope check intentionally precedes lifecycle and trusted-time checks so an unrelated request cannot use the token to infer expiry or terminal state. For an exact-scope request, evaluation rejects trusted time earlier than the recorded consumption time with `NonMonotonicTime`, rejects evaluation at or after the retained exclusive deadline with `Expired`, and then checks the issuing request's shared terminal invalidation. An observed `Expired` invalidation returns `Expired`; an observed `Revoked` invalidation returns `InvalidState(Revoked)`. Only then does it clone the supplied policy context privately, install `ApprovalEvidence::UserConfirmed` for the retained exact scope in that private copy, and delegate to the normal deterministic policy evaluator. The caller's reusable context is not upgraded. The approval use is burned regardless of whether evaluation returns a policy decision or fails scope, time, expiry, or terminal-invalidation validation.
 
 The terminal invalidation signal is intentionally one-way and process-local. Once set it cannot be cleared. An outstanding use that begins its validity check after request-observed expiry or checker revocation fails closed according to the first shared terminal condition recorded by the live request. An evaluation that has already passed that validity check is considered in flight; stronger cross-process or transactional cancellation semantics belong to the durable enterprise control plane under issue #202.
 
-No public API converts `EnterpriseApprovalUse` back into reusable `ApprovalEvidence`, exposes its retained scope for later reinjection, or implements `Clone`/`Copy` for it. There is no untimed evaluation entry point that can bypass the retained expiry or terminal-invalidation boundary.
+No public API converts `EnterpriseApprovalUse` back into reusable `ApprovalEvidence`, exposes its retained scope for later reinjection, or implements `Clone`/`Copy` for it. There is no untimed evaluation entry point that can bypass the retained scope, expiry, or terminal-invalidation boundary.
 
 ## Consequences
 
-Enterprise callers receive a capability-like one-shot policy input rather than reusable approval evidence. This aligns effective execution authority with lifecycle accounting: each successful consumption can authorize at most one still-valid policy evaluation, and a denied, expired, or revoked evaluation cannot be retried by replaying the same consumed value.
+Enterprise callers receive a capability-like one-shot policy input rather than reusable approval evidence. This aligns effective execution authority with lifecycle accounting: each successful consumption can authorize at most one still-valid, exact-scope policy evaluation, and a scope mismatch, policy denial, expiry, or revocation cannot be retried by replaying the same consumed value.
 
 Callers that previously expected `consume` to return `ApprovalEvidence` must instead pass the returned `EnterpriseApprovalUse` directly to its consuming `evaluate_at` method together with the intended request, ordinary policy context, and trusted current epoch seconds.
 
@@ -81,7 +81,7 @@ The policy crate remains deterministic and I/O-free. Authentication, clock acqui
 
 ## Failure and degraded behavior
 
-The lifecycle fails closed on invalid validity windows, zero use limits, non-delegable actions, invalid state transitions, trusted-time regression, self-approval, requester mismatch, decision-actor mismatch, exact-scope mismatch, and expiry. Checker-role, tenant-membership, actor-uniqueness, and business-authorization failures must already have failed closed at the trusted identity/workflow boundary before an approval or denial enters this lifecycle. The consumed-use evaluation repeats the trusted-time regression and direct expiry checks and observes the shared terminal invalidation signal before it can introduce approval evidence.
+The lifecycle fails closed on invalid validity windows, zero use limits, non-delegable actions, invalid state transitions, trusted-time regression, self-approval, requester mismatch, decision-actor mismatch, exact-scope mismatch, and expiry. Checker-role, tenant-membership, actor-uniqueness, and business-authorization failures must already have failed closed at the trusted identity/workflow boundary before an approval or denial enters this lifecycle. The consumed-use evaluation repeats exact request-scope binding before trusted-time regression, direct expiry, and shared terminal invalidation checks so a mismatched request neither gains authority nor learns lifecycle/time state.
 
 Within the live `EnterpriseApprovalRequest` instance, a successful consume spends that use even if downstream policy evaluation denies the action or the resulting one-shot value later fails its evaluation-time validity check. This deliberately prefers loss of a delegated use over replay ambiguity. A caller needing another attempt must obtain another bounded lifecycle use through the authoritative request state rather than recover authority from a failed evaluation.
 
@@ -89,7 +89,7 @@ If process failure occurs after `consume` but before the one-shot evaluation com
 
 ## Security / privacy / governance impact
 
-The decision narrows enterprise approval authority by coupling each configured use to one non-replayable, still-valid evaluation attempt. It prevents cloning of lifecycle state or consumed execution authority from bypassing `max_uses`, expiry, terminal-state, or revocation semantics; prevents a token created immediately before expiry from being exercised after its approval deadline; prevents an already-issued but not-yet-evaluated token from surviving a successful checker revocation in the same live process even when that token was the final configured use; and prevents a caller from resurrecting an outstanding token with a backdated timestamp after the live request has already observed expiry. Principal references additionally reject Unicode `Bidi_Control` formatting characters so invisible direction overrides or isolates cannot create a misleading displayed identity while retaining a different exact `(issuer, subject)` tuple.
+The decision narrows enterprise approval authority by coupling each configured use to one non-replayable, exact-scope, still-valid evaluation attempt. It prevents cloning of lifecycle state or consumed execution authority from bypassing `max_uses`, exact scope, expiry, terminal-state, or revocation semantics; prevents an unrelated low-risk request from bypassing scope binding; prevents a mismatched request from learning expiry/terminal state before receiving `ScopeMismatch`; prevents a token created immediately before expiry from being exercised after its approval deadline; prevents an already-issued but not-yet-evaluated token from surviving a successful checker revocation in the same live process even when that token was the final configured use; and prevents a caller from resurrecting an outstanding token with a backdated timestamp after the live request has already observed expiry. Principal references additionally reject Unicode `Bidi_Control` formatting characters so invisible direction overrides or isolates cannot create a misleading displayed identity while retaining a different exact `(issuer, subject)` tuple.
 
 The decision does not put credentials, secrets, mutable identity attributes, or raw identity-provider tokens into model context. Principal references remain opaque. Legal consent remains non-delegable. Existing origin, capability, secret-broker, and risk gates are unchanged and continue to fail closed independently of enterprise approval.
 
@@ -100,6 +100,7 @@ The owning PR must retain realistic executable evidence for:
 - distinct maker/checker approval of an exact immutable scope;
 - rejection of non-canonical principal references including control and Unicode `Bidi_Control` formatting characters;
 - rejection of self-approval, requester mismatch, decision-actor mismatch, scope mutation, expiry, clock regression, and invalid terminal transitions;
+- rejection of a consumed use presented to a different low-risk request before lifecycle/time state is exposed;
 - exact bounded multi-use accounting;
 - a single configured use yielding exactly one policy evaluation and rejecting subsequent lifecycle consumption;
 - a policy denial burning the already consumed one-shot use;
@@ -115,9 +116,9 @@ Historical or predecessor-head results do not establish acceptance for a changed
 
 ## Migration and rollback
 
-Call sites must migrate from storing or passing raw enterprise-produced `ApprovalEvidence` to consuming `EnterpriseApprovalUse::evaluate_at` with trusted current time. No persistence migration is introduced by this branch.
+Call sites must migrate from storing or passing raw enterprise-produced `ApprovalEvidence` to consuming `EnterpriseApprovalUse::evaluate_at` with the exact intended request and trusted current time. No persistence migration is introduced by this branch.
 
-A rollback must revert the lifecycle/use API coherently. Reintroducing a direct `consume -> ApprovalEvidence` path, adding `Clone`/`Copy` to lifecycle accounting or consumed-use types, restoring an untimed evaluation path, detaching issued uses from live in-process terminal expiry/revocation invalidation, or mutating a reusable caller policy context with enterprise approval evidence is not an acceptable partial rollback because it reopens replay, post-expiry, or post-revocation authority.
+A rollback must revert the lifecycle/use API coherently. Reintroducing a direct `consume -> ApprovalEvidence` path, adding `Clone`/`Copy` to lifecycle accounting or consumed-use types, restoring an untimed evaluation path, removing exact request-scope revalidation, detaching issued uses from live in-process terminal expiry/revocation invalidation, or mutating a reusable caller policy context with enterprise approval evidence is not an acceptable partial rollback because it reopens replay, scope-confusion/privacy, post-expiry, or post-revocation authority.
 
 ## Open follow-ups
 
@@ -125,7 +126,7 @@ Issue #202 remains the owner for the broader enterprise control plane, including
 
 ## Supersession / reversal conditions
 
-Supersede this ADR if OriginWeave adopts a different formally bounded authority object that can prove, under concurrency and crash recovery, that one enterprise approval use cannot authorize more policy evaluations than the authoritative lifecycle permits. Any replacement must retain or strengthen exact intent binding, maker-checker separation, trusted-time ordering, fail-closed terminal states, evaluation-time expiry and revocation, R5 non-delegability, replay resistance, and principal-reference presentation safety.
+Supersede this ADR if OriginWeave adopts a different formally bounded authority object that can prove, under concurrency and crash recovery, that one enterprise approval use cannot authorize more policy evaluations than the authoritative lifecycle permits. Any replacement must retain or strengthen exact intent binding, maker-checker separation, trusted-time ordering, fail-closed terminal states, evaluation-time scope/expiry/revocation, R5 non-delegability, replay resistance, and principal-reference presentation safety.
 
 ## References
 
