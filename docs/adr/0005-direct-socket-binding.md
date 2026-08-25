@@ -136,3 +136,7 @@ The merge gate requires:
 ## Standards
 
 RFC 9293 defines the current Standards Track TCP specification and identifies a TCP connection by its pair of endpoint sockets. Rust 1.97.1 documents `TcpStream::connect_timeout` as a connection attempt to one supplied `SocketAddr`, `peer_addr` as the established stream's remote socket address, and `io::ErrorKind` as a non-exhaustive classification. OriginWeave uses those properties as the direct transport proof and explicit retry boundary while retaining separate TLS, HTTP, proxy, and Chromium decisions.
+
+## References
+
+Eddy, W. (Ed.). (2022). *Transmission Control Protocol (TCP)* (RFC 9293). RFC Editor. https://doi.org/10.17487/RFC9293 · https://www.rfc-editor.org/rfc/rfc9293
