@@ -163,6 +163,8 @@ pub enum HandleUseDecision {
     Authorized,
     /// The authoritative in-process handle state was revoked before this use.
     Revoked,
+    /// The supplied tracked-use identity is not outstanding in this exact state.
+    ReservationNotOutstanding,
     /// Tenant, task, field, purpose, destination, or classification did not match the handle scope.
     ScopeMismatch,
     /// The caller audience was invalid or did not match the handle's non-transferable audience.
@@ -288,9 +290,9 @@ impl Eq for SensitiveHandleUseReservation {}
 /// compensation. [`Self::reserve_tracked_use`] creates an identity-bound unsettled
 /// reservation that a trusted broker must later commit after disclosure or
 /// compensate only when it has authoritative proof that no disclosure occurred.
-/// Both paths retain the maximum trusted time observed by this state and reject
-/// rollback, so stale clock values cannot restore expired handle authority.
-/// Denied reservations never consume capacity.
+/// Reservation and pre-disclosure recheck paths retain the maximum trusted time
+/// observed by this state and reject rollback, so stale clock values cannot restore
+/// expired handle authority. Denied reservations never consume capacity.
 ///
 /// This is a policy-state primitive, not the trusted broker itself. It contains
 /// neither the opaque handle token nor protected data and provides no authenticated
@@ -412,6 +414,57 @@ impl SensitiveHandleUseState {
             });
         self.reserved_uses += 1;
         Ok(SensitiveHandleUseReservation { identity })
+    }
+
+    /// Recheck the exact outstanding tracked reservation immediately before disclosure.
+    ///
+    /// This does not reserve another use or settle the reservation. The trusted broker
+    /// must supply authenticated audience, trusted time, and the exact authority that
+    /// applies at disclosure time, and must call this inside the same transaction or
+    /// locking boundary that guards value disclosure. Scope and audience mismatch are
+    /// rejected before lifecycle state is exposed, matching reservation admission;
+    /// revocation is then authoritative over a matching request. A foreign or stale
+    /// reservation is rejected before trusted-time state is consulted. Successful and
+    /// expired matching rechecks advance the trusted-time floor, while rollback is
+    /// fail-closed. A use-limit check is intentionally omitted because an outstanding
+    /// reservation already consumed its bounded use capacity.
+    #[must_use]
+    pub fn recheck_reservation(
+        &mut self,
+        reservation: &SensitiveHandleUseReservation,
+        authority: SensitiveDataAuthority,
+        audience_id: &str,
+        now_epoch_seconds: u64,
+    ) -> HandleUseDecision {
+        if !authority.is_complete() || authority != self.scope.authority {
+            return HandleUseDecision::ScopeMismatch;
+        }
+        if !authority_identifier_is_valid(audience_id) || audience_id != self.scope.audience_id {
+            return HandleUseDecision::AudienceMismatch;
+        }
+        if self.revocation_reason.is_some() {
+            return HandleUseDecision::Revoked;
+        }
+        if !self
+            .outstanding_reservations
+            .iter()
+            .any(|candidate| candidate == reservation)
+        {
+            return HandleUseDecision::ReservationNotOutstanding;
+        }
+        if self
+            .latest_trusted_time_epoch_seconds
+            .is_some_and(|latest| now_epoch_seconds < latest)
+        {
+            return HandleUseDecision::TrustedTimeRollback;
+        }
+        self.latest_trusted_time_epoch_seconds = Some(now_epoch_seconds);
+
+        if now_epoch_seconds >= self.scope.expires_at_epoch_seconds {
+            HandleUseDecision::Expired
+        } else {
+            HandleUseDecision::Authorized
+        }
     }
 
     /// Mark one exact tracked reservation as a completed, permanently consumed use.
