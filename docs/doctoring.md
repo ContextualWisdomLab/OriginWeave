@@ -120,7 +120,7 @@ Chromium Authors. (n.d.). *Proxy support in Chrome* [Source documentation]. Chro
 
 Chromium Authors. (2026). *URL canonicalizer unit tests* [Source code]. Chromium. https://chromium.googlesource.com/chromium/src/+/446d05d21720f0b3505ec21057b3e9f909784262/url/url_canon_unittest.cc
 
-Cooper, D., Santesson, S., Farrell, S., Boeyen, R., Housley, R., & Polk, W. (2008). *Internet X.509 public key infrastructure certificate and certificate revocation list (CRL) profile* (RFC 5280). Internet Engineering Task Force. https://doi.org/10.17487/RFC5280
+Cooper, D., Santesson, S., Farrell, S., Boeyen, S., Housley, R., & Polk, W. (2008). *Internet X.509 public key infrastructure certificate and certificate revocation list (CRL) profile* (RFC 5280). Internet Engineering Task Force. https://doi.org/10.17487/RFC5280
 
 Cotton, M., Vegoda, L., Bonica, R., & Haberman, B. (2013). *Special-purpose IP address registries* (RFC 6890). Internet Engineering Task Force. https://doi.org/10.17487/RFC6890
 
