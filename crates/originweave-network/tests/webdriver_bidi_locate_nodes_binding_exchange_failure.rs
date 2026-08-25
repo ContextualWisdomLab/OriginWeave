@@ -180,10 +180,12 @@ fn live_binding_wrapper_fails_closed_when_wire_exchange_fails_before_binding()
 
     assert!(matches!(
         error,
-        Err(WebDriverBiDiLocateNodesExchangeError::UnexpectedResponseFrame {
-            fin: true,
-            opcode: 0x2,
-        })
+        Err(
+            WebDriverBiDiLocateNodesExchangeError::UnexpectedResponseFrame {
+                fin: true,
+                opcode: 0x2,
+            }
+        )
     ));
     let command = server.join().map_err(|_| "test server panicked")??;
     assert_eq!(command, locate_nodes_command()?.as_json().as_bytes());
