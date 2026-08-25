@@ -264,9 +264,11 @@ impl HandleUseRequest {
 /// operation. A successful reservation compares the exact authority, exact
 /// non-transferable audience, trusted time, expiry, revocation state, and current
 /// count and then increments the count while the caller holds an exclusive mutable
-/// borrow of this state. The state also remembers the latest trusted time it has
-/// observed and rejects time rollback so an expired handle cannot regain authority
-/// from a stale clock value. Denied reservations never consume a use.
+/// borrow of this state. The state remembers the latest trusted time observed for
+/// its exact authority-and-audience binding and rejects time rollback so an expired
+/// handle cannot regain authority from a stale clock value. Binding-mismatched
+/// requests cannot read or mutate that floor. Denied reservations never consume a
+/// use.
 ///
 /// This is a policy-state primitive, not the trusted broker itself. It contains
 /// neither the opaque handle token nor protected data and provides no authenticated
@@ -324,14 +326,14 @@ impl SensitiveHandleUseState {
     ///
     /// The audience must be derived by the trusted broker from authenticated caller
     /// identity, and the supplied time must come from the broker's trusted clock and
-    /// may not move backward relative to an earlier reservation attempt on this state.
-    /// Exact authority and audience binding are evaluated before lifecycle state so a
-    /// caller outside either binding receives only `ScopeMismatch` or
-    /// `AudienceMismatch`, not revocation or trusted-time state. For a correctly
-    /// bound caller, revocation remains terminal and precedes rollback, expiry, and
-    /// use-limit results. A non-rollback trusted time is recorded for downstream
-    /// nonterminal policy denials, while every denial leaves the authoritative count
-    /// unchanged.
+    /// may not move backward relative to an earlier exact-binding reservation
+    /// attempt on this state. Exact authority and audience binding are evaluated
+    /// before lifecycle state; a caller outside either binding receives only
+    /// `ScopeMismatch` or `AudienceMismatch` and cannot read or advance revocation
+    /// or trusted-time state. For a correctly bound caller, revocation remains
+    /// terminal and precedes rollback, expiry, and use-limit results. A non-rollback
+    /// trusted time is recorded for downstream nonterminal policy denials, while
+    /// every denial leaves the authoritative count unchanged.
     #[must_use]
     pub fn reserve_use(
         &mut self,
@@ -350,12 +352,6 @@ impl SensitiveHandleUseState {
             policy_decision,
             HandleUseDecision::ScopeMismatch | HandleUseDecision::AudienceMismatch
         ) {
-            if self
-                .latest_trusted_time_epoch_seconds
-                .is_none_or(|latest| now_epoch_seconds >= latest)
-            {
-                self.latest_trusted_time_epoch_seconds = Some(now_epoch_seconds);
-            }
             return policy_decision;
         }
 
