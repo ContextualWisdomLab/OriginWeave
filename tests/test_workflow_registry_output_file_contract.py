@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import json
 import os
 import pathlib
@@ -159,6 +160,78 @@ class WorkflowRegistryOutputFileContractTests(unittest.TestCase):
                 self.assertEqual(main([str(source), "--output", str(output)]), 1)
 
             self.assertFalse(output.exists())
+
+    def test_interrupted_staging_cleanup_is_retried_without_false_failure(self) -> None:
+        """One interrupted private-link cleanup must not turn a completed publish into failure."""
+
+        main = self._main()
+        real_unlink = os.unlink
+        interrupted = False
+
+        with tempfile.TemporaryDirectory(prefix="originweave-workflow-output-") as directory:
+            root = pathlib.Path(directory)
+            source = root / "registry.json"
+            source.write_text(json.dumps(_payload()), encoding="utf-8")
+            output = root / "audit.json"
+
+            def interrupt_first_published_staging_unlink(
+                path: str | bytes, *args, **kwargs
+            ) -> None:
+                nonlocal interrupted
+                if (
+                    not interrupted
+                    and output.exists()
+                    and isinstance(path, str)
+                    and path.startswith(".originweave-audit-")
+                ):
+                    interrupted = True
+                    raise InterruptedError(errno.EINTR, "simulated interrupted cleanup")
+                real_unlink(path, *args, **kwargs)
+
+            with unittest.mock.patch(
+                "os.unlink", side_effect=interrupt_first_published_staging_unlink
+            ):
+                self.assertEqual(main([str(source), "--output", str(output)]), 0)
+
+            self.assertTrue(interrupted)
+            self.assertTrue(output.is_file())
+            self.assertEqual(output.stat().st_nlink, 1)
+
+    def test_failed_staging_cleanup_rolls_back_published_output_for_safe_retry(self) -> None:
+        """A reported cleanup failure must not leave a canonical output that blocks retry."""
+
+        main = self._main()
+        real_unlink = os.unlink
+        failed_once = False
+
+        with tempfile.TemporaryDirectory(prefix="originweave-workflow-output-") as directory:
+            root = pathlib.Path(directory)
+            source = root / "registry.json"
+            source.write_text(json.dumps(_payload()), encoding="utf-8")
+            output = root / "audit.json"
+
+            def fail_first_published_staging_unlink(path: str | bytes, *args, **kwargs) -> None:
+                nonlocal failed_once
+                if (
+                    not failed_once
+                    and output.exists()
+                    and isinstance(path, str)
+                    and path.startswith(".originweave-audit-")
+                ):
+                    failed_once = True
+                    raise OSError(errno.EIO, "simulated staging cleanup failure")
+                real_unlink(path, *args, **kwargs)
+
+            with unittest.mock.patch(
+                "os.unlink", side_effect=fail_first_published_staging_unlink
+            ):
+                self.assertEqual(main([str(source), "--output", str(output)]), 1)
+
+            self.assertTrue(failed_once)
+            self.assertFalse(output.exists())
+            self.assertEqual(main([str(source), "--output", str(output)]), 0)
+            self.assertTrue(output.is_file())
+            self.assertEqual(output.stat().st_nlink, 1)
 
 
 if __name__ == "__main__":
