@@ -5,19 +5,22 @@
 //! contains no captured payload, source URL, source locator, credential, browser authority,
 //! persistence authority, retention decision, signature, or release authority.
 
-use std::{collections::BTreeMap, fmt};
+use std::{collections::BTreeMap, collections::BTreeSet, fmt};
 
 use sha2::{Digest, Sha256};
 
 use crate::{
     ExtractionCardinality, ExtractionNormalizationRule, ExtractionSchema, ExtractionSourceChannel,
-    ExtractionValueType, WarcProvBundle, WarcProvBundleVerificationError, WarcResourceRecord,
+    ExtractionValueType, MAX_EXTRACTION_IDENTIFIER_BYTES, WarcProvBundle,
+    WarcProvBundleVerificationError, WarcResourceRecord,
 };
 
 /// Version of the deterministic OriginWeave capture-manifest serialization contract.
 pub const CAPTURE_MANIFEST_VERSION: u16 = 1;
 /// Maximum number of WARC/PROV pairs admitted by one capture manifest.
 pub const MAX_CAPTURE_MANIFEST_RECORDS: usize = 256;
+/// Maximum number of structured-value digest bindings admitted by one capture manifest.
+pub const MAX_CAPTURE_MANIFEST_VALUES: usize = 1_024;
 
 /// A validation failure while constructing one deterministic capture manifest.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -32,6 +35,24 @@ pub enum CaptureManifestError {
     BundleMismatch(WarcProvBundleVerificationError),
     /// Supplied PROV bundles referred to different OriginWeave software revisions.
     SoftwareRevisionMismatch,
+    /// The number of structured values exceeded the bounded manifest limit.
+    ValueLimitExceeded,
+    /// A structured-value field identifier did not use the extraction-schema identifier grammar.
+    InvalidValueField,
+    /// A structured-value digest was not a canonical lowercase SHA-256 identifier.
+    InvalidValueDigest,
+    /// A structured-value field was not declared by the bound extraction schema.
+    UnknownValueField,
+    /// A structured value referenced a WARC record absent from the manifest.
+    ValueSourceRecordMissing,
+    /// A structured value used WARC evidence for a field that did not admit network-response evidence.
+    ValueSourceChannelMismatch,
+    /// The same field, value digest, and source WARC record were supplied more than once.
+    DuplicateValue,
+    /// A structured-value field exceeded its declared extraction cardinality.
+    ValueCardinalityExceeded,
+    /// A required extraction field had no structured-value binding.
+    RequiredValueMissing,
 }
 
 impl fmt::Display for CaptureManifestError {
@@ -50,6 +71,30 @@ impl fmt::Display for CaptureManifestError {
             Self::SoftwareRevisionMismatch => formatter.write_str(
                 "capture manifest records do not share one OriginWeave software revision",
             ),
+            Self::ValueLimitExceeded => {
+                formatter.write_str("capture manifest structured-value limit exceeded")
+            }
+            Self::InvalidValueField => {
+                formatter.write_str("capture manifest structured-value field is invalid")
+            }
+            Self::InvalidValueDigest => formatter
+                .write_str("capture manifest structured-value digest is not canonical SHA-256"),
+            Self::UnknownValueField => formatter
+                .write_str("capture manifest structured-value field is absent from the schema"),
+            Self::ValueSourceRecordMissing => formatter.write_str(
+                "capture manifest structured value references an absent WARC record",
+            ),
+            Self::ValueSourceChannelMismatch => formatter.write_str(
+                "capture manifest structured value is not admitted by the field source channels",
+            ),
+            Self::DuplicateValue => {
+                formatter.write_str("capture manifest contains a duplicate structured value")
+            }
+            Self::ValueCardinalityExceeded => formatter
+                .write_str("capture manifest structured value exceeds field cardinality"),
+            Self::RequiredValueMissing => {
+                formatter.write_str("capture manifest is missing a required structured value")
+            }
         }
     }
 }
@@ -61,7 +106,16 @@ impl std::error::Error for CaptureManifestError {
             Self::MissingRecord
             | Self::LimitExceeded
             | Self::DuplicateRecord
-            | Self::SoftwareRevisionMismatch => None,
+            | Self::SoftwareRevisionMismatch
+            | Self::ValueLimitExceeded
+            | Self::InvalidValueField
+            | Self::InvalidValueDigest
+            | Self::UnknownValueField
+            | Self::ValueSourceRecordMissing
+            | Self::ValueSourceChannelMismatch
+            | Self::DuplicateValue
+            | Self::ValueCardinalityExceeded
+            | Self::RequiredValueMissing => None,
         }
     }
 }
@@ -128,6 +182,57 @@ impl CaptureManifestRecord {
     }
 }
 
+/// Payload-free binding from one schema field digest to its exact source WARC record.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct CaptureManifestValueBinding {
+    field_name: String,
+    value_digest: String,
+    source_warc_record_id: String,
+}
+
+impl CaptureManifestValueBinding {
+    /// Validate one credential-safe structured-value identity binding.
+    ///
+    /// The binding carries only a schema field identifier, canonical value digest, and WARC record
+    /// identifier. The referenced record and field authority are validated when the binding is
+    /// admitted into a [`CaptureManifest`]. Raw extracted values are never stored here.
+    pub fn new(
+        field_name: &str,
+        value_digest: &str,
+        source_warc_record_id: &str,
+    ) -> Result<Self, CaptureManifestError> {
+        if !valid_value_field_name(field_name) {
+            return Err(CaptureManifestError::InvalidValueField);
+        }
+        if !valid_sha256(value_digest) {
+            return Err(CaptureManifestError::InvalidValueDigest);
+        }
+        Ok(Self {
+            field_name: field_name.to_owned(),
+            value_digest: value_digest.to_owned(),
+            source_warc_record_id: source_warc_record_id.to_owned(),
+        })
+    }
+
+    /// Return the extraction-schema field identifier.
+    #[must_use]
+    pub fn field_name(&self) -> &str {
+        &self.field_name
+    }
+
+    /// Return the canonical lowercase SHA-256 digest of the extracted value bytes.
+    #[must_use]
+    pub fn value_digest(&self) -> &str {
+        &self.value_digest
+    }
+
+    /// Return the exact WARC record identifier that supplied this value.
+    #[must_use]
+    pub fn source_warc_record_id(&self) -> &str {
+        &self.source_warc_record_id
+    }
+}
+
 /// Deterministic payload-free identity binding a schema to exact WARC/PROV capture evidence.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CaptureManifest {
@@ -136,16 +241,19 @@ pub struct CaptureManifest {
     schema_digest: String,
     software_commit_sha: String,
     records: Vec<CaptureManifestRecord>,
+    values: Vec<CaptureManifestValueBinding>,
 }
 
 impl CaptureManifest {
-    /// Construct one bounded deterministic capture manifest.
+    /// Construct one bounded deterministic evidence-only capture manifest.
     ///
     /// Every supplied PROV bundle must verify the paired WARC record exactly and all pairs must
     /// name the same canonical OriginWeave software revision. Caller order is not identity:
     /// records are canonicalized by WARC record identifier before serialization and comparison.
-    /// This constructor performs no capture, network, browser, persistence, model, signing, or
-    /// authorization operation.
+    /// This low-level constructor does not assert that required extraction fields have values;
+    /// use [`Self::new_with_warc_values`] for a schema-conforming structured-result manifest.
+    /// It performs no capture, network, browser, persistence, model, signing, or authorization
+    /// operation.
     pub fn new(
         schema: &ExtractionSchema,
         records: &[(&WarcResourceRecord, &WarcProvBundle)],
@@ -186,7 +294,81 @@ impl CaptureManifest {
             schema_digest: extraction_schema_digest(schema),
             software_commit_sha: software_commit_sha.to_owned(),
             records: canonical_records.into_values().collect(),
+            values: Vec::new(),
         })
+    }
+
+    /// Construct a schema-conforming manifest with WARC-backed structured-value identities.
+    ///
+    /// Every value must name a declared schema field that admits network-response evidence and an
+    /// exact WARC record present in this manifest. Required fields must be present; `One` and
+    /// `ZeroOrOne` fields admit at most one value. Duplicate bindings and over-limit collections
+    /// fail closed. Values are canonicalized independently of caller order. No raw extracted value
+    /// is retained and no browser, network, persistence, secret, model, or authorization operation
+    /// is performed.
+    pub fn new_with_warc_values(
+        schema: &ExtractionSchema,
+        records: &[(&WarcResourceRecord, &WarcProvBundle)],
+        values: &[CaptureManifestValueBinding],
+    ) -> Result<Self, CaptureManifestError> {
+        let mut manifest = Self::new(schema, records)?;
+        if values.len() > MAX_CAPTURE_MANIFEST_VALUES {
+            return Err(CaptureManifestError::ValueLimitExceeded);
+        }
+
+        let mut seen_values = BTreeSet::new();
+        let mut field_counts: BTreeMap<&str, usize> = BTreeMap::new();
+        for value in values {
+            let Some(field) = schema.field(value.field_name()) else {
+                return Err(CaptureManifestError::UnknownValueField);
+            };
+            if !manifest
+                .records
+                .iter()
+                .any(|record| record.warc_record_id() == value.source_warc_record_id())
+            {
+                return Err(CaptureManifestError::ValueSourceRecordMissing);
+            }
+            if !field
+                .source_channels()
+                .contains(&ExtractionSourceChannel::NetworkResponse)
+            {
+                return Err(CaptureManifestError::ValueSourceChannelMismatch);
+            }
+            if !seen_values.insert((
+                value.field_name(),
+                value.value_digest(),
+                value.source_warc_record_id(),
+            )) {
+                return Err(CaptureManifestError::DuplicateValue);
+            }
+
+            let count = field_counts.entry(value.field_name()).or_default();
+            *count += 1;
+            if *count > 1
+                && matches!(
+                    field.cardinality(),
+                    ExtractionCardinality::One | ExtractionCardinality::ZeroOrOne
+                )
+            {
+                return Err(CaptureManifestError::ValueCardinalityExceeded);
+            }
+        }
+
+        if schema.fields().iter().any(|field| {
+            field.required()
+                && field_counts
+                    .get(field.identifier())
+                    .copied()
+                    .unwrap_or_default()
+                    == 0
+        }) {
+            return Err(CaptureManifestError::RequiredValueMissing);
+        }
+
+        manifest.values = values.to_vec();
+        manifest.values.sort();
+        Ok(manifest)
     }
 
     /// Return the capture-manifest serialization-contract version.
@@ -219,6 +401,12 @@ impl CaptureManifest {
         &self.records
     }
 
+    /// Return structured-value identities in canonical field/digest/source-record order.
+    #[must_use]
+    pub fn values(&self) -> &[CaptureManifestValueBinding] {
+        &self.values
+    }
+
     /// Serialize the manifest deterministically without captured payloads or source locations.
     #[must_use]
     pub fn to_json(&self) -> String {
@@ -233,13 +421,25 @@ impl CaptureManifest {
             })
             .collect::<Vec<_>>()
             .join(",");
+        let values = self
+            .values
+            .iter()
+            .map(|value| {
+                format!(
+                    "{{\"fieldName\":\"{}\",\"valueDigest\":\"{}\",\"sourceWarcRecordId\":\"{}\"}}",
+                    value.field_name, value.value_digest, value.source_warc_record_id
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",");
         format!(
-            "{{\"manifestVersion\":{},\"schemaVersion\":\"{}\",\"schemaDigest\":\"{}\",\"softwareCommitSha\":\"{}\",\"records\":[{}]}}",
+            "{{\"manifestVersion\":{},\"schemaVersion\":\"{}\",\"schemaDigest\":\"{}\",\"softwareCommitSha\":\"{}\",\"records\":[{}],\"values\":[{}]}}",
             self.version,
             self.schema_version,
             self.schema_digest,
             self.software_commit_sha,
-            records
+            records,
+            values
         )
     }
 
@@ -267,7 +467,7 @@ impl CaptureManifest {
         }
     }
 
-    /// Reconstruct a candidate manifest offline and require exact immutable identity equality.
+    /// Reconstruct a candidate evidence-only manifest and require exact immutable identity equality.
     ///
     /// Malformed candidate inputs remain distinguishable from a valid-but-different manifest.
     /// Verification performs no network, browser, persistence, model, signing, or authority action.
@@ -284,6 +484,47 @@ impl CaptureManifest {
             Err(CaptureManifestVerificationError::IdentityMismatch)
         }
     }
+
+    /// Reconstruct a candidate WARC-backed structured-result manifest and require exact identity.
+    ///
+    /// Candidate schema, WARC/PROV evidence, field admission, cardinality, requiredness, source
+    /// identity, and value digests are all revalidated before immutable manifest equality is tested.
+    pub fn verify_with_warc_values(
+        &self,
+        schema: &ExtractionSchema,
+        records: &[(&WarcResourceRecord, &WarcProvBundle)],
+        values: &[CaptureManifestValueBinding],
+    ) -> Result<(), CaptureManifestVerificationError> {
+        let candidate = Self::new_with_warc_values(schema, records, values)
+            .map_err(CaptureManifestVerificationError::InvalidCandidate)?;
+        if candidate == *self {
+            Ok(())
+        } else {
+            Err(CaptureManifestVerificationError::IdentityMismatch)
+        }
+    }
+}
+
+fn valid_value_field_name(field_name: &str) -> bool {
+    if field_name.len() > MAX_EXTRACTION_IDENTIFIER_BYTES {
+        return false;
+    }
+    let mut bytes = field_name.bytes();
+    let Some(first) = bytes.next() else {
+        return false;
+    };
+    first.is_ascii_lowercase()
+        && bytes.all(|byte| matches!(byte, b'a'..=b'z' | b'0'..=b'9' | b'_' | b'-'))
+}
+
+fn valid_sha256(value_digest: &str) -> bool {
+    let Some(hex_digest) = value_digest.strip_prefix("sha256:") else {
+        return false;
+    };
+    hex_digest.len() == 64
+        && hex_digest
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 fn extraction_schema_digest(schema: &ExtractionSchema) -> String {
