@@ -794,7 +794,10 @@ def _write_output(path: pathlib.Path, serialized: str) -> None:
         descriptor: int | None = None
         try:
             descriptor = _open_output_descriptor(path, False)
-            opened_stat = os.fstat(descriptor)
+            try:
+                opened_stat = os.fstat(descriptor)
+            except OSError as error:
+                raise WorkflowAuditError("output could not be inspected safely") from error
             if not stat.S_ISREG(opened_stat.st_mode):
                 raise WorkflowAuditError("output must be a regular file")
             if opened_stat.st_nlink != 1:
