@@ -55,6 +55,59 @@ class ReleaseSpdxJsonLdParentSwapContractTests(unittest.TestCase):
 
             self.assertEqual(captured.exception.code, "invalid_file_type")
 
+    @unittest.skipUnless(hasattr(os, "link"), "requires hard links")
+    def test_parent_swap_after_post_read_identity_probe_fails_closed(self) -> None:
+        """A final leaf check must not outlive its admitted parent identity."""
+
+        namespace = runpy.run_path(
+            str(VALIDATOR), run_name="spdx_parent_post_read_swap_contract"
+        )
+        read_bounded = namespace["_read_bounded"]
+        envelope_error = namespace["SpdxJsonLdEnvelopeError"]
+        original_parent_identities = namespace["_direct_parent_identities"]
+
+        with tempfile.TemporaryDirectory(
+            prefix="originweave-spdx-parent-post-read-swap-"
+        ) as directory:
+            root = pathlib.Path(directory)
+            direct_directory = root / "direct"
+            direct_directory.mkdir()
+            replacement_directory = root / "replacement"
+            replacement_directory.mkdir()
+            parked_directory = root / "direct-parked"
+
+            direct_candidate = direct_directory / "candidate.spdx.jsonld"
+            direct_candidate.write_bytes(b"stable-release-sbom-bytes")
+            replacement_candidate = replacement_directory / direct_candidate.name
+            os.link(direct_candidate, replacement_candidate)
+
+            probe_count = 0
+            swapped = False
+
+            def swap_after_post_read_probe(path: pathlib.Path) -> tuple[tuple[int, int], ...]:
+                nonlocal probe_count, swapped
+                identities = original_parent_identities(path)
+                probe_count += 1
+                if probe_count == 3:
+                    direct_directory.rename(parked_directory)
+                    replacement_directory.rename(direct_directory)
+                    swapped = True
+                return identities
+
+            read_bounded.__globals__["_direct_parent_identities"] = swap_after_post_read_probe
+            try:
+                with self.assertRaises(envelope_error) as captured:
+                    read_bounded(direct_candidate)
+            finally:
+                read_bounded.__globals__["_direct_parent_identities"] = (
+                    original_parent_identities
+                )
+                if swapped:
+                    direct_directory.rename(replacement_directory)
+                    parked_directory.rename(direct_directory)
+
+            self.assertEqual(captured.exception.code, "invalid_file_type")
+
 
 if __name__ == "__main__":
     unittest.main()
