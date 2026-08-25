@@ -426,6 +426,8 @@ fn extend_wireguard_dns(
     for item in items {
         if item.parse::<std::net::IpAddr>().is_ok() {
             new_servers.push(item);
+        } else if looks_like_ambiguous_ipv4_host(&item) {
+            return Err(ProfileError::InvalidValue);
         } else if validate_dns_hostname(&item) {
             new_search_domains.push(item);
         } else {
@@ -475,7 +477,8 @@ fn validate_gateway_host(value: &str) -> Result<&str, ProfileError> {
 fn validate_ike_identity(value: &str) -> Result<&str, ProfileError> {
     if value.len() > MAX_IKE_IDENTITY_BYTES
         || value.chars().any(|character| {
-            character.is_control()
+            character.is_whitespace()
+                || character.is_control()
                 || matches!(
                     character,
                     '\u{00ad}'
