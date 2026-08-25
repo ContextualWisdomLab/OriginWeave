@@ -204,6 +204,66 @@ fn consumed_approval_use_expires_before_policy_evaluation() {
 }
 
 #[test]
+fn observed_request_expiry_invalidates_an_issued_use_against_backdated_evaluation() {
+    let approval_scope = scope();
+    let mut approval =
+        EnterpriseApprovalRequest::new(approval_scope.clone(), principal("maker"), 100, 200, 2)
+            .expect("approval request must be valid");
+    approval
+        .approve(principal("checker"), 110)
+        .expect("distinct checker must approve");
+
+    let approval_use = approval
+        .consume(&approval_scope, 120)
+        .expect("first bounded use must be issued while approval remains active");
+    assert_eq!(approval.state(), ApprovalLifecycleState::Approved);
+    assert_eq!(
+        approval.consume(&approval_scope, 200),
+        Err(ApprovalLifecycleError::Expired)
+    );
+    assert_eq!(approval.state(), ApprovalLifecycleState::Expired);
+
+    assert_eq!(
+        approval_use.evaluate_at(
+            &purchase_request(),
+            &policy_context(BTreeSet::from([Capability::Purchase])),
+            150,
+        ),
+        Err(ApprovalLifecycleError::Expired)
+    );
+}
+
+#[test]
+fn expiry_observed_during_revocation_invalidates_an_issued_use() {
+    let approval_scope = scope();
+    let checker = principal("checker");
+    let mut approval =
+        EnterpriseApprovalRequest::new(approval_scope.clone(), principal("maker"), 100, 200, 2)
+            .expect("approval request must be valid");
+    approval
+        .approve(checker.clone(), 110)
+        .expect("distinct checker must approve");
+
+    let approval_use = approval
+        .consume(&approval_scope, 120)
+        .expect("first bounded use must be issued while approval remains active");
+    assert_eq!(
+        approval.revoke(&checker, 200),
+        Err(ApprovalLifecycleError::Expired)
+    );
+    assert_eq!(approval.state(), ApprovalLifecycleState::Expired);
+
+    assert_eq!(
+        approval_use.evaluate_at(
+            &purchase_request(),
+            &policy_context(BTreeSet::from([Capability::Purchase])),
+            150,
+        ),
+        Err(ApprovalLifecycleError::Expired)
+    );
+}
+
+#[test]
 fn consumed_approval_use_rejects_trusted_time_rollback() {
     let approval_scope = scope();
     let mut approval =
