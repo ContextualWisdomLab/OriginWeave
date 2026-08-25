@@ -25,10 +25,10 @@ An Accepted ADR is **design authority, not implementation evidence**. Protected-
 | [0005](0005-direct-socket-binding.md) | Exact direct TCP peer binding | Accepted | explicit socket authority and operating-system peer proof |
 | [0006](0006-tls-server-identity.md) | TLS service identity over the verified peer | Accepted | WebPKI identity, roots, time, ALPN and stream binding |
 | [0007](0007-purpose-bound-sensitive-data-authority.md) | Purpose-bound sensitive-data authority | Accepted | tenant/task/field/purpose/destination/classification disclosure authority |
-
-ADR 0004 and ADR 0006 now carry APA 7th locators for the IANA special-purpose registries, RFC 6890, RFC 9110, RFC 5280, RFC 9846, and RFC 9525 already named in those decisions.
 | [0008](0008-leaf-validity-horizon.md) | Delegated-task TLS leaf-validity horizon | Accepted | minimum certificate-validity horizon for bounded delegated tasks |
 | [0010](0010-session-context-bound-node-authority.md) | Session/context-bound node authority | Accepted | browser-session, browsing-context, origin, document-epoch and stale-node authority |
+
+ADR 0004 and ADR 0006 now carry APA 7th locators for the IANA special-purpose registries, RFC 6890, RFC 9110, RFC 5280, RFC 9846, and RFC 9525 already named in those decisions.
 
 ## Proposed architecture decisions
 
