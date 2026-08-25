@@ -361,17 +361,21 @@ impl EnterpriseApprovalRequest {
 
     /// Consume one use of an approved request for the exact immutable scope.
     ///
-    /// `now_epoch_seconds` must be trusted control-plane time. Scope mismatch
-    /// does not consume a use. Successful consumption returns a non-cloneable
-    /// [`EnterpriseApprovalUse`] that retains the consumption time, expiry
-    /// deadline, and a shared monotonic revocation signal for a second
-    /// validity check immediately before policy evaluation rather than
+    /// `now_epoch_seconds` must be trusted control-plane time. Exact scope is
+    /// validated before lifecycle or trusted-time state, so a mismatched scope
+    /// neither reveals nor mutates those states. Successful consumption returns
+    /// a non-cloneable [`EnterpriseApprovalUse`] that retains the consumption
+    /// time, expiry deadline, and a shared monotonic revocation signal for a
+    /// second validity check immediately before policy evaluation rather than
     /// replayable approval evidence.
     pub fn consume(
         &mut self,
         required_scope: &ApprovalScope,
         now_epoch_seconds: u64,
     ) -> Result<EnterpriseApprovalUse, ApprovalLifecycleError> {
+        if required_scope != &self.scope {
+            return Err(ApprovalLifecycleError::ScopeMismatch);
+        }
         if self.state != ApprovalLifecycleState::Approved {
             return Err(ApprovalLifecycleError::InvalidState(self.state));
         }
@@ -380,9 +384,6 @@ impl EnterpriseApprovalRequest {
             self.last_transition_at_epoch_seconds = now_epoch_seconds;
             self.state = ApprovalLifecycleState::Expired;
             return Err(ApprovalLifecycleError::Expired);
-        }
-        if required_scope != &self.scope {
-            return Err(ApprovalLifecycleError::ScopeMismatch);
         }
         self.uses_consumed += 1;
         self.last_transition_at_epoch_seconds = now_epoch_seconds;
