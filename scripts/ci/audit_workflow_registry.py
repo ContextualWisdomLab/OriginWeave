@@ -854,9 +854,15 @@ def _write_output(path: pathlib.Path, serialized: str) -> None:
                 destination.flush()
                 os.fsync(destination.fileno())
         except OSError as error:
-            _unlink_matching_staging(parent_fd, staging_name, staging_identity)
+            primary_error = WorkflowAuditError("output path is not writable")
+            try:
+                _unlink_matching_staging(parent_fd, staging_name, staging_identity)
+            except WorkflowAuditError as cleanup_error:
+                primary_error.add_note(
+                    f"output staging cleanup also failed: {cleanup_error}"
+                )
             staging_name = None
-            raise WorkflowAuditError("output path is not writable") from error
+            raise primary_error from error
 
         staged_stat = _stat_output_leaf(parent_fd, staging_name)
         if staged_stat is None or (
@@ -926,14 +932,12 @@ def _write_output(path: pathlib.Path, serialized: str) -> None:
     finally:
         if descriptor is not None:
             os.close(descriptor)
-        if (
-            parent_fd is not None
-            and staging_name is not None
-            and staging_identity is not None
-        ):
-            _unlink_matching_staging(parent_fd, staging_name, staging_identity)
         if parent_fd is not None:
-            os.close(parent_fd)
+            try:
+                if staging_name is not None and staging_identity is not None:
+                    _unlink_matching_staging(parent_fd, staging_name, staging_identity)
+            finally:
+                os.close(parent_fd)
 
 
 def main(argv: list[str] | None = None) -> int:
