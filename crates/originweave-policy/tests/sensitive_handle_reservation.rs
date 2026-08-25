@@ -106,3 +106,22 @@ fn scope_mismatch_does_not_expose_trusted_time_rollback_state() {
     );
     assert_eq!(state.reserved_uses(), 1);
 }
+
+#[test]
+fn scope_mismatch_cannot_poison_the_trusted_time_floor() {
+    let mut state = SensitiveHandleUseState::new(scope(2));
+
+    assert_eq!(
+        state.reserve_use(authority(DESTINATION), 1_990),
+        HandleUseDecision::Authorized
+    );
+    assert_eq!(
+        state.reserve_use(authority("https://other.example"), 9_999),
+        HandleUseDecision::ScopeMismatch
+    );
+    assert_eq!(
+        state.reserve_use(authority(DESTINATION), 1_991),
+        HandleUseDecision::Authorized
+    );
+    assert_eq!(state.reserved_uses(), 2);
+}
