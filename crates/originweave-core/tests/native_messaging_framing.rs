@@ -40,14 +40,12 @@ fn native_messaging_frame_round_trip_uses_native_u32_byte_length() -> Result<(),
 #[test]
 fn native_messaging_stream_reader_round_trips_one_bounded_payload() -> Result<(), Box<dyn Error>> {
     let payload = b"{\"message\":\"bounded\"}";
-    let frame = encode_native_messaging_frame(NativeMessagingFrameDirection::HostToBrowser, payload)?;
+    let frame =
+        encode_native_messaging_frame(NativeMessagingFrameDirection::HostToBrowser, payload)?;
     let mut reader = Cursor::new(frame);
 
     assert_eq!(
-        read_native_messaging_payload(
-            NativeMessagingFrameDirection::HostToBrowser,
-            &mut reader,
-        )?,
+        read_native_messaging_payload(NativeMessagingFrameDirection::HostToBrowser, &mut reader,)?,
         payload
     );
     assert_eq!(reader.position(), payload.len() as u64 + 4);
@@ -60,10 +58,7 @@ fn native_messaging_stream_reader_rejects_oversized_prefix_before_reading_payloa
     let mut reader = Cursor::new(oversized);
 
     assert!(matches!(
-        read_native_messaging_payload(
-            NativeMessagingFrameDirection::HostToBrowser,
-            &mut reader,
-        ),
+        read_native_messaging_payload(NativeMessagingFrameDirection::HostToBrowser, &mut reader,),
         Err(NativeMessagingFrameReadError::Frame(
             NativeMessagingFrameError::PayloadTooLarge
         ))
