@@ -14,7 +14,9 @@ use crate::sensitive_access::{
 ///
 /// The embedded access receipt binds the lifecycle to the tenant, actor, task,
 /// field set, purpose, destination, classification, policy version, and exact
-/// opaque-handle authorization without carrying protected values.
+/// opaque-handle authorization without carrying protected values. When the access
+/// receipt carries a retention deadline, the handle must expire no later than
+/// that deadline so derived opaque authority cannot outlive its governing receipt.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SensitiveHandleLifecycleEvidenceInput {
     /// Credential-free access receipt that authorized this opaque handle.
@@ -22,6 +24,9 @@ pub struct SensitiveHandleLifecycleEvidenceInput {
     /// Trusted Unix epoch second when the handle was issued.
     pub issued_epoch_seconds: u64,
     /// Trusted Unix epoch second after which the handle is no longer valid.
+    ///
+    /// When the retained access receipt defines a retention deadline, this value
+    /// may equal but must not exceed that deadline.
     pub expires_epoch_seconds: u64,
     /// Maximum number of broker resolutions authorized for the handle.
     pub maximum_uses: u32,
@@ -39,6 +44,7 @@ pub struct SensitiveHandleLifecycleEvidenceInput {
 /// The value retains the exact credential-free sensitive-access receipt that
 /// authorized opaque-handle use, but deliberately excludes both the opaque
 /// handle token and the secret or protected value that the broker can resolve.
+/// Any receipt retention deadline also bounds the derived handle lifetime.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SensitiveHandleLifecycleEvidence {
     access_evidence: SensitiveAccessEvidence,
@@ -57,6 +63,10 @@ impl TryFrom<SensitiveHandleLifecycleEvidenceInput> for SensitiveHandleLifecycle
             || input.issued_epoch_seconds == 0
             || input.issued_epoch_seconds < input.access_evidence.decision_epoch_seconds()
             || input.expires_epoch_seconds <= input.issued_epoch_seconds
+            || input
+                .access_evidence
+                .retention_deadline_epoch_seconds()
+                .is_some_and(|deadline| input.expires_epoch_seconds > deadline)
             || input.maximum_uses == 0
             || input.resolution_count > input.maximum_uses
             || input.revoked_epoch_seconds.is_some_and(|revoked| {
