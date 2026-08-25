@@ -325,11 +325,13 @@ impl SensitiveHandleUseState {
     /// The audience must be derived by the trusted broker from authenticated caller
     /// identity, and the supplied time must come from the broker's trusted clock and
     /// may not move backward relative to an earlier reservation attempt on this state.
-    /// Revocation is authoritative and is checked before later request details so a
-    /// revoked handle cannot expose whether a different scope, audience, expiry, or
-    /// use-limit condition would otherwise have matched. A non-rollback trusted time
-    /// is recorded even when another policy check denies the reservation, while every
-    /// denial leaves the authoritative count unchanged.
+    /// Exact authority and audience binding are evaluated before lifecycle state so a
+    /// caller outside either binding receives only `ScopeMismatch` or
+    /// `AudienceMismatch`, not revocation or trusted-time state. For a correctly
+    /// bound caller, revocation remains terminal and precedes rollback, expiry, and
+    /// use-limit results. A non-rollback trusted time is recorded for downstream
+    /// nonterminal policy denials, while every denial leaves the authoritative count
+    /// unchanged.
     #[must_use]
     pub fn reserve_use(
         &mut self,
@@ -337,6 +339,26 @@ impl SensitiveHandleUseState {
         audience_id: &str,
         now_epoch_seconds: u64,
     ) -> HandleUseDecision {
+        let request = HandleUseRequest::new(
+            authority,
+            audience_id,
+            now_epoch_seconds,
+            self.reserved_uses,
+        );
+        let policy_decision = evaluate_handle_use(&request, &self.scope);
+        if matches!(
+            policy_decision,
+            HandleUseDecision::ScopeMismatch | HandleUseDecision::AudienceMismatch
+        ) {
+            if self
+                .latest_trusted_time_epoch_seconds
+                .is_none_or(|latest| now_epoch_seconds >= latest)
+            {
+                self.latest_trusted_time_epoch_seconds = Some(now_epoch_seconds);
+            }
+            return policy_decision;
+        }
+
         if self.revocation_reason.is_some() {
             return HandleUseDecision::Revoked;
         }
@@ -348,18 +370,10 @@ impl SensitiveHandleUseState {
         }
         self.latest_trusted_time_epoch_seconds = Some(now_epoch_seconds);
 
-        let request = HandleUseRequest::new(
-            authority,
-            audience_id,
-            now_epoch_seconds,
-            self.reserved_uses,
-        );
-        let decision = evaluate_handle_use(&request, &self.scope);
-        if decision != HandleUseDecision::Authorized {
-            return decision;
+        if policy_decision == HandleUseDecision::Authorized {
+            self.reserved_uses += 1;
         }
-        self.reserved_uses += 1;
-        HandleUseDecision::Authorized
+        policy_decision
     }
 }
 
