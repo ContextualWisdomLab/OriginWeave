@@ -38,3 +38,89 @@ fn mismatched_scope_at_expiry_does_not_disclose_or_mutate_lifecycle() {
     assert_eq!(request.state(), ApprovalLifecycleState::Approved);
     assert_eq!(request.uses_consumed(), 0);
 }
+
+#[test]
+fn mismatched_requester_at_expiry_does_not_disclose_or_mutate_lifecycle() {
+    let mut request = EnterpriseApprovalRequest::new(
+        approval_scope("https://app.example"),
+        principal("maker"),
+        100,
+        200,
+        1,
+    )
+    .expect("approval request must be valid");
+
+    assert_eq!(
+        request.withdraw(&principal("intruder"), 200),
+        Err(ApprovalLifecycleError::RequesterMismatch)
+    );
+    assert_eq!(
+        request.state(),
+        ApprovalLifecycleState::ApprovalRequested
+    );
+}
+
+#[test]
+fn mismatched_checker_at_expiry_does_not_disclose_or_mutate_lifecycle() {
+    let mut request = EnterpriseApprovalRequest::new(
+        approval_scope("https://app.example"),
+        principal("maker"),
+        100,
+        200,
+        1,
+    )
+    .expect("approval request must be valid");
+    request
+        .approve(principal("checker"), 110)
+        .expect("approval must succeed");
+
+    assert_eq!(
+        request.revoke(&principal("intruder"), 200),
+        Err(ApprovalLifecycleError::DecisionActorMismatch)
+    );
+    assert_eq!(request.state(), ApprovalLifecycleState::Approved);
+}
+
+#[test]
+fn self_approval_at_expiry_does_not_disclose_or_mutate_lifecycle() {
+    let maker = principal("maker");
+    let mut request = EnterpriseApprovalRequest::new(
+        approval_scope("https://app.example"),
+        maker.clone(),
+        100,
+        200,
+        1,
+    )
+    .expect("approval request must be valid");
+
+    assert_eq!(
+        request.approve(maker, 200),
+        Err(ApprovalLifecycleError::SelfApproval)
+    );
+    assert_eq!(
+        request.state(),
+        ApprovalLifecycleState::ApprovalRequested
+    );
+}
+
+#[test]
+fn self_denial_at_expiry_does_not_disclose_or_mutate_lifecycle() {
+    let maker = principal("maker");
+    let mut request = EnterpriseApprovalRequest::new(
+        approval_scope("https://app.example"),
+        maker.clone(),
+        100,
+        200,
+        1,
+    )
+    .expect("approval request must be valid");
+
+    assert_eq!(
+        request.deny(maker, 200),
+        Err(ApprovalLifecycleError::SelfApproval)
+    );
+    assert_eq!(
+        request.state(),
+        ApprovalLifecycleState::ApprovalRequested
+    );
+}
