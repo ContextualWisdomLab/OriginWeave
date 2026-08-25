@@ -97,7 +97,7 @@ pub enum ApprovalLifecycleState {
     Withdrawn,
     /// Every configured bounded use of the approval has been consumed.
     Consumed,
-    /// The approving checker revoked an approved, not-yet-exhausted request.
+    /// The approving checker revoked a request after approval, including after all uses were issued.
     Revoked,
 }
 
@@ -397,17 +397,22 @@ impl EnterpriseApprovalRequest {
         })
     }
 
-    /// Revoke an approved request as the exact checker that approved it.
+    /// Revoke an approved or fully-issued request as the exact checker that approved it.
     ///
     /// `now_epoch_seconds` must be trusted control-plane time. Revocation also
     /// invalidates already-consumed one-shot uses that have not yet begun their
-    /// evaluation-time validity check.
+    /// evaluation-time validity check, including an outstanding final use after
+    /// the request entered [`ApprovalLifecycleState::Consumed`]. Revocation does
+    /// not undo policy evaluations that completed before the revocation signal.
     pub fn revoke(
         &mut self,
         actor: &ApprovalPrincipalRef,
         now_epoch_seconds: u64,
     ) -> Result<(), ApprovalLifecycleError> {
-        if self.state != ApprovalLifecycleState::Approved {
+        if !matches!(
+            self.state,
+            ApprovalLifecycleState::Approved | ApprovalLifecycleState::Consumed
+        ) {
             return Err(ApprovalLifecycleError::InvalidState(self.state));
         }
         self.ensure_monotonic_transition_time(now_epoch_seconds)?;
