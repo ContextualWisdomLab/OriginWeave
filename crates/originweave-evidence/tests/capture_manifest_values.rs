@@ -1,10 +1,10 @@
 #![allow(clippy::expect_used)]
 
 use originweave_evidence::{
-    CaptureManifest, CaptureManifestError, CaptureManifestValueBinding, EvidenceSourceKind,
-    ExtractionCardinality, ExtractionField, ExtractionSchema, ExtractionSourceChannel,
-    ExtractionValueType, MAX_CAPTURE_MANIFEST_VALUES, ProvenanceRecord, VerificationResult,
-    WarcProvBundle, WarcResourceRecord,
+    CaptureManifest, CaptureManifestError, CaptureManifestValueBinding,
+    CaptureManifestVerificationError, EvidenceSourceKind, ExtractionCardinality, ExtractionField,
+    ExtractionSchema, ExtractionSourceChannel, ExtractionValueType, MAX_CAPTURE_MANIFEST_VALUES,
+    ProvenanceRecord, VerificationResult, WarcProvBundle, WarcResourceRecord,
 };
 
 const SOURCE_HASH: &str = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
@@ -95,6 +95,12 @@ fn capture_manifest_binds_required_warc_backed_structured_values() {
             std::slice::from_ref(&title),
         ),
         Ok(())
+    );
+    assert_eq!(
+        manifest.verify_with_warc_values(&schema, &[], std::slice::from_ref(&title)),
+        Err(CaptureManifestVerificationError::InvalidCandidate(
+            CaptureManifestError::MissingRecord,
+        ))
     );
 
     let json = manifest.to_json();
@@ -220,6 +226,6 @@ fn capture_manifest_value_order_is_canonical_and_verification_detects_drift() {
             &[(&record_a, &bundle_a), (&record_b, &bundle_b)],
             &[drifted_tag, tag_b, title],
         ),
-        Err(originweave_evidence::CaptureManifestVerificationError::IdentityMismatch)
+        Err(CaptureManifestVerificationError::IdentityMismatch)
     );
 }
