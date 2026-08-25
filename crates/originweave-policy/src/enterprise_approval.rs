@@ -59,7 +59,19 @@ fn principal_component_is_valid(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= MAX_PRINCIPAL_REFERENCE_BYTES
         && value.trim() == value
-        && !value.chars().any(char::is_control)
+        && !value
+            .chars()
+            .any(|character| character.is_control() || is_bidi_control(character))
+}
+
+fn is_bidi_control(character: char) -> bool {
+    matches!(
+        character,
+        '\u{061c}'
+            | '\u{200e}'..='\u{200f}'
+            | '\u{202a}'..='\u{202e}'
+            | '\u{2066}'..='\u{2069}'
+    )
 }
 
 /// A validation error for an enterprise principal reference.
