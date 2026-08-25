@@ -61,6 +61,25 @@ fn wireguard_dns_preserves_search_domains_separately_from_dns_servers() -> Resul
 }
 
 #[test]
+fn wireguard_dns_rejects_ambiguous_numeric_ipv4_spellings_before_secret_import() {
+    for dns_value in ["999.1.1.1", "192.168.1", "0177.0.0.1", "0x7f000001"] {
+        let profile = format!(
+            "[Interface]\nAddress=10.0.0.2/32\nDNS={dns_value}\nPrivateKey={VALID_WIREGUARD_KEY}\n"
+        );
+        let mut importer = RecordingImporter::default();
+        assert_eq!(
+            import_wireguard_profile(&profile, &mut importer),
+            Err(ProfileError::InvalidValue),
+            "ambiguous numeric DNS value was accepted: {dns_value:?}"
+        );
+        assert_eq!(
+            importer.calls, 0,
+            "ambiguous numeric DNS value reached caller importer"
+        );
+    }
+}
+
+#[test]
 fn repeated_wireguard_addresses_share_the_global_list_bound_before_import() {
     let mut profile = String::from("[Interface]\n");
     for index in 0..257 {
