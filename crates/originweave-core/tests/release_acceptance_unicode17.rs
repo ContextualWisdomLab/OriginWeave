@@ -79,7 +79,7 @@ fn limitation_rejects_unicode_17_default_ignorable_code_points() -> Result<(), &
 
 #[test]
 fn limitation_rejects_line_and_paragraph_separators_beyond_default_ignorable_set() {
-    for (name, separator) in [('U+2028', '\u{2028}'), ('U+2029', '\u{2029}')] {
+    for (name, separator) in [("U+2028", '\u{2028}'), ("U+2029", '\u{2029}')] {
         assert_eq!(
             DeclaredLimitation::new(
                 format!("linux_arm64{separator}forged_release_claim"),
