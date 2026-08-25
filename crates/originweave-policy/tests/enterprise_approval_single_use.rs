@@ -72,11 +72,12 @@ fn consumed_enterprise_approval_is_one_shot_policy_input() {
     assert_eq!(approval.state(), ApprovalLifecycleState::Consumed);
     assert_eq!(approval.uses_consumed(), 1);
 
-    let decision = approval_use.evaluate(
+    let decision = approval_use.evaluate_at(
         &purchase_request(),
         &policy_context(BTreeSet::from([Capability::Purchase])),
+        130,
     );
-    assert_eq!(decision, Decision::Allow);
+    assert_eq!(decision, Ok(Decision::Allow));
     assert_eq!(
         approval.consume(&approval_scope, 130),
         Err(ApprovalLifecycleError::InvalidState(
@@ -99,8 +100,10 @@ fn policy_denial_burns_the_already_consumed_approval_use() {
         .consume(&approval_scope, 120)
         .expect("approved exact scope must yield one bounded use");
     assert_eq!(
-        approval_use.evaluate(&purchase_request(), &policy_context(BTreeSet::new())),
-        Decision::Deny(DenialReason::MissingCapability(Capability::Purchase))
+        approval_use.evaluate_at(&purchase_request(), &policy_context(BTreeSet::new()), 130),
+        Ok(Decision::Deny(DenialReason::MissingCapability(
+            Capability::Purchase
+        )))
     );
     assert_eq!(approval.state(), ApprovalLifecycleState::Consumed);
     assert_eq!(
@@ -108,6 +111,53 @@ fn policy_denial_burns_the_already_consumed_approval_use() {
         Err(ApprovalLifecycleError::InvalidState(
             ApprovalLifecycleState::Consumed
         ))
+    );
+}
+
+#[test]
+fn consumed_approval_use_expires_before_policy_evaluation() {
+    let approval_scope = scope();
+    let mut approval =
+        EnterpriseApprovalRequest::new(approval_scope.clone(), principal("maker"), 100, 200, 1)
+            .expect("approval request must be valid");
+    approval
+        .approve(principal("checker"), 110)
+        .expect("distinct checker must approve");
+
+    let approval_use = approval
+        .consume(&approval_scope, 199)
+        .expect("pre-deadline consumption must succeed");
+    assert_eq!(approval.state(), ApprovalLifecycleState::Consumed);
+    assert_eq!(
+        approval_use.evaluate_at(
+            &purchase_request(),
+            &policy_context(BTreeSet::from([Capability::Purchase])),
+            200,
+        ),
+        Err(ApprovalLifecycleError::Expired)
+    );
+}
+
+#[test]
+fn consumed_approval_use_rejects_trusted_time_rollback() {
+    let approval_scope = scope();
+    let mut approval =
+        EnterpriseApprovalRequest::new(approval_scope.clone(), principal("maker"), 100, 200, 1)
+            .expect("approval request must be valid");
+    approval
+        .approve(principal("checker"), 110)
+        .expect("distinct checker must approve");
+
+    let approval_use = approval
+        .consume(&approval_scope, 120)
+        .expect("approved exact scope must yield one bounded use");
+    assert_eq!(
+        approval_use.evaluate_at(
+            &purchase_request(),
+            &policy_context(BTreeSet::from([Capability::Purchase])),
+            119,
+        ),
+        Err(ApprovalLifecycleError::NonMonotonicTime)
     );
 }
 
