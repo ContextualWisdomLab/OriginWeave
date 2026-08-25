@@ -8,6 +8,8 @@ This document records external evidence that changes OriginWeave architecture, t
 
 The 1 June 2026 WebDriver BiDi Working Draft defines a bidirectional remote-control protocol, events, commands, and user contexts. Because it remains a W3C Working Draft, OriginWeave places BiDi behind a versioned adapter and Web Platform Tests-derived contract tests rather than make it the internal authority model.
 
+The final Model Context Protocol `2026-07-28` specification defines the currently reviewed MCP generation. Its stateless request model carries protocol metadata per request and standard Streamable HTTP routing metadata for MCP operations; its Tools surface defines bounded, case-sensitive tool names and requires clients to treat tool annotations as untrusted unless supplied by a trusted server. OriginWeave therefore keeps MCP outside the product authority model. Active PR #168 implements only a bounded Rust `tools/call` routing/action-policy foundation for that exact generation; the complete transport, request-metadata, discovery, OAuth, browser, secret, and persistence adapter remains planned and cannot be inferred from the core routing primitive.
+
 ### Browser origin equivalence
 
 The WHATWG URL host parser and Chromium canonicalizer classify shortened decimal, integer, hexadecimal, legacy octal-looking, and mixed-component numeric hosts as IPv4 or broken IPv4 candidates rather than ordinary DNS names. Chromium's regression suite includes values such as `192`, `0xC0a80001`, `030052000001`, and mixed hexadecimal components. A non-final empty `0x` component can participate in Chromium's multi-part IPv4 truncation behavior, but a final `0x` label does not produce an IPv4 number because stripping its prefix leaves no digits; it remains a domain label. Chromium also warns that broken IP-like hosts must not be connected because another resolver could accept them. OriginWeave therefore admits only canonical dotted-decimal IPv4 into its policy origin type, rejects browser-special numeric spellings before DNS validation, and preserves final non-numeric DNS labels such as `0x`.
@@ -84,9 +86,7 @@ W3C PROV-O supplies interoperable Entity, Activity, Agent, derivation, attributi
 
 The versioned `ExtractionSchema` is an admission and interpretation contract for typed extracted fields: each field is bounded, declares a value type, cardinality, normalization rule, and a canonical duplicate-free set of reviewed source-channel classes. That declaration does not create browser, network, model, secret, storage, retention, disclosure, or governance authority. PROV/WARC interoperability is therefore layered after the schema contract rather than inferred from it.
 
-WARC 1.1 defines `WARC-Truncated` as explicit record-block completeness evidence with standard reason tokens `length`, `time`, `disconnect`, and `unspecified`; `Content-Length` still reports the bytes actually retained in the truncated block. OriginWeave therefore requires callers to represent completeness explicitly: complete records omit the field, truncated records preserve one typed standard reason, and an oversized retained block remains a limit error rather than being silently truncated. This contract describes evidence already retained by the caller; it does not authorize capture, persistence, or retention.
-
-PROV-O's RDF model remains extensible with domain-specific properties, while JSON-LD 1.1 permits absolute IRIs as property keys. The active WARC-to-PROV adapter therefore carries `WarcPayloadCompleteness` onto the generated record Entity using OriginWeave-owned absolute `tag:` IRIs rather than overloading `prov:value` or inventing a W3C PROV property. Complete records emit only `warcPayloadCompleteness=complete`; truncated records emit `warcPayloadCompleteness=truncated` plus the exact standard WARC truncation reason. These attributes preserve replay evidence; they do not grant capture, persistence, retention, export, replay execution, browser, network, or model authority.
+RFC 3986 remains Internet Standard STD 66 for generic URI syntax. RFC 8820 is the current URI design-and-ownership Best Current Practice; it obsoletes RFC 7320 and updates RFC 3986 without replacing RFC 3986's path grammar. Section 3.3 of RFC 3986 defines each path segment as `*pchar`, where literal path characters are unreserved characters, sub-delimiters, `:`, or `@`; `/` separates segments and other reserved characters such as `[` and `]` are not literal `pchar`. OriginWeave's shared evidence-path validator therefore applies that literal ASCII `pchar` set plus validated percent-encoded octets and explicit slash separators to both `NetworkEvidence::capture` paths and provenance source-URL paths. Existing stricter evidence-safety rules continue to reject encoded separators, dot-segment ambiguity, controls, whitespace, query strings, fragments, backslashes, and credential-bearing authority. This fail-closed syntax tightening affects both evidence surfaces; it does not authorize the source origin, destination, network access, capture, disclosure, or retention.
 
 ### AI risk and prompt injection
 
@@ -111,6 +111,8 @@ Amazon Web Services. (n.d.). *Set up the Amazon EKS Pod Identity Agent*. Retriev
 Autio, C., Schwartz, R., Dunietz, J., Jain, S., Stanley, M., Tabassi, E., Hall, P., & Roberts, K. (2024). *Artificial intelligence risk management framework: Generative artificial intelligence profile* (NIST AI 600-1). National Institute of Standards and Technology. https://doi.org/10.6028/NIST.AI.600-1
 
 Barth, A. (2011). *The web origin concept* (RFC 6454). Internet Engineering Task Force. https://doi.org/10.17487/RFC6454
+
+Berners-Lee, T., Fielding, R., & Masinter, L. (2005). *Uniform resource identifier (URI): Generic syntax* (RFC 3986; STD 66). Internet Engineering Task Force. https://doi.org/10.17487/RFC3986
 
 Bonica, R., Cotton, M., Haberman, B., & Vegoda, L. (2017). *Updates to the special-purpose IP address registries* (RFC 8190). Internet Engineering Task Force. https://doi.org/10.17487/RFC8190
 
@@ -140,8 +142,6 @@ Internet Assigned Numbers Authority. (2025, October 9). *IPv6 special-purpose ad
 
 Internet Assigned Numbers Authority. (2025, October 10). *IPv6 global unicast address space*. https://www.iana.org/assignments/ipv6-unicast-address-assignments/ipv6-unicast-address-assignments.xhtml
 
-International Internet Preservation Consortium. (n.d.). *The WARC format 1.1*. Retrieved August 22, 2026, from https://iipc.github.io/warc-specifications/specifications/warc-format/warc-1.1/
-
 International Organization for Standardization. (2017). *Information and documentation—WARC file format* (ISO Standard No. 28500:2017). https://www.iso.org/standard/68004.html
 
 Koster, M., Illyes, G., Zeller, H., & Sassman, L. (2022). *Robots Exclusion Protocol* (RFC 9309). Internet Engineering Task Force. https://doi.org/10.17487/RFC9309
@@ -150,7 +150,13 @@ Lodderstedt, T., Bradley, J., Labunets, A., & Fett, D. (2025). *OAuth 2.0 securi
 
 Microsoft. (2025, July 25). *Azure IP address 168.63.129.16 overview*. Microsoft Learn. https://learn.microsoft.com/azure/virtual-network/what-is-ip-address-168-63-129-16
 
+Model Context Protocol. (2026, July 28). *Specification: 2026-07-28*. https://modelcontextprotocol.io/specification/2026-07-28
+
 Nielsen, S., Cetin, E., Schwendeman, P., Sun, Q., Xu, J., & Tang, Y. (2025). *Learning to orchestrate agents in natural language with the Conductor* [Preprint]. arXiv. https://doi.org/10.48550/arXiv.2512.04388
+
+Nottingham, M. (2014). *URI design and ownership* (RFC 7320). Internet Engineering Task Force. https://doi.org/10.17487/RFC7320
+
+Nottingham, M. (2020). *URI design and ownership* (RFC 8820; BCP 190). Internet Engineering Task Force. https://doi.org/10.17487/RFC8820
 
 Rescorla, E. (2026). *The Transport Layer Security (TLS) protocol version 1.3* (RFC 9846). Internet Engineering Task Force. https://doi.org/10.17487/RFC9846
 
@@ -173,8 +179,6 @@ The Rust Project Developers. (2026). *TcpStream in std::net* (Rust 1.97.1) [Soft
 Web Hypertext Application Technology Working Group. (2026). *URL standard*. https://url.spec.whatwg.org/
 
 World Wide Web Consortium. (2013). *PROV-O: The PROV ontology*. https://www.w3.org/TR/prov-o/
-
-World Wide Web Consortium. (2020). *JSON-LD 1.1: A JSON-based serialization for linked data*. https://www.w3.org/TR/json-ld11/
 
 World Wide Web Consortium. (2026, June 1). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260601/
 
