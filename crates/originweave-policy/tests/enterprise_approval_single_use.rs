@@ -120,6 +120,38 @@ fn checker_revocation_invalidates_an_already_consumed_unexecuted_use() {
 }
 
 #[test]
+fn checker_revocation_invalidates_an_exhausted_but_unexecuted_single_use() {
+    let approval_scope = scope();
+    let checker = principal("checker");
+    let mut approval =
+        EnterpriseApprovalRequest::new(approval_scope.clone(), principal("maker"), 100, 200, 1)
+            .expect("approval request must be valid");
+    approval
+        .approve(checker.clone(), 110)
+        .expect("distinct checker must approve");
+
+    let approval_use = approval
+        .consume(&approval_scope, 120)
+        .expect("single bounded use must be issued");
+    assert_eq!(approval.state(), ApprovalLifecycleState::Consumed);
+    approval
+        .revoke(&checker, 125)
+        .expect("checker revocation must invalidate an outstanding exhausted use");
+    assert_eq!(approval.state(), ApprovalLifecycleState::Revoked);
+
+    assert_eq!(
+        approval_use.evaluate_at(
+            &purchase_request(),
+            &policy_context(BTreeSet::from([Capability::Purchase])),
+            130,
+        ),
+        Err(ApprovalLifecycleError::InvalidState(
+            ApprovalLifecycleState::Revoked
+        ))
+    );
+}
+
+#[test]
 fn policy_denial_burns_the_already_consumed_approval_use() {
     let approval_scope = scope();
     let mut approval =
