@@ -125,6 +125,31 @@ class WorkflowRegistryOutputFileContractTests(unittest.TestCase):
             self.assertEqual(output.read_text(encoding="utf-8"), "sentinel\n")
             self.assertEqual(peer.read_text(encoding="utf-8"), "sentinel\n")
 
+    def test_existing_output_fstat_failure_is_reported_without_exception(self) -> None:
+        """A descriptor-stat failure on an existing output must fail closed at the CLI."""
+
+        main = self._main()
+        with tempfile.TemporaryDirectory(prefix="originweave-workflow-output-") as directory:
+            root = pathlib.Path(directory)
+            source = root / "registry.json"
+            source.write_text(json.dumps(_payload()), encoding="utf-8")
+            output = root / "audit.json"
+            output.write_text("sentinel\n", encoding="utf-8")
+            real_fstat = os.fstat
+            fstat_calls = 0
+
+            def fail_existing_output_fstat(descriptor: int) -> os.stat_result:
+                nonlocal fstat_calls
+                fstat_calls += 1
+                if fstat_calls == 2:
+                    raise OSError(errno.EIO, "simulated existing-output fstat failure")
+                return real_fstat(descriptor)
+
+            with unittest.mock.patch("os.fstat", side_effect=fail_existing_output_fstat):
+                self.assertEqual(main([str(source), "--output", str(output)]), 1)
+
+            self.assertEqual(output.read_text(encoding="utf-8"), "sentinel\n")
+
     def test_failed_new_output_write_is_removed_for_safe_retry(self) -> None:
         """A partial create-once evidence file must not survive a failed write."""
 
