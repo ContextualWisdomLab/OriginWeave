@@ -102,10 +102,12 @@ pub enum ApprovalLifecycleState {
 ///
 /// This value is intentionally not [`Clone`]. It is created only by
 /// [`EnterpriseApprovalRequest::consume`] after exact-scope, trusted-time, and
-/// use-count checks succeed. [`Self::evaluate`] consumes the value, injects the
-/// approved scope into a private copy of the supplied policy context, and then
-/// delegates to the normal fail-closed policy evaluator. The use is burned even
-/// when policy evaluation denies the action or requires a different approval.
+/// use-count checks succeed. [`Self::evaluate_at`] consumes the value and first
+/// revalidates trusted time against both the consumption time and retained
+/// exclusive expiry deadline. Only a still-valid use injects the approved scope
+/// into a private copy of the supplied policy context and delegates to the
+/// normal fail-closed policy evaluator. The use is burned even when evaluation
+/// is denied for expiry, time rollback, policy, or a different approval need.
 ///
 /// ```compile_fail
 /// # use originweave_core::{ActionRequest, PolicyContext};
@@ -114,27 +116,43 @@ pub enum ApprovalLifecycleState {
 /// #     approval_use: EnterpriseApprovalUse,
 /// #     request: &ActionRequest,
 /// #     context: &PolicyContext,
+/// #     trusted_now: u64,
 /// # ) {
-/// let _ = approval_use.evaluate(request, context);
-/// let _ = approval_use.evaluate(request, context);
+/// let _ = approval_use.evaluate_at(request, context, trusted_now);
+/// let _ = approval_use.evaluate_at(request, context, trusted_now);
 /// # }
 /// ```
 #[derive(Debug, PartialEq, Eq)]
 pub struct EnterpriseApprovalUse {
     scope: ApprovalScope,
+    consumed_at_epoch_seconds: u64,
+    expires_at_epoch_seconds: u64,
 }
 
 impl EnterpriseApprovalUse {
     /// Evaluate exactly one action using this already-consumed approval use.
     ///
-    /// The caller-provided context is cloned so the reusable caller context is
-    /// never upgraded with replayable approval evidence. This value itself is
-    /// consumed regardless of the resulting decision.
-    #[must_use]
-    pub fn evaluate(self, request: &ActionRequest, context: &PolicyContext) -> crate::Decision {
+    /// `now_epoch_seconds` must come from the same trusted control-plane clock
+    /// used by the approval lifecycle. Evaluation fails closed if trusted time
+    /// moves backward before the consumption time or reaches the retained
+    /// exclusive expiry deadline. The caller-provided context is cloned so the
+    /// reusable caller context is never upgraded with replayable approval
+    /// evidence. This value itself is consumed regardless of the result.
+    pub fn evaluate_at(
+        self,
+        request: &ActionRequest,
+        context: &PolicyContext,
+        now_epoch_seconds: u64,
+    ) -> Result<crate::Decision, ApprovalLifecycleError> {
+        if now_epoch_seconds < self.consumed_at_epoch_seconds {
+            return Err(ApprovalLifecycleError::NonMonotonicTime);
+        }
+        if now_epoch_seconds >= self.expires_at_epoch_seconds {
+            return Err(ApprovalLifecycleError::Expired);
+        }
         let mut one_shot_context = context.clone();
         one_shot_context.set_approval(ApprovalEvidence::UserConfirmed(self.scope));
-        crate::evaluate(request, &one_shot_context)
+        Ok(crate::evaluate(request, &one_shot_context))
     }
 }
 
@@ -331,7 +349,9 @@ impl EnterpriseApprovalRequest {
     ///
     /// `now_epoch_seconds` must be trusted control-plane time. Scope mismatch
     /// does not consume a use. Successful consumption returns a non-cloneable
-    /// [`EnterpriseApprovalUse`] rather than replayable approval evidence.
+    /// [`EnterpriseApprovalUse`] that retains the consumption time and expiry
+    /// deadline for a second trusted-time check immediately before policy
+    /// evaluation rather than replayable approval evidence.
     pub fn consume(
         &mut self,
         required_scope: &ApprovalScope,
@@ -356,6 +376,8 @@ impl EnterpriseApprovalRequest {
         }
         Ok(EnterpriseApprovalUse {
             scope: self.scope.clone(),
+            consumed_at_epoch_seconds: now_epoch_seconds,
+            expires_at_epoch_seconds: self.expires_at_epoch_seconds,
         })
     }
 
