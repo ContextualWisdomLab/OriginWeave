@@ -29,6 +29,8 @@ This decision extends, but does not replace, the Accepted agent-safety model in 
 
 `ApprovalPrincipalRef` is an opaque `(issuer, subject)` tuple supplied by an already trusted identity boundary. This crate validates only bounded canonical representation and does not authenticate principals, merge identities by mutable attributes such as email address, or discover tenant membership.
 
+Before calling `EnterpriseApprovalRequest::approve` or `EnterpriseApprovalRequest::deny`, the trusted identity or workflow boundary must verify that the proposed checker has the required checker role, belongs to the request's authoritative tenant, and is authorized for the exact approval scope. Those lifecycle methods enforce requester/checker identity separation and state/time invariants only; they do not establish checker eligibility, tenant membership, or policy scope by themselves.
+
 All lifecycle timestamps are supplied by a trusted control-plane clock. Model output, page content, browser content, or other untrusted inputs must not supply authoritative lifecycle time. Accepted transitions require non-decreasing trusted time; the expiry deadline is exclusive. A consumed approval use retains its consumption time and the same exclusive expiry deadline so the consuming policy evaluation can revalidate trusted time immediately before introducing approval evidence.
 
 The lifecycle does not persist state, acquire clocks, deliver approvals, render UI, sign evidence, resolve external identity, grant release authority, or authorize any action by itself. Normal `originweave-policy` capability, origin, mode, purpose, robots, secret, and risk gates still apply.
