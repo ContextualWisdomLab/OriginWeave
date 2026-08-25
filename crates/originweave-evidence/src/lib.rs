@@ -15,7 +15,8 @@ mod warc_resource_record;
 
 pub use capture_manifest::{
     CAPTURE_MANIFEST_VERSION, CaptureManifest, CaptureManifestError, CaptureManifestRecord,
-    CaptureManifestVerificationError, MAX_CAPTURE_MANIFEST_RECORDS,
+    CaptureManifestValueBinding, CaptureManifestVerificationError, MAX_CAPTURE_MANIFEST_RECORDS,
+    MAX_CAPTURE_MANIFEST_VALUES,
 };
 pub use extraction_schema::{
     ExtractionCardinality, ExtractionField, ExtractionNormalizationRule, ExtractionSchema,
