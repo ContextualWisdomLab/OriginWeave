@@ -9,6 +9,7 @@
 
 mod extraction_schema;
 mod sensitive_access;
+mod warc_resource_record;
 
 pub use extraction_schema::{
     ExtractionCardinality, ExtractionField, ExtractionNormalizationRule, ExtractionSchema,
@@ -19,6 +20,11 @@ pub use sensitive_access::{
     MAX_SENSITIVE_FIELD_COUNT, MAX_SENSITIVE_IDENTIFIER_BYTES, SensitiveAccessClass,
     SensitiveAccessEvidence, SensitiveAccessEvidenceInput, SensitiveAccessOutcome,
     SensitiveEvidenceError,
+};
+pub use warc_resource_record::{
+    MAX_WARC_CONTENT_TYPE_BYTES, MAX_WARC_DATE_BYTES, MAX_WARC_PAYLOAD_BYTES,
+    MAX_WARC_RECORD_ID_BYTES, WarcPayloadCompleteness, WarcResourceRecord, WarcResourceRecordError,
+    WarcTruncationReason,
 };
 
 use std::collections::BTreeMap;
