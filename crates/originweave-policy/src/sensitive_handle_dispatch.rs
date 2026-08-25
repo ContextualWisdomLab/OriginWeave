@@ -9,9 +9,9 @@ impl SensitiveHandleUseState {
     /// Recheck one tracked reservation and immediately invoke one disclosure callback.
     ///
     /// `dispatch` is invoked exactly once only when the supplied reservation,
-    /// authority, authenticated audience, trusted time, and current revocation state
-    /// pass [`Self::recheck_reservation`]. A denial returns the exact
-    /// [`HandleUseDecision`] and never invokes the callback.
+    /// authority, authenticated audience, trusted time, current trusted-time floor,
+    /// and revocation state pass [`Self::recheck_reservation`]. A denial returns the
+    /// exact [`HandleUseDecision`] and never invokes the callback.
     ///
     /// This same-call composition narrows the check/use gap but does not prove that
     /// the callback disclosed a protected value and does not settle the reservation.
@@ -20,7 +20,7 @@ impl SensitiveHandleUseState {
     /// exclusive transaction or locking boundary. Callback return values and
     /// failures must not be treated as automatic disclosure evidence.
     pub fn dispatch_if_reservation_current<R, F>(
-        &self,
+        &mut self,
         reservation: &SensitiveHandleUseReservation,
         authority: SensitiveDataAuthority,
         audience_id: &str,
