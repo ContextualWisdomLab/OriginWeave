@@ -124,13 +124,15 @@ enum ApprovalUseInvalidation {
 /// This value is intentionally not [`Clone`]. It is created only by
 /// [`EnterpriseApprovalRequest::consume`] after exact-scope, trusted-time, and
 /// use-count checks succeed. [`Self::evaluate_at`] consumes the value and first
+/// rejects any request whose action/origin/intent differs from the retained
+/// exact scope, before reading lifecycle or trusted-time state. It then
 /// revalidates trusted time against both the consumption time and retained
-/// exclusive expiry deadline, then rejects any shared terminal lifecycle
+/// exclusive expiry deadline and rejects any shared terminal lifecycle
 /// invalidation observed by the issuing request after this use was issued. Only
 /// a still-valid use injects the approved scope into a private copy of the
 /// supplied policy context and delegates to the normal fail-closed policy
-/// evaluator. The use is burned even when evaluation is denied for expiry, time
-/// rollback, revocation, policy, or a different approval need.
+/// evaluator. The use is burned even when evaluation is denied for scope,
+/// expiry, time rollback, revocation, policy, or a different approval need.
 ///
 /// ```compile_fail
 /// # use originweave_core::{ActionRequest, PolicyContext};
@@ -156,6 +158,8 @@ pub struct EnterpriseApprovalUse {
 impl EnterpriseApprovalUse {
     /// Evaluate exactly one action using this already-consumed approval use.
     ///
+    /// The incoming request must resolve to the retained exact approval scope;
+    /// scope is checked before lifecycle or trusted-time state is exposed.
     /// `now_epoch_seconds` must come from the same trusted control-plane clock
     /// used by the approval lifecycle. Evaluation fails closed if trusted time
     /// moves backward before the consumption time, reaches the retained
@@ -170,6 +174,14 @@ impl EnterpriseApprovalUse {
         context: &PolicyContext,
         now_epoch_seconds: u64,
     ) -> Result<crate::Decision, ApprovalLifecycleError> {
+        let required_scope = ApprovalScope::new(
+            request.action(),
+            request.target_origin().clone(),
+            request.intent_digest().clone(),
+        );
+        if required_scope != self.scope {
+            return Err(ApprovalLifecycleError::ScopeMismatch);
+        }
         if now_epoch_seconds < self.consumed_at_epoch_seconds {
             return Err(ApprovalLifecycleError::NonMonotonicTime);
         }
