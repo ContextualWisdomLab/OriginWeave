@@ -1,11 +1,8 @@
-#![allow(clippy::expect_used)]
-
 use originweave_evidence::{
     CaptureManifestError, CaptureManifestValueBinding, MAX_EXTRACTION_IDENTIFIER_BYTES,
 };
 
-const VALUE_HASH: &str =
-    "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const VALUE_HASH: &str = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const RECORD_ID: &str = "urn:uuid:123e4567-e89b-12d3-a456-426614174000";
 
 #[test]
@@ -75,5 +72,7 @@ fn value_binding_rejects_every_identifier_and_digest_shape_boundary() {
         Err(CaptureManifestError::InvalidValueDigest)
     );
 
+    let numeric_hex_digest = format!("sha256:{}", "0".repeat(64));
+    assert!(CaptureManifestValueBinding::new("title", &numeric_hex_digest, RECORD_ID).is_ok());
     assert!(CaptureManifestValueBinding::new("title_1-tag", VALUE_HASH, RECORD_ID).is_ok());
 }
