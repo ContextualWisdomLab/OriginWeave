@@ -5,9 +5,10 @@ use std::{
 };
 
 use originweave_core::{
-    BoundedWebDriverBiDiResponseDocument, ValidatedWebDriverBiDiLocateNodesResult,
-    WebDriverBiDiLocateNodesCommand, WebDriverBiDiLocateNodesResponseDocumentError,
-    WebDriverBiDiResponseDocumentAdmissionError,
+    BoundedWebDriverBiDiResponseDocument, BrowserAuthorityRegistry,
+    BrowserContextOriginEpochDispatchTarget, ObservedNodeHandle, ValidatedBrowserProtocolUse,
+    ValidatedWebDriverBiDiLocateNodesResult, WebDriverBiDiLocateNodesCommand,
+    WebDriverBiDiLocateNodesResponseDocumentError, WebDriverBiDiResponseDocumentAdmissionError,
 };
 
 use crate::{
@@ -240,6 +241,47 @@ impl WebDriverBiDiWebSocketEstablished {
                 }
             }
         }
+    }
+
+    /// Exchange `locateNodes` and bind the exact wire-derived nodes to current browser authority.
+    ///
+    /// This is the live transport composition boundary for semantic node observation. The bounded
+    /// command is exchanged on the already peer-verified WebSocket using [`Self::exchange_locate_nodes`].
+    /// Only after exact wire parsing and command correlation succeed does the method revalidate the
+    /// caller's reviewed WebDriver BiDi `SemanticObservation` proof plus the exact current
+    /// session/context/origin/document epoch through
+    /// [`ValidatedWebDriverBiDiLocateNodesResult::bind_current_nodes`]. No raw node identifier can be
+    /// substituted between the wire response and authority binding.
+    ///
+    /// A binding failure consumes this transport result and returns no reusable stream or node
+    /// handle, so a navigation or authority change observed after command construction cannot be
+    /// converted into stale node authority. Success returns only current [`ObservedNodeHandle`]
+    /// values together with the same established peer-verified stream. It still does not authorize
+    /// typed input, execute an action, or prove a post-condition.
+    pub fn exchange_locate_nodes_and_bind_current_nodes(
+        self,
+        command: WebDriverBiDiLocateNodesCommand,
+        command_masking_key: WebDriverBiDiWebSocketMaskKey,
+        next_pong_key: &mut dyn FnMut() -> Option<WebDriverBiDiWebSocketMaskKey>,
+        exchange_timeout: Duration,
+        validated: ValidatedBrowserProtocolUse,
+        authority_registry: &mut BrowserAuthorityRegistry,
+        target: BrowserContextOriginEpochDispatchTarget<'_>,
+    ) -> Result<(Self, Vec<ObservedNodeHandle>), WebDriverBiDiLocateNodesExchangeError> {
+        let (established, result) = self.exchange_locate_nodes(
+            command,
+            command_masking_key,
+            next_pong_key,
+            exchange_timeout,
+        )?;
+        let handles = result
+            .bind_current_nodes(validated, authority_registry, target)
+            .map_err(|error| {
+                WebDriverBiDiLocateNodesExchangeError::LocateNodesResponse(
+                    WebDriverBiDiLocateNodesResponseDocumentError::NodeBinding(error),
+                )
+            })?;
+        Ok((established, handles))
     }
 }
 
