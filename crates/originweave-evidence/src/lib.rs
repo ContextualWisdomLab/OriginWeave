@@ -9,7 +9,6 @@
 
 mod extraction_schema;
 mod sensitive_access;
-mod warc_prov_bundle;
 mod warc_resource_record;
 
 pub use extraction_schema::{
@@ -21,10 +20,6 @@ pub use sensitive_access::{
     MAX_SENSITIVE_FIELD_COUNT, MAX_SENSITIVE_IDENTIFIER_BYTES, SensitiveAccessClass,
     SensitiveAccessEvidence, SensitiveAccessEvidenceInput, SensitiveAccessOutcome,
     SensitiveEvidenceError,
-};
-pub use warc_prov_bundle::{
-    MAX_PROV_SOFTWARE_COMMIT_SHA_BYTES, WarcProvBundle, WarcProvBundleError,
-    WarcProvBundleVerificationError,
 };
 pub use warc_resource_record::{
     MAX_WARC_CONTENT_TYPE_BYTES, MAX_WARC_DATE_BYTES, MAX_WARC_PAYLOAD_BYTES,
@@ -241,6 +236,9 @@ fn validate_path(path: &str) -> Result<(), EvidenceError> {
             index += 3;
             continue;
         }
+        if !is_rfc3986_pchar(byte) {
+            return Err(EvidenceError::InvalidPath);
+        }
         segment.push(byte);
         index += 1;
     }
@@ -248,6 +246,32 @@ fn validate_path(path: &str) -> Result<(), EvidenceError> {
         return Err(EvidenceError::InvalidPath);
     }
     Ok(())
+}
+
+const fn is_rfc3986_pchar(byte: u8) -> bool {
+    matches!(
+        byte,
+        b'A'..=b'Z'
+            | b'a'..=b'z'
+            | b'0'..=b'9'
+            | b'-'
+            | b'.'
+            | b'_'
+            | b'~'
+            | b'!'
+            | b'$'
+            | b'&'
+            | b'\''
+            | b'('
+            | b')'
+            | b'*'
+            | b'+'
+            | b','
+            | b';'
+            | b'='
+            | b':'
+            | b'@'
+    )
 }
 
 const fn hexadecimal_value(byte: u8) -> Option<u8> {
