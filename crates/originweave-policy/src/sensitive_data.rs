@@ -167,6 +167,8 @@ pub enum HandleUseDecision {
     AudienceMismatch,
     /// The handle is no longer valid at the supplied trusted time.
     Expired,
+    /// The supplied trusted time predates time already observed by the reservation state.
+    TrustedTimeRollback,
     /// The bounded use count has already been consumed.
     UseLimitReached,
 }
@@ -256,26 +258,29 @@ impl HandleUseRequest {
     }
 }
 
-/// In-process authoritative use-count and revocation state for one opaque sensitive-value handle scope.
+/// In-process authoritative use-count, trusted-time, and revocation state for one opaque sensitive-value handle scope.
 ///
 /// This value removes the caller-supplied prior-use count from the reservation
 /// operation. A successful reservation compares the exact authority, exact
 /// non-transferable audience, trusted time, expiry, revocation state, and current
 /// count and then increments the count while the caller holds an exclusive mutable
-/// borrow of this state. Denied reservations never consume a use.
+/// borrow of this state. The state also remembers the latest trusted time it has
+/// observed and rejects time rollback so an expired handle cannot regain authority
+/// from a stale clock value. Denied reservations never consume a use.
 ///
 /// This is a policy-state primitive, not the trusted broker itself. It contains
 /// neither the opaque handle token nor protected data and provides no authenticated
 /// workload identity, durable or cross-process transaction, value resolution,
 /// compensation, or persistence. A shared or durable broker must derive the
 /// audience from authenticated caller identity, place the state behind its own
-/// transactional or locking boundary, persist lifecycle state, and recheck it
-/// before disclosure.
+/// transactional or locking boundary, persist lifecycle state and an equivalent
+/// trusted-time floor, and recheck both before disclosure.
 #[derive(Debug, PartialEq, Eq)]
 pub struct SensitiveHandleUseState {
     scope: SensitiveValueHandleScope,
     reserved_uses: u32,
     revocation_reason: Option<HandleRevocationReason>,
+    latest_trusted_time_epoch_seconds: Option<u64>,
 }
 
 impl SensitiveHandleUseState {
@@ -286,6 +291,7 @@ impl SensitiveHandleUseState {
             scope,
             reserved_uses: 0,
             revocation_reason: None,
+            latest_trusted_time_epoch_seconds: None,
         }
     }
 
@@ -317,11 +323,14 @@ impl SensitiveHandleUseState {
     /// Reserve one use from the current authoritative count when policy permits it.
     ///
     /// The audience must be derived by the trusted broker from authenticated caller
-    /// identity, and the supplied time must come from the broker's trusted clock.
+    /// identity, and the supplied time must come from the broker's trusted clock and
+    /// may not move backward relative to an earlier reservation attempt on this state.
     /// Revocation is authoritative and is checked before later request details so a
     /// revoked handle cannot expose whether a different scope, audience, expiry, or
-    /// use-limit condition would otherwise have matched. Every denial leaves the
-    /// authoritative count unchanged.
+    /// use-limit condition would otherwise have matched. A non-rollback trusted time
+    /// is recorded even when another policy check denies the reservation, while every
+    /// denial leaves the authoritative count unchanged.
+    #[must_use]
     pub fn reserve_use(
         &mut self,
         authority: SensitiveDataAuthority,
@@ -331,6 +340,14 @@ impl SensitiveHandleUseState {
         if self.revocation_reason.is_some() {
             return HandleUseDecision::Revoked;
         }
+        if self
+            .latest_trusted_time_epoch_seconds
+            .is_some_and(|latest| now_epoch_seconds < latest)
+        {
+            return HandleUseDecision::TrustedTimeRollback;
+        }
+        self.latest_trusted_time_epoch_seconds = Some(now_epoch_seconds);
+
         let request = HandleUseRequest::new(
             authority,
             audience_id,
@@ -350,12 +367,14 @@ impl SensitiveHandleUseState {
 ///
 /// This pure function does not consume a use, mutate broker state, resolve a
 /// handle, or release a protected value. It is therefore not standalone
-/// enforcement. A trusted broker must obtain authenticated caller audience,
-/// trusted time, and caller-unforgeable handle state, atomically reserve or
-/// increment the use count before value resolution, and recheck the reserved
-/// authority immediately before disclosure. Missing or malformed authority or
-/// audience identifiers fail closed. The authority destination must already have
-/// crossed the canonical [`Origin`] boundary.
+/// enforcement and cannot detect trusted-time rollback across calls. A trusted
+/// broker must obtain authenticated caller audience, trusted time, and
+/// caller-unforgeable handle state, reject time rollback through state such as
+/// [`SensitiveHandleUseState`], atomically reserve or increment the use count
+/// before value resolution, and recheck the reserved authority immediately before
+/// disclosure. Missing or malformed authority or audience identifiers fail closed.
+/// The authority destination must already have crossed the canonical [`Origin`]
+/// boundary.
 #[must_use]
 pub fn evaluate_handle_use(
     request: &HandleUseRequest,
