@@ -50,6 +50,22 @@ fn principal_rejects_empty_ambiguous_or_oversized_references() {
         Err(ApprovalPrincipalRefError::InvalidSubject)
     );
     assert_eq!(
+        ApprovalPrincipalRef::new("https://id.example\u{202e}", "user-123"),
+        Err(ApprovalPrincipalRefError::InvalidIssuer)
+    );
+    assert_eq!(
+        ApprovalPrincipalRef::new("https://id.example", "user\u{061c}123"),
+        Err(ApprovalPrincipalRefError::InvalidSubject)
+    );
+    assert_eq!(
+        ApprovalPrincipalRef::new("https://id.example", "user\u{200e}123"),
+        Err(ApprovalPrincipalRefError::InvalidSubject)
+    );
+    assert_eq!(
+        ApprovalPrincipalRef::new("https://id.example", "user\u{2066}123\u{2069}"),
+        Err(ApprovalPrincipalRefError::InvalidSubject)
+    );
+    assert_eq!(
         ApprovalPrincipalRef::new("https://id.example", &"x".repeat(257)),
         Err(ApprovalPrincipalRefError::InvalidSubject)
     );
