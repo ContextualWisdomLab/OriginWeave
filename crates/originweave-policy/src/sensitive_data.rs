@@ -251,8 +251,9 @@ impl HandleUseRequest {
 /// operation. A successful reservation compares the exact authority, trusted
 /// time, expiry, revocation state, and current count and then increments the
 /// count while the caller holds an exclusive mutable borrow of this state. The
-/// state also remembers the latest trusted time it has observed and rejects time
-/// rollback so an expired handle cannot regain authority from a stale clock value.
+/// state remembers the latest trusted time observed for its exact authority and
+/// rejects time rollback so an expired handle cannot regain authority from a
+/// stale clock value. Scope-mismatched requests cannot read or mutate that floor.
 /// Denied reservations never consume a use.
 ///
 /// This is a policy-state primitive, not the trusted broker itself. It contains
@@ -309,13 +310,15 @@ impl SensitiveHandleUseState {
     /// Reserve one use from the current authoritative count when policy permits it.
     ///
     /// The supplied time must come from the trusted broker boundary and may not
-    /// move backward relative to an earlier reservation attempt on this state.
-    /// Revocation, exact-scope, expiry, use-limit, and trusted-time rollback denial
-    /// leave the authoritative use count unchanged. A non-rollback trusted time is
-    /// recorded even when another policy check denies the reservation so later
-    /// stale time cannot restore authority. A scope-mismatched caller always
-    /// receives the scope denial rather than learning revocation or trusted-time
-    /// rollback state.
+    /// move backward relative to an earlier exact-scope reservation attempt on
+    /// this state. Scope-mismatched requests never mutate trusted-time state and
+    /// always return [`HandleUseDecision::ScopeMismatch`], so foreign authority
+    /// cannot advance the rollback floor or learn its value. For exact-scope
+    /// requests, revocation remains terminal; expiry, use-limit, and trusted-time
+    /// rollback denial leave the authoritative use count unchanged. A non-rollback
+    /// exact-scope trusted time is recorded after the revocation check even when
+    /// expiry or the use limit denies the reservation so later stale time cannot
+    /// restore authority.
     #[must_use]
     pub fn reserve_use(
         &mut self,
@@ -325,12 +328,6 @@ impl SensitiveHandleUseState {
         let request = HandleUseRequest::new(authority, now_epoch_seconds, self.reserved_uses);
         let policy_decision = evaluate_handle_use(&request, &self.scope);
         if policy_decision == HandleUseDecision::ScopeMismatch {
-            if self
-                .latest_trusted_time_epoch_seconds
-                .is_none_or(|latest| now_epoch_seconds >= latest)
-            {
-                self.latest_trusted_time_epoch_seconds = Some(now_epoch_seconds);
-            }
             return HandleUseDecision::ScopeMismatch;
         }
 
