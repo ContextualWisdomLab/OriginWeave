@@ -8,8 +8,10 @@ use originweave_evidence::{
 };
 
 const SOURCE_HASH: &str = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-const VALUE_HASH_A: &str = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-const VALUE_HASH_B: &str = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+const VALUE_HASH_A: &str =
+    "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const VALUE_HASH_B: &str =
+    "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const RECORD_ID_A: &str = "urn:uuid:123e4567-e89b-12d3-a456-426614174000";
 const RECORD_ID_B: &str = "urn:uuid:123e4567-e89b-12d3-a456-426614174001";
 const DATE: &str = "2026-08-25T00:00:00Z";
@@ -119,10 +121,10 @@ fn capture_manifest_value_admission_fails_closed() {
     let record_b = resource_record(RECORD_ID_B, b"b");
     let bundle_a = WarcProvBundle::new(&record_a, SOFTWARE_COMMIT_SHA).expect("PROV A");
     let bundle_b = WarcProvBundle::new(&record_b, SOFTWARE_COMMIT_SHA).expect("PROV B");
-    let title_a = CaptureManifestValueBinding::new("title", VALUE_HASH_A, RECORD_ID_A)
-        .expect("title A");
-    let title_b = CaptureManifestValueBinding::new("title", VALUE_HASH_B, RECORD_ID_B)
-        .expect("title B");
+    let title_a =
+        CaptureManifestValueBinding::new("title", VALUE_HASH_A, RECORD_ID_A).expect("title A");
+    let title_b =
+        CaptureManifestValueBinding::new("title", VALUE_HASH_B, RECORD_ID_B).expect("title B");
     let unknown = CaptureManifestValueBinding::new("missing", VALUE_HASH_A, RECORD_ID_A)
         .expect("syntactically valid unknown field");
     let missing_record = CaptureManifestValueBinding::new("title", VALUE_HASH_A, RECORD_ID_B)
@@ -187,12 +189,10 @@ fn capture_manifest_value_order_is_canonical_and_verification_detects_drift() {
     let record_b = resource_record(RECORD_ID_B, b"b");
     let bundle_a = WarcProvBundle::new(&record_a, SOFTWARE_COMMIT_SHA).expect("PROV A");
     let bundle_b = WarcProvBundle::new(&record_b, SOFTWARE_COMMIT_SHA).expect("PROV B");
-    let title = CaptureManifestValueBinding::new("title", VALUE_HASH_A, RECORD_ID_A)
-        .expect("title");
-    let tag_a = CaptureManifestValueBinding::new("tags", VALUE_HASH_A, RECORD_ID_A)
-        .expect("tag A");
-    let tag_b = CaptureManifestValueBinding::new("tags", VALUE_HASH_B, RECORD_ID_B)
-        .expect("tag B");
+    let title =
+        CaptureManifestValueBinding::new("title", VALUE_HASH_A, RECORD_ID_A).expect("title");
+    let tag_a = CaptureManifestValueBinding::new("tags", VALUE_HASH_A, RECORD_ID_A).expect("tag A");
+    let tag_b = CaptureManifestValueBinding::new("tags", VALUE_HASH_B, RECORD_ID_B).expect("tag B");
 
     let first = CaptureManifest::new_with_warc_values(
         &schema,
@@ -203,7 +203,7 @@ fn capture_manifest_value_order_is_canonical_and_verification_detects_drift() {
     let second = CaptureManifest::new_with_warc_values(
         &schema,
         &[(&record_a, &bundle_a), (&record_b, &bundle_b)],
-        &[tag_a, tag_b.clone(), title],
+        &[tag_a, tag_b.clone(), title.clone()],
     )
     .expect("second manifest");
 
@@ -212,13 +212,13 @@ fn capture_manifest_value_order_is_canonical_and_verification_detects_drift() {
     assert_eq!(first.values()[1].field_name(), "tags");
     assert_eq!(first.values()[2].field_name(), "title");
 
-    let drifted_tag = CaptureManifestValueBinding::new("tags", VALUE_HASH_A, RECORD_ID_B)
-        .expect("drifted tag");
+    let drifted_tag =
+        CaptureManifestValueBinding::new("tags", VALUE_HASH_A, RECORD_ID_B).expect("drifted tag");
     assert_eq!(
         first.verify_with_warc_values(
             &schema,
             &[(&record_a, &bundle_a), (&record_b, &bundle_b)],
-            &[drifted_tag, tag_b],
+            &[drifted_tag, tag_b, title],
         ),
         Err(originweave_evidence::CaptureManifestVerificationError::IdentityMismatch)
     );
