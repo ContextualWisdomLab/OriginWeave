@@ -34,7 +34,9 @@ type ServerHandle = thread::JoinHandle<io::Result<Vec<u8>>>;
 type EstablishedFixture =
     Result<(SocketAddr, WebDriverBiDiWebSocketEstablished, ServerHandle), Box<dyn Error>>;
 
-fn connect(endpoint: &str) -> Result<originweave_network::WebDriverBiDiTcpConnection, Box<dyn Error>> {
+fn connect(
+    endpoint: &str,
+) -> Result<originweave_network::WebDriverBiDiTcpConnection, Box<dyn Error>> {
     let admitted = WebDriverBiDiWebSocketEndpoint::new(endpoint)?;
     let correlated = admitted.correlate_session_id(SESSION_ID)?;
     let target = correlated.into_explicit_connect_target()?;
@@ -109,7 +111,10 @@ fn establish() -> EstablishedFixture {
         let command = read_client_text_frame(&mut stream)?;
         let response = RESPONSE_DOCUMENT.as_bytes();
         let response_length = u8::try_from(response.len()).map_err(|_| {
-            io::Error::new(io::ErrorKind::InvalidData, "test response exceeds short frame")
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "test response exceeds short frame",
+            )
         })?;
         if response_length > 125 {
             return Err(io::Error::new(
