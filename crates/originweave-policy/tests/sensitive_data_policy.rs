@@ -312,8 +312,7 @@ fn opaque_handle_use_requires_the_exact_bounded_audience() {
         HandleUseDecision::AudienceMismatch
     );
 
-    let malformed_scope =
-        handle_scope_for_audience(exact, DataClassification::PersonalData, "---");
+    let malformed_scope = handle_scope_for_audience(exact, DataClassification::PersonalData, "---");
     assert_eq!(
         evaluate_handle_use(
             &handle_use(exact, DataClassification::PersonalData, 1_999, 0),
@@ -327,13 +326,7 @@ fn opaque_handle_use_requires_the_exact_bounded_audience() {
         handle_scope_for_audience(exact, DataClassification::PersonalData, &maximum);
     assert_eq!(
         evaluate_handle_use(
-            &handle_use_for_audience(
-                exact,
-                DataClassification::PersonalData,
-                &maximum,
-                1_999,
-                0,
-            ),
+            &handle_use_for_audience(exact, DataClassification::PersonalData, &maximum, 1_999, 0,),
             &maximum_scope,
         ),
         HandleUseDecision::Authorized
