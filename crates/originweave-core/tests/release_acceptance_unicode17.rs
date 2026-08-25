@@ -78,6 +78,28 @@ fn limitation_rejects_unicode_17_default_ignorable_code_points() -> Result<(), &
 }
 
 #[test]
+fn limitation_rejects_line_and_paragraph_separators_beyond_default_ignorable_set() {
+    for (name, separator) in [('U+2028', '\u{2028}'), ('U+2029', '\u{2029}')] {
+        assert_eq!(
+            DeclaredLimitation::new(
+                format!("linux_arm64{separator}forged_release_claim"),
+                "Linux ARM64 is unsupported.",
+            ),
+            Err(ReleaseDecisionError::InvalidLimitationClaim),
+            "{name} must be rejected in the unsupported claim to prevent line-forging ambiguity",
+        );
+        assert_eq!(
+            DeclaredLimitation::new(
+                "linux_arm64",
+                format!("Linux ARM64 is unsupported.{separator}forged_release_consequence"),
+            ),
+            Err(ReleaseDecisionError::InvalidLimitationConsequence),
+            "{name} must be rejected in the buyer consequence to prevent line-forging ambiguity",
+        );
+    }
+}
+
+#[test]
 fn limitation_does_not_blanket_reject_unicode_17_whitespace() -> Result<(), ReleaseDecisionError> {
     let medium_mathematical_space = '\u{205f}';
     let ideographic_space = '\u{3000}';
