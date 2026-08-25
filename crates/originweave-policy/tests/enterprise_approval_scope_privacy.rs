@@ -2,8 +2,7 @@
 
 use originweave_core::{ActionIntentDigest, ActionKind, ApprovalScope, Origin};
 use originweave_policy::{
-    ApprovalLifecycleError, ApprovalLifecycleState, ApprovalPrincipalRef,
-    EnterpriseApprovalRequest,
+    ApprovalLifecycleError, ApprovalLifecycleState, ApprovalPrincipalRef, EnterpriseApprovalRequest,
 };
 
 const VALID_INTENT: &str =
@@ -25,14 +24,9 @@ fn principal(subject: &str) -> ApprovalPrincipalRef {
 fn mismatched_scope_at_expiry_does_not_disclose_or_mutate_lifecycle() {
     let authority_scope = approval_scope("https://app.example");
     let foreign_scope = approval_scope("https://other.example");
-    let mut request = EnterpriseApprovalRequest::new(
-        authority_scope,
-        principal("maker"),
-        100,
-        200,
-        1,
-    )
-    .expect("approval request must be valid");
+    let mut request =
+        EnterpriseApprovalRequest::new(authority_scope, principal("maker"), 100, 200, 1)
+            .expect("approval request must be valid");
     request
         .approve(principal("checker"), 110)
         .expect("approval must succeed");
