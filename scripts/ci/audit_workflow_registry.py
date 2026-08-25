@@ -829,7 +829,18 @@ def _write_output(path: pathlib.Path, serialized: str) -> None:
             raise WorkflowAuditError("output file identity changed before write")
 
         descriptor, staging_name = _create_output_staging_descriptor(parent_fd)
-        opened_stat = os.fstat(descriptor)
+        try:
+            opened_stat = os.fstat(descriptor)
+        except OSError as error:
+            fallback_stat: os.stat_result | None = None
+            if os.stat in os.supports_fd:
+                try:
+                    fallback_stat = os.stat(descriptor)
+                except OSError:
+                    fallback_stat = None
+            if fallback_stat is not None:
+                staging_identity = (fallback_stat.st_dev, fallback_stat.st_ino)
+            raise WorkflowAuditError("output staging could not be inspected safely") from error
         if not stat.S_ISREG(opened_stat.st_mode):
             raise WorkflowAuditError("output staging must be a regular file")
         if opened_stat.st_nlink != 1:
