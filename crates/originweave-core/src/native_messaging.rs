@@ -1,6 +1,7 @@
 //! Explicit Chrome native-messaging host authority without ambient Agent authority.
 
 use std::fmt;
+use std::io::Read;
 
 use crate::ExtensionId;
 
@@ -203,6 +204,33 @@ impl fmt::Display for NativeMessagingFrameError {
 
 impl std::error::Error for NativeMessagingFrameError {}
 
+/// Failure while reading one bounded native-messaging payload from a stream.
+#[derive(Debug)]
+pub enum NativeMessagingFrameReadError {
+    /// Framing policy rejected the advertised payload before payload allocation or I/O.
+    Frame(NativeMessagingFrameError),
+    /// The underlying stream failed while reading the prefix or the admitted payload.
+    Io(std::io::Error),
+}
+
+impl fmt::Display for NativeMessagingFrameReadError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Frame(error) => error.fmt(formatter),
+            Self::Io(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl std::error::Error for NativeMessagingFrameReadError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Frame(error) => Some(error),
+            Self::Io(error) => Some(error),
+        }
+    }
+}
+
 /// Return OriginWeave's reviewed payload ceiling for one native-messaging direction.
 #[must_use]
 pub const fn native_messaging_payload_limit(direction: NativeMessagingFrameDirection) -> usize {
@@ -210,6 +238,36 @@ pub const fn native_messaging_payload_limit(direction: NativeMessagingFrameDirec
         NativeMessagingFrameDirection::HostToBrowser => HOST_TO_BROWSER_NATIVE_MESSAGING_LIMIT,
         NativeMessagingFrameDirection::BrowserToHost => BROWSER_TO_HOST_NATIVE_MESSAGING_LIMIT,
     }
+}
+
+/// Read one native-messaging payload from a stream after enforcing the direction-specific budget.
+///
+/// The four-byte native-endian length prefix is read first. An oversized advertised length is
+/// rejected before allocating or reading payload bytes. Stream failures retain their original
+/// `std::io::Error` as a causal source. The returned bytes are untrusted framing output only;
+/// JSON parsing, provenance, process identity, secrets, and Agent authority remain separate
+/// fail-closed boundaries.
+pub fn read_native_messaging_payload<R: Read>(
+    direction: NativeMessagingFrameDirection,
+    reader: &mut R,
+) -> Result<Vec<u8>, NativeMessagingFrameReadError> {
+    let mut prefix = [0_u8; 4];
+    reader
+        .read_exact(&mut prefix)
+        .map_err(NativeMessagingFrameReadError::Io)?;
+
+    let advertised_length = u32::from_ne_bytes(prefix) as usize;
+    if advertised_length > native_messaging_payload_limit(direction) {
+        return Err(NativeMessagingFrameReadError::Frame(
+            NativeMessagingFrameError::PayloadTooLarge,
+        ));
+    }
+
+    let mut payload = vec![0_u8; advertised_length];
+    reader
+        .read_exact(&mut payload)
+        .map_err(NativeMessagingFrameReadError::Io)?;
+    Ok(payload)
 }
 
 /// Encode one complete native-messaging frame with a native-endian 32-bit length prefix.
