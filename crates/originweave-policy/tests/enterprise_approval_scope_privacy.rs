@@ -54,10 +54,7 @@ fn mismatched_requester_at_expiry_does_not_disclose_or_mutate_lifecycle() {
         request.withdraw(&principal("intruder"), 200),
         Err(ApprovalLifecycleError::RequesterMismatch)
     );
-    assert_eq!(
-        request.state(),
-        ApprovalLifecycleState::ApprovalRequested
-    );
+    assert_eq!(request.state(), ApprovalLifecycleState::ApprovalRequested);
 }
 
 #[test]
@@ -97,10 +94,7 @@ fn self_approval_at_expiry_does_not_disclose_or_mutate_lifecycle() {
         request.approve(maker, 200),
         Err(ApprovalLifecycleError::SelfApproval)
     );
-    assert_eq!(
-        request.state(),
-        ApprovalLifecycleState::ApprovalRequested
-    );
+    assert_eq!(request.state(), ApprovalLifecycleState::ApprovalRequested);
 }
 
 #[test]
@@ -119,8 +113,5 @@ fn self_denial_at_expiry_does_not_disclose_or_mutate_lifecycle() {
         request.deny(maker, 200),
         Err(ApprovalLifecycleError::SelfApproval)
     );
-    assert_eq!(
-        request.state(),
-        ApprovalLifecycleState::ApprovalRequested
-    );
+    assert_eq!(request.state(), ApprovalLifecycleState::ApprovalRequested);
 }
