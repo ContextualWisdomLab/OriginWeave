@@ -1,0 +1,57 @@
+name: Materialize Rust nightly refresh once
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  materialize-owned-branch:
+    if: >-
+      github.repository == 'ContextualWisdomLab/OriginWeave' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'agent/rust-toolchain-refresh-2026-08-19' &&
+      github.event.pull_request.user.login == 'seonghobae'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Materialize only the reviewed nightly snapshot
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source_path = Path('.github/workflows/hourly-product-development.yml')
+          source = source_path.read_text(encoding='utf-8')
+          old = 'nightly-2026-08-01'
+          new = 'nightly-2026-08-18'
+          old_count = source.count(old)
+          new_count = source.count(new)
+          if old_count == 2 and new_count == 0:
+              refreshed_source = source.replace(old, new)
+          elif old_count == 0 and new_count == 2:
+              refreshed_source = source
+          else:
+              raise SystemExit(
+                  f'expected exactly two selectors in one state, found old={old_count}, new={new_count}'
+              )
+          output = Path('nightly-refresh-artifact/hourly-product-development.yml')
+          output.parent.mkdir(parents=True, exist_ok=True)
+          output.write_text(refreshed_source, encoding='utf-8')
+          refreshed = output.read_text(encoding='utf-8')
+          if old in refreshed or refreshed.count(new) < 2:
+              raise SystemExit('nightly refresh artifact failed its replacement contract')
+          PY
+      - name: Upload exact refreshed workflow
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: hourly-rust-nightly-${{ github.event.pull_request.head.sha }}
+          path: nightly-refresh-artifact/hourly-product-development.yml
+          if-no-files-found: error
+          retention-days: 1
