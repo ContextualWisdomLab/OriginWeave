@@ -247,9 +247,9 @@ pub const fn native_messaging_payload_limit(direction: NativeMessagingFrameDirec
 /// `std::io::Error` as a causal source. The returned bytes are untrusted framing output only;
 /// JSON parsing, provenance, process identity, secrets, and Agent authority remain separate
 /// fail-closed boundaries.
-pub fn read_native_messaging_payload<R: Read>(
+pub fn read_native_messaging_payload(
     direction: NativeMessagingFrameDirection,
-    reader: &mut R,
+    reader: &mut dyn Read,
 ) -> Result<Vec<u8>, NativeMessagingFrameReadError> {
     let mut prefix = [0_u8; 4];
     reader
