@@ -21,6 +21,10 @@ import stat
 import sys
 from typing import Any
 
+_OS_OPEN = os.open
+_OS_STAT = os.stat
+_OS_LINK = os.link
+_OS_UNLINK = os.unlink
 _SCHEMA_VERSION = 1
 _MAX_INPUT_BYTES = 4 * 1024 * 1024
 _MAX_JSON_INTEGER_DIGITS = 20
@@ -634,13 +638,13 @@ def _open_output_parent(path: pathlib.Path) -> tuple[int, str]:
     nofollow = getattr(os, "O_NOFOLLOW", 0)
     directory = getattr(os, "O_DIRECTORY", 0)
     cloexec = getattr(os, "O_CLOEXEC", 0)
-    required_dir_fd_operations = {os.open, os.stat, os.link, os.unlink}
+    required_dir_fd_operations = {_OS_OPEN, _OS_STAT, _OS_LINK, _OS_UNLINK}
     if (
         not nofollow
         or not directory
         or not required_dir_fd_operations.issubset(os.supports_dir_fd)
-        or os.stat not in os.supports_follow_symlinks
-        or os.link not in os.supports_follow_symlinks
+        or _OS_STAT not in os.supports_follow_symlinks
+        or _OS_LINK not in os.supports_follow_symlinks
     ):
         raise WorkflowAuditError("secure direct-file output is unavailable")
 
