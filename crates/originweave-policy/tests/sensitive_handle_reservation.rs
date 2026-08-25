@@ -160,6 +160,25 @@ fn scope_mismatch_does_not_expose_trusted_time_rollback_state() {
 }
 
 #[test]
+fn scope_mismatch_cannot_poison_the_trusted_time_floor() {
+    let mut state = SensitiveHandleUseState::new(scope(2));
+
+    assert_eq!(
+        state.reserve_use(authority(DESTINATION), AUDIENCE, 1_990),
+        HandleUseDecision::Authorized
+    );
+    assert_eq!(
+        state.reserve_use(authority("https://other.example"), AUDIENCE, 9_999),
+        HandleUseDecision::ScopeMismatch
+    );
+    assert_eq!(
+        state.reserve_use(authority(DESTINATION), AUDIENCE, 1_991),
+        HandleUseDecision::Authorized
+    );
+    assert_eq!(state.reserved_uses(), 2);
+}
+
+#[test]
 fn audience_mismatch_does_not_expose_trusted_time_rollback_state() {
     let mut state = SensitiveHandleUseState::new(scope(2));
 
@@ -172,6 +191,25 @@ fn audience_mismatch_does_not_expose_trusted_time_rollback_state() {
         HandleUseDecision::AudienceMismatch
     );
     assert_eq!(state.reserved_uses(), 1);
+}
+
+#[test]
+fn audience_mismatch_cannot_poison_the_trusted_time_floor() {
+    let mut state = SensitiveHandleUseState::new(scope(2));
+
+    assert_eq!(
+        state.reserve_use(authority(DESTINATION), AUDIENCE, 1_990),
+        HandleUseDecision::Authorized
+    );
+    assert_eq!(
+        state.reserve_use(authority(DESTINATION), "other_service", 9_999),
+        HandleUseDecision::AudienceMismatch
+    );
+    assert_eq!(
+        state.reserve_use(authority(DESTINATION), AUDIENCE, 1_991),
+        HandleUseDecision::Authorized
+    );
+    assert_eq!(state.reserved_uses(), 2);
 }
 
 #[test]
