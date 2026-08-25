@@ -1,9 +1,10 @@
 use std::error::Error;
+use std::io::{Cursor, ErrorKind};
 
 use originweave_core::{
-    NativeMessagingFrameDirection, NativeMessagingFrameError, decode_native_messaging_frame,
-    decode_native_messaging_text_frame, encode_native_messaging_frame,
-    native_messaging_payload_limit,
+    NativeMessagingFrameDirection, NativeMessagingFrameError, NativeMessagingFrameReadError,
+    decode_native_messaging_frame, decode_native_messaging_text_frame,
+    encode_native_messaging_frame, native_messaging_payload_limit, read_native_messaging_payload,
 };
 
 const HOST_TO_BROWSER_LIMIT: usize = 1_048_576;
@@ -34,6 +35,54 @@ fn native_messaging_frame_round_trip_uses_native_u32_byte_length() -> Result<(),
         assert_eq!(decode_native_messaging_frame(direction, &frame)?, payload);
     }
     Ok(())
+}
+
+#[test]
+fn native_messaging_stream_reader_round_trips_one_bounded_payload() -> Result<(), Box<dyn Error>> {
+    let payload = b"{\"message\":\"bounded\"}";
+    let frame = encode_native_messaging_frame(NativeMessagingFrameDirection::HostToBrowser, payload)?;
+    let mut reader = Cursor::new(frame);
+
+    assert_eq!(
+        read_native_messaging_payload(
+            NativeMessagingFrameDirection::HostToBrowser,
+            &mut reader,
+        )?,
+        payload
+    );
+    assert_eq!(reader.position(), payload.len() as u64 + 4);
+    Ok(())
+}
+
+#[test]
+fn native_messaging_stream_reader_rejects_oversized_prefix_before_reading_payload() {
+    let oversized = (HOST_TO_BROWSER_LIMIT as u32 + 1).to_ne_bytes();
+    let mut reader = Cursor::new(oversized);
+
+    assert!(matches!(
+        read_native_messaging_payload(
+            NativeMessagingFrameDirection::HostToBrowser,
+            &mut reader,
+        ),
+        Err(NativeMessagingFrameReadError::Frame(
+            NativeMessagingFrameError::PayloadTooLarge
+        ))
+    ));
+    assert_eq!(reader.position(), 4);
+}
+
+#[test]
+fn native_messaging_stream_reader_preserves_truncated_payload_io_cause() {
+    let mut frame = Vec::from(4_u32.to_ne_bytes());
+    frame.extend_from_slice(b"abc");
+    let mut reader = Cursor::new(frame);
+
+    match read_native_messaging_payload(NativeMessagingFrameDirection::HostToBrowser, &mut reader) {
+        Err(NativeMessagingFrameReadError::Io(error)) => {
+            assert_eq!(error.kind(), ErrorKind::UnexpectedEof);
+        }
+        other => panic!("expected typed I/O failure, got {other:?}"),
+    }
 }
 
 #[test]
