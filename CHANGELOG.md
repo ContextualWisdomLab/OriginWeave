@@ -6,7 +6,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Added
 
-- In-process authoritative sensitive-handle use reservation state that owns the current bounded use count, binds each use to the exact bounded authenticated workload/adapter audience in addition to scope/classification/expiry/use-limit authority, increments only after authorization, and leaves denied reservations unconsumed; this is a policy primitive only and does not authenticate audiences or claim durable broker storage, protected-value resolution, revocation, or cross-process transactionality.
+- In-process authoritative sensitive-handle use reservation state that owns the current bounded use count and monotonic trusted-time floor, rejects trusted-time rollback, increments only after exact scope/classification/expiry/use-limit authorization, and leaves denied reservations unconsumed while still advancing non-rollback trusted time; this is a policy primitive only and does not claim durable broker storage, protected-value resolution, revocation, authenticated audience binding, or cross-process transactionality.
 - Refreshed the product and technical gap baseline with the 2026-08-24 live inventory: 158 open pull requests (44 ready, 114 draft), refreshed exact base/head evidence for the #208–#222 release, enterprise-approval, BAP, and WARC/PROV chains, the governance issue additions #212 and #215, and a required-check provider-failure record for the fail-closed Strix re-dispatches on #208/#218/#220.
 - Added a dated product and technical gap baseline that separates protected-main implementation truth, active pull-request evidence, live review/check blockers, and the next buyer-visible Phase 1 acceptance work.
 - Refreshed the product and technical gap baseline with the current open-PR inventory and exact base/head evidence for the newest Chromium, BAP, extraction, WARC, and idempotency slices.
@@ -39,7 +39,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 ### Changed
 
 - Aligned the hourly product-development branch-coverage toolchain and its one-shot materializer with the reviewed `nightly-2026-08-18` pin, and corrected the official Dependabot Rust-toolchain reference.
-- Separated logical origin authority from resolved network destination authority; an origin grant no longer implies permission to connect to every resolver result.
+- Separated logical origin authority from resolved network destination authority; an approved IP now becomes a usable stream only after the operating system reports the exact requested IP and port.
 - Separated resolved-address authorization from direct transport evidence; an approved IP now becomes a usable stream only after the operating system reports the exact requested IP and port.
 - Separated exact TCP peer proof from authenticated TLS service identity; an observed peer becomes an authenticated HTTPS stream only after explicit-root, fixed-time, SAN-bound WebPKI verification over that same stream.
 - Replaced single resource-pressure directives with a cumulative mitigation plan so simultaneous RAM, VRAM, frame, model, and admission pressure cannot discard required actions.
