@@ -7,9 +7,7 @@ use originweave_core::{
     ExecutionPurpose, InstructionSource, Origin, PolicyContext, RobotsDecision, SecretDelivery,
     SessionMode,
 };
-use originweave_policy::{
-    ApprovalLifecycleError, ApprovalPrincipalRef, EnterpriseApprovalRequest,
-};
+use originweave_policy::{ApprovalLifecycleError, ApprovalPrincipalRef, EnterpriseApprovalRequest};
 
 const VALID_INTENT: &str =
     "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
@@ -55,18 +53,11 @@ fn observe_context() -> PolicyContext {
     )
 }
 
-fn issued_purchase_use(
-    consume_at_epoch_seconds: u64,
-) -> originweave_policy::EnterpriseApprovalUse {
+fn issued_purchase_use(consume_at_epoch_seconds: u64) -> originweave_policy::EnterpriseApprovalUse {
     let approved_scope = purchase_scope();
-    let mut approval = EnterpriseApprovalRequest::new(
-        approved_scope.clone(),
-        principal("maker"),
-        100,
-        200,
-        1,
-    )
-    .expect("approval request must be valid");
+    let mut approval =
+        EnterpriseApprovalRequest::new(approved_scope.clone(), principal("maker"), 100, 200, 1)
+            .expect("approval request must be valid");
     approval
         .approve(principal("checker"), 110)
         .expect("distinct checker must approve");
