@@ -367,9 +367,10 @@ impl SensitiveHandleUseState {
     ///
     /// This compatibility path is deliberately non-compensatable. Callers that
     /// need pre-disclosure rollback must use [`Self::reserve_tracked_use`] and
-    /// settle the returned identity explicitly. Revocation is checked before
-    /// later request details; trusted time cannot move backward; and every denial
-    /// leaves the authoritative count unchanged.
+    /// settle the returned identity explicitly. Exact scope and audience mismatch
+    /// are decided before lifecycle state is read; revocation then remains
+    /// authoritative over otherwise matching requests; trusted time cannot move
+    /// backward; and every denial leaves the authoritative count unchanged.
     #[must_use]
     pub fn reserve_use(
         &mut self,
@@ -461,6 +462,20 @@ impl SensitiveHandleUseState {
         audience_id: &str,
         now_epoch_seconds: u64,
     ) -> HandleUseDecision {
+        let request = HandleUseRequest::new(
+            authority,
+            audience_id,
+            now_epoch_seconds,
+            self.reserved_uses,
+        );
+        let policy_decision = evaluate_handle_use(&request, &self.scope);
+        if matches!(
+            policy_decision,
+            HandleUseDecision::ScopeMismatch | HandleUseDecision::AudienceMismatch
+        ) {
+            return policy_decision;
+        }
+
         if self.revocation_reason.is_some() {
             return HandleUseDecision::Revoked;
         }
@@ -472,13 +487,7 @@ impl SensitiveHandleUseState {
         }
         self.latest_trusted_time_epoch_seconds = Some(now_epoch_seconds);
 
-        let request = HandleUseRequest::new(
-            authority,
-            audience_id,
-            now_epoch_seconds,
-            self.reserved_uses,
-        );
-        evaluate_handle_use(&request, &self.scope)
+        policy_decision
     }
 }
 
