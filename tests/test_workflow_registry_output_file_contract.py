@@ -150,6 +150,31 @@ class WorkflowRegistryOutputFileContractTests(unittest.TestCase):
 
             self.assertEqual(output.read_text(encoding="utf-8"), "sentinel\n")
 
+    def test_staging_fstat_failure_removes_private_temp_file(self) -> None:
+        """A failed first staging inspection must not orphan its private temp inode."""
+
+        main = self._main()
+        with tempfile.TemporaryDirectory(prefix="originweave-workflow-output-") as directory:
+            root = pathlib.Path(directory)
+            source = root / "registry.json"
+            source.write_text(json.dumps(_payload()), encoding="utf-8")
+            output = root / "audit.json"
+            real_fstat = os.fstat
+            fstat_calls = 0
+
+            def fail_staging_fstat(descriptor: int) -> os.stat_result:
+                nonlocal fstat_calls
+                fstat_calls += 1
+                if fstat_calls == 2:
+                    raise OSError(errno.EIO, "simulated staging fstat failure")
+                return real_fstat(descriptor)
+
+            with unittest.mock.patch("os.fstat", side_effect=fail_staging_fstat):
+                self.assertEqual(main([str(source), "--output", str(output)]), 1)
+
+            self.assertFalse(output.exists())
+            self.assertEqual(list(root.glob(".originweave-audit-*.tmp")), [])
+
     def test_failed_new_output_write_is_removed_for_safe_retry(self) -> None:
         """A partial create-once evidence file must not survive a failed write."""
 
