@@ -222,12 +222,7 @@ fn binding_mismatch_does_not_expose_revocation_state_on_recheck() {
         HandleUseDecision::AudienceMismatch
     );
     assert_eq!(
-        revoked_state.recheck_reservation(
-            &foreign,
-            authority(DESTINATION),
-            AUDIENCE,
-            2_001,
-        ),
+        revoked_state.recheck_reservation(&foreign, authority(DESTINATION), AUDIENCE, 2_001,),
         HandleUseDecision::Revoked
     );
 }
