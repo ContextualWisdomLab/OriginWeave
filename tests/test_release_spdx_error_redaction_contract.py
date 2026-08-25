@@ -60,6 +60,8 @@ class ReleaseSpdxErrorRedactionContractTests(unittest.TestCase):
         self.assertIsNone(error.__cause__.filename)
         self.assertNotIn(marker, str(error.__cause__))
         self.assertNotIn(marker, repr(error.__cause__))
+        self.assertIsNone(error.__cause__.__context__)
+        self.assertIsNone(error.__context__)
 
 
 if __name__ == "__main__":
