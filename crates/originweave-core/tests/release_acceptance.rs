@@ -138,7 +138,7 @@ fn limitation_errors_have_deterministic_standard_error_contracts() {
         ),
         (
             ReleaseDecisionError::InvalidLimitationClaim,
-            "declared release limitation claim contains an unsafe presentation character",
+            "declared release limitation claim is not canonical or contains an unsafe presentation character",
         ),
         (
             ReleaseDecisionError::EmptyLimitationConsequence,
@@ -146,7 +146,7 @@ fn limitation_errors_have_deterministic_standard_error_contracts() {
         ),
         (
             ReleaseDecisionError::InvalidLimitationConsequence,
-            "declared release limitation consequence contains an unsafe presentation character",
+            "declared release limitation consequence is not canonical or contains an unsafe presentation character",
         ),
         (
             ReleaseDecisionError::DuplicateLimitationClaim,
