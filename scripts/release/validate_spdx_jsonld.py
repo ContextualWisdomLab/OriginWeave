@@ -304,6 +304,8 @@ def _nonblocking_read_opener(path: str, flags: int) -> int:
 def _read_bounded(path: pathlib.Path) -> bytes:
     """Read one bounded direct regular-file candidate with stable path-owner identities."""
 
+    read_error_code: str | None = None
+    redacted_error: OSError | None = None
     try:
         expected_parent_identities = _direct_parent_identities(path)
         candidate_stat = path.lstat()
@@ -335,9 +337,16 @@ def _read_bounded(path: pathlib.Path) -> bytes:
             _EXPECTED_PARENT_IDENTITIES.reset(identity_token)
     except OSError as error:
         redacted_error = OSError(error.errno, "release SBOM file operation failed")
-        if error.errno in {errno.ELOOP, errno.ENOTDIR}:
-            raise SpdxJsonLdEnvelopeError("invalid_file_type") from redacted_error
-        raise SpdxJsonLdEnvelopeError("read_failed") from redacted_error
+        read_error_code = (
+            "invalid_file_type"
+            if error.errno in {errno.ELOOP, errno.ENOTDIR}
+            else "read_failed"
+        )
+    if read_error_code is not None:
+        # Raise only after leaving the original handler. Otherwise Python retains the
+        # path-bearing source error as implicit ``__context__`` even when an explicit
+        # redacted ``__cause__`` is supplied.
+        raise SpdxJsonLdEnvelopeError(read_error_code) from redacted_error
     if not payload or len(payload) > MAX_SPDX_JSONLD_BYTES:
         raise SpdxJsonLdEnvelopeError("invalid_size")
     return payload
