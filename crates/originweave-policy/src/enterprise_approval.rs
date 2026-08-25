@@ -283,13 +283,18 @@ impl EnterpriseApprovalRequest {
 
     /// Approve a pending request as a distinct checker.
     ///
-    /// `now_epoch_seconds` must be trusted control-plane time. Expiry is
-    /// exclusive: a transition at the deadline fails closed.
+    /// The local maker/checker identity relationship is validated before
+    /// lifecycle or trusted-time state so a self-approval attempt cannot reveal
+    /// or mutate those states. `now_epoch_seconds` must be trusted control-plane
+    /// time. Expiry is exclusive: a transition at the deadline fails closed.
     pub fn approve(
         &mut self,
         approver: ApprovalPrincipalRef,
         now_epoch_seconds: u64,
     ) -> Result<(), ApprovalLifecycleError> {
+        if approver == self.requester {
+            return Err(ApprovalLifecycleError::SelfApproval);
+        }
         if self.state != ApprovalLifecycleState::ApprovalRequested {
             return Err(ApprovalLifecycleError::InvalidState(self.state));
         }
@@ -298,9 +303,6 @@ impl EnterpriseApprovalRequest {
             self.last_transition_at_epoch_seconds = now_epoch_seconds;
             self.state = ApprovalLifecycleState::Expired;
             return Err(ApprovalLifecycleError::Expired);
-        }
-        if approver == self.requester {
-            return Err(ApprovalLifecycleError::SelfApproval);
         }
         self.decision_actor = Some(approver);
         self.last_transition_at_epoch_seconds = now_epoch_seconds;
@@ -310,12 +312,17 @@ impl EnterpriseApprovalRequest {
 
     /// Deny a pending request as a distinct checker.
     ///
-    /// `now_epoch_seconds` must be trusted control-plane time.
+    /// The local maker/checker identity relationship is validated before
+    /// lifecycle or trusted-time state so a self-denial attempt cannot reveal or
+    /// mutate those states. `now_epoch_seconds` must be trusted control-plane time.
     pub fn deny(
         &mut self,
         actor: ApprovalPrincipalRef,
         now_epoch_seconds: u64,
     ) -> Result<(), ApprovalLifecycleError> {
+        if actor == self.requester {
+            return Err(ApprovalLifecycleError::SelfApproval);
+        }
         if self.state != ApprovalLifecycleState::ApprovalRequested {
             return Err(ApprovalLifecycleError::InvalidState(self.state));
         }
@@ -324,9 +331,6 @@ impl EnterpriseApprovalRequest {
             self.last_transition_at_epoch_seconds = now_epoch_seconds;
             self.state = ApprovalLifecycleState::Expired;
             return Err(ApprovalLifecycleError::Expired);
-        }
-        if actor == self.requester {
-            return Err(ApprovalLifecycleError::SelfApproval);
         }
         self.decision_actor = Some(actor);
         self.last_transition_at_epoch_seconds = now_epoch_seconds;
@@ -336,12 +340,17 @@ impl EnterpriseApprovalRequest {
 
     /// Withdraw a pending request as the exact requesting maker.
     ///
-    /// `now_epoch_seconds` must be trusted control-plane time.
+    /// Requester identity is validated before lifecycle or trusted-time state so
+    /// a foreign actor cannot reveal or mutate those states. `now_epoch_seconds`
+    /// must be trusted control-plane time.
     pub fn withdraw(
         &mut self,
         actor: &ApprovalPrincipalRef,
         now_epoch_seconds: u64,
     ) -> Result<(), ApprovalLifecycleError> {
+        if actor != &self.requester {
+            return Err(ApprovalLifecycleError::RequesterMismatch);
+        }
         if self.state != ApprovalLifecycleState::ApprovalRequested {
             return Err(ApprovalLifecycleError::InvalidState(self.state));
         }
@@ -350,9 +359,6 @@ impl EnterpriseApprovalRequest {
             self.last_transition_at_epoch_seconds = now_epoch_seconds;
             self.state = ApprovalLifecycleState::Expired;
             return Err(ApprovalLifecycleError::Expired);
-        }
-        if actor != &self.requester {
-            return Err(ApprovalLifecycleError::RequesterMismatch);
         }
         self.last_transition_at_epoch_seconds = now_epoch_seconds;
         self.state = ApprovalLifecycleState::Withdrawn;
@@ -400,16 +406,21 @@ impl EnterpriseApprovalRequest {
 
     /// Revoke an approved or fully-issued request as the exact checker that approved it.
     ///
-    /// `now_epoch_seconds` must be trusted control-plane time. Revocation also
-    /// invalidates already-consumed one-shot uses that have not yet begun their
-    /// evaluation-time validity check, including an outstanding final use after
-    /// the request entered [`ApprovalLifecycleState::Consumed`]. Revocation does
-    /// not undo policy evaluations that completed before the revocation signal.
+    /// Checker identity is validated before lifecycle or trusted-time state so a
+    /// foreign actor cannot reveal or mutate those states. `now_epoch_seconds`
+    /// must be trusted control-plane time. Revocation also invalidates
+    /// already-consumed one-shot uses that have not yet begun their evaluation-time
+    /// validity check, including an outstanding final use after the request entered
+    /// [`ApprovalLifecycleState::Consumed`]. Revocation does not undo policy
+    /// evaluations that completed before the revocation signal.
     pub fn revoke(
         &mut self,
         actor: &ApprovalPrincipalRef,
         now_epoch_seconds: u64,
     ) -> Result<(), ApprovalLifecycleError> {
+        if self.decision_actor.as_ref() != Some(actor) {
+            return Err(ApprovalLifecycleError::DecisionActorMismatch);
+        }
         if !matches!(
             self.state,
             ApprovalLifecycleState::Approved | ApprovalLifecycleState::Consumed
@@ -421,9 +432,6 @@ impl EnterpriseApprovalRequest {
             self.last_transition_at_epoch_seconds = now_epoch_seconds;
             self.state = ApprovalLifecycleState::Expired;
             return Err(ApprovalLifecycleError::Expired);
-        }
-        if self.decision_actor.as_ref() != Some(actor) {
-            return Err(ApprovalLifecycleError::DecisionActorMismatch);
         }
         self.revocation_signal.get_or_init(|| ());
         self.last_transition_at_epoch_seconds = now_epoch_seconds;
