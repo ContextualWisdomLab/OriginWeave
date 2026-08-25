@@ -81,17 +81,17 @@ impl fmt::Display for CaptureManifestError {
                 .write_str("capture manifest structured-value digest is not canonical SHA-256"),
             Self::UnknownValueField => formatter
                 .write_str("capture manifest structured-value field is absent from the schema"),
-            Self::ValueSourceRecordMissing => formatter.write_str(
-                "capture manifest structured value references an absent WARC record",
-            ),
+            Self::ValueSourceRecordMissing => formatter
+                .write_str("capture manifest structured value references an absent WARC record"),
             Self::ValueSourceChannelMismatch => formatter.write_str(
                 "capture manifest structured value is not admitted by the field source channels",
             ),
             Self::DuplicateValue => {
                 formatter.write_str("capture manifest contains a duplicate structured value")
             }
-            Self::ValueCardinalityExceeded => formatter
-                .write_str("capture manifest structured value exceeds field cardinality"),
+            Self::ValueCardinalityExceeded => {
+                formatter.write_str("capture manifest structured value exceeds field cardinality")
+            }
             Self::RequiredValueMissing => {
                 formatter.write_str("capture manifest is missing a required structured value")
             }
