@@ -91,3 +91,24 @@ fn lifecycle_rejects_issuance_before_policy_decision() -> TestResult {
     );
     Ok(())
 }
+
+#[test]
+fn lifecycle_expiry_respects_access_retention_deadline() -> TestResult {
+    let access = access_evidence(SensitiveAccessOutcome::OpaqueHandleOnly, 1_720_000_000)?;
+    let retention_deadline = access
+        .retention_deadline_epoch_seconds()
+        .ok_or_else(|| "fixture must carry a retention deadline".to_owned())?;
+
+    let mut exact_deadline = lifecycle_input(access.clone(), 1_720_000_001);
+    exact_deadline.expires_epoch_seconds = retention_deadline;
+    SensitiveHandleLifecycleEvidence::try_from(exact_deadline)
+        .map_err(|error| format!("{error:?}"))?;
+
+    let mut after_deadline = lifecycle_input(access, 1_720_000_001);
+    after_deadline.expires_epoch_seconds = retention_deadline + 1;
+    assert_eq!(
+        SensitiveHandleLifecycleEvidence::try_from(after_deadline),
+        Err(SensitiveEvidenceError::InvalidLifecycle)
+    );
+    Ok(())
+}
