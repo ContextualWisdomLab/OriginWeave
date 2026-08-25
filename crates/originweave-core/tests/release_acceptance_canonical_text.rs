@@ -93,3 +93,26 @@ fn limitation_rejects_non_nfc_buyer_consequence() {
         "buyer-visible consequences must use one canonical Unicode spelling",
     );
 }
+
+#[test]
+fn invalid_canonical_text_errors_describe_all_rejected_causes() {
+    let claim_error = DeclaredLimitation::new(
+        " linux_arm64",
+        "Linux ARM64 is excluded from the support profile.",
+    )
+    .expect_err("surrounding claim whitespace must remain invalid");
+    assert_eq!(
+        claim_error.to_string(),
+        "declared release limitation claim is not canonical or contains an unsafe presentation character"
+    );
+
+    let consequence_error = DeclaredLimitation::new(
+        "linux_arm64",
+        "Cafe\u{301} support is excluded from this profile.",
+    )
+    .expect_err("non-NFC consequence text must remain invalid");
+    assert_eq!(
+        consequence_error.to_string(),
+        "declared release limitation consequence is not canonical or contains an unsafe presentation character"
+    );
+}
