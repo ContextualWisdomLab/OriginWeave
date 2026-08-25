@@ -208,9 +208,8 @@ fn live_websocket_locate_nodes_exchange_binds_wire_nodes_to_current_authority()
         WebDriverBiDiWebSocketMaskKey::new([0x11, 0x22, 0x33, 0x44]),
         &mut || None,
         Duration::from_millis(500),
-        semantic_observation_proof()?,
+        (semantic_observation_proof()?, target),
         &mut registry,
-        target,
     )?;
 
     assert_eq!(handles.len(), 1);
@@ -244,9 +243,8 @@ fn live_exchange_fails_closed_when_document_epoch_changed_before_wire_node_bindi
         WebDriverBiDiWebSocketMaskKey::new([0x11, 0x22, 0x33, 0x44]),
         &mut || None,
         Duration::from_millis(500),
-        semantic_observation_proof()?,
+        (semantic_observation_proof()?, target),
         &mut registry,
-        target,
     );
 
     assert!(matches!(
