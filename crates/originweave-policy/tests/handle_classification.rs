@@ -6,8 +6,6 @@ use originweave_policy::{
     SensitiveValueHandleScope, evaluate_handle_use,
 };
 
-const AUDIENCE: &str = "browser_broker";
-
 fn destination() -> Origin {
     Origin::parse("https://shipping.example").expect("canonical destination")
 }
@@ -25,21 +23,11 @@ fn authority(classification: DataClassification) -> SensitiveDataAuthority {
 
 #[test]
 fn opaque_handle_use_requires_the_exact_data_classification() {
-    let scope = SensitiveValueHandleScope::new(
-        authority(DataClassification::PersonalData),
-        AUDIENCE,
-        2_000,
-        2,
-    );
-    let permitted = HandleUseRequest::new(
-        authority(DataClassification::PersonalData),
-        AUDIENCE,
-        1_999,
-        0,
-    );
+    let scope =
+        SensitiveValueHandleScope::new(authority(DataClassification::PersonalData), 2_000, 2);
+    let permitted = HandleUseRequest::new(authority(DataClassification::PersonalData), 1_999, 0);
     let reclassified = HandleUseRequest::new(
         authority(DataClassification::SensitivePersonalData),
-        AUDIENCE,
         1_999,
         0,
     );
