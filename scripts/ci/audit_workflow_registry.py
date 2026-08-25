@@ -16,6 +16,7 @@ import json
 import os
 import pathlib
 import re
+import secrets
 import stat
 import sys
 from typing import Any
@@ -25,6 +26,7 @@ _MAX_INPUT_BYTES = 4 * 1024 * 1024
 _MAX_JSON_INTEGER_DIGITS = 20
 _MAX_WORKFLOW_ID = (1 << 64) - 1
 _MAX_RETRY_AFTER_SECONDS = 3600
+_MAX_OUTPUT_STAGING_ATTEMPTS = 4
 _SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 _TIMESTAMP_PATTERN = re.compile(
     r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
@@ -626,14 +628,20 @@ def _read_payload(path: pathlib.Path) -> dict[str, Any]:
     return _require_mapping(parsed, "payload")
 
 
-def _open_output_descriptor(path: pathlib.Path, create_new: bool) -> int:
-    """Open one output leaf without following symbolic-link path components."""
+def _open_output_parent(path: pathlib.Path) -> tuple[int, str]:
+    """Open the direct parent of one output leaf through a no-follow component walk."""
 
     nofollow = getattr(os, "O_NOFOLLOW", 0)
     directory = getattr(os, "O_DIRECTORY", 0)
     cloexec = getattr(os, "O_CLOEXEC", 0)
-    nonblock = getattr(os, "O_NONBLOCK", 0)
-    if not nofollow or not directory or os.open not in os.supports_dir_fd:
+    required_dir_fd_operations = {os.open, os.stat, os.link, os.unlink}
+    if (
+        not nofollow
+        or not directory
+        or not required_dir_fd_operations.issubset(os.supports_dir_fd)
+        or os.stat not in os.supports_follow_symlinks
+        or os.link not in os.supports_follow_symlinks
+    ):
         raise WorkflowAuditError("secure direct-file output is unavailable")
 
     components = list(path.parts)
@@ -663,12 +671,25 @@ def _open_output_descriptor(path: pathlib.Path, create_new: bool) -> int:
                 raise WorkflowAuditError("output path is not writable") from error
             os.close(parent_fd)
             parent_fd = next_fd
+        return parent_fd, components[-1]
+    except Exception:
+        os.close(parent_fd)
+        raise
 
+
+def _open_output_descriptor(path: pathlib.Path, create_new: bool) -> int:
+    """Open one output leaf without following symbolic-link path components."""
+
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    cloexec = getattr(os, "O_CLOEXEC", 0)
+    nonblock = getattr(os, "O_NONBLOCK", 0)
+    parent_fd, leaf_name = _open_output_parent(path)
+    try:
         flags = os.O_WRONLY | nonblock | nofollow | cloexec
         if create_new:
             flags |= os.O_CREAT | os.O_EXCL
         try:
-            return os.open(components[-1], flags, 0o600, dir_fd=parent_fd)
+            return os.open(leaf_name, flags, 0o600, dir_fd=parent_fd)
         except OSError as error:
             if error.errno == errno.ELOOP:
                 raise WorkflowAuditError("output must not be a symbolic link") from error
@@ -681,8 +702,59 @@ def _open_output_descriptor(path: pathlib.Path, create_new: bool) -> int:
         os.close(parent_fd)
 
 
+def _create_output_staging_descriptor(parent_fd: int) -> tuple[int, str]:
+    """Create one bounded random staging inode in the already-authorized parent."""
+
+    flags = (
+        os.O_WRONLY
+        | os.O_CREAT
+        | os.O_EXCL
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_CLOEXEC", 0)
+    )
+    for _ in range(_MAX_OUTPUT_STAGING_ATTEMPTS):
+        staging_name = f".originweave-audit-{secrets.token_hex(16)}.tmp"
+        try:
+            descriptor = os.open(staging_name, flags, 0o600, dir_fd=parent_fd)
+            return descriptor, staging_name
+        except FileExistsError:
+            continue
+        except OSError as error:
+            raise WorkflowAuditError("output path is not writable") from error
+    raise WorkflowAuditError("secure output staging name allocation was exhausted")
+
+
+def _stat_output_leaf(parent_fd: int, leaf_name: str) -> os.stat_result | None:
+    """Return a no-follow output-leaf stat or None when the leaf is absent."""
+
+    try:
+        return os.stat(leaf_name, dir_fd=parent_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        return None
+    except OSError as error:
+        raise WorkflowAuditError("output path is not writable") from error
+
+
+def _unlink_matching_staging(
+    parent_fd: int,
+    staging_name: str,
+    expected_identity: tuple[int, int],
+) -> None:
+    """Remove only the still-matching private staging inode after failure."""
+
+    staging_stat = _stat_output_leaf(parent_fd, staging_name)
+    if staging_stat is None:
+        return
+    if (staging_stat.st_dev, staging_stat.st_ino) != expected_identity:
+        raise WorkflowAuditError("output staging identity changed during cleanup")
+    try:
+        os.unlink(staging_name, dir_fd=parent_fd)
+    except OSError as error:
+        raise WorkflowAuditError("output staging cleanup failed") from error
+
+
 def _write_output(path: pathlib.Path, serialized: str) -> None:
-    """Create one directly named, singly linked regular evidence output file."""
+    """Publish complete create-once evidence without exposing a partial canonical leaf."""
 
     candidate_stat: os.stat_result | None
     try:
@@ -700,34 +772,117 @@ def _write_output(path: pathlib.Path, serialized: str) -> None:
         if candidate_stat.st_nlink != 1:
             raise WorkflowAuditError("output must have exactly one hard link")
 
+        descriptor: int | None = None
+        try:
+            descriptor = _open_output_descriptor(path, False)
+            opened_stat = os.fstat(descriptor)
+            if not stat.S_ISREG(opened_stat.st_mode):
+                raise WorkflowAuditError("output must be a regular file")
+            if opened_stat.st_nlink != 1:
+                raise WorkflowAuditError("output must have exactly one hard link")
+            if (candidate_stat.st_dev, candidate_stat.st_ino) != (
+                opened_stat.st_dev,
+                opened_stat.st_ino,
+            ):
+                raise WorkflowAuditError("output file identity changed before write")
+            raise WorkflowAuditError("output file already exists")
+        finally:
+            if descriptor is not None:
+                os.close(descriptor)
+
+    parent_fd: int | None = None
     descriptor: int | None = None
+    staging_name: str | None = None
+    staging_identity: tuple[int, int] | None = None
     try:
-        descriptor = _open_output_descriptor(path, candidate_stat is None)
+        parent_fd, leaf_name = _open_output_parent(path)
+        final_stat = _stat_output_leaf(parent_fd, leaf_name)
+        if final_stat is not None:
+            if stat.S_ISLNK(final_stat.st_mode):
+                raise WorkflowAuditError("output must not be a symbolic link")
+            if not stat.S_ISREG(final_stat.st_mode):
+                raise WorkflowAuditError("output must be a regular file")
+            if final_stat.st_nlink != 1:
+                raise WorkflowAuditError("output must have exactly one hard link")
+            raise WorkflowAuditError("output file identity changed before write")
+
+        descriptor, staging_name = _create_output_staging_descriptor(parent_fd)
         opened_stat = os.fstat(descriptor)
         if not stat.S_ISREG(opened_stat.st_mode):
-            raise WorkflowAuditError("output must be a regular file")
+            raise WorkflowAuditError("output staging must be a regular file")
         if opened_stat.st_nlink != 1:
-            raise WorkflowAuditError("output must have exactly one hard link")
-        if candidate_stat is not None and (
-            candidate_stat.st_dev,
-            candidate_stat.st_ino,
-        ) != (
-            opened_stat.st_dev,
-            opened_stat.st_ino,
+            raise WorkflowAuditError("output staging must have exactly one hard link")
+        staging_identity = (opened_stat.st_dev, opened_stat.st_ino)
+
+        try:
+            with os.fdopen(descriptor, "w", encoding="utf-8") as destination:
+                descriptor = None
+                destination.write(serialized)
+                destination.flush()
+                os.fsync(destination.fileno())
+        except OSError as error:
+            _unlink_matching_staging(parent_fd, staging_name, staging_identity)
+            staging_name = None
+            raise WorkflowAuditError("output path is not writable") from error
+
+        staged_stat = _stat_output_leaf(parent_fd, staging_name)
+        if staged_stat is None or (
+            staged_stat.st_dev,
+            staged_stat.st_ino,
+        ) != staging_identity:
+            raise WorkflowAuditError("output staging identity changed before publish")
+        if not stat.S_ISREG(staged_stat.st_mode) or staged_stat.st_nlink != 1:
+            raise WorkflowAuditError("output staging authority changed before publish")
+
+        try:
+            os.link(
+                staging_name,
+                leaf_name,
+                src_dir_fd=parent_fd,
+                dst_dir_fd=parent_fd,
+                follow_symlinks=False,
+            )
+        except FileExistsError as error:
+            raise WorkflowAuditError("output file identity changed before publish") from error
+        except OSError as error:
+            raise WorkflowAuditError("output path is not writable") from error
+
+        published_stat = _stat_output_leaf(parent_fd, leaf_name)
+        staged_stat = _stat_output_leaf(parent_fd, staging_name)
+        if (
+            published_stat is None
+            or staged_stat is None
+            or (published_stat.st_dev, published_stat.st_ino) != staging_identity
+            or (staged_stat.st_dev, staged_stat.st_ino) != staging_identity
+            or not stat.S_ISREG(published_stat.st_mode)
+            or published_stat.st_nlink != 2
+            or staged_stat.st_nlink != 2
         ):
-            raise WorkflowAuditError("output file identity changed before write")
-        if candidate_stat is not None:
-            raise WorkflowAuditError("output file already exists")
-        with os.fdopen(descriptor, "w", encoding="utf-8") as destination:
-            descriptor = None
-            destination.write(serialized)
+            raise WorkflowAuditError("published output identity is ambiguous")
+
+        os.unlink(staging_name, dir_fd=parent_fd)
+        staging_name = None
+        final_stat = _stat_output_leaf(parent_fd, leaf_name)
+        if (
+            final_stat is None
+            or (final_stat.st_dev, final_stat.st_ino) != staging_identity
+            or not stat.S_ISREG(final_stat.st_mode)
+            or final_stat.st_nlink != 1
+        ):
+            raise WorkflowAuditError("published output identity is ambiguous")
     except OSError as error:
-        if error.errno == errno.ELOOP:
-            raise WorkflowAuditError("output must not be a symbolic link") from error
         raise WorkflowAuditError("output path is not writable") from error
     finally:
         if descriptor is not None:
             os.close(descriptor)
+        if (
+            parent_fd is not None
+            and staging_name is not None
+            and staging_identity is not None
+        ):
+            _unlink_matching_staging(parent_fd, staging_name, staging_identity)
+        if parent_fd is not None:
+            os.close(parent_fd)
 
 
 def main(argv: list[str] | None = None) -> int:
