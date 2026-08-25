@@ -67,17 +67,52 @@ fn native_messaging_stream_reader_rejects_oversized_prefix_before_reading_payloa
 }
 
 #[test]
+fn native_messaging_stream_reader_preserves_truncated_prefix_io_cause() {
+    let mut reader = Cursor::new([0_u8; 3]);
+
+    assert!(matches!(
+        read_native_messaging_payload(NativeMessagingFrameDirection::HostToBrowser, &mut reader),
+        Err(NativeMessagingFrameReadError::Io(ref error))
+            if error.kind() == ErrorKind::UnexpectedEof
+    ));
+}
+
+#[test]
 fn native_messaging_stream_reader_preserves_truncated_payload_io_cause() {
     let mut frame = Vec::from(4_u32.to_ne_bytes());
     frame.extend_from_slice(b"abc");
     let mut reader = Cursor::new(frame);
 
-    match read_native_messaging_payload(NativeMessagingFrameDirection::HostToBrowser, &mut reader) {
-        Err(NativeMessagingFrameReadError::Io(error)) => {
-            assert_eq!(error.kind(), ErrorKind::UnexpectedEof);
-        }
-        other => panic!("expected typed I/O failure, got {other:?}"),
-    }
+    assert!(matches!(
+        read_native_messaging_payload(NativeMessagingFrameDirection::HostToBrowser, &mut reader),
+        Err(NativeMessagingFrameReadError::Io(ref error))
+            if error.kind() == ErrorKind::UnexpectedEof
+    ));
+}
+
+#[test]
+fn native_messaging_stream_read_errors_preserve_typed_sources_and_display() {
+    let frame_error =
+        NativeMessagingFrameReadError::Frame(NativeMessagingFrameError::PayloadTooLarge);
+    assert_eq!(
+        frame_error.to_string(),
+        "native messaging payload exceeds the direction-specific limit"
+    );
+    assert!(Error::source(&frame_error).is_some());
+
+    let io_error =
+        NativeMessagingFrameReadError::Io(std::io::Error::from(ErrorKind::UnexpectedEof));
+    assert_eq!(io_error.to_string(), "unexpected end of file");
+    let source = Error::source(&io_error);
+    assert!(source.is_some());
+    assert_eq!(
+        source.and_then(|source| {
+            source
+                .downcast_ref::<std::io::Error>()
+                .map(std::io::Error::kind)
+        }),
+        Some(ErrorKind::UnexpectedEof)
+    );
 }
 
 #[test]
