@@ -70,12 +70,11 @@ fn native_messaging_stream_reader_rejects_oversized_prefix_before_reading_payloa
 fn native_messaging_stream_reader_preserves_truncated_prefix_io_cause() {
     let mut reader = Cursor::new([0_u8; 3]);
 
-    match read_native_messaging_payload(NativeMessagingFrameDirection::HostToBrowser, &mut reader) {
-        Err(NativeMessagingFrameReadError::Io(error)) => {
-            assert_eq!(error.kind(), ErrorKind::UnexpectedEof);
-        }
-        other => panic!("expected typed prefix I/O failure, got {other:?}"),
-    }
+    assert!(matches!(
+        read_native_messaging_payload(NativeMessagingFrameDirection::HostToBrowser, &mut reader),
+        Err(NativeMessagingFrameReadError::Io(ref error))
+            if error.kind() == ErrorKind::UnexpectedEof
+    ));
 }
 
 #[test]
@@ -84,12 +83,11 @@ fn native_messaging_stream_reader_preserves_truncated_payload_io_cause() {
     frame.extend_from_slice(b"abc");
     let mut reader = Cursor::new(frame);
 
-    match read_native_messaging_payload(NativeMessagingFrameDirection::HostToBrowser, &mut reader) {
-        Err(NativeMessagingFrameReadError::Io(error)) => {
-            assert_eq!(error.kind(), ErrorKind::UnexpectedEof);
-        }
-        other => panic!("expected typed I/O failure, got {other:?}"),
-    }
+    assert!(matches!(
+        read_native_messaging_payload(NativeMessagingFrameDirection::HostToBrowser, &mut reader),
+        Err(NativeMessagingFrameReadError::Io(ref error))
+            if error.kind() == ErrorKind::UnexpectedEof
+    ));
 }
 
 #[test]
@@ -105,11 +103,16 @@ fn native_messaging_stream_read_errors_preserve_typed_sources_and_display() {
     let io_error =
         NativeMessagingFrameReadError::Io(std::io::Error::from(ErrorKind::UnexpectedEof));
     assert_eq!(io_error.to_string(), "unexpected end of file");
-    let source = Error::source(&io_error).expect("stream read errors preserve their I/O source");
-    let source = source
-        .downcast_ref::<std::io::Error>()
-        .expect("the preserved source remains the original I/O error type");
-    assert_eq!(source.kind(), ErrorKind::UnexpectedEof);
+    let source = Error::source(&io_error);
+    assert!(source.is_some());
+    assert_eq!(
+        source.and_then(|source| {
+            source
+                .downcast_ref::<std::io::Error>()
+                .map(std::io::Error::kind)
+        }),
+        Some(ErrorKind::UnexpectedEof)
+    );
 }
 
 #[test]
