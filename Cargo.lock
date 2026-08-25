@@ -279,7 +279,6 @@ name = "originweave-evidence"
 version = "0.1.0"
 dependencies = [
  "originweave-core",
- "sha2",
 ]
 
 [[package]]

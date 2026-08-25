@@ -12,7 +12,6 @@ publish = false
 
 [dependencies]
 originweave-core = { path = "../originweave-core" }
-sha2 = "=0.10.9"
 
 [lints]
 workspace = true
