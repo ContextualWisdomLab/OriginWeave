@@ -735,6 +735,22 @@ def _stat_output_leaf(parent_fd: int, leaf_name: str) -> os.stat_result | None:
         raise WorkflowAuditError("output path is not writable") from error
 
 
+def _unlink_with_interrupted_retry(parent_fd: int, leaf_name: str) -> OSError | None:
+    """Unlink one descriptor-relative leaf with one bounded EINTR retry."""
+
+    try:
+        os.unlink(leaf_name, dir_fd=parent_fd)
+        return None
+    except OSError as error:
+        if error.errno != errno.EINTR:
+            return error
+    try:
+        os.unlink(leaf_name, dir_fd=parent_fd)
+        return None
+    except OSError as error:
+        return error
+
+
 def _unlink_matching_staging(
     parent_fd: int,
     staging_name: str,
@@ -747,10 +763,9 @@ def _unlink_matching_staging(
         return
     if (staging_stat.st_dev, staging_stat.st_ino) != expected_identity:
         raise WorkflowAuditError("output staging identity changed during cleanup")
-    try:
-        os.unlink(staging_name, dir_fd=parent_fd)
-    except OSError as error:
-        raise WorkflowAuditError("output staging cleanup failed") from error
+    cleanup_error = _unlink_with_interrupted_retry(parent_fd, staging_name)
+    if cleanup_error is not None:
+        raise WorkflowAuditError("output staging cleanup failed") from cleanup_error
 
 
 def _write_output(path: pathlib.Path, serialized: str) -> None:
@@ -860,7 +875,25 @@ def _write_output(path: pathlib.Path, serialized: str) -> None:
         ):
             raise WorkflowAuditError("published output identity is ambiguous")
 
-        os.unlink(staging_name, dir_fd=parent_fd)
+        cleanup_error = _unlink_with_interrupted_retry(parent_fd, staging_name)
+        if cleanup_error is not None:
+            rollback_stat = _stat_output_leaf(parent_fd, leaf_name)
+            if (
+                rollback_stat is None
+                or (rollback_stat.st_dev, rollback_stat.st_ino) != staging_identity
+                or not stat.S_ISREG(rollback_stat.st_mode)
+                or rollback_stat.st_nlink != 2
+            ):
+                raise WorkflowAuditError(
+                    "published output identity changed during cleanup rollback"
+                ) from cleanup_error
+            rollback_error = _unlink_with_interrupted_retry(parent_fd, leaf_name)
+            if rollback_error is not None:
+                raise WorkflowAuditError(
+                    "published output rollback failed"
+                ) from rollback_error
+            raise WorkflowAuditError("output staging cleanup failed") from cleanup_error
+
         staging_name = None
         final_stat = _stat_output_leaf(parent_fd, leaf_name)
         if (
