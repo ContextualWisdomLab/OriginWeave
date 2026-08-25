@@ -129,6 +129,22 @@ fn denied_reservations_do_not_consume_the_authoritative_count() {
 }
 
 #[test]
+fn trusted_time_rollback_cannot_restore_expired_handle_authority() {
+    let mut state = SensitiveHandleUseState::new(scope(1));
+
+    assert_eq!(
+        state.reserve_use(authority(DESTINATION), AUDIENCE, 2_000),
+        HandleUseDecision::Expired
+    );
+    assert_eq!(state.reserved_uses(), 0);
+    assert_eq!(
+        state.reserve_use(authority(DESTINATION), AUDIENCE, 1_999),
+        HandleUseDecision::TrustedTimeRollback
+    );
+    assert_eq!(state.reserved_uses(), 0);
+}
+
+#[test]
 fn invalid_or_empty_audience_never_receives_handle_authority() {
     let mut state = SensitiveHandleUseState::new(scope(1));
 
