@@ -179,9 +179,9 @@ impl EnterpriseApprovalUse {
         if let Some(invalidation) = self.invalidation_signal.get() {
             return Err(match invalidation {
                 ApprovalUseInvalidation::Expired => ApprovalLifecycleError::Expired,
-                ApprovalUseInvalidation::Revoked => ApprovalLifecycleError::InvalidState(
-                    ApprovalLifecycleState::Revoked,
-                ),
+                ApprovalUseInvalidation::Revoked => {
+                    ApprovalLifecycleError::InvalidState(ApprovalLifecycleState::Revoked)
+                }
             });
         }
         let mut one_shot_context = context.clone();
