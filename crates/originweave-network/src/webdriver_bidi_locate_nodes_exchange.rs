@@ -248,8 +248,8 @@ impl WebDriverBiDiWebSocketEstablished {
     /// This is the live transport composition boundary for semantic node observation. The bounded
     /// command is exchanged on the already peer-verified WebSocket using [`Self::exchange_locate_nodes`].
     /// Only after exact wire parsing and command correlation succeed does the method revalidate the
-    /// caller's reviewed WebDriver BiDi `SemanticObservation` proof plus the exact current
-    /// session/context/origin/document epoch through
+    /// reviewed WebDriver BiDi `SemanticObservation` proof and exact current
+    /// session/context/origin/document epoch carried together in `authority` through
     /// [`ValidatedWebDriverBiDiLocateNodesResult::bind_current_nodes`]. No raw node identifier can be
     /// substituted between the wire response and authority binding.
     ///
@@ -264,10 +264,13 @@ impl WebDriverBiDiWebSocketEstablished {
         command_masking_key: WebDriverBiDiWebSocketMaskKey,
         next_pong_key: &mut dyn FnMut() -> Option<WebDriverBiDiWebSocketMaskKey>,
         exchange_timeout: Duration,
-        validated: ValidatedBrowserProtocolUse,
+        authority: (
+            ValidatedBrowserProtocolUse,
+            BrowserContextOriginEpochDispatchTarget<'_>,
+        ),
         authority_registry: &mut BrowserAuthorityRegistry,
-        target: BrowserContextOriginEpochDispatchTarget<'_>,
     ) -> Result<(Self, Vec<ObservedNodeHandle>), WebDriverBiDiLocateNodesExchangeError> {
+        let (validated, target) = authority;
         let (established, result) = self.exchange_locate_nodes(
             command,
             command_masking_key,
