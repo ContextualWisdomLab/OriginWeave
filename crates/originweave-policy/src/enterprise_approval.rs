@@ -5,7 +5,10 @@
 //! persistence, signatures, and external identity resolution belong to trusted
 //! control-plane boundaries outside this crate.
 
-use std::fmt;
+use std::{
+    fmt,
+    sync::{Arc, OnceLock},
+};
 
 use originweave_core::{ActionKind, ActionRequest, ApprovalEvidence, ApprovalScope, PolicyContext};
 
@@ -104,10 +107,12 @@ pub enum ApprovalLifecycleState {
 /// [`EnterpriseApprovalRequest::consume`] after exact-scope, trusted-time, and
 /// use-count checks succeed. [`Self::evaluate_at`] consumes the value and first
 /// revalidates trusted time against both the consumption time and retained
-/// exclusive expiry deadline. Only a still-valid use injects the approved scope
-/// into a private copy of the supplied policy context and delegates to the
-/// normal fail-closed policy evaluator. The use is burned even when evaluation
-/// is denied for expiry, time rollback, policy, or a different approval need.
+/// exclusive expiry deadline, then rejects checker revocation that occurred
+/// after the use was issued but before evaluation. Only a still-valid use
+/// injects the approved scope into a private copy of the supplied policy context
+/// and delegates to the normal fail-closed policy evaluator. The use is burned
+/// even when evaluation is denied for expiry, time rollback, revocation, policy,
+/// or a different approval need.
 ///
 /// ```compile_fail
 /// # use originweave_core::{ActionRequest, PolicyContext};
@@ -127,6 +132,7 @@ pub struct EnterpriseApprovalUse {
     scope: ApprovalScope,
     consumed_at_epoch_seconds: u64,
     expires_at_epoch_seconds: u64,
+    revocation_signal: Arc<OnceLock<()>>,
 }
 
 impl EnterpriseApprovalUse {
@@ -134,9 +140,10 @@ impl EnterpriseApprovalUse {
     ///
     /// `now_epoch_seconds` must come from the same trusted control-plane clock
     /// used by the approval lifecycle. Evaluation fails closed if trusted time
-    /// moves backward before the consumption time or reaches the retained
-    /// exclusive expiry deadline. The caller-provided context is cloned so the
-    /// reusable caller context is never upgraded with replayable approval
+    /// moves backward before the consumption time, reaches the retained
+    /// exclusive expiry deadline, or the approving checker revoked the live
+    /// request after this use was issued. The caller-provided context is cloned
+    /// so the reusable caller context is never upgraded with replayable approval
     /// evidence. This value itself is consumed regardless of the result.
     pub fn evaluate_at(
         self,
@@ -149,6 +156,11 @@ impl EnterpriseApprovalUse {
         }
         if now_epoch_seconds >= self.expires_at_epoch_seconds {
             return Err(ApprovalLifecycleError::Expired);
+        }
+        if self.revocation_signal.get().is_some() {
+            return Err(ApprovalLifecycleError::InvalidState(
+                ApprovalLifecycleState::Revoked,
+            ));
         }
         let mut one_shot_context = context.clone();
         one_shot_context.set_approval(ApprovalEvidence::UserConfirmed(self.scope));
@@ -172,6 +184,7 @@ pub struct EnterpriseApprovalRequest {
     max_uses: u32,
     uses_consumed: u32,
     state: ApprovalLifecycleState,
+    revocation_signal: Arc<OnceLock<()>>,
 }
 
 impl EnterpriseApprovalRequest {
@@ -206,6 +219,7 @@ impl EnterpriseApprovalRequest {
             max_uses,
             uses_consumed: 0,
             state: ApprovalLifecycleState::ApprovalRequested,
+            revocation_signal: Arc::new(OnceLock::new()),
         })
     }
 
@@ -349,9 +363,10 @@ impl EnterpriseApprovalRequest {
     ///
     /// `now_epoch_seconds` must be trusted control-plane time. Scope mismatch
     /// does not consume a use. Successful consumption returns a non-cloneable
-    /// [`EnterpriseApprovalUse`] that retains the consumption time and expiry
-    /// deadline for a second trusted-time check immediately before policy
-    /// evaluation rather than replayable approval evidence.
+    /// [`EnterpriseApprovalUse`] that retains the consumption time, expiry
+    /// deadline, and a shared monotonic revocation signal for a second
+    /// validity check immediately before policy evaluation rather than
+    /// replayable approval evidence.
     pub fn consume(
         &mut self,
         required_scope: &ApprovalScope,
@@ -378,12 +393,15 @@ impl EnterpriseApprovalRequest {
             scope: self.scope.clone(),
             consumed_at_epoch_seconds: now_epoch_seconds,
             expires_at_epoch_seconds: self.expires_at_epoch_seconds,
+            revocation_signal: Arc::clone(&self.revocation_signal),
         })
     }
 
     /// Revoke an approved request as the exact checker that approved it.
     ///
-    /// `now_epoch_seconds` must be trusted control-plane time.
+    /// `now_epoch_seconds` must be trusted control-plane time. Revocation also
+    /// invalidates already-consumed one-shot uses that have not yet begun their
+    /// evaluation-time validity check.
     pub fn revoke(
         &mut self,
         actor: &ApprovalPrincipalRef,
@@ -401,6 +419,7 @@ impl EnterpriseApprovalRequest {
         if self.decision_actor.as_ref() != Some(actor) {
             return Err(ApprovalLifecycleError::DecisionActorMismatch);
         }
+        self.revocation_signal.get_or_init(|| ());
         self.last_transition_at_epoch_seconds = now_epoch_seconds;
         self.state = ApprovalLifecycleState::Revoked;
         Ok(())
