@@ -94,14 +94,16 @@ fn native_messaging_stream_reader_preserves_truncated_payload_io_cause() {
 
 #[test]
 fn native_messaging_stream_read_errors_preserve_typed_sources_and_display() {
-    let frame_error = NativeMessagingFrameReadError::Frame(NativeMessagingFrameError::PayloadTooLarge);
+    let frame_error =
+        NativeMessagingFrameReadError::Frame(NativeMessagingFrameError::PayloadTooLarge);
     assert_eq!(
         frame_error.to_string(),
         "native messaging payload exceeds the direction-specific limit"
     );
     assert!(Error::source(&frame_error).is_some());
 
-    let io_error = NativeMessagingFrameReadError::Io(std::io::Error::from(ErrorKind::UnexpectedEof));
+    let io_error =
+        NativeMessagingFrameReadError::Io(std::io::Error::from(ErrorKind::UnexpectedEof));
     assert_eq!(io_error.to_string(), "unexpected end of file");
     let source = Error::source(&io_error).expect("stream read errors preserve their I/O source");
     let source = source
