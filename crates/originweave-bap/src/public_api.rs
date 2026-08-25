@@ -169,7 +169,11 @@ impl BapCommandRecovery {
     /// Stale, foreign, state-only restored, or divergent lifecycle history therefore fails
     /// closed with the underlying typed receipt error instead of emitting a redispatch signal.
     /// An exact receipt for a terminal lifecycle also returns `Ok(false)` because a completed,
-    /// failed, cancelled, expired, or dead-lettered task cannot resume command dispatch.
+    /// failed, cancelled, expired, or dead-lettered task cannot resume command dispatch. An exact
+    /// receipt for `ReconciliationRequired` likewise returns `Ok(false)`: an explicit reconciliation
+    /// hold cannot be bypassed merely because later recovery evidence classifies the interrupted
+    /// external operation as having caused no side effect. Resolving that hold is a separate
+    /// lifecycle transition, which also makes this retained receipt stale for subsequent replay.
     /// Validation requires only read access to the lifecycle and cannot mutate an already accepted
     /// transition or consume mutable execution authority.
     ///
@@ -188,7 +192,9 @@ impl BapCommandRecovery {
             self.receipt.task_id(),
             self.receipt.event(),
         )?;
-        if lifecycle.state().is_terminal() {
+        if lifecycle.state().is_terminal()
+            || lifecycle.state() == BapTaskState::ReconciliationRequired
+        {
             return Ok(false);
         }
         Ok(matches!(
