@@ -93,6 +93,33 @@ fn trusted_time_rollback_cannot_restore_expired_handle_authority() {
 }
 
 #[test]
+fn scope_mismatch_does_not_expose_trusted_time_rollback_state() {
+    let mut state = SensitiveHandleUseState::new(scope(2));
+
+    assert_eq!(
+        state.reserve_use(authority(DESTINATION), 1_999),
+        HandleUseDecision::Authorized
+    );
+    assert_eq!(
+        state.reserve_use(authority("https://other.example"), 1_998),
+        HandleUseDecision::ScopeMismatch
+    );
+    assert_eq!(state.reserved_uses(), 1);
+}
+
+#[test]
+fn scope_mismatch_does_not_expose_revocation_state() {
+    let mut state = SensitiveHandleUseState::new(scope(2));
+
+    assert!(state.revoke(HandleRevocationReason::PolicyChanged));
+    assert_eq!(
+        state.reserve_use(authority("https://other.example"), 1_999),
+        HandleUseDecision::ScopeMismatch
+    );
+    assert_eq!(state.reserved_uses(), 0);
+}
+
+#[test]
 fn revocation_is_authoritative_idempotent_and_blocks_future_use() {
     let mut state = SensitiveHandleUseState::new(scope(3));
 
