@@ -124,6 +124,42 @@ class WorkflowRegistryOutputFileContractTests(unittest.TestCase):
             self.assertEqual(output.read_text(encoding="utf-8"), "sentinel\n")
             self.assertEqual(peer.read_text(encoding="utf-8"), "sentinel\n")
 
+    def test_failed_new_output_write_is_removed_for_safe_retry(self) -> None:
+        """A partial create-once evidence file must not survive a failed write."""
+
+        main = self._main()
+
+        class FailingDestination:
+            def __init__(self, descriptor: int) -> None:
+                self.descriptor = descriptor
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, _type, _value, _traceback) -> bool:
+                os.close(self.descriptor)
+                return False
+
+            def write(self, _serialized: str) -> None:
+                os.write(self.descriptor, b"{")
+                raise OSError("simulated output write failure")
+
+        with tempfile.TemporaryDirectory(prefix="originweave-workflow-output-") as directory:
+            root = pathlib.Path(directory)
+            source = root / "registry.json"
+            source.write_text(json.dumps(_payload()), encoding="utf-8")
+            output = root / "audit.json"
+
+            with unittest.mock.patch(
+                "os.fdopen",
+                side_effect=lambda descriptor, *_args, **_kwargs: FailingDestination(
+                    descriptor
+                ),
+            ):
+                self.assertEqual(main([str(source), "--output", str(output)]), 1)
+
+            self.assertFalse(output.exists())
+
 
 if __name__ == "__main__":
     unittest.main()
