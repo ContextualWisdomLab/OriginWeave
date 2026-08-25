@@ -77,6 +77,22 @@ fn zero_use_scope_never_reserves_or_wraps_the_counter() {
 }
 
 #[test]
+fn trusted_time_rollback_cannot_restore_expired_handle_authority() {
+    let mut state = SensitiveHandleUseState::new(scope(1));
+
+    assert_eq!(
+        state.reserve_use(authority(DESTINATION), 2_000),
+        HandleUseDecision::Expired
+    );
+    assert_eq!(state.reserved_uses(), 0);
+    assert_eq!(
+        state.reserve_use(authority(DESTINATION), 1_999),
+        HandleUseDecision::TrustedTimeRollback
+    );
+    assert_eq!(state.reserved_uses(), 0);
+}
+
+#[test]
 fn revocation_is_authoritative_idempotent_and_blocks_future_use() {
     let mut state = SensitiveHandleUseState::new(scope(3));
 
