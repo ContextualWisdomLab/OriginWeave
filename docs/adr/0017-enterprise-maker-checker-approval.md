@@ -11,7 +11,7 @@ OriginWeave already binds approval policy to an immutable `ApprovalScope` contai
 
 A lifecycle counter alone is insufficient if successful consumption returns ordinary reusable approval evidence. `ApprovalEvidence` is intentionally a reusable policy-context value for other authority sources; returning it directly from a bounded enterprise request would allow a caller to retain or clone that evidence and evaluate the same approved scope again after the lifecycle has consumed its configured use count or expired. That would separate the recorded lifecycle state from effective execution authority.
 
-A second split can occur when an approved multi-use request issues a one-shot use and the approving checker revokes the still-live request before that use is evaluated. If the issued use is detached from later revocation state, it can remain effective even though the authoritative in-memory request has entered the fail-closed `Revoked` state. Revocation therefore has to invalidate outstanding, not-yet-evaluated uses as well as prevent new consumption.
+A second split can occur when an approved request issues a one-shot use and the approving checker revokes before that use is evaluated. That risk remains when the issued use is the final configured use and the live request has already entered `Consumed`: issuance exhaustion is not proof that execution finished. If the issued use is detached from later revocation state, it can remain effective even though the checker has withdrawn the delegated authority. Revocation therefore has to invalidate outstanding, not-yet-evaluated uses whether the request is still `Approved` or has become `Consumed` because all configured uses were issued.
 
 This decision extends, but does not replace, the Accepted agent-safety model in ADR 0002. It defines a branch-local proposed enterprise authority primitive. Protected-main source and live repository policy remain authoritative until this proposal is reviewed and integrated.
 
@@ -24,7 +24,7 @@ This decision extends, but does not replace, the Accepted agent-safety model in 
 - Enforce the configured bounded-use count at the same authority boundary that produces executable policy authority.
 - Prevent a successfully consumed use from becoming replayable merely because surrounding policy context or generic approval evidence is cloneable.
 - Revalidate approval lifetime immediately before policy evaluation so a pre-expiry consume cannot authorize after the deadline.
-- Invalidate an outstanding one-shot use when its approving checker revokes the live request before evaluation begins.
+- Invalidate an outstanding one-shot use when its approving checker revokes before evaluation begins, including after the final configured use has been issued.
 - Keep R5 legal consent non-delegable.
 - Avoid introducing authentication, persistence, signing, workflow, release, or ambient authority into the policy crate.
 
@@ -58,7 +58,7 @@ Selected. A successful lifecycle consumption produces exactly one `EnterpriseApp
 
 `EnterpriseApprovalRequest` is non-cloneable and owns the mutable lifecycle accounting state. It is created for exactly one immutable `ApprovalScope`, requester, trusted validity window, and nonzero `max_uses`. R5 `LegalConsent` is rejected at construction.
 
-A pending request may be approved or denied only by a principal distinct from the maker. The maker alone may withdraw a pending request. An approved request may be revoked only by the checker that approved it. State validation occurs before transition-specific mutation; trusted transition time must not move backward; and a transition at or after the exclusive expiry deadline moves the live request to `Expired` and fails closed.
+A pending request may be approved or denied only by a principal distinct from the maker. The maker alone may withdraw a pending request. After approval, the exact approving checker may revoke while the request is `Approved` or after all configured uses have been issued and the request is `Consumed`. State validation occurs before transition-specific mutation; trusted transition time must not move backward; and a transition at or after the exclusive expiry deadline moves the live request to `Expired` and fails closed. A revocation after `Consumed` invalidates any issued use that has not yet begun its evaluation-time validity check; it does not retroactively undo policy evaluations completed before revocation.
 
 `consume` is permitted only from `Approved`, before expiry, and for an exactly equal `ApprovalScope`. A scope mismatch does not spend a use. A successful consume increments lifecycle accounting immediately and returns a non-cloneable `EnterpriseApprovalUse` that retains the exact scope, consumption time, exclusive expiry deadline, and a shared monotonic revocation signal. The request becomes `Consumed` when the configured use count is exhausted.
 
@@ -86,7 +86,7 @@ If process failure occurs after `consume` but before the one-shot evaluation com
 
 ## Security / privacy / governance impact
 
-The decision narrows enterprise approval authority by coupling each configured use to one non-replayable, still-valid evaluation attempt. It prevents cloning of lifecycle state or consumed execution authority from bypassing `max_uses`, expiry, terminal-state, or revocation semantics, prevents a token created immediately before expiry from being exercised after its approval deadline, and prevents an already-issued but not-yet-evaluated token from surviving a successful checker revocation in the same live process.
+The decision narrows enterprise approval authority by coupling each configured use to one non-replayable, still-valid evaluation attempt. It prevents cloning of lifecycle state or consumed execution authority from bypassing `max_uses`, expiry, terminal-state, or revocation semantics, prevents a token created immediately before expiry from being exercised after its approval deadline, and prevents an already-issued but not-yet-evaluated token from surviving a successful checker revocation in the same live process even when that token was the final configured use.
 
 The decision does not put credentials, secrets, mutable identity attributes, or raw identity-provider tokens into model context. Principal references remain opaque. Legal consent remains non-delegable. Existing origin, capability, secret-broker, and risk gates are unchanged and continue to fail closed independently of enterprise approval.
 
@@ -101,6 +101,7 @@ The owning PR must retain realistic executable evidence for:
 - a policy denial burning the already consumed one-shot use;
 - evaluation at the retained expiry deadline and trusted-time rollback after consumption both failing closed before approval evidence is applied;
 - checker revocation after one use was issued from a still-live multi-use request invalidating that unexecuted use before approval evidence is applied;
+- checker revocation after the final configured use was issued invalidating that still-outstanding use before approval evidence is applied;
 - compile-time proof that `EnterpriseApprovalRequest` and `EnterpriseApprovalUse` are not cloneable; and
 - exact-head repository contracts, Rust 1.97.1 formatting/check/tests/strict Clippy/rustdoc, security scanning where applicable, and exact owned-production function/line/region/branch coverage.
 
