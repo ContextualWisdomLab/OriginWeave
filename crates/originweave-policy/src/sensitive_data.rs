@@ -267,13 +267,14 @@ impl SensitiveHandleUseState {
     /// Reserve one use from the current authoritative count when policy permits it.
     ///
     /// The supplied time must come from the trusted broker boundary and may not
-    /// move backward relative to an earlier reservation attempt on this state.
-    /// Exact-scope, expiry, use-limit, and trusted-time rollback denial leave the
+    /// move backward relative to an earlier exact-scope reservation attempt on
+    /// this state. Scope-mismatched requests never mutate trusted-time state and
+    /// always return [`HandleUseDecision::ScopeMismatch`], so foreign authority
+    /// cannot advance the rollback floor or learn its value. For exact-scope
+    /// requests, expiry, use-limit, and trusted-time rollback denial leave the
     /// authoritative use count unchanged. A non-rollback trusted time is recorded
-    /// even when another policy check denies the reservation so later stale time
-    /// cannot restore authority. A scope-mismatched caller always receives the
-    /// scope denial rather than learning whether the state has observed a newer
-    /// trusted time.
+    /// even when expiry or the use limit denies the reservation so later stale
+    /// time cannot restore authority.
     #[must_use]
     pub fn reserve_use(
         &mut self,
@@ -284,12 +285,6 @@ impl SensitiveHandleUseState {
         let policy_decision = evaluate_handle_use(&request, &self.scope);
 
         if policy_decision == HandleUseDecision::ScopeMismatch {
-            if self
-                .latest_trusted_time_epoch_seconds
-                .is_none_or(|latest| now_epoch_seconds >= latest)
-            {
-                self.latest_trusted_time_epoch_seconds = Some(now_epoch_seconds);
-            }
             return HandleUseDecision::ScopeMismatch;
         }
 
