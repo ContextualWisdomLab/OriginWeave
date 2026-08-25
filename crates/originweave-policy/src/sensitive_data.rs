@@ -313,7 +313,8 @@ impl SensitiveHandleUseState {
     /// Revocation, exact-scope, expiry, use-limit, and trusted-time rollback denial
     /// leave the authoritative use count unchanged. A non-rollback trusted time is
     /// recorded even when another policy check denies the reservation so later
-    /// stale time cannot restore authority.
+    /// stale time cannot restore authority. A scope-mismatched caller does not
+    /// learn trusted-time rollback state.
     #[must_use]
     pub fn reserve_use(
         &mut self,
@@ -323,6 +324,19 @@ impl SensitiveHandleUseState {
         if self.revocation_reason.is_some() {
             return HandleUseDecision::Revoked;
         }
+
+        let request = HandleUseRequest::new(authority, now_epoch_seconds, self.reserved_uses);
+        let policy_decision = evaluate_handle_use(&request, &self.scope);
+        if policy_decision == HandleUseDecision::ScopeMismatch {
+            if self
+                .latest_trusted_time_epoch_seconds
+                .is_none_or(|latest| now_epoch_seconds >= latest)
+            {
+                self.latest_trusted_time_epoch_seconds = Some(now_epoch_seconds);
+            }
+            return HandleUseDecision::ScopeMismatch;
+        }
+
         if self
             .latest_trusted_time_epoch_seconds
             .is_some_and(|latest| now_epoch_seconds < latest)
@@ -331,12 +345,10 @@ impl SensitiveHandleUseState {
         }
         self.latest_trusted_time_epoch_seconds = Some(now_epoch_seconds);
 
-        let request = HandleUseRequest::new(authority, now_epoch_seconds, self.reserved_uses);
-        let decision = evaluate_handle_use(&request, &self.scope);
-        if decision == HandleUseDecision::Authorized {
+        if policy_decision == HandleUseDecision::Authorized {
             self.reserved_uses += 1;
         }
-        decision
+        policy_decision
     }
 }
 
