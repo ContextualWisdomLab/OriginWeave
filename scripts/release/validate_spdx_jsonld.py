@@ -333,6 +333,8 @@ def _read_bounded(path: pathlib.Path) -> bytes:
                     final_stat.st_ino,
                 ) != (opened_stat.st_dev, opened_stat.st_ino):
                     raise SpdxJsonLdEnvelopeError("invalid_file_type")
+                if _direct_parent_identities(path) != expected_parent_identities:
+                    raise SpdxJsonLdEnvelopeError("invalid_file_type")
         finally:
             _EXPECTED_PARENT_IDENTITIES.reset(identity_token)
     except OSError as error:
