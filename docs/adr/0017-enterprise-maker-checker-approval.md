@@ -30,7 +30,7 @@ This decision extends, but does not replace, the Accepted agent-safety model in 
 
 ## Assumptions and authority boundaries
 
-`ApprovalPrincipalRef` is an opaque `(issuer, subject)` tuple supplied by an already trusted identity boundary. This crate validates only bounded canonical representation and does not authenticate principals, merge identities by mutable attributes such as email address, or discover tenant membership.
+`ApprovalPrincipalRef` is an opaque `(issuer, subject)` tuple supplied by an already trusted identity boundary. This crate validates only a bounded canonical representation and does not authenticate principals, merge identities by mutable attributes such as email address, or discover tenant membership. The canonical representation rejects control characters and the Unicode Standard Annex #9 `Bidi_Control` set (directional marks, embeddings, overrides, and isolates) so a logically distinct principal reference cannot rely on hidden directional formatting to present misleading issuer/subject text in operator or audit surfaces. Other Unicode remains opaque; this crate does not perform identity normalization or confusable folding.
 
 Before calling `EnterpriseApprovalRequest::approve` or `EnterpriseApprovalRequest::deny`, the trusted identity or workflow boundary must verify that the proposed checker has the required checker role, belongs to the request's authoritative tenant, and is authorized for the exact approval scope. Those lifecycle methods enforce requester/checker identity separation and state/time invariants only; they do not establish checker eligibility, tenant membership, or policy scope by themselves.
 
@@ -78,7 +78,7 @@ The policy crate remains deterministic and I/O-free. Authentication, clock acqui
 
 ## Failure and degraded behavior
 
-The lifecycle fails closed on invalid validity windows, zero use limits, non-delegable actions, invalid state transitions, trusted-time regression, self-approval, requester/checker role mismatch, exact-scope mismatch, and expiry. The consumed-use evaluation repeats the trusted-time regression and expiry checks and observes the shared revocation signal before it can introduce approval evidence.
+The lifecycle fails closed on invalid validity windows, zero use limits, non-delegable actions, invalid state transitions, trusted-time regression, self-approval, requester mismatch, decision-actor mismatch, exact-scope mismatch, and expiry. Checker-role, tenant-membership, and business-authorization failures must already have failed closed at the trusted identity/workflow boundary before an approval or denial enters this lifecycle. The consumed-use evaluation repeats the trusted-time regression and expiry checks and observes the shared revocation signal before it can introduce approval evidence.
 
 Within the live `EnterpriseApprovalRequest` instance, a successful consume spends that use even if downstream policy evaluation denies the action or the resulting one-shot value later fails its evaluation-time validity check. This deliberately prefers loss of a delegated use over replay ambiguity. A caller needing another attempt must obtain another bounded lifecycle use through the authoritative request state rather than recover authority from a failed evaluation.
 
@@ -86,7 +86,7 @@ If process failure occurs after `consume` but before the one-shot evaluation com
 
 ## Security / privacy / governance impact
 
-The decision narrows enterprise approval authority by coupling each configured use to one non-replayable, still-valid evaluation attempt. It prevents cloning of lifecycle state or consumed execution authority from bypassing `max_uses`, expiry, terminal-state, or revocation semantics, prevents a token created immediately before expiry from being exercised after its approval deadline, and prevents an already-issued but not-yet-evaluated token from surviving a successful checker revocation in the same live process even when that token was the final configured use.
+The decision narrows enterprise approval authority by coupling each configured use to one non-replayable, still-valid evaluation attempt. It prevents cloning of lifecycle state or consumed execution authority from bypassing `max_uses`, expiry, terminal-state, or revocation semantics, prevents a token created immediately before expiry from being exercised after its approval deadline, and prevents an already-issued but not-yet-evaluated token from surviving a successful checker revocation in the same live process even when that token was the final configured use. Principal references additionally reject Unicode `Bidi_Control` formatting characters so invisible direction overrides or isolates cannot create a misleading displayed identity while retaining a different exact `(issuer, subject)` tuple.
 
 The decision does not put credentials, secrets, mutable identity attributes, or raw identity-provider tokens into model context. Principal references remain opaque. Legal consent remains non-delegable. Existing origin, capability, secret-broker, and risk gates are unchanged and continue to fail closed independently of enterprise approval.
 
@@ -95,7 +95,8 @@ The decision does not put credentials, secrets, mutable identity attributes, or 
 The owning PR must retain realistic executable evidence for:
 
 - distinct maker/checker approval of an exact immutable scope;
-- rejection of self-approval, role mismatch, scope mutation, expiry, clock regression, and invalid terminal transitions;
+- rejection of non-canonical principal references including control and Unicode `Bidi_Control` formatting characters;
+- rejection of self-approval, requester mismatch, decision-actor mismatch, scope mutation, expiry, clock regression, and invalid terminal transitions;
 - exact bounded multi-use accounting;
 - a single configured use yielding exactly one policy evaluation and rejecting subsequent lifecycle consumption;
 - a policy denial burning the already consumed one-shot use;
@@ -115,13 +116,14 @@ A rollback must revert the lifecycle/use API coherently. Reintroducing a direct 
 
 ## Open follow-ups
 
-Issue #202 remains the owner for the broader enterprise control plane, including trusted principal authentication, tenant identity, durable state, workflow delivery, operator UI, signed/auditable evidence, and crash-safe/distributed consumption and revocation semantics. Those additions must preserve the exact-scope, separation-of-duties, monotonic-time, terminal-state, evaluation-time expiry, in-process outstanding-use revocation, and one-shot-use invariants defined here.
+Issue #202 remains the owner for the broader enterprise control plane, including trusted principal authentication, tenant identity, durable state, workflow delivery, operator UI, signed/auditable evidence, and crash-safe/distributed consumption and revocation semantics. Those additions must preserve the exact-scope, separation-of-duties, monotonic-time, terminal-state, evaluation-time expiry, in-process outstanding-use revocation, one-shot-use, and canonical-principal-display invariants defined here.
 
 ## Supersession / reversal conditions
 
-Supersede this ADR if OriginWeave adopts a different formally bounded authority object that can prove, under concurrency and crash recovery, that one enterprise approval use cannot authorize more policy evaluations than the authoritative lifecycle permits. Any replacement must retain or strengthen exact intent binding, maker-checker separation, trusted-time ordering, fail-closed terminal states, evaluation-time expiry and revocation, R5 non-delegability, and replay resistance.
+Supersede this ADR if OriginWeave adopts a different formally bounded authority object that can prove, under concurrency and crash recovery, that one enterprise approval use cannot authorize more policy evaluations than the authoritative lifecycle permits. Any replacement must retain or strengthen exact intent binding, maker-checker separation, trusted-time ordering, fail-closed terminal states, evaluation-time expiry and revocation, R5 non-delegability, replay resistance, and principal-reference presentation safety.
 
 ## References
 
 - [ADR 0002: Agent safety kernel](0002-agent-safety-kernel.md).
+- [Research and standards doctoring](../doctoring.md), including Unicode Standard Annex #9.
 - OriginWeave issue #202, enterprise policy and approval control-plane completion criteria.
