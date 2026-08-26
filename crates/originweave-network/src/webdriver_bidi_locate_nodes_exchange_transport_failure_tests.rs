@@ -151,3 +151,57 @@ fn locate_nodes_exchange_preserves_pong_write_failure_after_ping() -> Result<(),
     assert!(error.source().is_some());
     Ok(())
 }
+
+#[test]
+fn zero_exchange_timeout_fails_at_exchange_boundary_before_frame_write() -> Result<(), Box<dyn Error>> {
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let local_addr = listener.local_addr()?;
+    let server = thread::spawn(move || -> io::Result<()> {
+        let (mut stream, _) = listener.accept()?;
+        read_opening_request(&mut stream)?;
+        stream.write_all(
+            b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n",
+        )?;
+        stream.set_read_timeout(Some(Duration::from_secs(2)))?;
+        let mut byte = [0_u8; 1];
+        let count = stream.read(&mut byte)?;
+        if count != 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "zero-budget locateNodes exchange wrote a client frame",
+            ));
+        }
+        Ok(())
+    });
+
+    let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+    let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?;
+    let plan = WebDriverBiDiWebSocketHandshakePlan::new(connect(&endpoint)?, key)?;
+    let written = plan.write_opening_request(Duration::from_millis(500))?;
+    let established = written.read_opening_response(Duration::from_millis(500))?;
+    let exchanged = established.exchange_locate_nodes(
+        locate_nodes_command()?,
+        WebDriverBiDiWebSocketMaskKey::new([0x11, 0x22, 0x33, 0x44]),
+        &mut || None,
+        Duration::ZERO,
+    );
+
+    let error = exchanged.err().ok_or_else(|| {
+        io::Error::other("zero-budget locateNodes exchange unexpectedly succeeded")
+    })?;
+    assert!(
+        matches!(
+            &error,
+            WebDriverBiDiLocateNodesExchangeError::ExchangeDeadlineExceeded {
+                exchange_timeout
+            } if exchange_timeout.is_zero()
+        ),
+        "{error:?}"
+    );
+
+    let server_result = server
+        .join()
+        .map_err(|_| io::Error::other("zero-budget exchange test server panicked"))?;
+    assert!(server_result.is_ok(), "{server_result:?}");
+    Ok(())
+}
