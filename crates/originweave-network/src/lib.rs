@@ -26,6 +26,7 @@ mod webdriver_bidi_websocket_debug_tests;
 mod webdriver_bidi_websocket_handshake;
 #[path = "webdriver_bidi_websocket_raw_redacted.rs"]
 mod webdriver_bidi_websocket_handshake_raw;
+mod webdriver_bidi_websocket_mask_key;
 
 pub use connection::{
     ConnectionPlan, DirectTcpConnection, MAX_CONNECT_TIMEOUT, MAX_CONNECTION_ATTEMPTS,
@@ -45,5 +46,6 @@ pub use webdriver_bidi_websocket_handshake_raw::{
     MAX_WEBSOCKET_OPENING_WRITE_TIMEOUT, WebDriverBiDiWebSocketClientKey,
     WebDriverBiDiWebSocketFrame, WebDriverBiDiWebSocketFrameError,
     WebDriverBiDiWebSocketHandshakeError, WebDriverBiDiWebSocketHandshakeResponseError,
-    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketOpeningWriteError,
+    WebDriverBiDiWebSocketOpeningWriteError,
 };
+pub use webdriver_bidi_websocket_mask_key::WebDriverBiDiWebSocketMaskKey;
