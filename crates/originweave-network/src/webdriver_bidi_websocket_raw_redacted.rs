@@ -117,8 +117,8 @@ mod tests {
             .expect("test connection plan must be valid")
             .connect()
             .expect("test connection must succeed");
-        let client_key =
-            WebDriverBiDiWebSocketClientKey::new(CLIENT_KEY).expect("test client key must be valid");
+        let client_key = WebDriverBiDiWebSocketClientKey::new(CLIENT_KEY)
+            .expect("test client key must be valid");
         let handshake = legacy::WebDriverBiDiWebSocketHandshakePlan::new(connection, client_key)
             .expect("test legacy handshake plan must be valid");
 
