@@ -153,7 +153,8 @@ fn locate_nodes_exchange_preserves_pong_write_failure_after_ping() -> Result<(),
 }
 
 #[test]
-fn zero_exchange_timeout_fails_at_exchange_boundary_before_frame_write() -> Result<(), Box<dyn Error>> {
+fn zero_exchange_timeout_fails_at_exchange_boundary_before_frame_write()
+-> Result<(), Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let server = thread::spawn(move || -> io::Result<()> {
