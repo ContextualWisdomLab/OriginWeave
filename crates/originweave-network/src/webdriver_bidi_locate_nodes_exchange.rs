@@ -176,6 +176,15 @@ fn map_established_frame_result(
     result.map_err(WebDriverBiDiLocateNodesExchangeError::Frame)
 }
 
+fn read_frame_with_exchange_budget<T>(
+    exchange_timeout: Duration,
+    elapsed: Duration,
+    read_frame: impl FnOnce(Duration) -> Result<T, WebDriverBiDiWebSocketFrameError>,
+) -> Result<T, WebDriverBiDiLocateNodesExchangeError> {
+    let remaining_timeout = remaining_frame_operation_budget(exchange_timeout, elapsed)?;
+    read_frame(remaining_timeout).map_err(WebDriverBiDiLocateNodesExchangeError::Frame)
+}
+
 fn admit_response_fragment(
     response_fragment_count: &mut usize,
 ) -> Result<(), WebDriverBiDiLocateNodesExchangeError> {
@@ -284,11 +293,11 @@ impl WebDriverBiDiWebSocketEstablished {
         let mut assembling_text_response = false;
 
         loop {
-            let remaining_timeout =
-                remaining_frame_operation_budget(exchange_timeout, started_at.elapsed())?;
-            let (next_established, frame) = established
-                .read_frame(remaining_timeout)
-                .map_err(WebDriverBiDiLocateNodesExchangeError::Frame)?;
+            let (next_established, frame) = read_frame_with_exchange_budget(
+                exchange_timeout,
+                started_at.elapsed(),
+                |remaining_timeout| established.read_frame(remaining_timeout),
+            )?;
             established = next_established;
             let opcode = frame.opcode();
 
@@ -373,28 +382,55 @@ impl WebDriverBiDiWebSocketEstablished {
         command_masking_key: WebDriverBiDiWebSocketMaskKey,
         next_pong_key: &mut dyn FnMut() -> Option<WebDriverBiDiWebSocketMaskKey>,
         exchange_timeout: Duration,
-        authority: (
-            ValidatedBrowserProtocolUse,
-            BrowserContextOriginEpochDispatchTarget<'_>,
-        ),
-        authority_registry: &mut BrowserAuthorityRegistry,
-    ) -> Result<(Self, Vec<ObservedNodeHandle>), WebDriverBiDiLocateNodesExchangeError> {
-        let (validated, target) = authority;
-        let (established, result) = self.exchange_locate_nodes(
-            command,
-            command_masking_key,
-            next_pong_key,
-            exchange_timeout,
-        )?;
-        let handles = match result.bind_current_nodes(validated, authority_registry, target) {
-            Ok(handles) => handles,
-            Err(error) => {
-                return Err(WebDriverBiDiLocateNodesExchangeError::LocateNodesResponse(
-                    WebDriverBiDiLocateNodesResponseDocumentError::NodeBinding(error),
-                ));
-            }
-        };
-        Ok((established, handles))
+        authority: &mut BrowserAuthorityRegistry,
+        proof: ValidatedBrowserProtocolUse,
+        target: BrowserContextOriginEpochDispatchTarget,
+    ) -> Result<
+        (Self, Vec<ObservedNodeHandle>),
+        WebDriverBiDiLocateNodesAndBindError,
+    > {
+        let (established, result) = self
+            .exchange_locate_nodes(
+                command,
+                command_masking_key,
+                next_pong_key,
+                exchange_timeout,
+            )
+            .map_err(WebDriverBiDiLocateNodesAndBindError::Exchange)?;
+        let nodes = result
+            .bind_current_nodes(authority, proof, target)
+            .map_err(WebDriverBiDiLocateNodesAndBindError::Authority)?;
+        Ok((established, nodes))
+    }
+}
+
+/// Failures while exchanging one `locateNodes` command and binding its exact returned nodes.
+#[derive(Debug)]
+pub enum WebDriverBiDiLocateNodesAndBindError {
+    /// The bounded WebSocket wire exchange failed; no node evidence reached authority binding.
+    Exchange(WebDriverBiDiLocateNodesExchangeError),
+    /// Wire exchange succeeded, but current browser authority no longer admits the observed nodes.
+    Authority(originweave_core::BrowserAuthorityError),
+}
+
+impl fmt::Display for WebDriverBiDiLocateNodesAndBindError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Exchange(error) => write!(formatter, "WebDriver BiDi locateNodes exchange failed: {error}"),
+            Self::Authority(error) => write!(
+                formatter,
+                "WebDriver BiDi locateNodes current-authority binding failed: {error}"
+            ),
+        }
+    }
+}
+
+impl Error for WebDriverBiDiLocateNodesAndBindError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::Exchange(error) => Some(error),
+            Self::Authority(error) => Some(error),
+        }
     }
 }
 
@@ -413,7 +449,8 @@ mod tests {
         MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE,
         MAX_WEBDRIVER_BIDI_RESPONSE_FRAGMENTS_PER_EXCHANGE, WebDriverBiDiLocateNodesExchangeError,
         append_response_fragment, next_pong_masking_key, next_pong_masking_key_before_deadline,
-        remaining_exchange_budget, remaining_frame_operation_budget,
+        read_frame_with_exchange_budget, remaining_exchange_budget,
+        remaining_frame_operation_budget,
     };
 
     #[test]
@@ -453,6 +490,52 @@ mod tests {
             remaining_frame_operation_budget(Duration::from_secs(6), Duration::from_secs(6))
                 .is_err()
         );
+    }
+
+    #[test]
+    fn expired_exchange_budget_refuses_frame_read_before_io() {
+        use std::cell::Cell;
+
+        let exchange_timeout = Duration::from_millis(500);
+        let read_count = Cell::new(0_usize);
+        let expired = read_frame_with_exchange_budget(
+            exchange_timeout,
+            exchange_timeout,
+            |_| {
+                read_count.set(read_count.get() + 1);
+                Ok::<Duration, WebDriverBiDiWebSocketFrameError>(Duration::ZERO)
+            },
+        );
+        assert_eq!(
+            format!("{expired:?}"),
+            "Err(ExchangeDeadlineExceeded { exchange_timeout: 500ms })"
+        );
+        assert_eq!(read_count.get(), 0);
+
+        let available = read_frame_with_exchange_budget(
+            exchange_timeout,
+            Duration::from_millis(100),
+            |remaining_timeout| {
+                read_count.set(read_count.get() + 1);
+                Ok::<Duration, WebDriverBiDiWebSocketFrameError>(remaining_timeout)
+            },
+        );
+        assert_eq!(available.ok(), Some(Duration::from_millis(400)));
+        assert_eq!(read_count.get(), 1);
+
+        let frame_error = read_frame_with_exchange_budget(
+            exchange_timeout,
+            Duration::from_millis(100),
+            |_| {
+                Err::<Duration, WebDriverBiDiWebSocketFrameError>(
+                    WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout {
+                        frame_timeout: Duration::ZERO,
+                        maximum_timeout: MAX_WEBSOCKET_FRAME_TIMEOUT,
+                    },
+                )
+            },
+        );
+        assert!(frame_error.is_err());
     }
 
     #[test]
