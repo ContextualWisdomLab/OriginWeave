@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import http.client
 import inspect
 import pathlib
 import runpy
@@ -93,6 +94,24 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
         self.assertIs(raised.exception.__cause__, primary)
         self.assertEqual(raised.exception.cleanup_error_type, "OSError")
         self.assertNotIn("host-controlled cleanup detail", str(raised.exception))
+
+    def test_malformed_cleanup_response_is_a_bounded_cleanup_failure(self) -> None:
+        """A truncated DELETE response must stay in the typed cleanup failure contract."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="cleanup_http_contract")
+        cleanup = namespace["_cleanup_browser_session_preserving_primary"]
+        cleanup_error_type = namespace["BrowserSessionCleanupError"]
+        primary = RuntimeError("primary browser failure")
+
+        def malformed_cleanup_response(*_args: object, **_kwargs: object) -> None:
+            raise http.client.IncompleteRead(b"partial", 32)
+
+        cleanup.__globals__["_cleanup_browser_session"] = malformed_cleanup_response
+        with self.assertRaises(cleanup_error_type) as raised:
+            cleanup(9515, "session-1", primary)
+        self.assertIs(raised.exception.__cause__, primary)
+        self.assertEqual(raised.exception.cleanup_error_type, "IncompleteRead")
+        self.assertNotIn("partial", str(raised.exception))
 
     def test_unexpected_cleanup_programming_failure_is_not_normalized(self) -> None:
         """Programming failures in cleanup must propagate rather than enter fallback handling."""
