@@ -57,6 +57,21 @@ _RETRYABLE_HTTP_STATUSES = {408, 429, 500, 502, 503, 504}
 class WorkflowAuditError(ValueError):
     """Report malformed, incomplete, stale, or ambiguous registry evidence."""
 
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.secondary_diagnostics: list[str] = []
+
+    def record_secondary_diagnostic(self, diagnostic: str) -> None:
+        """Retain a secondary failure without masking the primary audit error."""
+
+        self.secondary_diagnostics.append(diagnostic)
+        try:
+            self.add_note(diagnostic)
+        except AttributeError:
+            # Python 3.10 lacks BaseException.add_note; the typed fallback above
+            # keeps the cleanup diagnostic available without replacing the cause.
+            return
+
 
 class WorkflowAuditHttpStatusError(WorkflowAuditError):
     """Report one collected non-200 page with bounded retry guidance.
@@ -156,7 +171,7 @@ def _validate_observed_at(value: Any) -> str:
 
 
 def _validate_reported_total_count(value: Any) -> int:
-    """Return the nonnegative total reported by the first GitHub API page."""
+    """Return the nonnegative total reported for the complete GitHub API collection."""
 
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
         raise WorkflowAuditError("reported_total_count must be a nonnegative integer")
@@ -867,7 +882,7 @@ def _write_output(path: pathlib.Path, serialized: str) -> None:
             try:
                 _unlink_matching_staging(parent_fd, staging_name, staging_identity)
             except WorkflowAuditError as cleanup_error:
-                primary_error.add_note(
+                primary_error.record_secondary_diagnostic(
                     f"output staging cleanup also failed: {cleanup_error}"
                 )
             staging_name = None
