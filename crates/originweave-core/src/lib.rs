@@ -1,7 +1,7 @@
 //! Shared security and governance contracts for OriginWeave.
 //!
-//! This crate keeps the long-lived value contracts in `contracts` and the
-//! browser protocol/identifier boundaries in focused modules so browser
+//! This crate keeps the long-lived value contracts in `contracts`, the
+//! browser protocol/identifier boundaries and extension authority in focused modules so browser
 //! adapters can evolve without turning raw CDP or WebDriver metadata into
 //! OriginWeave authority.
 //!
@@ -32,6 +32,7 @@ mod browser_registry;
 mod browser_registry_coverage;
 mod contract_errors;
 mod contracts;
+mod extension_authority;
 mod webdriver_bidi_command;
 mod webdriver_bidi_error_code;
 mod webdriver_bidi_response_document;
@@ -72,10 +73,13 @@ pub use browser_registry::{
 pub use contracts::{
     ActionIntentDigest, ActionIntentDigestError, ActionKind, ActionRequest, ApprovalEvidence,
     ApprovalScope, BrowserSessionId, BrowsingContextId, Capability, DocumentEpoch,
-    ExecutionPurpose, ExtensionAccessDecision, ExtensionAccessRequest, ExtensionAgentCapability,
-    ExtensionAgentGrant, ExtensionId, ExtensionIdError, InstructionSource, NodeHandleError,
-    ObservedNodeHandle, Origin, OriginError, PolicyContext, RiskClass, RobotsDecision,
-    SecretDelivery, SessionMode, evaluate_extension_access,
+    ExecutionPurpose, ExtensionAgentCapability, ExtensionId, ExtensionIdError, InstructionSource,
+    NodeHandleError, ObservedNodeHandle, Origin, OriginError, PolicyContext, RiskClass,
+    RobotsDecision, SecretDelivery, SessionMode,
+};
+pub use extension_authority::{
+    AgentTaskId, AgentTaskIdError, ExtensionAccessDecision, ExtensionAccessRequest,
+    ExtensionAgentGrant, evaluate_extension_access,
 };
 pub use webdriver_bidi_command::{
     CorrelatedWebDriverBiDiLocateNodesResponse, MAX_WEBDRIVER_BIDI_COMMAND_ID,
