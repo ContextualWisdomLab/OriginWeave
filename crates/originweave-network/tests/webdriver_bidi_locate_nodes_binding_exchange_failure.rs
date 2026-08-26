@@ -198,11 +198,8 @@ fn locate_nodes_command_mask_reuse_fails_before_second_wire_write() -> Result<()
     let written = plan.write_opening_request(Duration::from_millis(500))?;
     let established = written.read_opening_response(Duration::from_millis(500))?;
     let reused_mask = WebDriverBiDiWebSocketMaskKey::new([0x11, 0x22, 0x33, 0x44]);
-    let established = established.write_text_frame(
-        "coverage-primer",
-        reused_mask,
-        Duration::from_millis(500),
-    )?;
+    let established =
+        established.write_text_frame("coverage-primer", reused_mask, Duration::from_millis(500))?;
 
     let error = established.exchange_locate_nodes(
         locate_nodes_command()?,
