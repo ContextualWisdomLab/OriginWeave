@@ -51,6 +51,9 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Replaced an invalid uppercase-digest test fixture that resembled a Telegram
+  credential while preserving the lowercase SHA-256 rejection contract.
+
 - Clarified that presentation identity has active-PR kernel evidence while its
   Chromium adapter remains planned, without mixing proposal and implementation
   labels in the same technical-design section.

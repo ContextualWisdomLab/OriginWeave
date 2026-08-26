@@ -848,7 +848,7 @@ mod tests {
         );
         assert_eq!(
             PresentationDigest::new(
-                "sha256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+                "sha256:A000000000000000000000000000000000000000000000000000000000000000"
             ),
             Err(PresentationError::InvalidDigest)
         );
