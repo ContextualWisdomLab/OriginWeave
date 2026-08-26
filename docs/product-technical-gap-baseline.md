@@ -2,7 +2,7 @@
 
 This is a dated delivery baseline, not a substitute for the PRD, TRD, roadmap, architecture decisions, or live GitHub state. It keeps buyer-visible gaps, current issues, active pull-request evidence, and commercial completion tracks in one discoverable place. Protected `main` is the implementation boundary: code in an open pull request is not shipped behavior.
 
-## Observed snapshot: 2026-08-26
+## Observed snapshot: 2026-08-27 KST (UTC+09:00)
 
 ### Protected-main truth
 

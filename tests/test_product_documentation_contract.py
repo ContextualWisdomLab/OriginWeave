@@ -44,7 +44,7 @@ class ProductDocumentationContractTests(unittest.TestCase):
         self.assertTrue(baseline.is_file())
         text = baseline.read_text(encoding="utf-8")
         for phrase in (
-            "Observed snapshot: 2026-08-26",
+            "Observed snapshot: 2026-08-27 KST (UTC+09:00)",
             "Protected-main truth",
             "Open pull requests",
             "Open issues",

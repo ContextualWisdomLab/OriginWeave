@@ -51,6 +51,9 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Labeled the dated product-gap observation explicitly as KST so UTC-hosted
+  review does not misread a same-instant snapshot as future evidence.
+
 - Replaced an invalid uppercase-digest test fixture that resembled a Telegram
   credential while preserving the lowercase SHA-256 rejection contract.
 
