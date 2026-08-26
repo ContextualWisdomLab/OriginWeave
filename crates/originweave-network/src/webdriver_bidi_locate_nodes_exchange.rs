@@ -194,7 +194,9 @@ fn append_response_fragment(
     response_message: &mut Vec<u8>,
     payload: &[u8],
 ) -> Result<(), WebDriverBiDiLocateNodesExchangeError> {
-    if payload.len() > MAX_WEBDRIVER_BIDI_RESPONSE_DOCUMENT_BYTES - response_message.len() {
+    if response_message.len().saturating_add(payload.len())
+        > MAX_WEBDRIVER_BIDI_RESPONSE_DOCUMENT_BYTES
+    {
         return Err(WebDriverBiDiLocateNodesExchangeError::ResponseDocument(
             WebDriverBiDiResponseDocumentAdmissionError::DocumentTooLarge,
         ));
@@ -464,6 +466,12 @@ mod tests {
             "Err(ResponseDocument(DocumentTooLarge))"
         );
         assert_eq!(response.len(), MAX_WEBDRIVER_BIDI_RESPONSE_DOCUMENT_BYTES);
+    }
+
+    #[test]
+    fn response_fragment_rejects_an_already_oversized_buffer_without_panicking() {
+        let mut response = vec![0_u8; MAX_WEBDRIVER_BIDI_RESPONSE_DOCUMENT_BYTES + 1];
+        assert!(append_response_fragment(&mut response, &[]).is_err());
     }
 
     #[test]

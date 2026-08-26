@@ -56,6 +56,9 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Made WebDriver BiDi response-fragment admission reject an already oversized
+  buffer without subtraction underflow or a production panic.
+
 - Restored exact locateNodes-stack coverage without introducing an uncovered
   test-only pattern-guard branch by exercising the deadline callback
   without weakening its no-late-entropy assertion and removing an unreachable
