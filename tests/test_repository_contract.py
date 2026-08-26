@@ -175,6 +175,12 @@ class RepositoryContractTests(unittest.TestCase):
             self.assertNotIn("TraceWeave", text, relative)
             self.assertNotIn("ProofRail", text, relative)
 
+    def test_runtime_revision_boundary_is_recorded_in_the_changelog(self) -> None:
+        """The public runtime-revision boundary must remain visible in release history."""
+
+        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.assertIn("require_runtime_revisions", changelog)
+
     def test_database_contract_requires_two_word_snake_case(self) -> None:
         """Persistent naming policy must include the mandated canonical form."""
 
