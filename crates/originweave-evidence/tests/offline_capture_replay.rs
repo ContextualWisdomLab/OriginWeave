@@ -8,8 +8,7 @@ use originweave_evidence::{
 };
 
 const SOURCE_HASH: &str = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-const VALUE_HASH: &str =
-    "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const VALUE_HASH: &str = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const DRIFTED_VALUE_HASH: &str =
     "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const RECORD_ID: &str = "urn:uuid:123e4567-e89b-12d3-a456-426614174000";
@@ -53,8 +52,8 @@ fn offline_replay_verifies_exact_manifest_evidence_and_structured_result() {
     let schema = schema();
     let record = resource_record();
     let bundle = WarcProvBundle::new(&record, SOFTWARE_COMMIT_SHA).expect("PROV bundle");
-    let value = CaptureManifestValueBinding::new("title", VALUE_HASH, RECORD_ID)
-        .expect("value binding");
+    let value =
+        CaptureManifestValueBinding::new("title", VALUE_HASH, RECORD_ID).expect("value binding");
     let manifest = CaptureManifest::new_with_warc_values(
         &schema,
         &[(&record, &bundle)],
@@ -82,8 +81,8 @@ fn offline_replay_rejects_persisted_manifest_byte_drift_before_evidence_replay()
     let schema = schema();
     let record = resource_record();
     let bundle = WarcProvBundle::new(&record, SOFTWARE_COMMIT_SHA).expect("PROV bundle");
-    let value = CaptureManifestValueBinding::new("title", VALUE_HASH, RECORD_ID)
-        .expect("value binding");
+    let value =
+        CaptureManifestValueBinding::new("title", VALUE_HASH, RECORD_ID).expect("value binding");
     let manifest = CaptureManifest::new_with_warc_values(
         &schema,
         &[(&record, &bundle)],
@@ -112,8 +111,8 @@ fn offline_replay_rejects_structured_result_identity_drift() {
     let schema = schema();
     let record = resource_record();
     let bundle = WarcProvBundle::new(&record, SOFTWARE_COMMIT_SHA).expect("PROV bundle");
-    let value = CaptureManifestValueBinding::new("title", VALUE_HASH, RECORD_ID)
-        .expect("value binding");
+    let value =
+        CaptureManifestValueBinding::new("title", VALUE_HASH, RECORD_ID).expect("value binding");
     let drifted_value = CaptureManifestValueBinding::new("title", DRIFTED_VALUE_HASH, RECORD_ID)
         .expect("drifted value binding");
     let manifest = CaptureManifest::new_with_warc_values(
