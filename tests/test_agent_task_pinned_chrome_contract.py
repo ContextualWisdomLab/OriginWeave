@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
-import http.client
+import inspect
 import pathlib
 import runpy
-import tempfile
 import unittest
-import unittest.mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 RUNNER = ROOT / "scripts" / "ci" / "run_mv3_compatibility.py"
 FIXTURE = ROOT / "tests" / "fixtures" / "agent_task_basic" / "index.html"
 WORKFLOW = ROOT / ".github" / "workflows" / "mv3-compatibility.yml"
+CHANGELOG = ROOT / "CHANGELOG.md"
+TRACEABILITY = ROOT / "docs" / "traceability" / "action-postcondition-evidence.md"
+FITNESS = ROOT / "docs" / "DOCUMENTATION_FITNESS.md"
 
 
 class AgentTaskPinnedChromeContractTests(unittest.TestCase):
@@ -63,6 +64,25 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
         ) as raised:
             validate_state(hostile_state)
         self.assertNotIn(hostile_state, str(raised.exception))
+
+    def test_agent_task_session_cleanup_never_suppresses_programming_failures(self) -> None:
+        """Unexpected cleanup defects must fail closed instead of becoming successful evidence."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_cleanup_contract")
+        self.assertIn("_cleanup_agent_task_browser_session", namespace)
+        cleanup_session = namespace["_cleanup_agent_task_browser_session"]
+        browser_pass_source = inspect.getsource(namespace["_run_agent_task_browser_pass"])
+        self.assertNotIn("contextlib.suppress(Exception)", browser_pass_source)
+
+        def unexpected_cleanup_failure(*_args: object, **_kwargs: object) -> dict[str, object]:
+            raise AssertionError("unexpected cleanup programming failure")
+
+        cleanup_session.__globals__["_json_request"] = unexpected_cleanup_failure
+        with self.assertRaisesRegex(
+            AssertionError,
+            r"^unexpected cleanup programming failure$",
+        ):
+            cleanup_session(9515, "session-1")
 
     def test_agent_task_submission_preserves_the_loaded_url(self) -> None:
         """Submission must prove that the controlled action did not navigate away."""
@@ -117,143 +137,6 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
             with self.subTest(expected=expected):
                 self.assertIn(expected, runner)
 
-    def test_agent_task_records_bounded_chromium_process_tree_rss(self) -> None:
-        """The evidence runner must measure one bounded sampled process-set snapshot."""
-
-        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_process_tree_contract")
-        runner = RUNNER.read_text(encoding="utf-8")
-        for expected in (
-            "MAX_BROWSER_PROCESS_TREE_SIZE",
-            "MAX_PROC_PROCESS_SCAN_SIZE",
-            "_parse_linux_proc_status_process_identity",
-            "_parse_linux_proc_status_optional_rss_bytes",
-            "_snapshot_linux_process_evidence",
-            "_discover_linux_process_tree_ids",
-            "_sample_linux_process_set_rss_bytes",
-        ):
-            with self.subTest(expected=expected):
-                self.assertIn(expected, namespace)
-        self.assertNotIn("_parse_linux_children_process_ids", namespace)
-        self.assertNotIn("_snapshot_linux_process_parent_ids", namespace)
-        for expected in (
-            '"chromium_process_count"',
-            '"chromium_process_set_rss_bytes"',
-            '"failure_type"',
-        ):
-            with self.subTest(expected=expected):
-                self.assertIn(expected, runner)
-
-    def test_process_tree_and_rss_use_one_sampled_process_snapshot(self) -> None:
-        """Root and descendant RSS must come from the same bounded status snapshot."""
-
-        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_process_snapshot")
-        discover = namespace["_discover_linux_process_tree_ids"]
-        sample = namespace["_sample_linux_process_set_rss_bytes"]
-        sample_root = namespace["_sample_linux_process_snapshot_rss_bytes"]
-        evidence = {
-            10: (1, 100),
-            20: (10, 200),
-            30: (20, 300),
-            40: (999, 400),
-        }
-        process_ids = discover(10, evidence)
-        self.assertEqual(process_ids, (10, 20, 30))
-        self.assertEqual(sample_root(10, evidence), 100)
-        self.assertEqual(sample(process_ids, evidence), 600)
-        with self.assertRaises(ValueError):
-            sample((10, 50), evidence)
-        with self.assertRaises(RuntimeError):
-            sample_root(50, evidence)
-
-        runner = RUNNER.read_text(encoding="utf-8")
-        self.assertIn(
-            "browser_process_rss_bytes = _sample_linux_process_snapshot_rss_bytes(",
-            runner,
-        )
-        self.assertNotIn(
-            "browser_process_rss_bytes = _sample_linux_process_rss_bytes(browser_process_id)",
-            runner,
-        )
-
-    def test_process_snapshot_ignores_symlinked_proc_entries(self) -> None:
-        """The proc snapshot must not follow a symlink presented as a PID entry."""
-
-        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_proc_symlink_contract")
-        with tempfile.TemporaryDirectory() as directory:
-            temporary_root = pathlib.Path(directory)
-            target = temporary_root / "target"
-            target.mkdir()
-            (target / "status").write_text(
-                "Name:\tchrome\nPid:\t123\nPPid:\t1\nVmRSS:\t1 kB\n",
-                encoding="utf-8",
-            )
-            symlinked_entry = temporary_root / "123"
-            symlinked_entry.symlink_to(target, target_is_directory=True)
-            with unittest.mock.patch.object(
-                pathlib.Path, "iterdir", return_value=iter((symlinked_entry,))
-            ):
-                evidence = namespace["_snapshot_linux_process_evidence"]()
-
-        self.assertEqual(evidence, {})
-
-    def test_fixture_server_does_not_follow_symlinks_outside_fixture_root(self) -> None:
-        """The controlled fixture server must not disclose a linked outside file."""
-
-        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_fixture_symlink_contract")
-        with tempfile.TemporaryDirectory() as directory:
-            temporary_root = pathlib.Path(directory)
-            fixture_root = temporary_root / "fixture"
-            fixture_root.mkdir()
-            (fixture_root / "index.html").write_text("fixture", encoding="utf-8")
-            secret_path = temporary_root / "secret.txt"
-            secret_path.write_text("not-for-the-fixture", encoding="utf-8")
-            (fixture_root / "linked.txt").symlink_to(secret_path)
-            server, thread = namespace["_start_fixture_server"](fixture_root)
-            try:
-                connection = http.client.HTTPConnection(
-                    "127.0.0.1", server.server_port, timeout=2
-                )
-                connection.request("GET", "/linked.txt")
-                response = connection.getresponse()
-                body = response.read()
-                connection.close()
-            finally:
-                namespace["_stop_fixture_server"](server, thread)
-
-        self.assertIn(response.status, {403, 404})
-        self.assertNotIn(b"not-for-the-fixture", body)
-
-    def test_process_set_tolerates_descendant_without_resident_rss(self) -> None:
-        """A sampled child with no resident RSS must not invalidate the whole tree."""
-
-        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_zero_rss_contract")
-        sample = namespace["_sample_linux_process_set_rss_bytes"]
-        evidence = {
-            10: (1, 100),
-            20: (10, None),
-            30: (20, 300),
-        }
-        self.assertEqual(sample((10, 20, 30), evidence), 400)
-
-    def test_optional_linux_rss_parser_separates_absence_from_ambiguity(self) -> None:
-        """Snapshot parsing may tolerate absence, never malformed or duplicate VmRSS."""
-
-        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_optional_rss_contract")
-        parser = namespace["_parse_linux_proc_status_optional_rss_bytes"]
-        self.assertIsNone(parser("Name:\tchrome\n"))
-        self.assertIsNone(parser("Name:\tchrome\nVmRSS:\t0 kB\n"))
-        self.assertEqual(parser("Name:\tchrome\nVmRSS:\t123 kB\n"), 123 * 1024)
-        for malformed in (
-            "VmRSS:\t123 MB\n",
-            "VmRSS:\t123 kB extra\n",
-            "VmRSS:\tnot-a-number kB\n",
-            "VmRSS:\t123 kB\nVmRSS:\t124 kB\n",
-            "VmRSS:\t18446744073709551616 kB\n",
-        ):
-            with self.subTest(malformed=malformed):
-                with self.assertRaises((ValueError, OverflowError)):
-                    parser(malformed)
-
     def test_linux_rss_parser_is_strict_and_overflow_safe(self) -> None:
         """Runner-side RSS evidence must not accept ambiguous proc status input."""
 
@@ -272,26 +155,6 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
                 with self.assertRaises((ValueError, OverflowError)):
                     parser(malformed)
 
-    def test_linux_status_identity_parser_is_strict_and_positive(self) -> None:
-        """Process snapshot discovery must parse one unambiguous identity per status."""
-
-        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_parent_map_contract")
-        parser = namespace["_parse_linux_proc_status_process_identity"]
-        self.assertEqual(parser("Name:\tchrome\nPid:\t34\nPPid:\t12\n"), (34, 12))
-        self.assertEqual(parser("Name:\tinit\nPid:\t1\nPPid:\t0\n"), (1, 0))
-        for malformed in (
-            "Name:\tchrome\nPid:\t34\n",
-            "Name:\tchrome\nPPid:\t12\n",
-            "Pid:\t0\nPPid:\t12\n",
-            "Pid:\t34\nPPid:\t-1\n",
-            "Pid:\tchild\nPPid:\t12\n",
-            "Pid:\t34\nPid:\t35\nPPid:\t12\n",
-            "Pid:\t34\nPPid:\t12\nPPid:\t13\n",
-        ):
-            with self.subTest(malformed=malformed):
-                with self.assertRaises(ValueError):
-                    parser(malformed)
-
     def test_agent_task_fixture_runs_under_the_existing_pinned_chrome_job(self) -> None:
         """No floating browser or second workflow may be introduced for this slice."""
 
@@ -304,6 +167,28 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
         self.assertNotIn("google-chrome-stable", runner.lower())
         self.assertNotIn("COPILOT_GITHUB_TOKEN", runner)
         self.assertNotIn("NVIDIA_NIM_API_KEY", runner)
+
+    def test_documentation_separates_active_browser_evidence_from_product_runtime(self) -> None:
+        """Documentation must record the real fixture evidence without shipping the adapter claim."""
+
+        changelog = CHANGELOG.read_text(encoding="utf-8")
+        traceability = TRACEABILITY.read_text(encoding="utf-8")
+        fitness = FITNESS.read_text(encoding="utf-8")
+        self.assertIn("Real pinned-Chrome WebDriver evidence", changelog)
+        self.assertIn("does not claim a shipped OriginWeave browser adapter", changelog)
+        self.assertIn("PR #70", traceability)
+        self.assertIn("real WebDriver", traceability)
+        self.assertIn("not a product browser adapter", traceability)
+        self.assertIn("pinned Chrome", fitness)
+        self.assertIn("not a browser adapter", fitness)
+        self.assertIn("browser-computed role/name", changelog)
+        self.assertIn("PR #71", traceability)
+        self.assertIn("computed role/name", traceability)
+        self.assertIn("computed role/name", fitness)
+        self.assertIn("browser-process RSS", changelog)
+        self.assertIn("PR #72", traceability)
+        self.assertIn("resource evidence", traceability)
+        self.assertIn("resource evidence", fitness)
 
 
 if __name__ == "__main__":

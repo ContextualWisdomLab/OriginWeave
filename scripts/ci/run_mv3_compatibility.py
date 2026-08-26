@@ -43,8 +43,6 @@ STARTUP_TIMEOUT_SECONDS = 20.0
 FIXTURE_TIMEOUT_SECONDS = 20.0
 MAX_WEBDRIVER_RESPONSE_BYTES = 1_048_576
 MAX_PROC_STATUS_CHARACTERS = 65_536
-MAX_BROWSER_PROCESS_TREE_SIZE = 256
-MAX_PROC_PROCESS_SCAN_SIZE = 32_768
 MAX_U64 = (1 << 64) - 1
 W3C_ELEMENT_KEY = "element-6066-11e4-a52e-4f735466cecf"
 PATH_TOKEN_CHARACTERS = frozenset(string.ascii_letters + string.digits + "-_.")
@@ -55,18 +53,6 @@ class QuietFixtureHandler(http.server.SimpleHTTPRequestHandler):
 
     def log_message(self, _format: str, *args: object) -> None:
         """Suppress request logs because the fixture contains no diagnostic value."""
-
-    def translate_path(self, path: str) -> str:
-        """Resolve requests only when their final path remains inside the fixture root."""
-
-        translated = pathlib.Path(super().translate_path(path))
-        fixture_root = pathlib.Path(self.directory).resolve()
-        try:
-            resolved = translated.resolve(strict=False)
-            resolved.relative_to(fixture_root)
-        except (OSError, ValueError):
-            return str(fixture_root / ".originweave-rejected-fixture-path")
-        return str(resolved)
 
 
 def _free_loopback_port() -> int:
@@ -243,58 +229,6 @@ def _parse_linux_proc_status_rss_bytes(status_text: str) -> int:
     return rss_values[0]
 
 
-def _parse_linux_proc_status_optional_rss_bytes(status_text: str) -> int | None:
-    """Parse optional Linux ``VmRSS`` without normalizing malformed evidence."""
-
-    rss_lines = [line for line in status_text.splitlines() if line.startswith("VmRSS:")]
-    if not rss_lines:
-        return None
-    if len(rss_lines) != 1:
-        raise ValueError("Linux proc status must contain at most one VmRSS field")
-
-    fields = rss_lines[0].split()
-    if len(fields) != 3 or fields[0] != "VmRSS:" or fields[2] != "kB":
-        raise ValueError("malformed Linux VmRSS field")
-    raw_kibibytes = fields[1]
-    if not raw_kibibytes.isascii() or not raw_kibibytes.isdigit():
-        raise ValueError("malformed Linux VmRSS value")
-    kibibytes = int(raw_kibibytes, 10)
-    if kibibytes == 0:
-        return None
-    if kibibytes > MAX_U64 // 1024:
-        raise OverflowError("Linux VmRSS exceeds u64 byte range")
-    return kibibytes * 1024
-
-
-def _parse_linux_proc_status_process_identity(status_text: str) -> tuple[int, int]:
-    """Parse exactly one positive ``Pid`` and one non-negative ``PPid`` from status."""
-
-    parsed: dict[str, int] = {}
-    for line in status_text.splitlines():
-        if not (line.startswith("Pid:") or line.startswith("PPid:")):
-            continue
-        fields = line.split()
-        if len(fields) != 2 or fields[0] not in {"Pid:", "PPid:"}:
-            raise ValueError("malformed Linux process identity field")
-        label = fields[0]
-        if label in parsed:
-            raise ValueError("duplicate Linux process identity field")
-        raw_process_id = fields[1]
-        if not raw_process_id.isascii() or not raw_process_id.isdigit():
-            raise ValueError("malformed Linux process identity value")
-        parsed[label] = int(raw_process_id, 10)
-
-    if set(parsed) != {"Pid:", "PPid:"}:
-        raise ValueError("Linux proc status must contain exactly one Pid and PPid")
-    process_id = parsed["Pid:"]
-    parent_process_id = parsed["PPid:"]
-    if process_id <= 0:
-        raise ValueError("Linux process identifier must be positive")
-    if parent_process_id < 0:
-        raise ValueError("Linux parent process identifier must be non-negative")
-    return process_id, parent_process_id
-
-
 def _sample_linux_process_rss_bytes(process_id: int) -> int:
     """Read one attributed Linux process RSS through a bounded ``/proc`` status file."""
 
@@ -306,118 +240,6 @@ def _sample_linux_process_rss_bytes(process_id: int) -> int:
     if len(status_text) > MAX_PROC_STATUS_CHARACTERS:
         raise RuntimeError("Linux proc status exceeded the bounded text limit")
     return _parse_linux_proc_status_rss_bytes(status_text)
-
-
-def _snapshot_linux_process_evidence() -> dict[int, tuple[int, int | None]]:
-    """Capture one bounded best-effort PID/PPID/RSS sweep from Linux proc status."""
-
-    proc_root = pathlib.Path("/proc")
-    process_entries: list[tuple[int, pathlib.Path]] = []
-    for entry in proc_root.iterdir():
-        raw_process_id = entry.name
-        if not raw_process_id.isascii() or not raw_process_id.isdigit():
-            continue
-        if entry.is_symlink() or not entry.is_dir():
-            continue
-        process_id = int(raw_process_id, 10)
-        if process_id <= 0:
-            continue
-        process_entries.append((process_id, entry))
-        if len(process_entries) > MAX_PROC_PROCESS_SCAN_SIZE:
-            raise RuntimeError("Linux proc process scan exceeded the bounded entry limit")
-
-    process_evidence: dict[int, tuple[int, int | None]] = {}
-    for expected_process_id, entry in sorted(process_entries):
-        status_path = entry / "status"
-        try:
-            with status_path.open("r", encoding="utf-8", errors="strict") as status_file:
-                status_text = status_file.read(MAX_PROC_STATUS_CHARACTERS + 1)
-        except FileNotFoundError:
-            continue
-        if len(status_text) > MAX_PROC_STATUS_CHARACTERS:
-            raise RuntimeError("Linux proc status exceeded the bounded text limit")
-        process_id, parent_process_id = _parse_linux_proc_status_process_identity(
-            status_text
-        )
-        if process_id != expected_process_id:
-            raise RuntimeError("Linux proc status identity did not match its directory")
-        if process_id in process_evidence:
-            raise RuntimeError("Linux proc process snapshot contained a duplicate PID")
-        rss_bytes = _parse_linux_proc_status_optional_rss_bytes(status_text)
-        process_evidence[process_id] = (parent_process_id, rss_bytes)
-    return process_evidence
-
-
-def _discover_linux_process_tree_ids(
-    root_process_id: int,
-    process_evidence: dict[int, tuple[int, int | None]],
-) -> tuple[int, ...]:
-    """Discover one bounded root-plus-descendant set from sampled process evidence."""
-
-    if (
-        isinstance(root_process_id, bool)
-        or not isinstance(root_process_id, int)
-        or root_process_id <= 0
-    ):
-        raise ValueError("invalid Linux root process identifier")
-    if root_process_id not in process_evidence:
-        raise RuntimeError("Linux process snapshot did not contain the browser root PID")
-
-    discovered = [root_process_id]
-    known = {root_process_id}
-    while True:
-        children = sorted(
-            process_id
-            for process_id, (parent_process_id, _rss_bytes) in process_evidence.items()
-            if parent_process_id in known and process_id not in known
-        )
-        if not children:
-            break
-        for process_id in children:
-            if len(known) >= MAX_BROWSER_PROCESS_TREE_SIZE:
-                raise ValueError("Linux process tree exceeded the bounded process-tree size")
-            known.add(process_id)
-            discovered.append(process_id)
-    return tuple(discovered)
-
-
-def _sample_linux_process_set_rss_bytes(
-    process_ids: tuple[int, ...],
-    process_evidence: dict[int, tuple[int, int | None]],
-) -> int:
-    """Sum resident RSS for one exact bounded process set without overflow."""
-
-    if not process_ids or len(process_ids) > MAX_BROWSER_PROCESS_TREE_SIZE:
-        raise ValueError("invalid Linux process set size")
-    if len(set(process_ids)) != len(process_ids):
-        raise ValueError("Linux process set identifiers must be unique")
-
-    total_rss_bytes = 0
-    for process_id in process_ids:
-        if isinstance(process_id, bool) or not isinstance(process_id, int) or process_id <= 0:
-            raise ValueError("invalid Linux process identifier")
-        if process_id not in process_evidence:
-            raise ValueError("Linux process set was not present in the sampled evidence")
-        rss_bytes = process_evidence[process_id][1]
-        if rss_bytes is None:
-            continue
-        if isinstance(rss_bytes, bool) or not isinstance(rss_bytes, int) or rss_bytes <= 0:
-            raise ValueError("Linux process set contained invalid sampled RSS")
-        if rss_bytes > MAX_U64 - total_rss_bytes:
-            raise OverflowError("Linux process-set RSS exceeds u64 byte range")
-        total_rss_bytes += rss_bytes
-    return total_rss_bytes
-
-
-def _sample_linux_process_snapshot_rss_bytes(
-    process_id: int,
-    process_evidence: dict[int, tuple[int, int | None]],
-) -> int:
-    """Sample one process RSS from the same bounded snapshot as its process set."""
-
-    if process_id not in process_evidence:
-        raise RuntimeError("Linux process snapshot did not contain the browser root PID")
-    return _sample_linux_process_set_rss_bytes((process_id,), process_evidence)
 
 
 def _wait_for_extension_evidence(
@@ -691,6 +513,17 @@ def _validate_agent_task_submitted_state(state: object) -> None:
         raise RuntimeError("Agent Task state post-condition failed")
 
 
+def _cleanup_agent_task_browser_session(driver_port: int, session_id: str) -> None:
+    """Delete one Agent Task WebDriver session without suppressing cleanup failures."""
+
+    _json_request(
+        driver_port,
+        "DELETE",
+        _webdriver_path(session_id, ""),
+        {},
+    )
+
+
 def _run_agent_task_browser_pass(
     chrome_bin: pathlib.Path,
     chromedriver_bin: pathlib.Path,
@@ -854,21 +687,7 @@ def _run_agent_task_browser_pass(
         _validate_agent_task_submitted_state(state)
         if text != AGENT_TASK_INPUT_VALUE:
             raise RuntimeError("Agent Task result did not match the synthetic typed value")
-
-        process_evidence = _snapshot_linux_process_evidence()
-        chromium_process_ids = _discover_linux_process_tree_ids(
-            browser_process_id,
-            process_evidence,
-        )
-        browser_process_rss_bytes = _sample_linux_process_snapshot_rss_bytes(
-            browser_process_id,
-            process_evidence,
-        )
-        chromium_process_set_rss_bytes = _sample_linux_process_set_rss_bytes(
-            chromium_process_ids,
-            process_evidence,
-        )
-        chromium_process_count = len(chromium_process_ids)
+        browser_process_rss_bytes = _sample_linux_process_rss_bytes(browser_process_id)
         task_duration_ms = round((time.monotonic() - started) * 1000, 3)
         if task_duration_ms <= 0:
             raise RuntimeError("Agent Task measured a non-positive task duration")
@@ -881,28 +700,22 @@ def _run_agent_task_browser_pass(
             "submit_semantics_verified": True,
             "extensions_disabled": True,
             "browser_process_rss_bytes": browser_process_rss_bytes,
-            "chromium_process_count": chromium_process_count,
-            "chromium_process_set_rss_bytes": chromium_process_set_rss_bytes,
             "semantic_observation_bytes": semantic_observation_bytes,
             "action_latency_ms": action_latency_ms,
             "task_duration_ms": task_duration_ms,
             "duration_ms": round(task_duration_ms),
         }
     finally:
-        if session_id is not None:
-            with contextlib.suppress(Exception):
-                _json_request(
-                    driver_port,
-                    "DELETE",
-                    _webdriver_path(session_id, ""),
-                    {},
-                )
-        driver.terminate()
         try:
-            driver.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            driver.kill()
-            driver.wait(timeout=5)
+            if session_id is not None:
+                _cleanup_agent_task_browser_session(driver_port, session_id)
+        finally:
+            driver.terminate()
+            try:
+                driver.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                driver.kill()
+                driver.wait(timeout=5)
 
 
 def _run_agent_task_trial(
@@ -940,8 +753,6 @@ def _run_agent_task_trial(
         "submit_semantics_verified": result["submit_semantics_verified"],
         "extensions_disabled": result["extensions_disabled"],
         "browser_process_rss_bytes": result["browser_process_rss_bytes"],
-        "chromium_process_count": result["chromium_process_count"],
-        "chromium_process_set_rss_bytes": result["chromium_process_set_rss_bytes"],
         "semantic_observation_bytes": result["semantic_observation_bytes"],
         "action_latency_ms": result["action_latency_ms"],
         "task_duration_ms": result["task_duration_ms"],
@@ -1010,12 +821,11 @@ def main() -> int:
                         trial_number,
                     )
                 )
-            except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+            except (OSError, ValueError, RuntimeError, json.JSONDecodeError):
                 trial_results.append(
                     {
                         "trial_number": trial_number,
                         "passed": False,
-                        "failure_type": type(exc).__name__,
                     }
                 )
 
@@ -1053,12 +863,11 @@ def main() -> int:
                         trial_number,
                     )
                 )
-            except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+            except (OSError, ValueError, RuntimeError, json.JSONDecodeError):
                 agent_task_trials.append(
                     {
                         "trial_number": trial_number,
                         "passed": False,
-                        "failure_type": type(exc).__name__,
                     }
                 )
 
@@ -1078,10 +887,6 @@ def main() -> int:
             and trial.get("profile_cleaned") is True
             and isinstance(trial.get("browser_process_rss_bytes"), int)
             and trial["browser_process_rss_bytes"] > 0
-            and isinstance(trial.get("chromium_process_count"), int)
-            and 0 < trial["chromium_process_count"] <= MAX_BROWSER_PROCESS_TREE_SIZE
-            and isinstance(trial.get("chromium_process_set_rss_bytes"), int)
-            and trial["chromium_process_set_rss_bytes"] > 0
             and isinstance(trial.get("semantic_observation_bytes"), int)
             and trial["semantic_observation_bytes"] > 0
             and isinstance(trial.get("action_latency_ms"), (int, float))
