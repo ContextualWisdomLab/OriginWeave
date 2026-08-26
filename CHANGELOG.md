@@ -6,6 +6,9 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Added
 
+- Added fail-closed presentation-surface admission so an adapter cannot claim a
+  privacy profile while any required page-observable field remains ambient.
+
 - Added a proposed privacy-preserving presentation-identity kernel with bounded screen, viewport, pixel ratio, processor, platform, language, reduced-motion, standardized named-UTC time-zone, and credential-free digest contracts; real Chromium application and anti-evasion claims remain explicitly unshipped.
 
 - Refreshed the product and technical gap baseline with the 2026-08-24 live inventory: 158 open pull requests (44 ready, 114 draft), refreshed exact base/head evidence for the #208–#222 release, enterprise-approval, BAP, and WARC/PROV chains, the governance issue additions #212 and #215, and a required-check provider-failure record for the fail-closed Strix re-dispatches on #208/#218/#220.

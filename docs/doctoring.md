@@ -35,6 +35,15 @@ before page script and prove that no ambient host value leaks. Camoufox is
 reviewed only as implementation precedent for native-layer consistency, not as
 policy authority for anti-detect, CAPTCHA, or access-control circumvention.
 
+The 25 August 2026 WebDriver BiDi Editor's Draft exposes locale, media, screen,
+user-agent, viewport, and time-zone emulation commands, but it does not define a
+hardware-concurrency override. Chromium's tip-of-tree DevTools Protocol exposes
+`Emulation.setHardwareConcurrencyOverride` as Experimental and warns that
+tip-of-tree commands can change without notice. OriginWeave therefore records
+required presentation surfaces in a protocol-neutral Rust admission contract;
+a later pinned Chromium adapter must capability-negotiate every surface and
+fail closed before claiming a complete profile.
+
 ### Extension-to-Agent grant origin binding
 
 RFC 6454 defines a web origin as the scheme, host, and port tuple that browsers use to isolate authority. An OriginWeave `extension_grant` that is bound only to extension identity, session, and browsing context would remain valid after the same context navigates to another origin. OriginWeave therefore requires the grant and the request to carry the same canonical origin. A host change or a non-default port change is a different origin and cannot reuse the grant. This is grant-scope isolation only; it does not install an extension, parse Chrome messages, or mint Agent capabilities from Manifest V3 permissions.
@@ -135,6 +144,8 @@ Bonica, R., Cotton, M., Haberman, B., & Vegoda, L. (2017). *Updates to the speci
 
 Cao, Y., Li, S., & Wijmans, E. (2017). (Cross-)browser fingerprinting via OS and hardware level features. *Proceedings of the Network and Distributed System Security Symposium*. https://doi.org/10.14722/ndss.2017.23152
 
+Chrome DevTools Protocol. (2026). *Emulation domain*. https://chromedevtools.github.io/devtools-protocol/tot/Emulation/
+
 Chromium Authors. (n.d.). *Proxy support in Chrome* [Source documentation]. Chromium. https://chromium.googlesource.com/chromium/src/+/a3e71ebfa307d8760eb68b777e2998a869940092/net/docs/proxy.md
 
 Chromium Authors. (2026). *URL canonicalizer unit tests* [Source code]. Chromium. https://chromium.googlesource.com/chromium/src/+/446d05d21720f0b3505ec21057b3e9f909784262/url/url_canon_unittest.cc
@@ -206,6 +217,8 @@ World Wide Web Consortium. (2013). *PROV-O: The PROV ontology*. https://www.w3.o
 World Wide Web Consortium. (2025, September 25). *Mitigating browser fingerprinting in Web specifications*. https://www.w3.org/TR/fingerprinting-guidance/
 
 World Wide Web Consortium. (2026, June 1). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260601/
+
+World Wide Web Consortium. (2026, August 25). *WebDriver BiDi* [Editor's Draft]. https://w3c.github.io/webdriver-bidi/
 
 Xu, J., Sun, Q., Schwendeman, P., Nielsen, S., Cetin, E., & Tang, Y. (2025). *TRINITY: An evolved LLM coordinator* [Preprint]. arXiv. https://doi.org/10.48550/arXiv.2512.04695
 

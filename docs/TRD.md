@@ -189,6 +189,12 @@ surface before page script, preserve the actual engine/platform family, and
 prove no ambient host fallback. This privacy boundary grants no CAPTCHA,
 bot-management, or access-control bypass authority.
 
+**Implemented kernel contract; adapter planned.** The kernel admits an adapter
+only when it declares every required observable surface and returns the first
+missing surface deterministically. Admission is a capability gate, not proof
+that BiDi/CDP applied the values; pinned pre-navigation Chromium evidence
+remains release-critical.
+
 ## 7. Observation architecture
 
 Observation order is an **Accepted architecture** requirement:
