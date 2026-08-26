@@ -20,7 +20,7 @@ Primary sources: World Wide Web Consortium, *WebDriver BiDi* (published Working 
 
 ## RFC 6455 WebSocket opening handshake
 
-RFC 6455 requires a client opening request to carry a fresh `Sec-WebSocket-Key` and requires a server upgrade response to return HTTP `101`, the `Upgrade: websocket` and `Connection: Upgrade` tokens, and a `Sec-WebSocket-Accept` value derived from that exact client key and the fixed WebSocket GUID. OriginWeave now validates this bounded response on the already peer-verified stream, with duplicate/security-header rejection, a response-size ceiling, and a monotonic deadline. This proves only the RFC 6455 opening exchange; it does not authenticate a browser process, implement WebSocket frames, or grant browser/Agent authority.
+RFC 6455 requires a client opening request to carry a fresh `Sec-WebSocket-Key` and requires a server upgrade response to return HTTP `101`, the `Upgrade: websocket` and `Connection: Upgrade` tokens, and a `Sec-WebSocket-Accept` value derived from that exact client key and the fixed WebSocket GUID. OriginWeave now validates this bounded response on the already peer-verified stream, with duplicate/security-header rejection, a response-size ceiling, and a monotonic deadline. The next boundary admits one frame at a time: client text frames require a caller-supplied fresh mask key and are masked on the wire, server frames must be unmasked, reserved bits/opcodes and nonminimal lengths fail closed, control-frame size and payload ceilings are enforced, and I/O remains bounded. Frame transport does not assemble BiDi messages, authenticate a browser process, or grant browser/Agent authority.
 
 Primary source: Internet Engineering Task Force, *The WebSocket Protocol* (RFC 6455).
 
