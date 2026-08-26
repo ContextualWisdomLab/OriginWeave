@@ -161,6 +161,15 @@ fn next_pong_masking_key(
     next_key().ok_or(WebDriverBiDiLocateNodesExchangeError::PongMaskingKeyUnavailable)
 }
 
+fn next_pong_masking_key_before_deadline(
+    next_key: &mut dyn FnMut() -> Option<WebDriverBiDiWebSocketMaskKey>,
+    exchange_timeout: Duration,
+    elapsed: Duration,
+) -> Result<WebDriverBiDiWebSocketMaskKey, WebDriverBiDiLocateNodesExchangeError> {
+    remaining_frame_operation_budget(exchange_timeout, elapsed)?;
+    next_pong_masking_key(next_key)
+}
+
 fn map_established_frame_result(
     result: Result<WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrameError>,
 ) -> Result<WebDriverBiDiWebSocketEstablished, WebDriverBiDiLocateNodesExchangeError> {
@@ -212,10 +221,12 @@ impl WebDriverBiDiWebSocketEstablished {
     /// text frame using `command_masking_key`. Valid server Ping frames are answered with a masked
     /// Pong carrying the exact Ping application data, while unsolicited valid Pong frames are
     /// consumed without changing BiDi state. Each Ping obtains a caller-supplied client mask from
-    /// `next_pong_key`; exhausting that caller-owned entropy source or repeating any key already used
-    /// by the command or a prior Pong fails closed before another client frame is emitted. The caller
-    /// remains responsible for generating each supplied key from a strong unpredictable entropy
-    /// source; exact non-reuse checks do not prove cryptographic unpredictability.
+    /// `next_pong_key` only after a positive remaining-budget check; exhausting that caller-owned
+    /// entropy source or repeating any key already used by the command or a prior Pong fails closed
+    /// before another client frame is emitted. Callback time is charged by a second deadline check
+    /// before the Pong write. The caller remains responsible for generating each supplied key from a
+    /// strong unpredictable entropy source; exact non-reuse checks do not prove cryptographic
+    /// unpredictability.
     ///
     /// RFC 6455 text-message fragmentation is reassembled only for one response message at a time.
     /// A non-final text frame starts that message, continuation frames extend it in order, and a final
@@ -264,9 +275,7 @@ impl WebDriverBiDiWebSocketEstablished {
             write_timeout,
         ))?;
         let mut control_frame_count = 0_usize;
-        let mut used_client_masking_keys =
-            [command_masking_key; MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE + 1];
-        let mut used_client_masking_key_count = 1_usize;
+        let mut used_client_masking_keys = vec![command_masking_key];
         let mut response_fragment_count = 0_usize;
         let mut response_message = Vec::new();
         let mut assembling_text_response = false;
@@ -293,14 +302,15 @@ impl WebDriverBiDiWebSocketEstablished {
 
             match opcode {
                 0x9 => {
-                    let masking_key = next_pong_masking_key(next_pong_key)?;
-                    if used_client_masking_keys[..used_client_masking_key_count]
-                        .contains(&masking_key)
-                    {
+                    let masking_key = next_pong_masking_key_before_deadline(
+                        next_pong_key,
+                        exchange_timeout,
+                        started_at.elapsed(),
+                    )?;
+                    if used_client_masking_keys.contains(&masking_key) {
                         return Err(WebDriverBiDiLocateNodesExchangeError::PongMaskingKeyReused);
                     }
-                    used_client_masking_keys[used_client_masking_key_count] = masking_key;
-                    used_client_masking_key_count += 1;
+                    used_client_masking_keys.push(masking_key);
                     let remaining_timeout =
                         remaining_frame_operation_budget(exchange_timeout, started_at.elapsed())?;
                     established = map_established_frame_result(established.write_pong_frame(
@@ -399,8 +409,8 @@ mod tests {
     use super::{
         MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE,
         MAX_WEBDRIVER_BIDI_RESPONSE_FRAGMENTS_PER_EXCHANGE, WebDriverBiDiLocateNodesExchangeError,
-        append_response_fragment, next_pong_masking_key, remaining_exchange_budget,
-        remaining_frame_operation_budget,
+        append_response_fragment, next_pong_masking_key, next_pong_masking_key_before_deadline,
+        remaining_exchange_budget, remaining_frame_operation_budget,
     };
 
     #[test]
@@ -465,6 +475,40 @@ mod tests {
         assert_eq!(
             format!("{:?}", next_pong_masking_key(&mut unavailable)),
             "Err(PongMaskingKeyUnavailable)"
+        );
+    }
+
+    #[test]
+    fn pong_entropy_is_not_drawn_after_exchange_deadline() {
+        let expected = crate::WebDriverBiDiWebSocketMaskKey::new([0x11, 0x22, 0x33, 0x44]);
+        let mut draw_count = 0_usize;
+        {
+            let mut next = || {
+                draw_count += 1;
+                Some(expected)
+            };
+            assert!(matches!(
+                next_pong_masking_key_before_deadline(
+                    &mut next,
+                    Duration::from_millis(500),
+                    Duration::from_millis(500),
+                ),
+                Err(WebDriverBiDiLocateNodesExchangeError::ExchangeDeadlineExceeded {
+                    exchange_timeout
+                }) if exchange_timeout == Duration::from_millis(500)
+            ));
+        }
+        assert_eq!(draw_count, 0);
+
+        let mut available = || Some(expected);
+        assert_eq!(
+            next_pong_masking_key_before_deadline(
+                &mut available,
+                Duration::from_millis(500),
+                Duration::from_millis(100),
+            )
+            .ok(),
+            Some(expected)
         );
     }
 
