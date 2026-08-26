@@ -7,7 +7,10 @@ use std::{
 };
 
 use originweave_core::{
-    WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesCommand,
+    BrowserAuthorityRegistry, BrowserContextDispatchTarget, BrowserContextOriginDispatchTarget,
+    BrowserContextOriginEpochDispatchTarget, BrowserProtocolAdapterDescriptor,
+    BrowserProtocolCapability, BrowserProtocolKind, Origin, OriginWeaveProtocolVersion,
+    ValidatedBrowserProtocolUse, WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesCommand,
     WebDriverBiDiWebSocketEndpoint,
 };
 
@@ -20,6 +23,11 @@ use crate::{
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
 const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
+const ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion =
+    OriginWeaveProtocolVersion::new(0, 1);
+const ADAPTER_VERSION: &str = "originweave-bidi-v1";
+const PROTOCOL_REVISION: &str = "webdriver-bidi-wd-2026-06-01";
+const BROWSER_REVISION: &str = "chromium-r1639810";
 
 fn connect(endpoint: &str) -> Result<WebDriverBiDiTcpConnection, Box<dyn Error>> {
     let admitted = WebDriverBiDiWebSocketEndpoint::new(endpoint)?;
@@ -94,6 +102,29 @@ fn locate_nodes_command() -> Result<WebDriverBiDiLocateNodesCommand, Box<dyn Err
         7,
         "top-level-context",
         &query,
+    )?)
+}
+
+fn controlled_origin() -> Result<Origin, Box<dyn Error>> {
+    Origin::parse("https://app.example").map_err(|_error| "valid controlled fixture origin".into())
+}
+
+fn semantic_observation_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn Error>> {
+    let descriptor = BrowserProtocolAdapterDescriptor::new(
+        BrowserProtocolKind::WebDriverBiDi,
+        ORIGINWEAVE_PROTOCOL_VERSION,
+        ADAPTER_VERSION,
+        PROTOCOL_REVISION,
+        BROWSER_REVISION,
+        &[BrowserProtocolCapability::SemanticObservation],
+    )?;
+    Ok(descriptor.validate_use(
+        ORIGINWEAVE_PROTOCOL_VERSION,
+        BrowserProtocolKind::WebDriverBiDi,
+        ADAPTER_VERSION,
+        PROTOCOL_REVISION,
+        BROWSER_REVISION,
+        BrowserProtocolCapability::SemanticObservation,
     )?)
 }
 
@@ -260,6 +291,77 @@ fn zero_exchange_timeout_fails_at_exchange_boundary_before_frame_write()
     let server_result = server
         .join()
         .map_err(|_| io::Error::other("zero-budget exchange test server panicked"))?;
+    assert!(server_result.is_ok(), "{server_result:?}");
+    Ok(())
+}
+
+#[test]
+fn zero_exchange_timeout_binding_wrapper_executes_in_unit_crate_before_frame_write()
+-> Result<(), Box<dyn Error>> {
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let local_addr = listener.local_addr()?;
+    let server = thread::spawn(move || -> io::Result<()> {
+        let (mut stream, _) = listener.accept()?;
+        read_opening_request(&mut stream)?;
+        stream.write_all(
+            b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n",
+        )?;
+        stream.set_read_timeout(Some(Duration::from_secs(2)))?;
+        let mut byte = [0_u8; 1];
+        let count = stream.read(&mut byte)?;
+        if count != 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "zero-budget binding wrapper wrote a locateNodes client frame",
+            ));
+        }
+        Ok(())
+    });
+
+    let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+    let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?;
+    let plan = WebDriverBiDiWebSocketHandshakePlan::new(connect(&endpoint)?, key)?;
+    let written = plan.write_opening_request(Duration::from_millis(500))?;
+    let established = written.read_opening_response(Duration::from_millis(500))?;
+
+    let mut registry = BrowserAuthorityRegistry::new();
+    let origin = controlled_origin()?;
+    let session = registry.register_session(SESSION_ID)?;
+    let context = registry.register_context(session, "top-level-context")?;
+    let epoch = registry.bind_context_origin(session, context, &origin)?;
+    let target = BrowserContextOriginEpochDispatchTarget::new(
+        BrowserContextOriginDispatchTarget::new(
+            BrowserContextDispatchTarget::new(session, context),
+            &origin,
+        ),
+        epoch,
+    );
+
+    let exchanged = established.exchange_locate_nodes_and_bind_current_nodes(
+        locate_nodes_command()?,
+        WebDriverBiDiWebSocketMaskKey::new([0x11, 0x22, 0x33, 0x44]),
+        &mut || None,
+        Duration::ZERO,
+        (semantic_observation_proof()?, target),
+        &mut registry,
+    );
+
+    let error = exchanged.err().ok_or_else(|| {
+        io::Error::other("zero-budget locateNodes binding wrapper unexpectedly succeeded")
+    })?;
+    assert!(
+        matches!(
+            &error,
+            WebDriverBiDiLocateNodesExchangeError::ExchangeDeadlineExceeded {
+                exchange_timeout
+            } if exchange_timeout.is_zero()
+        ),
+        "{error:?}"
+    );
+
+    let server_result = server
+        .join()
+        .map_err(|_| io::Error::other("zero-budget binding-wrapper test server panicked"))?;
     assert!(server_result.is_ok(), "{server_result:?}");
     Ok(())
 }
