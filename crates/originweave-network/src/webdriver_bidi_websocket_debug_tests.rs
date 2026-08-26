@@ -11,6 +11,16 @@ const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
 const CLIENT_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
 
 #[test]
+fn client_key_debug_redacts_client_nonce() {
+    let client_key =
+        WebDriverBiDiWebSocketClientKey::new(CLIENT_KEY).expect("test client key must be valid");
+
+    let debug = format!("{client_key:?}");
+    assert!(debug.contains("<redacted WebSocket client nonce>"));
+    assert!(!debug.contains(CLIENT_KEY));
+}
+
+#[test]
 fn handshake_plan_debug_redacts_client_nonce() {
     let listener = TcpListener::bind(("127.0.0.1", 0)).expect("test listener must bind");
     let address = listener
