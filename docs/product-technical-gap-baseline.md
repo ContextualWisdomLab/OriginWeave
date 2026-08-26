@@ -14,7 +14,7 @@ This is a dated delivery baseline, not a substitute for the PRD, TRD, roadmap, a
 
 ### Open pull requests
 
-The live repository contained **140 open pull requests: 48 non-draft and 92 draft** when this snapshot re-paginated the complete open inventory. Since the prior 150-PR snapshot, #190, #188, #185, #192, #182, #184, #115, #181, #116, and #117 were merged into their immediate stacked prerequisites; those merges are dependency consolidation, not protected-main delivery. The volume and stack depth remain themselves a product-delivery risk: review, exact-head checks, dependency order, and integration truth can drift faster than a buyer-visible vertical slice reaches protected `main`.
+The live repository contained **130 open pull requests: 44 non-draft and 86 draft** when this snapshot re-paginated the complete open inventory. Since the prior 150-PR snapshot, #190, #188, #185, #192, #182, #184, #115, #181, #116, #117, #118, #183, #114, #127, #112, #109, #186, #110, #108, and #111 were merged into their immediate stacked prerequisites, and #113 moved to ready. Those transitions are dependency consolidation, not protected-main delivery; protected `main` remains `b05d5acca82b9d916ada2c8e82f59f92a89817e1`, with 13 open issues and no releases or tags. The volume and stack depth remain themselves a product-delivery risk: review, exact-head checks, dependency order, and integration truth can drift faster than a buyer-visible vertical slice reaches protected `main`.
 
 #### 2026-08-26 maintenance-loop record
 
@@ -148,7 +148,7 @@ The hourly product-development loop is operational infrastructure, not proof tha
 | P1 | Buyers can install, update, verify, and roll back a supported product | **Not shipped** | #201; signed Windows/macOS/Linux/headless artifacts, Chromium revision manifest, updater security, patch SLA, SBOM, SLSA provenance, and recovery |
 | P1 | Enterprise teams can provision, approve, audit, operate, and recover the service | **Not shipped** | #202; Keyverse-compatible OIDC/SCIM, tenant isolation, policy/approval/evidence UI, SLO/incident controls, data residency, CSAP/SOC 2 evidence mapping, WCAG 2.2, Figma File ID, and Storybook |
 | P0 | A release has reproducible proof of usefulness, safety, evidence completeness, and recovery | **No product-wide release gate** | #203; deterministic, compatibility, adversarial, recovery, and enterprise suites with statistical reporting and an exact-artifact commercial acceptance gate |
-| P0 | Valid changes reach protected `main` without authority improvisation or unbounded stack growth | **Blocked / high integration debt** | Shrink the 140-PR queue in dependency order, provision legitimate review authority, require exact-current evidence, and close duplicates/superseded branches |
+| P0 | Valid changes reach protected `main` without authority improvisation or unbounded stack growth | **Blocked / high integration debt** | Shrink the 130-PR queue in dependency order, provision legitimate review authority, require exact-current evidence, and close duplicates/superseded branches |
 
 ## Commercial completion definition
 

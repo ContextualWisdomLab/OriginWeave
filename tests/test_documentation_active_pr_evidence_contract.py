@@ -54,7 +54,7 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         changed = self.changelog.split("### Changed", 1)[1].split("### Security", 1)[0]
         self.assertIn(refresh, added)
         self.assertNotIn(refresh, changed)
-        self.assertIn("140 open pull requests (48 ready, 92 draft)", self.changelog)
+        self.assertIn("130 open pull requests (44 ready, 86 draft)", self.changelog)
         self.assertNotIn("150 open pull requests (44 ready, 106 draft)", added)
 
     def test_dependency_stacks_are_explicit_and_non_shipped(self) -> None:
