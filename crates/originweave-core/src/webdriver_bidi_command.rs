@@ -10,6 +10,103 @@ use crate::{
 /// Maximum WebDriver BiDi command identifier representable by the protocol `js-uint` type.
 pub const MAX_WEBDRIVER_BIDI_COMMAND_ID: u64 = 9_007_199_254_740_991;
 
+/// WebDriver BiDi method used for one bounded typed pointer action sequence.
+pub const WEBDRIVER_BIDI_PERFORM_ACTIONS_METHOD: &str = "input.performActions";
+
+/// Fail-closed validation errors for one serialized WebDriver BiDi pointer click command.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WebDriverBiDiPointerClickCommandError {
+    /// The command identifier exceeds WebDriver BiDi's unsigned safe-integer range.
+    InvalidCommandId,
+    /// The browsing-context identifier is empty, over budget, or contains disallowed text.
+    InvalidBrowsingContext,
+}
+
+impl Display for WebDriverBiDiPointerClickCommandError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::InvalidCommandId => "WebDriver BiDi command id is outside the js-uint range",
+            Self::InvalidBrowsingContext => {
+                "WebDriver BiDi browsing context is empty, over budget, or contains disallowed text"
+            }
+        })
+    }
+}
+
+impl Error for WebDriverBiDiPointerClickCommandError {}
+
+/// Deterministic command for one primary-button click on an admitted remote node.
+///
+/// The fixed mouse action sequence moves to the element origin, presses button zero, and releases
+/// button zero. Construction accepts an already admitted remote node reference and does not grant
+/// browser-session, context, origin, document-epoch, policy, approval, or Agent authority. A trusted
+/// adapter must bind this inert command to current authority before transport.
+#[derive(Debug, PartialEq, Eq)]
+pub struct WebDriverBiDiPointerClickCommand {
+    command_id: u64,
+    browsing_context: String,
+    json: String,
+}
+
+impl WebDriverBiDiPointerClickCommand {
+    /// Validate and serialize one bounded `input.performActions` pointer click command.
+    pub fn new(
+        command_id: u64,
+        browsing_context: &str,
+        node: &crate::WebDriverBiDiRemoteNodeReference,
+    ) -> Result<Self, WebDriverBiDiPointerClickCommandError> {
+        if command_id > MAX_WEBDRIVER_BIDI_COMMAND_ID {
+            return Err(WebDriverBiDiPointerClickCommandError::InvalidCommandId);
+        }
+        if browsing_context.is_empty()
+            || browsing_context.len() > MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES
+            || contains_disallowed_protocol_text(browsing_context, false)
+        {
+            return Err(WebDriverBiDiPointerClickCommandError::InvalidBrowsingContext);
+        }
+
+        let mut json = String::from("{\"id\":");
+        json.push_str(&command_id.to_string());
+        json.push_str(",\"method\":\"");
+        json.push_str(WEBDRIVER_BIDI_PERFORM_ACTIONS_METHOD);
+        json.push_str("\",\"params\":{\"context\":");
+        push_json_string(&mut json, browsing_context);
+        json.push_str(",\"actions\":[{\"type\":\"pointer\",\"id\":\"originweave-mouse\",\"parameters\":{\"pointerType\":\"mouse\"},\"actions\":[{\"type\":\"pointerMove\",\"x\":0,\"y\":0,\"origin\":{\"type\":\"element\",\"element\":{\"sharedId\":");
+        push_json_string(&mut json, node.shared_id());
+        json.push_str("}}},{\"type\":\"pointerDown\",\"button\":0},{\"type\":\"pointerUp\",\"button\":0}]}]}}");
+
+        Ok(Self {
+            command_id,
+            browsing_context: browsing_context.to_owned(),
+            json,
+        })
+    }
+
+    /// Return the validated command identifier.
+    #[must_use]
+    pub const fn command_id(&self) -> u64 {
+        self.command_id
+    }
+
+    /// Return the exact WebDriver BiDi method serialized by this command.
+    #[must_use]
+    pub const fn method(&self) -> &'static str {
+        WEBDRIVER_BIDI_PERFORM_ACTIONS_METHOD
+    }
+
+    /// Return the exact validated browsing-context identifier.
+    #[must_use]
+    pub fn browsing_context(&self) -> &str {
+        &self.browsing_context
+    }
+
+    /// Return the deterministic JSON command envelope.
+    #[must_use]
+    pub fn as_json(&self) -> &str {
+        &self.json
+    }
+}
+
 /// Fail-closed validation errors for one serialized WebDriver BiDi `locateNodes` command.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WebDriverBiDiLocateNodesCommandError {
