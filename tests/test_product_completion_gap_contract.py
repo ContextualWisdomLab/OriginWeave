@@ -32,6 +32,7 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "signed cross-platform Chromium distribution",
             "enterprise control and experience plane",
             "commercial acceptance gate",
+            "central `.github` PR #1353 merged as `874f47b3…`",
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, text)

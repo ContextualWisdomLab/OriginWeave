@@ -55,6 +55,9 @@ All notable changes to OriginWeave are documented in this file. The format follo
   kernel now validates explicit coherent profiles and leaves default selection
   unavailable until cited cohort evidence defines a defensible anonymity set.
 
+- Recorded the merged central Strix adapter repair while retaining exact-head
+  acceptance reruns as required evidence before closing the provider blocker.
+
 - Refreshed the product-gap baseline with exact current presentation and
   WebDriver BiDi heads, non-draft stack state, and the zero-release/tag truth.
 
