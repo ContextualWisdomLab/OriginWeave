@@ -4,7 +4,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
-- Refreshed the product-gap queue to 150 open pull requests (44 ready, 106 draft) after #189, #191, and #193 were merged into their immediate stacked prerequisites; these are dependency-consolidation results, not protected-main shipment.
+- Refreshed the product-gap queue to 140 open pull requests (48 ready, 92 draft) after #190, #188, #185, #192, #182, #184, #115, #181, #116, and #117 were merged into their immediate stacked prerequisites; these are dependency-consolidation results, not protected-main shipment.
 
 ### Added
 - Corrected the 2026-08-26 product-gap snapshot with current #229 presentation-identity evidence, stacked-only #205 integration evidence, current base/head pairs, the 153-PR queue count, explicit root-versus-child merge ordering, and the active GitHub counted-approval gate.
