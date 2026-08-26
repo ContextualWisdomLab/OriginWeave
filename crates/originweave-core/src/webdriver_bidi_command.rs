@@ -225,6 +225,18 @@ impl CorrelatedWebDriverBiDiLocateNodesResponse {
 
 /// Deterministic serialized command envelope for one bounded WebDriver BiDi accessibility query.
 ///
+/// Direct identifier-only correlation is intentionally unavailable outside this crate; callers
+/// must classify the response envelope before success evidence can reach result admission.
+///
+/// ```compile_fail
+/// use originweave_core::{WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesCommand};
+///
+/// let query = WebDriverBiDiAccessibilityQuery::new(None, None, 1)?;
+/// let command = WebDriverBiDiLocateNodesCommand::new(1, "context-a", &query)?;
+/// let _ = command.correlate_response_id(1)?;
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
+///
 /// Construction accepts only a WebDriver BiDi `js-uint` command identifier, a bounded opaque
 /// browsing-context identifier, and an already validated [`WebDriverBiDiAccessibilityQuery`]. The
 /// serialized envelope fixes the exact `browsingContext.locateNodes` method, accessibility locator,
@@ -332,7 +344,7 @@ impl WebDriverBiDiLocateNodesCommand {
     /// evidence also retains the exact `maxNodeCount` serialized by this command so later result
     /// admission cannot substitute a different query budget. This does not parse a response,
     /// authenticate the transport, or grant browser/Agent authority.
-    pub fn correlate_response_id(
+    fn correlate_response_id(
         self,
         response_id: u64,
     ) -> Result<
