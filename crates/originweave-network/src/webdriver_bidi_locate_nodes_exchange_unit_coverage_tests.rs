@@ -78,6 +78,29 @@ fn read_client_text_frame(stream: &mut TcpStream) -> io::Result<()> {
     Ok(())
 }
 
+fn write_opening_response(stream: &mut TcpStream) -> io::Result<()> {
+    stream.write_all(
+        b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n",
+    )
+}
+
+fn write_short_server_frame(stream: &mut TcpStream, first_byte: u8, payload: &[u8]) -> io::Result<()> {
+    let payload_length = u8::try_from(payload.len()).map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "unit coverage server frame exceeds short-frame limit",
+        )
+    })?;
+    if payload_length > 125 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "unit coverage server frame exceeds short-frame limit",
+        ));
+    }
+    stream.write_all(&[first_byte, payload_length])?;
+    stream.write_all(payload)
+}
+
 fn locate_nodes_command() -> Result<WebDriverBiDiLocateNodesCommand, Box<dyn Error>> {
     let query = WebDriverBiDiAccessibilityQuery::new(Some("button"), Some("Checkout"), 2)?;
     Ok(WebDriverBiDiLocateNodesCommand::new(
@@ -110,34 +133,9 @@ fn semantic_observation_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn E
     )?)
 }
 
-#[test]
-fn binding_wrapper_success_path_executes_in_library_unit_crate() -> Result<(), Box<dyn Error>> {
-    let listener = TcpListener::bind(("127.0.0.1", 0))?;
-    let local_addr = listener.local_addr()?;
-    let server = thread::spawn(move || -> io::Result<()> {
-        let (mut stream, _) = listener.accept()?;
-        read_opening_request(&mut stream)?;
-        stream.write_all(
-            b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n",
-        )?;
-        read_client_text_frame(&mut stream)?;
-        let response = RESPONSE_DOCUMENT.as_bytes();
-        let response_length = u8::try_from(response.len()).map_err(|_| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                "test response exceeds short frame",
-            )
-        })?;
-        if response_length > 125 {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "test response exceeds short frame",
-            ));
-        }
-        stream.write_all(&[0x81, response_length])?;
-        stream.write_all(response)
-    });
-
+fn establish_client(
+    local_addr: std::net::SocketAddr,
+) -> Result<crate::WebDriverBiDiWebSocketEstablished, Box<dyn Error>> {
     let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
     let admitted = WebDriverBiDiWebSocketEndpoint::new(&endpoint)?;
     let correlated = admitted.correlate_session_id(SESSION_ID)?;
@@ -147,7 +145,22 @@ fn binding_wrapper_success_path_executes_in_library_unit_crate() -> Result<(), B
     let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?;
     let plan = WebDriverBiDiWebSocketHandshakePlan::new(connection, key)?;
     let written = plan.write_opening_request(Duration::from_millis(500))?;
-    let established = written.read_opening_response(Duration::from_millis(500))?;
+    Ok(written.read_opening_response(Duration::from_millis(500))?)
+}
+
+#[test]
+fn binding_wrapper_success_path_executes_in_library_unit_crate() -> Result<(), Box<dyn Error>> {
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let local_addr = listener.local_addr()?;
+    let server = thread::spawn(move || -> io::Result<()> {
+        let (mut stream, _) = listener.accept()?;
+        read_opening_request(&mut stream)?;
+        write_opening_response(&mut stream)?;
+        read_client_text_frame(&mut stream)?;
+        write_short_server_frame(&mut stream, 0x81, RESPONSE_DOCUMENT.as_bytes())
+    });
+
+    let established = establish_client(local_addr)?;
 
     let mut registry = BrowserAuthorityRegistry::new();
     let origin = controlled_origin()?;
@@ -176,5 +189,66 @@ fn binding_wrapper_success_path_executes_in_library_unit_crate() -> Result<(), B
     server
         .join()
         .map_err(|_| io::Error::other("unit coverage test server panicked"))??;
+    Ok(())
+}
+
+#[test]
+fn fragmented_response_executes_nonfinal_text_arm_in_library_unit_crate() -> Result<(), Box<dyn Error>> {
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let local_addr = listener.local_addr()?;
+    let server = thread::spawn(move || -> io::Result<()> {
+        let (mut stream, _) = listener.accept()?;
+        read_opening_request(&mut stream)?;
+        write_opening_response(&mut stream)?;
+        read_client_text_frame(&mut stream)?;
+        let response = RESPONSE_DOCUMENT.as_bytes();
+        write_short_server_frame(&mut stream, 0x01, &response[..1])?;
+        write_short_server_frame(&mut stream, 0x80, &response[1..])
+    });
+
+    let established = establish_client(local_addr)?;
+    let (_established, result) = established.exchange_locate_nodes(
+        locate_nodes_command()?,
+        WebDriverBiDiWebSocketMaskKey::new([0x21, 0x22, 0x23, 0x24]),
+        &mut || None,
+        Duration::from_millis(500),
+    )?;
+    assert_eq!(result.nodes().len(), 1);
+
+    server
+        .join()
+        .map_err(|_| io::Error::other("fragmented unit coverage test server panicked"))??;
+    Ok(())
+}
+
+#[test]
+fn second_text_frame_during_fragmentation_executes_guard_denial_in_library_unit_crate(
+) -> Result<(), Box<dyn Error>> {
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let local_addr = listener.local_addr()?;
+    let server = thread::spawn(move || -> io::Result<()> {
+        let (mut stream, _) = listener.accept()?;
+        read_opening_request(&mut stream)?;
+        write_opening_response(&mut stream)?;
+        read_client_text_frame(&mut stream)?;
+        write_short_server_frame(&mut stream, 0x01, b"{")?;
+        write_short_server_frame(&mut stream, 0x81, b"x")
+    });
+
+    let established = establish_client(local_addr)?;
+    let exchange = established.exchange_locate_nodes(
+        locate_nodes_command()?,
+        WebDriverBiDiWebSocketMaskKey::new([0x31, 0x32, 0x33, 0x34]),
+        &mut || None,
+        Duration::from_millis(500),
+    );
+    assert_eq!(
+        format!("{exchange:?}"),
+        "Err(UnexpectedResponseFrame { fin: true, opcode: 1 })"
+    );
+
+    server
+        .join()
+        .map_err(|_| io::Error::other("second-text unit coverage test server panicked"))??;
     Ok(())
 }
