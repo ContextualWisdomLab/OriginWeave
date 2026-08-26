@@ -54,8 +54,9 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         changed = self.changelog.split("### Changed", 1)[1].split("### Security", 1)[0]
         self.assertIn(refresh, added)
         self.assertNotIn(refresh, changed)
-        self.assertIn("128 open pull requests (54 ready, 74 draft)", self.changelog)
-        self.assertNotIn("150 open pull requests (44 ready, 106 draft)", added)
+        self.assertIn("126 open pull requests (54 ready, 72 draft)", self.changelog)
+        self.assertNotIn("128 open pull requests (54 ready, 74 draft)", added)
+        self.assertNotIn("153 open pull requests (39 ready, 114 draft)", added)
 
     def test_dependency_stacks_are_explicit_and_non_shipped(self) -> None:
         """Current browser, network, sensitive and compatibility stacks stay active-only."""
