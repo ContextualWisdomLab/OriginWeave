@@ -56,7 +56,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
-- Restored exact locateNodes-stack coverage by exercising the deadline callback
+- Restored exact locateNodes-stack coverage without introducing an uncovered
+  test-only pattern-guard branch by exercising the deadline callback
   without weakening its no-late-entropy assertion and removing an unreachable
   private legacy handshake `Debug` implementation superseded by the redacting
   wrapper.

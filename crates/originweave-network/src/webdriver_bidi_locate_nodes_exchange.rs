@@ -491,16 +491,15 @@ mod tests {
         };
         assert_eq!(next(), Some(expected));
         draw_count.set(0);
-        assert!(matches!(
-            next_pong_masking_key_before_deadline(
-                &mut next,
-                Duration::from_millis(500),
-                Duration::from_millis(500),
-            ),
-            Err(WebDriverBiDiLocateNodesExchangeError::ExchangeDeadlineExceeded {
-                exchange_timeout
-            }) if exchange_timeout == Duration::from_millis(500)
-        ));
+        let deadline_result = next_pong_masking_key_before_deadline(
+            &mut next,
+            Duration::from_millis(500),
+            Duration::from_millis(500),
+        );
+        assert_eq!(
+            format!("{deadline_result:?}"),
+            "Err(ExchangeDeadlineExceeded { exchange_timeout: 500ms })"
+        );
         assert_eq!(draw_count.get(), 0);
 
         let mut available = || Some(expected);
