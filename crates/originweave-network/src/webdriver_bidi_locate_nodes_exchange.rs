@@ -411,12 +411,10 @@ mod tests {
         assert!(append_response_fragment(&mut response, b"x").is_ok());
         assert_eq!(response.len(), MAX_WEBDRIVER_BIDI_RESPONSE_DOCUMENT_BYTES);
 
-        assert!(matches!(
-            append_response_fragment(&mut response, b"y"),
-            Err(WebDriverBiDiLocateNodesExchangeError::ResponseDocument(
-                WebDriverBiDiResponseDocumentAdmissionError::DocumentTooLarge
-            ))
-        ));
+        assert_eq!(
+            format!("{:?}", append_response_fragment(&mut response, b"y")),
+            "Err(ResponseDocument(DocumentTooLarge))"
+        );
         assert_eq!(response.len(), MAX_WEBDRIVER_BIDI_RESPONSE_DOCUMENT_BYTES);
     }
 
