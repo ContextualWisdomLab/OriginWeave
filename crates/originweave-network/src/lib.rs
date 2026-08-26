@@ -42,7 +42,8 @@ pub use webdriver_bidi_connection::{
     WebDriverBiDiTcpConnectionEvidence, WebDriverBiDiTcpConnectionPlan,
 };
 pub use webdriver_bidi_locate_nodes_exchange::{
-    MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE, WebDriverBiDiLocateNodesExchangeError,
+    MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE,
+    MAX_WEBDRIVER_BIDI_RESPONSE_FRAGMENTS_PER_EXCHANGE, WebDriverBiDiLocateNodesExchangeError,
 };
 pub use webdriver_bidi_websocket_handshake::{
     WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketHandshakePlan,
