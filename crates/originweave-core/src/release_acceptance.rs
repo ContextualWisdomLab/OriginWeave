@@ -97,7 +97,13 @@ impl DeclaredLimitation {
         unsupported_claim: impl Into<String>,
         buyer_consequence: impl Into<String>,
     ) -> Result<Self, ReleaseDecisionError> {
-        let unsupported_claim = unsupported_claim.into();
+        Self::from_owned_text(unsupported_claim.into(), buyer_consequence.into())
+    }
+
+    fn from_owned_text(
+        unsupported_claim: String,
+        buyer_consequence: String,
+    ) -> Result<Self, ReleaseDecisionError> {
         if unsupported_claim.trim().is_empty() {
             return Err(ReleaseDecisionError::EmptyLimitationClaim);
         }
@@ -117,7 +123,6 @@ impl DeclaredLimitation {
         {
             return Err(ReleaseDecisionError::InvalidLimitationClaim);
         }
-        let buyer_consequence = buyer_consequence.into();
         if buyer_consequence.trim().is_empty() {
             return Err(ReleaseDecisionError::EmptyLimitationConsequence);
         }
