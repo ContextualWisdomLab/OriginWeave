@@ -133,7 +133,7 @@ impl NetworkEvidence {
         query: BTreeMap<String, String>,
     ) -> Result<Self, EvidenceError> {
         validate_path(path)?;
-        validate_metadata(&headers, MAX_HEADER_COUNT)?;
+        validate_header_metadata(&headers)?;
         validate_metadata(&query, MAX_QUERY_FIELD_COUNT)?;
         Ok(Self {
             method,
@@ -175,6 +175,38 @@ impl NetworkEvidence {
     }
 }
 
+fn validate_header_metadata(values: &BTreeMap<String, String>) -> Result<(), EvidenceError> {
+    validate_metadata(values, MAX_HEADER_COUNT)?;
+    if values
+        .keys()
+        .any(|name| !name.bytes().all(is_http_field_name_byte))
+    {
+        return Err(EvidenceError::LimitExceeded);
+    }
+    Ok(())
+}
+
+const fn is_http_field_name_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric()
+        || matches!(
+            byte,
+            b'!' | b'#'
+                | b'$'
+                | b'%'
+                | b'&'
+                | b'\''
+                | b'*'
+                | b'+'
+                | b'-'
+                | b'.'
+                | b'^'
+                | b'_'
+                | b'`'
+                | b'|'
+                | b'~'
+        )
+}
+
 fn validate_metadata(
     values: &BTreeMap<String, String>,
     maximum_count: usize,
@@ -184,9 +216,10 @@ fn validate_metadata(
             name.is_empty()
                 || name.len() > MAX_METADATA_NAME_BYTES
                 || value.len() > MAX_METADATA_VALUE_BYTES
-                || name
-                    .chars()
-                    .any(|character| character.is_control() || character.is_whitespace())
+                || name.chars().any(|character| {
+                    character.is_whitespace()
+                        || disallowed_evidence_presentation_character(character)
+                })
         })
     {
         return Err(EvidenceError::LimitExceeded);
@@ -329,7 +362,7 @@ impl ProvenanceRecord {
         }
         if source_locator
             .chars()
-            .any(disallowed_provenance_locator_character)
+            .any(disallowed_evidence_presentation_character)
         {
             return Err(EvidenceError::InvalidLocator);
         }
@@ -376,7 +409,7 @@ impl ProvenanceRecord {
     }
 }
 
-fn disallowed_provenance_locator_character(character: char) -> bool {
+fn disallowed_evidence_presentation_character(character: char) -> bool {
     let code_point = character as u32;
     character.is_control()
         || matches!(
