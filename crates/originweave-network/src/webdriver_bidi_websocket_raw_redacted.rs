@@ -81,7 +81,7 @@ impl WebDriverBiDiWebSocketHandshakePlan {
 
 #[cfg(test)]
 mod tests {
-    use std::{net::TcpListener, thread};
+    use std::{error::Error, io, net::TcpListener, thread};
 
     use originweave_core::WebDriverBiDiWebSocketEndpoint;
 
@@ -92,35 +92,19 @@ mod tests {
     const CLIENT_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
 
     #[test]
-    fn legacy_handshake_plan_debug_redacts_serialized_client_nonce() {
-        let listener = TcpListener::bind(("127.0.0.1", 0)).expect("test listener must bind");
-        let address = listener
-            .local_addr()
-            .expect("test listener address must be available");
-        let server = thread::spawn(move || {
-            listener
-                .accept()
-                .map(|_| ())
-                .expect("test loopback connection must be accepted");
-        });
+    fn legacy_handshake_plan_debug_redacts_serialized_client_nonce() -> Result<(), Box<dyn Error>> {
+        let listener = TcpListener::bind(("127.0.0.1", 0))?;
+        let address = listener.local_addr()?;
+        let server = thread::spawn(move || -> io::Result<()> { listener.accept().map(|_| ()) });
 
         let endpoint =
-            WebDriverBiDiWebSocketEndpoint::new(&format!("ws://{address}/session/{SESSION_ID}"))
-                .expect("test endpoint must be valid");
-        let correlated = endpoint
-            .correlate_session_id(SESSION_ID)
-            .expect("test session must correlate");
-        let target = correlated
-            .into_explicit_connect_target()
-            .expect("test target must be explicit");
-        let connection = WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)
-            .expect("test connection plan must be valid")
-            .connect()
-            .expect("test connection must succeed");
-        let client_key = WebDriverBiDiWebSocketClientKey::new(CLIENT_KEY)
-            .expect("test client key must be valid");
-        let handshake = legacy::WebDriverBiDiWebSocketHandshakePlan::new(connection, client_key)
-            .expect("test legacy handshake plan must be valid");
+            WebDriverBiDiWebSocketEndpoint::new(&format!("ws://{address}/session/{SESSION_ID}"))?;
+        let correlated = endpoint.correlate_session_id(SESSION_ID)?;
+        let target = correlated.into_explicit_connect_target()?;
+        let connection = WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)?
+            .connect()?;
+        let client_key = WebDriverBiDiWebSocketClientKey::new(CLIENT_KEY)?;
+        let handshake = legacy::WebDriverBiDiWebSocketHandshakePlan::new(connection, client_key)?;
 
         let debug = format!("{handshake:?}");
         assert!(debug.contains("<redacted WebSocket client nonce>"));
@@ -128,6 +112,9 @@ mod tests {
         assert!(!debug.contains(CLIENT_KEY));
 
         drop(handshake);
-        server.join().expect("test server must not panic");
+        server
+            .join()
+            .map_err(|_| io::Error::other("test WebSocket debug server panicked"))??;
+        Ok(())
     }
 }
