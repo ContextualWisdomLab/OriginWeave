@@ -24,8 +24,7 @@ const COMMAND_MASK: WebDriverBiDiWebSocketMaskKey =
     WebDriverBiDiWebSocketMaskKey::new([0x11, 0x22, 0x33, 0x44]);
 const PONG_MASK: WebDriverBiDiWebSocketMaskKey =
     WebDriverBiDiWebSocketMaskKey::new([0x51, 0x52, 0x53, 0x54]);
-const REUSED_MASK_ERROR: &str =
-    "WebDriver BiDi locateNodes exchange refused a Pong masking key already used by this exchange";
+const REUSED_MASK_ERROR: &str = "WebDriver BiDi locateNodes exchange refused a Pong masking key matching the immediately preceding client frame";
 
 type EstablishedServer = (
     originweave_network::WebDriverBiDiWebSocketEstablished,
