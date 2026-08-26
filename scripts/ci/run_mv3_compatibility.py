@@ -14,7 +14,6 @@ cleanup without treating page content as instruction or authority.
 
 from __future__ import annotations
 
-import contextlib
 import http.client
 import http.server
 import json
@@ -23,6 +22,7 @@ import pathlib
 import socket
 import string
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -49,6 +49,26 @@ class QuietFixtureHandler(http.server.SimpleHTTPRequestHandler):
 
     def log_message(self, _format: str, *args: object) -> None:
         """Suppress request logs because the fixture contains no diagnostic value."""
+
+
+class BrowserSessionCleanupError(RuntimeError):
+    """Report bounded WebDriver-session cleanup failure without echoing remote text."""
+
+    def __init__(self, cleanup_error: BaseException) -> None:
+        self.cleanup_error_type = type(cleanup_error).__name__
+        super().__init__(
+            "WebDriver session cleanup failed; see the chained causal browser failure"
+        )
+
+
+class BrowserProfileCleanupError(RuntimeError):
+    """Report bounded profile cleanup failure without exposing filesystem details."""
+
+    def __init__(self, cleanup_error: BaseException) -> None:
+        self.cleanup_error_type = type(cleanup_error).__name__
+        super().__init__(
+            "browser profile cleanup failed; see the chained causal browser failure"
+        )
 
 
 def _free_loopback_port() -> int:
@@ -177,6 +197,33 @@ def _element_command_path(session_id: str, element_id: str, suffix: str) -> str:
 
     safe_element = _path_token(element_id, "element identifier")
     return _webdriver_path(session_id, f"/element/{safe_element}{suffix}")
+
+
+def _cleanup_browser_session(driver_port: int, session_id: str) -> None:
+    """Delete one WebDriver session through the fixed loopback authority."""
+
+    _json_request(
+        driver_port,
+        "DELETE",
+        _webdriver_path(session_id, ""),
+        {},
+    )
+
+
+def _cleanup_browser_session_preserving_primary(
+    driver_port: int,
+    session_id: str,
+    primary_error: BaseException | None,
+) -> None:
+    """Fail closed on expected cleanup errors while retaining an earlier causal failure."""
+
+    try:
+        _cleanup_browser_session(driver_port, session_id)
+    except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as cleanup_error:
+        bounded_error = BrowserSessionCleanupError(cleanup_error)
+        if primary_error is None:
+            raise bounded_error from cleanup_error
+        raise bounded_error from primary_error
 
 
 def _wait_for_extension_evidence(
@@ -363,20 +410,21 @@ def _run_browser_pass(
             },
         }
     finally:
-        if session_id is not None:
-            with contextlib.suppress(Exception):
-                _json_request(
-                    driver_port,
-                    "DELETE",
-                    _webdriver_path(session_id, ""),
-                    {},
-                )
-        driver.terminate()
+        primary_error = sys.exc_info()[1]
         try:
-            driver.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            driver.kill()
-            driver.wait(timeout=5)
+            if session_id is not None:
+                _cleanup_browser_session_preserving_primary(
+                    driver_port,
+                    session_id,
+                    primary_error,
+                )
+        finally:
+            driver.terminate()
+            try:
+                driver.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                driver.kill()
+                driver.wait(timeout=5)
 
 
 def _run_restart_trial(
@@ -453,12 +501,7 @@ def _validate_agent_task_submitted_state(state: object) -> None:
 def _cleanup_agent_task_browser_session(driver_port: int, session_id: str) -> None:
     """Delete one Agent Task WebDriver session without suppressing cleanup failures."""
 
-    _json_request(
-        driver_port,
-        "DELETE",
-        _webdriver_path(session_id, ""),
-        {},
-    )
+    _cleanup_browser_session(driver_port, session_id)
 
 
 def _run_agent_task_browser_pass(
@@ -592,9 +635,14 @@ def _run_agent_task_browser_pass(
             "duration_ms": round((time.monotonic() - started) * 1000),
         }
     finally:
+        primary_error = sys.exc_info()[1]
         try:
             if session_id is not None:
-                _cleanup_agent_task_browser_session(driver_port, session_id)
+                _cleanup_browser_session_preserving_primary(
+                    driver_port,
+                    session_id,
+                    primary_error,
+                )
         finally:
             driver.terminate()
             try:
@@ -613,18 +661,32 @@ def _run_agent_task_trial(
     """Run one isolated Agent Task browser trial and prove its profile is removed."""
 
     trial_started = time.monotonic()
-    profile_path: pathlib.Path
-    with tempfile.TemporaryDirectory(
+    temporary_profile = tempfile.TemporaryDirectory(
         prefix=f"originweave-agent-task-trial-{trial_number}-"
-    ) as profile_dir:
-        profile_path = pathlib.Path(profile_dir)
+    )
+    profile_path = pathlib.Path(temporary_profile.name)
+    profile_observed_before_cleanup = profile_path.is_dir()
+    if not profile_observed_before_cleanup:
+        raise RuntimeError(f"Agent Task profile was not created in trial {trial_number}")
+
+    try:
         result = _run_agent_task_browser_pass(
             chrome_bin,
             chromedriver_bin,
             fixture_url,
-            profile_dir,
+            temporary_profile.name,
         )
-    profile_cleaned = not profile_path.exists()
+    finally:
+        primary_error = sys.exc_info()[1]
+        try:
+            temporary_profile.cleanup()
+        except OSError as cleanup_error:
+            bounded_error = BrowserProfileCleanupError(cleanup_error)
+            if primary_error is None:
+                raise bounded_error from cleanup_error
+            raise bounded_error from primary_error
+
+    profile_cleaned = profile_observed_before_cleanup and not profile_path.exists()
     if not profile_cleaned:
         raise RuntimeError(f"Agent Task profile cleanup failed in trial {trial_number}")
 
@@ -639,6 +701,22 @@ def _run_agent_task_trial(
         "profile_cleaned": profile_cleaned,
         "duration_ms": round((time.monotonic() - trial_started) * 1000),
     }
+
+
+def _agent_task_surfaces_complete(agent_task_trials: list[dict[str, Any]]) -> bool:
+    """Require every recorded Agent Task trial to contain every success surface."""
+
+    if not agent_task_trials:
+        return False
+    return all(
+        trial.get("passed") is True
+        and trial.get("post_condition") is True
+        and trial.get("input_echo_verified") is True
+        and trial.get("url_unchanged") is True
+        and trial.get("extensions_disabled") is True
+        and trial.get("profile_cleaned") is True
+        for trial in agent_task_trials
+    )
 
 
 def _start_fixture_server(directory: pathlib.Path) -> tuple[http.server.ThreadingHTTPServer, threading.Thread]:
@@ -755,15 +833,7 @@ def main() -> int:
         agent_task_trial_pass_rate = (
             agent_task_successful_trials / AGENT_TASK_REPEATABILITY_TRIALS
         )
-        agent_task_surfaces_complete = all(
-            trial.get("post_condition") is True
-            and trial.get("input_echo_verified") is True
-            and trial.get("url_unchanged") is True
-            and trial.get("extensions_disabled") is True
-            and trial.get("profile_cleaned") is True
-            for trial in agent_task_trials
-            if trial.get("passed") is True
-        )
+        agent_task_surfaces_complete = _agent_task_surfaces_complete(agent_task_trials)
 
         evidence = {
             "chrome_version": PINNED_CHROME_VERSION,
