@@ -25,6 +25,13 @@ use crate::{
 /// independent wall-clock bound.
 pub const MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE: usize = 64;
 
+/// Maximum number of data fragments accepted for one `locateNodes` response message.
+///
+/// RFC 6455 permits a text message to be split into an arbitrary number of continuation frames,
+/// including empty fragments. This OriginWeave product-safety budget prevents a peer from turning
+/// bounded response bytes into unbounded frame-processing work before the end-to-end deadline.
+pub const MAX_WEBDRIVER_BIDI_RESPONSE_FRAGMENTS_PER_EXCHANGE: usize = 256;
+
 /// Fail-closed failures while exchanging one bounded WebDriver BiDi `locateNodes` command.
 ///
 /// Every variant preserves the first causal boundary. Frame I/O retains the existing bounded
@@ -46,6 +53,11 @@ pub enum WebDriverBiDiLocateNodesExchangeError {
     ControlFrameLimitExceeded {
         /// Maximum number of control frames admitted for one exchange.
         maximum_control_frames: usize,
+    },
+    /// The peer exceeded the local resource budget for response-message data fragments.
+    ResponseFragmentLimitExceeded {
+        /// Maximum number of response-message data fragments admitted for one exchange.
+        maximum_fragments: usize,
     },
     /// A server Ping required a fresh client masking key, but the caller supplied none.
     PongMaskingKeyUnavailable,
@@ -81,6 +93,10 @@ impl fmt::Display for WebDriverBiDiLocateNodesExchangeError {
                 formatter,
                 "WebDriver BiDi locateNodes exchange exceeded the maximum {maximum_control_frames} interleaved control frames"
             ),
+            Self::ResponseFragmentLimitExceeded { maximum_fragments } => write!(
+                formatter,
+                "WebDriver BiDi locateNodes exchange exceeded the maximum {maximum_fragments} response-message data fragments"
+            ),
             Self::PongMaskingKeyUnavailable => formatter.write_str(
                 "WebDriver BiDi locateNodes exchange received Ping without a fresh caller-supplied Pong masking key",
             ),
@@ -111,6 +127,7 @@ impl Error for WebDriverBiDiLocateNodesExchangeError {
             Self::LocateNodesResponse(error) => Some(error),
             Self::ExchangeDeadlineExceeded { .. }
             | Self::ControlFrameLimitExceeded { .. }
+            | Self::ResponseFragmentLimitExceeded { .. }
             | Self::PongMaskingKeyUnavailable
             | Self::PongMaskingKeyReused
             | Self::UnexpectedResponseFrame { .. } => None,
@@ -148,6 +165,20 @@ fn map_established_frame_result(
     result: Result<WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrameError>,
 ) -> Result<WebDriverBiDiWebSocketEstablished, WebDriverBiDiLocateNodesExchangeError> {
     result.map_err(WebDriverBiDiLocateNodesExchangeError::Frame)
+}
+
+fn admit_response_fragment(
+    response_fragment_count: &mut usize,
+) -> Result<(), WebDriverBiDiLocateNodesExchangeError> {
+    if *response_fragment_count == MAX_WEBDRIVER_BIDI_RESPONSE_FRAGMENTS_PER_EXCHANGE {
+        return Err(
+            WebDriverBiDiLocateNodesExchangeError::ResponseFragmentLimitExceeded {
+                maximum_fragments: MAX_WEBDRIVER_BIDI_RESPONSE_FRAGMENTS_PER_EXCHANGE,
+            },
+        );
+    }
+    *response_fragment_count += 1;
+    Ok(())
 }
 
 fn append_response_fragment(
@@ -190,9 +221,11 @@ impl WebDriverBiDiWebSocketEstablished {
     /// A non-final text frame starts that message, continuation frames extend it in order, and a final
     /// continuation completes it. Ping/Pong control frames remain admissible between fragments. The
     /// total assembled response is capped by [`MAX_WEBDRIVER_BIDI_RESPONSE_DOCUMENT_BYTES`] before
-    /// allocation can grow beyond the existing pre-parser budget. Orphan continuations, a second data
-    /// message before completion, binary/Close/reserved shapes, and malformed frame sequences fail
-    /// closed and consume the transport state.
+    /// allocation can grow beyond the existing pre-parser budget, and at most
+    /// [`MAX_WEBDRIVER_BIDI_RESPONSE_FRAGMENTS_PER_EXCHANGE`] accepted data fragments may compose the
+    /// message, so empty continuation frames cannot create unbounded processing work. Orphan
+    /// continuations, a second data message before completion, binary/Close/reserved shapes, and
+    /// malformed frame sequences fail closed and consume the transport state.
     ///
     /// `exchange_timeout` is one end-to-end budget for every command write, control-frame read/write,
     /// response-fragment read, and response read. Elapsed time is subtracted before every operation,
@@ -234,6 +267,7 @@ impl WebDriverBiDiWebSocketEstablished {
         let mut used_client_masking_keys =
             [command_masking_key; MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE + 1];
         let mut used_client_masking_key_count = 1_usize;
+        let mut response_fragment_count = 0_usize;
         let mut response_message = Vec::new();
         let mut assembling_text_response = false;
 
@@ -277,14 +311,17 @@ impl WebDriverBiDiWebSocketEstablished {
                 }
                 0xa => {}
                 0x1 if !assembling_text_response && frame.fin() => {
+                    admit_response_fragment(&mut response_fragment_count)?;
                     let result = admit_response_payload(command, frame.payload())?;
                     return Ok((established, result));
                 }
                 0x1 if !assembling_text_response => {
+                    admit_response_fragment(&mut response_fragment_count)?;
                     append_response_fragment(&mut response_message, frame.payload())?;
                     assembling_text_response = true;
                 }
                 0x0 if assembling_text_response => {
+                    admit_response_fragment(&mut response_fragment_count)?;
                     append_response_fragment(&mut response_message, frame.payload())?;
                     if frame.fin() {
                         let result = admit_response_payload(command, &response_message)?;
@@ -361,7 +398,8 @@ mod tests {
     use crate::{MAX_WEBSOCKET_FRAME_TIMEOUT, WebDriverBiDiWebSocketFrameError};
 
     use super::{
-        MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE, WebDriverBiDiLocateNodesExchangeError,
+        MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE,
+        MAX_WEBDRIVER_BIDI_RESPONSE_FRAGMENTS_PER_EXCHANGE, WebDriverBiDiLocateNodesExchangeError,
         append_response_fragment, next_pong_masking_key, remaining_exchange_budget,
         remaining_frame_operation_budget,
     };
@@ -460,6 +498,16 @@ mod tests {
             control_limit
                 .to_string()
                 .contains("maximum 64 interleaved control frames")
+        );
+
+        let fragment_limit = WebDriverBiDiLocateNodesExchangeError::ResponseFragmentLimitExceeded {
+            maximum_fragments: MAX_WEBDRIVER_BIDI_RESPONSE_FRAGMENTS_PER_EXCHANGE,
+        };
+        assert!(fragment_limit.source().is_none());
+        assert!(
+            fragment_limit
+                .to_string()
+                .contains("maximum 256 response-message data fragments")
         );
 
         let missing_mask = WebDriverBiDiLocateNodesExchangeError::PongMaskingKeyUnavailable;
