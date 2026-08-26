@@ -187,6 +187,18 @@ class RepositoryContractTests(unittest.TestCase):
         changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
         self.assertIn("BrowserAuthorityRegistry::require_context_origin", changelog)
 
+    def test_context_origin_dispatch_is_recorded_in_the_changelog(self) -> None:
+        """The public origin-gated dispatch boundary must remain visible in release history."""
+
+        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.assertIn("dispatch_if_context_origin_current", changelog)
+
+    def test_context_origin_epoch_dispatch_is_recorded_in_the_changelog(self) -> None:
+        """The public epoch-gated dispatch boundary must remain visible in release history."""
+
+        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.assertIn("dispatch_if_context_origin_epoch_current", changelog)
+
     def test_runtime_revision_boundary_is_recorded_in_the_changelog(self) -> None:
         """The public runtime-revision boundary must remain visible in release history."""
 
