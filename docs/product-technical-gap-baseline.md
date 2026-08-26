@@ -14,7 +14,7 @@ This is a dated delivery baseline, not a substitute for the PRD, TRD, roadmap, a
 
 ### Open pull requests
 
-The live repository contained **153 open pull requests: 39 non-draft and 114 draft** when this snapshot re-paginated the complete open inventory, a net reduction from 158/44/114 on 2026-08-24 amid merged work, supersession closure of #153, and newly opened follow-on work. The volume and stack depth remain themselves a product-delivery risk: review, exact-head checks, dependency order, and integration truth can drift faster than a buyer-visible vertical slice reaches protected `main`.
+The live repository contained **150 open pull requests: 44 non-draft and 106 draft** when this snapshot re-paginated the complete open inventory. The queue fell from 153 after #189, #191, and #193 were merged into their immediate stacked prerequisites; those merges are dependency consolidation, not protected-main delivery. The volume and stack depth remain themselves a product-delivery risk: review, exact-head checks, dependency order, and integration truth can drift faster than a buyer-visible vertical slice reaches protected `main`.
 
 #### 2026-08-26 maintenance-loop record
 
@@ -148,7 +148,7 @@ The hourly product-development loop is operational infrastructure, not proof tha
 | P1 | Buyers can install, update, verify, and roll back a supported product | **Not shipped** | #201; signed Windows/macOS/Linux/headless artifacts, Chromium revision manifest, updater security, patch SLA, SBOM, SLSA provenance, and recovery |
 | P1 | Enterprise teams can provision, approve, audit, operate, and recover the service | **Not shipped** | #202; Keyverse-compatible OIDC/SCIM, tenant isolation, policy/approval/evidence UI, SLO/incident controls, data residency, CSAP/SOC 2 evidence mapping, WCAG 2.2, Figma File ID, and Storybook |
 | P0 | A release has reproducible proof of usefulness, safety, evidence completeness, and recovery | **No product-wide release gate** | #203; deterministic, compatibility, adversarial, recovery, and enterprise suites with statistical reporting and an exact-artifact commercial acceptance gate |
-| P0 | Valid changes reach protected `main` without authority improvisation or unbounded stack growth | **Blocked / high integration debt** | Shrink the 153-PR queue in dependency order, provision legitimate review authority, require exact-current evidence, and close duplicates/superseded branches |
+| P0 | Valid changes reach protected `main` without authority improvisation or unbounded stack growth | **Blocked / high integration debt** | Shrink the 150-PR queue in dependency order, provision legitimate review authority, require exact-current evidence, and close duplicates/superseded branches |
 
 ## Commercial completion definition
 
