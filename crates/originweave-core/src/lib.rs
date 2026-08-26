@@ -9,6 +9,7 @@
 #![deny(missing_docs)]
 
 mod browser_protocol;
+mod browser_protocol_dispatch;
 mod browser_registry;
 #[cfg(test)]
 mod browser_registry_coverage;
@@ -21,6 +22,10 @@ pub use browser_protocol::{
     BrowserProtocolRuntimeRequirementError, BrowserProtocolUseValidationError,
     BrowserProtocolVersionRequirementError, MAX_BROWSER_PROTOCOL_METADATA_BYTES,
     OriginWeaveProtocolVersion, OriginWeaveProtocolVersionParseError, ValidatedBrowserProtocolUse,
+};
+pub use browser_protocol_dispatch::{
+    BrowserContextDispatchTarget, BrowserContextProtocolDispatchError,
+    BrowserProtocolRuntimeMetadata,
 };
 pub use browser_registry::{
     BrowserAuthorityRegistry, BrowserRegistryError, MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES,

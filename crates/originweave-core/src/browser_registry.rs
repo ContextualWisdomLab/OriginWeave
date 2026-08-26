@@ -170,6 +170,91 @@ impl BrowserAuthorityRegistry {
             .ok_or(BrowserRegistryError::UnknownBrowsingContext)
     }
 
+    /// Return the current document epoch only when the supplied session owns the context.
+    ///
+    /// This is an immediate-use registry check for trusted browser adapters. It proves only that
+    /// the OriginWeave session/context pair is currently registered together and returns the
+    /// registry's current document epoch. It does not authenticate a browser process, authorize an
+    /// origin or action, or make the returned epoch a reusable browser capability.
+    pub fn current_context_epoch(
+        &self,
+        browser_session: BrowserSessionId,
+        browsing_context: BrowsingContextId,
+    ) -> Result<DocumentEpoch, BrowserRegistryError> {
+        if !self.known_sessions.contains(&browser_session) {
+            return Err(BrowserRegistryError::UnknownBrowserSession);
+        }
+        let expected_session = self
+            .context_session
+            .get(&browsing_context)
+            .copied()
+            .ok_or(BrowserRegistryError::UnknownBrowsingContext)?;
+        if expected_session != browser_session {
+            return Err(BrowserRegistryError::ContextSessionMismatch {
+                expected: expected_session,
+                actual: browser_session,
+            });
+        }
+        self.current_epoch(browsing_context)
+    }
+
+    /// Bind the canonical origin observed for the exact current browser document.
+    ///
+    /// This boundary lets a trusted browser adapter establish current document-origin state before
+    /// semantic-node discovery begins. The supplied session must own the context. Rebinding the
+    /// same canonical origin in the same document epoch is idempotent, while a different origin
+    /// fails closed until [`Self::advance_document`] rotates the document epoch and clears the old
+    /// binding. The returned epoch is descriptive immediate-use state, not reusable capability.
+    ///
+    /// This method does not authenticate the adapter, derive an origin from Chromium, authorize a
+    /// destination or action, or prove that any browser I/O occurred.
+    pub fn bind_context_origin(
+        &mut self,
+        browser_session: BrowserSessionId,
+        browsing_context: BrowsingContextId,
+        origin: &Origin,
+    ) -> Result<DocumentEpoch, BrowserRegistryError> {
+        let epoch = self.current_context_epoch(browser_session, browsing_context)?;
+        match self.context_origin.get(&browsing_context) {
+            Some(expected_origin) if expected_origin != origin => {
+                return Err(BrowserRegistryError::OriginChangedWithoutDocumentAdvance);
+            }
+            Some(_expected_origin) => {}
+            None => {
+                self.context_origin.insert(browsing_context, origin.clone());
+            }
+        }
+        Ok(epoch)
+    }
+
+    /// Revalidate the canonical origin bound to the exact current browser document.
+    ///
+    /// This read-only immediate-use boundary lets a trusted browser adapter prove that the exact
+    /// OriginWeave session/context still has the expected canonical origin in its current document
+    /// epoch. It fails closed when the current document has no origin binding, including directly
+    /// after [`Self::advance_document`], and rejects a different origin without mutating registry
+    /// state. The returned epoch is descriptive current state, not a reusable capability.
+    ///
+    /// This method does not authenticate the adapter or browser process, derive the current origin
+    /// from Chromium, authorize a destination or action, perform browser I/O, or attest that the
+    /// caller-supplied origin came from the running browser.
+    pub fn require_context_origin(
+        &self,
+        browser_session: BrowserSessionId,
+        browsing_context: BrowsingContextId,
+        origin: &Origin,
+    ) -> Result<DocumentEpoch, BrowserRegistryError> {
+        let epoch = self.current_context_epoch(browser_session, browsing_context)?;
+        let expected_origin = self
+            .context_origin
+            .get(&browsing_context)
+            .ok_or(BrowserRegistryError::ContextOriginNotBound)?;
+        if expected_origin != origin {
+            return Err(BrowserRegistryError::OriginChangedWithoutDocumentAdvance);
+        }
+        Ok(epoch)
+    }
+
     /// Advance a browsing context to the next document epoch and invalidate old node bindings.
     ///
     /// Call this whenever navigation or document replacement invalidates actionable node identity.
@@ -266,6 +351,8 @@ pub enum BrowserRegistryError {
         /// Session supplied by the current caller.
         actual: BrowserSessionId,
     },
+    /// The current document has no canonical origin bound to the browsing context.
+    ContextOriginNotBound,
     /// The context origin changed without first rotating the document epoch.
     OriginChangedWithoutDocumentAdvance,
     /// The registry exhausted one of its monotonic internal identifier spaces.
@@ -293,6 +380,9 @@ impl fmt::Display for BrowserRegistryError {
                 "browsing context belongs to session {}, not session {}",
                 expected.value(),
                 actual.value()
+            ),
+            Self::ContextOriginNotBound => formatter.write_str(
+                "browsing context has no canonical origin bound for the current document",
             ),
             Self::OriginChangedWithoutDocumentAdvance => formatter
                 .write_str("browsing context origin changed without advancing the document epoch"),
@@ -583,6 +673,7 @@ mod tests {
                 expected: expected_values[0],
                 actual: actual_values[0],
             },
+            BrowserRegistryError::ContextOriginNotBound,
             BrowserRegistryError::OriginChangedWithoutDocumentAdvance,
             BrowserRegistryError::IdentifierSpaceExhausted,
             BrowserRegistryError::DocumentEpochExhausted,

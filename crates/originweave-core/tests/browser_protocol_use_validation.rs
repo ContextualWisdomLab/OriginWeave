@@ -33,6 +33,7 @@ fn validated_use_binds_all_required_adapter_metadata() -> Result<(), Box<dyn Err
     let validated = descriptor.validate_use(
         ORIGINWEAVE_PROTOCOL_VERSION,
         BrowserProtocolKind::WebDriverBiDi,
+        ADAPTER_VERSION,
         PROTOCOL_REVISION,
         BROWSER_REVISION,
         BrowserProtocolCapability::Navigation,
@@ -63,6 +64,7 @@ fn protocol_generation_mismatch_precedes_runtime_and_capability_checks()
         descriptor.validate_use(
             wrong_generation,
             BrowserProtocolKind::ChromeDevToolsProtocol,
+            "runtime adapter/version",
             "runtime revision with spaces",
             "browser/revision",
             BrowserProtocolCapability::NetworkObservation,
@@ -78,13 +80,14 @@ fn protocol_generation_mismatch_precedes_runtime_and_capability_checks()
 }
 
 #[test]
-fn runtime_protocol_kind_mismatch_precedes_revision_and_capability_checks()
+fn runtime_protocol_kind_mismatch_precedes_adapter_revision_and_capability_checks()
 -> Result<(), Box<dyn Error>> {
     let descriptor = descriptor()?;
 
     let error = descriptor.validate_use(
         ORIGINWEAVE_PROTOCOL_VERSION,
         BrowserProtocolKind::ChromeDevToolsProtocol,
+        "runtime adapter/version",
         "runtime revision with spaces",
         "browser/revision",
         BrowserProtocolCapability::NetworkObservation,
@@ -114,6 +117,7 @@ fn runtime_revision_validation_precedes_capability_check() -> Result<(), Box<dyn
         descriptor.validate_use(
             ORIGINWEAVE_PROTOCOL_VERSION,
             BrowserProtocolKind::WebDriverBiDi,
+            ADAPTER_VERSION,
             "webdriver-bidi-wd-2026-07-01",
             BROWSER_REVISION,
             BrowserProtocolCapability::NetworkObservation,
@@ -133,6 +137,7 @@ fn undeclared_capability_cannot_produce_validated_use() -> Result<(), Box<dyn Er
         descriptor.validate_use(
             ORIGINWEAVE_PROTOCOL_VERSION,
             BrowserProtocolKind::WebDriverBiDi,
+            ADAPTER_VERSION,
             PROTOCOL_REVISION,
             BROWSER_REVISION,
             BrowserProtocolCapability::NetworkObservation,
