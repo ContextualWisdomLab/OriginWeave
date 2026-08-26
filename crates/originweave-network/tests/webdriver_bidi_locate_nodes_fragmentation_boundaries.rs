@@ -12,9 +12,10 @@ use originweave_core::{
     WebDriverBiDiWebSocketEndpoint,
 };
 use originweave_network::{
-    WebDriverBiDiLocateNodesExchangeError, WebDriverBiDiTcpConnectionPlan,
-    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketEstablished,
-    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
+    MAX_WEBDRIVER_BIDI_RESPONSE_FRAGMENTS_PER_EXCHANGE, WebDriverBiDiLocateNodesExchangeError,
+    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
+    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketHandshakePlan,
+    WebDriverBiDiWebSocketMaskKey,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -270,6 +271,36 @@ fn fragmented_invalid_utf8_fails_closed() -> Result<(), Box<dyn Error>> {
         Err(WebDriverBiDiLocateNodesExchangeError::ResponseDocument(
             WebDriverBiDiResponseDocumentAdmissionError::InvalidUtf8
         ))
+    ));
+    Ok(())
+}
+
+#[test]
+fn excessive_zero_length_fragments_fail_closed() -> Result<(), Box<dyn Error>> {
+    let mut frames =
+        Vec::with_capacity(MAX_WEBDRIVER_BIDI_RESPONSE_FRAGMENTS_PER_EXCHANGE + 1);
+    frames.push(server_frame(false, 0x1, b"")?);
+    for _ in 1..=MAX_WEBDRIVER_BIDI_RESPONSE_FRAGMENTS_PER_EXCHANGE {
+        frames.push(server_frame(false, 0x0, b"")?);
+    }
+
+    let (established, server) = establish_with_frames(frames)?;
+    let mut no_pong_keys = || None;
+    let exchange = established.exchange_locate_nodes(
+        locate_nodes_command()?,
+        WebDriverBiDiWebSocketMaskKey::new([0x11, 0x22, 0x33, 0x44]),
+        &mut no_pong_keys,
+        Duration::from_secs(2),
+    );
+
+    join_server(server)?;
+    assert!(matches!(
+        exchange,
+        Err(
+            WebDriverBiDiLocateNodesExchangeError::ResponseFragmentLimitExceeded {
+                maximum_fragments: MAX_WEBDRIVER_BIDI_RESPONSE_FRAGMENTS_PER_EXCHANGE,
+            }
+        )
     ));
     Ok(())
 }
