@@ -32,6 +32,7 @@ mod browser_registry;
 mod browser_registry_coverage;
 mod contract_errors;
 mod contracts;
+mod webdriver_bidi_command;
 
 pub use browser_authority_registry::BrowserAuthorityRegistry;
 pub use browser_protocol::{
@@ -68,4 +69,9 @@ pub use contracts::{
     ExtensionAgentGrant, ExtensionId, ExtensionIdError, InstructionSource, NodeHandleError,
     ObservedNodeHandle, Origin, OriginError, PolicyContext, RiskClass, RobotsDecision,
     SecretDelivery, SessionMode, evaluate_extension_access,
+};
+pub use webdriver_bidi_command::{
+    MAX_WEBDRIVER_BIDI_COMMAND_ID, ValidatedWebDriverBiDiLocateNodesResponse,
+    WebDriverBiDiLocateNodesCommand, WebDriverBiDiLocateNodesCommandError,
+    WebDriverBiDiLocateNodesResponseCorrelationError,
 };
