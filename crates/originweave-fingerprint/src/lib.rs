@@ -5,7 +5,7 @@
 //! exact screen metrics, processor topology, locale chains, and timezone.
 //! Longitudinal measurement research shows such surfaces are sufficient to
 //! reidentify a browser without cookies (Laperdrix, Bielova, Baudry, & Avoine,
-//! 2020; Cao, Li, Wijmans, & Song, 2017). This kernel gives every governed
+//! 2020; Cao, Li, & Wijmans, 2017). This kernel gives every governed
 //! session a *presentation identity* instead: a deterministic, internally
 //! consistent Chromium-compatible profile whose values are quantized onto
 //! enumerated plausible classes so the runtime stops leaking host-specific
@@ -467,16 +467,16 @@ impl PresentationProfile {
         let concurrency_index = select_index(seed, 4, HARDWARE_CONCURRENCY_SET.len());
         let hardware_concurrency = HARDWARE_CONCURRENCY_SET[concurrency_index];
 
-        let platform_index = select_index(seed, 6, 3);
+        let platform_index = select_index(seed, 5, 3);
         let platform = [
             PresentationPlatform::Windows,
             PresentationPlatform::MacOS,
             PresentationPlatform::Linux,
         ][platform_index];
 
-        let language_index = select_index(seed, 7, FIRST_LANGUAGE_SET.len());
+        let language_index = select_index(seed, 6, FIRST_LANGUAGE_SET.len());
         let mut languages = vec![FIRST_LANGUAGE_SET[language_index].to_owned()];
-        if select_index(seed, 8, 2) == 1 {
+        if select_index(seed, 7, 2) == 1 {
             languages.push(SECOND_LANGUAGE.to_owned());
         }
 
@@ -494,7 +494,7 @@ impl PresentationProfile {
             PresentationTimeZone::Utc,
             platform,
             languages,
-            select_index(seed, 9, 2) == 1,
+            select_index(seed, 8, 2) == 1,
         )
     }
 
@@ -959,6 +959,16 @@ mod tests {
         // Every enumerated screen must pass the validating constructor, and
         // every enumerated viewport pair filtered to that screen likewise.
         for (screen_width, screen_height) in SCREEN_SET {
+            assert!(
+                VIEWPORT_WIDTH_SET
+                    .into_iter()
+                    .any(|width| width <= screen_width)
+            );
+            assert!(
+                VIEWPORT_HEIGHT_SET
+                    .into_iter()
+                    .any(|height| height <= screen_height)
+            );
             let screen = ScreenMetrics::new(screen_width, screen_height)
                 .expect("enumerated screen satisfies the metric contract");
             assert_eq!(screen.width(), screen_width);
