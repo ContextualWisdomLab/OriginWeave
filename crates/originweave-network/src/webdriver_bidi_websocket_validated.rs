@@ -4,7 +4,7 @@
 //! public state machine while adding protocol validation that must run before a received frame is
 //! released to callers.
 
-use std::{collections::BTreeSet, fmt, time::Duration};
+use std::{fmt, time::Duration};
 
 use originweave_core::VerifiedWebDriverBiDiSocketPeer;
 
@@ -14,34 +14,26 @@ use crate::{
     webdriver_bidi_websocket_mask_key::WebDriverBiDiWebSocketMaskKey,
 };
 
-const MAX_TRACKED_CLIENT_MASK_KEYS: usize = 65_536;
 const REUSED_CLIENT_MASK_KEY_REASON: &str =
-    "client masking key was already used on this established WebSocket";
-const CLIENT_MASK_KEY_HISTORY_EXHAUSTED_REASON: &str =
-    "client masking-key history reached its reviewed per-connection bound";
+    "client masking key was reused for consecutive frames on this established WebSocket";
 
 #[derive(Default)]
-struct ClientMaskKeyHistory<const LIMIT: usize> {
-    used_keys: BTreeSet<[u8; 4]>,
+struct ClientMaskKeyHistory {
+    previous_key: Option<[u8; 4]>,
 }
 
-impl<const LIMIT: usize> ClientMaskKeyHistory<LIMIT> {
+impl ClientMaskKeyHistory {
     fn reserve(
         &mut self,
         masking_key: WebDriverBiDiWebSocketMaskKey,
     ) -> Result<(), raw::WebDriverBiDiWebSocketFrameError> {
         let masking_key = *masking_key.as_bytes();
-        if self.used_keys.contains(&masking_key) {
+        if self.previous_key == Some(masking_key) {
             return Err(raw::WebDriverBiDiWebSocketFrameError::MalformedFrame {
                 reason: REUSED_CLIENT_MASK_KEY_REASON,
             });
         }
-        if self.used_keys.len() >= LIMIT {
-            return Err(raw::WebDriverBiDiWebSocketFrameError::MalformedFrame {
-                reason: CLIENT_MASK_KEY_HISTORY_EXHAUSTED_REASON,
-            });
-        }
-        self.used_keys.insert(masking_key);
+        self.previous_key = Some(masking_key);
         Ok(())
     }
 }
@@ -152,12 +144,14 @@ impl WebDriverBiDiWebSocketOpeningRequestSent {
 
 /// A live verified stream after both RFC 6455 opening messages were validated.
 ///
-/// Successful outbound client frames retain a bounded exact history of their RFC 6455 masking keys
-/// so the same four-byte key cannot be emitted twice on one established connection. The history is
-/// capped at 65,536 keys; exhausting that bound fails closed before another client frame is written.
+/// The caller remains responsible for deriving every RFC 6455 masking key from a strong source of
+/// entropy. OriginWeave additionally rejects immediate key repetition across adjacent client text or
+/// Pong frames as a bounded defense against a stuck or accidentally reused caller value. It does not
+/// impose global key uniqueness, because RFC 6455 requires fresh unpredictable selection rather than
+/// collision-free values and a 32-bit random key can legitimately recur over a long-lived session.
 pub struct WebDriverBiDiWebSocketEstablished {
     raw: raw::WebDriverBiDiWebSocketEstablished,
-    client_mask_keys: ClientMaskKeyHistory<MAX_TRACKED_CLIENT_MASK_KEYS>,
+    client_mask_keys: ClientMaskKeyHistory,
 }
 
 impl fmt::Debug for WebDriverBiDiWebSocketEstablished {
@@ -211,11 +205,12 @@ impl WebDriverBiDiWebSocketEstablished {
 
     /// Write one unfragmented, masked UTF-8 text frame on this verified stream.
     ///
-    /// The caller-supplied masking key is reserved before any frame bytes are emitted. Reuse of any
-    /// key previously used by a successful client text or Pong frame on this established connection
-    /// fails closed. The exact history is bounded; reaching the reviewed history ceiling also fails
-    /// closed rather than silently forgetting older keys. Generic diagnostics for the public mask-key
-    /// value redact its entropy; only this reviewed wire-framing boundary unwraps the exact bytes.
+    /// The caller-supplied masking key must come from an approved strong randomness source. The
+    /// immediately preceding successful client text or Pong key is retained so accidental adjacent
+    /// reuse fails closed before any frame bytes are emitted, without treating random collisions
+    /// across the entire connection lifetime as protocol failures. Generic diagnostics for the
+    /// public mask-key value redact its entropy; only this reviewed wire-framing boundary unwraps the
+    /// exact bytes.
     pub fn write_text_frame(
         mut self,
         text: &str,
@@ -231,8 +226,8 @@ impl WebDriverBiDiWebSocketEstablished {
 
     /// Write one final masked RFC 6455 Pong control frame on this verified stream.
     ///
-    /// Masking-key reuse is rejected against the same bounded history used by text frames so
-    /// switching frame types cannot bypass the RFC 6455 freshness boundary.
+    /// Immediate masking-key reuse is rejected against the same previous-frame guard used by text
+    /// frames, so switching frame types cannot bypass detection of a stuck caller key.
     pub fn write_pong_frame(
         mut self,
         payload: &[u8],
@@ -280,11 +275,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn client_mask_history_rejects_reuse_and_fails_closed_at_its_bound() {
+    fn client_mask_history_rejects_only_immediate_reuse_without_a_lifetime_cap() {
         let first = WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]);
         let second = WebDriverBiDiWebSocketMaskKey::new([5, 6, 7, 8]);
-        let third = WebDriverBiDiWebSocketMaskKey::new([9, 10, 11, 12]);
-        let mut history = ClientMaskKeyHistory::<2>::default();
+        let mut history = ClientMaskKeyHistory::default();
 
         assert!(history.reserve(first).is_ok());
         assert!(matches!(
@@ -294,17 +288,6 @@ mod tests {
             })
         ));
         assert!(history.reserve(second).is_ok());
-        assert!(matches!(
-            history.reserve(third),
-            Err(raw::WebDriverBiDiWebSocketFrameError::MalformedFrame {
-                reason: CLIENT_MASK_KEY_HISTORY_EXHAUSTED_REASON
-            })
-        ));
-        assert!(matches!(
-            history.reserve(first),
-            Err(raw::WebDriverBiDiWebSocketFrameError::MalformedFrame {
-                reason: REUSED_CLIENT_MASK_KEY_REASON
-            })
-        ));
+        assert!(history.reserve(first).is_ok());
     }
 }
