@@ -56,6 +56,15 @@ PATH_TOKEN_CHARACTERS = frozenset(string.ascii_letters + string.digits + "-_.")
 class QuietFixtureHandler(http.server.SimpleHTTPRequestHandler):
     """Serve only the controlled local fixture without noisy access logging."""
 
+    def translate_path(self, path: str) -> str:
+        """Keep resolved request targets inside the configured fixture root."""
+
+        fixture_root = pathlib.Path(self.directory).resolve()
+        candidate = pathlib.Path(super().translate_path(path)).resolve()
+        if not candidate.is_relative_to(fixture_root):
+            return str(fixture_root / ".originweave-denied")
+        return str(candidate)
+
     def log_message(self, _format: str, *args: object) -> None:
         """Suppress request logs because the fixture contains no diagnostic value."""
 
