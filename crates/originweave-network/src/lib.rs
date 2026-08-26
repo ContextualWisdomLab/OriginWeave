@@ -6,8 +6,9 @@
 //! It also bridges a session-correlated WebDriver BiDi loopback target from
 //! `originweave-core` into one bounded exact TCP connection, binds an RFC 6455
 //! opening request to that verified plain stream, and can write that exact request
-//! under one bounded deadline and validate its bounded RFC 6455 opening response
-//! and one bounded frame at a time without granting browser, WebSocket, TLS,
+//! under one bounded deadline, validate its bounded RFC 6455 opening response,
+//! carry one bounded frame at a time, and bind one exact `locateNodes` command to
+//! its bounded correlated response without granting browser, WebSocket, TLS,
 //! policy, or Agent authority.
 
 #![forbid(unsafe_code)]
@@ -15,6 +16,11 @@
 
 mod connection;
 mod webdriver_bidi_connection;
+mod webdriver_bidi_locate_nodes_exchange;
+#[cfg(test)]
+mod webdriver_bidi_locate_nodes_exchange_transport_failure_tests;
+#[cfg(test)]
+mod webdriver_bidi_locate_nodes_exchange_unit_coverage_tests;
 mod webdriver_bidi_websocket_control;
 #[cfg(test)]
 #[allow(clippy::expect_used)]
@@ -35,6 +41,10 @@ pub use connection::{
 pub use webdriver_bidi_connection::{
     WebDriverBiDiTcpConnection, WebDriverBiDiTcpConnectionError,
     WebDriverBiDiTcpConnectionEvidence, WebDriverBiDiTcpConnectionPlan,
+};
+pub use webdriver_bidi_locate_nodes_exchange::{
+    MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE,
+    MAX_WEBDRIVER_BIDI_RESPONSE_FRAGMENTS_PER_EXCHANGE, WebDriverBiDiLocateNodesExchangeError,
 };
 pub use webdriver_bidi_websocket_handshake::{
     WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketHandshakePlan,

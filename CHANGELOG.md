@@ -7,6 +7,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 ### Added
 
 - Bounded RFC 6455 frame transport on the established WebDriver BiDi stream: client text frames require a caller-supplied fresh mask key and are masked on the wire, server frames are required to be unmasked, reserved bits/opcodes and nonminimal lengths fail closed, and each frame is limited by payload and monotonic-I/O ceilings; this remains frame transport only and does not assemble BiDi messages or grant browser/Agent authority.
+- Bounded WebDriver BiDi `browsingContext.locateNodes` exchange over the established peer-verified WebSocket stream: the exact consumed command is written as one masked text frame, one end-to-end deadline and a 64-frame Ping/Pong budget bound the exchange, each Pong requires a fresh caller-supplied masking key, and only one final bounded text response may pass raw-document admission, exact command correlation, and node-result admission; fragmentation, binary/continuation/close shapes, exhausted entropy, and over-budget control traffic fail closed without granting browser, origin, policy, typed-input, or Agent authority.
 - Bounded RFC 6455 WebDriver BiDi opening-response validation on the exact peer-verified stream: it admits only HTTP/1.1 `101`, case-insensitive `Upgrade`/`Connection` tokens, and the client-key-correlated `Sec-WebSocket-Accept` value within monotonic time and header-size ceilings; it restores blocking mode and still does not implement WebSocket frames or grant browser/Agent authority.
 - Bounded WebDriver BiDi loopback TCP transport that consumes one exact no-DNS connect target, retries only explicitly recoverable local transport failures within repository timeout and attempt ceilings, exposes the stream only after operating-system peer inspection and exact peer verification, supports a consuming handoff of the original stream with typed credential-free peer/session/TLS and bounded-attempt evidence, preserves typed causal errors, and performs no DNS, proxy/PAC, process authentication, TLS, WebSocket, BiDi message, browser-action, or Agent-authority step.
 - Exact WebDriver BiDi socket-peer verification that consumes an approved no-DNS connect target, requires the observed IP address and port to match exactly, preserves the TLS requirement and exact correlated session id, and remains inert metadata that does not authenticate an OS process, does not negotiate TLS, perform a WebSocket handshake, or grant Agent authority.
@@ -55,6 +56,19 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Made WebDriver BiDi response-fragment admission reject an already oversized
+  buffer without subtraction underflow or a production panic.
+
+- Restored exact locateNodes-stack coverage without introducing an uncovered
+  test-only pattern-guard branch by exercising the deadline callback
+  without weakening its no-late-entropy assertion and removing an unreachable
+  private legacy handshake `Debug` implementation superseded by the redacting
+  wrapper.
+- Removed a redundant 20-microsecond loopback deadline assertion whose error
+  variant depended on host scheduling; deterministic unit-clock tests retain
+  the shrinking end-to-end budget contract.
+- Kept the no-late-entropy deadline gate as one result chain so exact coverage
+  does not require recreating an expired-clock race through a real socket.
 - Separated logical origin authority from resolved network destination authority; an origin grant no longer implies permission to connect to every resolver result.
 - Separated resolved-address authorization from direct transport evidence; an approved IP now becomes a usable stream only after the operating system reports the exact requested IP and port.
 - Separated exact TCP peer proof from authenticated TLS service identity; an observed peer becomes an authenticated HTTPS stream only after explicit-root, fixed-time, SAN-bound WebPKI verification over that same stream.

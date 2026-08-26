@@ -150,17 +150,6 @@ pub struct WebDriverBiDiWebSocketHandshakePlan {
     request: Vec<u8>,
 }
 
-impl fmt::Debug for WebDriverBiDiWebSocketHandshakePlan {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("WebDriverBiDiWebSocketHandshakePlan")
-            .field("verified_peer", self.connection.verified_peer())
-            .field("client_key", &"<redacted WebSocket client nonce>")
-            .field("request_byte_count", &self.request.len())
-            .finish()
-    }
-}
-
 impl WebDriverBiDiWebSocketHandshakePlan {
     /// Bind one canonical opening request to an already-verified plain BiDi TCP connection.
     pub fn new(

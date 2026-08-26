@@ -203,6 +203,12 @@ impl WebDriverBiDiWebSocketEstablished {
         self.raw.write_timeout()
     }
 
+    /// Clone the exact underlying stream for crate-internal fault-injection tests only.
+    #[cfg(test)]
+    pub(crate) fn try_clone_stream_for_test(&self) -> std::io::Result<std::net::TcpStream> {
+        self.raw.stream.try_clone()
+    }
+
     /// Write one unfragmented, masked UTF-8 text frame on this verified stream.
     ///
     /// The caller-supplied masking key must come from an approved strong randomness source. The
