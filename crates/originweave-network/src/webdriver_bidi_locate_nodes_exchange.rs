@@ -29,8 +29,9 @@ pub const MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE: usize = 64;
 /// Every variant preserves the first causal boundary. Frame I/O retains the existing bounded
 /// WebSocket error, raw response bytes must pass the core pre-parser admission contract, and the
 /// admitted document must correlate to the exact consumed command before result nodes are returned.
-/// Protocol-shape, resource-budget, exhausted-deadline, and missing caller entropy refusals have no
-/// nested source because none masks an underlying I/O or parser failure.
+/// Protocol-shape, resource-budget, exhausted-deadline, missing caller entropy, and exact client
+/// masking-key reuse refusals have no nested source because none masks an underlying I/O or parser
+/// failure.
 #[derive(Debug)]
 pub enum WebDriverBiDiLocateNodesExchangeError {
     /// Bounded WebSocket frame write or read failed.
@@ -47,6 +48,8 @@ pub enum WebDriverBiDiLocateNodesExchangeError {
     },
     /// A server Ping required a fresh client masking key, but the caller supplied none.
     PongMaskingKeyUnavailable,
+    /// A caller supplied a Pong masking key already used by a client frame in this exchange.
+    PongMaskingKeyReused,
     /// The returned frame was neither an admissible control frame nor one complete text response.
     UnexpectedResponseFrame {
         /// Whether the returned frame carried the RFC 6455 FIN bit.
@@ -80,6 +83,9 @@ impl fmt::Display for WebDriverBiDiLocateNodesExchangeError {
             Self::PongMaskingKeyUnavailable => formatter.write_str(
                 "WebDriver BiDi locateNodes exchange received Ping without a fresh caller-supplied Pong masking key",
             ),
+            Self::PongMaskingKeyReused => formatter.write_str(
+                "WebDriver BiDi locateNodes exchange refused a Pong masking key already used by this exchange",
+            ),
             Self::UnexpectedResponseFrame { fin, opcode } => write!(
                 formatter,
                 "WebDriver BiDi locateNodes exchange requires control handling or one final text response frame; received fin={fin}, opcode=0x{opcode:02x}"
@@ -105,6 +111,7 @@ impl Error for WebDriverBiDiLocateNodesExchangeError {
             Self::ExchangeDeadlineExceeded { .. }
             | Self::ControlFrameLimitExceeded { .. }
             | Self::PongMaskingKeyUnavailable
+            | Self::PongMaskingKeyReused
             | Self::UnexpectedResponseFrame { .. } => None,
         }
     }
@@ -148,10 +155,12 @@ impl WebDriverBiDiWebSocketEstablished {
     /// The command is serialized by the reviewed core boundary and written as one masked client
     /// text frame using `command_masking_key`. Valid server Ping frames are answered with a masked
     /// Pong carrying the exact Ping application data, while unsolicited valid Pong frames are
-    /// consumed without changing BiDi state. Each Ping obtains a fresh unpredictable client mask
-    /// from `next_pong_key`; exhausting that caller-owned entropy source fails closed and
-    /// consumes the transport rather than reusing a masking key. Close, binary, continuation,
-    /// fragmented data, and reserved shapes are not reinterpreted as a BiDi response.
+    /// consumed without changing BiDi state. Each Ping obtains a caller-supplied client mask from
+    /// `next_pong_key`; exhausting that caller-owned entropy source or repeating any key already used
+    /// by the command or a prior Pong fails closed before another client frame is emitted. The caller
+    /// remains responsible for generating each supplied key from a strong unpredictable entropy
+    /// source; exact non-reuse checks do not prove cryptographic unpredictability. Close, binary,
+    /// continuation, fragmented data, and reserved shapes are not reinterpreted as a BiDi response.
     ///
     /// `exchange_timeout` is one end-to-end budget for every command write, control-frame read/write,
     /// and response read. Elapsed time is subtracted before every subsequent operation and the budget
@@ -189,6 +198,11 @@ impl WebDriverBiDiWebSocketEstablished {
             write_timeout,
         ))?;
         let mut control_frame_count = 0_usize;
+        let mut used_client_masking_keys = [
+            command_masking_key;
+            MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE + 1
+        ];
+        let mut used_client_masking_key_count = 1_usize;
 
         loop {
             let remaining_timeout =
@@ -213,6 +227,13 @@ impl WebDriverBiDiWebSocketEstablished {
             match opcode {
                 0x9 => {
                     let masking_key = next_pong_masking_key(next_pong_key)?;
+                    if used_client_masking_keys[..used_client_masking_key_count]
+                        .contains(&masking_key)
+                    {
+                        return Err(WebDriverBiDiLocateNodesExchangeError::PongMaskingKeyReused);
+                    }
+                    used_client_masking_keys[used_client_masking_key_count] = masking_key;
+                    used_client_masking_key_count += 1;
                     let remaining_timeout =
                         remaining_frame_operation_budget(exchange_timeout, started_at.elapsed())?;
                     established = map_established_frame_result(established.write_pong_frame(
@@ -392,6 +413,14 @@ mod tests {
             missing_mask
                 .to_string()
                 .contains("fresh caller-supplied Pong masking key")
+        );
+
+        let reused_mask = WebDriverBiDiLocateNodesExchangeError::PongMaskingKeyReused;
+        assert!(reused_mask.source().is_none());
+        assert!(
+            reused_mask
+                .to_string()
+                .contains("Pong masking key already used by this exchange")
         );
 
         let shape = WebDriverBiDiLocateNodesExchangeError::UnexpectedResponseFrame {
