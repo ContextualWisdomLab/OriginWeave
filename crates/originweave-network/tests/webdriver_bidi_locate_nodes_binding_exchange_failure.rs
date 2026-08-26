@@ -15,12 +15,14 @@ use originweave_core::{
 };
 use originweave_network::{
     WebDriverBiDiLocateNodesExchangeError, WebDriverBiDiTcpConnectionPlan,
-    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMaskKey,
+    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketFrameError,
+    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
 const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
+const REUSED_MASK_REASON: &str =
+    "client masking key was already used on this established WebSocket";
 const ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion =
     OriginWeaveProtocolVersion::new(0, 1);
 const ADAPTER_VERSION: &str = "originweave-bidi-v1";
@@ -92,6 +94,22 @@ fn read_client_text_frame(stream: &mut TcpStream) -> io::Result<Vec<u8>> {
     Ok(payload)
 }
 
+fn require_peer_closed_without_another_frame(stream: &mut TcpStream) -> io::Result<()> {
+    stream.set_read_timeout(Some(Duration::from_secs(2)))?;
+    let mut byte = [0_u8; 1];
+    match stream.read(&mut byte) {
+        Ok(0) => Ok(()),
+        Ok(_) => Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "client emitted a second frame after fail-closed locateNodes command rejection",
+        )),
+        Err(error) => Err(io::Error::new(
+            error.kind(),
+            format!("client did not close after fail-closed locateNodes rejection: {error}"),
+        )),
+    }
+}
+
 fn establish_with_unexpected_binary_response()
 -> Result<EstablishedWithUnexpectedBinaryServer, Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
@@ -151,6 +169,59 @@ fn semantic_observation_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn E
         BROWSER_REVISION,
         BrowserProtocolCapability::SemanticObservation,
     )?)
+}
+
+#[test]
+fn locate_nodes_command_mask_reuse_fails_before_second_wire_write() -> Result<(), Box<dyn Error>> {
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let local_addr = listener.local_addr()?;
+    let server = thread::spawn(move || -> io::Result<Vec<u8>> {
+        let (mut stream, _) = listener.accept()?;
+        let request = read_opening_request(&mut stream)?;
+        if !request.ends_with(b"\r\n\r\n") {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "client opening request was incomplete",
+            ));
+        }
+        stream.write_all(
+            b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n",
+        )?;
+        let first_frame = read_client_text_frame(&mut stream)?;
+        require_peer_closed_without_another_frame(&mut stream)?;
+        Ok(first_frame)
+    });
+
+    let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+    let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?;
+    let plan = WebDriverBiDiWebSocketHandshakePlan::new(connect(&endpoint)?, key)?;
+    let written = plan.write_opening_request(Duration::from_millis(500))?;
+    let established = written.read_opening_response(Duration::from_millis(500))?;
+    let reused_mask = WebDriverBiDiWebSocketMaskKey::new([0x11, 0x22, 0x33, 0x44]);
+    let established = established.write_text_frame(
+        "coverage-primer",
+        reused_mask,
+        Duration::from_millis(500),
+    )?;
+
+    let error = established.exchange_locate_nodes(
+        locate_nodes_command()?,
+        reused_mask,
+        &mut || None,
+        Duration::from_millis(500),
+    );
+    assert!(matches!(
+        error,
+        Err(WebDriverBiDiLocateNodesExchangeError::Frame(
+            WebDriverBiDiWebSocketFrameError::MalformedFrame {
+                reason: REUSED_MASK_REASON,
+            }
+        ))
+    ));
+
+    let first_frame = server.join().map_err(|_| "test server panicked")??;
+    assert_eq!(first_frame, b"coverage-primer");
+    Ok(())
 }
 
 #[test]
