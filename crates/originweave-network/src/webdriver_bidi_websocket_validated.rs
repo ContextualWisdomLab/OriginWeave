@@ -4,7 +4,7 @@
 //! public state machine while adding protocol validation that must run before a received frame is
 //! released to callers.
 
-use std::{fmt, time::Duration};
+use std::{collections::BTreeSet, fmt, time::Duration};
 
 use originweave_core::VerifiedWebDriverBiDiSocketPeer;
 
@@ -12,6 +12,38 @@ use crate::{
     WebDriverBiDiTcpConnection, WebDriverBiDiTcpConnectionEvidence,
     webdriver_bidi_websocket_handshake_raw as raw,
 };
+
+const MAX_TRACKED_CLIENT_MASK_KEYS: usize = 65_536;
+const REUSED_CLIENT_MASK_KEY_REASON: &str =
+    "client masking key was already used on this established WebSocket";
+const CLIENT_MASK_KEY_HISTORY_EXHAUSTED_REASON: &str =
+    "client masking-key history reached its reviewed per-connection bound";
+
+#[derive(Default)]
+struct ClientMaskKeyHistory<const LIMIT: usize> {
+    used_keys: BTreeSet<[u8; 4]>,
+}
+
+impl<const LIMIT: usize> ClientMaskKeyHistory<LIMIT> {
+    fn reserve(
+        &mut self,
+        masking_key: raw::WebDriverBiDiWebSocketMaskKey,
+    ) -> Result<(), raw::WebDriverBiDiWebSocketFrameError> {
+        let masking_key = *masking_key.as_bytes();
+        if self.used_keys.contains(&masking_key) {
+            return Err(raw::WebDriverBiDiWebSocketFrameError::MalformedFrame {
+                reason: REUSED_CLIENT_MASK_KEY_REASON,
+            });
+        }
+        if self.used_keys.len() >= LIMIT {
+            return Err(raw::WebDriverBiDiWebSocketFrameError::MalformedFrame {
+                reason: CLIENT_MASK_KEY_HISTORY_EXHAUSTED_REASON,
+            });
+        }
+        self.used_keys.insert(masking_key);
+        Ok(())
+    }
+}
 
 /// Inert RFC 6455 opening request bound to one already-verified plain BiDi TCP connection.
 pub struct WebDriverBiDiWebSocketHandshakePlan(raw::WebDriverBiDiWebSocketHandshakePlan);
@@ -108,18 +140,28 @@ impl WebDriverBiDiWebSocketOpeningRequestSent {
         response_timeout: Duration,
     ) -> Result<WebDriverBiDiWebSocketEstablished, raw::WebDriverBiDiWebSocketHandshakeResponseError>
     {
-        self.0
-            .read_opening_response(response_timeout)
-            .map(WebDriverBiDiWebSocketEstablished)
+        self.0.read_opening_response(response_timeout).map(|raw| {
+            WebDriverBiDiWebSocketEstablished {
+                raw,
+                client_mask_keys: ClientMaskKeyHistory::default(),
+            }
+        })
     }
 }
 
 /// A live verified stream after both RFC 6455 opening messages were validated.
-pub struct WebDriverBiDiWebSocketEstablished(raw::WebDriverBiDiWebSocketEstablished);
+///
+/// Successful outbound client frames retain a bounded exact history of their RFC 6455 masking keys
+/// so the same four-byte key cannot be emitted twice on one established connection. The history is
+/// capped at 65,536 keys; exhausting that bound fails closed before another client frame is written.
+pub struct WebDriverBiDiWebSocketEstablished {
+    raw: raw::WebDriverBiDiWebSocketEstablished,
+    client_mask_keys: ClientMaskKeyHistory<MAX_TRACKED_CLIENT_MASK_KEYS>,
+}
 
 impl fmt::Debug for WebDriverBiDiWebSocketEstablished {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(formatter)
+        self.raw.fmt(formatter)
     }
 }
 
@@ -127,84 +169,97 @@ impl WebDriverBiDiWebSocketEstablished {
     /// Borrow the exact verified transport evidence retained with this live stream.
     #[must_use]
     pub const fn transport_evidence(&self) -> &WebDriverBiDiTcpConnectionEvidence {
-        self.0.transport_evidence()
+        self.raw.transport_evidence()
     }
 
     /// Borrow the exact client key correlated with the validated server accept value.
     #[must_use]
     pub const fn client_key(&self) -> &raw::WebDriverBiDiWebSocketClientKey {
-        self.0.client_key()
+        self.raw.client_key()
     }
 
     /// Return the validated HTTP status code, currently always `101` on success.
     #[must_use]
     pub const fn response_status(&self) -> u16 {
-        self.0.response_status()
+        self.raw.response_status()
     }
 
     /// Return the number of HTTP opening-response bytes consumed through its header terminator.
     #[must_use]
     pub const fn response_byte_count(&self) -> usize {
-        self.0.response_byte_count()
+        self.raw.response_byte_count()
     }
 
     /// Return the total response deadline configured for this opening response.
     #[must_use]
     pub const fn response_timeout(&self) -> Duration {
-        self.0.response_timeout()
+        self.raw.response_timeout()
     }
 
     /// Return the number of request bytes written before the response was read.
     #[must_use]
     pub const fn request_byte_count(&self) -> usize {
-        self.0.request_byte_count()
+        self.raw.request_byte_count()
     }
 
     /// Return the total write deadline configured for the preceding opening request.
     #[must_use]
     pub const fn write_timeout(&self) -> Duration {
-        self.0.write_timeout()
+        self.raw.write_timeout()
     }
 
     /// Clone the exact underlying stream for crate-internal fault-injection tests only.
     #[cfg(test)]
     pub(crate) fn try_clone_stream_for_test(&self) -> std::io::Result<std::net::TcpStream> {
-        self.0.stream.try_clone()
+        self.raw.stream.try_clone()
     }
 
     /// Write one unfragmented, masked UTF-8 text frame on this verified stream.
+    ///
+    /// The caller-supplied masking key is reserved before any frame bytes are emitted. Reuse of any
+    /// key previously used by a successful client text or Pong frame on this established connection
+    /// fails closed. The exact history is bounded; reaching the reviewed history ceiling also fails
+    /// closed rather than silently forgetting older keys.
     pub fn write_text_frame(
-        self,
+        mut self,
         text: &str,
         masking_key: raw::WebDriverBiDiWebSocketMaskKey,
         frame_timeout: Duration,
     ) -> Result<Self, raw::WebDriverBiDiWebSocketFrameError> {
-        self.0
-            .write_text_frame(text, masking_key, frame_timeout)
-            .map(Self)
+        self.client_mask_keys.reserve(masking_key)?;
+        self.raw = self
+            .raw
+            .write_text_frame(text, masking_key, frame_timeout)?;
+        Ok(self)
     }
 
     /// Write one final masked RFC 6455 Pong control frame on this verified stream.
+    ///
+    /// Masking-key reuse is rejected against the same bounded history used by text frames so
+    /// switching frame types cannot bypass the RFC 6455 freshness boundary.
     pub fn write_pong_frame(
-        self,
+        mut self,
         payload: &[u8],
         masking_key: raw::WebDriverBiDiWebSocketMaskKey,
         frame_timeout: Duration,
     ) -> Result<Self, raw::WebDriverBiDiWebSocketFrameError> {
-        self.0
-            .write_pong_frame(payload, masking_key, frame_timeout)
-            .map(Self)
+        self.client_mask_keys.reserve(masking_key)?;
+        self.raw = self
+            .raw
+            .write_pong_frame(payload, masking_key, frame_timeout)?;
+        Ok(self)
     }
 
     /// Read one bounded RFC 6455 frame and reject close status codes forbidden on the wire.
     pub fn read_frame(
-        self,
+        mut self,
         frame_timeout: Duration,
     ) -> Result<(Self, raw::WebDriverBiDiWebSocketFrame), raw::WebDriverBiDiWebSocketFrameError>
     {
-        let (established, frame) = self.0.read_frame(frame_timeout)?;
+        let (raw, frame) = self.raw.read_frame(frame_timeout)?;
         validate_close_status_code(&frame)?;
-        Ok((Self(established), frame))
+        self.raw = raw;
+        Ok((self, frame))
     }
 }
 
@@ -222,4 +277,38 @@ fn validate_close_status_code(
         });
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn client_mask_history_rejects_reuse_and_fails_closed_at_its_bound() {
+        let first = raw::WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]);
+        let second = raw::WebDriverBiDiWebSocketMaskKey::new([5, 6, 7, 8]);
+        let third = raw::WebDriverBiDiWebSocketMaskKey::new([9, 10, 11, 12]);
+        let mut history = ClientMaskKeyHistory::<2>::default();
+
+        assert!(history.reserve(first).is_ok());
+        assert!(matches!(
+            history.reserve(first),
+            Err(raw::WebDriverBiDiWebSocketFrameError::MalformedFrame {
+                reason: REUSED_CLIENT_MASK_KEY_REASON
+            })
+        ));
+        assert!(history.reserve(second).is_ok());
+        assert!(matches!(
+            history.reserve(third),
+            Err(raw::WebDriverBiDiWebSocketFrameError::MalformedFrame {
+                reason: CLIENT_MASK_KEY_HISTORY_EXHAUSTED_REASON
+            })
+        ));
+        assert!(matches!(
+            history.reserve(first),
+            Err(raw::WebDriverBiDiWebSocketFrameError::MalformedFrame {
+                reason: REUSED_CLIENT_MASK_KEY_REASON
+            })
+        ));
+    }
 }
