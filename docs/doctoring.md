@@ -167,9 +167,9 @@ International Organization for Standardization. (2017). *Information and documen
 
 Koster, M., Illyes, G., Zeller, H., & Sassman, L. (2022). *Robots Exclusion Protocol* (RFC 9309). Internet Engineering Task Force. https://doi.org/10.17487/RFC9309
 
-Lodderstedt, T., Bradley, J., Labunets, A., & Fett, D. (2025). *OAuth 2.0 security best current practice* (RFC 9700). Internet Engineering Task Force. https://doi.org/10.17487/RFC9700
-
 Laperdrix, P., Bielova, N., Baudry, B., & Avoine, G. (2020). Browser fingerprinting: A survey. *ACM Transactions on the Web, 14*(2), Article 8. https://doi.org/10.1145/3386040
+
+Lodderstedt, T., Bradley, J., Labunets, A., & Fett, D. (2025). *OAuth 2.0 security best current practice* (RFC 9700). Internet Engineering Task Force. https://doi.org/10.17487/RFC9700
 
 Microsoft. (2025, July 25). *Azure IP address 168.63.129.16 overview*. Microsoft Learn. https://learn.microsoft.com/azure/virtual-network/what-is-ip-address-168-63-129-16
 
