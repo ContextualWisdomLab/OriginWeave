@@ -65,6 +65,11 @@ class ProductDocumentationContractTests(unittest.TestCase):
             "none of them is protected-main behavior until merged",
             open_pull_requests,
         )
+        self.assertIn("zero releases and zero tags", text)
+        self.assertNotIn(
+            "| WebDriver BiDi transport | #188 through #205 | Draft stack",
+            text,
+        )
         bidi_status = self._subsection(
             open_pull_requests, "#### #195/#198 WebDriver BiDi opening path status"
         )

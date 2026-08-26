@@ -51,6 +51,9 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Refreshed the product-gap baseline with exact current presentation and
+  WebDriver BiDi heads, non-draft stack state, and the zero-release/tag truth.
+
 - Classified proposed ADR 0110 consistently as branch-only documentation
   evidence until the presentation-identity line integrates into protected main.
 
