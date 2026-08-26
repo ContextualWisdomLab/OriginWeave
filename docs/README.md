@@ -79,6 +79,7 @@ Proposed ADRs are reviewable architecture memory, not shipped behavior and not a
 - [ADR 0107: Browser protocol adapter strategy](adr/0107-browser-protocol-adapter-strategy.md)
 - [ADR 0108: Crawler policy](adr/0108-crawler-policy.md)
 - [ADR 0109: Hourly automation secret ordering and operational closure](adr/0109-hourly-automation-operational-closure.md)
+- [ADR 0110: Privacy-preserving presentation identity](adr/0110-privacy-preserving-presentation-identity.md)
 
 ### Proposed decisions introduced by this documentation reconciliation
 

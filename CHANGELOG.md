@@ -6,6 +6,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Added
 
+- Added a proposed privacy-preserving presentation-identity kernel with bounded screen, viewport, pixel ratio, processor, platform, language, reduced-motion, standardized named-UTC time-zone, and credential-free digest contracts; real Chromium application and anti-evasion claims remain explicitly unshipped.
+
 - Refreshed the product and technical gap baseline with the 2026-08-24 live inventory: 158 open pull requests (44 ready, 114 draft), refreshed exact base/head evidence for the #208–#222 release, enterprise-approval, BAP, and WARC/PROV chains, the governance issue additions #212 and #215, and a required-check provider-failure record for the fail-closed Strix re-dispatches on #208/#218/#220.
 - Added a dated product and technical gap baseline that separates protected-main implementation truth, active pull-request evidence, live review/check blockers, and the next buyer-visible Phase 1 acceptance work.
 - Refreshed the product and technical gap baseline with the current open-PR inventory and exact base/head evidence for the newest Chromium, BAP, extraction, WARC, and idempotency slices.
@@ -38,6 +40,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 ### Changed
 
 - Aligned the hourly product-development branch-coverage toolchain and its one-shot materializer with the reviewed `nightly-2026-08-18` pin, and corrected the official Dependabot Rust-toolchain reference.
+- Refreshed the product gap baseline to the 2026-08-27 protected-main and complete open-PR inventory, recorded the shared Strix provider incompatibility, and added the presentation-identity integration gap without promoting local or active-PR evidence to shipped behavior.
 - Separated logical origin authority from resolved network destination authority; an origin grant no longer implies permission to connect to every resolver result.
 - Separated resolved-address authorization from direct transport evidence; an approved IP now becomes a usable stream only after the operating system reports the exact requested IP and port.
 - Separated exact TCP peer proof from authenticated TLS service identity; an observed peer becomes an authenticated HTTPS stream only after explicit-root, fixed-time, SAN-bound WebPKI verification over that same stream.

@@ -47,6 +47,7 @@ Proposed ADR files are reviewable target architecture without becoming Accepted 
 | [0107](0107-browser-protocol-adapter-strategy.md) | Versioned browser and agent protocol adapters | Proposed | WebDriver BiDi, CDP, WebMCP, MCP and OriginWeave Protocol boundaries |
 | [0108](0108-crawler-policy.md) | Policy-bound crawler mode | Proposed | robots, rate/resource policy, read-only collection and no-evasion behavior |
 | [0109](0109-hourly-automation-operational-closure.md) | Hourly automation secret ordering and operational closure | Proposed | deterministic gates, model secret boundary, retries and protected-main proof |
+| [0110](0110-privacy-preserving-presentation-identity.md) | Privacy-preserving presentation identity | Proposed | bounded normalization without access-control evasion |
 
 ### Proposed decisions introduced by documentation reconciliation
 
