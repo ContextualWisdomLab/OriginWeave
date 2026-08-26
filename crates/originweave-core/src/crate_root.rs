@@ -15,3 +15,6 @@ mod chrome_permission_authority;
 pub use chrome_permission_authority::{
     ChromePermissionAuthorityError, chrome_permission_authorizes_agent_action,
 };
+
+/// Stateless MCP routing validation that maps only explicit tools to typed actions.
+pub mod mcp;
