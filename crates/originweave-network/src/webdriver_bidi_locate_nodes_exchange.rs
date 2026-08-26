@@ -37,7 +37,7 @@ pub const MAX_WEBDRIVER_BIDI_RESPONSE_FRAGMENTS_PER_EXCHANGE: usize = 256;
 /// Every variant preserves the first causal boundary. Frame I/O retains the existing bounded
 /// WebSocket error, raw response bytes must pass the core pre-parser admission contract, and the
 /// admitted document must correlate to the exact consumed command before result nodes are returned.
-/// Protocol-shape, resource-budget, exhausted-deadline, missing caller entropy, and exact client
+/// Protocol-shape, resource-budget, exhausted-deadline, missing caller entropy, and adjacent client
 /// masking-key reuse refusals have no nested source because none masks an underlying I/O or parser
 /// failure.
 #[derive(Debug)]
@@ -61,7 +61,7 @@ pub enum WebDriverBiDiLocateNodesExchangeError {
     },
     /// A server Ping required a fresh client masking key, but the caller supplied none.
     PongMaskingKeyUnavailable,
-    /// A caller supplied a Pong masking key already used by a client frame in this exchange.
+    /// A caller supplied the same Pong masking key as the immediately preceding client frame.
     PongMaskingKeyReused,
     /// The returned frame could not continue the one admissible text response message.
     UnexpectedResponseFrame {
@@ -222,10 +222,11 @@ impl WebDriverBiDiWebSocketEstablished {
     /// Pong carrying the exact Ping application data, while unsolicited valid Pong frames are
     /// consumed without changing BiDi state. Each Ping obtains a caller-supplied client mask from
     /// `next_pong_key` only after a positive remaining-budget check; exhausting that caller-owned
-    /// entropy source or repeating any key already used by the command or a prior Pong fails closed
-    /// before another client frame is emitted. Callback time is charged by a second deadline check
-    /// before the Pong write. The caller remains responsible for generating each supplied key from a
-    /// strong unpredictable entropy source; exact non-reuse checks do not prove cryptographic
+    /// entropy source or repeating the immediately preceding successful client-frame key fails
+    /// closed before another client frame is emitted. A later random collision after a different
+    /// client key remains admissible; the caller is responsible for deriving every key independently
+    /// from a strong unpredictable entropy source. Callback time is charged by a second deadline
+    /// check before the Pong write, and the adjacent-key guard does not claim to prove cryptographic
     /// unpredictability.
     ///
     /// RFC 6455 text-message fragmentation is reassembled only for one response message at a time.
@@ -275,7 +276,7 @@ impl WebDriverBiDiWebSocketEstablished {
             write_timeout,
         ))?;
         let mut control_frame_count = 0_usize;
-        let mut used_client_masking_keys = vec![command_masking_key];
+        let mut previous_client_masking_key = command_masking_key;
         let mut response_fragment_count = 0_usize;
         let mut response_message = Vec::new();
         let mut assembling_text_response = false;
@@ -307,10 +308,9 @@ impl WebDriverBiDiWebSocketEstablished {
                         exchange_timeout,
                         started_at.elapsed(),
                     )?;
-                    if used_client_masking_keys.contains(&masking_key) {
+                    if previous_client_masking_key == masking_key {
                         return Err(WebDriverBiDiLocateNodesExchangeError::PongMaskingKeyReused);
                     }
-                    used_client_masking_keys.push(masking_key);
                     let remaining_timeout =
                         remaining_frame_operation_budget(exchange_timeout, started_at.elapsed())?;
                     established = map_established_frame_result(established.write_pong_frame(
@@ -318,6 +318,7 @@ impl WebDriverBiDiWebSocketEstablished {
                         masking_key,
                         remaining_timeout,
                     ))?;
+                    previous_client_masking_key = masking_key;
                 }
                 0xa => {}
                 0x1 if !assembling_text_response && frame.fin() => {
