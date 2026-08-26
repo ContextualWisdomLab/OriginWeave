@@ -17,6 +17,24 @@ fn punctuation_only_limitation_consequence_does_not_state_a_buyer_consequence() 
 }
 
 #[test]
+fn meaningful_text_may_begin_with_allowed_punctuation() {
+    assert!(
+        DeclaredLimitation::new(
+            "-linux_arm64",
+            "Linux ARM64 is excluded from the support profile.",
+        )
+        .is_ok()
+    );
+    assert!(
+        DeclaredLimitation::new(
+            "linux_arm64",
+            "... Linux ARM64 remains outside the support profile.",
+        )
+        .is_ok()
+    );
+}
+
+#[test]
 fn international_alphanumeric_limitation_text_remains_admissible() {
     assert!(
         DeclaredLimitation::new(
