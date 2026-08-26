@@ -53,7 +53,10 @@ fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     Ok(())
 }
 
-fn read_masked_client_frame(stream: &mut TcpStream, expected_first_byte: u8) -> io::Result<Vec<u8>> {
+fn read_masked_client_frame(
+    stream: &mut TcpStream,
+    expected_first_byte: u8,
+) -> io::Result<Vec<u8>> {
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
     let mut header = [0_u8; 2];
     stream.read_exact(&mut header)?;
@@ -174,7 +177,10 @@ fn establish_with_ping_between_fragments() -> Result<EstablishedFragmentServer, 
         let (first_frame, second_frame) = response_fragments()?;
         stream.write_all(&first_frame)?;
         let ping_length = u8::try_from(PING_PAYLOAD.len()).map_err(|_| {
-            io::Error::new(io::ErrorKind::InvalidData, "test Ping payload exceeded 125 bytes")
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "test Ping payload exceeded 125 bytes",
+            )
         })?;
         stream.write_all(&[0x89, ping_length])?;
         stream.write_all(PING_PAYLOAD)?;
