@@ -44,7 +44,7 @@ class ProductDocumentationContractTests(unittest.TestCase):
         self.assertTrue(baseline.is_file())
         text = baseline.read_text(encoding="utf-8")
         for phrase in (
-            "Observed snapshot: 2026-08-24",
+            "Observed snapshot: 2026-08-26",
             "Protected-main truth",
             "Open pull requests",
             "Open issues",
@@ -62,7 +62,7 @@ class ProductDocumentationContractTests(unittest.TestCase):
         )[0]
         self.assertIn("Phase 1 is **in progress**, not shipped.", protected_main)
         self.assertIn(
-            "It remains draft evidence and cannot be treated as shipped behavior.",
+            "none of them is protected-main behavior until merged",
             open_pull_requests,
         )
         bidi_status = self._subsection(
@@ -73,7 +73,7 @@ class ProductDocumentationContractTests(unittest.TestCase):
         )
         self.assertIn("Phase 1 is **in progress**, not shipped.", bidi_status)
         self.assertIn(
-            "It remains draft evidence and cannot be treated as shipped behavior.",
+            "does not create a tunnel, route, DNS state, authenticated gateway, or connectivity proof",
             vpn_status,
         )
 
