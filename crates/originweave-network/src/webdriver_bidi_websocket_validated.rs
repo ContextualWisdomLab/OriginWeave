@@ -11,6 +11,7 @@ use originweave_core::VerifiedWebDriverBiDiSocketPeer;
 use crate::{
     WebDriverBiDiTcpConnection, WebDriverBiDiTcpConnectionEvidence,
     webdriver_bidi_websocket_handshake_raw as raw,
+    webdriver_bidi_websocket_mask_key::WebDriverBiDiWebSocketMaskKey,
 };
 
 const MAX_TRACKED_CLIENT_MASK_KEYS: usize = 65_536;
@@ -27,7 +28,7 @@ struct ClientMaskKeyHistory<const LIMIT: usize> {
 impl<const LIMIT: usize> ClientMaskKeyHistory<LIMIT> {
     fn reserve(
         &mut self,
-        masking_key: raw::WebDriverBiDiWebSocketMaskKey,
+        masking_key: WebDriverBiDiWebSocketMaskKey,
     ) -> Result<(), raw::WebDriverBiDiWebSocketFrameError> {
         let masking_key = *masking_key.as_bytes();
         if self.used_keys.contains(&masking_key) {
@@ -213,17 +214,18 @@ impl WebDriverBiDiWebSocketEstablished {
     /// The caller-supplied masking key is reserved before any frame bytes are emitted. Reuse of any
     /// key previously used by a successful client text or Pong frame on this established connection
     /// fails closed. The exact history is bounded; reaching the reviewed history ceiling also fails
-    /// closed rather than silently forgetting older keys.
+    /// closed rather than silently forgetting older keys. Generic diagnostics for the public mask-key
+    /// value redact its entropy; only this reviewed wire-framing boundary unwraps the exact bytes.
     pub fn write_text_frame(
         mut self,
         text: &str,
-        masking_key: raw::WebDriverBiDiWebSocketMaskKey,
+        masking_key: WebDriverBiDiWebSocketMaskKey,
         frame_timeout: Duration,
     ) -> Result<Self, raw::WebDriverBiDiWebSocketFrameError> {
         self.client_mask_keys.reserve(masking_key)?;
         self.raw = self
             .raw
-            .write_text_frame(text, masking_key, frame_timeout)?;
+            .write_text_frame(text, masking_key.into_raw(), frame_timeout)?;
         Ok(self)
     }
 
@@ -234,7 +236,7 @@ impl WebDriverBiDiWebSocketEstablished {
     pub fn write_pong_frame(
         mut self,
         payload: &[u8],
-        masking_key: raw::WebDriverBiDiWebSocketMaskKey,
+        masking_key: WebDriverBiDiWebSocketMaskKey,
         frame_timeout: Duration,
     ) -> Result<Self, raw::WebDriverBiDiWebSocketFrameError> {
         self.client_mask_keys.reserve(masking_key)?;
@@ -279,9 +281,9 @@ mod tests {
 
     #[test]
     fn client_mask_history_rejects_reuse_and_fails_closed_at_its_bound() {
-        let first = raw::WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]);
-        let second = raw::WebDriverBiDiWebSocketMaskKey::new([5, 6, 7, 8]);
-        let third = raw::WebDriverBiDiWebSocketMaskKey::new([9, 10, 11, 12]);
+        let first = WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]);
+        let second = WebDriverBiDiWebSocketMaskKey::new([5, 6, 7, 8]);
+        let third = WebDriverBiDiWebSocketMaskKey::new([9, 10, 11, 12]);
         let mut history = ClientMaskKeyHistory::<2>::default();
 
         assert!(history.reserve(first).is_ok());
