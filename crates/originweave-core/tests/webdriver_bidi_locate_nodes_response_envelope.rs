@@ -1,8 +1,9 @@
 use std::error::Error;
 
 use originweave_core::{
-    WebDriverBiDiAccessibilityQuery, WebDriverBiDiCommandResponseKind,
-    WebDriverBiDiLocateNodesCommand, WebDriverBiDiLocateNodesResponseCorrelationError,
+    WebDriverBiDiAccessibilityQuery, WebDriverBiDiAccessibilityQueryError,
+    WebDriverBiDiCommandResponseKind, WebDriverBiDiLocateNodesCommand,
+    WebDriverBiDiLocateNodesResponseCorrelationError,
     WebDriverBiDiLocateNodesResponseEnvelopeError,
 };
 
@@ -36,6 +37,22 @@ fn correlated_success_can_be_consumed_as_success_evidence() -> Result<(), Box<dy
 
     assert_eq!(validated.command_id(), 42);
     assert_eq!(validated.browsing_context(), "context-a");
+    Ok(())
+}
+
+#[test]
+fn correlated_success_enforces_exact_serialized_result_budget() -> Result<(), Box<dyn Error>> {
+    let query = WebDriverBiDiAccessibilityQuery::new(Some("button"), Some("Submit task"), 1)?;
+    let validated = WebDriverBiDiLocateNodesCommand::new(42, "context-a", &query)?
+        .correlate_response_envelope(WebDriverBiDiCommandResponseKind::Success, Some(42))?
+        .into_validated_success()?;
+
+    assert_eq!(validated.max_node_count(), 1);
+    assert_eq!(validated.validate_result_count(1), Ok(()));
+    assert_eq!(
+        validated.validate_result_count(2),
+        Err(WebDriverBiDiAccessibilityQueryError::ResultNodeCountExceeded)
+    );
     Ok(())
 }
 

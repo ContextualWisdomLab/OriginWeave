@@ -89,6 +89,20 @@ impl BrowserAuthorityRegistry {
             .current_context_epoch(browser_session, browsing_context)
     }
 
+    /// Require an opaque external browsing-context identifier to name this exact context.
+    pub(crate) fn require_context_external_identifier(
+        &self,
+        browser_session: BrowserSessionId,
+        browsing_context: BrowsingContextId,
+        external_identifier: &str,
+    ) -> Result<(), BrowserRegistryError> {
+        self.inner.require_context_external_identifier(
+            browser_session,
+            browsing_context,
+            external_identifier,
+        )
+    }
+
     /// Bind the canonical origin observed for the exact current browser document.
     pub fn bind_context_origin(
         &mut self,
