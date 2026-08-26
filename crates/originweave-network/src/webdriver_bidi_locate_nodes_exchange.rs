@@ -101,7 +101,7 @@ impl fmt::Display for WebDriverBiDiLocateNodesExchangeError {
                 "WebDriver BiDi locateNodes exchange received Ping without a fresh caller-supplied Pong masking key",
             ),
             Self::PongMaskingKeyReused => formatter.write_str(
-                "WebDriver BiDi locateNodes exchange refused a Pong masking key already used by this exchange",
+                "WebDriver BiDi locateNodes exchange refused a Pong masking key matching the immediately preceding client frame",
             ),
             Self::UnexpectedResponseFrame { fin, opcode } => write!(
                 formatter,
@@ -567,7 +567,7 @@ mod tests {
         assert!(
             reused_mask
                 .to_string()
-                .contains("Pong masking key already used by this exchange")
+                .contains("Pong masking key matching the immediately preceding client frame")
         );
 
         let shape = WebDriverBiDiLocateNodesExchangeError::UnexpectedResponseFrame {
