@@ -311,12 +311,11 @@ impl WebDriverBiDiWebSocketEstablished {
                 }
                 0xa => {}
                 0x1 if !assembling_text_response && frame.fin() => {
-                    admit_response_fragment(&mut response_fragment_count)?;
                     let result = admit_response_payload(command, frame.payload())?;
                     return Ok((established, result));
                 }
                 0x1 if !assembling_text_response => {
-                    admit_response_fragment(&mut response_fragment_count)?;
+                    response_fragment_count = 1;
                     append_response_fragment(&mut response_message, frame.payload())?;
                     assembling_text_response = true;
                 }
