@@ -14,7 +14,7 @@ This is a dated delivery baseline, not a substitute for the PRD, TRD, roadmap, a
 
 ### Open pull requests
 
-The live repository contained **153 open pull requests: 39 non-draft and 114 draft** when this snapshot re-paginated the complete open inventory (down from 158/44/114 on 2026-08-24 after supersession closure of #153). The volume and stack depth remain themselves a product-delivery risk: review, exact-head checks, dependency order, and integration truth can drift faster than a buyer-visible vertical slice reaches protected `main`.
+The live repository contained **153 open pull requests: 39 non-draft and 114 draft** when this snapshot re-paginated the complete open inventory, a net reduction from 158/44/114 on 2026-08-24 amid merged work, supersession closure of #153, and newly opened follow-on work. The volume and stack depth remain themselves a product-delivery risk: review, exact-head checks, dependency order, and integration truth can drift faster than a buyer-visible vertical slice reaches protected `main`.
 
 #### 2026-08-26 maintenance-loop record
 
@@ -59,12 +59,12 @@ The following newest slices were re-fetched from GitHub for this snapshot. Their
 
 | PR | State | Exact base head | Exact head |
 |---|---|---|---|
-| #220 | Ready | `0841d2ab3d8b5e60a03c0a8e818cf438e2716829` | `e0740a6f3a41067a4460249378e0266815018a74` |
-| #219 | Ready | `0841d2ab3d8b5e60a03c0a8e818cf438e2716829` | `3e34a54ae279686a28309d59b8b3b9bfbd283a80` |
-| #218 | Ready | `0841d2ab3d8b5e60a03c0a8e818cf438e2716829` | `eac2014bf0e642953bed2c71e5fe963900b22286` |
-| #209 | Ready | `0841d2ab3d8b5e60a03c0a8e818cf438e2716829` | `b35d739017aa5d361b605be48045be504a35f6f` |
-| #208 | Ready | `0841d2ab3d8b5e60a03c0a8e818cf438e2716829` | `e41d3be4c290c4e434aac33d777e511dfb94e03d` |
-| #124 | Ready | `0841d2ab3d8b5e60a03c0a8e818cf438e2716829` | `30cc458b` (post-remediation) |
+| #220 | Ready | `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | `e0740a6f3a41067a4460249378e0266815018a74` |
+| #219 | Ready | `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | `3e34a54ae279686a28309d59b8b3b9bfbd283a80` |
+| #218 | Ready | `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | `911ea33d8a5aca7673307bb6fdcad4b450f5c111` |
+| #209 | Ready | `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | `b35d739017aa5d361b605be48045be50b5a35f6f` |
+| #208 | Ready | `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | `e41d3be4c290c4e434aac33d777e511dfb94e03d` |
+| #124 | Ready | `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | `296ad25bb541023dbc869ae07ae1d853820f83a4` |
 
 These rows are delivery evidence only. None has counted independent approval in the current collaborator inventory, and predecessor rows from earlier snapshots are retained below as regression anchors that must never be promoted to current-head evidence.
 
@@ -109,7 +109,7 @@ The current queue must be processed in dependency order. A green child branch ca
 
 The active `CWL Central required workflows` ruleset (re-fetched for this snapshot) requires one approving review, resolved review threads, no last-push approval requirement, `merge`/`squash` merge methods, and seven configured required workflows (`close-empty-pr`, `opencode-review`, `pr-review-merge-scheduler`, `security-scan`, `strix`, `sast-semgrep`, `noema-review`). The current collaborator inventory contains only `seonghobae` with administration and push permissions, creating a **reviewer-provisioning gap** for counted non-author approval.
 
-This gap does not authorize self-approval, stale-head merges, or weaker checks. Under the documented solo-maintainer governance condition the counted-approval rule is on hold rather than manufactured; exact current-head checks, security gates, complete coverage, rustdoc/Clippy, thread resolution, current-head AI-review evidence from the OpenCode reviewer, and branch protection remain mandatory before any owner-directed administrative merge. Before any merge decision, re-fetch the exact ruleset, collaborators, PR head/base, reviews, unresolved threads, and required checks; do not assume this dated observation remains current.
+This gap does not authorize self-approval, stale-head merges, administrative bypass, or weaker checks. Because the current GitHub ruleset independently requires a counted approval, the solo-maintainer hold does not satisfy the live merge gate: an eligible non-author collaborator must submit a formal `APPROVED` review on the current head. Until that reviewer-provisioning gap is repaired, protected-main merges stop even when exact-head checks, security gates, complete coverage, rustdoc/Clippy, threads, and AI-review evidence are otherwise complete. Before any merge decision, re-fetch the exact ruleset, collaborators, PR head/base, reviews, unresolved threads, and required checks; do not assume this dated observation remains current.
 
 ### Open issues and operational signals
 
@@ -167,7 +167,7 @@ OriginWeave is not complete merely because every low-level primitive exists in s
 
 ## Next executable queue
 
-1. Drain the merge gate in dependency order: for every ready root PR whose current head is check-green with resolved threads, obtain current-head OpenCode-review evidence (approval or authoritative skip), then perform the owner-directed administrative merge permitted by the solo-maintainer hold. Root candidates include #37, #40, #43, #45–#48, #51, #62–#65, #74, #82, #124, #149, #152, #156–#166, #170, #173, #175, #208, #209, #218, and #219 as their re-dispatched checks land. Treat dependent children separately: only after a predecessor reaches protected `main`, retarget and independently revalidate its immediate child; preserve orders such as #218 → #221 → #220 rather than treating #208–#220 as a flat merge range.
+1. Drain the merge gate in dependency order: for every ready root PR whose current head is check-green with resolved threads, obtain the current ruleset's counted `APPROVED` review from an eligible non-author collaborator; OpenCode approval or skip evidence does not substitute for that GitHub review. If no eligible approver exists, record the reviewer-provisioning gap and do not merge. Root candidates include #37, #40, #43, #45–#48, #51, #62–#65, #74, #82, #124, #149, #152, #156–#166, #170, #173, #175, #208, #209, #218, and #219 as their re-dispatched checks land. Treat dependent children separately: only after a predecessor reaches protected `main`, retarget and independently revalidate its immediate child; preserve orders such as #218 → #221 → #220 rather than treating #208–#220 as a flat merge range.
 2. Keep the organization review pipeline healthy: monitor the central Actions backlog recorded above; if OpenCode reviews stop landing on OriginWeave heads while the queue is idle, repair `ContextualWisdomLab/.github` dispatch/concurrency configuration rather than weakening any gate.
 3. Finish the #9/#28 browser-network and Chromium vertical slice, including the #181–#205 WebSocket opening path and framed BiDi command/response stack, then semantic observation, policy, action, post-condition, and recovery boundaries on protected `main`.
 4. Finish #27 and #10 as separate security tracks; neither should be hidden inside the first browser PR.

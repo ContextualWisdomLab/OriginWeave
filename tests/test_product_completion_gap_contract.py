@@ -48,6 +48,14 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             with self.subTest(stale_phrase=stale_phrase):
                 self.assertNotIn(stale_phrase, text)
 
+    def test_active_github_approval_rule_is_not_documented_as_bypassable(self) -> None:
+        """An active counted-approval rule must stop merge without an eligible approver."""
+        text = BASELINE.read_text(encoding="utf-8")
+
+        self.assertIn("eligible non-author", text)
+        self.assertIn("reviewer-provisioning gap", text)
+        self.assertNotIn("owner-directed administrative merge", text)
+
     def test_evidence_commands_reproduce_inventory_checks_and_review_state(self) -> None:
         """The evidence procedure must paginate the queue and inspect each exact PR head."""
         text = BASELINE.read_text(encoding="utf-8")

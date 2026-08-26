@@ -37,11 +37,12 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         """The baseline must preserve exact heads for the newest active product slices."""
         for marker in (
             "Current exact-head active PR evidence",
-            "| #220 | Ready | `0841d2ab3d8b5e60a03c0a8e818cf438e2716829` | `e0740a6f3a41067a4460249378e0266815018a74` |",
-            "| #219 | Ready | `0841d2ab3d8b5e60a03c0a8e818cf438e2716829` | `3e34a54ae279686a28309d59b8b3b9bfbd283a80` |",
-            "| #218 | Ready | `0841d2ab3d8b5e60a03c0a8e818cf438e2716829` | `eac2014bf0e642953bed2c71e5fe963900b22286` |",
-            "| #209 | Ready | `0841d2ab3d8b5e60a03c0a8e818cf438e2716829` | `b35d739017aa5d361b605be48045be504a35f6f` |",
-            "| #208 | Ready | `0841d2ab3d8b5e60a03c0a8e818cf438e2716829` | `e41d3be4c290c4e434aac33d777e511dfb94e03d` |",
+            "| #220 | Ready | `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | `e0740a6f3a41067a4460249378e0266815018a74` |",
+            "| #219 | Ready | `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | `3e34a54ae279686a28309d59b8b3b9bfbd283a80` |",
+            "| #218 | Ready | `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | `911ea33d8a5aca7673307bb6fdcad4b450f5c111` |",
+            "| #209 | Ready | `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | `b35d739017aa5d361b605be48045be50b5a35f6f` |",
+            "| #208 | Ready | `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | `e41d3be4c290c4e434aac33d777e511dfb94e03d` |",
+            "| #124 | Ready | `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | `296ad25bb541023dbc869ae07ae1d853820f83a4` |",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, self.baseline)
