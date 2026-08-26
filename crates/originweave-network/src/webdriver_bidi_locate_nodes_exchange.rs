@@ -198,10 +198,8 @@ impl WebDriverBiDiWebSocketEstablished {
             write_timeout,
         ))?;
         let mut control_frame_count = 0_usize;
-        let mut used_client_masking_keys = [
-            command_masking_key;
-            MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE + 1
-        ];
+        let mut used_client_masking_keys =
+            [command_masking_key; MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE + 1];
         let mut used_client_masking_key_count = 1_usize;
 
         loop {
