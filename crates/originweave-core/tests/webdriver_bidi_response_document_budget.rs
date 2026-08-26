@@ -15,6 +15,28 @@ fn bounded_response_document_retains_exact_wire_text() -> Result<(), Box<dyn Err
 }
 
 #[test]
+fn bounded_response_document_admits_transport_bytes_without_preallocating_untrusted_text()
+-> Result<(), Box<dyn Error>> {
+    let raw = b" \r\n{\"id\":42,\"type\":\"success\",\"result\":{}}\t";
+    let document = BoundedWebDriverBiDiResponseDocument::from_utf8_bytes(raw)?;
+
+    assert_eq!(document.as_str(), std::str::from_utf8(raw)?);
+
+    let invalid_utf8 = [b'{', 0xff, b'}'];
+    assert_eq!(
+        BoundedWebDriverBiDiResponseDocument::from_utf8_bytes(&invalid_utf8),
+        Err(WebDriverBiDiResponseDocumentAdmissionError::InvalidUtf8)
+    );
+
+    let oversized_invalid_utf8 = vec![0xff; MAX_WEBDRIVER_BIDI_RESPONSE_DOCUMENT_BYTES + 1];
+    assert_eq!(
+        BoundedWebDriverBiDiResponseDocument::from_utf8_bytes(&oversized_invalid_utf8),
+        Err(WebDriverBiDiResponseDocumentAdmissionError::DocumentTooLarge)
+    );
+    Ok(())
+}
+
+#[test]
 fn empty_or_json_whitespace_only_response_document_fails_closed() {
     for raw in ["", " ", "\t\r\n"] {
         assert_eq!(
@@ -67,6 +89,7 @@ fn response_document_errors_are_deterministic_and_source_free() {
     for error in [
         WebDriverBiDiResponseDocumentAdmissionError::EmptyDocument,
         WebDriverBiDiResponseDocumentAdmissionError::DocumentTooLarge,
+        WebDriverBiDiResponseDocumentAdmissionError::InvalidUtf8,
         WebDriverBiDiResponseDocumentAdmissionError::InvalidObjectBoundary,
     ] {
         assert!(!error.to_string().is_empty());

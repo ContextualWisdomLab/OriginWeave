@@ -14,6 +14,8 @@ For the bounded `browsingContext.locateNodes` command-serialization boundary, th
 
 WebDriver BiDi commands may execute concurrently and finish out of order. The Editor’s Draft defines the command id as the local end’s correlation identifier and sets a successful `CommandResponse.id` to that exact command id; an `ErrorResponse.id` may be `null` when no valid command id can be recovered. OriginWeave therefore fails closed unless a non-null protocol-range response id exactly matches the consumed command before later payload admission. Parsing success/error envelopes, handling nullable malformed-command errors, and authenticating the browser transport remain separate adapter boundaries.
 
+The same reviewed Editor’s Draft defines a closed `ErrorCode` vocabulary that currently includes `no such client window`. OriginWeave admits only the reviewed vocabulary at its bounded response-envelope parser and rejects unknown error-code text fail closed; adding a newly reviewed protocol code changes compatibility only and grants no browser, transport, node, policy, or Agent authority.
+
 Primary sources: World Wide Web Consortium, *WebDriver BiDi* (published Working Draft and current Editor’s Draft).
 
 ## Chrome Manifest V3
