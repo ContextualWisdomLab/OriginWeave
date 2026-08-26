@@ -51,6 +51,9 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Classified proposed ADR 0110 consistently as branch-only documentation
+  evidence until the presentation-identity line integrates into protected main.
+
 - Coupled macOS presentation derivation and manual validation to integer device
   scale classes so the privacy kernel cannot emit that contradictory identity.
 
