@@ -98,6 +98,63 @@ fn locate_nodes_command() -> Result<WebDriverBiDiLocateNodesCommand, Box<dyn Err
 }
 
 #[test]
+fn locate_nodes_exchange_preserves_initial_command_write_failure() -> Result<(), Box<dyn Error>> {
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let local_addr = listener.local_addr()?;
+    let server = thread::spawn(move || -> io::Result<()> {
+        let (mut stream, _) = listener.accept()?;
+        read_opening_request(&mut stream)?;
+        stream.write_all(
+            b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n",
+        )?;
+        stream.set_read_timeout(Some(Duration::from_secs(2)))?;
+        let mut byte = [0_u8; 1];
+        let count = stream.read(&mut byte)?;
+        if count != 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "closed client write half still emitted a locateNodes command frame",
+            ));
+        }
+        Ok(())
+    });
+
+    let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+    let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?;
+    let plan = WebDriverBiDiWebSocketHandshakePlan::new(connect(&endpoint)?, key)?;
+    let written = plan.write_opening_request(Duration::from_millis(500))?;
+    let established = written.read_opening_response(Duration::from_millis(500))?;
+    let shutdown_stream = established.try_clone_stream_for_test()?;
+    shutdown_stream.shutdown(Shutdown::Write)?;
+    let exchanged = established.exchange_locate_nodes(
+        locate_nodes_command()?,
+        WebDriverBiDiWebSocketMaskKey::new([0x11, 0x22, 0x33, 0x44]),
+        &mut || None,
+        Duration::from_millis(500),
+    );
+
+    let server_result = server
+        .join()
+        .map_err(|_| io::Error::other("initial write failure test server panicked"))?;
+    assert!(server_result.is_ok(), "{server_result:?}");
+
+    let error = exchanged.err().ok_or_else(|| {
+        io::Error::other("locateNodes exchange unexpectedly survived a closed client write half")
+    })?;
+    assert!(
+        matches!(
+            &error,
+            WebDriverBiDiLocateNodesExchangeError::Frame(
+                WebDriverBiDiWebSocketFrameError::FrameWriteFailed { .. }
+            )
+        ),
+        "{error:?}"
+    );
+    assert!(error.source().is_some());
+    Ok(())
+}
+
+#[test]
 fn locate_nodes_exchange_preserves_pong_write_failure_after_ping() -> Result<(), Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
