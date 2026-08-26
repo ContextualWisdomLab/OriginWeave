@@ -350,9 +350,6 @@ const FIRST_LANGUAGE_SET: [&str; 8] = [
 /// The optional second language appended when the stream selects it.
 const SECOND_LANGUAGE: &str = "en";
 
-/// The maximum number of accepted language tags on one identity.
-const MAX_LANGUAGE_TAGS: usize = 4;
-
 impl PresentationProfile {
     /// Construct and fully validate one profile from explicit fields.
     ///
@@ -380,7 +377,16 @@ impl PresentationProfile {
         {
             return Err(PresentationError::InvalidField);
         }
-        validate_languages(&languages)?;
+        let languages_are_enumerated = match languages.as_slice() {
+            [first] => FIRST_LANGUAGE_SET.contains(&first.as_str()),
+            [first, second] => {
+                FIRST_LANGUAGE_SET.contains(&first.as_str()) && second == SECOND_LANGUAGE
+            }
+            _ => false,
+        };
+        if !languages_are_enumerated {
+            return Err(PresentationError::InvalidField);
+        }
 
         Ok(Self::assemble(
             screen,
@@ -563,22 +569,6 @@ impl PresentationProfile {
     }
 }
 
-fn validate_languages(languages: &[String]) -> Result<(), PresentationError> {
-    if languages.is_empty() || languages.len() > MAX_LANGUAGE_TAGS {
-        return Err(PresentationError::InvalidField);
-    }
-    for tag in languages {
-        let valid = (2..=35).contains(&tag.len())
-            && tag
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-');
-        if !valid {
-            return Err(PresentationError::InvalidField);
-        }
-    }
-    Ok(())
-}
-
 fn canonical_serialization(profile: &PresentationProfile) -> String {
     format!(
         "originweave-presentation/v1|screen={}x{}x{}|viewport={}x{}|dpr={}|hw={}|tz={}|platform={}|langs={}|reduced_motion={}",
@@ -587,7 +577,7 @@ fn canonical_serialization(profile: &PresentationProfile) -> String {
         profile.screen.color_depth_bits,
         profile.viewport.width_px,
         profile.viewport.height_px,
-        format_ratio(profile.device_pixel_ratio.value()),
+        format_ratio(profile.device_pixel_ratio),
         profile.hardware_concurrency,
         profile.timezone.iana_name(),
         profile.platform.user_agent_token(),
@@ -596,13 +586,11 @@ fn canonical_serialization(profile: &PresentationProfile) -> String {
     )
 }
 
-fn format_ratio(value: f64) -> String {
-    if value == 1.5 {
-        "1.5".to_owned()
-    } else if value == 2.0 {
-        "2".to_owned()
-    } else {
-        "1".to_owned()
+const fn format_ratio(ratio: DevicePixelRatio) -> &'static str {
+    match ratio {
+        DevicePixelRatio::Quantized1 => "1",
+        DevicePixelRatio::Quantized15 => "1.5",
+        DevicePixelRatio::Quantized2 => "2",
     }
 }
 
@@ -814,39 +802,6 @@ mod tests {
     }
 
     #[test]
-    fn language_validation_rejects_empty_oversized_and_bad_tags() {
-        assert_eq!(
-            validate_languages(&[]),
-            Err(PresentationError::InvalidField)
-        );
-        let too_many = vec![
-            "en".to_owned(),
-            "de".to_owned(),
-            "fr".to_owned(),
-            "es".to_owned(),
-            "it".to_owned(),
-        ];
-        assert_eq!(
-            validate_languages(&too_many),
-            Err(PresentationError::InvalidField)
-        );
-        assert_eq!(
-            validate_languages(&["e".to_owned()]),
-            Err(PresentationError::InvalidField)
-        );
-        let oversized = "a".repeat(36);
-        assert_eq!(
-            validate_languages(&[oversized]),
-            Err(PresentationError::InvalidField)
-        );
-        assert_eq!(
-            validate_languages(&["en US".to_owned()]),
-            Err(PresentationError::InvalidField)
-        );
-        assert!(validate_languages(&["zh-Hant-TW".to_owned()]).is_ok());
-    }
-
-    #[test]
     fn profile_new_validates_each_field_independently() {
         let screen = ScreenMetrics::new(1920, 1080).expect("screen");
         let viewport = ViewportBounds::new(1920, 900).expect("viewport");
@@ -954,6 +909,26 @@ mod tests {
             ),
             Err(PresentationError::InvalidField)
         );
+        for languages in [
+            vec!["cy-GB".to_owned()],
+            vec!["cy-GB".to_owned(), "en".to_owned()],
+            vec!["ko-KR".to_owned(), "fr-FR".to_owned()],
+            vec!["ko-KR".to_owned(), "en".to_owned(), "en-GB".to_owned()],
+        ] {
+            assert_eq!(
+                PresentationProfile::new(
+                    screen,
+                    viewport,
+                    DevicePixelRatio::Quantized1,
+                    8,
+                    PresentationTimeZone::Utc,
+                    PresentationPlatform::Linux,
+                    languages,
+                    false
+                ),
+                Err(PresentationError::InvalidField)
+            );
+        }
 
         let profile = PresentationProfile::new(
             screen,
@@ -977,9 +952,9 @@ mod tests {
 
     #[test]
     fn format_ratio_covers_each_quantized_class() {
-        assert_eq!(format_ratio(1.0), "1");
-        assert_eq!(format_ratio(1.5), "1.5");
-        assert_eq!(format_ratio(2.0), "2");
+        assert_eq!(format_ratio(DevicePixelRatio::Quantized1), "1");
+        assert_eq!(format_ratio(DevicePixelRatio::Quantized15), "1.5");
+        assert_eq!(format_ratio(DevicePixelRatio::Quantized2), "2");
     }
 
     #[test]
@@ -1039,7 +1014,12 @@ mod tests {
             assert!(HARDWARE_CONCURRENCY_SET.contains(&concurrency));
         }
         for language in FIRST_LANGUAGE_SET {
-            assert!(validate_languages(&[language.to_owned()]).is_ok());
+            assert!((2..=35).contains(&language.len()));
+            assert!(
+                language
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+            );
         }
         assert_eq!(SECOND_LANGUAGE, "en");
     }

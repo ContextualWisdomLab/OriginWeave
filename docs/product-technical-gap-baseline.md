@@ -14,7 +14,7 @@ This is a dated delivery baseline, not a substitute for the PRD, TRD, roadmap, a
 
 ### Open pull requests
 
-The live repository contained **155 open pull requests: 42 non-draft and 113 draft** when this snapshot re-paginated the complete open inventory. The volume and stack depth are themselves a product-delivery risk: review, exact-head checks, dependency order, and integration truth can drift faster than a buyer-visible vertical slice reaches protected `main`.
+The live repository contained **156 open pull requests: 43 non-draft and 113 draft** when this snapshot re-paginated the complete open inventory. The volume and stack depth are themselves a product-delivery risk: review, exact-head checks, dependency order, and integration truth can drift faster than a buyer-visible vertical slice reaches protected `main`.
 
 PR #226 (`6aaf1e5…` onto `b05d5ac…`) is the current active baseline refresh and
 remains open, blocked, non-shipped evidence. The older exact-head tables below
@@ -26,6 +26,7 @@ Representative active workstreams at this snapshot were:
 | Workstream | Representative active PR evidence | Delivery boundary |
 |---|---|---|
 | Product baseline | #196 | Ready/non-draft documentation PR; all exact-head checks passed and review threads resolved, blocked only by the reviewer-provisioning gap below |
+| Presentation identity | #229 at `4c2644c2c12961d60511c25f8de2930e63926558` onto `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | Ready/non-draft local privacy kernel; CodeQL and Devin review were pending at observation time, no counted approval exists, and no Chromium adapter or protected-main shipment is claimed |
 | Enterprise approval authority | #220 | Ready/non-draft bounded maker-checker approval lifecycle on the exact `ApprovalScope`; Strix re-scan was re-dispatched after a provider-unavailability failure |
 | Release artifact identity | #218 and #219 | Ready/non-draft fail-closed benchmark release decision and canonical release manifest binding; #218's Strix re-scan was re-dispatched after provider unavailability |
 | Evidence path conformance | #216 | Ready/non-draft RFC 3986 evidence-path syntax enforcement |
@@ -38,7 +39,9 @@ Representative active workstreams at this snapshot were:
 | Sensitive-data and model route policy | #10 and its active policy stacks | Deterministic policy values exist, but trusted broker execution, retention/deletion, runtime isolation, and auditable product workflows remain open |
 | VPN/profile intent | #149 | Bounded WireGuard/IKEv2 profile authority is active-PR evidence; it does not create a tunnel, route, DNS state, authenticated gateway, or connectivity proof |
 
-Draft PR #205 is the current top WebDriver BiDi locate-nodes slice; its opening-path prerequisites #195 and #198 remain draft evidence and cannot be treated as shipped behavior.
+Ready PR #205 is the current top WebDriver BiDi locate-nodes slice; its stacked
+opening-path prerequisites remain active evidence and cannot be treated as
+shipped behavior.
 
 #### Current exact-head active PR evidence
 
@@ -133,7 +136,7 @@ The hourly product-development loop is operational infrastructure, not proof tha
 | P1 | Buyers can install, update, verify, and roll back a supported product | **Not shipped** | #201; signed Windows/macOS/Linux/headless artifacts, Chromium revision manifest, updater security, patch SLA, SBOM, SLSA provenance, and recovery |
 | P1 | Enterprise teams can provision, approve, audit, operate, and recover the service | **Not shipped** | #202; Keyverse-compatible OIDC/SCIM, tenant isolation, policy/approval/evidence UI, SLO/incident controls, data residency, CSAP/SOC 2 evidence mapping, WCAG 2.2, Figma File ID, and Storybook |
 | P0 | A release has reproducible proof of usefulness, safety, evidence completeness, and recovery | **No product-wide release gate** | #203; deterministic, compatibility, adversarial, recovery, and enterprise suites with statistical reporting and an exact-artifact commercial acceptance gate |
-| P0 | Valid changes reach protected `main` without authority improvisation or unbounded stack growth | **Blocked / high integration debt** | Shrink the 155-PR queue in dependency order, provision legitimate review authority, require exact-current evidence, and close duplicates/superseded branches |
+| P0 | Valid changes reach protected `main` without authority improvisation or unbounded stack growth | **Blocked / high integration debt** | Shrink the 156-PR queue in dependency order, provision legitimate review authority, require exact-current evidence, and close duplicates/superseded branches |
 
 ## Commercial completion definition
 
@@ -152,7 +155,7 @@ OriginWeave is not complete merely because every low-level primitive exists in s
 
 ## Next executable queue
 
-1. Re-fetch all 155 open PRs and compute the dependency graph, exact heads/bases, reviews, unresolved threads, current required checks, duplicate/supersession relationships, and branch ancestry. Repair the shared Strix GPT-5.4 endpoint/reasoning incompatibility in the central `.github` adapter, then re-run affected exact heads #37, #124, and #159.
+1. Re-fetch all 156 open PRs and compute the dependency graph, exact heads/bases, reviews, unresolved threads, current required checks, duplicate/supersession relationships, and branch ancestry. Repair the shared Strix GPT-5.4 endpoint/reasoning incompatibility in the central `.github` adapter, then re-run affected exact heads #37, #124, and #159.
 2. Integrate merge-ready root PRs first; restack and independently revalidate only the immediate children. Close obsolete alternatives instead of carrying parallel truth.
 3. Finish the #9/#28 browser-network and Chromium vertical slice, including the #195/#198 WebSocket opening path and the remaining framed BiDi command/response, semantic observation, policy, action, post-condition, and recovery boundaries.
 4. Finish #27 and #10 as separate security tracks; neither should be hidden inside the first browser PR.
