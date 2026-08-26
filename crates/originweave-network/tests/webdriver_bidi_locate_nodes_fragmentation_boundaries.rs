@@ -277,8 +277,7 @@ fn fragmented_invalid_utf8_fails_closed() -> Result<(), Box<dyn Error>> {
 
 #[test]
 fn excessive_zero_length_fragments_fail_closed() -> Result<(), Box<dyn Error>> {
-    let mut frames =
-        Vec::with_capacity(MAX_WEBDRIVER_BIDI_RESPONSE_FRAGMENTS_PER_EXCHANGE + 1);
+    let mut frames = Vec::with_capacity(MAX_WEBDRIVER_BIDI_RESPONSE_FRAGMENTS_PER_EXCHANGE + 1);
     frames.push(server_frame(false, 0x1, b"")?);
     for _ in 1..=MAX_WEBDRIVER_BIDI_RESPONSE_FRAGMENTS_PER_EXCHANGE {
         frames.push(server_frame(false, 0x0, b"")?);
