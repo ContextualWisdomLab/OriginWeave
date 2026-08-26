@@ -1,6 +1,7 @@
 use std::{
     io::{self, Read, Write},
     net::TcpListener,
+    sync::mpsc,
     thread,
     time::Duration,
 };
@@ -268,11 +269,15 @@ fn opening_response_rejects_a_mismatched_accept_value() {
     let Ok(local_addr) = local_addr else {
         return;
     };
+    let (release_tx, release_rx) = mpsc::channel();
     let server = thread::spawn(move || -> io::Result<()> {
         let (mut stream, _) = listener.accept()?;
         stream.write_all(
             b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: invalid\r\n\r\n",
-        )
+        )?;
+        release_rx
+            .recv()
+            .map_err(|error| io::Error::other(error.to_string()))
     });
 
     let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
@@ -292,8 +297,11 @@ fn opening_response_rejects_a_mismatched_accept_value() {
         return;
     };
 
+    let response = written.read_opening_response(Duration::from_millis(500));
+    let released = release_tx.send(());
+    assert!(released.is_ok(), "{released:?}");
     assert!(matches!(
-        written.read_opening_response(Duration::from_millis(500)),
+        response,
         Err(WebDriverBiDiWebSocketHandshakeResponseError::AcceptMismatch)
     ));
     assert!(server.join().is_ok());
