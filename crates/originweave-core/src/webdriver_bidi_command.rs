@@ -344,7 +344,7 @@ impl WebDriverBiDiLocateNodesCommand {
     /// evidence also retains the exact `maxNodeCount` serialized by this command so later result
     /// admission cannot substitute a different query budget. This does not parse a response,
     /// authenticate the transport, or grant browser/Agent authority.
-    fn correlate_response_id(
+    pub(crate) fn correlate_response_id(
         self,
         response_id: u64,
     ) -> Result<
