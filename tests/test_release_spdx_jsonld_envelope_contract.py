@@ -88,7 +88,8 @@ class ReleaseSpdxJsonLdEnvelopeContractTests(unittest.TestCase):
             ),
             "invalid_context",
         )
-        self._assert_error_code(self._payload([{"type": "SpdxDocument"}], context=[CONTEXT, None]),
+        self._assert_error_code(
+            self._payload([{"type": "SpdxDocument"}], context=[CONTEXT, None]),
             "invalid_context",
         )
 
