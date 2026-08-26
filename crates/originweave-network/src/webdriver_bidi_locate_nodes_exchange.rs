@@ -6,9 +6,10 @@ use std::{
 
 use originweave_core::{
     BoundedWebDriverBiDiResponseDocument, BrowserAuthorityRegistry,
-    BrowserContextOriginEpochDispatchTarget, ObservedNodeHandle, ValidatedBrowserProtocolUse,
-    ValidatedWebDriverBiDiLocateNodesResult, WebDriverBiDiLocateNodesCommand,
-    WebDriverBiDiLocateNodesResponseDocumentError, WebDriverBiDiResponseDocumentAdmissionError,
+    BrowserContextOriginEpochDispatchTarget, MAX_WEBDRIVER_BIDI_RESPONSE_DOCUMENT_BYTES,
+    ObservedNodeHandle, ValidatedBrowserProtocolUse, ValidatedWebDriverBiDiLocateNodesResult,
+    WebDriverBiDiLocateNodesCommand, WebDriverBiDiLocateNodesResponseDocumentError,
+    WebDriverBiDiResponseDocumentAdmissionError,
 };
 
 use crate::{
@@ -50,14 +51,14 @@ pub enum WebDriverBiDiLocateNodesExchangeError {
     PongMaskingKeyUnavailable,
     /// A caller supplied a Pong masking key already used by a client frame in this exchange.
     PongMaskingKeyReused,
-    /// The returned frame was neither an admissible control frame nor one complete text response.
+    /// The returned frame could not continue the one admissible text response message.
     UnexpectedResponseFrame {
         /// Whether the returned frame carried the RFC 6455 FIN bit.
         fin: bool,
         /// Exact returned RFC 6455 opcode.
         opcode: u8,
     },
-    /// The exact response-frame payload failed bounded raw-document admission.
+    /// The exact response-message payload failed bounded raw-document admission.
     ResponseDocument(WebDriverBiDiResponseDocumentAdmissionError),
     /// The admitted response document failed parsing, exact correlation, or node admission.
     LocateNodesResponse(WebDriverBiDiLocateNodesResponseDocumentError),
@@ -88,11 +89,11 @@ impl fmt::Display for WebDriverBiDiLocateNodesExchangeError {
             ),
             Self::UnexpectedResponseFrame { fin, opcode } => write!(
                 formatter,
-                "WebDriver BiDi locateNodes exchange requires control handling or one final text response frame; received fin={fin}, opcode=0x{opcode:02x}"
+                "WebDriver BiDi locateNodes exchange requires control handling or one bounded text response message; received fin={fin}, opcode=0x{opcode:02x}"
             ),
             Self::ResponseDocument(error) => write!(
                 formatter,
-                "WebDriver BiDi locateNodes response frame failed raw-document admission: {error}"
+                "WebDriver BiDi locateNodes response message failed raw-document admission: {error}"
             ),
             Self::LocateNodesResponse(error) => write!(
                 formatter,
@@ -149,6 +150,30 @@ fn map_established_frame_result(
     result.map_err(WebDriverBiDiLocateNodesExchangeError::Frame)
 }
 
+fn append_response_fragment(
+    response_message: &mut Vec<u8>,
+    payload: &[u8],
+) -> Result<(), WebDriverBiDiLocateNodesExchangeError> {
+    if payload.len() > MAX_WEBDRIVER_BIDI_RESPONSE_DOCUMENT_BYTES - response_message.len() {
+        return Err(WebDriverBiDiLocateNodesExchangeError::ResponseDocument(
+            WebDriverBiDiResponseDocumentAdmissionError::DocumentTooLarge,
+        ));
+    }
+    response_message.extend_from_slice(payload);
+    Ok(())
+}
+
+fn admit_response_payload(
+    command: &WebDriverBiDiLocateNodesCommand,
+    payload: &[u8],
+) -> Result<ValidatedWebDriverBiDiLocateNodesResult, WebDriverBiDiLocateNodesExchangeError> {
+    let document = BoundedWebDriverBiDiResponseDocument::from_utf8_bytes(payload)
+        .map_err(WebDriverBiDiLocateNodesExchangeError::ResponseDocument)?;
+    command
+        .admit_response_document_nodes(document)
+        .map_err(WebDriverBiDiLocateNodesExchangeError::LocateNodesResponse)
+}
+
 impl WebDriverBiDiWebSocketEstablished {
     /// Exchange one exact bounded `browsingContext.locateNodes` command on this verified stream.
     ///
@@ -159,22 +184,29 @@ impl WebDriverBiDiWebSocketEstablished {
     /// `next_pong_key`; exhausting that caller-owned entropy source or repeating any key already used
     /// by the command or a prior Pong fails closed before another client frame is emitted. The caller
     /// remains responsible for generating each supplied key from a strong unpredictable entropy
-    /// source; exact non-reuse checks do not prove cryptographic unpredictability. Close, binary,
-    /// continuation, fragmented data, and reserved shapes are not reinterpreted as a BiDi response.
+    /// source; exact non-reuse checks do not prove cryptographic unpredictability.
+    ///
+    /// RFC 6455 text-message fragmentation is reassembled only for one response message at a time.
+    /// A non-final text frame starts that message, continuation frames extend it in order, and a final
+    /// continuation completes it. Ping/Pong control frames remain admissible between fragments. The
+    /// total assembled response is capped by [`MAX_WEBDRIVER_BIDI_RESPONSE_DOCUMENT_BYTES`] before
+    /// allocation can grow beyond the existing pre-parser budget. Orphan continuations, a second data
+    /// message before completion, binary/Close/reserved shapes, and malformed frame sequences fail
+    /// closed and consume the transport state.
     ///
     /// `exchange_timeout` is one end-to-end budget for every command write, control-frame read/write,
-    /// and response read. Elapsed time is subtracted before every operation, including the initial
-    /// command write, and the budget is never reset. Each individual frame operation is additionally
-    /// capped at the established frame timeout ceiling, so a longer end-to-end exchange budget
-    /// remains valid without widening the per-operation I/O bound. The underlying frame boundary
-    /// independently caps each frame at its existing size ceiling. In addition, at most
-    /// [`MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE`] valid Ping/Pong frames are processed before
-    /// the exchange fails closed, so RFC 6455 control-frame interleaving cannot create an unbounded
-    /// iteration budget even when the wall-clock deadline has not yet expired. Any failure consumes
-    /// this transport state and yields no reusable WebSocket stream, preventing a partially
-    /// written/read protocol state from becoming later authority.
+    /// response-fragment read, and response read. Elapsed time is subtracted before every operation,
+    /// including the initial command write, and the budget is never reset. Each individual frame
+    /// operation is additionally capped at the established frame timeout ceiling, so a longer
+    /// end-to-end exchange budget remains valid without widening the per-operation I/O bound. The
+    /// underlying frame boundary independently caps each frame at its existing size ceiling. In
+    /// addition, at most [`MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE`] valid Ping/Pong frames are
+    /// processed before the exchange fails closed, so RFC 6455 control-frame interleaving cannot
+    /// create an unbounded iteration budget even when the wall-clock deadline has not yet expired.
+    /// Any failure consumes this transport state and yields no reusable WebSocket stream, preventing
+    /// a partially written/read protocol state from becoming later authority.
     ///
-    /// The final complete text payload passes the existing bounded UTF-8/document admission,
+    /// The final complete text message passes the existing bounded UTF-8/document admission,
     /// complete WebDriver BiDi response parser, exact command-id correlation, and wire-derived node
     /// admission. Success returns the same exact peer-verified WebSocket stream plus untrusted
     /// normalized node evidence. It does not authenticate Chromium/ChromeDriver process provenance,
@@ -202,6 +234,8 @@ impl WebDriverBiDiWebSocketEstablished {
         let mut used_client_masking_keys =
             [command_masking_key; MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE + 1];
         let mut used_client_masking_key_count = 1_usize;
+        let mut response_message = Vec::new();
+        let mut assembling_text_response = false;
 
         loop {
             let remaining_timeout =
@@ -242,14 +276,20 @@ impl WebDriverBiDiWebSocketEstablished {
                     ))?;
                 }
                 0xa => {}
-                0x1 if frame.fin() => {
-                    let document =
-                        BoundedWebDriverBiDiResponseDocument::from_utf8_bytes(frame.payload())
-                            .map_err(WebDriverBiDiLocateNodesExchangeError::ResponseDocument)?;
-                    let result = command
-                        .admit_response_document_nodes(document)
-                        .map_err(WebDriverBiDiLocateNodesExchangeError::LocateNodesResponse)?;
+                0x1 if !assembling_text_response && frame.fin() => {
+                    let result = admit_response_payload(&command, frame.payload())?;
                     return Ok((established, result));
+                }
+                0x1 if !assembling_text_response => {
+                    append_response_fragment(&mut response_message, frame.payload())?;
+                    assembling_text_response = true;
+                }
+                0x0 if assembling_text_response => {
+                    append_response_fragment(&mut response_message, frame.payload())?;
+                    if frame.fin() {
+                        let result = admit_response_payload(&command, &response_message)?;
+                        return Ok((established, result));
+                    }
                 }
                 _ => {
                     return Err(
@@ -314,14 +354,16 @@ mod tests {
     use std::{error::Error as _, time::Duration};
 
     use originweave_core::{
-        WebDriverBiDiLocateNodesResponseDocumentError, WebDriverBiDiResponseDocumentAdmissionError,
+        MAX_WEBDRIVER_BIDI_RESPONSE_DOCUMENT_BYTES, WebDriverBiDiLocateNodesResponseDocumentError,
+        WebDriverBiDiResponseDocumentAdmissionError,
     };
 
     use crate::{MAX_WEBSOCKET_FRAME_TIMEOUT, WebDriverBiDiWebSocketFrameError};
 
     use super::{
         MAX_WEBDRIVER_BIDI_CONTROL_FRAMES_PER_EXCHANGE, WebDriverBiDiLocateNodesExchangeError,
-        next_pong_masking_key, remaining_exchange_budget, remaining_frame_operation_budget,
+        append_response_fragment, next_pong_masking_key, remaining_exchange_budget,
+        remaining_frame_operation_budget,
     };
 
     #[test]
@@ -361,6 +403,21 @@ mod tests {
             remaining_frame_operation_budget(Duration::from_secs(6), Duration::from_secs(6))
                 .is_err()
         );
+    }
+
+    #[test]
+    fn response_fragment_buffer_never_exceeds_document_budget() {
+        let mut response = vec![0_u8; MAX_WEBDRIVER_BIDI_RESPONSE_DOCUMENT_BYTES - 1];
+        assert!(append_response_fragment(&mut response, b"x").is_ok());
+        assert_eq!(response.len(), MAX_WEBDRIVER_BIDI_RESPONSE_DOCUMENT_BYTES);
+
+        assert!(matches!(
+            append_response_fragment(&mut response, b"y"),
+            Err(WebDriverBiDiLocateNodesExchangeError::ResponseDocument(
+                WebDriverBiDiResponseDocumentAdmissionError::DocumentTooLarge
+            ))
+        ));
+        assert_eq!(response.len(), MAX_WEBDRIVER_BIDI_RESPONSE_DOCUMENT_BYTES);
     }
 
     #[test]
