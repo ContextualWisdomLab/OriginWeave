@@ -25,7 +25,8 @@ pub use browser_protocol::{
 };
 pub use browser_protocol_dispatch::{
     BrowserContextDispatchTarget, BrowserContextOriginDispatchTarget,
-    BrowserContextProtocolDispatchError, BrowserProtocolRuntimeMetadata,
+    BrowserContextOriginEpochDispatchTarget, BrowserContextProtocolDispatchError,
+    BrowserProtocolRuntimeMetadata,
 };
 pub use browser_registry::{
     BrowserAuthorityRegistry, BrowserRegistryError, MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES,
