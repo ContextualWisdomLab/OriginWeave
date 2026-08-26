@@ -37,6 +37,13 @@ _TIMESTAMP_PATTERN = re.compile(
 )
 _REPOSITORY_WORKFLOW_PREFIX = ".github/workflows/"
 _DYNAMIC_WORKFLOW_PREFIX = "dynamic/"
+# GitHub workflow registry paths are ASCII file paths. Restricting every audited
+# path to this canonical alphabet keeps printable confusables (fullwidth solidus,
+# fraction slash, homoglyph letters, and bidi-adjacent look-alikes) out of
+# evidence where they could pass one validator yet fail exact-match ownership.
+_WORKFLOW_PATH_ALPHABET = frozenset(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-/"
+)
 _DISABLED_STATES = {
     "deleted",
     "disabled_fork",
@@ -175,8 +182,10 @@ def _validate_workflow_path(value: Any, field_name: str) -> str:
     """Return one unambiguous GitHub workflow registry path."""
 
     path = _require_nonempty_string(value, field_name, 512)
-    if "\\" in path or "%" in path:
-        raise WorkflowAuditError(f"{field_name} contains encoded or alternate separators")
+    if any(character not in _WORKFLOW_PATH_ALPHABET for character in path):
+        raise WorkflowAuditError(
+            f"{field_name} contains a character outside the canonical path alphabet"
+        )
     segments = path.split("/")
     if any(segment in {"", ".", ".."} for segment in segments):
         raise WorkflowAuditError(f"{field_name} contains an ambiguous path segment")

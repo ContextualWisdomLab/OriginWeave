@@ -5,6 +5,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 ## [Unreleased]
 
 ### Added
+- Hardened the read-only workflow-registry audit against printable Unicode confusables: every audited workflow path is now restricted to a canonical ASCII alphabet, so fullwidth solidus, fraction-slash, homoglyph letter forms, and similar look-alike separators fail closed instead of passing validation while failing exact-match ownership classification.
 
 - Refreshed the product and technical gap baseline with the 2026-08-24 live inventory: 158 open pull requests (44 ready, 114 draft), refreshed exact base/head evidence for the #208–#222 release, enterprise-approval, BAP, and WARC/PROV chains, the governance issue additions #212 and #215, and a required-check provider-failure record for the fail-closed Strix re-dispatches on #208/#218/#220.
 - Added a dated product and technical gap baseline that separates protected-main implementation truth, active pull-request evidence, live review/check blockers, and the next buyer-visible Phase 1 acceptance work.
