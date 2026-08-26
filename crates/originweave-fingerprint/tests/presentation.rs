@@ -83,6 +83,35 @@ fn derived_profiles_stay_internally_consistent() {
 }
 
 #[test]
+fn platform_and_pixel_ratio_never_form_a_known_contradictory_pair() {
+    let screen = ScreenMetrics::new(1920, 1080).expect("valid screen");
+    let viewport = ViewportBounds::new(1440, 900).expect("valid viewport");
+    assert_eq!(
+        PresentationProfile::new(
+            screen,
+            viewport,
+            DevicePixelRatio::Quantized15,
+            8,
+            PresentationTimeZone::Utc,
+            PresentationPlatform::MacOS,
+            vec!["en-US".to_owned()],
+            false,
+        ),
+        Err(PresentationError::InconsistentIdentity)
+    );
+
+    for last_byte in 0..=u8::MAX {
+        let mut bytes = SEED_A;
+        bytes[31] = last_byte;
+        let profile = PresentationProfile::derive(&seed(bytes));
+        assert_ne!(
+            (profile.platform(), profile.device_pixel_ratio()),
+            (PresentationPlatform::MacOS, DevicePixelRatio::Quantized15)
+        );
+    }
+}
+
+#[test]
 fn digest_is_lowercase_sha256_identifier() {
     let profile = PresentationProfile::derive(&seed(SEED_A));
     let text = profile.digest().as_str();
