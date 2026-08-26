@@ -119,7 +119,7 @@ impl Error for WebDriverBiDiLocateNodesResponseEnvelopeError {
 
 /// Non-cloneable evidence that one `locateNodes` response matched the exact command id.
 ///
-/// Only [`WebDriverBiDiLocateNodesCommand::correlate_response_id`] can construct this value. It
+/// Only the command's internal exact-id correlation can construct this value. It
 /// retains the exact command identifier, bounded browsing-context identifier, and exact serialized
 /// result budget so a later trusted transport boundary can carry correlation evidence forward
 /// without reconstructing authority from ambient query state. It does not authenticate a browser or
@@ -376,7 +376,7 @@ impl WebDriverBiDiLocateNodesCommand {
     /// id when no valid command id can be recovered; that case returns
     /// [`WebDriverBiDiLocateNodesResponseEnvelopeError::UncorrelatableErrorResponse`] and produces
     /// no correlation evidence. When an id is present, the same protocol-range and exact-id checks
-    /// as [`Self::correlate_response_id`] apply. The returned evidence retains whether the envelope
+    /// as the internal exact-id correlation apply. The returned evidence retains whether the envelope
     /// was success or error so an error cannot silently become success evidence.
     ///
     /// The caller must obtain `kind` and `response_id` from a separately reviewed exact response
