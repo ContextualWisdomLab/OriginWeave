@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import http.client
 import inspect
 import pathlib
 import runpy
+import tempfile
 import unittest
+import unittest.mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 RUNNER = ROOT / "scripts" / "ci" / "run_mv3_compatibility.py"
@@ -136,6 +139,118 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
         ):
             with self.subTest(expected=expected):
                 self.assertIn(expected, runner)
+
+    def test_agent_task_records_bounded_chromium_process_tree_rss(self) -> None:
+        """The evidence runner must measure one bounded sampled process-set snapshot."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_process_tree_contract")
+        runner = RUNNER.read_text(encoding="utf-8")
+        for expected in (
+            "MAX_BROWSER_PROCESS_TREE_SIZE",
+            "MAX_PROC_PROCESS_SCAN_SIZE",
+            "_parse_linux_proc_status_process_identity",
+            "_parse_linux_proc_status_optional_rss_bytes",
+            "_snapshot_linux_process_evidence",
+            "_discover_linux_process_tree_ids",
+            "_sample_linux_process_snapshot_rss_bytes",
+            "_sample_linux_process_set_rss_bytes",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, namespace)
+        for expected in (
+            '"chromium_process_count"',
+            '"chromium_process_set_rss_bytes"',
+            '"failure_type"',
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, runner)
+
+    def test_process_tree_and_rss_use_one_sampled_process_snapshot(self) -> None:
+        """Root and descendant RSS must come from the same bounded status snapshot."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_one_snapshot_contract")
+        browser_pass_source = inspect.getsource(namespace["_run_agent_task_browser_pass"])
+        self.assertEqual(browser_pass_source.count("_snapshot_linux_process_evidence()"), 1)
+        self.assertIn("_sample_linux_process_snapshot_rss_bytes", browser_pass_source)
+        self.assertNotIn("_sample_linux_process_rss_bytes(browser_process_id)", browser_pass_source)
+
+    def test_process_tree_helpers_are_bounded_and_fail_closed(self) -> None:
+        """Sampled lineage must be deterministic and reject malformed membership/evidence."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_process_helper_contract")
+        parse_identity = namespace["_parse_linux_proc_status_process_identity"]
+        parse_optional_rss = namespace["_parse_linux_proc_status_optional_rss_bytes"]
+        discover = namespace["_discover_linux_process_tree_ids"]
+        sample_set = namespace["_sample_linux_process_set_rss_bytes"]
+
+        self.assertEqual(parse_identity("Pid:\t10\nPPid:\t1\n"), (10, 1))
+        self.assertIsNone(parse_optional_rss("Name:\tchrome\nPid:\t10\nPPid:\t1\n"))
+        self.assertEqual(parse_optional_rss("VmRSS:\t7 kB\n"), 7 * 1024)
+        with self.assertRaises(ValueError):
+            parse_optional_rss("VmRSS:\t7 kB\nVmRSS:\t8 kB\n")
+
+        evidence = {
+            10: (1, 100),
+            12: (10, None),
+            11: (10, 200),
+            13: (11, 300),
+        }
+        self.assertEqual(discover(10, evidence), (10, 11, 12, 13))
+        self.assertEqual(sample_set((10, 11, 12, 13), evidence), 600)
+        with self.assertRaises(ValueError):
+            sample_set((10, 10), evidence)
+        with self.assertRaises(ValueError):
+            sample_set((10, 99), evidence)
+        with self.assertRaises(RuntimeError):
+            discover(99, evidence)
+
+    def test_process_snapshot_ignores_symlinked_proc_entries(self) -> None:
+        """The proc snapshot must not follow a symlink presented as a PID entry."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_proc_symlink_contract")
+        with tempfile.TemporaryDirectory() as directory:
+            temporary_root = pathlib.Path(directory)
+            target = temporary_root / "target"
+            target.mkdir()
+            (target / "status").write_text(
+                "Name:\tchrome\nPid:\t123\nPPid:\t1\nVmRSS:\t1 kB\n",
+                encoding="utf-8",
+            )
+            symlinked_entry = temporary_root / "123"
+            symlinked_entry.symlink_to(target, target_is_directory=True)
+            with unittest.mock.patch.object(
+                pathlib.Path, "iterdir", return_value=iter((symlinked_entry,))
+            ):
+                evidence = namespace["_snapshot_linux_process_evidence"]()
+
+        self.assertEqual(evidence, {})
+
+    def test_fixture_server_does_not_follow_symlinks_outside_fixture_root(self) -> None:
+        """The controlled fixture server must not disclose a linked outside file."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_fixture_symlink_contract")
+        with tempfile.TemporaryDirectory() as directory:
+            temporary_root = pathlib.Path(directory)
+            fixture_root = temporary_root / "fixture"
+            fixture_root.mkdir()
+            (fixture_root / "index.html").write_text("fixture", encoding="utf-8")
+            secret_path = temporary_root / "secret.txt"
+            secret_path.write_text("not-for-the-fixture", encoding="utf-8")
+            (fixture_root / "linked.txt").symlink_to(secret_path)
+            server, thread = namespace["_start_fixture_server"](fixture_root)
+            try:
+                connection = http.client.HTTPConnection(
+                    "127.0.0.1", server.server_port, timeout=2
+                )
+                connection.request("GET", "/linked.txt")
+                response = connection.getresponse()
+                body = response.read()
+                connection.close()
+            finally:
+                namespace["_stop_fixture_server"](server, thread)
+
+        self.assertIn(response.status, {403, 404})
+        self.assertNotIn(b"not-for-the-fixture", body)
 
     def test_linux_rss_parser_is_strict_and_overflow_safe(self) -> None:
         """Runner-side RSS evidence must not accept ambiguous proc status input."""
