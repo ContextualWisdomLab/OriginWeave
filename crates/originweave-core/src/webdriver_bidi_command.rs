@@ -3,7 +3,8 @@ use std::fmt::{Display, Formatter};
 
 use crate::{
     MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES, WEBDRIVER_BIDI_LOCATE_NODES_METHOD,
-    WebDriverBiDiAccessibilityQuery, contains_disallowed_protocol_text,
+    WebDriverBiDiAccessibilityQuery, WebDriverBiDiAccessibilityQueryError,
+    contains_disallowed_protocol_text,
 };
 
 /// Maximum WebDriver BiDi command identifier representable by the protocol `js-uint` type.
@@ -61,18 +62,74 @@ impl Display for WebDriverBiDiLocateNodesResponseCorrelationError {
 
 impl Error for WebDriverBiDiLocateNodesResponseCorrelationError {}
 
+/// Structured WebDriver BiDi command-response envelope kind retained through correlation.
+///
+/// A later trusted parser must derive this classification from the exact wire envelope. This value
+/// does not validate raw JSON or grant browser, node, policy, or Agent authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WebDriverBiDiCommandResponseKind {
+    /// A WebDriver BiDi command success response.
+    Success,
+    /// A WebDriver BiDi command error response.
+    Error,
+}
+
+/// Fail-closed errors while admitting a structured WebDriver BiDi response envelope.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WebDriverBiDiLocateNodesResponseEnvelopeError {
+    /// A success envelope did not carry the required command response identifier.
+    MissingResponseId,
+    /// An error envelope carried no recoverable command identifier and cannot be correlated.
+    UncorrelatableErrorResponse,
+    /// A correlated error envelope cannot be converted into success response evidence.
+    CorrelatedErrorResponse,
+    /// The present response identifier failed exact command correlation.
+    Correlation(WebDriverBiDiLocateNodesResponseCorrelationError),
+}
+
+impl Display for WebDriverBiDiLocateNodesResponseEnvelopeError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::MissingResponseId => {
+                formatter.write_str("WebDriver BiDi success response is missing its command id")
+            }
+            Self::UncorrelatableErrorResponse => formatter.write_str(
+                "WebDriver BiDi error response has no recoverable command id for correlation",
+            ),
+            Self::CorrelatedErrorResponse => formatter
+                .write_str("WebDriver BiDi error response cannot become success response evidence"),
+            Self::Correlation(error) => write!(
+                formatter,
+                "WebDriver BiDi response envelope rejected command correlation: {error}"
+            ),
+        }
+    }
+}
+
+impl Error for WebDriverBiDiLocateNodesResponseEnvelopeError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::Correlation(error) => Some(error),
+            Self::MissingResponseId
+            | Self::UncorrelatableErrorResponse
+            | Self::CorrelatedErrorResponse => None,
+        }
+    }
+}
+
 /// Non-cloneable evidence that one `locateNodes` response matched the exact command id.
 ///
-/// Only [`WebDriverBiDiLocateNodesCommand::correlate_response_id`] can construct this value. It
-/// retains the exact command identifier and bounded browsing-context identifier so a later trusted
-/// transport boundary can carry correlation evidence forward without reconstructing it from
-/// ambient metadata. It does not authenticate a browser or adapter, prove current OriginWeave
-/// session/context/origin authority, validate response payload shape, admit nodes, or authorize an
-/// Agent action.
+/// Only the command's internal exact-id correlation can construct this value. It
+/// retains the exact command identifier, bounded browsing-context identifier, and exact serialized
+/// result budget so a later trusted transport boundary can carry correlation evidence forward
+/// without reconstructing authority from ambient query state. It does not authenticate a browser or
+/// adapter, prove current OriginWeave session/context/origin authority, validate response payload
+/// shape, admit nodes, or authorize an Agent action.
 #[derive(Debug, PartialEq, Eq)]
 pub struct ValidatedWebDriverBiDiLocateNodesResponse {
     command_id: u64,
     browsing_context: String,
+    max_node_count: u16,
 }
 
 impl ValidatedWebDriverBiDiLocateNodesResponse {
@@ -87,9 +144,98 @@ impl ValidatedWebDriverBiDiLocateNodesResponse {
     pub fn browsing_context(&self) -> &str {
         &self.browsing_context
     }
+
+    /// Return the exact `maxNodeCount` serialized by the matched command.
+    #[must_use]
+    pub const fn max_node_count(&self) -> u16 {
+        self.max_node_count
+    }
+
+    /// Validate a parsed `locateNodes` result count against the matched command's exact budget.
+    ///
+    /// This check is intentionally carried by command-correlation evidence rather than by a
+    /// separately supplied query value, preventing downstream code from validating an untrusted
+    /// response against a different, more permissive result budget. Zero through the serialized
+    /// maximum are valid; any larger result fails closed before node normalization or admission.
+    pub fn validate_result_count(
+        &self,
+        returned_node_count: usize,
+    ) -> Result<(), WebDriverBiDiAccessibilityQueryError> {
+        if returned_node_count > usize::from(self.max_node_count) {
+            return Err(WebDriverBiDiAccessibilityQueryError::ResultNodeCountExceeded);
+        }
+        Ok(())
+    }
+}
+
+/// Non-cloneable structured-envelope evidence for one correlated `locateNodes` response.
+///
+/// This value deliberately keeps success and error envelopes distinguishable after exact response
+/// id correlation. The only conversion into [`ValidatedWebDriverBiDiLocateNodesResponse`] is
+/// [`Self::into_validated_success`], which fails closed for a correlated error envelope. A later
+/// trusted response parser must classify the exact wire envelope before calling
+/// [`WebDriverBiDiLocateNodesCommand::correlate_response_envelope`]. This value performs no raw JSON
+/// parsing, browser or adapter authentication, node admission, policy authorization, or Agent
+/// action authorization.
+#[derive(Debug, PartialEq, Eq)]
+pub struct CorrelatedWebDriverBiDiLocateNodesResponse {
+    kind: WebDriverBiDiCommandResponseKind,
+    correlated: ValidatedWebDriverBiDiLocateNodesResponse,
+}
+
+impl CorrelatedWebDriverBiDiLocateNodesResponse {
+    /// Return whether the exact correlated envelope was classified as success or error.
+    #[must_use]
+    pub const fn kind(&self) -> WebDriverBiDiCommandResponseKind {
+        self.kind
+    }
+
+    /// Return the exact command identifier proven to match the response.
+    #[must_use]
+    pub const fn command_id(&self) -> u64 {
+        self.correlated.command_id()
+    }
+
+    /// Return the bounded browsing-context identifier serialized by the matched command.
+    #[must_use]
+    pub fn browsing_context(&self) -> &str {
+        self.correlated.browsing_context()
+    }
+
+    /// Consume this envelope and return correlation evidence only when it was a success response.
+    ///
+    /// A correlated WebDriver BiDi error envelope remains error evidence and is rejected as
+    /// [`WebDriverBiDiLocateNodesResponseEnvelopeError::CorrelatedErrorResponse`]. This explicit
+    /// fail-closed conversion prevents downstream result/node admission code from accidentally
+    /// erasing the protocol response kind while reusing exact command correlation evidence.
+    pub fn into_validated_success(
+        self,
+    ) -> Result<
+        ValidatedWebDriverBiDiLocateNodesResponse,
+        WebDriverBiDiLocateNodesResponseEnvelopeError,
+    > {
+        match self.kind {
+            WebDriverBiDiCommandResponseKind::Success => Ok(self.correlated),
+            WebDriverBiDiCommandResponseKind::Error => {
+                Err(WebDriverBiDiLocateNodesResponseEnvelopeError::CorrelatedErrorResponse)
+            }
+        }
+    }
 }
 
 /// Deterministic serialized command envelope for one bounded WebDriver BiDi accessibility query.
+///
+/// Direct identifier-only correlation is intentionally unavailable outside this crate; callers
+/// must classify the response envelope before success evidence can reach result admission.
+///
+/// ```compile_fail
+/// use originweave_core::{WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesCommand};
+///
+/// let query = WebDriverBiDiAccessibilityQuery::new(None, None, 1)?;
+/// let command = WebDriverBiDiLocateNodesCommand::new(1, "context-a", &query)?;
+/// let _ = command.correlate_response_id(1)?;
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
 ///
 /// Construction accepts only a WebDriver BiDi `js-uint` command identifier, a bounded opaque
 /// browsing-context identifier, and an already validated [`WebDriverBiDiAccessibilityQuery`]. The
@@ -105,6 +251,7 @@ impl ValidatedWebDriverBiDiLocateNodesResponse {
 pub struct WebDriverBiDiLocateNodesCommand {
     command_id: u64,
     browsing_context: String,
+    max_node_count: u16,
     json: String,
 }
 
@@ -160,6 +307,7 @@ impl WebDriverBiDiLocateNodesCommand {
         Ok(Self {
             command_id,
             browsing_context: browsing_context.to_owned(),
+            max_node_count: query.max_node_count(),
             json,
         })
     }
@@ -192,9 +340,11 @@ impl WebDriverBiDiLocateNodesCommand {
     ///
     /// The response identifier is validated against WebDriver BiDi's `js-uint` range before exact
     /// equality is checked. Success consumes the command and returns non-cloneable correlation
-    /// evidence, preventing this command value from being reused to validate another response.
-    /// This does not parse a response, authenticate the transport, or grant browser/Agent authority.
-    pub fn correlate_response_id(
+    /// evidence, preventing this command value from being reused to validate another response. The
+    /// evidence also retains the exact `maxNodeCount` serialized by this command so later result
+    /// admission cannot substitute a different query budget. This does not parse a response,
+    /// authenticate the transport, or grant browser/Agent authority.
+    fn correlate_response_id(
         self,
         response_id: u64,
     ) -> Result<
@@ -216,7 +366,46 @@ impl WebDriverBiDiLocateNodesCommand {
         Ok(ValidatedWebDriverBiDiLocateNodesResponse {
             command_id: self.command_id,
             browsing_context: self.browsing_context,
+            max_node_count: self.max_node_count,
         })
+    }
+
+    /// Consume this command and admit one already classified response envelope for correlation.
+    ///
+    /// A success envelope must carry a response id. A WebDriver BiDi error envelope may have a null
+    /// id when no valid command id can be recovered; that case returns
+    /// [`WebDriverBiDiLocateNodesResponseEnvelopeError::UncorrelatableErrorResponse`] and produces
+    /// no correlation evidence. When an id is present, the same protocol-range and exact-id checks
+    /// as the internal exact-id correlation apply. The returned evidence retains whether the envelope
+    /// was success or error so an error cannot silently become success evidence.
+    ///
+    /// The caller must obtain `kind` and `response_id` from a separately reviewed exact response
+    /// parser. This method does not parse JSON, validate result payload shape, authenticate a browser
+    /// or adapter, admit nodes, or grant policy, typed-input, secret, or Agent authority.
+    pub fn correlate_response_envelope(
+        self,
+        kind: WebDriverBiDiCommandResponseKind,
+        response_id: Option<u64>,
+    ) -> Result<
+        CorrelatedWebDriverBiDiLocateNodesResponse,
+        WebDriverBiDiLocateNodesResponseEnvelopeError,
+    > {
+        let response_id = match (kind, response_id) {
+            (WebDriverBiDiCommandResponseKind::Success, None) => {
+                return Err(WebDriverBiDiLocateNodesResponseEnvelopeError::MissingResponseId);
+            }
+            (WebDriverBiDiCommandResponseKind::Error, None) => {
+                return Err(
+                    WebDriverBiDiLocateNodesResponseEnvelopeError::UncorrelatableErrorResponse,
+                );
+            }
+            (_, Some(response_id)) => response_id,
+        };
+        let correlated = self
+            .correlate_response_id(response_id)
+            .map_err(WebDriverBiDiLocateNodesResponseEnvelopeError::Correlation)?;
+
+        Ok(CorrelatedWebDriverBiDiLocateNodesResponse { kind, correlated })
     }
 }
 

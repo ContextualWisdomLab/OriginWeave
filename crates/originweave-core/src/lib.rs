@@ -33,6 +33,8 @@ mod browser_registry_coverage;
 mod contract_errors;
 mod contracts;
 mod webdriver_bidi_command;
+mod webdriver_bidi_response_document;
+mod webdriver_bidi_result;
 
 pub use browser_authority_registry::BrowserAuthorityRegistry;
 pub use browser_protocol::{
@@ -71,7 +73,16 @@ pub use contracts::{
     SecretDelivery, SessionMode, evaluate_extension_access,
 };
 pub use webdriver_bidi_command::{
-    MAX_WEBDRIVER_BIDI_COMMAND_ID, ValidatedWebDriverBiDiLocateNodesResponse,
+    CorrelatedWebDriverBiDiLocateNodesResponse, MAX_WEBDRIVER_BIDI_COMMAND_ID,
+    ValidatedWebDriverBiDiLocateNodesResponse, WebDriverBiDiCommandResponseKind,
     WebDriverBiDiLocateNodesCommand, WebDriverBiDiLocateNodesCommandError,
     WebDriverBiDiLocateNodesResponseCorrelationError,
+    WebDriverBiDiLocateNodesResponseEnvelopeError,
+};
+pub use webdriver_bidi_response_document::{
+    BoundedWebDriverBiDiResponseDocument, MAX_WEBDRIVER_BIDI_RESPONSE_DOCUMENT_BYTES,
+    WebDriverBiDiResponseDocumentAdmissionError,
+};
+pub use webdriver_bidi_result::{
+    ValidatedWebDriverBiDiLocateNodesResult, WebDriverBiDiLocateNodesResultAdmissionError,
 };

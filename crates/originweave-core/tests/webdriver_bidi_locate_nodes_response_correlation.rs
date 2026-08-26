@@ -2,7 +2,9 @@ use std::error::Error;
 
 use originweave_core::{
     MAX_WEBDRIVER_BIDI_COMMAND_ID, WebDriverBiDiAccessibilityQuery,
-    WebDriverBiDiLocateNodesCommand, WebDriverBiDiLocateNodesResponseCorrelationError,
+    WebDriverBiDiCommandResponseKind, WebDriverBiDiLocateNodesCommand,
+    WebDriverBiDiLocateNodesResponseCorrelationError,
+    WebDriverBiDiLocateNodesResponseEnvelopeError,
 };
 
 fn locate_nodes_command(
@@ -18,7 +20,9 @@ fn locate_nodes_command(
 
 #[test]
 fn locate_nodes_response_requires_exact_command_id() -> Result<(), Box<dyn Error>> {
-    let correlated = locate_nodes_command(42)?.correlate_response_id(42)?;
+    let correlated = locate_nodes_command(42)?
+        .correlate_response_envelope(WebDriverBiDiCommandResponseKind::Success, Some(42))?
+        .into_validated_success()?;
 
     assert_eq!(correlated.command_id(), 42);
     assert_eq!(correlated.browsing_context(), "context-a");
@@ -27,16 +31,17 @@ fn locate_nodes_response_requires_exact_command_id() -> Result<(), Box<dyn Error
 
 #[test]
 fn locate_nodes_response_rejects_mismatched_command_id() -> Result<(), Box<dyn Error>> {
-    let error = locate_nodes_command(42)?.correlate_response_id(41);
+    let error = locate_nodes_command(42)?
+        .correlate_response_envelope(WebDriverBiDiCommandResponseKind::Success, Some(41));
 
     assert_eq!(
         error,
-        Err(
+        Err(WebDriverBiDiLocateNodesResponseEnvelopeError::Correlation(
             WebDriverBiDiLocateNodesResponseCorrelationError::ResponseIdMismatch {
                 expected: 42,
                 actual: 41,
             }
-        )
+        ))
     );
     Ok(())
 }
@@ -44,11 +49,16 @@ fn locate_nodes_response_rejects_mismatched_command_id() -> Result<(), Box<dyn E
 #[test]
 fn locate_nodes_response_rejects_out_of_range_id_before_correlation() -> Result<(), Box<dyn Error>>
 {
-    let error = locate_nodes_command(1)?.correlate_response_id(MAX_WEBDRIVER_BIDI_COMMAND_ID + 1);
+    let error = locate_nodes_command(1)?.correlate_response_envelope(
+        WebDriverBiDiCommandResponseKind::Success,
+        Some(MAX_WEBDRIVER_BIDI_COMMAND_ID + 1),
+    );
 
     assert_eq!(
         error,
-        Err(WebDriverBiDiLocateNodesResponseCorrelationError::InvalidResponseId)
+        Err(WebDriverBiDiLocateNodesResponseEnvelopeError::Correlation(
+            WebDriverBiDiLocateNodesResponseCorrelationError::InvalidResponseId
+        ))
     );
     Ok(())
 }

@@ -227,6 +227,26 @@ impl BrowserAuthorityRegistry {
         self.current_epoch(browsing_context)
     }
 
+    /// Require an opaque external browsing-context identifier to name this exact context.
+    ///
+    /// This read-only check binds transport-level context text back to the already-registered
+    /// OriginWeave session/context pair. It never registers a new external context as a side effect,
+    /// so an untrusted result cannot create authority merely by presenting a different identifier.
+    pub(crate) fn require_context_external_identifier(
+        &self,
+        browser_session: BrowserSessionId,
+        browsing_context: BrowsingContextId,
+        external_identifier: &str,
+    ) -> Result<(), BrowserRegistryError> {
+        validate_external_identifier(external_identifier)?;
+        self.current_context_epoch(browser_session, browsing_context)?;
+        let key = (browser_session, external_identifier.to_owned());
+        if self.context_by_external.get(&key).copied() != Some(browsing_context) {
+            return Err(BrowserRegistryError::ContextExternalIdentifierMismatch);
+        }
+        Ok(())
+    }
+
     /// Bind the canonical origin observed for the exact current browser document.
     ///
     /// This boundary lets a trusted browser adapter establish current document-origin state before
@@ -420,6 +440,8 @@ pub enum BrowserRegistryError {
         /// Session supplied by the current caller.
         actual: BrowserSessionId,
     },
+    /// The transport-level browsing-context identifier does not name the supplied registered context.
+    ContextExternalIdentifierMismatch,
     /// The current document has no canonical origin bound to the browsing context.
     ContextOriginNotBound,
     /// The context origin changed without first rotating the document epoch.
@@ -449,6 +471,9 @@ impl fmt::Display for BrowserRegistryError {
                 "browsing context belongs to session {}, not session {}",
                 expected.value(),
                 actual.value()
+            ),
+            Self::ContextExternalIdentifierMismatch => formatter.write_str(
+                "browsing context external identifier does not match the registered context",
             ),
             Self::ContextOriginNotBound => formatter.write_str(
                 "browsing context has no canonical origin bound for the current document",
@@ -627,6 +652,18 @@ mod tests {
         let contexts = values(registry.register_context(session, "context-a"));
         assert_eq!(contexts.len(), 1);
         let context = contexts[0];
+        assert_eq!(
+            registry.require_context_external_identifier(session, context, "context-a"),
+            Ok(())
+        );
+        assert_eq!(
+            registry.require_context_external_identifier(session, context, "context-b"),
+            Err(BrowserRegistryError::ContextExternalIdentifierMismatch)
+        );
+        assert_eq!(
+            registry.require_context_external_identifier(session, context, ""),
+            Err(BrowserRegistryError::InvalidExternalIdentifier)
+        );
 
         let maximum_epochs = values(DocumentEpoch::new(u64::MAX));
         assert_eq!(maximum_epochs.len(), 1);
@@ -641,6 +678,14 @@ mod tests {
         let unknown_contexts = values(BrowsingContextId::new(999));
         assert_eq!(unknown_sessions.len(), 1);
         assert_eq!(unknown_contexts.len(), 1);
+        assert_eq!(
+            registry.require_context_external_identifier(unknown_sessions[0], context, "context-a"),
+            Err(BrowserRegistryError::UnknownBrowserSession)
+        );
+        assert_eq!(
+            registry.require_context_external_identifier(session, unknown_contexts[0], "context-a"),
+            Err(BrowserRegistryError::UnknownBrowsingContext)
+        );
         assert_eq!(
             registry.bind_node(unknown_sessions[0], context, origin, "node"),
             Err(BrowserRegistryError::UnknownBrowserSession)
@@ -803,6 +848,7 @@ mod tests {
                 expected: expected_values[0],
                 actual: actual_values[0],
             },
+            BrowserRegistryError::ContextExternalIdentifierMismatch,
             BrowserRegistryError::ContextOriginNotBound,
             BrowserRegistryError::OriginChangedWithoutDocumentAdvance,
             BrowserRegistryError::IdentifierSpaceExhausted,
