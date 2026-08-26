@@ -22,6 +22,14 @@ class WebDriverBiDiConnectTargetGovernanceTests(unittest.TestCase):
         self.assertIn("no socket I/O", changelog)
         self.assertIn("no Agent authority", changelog)
 
+    def test_changelog_records_exact_connected_peer_verification_boundary(self) -> None:
+        """Verified socket-peer metadata must be visible without overstating transport trust."""
+        changelog = CHANGELOG.read_text(encoding="utf-8")
+        self.assertIn("Exact WebDriver BiDi socket-peer verification", changelog)
+        self.assertIn("IP address and port", changelog)
+        self.assertIn("does not authenticate an OS process", changelog)
+        self.assertIn("does not negotiate TLS", changelog)
+
 
 if __name__ == "__main__":
     unittest.main()
