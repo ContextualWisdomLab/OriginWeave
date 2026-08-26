@@ -65,6 +65,86 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
             validate_state(hostile_state)
         self.assertNotIn(hostile_state, str(raised.exception))
 
+    def test_browser_session_cleanup_never_uses_catch_all_suppression(self) -> None:
+        """MV3 and Agent Task cleanup must fail closed without catch-all suppression."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="browser_cleanup_contract")
+        for function_name in ("_run_browser_pass", "_run_agent_task_browser_pass"):
+            source = inspect.getsource(namespace[function_name])
+            with self.subTest(function_name=function_name):
+                self.assertNotIn("contextlib.suppress(Exception)", source)
+
+    def test_expected_cleanup_failure_preserves_the_primary_browser_failure(self) -> None:
+        """A recoverable DELETE failure must retain the causal browser-pass failure."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="cleanup_cause_contract")
+        self.assertIn("_cleanup_browser_session_preserving_primary", namespace)
+        self.assertIn("BrowserSessionCleanupError", namespace)
+        cleanup = namespace["_cleanup_browser_session_preserving_primary"]
+        cleanup_error_type = namespace["BrowserSessionCleanupError"]
+        primary = RuntimeError("primary browser failure")
+
+        def expected_cleanup_failure(*_args: object, **_kwargs: object) -> None:
+            raise OSError("host-controlled cleanup detail")
+
+        cleanup.__globals__["_cleanup_browser_session"] = expected_cleanup_failure
+        with self.assertRaises(cleanup_error_type) as raised:
+            cleanup(9515, "session-1", primary)
+        self.assertIs(raised.exception.__cause__, primary)
+        self.assertEqual(raised.exception.cleanup_error_type, "OSError")
+        self.assertNotIn("host-controlled cleanup detail", str(raised.exception))
+
+    def test_unexpected_cleanup_programming_failure_is_not_normalized(self) -> None:
+        """Programming failures in cleanup must propagate rather than enter fallback handling."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="cleanup_programming_contract")
+        self.assertIn("_cleanup_browser_session_preserving_primary", namespace)
+        cleanup = namespace["_cleanup_browser_session_preserving_primary"]
+        primary = RuntimeError("primary browser failure")
+
+        def unexpected_cleanup_failure(*_args: object, **_kwargs: object) -> None:
+            raise AssertionError("unexpected cleanup programming failure")
+
+        cleanup.__globals__["_cleanup_browser_session"] = unexpected_cleanup_failure
+        with self.assertRaisesRegex(
+            AssertionError,
+            r"^unexpected cleanup programming failure$",
+        ):
+            cleanup(9515, "session-1", primary)
+
+    def test_agent_task_profile_cleanup_evidence_records_a_real_transition(self) -> None:
+        """Profile cleanup evidence must prove the profile existed before it became absent."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="profile_cleanup_contract")
+        trial_source = inspect.getsource(namespace["_run_agent_task_trial"])
+        self.assertIn("profile_observed_before_cleanup", trial_source)
+        self.assertIn("temporary_profile.cleanup()", trial_source)
+        self.assertNotIn("with tempfile.TemporaryDirectory", trial_source)
+
+    def test_agent_task_surface_completeness_is_non_vacuous(self) -> None:
+        """Surface completeness must be false for empty or failed-trial evidence."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_surface_contract")
+        self.assertIn("_agent_task_surfaces_complete", namespace)
+        surfaces_complete = namespace["_agent_task_surfaces_complete"]
+        self.assertFalse(surfaces_complete([]))
+        self.assertFalse(surfaces_complete([{"trial_number": 1, "passed": False}]))
+        self.assertTrue(
+            surfaces_complete(
+                [
+                    {
+                        "trial_number": 1,
+                        "passed": True,
+                        "post_condition": True,
+                        "input_echo_verified": True,
+                        "url_unchanged": True,
+                        "extensions_disabled": True,
+                        "profile_cleaned": True,
+                    }
+                ]
+            )
+        )
+
     def test_agent_task_session_cleanup_never_suppresses_programming_failures(self) -> None:
         """Unexpected cleanup defects must fail closed instead of becoming successful evidence."""
 
