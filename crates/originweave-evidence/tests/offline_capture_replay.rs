@@ -1,10 +1,11 @@
 #![allow(clippy::expect_used)]
 
 use originweave_evidence::{
-    CaptureManifest, CaptureManifestValueBinding, CaptureManifestVerificationError,
-    EvidenceSourceKind, ExtractionCardinality, ExtractionField, ExtractionSchema,
-    ExtractionSourceChannel, ExtractionValueType, OfflineReplayVerificationError, ProvenanceRecord,
-    VerificationResult, WarcProvBundle, WarcResourceRecord, verify_offline_capture_package,
+    CaptureManifest, CaptureManifestError, CaptureManifestValueBinding,
+    CaptureManifestVerificationError, EvidenceSourceKind, ExtractionCardinality, ExtractionField,
+    ExtractionSchema, ExtractionSourceChannel, ExtractionValueType, OfflineReplayVerificationError,
+    ProvenanceRecord, VerificationResult, WarcProvBundle, WarcResourceRecord,
+    verify_offline_capture_package,
 };
 
 const SOURCE_HASH: &str = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
@@ -133,6 +134,35 @@ fn offline_replay_rejects_structured_result_identity_drift() {
         ),
         Err(OfflineReplayVerificationError::Evidence(
             CaptureManifestVerificationError::IdentityMismatch,
+        ))
+    );
+}
+
+#[test]
+fn offline_replay_rejects_missing_warc_evidence() {
+    let schema = schema();
+    let record = resource_record();
+    let bundle = WarcProvBundle::new(&record, SOFTWARE_COMMIT_SHA).expect("PROV bundle");
+    let value =
+        CaptureManifestValueBinding::new("title", VALUE_HASH, RECORD_ID).expect("value binding");
+    let manifest = CaptureManifest::new_with_warc_values(
+        &schema,
+        &[(&record, &bundle)],
+        std::slice::from_ref(&value),
+    )
+    .expect("manifest");
+    let serialized_manifest = manifest.to_json();
+
+    assert_eq!(
+        verify_offline_capture_package(
+            &manifest,
+            serialized_manifest.as_bytes(),
+            &schema,
+            &[],
+            std::slice::from_ref(&value),
+        ),
+        Err(OfflineReplayVerificationError::Evidence(
+            CaptureManifestVerificationError::InvalidCandidate(CaptureManifestError::MissingRecord),
         ))
     );
 }
