@@ -7,12 +7,12 @@ coverage holes despite exercising the protocol paths. The callback is therefore 
 borrowed trait object at this boundary: its behavior remains stateful and caller
 owned without multiplying production coverage regions.
 
-Likewise, error conversion at the public binding wrapper must use a named production
-function rather than an inline closure. The library is linked into both unit and
-integration-test harnesses; an inline closure can therefore acquire a second uncovered
-instantiation even when the real fail-closed binding path is exercised. Keeping that
-conversion named makes exact coverage represent product behavior rather than linker
-instantiation shape.
+The final node-binding error conversion must also avoid generating a separate closure
+or helper function. The library is linked into both unit and integration-test
+harnesses, and either form can acquire an uncovered duplicate instantiation even when
+the real fail-closed binding path is exercised. A direct match inside the already
+exercised public wrapper keeps the typed error conversion at the causal boundary
+without adding another production symbol for coverage to duplicate.
 """
 
 from __future__ import annotations
@@ -44,10 +44,11 @@ class WebDriverBiDiLocateNodesCoverageShapeTests(unittest.TestCase):
             source,
         )
 
-    def test_node_binding_error_conversion_is_named_not_inline_closure(self) -> None:
+    def test_node_binding_error_conversion_stays_inside_exercised_wrapper(self) -> None:
         source = SOURCE.read_text(encoding="utf-8")
-        self.assertIn("fn map_node_binding_error(", source)
-        self.assertIn(".map_err(map_node_binding_error)?;", source)
+        self.assertIn("let handles = match result.bind_current_nodes(", source)
+        self.assertNotIn("fn map_node_binding_error(", source)
+        self.assertNotIn(".map_err(map_node_binding_error)?;", source)
         self.assertNotIn(".map_err(|error| {", source)
 
 
