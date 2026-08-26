@@ -193,6 +193,12 @@ class RepositoryContractTests(unittest.TestCase):
         changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
         self.assertIn("dispatch_if_context_origin_current", changelog)
 
+    def test_context_origin_epoch_dispatch_is_recorded_in_the_changelog(self) -> None:
+        """The public epoch-gated dispatch boundary must remain visible in release history."""
+
+        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.assertIn("dispatch_if_context_origin_epoch_current", changelog)
+
     def test_database_contract_requires_two_word_snake_case(self) -> None:
         """Persistent naming policy must include the mandated canonical form."""
 
