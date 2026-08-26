@@ -175,6 +175,12 @@ class RepositoryContractTests(unittest.TestCase):
             self.assertNotIn("TraceWeave", text, relative)
             self.assertNotIn("ProofRail", text, relative)
 
+    def test_context_origin_revalidation_is_recorded_in_the_changelog(self) -> None:
+        """The public origin-revalidation boundary must remain visible in release history."""
+
+        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.assertIn("BrowserAuthorityRegistry::require_context_origin", changelog)
+
     def test_database_contract_requires_two_word_snake_case(self) -> None:
         """Persistent naming policy must include the mandated canonical form."""
 
