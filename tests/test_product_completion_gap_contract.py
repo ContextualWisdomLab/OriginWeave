@@ -20,6 +20,7 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "126 open pull requests",
             "54 non-draft",
             "72 draft",
+            "2026-08-24 158-PR snapshot",
             "#198",
             "#199",
             "#200",
@@ -44,6 +45,7 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "40 non-draft",
             "110 draft",
             "150 open pull requests",
+            "prior 150-PR snapshot",
             "128 open pull requests",
             "74 draft",
         ):
