@@ -17,9 +17,9 @@ class ProductCompletionGapContractTests(unittest.TestCase):
         text = BASELINE.read_text(encoding="utf-8")
 
         for phrase in (
-            "128 open pull requests",
+            "126 open pull requests",
             "54 non-draft",
-            "74 draft",
+            "72 draft",
             "#198",
             "#199",
             "#200",
@@ -44,6 +44,8 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "40 non-draft",
             "110 draft",
             "150 open pull requests",
+            "128 open pull requests",
+            "74 draft",
         ):
             with self.subTest(stale_phrase=stale_phrase):
                 self.assertNotIn(stale_phrase, text)
