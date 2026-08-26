@@ -23,6 +23,18 @@ pub struct WebDriverBiDiWebSocketEndpoint {
     session_id: String,
 }
 
+/// One admitted WebDriver BiDi WebSocket endpoint correlated to an expected session id.
+///
+/// Correlation proves only that the endpoint resource and the caller-supplied expected session id
+/// contain the same canonical admitted session text. The expected session id must itself come from
+/// a trusted session-creation boundary. This value does not authenticate Chromium, ChromeDriver,
+/// the caller, the operating-system peer, TLS, policy, or Agent authority, and it does not establish
+/// a socket.
+#[derive(Debug, PartialEq, Eq)]
+pub struct CorrelatedWebDriverBiDiWebSocketEndpoint {
+    endpoint: WebDriverBiDiWebSocketEndpoint,
+}
+
 impl WebDriverBiDiWebSocketEndpoint {
     /// Admit one bounded canonical first-fixture WebDriver BiDi endpoint.
     pub fn new(value: &str) -> Result<Self, WebDriverBiDiWebSocketEndpointAdmissionError> {
@@ -128,6 +140,28 @@ impl WebDriverBiDiWebSocketEndpoint {
         })
     }
 
+    /// Correlate this endpoint resource to one exact expected WebDriver session id.
+    ///
+    /// The endpoint is consumed so downstream connection code can require the correlated type and
+    /// cannot accidentally retain an uncorrelated copy. This comparison does not establish that the
+    /// caller-supplied expected id is authentic; the caller must obtain that id from its trusted
+    /// session-creation boundary.
+    pub fn correlate_session_id(
+        self,
+        expected_session_id: &str,
+    ) -> Result<
+        CorrelatedWebDriverBiDiWebSocketEndpoint,
+        WebDriverBiDiWebSocketEndpointCorrelationError,
+    > {
+        if !is_canonical_session_id(expected_session_id) {
+            return Err(WebDriverBiDiWebSocketEndpointCorrelationError::InvalidExpectedSessionId);
+        }
+        if self.session_id != expected_session_id {
+            return Err(WebDriverBiDiWebSocketEndpointCorrelationError::SessionIdMismatch);
+        }
+        Ok(CorrelatedWebDriverBiDiWebSocketEndpoint { endpoint: self })
+    }
+
     /// Return the exact admitted endpoint text.
     #[must_use]
     pub fn as_str(&self) -> &str {
@@ -156,6 +190,38 @@ impl WebDriverBiDiWebSocketEndpoint {
     #[must_use]
     pub fn session_id(&self) -> &str {
         &self.session_id
+    }
+}
+
+impl CorrelatedWebDriverBiDiWebSocketEndpoint {
+    /// Return the exact admitted endpoint text.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        self.endpoint.as_str()
+    }
+
+    /// Return whether the endpoint uses `wss` rather than `ws`.
+    #[must_use]
+    pub const fn is_secure(&self) -> bool {
+        self.endpoint.is_secure()
+    }
+
+    /// Return the canonical loopback listener host without IPv6 brackets.
+    #[must_use]
+    pub fn host(&self) -> &str {
+        self.endpoint.host()
+    }
+
+    /// Return the explicit nonzero listener port.
+    #[must_use]
+    pub const fn port(&self) -> u16 {
+        self.endpoint.port()
+    }
+
+    /// Return the exact session id proven equal to the caller-supplied expected session id.
+    #[must_use]
+    pub fn session_id(&self) -> &str {
+        self.endpoint.session_id()
     }
 }
 
@@ -234,3 +300,28 @@ impl fmt::Display for WebDriverBiDiWebSocketEndpointAdmissionError {
 }
 
 impl std::error::Error for WebDriverBiDiWebSocketEndpointAdmissionError {}
+
+/// Fail-closed errors while correlating an admitted endpoint with an expected session id.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WebDriverBiDiWebSocketEndpointCorrelationError {
+    /// The expected session id is not an admitted canonical W3C/ChromeDriver representation.
+    InvalidExpectedSessionId,
+    /// The endpoint resource belongs to a different canonical session id.
+    SessionIdMismatch,
+}
+
+impl fmt::Display for WebDriverBiDiWebSocketEndpointCorrelationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let message = match self {
+            Self::InvalidExpectedSessionId => {
+                "expected WebDriver session id is not an admitted canonical representation"
+            }
+            Self::SessionIdMismatch => {
+                "WebDriver BiDi WebSocket endpoint session id does not match the expected session"
+            }
+        };
+        f.write_str(message)
+    }
+}
+
+impl std::error::Error for WebDriverBiDiWebSocketEndpointCorrelationError {}
