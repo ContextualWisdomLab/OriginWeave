@@ -15,7 +15,8 @@ use originweave_network::{
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
 const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
-const REUSED_MASK_REASON: &str = "client masking key was already used on this established WebSocket";
+const REUSED_MASK_REASON: &str =
+    "client masking key was already used on this established WebSocket";
 
 fn connect(
     endpoint: &str,
