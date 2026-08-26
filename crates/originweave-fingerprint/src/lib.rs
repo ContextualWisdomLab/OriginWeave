@@ -373,7 +373,11 @@ impl PresentationProfile {
         if viewport.width_px > screen.width_px || viewport.height_px > screen.height_px {
             return Err(PresentationError::InconsistentIdentity);
         }
-        if !HARDWARE_CONCURRENCY_SET.contains(&hardware_concurrency) {
+        if !SCREEN_SET.contains(&(screen.width_px, screen.height_px))
+            || !VIEWPORT_WIDTH_SET.contains(&viewport.width_px)
+            || !VIEWPORT_HEIGHT_SET.contains(&viewport.height_px)
+            || !HARDWARE_CONCURRENCY_SET.contains(&hardware_concurrency)
+        {
             return Err(PresentationError::InvalidField);
         }
         validate_languages(&languages)?;
@@ -875,6 +879,50 @@ mod tests {
                 false
             ),
             Err(PresentationError::InconsistentIdentity)
+        );
+
+        // Trusted replay cannot reintroduce high-entropy arbitrary dimensions.
+        let odd_screen = ScreenMetrics::new(1919, 1080).expect("bounded screen");
+        assert_eq!(
+            PresentationProfile::new(
+                odd_screen,
+                ViewportBounds::new(1024, 600).expect("viewport"),
+                DevicePixelRatio::Quantized1,
+                8,
+                PresentationTimeZone::Utc,
+                PresentationPlatform::Linux,
+                vec!["en".to_owned()],
+                false
+            ),
+            Err(PresentationError::InvalidField)
+        );
+        let odd_viewport = ViewportBounds::new(1919, 900).expect("bounded viewport");
+        assert_eq!(
+            PresentationProfile::new(
+                screen,
+                odd_viewport,
+                DevicePixelRatio::Quantized1,
+                8,
+                PresentationTimeZone::Utc,
+                PresentationPlatform::Linux,
+                vec!["en".to_owned()],
+                false
+            ),
+            Err(PresentationError::InvalidField)
+        );
+        let odd_viewport_height = ViewportBounds::new(1920, 899).expect("bounded viewport");
+        assert_eq!(
+            PresentationProfile::new(
+                screen,
+                odd_viewport_height,
+                DevicePixelRatio::Quantized1,
+                8,
+                PresentationTimeZone::Utc,
+                PresentationPlatform::Linux,
+                vec!["en".to_owned()],
+                false
+            ),
+            Err(PresentationError::InvalidField)
         );
 
         // Processor count outside the enumerated set is rejected.
