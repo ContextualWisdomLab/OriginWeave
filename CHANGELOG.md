@@ -51,6 +51,10 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Removed unsupported uniform seed-based presentation selection; the privacy
+  kernel now validates explicit coherent profiles and leaves default selection
+  unavailable until cited cohort evidence defines a defensible anonymity set.
+
 - Refreshed the product-gap baseline with exact current presentation and
   WebDriver BiDi heads, non-draft stack state, and the zero-release/tag truth.
 

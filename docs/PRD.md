@@ -186,7 +186,7 @@ public-crawl purpose
 | PRD-COMP-002 | Maintain a Manifest V3 compatibility matrix and representative extension test farm | Planned | Partial protected-main pinned-Chromium evidence covers service worker, content script, storage, DNR, tabs, windows, scripting, commands, side panel, bookmarks, history, restart and repeatability; active PR #43 adds bounded real downloads evidence; issue #27 still owns the complete matrix/release acceptance |
 | PRD-COMP-003 | Chromium-specific integrations remain behind versioned adapters | Planned | Adapter strategy ADR 0107 |
 | PRD-COMP-004 | Headless runtime remains independently usable without the interactive browser UI | Planned | Modular architecture target |
-| PRD-COMP-005 | Governed sessions minimize ambient host fingerprint leakage through a bounded, internally consistent presentation identity | Proposed | Local `originweave-fingerprint` kernel evidence and Proposed ADR 0110; Chromium application and real cross-surface evidence remain unshipped |
+| PRD-COMP-005 | Governed sessions minimize ambient host fingerprint leakage through a bounded, internally consistent presentation identity | Proposed | Local `originweave-fingerprint` explicit-validation kernel evidence and Proposed ADR 0110; evidence-backed default selection, Chromium application, and real cross-surface evidence remain unshipped |
 
 ### 9.2 Session and observation authority
 

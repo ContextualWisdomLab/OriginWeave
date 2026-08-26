@@ -27,8 +27,9 @@ not define OriginWeave policy.
 - **Expose host values:** rejected because it leaks ambient device identity.
 - **Randomize fields independently:** rejected because contradictory
   combinations can be more identifying.
-- **Use bounded, coherent presentation classes:** selected for the pure kernel;
-  population-weighted classes remain unavailable without cited evidence.
+- **Validate explicit, coherent presentation classes:** selected for the pure
+  kernel; default and population-weighted selection remain unavailable without
+  cited cohort evidence.
 - **Copy Camoufox anti-detect behavior:** rejected because bypass and
   circumvention are outside OriginWeave's authority model.
 
@@ -45,9 +46,9 @@ contradict one another.
 The adapter must apply every supported surface before page script executes,
 must not fall back to host values for a claimed surface, and must preserve the
 actual Chromium engine/platform family. Unsupported surfaces fail closed or
-remain explicitly ambient and unreleased. The seed, if used for lifecycle
-selection, is trusted control-plane material and never enters page, model, log,
-or evidence context.
+remain explicitly ambient and unreleased. Default profile selection remains unavailable;
+cited cohort evidence must first define a defensible anonymity set, and
+the kernel does not invent uniform weights or per-session random identities.
 
 Before launch, an adapter must pass the kernel's deterministic surface
 admission check. Missing screen, viewport, pixel ratio, hardware concurrency,
@@ -72,25 +73,24 @@ independent Cartesian sampling are permitted.
 ## Failure and degraded behavior
 
 Construction rejects values outside the enumerated screen, viewport, and
-processor classes or combinations whose viewport exceeds the screen. A future
-adapter must fail closed for any surface it claims to control; unimplemented
-surfaces remain ambient and unreleased.
+processor classes or combinations whose viewport exceeds the screen. The
+kernel offers no default profile selection. A future adapter must fail closed
+for any surface it claims to control; unimplemented surfaces remain ambient
+and unreleased.
 
 ## Security, privacy, and governance impact
 
-Seeds remain trusted control-plane material and cannot enter page, model, log,
-or evidence context. The digest is an integrity identifier, not authentication
-or authorization. Presentation identity never grants origin, transport,
-extension, secret, or action authority.
+The digest is an integrity identifier, not authentication or authorization.
+Presentation identity never grants origin, transport, extension, secret, or
+action authority.
 
 ## Tests and acceptance evidence
 
-Unit and integration tests cover deterministic derivation, independent seed
-results, enumerated construction, cross-field consistency, standardized UTC
-identity, canonical digest validation, malformed input rejection, complete
-surface admission, and exact missing-surface evidence. Browser acceptance
-remains blocked on pinned real-Chromium pre-script injection and host-fallback
-evidence.
+Unit and integration tests cover explicit reconstruction and digest stability,
+enumerated construction, cross-field consistency, standardized UTC identity,
+canonical digest validation, malformed input rejection, complete surface
+admission, and exact missing-surface evidence. Browser acceptance remains
+blocked on pinned real-Chromium pre-script injection and host-fallback evidence.
 
 ## Migration and rollback
 

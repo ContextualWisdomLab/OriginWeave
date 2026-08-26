@@ -1,6 +1,6 @@
 [package]
 name = "originweave-fingerprint"
-description = "OriginWeave presentation-identity contracts: seeded, internally consistent browser profiles with quantized fingerprint surface."
+description = "OriginWeave presentation-identity contracts: explicit, internally consistent browser profiles with quantized fingerprint surfaces."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

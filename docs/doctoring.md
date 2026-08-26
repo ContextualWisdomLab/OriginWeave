@@ -28,12 +28,14 @@ standardized or null values over randomization, because independently varied
 values can reduce usability and introduce new distinguishers.
 
 OriginWeave consequently separates privacy-preserving presentation
-normalization from block evasion. The Rust kernel accepts only bounded,
-internally consistent profiles and standardizes its first named time-zone
-surface to `UTC`; a future Chromium adapter must apply all claimed surfaces
-before page script and prove that no ambient host value leaks. Camoufox is
-reviewed only as implementation precedent for native-layer consistency, not as
-policy authority for anti-detect, CAPTCHA, or access-control circumvention.
+normalization from block evasion. The Rust kernel accepts only explicit,
+bounded, internally consistent profiles, standardizes its first named
+time-zone surface to `UTC`, and declines to invent a randomized default before
+cited cohort evidence defines a meaningful anonymity set. A future Chromium
+adapter must apply all claimed surfaces before page script and prove that no
+ambient host value leaks. Camoufox is reviewed only as implementation precedent
+for native-layer consistency, not as policy authority for anti-detect, CAPTCHA,
+or access-control circumvention.
 
 The 25 August 2026 WebDriver BiDi Editor's Draft exposes locale, media, screen,
 user-agent, viewport, and time-zone emulation commands, but it does not define a

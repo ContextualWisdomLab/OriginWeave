@@ -1,22 +1,22 @@
-//! Seeded, internally consistent browser presentation identities for
+//! Validated, internally consistent browser presentation identities for
 //! OriginWeave agent sessions.
 //!
 //! Web pages can observe a high-entropy fingerprint derived from the host:
 //! exact screen metrics, processor topology, locale chains, and timezone.
 //! Longitudinal measurement research shows such surfaces are sufficient to
 //! reidentify a browser without cookies (Laperdrix, Bielova, Baudry, & Avoine,
-//! 2020; Cao, Li, & Wijmans, 2017). This kernel gives every governed
-//! session a *presentation identity* instead: a deterministic, internally
-//! consistent Chromium-compatible profile whose values are quantized onto
-//! enumerated plausible classes so the runtime stops leaking host-specific
-//! uniqueness (W3C Fingerprinting Guidance, 2025).
+//! 2020; Cao, Li, & Wijmans, 2017). This kernel validates an explicit
+//! *presentation identity* whose values belong to bounded, internally
+//! consistent Chromium-compatible classes (W3C Fingerprinting Guidance,
+//! 2025). It deliberately does not select a default profile without an
+//! evidence-backed anonymity cohort.
 //!
 //! The kernel is a pure control-plane contract. It never touches the network,
 //! never reads the real machine, and never claims to defeat an access-control
 //! decision: defeating bot-management or consent gates remains prohibited by
 //! the product policy (`docs/PRD.md`, PRD-CRAWL-003). What it provides is the
-//! privacy-preserving, session-stable identity surface that adapters present
-//! to pages, plus a lowercase SHA-256 digest for evidence binding.
+//! validated identity surface that adapters may present to pages, plus a
+//! lowercase SHA-256 digest for evidence binding.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -25,11 +25,9 @@ use sha2::{Digest, Sha256};
 use std::error::Error;
 use std::fmt;
 
-/// A validation or derivation failure for a presentation identity.
+/// A validation failure for a presentation identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PresentationError {
-    /// A seed was the all-zero byte string and cannot be used.
-    DegenerateSeed,
     /// A digest was not `sha256:` followed by 64 lowercase hexadecimal digits.
     InvalidDigest,
     /// A profile field violated its bounded plausibility contract.
@@ -43,7 +41,6 @@ pub enum PresentationError {
 impl fmt::Display for PresentationError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::DegenerateSeed => formatter.write_str("presentation seed must not be all zero"),
             Self::InvalidDigest => {
                 formatter.write_str("digest must be sha256: plus 64 lowercase hex digits")
             }
@@ -64,9 +61,6 @@ impl fmt::Display for PresentationError {
 }
 
 impl Error for PresentationError {}
-
-/// Domain-separation tag for derivation stream expansion.
-const DERIVE_DOMAIN: &[u8] = b"originweave-presentation/v1";
 
 /// A page-observable field that an adapter must override before admission.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -157,16 +151,6 @@ impl ScreenMetrics {
     pub const fn color_depth_bits(&self) -> u8 {
         self.color_depth_bits
     }
-
-    /// Assemble metrics from an enumerated pair already known to satisfy
-    /// the public validating constructor.
-    const fn from_enumerated(width_px: u32, height_px: u32) -> Self {
-        Self {
-            width_px,
-            height_px,
-            color_depth_bits: COLOR_DEPTH_BITS,
-        }
-    }
 }
 
 /// The maximum accepted CSS-pixel edge length for a screen.
@@ -208,15 +192,6 @@ impl ViewportBounds {
     #[must_use]
     pub const fn height(&self) -> u32 {
         self.height_px
-    }
-
-    /// Assemble bounds from an enumerated pair already known to satisfy the
-    /// public validating constructor.
-    const fn from_enumerated(width_px: u32, height_px: u32) -> Self {
-        Self {
-            width_px,
-            height_px,
-        }
     }
 }
 
@@ -302,30 +277,6 @@ impl PresentationPlatform {
             Self::MacOS => "MacIntel",
             Self::Linux => "Linux x86_64",
         }
-    }
-}
-
-/// A validated 32-byte session seed for presentation derivation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct PresentationSeed([u8; 32]);
-
-impl PresentationSeed {
-    /// Validate one seed; the all-zero seed cannot drive derivation.
-    pub const fn new(bytes: [u8; 32]) -> Result<Self, PresentationError> {
-        let mut index = 0;
-        while index < bytes.len() {
-            if bytes[index] != 0 {
-                return Ok(Self(bytes));
-            }
-            index += 1;
-        }
-        Err(PresentationError::DegenerateSeed)
-    }
-
-    /// Return the seed bytes.
-    #[must_use]
-    pub const fn bytes(&self) -> &[u8; 32] {
-        &self.0
     }
 }
 
@@ -510,73 +461,6 @@ impl PresentationProfile {
         PresentationDigest(text)
     }
 
-    /// Derive one deterministic profile from a session seed.
-    ///
-    /// The same seed always yields the identical profile and digest, so a
-    /// session keeps a stable identity across navigations; rotating identity
-    /// requires issuing a new seed at the control plane. Derivation is total:
-    /// every selected value comes from a validated enumerated set.
-    #[must_use]
-    pub fn derive(seed: &PresentationSeed) -> Self {
-        let screen_index = select_index(seed, 0, SCREEN_SET.len());
-        let (screen_width, screen_height) = SCREEN_SET[screen_index];
-
-        let platform_index = select_index(seed, 5, 3);
-        let platform = [
-            PresentationPlatform::Windows,
-            PresentationPlatform::MacOS,
-            PresentationPlatform::Linux,
-        ][platform_index];
-        let ratios: &[DevicePixelRatio] = match platform {
-            PresentationPlatform::MacOS => {
-                &[DevicePixelRatio::Quantized1, DevicePixelRatio::Quantized2]
-            }
-            PresentationPlatform::Windows | PresentationPlatform::Linux => &[
-                DevicePixelRatio::Quantized1,
-                DevicePixelRatio::Quantized15,
-                DevicePixelRatio::Quantized2,
-            ],
-        };
-        let device_pixel_ratio = ratios[select_index(seed, 1, ratios.len())];
-
-        let eligible_widths: Vec<u32> = VIEWPORT_WIDTH_SET
-            .into_iter()
-            .filter(|width| *width <= screen_width)
-            .collect();
-        let eligible_heights: Vec<u32> = VIEWPORT_HEIGHT_SET
-            .into_iter()
-            .filter(|height| *height <= screen_height)
-            .collect();
-        let width_index = select_index(seed, 2, eligible_widths.len());
-        let height_index = select_index(seed, 3, eligible_heights.len());
-
-        let concurrency_index = select_index(seed, 4, HARDWARE_CONCURRENCY_SET.len());
-        let hardware_concurrency = HARDWARE_CONCURRENCY_SET[concurrency_index];
-
-        let language_index = select_index(seed, 6, FIRST_LANGUAGE_SET.len());
-        let mut languages = vec![FIRST_LANGUAGE_SET[language_index].to_owned()];
-        if select_index(seed, 7, 2) == 1 {
-            languages.push(SECOND_LANGUAGE.to_owned());
-        }
-
-        let screen = ScreenMetrics::from_enumerated(screen_width, screen_height);
-        let viewport = ViewportBounds::from_enumerated(
-            eligible_widths[width_index],
-            eligible_heights[height_index],
-        );
-
-        Self::assemble(
-            screen,
-            viewport,
-            device_pixel_ratio,
-            hardware_concurrency,
-            PresentationTimeZone::Utc,
-            platform,
-            languages,
-            select_index(seed, 8, 2) == 1,
-        )
-    }
-
     /// Return the validated screen metrics.
     #[must_use]
     pub const fn screen(&self) -> &ScreenMetrics {
@@ -671,65 +555,14 @@ const fn hex_digit(value: u8) -> char {
     }
 }
 
-/// Select one uniform index from a counter-expanded SHA-256 stream block.
-///
-/// Modulo selection over `u64` keeps relative bias below 2^-53 for every
-/// enumerated set used here because each set size stays far below 2^53.
-fn select_index(seed: &PresentationSeed, slot: usize, set_size: usize) -> usize {
-    let stream = expand_stream(seed, slot as u32);
-    let word = u64::from_be_bytes(stream);
-    (word % set_size as u64) as usize
-}
-
-fn expand_stream(seed: &PresentationSeed, slot: u32) -> [u8; 8] {
-    let mut hasher_input = [0u8; 32 + DERIVE_DOMAIN.len() + 4];
-    let mut cursor = 0;
-    while cursor < DERIVE_DOMAIN.len() {
-        hasher_input[cursor] = DERIVE_DOMAIN[cursor];
-        cursor += 1;
-    }
-    while cursor < 32 + DERIVE_DOMAIN.len() {
-        hasher_input[cursor] = seed.0[cursor - DERIVE_DOMAIN.len()];
-        cursor += 1;
-    }
-    let slot_bytes = slot.to_le_bytes();
-    hasher_input[cursor] = slot_bytes[0];
-    hasher_input[cursor + 1] = slot_bytes[1];
-    hasher_input[cursor + 2] = slot_bytes[2];
-    hasher_input[cursor + 3] = slot_bytes[3];
-
-    // The constant-size input lets this run without heap allocation while the
-    // caller still receives the first eight bytes of one SHA-256 evaluation.
-    let mut state = Sha256::new();
-    state.update(hasher_input);
-    let finalized = state.finalize();
-    let mut output = [0u8; 8];
-    let mut index = 0;
-    while index < 8 {
-        output[index] = finalized[index];
-        index += 1;
-    }
-    output
-}
-
 #[cfg(test)]
 mod tests {
     #![allow(clippy::expect_used)]
 
     use super::*;
 
-    const SEED: [u8; 32] = [7u8; 32];
-
-    fn seed() -> PresentationSeed {
-        PresentationSeed::new(SEED).expect("valid seed")
-    }
-
     #[test]
     fn presentation_error_display_covers_every_variant() {
-        assert_eq!(
-            PresentationError::DegenerateSeed.to_string(),
-            "presentation seed must not be all zero"
-        );
         assert_eq!(
             PresentationError::InvalidDigest.to_string(),
             "digest must be sha256: plus 64 lowercase hex digits"
@@ -1052,18 +885,6 @@ mod tests {
     }
 
     #[test]
-    fn select_index_stays_within_bounds_for_small_and_large_sets() {
-        for slot in 0..12usize {
-            for size in [1usize, 2, 3, 8, 27] {
-                let index = select_index(&seed(), slot, size);
-                assert!(index < size);
-            }
-        }
-        // A degenerate set of one collapses deterministically to zero.
-        assert_eq!(select_index(&seed(), 0, 1), 0);
-    }
-
-    #[test]
     fn enumerated_sets_satisfy_their_public_validation_contracts() {
         // Every enumerated screen must pass the validating constructor, and
         // every enumerated viewport pair filtered to that screen likewise.
@@ -1108,34 +929,5 @@ mod tests {
             );
         }
         assert_eq!(SECOND_LANGUAGE, "en");
-    }
-
-    #[test]
-    fn derive_is_stable_across_all_slots_of_two_seeds() {
-        let other = PresentationSeed::new([1u8; 32]).expect("seed");
-        let left = PresentationProfile::derive(&seed());
-        let right = PresentationProfile::derive(&other);
-        assert_ne!(left.digest(), right.digest());
-        // Re-derivation reproduces the exact same digest text.
-        assert_eq!(
-            PresentationProfile::derive(&seed()).digest().as_str(),
-            left.digest().as_str()
-        );
-    }
-
-    #[test]
-    fn derivation_exercises_optional_second_language() {
-        assert_eq!(
-            PresentationSeed::new([0; 32]),
-            Err(PresentationError::DegenerateSeed)
-        );
-        let mut observed_lengths = std::collections::BTreeSet::new();
-        for last_byte in 0..=u8::MAX {
-            let mut bytes = [1u8; 32];
-            bytes[31] = last_byte;
-            let seed = PresentationSeed::new(bytes).expect("nonzero seed");
-            observed_lengths.insert(PresentationProfile::derive(&seed).languages().len());
-        }
-        assert_eq!(observed_lengths, std::collections::BTreeSet::from([1, 2]));
     }
 }

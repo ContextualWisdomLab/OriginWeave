@@ -182,10 +182,11 @@ No HTTP adapter may reconnect by hostname behind the authority stack without a n
 ### 6.8 Presentation identity
 
 **Active-PR kernel evidence; Chromium adapter planned.**
-`originweave-fingerprint` owns pure validated presentation
-profiles and evidence digests. The first named time-zone identity is
-standardized to `UTC`, avoiding disagreement between IANA name and DST-sensitive
-offsets. A versioned Chromium adapter remains required to apply every claimed
+`originweave-fingerprint` owns pure, explicitly constructed presentation
+profiles and evidence digests. It does not select a default profile without an
+evidence-backed cohort. The first named time-zone identity is standardized to
+`UTC`, avoiding disagreement between IANA name and DST-sensitive offsets. A
+versioned Chromium adapter remains required to apply every claimed
 surface before page script, preserve the actual engine/platform family, and
 prove no ambient host fallback. This privacy boundary grants no CAPTCHA,
 bot-management, or access-control bypass authority. The kernel admits an adapter
