@@ -109,7 +109,9 @@ fn locate_nodes_command() -> Result<WebDriverBiDiLocateNodesCommand, Box<dyn Err
     )?)
 }
 
-fn establish_with_ping_sequence(read_first_pong: bool) -> Result<EstablishedServer, Box<dyn Error>> {
+fn establish_with_ping_sequence(
+    read_first_pong: bool,
+) -> Result<EstablishedServer, Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let server = thread::spawn(move || -> io::Result<()> {
@@ -144,8 +146,8 @@ fn join_server(server: thread::JoinHandle<io::Result<()>>) -> Result<(), Box<dyn
 }
 
 #[test]
-fn locate_nodes_exchange_rejects_pong_mask_reused_from_command_frame()
--> Result<(), Box<dyn Error>> {
+fn locate_nodes_exchange_rejects_pong_mask_reused_from_command_frame() -> Result<(), Box<dyn Error>>
+{
     let (established, server) = establish_with_ping_sequence(false)?;
     let exchanged = established.exchange_locate_nodes(
         locate_nodes_command()?,
@@ -162,8 +164,7 @@ fn locate_nodes_exchange_rejects_pong_mask_reused_from_command_frame()
 }
 
 #[test]
-fn locate_nodes_exchange_rejects_pong_mask_reused_from_prior_pong()
--> Result<(), Box<dyn Error>> {
+fn locate_nodes_exchange_rejects_pong_mask_reused_from_prior_pong() -> Result<(), Box<dyn Error>> {
     let (established, server) = establish_with_ping_sequence(true)?;
     let mut keys = [PONG_MASK, PONG_MASK].into_iter();
     let exchanged = established.exchange_locate_nodes(
