@@ -4,7 +4,7 @@ use originweave_core::WebDriverBiDiWebSocketEndpoint;
 
 use crate::{
     WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
-    WebDriverBiDiWebSocketHandshakePlan,
+    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
     webdriver_bidi_websocket_handshake_raw::WebDriverBiDiWebSocketHandshakePlan as RawWebDriverBiDiWebSocketHandshakePlan,
 };
 
@@ -19,6 +19,18 @@ fn client_key_debug_redacts_client_nonce() {
     let debug = format!("{client_key:?}");
     assert!(debug.contains("<redacted WebSocket client nonce>"));
     assert!(!debug.contains(CLIENT_KEY));
+}
+
+#[test]
+fn masking_key_debug_redacts_frame_entropy() {
+    let masking_key = WebDriverBiDiWebSocketMaskKey::new([17, 34, 51, 68]);
+
+    let debug = format!("{masking_key:?}");
+    assert!(debug.contains("<redacted WebSocket masking key>"));
+    assert!(!debug.contains("17"));
+    assert!(!debug.contains("34"));
+    assert!(!debug.contains("51"));
+    assert!(!debug.contains("68"));
 }
 
 #[test]
