@@ -36,17 +36,30 @@ pub enum PresentationError {
     InvalidField,
     /// Cross-field consistency failed (for example viewport exceeds screen).
     InconsistentIdentity,
+    /// An adapter cannot override one required observable surface.
+    MissingSurface(PresentationSurface),
 }
 
 impl fmt::Display for PresentationError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let message = match self {
-            Self::DegenerateSeed => "presentation seed must not be all zero",
-            Self::InvalidDigest => "digest must be sha256: plus 64 lowercase hex digits",
-            Self::InvalidField => "presentation field violates its bounded contract",
-            Self::InconsistentIdentity => "presentation fields contradict each other",
-        };
-        formatter.write_str(message)
+        match self {
+            Self::DegenerateSeed => formatter.write_str("presentation seed must not be all zero"),
+            Self::InvalidDigest => {
+                formatter.write_str("digest must be sha256: plus 64 lowercase hex digits")
+            }
+            Self::InvalidField => {
+                formatter.write_str("presentation field violates its bounded contract")
+            }
+            Self::InconsistentIdentity => {
+                formatter.write_str("presentation fields contradict each other")
+            }
+            Self::MissingSurface(surface) => {
+                write!(
+                    formatter,
+                    "adapter cannot override required {surface:?} surface"
+                )
+            }
+        }
     }
 }
 
@@ -54,6 +67,53 @@ impl Error for PresentationError {}
 
 /// Domain-separation tag for derivation stream expansion.
 const DERIVE_DOMAIN: &[u8] = b"originweave-presentation/v1";
+
+/// A page-observable field that an adapter must override before admission.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PresentationSurface {
+    /// Screen dimensions and color depth.
+    Screen,
+    /// Viewport dimensions.
+    Viewport,
+    /// Device pixel ratio.
+    DevicePixelRatio,
+    /// Logical processor count.
+    HardwareConcurrency,
+    /// Named time-zone identity and offset behavior.
+    TimeZone,
+    /// Browser platform family.
+    Platform,
+    /// Ordered language preferences.
+    Languages,
+    /// Reduced-motion preference.
+    ReducedMotion,
+}
+
+const REQUIRED_PRESENTATION_SURFACES: [PresentationSurface; 8] = [
+    PresentationSurface::Screen,
+    PresentationSurface::Viewport,
+    PresentationSurface::DevicePixelRatio,
+    PresentationSurface::HardwareConcurrency,
+    PresentationSurface::TimeZone,
+    PresentationSurface::Platform,
+    PresentationSurface::Languages,
+    PresentationSurface::ReducedMotion,
+];
+
+/// Require an adapter to override every surface claimed by the profile.
+///
+/// The first missing surface is returned in stable contract order. Additional
+/// or duplicate supported entries do not change admission.
+pub fn require_presentation_surfaces(
+    supported: &[PresentationSurface],
+) -> Result<(), PresentationError> {
+    for required in REQUIRED_PRESENTATION_SURFACES {
+        if !supported.contains(&required) {
+            return Err(PresentationError::MissingSurface(required));
+        }
+    }
+    Ok(())
+}
 
 /// Screen geometry with color depth as pages observe it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -672,6 +732,10 @@ mod tests {
         assert_eq!(
             PresentationError::InconsistentIdentity.to_string(),
             "presentation fields contradict each other"
+        );
+        assert_eq!(
+            PresentationError::MissingSurface(PresentationSurface::HardwareConcurrency).to_string(),
+            "adapter cannot override required HardwareConcurrency surface"
         );
     }
 

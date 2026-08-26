@@ -49,6 +49,12 @@ remain explicitly ambient and unreleased. The seed, if used for lifecycle
 selection, is trusted control-plane material and never enters page, model, log,
 or evidence context.
 
+Before launch, an adapter must pass the kernel's deterministic surface
+admission check. Missing screen, viewport, pixel ratio, hardware concurrency,
+time zone, platform, language, or reduced-motion support returns the first
+missing surface and blocks the claimed profile. Ordering, duplicates, and
+unsupported protocol claims cannot relax this boundary.
+
 OriginWeave does not use presentation identity to solve CAPTCHA, impersonate a
 target person or device, rotate residential routes, defeat bot-management, or
 circumvent access controls. Such a challenge is recorded as blocked/degraded.
@@ -81,9 +87,10 @@ extension, secret, or action authority.
 
 Unit and integration tests cover deterministic derivation, independent seed
 results, enumerated construction, cross-field consistency, standardized UTC
-identity, canonical digest validation, and malformed input rejection. Browser
-acceptance remains blocked on pinned real-Chromium pre-script injection and
-host-fallback evidence.
+identity, canonical digest validation, malformed input rejection, complete
+surface admission, and exact missing-surface evidence. Browser acceptance
+remains blocked on pinned real-Chromium pre-script injection and host-fallback
+evidence.
 
 ## Migration and rollback
 
