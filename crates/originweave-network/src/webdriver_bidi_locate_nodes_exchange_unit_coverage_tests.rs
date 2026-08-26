@@ -84,7 +84,11 @@ fn write_opening_response(stream: &mut TcpStream) -> io::Result<()> {
     )
 }
 
-fn write_short_server_frame(stream: &mut TcpStream, first_byte: u8, payload: &[u8]) -> io::Result<()> {
+fn write_short_server_frame(
+    stream: &mut TcpStream,
+    first_byte: u8,
+    payload: &[u8],
+) -> io::Result<()> {
     let payload_length = u8::try_from(payload.len()).map_err(|_| {
         io::Error::new(
             io::ErrorKind::InvalidData,
@@ -193,7 +197,8 @@ fn binding_wrapper_success_path_executes_in_library_unit_crate() -> Result<(), B
 }
 
 #[test]
-fn fragmented_response_executes_nonfinal_text_arm_in_library_unit_crate() -> Result<(), Box<dyn Error>> {
+fn fragmented_response_executes_nonfinal_text_arm_in_library_unit_crate()
+-> Result<(), Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let server = thread::spawn(move || -> io::Result<()> {
@@ -222,8 +227,8 @@ fn fragmented_response_executes_nonfinal_text_arm_in_library_unit_crate() -> Res
 }
 
 #[test]
-fn second_text_frame_during_fragmentation_executes_guard_denial_in_library_unit_crate(
-) -> Result<(), Box<dyn Error>> {
+fn second_text_frame_during_fragmentation_executes_guard_denial_in_library_unit_crate()
+-> Result<(), Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let server = thread::spawn(move || -> io::Result<()> {
