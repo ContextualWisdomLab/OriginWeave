@@ -130,10 +130,12 @@ fn second_text_message_during_fragmentation_fails_closed() -> Result<(), Box<dyn
     );
     assert!(matches!(
         exchange,
-        Err(WebDriverBiDiLocateNodesExchangeError::UnexpectedResponseFrame {
-            fin: true,
-            opcode: 0x1
-        })
+        Err(
+            WebDriverBiDiLocateNodesExchangeError::UnexpectedResponseFrame {
+                fin: true,
+                opcode: 0x1
+            }
+        )
     ));
     Ok(())
 }
