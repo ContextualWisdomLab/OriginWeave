@@ -17,6 +17,7 @@ evidence without treating page content as instruction or authority.
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import http.client
 import http.server
 import json
@@ -46,6 +47,7 @@ MAX_PROC_STATUS_CHARACTERS = 65_536
 MAX_BROWSER_PROCESS_TREE_SIZE = 256
 MAX_PROC_PROCESS_SCAN_SIZE = 32_768
 MAX_SEMANTIC_LOCATOR_CANDIDATES = 128
+MAX_AGENT_TASK_STRUCTURED_VALUE_BYTES = 4_096
 MAX_U64 = (1 << 64) - 1
 W3C_ELEMENT_KEY = "element-6066-11e4-a52e-4f735466cecf"
 PATH_TOKEN_CHARACTERS = frozenset(string.ascii_letters + string.digits + "-_.")
@@ -53,6 +55,15 @@ PATH_TOKEN_CHARACTERS = frozenset(string.ascii_letters + string.digits + "-_.")
 
 class QuietFixtureHandler(http.server.SimpleHTTPRequestHandler):
     """Serve only the controlled local fixture without noisy access logging."""
+
+    def translate_path(self, path: str) -> str:
+        """Keep resolved request targets inside the configured fixture root."""
+
+        fixture_root = pathlib.Path(self.directory).resolve()
+        candidate = pathlib.Path(super().translate_path(path)).resolve()
+        if not candidate.is_relative_to(fixture_root):
+            return str(fixture_root / ".originweave-denied")
+        return str(candidate)
 
     def log_message(self, _format: str, *args: object) -> None:
         """Suppress request logs because the fixture contains no diagnostic value."""
@@ -247,6 +258,19 @@ def _find_element_by_accessible_role_name(
     if not matches:
         raise RuntimeError("semantic locator returned no exact match")
     return matches[0]
+
+
+def _hash_agent_task_structured_value(value: str) -> str:
+    """Hash one bounded extracted text value without retaining the raw value in evidence."""
+
+    if not isinstance(value, str):
+        raise TypeError("Agent Task structured value must be text")
+    encoded = value.encode("utf-8")
+    if not encoded:
+        raise ValueError("Agent Task structured value must not be empty")
+    if len(encoded) > MAX_AGENT_TASK_STRUCTURED_VALUE_BYTES:
+        raise ValueError("Agent Task structured value exceeded the bounded text contract")
+    return "sha256:" + hashlib.sha256(encoded).hexdigest()
 
 
 def _parse_linux_proc_status_rss_bytes(status_text: str) -> int:
@@ -874,7 +898,19 @@ def _run_agent_task_browser_pass(
         if not url_unchanged:
             raise RuntimeError("Agent Task URL changed during submission")
 
-        result_element = _find_element(driver_port, session_id, "#task-result")
+        result_element = _find_element_by_accessible_role_name(
+            driver_port,
+            session_id,
+            "status",
+            "Task result",
+        )
+        result_role, result_name = _get_element_semantics(
+            driver_port,
+            session_id,
+            result_element,
+        )
+        if result_role != "status" or result_name != "Task result":
+            raise RuntimeError("Agent Task result semantic evidence mismatch")
         state = _json_request(
             driver_port,
             "GET",
@@ -888,6 +924,7 @@ def _run_agent_task_browser_pass(
         _validate_agent_task_submitted_state(state)
         if text != AGENT_TASK_INPUT_VALUE:
             raise RuntimeError("Agent Task result did not match the synthetic typed value")
+        structured_value_sha256 = _hash_agent_task_structured_value(text)
 
         process_evidence = _snapshot_linux_process_evidence()
         chromium_process_ids = _discover_linux_process_tree_ids(
@@ -913,6 +950,9 @@ def _run_agent_task_browser_pass(
             "url_unchanged": url_unchanged,
             "input_semantics_verified": True,
             "submit_semantics_verified": True,
+            "result_semantics_verified": True,
+            "structured_value_field": "task_result",
+            "structured_value_sha256": structured_value_sha256,
             "extensions_disabled": True,
             "browser_process_rss_bytes": browser_process_rss_bytes,
             "chromium_process_count": chromium_process_count,
@@ -972,6 +1012,9 @@ def _run_agent_task_trial(
         "url_unchanged": result["url_unchanged"],
         "input_semantics_verified": result["input_semantics_verified"],
         "submit_semantics_verified": result["submit_semantics_verified"],
+        "result_semantics_verified": result["result_semantics_verified"],
+        "structured_value_field": result["structured_value_field"],
+        "structured_value_sha256": result["structured_value_sha256"],
         "extensions_disabled": result["extensions_disabled"],
         "browser_process_rss_bytes": result["browser_process_rss_bytes"],
         "chromium_process_count": result["chromium_process_count"],
@@ -1108,6 +1151,11 @@ def main() -> int:
             and trial.get("url_unchanged") is True
             and trial.get("input_semantics_verified") is True
             and trial.get("submit_semantics_verified") is True
+            and trial.get("result_semantics_verified") is True
+            and trial.get("structured_value_field") == "task_result"
+            and isinstance(trial.get("structured_value_sha256"), str)
+            and len(trial["structured_value_sha256"]) == len("sha256:") + 64
+            and trial["structured_value_sha256"].startswith("sha256:")
             and trial.get("extensions_disabled") is True
             and trial.get("profile_cleaned") is True
             and isinstance(trial.get("browser_process_rss_bytes"), int)

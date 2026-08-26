@@ -26,6 +26,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Universally value-redacted network evidence with explicit path, metadata, and provenance bounds; ambiguous path rejection; validated source URLs; lowercase SHA-256 identifiers; and verification state.
 - Rust 1.97.1 build contract, strict Clippy and rustdoc gates, and exact production function, line, region, and branch coverage enforcement.
 - Pinned Chrome-for-Testing Agent Task evidence now captures a bounded sampled Chromium root-plus-descendant process count and RSS total from one `/proc` status sweep, with bounded failure-type diagnostics while preserving the root-only metric and making no trusted per-task attribution claim.
+- Pinned Chrome-for-Testing Agent Task evidence now locates the controlled result by exact browser-computed `status`/`Task result` semantics and records only a bounded canonical SHA-256 digest plus stable field identity for the extracted synthetic value, without emitting the raw value.
 - Hourly bounded OpenCode product-development workflow using `NVIDIA_NIM_API_KEY`, an unprivileged disposable workspace, loopback-only model broker, independently verified patches, and publication through a dedicated `OPENCODE_PR_TOKEN` that cannot review or merge.
 - Architecture, agent, security, contribution, research, database naming, roadmap, quality-gate, and TLS service-identity ADR documentation.
 - Authoritative product documentation graph spanning PRD, TRD, ADR lifecycle/index, product-wide UML, conceptual ERD, requirement/decision traceability, threat modeling, product-wide test strategy, operability, API/protocol, release/rollback, and current primary-source standards doctoring, with machine-checkable repository contracts that keep conversation-derived future work distinct from protected-main implementation claims.
@@ -47,6 +48,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Security
 
+- The loopback Manifest V3 fixture server rejects resolved request targets outside its configured fixture root, including escapes through fixture-tree symlinks.
 - Raw page content cannot become a trusted instruction.
 - Raw secrets are rejected and secret-capable actions require an opaque broker handle.
 - Crawler mode is read-only, must pair with the public-crawl purpose, and fails closed without an applicable robots-policy decision.
