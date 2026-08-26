@@ -156,6 +156,18 @@ class ProductDocumentationContractTests(unittest.TestCase):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, trd)
 
+    def test_presentation_identity_status_separates_active_evidence_from_planned_adapter(
+        self,
+    ) -> None:
+        """Presentation identity status must not mix proposal and implementation labels."""
+        trd = (ROOT / "docs/TRD.md").read_text(encoding="utf-8")
+        section = trd.split("### 6.8 Presentation identity", 1)[1].split(
+            "## 7. Observation architecture", 1
+        )[0]
+        self.assertIn("**Active-PR kernel evidence; Chromium adapter planned.**", section)
+        self.assertNotIn("**Proposed.**", section)
+        self.assertNotIn("**Implemented kernel contract; adapter planned.**", section)
+
     def test_target_architecture_adr_set_is_detailed(self) -> None:
         """Product direction must be reconstructable from durable, reviewable decisions."""
         required_adrs = {

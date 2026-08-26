@@ -51,6 +51,9 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Clarified that presentation identity has active-PR kernel evidence while its
+  Chromium adapter remains planned, without mixing proposal and implementation
+  labels in the same technical-design section.
 - Aligned the hourly product-development branch-coverage toolchain and its one-shot materializer with the reviewed `nightly-2026-08-18` pin, and corrected the official Dependabot Rust-toolchain reference.
 - Refreshed the product gap baseline to the 2026-08-27 protected-main and complete open-PR inventory, recorded the shared Strix provider incompatibility, and added the presentation-identity integration gap without promoting local or active-PR evidence to shipped behavior.
 - Separated logical origin authority from resolved network destination authority; an origin grant no longer implies permission to connect to every resolver result.
