@@ -471,25 +471,24 @@ mod tests {
 
         let exchange_timeout = Duration::from_millis(500);
         let read_count = Cell::new(0_usize);
-        let expired = read_frame_with_exchange_budget(exchange_timeout, exchange_timeout, |_| {
+        let read_frame = |remaining_timeout| {
             read_count.set(read_count.get() + 1);
-            Ok::<Duration, WebDriverBiDiWebSocketFrameError>(Duration::ZERO)
-        });
+            Ok::<Duration, WebDriverBiDiWebSocketFrameError>(remaining_timeout)
+        };
+        let available = read_frame_with_exchange_budget(
+            exchange_timeout,
+            Duration::from_millis(100),
+            read_frame,
+        );
+        assert_eq!(available.ok(), Some(Duration::from_millis(400)));
+        assert_eq!(read_count.get(), 1);
+
+        let expired =
+            read_frame_with_exchange_budget(exchange_timeout, exchange_timeout, read_frame);
         assert_eq!(
             format!("{expired:?}"),
             "Err(ExchangeDeadlineExceeded { exchange_timeout: 500ms })"
         );
-        assert_eq!(read_count.get(), 0);
-
-        let available = read_frame_with_exchange_budget(
-            exchange_timeout,
-            Duration::from_millis(100),
-            |remaining_timeout| {
-                read_count.set(read_count.get() + 1);
-                Ok::<Duration, WebDriverBiDiWebSocketFrameError>(remaining_timeout)
-            },
-        );
-        assert_eq!(available.ok(), Some(Duration::from_millis(400)));
         assert_eq!(read_count.get(), 1);
 
         let frame_error =
