@@ -471,14 +471,10 @@ mod tests {
 
         let exchange_timeout = Duration::from_millis(500);
         let read_count = Cell::new(0_usize);
-        let expired = read_frame_with_exchange_budget(
-            exchange_timeout,
-            exchange_timeout,
-            |_| {
-                read_count.set(read_count.get() + 1);
-                Ok::<Duration, WebDriverBiDiWebSocketFrameError>(Duration::ZERO)
-            },
-        );
+        let expired = read_frame_with_exchange_budget(exchange_timeout, exchange_timeout, |_| {
+            read_count.set(read_count.get() + 1);
+            Ok::<Duration, WebDriverBiDiWebSocketFrameError>(Duration::ZERO)
+        });
         assert_eq!(
             format!("{expired:?}"),
             "Err(ExchangeDeadlineExceeded { exchange_timeout: 500ms })"
@@ -496,18 +492,15 @@ mod tests {
         assert_eq!(available.ok(), Some(Duration::from_millis(400)));
         assert_eq!(read_count.get(), 1);
 
-        let frame_error = read_frame_with_exchange_budget(
-            exchange_timeout,
-            Duration::from_millis(100),
-            |_| {
+        let frame_error =
+            read_frame_with_exchange_budget(exchange_timeout, Duration::from_millis(100), |_| {
                 Err::<Duration, WebDriverBiDiWebSocketFrameError>(
                     WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout {
                         frame_timeout: Duration::ZERO,
                         maximum_timeout: MAX_WEBSOCKET_FRAME_TIMEOUT,
                     },
                 )
-            },
-        );
+            });
         assert!(frame_error.is_err());
     }
 
