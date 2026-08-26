@@ -13,11 +13,13 @@ fn running_lifecycle() -> Result<BapTaskLifecycle, Box<dyn Error>> {
 }
 
 #[test]
-fn confirmed_no_side_effect_allows_retry_without_mutating_lifecycle() -> Result<(), Box<dyn Error>> {
+fn confirmed_no_side_effect_allows_retry_without_mutating_lifecycle() -> Result<(), Box<dyn Error>>
+{
     let lifecycle = running_lifecycle()?;
     let sequence = lifecycle.transition_sequence();
 
-    let directive = lifecycle.classify_external_outcome(BapExternalOutcome::ConfirmedNoSideEffect)?;
+    let directive =
+        lifecycle.classify_external_outcome(BapExternalOutcome::ConfirmedNoSideEffect)?;
 
     assert_eq!(directive, BapRecoveryDirective::RetryCommand);
     assert_eq!(lifecycle.state(), BapTaskState::Running);
@@ -26,8 +28,8 @@ fn confirmed_no_side_effect_allows_retry_without_mutating_lifecycle() -> Result<
 }
 
 #[test]
-fn confirmed_side_effect_requires_post_condition_verification_without_mutation(
-) -> Result<(), Box<dyn Error>> {
+fn confirmed_side_effect_requires_post_condition_verification_without_mutation()
+-> Result<(), Box<dyn Error>> {
     let lifecycle = running_lifecycle()?;
     let sequence = lifecycle.transition_sequence();
 
@@ -60,7 +62,8 @@ fn unknown_outcome_requires_explicit_reconciliation_transition() -> Result<(), B
 fn explicit_reconciliation_outcome_preserves_its_distinct_cause() -> Result<(), Box<dyn Error>> {
     let lifecycle = running_lifecycle()?;
 
-    let directive = lifecycle.classify_external_outcome(BapExternalOutcome::ReconciliationRequired)?;
+    let directive =
+        lifecycle.classify_external_outcome(BapExternalOutcome::ReconciliationRequired)?;
 
     assert_eq!(
         directive,
