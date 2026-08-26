@@ -47,7 +47,6 @@ Proposed ADR files are reviewable target architecture without becoming Accepted 
 | [0107](0107-browser-protocol-adapter-strategy.md) | Versioned browser and agent protocol adapters | Proposed | WebDriver BiDi, CDP, WebMCP, MCP and OriginWeave Protocol boundaries |
 | [0108](0108-crawler-policy.md) | Policy-bound crawler mode | Proposed | robots, rate/resource policy, read-only collection and no-evasion behavior |
 | [0109](0109-hourly-automation-operational-closure.md) | Hourly automation secret ordering and operational closure | Proposed | deterministic gates, model secret boundary, retries and protected-main proof |
-| [0110](0110-privacy-preserving-presentation-identity.md) | Privacy-preserving presentation identity | Proposed | bounded normalization without access-control evasion |
 
 ### Proposed decisions introduced by documentation reconciliation
 
@@ -55,8 +54,9 @@ Proposed ADR files are reviewable target architecture without becoming Accepted 
 |---|---|---|---|
 | [0013](0013-manifest-v3-extension-authority.md) | Manifest V3 compatibility and extension-to-Agent authority | Proposed | Chromium extension compatibility evidence, profile separation, extension grants, native-messaging boundary and release claims |
 | [0014](0014-architecture-decision-governance.md) | Architecture decision acceptance governance | Proposed | ADR lifecycle authority, reviewer eligibility, solo-maintainer hold and re-enablement conditions |
+| [0110](0110-privacy-preserving-presentation-identity.md) | Privacy-preserving presentation identity | Proposed | bounded normalization without access-control evasion |
 
-ADR 0013 and ADR 0014 exist only on this documentation branch until it integrates. After integration, this subsection remains historical provenance rather than an active-PR claim; both decisions remain Proposed until a later policy-compliant change explicitly changes their lifecycle.
+ADR 0013, ADR 0014, and ADR 0110 exist only on this documentation branch until it integrates. After integration, this subsection remains historical provenance rather than an active-PR claim; all three decisions remain Proposed until a later policy-compliant change explicitly changes their lifecycle.
 
 ### Proposed decisions introduced by active feature work
 
