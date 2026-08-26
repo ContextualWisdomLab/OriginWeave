@@ -87,11 +87,12 @@ pub struct DeclaredLimitation {
 impl DeclaredLimitation {
     /// Construct one explicit buyer-visible release limitation.
     ///
-    /// Empty/whitespace-only values, surrounding whitespace, non-NFC Unicode,
-    /// fields exceeding the fixed UTF-8 byte budget, and ambiguous presentation
-    /// characters fail closed because they cannot safely represent one canonical,
-    /// resource-bounded buyer-visible release limitation. Accepted text is retained
-    /// byte-for-byte; this constructor never normalizes caller input implicitly.
+    /// Empty/whitespace-only or punctuation-only values, surrounding whitespace,
+    /// non-NFC Unicode, fields exceeding the fixed UTF-8 byte budget, and ambiguous
+    /// presentation characters fail closed because they cannot safely represent one
+    /// canonical, resource-bounded buyer-visible release limitation. Accepted text
+    /// is retained byte-for-byte; this constructor never normalizes caller input
+    /// implicitly.
     pub fn new(
         unsupported_claim: impl Into<String>,
         buyer_consequence: impl Into<String>,
@@ -112,6 +113,7 @@ impl DeclaredLimitation {
         if unsupported_claim
             .chars()
             .any(disallowed_release_limitation_character)
+            || !unsupported_claim.chars().any(char::is_alphanumeric)
         {
             return Err(ReleaseDecisionError::InvalidLimitationClaim);
         }
@@ -131,6 +133,7 @@ impl DeclaredLimitation {
         if buyer_consequence
             .chars()
             .any(disallowed_release_limitation_character)
+            || !buyer_consequence.chars().any(char::is_alphanumeric)
         {
             return Err(ReleaseDecisionError::InvalidLimitationConsequence);
         }
