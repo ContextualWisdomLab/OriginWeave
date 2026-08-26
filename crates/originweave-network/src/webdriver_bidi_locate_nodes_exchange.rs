@@ -382,55 +382,28 @@ impl WebDriverBiDiWebSocketEstablished {
         command_masking_key: WebDriverBiDiWebSocketMaskKey,
         next_pong_key: &mut dyn FnMut() -> Option<WebDriverBiDiWebSocketMaskKey>,
         exchange_timeout: Duration,
-        authority: &mut BrowserAuthorityRegistry,
-        proof: ValidatedBrowserProtocolUse,
-        target: BrowserContextOriginEpochDispatchTarget,
-    ) -> Result<
-        (Self, Vec<ObservedNodeHandle>),
-        WebDriverBiDiLocateNodesAndBindError,
-    > {
-        let (established, result) = self
-            .exchange_locate_nodes(
-                command,
-                command_masking_key,
-                next_pong_key,
-                exchange_timeout,
-            )
-            .map_err(WebDriverBiDiLocateNodesAndBindError::Exchange)?;
-        let nodes = result
-            .bind_current_nodes(authority, proof, target)
-            .map_err(WebDriverBiDiLocateNodesAndBindError::Authority)?;
-        Ok((established, nodes))
-    }
-}
-
-/// Failures while exchanging one `locateNodes` command and binding its exact returned nodes.
-#[derive(Debug)]
-pub enum WebDriverBiDiLocateNodesAndBindError {
-    /// The bounded WebSocket wire exchange failed; no node evidence reached authority binding.
-    Exchange(WebDriverBiDiLocateNodesExchangeError),
-    /// Wire exchange succeeded, but current browser authority no longer admits the observed nodes.
-    Authority(originweave_core::BrowserAuthorityError),
-}
-
-impl fmt::Display for WebDriverBiDiLocateNodesAndBindError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Exchange(error) => write!(formatter, "WebDriver BiDi locateNodes exchange failed: {error}"),
-            Self::Authority(error) => write!(
-                formatter,
-                "WebDriver BiDi locateNodes current-authority binding failed: {error}"
-            ),
-        }
-    }
-}
-
-impl Error for WebDriverBiDiLocateNodesAndBindError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        match self {
-            Self::Exchange(error) => Some(error),
-            Self::Authority(error) => Some(error),
-        }
+        authority: (
+            ValidatedBrowserProtocolUse,
+            BrowserContextOriginEpochDispatchTarget<'_>,
+        ),
+        authority_registry: &mut BrowserAuthorityRegistry,
+    ) -> Result<(Self, Vec<ObservedNodeHandle>), WebDriverBiDiLocateNodesExchangeError> {
+        let (validated, target) = authority;
+        let (established, result) = self.exchange_locate_nodes(
+            command,
+            command_masking_key,
+            next_pong_key,
+            exchange_timeout,
+        )?;
+        let handles = match result.bind_current_nodes(validated, authority_registry, target) {
+            Ok(handles) => handles,
+            Err(error) => {
+                return Err(WebDriverBiDiLocateNodesExchangeError::LocateNodesResponse(
+                    WebDriverBiDiLocateNodesResponseDocumentError::NodeBinding(error),
+                ));
+            }
+        };
+        Ok((established, handles))
     }
 }
 
