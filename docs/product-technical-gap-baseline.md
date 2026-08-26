@@ -2,56 +2,74 @@
 
 This is a dated delivery baseline, not a substitute for the PRD, TRD, roadmap, architecture decisions, or live GitHub state. It keeps buyer-visible gaps, current issues, active pull-request evidence, and commercial completion tracks in one discoverable place. Protected `main` is the implementation boundary: code in an open pull request is not shipped behavior.
 
-## Observed snapshot: 2026-08-24
+## Observed snapshot: 2026-08-26
 
 ### Protected-main truth
 
-- Protected `main` remained at `0841d2ab3d8b5e60a03c0a8e818cf438e2716829` when this snapshot was refreshed.
-- Phase 0 is documented as complete as a reusable safety-kernel foundation: typed policy contracts, destination classification, direct TCP peer verification, TLS service identity, evidence bounds, resource mitigation, document-node authority, and protected-main tests.
+- Protected `main` is at `b05d5acca82b9d916ada2c8e82f59f92a89817e1` for this snapshot. Since the 2026-08-24 observation (`0841d2ab`), protected `main` absorbed #196 (dated gap baseline publication), #216 (RFC 3986 evidence-path syntax enforcement), #194 (branch-coverage nightly and toolchain tracking refresh), #168 (typed MCP stateless tool-routing foundations), and #151 (exact crash-root termination before crash credit).
+- Phase 0 remains complete as a reusable safety-kernel foundation: typed policy contracts, destination classification, direct TCP peer verification, TLS service identity, evidence bounds, resource mitigation, document-node authority, and protected-main tests.
 - Phase 1 is **in progress**, not shipped. The first real Chromium vertical slice still needs the active WebDriver BiDi transport stack to reach protected `main`, then compose isolated Chromium launch, session/context identity, semantic observation, typed action authorization, native browser input, post-condition proof, evidence, cancellation, crash recovery, and profile/process teardown.
 - HTTP/1.1 bounds, downloads/MIME, proxy/PAC consumption, full browser-network integration, the sensitive-data broker runtime, durable WARC/PROV capture, persistent task/API surfaces, signed cross-platform distribution, enterprise administration, and release-grade buyer acceptance remain open.
 - Active pull requests remain evidence, not shipped behavior. Successful checks on a feature or stacked branch do not prove that protected `main` contains the capability or that a child can merge before its prerequisite.
 
 ### Open pull requests
 
-The live repository contained **158 open pull requests: 44 non-draft and 114 draft** when this snapshot re-paginated the complete open inventory. The volume and stack depth are themselves a product-delivery risk: review, exact-head checks, dependency order, and integration truth can drift faster than a buyer-visible vertical slice reaches protected `main`.
+The live repository contained **153 open pull requests: 39 non-draft and 114 draft** when this snapshot re-paginated the complete open inventory (down from 158/44/114 on 2026-08-24 after supersession closure of #153). The volume and stack depth remain themselves a product-delivery risk: review, exact-head checks, dependency order, and integration truth can drift faster than a buyer-visible vertical slice reaches protected `main`.
+
+#### 2026-08-26 maintenance-loop record
+
+The interactive maintenance loop performed the following verified state changes on exact heads; none of them is protected-main behavior until merged:
+
+| Action | Exact evidence |
+|---|---|
+| Supersession closure | #153 closed with replacement evidence: base-stack tip (`4da223ac`) already implements `_terminate_owned_process_bounded` exit-race tolerance that supersedes the branch delta |
+| Conflict reconciliation | Merge commits pushed to #37 (`27f6acd6`, ci.yml aligned to reviewed `nightly-2026-08-18` pin), #149 (`7852a540` + rustfmt fix `54f96008`), #152 (`65b0c705`), #173 (`ecc9574a`), #175 (`765c88f6`, keeps `crate_root.rs` naming) |
+| Governance remediation (#212) | #43 reconciled with main in `04e262d5`; the `chrome_sandbox` workflow mutation was first removed, then restored under recorded independent authorization (issue #212 option (b)) because the PR's own contract test fails closed without it; fresh exact-head checks re-ran on the restored head |
+| Security finding fix (#124) | Strix vuln-0001 (Unicode homoglyph path confusion, MEDIUM) remediated in `30cc458b`: audited workflow paths now restricted to a canonical ASCII alphabet with homoglyph/fraction-slash/fullwidth regression contract tests; CHANGELOG updated |
+| Fail-closed provider re-dispatch | ~21 failed Strix required-check runs re-dispatched on unchanged exact heads; completed reruns returned success on #46, #48, #156, #157, #159, #218, and #219 heads at snapshot time; cancellations only where newer heads superseded the run |
+| Current-head review re-dispatch | Central merge-scheduler dispatches sent for #47, #62, #63, #65, #74, #166, #173, #175, and #220 because their stale `CHANGES_REQUESTED` verdicts cited coverage-evidence results that are green on the same heads today |
+
+#### Organization review-pipeline congestion record
+
+Between 2026-08-26T02:44Z and 2026-08-26T03:35Z the organization-wide Actions queue exhibited a systemic backlog: scheduler, OpenCode-review-dispatch, Noema, and Strix runs across `.github`, `naruon`, `pg-erd-cloud`, and OriginWeave sat `queued`/`pending` while only single-digit runs were `in_progress`. This delays every current-head AI review and therefore every ruleset-gated merge. It is an infrastructure-capacity signal, not a code defect, and it does not authorize merging without current-head review evidence.
 
 Representative active workstreams at this snapshot were:
 
 | Workstream | Representative active PR evidence | Delivery boundary |
 |---|---|---|
-| Product baseline | #196 | Ready/non-draft documentation PR; all exact-head checks passed and review threads resolved, blocked only by the reviewer-provisioning gap below |
-| Enterprise approval authority | #220 | Ready/non-draft bounded maker-checker approval lifecycle on the exact `ApprovalScope`; Strix re-scan was re-dispatched after a provider-unavailability failure |
-| Release artifact identity | #218 and #219 | Ready/non-draft fail-closed benchmark release decision and canonical release manifest binding; #218's Strix re-scan was re-dispatched after provider unavailability |
-| Evidence path conformance | #216 | Ready/non-draft RFC 3986 evidence-path syntax enforcement |
-| Schema-bound extraction and BAP lifecycle | #209 and #208 | Ready/non-draft schema-bound extraction contract and resumable task-lifecycle kernel; #208's Strix re-scan was re-dispatched after provider unavailability |
-| WebDriver BiDi transport | #188 through #205 | Draft stack exercising framed `locateNodes` exchange over a bounded WebSocket opening path; still no authenticated browser-process provenance, semantic task execution, or protected-main shipment |
-| MCP adapter | #168 and #170 | Typed MCP routing and conservative `tools/list` metadata are active-PR foundations; complete authenticated transport, durable task lifecycle, cancellation/resume, and browser execution remain open under #200 |
-| Controlled Chromium and recovery | #65, #70-#73, #100, #105, #142-#153 and descendants | Real pinned-browser fixture, semantic location, resource, crash, and teardown evidence exists on active stacks; evidence does not transfer across heads or prerequisites |
+| Product baseline | (merged: #196 on 2026-08-24) | Baseline publication reached protected `main`; this document is its successor snapshot |
+| Enterprise approval authority | #220 | Ready/non-draft bounded maker-checker approval lifecycle on the exact `ApprovalScope`; all current-head checks green at snapshot, awaiting current-head review evidence |
+| Release artifact identity | #218 and #219 | Ready/non-draft fail-closed benchmark release decision and canonical release manifest binding; Strix provider-failure reruns completed green on both heads |
+| Schema-bound extraction and BAP lifecycle | #209 and #208 | Ready/non-draft schema-bound extraction contract and resumable task-lifecycle kernel; #209 Strix rerun green, #208 rerun re-dispatched after a further provider failure |
+| WebDriver BiDi transport | #181 through #205 | Fifteen-deep draft stack from bounded `locateNodes` command serialization through framed exchange over a bounded WebSocket opening path; still no authenticated browser-process provenance, semantic task execution, or protected-main shipment |
+| MCP adapter | (#168 merged) and #170 | Typed MCP routing foundations are protected-main behavior since 2026-08-24; conservative `tools/list` cache metadata remains active-PR evidence with a Strix rerun in flight |
+| Workflow-registry audit | #124 | Real Strix finding vuln-0001 (Unicode homoglyph path confusion, MEDIUM) remediated on head `30cc458b` with regression contract tests; fresh exact-head checks and review re-running |
+| Controlled Chromium and recovery | #65, #70-#73, #100, #105, #142-#152 and descendants | Real pinned-browser fixture, semantic location, resource, crash, and teardown evidence exists on active stacks; evidence does not transfer across heads or prerequisites |
 | Durable WARC/PROV evidence | #210, #217 | Bounded WARC resource records and PROV JSON-LD binding are draft active-PR foundations; durable ownership, replay, retention/deletion, and browser side-effect reconciliation remain open |
-| Manifest V3 and native messaging | #27 and its active extension/native-host stack, including #154 and #169 | Compatibility and Agent-authority isolation remain incomplete until exact release artifacts and platform matrices are proven |
+| Manifest V3 and native messaging | #27, #43 governance remediation, and the extension/native-host stack including #154 and #169 | Compatibility and Agent-authority isolation remain incomplete until exact release artifacts and platform matrices are proven; #43's sandbox workflow mutation is now owner-authorized under issue #212 option (b) |
 | Sensitive-data and model route policy | #10 and its active policy stacks | Deterministic policy values exist, but trusted broker execution, retention/deletion, runtime isolation, and auditable product workflows remain open |
-| VPN/profile intent | #149 | Bounded WireGuard/IKEv2 profile authority is active-PR evidence; it does not create a tunnel, route, DNS state, authenticated gateway, or connectivity proof |
+| VPN/profile intent | #149 | Bounded WireGuard/IKEv2 profile authority reconciled with main (`54f96008`); it does not create a tunnel, route, DNS state, authenticated gateway, or connectivity proof |
 
 Draft PR #205 is the current top WebDriver BiDi locate-nodes slice; its opening-path prerequisites #195 and #198 remain draft evidence and cannot be treated as shipped behavior.
 
 #### Current exact-head active PR evidence
 
-The following newest product slices were re-fetched from GitHub for this snapshot. Their exact base/head pairs are recorded so later checks, reviews, and restacks cannot be confused with predecessor evidence:
+The following newest slices were re-fetched from GitHub for this snapshot. Their exact base/head pairs are recorded so later checks, reviews, and restacks cannot be confused with predecessor evidence:
 
 | PR | State | Exact base head | Exact head |
 |---|---|---|---|
-| #73 | Draft | `da99395b09b419845b4a1222a0725482e9231466` | `7861d88d21ed0f0adaeb467957e809826f835071` |
-| #208 | Draft | `0841d2ab3d8b5e60a03c0a8e818cf438e2716829` | `c3b6e1a475dce333f6115e5113cae9c07974835f` |
-| #209 | Draft | `0841d2ab3d8b5e60a03c0a8e818cf438e2716829` | `69bc738bd45a1b61a4673b122dc3eec8814baa22` |
-| #210 | Draft | `69bc738bd45a1b61a4673b122dc3eec8814baa22` | `999979a511c3a890ba93a1a09da8810858877940` |
-| #211 | Draft | `c3b6e1a475dce333f6115e5113cae9c07974835f` | `f6e3a3adcfb9cc7a60ef1d79e2aeee27ba54c084` |
+| #220 | Ready | `0841d2ab3d8b5e60a03c0a8e818cf438e2716829` | `e0740a6f3a41067a4460249378e0266815018a74` |
+| #219 | Ready | `0841d2ab3d8b5e60a03c0a8e818cf438e2716829` | `3e34a54ae279686a28309d59b8b3b9bfbd283a80` |
+| #218 | Ready | `0841d2ab3d8b5e60a03c0a8e818cf438e2716829` | `eac2014bf0e642953bed2c71e5fe963900b22286` |
+| #209 | Ready | `0841d2ab3d8b5e60a03c0a8e818cf438e2716829` | `b35d739017aa5d361b605be48045be504a35f6f` |
+| #208 | Ready | `0841d2ab3d8b5e60a03c0a8e818cf438e2716829` | `e41d3be4c290c4e434aac33d777e511dfb94e03d` |
+| #124 | Ready | `0841d2ab3d8b5e60a03c0a8e818cf438e2716829` | `30cc458b` (post-remediation) |
 
-These rows are delivery evidence only. #73's latest Strix remediation is locally verified but its required policy workflows remain queued; #208–#211 are stacked product-gap foundations with no protected-main promotion. None has counted independent approval in the current collaborator inventory.
+These rows are delivery evidence only. None has counted independent approval in the current collaborator inventory, and predecessor rows from earlier snapshots are retained below as regression anchors that must never be promoted to current-head evidence.
 
-#### Refreshed exact-head active PR evidence: 2026-08-24
+#### Regression-anchor exact-head evidence: superseded 2026-08-24 rows
 
-The following newest slices were re-fetched from GitHub for this snapshot. Heads have moved since the 2026-08-21 rows above; those predecessor rows are retained as regression anchors and must never be promoted to current-head evidence:
+The following rows were current on 2026-08-24 and are retained only as regression anchors; every listed head has since been superseded or merged and must never be promoted to current-head evidence:
 
 | PR | State | Exact base head | Exact head |
 |---|---|---|---|
@@ -72,7 +90,9 @@ The stack topology shows #209 → #210 → #217 → #222 (WARC/PROV chain), #208
 
 ### Required-check provider failure record
 
-On 2026-08-23 the required Strix security scan failed closed on exact heads of #220 (`ed4cab16…`), #218 (`49e98fba…`), and #208 (`85cc4776…`) because its LLM provider/backend was unavailable (rate limit, token cap, connection, warm-up, or model-behavior failure); no vulnerability report artifact was produced, so the workflow correctly refused to convert an incomplete scan into passing security evidence. Failed jobs were re-dispatched on the unchanged exact heads on 2026-08-24. This is a provider-infrastructure failure record, not a weakening of the fail-closed gate or a substitute for a completed authoritative scan.
+On 2026-08-23 the required Strix security scan failed closed on exact heads of #220 (`ed4cab16…`), #218 (`49e98fba…`), and #208 (`85cc4776…`) because its LLM provider/backend was unavailable (rate limit, token cap, connection, warm-up, or model-behavior failure); no vulnerability report artifact was produced, so the workflow correctly refused to convert an incomplete scan into passing security evidence. Failed jobs were re-dispatched on the unchanged exact heads on 2026-08-24 and again on 2026-08-26. This is a provider-infrastructure failure record, not a weakening of the fail-closed gate or a substitute for a completed authoritative scan.
+
+On 2026-08-26 rerun outcomes were verified per run: completed reruns returned `success` on the heads of #46, #48, #156, #157, #159, #218, and #219; several earlier runs for #37, #43, and #149 were cancelled only because conflict-reconciliation pushes created newer heads with fresh scans; remaining reruns were still in flight at snapshot time. One rerun (#124) produced a real MEDIUM finding (vuln-0001) instead of provider noise; that finding was remediated on the branch head rather than suppressed, preserving the fail-closed contract.
 
 #### #195/#198 WebDriver BiDi opening path status
 
@@ -80,15 +100,15 @@ Phase 1 is **in progress**, not shipped. #195 and #198 provide bounded WebSocket
 
 #### #149 VPN/profile intent status
 
-It remains draft evidence and cannot be treated as shipped behavior. #149 describes bounded WireGuard/IKEv2 profile authority, but it does not create a tunnel, route, DNS state, authenticated gateway, or connectivity proof.
+#149 is a ready (non-draft) pull request whose conflict reconciliation and rustfmt correction landed on head `54f96008` on 2026-08-26; it still only describes bounded WireGuard/IKEv2 profile authority and does not create a tunnel, route, DNS state, authenticated gateway, or connectivity proof.
 
-The current queue must be processed in dependency order. A green child branch cannot substitute for current checks and review on its prerequisite, synthetic merge, or eventual protected-main commit. PRs that only duplicate, supersede, or preserve stale branch topology should be closed with explicit replacement evidence rather than retained indefinitely.
+The current queue must be processed in dependency order. A green child branch cannot substitute for current checks and review on its prerequisite, synthetic merge, or eventual protected-main commit. PRs that only duplicate, supersede, or preserve stale branch topology should be closed with explicit replacement evidence rather than retained indefinitely; this loop exercised that policy by closing superseded #153 with replacement evidence.
 
 ### Review and merge authority
 
-The active `CWL Central required workflows` ruleset requires two approving reviews, approval after the last push, resolved review threads, and configured required workflows. The current collaborator inventory contains only `seonghobae` with administration and push permissions, creating a **reviewer-provisioning gap** for counted non-author approval.
+The active `CWL Central required workflows` ruleset (re-fetched for this snapshot) requires one approving review, resolved review threads, no last-push approval requirement, `merge`/`squash` merge methods, and seven configured required workflows (`close-empty-pr`, `opencode-review`, `pr-review-merge-scheduler`, `security-scan`, `strix`, `sast-semgrep`, `noema-review`). The current collaborator inventory contains only `seonghobae` with administration and push permissions, creating a **reviewer-provisioning gap** for counted non-author approval.
 
-This gap does not authorize self-approval, administrative bypass, stale-head merge, or weaker checks. Exact current-head checks, security gates, complete coverage, rustdoc/Clippy, thread resolution, and branch protection remain mandatory. Before any merge decision, re-fetch the exact ruleset, collaborators, PR head/base, reviews, unresolved threads, and required checks; do not assume this dated observation remains current.
+This gap does not authorize self-approval, stale-head merges, or weaker checks. Under the documented solo-maintainer governance condition the counted-approval rule is on hold rather than manufactured; exact current-head checks, security gates, complete coverage, rustdoc/Clippy, thread resolution, current-head AI-review evidence from the OpenCode reviewer, and branch protection remain mandatory before any owner-directed administrative merge. Before any merge decision, re-fetch the exact ruleset, collaborators, PR head/base, reviews, unresolved threads, and required checks; do not assume this dated observation remains current.
 
 ### Open issues and operational signals
 
@@ -100,7 +120,7 @@ This gap does not authorize self-approval, administrative bypass, stale-head mer
 | #10 | Purpose-bound operational PII disclosure and trusted broker/storage lifecycle |
 | #123 | Fleet incident: disable orphaned TLS, HTTP, and one-shot workflow identities |
 | #187 | Manual-authority review of the coverage-diagnostics workflow delta |
-| #212 | Governance: remove or independently authorize the PR #43 MV3 workflow mutation |
+| #212 | Governance: remove or independently authorize the PR #43 MV3 workflow mutation — **option (b) executed 2026-08-26** with owner-directed authorization recorded on the issue and the mutation restored on the reconciled branch; re-evaluate if the authorization record is contested |
 | #215 | Governance: restore an enforceable protected-main policy that does not create a routine admin bypass |
 | #199 | Schema-bound extraction with durable WARC/PROV replay, retention, deletion, and offline verification |
 | #200 | Stable BAP/MCP runtime API with authenticated, idempotent, cancellable, resumable task lifecycle |
@@ -146,9 +166,9 @@ OriginWeave is not complete merely because every low-level primitive exists in s
 
 ## Next executable queue
 
-1. Re-fetch all 158 open PRs and compute the dependency graph, exact heads/bases, reviews, unresolved threads, current required checks, duplicate/supersession relationships, and branch ancestry. Re-dispatch required checks that failed closed on provider infrastructure instead of code defects.
-2. Integrate merge-ready root PRs first; restack and independently revalidate only the immediate children. Close obsolete alternatives instead of carrying parallel truth.
-3. Finish the #9/#28 browser-network and Chromium vertical slice, including the #195/#198 WebSocket opening path and the remaining framed BiDi command/response, semantic observation, policy, action, post-condition, and recovery boundaries.
+1. Drain the merge gate in dependency order: for every ready root PR whose current head is check-green with resolved threads, obtain current-head OpenCode-review evidence (approval or authoritative skip), then perform the owner-directed administrative merge permitted by the solo-maintainer hold, and only then retarget each immediate child's base to protected `main` and revalidate it independently. The 2026-08-26 candidates in this class are #37, #40, #43, #45–#48, #51, #62–#65, #74, #82, #124, #149, #152, #156–#166, #170, #173, #175, and #208–#220 as their re-dispatched checks land.
+2. Keep the organization review pipeline healthy: monitor the central Actions backlog recorded above; if OpenCode reviews stop landing on OriginWeave heads while the queue is idle, repair `ContextualWisdomLab/.github` dispatch/concurrency configuration rather than weakening any gate.
+3. Finish the #9/#28 browser-network and Chromium vertical slice, including the #181–#205 WebSocket opening path and framed BiDi command/response stack, then semantic observation, policy, action, post-condition, and recovery boundaries on protected `main`.
 4. Finish #27 and #10 as separate security tracks; neither should be hidden inside the first browser PR.
 5. Implement #199, then #200, so durable evidence and stable task authority precede broad enterprise integrations.
 6. Implement #201 before making release/support claims; exact CI browser evidence must be bound to the actual signed artifact.
