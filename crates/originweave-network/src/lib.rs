@@ -24,7 +24,7 @@ mod webdriver_bidi_websocket_coverage_tests;
 mod webdriver_bidi_websocket_debug_tests;
 #[path = "webdriver_bidi_websocket_validated.rs"]
 mod webdriver_bidi_websocket_handshake;
-#[path = "webdriver_bidi_websocket_handshake.rs"]
+#[path = "webdriver_bidi_websocket_raw_redacted.rs"]
 mod webdriver_bidi_websocket_handshake_raw;
 
 pub use connection::{
