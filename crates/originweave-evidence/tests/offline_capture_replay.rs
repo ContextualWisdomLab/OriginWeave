@@ -136,3 +136,30 @@ fn offline_replay_rejects_structured_result_identity_drift() {
         ))
     );
 }
+
+#[test]
+fn offline_replay_errors_preserve_typed_diagnostics_and_sources() {
+    let manifest_error = OfflineReplayVerificationError::ManifestBytes(
+        CaptureManifestVerificationError::IdentityMismatch,
+    );
+    let evidence_error = OfflineReplayVerificationError::Evidence(
+        CaptureManifestVerificationError::IdentityMismatch,
+    );
+
+    assert_eq!(
+        manifest_error.to_string(),
+        "offline replay persisted manifest bytes failed verification: capture manifest identity does not match"
+    );
+    assert_eq!(
+        evidence_error.to_string(),
+        "offline replay capture evidence failed verification: capture manifest identity does not match"
+    );
+    assert_eq!(
+        std::error::Error::source(&manifest_error).map(ToString::to_string),
+        Some("capture manifest identity does not match".to_owned())
+    );
+    assert_eq!(
+        std::error::Error::source(&evidence_error).map(ToString::to_string),
+        Some("capture manifest identity does not match".to_owned())
+    );
+}
