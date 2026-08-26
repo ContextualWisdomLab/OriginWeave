@@ -246,6 +246,33 @@ impl BrowserProtocolAdapterDescriptor {
         }
     }
 
+    /// Require exact runtime browser-protocol and browser revisions before use.
+    ///
+    /// The caller must derive both values from the trusted runtime adapter that
+    /// is about to perform browser work. This deterministic comparison does not
+    /// authenticate or attest that caller. It only prevents a descriptor pinned
+    /// to one validated upstream-protocol/browser pair from being silently used
+    /// when the supplied runtime evidence is malformed or has drifted.
+    pub fn require_runtime_revisions(
+        &self,
+        protocol_revision: &str,
+        browser_revision: &str,
+    ) -> Result<(), BrowserProtocolRuntimeRequirementError> {
+        if !metadata_token_is_valid(protocol_revision) {
+            return Err(BrowserProtocolRuntimeRequirementError::InvalidProtocolRevision);
+        }
+        if !metadata_token_is_valid(browser_revision) {
+            return Err(BrowserProtocolRuntimeRequirementError::InvalidBrowserRevision);
+        }
+        if self.protocol_revision != protocol_revision {
+            return Err(BrowserProtocolRuntimeRequirementError::ProtocolRevisionMismatch);
+        }
+        if self.browser_revision != browser_revision {
+            return Err(BrowserProtocolRuntimeRequirementError::BrowserRevisionMismatch);
+        }
+        Ok(())
+    }
+
     /// Require one explicitly declared adapter capability before later use.
     ///
     /// This method never infers support from the browser protocol family. An
@@ -316,6 +343,39 @@ impl fmt::Display for BrowserProtocolVersionRequirementError {
 }
 
 impl std::error::Error for BrowserProtocolVersionRequirementError {}
+
+/// Failure to require exact pinned runtime revision evidence from an adapter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BrowserProtocolRuntimeRequirementError {
+    /// The runtime upstream-protocol revision token was malformed.
+    InvalidProtocolRevision,
+    /// The runtime browser revision token was malformed.
+    InvalidBrowserRevision,
+    /// The runtime upstream-protocol revision differs from the pinned descriptor.
+    ProtocolRevisionMismatch,
+    /// The runtime browser revision differs from the pinned descriptor.
+    BrowserRevisionMismatch,
+}
+
+impl fmt::Display for BrowserProtocolRuntimeRequirementError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidProtocolRevision => formatter.write_str(
+                "runtime browser protocol revision must be a bounded ASCII metadata token",
+            ),
+            Self::InvalidBrowserRevision => formatter
+                .write_str("runtime browser revision must be a bounded ASCII metadata token"),
+            Self::ProtocolRevisionMismatch => formatter.write_str(
+                "runtime browser protocol revision does not match the pinned adapter revision",
+            ),
+            Self::BrowserRevisionMismatch => formatter.write_str(
+                "runtime browser revision does not match the pinned adapter browser revision",
+            ),
+        }
+    }
+}
+
+impl std::error::Error for BrowserProtocolRuntimeRequirementError {}
 
 /// Failure to require one browser protocol capability from an adapter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
