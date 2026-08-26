@@ -117,7 +117,7 @@ A delegated task uses a task-scoped isolated browser context/profile policy, exp
 
 **Status:** Accepted architecture.
 
-Governed public collection is read-only, robots/rate/resource/purpose/retention aware, and does not include CAPTCHA solving, fingerprint evasion or deliberate access-control circumvention.
+Governed public collection is read-only, robots/rate/resource/purpose/retention aware, and does not include CAPTCHA solving, fingerprint impersonation/evasion intended to defeat bot-management, or deliberate access-control circumvention. Privacy-preserving minimization of ambient host fingerprint leakage is a separate presentation-identity boundary and grants no bypass authority.
 
 ## 8. Core user journeys
 
@@ -186,6 +186,7 @@ public-crawl purpose
 | PRD-COMP-002 | Maintain a Manifest V3 compatibility matrix and representative extension test farm | Planned | Partial protected-main pinned-Chromium evidence covers service worker, content script, storage, DNR, tabs, windows, scripting, commands, side panel, bookmarks, history, restart and repeatability; active PR #43 adds bounded real downloads evidence; issue #27 still owns the complete matrix/release acceptance |
 | PRD-COMP-003 | Chromium-specific integrations remain behind versioned adapters | Planned | Adapter strategy ADR 0107 |
 | PRD-COMP-004 | Headless runtime remains independently usable without the interactive browser UI | Planned | Modular architecture target |
+| PRD-COMP-005 | Governed sessions minimize ambient host fingerprint leakage through a bounded, internally consistent presentation identity | Proposed | Local `originweave-fingerprint` kernel evidence and Proposed ADR 0110; Chromium application and real cross-surface evidence remain unshipped |
 
 ### 9.2 Session and observation authority
 
@@ -275,7 +276,7 @@ public-crawl purpose
 |---|---|---|---|
 | PRD-CRAWL-001 | Crawler mutation is denied and robots policy is explicit | Implemented | Safety-kernel policy foundation |
 | PRD-CRAWL-002 | Rate, depth, count, concurrency, retention, purpose and export controls are explicit | Planned | Crawler runtime work required |
-| PRD-CRAWL-003 | CAPTCHA bypass, fingerprint evasion and deliberate access-control circumvention are excluded | Accepted architecture | ADR 0108; capability remains prohibited |
+| PRD-CRAWL-003 | CAPTCHA bypass, fingerprint impersonation or evasion intended to defeat bot-management, and deliberate access-control circumvention are excluded | Accepted architecture | ADR 0108 and Proposed ADR 0110; privacy-preserving host-fingerprint minimization does not grant bypass authority |
 
 ### 9.11 Enterprise operation
 
@@ -371,7 +372,7 @@ The following are not product capabilities unless a future reviewed product deci
 - arbitrary JavaScript as the ordinary autonomous action interface;
 - model-visible raw-secret delivery;
 - implicit trust from network location, browser profile, extension install or credential possession;
-- CAPTCHA solving, fingerprint spoofing, residential-proxy rotation or access-control circumvention;
+- CAPTCHA solving, fingerprint impersonation or evasion intended to defeat bot-management, residential-proxy rotation, or access-control circumvention;
 - blanket PII masking as the only privacy control;
 - unbounded raw HTML/screenshot/network retention;
 - universal legal/copyright authorization inferred from `robots.txt`;
