@@ -101,8 +101,8 @@ mod tests {
             WebDriverBiDiWebSocketEndpoint::new(&format!("ws://{address}/session/{SESSION_ID}"))?;
         let correlated = endpoint.correlate_session_id(SESSION_ID)?;
         let target = correlated.into_explicit_connect_target()?;
-        let connection = WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)?
-            .connect()?;
+        let connection =
+            WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)?.connect()?;
         let client_key = WebDriverBiDiWebSocketClientKey::new(CLIENT_KEY)?;
         let handshake = legacy::WebDriverBiDiWebSocketHandshakePlan::new(connection, client_key)?;
 
