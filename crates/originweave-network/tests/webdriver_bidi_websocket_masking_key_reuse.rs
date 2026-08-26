@@ -112,19 +112,16 @@ fn established_stream_rejects_client_mask_reuse_across_sequential_frames()
     let reused_mask = WebDriverBiDiWebSocketMaskKey::new([0x21, 0x22, 0x23, 0x24]);
     let established =
         established.write_text_frame("first-frame", reused_mask, Duration::from_millis(500))?;
-    let error = match established.write_text_frame(
-        "second-frame",
-        reused_mask,
-        Duration::from_millis(500),
-    ) {
-        Ok(_) => {
-            return Err(io::Error::other(
-                "RFC 6455 masking-key reuse unexpectedly succeeded",
-            )
-            .into());
-        }
-        Err(error) => error,
-    };
+    let error =
+        match established.write_text_frame("second-frame", reused_mask, Duration::from_millis(500))
+        {
+            Ok(_) => {
+                return Err(
+                    io::Error::other("RFC 6455 masking-key reuse unexpectedly succeeded").into(),
+                );
+            }
+            Err(error) => error,
+        };
     assert!(matches!(
         error,
         WebDriverBiDiWebSocketFrameError::MalformedFrame {
