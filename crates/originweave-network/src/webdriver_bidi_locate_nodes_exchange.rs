@@ -481,25 +481,27 @@ mod tests {
 
     #[test]
     fn pong_entropy_is_not_drawn_after_exchange_deadline() {
+        use std::cell::Cell;
+
         let expected = crate::WebDriverBiDiWebSocketMaskKey::new([0x11, 0x22, 0x33, 0x44]);
-        let mut draw_count = 0_usize;
-        {
-            let mut next = || {
-                draw_count += 1;
-                Some(expected)
-            };
-            assert!(matches!(
-                next_pong_masking_key_before_deadline(
-                    &mut next,
-                    Duration::from_millis(500),
-                    Duration::from_millis(500),
-                ),
-                Err(WebDriverBiDiLocateNodesExchangeError::ExchangeDeadlineExceeded {
-                    exchange_timeout
-                }) if exchange_timeout == Duration::from_millis(500)
-            ));
-        }
-        assert_eq!(draw_count, 0);
+        let draw_count = Cell::new(0_usize);
+        let mut next = || {
+            draw_count.set(draw_count.get() + 1);
+            Some(expected)
+        };
+        assert_eq!(next(), Some(expected));
+        draw_count.set(0);
+        assert!(matches!(
+            next_pong_masking_key_before_deadline(
+                &mut next,
+                Duration::from_millis(500),
+                Duration::from_millis(500),
+            ),
+            Err(WebDriverBiDiLocateNodesExchangeError::ExchangeDeadlineExceeded {
+                exchange_timeout
+            }) if exchange_timeout == Duration::from_millis(500)
+        ));
+        assert_eq!(draw_count.get(), 0);
 
         let mut available = || Some(expected);
         assert_eq!(
