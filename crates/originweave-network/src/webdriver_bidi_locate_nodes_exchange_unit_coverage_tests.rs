@@ -123,7 +123,10 @@ fn binding_wrapper_success_path_executes_in_library_unit_crate() -> Result<(), B
         read_client_text_frame(&mut stream)?;
         let response = RESPONSE_DOCUMENT.as_bytes();
         let response_length = u8::try_from(response.len()).map_err(|_| {
-            io::Error::new(io::ErrorKind::InvalidData, "test response exceeds short frame")
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "test response exceeds short frame",
+            )
         })?;
         if response_length > 125 {
             return Err(io::Error::new(
@@ -139,8 +142,8 @@ fn binding_wrapper_success_path_executes_in_library_unit_crate() -> Result<(), B
     let admitted = WebDriverBiDiWebSocketEndpoint::new(&endpoint)?;
     let correlated = admitted.correlate_session_id(SESSION_ID)?;
     let target = correlated.into_explicit_connect_target()?;
-    let connection = WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)?
-        .connect()?;
+    let connection =
+        WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)?.connect()?;
     let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?;
     let plan = WebDriverBiDiWebSocketHandshakePlan::new(connection, key)?;
     let written = plan.write_opening_request(Duration::from_millis(500))?;
