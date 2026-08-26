@@ -7,9 +7,8 @@ use std::{
 use originweave_core::{
     BoundedWebDriverBiDiResponseDocument, BrowserAuthorityRegistry,
     BrowserContextOriginEpochDispatchTarget, ObservedNodeHandle, ValidatedBrowserProtocolUse,
-    ValidatedWebDriverBiDiLocateNodesResult, WebDriverBiDiLocateNodesAdmissionError,
-    WebDriverBiDiLocateNodesCommand, WebDriverBiDiLocateNodesResponseDocumentError,
-    WebDriverBiDiResponseDocumentAdmissionError,
+    ValidatedWebDriverBiDiLocateNodesResult, WebDriverBiDiLocateNodesCommand,
+    WebDriverBiDiLocateNodesResponseDocumentError, WebDriverBiDiResponseDocumentAdmissionError,
 };
 
 use crate::{
@@ -148,14 +147,6 @@ fn map_established_frame_result(
     result: Result<WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrameError>,
 ) -> Result<WebDriverBiDiWebSocketEstablished, WebDriverBiDiLocateNodesExchangeError> {
     result.map_err(WebDriverBiDiLocateNodesExchangeError::Frame)
-}
-
-fn map_node_binding_error(
-    error: WebDriverBiDiLocateNodesAdmissionError,
-) -> WebDriverBiDiLocateNodesExchangeError {
-    WebDriverBiDiLocateNodesExchangeError::LocateNodesResponse(
-        WebDriverBiDiLocateNodesResponseDocumentError::NodeBinding(error),
-    )
 }
 
 impl WebDriverBiDiWebSocketEstablished {
@@ -306,9 +297,14 @@ impl WebDriverBiDiWebSocketEstablished {
             next_pong_key,
             exchange_timeout,
         )?;
-        let handles = result
-            .bind_current_nodes(validated, authority_registry, target)
-            .map_err(map_node_binding_error)?;
+        let handles = match result.bind_current_nodes(validated, authority_registry, target) {
+            Ok(handles) => handles,
+            Err(error) => {
+                return Err(WebDriverBiDiLocateNodesExchangeError::LocateNodesResponse(
+                    WebDriverBiDiLocateNodesResponseDocumentError::NodeBinding(error),
+                ));
+            }
+        };
         Ok((established, handles))
     }
 }
