@@ -134,6 +134,10 @@ fn public_default_and_error_contracts_are_usable_from_an_adapter() -> Result<(),
             "browsing context origin changed without advancing the document epoch".to_owned(),
         ),
         (
+            BrowserRegistryError::UnknownNodeAuthority,
+            "observed node handle is not registered as current browser authority".to_owned(),
+        ),
+        (
             BrowserRegistryError::IdentifierSpaceExhausted,
             "browser authority identifier space is exhausted".to_owned(),
         ),
@@ -234,6 +238,20 @@ fn retired_context_and_session_authority_cannot_be_reused() -> Result<(), Box<dy
     assert_ne!(replacement_session, session);
     let next_context = registry.register_context(replacement_session, "top-level-context")?;
     assert_ne!(next_context, replacement_context);
+    Ok(())
+}
+
+#[test]
+fn advancing_a_retired_context_is_rejected() -> Result<(), Box<dyn Error>> {
+    let mut registry = BrowserAuthorityRegistry::new();
+    let session = registry.register_session("webdriver-session")?;
+    let context = registry.register_context(session, "top-level-context")?;
+
+    registry.remove_context(context)?;
+    assert_eq!(
+        registry.advance_document(context),
+        Err(BrowserRegistryError::UnknownBrowsingContext)
+    );
     Ok(())
 }
 

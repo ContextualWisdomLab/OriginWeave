@@ -17,6 +17,14 @@ class ProductDocumentationContractTests(unittest.TestCase):
         self.assertIn("Correlated WebDriver BiDi `locateNodes` result admission", changelog)
         self.assertIn("registered browsing-context identity", changelog)
 
+    @staticmethod
+    def _subsection(text: str, heading: str) -> str:
+        """Return one fourth-level documentation subsection."""
+        start = text.index(heading) + len(heading)
+        remainder = text[start:]
+        end = remainder.find("\n#### ")
+        return remainder if end == -1 else remainder[:end]
+
     def test_authoritative_product_documentation_graph_exists(self) -> None:
         """Major product decisions must not require reconstructing chat or PR history."""
         required_paths = {
@@ -31,9 +39,49 @@ class ProductDocumentationContractTests(unittest.TestCase):
             "docs/OPERABILITY.md",
             "docs/API_CONTRACT.md",
             "docs/RELEASE_AND_ROLLBACK.md",
+            "docs/product-technical-gap-baseline.md",
         }
         missing = sorted(path for path in required_paths if not (ROOT / path).is_file())
         self.assertEqual(missing, [])
+
+    def test_product_technical_gap_baseline_records_live_delivery_state(self) -> None:
+        """Buyers and maintainers must see implementation gaps and current delivery blockers together."""
+        baseline = ROOT / "docs/product-technical-gap-baseline.md"
+        self.assertTrue(baseline.is_file())
+        text = baseline.read_text(encoding="utf-8")
+        for phrase in (
+            "Observed snapshot: 2026-08-24",
+            "Protected-main truth",
+            "Open pull requests",
+            "Open issues",
+            "#195",
+            "#149",
+            "reviewer-provisioning gap",
+            "Phase 1",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, text)
+
+        protected_main = text.split("### Open pull requests", 1)[0]
+        open_pull_requests = text.split("### Open pull requests", 1)[1].split(
+            "### Review and merge authority", 1
+        )[0]
+        self.assertIn("Phase 1 is **in progress**, not shipped.", protected_main)
+        self.assertIn(
+            "It remains draft evidence and cannot be treated as shipped behavior.",
+            open_pull_requests,
+        )
+        bidi_status = self._subsection(
+            open_pull_requests, "#### #195/#198 WebDriver BiDi opening path status"
+        )
+        vpn_status = self._subsection(
+            open_pull_requests, "#### #149 VPN/profile intent status"
+        )
+        self.assertIn("Phase 1 is **in progress**, not shipped.", bidi_status)
+        self.assertIn(
+            "It remains draft evidence and cannot be treated as shipped behavior.",
+            vpn_status,
+        )
 
     def test_root_architecture_links_the_authoritative_product_graph(self) -> None:
         """Architecture readers must be able to reach requirements, decisions, diagrams, and data."""
@@ -45,6 +93,7 @@ class ProductDocumentationContractTests(unittest.TestCase):
             "docs/uml/README.md",
             "docs/erd/README.md",
             "docs/traceability/README.md",
+            "docs/product-technical-gap-baseline.md",
         ):
             with self.subTest(link=link):
                 self.assertIn(link, architecture)

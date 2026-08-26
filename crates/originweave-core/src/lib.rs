@@ -33,6 +33,8 @@ mod browser_registry_coverage;
 mod contract_errors;
 mod contracts;
 mod extension_authority;
+/// Stateless MCP routing validation that maps only explicit tools to typed actions.
+pub mod mcp;
 mod webdriver_bidi_command;
 mod webdriver_bidi_error_code;
 mod webdriver_bidi_response_document;
@@ -67,15 +69,15 @@ pub use browser_protocol_operation::{
 };
 pub(crate) use browser_registry::contains_disallowed_protocol_text;
 pub use browser_registry::{
-    BrowserRegistryError, MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES,
+    BrowserRegistryError, MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES, ObservedNodeHandle,
     UNICODE_PROTOCOL_FORMAT_INJECTION_CHARS,
 };
 pub use contracts::{
     ActionIntentDigest, ActionIntentDigestError, ActionKind, ActionRequest, ApprovalEvidence,
     ApprovalScope, BrowserSessionId, BrowsingContextId, Capability, DocumentEpoch,
     ExecutionPurpose, ExtensionAgentCapability, ExtensionId, ExtensionIdError, InstructionSource,
-    NodeHandleError, ObservedNodeHandle, Origin, OriginError, PolicyContext, RiskClass,
-    RobotsDecision, SecretDelivery, SessionMode,
+    NodeHandleError, Origin, OriginError, PolicyContext, RiskClass, RobotsDecision, SecretDelivery,
+    SessionMode,
 };
 pub use extension_authority::{
     AgentTaskId, AgentTaskIdError, ExtensionAccessDecision, ExtensionAccessRequest,
