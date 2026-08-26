@@ -63,12 +63,15 @@ jobs:
           chmod 0755 \
             .mv3-browser/chrome-linux64/chrome \
             .mv3-browser/chromedriver-linux64/chromedriver
+          sudo chown root:root .mv3-browser/chrome-linux64/chrome_sandbox
+          sudo chmod 4755 .mv3-browser/chrome-linux64/chrome_sandbox
 
       - name: Execute real MV3 compatibility fixture
         shell: bash
         env:
           CHROME_BIN: ${{ github.workspace }}/.mv3-browser/chrome-linux64/chrome
           CHROMEDRIVER_BIN: ${{ github.workspace }}/.mv3-browser/chromedriver-linux64/chromedriver
+          CHROME_DEVEL_SANDBOX: ${{ github.workspace }}/.mv3-browser/chrome-linux64/chrome_sandbox
         run: |
           set -euo pipefail
           "$CHROME_BIN" --version
