@@ -71,6 +71,7 @@ pub use contracts::{
     SecretDelivery, SessionMode, evaluate_extension_access,
 };
 pub use webdriver_bidi_command::{
-    MAX_WEBDRIVER_BIDI_COMMAND_ID, WebDriverBiDiLocateNodesCommand,
-    WebDriverBiDiLocateNodesCommandError,
+    MAX_WEBDRIVER_BIDI_COMMAND_ID, ValidatedWebDriverBiDiLocateNodesResponse,
+    WebDriverBiDiLocateNodesCommand, WebDriverBiDiLocateNodesCommandError,
+    WebDriverBiDiLocateNodesResponseCorrelationError,
 };
