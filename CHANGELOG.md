@@ -51,6 +51,9 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Coupled macOS presentation derivation and manual validation to integer device
+  scale classes so the privacy kernel cannot emit that contradictory identity.
+
 - Labeled the dated product-gap observation explicitly as KST so UTC-hosted
   review does not misread a same-instant snapshot as future evidence.
 

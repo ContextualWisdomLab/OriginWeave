@@ -430,6 +430,11 @@ impl PresentationProfile {
         if viewport.width_px > screen.width_px || viewport.height_px > screen.height_px {
             return Err(PresentationError::InconsistentIdentity);
         }
+        if platform == PresentationPlatform::MacOS
+            && device_pixel_ratio == DevicePixelRatio::Quantized15
+        {
+            return Err(PresentationError::InconsistentIdentity);
+        }
         if !SCREEN_SET.contains(&(screen.width_px, screen.height_px))
             || !VIEWPORT_WIDTH_SET.contains(&viewport.width_px)
             || !VIEWPORT_HEIGHT_SET.contains(&viewport.height_px)
@@ -516,12 +521,23 @@ impl PresentationProfile {
         let screen_index = select_index(seed, 0, SCREEN_SET.len());
         let (screen_width, screen_height) = SCREEN_SET[screen_index];
 
-        let ratio_index = select_index(seed, 1, 3);
-        let device_pixel_ratio = [
-            DevicePixelRatio::Quantized1,
-            DevicePixelRatio::Quantized15,
-            DevicePixelRatio::Quantized2,
-        ][ratio_index];
+        let platform_index = select_index(seed, 5, 3);
+        let platform = [
+            PresentationPlatform::Windows,
+            PresentationPlatform::MacOS,
+            PresentationPlatform::Linux,
+        ][platform_index];
+        let ratios: &[DevicePixelRatio] = match platform {
+            PresentationPlatform::MacOS => {
+                &[DevicePixelRatio::Quantized1, DevicePixelRatio::Quantized2]
+            }
+            PresentationPlatform::Windows | PresentationPlatform::Linux => &[
+                DevicePixelRatio::Quantized1,
+                DevicePixelRatio::Quantized15,
+                DevicePixelRatio::Quantized2,
+            ],
+        };
+        let device_pixel_ratio = ratios[select_index(seed, 1, ratios.len())];
 
         let eligible_widths: Vec<u32> = VIEWPORT_WIDTH_SET
             .into_iter()
@@ -536,13 +552,6 @@ impl PresentationProfile {
 
         let concurrency_index = select_index(seed, 4, HARDWARE_CONCURRENCY_SET.len());
         let hardware_concurrency = HARDWARE_CONCURRENCY_SET[concurrency_index];
-
-        let platform_index = select_index(seed, 5, 3);
-        let platform = [
-            PresentationPlatform::Windows,
-            PresentationPlatform::MacOS,
-            PresentationPlatform::Linux,
-        ][platform_index];
 
         let language_index = select_index(seed, 6, FIRST_LANGUAGE_SET.len());
         let mut languages = vec![FIRST_LANGUAGE_SET[language_index].to_owned()];
@@ -994,10 +1003,23 @@ mod tests {
             );
         }
 
+        assert_eq!(
+            PresentationProfile::new(
+                screen,
+                viewport,
+                DevicePixelRatio::Quantized15,
+                12,
+                PresentationTimeZone::Utc,
+                PresentationPlatform::MacOS,
+                vec!["ko-KR".to_owned(), "en".to_owned()],
+                true,
+            ),
+            Err(PresentationError::InconsistentIdentity)
+        );
         let profile = PresentationProfile::new(
             screen,
             viewport,
-            DevicePixelRatio::Quantized15,
+            DevicePixelRatio::Quantized1,
             12,
             PresentationTimeZone::Utc,
             PresentationPlatform::MacOS,
@@ -1005,7 +1027,7 @@ mod tests {
             true,
         )
         .expect("valid profile");
-        assert_eq!(profile.device_pixel_ratio().value(), 1.5);
+        assert_eq!(profile.device_pixel_ratio().value(), 1.0);
         assert_eq!(profile.hardware_concurrency(), 12);
         assert_eq!(profile.timezone_offset_minutes(), 0);
         assert_eq!(profile.timezone(), PresentationTimeZone::Utc);
