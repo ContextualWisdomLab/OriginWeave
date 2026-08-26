@@ -164,7 +164,7 @@ fn append_response_fragment(
 }
 
 fn admit_response_payload(
-    command: &WebDriverBiDiLocateNodesCommand,
+    command: WebDriverBiDiLocateNodesCommand,
     payload: &[u8],
 ) -> Result<ValidatedWebDriverBiDiLocateNodesResult, WebDriverBiDiLocateNodesExchangeError> {
     let document = BoundedWebDriverBiDiResponseDocument::from_utf8_bytes(payload)
@@ -277,7 +277,7 @@ impl WebDriverBiDiWebSocketEstablished {
                 }
                 0xa => {}
                 0x1 if !assembling_text_response && frame.fin() => {
-                    let result = admit_response_payload(&command, frame.payload())?;
+                    let result = admit_response_payload(command, frame.payload())?;
                     return Ok((established, result));
                 }
                 0x1 if !assembling_text_response => {
@@ -287,7 +287,7 @@ impl WebDriverBiDiWebSocketEstablished {
                 0x0 if assembling_text_response => {
                     append_response_fragment(&mut response_message, frame.payload())?;
                     if frame.fin() {
-                        let result = admit_response_payload(&command, &response_message)?;
+                        let result = admit_response_payload(command, &response_message)?;
                         return Ok((established, result));
                     }
                 }
