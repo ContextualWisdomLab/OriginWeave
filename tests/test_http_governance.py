@@ -230,6 +230,25 @@ class HttpGovernanceTests(unittest.TestCase):
         self.assertNotIn("Nottingham, M., & Reschke, J. (2021)", bounded)
         self.assertNotIn("Polli, R., Pardue, L., & Oku, K. (2023)", bounded)
 
+    def test_http_doctoring_references_are_ordered_and_separated(self) -> None:
+        """Canonical doctoring references must retain APA ordering and paragraph breaks."""
+
+        doctoring = (ROOT / "docs/doctoring.md").read_text(encoding="utf-8")
+        references = [
+            "Nottingham, M. (2014). *URI design and ownership* (RFC 7320).",
+            "Nottingham, M. (2020). *URI design and ownership* (RFC 8820; BCP 190).",
+            "Nottingham, M., & Kamp, P.-H. (2021). *Structured Field Values for HTTP* (RFC 8941).",
+            "Nottingham, M., & Kamp, P.-H. (2024). *Structured Field Values for HTTP* (RFC 9651).",
+            "Polli, R., & Pardue, L. (2024). *Digest fields* (RFC 9530).",
+        ]
+        positions = [doctoring.index(reference) for reference in references]
+        self.assertEqual(positions, sorted(positions))
+        for previous, following in zip(references, references[1:]):
+            between = doctoring[
+                doctoring.index(previous) : doctoring.index(following)
+            ]
+            self.assertIn("\n\n", between)
+
 
 if __name__ == "__main__":
     unittest.main()
