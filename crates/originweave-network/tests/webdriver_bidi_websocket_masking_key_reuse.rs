@@ -87,8 +87,8 @@ fn require_peer_closed_before_second_frame(stream: &mut TcpStream) -> io::Result
 }
 
 #[test]
-fn established_stream_rejects_client_mask_reuse_across_sequential_frames(
-) -> Result<(), Box<dyn Error>> {
+fn established_stream_rejects_client_mask_reuse_across_sequential_frames()
+-> Result<(), Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let server = thread::spawn(move || -> io::Result<String> {
@@ -108,11 +108,8 @@ fn established_stream_rejects_client_mask_reuse_across_sequential_frames(
     let written = plan.write_opening_request(Duration::from_millis(500))?;
     let established = written.read_opening_response(Duration::from_millis(500))?;
     let reused_mask = WebDriverBiDiWebSocketMaskKey::new([0x21, 0x22, 0x23, 0x24]);
-    let established = established.write_text_frame(
-        "first-frame",
-        reused_mask,
-        Duration::from_millis(500),
-    )?;
+    let established =
+        established.write_text_frame("first-frame", reused_mask, Duration::from_millis(500))?;
     let error = established
         .write_text_frame("second-frame", reused_mask, Duration::from_millis(500))
         .expect_err("RFC 6455 masking keys must not be reused on one live connection");
