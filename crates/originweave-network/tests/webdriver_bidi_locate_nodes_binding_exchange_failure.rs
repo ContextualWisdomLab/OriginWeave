@@ -92,8 +92,8 @@ fn read_client_text_frame(stream: &mut TcpStream) -> io::Result<Vec<u8>> {
     Ok(payload)
 }
 
-fn establish_with_unexpected_binary_response(
-) -> Result<EstablishedWithUnexpectedBinaryServer, Box<dyn Error>> {
+fn establish_with_unexpected_binary_response()
+-> Result<EstablishedWithUnexpectedBinaryServer, Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let server = thread::spawn(move || -> io::Result<Vec<u8>> {
