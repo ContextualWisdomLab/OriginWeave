@@ -27,6 +27,12 @@ const ADAPTER_VERSION: &str = "originweave-bidi-v1";
 const PROTOCOL_REVISION: &str = "webdriver-bidi-wd-2026-06-01";
 const BROWSER_REVISION: &str = "chromium-r1639810";
 
+type UnexpectedBinaryServer = thread::JoinHandle<io::Result<Vec<u8>>>;
+type EstablishedWithUnexpectedBinaryServer = (
+    originweave_network::WebDriverBiDiWebSocketEstablished,
+    UnexpectedBinaryServer,
+);
+
 fn connect(
     endpoint: &str,
 ) -> Result<originweave_network::WebDriverBiDiTcpConnection, Box<dyn Error>> {
@@ -86,13 +92,8 @@ fn read_client_text_frame(stream: &mut TcpStream) -> io::Result<Vec<u8>> {
     Ok(payload)
 }
 
-fn establish_with_unexpected_binary_response() -> Result<
-    (
-        originweave_network::WebDriverBiDiWebSocketEstablished,
-        thread::JoinHandle<io::Result<Vec<u8>>>,
-    ),
-    Box<dyn Error>,
-> {
+fn establish_with_unexpected_binary_response(
+) -> Result<EstablishedWithUnexpectedBinaryServer, Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let server = thread::spawn(move || -> io::Result<Vec<u8>> {
