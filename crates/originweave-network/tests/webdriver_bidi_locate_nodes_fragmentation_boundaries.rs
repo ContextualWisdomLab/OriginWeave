@@ -72,6 +72,12 @@ fn read_masked_client_text_frame(stream: &mut TcpStream) -> io::Result<()> {
                 )
             })?
         }
+        marker => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("invalid client frame payload-length marker {marker}"),
+            ));
+        }
     };
 
     let mut mask = [0_u8; 4];
