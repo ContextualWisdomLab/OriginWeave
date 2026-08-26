@@ -20,7 +20,7 @@ pub use browser_protocol::{
     BrowserProtocolAdapterDescriptor, BrowserProtocolCapability,
     BrowserProtocolCapabilityRequirementError, BrowserProtocolDescriptorError, BrowserProtocolKind,
     BrowserProtocolVersionRequirementError, MAX_BROWSER_PROTOCOL_METADATA_BYTES,
-    OriginWeaveProtocolVersion,
+    OriginWeaveProtocolVersion, OriginWeaveProtocolVersionParseError,
 };
 pub use browser_registry::{
     BrowserAuthorityRegistry, BrowserRegistryError, MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES,
