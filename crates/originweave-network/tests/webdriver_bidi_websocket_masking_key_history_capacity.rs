@@ -85,7 +85,8 @@ fn established_stream_does_not_gain_a_lifetime_frame_cap_from_reuse_detection()
     let mut established = written.read_opening_response(Duration::from_millis(500))?;
 
     for ordinal in 0..FRAME_COUNT {
-        let masking_key = WebDriverBiDiWebSocketMaskKey::new((ordinal + 1).to_be_bytes());
+        let key_ordinal = (ordinal % (FRAME_COUNT - 1)) + 1;
+        let masking_key = WebDriverBiDiWebSocketMaskKey::new(key_ordinal.to_be_bytes());
         established = established.write_text_frame("x", masking_key, Duration::from_millis(500))?;
     }
     drop(established);
