@@ -166,8 +166,8 @@ fn next_pong_masking_key_before_deadline(
     exchange_timeout: Duration,
     elapsed: Duration,
 ) -> Result<WebDriverBiDiWebSocketMaskKey, WebDriverBiDiLocateNodesExchangeError> {
-    remaining_frame_operation_budget(exchange_timeout, elapsed)?;
-    next_pong_masking_key(next_key)
+    remaining_frame_operation_budget(exchange_timeout, elapsed)
+        .and_then(|_| next_pong_masking_key(next_key))
 }
 
 fn map_established_frame_result(

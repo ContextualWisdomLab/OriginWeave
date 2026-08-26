@@ -64,6 +64,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Removed a redundant 20-microsecond loopback deadline assertion whose error
   variant depended on host scheduling; deterministic unit-clock tests retain
   the shrinking end-to-end budget contract.
+- Kept the no-late-entropy deadline gate as one result chain so exact coverage
+  does not require recreating an expired-clock race through a real socket.
 - Separated logical origin authority from resolved network destination authority; an origin grant no longer implies permission to connect to every resolver result.
 - Separated resolved-address authorization from direct transport evidence; an approved IP now becomes a usable stream only after the operating system reports the exact requested IP and port.
 - Separated exact TCP peer proof from authenticated TLS service identity; an observed peer becomes an authenticated HTTPS stream only after explicit-root, fixed-time, SAN-bound WebPKI verification over that same stream.
