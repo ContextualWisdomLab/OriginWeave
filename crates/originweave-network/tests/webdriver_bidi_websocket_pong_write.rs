@@ -153,22 +153,19 @@ fn established_stream_rejects_reused_pong_mask_before_second_wire_write()
     let written = plan.write_opening_request(Duration::from_millis(500))?;
     let established = written.read_opening_response(Duration::from_millis(500))?;
     let reused_mask = WebDriverBiDiWebSocketMaskKey::new([0x61, 0x62, 0x63, 0x64]);
-    let established = established.write_pong_frame(
-        b"first-pong",
-        reused_mask,
-        Duration::from_millis(500),
-    )?;
-    let error = match established.write_pong_frame(
-        b"second-pong",
-        reused_mask,
-        Duration::from_millis(500),
-    ) {
-        Ok(_) => {
-            return Err(io::Error::other("RFC 6455 Pong masking-key reuse unexpectedly succeeded")
+    let established =
+        established.write_pong_frame(b"first-pong", reused_mask, Duration::from_millis(500))?;
+    let error =
+        match established.write_pong_frame(b"second-pong", reused_mask, Duration::from_millis(500))
+        {
+            Ok(_) => {
+                return Err(io::Error::other(
+                    "RFC 6455 Pong masking-key reuse unexpectedly succeeded",
+                )
                 .into());
-        }
-        Err(error) => error,
-    };
+            }
+            Err(error) => error,
+        };
     assert!(matches!(
         error,
         WebDriverBiDiWebSocketFrameError::MalformedFrame {
