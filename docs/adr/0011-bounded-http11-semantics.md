@@ -123,8 +123,8 @@ Fielding, R., Nottingham, M., & Reschke, J. (2022). *HTTP/1.1* (RFC 9112; STD 99
 
 Berners-Lee, T., Fielding, R., & Masinter, L. (2005). *Uniform resource identifier (URI): Generic syntax* (RFC 3986; STD 66). Internet Engineering Task Force. https://doi.org/10.17487/RFC3986
 
-Nottingham, M., & Reschke, J. (2021). *Structured field values for HTTP* (RFC 8941). Internet Engineering Task Force. https://doi.org/10.17487/RFC8941
+Nottingham, M., & Kamp, P.-H. (2021). *Structured field values for HTTP* (RFC 8941). Internet Engineering Task Force. https://doi.org/10.17487/RFC8941
 
 Nottingham, M., & Kamp, P.-H. (2024). *Structured field values for HTTP* (RFC 9651). Internet Engineering Task Force. https://doi.org/10.17487/RFC9651
 
-Polli, R., Pardue, L., & Oku, K. (2023). *Digest fields* (RFC 9530). Internet Engineering Task Force. https://doi.org/10.17487/RFC9530
+Polli, R., & Pardue, L. (2024). *Digest fields* (RFC 9530). Internet Engineering Task Force. https://doi.org/10.17487/RFC9530
