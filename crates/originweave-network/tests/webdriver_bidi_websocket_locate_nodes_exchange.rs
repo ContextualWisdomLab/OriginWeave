@@ -296,9 +296,9 @@ fn exchange_deadline_is_not_reset_after_the_frame_write() {
 }
 
 #[test]
-fn exchange_rejects_a_non_final_or_non_text_response_frame() {
+fn exchange_rejects_binary_or_orphan_continuation_response_frames() {
     for (first_byte, expected_fin, expected_opcode) in
-        [(0x01_u8, false, 0x01_u8), (0x82_u8, true, 0x02_u8)]
+        [(0x82_u8, true, 0x02_u8), (0x80_u8, true, 0x00_u8)]
     {
         let response_frame = server_frame(first_byte, &[]);
         assert!(response_frame.is_ok(), "{response_frame:?}");
