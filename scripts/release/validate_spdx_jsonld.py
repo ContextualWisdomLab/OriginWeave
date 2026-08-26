@@ -30,6 +30,7 @@ from typing import Any
 SPDX_3_0_1_CONTEXT = "https://spdx.org/rdf/3.0.1/spdx-context.jsonld"
 MAX_SPDX_JSONLD_BYTES = 16 * 1024 * 1024
 MAX_SPDX_GRAPH_OBJECTS = 65_536
+MAX_SPDX_JSON_NUMBER_TOKEN_BYTES = 4096
 _EXPECTED_PARENT_IDENTITIES: contextvars.ContextVar[tuple[tuple[int, int], ...]] = (
     contextvars.ContextVar("spdx_expected_parent_identities", default=())
 )
@@ -60,9 +61,19 @@ def _reject_nonfinite_constant(_value: str) -> None:
     raise ValueError("non-finite JSON number")
 
 
-def _finite_json_float(value: str) -> float:
-    """Parse one JSON float only when its binary representation remains finite."""
+def _bounded_json_integer(value: str) -> int:
+    """Parse one JSON integer only within the fixed numeric-token resource budget."""
 
+    if len(value) > MAX_SPDX_JSON_NUMBER_TOKEN_BYTES:
+        raise ValueError("JSON number token exceeds resource budget")
+    return int(value)
+
+
+def _finite_json_float(value: str) -> float:
+    """Parse one bounded JSON float only when its binary representation remains finite."""
+
+    if len(value) > MAX_SPDX_JSON_NUMBER_TOKEN_BYTES:
+        raise ValueError("JSON number token exceeds resource budget")
     parsed = float(value)
     if not math.isfinite(parsed):
         raise ValueError("non-finite JSON number")
@@ -139,6 +150,7 @@ def validate_spdx_3_0_1_jsonld_bytes(payload: bytes) -> dict[str, int | str]:
             text,
             object_pairs_hook=_object_without_duplicates,
             parse_constant=_reject_nonfinite_constant,
+            parse_int=_bounded_json_integer,
             parse_float=_finite_json_float,
         )
     except _DuplicateJsonKey:
