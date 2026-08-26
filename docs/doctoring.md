@@ -170,14 +170,15 @@ Model Context Protocol. (2026, July 28). *Specification: 2026-07-28*. https://mo
 
 Nielsen, S., Cetin, E., Schwendeman, P., Sun, Q., Xu, J., & Tang, Y. (2025). *Learning to orchestrate agents in natural language with the Conductor* [Preprint]. arXiv. https://doi.org/10.48550/arXiv.2512.04388
 
+Nottingham, M. (2014). *URI design and ownership* (RFC 7320). Internet Engineering Task Force. https://doi.org/10.17487/RFC7320
+
+Nottingham, M. (2020). *URI design and ownership* (RFC 8820; BCP 190). Internet Engineering Task Force. https://doi.org/10.17487/RFC8820
+
 Nottingham, M., & Kamp, P.-H. (2021). *Structured Field Values for HTTP* (RFC 8941). Internet Engineering Task Force. https://doi.org/10.17487/RFC8941
 
 Nottingham, M., & Kamp, P.-H. (2024). *Structured Field Values for HTTP* (RFC 9651). Internet Engineering Task Force. https://doi.org/10.17487/RFC9651
 
 Polli, R., & Pardue, L. (2024). *Digest fields* (RFC 9530). Internet Engineering Task Force. https://doi.org/10.17487/RFC9530
-Nottingham, M. (2014). *URI design and ownership* (RFC 7320). Internet Engineering Task Force. https://doi.org/10.17487/RFC7320
-
-Nottingham, M. (2020). *URI design and ownership* (RFC 8820; BCP 190). Internet Engineering Task Force. https://doi.org/10.17487/RFC8820
 
 Rescorla, E. (2026). *The Transport Layer Security (TLS) protocol version 1.3* (RFC 9846). Internet Engineering Task Force. https://doi.org/10.17487/RFC9846
 
