@@ -17,6 +17,8 @@ use originweave_network::{
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
 const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
+const RESPONSE_DOCUMENT: &str =
+    r#"{"type":"success","id":7,"result":{"nodes":[{"type":"node","sharedId":"shared-1"}]}}"#;
 const PING_PAYLOAD: &[u8] = b"fresh-mask";
 const COMMAND_MASK: WebDriverBiDiWebSocketMaskKey =
     WebDriverBiDiWebSocketMaskKey::new([0x11, 0x22, 0x33, 0x44]);
@@ -100,6 +102,17 @@ fn write_ping(stream: &mut TcpStream) -> io::Result<()> {
     stream.write_all(PING_PAYLOAD)
 }
 
+fn write_response(stream: &mut TcpStream) -> io::Result<()> {
+    let payload_length = u8::try_from(RESPONSE_DOCUMENT.len()).map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "test response exceeded one-byte length",
+        )
+    })?;
+    stream.write_all(&[0x81, payload_length])?;
+    stream.write_all(RESPONSE_DOCUMENT.as_bytes())
+}
+
 fn locate_nodes_command() -> Result<WebDriverBiDiLocateNodesCommand, Box<dyn Error>> {
     let query = WebDriverBiDiAccessibilityQuery::new(Some("button"), Some("Checkout"), 2)?;
     Ok(WebDriverBiDiLocateNodesCommand::new(
@@ -179,4 +192,46 @@ fn locate_nodes_exchange_rejects_pong_mask_reused_from_prior_pong() -> Result<()
     })?;
     assert_eq!(error.to_string(), REUSED_MASK_ERROR);
     join_server(server)
+}
+
+#[test]
+fn locate_nodes_exchange_allows_non_adjacent_random_mask_collision() -> Result<(), Box<dyn Error>> {
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let local_addr = listener.local_addr()?;
+    let server = thread::spawn(move || -> io::Result<()> {
+        let (mut stream, _) = listener.accept()?;
+        read_opening_request(&mut stream)?;
+        stream.write_all(
+            b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n",
+        )?;
+        read_masked_client_frame(&mut stream, 0x81)?;
+        write_ping(&mut stream)?;
+        read_masked_client_frame(&mut stream, 0x8a)?;
+        write_ping(&mut stream)?;
+        read_masked_client_frame(&mut stream, 0x8a)?;
+        write_response(&mut stream)
+    });
+
+    let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+    let client_key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?;
+    let plan = WebDriverBiDiWebSocketHandshakePlan::new(connect(&endpoint)?, client_key)?;
+    let written = plan.write_opening_request(Duration::from_millis(500))?;
+    let established = written.read_opening_response(Duration::from_millis(500))?;
+    let mut keys = [PONG_MASK, COMMAND_MASK].into_iter();
+    let exchanged = established.exchange_locate_nodes(
+        locate_nodes_command()?,
+        COMMAND_MASK,
+        &mut || keys.next(),
+        Duration::from_millis(500),
+    );
+
+    let server_result = server
+        .join()
+        .map_err(|_| io::Error::other("non-adjacent masking-key collision server panicked"))?;
+    assert!(server_result.is_ok(), "{server_result:?}");
+    let (_, result) = exchanged?;
+    assert_eq!(result.command_id(), 7);
+    assert_eq!(result.nodes().len(), 1);
+    assert_eq!(result.nodes()[0].shared_id(), "shared-1");
+    Ok(())
 }
