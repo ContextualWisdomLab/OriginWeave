@@ -88,8 +88,7 @@ class ReleaseSpdxJsonLdEnvelopeContractTests(unittest.TestCase):
             ),
             "invalid_context",
         )
-        self._assert_error_code(
-            self._payload([{"type": "SpdxDocument"}], context=[CONTEXT, None]),
+        self._assert_error_code(self._payload([{"type": "SpdxDocument"}], context=[CONTEXT, None]),
             "invalid_context",
         )
 
@@ -176,6 +175,20 @@ class ReleaseSpdxJsonLdEnvelopeContractTests(unittest.TestCase):
             + '","@graph":[{"type":"SpdxDocument","score":1e400}]}'
         ).encode("utf-8")
         self._assert_error_code(overflow_payload, "invalid_json")
+
+    def test_oversized_numeric_tokens_fail_closed_before_conversion(self) -> None:
+        oversized_integer = "9" * 4097
+        oversized_float = "1." + ("0" * 4095) + "1"
+        for numeric_token in (oversized_integer, oversized_float):
+            with self.subTest(token_kind="float" if "." in numeric_token else "integer"):
+                payload = (
+                    '{"@context":"'
+                    + CONTEXT
+                    + '","@graph":[{"type":"SpdxDocument","score":'
+                    + numeric_token
+                    + "}]}"
+                ).encode("utf-8")
+                self._assert_error_code(payload, "invalid_json")
 
     def test_excessive_json_nesting_fails_with_typed_redacted_error(self) -> None:
         marker = "buyer-secret-marker-must-not-reach-release-diagnostics"
