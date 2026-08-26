@@ -23,7 +23,10 @@ pub use browser_protocol::{
     BrowserProtocolVersionRequirementError, MAX_BROWSER_PROTOCOL_METADATA_BYTES,
     OriginWeaveProtocolVersion, OriginWeaveProtocolVersionParseError, ValidatedBrowserProtocolUse,
 };
-pub use browser_protocol_dispatch::BrowserProtocolRuntimeMetadata;
+pub use browser_protocol_dispatch::{
+    BrowserContextDispatchTarget, BrowserContextProtocolDispatchError,
+    BrowserProtocolRuntimeMetadata,
+};
 pub use browser_registry::{
     BrowserAuthorityRegistry, BrowserRegistryError, MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES,
 };
