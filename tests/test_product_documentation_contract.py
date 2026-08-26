@@ -11,6 +11,12 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 class ProductDocumentationContractTests(unittest.TestCase):
     """Keep product requirements, technical design, diagrams, and traceability discoverable."""
 
+    def test_changelog_records_correlated_locate_nodes_admission(self) -> None:
+        """Public BiDi result admission must remain visible in release evidence."""
+        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.assertIn("Correlated WebDriver BiDi `locateNodes` result admission", changelog)
+        self.assertIn("registered browsing-context identity", changelog)
+
     def test_authoritative_product_documentation_graph_exists(self) -> None:
         """Major product decisions must not require reconstructing chat or PR history."""
         required_paths = {

@@ -6,6 +6,35 @@ use crate::{BrowserSessionId, BrowsingContextId, DocumentEpoch, ObservedNodeHand
 /// Maximum UTF-8 byte length of an opaque browser-protocol identifier retained by the registry.
 pub const MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES: usize = 512;
 
+/// Invisible and bidirectional Unicode format characters rejected in protocol text.
+///
+/// These code points are Default_Ignorable or bidirectional format controls. They can hide or
+/// reorder locator and identifier text without being `char::is_control` or `char::is_whitespace`.
+/// The reviewed set is a local fail-closed policy for OriginWeave protocol admission, not a claim
+/// that every Unicode format character is forbidden by WebDriver BiDi or WAI-ARIA.
+pub const UNICODE_PROTOCOL_FORMAT_INJECTION_CHARS: &[char] = &[
+    '\u{00AD}', '\u{061C}', '\u{180E}', '\u{200B}', '\u{200C}', '\u{200D}', '\u{200E}', '\u{200F}',
+    '\u{202A}', '\u{202B}', '\u{202C}', '\u{202D}', '\u{202E}', '\u{2060}', '\u{2061}', '\u{2062}',
+    '\u{2063}', '\u{2064}', '\u{2066}', '\u{2067}', '\u{2068}', '\u{2069}', '\u{206A}', '\u{206B}',
+    '\u{206C}', '\u{206D}', '\u{206E}', '\u{206F}', '\u{FEFF}',
+];
+
+/// Return whether protocol text contains a control, whitespace, or reviewed format character.
+///
+/// When `allow_ordinary_space` is true, U+0020 may appear so accessible names can keep ordinary
+/// spaces. Every other whitespace character, every control, and every reviewed format character
+/// still fail closed.
+pub(crate) fn contains_disallowed_protocol_text(value: &str, allow_ordinary_space: bool) -> bool {
+    value.chars().any(|character| {
+        if allow_ordinary_space && character == ' ' {
+            return false;
+        }
+        character.is_control()
+            || character.is_whitespace()
+            || UNICODE_PROTOCOL_FORMAT_INJECTION_CHARS.contains(&character)
+    })
+}
+
 /// Default maximum number of authority identifiers allocated per registry namespace.
 const DEFAULT_MAX_BROWSER_AUTHORITY_IDENTIFIERS: u64 = 1_000_000;
 
@@ -198,6 +227,26 @@ impl BrowserAuthorityRegistry {
         self.current_epoch(browsing_context)
     }
 
+    /// Require an opaque external browsing-context identifier to name this exact context.
+    ///
+    /// This read-only check binds transport-level context text back to the already-registered
+    /// OriginWeave session/context pair. It never registers a new external context as a side effect,
+    /// so an untrusted result cannot create authority merely by presenting a different identifier.
+    pub(crate) fn require_context_external_identifier(
+        &self,
+        browser_session: BrowserSessionId,
+        browsing_context: BrowsingContextId,
+        external_identifier: &str,
+    ) -> Result<(), BrowserRegistryError> {
+        validate_external_identifier(external_identifier)?;
+        self.current_context_epoch(browser_session, browsing_context)?;
+        let key = (browser_session, external_identifier.to_owned());
+        if self.context_by_external.get(&key).copied() != Some(browsing_context) {
+            return Err(BrowserRegistryError::ContextExternalIdentifierMismatch);
+        }
+        Ok(())
+    }
+
     /// Bind the canonical origin observed for the exact current browser document.
     ///
     /// This boundary lets a trusted browser adapter establish current document-origin state before
@@ -327,6 +376,46 @@ impl BrowserAuthorityRegistry {
             observed_node_handle(browser_session, browsing_context, origin, epoch, node_id)
         })
     }
+
+    /// Bind a batch of node identifiers transactionally to the exact current browser authority.
+    ///
+    /// Successful bindings are retained only when every identifier in the batch succeeds. If a
+    /// later identifier fails validation, authority checks, identifier allocation, or handle
+    /// construction, node mappings allocated by this batch are removed, the next node identifier
+    /// is restored, and an origin first established by this batch is removed before the error is
+    /// returned. Handles created earlier in the failed batch never escape this method, so restoring
+    /// the local allocation cursor cannot revive externally observable stale authority.
+    pub(crate) fn bind_nodes(
+        &mut self,
+        browser_session: BrowserSessionId,
+        browsing_context: BrowsingContextId,
+        origin: &Origin,
+        external_identifiers: &[&str],
+    ) -> Result<Vec<ObservedNodeHandle>, BrowserRegistryError> {
+        let starting_next_node_id = self.next_node_id;
+        let had_origin = self.context_origin.contains_key(&browsing_context);
+        let mut handles = Vec::with_capacity(external_identifiers.len());
+        for external_identifier in external_identifiers {
+            match self.bind_node(
+                browser_session,
+                browsing_context,
+                origin,
+                external_identifier,
+            ) {
+                Ok(handle) => handles.push(handle),
+                Err(error) => {
+                    self.node_by_external
+                        .retain(|_key, node_id| *node_id < starting_next_node_id);
+                    self.next_node_id = starting_next_node_id;
+                    if !had_origin {
+                        self.context_origin.remove(&browsing_context);
+                    }
+                    return Err(error);
+                }
+            }
+        }
+        Ok(handles)
+    }
 }
 
 impl Default for BrowserAuthorityRegistry {
@@ -338,7 +427,7 @@ impl Default for BrowserAuthorityRegistry {
 /// A fail-closed error produced while translating external browser identifiers into local authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BrowserRegistryError {
-    /// An external identifier was empty or exceeded the reviewed byte bound.
+    /// An external identifier was empty, contained control, whitespace, or Unicode format text, or exceeded the reviewed byte bound.
     InvalidExternalIdentifier,
     /// The supplied OriginWeave browser session is not registered in this registry.
     UnknownBrowserSession,
@@ -351,6 +440,8 @@ pub enum BrowserRegistryError {
         /// Session supplied by the current caller.
         actual: BrowserSessionId,
     },
+    /// The transport-level browsing-context identifier does not name the supplied registered context.
+    ContextExternalIdentifierMismatch,
     /// The current document has no canonical origin bound to the browsing context.
     ContextOriginNotBound,
     /// The context origin changed without first rotating the document epoch.
@@ -366,9 +457,9 @@ pub enum BrowserRegistryError {
 impl fmt::Display for BrowserRegistryError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidExternalIdentifier => {
-                formatter.write_str("external browser identifier must contain 1 to 512 UTF-8 bytes")
-            }
+            Self::InvalidExternalIdentifier => formatter.write_str(
+                "external browser identifier must contain 1 to 512 UTF-8 bytes without control, whitespace, or Unicode format characters",
+            ),
             Self::UnknownBrowserSession => {
                 formatter.write_str("browser session is not registered in this authority registry")
             }
@@ -380,6 +471,9 @@ impl fmt::Display for BrowserRegistryError {
                 "browsing context belongs to session {}, not session {}",
                 expected.value(),
                 actual.value()
+            ),
+            Self::ContextExternalIdentifierMismatch => formatter.write_str(
+                "browsing context external identifier does not match the registered context",
             ),
             Self::ContextOriginNotBound => formatter.write_str(
                 "browsing context has no canonical origin bound for the current document",
@@ -402,7 +496,10 @@ impl fmt::Display for BrowserRegistryError {
 impl std::error::Error for BrowserRegistryError {}
 
 fn validate_external_identifier(identifier: &str) -> Result<(), BrowserRegistryError> {
-    if identifier.is_empty() || identifier.len() > MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES {
+    if identifier.is_empty()
+        || identifier.len() > MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES
+        || contains_disallowed_protocol_text(identifier, false)
+    {
         return Err(BrowserRegistryError::InvalidExternalIdentifier);
     }
     Ok(())
@@ -555,6 +652,18 @@ mod tests {
         let contexts = values(registry.register_context(session, "context-a"));
         assert_eq!(contexts.len(), 1);
         let context = contexts[0];
+        assert_eq!(
+            registry.require_context_external_identifier(session, context, "context-a"),
+            Ok(())
+        );
+        assert_eq!(
+            registry.require_context_external_identifier(session, context, "context-b"),
+            Err(BrowserRegistryError::ContextExternalIdentifierMismatch)
+        );
+        assert_eq!(
+            registry.require_context_external_identifier(session, context, ""),
+            Err(BrowserRegistryError::InvalidExternalIdentifier)
+        );
 
         let maximum_epochs = values(DocumentEpoch::new(u64::MAX));
         assert_eq!(maximum_epochs.len(), 1);
@@ -570,6 +679,14 @@ mod tests {
         assert_eq!(unknown_sessions.len(), 1);
         assert_eq!(unknown_contexts.len(), 1);
         assert_eq!(
+            registry.require_context_external_identifier(unknown_sessions[0], context, "context-a"),
+            Err(BrowserRegistryError::UnknownBrowserSession)
+        );
+        assert_eq!(
+            registry.require_context_external_identifier(session, unknown_contexts[0], "context-a"),
+            Err(BrowserRegistryError::UnknownBrowsingContext)
+        );
+        assert_eq!(
             registry.bind_node(unknown_sessions[0], context, origin, "node"),
             Err(BrowserRegistryError::UnknownBrowserSession)
         );
@@ -577,6 +694,64 @@ mod tests {
             registry.bind_node(session, unknown_contexts[0], origin, "node"),
             Err(BrowserRegistryError::UnknownBrowsingContext)
         );
+    }
+
+    #[test]
+    fn batched_node_binding_rolls_back_partial_authority() {
+        let origins = values(Origin::parse("http://127.0.0.1:43127"));
+        assert_eq!(origins.len(), 1);
+        let origin = &origins[0];
+
+        let mut registry = BrowserAuthorityRegistry::with_identifier_limit(2);
+        let sessions = values(registry.register_session("session"));
+        assert_eq!(sessions.len(), 1);
+        let session = sessions[0];
+        let contexts = values(registry.register_context(session, "context"));
+        assert_eq!(contexts.len(), 1);
+        let context = contexts[0];
+        let existing = values(registry.bind_node(session, context, origin, "existing"));
+        assert_eq!(existing.len(), 1);
+        assert_eq!(existing[0].node_id(), 1);
+        assert_eq!(
+            registry.bind_nodes(session, context, origin, &["existing", "fresh", "overflow"]),
+            Err(BrowserRegistryError::IdentifierSpaceExhausted)
+        );
+        assert_eq!(registry.node_by_external.len(), 1);
+        assert_eq!(registry.next_node_id, 2);
+        assert!(registry.context_origin.contains_key(&context));
+        let recovery = values(registry.bind_node(session, context, origin, "recovery"));
+        assert_eq!(recovery.len(), 1);
+        assert_eq!(recovery[0].node_id(), 2);
+
+        let mut unbound_registry = BrowserAuthorityRegistry::with_identifier_limit(1);
+        let sessions = values(unbound_registry.register_session("unbound-session"));
+        assert_eq!(sessions.len(), 1);
+        let unbound_session = sessions[0];
+        let contexts =
+            values(unbound_registry.register_context(unbound_session, "unbound-context"));
+        assert_eq!(contexts.len(), 1);
+        let unbound_context = contexts[0];
+        assert!(
+            !unbound_registry
+                .context_origin
+                .contains_key(&unbound_context)
+        );
+        assert_eq!(
+            unbound_registry.bind_nodes(
+                unbound_session,
+                unbound_context,
+                origin,
+                &["first", "overflow"],
+            ),
+            Err(BrowserRegistryError::IdentifierSpaceExhausted)
+        );
+        assert!(
+            !unbound_registry
+                .context_origin
+                .contains_key(&unbound_context)
+        );
+        assert!(unbound_registry.node_by_external.is_empty());
+        assert_eq!(unbound_registry.next_node_id, 1);
     }
 
     #[test]
@@ -673,6 +848,7 @@ mod tests {
                 expected: expected_values[0],
                 actual: actual_values[0],
             },
+            BrowserRegistryError::ContextExternalIdentifierMismatch,
             BrowserRegistryError::ContextOriginNotBound,
             BrowserRegistryError::OriginChangedWithoutDocumentAdvance,
             BrowserRegistryError::IdentifierSpaceExhausted,

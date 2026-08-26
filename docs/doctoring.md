@@ -8,6 +8,12 @@ This document records external evidence that changes OriginWeave architecture, t
 
 The 1 June 2026 WebDriver BiDi Working Draft defines a bidirectional remote-control protocol, events, commands, and user contexts. Because it remains a W3C Working Draft, OriginWeave places BiDi behind a versioned adapter and Web Platform Tests-derived contract tests rather than make it the internal authority model.
 
+The same Working Draft defines `script.NodeRemoteValue` with a required `type` of `node` and an optional `sharedId`, and `browsingContext.locateNodes` returns a list of those remote values. A `script.SharedReference` is the protocol's node identity across realms; when both `handle` and `sharedId` are present, the protocol respects only `sharedId`. OriginWeave therefore admits a `locateNodes` result item only when the remote type is exactly `node` and a non-empty `sharedId` fits the same UTF-8 identifier budget used by browser session and context identifiers and contains no control, whitespace, or reviewed Unicode format characters. Requiring `sharedId` and rejecting control, whitespace, and format characters is a local fail-closed policy, not a claim that the Working Draft makes those fields mandatory or forbids whitespace. The admitted value is an untrusted transport handle, not an OriginWeave session, context, origin, or document-epoch node identity. The same-call QueryNodes admission boundary first obtains a non-cloneable SemanticObservation protocol-use proof and transfers that proof by ownership into `bind_current_nodes`, which refuses Navigation and TypedInput proofs before translating each admitted `sharedId` through the session-scoped registry into an `ObservedNodeHandle` only after the exact current session, browsing context, canonical origin, and document epoch are revalidated and the returned item count still fits the reviewed query budget. That composition still performs no browser I/O and does not authorize typed input.
+
+WAI-ARIA 1.2 defines host-language `role` values as a token list: user agents split on whitespace and use the first matching non-abstract role. OriginWeave's first `locateNodes` accessibility query asks for one exact role, so a role containing whitespace, a control character, or a Unicode format character is rejected rather than interpreted as a fallback-role list. Accessible Name and Description Computation 1.2, a W3C Working Draft as of 5 August 2026, treats accessible names as ordinary strings that may contain spaces and treats whitespace-only `aria-roledescription` values as absent. OriginWeave therefore keeps ordinary spaces in accessible-name locators, rejects control and reviewed format characters that would become protocol-text injection or bidirectional spoofing, and rejects whitespace-only names as non-selectors.
+
+UTS #39 Revision 32 is the current Unicode security-mechanisms standard and marks Default_Ignorable and bidirectional format characters as restricted in identifier profiles. UAX #9 defines the bidirectional format controls that can reorder displayed protocol text. UTR #36 Revision 15 remains a stabilized historical security-considerations report; its identifier recommendations are superseded by UTS #39 rather than cited as current normative profile rules. OriginWeave therefore rejects the reviewed format-character set in roles, shared identifiers, and registry external identifiers, and rejects those same characters inside accessible names while still allowing ordinary U+0020 spaces.
+
 ### Browser origin equivalence
 
 The WHATWG URL host parser and Chromium canonicalizer classify shortened decimal, integer, hexadecimal, legacy octal-looking, and mixed-component numeric hosts as IPv4 or broken IPv4 candidates rather than ordinary DNS names. Chromium's regression suite includes values such as `192`, `0xC0a80001`, `030052000001`, and mixed hexadecimal components. A non-final empty `0x` component can participate in Chromium's multi-part IPv4 truncation behavior, but a final `0x` label does not produce an IPv4 number because stripping its prefix leaves no digits; it remains a domain label. Chromium also warns that broken IP-like hosts must not be connected because another resolver could accept them. OriginWeave therefore admits only canonical dotted-decimal IPv4 into its policy origin type, rejects browser-special numeric spellings before DNS validation, and preserves final non-numeric DNS labels such as `0x`.
@@ -150,11 +156,21 @@ The Rust Project Developers. (2026). *Ipv6Addr in std::net* (Rust 1.97.1) [Softw
 
 The Rust Project Developers. (2026). *TcpStream in std::net* (Rust 1.97.1) [Software documentation]. https://doc.rust-lang.org/stable/std/net/struct.TcpStream.html
 
+Unicode Consortium. (2014, September 19). *Unicode security considerations* (Unicode Technical Report #36, Revision 15). https://www.unicode.org/reports/tr36/tr36-15.html
+
+Unicode Consortium. (2025a, September 4). *Unicode bidirectional algorithm* (Unicode Standard Annex #9, Version 17.0.0). https://www.unicode.org/reports/tr9/
+
+Unicode Consortium. (2025b, September 4). *Unicode security mechanisms* (Unicode Technical Standard #39, Revision 32). https://www.unicode.org/reports/tr39/tr39-32.html
+
 Web Hypertext Application Technology Working Group. (2026). *URL standard*. https://url.spec.whatwg.org/
 
 World Wide Web Consortium. (2013). *PROV-O: The PROV ontology*. https://www.w3.org/TR/prov-o/
 
+World Wide Web Consortium. (2023, June 6). *Accessible Rich Internet Applications (WAI-ARIA) 1.2*. https://www.w3.org/TR/2023/REC-wai-aria-1.2-20230606/
+
 World Wide Web Consortium. (2026, June 1). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260601/
+
+World Wide Web Consortium. (2026, August 5). *Accessible name and description computation 1.2* (W3C Working Draft). https://www.w3.org/TR/2026/WD-accname-1.2-20260805/
 
 Xu, J., Sun, Q., Schwendeman, P., Nielsen, S., Cetin, E., & Tang, Y. (2025). *TRINITY: An evolved LLM coordinator* [Preprint]. arXiv. https://doi.org/10.48550/arXiv.2512.04695
 
