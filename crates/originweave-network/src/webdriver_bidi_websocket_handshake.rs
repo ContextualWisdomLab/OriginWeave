@@ -144,11 +144,21 @@ impl WebDriverBiDiWebSocketMaskKey {
 /// Construction performs no socket write, TLS operation, response parsing, `Sec-WebSocket-Accept`
 /// validation, WebSocket framing, Chromium/ChromeDriver process authentication, browser action, or
 /// Agent-authority grant.
-#[derive(Debug)]
 pub struct WebDriverBiDiWebSocketHandshakePlan {
     connection: WebDriverBiDiTcpConnection,
     client_key: WebDriverBiDiWebSocketClientKey,
     request: Vec<u8>,
+}
+
+impl fmt::Debug for WebDriverBiDiWebSocketHandshakePlan {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("WebDriverBiDiWebSocketHandshakePlan")
+            .field("verified_peer", self.connection.verified_peer())
+            .field("client_key", &"<redacted WebSocket client nonce>")
+            .field("request_byte_count", &self.request.len())
+            .finish()
+    }
 }
 
 impl WebDriverBiDiWebSocketHandshakePlan {
