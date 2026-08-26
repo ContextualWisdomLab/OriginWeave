@@ -213,6 +213,23 @@ class HttpGovernanceTests(unittest.TestCase):
         ):
             self.assertIn(marker, doctoring)
 
+    def test_http_adr_uses_authoritative_rfc_authorship(self) -> None:
+        """Binding HTTP references must match the RFC Editor metadata exactly."""
+
+        bounded = (ROOT / "docs/adr/0011-bounded-http11-semantics.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "Nottingham, M., & Kamp, P.-H. (2021). *Structured field values for HTTP* (RFC 8941).",
+            bounded,
+        )
+        self.assertIn(
+            "Polli, R., & Pardue, L. (2024). *Digest fields* (RFC 9530).",
+            bounded,
+        )
+        self.assertNotIn("Nottingham, M., & Reschke, J. (2021)", bounded)
+        self.assertNotIn("Polli, R., Pardue, L., & Oku, K. (2023)", bounded)
+
 
 if __name__ == "__main__":
     unittest.main()
