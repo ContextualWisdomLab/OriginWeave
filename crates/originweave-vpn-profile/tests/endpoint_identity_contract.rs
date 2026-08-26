@@ -183,10 +183,7 @@ fn ikev2_identity_rejects_unicode_presentation_controls_before_secret_import() {
 
 #[test]
 fn ikev2_identity_rejects_unicode_whitespace_before_secret_import() {
-    for identity_lines in [
-        "RemoteId=remote\u{2028}id\n",
-        "LocalId=local\u{2029}id\n",
-    ] {
+    for identity_lines in ["RemoteId=remote\u{2028}id\n", "LocalId=local\u{2029}id\n"] {
         assert_ikev2_invalid_without_import("vpn.example", identity_lines);
     }
 
