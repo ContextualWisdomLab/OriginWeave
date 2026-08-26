@@ -342,7 +342,9 @@ fn exchange_preserves_frame_document_and_response_admission_boundaries() {
     let write_error = exchange_error(&[], Duration::ZERO, false);
     assert!(matches!(
         write_error,
-        WebDriverBiDiLocateNodesExchangeError::Frame(_)
+        WebDriverBiDiLocateNodesExchangeError::ExchangeDeadlineExceeded {
+            exchange_timeout
+        } if exchange_timeout.is_zero()
     ));
 
     let read_error = exchange_error(&[], Duration::from_millis(500), true);
