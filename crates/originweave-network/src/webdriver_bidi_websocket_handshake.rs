@@ -85,8 +85,14 @@ impl Error for WebDriverBiDiWebSocketHandshakeError {}
 /// validates only the canonical wire representation, including zero padding bits. It does not
 /// generate entropy: callers remain responsible for supplying a fresh, unpredictable 16-byte nonce
 /// for each connection attempt.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Eq, PartialEq)]
 pub struct WebDriverBiDiWebSocketClientKey(String);
+
+impl fmt::Debug for WebDriverBiDiWebSocketClientKey {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("<redacted WebSocket client nonce>")
+    }
+}
 
 impl WebDriverBiDiWebSocketClientKey {
     /// Admit one canonical base64 client key representing exactly 16 bytes.
