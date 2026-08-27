@@ -65,9 +65,11 @@ contract. This slice adds:
 - `WebGlRendererToken` — canonicalization of renderer spellings to either an
   `Angle` or `Standard` bounded token; unknown spellings fail closed.
 - `WebAudioRate` — normalization to 44_100 or 48_000 Hz standard rates only.
-- `WebRtcInterface` — either `Disabled` (the adapter exposes candidates) or
-  `MDnsOnly` (candidates are mDNS-published), a policy statement, never a
-  network action.
+- `WebRtcInterface` — either `DirectCandidates` (the adapter deliberately
+  exposes direct interface candidates) or `MDnsOnly` (candidates are
+  mDNS-published), a policy statement, never a network action. The explicit
+  variant naming prevents callers from mistaking direct candidate disclosure
+  for a privacy-preserving enabled/disabled mode.
 - `require_stealth_surfaces` — requires Canvas, WebGL, WebAudio, and WebRtc
   coverage in stable order, duplicative and order independent.
 
@@ -78,17 +80,16 @@ real-browser test.
 ## Consequences
 
 The fingerprint container gains a deterministic, testable stealth surface
-which it is purely a contract. No real browser is yet claimed: any final
-adapter must apply every listed surface before page script and prove no
-ambient host value leaks. This slice does not make stealth or
-anti-detection a shipped browser capability.
+that is purely a contract. No real browser is yet claimed: any final adapter
+must apply every listed surface before page script and prove no ambient host
+value leaks. This slice does not make stealth or anti-detection a shipped
+browser capability.
 
 ## Failure and degraded behavior
 
 Construction rejects unknown sample rates, unknown WebGL tokens, and unknown
-noise noise classes with typed errors. An adapter claiming fewer than all
-required surfaces fails closed with the first missing surface in contract
-order.
+noise classes with typed errors. An adapter claiming fewer than all required
+surfaces fails closed with the first missing surface in contract order.
 
 ## Security, privacy, and governance impact
 
