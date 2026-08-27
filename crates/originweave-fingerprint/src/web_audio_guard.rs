@@ -12,9 +12,8 @@ use std::fmt;
 
 const MAX_ALLOWED_ORIGINS: usize = 128;
 const ALLOWLIST_MARKER: &str = "/* ORIGINWEAVE_ALLOWED_WEB_AUDIO_ORIGINS */";
-const GUARD_SCRIPT_TEMPLATE: &str = include_str!(
-    "../../../extensions/originweave-privacy-guard/web_audio_guard.js"
-);
+const GUARD_SCRIPT_TEMPLATE: &str =
+    include_str!("../../../extensions/originweave-privacy-guard/web_audio_guard.js");
 
 /// The result of evaluating one page origin against the Web Audio policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -36,9 +35,7 @@ impl WebAudioDecision {
     #[must_use]
     pub const fn reason_code(self) -> Option<&'static str> {
         match self {
-            Self::BlockFingerprinting => {
-                Some("web_audio_fingerprinting_no_explicit_origin_grant")
-            }
+            Self::BlockFingerprinting => Some("web_audio_fingerprinting_no_explicit_origin_grant"),
             Self::AllowExplicitOrigin => None,
         }
     }

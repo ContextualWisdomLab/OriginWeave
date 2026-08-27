@@ -7,9 +7,7 @@
 #![allow(clippy::expect_used)]
 
 use originweave_core::Origin;
-use originweave_fingerprint::{
-    WebAudioDecision, WebAudioFingerprintPolicy, WebAudioPolicyError,
-};
+use originweave_fingerprint::{WebAudioDecision, WebAudioFingerprintPolicy, WebAudioPolicyError};
 
 fn origin(value: &str) -> Origin {
     Origin::parse(value).expect("test origin must satisfy the shared origin contract")
@@ -90,7 +88,9 @@ fn rendered_guard_is_deterministic_and_contains_only_canonical_grants() {
     assert!(first.contains("\"https://a.example\""));
     assert!(first.contains("\"https://z.example\""));
     assert!(
-        first.find("https://a.example").expect("first origin must be rendered")
+        first
+            .find("https://a.example")
+            .expect("first origin must be rendered")
             < first
                 .find("https://z.example")
                 .expect("second origin must be rendered")

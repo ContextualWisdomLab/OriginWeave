@@ -292,6 +292,7 @@ dependencies = [
 name = "originweave-fingerprint"
 version = "0.1.0"
 dependencies = [
+ "originweave-core",
  "sha2",
 ]
 

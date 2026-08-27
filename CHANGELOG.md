@@ -8,6 +8,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Refreshed the product-gap queue to 126 open pull requests (54 ready, 72 draft) after #190, #188, #185, #192, #182, #184, #115, #181, #116, #117, #118, #183, #114, #127, #112, #109, #186, #110, #108, #111, #174, and #113 were merged into their immediate stacked prerequisites. PRs #147, #146, #145, #144, #143, #142, #141, #139, #136, #132, #129, and #128 moved to ready after exact-head checks and thread review; these are queue-consolidation results, not protected-main shipment.
 
 ### Added
+- Added a default-deny Web Audio fingerprinting boundary for isolated Agent and Crawler profiles: exact-origin grants capped at 128 unique canonical origins, a deterministic Rust-rendered MAIN-world `document_start` guard, and a pinned-Chromium top-document/child-frame proof that blocks online, offline, prefixed, and AudioWorklet construction entry points (see ADR 0114).
 - Added cross-surface platform coherence to the fingerprint kernel: `PresentationPlatform::hints_platform` is the single source of truth mapping each presentation platform to its canonical UA Client Hints platform, and `require_hints_coherence` fails closed on any contradiction so the presentation-platform, UA-token, and UA-CH-platform triad cannot leak a mismatched identity (see ADR 0113).
 - Added bounded User-Agent Client Hints surfaces to the fingerprint kernel: ASCII brand/version validation with a 32-character name bound, enumerated architecture/bitness/platform tokens, a non-empty brand-list requirement, and the spec rule that a non-mobile user agent reports an empty model. Control-plane contract only, grounded in the User-Agent Client Hints draft (WICG, 2026); see ADR 0112.
 - Added bounded stealth-normalization surfaces to the fingerprint kernel: enumerated canvas-noise classes, canonicalized WebGL renderer tokens, standard-rate Web Audio normalization, bounded WebRTC interface policy, and a fail-closed Canvas/WebGL/WebAudio/WebRtc surface-admission contract. This is a privacy-preserving control-plane contract with no real-browser or anti-evasion claim (see ADR 0111).
@@ -102,6 +103,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Corrected the baseline evidence collector to flatten every paginated input, apply current reviewer and last-push approval semantics, and discard verdicts when either the PR head or base moves.
 
 ### Security
+- Web Audio constructors now fail with a fixed `NotAllowedError` in the managed default profile unless a trusted policy grants the exact canonical origin; the guard has no storage, network, messaging, model, or secret authority and does not affect ordinary media-element playback.
 
 - Explicit proxy server identifiers require ASCII decimal port tokens before numeric range parsing, preventing Rust-specific leading-plus spellings from widening proxy authority.
 - Raw page content cannot become a trusted instruction.
