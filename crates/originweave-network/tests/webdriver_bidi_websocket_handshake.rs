@@ -1,5 +1,6 @@
 use std::{
     net::{Shutdown, TcpListener},
+    sync::mpsc,
     thread,
     time::Duration,
 };
@@ -150,12 +151,25 @@ fn opening_write_fails_closed_after_verified_stream_is_locally_revoked() {
     let Ok(local_addr) = local_addr else {
         return;
     };
-    let server = thread::spawn(move || listener.accept().map(|_| ()));
+    let (accepted_tx, accepted_rx) = mpsc::channel();
+    let (release_tx, release_rx) = mpsc::channel();
+    let server = thread::spawn(move || {
+        let accepted = listener.accept();
+        let signalled = accepted_tx.send(());
+        assert!(signalled.is_ok(), "{signalled:?}");
+        let released = release_rx.recv();
+        assert!(released.is_ok(), "{released:?}");
+        accepted.map(|_| ())
+    });
 
     let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
     let connection = connect(&endpoint);
+    let accepted = accepted_rx.recv();
+    assert!(accepted.is_ok(), "{accepted:?}");
     let shutdown = connection.stream().shutdown(Shutdown::Both);
     assert!(shutdown.is_ok(), "{shutdown:?}");
+    let released = release_tx.send(());
+    assert!(released.is_ok(), "{released:?}");
 
     let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY);
     assert!(key.is_ok(), "{key:?}");
