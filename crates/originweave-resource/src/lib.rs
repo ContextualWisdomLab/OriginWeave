@@ -9,6 +9,8 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+use std::fmt;
+
 const MEBIBYTE_BYTES: u64 = 1_048_576;
 
 const fn bytes_to_mebibytes_ceil(bytes: u64) -> u64 {
@@ -28,6 +30,19 @@ pub enum BudgetError {
     /// A soft memory limit exceeded its corresponding hard limit.
     SoftExceedsHard,
 }
+
+impl fmt::Display for BudgetError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ZeroLimit => formatter.write_str("resource budget limits must be nonzero"),
+            Self::SoftExceedsHard => {
+                formatter.write_str("resource budget soft limits must not exceed hard limits")
+            }
+        }
+    }
+}
+
+impl std::error::Error for BudgetError {}
 
 /// Validated resource limits for one agent task.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

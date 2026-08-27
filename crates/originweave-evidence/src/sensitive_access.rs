@@ -297,7 +297,10 @@ fn validate_fields(field_ids: &[String]) -> Result<(), SensitiveEvidenceError> {
     Ok(())
 }
 
-fn valid_identifier(value: &str) -> bool {
+/// Return whether `value` is a non-empty identifier of at most
+/// `MAX_SENSITIVE_IDENTIFIER_BYTES` ASCII bytes, contains at least one
+/// alphanumeric byte, and otherwise uses only `.`, `_`, `:`, or `-` punctuation.
+pub(crate) fn valid_identifier(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= MAX_SENSITIVE_IDENTIFIER_BYTES
         && value.bytes().any(|byte| byte.is_ascii_alphanumeric())
