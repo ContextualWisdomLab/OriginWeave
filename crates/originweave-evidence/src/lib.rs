@@ -10,6 +10,7 @@
 mod action_outcome;
 mod extraction_schema;
 mod sensitive_access;
+mod sensitive_handle_lifecycle;
 
 pub use action_outcome::{
     PostConditionKind, PostConditionObservation, VerifiedActionOutcomeError,
@@ -24,6 +25,9 @@ pub use sensitive_access::{
     MAX_SENSITIVE_FIELD_COUNT, MAX_SENSITIVE_IDENTIFIER_BYTES, SensitiveAccessClass,
     SensitiveAccessEvidence, SensitiveAccessEvidenceInput, SensitiveAccessOutcome,
     SensitiveEvidenceError,
+};
+pub use sensitive_handle_lifecycle::{
+    SensitiveHandleLifecycleEvidence, SensitiveHandleLifecycleEvidenceInput,
 };
 
 use std::collections::BTreeMap;
