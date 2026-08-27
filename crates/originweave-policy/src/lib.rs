@@ -8,6 +8,7 @@
 #![deny(missing_docs)]
 
 mod sensitive_data;
+mod sensitive_handle_dispatch;
 
 pub use sensitive_data::{
     DataClassification, DisclosureDecision, DisclosureScope, HandleRevocationReason,
