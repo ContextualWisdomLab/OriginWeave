@@ -170,11 +170,9 @@ Microsoft. (2025, July 25). *Azure IP address 168.63.129.16 overview*. Microsoft
 
 Microsoft. (n.d.). *Naming files, paths, and namespaces*. Microsoft Learn. Retrieved August 23, 2026, from https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file
 
-<<<<<<< HEAD
-Model Context Protocol. (2026, July 28). *Specification: 2026-07-28*. https://modelcontextprotocol.io/specification/2026-07-28
-=======
 Microsoft. (n.d.). *Restrictions and limitations in OneDrive and SharePoint*. Microsoft Support. Retrieved August 23, 2026, from https://support.microsoft.com/en-US/onedrive/restrictions-and-limitations-in-onedrive-and-sharepoint
->>>>>>> 45f024dc (docs(doctoring): record portable COM0 and LPT0 exclusions)
+
+Model Context Protocol. (2026, July 28). *Specification: 2026-07-28*. https://modelcontextprotocol.io/specification/2026-07-28
 
 Nielsen, S., Cetin, E., Schwendeman, P., Sun, Q., Xu, J., & Tang, Y. (2025). *Learning to orchestrate agents in natural language with the Conductor* [Preprint]. arXiv. https://doi.org/10.48550/arXiv.2512.04388
 
