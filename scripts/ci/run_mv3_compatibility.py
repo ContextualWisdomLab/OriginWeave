@@ -182,10 +182,10 @@ def _json_request(
 ) -> dict[str, Any]:
     """Issue one bounded JSON request to the fixed loopback ChromeDriver authority.
 
-    Recoverable HTTP/1.1 parser failures, including a malformed status-line or an
-    incomplete message body, become `RuntimeError("WebDriver transport protocol
-    failure")` so trial evidence can record a classified outcome without retaining
-    raw transport text.
+    Recoverable HTTP/1.1 parser or response-encoding failures, including a malformed
+    status-line, incomplete message body, or invalid UTF-8 payload, become
+    `RuntimeError("WebDriver transport protocol failure")` so trial evidence can
+    record a classified outcome without retaining raw transport text.
     """
 
     if not 1 <= driver_port <= 65_535:
@@ -218,7 +218,11 @@ def _json_request(
         connection.close()
 
     try:
-        decoded = json.loads(raw.decode("utf-8"))
+        decoded_text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        raise RuntimeError("WebDriver transport protocol failure") from None
+    try:
+        decoded = json.loads(decoded_text)
     except json.JSONDecodeError:
         if response.status >= 400:
             raise RuntimeError(f"WebDriver HTTP {response.status} error") from None
