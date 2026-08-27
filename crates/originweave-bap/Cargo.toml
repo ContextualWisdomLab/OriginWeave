@@ -1,6 +1,5 @@
 [package]
-name = "originweave-core"
-description = "OriginWeave core contracts."
+name = "originweave-bap"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,13 +7,6 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 homepage.workspace = true
-publish = false
-
-[lib]
-path = "src/crate_root.rs"
-
-[dependencies]
-unicode-normalization = "=0.1.25"
 
 [lints]
 workspace = true
