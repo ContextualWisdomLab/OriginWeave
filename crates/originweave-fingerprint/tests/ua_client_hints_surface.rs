@@ -157,7 +157,7 @@ fn client_hints_error_has_deterministic_display() {
     );
     assert_eq!(
         ClientHintsError::InvalidBrandName.to_string(),
-        "brand name and version must use ASCII letters and digits"
+        "brand name must use bounded UA-CH-compatible ASCII and version must be non-empty dotted ASCII alphanumeric"
     );
     assert_eq!(
         ClientHintsError::MissingBrand.to_string(),
