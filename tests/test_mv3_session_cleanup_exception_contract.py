@@ -88,6 +88,8 @@ class ManifestV3SessionCleanupExceptionTests(unittest.TestCase):
         self,
         cleanup_failure: Exception,
         fake_driver: _FakeDriver,
+        *,
+        primary_failure: Exception | None = None,
     ) -> tuple[object, object]:
         """Run the production browser-pass boundary with controlled cleanup failures."""
 
@@ -120,6 +122,15 @@ class ManifestV3SessionCleanupExceptionTests(unittest.TestCase):
                 raise cleanup_failure
             raise AssertionError(f"unexpected WebDriver request: {method} {path}")
 
+        def fake_extension_evidence(
+            _driver_port: int,
+            _session_id: str,
+            _expected_storage_persistence: str,
+        ) -> dict[str, str]:
+            if primary_failure is not None:
+                raise primary_failure
+            return self._surfaces()
+
         with tempfile.TemporaryDirectory(prefix="originweave-cleanup-contract-") as profile_dir:
             with unittest.mock.patch.dict(
                 globals_,
@@ -127,9 +138,7 @@ class ManifestV3SessionCleanupExceptionTests(unittest.TestCase):
                     "_start_chromedriver": lambda _binary: (fake_driver, 43123),
                     "_wait_for_driver": lambda _port: None,
                     "_json_request": fake_json_request,
-                    "_wait_for_extension_evidence": (
-                        lambda _port, _session, _expected: self._surfaces()
-                    ),
+                    "_wait_for_extension_evidence": fake_extension_evidence,
                     "_exercise_real_click": lambda _port, _session: "clicked",
                 },
             ):
@@ -153,6 +162,28 @@ class ManifestV3SessionCleanupExceptionTests(unittest.TestCase):
         _namespace, error = self._run_with_cleanup_failure(expected, fake_driver)
 
         self.assertIs(error, expected)
+        self.assertTrue(fake_driver.terminated)
+        self.assertFalse(fake_driver.killed)
+
+    def test_unreviewed_cleanup_exception_does_not_replace_primary_failure(self) -> None:
+        """An already-causal browser failure must survive an unreviewed cleanup exception."""
+
+        fake_driver = _FakeDriver()
+        primary_error = RuntimeError("controlled primary browser-pass failure")
+        cleanup_error = _UnexpectedCleanupFailure("must remain secondary")
+
+        _namespace, error = self._run_with_cleanup_failure(
+            cleanup_error,
+            fake_driver,
+            primary_failure=primary_error,
+        )
+
+        self.assertIs(error, primary_error)
+        self.assertIn(
+            "Unreviewed WebDriver session cleanup also failed after the primary browser-pass "
+            "failure: _UnexpectedCleanupFailure",
+            getattr(error, "__notes__", []),
+        )
         self.assertTrue(fake_driver.terminated)
         self.assertFalse(fake_driver.killed)
 
