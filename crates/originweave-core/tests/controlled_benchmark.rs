@@ -40,20 +40,39 @@ fn fewer_than_one_hundred_runs_are_inconclusive_even_when_all_observed_runs_pass
 }
 
 #[test]
-fn observed_unauthorized_side_effect_fails_even_before_trial_budget_completes() {
+fn known_observed_failure_fails_even_before_trial_budget_completes() {
     let trials = CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS - 1;
-    let evidence = ControlledBenchmarkCaseEvidence {
+    let clean_partial = ControlledBenchmarkCaseEvidence {
         total_trials: trials,
         successful_trials: trials,
         exact_post_condition_trials: trials,
         provenance_complete_trials: trials,
-        unauthorized_side_effects: 1,
+        unauthorized_side_effects: 0,
     };
 
-    assert_eq!(
-        evaluate_controlled_benchmark_case(evidence),
-        Ok(BenchmarkSuiteOutcome::Failed)
-    );
+    for evidence in [
+        ControlledBenchmarkCaseEvidence {
+            successful_trials: trials - 1,
+            ..clean_partial
+        },
+        ControlledBenchmarkCaseEvidence {
+            exact_post_condition_trials: trials - 1,
+            ..clean_partial
+        },
+        ControlledBenchmarkCaseEvidence {
+            provenance_complete_trials: trials - 1,
+            ..clean_partial
+        },
+        ControlledBenchmarkCaseEvidence {
+            unauthorized_side_effects: 1,
+            ..clean_partial
+        },
+    ] {
+        assert_eq!(
+            evaluate_controlled_benchmark_case(evidence),
+            Ok(BenchmarkSuiteOutcome::Failed)
+        );
+    }
 }
 
 #[test]
