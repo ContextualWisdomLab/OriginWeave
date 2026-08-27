@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import pathlib
 import runpy
 import unittest
@@ -87,6 +88,32 @@ class ManifestV3TransportProtocolExceptionContractTests(unittest.TestCase):
                 self.assertNotIn("example.invalid", rendered)
                 self.assertIsNone(raised.exception.__cause__)
                 self.assertIsNone(raised.exception.__context__)
+
+    def test_utf8_decode_failure_translates_directly_without_dead_fallback_state(self) -> None:
+        """The Unicode failure branch must raise directly rather than assign unused fallback state."""
+
+        module = ast.parse(RUNNER.read_text(encoding="utf-8"))
+        json_request = next(
+            node
+            for node in module.body
+            if isinstance(node, ast.FunctionDef) and node.name == "_json_request"
+        )
+        unicode_handlers = [
+            handler
+            for node in ast.walk(json_request)
+            if isinstance(node, ast.Try)
+            for handler in node.handlers
+            if isinstance(handler.type, ast.Name) and handler.type.id == "UnicodeDecodeError"
+        ]
+        self.assertEqual(len(unicode_handlers), 1)
+        handler = unicode_handlers[0]
+        self.assertFalse(
+            any(isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)) for node in handler.body),
+            "UnicodeDecodeError handling must not synthesize dead fallback state",
+        )
+        direct_raises = [node for node in handler.body if isinstance(node, ast.Raise)]
+        self.assertEqual(len(direct_raises), 1)
+        self.assertIsNone(direct_raises[0].cause)
 
     def test_unreleased_changelog_change_type_headings_are_unique(self) -> None:
         """Keep each Keep a Changelog change type singular within Unreleased."""
