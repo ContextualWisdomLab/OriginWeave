@@ -1,0 +1,253 @@
+#![allow(clippy::expect_used)]
+
+use originweave_bap::{BapTaskEvent, BapTaskLifecycle, BapTaskState, BapTaskTransitionError};
+
+#[test]
+fn default_starts_a_new_created_lifecycle() {
+    assert_eq!(BapTaskLifecycle::default(), BapTaskLifecycle::new());
+}
+
+#[test]
+fn bap_task_lifecycle_follows_the_reviewed_resumable_path() {
+    let mut task = BapTaskLifecycle::new();
+    assert_eq!(task.state(), BapTaskState::Created);
+    assert!(!task.state().is_terminal());
+    assert_eq!(task.transition_sequence(), 0);
+
+    let admitted = task.apply(BapTaskEvent::Admit).expect("admit");
+    assert_eq!(admitted.previous_state(), BapTaskState::Created);
+    assert_eq!(admitted.current_state(), BapTaskState::Admitted);
+    assert_eq!(admitted.sequence(), 1);
+
+    task.apply(BapTaskEvent::Start).expect("start");
+    task.apply(BapTaskEvent::WaitForApproval)
+        .expect("wait for approval");
+    assert_eq!(task.state(), BapTaskState::WaitingForApproval);
+
+    task.apply(BapTaskEvent::Resume).expect("resume approval");
+    task.apply(BapTaskEvent::Checkpoint).expect("checkpoint");
+    assert_eq!(task.state(), BapTaskState::Checkpointed);
+
+    task.apply(BapTaskEvent::Resume).expect("resume checkpoint");
+    let succeeded = task.apply(BapTaskEvent::Succeed).expect("succeed");
+    assert_eq!(succeeded.current_state(), BapTaskState::Succeeded);
+    assert!(task.state().is_terminal());
+    assert_eq!(task.transition_sequence(), 7);
+}
+
+#[test]
+fn waiting_for_external_input_can_resume_but_cannot_succeed_directly() {
+    let mut task = running_task();
+    task.apply(BapTaskEvent::WaitForExternalInput)
+        .expect("wait for input");
+
+    let error = task
+        .apply(BapTaskEvent::Succeed)
+        .expect_err("waiting task must not skip resume and post-condition work");
+    assert_eq!(
+        error,
+        BapTaskTransitionError::InvalidTransition {
+            from: BapTaskState::WaitingForExternalInput,
+            event: BapTaskEvent::Succeed,
+        }
+    );
+    assert_eq!(task.state(), BapTaskState::WaitingForExternalInput);
+    assert_eq!(task.transition_sequence(), 3);
+
+    task.apply(BapTaskEvent::Resume).expect("resume input");
+    assert_eq!(task.state(), BapTaskState::Running);
+}
+
+#[test]
+fn invalid_transition_is_fail_closed_and_does_not_advance_history() {
+    let mut task = BapTaskLifecycle::new();
+
+    let error = task
+        .apply(BapTaskEvent::Start)
+        .expect_err("created task must be admitted first");
+    assert_eq!(
+        error,
+        BapTaskTransitionError::InvalidTransition {
+            from: BapTaskState::Created,
+            event: BapTaskEvent::Start,
+        }
+    );
+    assert_eq!(task.state(), BapTaskState::Created);
+    assert_eq!(task.transition_sequence(), 0);
+}
+
+#[test]
+fn terminal_task_never_reopens_or_advances_history() {
+    for terminal_event in [
+        BapTaskEvent::Succeed,
+        BapTaskEvent::Fail,
+        BapTaskEvent::Cancel,
+        BapTaskEvent::Expire,
+    ] {
+        let mut task = if terminal_event == BapTaskEvent::Succeed {
+            running_task()
+        } else {
+            BapTaskLifecycle::new()
+        };
+        task.apply(terminal_event).expect("enter terminal state");
+        let terminal_state = task.state();
+        let terminal_sequence = task.transition_sequence();
+
+        for later_event in [
+            BapTaskEvent::Admit,
+            BapTaskEvent::Start,
+            BapTaskEvent::Resume,
+            BapTaskEvent::Cancel,
+        ] {
+            assert_eq!(
+                task.apply(later_event),
+                Err(BapTaskTransitionError::TerminalState {
+                    state: terminal_state,
+                })
+            );
+            assert_eq!(task.state(), terminal_state);
+            assert_eq!(task.transition_sequence(), terminal_sequence);
+        }
+    }
+}
+
+#[test]
+fn cancellation_and_expiry_cover_pre_dispatch_and_suspended_states() {
+    for state in [
+        BapTaskState::Created,
+        BapTaskState::Admitted,
+        BapTaskState::Running,
+        BapTaskState::WaitingForApproval,
+        BapTaskState::WaitingForExternalInput,
+        BapTaskState::Checkpointed,
+        BapTaskState::ReconciliationRequired,
+    ] {
+        for terminal_event in [BapTaskEvent::Cancel, BapTaskEvent::Expire] {
+            let mut task = task_in_state(state);
+            assert_eq!(task.state(), state);
+            task.apply(terminal_event).expect("terminal interruption");
+            assert!(task.state().is_terminal());
+        }
+    }
+}
+
+#[test]
+fn reconciliation_requires_explicit_resolution_and_dead_letter_is_terminal() {
+    let mut task = running_task();
+    let required = task
+        .apply(BapTaskEvent::RequireReconciliation)
+        .expect("require reconciliation");
+    assert_eq!(required.previous_state(), BapTaskState::Running);
+    assert_eq!(
+        required.current_state(),
+        BapTaskState::ReconciliationRequired
+    );
+    assert!(!task.state().is_terminal());
+
+    assert_eq!(
+        task.apply(BapTaskEvent::Resume),
+        Err(BapTaskTransitionError::InvalidTransition {
+            from: BapTaskState::ReconciliationRequired,
+            event: BapTaskEvent::Resume,
+        })
+    );
+    assert_eq!(
+        task.apply(BapTaskEvent::Succeed),
+        Err(BapTaskTransitionError::InvalidTransition {
+            from: BapTaskState::ReconciliationRequired,
+            event: BapTaskEvent::Succeed,
+        })
+    );
+    assert_eq!(task.transition_sequence(), 3);
+
+    task.apply(BapTaskEvent::ResolveReconciliation)
+        .expect("resolve reconciliation");
+    assert_eq!(task.state(), BapTaskState::Running);
+
+    task.apply(BapTaskEvent::RequireReconciliation)
+        .expect("require reconciliation again");
+    let dead_lettered = task
+        .apply(BapTaskEvent::DeadLetter)
+        .expect("dead-letter unresolved task");
+    assert_eq!(dead_lettered.current_state(), BapTaskState::DeadLettered);
+    assert!(task.state().is_terminal());
+
+    assert_eq!(
+        task.apply(BapTaskEvent::Resume),
+        Err(BapTaskTransitionError::TerminalState {
+            state: BapTaskState::DeadLettered,
+        })
+    );
+}
+
+#[test]
+fn running_task_may_dead_letter_but_pre_dispatch_task_may_not() {
+    let mut running = running_task();
+    let transition = running
+        .apply(BapTaskEvent::DeadLetter)
+        .expect("dead-letter running task");
+    assert_eq!(transition.previous_state(), BapTaskState::Running);
+    assert_eq!(transition.current_state(), BapTaskState::DeadLettered);
+    assert_eq!(transition.sequence(), 3);
+    assert!(running.state().is_terminal());
+
+    let mut created = BapTaskLifecycle::new();
+    assert_eq!(
+        created.apply(BapTaskEvent::DeadLetter),
+        Err(BapTaskTransitionError::InvalidTransition {
+            from: BapTaskState::Created,
+            event: BapTaskEvent::DeadLetter,
+        })
+    );
+    assert_eq!(created.state(), BapTaskState::Created);
+    assert_eq!(created.transition_sequence(), 0);
+}
+
+fn running_task() -> BapTaskLifecycle {
+    let mut task = BapTaskLifecycle::new();
+    task.apply(BapTaskEvent::Admit).expect("admit");
+    task.apply(BapTaskEvent::Start).expect("start");
+    task
+}
+
+fn task_in_state(target: BapTaskState) -> BapTaskLifecycle {
+    let mut task = BapTaskLifecycle::new();
+    if target == BapTaskState::Created {
+        return task;
+    }
+
+    task.apply(BapTaskEvent::Admit).expect("admit");
+    if target == BapTaskState::Admitted {
+        return task;
+    }
+
+    task.apply(BapTaskEvent::Start).expect("start");
+    match target {
+        BapTaskState::Running => {}
+        BapTaskState::WaitingForApproval => {
+            task.apply(BapTaskEvent::WaitForApproval)
+                .expect("wait approval");
+        }
+        BapTaskState::WaitingForExternalInput => {
+            task.apply(BapTaskEvent::WaitForExternalInput)
+                .expect("wait external");
+        }
+        BapTaskState::Checkpointed => {
+            task.apply(BapTaskEvent::Checkpoint).expect("checkpoint");
+        }
+        BapTaskState::ReconciliationRequired => {
+            task.apply(BapTaskEvent::RequireReconciliation)
+                .expect("require reconciliation");
+        }
+        BapTaskState::Created
+        | BapTaskState::Admitted
+        | BapTaskState::Succeeded
+        | BapTaskState::Failed
+        | BapTaskState::Cancelled
+        | BapTaskState::Expired
+        | BapTaskState::DeadLettered => {
+            unreachable!("task_in_state only constructs non-terminal lifecycle states")
+        }
+    }
+    task
+}
