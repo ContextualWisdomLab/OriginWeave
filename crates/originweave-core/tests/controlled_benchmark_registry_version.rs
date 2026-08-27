@@ -26,11 +26,7 @@ fn suite_release_authority_requires_the_exact_registry_version() {
     )];
 
     assert_eq!(
-        evaluate_controlled_benchmark_suite(
-            "controlled-deterministic-v0",
-            profile,
-            &evidence,
-        ),
+        evaluate_controlled_benchmark_suite("controlled-deterministic-v0", profile, &evidence,),
         Err(ControlledBenchmarkSuiteError::RegistryVersionMismatch)
     );
     assert_eq!(
