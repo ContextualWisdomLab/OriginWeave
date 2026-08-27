@@ -169,13 +169,16 @@ impl BapCommandRecovery {
     /// Stale, foreign, state-only restored, or divergent lifecycle history therefore fails
     /// closed with the underlying typed receipt error instead of emitting a redispatch signal.
     /// An exact receipt for a terminal lifecycle also returns `Ok(false)` because a completed,
-    /// failed, cancelled, expired, or dead-lettered task cannot resume command dispatch. An exact
-    /// receipt for `ReconciliationRequired` likewise returns `Ok(false)`: an explicit reconciliation
-    /// hold cannot be bypassed merely because later recovery evidence classifies the interrupted
-    /// external operation as having caused no side effect. Resolving that hold is a separate
-    /// lifecycle transition, which also makes this retained receipt stale for subsequent replay.
-    /// Validation requires only read access to the lifecycle and cannot mutate an already accepted
-    /// transition or consume mutable execution authority.
+    /// failed, cancelled, expired, or dead-lettered task cannot resume command dispatch. Exact
+    /// receipts for `WaitingForApproval`, `WaitingForExternalInput`, and `Checkpointed` likewise
+    /// return `Ok(false)`: recovery evidence cannot bypass an explicit suspension requiring a
+    /// separate `Resume` transition. An exact receipt for `ReconciliationRequired` also returns
+    /// `Ok(false)`: an explicit reconciliation hold cannot be bypassed merely because later
+    /// recovery evidence classifies the interrupted external operation as having caused no side
+    /// effect. Resuming or resolving any such hold is a separate lifecycle transition, which also
+    /// makes this retained receipt stale for subsequent replay. Validation requires only read
+    /// access to the lifecycle and cannot mutate an already accepted transition or consume mutable
+    /// execution authority.
     ///
     /// `Ok(true)` is still not authorization to redispatch. The caller must separately
     /// authenticate the exact recovery evidence identified by [`Self::evidence_digest`] and
@@ -193,7 +196,13 @@ impl BapCommandRecovery {
             self.receipt.event(),
         )?;
         if lifecycle.state().is_terminal()
-            || lifecycle.state() == BapTaskState::ReconciliationRequired
+            || matches!(
+                lifecycle.state(),
+                BapTaskState::WaitingForApproval
+                    | BapTaskState::WaitingForExternalInput
+                    | BapTaskState::Checkpointed
+                    | BapTaskState::ReconciliationRequired
+            )
         {
             return Ok(false);
         }
