@@ -70,17 +70,9 @@ impl fmt::Display for WebAudioPolicyError {
 impl Error for WebAudioPolicyError {}
 
 /// An immutable exact-origin policy for the reviewed Web Audio guard.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct WebAudioFingerprintPolicy {
     allowed_origins: BTreeSet<Origin>,
-}
-
-impl Default for WebAudioFingerprintPolicy {
-    fn default() -> Self {
-        Self {
-            allowed_origins: BTreeSet::new(),
-        }
-    }
 }
 
 impl WebAudioFingerprintPolicy {
