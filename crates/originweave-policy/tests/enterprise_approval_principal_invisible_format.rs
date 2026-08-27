@@ -3,10 +3,14 @@ use originweave_policy::{ApprovalPrincipalRef, ApprovalPrincipalRefError};
 #[test]
 fn approval_principal_rejects_invisible_format_controls() {
     for subject in [
+        "user\u{00ad}123",
         "user\u{200b}123",
         "user\u{200c}123",
         "user\u{200d}123",
         "user\u{2060}123",
+        "user\u{2065}123",
+        "user\u{206a}123",
+        "user\u{206f}123",
         "user\u{feff}123",
     ] {
         assert_eq!(
