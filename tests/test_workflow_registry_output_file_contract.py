@@ -7,6 +7,7 @@ import json
 import os
 import pathlib
 import runpy
+import stat
 import tempfile
 import unittest
 import unittest.mock
@@ -342,6 +343,60 @@ class WorkflowRegistryOutputFileContractTests(unittest.TestCase):
                 self.assertEqual(main([str(source), "--output", str(output)]), 1)
 
             self.assertTrue(failed_once)
+            self.assertFalse(output.exists())
+            self.assertEqual(main([str(source), "--output", str(output)]), 0)
+            self.assertTrue(output.is_file())
+            self.assertEqual(output.stat().st_nlink, 1)
+
+    def test_successful_output_fsyncs_parent_directory_before_reporting_success(self) -> None:
+        """Create-once evidence is successful only after its directory entry is durable."""
+
+        main = self._main()
+        real_fsync = os.fsync
+        synced_modes: list[int] = []
+
+        def record_fsync_target(descriptor: int) -> None:
+            synced_modes.append(os.fstat(descriptor).st_mode)
+            real_fsync(descriptor)
+
+        with tempfile.TemporaryDirectory(prefix="originweave-workflow-output-") as directory:
+            root = pathlib.Path(directory)
+            source = root / "registry.json"
+            source.write_text(json.dumps(_payload()), encoding="utf-8")
+            output = root / "audit.json"
+
+            with unittest.mock.patch("os.fsync", side_effect=record_fsync_target):
+                self.assertEqual(main([str(source), "--output", str(output)]), 0)
+
+            self.assertGreaterEqual(len(synced_modes), 2)
+            self.assertTrue(stat.S_ISREG(synced_modes[0]))
+            self.assertTrue(stat.S_ISDIR(synced_modes[-1]))
+            self.assertTrue(output.is_file())
+
+    def test_parent_directory_fsync_failure_rolls_back_output_for_safe_retry(self) -> None:
+        """A publication whose directory metadata is not durable must not be reported as success."""
+
+        main = self._main()
+        real_fsync = os.fsync
+        directory_sync_attempted = False
+
+        def fail_directory_fsync(descriptor: int) -> None:
+            nonlocal directory_sync_attempted
+            if stat.S_ISDIR(os.fstat(descriptor).st_mode):
+                directory_sync_attempted = True
+                raise OSError(errno.EIO, "simulated parent-directory fsync failure")
+            real_fsync(descriptor)
+
+        with tempfile.TemporaryDirectory(prefix="originweave-workflow-output-") as directory:
+            root = pathlib.Path(directory)
+            source = root / "registry.json"
+            source.write_text(json.dumps(_payload()), encoding="utf-8")
+            output = root / "audit.json"
+
+            with unittest.mock.patch("os.fsync", side_effect=fail_directory_fsync):
+                self.assertEqual(main([str(source), "--output", str(output)]), 1)
+
+            self.assertTrue(directory_sync_attempted)
             self.assertFalse(output.exists())
             self.assertEqual(main([str(source), "--output", str(output)]), 0)
             self.assertTrue(output.is_file())
