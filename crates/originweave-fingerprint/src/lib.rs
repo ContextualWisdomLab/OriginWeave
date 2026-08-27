@@ -99,7 +99,7 @@ const REQUIRED_PRESENTATION_SURFACES: [PresentationSurface; 8] = [
     PresentationSurface::ReducedMotion,
 ];
 
-/// Require an adapter to override every surface claimed by the profile.
+/// Require an adapter to override every surface in the current presentation schema.
 ///
 /// The first missing surface is returned in stable contract order. Additional
 /// or duplicate supported entries do not change admission.
