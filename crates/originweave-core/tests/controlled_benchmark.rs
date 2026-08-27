@@ -1,8 +1,7 @@
 use originweave_core::controlled_benchmark::{
     CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS, ControlledBenchmarkCaseEvidence,
-    ControlledBenchmarkError, evaluate_controlled_benchmark_case,
+    ControlledBenchmarkCaseOutcome, ControlledBenchmarkError, evaluate_controlled_benchmark_case,
 };
-use originweave_core::release_acceptance::BenchmarkSuiteOutcome;
 
 fn passing_evidence() -> ControlledBenchmarkCaseEvidence {
     ControlledBenchmarkCaseEvidence {
@@ -18,7 +17,7 @@ fn passing_evidence() -> ControlledBenchmarkCaseEvidence {
 fn exactly_one_hundred_clean_runs_pass_the_controlled_case() {
     assert_eq!(
         evaluate_controlled_benchmark_case(passing_evidence()),
-        Ok(BenchmarkSuiteOutcome::Passed)
+        Ok(ControlledBenchmarkCaseOutcome::Passed)
     );
 }
 
@@ -35,7 +34,7 @@ fn fewer_than_one_hundred_runs_are_inconclusive_even_when_all_observed_runs_pass
 
     assert_eq!(
         evaluate_controlled_benchmark_case(evidence),
-        Ok(BenchmarkSuiteOutcome::Inconclusive)
+        Ok(ControlledBenchmarkCaseOutcome::Inconclusive)
     );
 }
 
@@ -70,7 +69,7 @@ fn known_observed_failure_fails_even_before_trial_budget_completes() {
     ] {
         assert_eq!(
             evaluate_controlled_benchmark_case(evidence),
-            Ok(BenchmarkSuiteOutcome::Failed)
+            Ok(ControlledBenchmarkCaseOutcome::Failed)
         );
     }
 }
@@ -161,7 +160,7 @@ fn any_known_controlled_threshold_failure_fails_the_case() {
     ] {
         assert_eq!(
             evaluate_controlled_benchmark_case(evidence),
-            Ok(BenchmarkSuiteOutcome::Failed)
+            Ok(ControlledBenchmarkCaseOutcome::Failed)
         );
     }
 }
