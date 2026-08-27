@@ -11,6 +11,7 @@ mod capture_manifest;
 mod extraction_schema;
 mod offline_replay;
 mod sensitive_access;
+mod sensitive_handle_lifecycle;
 mod warc_prov_bundle;
 mod warc_resource_record;
 
@@ -31,6 +32,9 @@ pub use sensitive_access::{
     MAX_SENSITIVE_FIELD_COUNT, MAX_SENSITIVE_IDENTIFIER_BYTES, SensitiveAccessClass,
     SensitiveAccessEvidence, SensitiveAccessEvidenceInput, SensitiveAccessOutcome,
     SensitiveEvidenceError,
+};
+pub use sensitive_handle_lifecycle::{
+    SensitiveHandleLifecycleEvidence, SensitiveHandleLifecycleEvidenceInput,
 };
 pub use warc_prov_bundle::{
     MAX_PROV_SOFTWARE_COMMIT_SHA_BYTES, WarcProvBundle, WarcProvBundleError,
