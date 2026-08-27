@@ -3,14 +3,32 @@
 //! This module evaluates already-collected, credential-free aggregate evidence.
 //! It does not authenticate case identity, select a corpus, execute a browser,
 //! or establish provenance by itself; those responsibilities belong to the
-//! benchmark runner and evidence pipeline.
+//! benchmark runner and evidence pipeline. A case result is deliberately not a
+//! [`crate::release_acceptance::BenchmarkSuiteOutcome`]: release-level suite
+//! evidence must explicitly aggregate every required controlled case rather than
+//! promoting one passing case into a passing suite.
 
 use std::fmt;
 
-use crate::release_acceptance::BenchmarkSuiteOutcome;
-
 /// Canonical number of trials required for one deterministic controlled case.
 pub const CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS: u32 = 100;
+
+/// Evaluated threshold outcome for one controlled benchmark case.
+///
+/// This type is deliberately distinct from
+/// [`crate::release_acceptance::BenchmarkSuiteOutcome`] so a single case result
+/// cannot be supplied directly as release-level suite evidence. A suite-level
+/// evaluator must explicitly aggregate the registry's complete required case set
+/// before constructing release acceptance evidence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ControlledBenchmarkCaseOutcome {
+    /// Every threshold for the canonical case passed.
+    Passed,
+    /// At least one represented threshold is known to have failed.
+    Failed,
+    /// No known failure exists, but the canonical trial budget is incomplete.
+    Inconclusive,
+}
 
 /// Aggregate evidence supplied by a trusted controlled-benchmark runner.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -72,11 +90,12 @@ impl std::error::Error for ControlledBenchmarkError {}
 /// Evaluate one deterministic controlled benchmark case without widening evidence.
 ///
 /// Exactly 100 canonical trials are required for a passing result. A known
-/// threshold failure is returned as [`BenchmarkSuiteOutcome::Failed`] as soon as
-/// it is represented by the supplied evidence, even before all 100 trials have
-/// been collected. Fewer than 100 otherwise-clean trials are
-/// [`BenchmarkSuiteOutcome::Inconclusive`]. More than 100 trials are rejected
-/// rather than allowing selective reruns to dilute a failed canonical case.
+/// threshold failure is returned as [`ControlledBenchmarkCaseOutcome::Failed`]
+/// as soon as it is represented by the supplied evidence, even before all 100
+/// trials have been collected. Fewer than 100 otherwise-clean trials are
+/// [`ControlledBenchmarkCaseOutcome::Inconclusive`]. More than 100 trials are
+/// rejected rather than allowing selective reruns to dilute a failed canonical
+/// case. The returned case outcome is not release-level suite evidence.
 ///
 /// # Errors
 ///
@@ -84,7 +103,7 @@ impl std::error::Error for ControlledBenchmarkError {}
 /// trial count or when a per-trial aggregate counter exceeds `total_trials`.
 pub fn evaluate_controlled_benchmark_case(
     evidence: ControlledBenchmarkCaseEvidence,
-) -> Result<BenchmarkSuiteOutcome, ControlledBenchmarkError> {
+) -> Result<ControlledBenchmarkCaseOutcome, ControlledBenchmarkError> {
     if evidence.total_trials > CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS {
         return Err(ControlledBenchmarkError::NonCanonicalTrialCount {
             observed: evidence.total_trials,
@@ -113,14 +132,14 @@ pub fn evaluate_controlled_benchmark_case(
         || evidence.provenance_complete_trials < evidence.total_trials
         || evidence.unauthorized_side_effects != 0
     {
-        return Ok(BenchmarkSuiteOutcome::Failed);
+        return Ok(ControlledBenchmarkCaseOutcome::Failed);
     }
 
     if evidence.total_trials < CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS {
-        return Ok(BenchmarkSuiteOutcome::Inconclusive);
+        return Ok(ControlledBenchmarkCaseOutcome::Inconclusive);
     }
 
-    Ok(BenchmarkSuiteOutcome::Passed)
+    Ok(ControlledBenchmarkCaseOutcome::Passed)
 }
 
 fn validate_counter(
