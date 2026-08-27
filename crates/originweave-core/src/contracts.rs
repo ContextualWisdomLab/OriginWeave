@@ -816,7 +816,7 @@ impl ActionRequest {
     /// Return how secret material would be delivered.
     #[must_use]
     pub const fn secret_delivery(&self) -> SecretDelivery {
-        &self.secret_delivery
+        self.secret_delivery
     }
 
     /// Return the digest of the complete canonical action intent.
