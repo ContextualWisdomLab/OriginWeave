@@ -168,6 +168,46 @@ fn reconciliation_hold_never_signals_redispatch_before_explicit_resolution() {
 }
 
 #[test]
+fn suspended_lifecycle_never_signals_redispatch_before_resume() {
+    let cases = [
+        (BapTaskEvent::WaitForApproval, BapTaskState::WaitingForApproval),
+        (
+            BapTaskEvent::WaitForExternalInput,
+            BapTaskState::WaitingForExternalInput,
+        ),
+        (BapTaskEvent::Checkpoint, BapTaskState::Checkpointed),
+    ];
+
+    for (suspend_event, expected_state) in cases {
+        let mut lifecycle = BapTaskLifecycle::new();
+        let admit = lifecycle.apply(BapTaskEvent::Admit);
+        assert!(admit.is_ok(), "{admit:?}");
+        let start = lifecycle.apply(BapTaskEvent::Start);
+        assert!(start.is_ok(), "{start:?}");
+
+        let receipt = lifecycle.apply_with_receipt(
+            "suspended-retry-key",
+            "tenant-a",
+            "task-a",
+            suspend_event,
+        );
+        assert!(receipt.is_ok(), "{receipt:?}");
+        let Ok(receipt) = receipt else {
+            unreachable!("asserted valid suspended-state command receipt")
+        };
+        assert_eq!(lifecycle.state(), expected_state);
+
+        let recovery = BapCommandRecovery::new(
+            receipt,
+            BapExternalSideEffectOutcome::ConfirmedNoSideEffect,
+            recovery_evidence_digest(),
+        );
+        assert_eq!(recovery.permits_redispatch(&lifecycle), Ok(false));
+        assert_eq!(lifecycle.state(), expected_state);
+    }
+}
+
+#[test]
 fn terminal_lifecycle_never_signals_redispatch_even_for_confirmed_no_side_effect() {
     for terminal_event in [
         BapTaskEvent::Succeed,
