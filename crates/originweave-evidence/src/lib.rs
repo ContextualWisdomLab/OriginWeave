@@ -9,6 +9,7 @@
 
 mod extraction_schema;
 mod sensitive_access;
+mod sensitive_handle_lifecycle;
 mod warc_resource_record;
 
 pub use extraction_schema::{
@@ -20,6 +21,9 @@ pub use sensitive_access::{
     MAX_SENSITIVE_FIELD_COUNT, MAX_SENSITIVE_IDENTIFIER_BYTES, SensitiveAccessClass,
     SensitiveAccessEvidence, SensitiveAccessEvidenceInput, SensitiveAccessOutcome,
     SensitiveEvidenceError,
+};
+pub use sensitive_handle_lifecycle::{
+    SensitiveHandleLifecycleEvidence, SensitiveHandleLifecycleEvidenceInput,
 };
 pub use warc_resource_record::{
     MAX_WARC_CONTENT_TYPE_BYTES, MAX_WARC_DATE_BYTES, MAX_WARC_PAYLOAD_BYTES,
