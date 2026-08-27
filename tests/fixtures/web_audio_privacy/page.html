@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>OriginWeave Web Audio privacy fixture</title>
+  <script>
+    "use strict";
+    const originweaveProbeConstructor = (constructorName) => {
+      try {
+        const Constructor = globalThis[constructorName];
+        if (typeof Constructor !== "function") {
+          return "unavailable";
+        }
+        new Constructor();
+        return "leaked";
+      } catch (error) {
+        return error?.name === "NotAllowedError" ? "blocked" : `unexpected:${error?.name ?? "Error"}`;
+      }
+    };
+    document.documentElement.dataset.originweaveAudioContext =
+      originweaveProbeConstructor("AudioContext");
+    document.documentElement.dataset.originweaveWebkitAudioContext =
+      originweaveProbeConstructor("webkitAudioContext");
+    document.documentElement.dataset.originweaveOfflineAudioContext =
+      originweaveProbeConstructor("OfflineAudioContext");
+    document.documentElement.dataset.originweaveWebkitOfflineAudioContext =
+      originweaveProbeConstructor("webkitOfflineAudioContext");
+    document.documentElement.dataset.originweaveAudioWorkletNode =
+      originweaveProbeConstructor("AudioWorkletNode");
+  </script>
+</head>
+<body>
+  <main>
+    <h1>OriginWeave Web Audio privacy fixture</h1>
+    <iframe id="privacy-frame" title="Child-frame privacy probe" src="frame.html"></iframe>
+  </main>
+</body>
+</html>

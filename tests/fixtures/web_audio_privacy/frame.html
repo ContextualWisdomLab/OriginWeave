@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>OriginWeave child-frame Web Audio probe</title>
+  <script>
+    "use strict";
+    const originweaveProbeConstructor = (constructorName) => {
+      try {
+        const Constructor = globalThis[constructorName];
+        if (typeof Constructor !== "function") {
+          return "unavailable";
+        }
+        new Constructor();
+        return "leaked";
+      } catch (error) {
+        return error?.name === "NotAllowedError" ? "blocked" : `unexpected:${error?.name ?? "Error"}`;
+      }
+    };
+    document.documentElement.dataset.originweaveAudioContext =
+      originweaveProbeConstructor("AudioContext");
+    document.documentElement.dataset.originweaveOfflineAudioContext =
+      originweaveProbeConstructor("OfflineAudioContext");
+  </script>
+</head>
+<body>
+  <p>Child-frame privacy probe.</p>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "OriginWeave Web Audio Privacy Guard",
+  "version": "0.1.0",
+  "description": "Blocks Web Audio fingerprinting in isolated OriginWeave Agent and Crawler profiles.",
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["web_audio_guard.js"],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "all_frames": true,
+      "match_about_blank": true,
+      "match_origin_as_fallback": true
+    }
+  ]
+}
