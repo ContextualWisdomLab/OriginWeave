@@ -50,7 +50,27 @@ class ManifestV3TransportProtocolExceptionContractTests(unittest.TestCase):
             def close(self) -> None:
                 return None
 
-        for connection in (BadStatusConnection(), IncompleteReadConnection()):
+        class InvalidUtf8Response:
+            status = 200
+
+            def read(self, _limit: int) -> bytes:
+                return b"\xffsecret-token /home/runner/private https://example.invalid"
+
+        class InvalidUtf8Connection:
+            def request(self, *_args: object, **_kwargs: object) -> None:
+                return None
+
+            def getresponse(self) -> InvalidUtf8Response:
+                return InvalidUtf8Response()
+
+            def close(self) -> None:
+                return None
+
+        for connection in (
+            BadStatusConnection(),
+            IncompleteReadConnection(),
+            InvalidUtf8Connection(),
+        ):
             with self.subTest(connection=type(connection).__name__):
                 with unittest.mock.patch.object(
                     http_module.client,
