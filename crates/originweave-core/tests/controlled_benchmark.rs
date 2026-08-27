@@ -40,6 +40,23 @@ fn fewer_than_one_hundred_runs_are_inconclusive_even_when_all_observed_runs_pass
 }
 
 #[test]
+fn observed_unauthorized_side_effect_fails_even_before_trial_budget_completes() {
+    let trials = CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS - 1;
+    let evidence = ControlledBenchmarkCaseEvidence {
+        total_trials: trials,
+        successful_trials: trials,
+        exact_post_condition_trials: trials,
+        provenance_complete_trials: trials,
+        unauthorized_side_effects: 1,
+    };
+
+    assert_eq!(
+        evaluate_controlled_benchmark_case(evidence),
+        Ok(BenchmarkSuiteOutcome::Failed)
+    );
+}
+
+#[test]
 fn more_than_the_canonical_trial_count_is_rejected_as_noncanonical_evidence() {
     let mut evidence = passing_evidence();
     evidence.total_trials += 1;
