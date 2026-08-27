@@ -275,4 +275,21 @@ mod tests {
         assert!(block_debug.contains("value_byte_count"));
         assert!(!block_debug.contains("secret-value"));
     }
+
+    #[test]
+    fn underscore_field_names_are_rejected_before_normalization() {
+        assert!(matches!(
+            FieldLine::new(
+                b"X_Foo",
+                b"value",
+                DEFAULT_MAX_HEADER_NAME_BYTES,
+                DEFAULT_MAX_HEADER_VALUE_BYTES,
+            ),
+            Err(FieldSyntaxError::InvalidName)
+        ));
+        assert!(matches!(
+            RequestField::new("X_Foo", b"value"),
+            Err(HttpError::InvalidRequestFieldName)
+        ));
+    }
 }
