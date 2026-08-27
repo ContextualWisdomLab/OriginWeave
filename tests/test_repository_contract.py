@@ -202,6 +202,21 @@ class RepositoryContractTests(unittest.TestCase):
                 self.assertIn(reference, doctoring)
                 self.assertNotIn(reference, changelog)
 
+    def test_rust_network_references_pin_project_toolchain(self) -> None:
+        """Rust network references must resolve to the repository's exact toolchain."""
+
+        doctoring = (ROOT / "docs/doctoring.md").read_text(encoding="utf-8")
+        for symbol in ("Ipv4Addr", "Ipv6Addr", "TcpStream"):
+            with self.subTest(symbol=symbol):
+                self.assertIn(
+                    f"https://doc.rust-lang.org/1.97.1/std/net/struct.{symbol}.html",
+                    doctoring,
+                )
+                self.assertNotIn(
+                    f"https://doc.rust-lang.org/stable/std/net/struct.{symbol}.html",
+                    doctoring,
+                )
+
     def test_database_contract_requires_two_word_snake_case(self) -> None:
         """Persistent naming policy must include the mandated canonical form."""
 
