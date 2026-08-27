@@ -18,11 +18,11 @@ fn passing_evidence() -> ControlledBenchmarkCaseEvidence {
 
 fn required_suite_evidence(
     profile: ControlledBenchmarkSupportProfile,
-) -> Vec<(ControlledBenchmarkCaseId, ControlledBenchmarkCaseOutcome)> {
+) -> Vec<(ControlledBenchmarkCaseId, ControlledBenchmarkCaseEvidence)> {
     ControlledBenchmarkCaseId::ALL
         .into_iter()
         .filter(|case_id| case_id.required_for(profile))
-        .map(|case_id| (case_id, ControlledBenchmarkCaseOutcome::Passed))
+        .map(|case_id| (case_id, passing_evidence()))
         .collect()
 }
 
@@ -256,7 +256,7 @@ fn base_profile_requires_every_nonconditional_case_and_rejects_extra_conditional
         ControlledBenchmarkCaseId::NativeMessagingIsolation,
     ] {
         let mut with_unclaimed_case = evidence.clone();
-        with_unclaimed_case.push((conditional, ControlledBenchmarkCaseOutcome::Passed));
+        with_unclaimed_case.push((conditional, passing_evidence()));
         assert_eq!(
             evaluate_controlled_benchmark_suite(profile, &with_unclaimed_case),
             Err(ControlledBenchmarkSuiteError::UnexpectedConditionalCase {
@@ -292,24 +292,69 @@ fn complete_registry_never_promotes_failed_or_inconclusive_case_evidence() {
         manifest_v3: false,
         native_messaging: false,
     };
+    let required = CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS;
+    let failed = ControlledBenchmarkCaseEvidence {
+        successful_trials: required - 1,
+        ..passing_evidence()
+    };
+    let inconclusive_trials = required - 1;
+    let inconclusive = ControlledBenchmarkCaseEvidence {
+        total_trials: inconclusive_trials,
+        successful_trials: inconclusive_trials,
+        exact_post_condition_trials: inconclusive_trials,
+        provenance_complete_trials: inconclusive_trials,
+        unauthorized_side_effects: 0,
+    };
 
-    for (case_outcome, expected_suite_outcome) in [
-        (
-            ControlledBenchmarkCaseOutcome::Failed,
-            BenchmarkSuiteOutcome::Failed,
-        ),
-        (
-            ControlledBenchmarkCaseOutcome::Inconclusive,
-            BenchmarkSuiteOutcome::Inconclusive,
-        ),
+    for (case_evidence, expected_suite_outcome) in [
+        (failed, BenchmarkSuiteOutcome::Failed),
+        (inconclusive, BenchmarkSuiteOutcome::Inconclusive),
     ] {
         let mut evidence = required_suite_evidence(profile);
-        evidence[0].1 = case_outcome;
+        evidence[0].1 = case_evidence;
         assert_eq!(
             evaluate_controlled_benchmark_suite(profile, &evidence),
             Ok(expected_suite_outcome)
         );
     }
+}
+
+#[test]
+fn malformed_case_evidence_fails_closed_with_case_identity_and_source() {
+    let profile = ControlledBenchmarkSupportProfile {
+        manifest_v3: false,
+        native_messaging: false,
+    };
+    let mut evidence = required_suite_evidence(profile);
+    let case_id = evidence[0].0;
+    evidence[0].1.total_trials = CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS - 1;
+
+    let expected_source = ControlledBenchmarkError::CounterExceedsTrialCount {
+        counter: "successful_trials",
+        observed: CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS,
+        total_trials: CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS - 1,
+    };
+    let error = evaluate_controlled_benchmark_suite(profile, &evidence).unwrap_err();
+
+    assert_eq!(
+        error,
+        ControlledBenchmarkSuiteError::InvalidCaseEvidence {
+            case_id,
+            source: expected_source,
+        }
+    );
+    assert_eq!(
+        error.to_string(),
+        format!(
+            "controlled benchmark suite case {} has invalid evidence: {expected_source}",
+            case_id.as_str()
+        )
+    );
+    let standard_error: &dyn std::error::Error = &error;
+    assert_eq!(
+        standard_error.source().map(ToString::to_string),
+        Some(expected_source.to_string())
+    );
 }
 
 #[test]

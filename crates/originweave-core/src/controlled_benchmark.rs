@@ -216,7 +216,7 @@ impl fmt::Display for ControlledBenchmarkError {
 
 impl std::error::Error for ControlledBenchmarkError {}
 
-/// Structurally invalid controlled-suite case evidence.
+/// Structurally or semantically invalid controlled-suite case evidence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ControlledBenchmarkSuiteError {
     /// One stable case identity appears more than once in the supplied suite evidence.
@@ -228,6 +228,13 @@ pub enum ControlledBenchmarkSuiteError {
     UnexpectedConditionalCase {
         /// Conditional case outside the declared support profile.
         case_id: ControlledBenchmarkCaseId,
+    },
+    /// Raw evidence for one case is malformed or non-canonical.
+    InvalidCaseEvidence {
+        /// Case whose aggregate evidence failed validation.
+        case_id: ControlledBenchmarkCaseId,
+        /// Case-level validation error preserving the first causal boundary.
+        source: ControlledBenchmarkError,
     },
 }
 
@@ -244,11 +251,23 @@ impl fmt::Display for ControlledBenchmarkSuiteError {
                 "controlled benchmark suite contains {} evidence outside the declared support profile",
                 case_id.as_str()
             ),
+            Self::InvalidCaseEvidence { case_id, source } => write!(
+                formatter,
+                "controlled benchmark suite case {} has invalid evidence: {source}",
+                case_id.as_str()
+            ),
         }
     }
 }
 
-impl std::error::Error for ControlledBenchmarkSuiteError {}
+impl std::error::Error for ControlledBenchmarkSuiteError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::InvalidCaseEvidence { source, .. } => Some(source),
+            Self::DuplicateCase { .. } | Self::UnexpectedConditionalCase { .. } => None,
+        }
+    }
+}
 
 /// Evaluate one deterministic controlled benchmark case without widening evidence.
 ///
@@ -305,37 +324,48 @@ pub fn evaluate_controlled_benchmark_case(
     Ok(ControlledBenchmarkCaseOutcome::Passed)
 }
 
-/// Aggregate the authoritative controlled case registry into one suite outcome.
+/// Evaluate raw evidence for the authoritative controlled case registry.
 ///
-/// Structural evidence is validated before semantic outcomes are considered, so
-/// duplicate case identities or evidence for an undeclared conditional surface
-/// fail closed instead of being hidden by an unrelated case failure. A known
-/// failure in any required case yields [`BenchmarkSuiteOutcome::Failed`]. Missing
-/// or inconclusive required evidence yields [`BenchmarkSuiteOutcome::Inconclusive`].
-/// Only one passing outcome for every case required by the declared support
-/// profile yields [`BenchmarkSuiteOutcome::Passed`]. This function establishes
-/// evidence only for the controlled deterministic suite; release acceptance still
-/// requires the other mandatory benchmark suites independently.
+/// The suite boundary accepts raw [`ControlledBenchmarkCaseEvidence`] rather than
+/// caller-constructed case outcomes, so release-level suite authority cannot be
+/// minted by fabricating [`ControlledBenchmarkCaseOutcome::Passed`]. Structural
+/// registry checks run before case threshold evaluation: duplicate identities or
+/// evidence for an undeclared conditional surface fail closed first. Every
+/// structurally accepted case is then evaluated by [`evaluate_controlled_benchmark_case`].
+/// A known failure in any required case yields [`BenchmarkSuiteOutcome::Failed`].
+/// Missing or inconclusive required evidence yields
+/// [`BenchmarkSuiteOutcome::Inconclusive`]. Only raw evidence that evaluates to
+/// one passing outcome for every case required by the declared support profile
+/// yields [`BenchmarkSuiteOutcome::Passed`]. This function establishes evidence
+/// only for the controlled deterministic suite; release acceptance still requires
+/// the other mandatory benchmark suites independently.
 ///
 /// # Errors
 ///
-/// Returns [`ControlledBenchmarkSuiteError`] for duplicate case identities or
-/// evidence for a conditional case outside the declared support profile.
+/// Returns [`ControlledBenchmarkSuiteError`] for duplicate case identities,
+/// evidence for a conditional case outside the declared support profile, or
+/// malformed/non-canonical raw evidence for any supplied case.
 pub fn evaluate_controlled_benchmark_suite(
     profile: ControlledBenchmarkSupportProfile,
-    cases: &[(ControlledBenchmarkCaseId, ControlledBenchmarkCaseOutcome)],
+    cases: &[(ControlledBenchmarkCaseId, ControlledBenchmarkCaseEvidence)],
 ) -> Result<BenchmarkSuiteOutcome, ControlledBenchmarkSuiteError> {
     let mut observed = BTreeSet::new();
-    let mut any_failed = false;
-    let mut any_inconclusive = false;
 
-    for &(case_id, outcome) in cases {
+    for &(case_id, _) in cases {
         if !case_id.required_for(profile) {
             return Err(ControlledBenchmarkSuiteError::UnexpectedConditionalCase { case_id });
         }
         if !observed.insert(case_id) {
             return Err(ControlledBenchmarkSuiteError::DuplicateCase { case_id });
         }
+    }
+
+    let mut any_failed = false;
+    let mut any_inconclusive = false;
+    for &(case_id, evidence) in cases {
+        let outcome = evaluate_controlled_benchmark_case(evidence).map_err(|source| {
+            ControlledBenchmarkSuiteError::InvalidCaseEvidence { case_id, source }
+        })?;
 
         match outcome {
             ControlledBenchmarkCaseOutcome::Passed => {}
