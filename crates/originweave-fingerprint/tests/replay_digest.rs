@@ -1,3 +1,5 @@
+#![allow(clippy::expect_used)]
+
 use originweave_fingerprint::{
     DevicePixelRatio, PresentationDigest, PresentationError, PresentationPlatform,
     PresentationProfile, PresentationTimeZone, ScreenMetrics, ViewportBounds,
@@ -74,4 +76,21 @@ fn replay_requires_stored_digest_to_match_recomputed_identity() {
     )
     .expect("matching stored digest");
     assert_eq!(replayed.digest(), &matching_digest);
+
+    // Invalid field construction fails closed via replay as well.
+    let tall_viewport = ViewportBounds::new(1920, 1200).expect("viewport");
+    assert_eq!(
+        PresentationProfile::replay(
+            screen,
+            tall_viewport,
+            dpr,
+            concurrency,
+            timezone,
+            platform,
+            vec!["en-US".to_owned()],
+            false,
+            &matching_digest,
+        ),
+        Err(PresentationError::InconsistentIdentity)
+    );
 }

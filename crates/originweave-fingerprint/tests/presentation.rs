@@ -145,3 +145,28 @@ fn explicit_profiles_use_one_named_timezone_without_dst_contradictions() {
     assert_eq!(profile.timezone().iana_name(), "UTC");
     assert_eq!(profile.timezone_offset_minutes(), 0);
 }
+
+#[test]
+fn quantized2_high_density_profiles_construct_on_supported_platforms() {
+    let screen = ScreenMetrics::new(2560, 1440).expect("valid retina screen");
+    let viewport = ViewportBounds::new(1280, 720).expect("valid retina viewport");
+    for platform in [
+        PresentationPlatform::MacOS,
+        PresentationPlatform::Windows,
+        PresentationPlatform::Linux,
+    ] {
+        let profile = PresentationProfile::new(
+            screen,
+            viewport,
+            DevicePixelRatio::Quantized2,
+            8,
+            PresentationTimeZone::Utc,
+            platform,
+            vec!["en-US".to_owned()],
+            false,
+        )
+        .expect("valid quantized2 profile");
+        assert_eq!(profile.device_pixel_ratio(), DevicePixelRatio::Quantized2);
+        assert_eq!(profile.device_pixel_ratio().value(), 2.0);
+    }
+}
