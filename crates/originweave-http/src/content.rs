@@ -335,6 +335,20 @@ mod tests {
     }
 
     #[test]
+    fn zero_encoded_length_uses_one_byte_ratio_floor() {
+        let content_policy = policy(8, 8, 2);
+        enforce_decoded_limits(2, 0, &content_policy).expect("one-byte ratio floor");
+        assert!(matches!(
+            enforce_decoded_limits(3, 0, &content_policy),
+            Err(HttpError::ContentExpansionRatioExceeded {
+                decoded_bytes: 3,
+                encoded_bytes: 0,
+                maximum_ratio: 2,
+            })
+        ));
+    }
+
+    #[test]
     fn exact_decoded_and_ratio_boundaries_are_accepted() {
         let input = b"1234";
         let decoded = decode_content(input, &FieldBlock::default(), &policy(4, 4, 1))
