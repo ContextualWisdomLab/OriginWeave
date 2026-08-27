@@ -72,10 +72,11 @@ slice adds:
   enumerated architecture/bitness tokens.
 - `HintsPlatform::normalize` — maps to `Windows`, `macOS`, `Linux` and rejects
   any other token.
-- `UaClientHints::new` — requires a non-empty brand list, requires an empty
-  `model` when `mobile` is false per the draft's processing model, and caps a
-  mobile model at 64 UTF-8 bytes as an OriginWeave resource bound rather than
-  a UA Client Hints specification limit.
+- `UaClientHints::new` — requires one through 16 validated brands, requires an
+  empty `model` when `mobile` is false per the draft's processing model, and
+  caps a mobile model at 64 UTF-8 bytes. The 16-brand and 64-byte model limits
+  are OriginWeave resource bounds rather than UA Client Hints specification
+  limits.
 
 Admission checks are a control-plane contract only; they do not install a
 browser or override real headers.
@@ -93,10 +94,11 @@ shipped browser capability.
 Construction rejects unknown architecture/bitness/platform tokens, over-length
 brand names or versions, empty brand names or versions, brand bytes outside the
 bounded compatibility set, version bytes outside dotted ASCII alphanumeric
-syntax, over-length mobile model values, an empty brand list, and a non-mobile
-set with a non-empty model. The non-mobile empty-model coherence rule is checked
-before the local model-size ceiling so a contradictory non-mobile identity
-retains its semantic failure class even when its model string is also too long.
+syntax, over-length mobile model values, an empty brand list, a brand list with
+more than 16 entries, and a non-mobile set with a non-empty model. The
+non-mobile empty-model coherence rule is checked before the local model-size
+ceiling so a contradictory non-mobile identity retains its semantic failure
+class even when its model string is also too long.
 
 ## Security, privacy, and governance impact
 
@@ -105,26 +107,29 @@ secret, or action authority. Deterministic checks make adapter claims
 auditable. The admitted brand-name separators are a reviewed compatibility
 set from the current WICG GREASE algorithm rather than an unbounded printable
 ASCII allowance; quote, backslash, controls, and Unicode remain rejected. The
-32-byte brand/version and 64-byte mobile-model ceilings are local resource
-budgets and must not be presented as requirements of the WICG specification.
+32-byte brand/version, 16-entry brand-list, and 64-byte mobile-model ceilings
+are local resource budgets and must not be presented as requirements of the
+WICG specification.
 
 ## Tests and acceptance evidence
 
 `ua_client_hints_surface.rs` exercises each surface: ordinary and realistic
 Chromium/GREASE brand names, empty and invalid brand/version values, the local
 brand-name and brand-version length bounds, every architecture/bitness/platform
-token and its rejection, empty brand lists, the mobile-model resource bound,
-mobile with model, and non-mobile with model including semantic-error
-precedence. The workspace coverage gate enforces 100% functions, lines,
-regions, and branches. Browser acceptance remains out of scope.
+token and its rejection, empty brand lists, the 16-entry retained brand-list
+boundary, the mobile-model resource bound, mobile with model, and non-mobile
+with model including semantic-error precedence. The workspace coverage gate
+enforces 100% functions, lines, regions, and branches. Browser acceptance
+remains out of scope.
 
 ## Migration and rollback
 
 The new types are additive and do not change existing `PresentationProfile`
 digests. Within this proposed branch, the constructors now reject brand
-versions above 32 ASCII bytes and mobile models above 64 UTF-8 bytes instead
-of retaining unbounded strings. Rollback removes the UA Client Hints types and
-tests without schema changes.
+versions above 32 ASCII bytes, brand lists above 16 entries, and mobile models
+above 64 UTF-8 bytes instead of retaining unbounded presentation strings or
+lists. Rollback removes the UA Client Hints types and tests without schema
+changes.
 
 ## Open follow-ups
 
