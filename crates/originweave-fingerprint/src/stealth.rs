@@ -134,15 +134,17 @@ pub enum WebGlRendererToken {
 impl WebGlRendererToken {
     /// Canonicalize a known renderer spelling onto a bounded token.
     ///
+    /// Known software-renderer markers take precedence over an `ANGLE`
+    /// prefix because Chromium's SwiftShader renderer is itself ANGLE-backed.
     /// Unrecognized spellings fail closed to `None` rather than being echoed
     /// to a new class, so an adapter cannot widen the token set by fiat.
     #[must_use]
     pub fn canonical(spelling: &str) -> Option<Self> {
         let upper = spelling.to_ascii_uppercase();
-        if upper.starts_with("ANGLE") {
-            Some(Self::Angle)
-        } else if upper.contains("SOFTWARE") {
+        if upper.contains("SOFTWARE") || upper.contains("SWIFTSHADER") {
             Some(Self::Standard)
+        } else if upper.starts_with("ANGLE") {
+            Some(Self::Angle)
         } else {
             None
         }
