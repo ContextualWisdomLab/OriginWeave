@@ -57,6 +57,7 @@ Proposed ADR files are reviewable target architecture without becoming Accepted 
 | [0110](0110-privacy-preserving-presentation-identity.md) | Privacy-preserving presentation identity | Proposed | bounded normalization without access-control evasion |
 | [0111](0111-bounded-stealth-normalization-surfaces.md) | Bounded stealth-normalization surfaces | Proposed | canvas/WebGL/WebAudio/WebRTC bounded enumerated classes and surface admission |
 | [0112](0112-bounded-user-agent-client-hints.md) | Bounded User-Agent Client Hints | Proposed | UA-CH bounded enumerated tokens, brand grammar, and cross-field coherence |
+| [0113](0113-cross-surface-platform-coherence.md) | Cross-surface platform coherence | Proposed | presentation-platform, UA-token, and UA-CH-platform triad agreement |
 
 ADR 0013, ADR 0014, ADR 0110, and ADR 0111 exist only on this documentation branch until it integrates. After integration, this subsection remains historical provenance rather than an active-PR claim; all four decisions remain Proposed until a later policy-compliant change explicitly changes their lifecycle.
 
