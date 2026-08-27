@@ -204,7 +204,9 @@ pub(crate) fn classify_observed_mime(
     // Every classifier result below is an internal reviewed ASCII token pair. Constructing those
     // literals through the public fallible parser would add impossible error regions without
     // increasing validation: untrusted supplied metadata still uses `MimeType::parse` above.
-    let mime_type = if prefix.starts_with(b"%PDF-") {
+    let mime_type = if prefix.is_empty() {
+        internal_mime("application", "octet-stream")
+    } else if prefix.starts_with(b"%PDF-") {
         internal_mime("application", "pdf")
     } else if is_png(prefix) {
         internal_mime("image", "png")
