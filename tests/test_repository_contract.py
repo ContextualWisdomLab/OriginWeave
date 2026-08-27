@@ -177,6 +177,17 @@ class RepositoryContractTests(unittest.TestCase):
             self.assertNotIn("TraceWeave", text, relative)
             self.assertNotIn("ProofRail", text, relative)
 
+    def test_verified_tcp_evidence_claim_remains_in_changelog(self) -> None:
+        """Unrelated changes must not erase shipped verified-TCP evidence history."""
+
+        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.assertIn(
+            "Credential-free verified TCP evidence containing the logical origin, "
+            "requested socket, observed peer, destination class, successful attempt "
+            "number, and per-attempt timeout.",
+            changelog,
+        )
+
     def test_rust_standard_error_references_live_in_doctoring(self) -> None:
         """Material Rust API references belong in doctoring, not the changelog."""
 
