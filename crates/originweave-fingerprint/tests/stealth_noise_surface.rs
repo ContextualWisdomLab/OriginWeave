@@ -77,6 +77,16 @@ fn web_gl_renderer_tokens_are_bounded_and_standardized() {
         WebGlRendererToken::canonical("WebKit Software Rendering"),
         Some(WebGlRendererToken::Standard)
     );
+    assert_eq!(
+        WebGlRendererToken::canonical(
+            "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero)), SwiftShader driver)"
+        ),
+        Some(WebGlRendererToken::Standard)
+    );
+    assert_eq!(
+        WebGlRendererToken::canonical("ANGLE (Google, Software Rendering)"),
+        Some(WebGlRendererToken::Standard)
+    );
     assert_eq!(WebGlRendererToken::canonical("Mozilla/5.0"), None);
 }
 
