@@ -247,7 +247,6 @@ pub enum PresentationPlatform {
     /// Linux desktop Chromium.
     Linux,
 }
-
 /// A named time-zone identity that Chromium can expose consistently.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PresentationTimeZone {
@@ -961,7 +960,20 @@ mod tests {
             }
         }
         for concurrency in HARDWARE_CONCURRENCY_SET {
-            assert!(HARDWARE_CONCURRENCY_SET.contains(&concurrency));
+            let profile = PresentationProfile::new(
+                ScreenMetrics::new(1920, 1080)
+                    .expect("reference screen satisfies the metric contract"),
+                ViewportBounds::new(1280, 720)
+                    .expect("reference viewport satisfies the bounds contract"),
+                DevicePixelRatio::Quantized1,
+                concurrency,
+                PresentationTimeZone::Utc,
+                PresentationPlatform::Linux,
+                vec!["en-US".to_owned()],
+                false,
+            )
+            .expect("enumerated hardware concurrency satisfies the profile contract");
+            assert_eq!(profile.hardware_concurrency(), concurrency);
         }
         for language in FIRST_LANGUAGE_SET {
             assert!((2..=35).contains(&language.len()));
