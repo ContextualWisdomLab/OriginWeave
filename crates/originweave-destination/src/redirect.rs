@@ -1,9 +1,10 @@
 use std::collections::BTreeSet;
 use std::fmt;
+use std::time::Duration;
 
 use originweave_core::Origin;
 
-use crate::ResolutionSnapshot;
+use crate::{DestinationError, FreshResolutionSnapshot};
 
 /// The largest redirect chain accepted by the destination kernel.
 pub const MAX_REDIRECT_HOPS: u8 = 20;
@@ -80,6 +81,11 @@ pub enum RedirectError {
         /// The origin bound to the resolution snapshot.
         resolution_origin: Origin,
     },
+    /// The supplied resolution authority is not fresh at the requested use time.
+    ResolutionFreshnessDenied {
+        /// The destination-layer freshness failure.
+        error: DestinationError,
+    },
     /// An HTTPS request attempted to redirect to HTTP.
     InsecureSchemeDowngrade {
         /// The secure source origin.
@@ -112,6 +118,9 @@ impl fmt::Display for RedirectError {
                 formatter,
                 "redirect resolution origin {resolution_origin} does not match target {target_origin}",
             ),
+            Self::ResolutionFreshnessDenied { error } => {
+                write!(formatter, "redirect resolution freshness denied: {error}")
+            }
             Self::InsecureSchemeDowngrade {
                 source_origin,
                 target_origin,
@@ -128,7 +137,14 @@ impl fmt::Display for RedirectError {
     }
 }
 
-impl std::error::Error for RedirectError {}
+impl std::error::Error for RedirectError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::ResolutionFreshnessDenied { error } => Some(error),
+            _ => None,
+        }
+    }
+}
 
 /// Stateful redirect authorization for one bounded navigation chain.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -175,12 +191,17 @@ impl RedirectGuard {
         self.maximum_hops
     }
 
-    /// Authorize the next redirect after origin and DNS policy evaluation.
+    /// Authorize the next redirect after origin, DNS policy, and freshness evaluation.
+    ///
+    /// `current_time` must come from the same trusted monotonic clock domain as
+    /// `target_resolution`. Freshness is checked before any redirect-chain state
+    /// is advanced.
     pub fn authorize_redirect(
         &mut self,
         target_origin: Origin,
         target_digest: RedirectTargetDigest,
-        target_resolution: &ResolutionSnapshot,
+        target_resolution: &FreshResolutionSnapshot,
+        current_time: Duration,
         readable_origins: &BTreeSet<Origin>,
     ) -> Result<RedirectEvidence, RedirectError> {
         if self.hop_count >= self.maximum_hops {
@@ -197,6 +218,8 @@ impl RedirectGuard {
                 resolution_origin: target_resolution.origin().clone(),
             });
         }
+        validate_resolution_freshness(target_resolution, current_time)
+            .map_err(|error| RedirectError::ResolutionFreshnessDenied { error })?;
         if is_https(&self.current_origin) && !is_https(&target_origin) {
             return Err(RedirectError::InsecureSchemeDowngrade {
                 source_origin: self.current_origin.clone(),
@@ -219,6 +242,25 @@ impl RedirectGuard {
         self.seen_targets.insert(target_digest);
         Ok(evidence)
     }
+}
+
+fn validate_resolution_freshness(
+    target_resolution: &FreshResolutionSnapshot,
+    current_time: Duration,
+) -> Result<(), DestinationError> {
+    if current_time < target_resolution.approved_at() {
+        return Err(DestinationError::ResolutionUseBeforeApproval {
+            approved_at: target_resolution.approved_at(),
+            current_time,
+        });
+    }
+    if current_time >= target_resolution.valid_until() {
+        return Err(DestinationError::ResolutionApprovalExpired {
+            valid_until: target_resolution.valid_until(),
+            current_time,
+        });
+    }
+    Ok(())
 }
 
 fn is_https(origin: &Origin) -> bool {
