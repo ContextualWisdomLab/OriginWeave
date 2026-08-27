@@ -4,7 +4,7 @@
 
 OriginWeave is a Chromium-compatible, Rust-first control plane for governed AI agents on the web. It is designed to let an agent observe, extract, and act without turning untrusted page content into authority, exposing secrets to a model, connecting to an unapproved network destination, accepting an unauthenticated web service, or losing the evidence required to explain what happened.
 
-> Project status: pre-alpha. The current protected repository contains independently reusable safety, resolved-destination, direct TCP peer-binding, and authenticated TLS service-identity kernels. Chromium, WebDriver BiDi, CDP, complete MCP, HTTP, proxy, WARC, and persistent provenance adapters are planned but not yet shipped. Active PR #168 implements only a bounded MCP `2026-07-28` stateless tool-routing and typed-action/policy foundation; it remains non-shipped active-PR evidence and does not make the complete MCP adapter available.
+> Project status: pre-alpha. The current protected repository contains independently reusable safety, resolved-destination, direct TCP peer-binding, authenticated TLS service-identity, and bounded MCP `2026-07-28` stateless `tools/call` routing/policy foundations. Chromium, WebDriver BiDi, CDP, complete MCP, HTTP, proxy, WARC, and persistent provenance adapters are planned but not yet shipped. Active PR #170 implements only conservative `tools/list` discovery metadata on top of the protected-main MCP catalog; it remains non-shipped active-PR evidence and does not make the complete MCP adapter available.
 
 ## Why OriginWeave
 
@@ -40,7 +40,7 @@ The repository is organized as independently consumable Rust crates:
 - `originweave-resource`: task-level RAM, VRAM, thread, and frame-time budgets with cumulative mitigation plans.
 - `originweave-evidence`: universally value-redacted network evidence and source-bound provenance records.
 
-Active PR #168 additionally carries a non-shipped `originweave-core` MCP routing registry and `originweave-policy` binding for the MCP `2026-07-28` `tools/call` boundary. That foundation validates and maps an explicit tool name to an existing typed action; it does not implement transport parsing, `tools/list`, OAuth, browser control, secret materialization, persistence, or ambient authority.
+Protected main additionally contains an `originweave-core` MCP routing registry and `originweave-policy` binding for the MCP `2026-07-28` `tools/call` boundary. That shipped foundation validates and maps an explicit tool name to an existing typed action while preserving normal OriginWeave policy. Active PR #170 adds non-shipped conservative `tools/list` discovery metadata derived from the same reviewed catalog. Neither boundary implements transport parsing, OAuth, browser control, secret materialization, persistence, or ambient authority.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) and the [architecture decision records](docs/adr/) for binding design decisions.
 
@@ -99,7 +99,7 @@ isolated Chromium session
 → redacted provenance bundle
 ```
 
-Subsequent work connects the live Chromium network service, adds explicit proxy and download policy, WARC/PROV persistence, completes the MCP and Browser Agent Protocol adapters beyond the active routing foundation, expands extension compatibility testing, adds GPU/RAM telemetry and prompt-injection benchmarks, and builds an accessible approval interface. See [docs/product-roadmap.md](docs/product-roadmap.md).
+Subsequent work connects the live Chromium network service, adds explicit proxy and download policy, WARC/PROV persistence, completes the MCP and Browser Agent Protocol adapters beyond the protected-main `tools/call` foundation and active `tools/list` refinement, expands extension compatibility testing, adds GPU/RAM telemetry and prompt-injection benchmarks, and builds an accessible approval interface. See [docs/product-roadmap.md](docs/product-roadmap.md).
 
 ## Hourly product-development loop
 
