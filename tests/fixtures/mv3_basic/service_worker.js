@@ -28,7 +28,7 @@ async function waitForDownload(downloadId, expectedUrl) {
     try {
       items = await chrome.downloads.search({ id: downloadId, limit: 1 });
     } catch (_error) {
-      return { ready: false, diagnostic: "download-search-missing" };
+      return { ready: false, diagnostic: "download-not-evaluated" };
     }
     if (!Array.isArray(items) || items.length !== 1) {
       await new Promise((resolve) => setTimeout(resolve, DOWNLOAD_POLL_INTERVAL_MS));
