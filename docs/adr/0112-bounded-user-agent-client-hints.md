@@ -30,6 +30,22 @@ profile, and reidentifies the host.
 - Produce deterministic, credential-free evidence; never read the host and
   never evade an access-control or CAPTCHA gate.
 
+## Assumptions and authority boundaries
+
+- This ADR governs a Rust control-plane identity contract only. It does not
+  install a browser, intercept page script, override request headers, or read
+  host architecture, bitness, platform, or model values.
+- UA-CH values are presentation evidence, not authority. They grant no origin,
+  destination, transport, extension, secret, approval, or agent-action right.
+- An eventual Chromium adapter must prove that its low- and high-entropy UA-CH
+  values and request headers are coherent with the selected presentation
+  profile before page script can observe them. Until that adapter evidence
+  exists, this metadata contract must not be described as shipped browser
+  anti-fingerprinting or anti-detection behavior.
+- Access-control, CAPTCHA, consent, and bot-management outcomes remain external
+  policy decisions. This contract never treats a challenge as something to
+  bypass.
+
 ## Options considered
 
 - **Expose host hint values:** rejected because on-disk architecture, bitness,
@@ -117,7 +133,16 @@ tests without schema changes.
 - A release-time acceptance test that cannot read the host architecture or
   bitness.
 
-## Reference
+## Supersession / reversal conditions
+
+This ADR is superseded if a later reviewed decision defines a different
+UA Client Hints presentation model, adds a cohort-backed default selection
+contract, or moves the authoritative coherence boundary into a pinned browser
+adapter with equivalent fail-closed evidence. It is reversed if OriginWeave
+stops claiming a bounded UA-CH presentation surface and removes these types
+and tests without a replacement.
+
+## References
 
 Web Platform Incubator Community Group. (2026, February 10). *User-Agent Client Hints*
 (Draft Community Group Report). https://wicg.github.io/ua-client-hints/
