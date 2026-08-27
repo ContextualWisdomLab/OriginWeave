@@ -65,6 +65,11 @@ replace_once(
     "| [0113](0113-cross-surface-platform-coherence.md) | Cross-surface platform coherence | Proposed | presentation-platform, UA-token, and UA-CH-platform triad agreement |\n| [0114](0114-default-deny-web-audio-fingerprinting.md) | Default-deny Web Audio fingerprinting | Proposed | exact-origin Web Audio construction authority and pre-document privacy guard |",
 )
 replace_once(
+    "docs/README.md",
+    "- [ADR 0113: Cross-surface platform coherence](adr/0113-cross-surface-platform-coherence.md)",
+    "- [ADR 0113: Cross-surface platform coherence](adr/0113-cross-surface-platform-coherence.md)\n- [ADR 0114: Default-deny Web Audio fingerprinting](adr/0114-default-deny-web-audio-fingerprinting.md)",
+)
+replace_once(
     "CHANGELOG.md",
     "### Added\n",
     "### Added\n- Added a default-deny Web Audio fingerprinting boundary for isolated Agent and Crawler profiles: exact-origin grants capped at 128 unique canonical origins, a deterministic Rust-rendered MAIN-world `document_start` guard, and a pinned-Chromium top-document/child-frame proof that blocks online, offline, prefixed, and AudioWorklet construction entry points (see ADR 0114).\n",
