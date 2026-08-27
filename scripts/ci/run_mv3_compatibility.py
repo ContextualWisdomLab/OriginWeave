@@ -58,6 +58,10 @@ W3C_ELEMENT_KEY = "element-6066-11e4-a52e-4f735466cecf"
 PATH_TOKEN_CHARACTERS = frozenset(string.ascii_letters + string.digits + "-_.")
 
 
+class _WebDriverNoSuchWindowError(RuntimeError):
+    """Identify reviewed ChromeDriver no-such-window evidence without masking other failures."""
+
+
 class QuietFixtureHandler(http.server.SimpleHTTPRequestHandler):
     """Serve only the controlled local fixture without noisy access logging."""
 
@@ -141,7 +145,7 @@ def _json_request(
                 isinstance(error_value, dict)
                 and error_value.get("error") == "no such window"
             ):
-                raise RuntimeError(
+                raise _WebDriverNoSuchWindowError(
                     "WebDriver error: no such window: response details redacted"
                 )
             raise RuntimeError(f"WebDriver HTTP {response.status}")
@@ -154,7 +158,7 @@ def _json_request(
     value = decoded.get("value")
     if isinstance(value, dict) and value.get("error"):
         if value.get("error") == "no such window":
-            raise RuntimeError(
+            raise _WebDriverNoSuchWindowError(
                 "WebDriver error: no such window: response details redacted"
             )
         raise RuntimeError("WebDriver returned an error response")
@@ -2137,7 +2141,12 @@ def _cleanup_crashed_browser_session(driver_port: int, session_id: str | None) -
             _webdriver_path(session_id, ""),
             {},
         )
-    except (OSError, RuntimeError, json.JSONDecodeError, http.client.IncompleteRead):
+    except (
+        OSError,
+        _WebDriverNoSuchWindowError,
+        json.JSONDecodeError,
+        http.client.IncompleteRead,
+    ):
         return
 
 
