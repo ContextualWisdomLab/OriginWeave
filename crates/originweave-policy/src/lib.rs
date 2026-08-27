@@ -12,7 +12,8 @@ mod sensitive_data;
 mod sensitive_handle_dispatch;
 
 pub use model_route::{
-    ModelRouteDecision, ModelRouteRequest, ModelRouteScope, evaluate_model_route,
+    ModelInvocationDecision, ModelInvocationRequest, ModelInvocationScope, ModelRouteDecision,
+    ModelRouteRequest, ModelRouteScope, evaluate_model_invocation, evaluate_model_route,
 };
 pub use sensitive_data::{
     DataClassification, DisclosureDecision, DisclosureScope, HandleRevocationReason,
