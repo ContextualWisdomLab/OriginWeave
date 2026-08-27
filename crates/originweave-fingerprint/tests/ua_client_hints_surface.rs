@@ -19,6 +19,25 @@ fn ua_brand_accepts_ascii_bounded_names_and_versions() {
 }
 
 #[test]
+fn ua_brand_accepts_realistic_chromium_and_grease_names() {
+    assert!(UaBrand::new("Google Chrome", "131").is_ok());
+    assert!(UaBrand::new("Not/A)Brand", "99").is_ok());
+    assert!(UaBrand::new("Not_A Brand", "24.0.0.0").is_ok());
+}
+
+#[test]
+fn empty_brand_name_or_version_fails_closed() {
+    assert_eq!(
+        UaBrand::new("", "131").expect_err("empty brand name"),
+        ClientHintsError::InvalidBrandName
+    );
+    assert_eq!(
+        UaBrand::new("Chromium", "").expect_err("empty brand version"),
+        ClientHintsError::InvalidBrandName
+    );
+}
+
+#[test]
 fn brand_names_over_length_limit_fail_closed() {
     let long_name = "X".repeat(33);
     assert_eq!(
