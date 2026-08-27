@@ -1,25 +1,154 @@
-//! Deterministic acceptance policy for one controlled benchmark case.
+//! Deterministic acceptance policy for the controlled benchmark suite.
 //!
 //! This module evaluates already-collected, credential-free aggregate evidence.
-//! It does not authenticate case identity, select a corpus, execute a browser,
-//! or establish provenance by itself; those responsibilities belong to the
-//! benchmark runner and evidence pipeline. A case result is deliberately not a
-//! [`crate::release_acceptance::BenchmarkSuiteOutcome`]: release-level suite
-//! evidence must explicitly aggregate every required controlled case rather than
-//! promoting one passing case into a passing suite.
+//! It does not execute a browser, authenticate evidence, select or license a
+//! corpus, or establish provenance by itself; those responsibilities belong to
+//! the benchmark runner and evidence pipeline. Individual case outcomes remain
+//! deliberately distinct from release-level suite outcomes. Only the complete,
+//! versioned required-case registry for the declared support profile can produce
+//! a [`crate::release_acceptance::BenchmarkSuiteOutcome`] for this one suite.
 
+use crate::release_acceptance::BenchmarkSuiteOutcome;
+use std::collections::BTreeSet;
 use std::fmt;
 
 /// Canonical number of trials required for one deterministic controlled case.
 pub const CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS: u32 = 100;
 
+/// Version of the authoritative controlled deterministic case registry.
+///
+/// Changing required case identity, required membership, or conditional-support
+/// semantics requires a new registry version rather than silently changing the
+/// meaning of retained benchmark evidence.
+pub const CONTROLLED_DETERMINISTIC_REGISTRY_VERSION: &str = "controlled-deterministic-v1";
+
+/// Stable case identities in the controlled deterministic benchmark registry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ControlledBenchmarkCaseId {
+    /// Semantic locate/type/click/submit behavior.
+    SemanticInteraction,
+    /// Same-document post-condition observation.
+    SameDocumentPostCondition,
+    /// Navigation post-condition observation.
+    NavigationPostCondition,
+    /// Structured extraction from DOM and accessibility channels.
+    DomAccessibilityExtraction,
+    /// Structured JSON-LD extraction.
+    JsonLdExtraction,
+    /// Structured table extraction.
+    TableExtraction,
+    /// Bounded structured network-response extraction.
+    BoundedNetworkExtraction,
+    /// Iframe interaction and authority isolation.
+    IframeInteraction,
+    /// Shadow-DOM interaction and authority isolation.
+    ShadowDomInteraction,
+    /// Approved file download behavior.
+    ApprovedDownload,
+    /// Approved file upload behavior.
+    ApprovedUpload,
+    /// Approval-required reversible action behavior.
+    ApprovalRequiredReversibleAction,
+    /// Secret-handle form fill without model disclosure.
+    SecretHandleFormFill,
+    /// Redirect and origin-transition authority behavior.
+    RedirectOriginTransition,
+    /// Dynamic mutation and stale-node invalidation.
+    DynamicMutationStaleNode,
+    /// Session checkpoint, cancellation, and resume behavior.
+    SessionCheckpointCancelResume,
+    /// Browser crash and task-owned process/profile cleanup.
+    BrowserCrashCleanup,
+    /// WARC/PROV capture and offline replay behavior.
+    WarcProvReplay,
+    /// Manifest V3 isolation when the release declares MV3 support.
+    ManifestV3Isolation,
+    /// Native-messaging isolation when the release declares native-host support.
+    NativeMessagingIsolation,
+}
+
+impl ControlledBenchmarkCaseId {
+    /// Ordered authoritative registry for the controlled deterministic suite.
+    pub const ALL: [Self; 20] = [
+        Self::SemanticInteraction,
+        Self::SameDocumentPostCondition,
+        Self::NavigationPostCondition,
+        Self::DomAccessibilityExtraction,
+        Self::JsonLdExtraction,
+        Self::TableExtraction,
+        Self::BoundedNetworkExtraction,
+        Self::IframeInteraction,
+        Self::ShadowDomInteraction,
+        Self::ApprovedDownload,
+        Self::ApprovedUpload,
+        Self::ApprovalRequiredReversibleAction,
+        Self::SecretHandleFormFill,
+        Self::RedirectOriginTransition,
+        Self::DynamicMutationStaleNode,
+        Self::SessionCheckpointCancelResume,
+        Self::BrowserCrashCleanup,
+        Self::WarcProvReplay,
+        Self::ManifestV3Isolation,
+        Self::NativeMessagingIsolation,
+    ];
+
+    /// Stable external identifier bound to this registry version.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::SemanticInteraction => "semantic_interaction",
+            Self::SameDocumentPostCondition => "same_document_post_condition",
+            Self::NavigationPostCondition => "navigation_post_condition",
+            Self::DomAccessibilityExtraction => "dom_accessibility_extraction",
+            Self::JsonLdExtraction => "json_ld_extraction",
+            Self::TableExtraction => "table_extraction",
+            Self::BoundedNetworkExtraction => "bounded_network_extraction",
+            Self::IframeInteraction => "iframe_interaction",
+            Self::ShadowDomInteraction => "shadow_dom_interaction",
+            Self::ApprovedDownload => "approved_download",
+            Self::ApprovedUpload => "approved_upload",
+            Self::ApprovalRequiredReversibleAction => "approval_required_reversible_action",
+            Self::SecretHandleFormFill => "secret_handle_form_fill",
+            Self::RedirectOriginTransition => "redirect_origin_transition",
+            Self::DynamicMutationStaleNode => "dynamic_mutation_stale_node",
+            Self::SessionCheckpointCancelResume => "session_checkpoint_cancel_resume",
+            Self::BrowserCrashCleanup => "browser_crash_cleanup",
+            Self::WarcProvReplay => "warc_prov_replay",
+            Self::ManifestV3Isolation => "manifest_v3_isolation",
+            Self::NativeMessagingIsolation => "native_messaging_isolation",
+        }
+    }
+
+    /// Whether this case is required for the explicitly declared support profile.
+    #[must_use]
+    pub const fn required_for(self, profile: ControlledBenchmarkSupportProfile) -> bool {
+        match self {
+            Self::ManifestV3Isolation => profile.manifest_v3,
+            Self::NativeMessagingIsolation => profile.native_messaging,
+            _ => true,
+        }
+    }
+}
+
+/// Conditional release surfaces that alter required controlled-suite evidence.
+///
+/// A false field means that surface is outside the declared support profile; it
+/// does not convert evidence for that surface into a passing or skipped case.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ControlledBenchmarkSupportProfile {
+    /// Whether the release claims Manifest V3 extension support.
+    pub manifest_v3: bool,
+    /// Whether the release claims native-messaging host support.
+    pub native_messaging: bool,
+}
+
 /// Evaluated threshold outcome for one controlled benchmark case.
 ///
 /// This type is deliberately distinct from
 /// [`crate::release_acceptance::BenchmarkSuiteOutcome`] so a single case result
-/// cannot be supplied directly as release-level suite evidence. A suite-level
-/// evaluator must explicitly aggregate the registry's complete required case set
-/// before constructing release acceptance evidence.
+/// cannot be supplied directly as release-level suite evidence. The suite-level
+/// evaluator below constructs release acceptance evidence only after validating
+/// the registry's complete required case set for the declared support profile.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ControlledBenchmarkCaseOutcome {
     /// Every threshold for the canonical case passed.
@@ -87,6 +216,40 @@ impl fmt::Display for ControlledBenchmarkError {
 
 impl std::error::Error for ControlledBenchmarkError {}
 
+/// Structurally invalid controlled-suite case evidence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ControlledBenchmarkSuiteError {
+    /// One stable case identity appears more than once in the supplied suite evidence.
+    DuplicateCase {
+        /// Duplicated case identity.
+        case_id: ControlledBenchmarkCaseId,
+    },
+    /// Evidence was supplied for a conditional surface the release does not claim.
+    UnexpectedConditionalCase {
+        /// Conditional case outside the declared support profile.
+        case_id: ControlledBenchmarkCaseId,
+    },
+}
+
+impl fmt::Display for ControlledBenchmarkSuiteError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::DuplicateCase { case_id } => write!(
+                formatter,
+                "controlled benchmark suite contains duplicate case {}",
+                case_id.as_str()
+            ),
+            Self::UnexpectedConditionalCase { case_id } => write!(
+                formatter,
+                "controlled benchmark suite contains {} evidence outside the declared support profile",
+                case_id.as_str()
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ControlledBenchmarkSuiteError {}
+
 /// Evaluate one deterministic controlled benchmark case without widening evidence.
 ///
 /// Exactly 100 canonical trials are required for a passing result. A known
@@ -140,6 +303,59 @@ pub fn evaluate_controlled_benchmark_case(
     }
 
     Ok(ControlledBenchmarkCaseOutcome::Passed)
+}
+
+/// Aggregate the authoritative controlled case registry into one suite outcome.
+///
+/// Structural evidence is validated before semantic outcomes are considered, so
+/// duplicate case identities or evidence for an undeclared conditional surface
+/// fail closed instead of being hidden by an unrelated case failure. A known
+/// failure in any required case yields [`BenchmarkSuiteOutcome::Failed`]. Missing
+/// or inconclusive required evidence yields [`BenchmarkSuiteOutcome::Inconclusive`].
+/// Only one passing outcome for every case required by the declared support
+/// profile yields [`BenchmarkSuiteOutcome::Passed`]. This function establishes
+/// evidence only for the controlled deterministic suite; release acceptance still
+/// requires the other mandatory benchmark suites independently.
+///
+/// # Errors
+///
+/// Returns [`ControlledBenchmarkSuiteError`] for duplicate case identities or
+/// evidence for a conditional case outside the declared support profile.
+pub fn evaluate_controlled_benchmark_suite(
+    profile: ControlledBenchmarkSupportProfile,
+    cases: &[(ControlledBenchmarkCaseId, ControlledBenchmarkCaseOutcome)],
+) -> Result<BenchmarkSuiteOutcome, ControlledBenchmarkSuiteError> {
+    let mut observed = BTreeSet::new();
+    let mut any_failed = false;
+    let mut any_inconclusive = false;
+
+    for &(case_id, outcome) in cases {
+        if !case_id.required_for(profile) {
+            return Err(ControlledBenchmarkSuiteError::UnexpectedConditionalCase { case_id });
+        }
+        if !observed.insert(case_id) {
+            return Err(ControlledBenchmarkSuiteError::DuplicateCase { case_id });
+        }
+
+        match outcome {
+            ControlledBenchmarkCaseOutcome::Passed => {}
+            ControlledBenchmarkCaseOutcome::Failed => any_failed = true,
+            ControlledBenchmarkCaseOutcome::Inconclusive => any_inconclusive = true,
+        }
+    }
+
+    let missing_required = ControlledBenchmarkCaseId::ALL
+        .into_iter()
+        .any(|case_id| case_id.required_for(profile) && !observed.contains(&case_id));
+
+    if any_failed {
+        return Ok(BenchmarkSuiteOutcome::Failed);
+    }
+    if missing_required || any_inconclusive {
+        return Ok(BenchmarkSuiteOutcome::Inconclusive);
+    }
+
+    Ok(BenchmarkSuiteOutcome::Passed)
 }
 
 fn validate_counter(
