@@ -446,6 +446,9 @@ fn explicit_port(authority: &str) -> Result<Option<u16>, ProxyServerError> {
         port
     };
 
+    if !port_text.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(ProxyServerError::InvalidIdentifier);
+    }
     let port = port_text
         .parse::<u16>()
         .map_err(|_error| ProxyServerError::InvalidIdentifier)?;
