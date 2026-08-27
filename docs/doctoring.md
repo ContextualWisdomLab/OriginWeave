@@ -180,11 +180,11 @@ The Rust Project Developers. (2026). *Display in std::fmt* (Rust 1.97.1) [Softwa
 
 The Rust Project Developers. (2026). *Error in std::error* (Rust 1.97.1) [Software documentation]. https://doc.rust-lang.org/1.97.1/std/error/trait.Error.html
 
-The Rust Project Developers. (2026). *Ipv4Addr in std::net* (Rust 1.97.1) [Software documentation]. https://doc.rust-lang.org/stable/std/net/struct.Ipv4Addr.html
+The Rust Project Developers. (2026). *Ipv4Addr in std::net* (Rust 1.97.1) [Software documentation]. https://doc.rust-lang.org/1.97.1/std/net/struct.Ipv4Addr.html
 
-The Rust Project Developers. (2026). *Ipv6Addr in std::net* (Rust 1.97.1) [Software documentation]. https://doc.rust-lang.org/stable/std/net/struct.Ipv6Addr.html
+The Rust Project Developers. (2026). *Ipv6Addr in std::net* (Rust 1.97.1) [Software documentation]. https://doc.rust-lang.org/1.97.1/std/net/struct.Ipv6Addr.html
 
-The Rust Project Developers. (2026). *TcpStream in std::net* (Rust 1.97.1) [Software documentation]. https://doc.rust-lang.org/stable/std/net/struct.TcpStream.html
+The Rust Project Developers. (2026). *TcpStream in std::net* (Rust 1.97.1) [Software documentation]. https://doc.rust-lang.org/1.97.1/std/net/struct.TcpStream.html
 
 The Unicode Consortium. (2025). *DerivedCoreProperties-17.0.0.txt* [Data file]. https://www.unicode.org/Public/17.0.0/ucd/DerivedCoreProperties.txt
 
