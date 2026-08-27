@@ -1,5 +1,6 @@
 name: One-shot Web Audio privacy materializer
 
+# Retry 2: both canonical ADR indexes are now updated by the materializer.
 on:
   push:
     branches:
