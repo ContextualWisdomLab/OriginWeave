@@ -66,7 +66,6 @@ class ManifestV3DownloadsContractTests(unittest.TestCase):
         for expected in (
             "download-source-rejected",
             "download-start-rejected",
-            "download-search-timeout",
             "download-interrupted",
             "download-url-mismatch",
             "download-byte-count-mismatch",
@@ -97,9 +96,10 @@ class ManifestV3DownloadsContractTests(unittest.TestCase):
             ),
         )
         self.assertIn(
-            'diagnostic: observedDownload ? "download-timeout" : "download-search-timeout"',
+            'return { ready: false, diagnostic: "download-timeout" };',
             worker,
         )
+        self.assertNotIn("observedDownload", worker)
 
     def test_content_script_and_runner_require_downloads_on_every_pass(self) -> None:
         """The compatibility report must fail closed when downloads evidence is missing."""
@@ -117,7 +117,7 @@ class ManifestV3DownloadsContractTests(unittest.TestCase):
         approved = {
             "download-source-rejected",
             "download-start-rejected",
-            "download-search-timeout",
+            "download-search-missing",
             "download-interrupted",
             "download-url-mismatch",
             "download-byte-count-mismatch",
