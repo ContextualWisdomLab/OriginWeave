@@ -89,8 +89,8 @@ class ManifestV3TransportProtocolExceptionContractTests(unittest.TestCase):
                 self.assertIsNone(raised.exception.__cause__)
                 self.assertIsNone(raised.exception.__context__)
 
-    def test_utf8_decode_failure_translates_directly_without_dead_fallback_state(self) -> None:
-        """The Unicode failure branch must raise directly rather than assign unused fallback state."""
+    def test_utf8_decode_failure_does_not_retain_a_decode_exception(self) -> None:
+        """Invalid UTF-8 must be detected without creating a raw-payload exception context."""
 
         module = ast.parse(RUNNER.read_text(encoding="utf-8"))
         json_request = next(
@@ -105,15 +105,34 @@ class ManifestV3TransportProtocolExceptionContractTests(unittest.TestCase):
             for handler in node.handlers
             if isinstance(handler.type, ast.Name) and handler.type.id == "UnicodeDecodeError"
         ]
-        self.assertEqual(len(unicode_handlers), 1)
-        handler = unicode_handlers[0]
-        self.assertFalse(
-            any(isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)) for node in handler.body),
-            "UnicodeDecodeError handling must not synthesize dead fallback state",
+        self.assertEqual(
+            unicode_handlers,
+            [],
+            "strict UTF-8 exception handling retains raw response bytes in __context__",
         )
-        direct_raises = [node for node in handler.body if isinstance(node, ast.Raise)]
-        self.assertEqual(len(direct_raises), 1)
-        self.assertIsNone(direct_raises[0].cause)
+
+        surrogateescape_decodes = []
+        for node in ast.walk(json_request):
+            if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+                continue
+            if node.func.attr != "decode":
+                continue
+            encoding = node.args[0].value if node.args and isinstance(node.args[0], ast.Constant) else None
+            errors = next(
+                (
+                    keyword.value.value
+                    for keyword in node.keywords
+                    if keyword.arg == "errors" and isinstance(keyword.value, ast.Constant)
+                ),
+                None,
+            )
+            if encoding == "utf-8" and errors == "surrogateescape":
+                surrogateescape_decodes.append(node)
+        self.assertEqual(
+            len(surrogateescape_decodes),
+            1,
+            "WebDriver response decoding must use one non-throwing surrogateescape boundary",
+        )
 
     def test_unreleased_changelog_change_type_headings_are_unique(self) -> None:
         """Keep each Keep a Changelog change type singular within Unreleased."""
