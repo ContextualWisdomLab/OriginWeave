@@ -138,7 +138,9 @@ fn enforce_decoded_limits(
             maximum_bytes: policy.max_decoded_content_bytes(),
         });
     }
-    let ratio_limit = encoded_bytes.saturating_mul(policy.max_content_expansion_ratio());
+    let ratio_limit = encoded_bytes
+        .max(1)
+        .saturating_mul(policy.max_content_expansion_ratio());
     if decoded_bytes > ratio_limit {
         return Err(HttpError::ContentExpansionRatioExceeded {
             decoded_bytes,
