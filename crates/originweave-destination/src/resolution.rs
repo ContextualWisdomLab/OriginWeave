@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 use std::fmt;
 use std::net::IpAddr;
+use std::time::Duration;
 
 use originweave_core::Origin;
 
@@ -8,6 +9,13 @@ use crate::{AddressClass, ClassifiedAddress, classify_address};
 
 /// The largest resolver answer accepted by one resolution snapshot.
 pub const MAX_RESOLUTION_ADDRESS_COUNT: usize = 256;
+
+/// The largest freshness interval accepted for one resolution approval.
+///
+/// This is an OriginWeave product safety budget, not a DNS protocol validity
+/// rule. Callers may choose any smaller non-zero interval appropriate to their
+/// resolver and network adapter.
+pub const MAX_RESOLUTION_VALIDITY: Duration = Duration::from_secs(30);
 
 /// A fail-closed allow-list of destination address classes.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -103,6 +111,34 @@ pub enum DestinationError {
         /// The newly introduced canonical address.
         address: IpAddr,
     },
+    /// A freshness interval was zero or exceeded [`MAX_RESOLUTION_VALIDITY`].
+    InvalidResolutionValidity {
+        /// The rejected freshness interval.
+        validity: Duration,
+        /// The largest accepted freshness interval.
+        maximum_validity: Duration,
+    },
+    /// Adding the freshness interval to the approval time overflowed.
+    ResolutionValidityOverflow {
+        /// The trusted monotonic time at which the answer was approved.
+        approved_at: Duration,
+        /// The requested freshness interval.
+        validity: Duration,
+    },
+    /// A caller supplied a monotonic time earlier than the recorded approval.
+    ResolutionUseBeforeApproval {
+        /// The recorded approval time.
+        approved_at: Duration,
+        /// The caller-supplied current time.
+        current_time: Duration,
+    },
+    /// A bounded resolution approval reached its exclusive validity deadline.
+    ResolutionApprovalExpired {
+        /// The exclusive upper bound of the approval interval.
+        valid_until: Duration,
+        /// The caller-supplied current time.
+        current_time: Duration,
+    },
 }
 
 impl fmt::Display for DestinationError {
@@ -141,6 +177,34 @@ impl fmt::Display for DestinationError {
             Self::ResolutionSetExpanded { address } => write!(
                 formatter,
                 "refreshed DNS answer introduced unapproved address {address}",
+            ),
+            Self::InvalidResolutionValidity {
+                validity,
+                maximum_validity,
+            } => write!(
+                formatter,
+                "resolution validity {validity:?} is outside 1ns..={maximum_validity:?}",
+            ),
+            Self::ResolutionValidityOverflow {
+                approved_at,
+                validity,
+            } => write!(
+                formatter,
+                "resolution validity {validity:?} overflows approval time {approved_at:?}",
+            ),
+            Self::ResolutionUseBeforeApproval {
+                approved_at,
+                current_time,
+            } => write!(
+                formatter,
+                "resolution use time {current_time:?} precedes approval time {approved_at:?}",
+            ),
+            Self::ResolutionApprovalExpired {
+                valid_until,
+                current_time,
+            } => write!(
+                formatter,
+                "resolution approval expired at {valid_until:?}; current time is {current_time:?}",
             ),
         }
     }
@@ -254,6 +318,143 @@ impl ResolutionSnapshot {
     }
 }
 
+/// A resolution snapshot bound to one explicit trusted monotonic validity window.
+///
+/// The time values are opaque durations from one caller-owned monotonic clock
+/// domain. This type never reads a wall clock itself. Constructing a new fresh
+/// snapshot always reruns the same destination validation used by
+/// [`ResolutionSnapshot`], so callers cannot renew authority without presenting
+/// another policy-valid answer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FreshResolutionSnapshot {
+    snapshot: ResolutionSnapshot,
+    approved_at: Duration,
+    validity: Duration,
+    valid_until: Duration,
+}
+
+impl FreshResolutionSnapshot {
+    /// Validate addresses and bind the resulting snapshot to a bounded lifetime.
+    pub fn approve(
+        origin: Origin,
+        addresses: impl IntoIterator<Item = IpAddr>,
+        policy: &DestinationPolicy,
+        approved_at: Duration,
+        validity: Duration,
+    ) -> Result<Self, DestinationError> {
+        let snapshot = ResolutionSnapshot::approve(origin, addresses, policy)?;
+        Self::from_snapshot(snapshot, approved_at, validity)
+    }
+
+    fn from_snapshot(
+        snapshot: ResolutionSnapshot,
+        approved_at: Duration,
+        validity: Duration,
+    ) -> Result<Self, DestinationError> {
+        if validity.is_zero() || validity > MAX_RESOLUTION_VALIDITY {
+            return Err(DestinationError::InvalidResolutionValidity {
+                validity,
+                maximum_validity: MAX_RESOLUTION_VALIDITY,
+            });
+        }
+        let Some(valid_until) = approved_at.checked_add(validity) else {
+            return Err(DestinationError::ResolutionValidityOverflow {
+                approved_at,
+                validity,
+            });
+        };
+        Ok(Self {
+            snapshot,
+            approved_at,
+            validity,
+            valid_until,
+        })
+    }
+
+    /// Return the logical origin whose DNS answer was approved.
+    #[must_use]
+    pub const fn origin(&self) -> &Origin {
+        self.snapshot.origin()
+    }
+
+    /// Return the canonical addresses pinned for this fresh snapshot.
+    #[must_use]
+    pub const fn addresses(&self) -> &BTreeSet<IpAddr> {
+        self.snapshot.addresses()
+    }
+
+    /// Return the trusted monotonic approval time.
+    #[must_use]
+    pub const fn approved_at(&self) -> Duration {
+        self.approved_at
+    }
+
+    /// Return the configured non-zero validity budget.
+    #[must_use]
+    pub const fn validity(&self) -> Duration {
+        self.validity
+    }
+
+    /// Return the exclusive upper bound of the approval interval.
+    #[must_use]
+    pub const fn valid_until(&self) -> Duration {
+        self.valid_until
+    }
+
+    /// Authorize one pinned address only while the freshness window is valid.
+    pub fn authorize_connection(
+        &self,
+        address: IpAddr,
+        current_time: Duration,
+    ) -> Result<FreshConnectionEvidence, DestinationError> {
+        self.validate_current_time(current_time)?;
+        let connection = self.snapshot.authorize_connection(address)?;
+        Ok(FreshConnectionEvidence {
+            connection,
+            resolution_approved_at: self.approved_at,
+            resolution_valid_until: self.valid_until,
+            authorized_at: current_time,
+        })
+    }
+
+    /// Revalidate a fresh answer and renew the same bounded validity budget.
+    ///
+    /// `revalidated_at` must come from the same monotonic clock domain and may
+    /// not precede this snapshot's approval time. Expansion of the pinned set
+    /// remains fail-closed under [`ResolutionSnapshot::revalidate`].
+    pub fn revalidate(
+        &self,
+        addresses: impl IntoIterator<Item = IpAddr>,
+        policy: &DestinationPolicy,
+        revalidated_at: Duration,
+    ) -> Result<Self, DestinationError> {
+        if revalidated_at < self.approved_at {
+            return Err(DestinationError::ResolutionUseBeforeApproval {
+                approved_at: self.approved_at,
+                current_time: revalidated_at,
+            });
+        }
+        let snapshot = self.snapshot.revalidate(addresses, policy)?;
+        Self::from_snapshot(snapshot, revalidated_at, self.validity)
+    }
+
+    fn validate_current_time(&self, current_time: Duration) -> Result<(), DestinationError> {
+        if current_time < self.approved_at {
+            return Err(DestinationError::ResolutionUseBeforeApproval {
+                approved_at: self.approved_at,
+                current_time,
+            });
+        }
+        if current_time >= self.valid_until {
+            return Err(DestinationError::ResolutionApprovalExpired {
+                valid_until: self.valid_until,
+                current_time,
+            });
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum OriginHostConstraint {
     Domain,
@@ -342,5 +543,40 @@ impl ConnectionEvidence {
     #[must_use]
     pub const fn address_class(&self) -> AddressClass {
         self.address_class
+    }
+}
+
+/// Credential-free evidence that a pinned connection address was used while fresh.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FreshConnectionEvidence {
+    connection: ConnectionEvidence,
+    resolution_approved_at: Duration,
+    resolution_valid_until: Duration,
+    authorized_at: Duration,
+}
+
+impl FreshConnectionEvidence {
+    /// Return the underlying canonical destination/connection evidence.
+    #[must_use]
+    pub const fn connection_evidence(&self) -> &ConnectionEvidence {
+        &self.connection
+    }
+
+    /// Return the trusted monotonic time at which the answer was approved.
+    #[must_use]
+    pub const fn resolution_approved_at(&self) -> Duration {
+        self.resolution_approved_at
+    }
+
+    /// Return the exclusive upper bound of the resolution approval interval.
+    #[must_use]
+    pub const fn resolution_valid_until(&self) -> Duration {
+        self.resolution_valid_until
+    }
+
+    /// Return the trusted monotonic time used for this authorization decision.
+    #[must_use]
+    pub const fn authorized_at(&self) -> Duration {
+        self.authorized_at
     }
 }
