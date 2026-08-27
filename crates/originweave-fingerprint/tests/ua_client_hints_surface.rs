@@ -142,15 +142,17 @@ fn mobile_hints_may_carry_a_model_without_exceeding_the_set() {
 fn mobile_models_over_resource_limit_fail_closed() {
     let brand = UaBrand::new("Chromium", "131.0.0.0").expect("brand");
     let boundary_model = "M".repeat(64);
-    assert!(UaClientHints::new(
-        HintsPlatform::Linux,
-        HintsArchitecture::Arm,
-        HintsBitness::Bit64,
-        true,
-        &boundary_model,
-        vec![brand.clone()],
-    )
-    .is_ok());
+    assert!(
+        UaClientHints::new(
+            HintsPlatform::Linux,
+            HintsArchitecture::Arm,
+            HintsBitness::Bit64,
+            true,
+            &boundary_model,
+            vec![brand.clone()],
+        )
+        .is_ok()
+    );
 
     let long_model = "M".repeat(65);
     assert_eq!(
