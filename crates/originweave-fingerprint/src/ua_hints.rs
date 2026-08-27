@@ -13,15 +13,22 @@
 use std::error::Error;
 use std::fmt;
 
-/// The maximum accepted brand-name length in ASCII characters.
+/// The maximum accepted brand-name length in ASCII bytes.
 const MAX_BRAND_NAME_LENGTH: usize = 32;
+
+/// WICG GREASE-compatible separators admitted inside bounded brand names.
+const BRAND_COMPATIBILITY_SEPARATORS: &[u8] = b" ()-./:;=?_";
+
+fn is_valid_brand_name_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || BRAND_COMPATIBILITY_SEPARATORS.contains(&byte)
+}
 
 /// A validation failure when assembling a UA Client Hints surface.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ClientHintsError {
     /// A brand name exceeded the bounded ASCII length.
     BrandTooLong,
-    /// A brand name contained a non-ASCII-alpha or non-digit character.
+    /// A brand name or version violated the bounded compatibility grammar.
     InvalidBrandName,
     /// A platform token was outside the enumerated low-entropy set.
     InvalidPlatform,
@@ -37,9 +44,9 @@ impl fmt::Display for ClientHintsError {
             Self::BrandTooLong => {
                 formatter.write_str("brand name must be at most 32 ASCII characters")
             }
-            Self::InvalidBrandName => {
-                formatter.write_str("brand name and version must use ASCII letters and digits")
-            }
+            Self::InvalidBrandName => formatter.write_str(
+                "brand name must use bounded UA-CH-compatible ASCII and version must be non-empty dotted ASCII alphanumeric",
+            ),
             Self::InvalidPlatform => formatter.write_str(
                 "platform must be one of the enumerated UA Client Hints platform values",
             ),
@@ -65,14 +72,18 @@ pub struct UaBrand {
 impl UaBrand {
     /// Validate one brand/version token pair.
     ///
-    /// Names and versions must be ASCII alphanumeric or dotted numerals, and
-    /// the name must be at most 32 characters, matching the WICG brand
-    /// grammar requirement.
+    /// Names must be non-empty ASCII and may contain alphanumerics plus the
+    /// separator bytes used by the WICG GREASE brand algorithm. Versions must
+    /// be non-empty dotted ASCII alphanumeric strings. The 32-byte name cap is
+    /// an OriginWeave resource bound, not a UA Client Hints specification
+    /// limit.
     pub fn new(name: &str, version: &str) -> Result<Self, ClientHintsError> {
         if name.len() > MAX_BRAND_NAME_LENGTH {
             return Err(ClientHintsError::BrandTooLong);
         }
-        if !name.bytes().all(|byte| byte.is_ascii_alphanumeric())
+        if name.is_empty()
+            || !name.bytes().all(is_valid_brand_name_byte)
+            || version.is_empty()
             || !version
                 .bytes()
                 .all(|byte| byte.is_ascii_alphanumeric() || byte == b'.')
