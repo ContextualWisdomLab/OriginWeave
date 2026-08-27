@@ -23,6 +23,10 @@ fn denial_reasons_expose_stable_standard_error_contracts() {
             "untrusted web content cannot authorize this action",
         ),
         (
+            DenialReason::McpActionMismatch,
+            "validated MCP route does not match the requested policy action",
+        ),
+        (
             DenialReason::MissingCapability(Capability::Navigate),
             "required action capability is missing",
         ),
