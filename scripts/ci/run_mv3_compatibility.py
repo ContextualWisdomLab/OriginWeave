@@ -787,7 +787,14 @@ def _run_restart_trial(
         }
     )
     if not all(surfaces.values()):
-        raise RuntimeError(f"compatibility surface failed in trial {trial_number}")
+        return {
+            "trial_number": trial_number,
+            "passed": False,
+            "failure_type": "CompatibilitySurfaceFailure",
+            "surfaces": surfaces,
+            "profile_cleaned": True,
+            "duration_ms": duration_ms,
+        }
 
     return {
         "trial_number": trial_number,
