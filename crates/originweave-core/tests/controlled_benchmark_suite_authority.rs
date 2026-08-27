@@ -1,6 +1,7 @@
 use originweave_core::controlled_benchmark::{
     CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS, ControlledBenchmarkCaseEvidence,
-    ControlledBenchmarkCaseId, ControlledBenchmarkSupportProfile, evaluate_controlled_benchmark_suite,
+    ControlledBenchmarkCaseId, ControlledBenchmarkSupportProfile,
+    evaluate_controlled_benchmark_suite,
 };
 use originweave_core::release_acceptance::BenchmarkSuiteOutcome;
 
@@ -20,7 +21,10 @@ fn suite_authority_is_derived_from_raw_case_evidence() {
         manifest_v3: false,
         native_messaging: false,
     };
-    let evidence = [(ControlledBenchmarkCaseId::SemanticInteraction, passing_evidence())];
+    let evidence = [(
+        ControlledBenchmarkCaseId::SemanticInteraction,
+        passing_evidence(),
+    )];
 
     assert_eq!(
         evaluate_controlled_benchmark_suite(profile, &evidence),
