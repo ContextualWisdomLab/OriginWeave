@@ -66,7 +66,7 @@ class ManifestV3DownloadsContractTests(unittest.TestCase):
         for expected in (
             "download-source-rejected",
             "download-start-rejected",
-            "download-search-missing",
+            "download-search-timeout",
             "download-interrupted",
             "download-url-mismatch",
             "download-byte-count-mismatch",
@@ -77,14 +77,15 @@ class ManifestV3DownloadsContractTests(unittest.TestCase):
         ):
             with self.subTest(expected=expected):
                 self.assertIn(expected, worker)
+        self.assertNotIn("download-search-missing", worker)
         self.assertIn("originweaveDownloadsDiagnostic", content)
         self.assertNotIn("download.default_directory", worker)
         self.assertNotIn("item.filename", worker)
         self.assertNotIn("_error.message", worker)
         self.assertNotIn("String(_error)", worker)
 
-    def test_download_search_api_failure_is_not_reported_as_missing(self) -> None:
-        """A rejected search call must remain distinct from an empty bounded search result."""
+    def test_download_search_api_failure_is_distinct_from_visibility_timeout(self) -> None:
+        """A rejected search call must remain distinct from exhausting bounded visibility polling."""
 
         worker = (FIXTURE / "service_worker.js").read_text(encoding="utf-8")
         self.assertRegex(
@@ -96,7 +97,7 @@ class ManifestV3DownloadsContractTests(unittest.TestCase):
             ),
         )
         self.assertIn(
-            'diagnostic: observedDownload ? "download-timeout" : "download-search-missing"',
+            'diagnostic: observedDownload ? "download-timeout" : "download-search-timeout"',
             worker,
         )
 
@@ -116,7 +117,7 @@ class ManifestV3DownloadsContractTests(unittest.TestCase):
         approved = {
             "download-source-rejected",
             "download-start-rejected",
-            "download-search-missing",
+            "download-search-timeout",
             "download-interrupted",
             "download-url-mismatch",
             "download-byte-count-mismatch",
