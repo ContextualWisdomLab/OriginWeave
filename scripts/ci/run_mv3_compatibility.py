@@ -217,10 +217,14 @@ def _json_request(
     finally:
         connection.close()
 
+    response_encoding_failed = False
     try:
         decoded_text = raw.decode("utf-8")
     except UnicodeDecodeError:
-        raise RuntimeError("WebDriver transport protocol failure") from None
+        response_encoding_failed = True
+        decoded_text = ""
+    if response_encoding_failed:
+        raise RuntimeError("WebDriver transport protocol failure")
     try:
         decoded = json.loads(decoded_text)
     except json.JSONDecodeError:
