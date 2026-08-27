@@ -91,8 +91,8 @@ fn web_audio_rates_normalize_only_standard_rates() {
 }
 
 #[test]
-fn web_rtc_interface_policy_is_bounded_and_never_permits_leakage() {
-    assert!(WebRtcInterface::Disabled.exposes_candidates());
+fn web_rtc_interface_policy_names_direct_candidate_disclosure_explicitly() {
+    assert!(WebRtcInterface::DirectCandidates.exposes_candidates());
     assert!(!WebRtcInterface::MDnsOnly.exposes_candidates());
 }
 
