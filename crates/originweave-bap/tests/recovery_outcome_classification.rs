@@ -170,7 +170,10 @@ fn reconciliation_hold_never_signals_redispatch_before_explicit_resolution() {
 #[test]
 fn suspended_lifecycle_never_signals_redispatch_before_resume() {
     let cases = [
-        (BapTaskEvent::WaitForApproval, BapTaskState::WaitingForApproval),
+        (
+            BapTaskEvent::WaitForApproval,
+            BapTaskState::WaitingForApproval,
+        ),
         (
             BapTaskEvent::WaitForExternalInput,
             BapTaskState::WaitingForExternalInput,
