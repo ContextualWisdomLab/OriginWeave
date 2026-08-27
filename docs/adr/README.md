@@ -58,7 +58,7 @@ Proposed ADR files are reviewable target architecture without becoming Accepted 
 | [0111](0111-bounded-stealth-normalization-surfaces.md) | Bounded stealth-normalization surfaces | Proposed | canvas/WebGL/WebAudio/WebRTC bounded enumerated classes and surface admission |
 | [0112](0112-bounded-user-agent-client-hints.md) | Bounded User-Agent Client Hints | Proposed | UA-CH bounded enumerated tokens, brand grammar, and cross-field coherence |
 
-ADR 0013, ADR 0014, ADR 0110, and ADR 0111 exist only on this documentation branch until it integrates. After integration, this subsection remains historical provenance rather than an active-PR claim; all four decisions remain Proposed until a later policy-compliant change explicitly changes their lifecycle.
+ADR 0013, ADR 0014, ADR 0110, ADR 0111, and ADR 0112 exist only on this documentation branch until it integrates. After integration, this subsection remains historical provenance rather than an active-PR claim; all five decisions remain Proposed until a later policy-compliant change explicitly changes their lifecycle.
 
 ### Proposed decisions introduced by active feature work
 
