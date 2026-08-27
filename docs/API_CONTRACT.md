@@ -109,11 +109,13 @@ Rules:
 - idempotency retention is bounded and declared;
 - secret-handle max-use semantics remain independent of request idempotency.
 
-The active BAP lifecycle implementation exposes an in-memory command receipt that
-identifies an exact tenant/key/task/event retry namespace. The caller-supplied tenant
-identifier scopes retry identity only; it is not authentication or authorization
-evidence. The receipt is not persisted and does not claim that a retry has been
-deduplicated until a durable runtime adapter exists.
+The rules above define the product-wide target contract. The active BAP lifecycle
+implements a narrower in-memory retry identity: `BapCommandReceipt` compares only
+caller-supplied `tenant_id`, `idempotency_key`, `task_id`, `BapTaskEvent`, and exact
+accepted transition evidence. It does not define a `task_id` session scope, operation
+kind, or semantic request-contract validation, and the tenant identifier is not
+authentication or authorization evidence. The receipt is not persisted and does not
+claim durable deduplication or suppression of an ambiguous external side effect.
 
 ## 8. Deadline and cancellation
 
