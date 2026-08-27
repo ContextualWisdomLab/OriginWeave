@@ -247,7 +247,11 @@ fn base_profile_requires_every_nonconditional_case_and_rejects_extra_conditional
     let evidence = required_suite_evidence(profile);
 
     assert_eq!(
-        evaluate_controlled_benchmark_suite(profile, &evidence),
+        evaluate_controlled_benchmark_suite(
+            CONTROLLED_DETERMINISTIC_REGISTRY_VERSION,
+            profile,
+            &evidence,
+        ),
         Ok(BenchmarkSuiteOutcome::Passed)
     );
 
@@ -258,7 +262,11 @@ fn base_profile_requires_every_nonconditional_case_and_rejects_extra_conditional
         let mut with_unclaimed_case = evidence.clone();
         with_unclaimed_case.push((conditional, passing_evidence()));
         assert_eq!(
-            evaluate_controlled_benchmark_suite(profile, &with_unclaimed_case),
+            evaluate_controlled_benchmark_suite(
+                CONTROLLED_DETERMINISTIC_REGISTRY_VERSION,
+                profile,
+                &with_unclaimed_case,
+            ),
             Err(ControlledBenchmarkSuiteError::UnexpectedConditionalCase {
                 case_id: conditional,
             })
@@ -275,13 +283,21 @@ fn declared_optional_surfaces_become_required_suite_evidence() {
     let mut evidence = required_suite_evidence(profile);
 
     assert_eq!(
-        evaluate_controlled_benchmark_suite(profile, &evidence),
+        evaluate_controlled_benchmark_suite(
+            CONTROLLED_DETERMINISTIC_REGISTRY_VERSION,
+            profile,
+            &evidence,
+        ),
         Ok(BenchmarkSuiteOutcome::Passed)
     );
 
     evidence.retain(|(case_id, _)| *case_id != ControlledBenchmarkCaseId::ManifestV3Isolation);
     assert_eq!(
-        evaluate_controlled_benchmark_suite(profile, &evidence),
+        evaluate_controlled_benchmark_suite(
+            CONTROLLED_DETERMINISTIC_REGISTRY_VERSION,
+            profile,
+            &evidence,
+        ),
         Ok(BenchmarkSuiteOutcome::Inconclusive)
     );
 }
@@ -313,7 +329,11 @@ fn complete_registry_never_promotes_failed_or_inconclusive_case_evidence() {
         let mut evidence = required_suite_evidence(profile);
         evidence[0].1 = case_evidence;
         assert_eq!(
-            evaluate_controlled_benchmark_suite(profile, &evidence),
+            evaluate_controlled_benchmark_suite(
+                CONTROLLED_DETERMINISTIC_REGISTRY_VERSION,
+                profile,
+                &evidence,
+            ),
             Ok(expected_suite_outcome)
         );
     }
@@ -334,7 +354,11 @@ fn malformed_case_evidence_fails_closed_with_case_identity_and_source() {
         observed: CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS,
         total_trials: CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS - 1,
     };
-    let result = evaluate_controlled_benchmark_suite(profile, &evidence);
+    let result = evaluate_controlled_benchmark_suite(
+        CONTROLLED_DETERMINISTIC_REGISTRY_VERSION,
+        profile,
+        &evidence,
+    );
     assert_eq!(
         result,
         Err(ControlledBenchmarkSuiteError::InvalidCaseEvidence {
@@ -370,7 +394,11 @@ fn duplicate_case_evidence_fails_closed_before_suite_outcome_is_computed() {
     evidence.push(duplicate);
 
     assert_eq!(
-        evaluate_controlled_benchmark_suite(profile, &evidence),
+        evaluate_controlled_benchmark_suite(
+            CONTROLLED_DETERMINISTIC_REGISTRY_VERSION,
+            profile,
+            &evidence,
+        ),
         Err(ControlledBenchmarkSuiteError::DuplicateCase {
             case_id: duplicate.0,
         })
@@ -405,6 +433,10 @@ fn support_profile_marks_only_declared_conditional_cases_as_required() {
 #[test]
 fn suite_errors_have_deterministic_standard_error_contracts() {
     let cases = [
+        (
+            ControlledBenchmarkSuiteError::RegistryVersionMismatch,
+            "controlled benchmark suite evidence registry version does not match the required registry",
+        ),
         (
             ControlledBenchmarkSuiteError::DuplicateCase {
                 case_id: ControlledBenchmarkCaseId::SemanticInteraction,
