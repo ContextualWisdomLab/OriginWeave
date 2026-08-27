@@ -127,7 +127,6 @@ fn parse_authority(authority: &str) -> Result<(String, Option<u16>, bool), Origi
     validate_dns_host(&host)?;
     Ok((host.clone(), port, host == "localhost"))
 }
-
 fn looks_like_browser_ipv4_host(host: &str) -> bool {
     host.rsplit('.')
         .next()
@@ -165,6 +164,9 @@ fn parse_bracketed_ipv6(authority: &str) -> Result<(String, Option<u16>, bool), 
 }
 
 fn parse_port(port_text: &str) -> Result<u16, OriginError> {
+    if port_text.is_empty() || !port_text.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(OriginError::InvalidPort);
+    }
     let port = port_text
         .parse::<u16>()
         .map_err(|_error| OriginError::InvalidPort)?;
@@ -257,7 +259,6 @@ impl BrowserSessionId {
 /// A nonzero identity for one independently navigable browser context.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BrowsingContextId(u64);
-
 impl BrowsingContextId {
     /// Validate one adapter-supplied browsing-context identifier.
     pub const fn new(value: u64) -> Result<Self, NodeHandleError> {
@@ -387,7 +388,6 @@ impl ObservedNodeHandle {
         Ok(())
     }
 }
-
 /// A failure to construct or reuse an authority- and document-bound node handle safely.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NodeHandleError {
@@ -907,7 +907,6 @@ impl PolicyContext {
     pub const fn approval(&self) -> &ApprovalEvidence {
         &self.approval
     }
-
     /// Replace approval evidence after a user or enterprise decision.
     pub fn set_approval(&mut self, approval: ApprovalEvidence) {
         self.approval = approval;
