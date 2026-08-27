@@ -21,9 +21,9 @@ pub use core_contracts::{
     DocumentEpoch, ExecutionPurpose, ExtensionAgentCapability, ExtensionId, ExtensionIdError,
     InstructionSource, MAX_ACCESSIBLE_NAME_BYTES, MAX_BROWSER_PROTOCOL_METADATA_BYTES,
     MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES, MAX_SEMANTIC_CHILDREN, MAX_SEMANTIC_ROLE_BYTES,
-    MAX_VISIBLE_TEXT_BYTES, NodeActionKind, NodeHandleError, ObservationChannel, Origin, OriginError,
-    PolicyContext, RegistryObservedNodeHandle as ObservedNodeHandle, RiskClass, RobotsDecision,
-    SecretDelivery, SemanticNodeObservation, SemanticNodeObservationError,
+    MAX_VISIBLE_TEXT_BYTES, NodeActionKind, NodeHandleError, ObservationChannel, Origin,
+    OriginError, PolicyContext, RegistryObservedNodeHandle as ObservedNodeHandle, RiskClass,
+    RobotsDecision, SecretDelivery, SemanticNodeObservation, SemanticNodeObservationError,
     SemanticNodeObservationInput, SessionMode,
     evaluate_extension_authority_access as evaluate_extension_access,
 };
