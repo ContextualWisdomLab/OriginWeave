@@ -219,6 +219,8 @@ impl std::error::Error for ControlledBenchmarkError {}
 /// Structurally or semantically invalid controlled-suite case evidence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ControlledBenchmarkSuiteError {
+    /// Evidence belongs to a different controlled deterministic registry version.
+    RegistryVersionMismatch,
     /// One stable case identity appears more than once in the supplied suite evidence.
     DuplicateCase {
         /// Duplicated case identity.
@@ -241,6 +243,9 @@ pub enum ControlledBenchmarkSuiteError {
 impl fmt::Display for ControlledBenchmarkSuiteError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::RegistryVersionMismatch => formatter.write_str(
+                "controlled benchmark suite evidence registry version does not match the required registry",
+            ),
             Self::DuplicateCase { case_id } => write!(
                 formatter,
                 "controlled benchmark suite contains duplicate case {}",
@@ -264,7 +269,9 @@ impl std::error::Error for ControlledBenchmarkSuiteError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::InvalidCaseEvidence { source, .. } => Some(source),
-            Self::DuplicateCase { .. } | Self::UnexpectedConditionalCase { .. } => None,
+            Self::RegistryVersionMismatch
+            | Self::DuplicateCase { .. }
+            | Self::UnexpectedConditionalCase { .. } => None,
         }
     }
 }
@@ -326,7 +333,10 @@ pub fn evaluate_controlled_benchmark_case(
 
 /// Evaluate raw evidence for the authoritative controlled case registry.
 ///
-/// The suite boundary accepts raw [`ControlledBenchmarkCaseEvidence`] rather than
+/// The caller must bind the supplied evidence to the exact current
+/// [`CONTROLLED_DETERMINISTIC_REGISTRY_VERSION`]. A mismatched registry version
+/// fails closed before any case evidence can influence the suite outcome. The
+/// suite boundary accepts raw [`ControlledBenchmarkCaseEvidence`] rather than
 /// caller-constructed case outcomes, so release-level suite authority cannot be
 /// minted by fabricating [`ControlledBenchmarkCaseOutcome::Passed`]. Structural
 /// registry checks run before case threshold evaluation: duplicate identities or
@@ -342,13 +352,19 @@ pub fn evaluate_controlled_benchmark_case(
 ///
 /// # Errors
 ///
-/// Returns [`ControlledBenchmarkSuiteError`] for duplicate case identities,
-/// evidence for a conditional case outside the declared support profile, or
-/// malformed/non-canonical raw evidence for any supplied case.
+/// Returns [`ControlledBenchmarkSuiteError`] for a registry-version mismatch,
+/// duplicate case identities, evidence for a conditional case outside the
+/// declared support profile, or malformed/non-canonical raw evidence for any
+/// supplied case.
 pub fn evaluate_controlled_benchmark_suite(
+    registry_version: &str,
     profile: ControlledBenchmarkSupportProfile,
     cases: &[(ControlledBenchmarkCaseId, ControlledBenchmarkCaseEvidence)],
 ) -> Result<BenchmarkSuiteOutcome, ControlledBenchmarkSuiteError> {
+    if registry_version != CONTROLLED_DETERMINISTIC_REGISTRY_VERSION {
+        return Err(ControlledBenchmarkSuiteError::RegistryVersionMismatch);
+    }
+
     let mut observed = BTreeSet::new();
 
     for &(case_id, _) in cases {
