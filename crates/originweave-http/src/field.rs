@@ -91,7 +91,10 @@ impl FieldLine {
         maximum_name_bytes: usize,
         maximum_value_bytes: usize,
     ) -> Result<Self, FieldSyntaxError> {
-        if name.is_empty() || !name.iter().copied().all(is_token_byte) {
+        if name.is_empty()
+            || name.contains(&b'_')
+            || !name.iter().copied().all(is_token_byte)
+        {
             return Err(FieldSyntaxError::InvalidName);
         }
         if name.len() > maximum_name_bytes {
