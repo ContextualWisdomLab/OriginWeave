@@ -39,6 +39,41 @@ class Mv3FailureProfileCleanupContractTests(unittest.TestCase):
         self.assertIs(result["profile_cleaned"], True)
         self.assertNotIn("synthetic MV3 browser failure", repr(result))
 
+    def test_surface_failure_preserves_cleanup_and_surface_evidence(self) -> None:
+        """A compatibility regression must not be mislabeled as profile cleanup failure."""
+
+        namespace = self._namespace("mv3_surface_failure_cleanup_behavior")
+        run_trial = namespace["_run_restart_trial"]
+        browser_pass_number = 0
+
+        def browser_pass(*_args: object, **_kwargs: object) -> dict[str, object]:
+            nonlocal browser_pass_number
+            browser_pass_number += 1
+            persisted = browser_pass_number == 2
+            return {
+                "browser_version": "controlled-browser",
+                "worker_start_count": browser_pass_number,
+                "storage_persistence": "persisted" if persisted else "initialized",
+                "surfaces": {
+                    "service-worker": True,
+                    "real-browser-click": not persisted,
+                },
+            }
+
+        run_trial.__globals__["_run_browser_pass"] = browser_pass
+        result = run_trial(
+            pathlib.Path("controlled-chrome"),
+            pathlib.Path("controlled-chromedriver"),
+            "http://127.0.0.1/controlled-fixture",
+            12,
+        )
+
+        self.assertEqual(result["trial_number"], 12)
+        self.assertIs(result["passed"], False)
+        self.assertEqual(result["failure_type"], "CompatibilitySurfaceFailure")
+        self.assertIs(result["profile_cleaned"], True)
+        self.assertIs(result["surfaces"]["real-browser-click"], False)
+
     def test_acceptance_gate_requires_cleanup_evidence_for_every_mv3_trial(self) -> None:
         """Failed MV3 trials must not be filtered out of the profile-cleanup gate."""
 
