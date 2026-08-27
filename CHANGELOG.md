@@ -132,3 +132,5 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - The unprivileged OpenCode user is restricted to loopback egress during model execution, preventing runner-wide allow-listed endpoints from becoming direct source-exfiltration channels.
 
 [Unreleased]: https://github.com/ContextualWisdomLab/OriginWeave/compare/main...HEAD
+
+<!-- dispatch-refresh 2026-08-27T03:05Z -->
