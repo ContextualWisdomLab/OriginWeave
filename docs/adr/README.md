@@ -55,6 +55,7 @@ Proposed ADR files are reviewable target architecture without becoming Accepted 
 | [0013](0013-manifest-v3-extension-authority.md) | Manifest V3 compatibility and extension-to-Agent authority | Proposed | Chromium extension compatibility evidence, profile separation, extension grants, native-messaging boundary and release claims |
 | [0014](0014-architecture-decision-governance.md) | Architecture decision acceptance governance | Proposed | ADR lifecycle authority, reviewer eligibility, solo-maintainer hold and re-enablement conditions |
 | [0110](0110-privacy-preserving-presentation-identity.md) | Privacy-preserving presentation identity | Proposed | bounded normalization without access-control evasion |
+| [0111](0111-bounded-stealth-normalization-surfaces.md) | Bounded stealth-normalization surfaces | Proposed | canvas/WebGL/WebAudio/WebRTC bounded enumerated classes and surface admission |
 
 ADR 0013, ADR 0014, and ADR 0110 exist only on this documentation branch until it integrates. After integration, this subsection remains historical provenance rather than an active-PR claim; all three decisions remain Proposed until a later policy-compliant change explicitly changes their lifecycle.
 

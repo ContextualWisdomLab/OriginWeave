@@ -85,6 +85,7 @@ Proposed ADRs are reviewable architecture memory, not shipped behavior and not a
 - [ADR 0013: Manifest V3 compatibility and extension-to-Agent authority](adr/0013-manifest-v3-extension-authority.md)
 - [ADR 0014: Architecture decision acceptance governance](adr/0014-architecture-decision-governance.md)
 - [ADR 0110: Privacy-preserving presentation identity](adr/0110-privacy-preserving-presentation-identity.md)
+- [ADR 0111: Bounded stealth-normalization surfaces](adr/0111-bounded-stealth-normalization-surfaces.md)
 
 The second group exists only on this documentation branch until the branch integrates. After integration, the heading remains useful historical provenance; it does not promote either ADR from Proposed to Accepted and it does not claim that the described runtime capability is implemented.
 
