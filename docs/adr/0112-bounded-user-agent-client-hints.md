@@ -19,7 +19,8 @@ profile, and reidentifies the host.
 
 - Reduce the entropy a page can recover from `navigator.userAgentData` and
   the `Sec-CH-UA*` headers beyond the static profile.
-- Keep every hint bounded to documented, enumerated values.
+- Keep every hint bounded to documented, enumerated values or explicit local
+  resource ceilings.
 - Enforce the low-entropy rules the UA Client Hints draft itself defines
   (for example, non-mobile user agents report an empty model).
 - Admit realistic Chromium brand lists, including ordinary multi-word brands
@@ -49,14 +50,16 @@ slice adds:
   algorithm (`SP`, `(`, `)`, `-`, `.`, `/`, `:`, `;`, `=`, `?`, `_`), so
   values such as `Google Chrome`, `Not/A)Brand`, and `Not_A Brand` remain
   representable. Versions are non-empty dotted ASCII alphanumeric strings.
-  The at-most-32-byte brand-name cap is an OriginWeave resource bound, not a
-  UA Client Hints specification limit.
+  Brand names and versions are each capped at 32 ASCII bytes as OriginWeave
+  resource bounds; neither ceiling is a UA Client Hints specification limit.
 - `HintsArchitecture` (`x86`, `arm`) and `HintsBitness` (`32`, `64`) — bounded,
   enumerated architecture/bitness tokens.
 - `HintsPlatform::normalize` — maps to `Windows`, `macOS`, `Linux` and rejects
   any other token.
-- `UaClientHints::new` — requires a non-empty brand list, and requires an
-  empty `model` when `mobile` is false, per the draft's processing model.
+- `UaClientHints::new` — requires a non-empty brand list, requires an empty
+  `model` when `mobile` is false per the draft's processing model, and caps a
+  mobile model at 64 UTF-8 bytes as an OriginWeave resource bound rather than
+  a UA Client Hints specification limit.
 
 Admission checks are a control-plane contract only; they do not install a
 browser or override real headers.
@@ -72,9 +75,12 @@ shipped browser capability.
 ## Failure and degraded behavior
 
 Construction rejects unknown architecture/bitness/platform tokens, over-length
-brand names, empty brand names or versions, brand bytes outside the bounded
-compatibility set, version bytes outside dotted ASCII alphanumeric syntax, an
-empty brand list, and a non-mobile set with a non-empty model.
+brand names or versions, empty brand names or versions, brand bytes outside the
+bounded compatibility set, version bytes outside dotted ASCII alphanumeric
+syntax, over-length mobile model values, an empty brand list, and a non-mobile
+set with a non-empty model. The non-mobile empty-model coherence rule is checked
+before the local model-size ceiling so a contradictory non-mobile identity
+retains its semantic failure class even when its model string is also too long.
 
 ## Security, privacy, and governance impact
 
@@ -82,22 +88,27 @@ Hints are identity evidence only and grant no origin, transport, extension,
 secret, or action authority. Deterministic checks make adapter claims
 auditable. The admitted brand-name separators are a reviewed compatibility
 set from the current WICG GREASE algorithm rather than an unbounded printable
-ASCII allowance; quote, backslash, controls, and Unicode remain rejected.
+ASCII allowance; quote, backslash, controls, and Unicode remain rejected. The
+32-byte brand/version and 64-byte mobile-model ceilings are local resource
+budgets and must not be presented as requirements of the WICG specification.
 
 ## Tests and acceptance evidence
 
 `ua_client_hints_surface.rs` exercises each surface: ordinary and realistic
 Chromium/GREASE brand names, empty and invalid brand/version values, the local
-brand-name length bound, every architecture/bitness/platform token and its
-rejection, empty brand lists, mobile with model, and non-mobile with model.
-The workspace coverage gate enforces 100% functions, lines, regions, and
-branches. Browser acceptance remains out of scope.
+brand-name and brand-version length bounds, every architecture/bitness/platform
+token and its rejection, empty brand lists, the mobile-model resource bound,
+mobile with model, and non-mobile with model including semantic-error
+precedence. The workspace coverage gate enforces 100% functions, lines,
+regions, and branches. Browser acceptance remains out of scope.
 
 ## Migration and rollback
 
 The new types are additive and do not change existing `PresentationProfile`
-digests. Rollback removes the UA Client Hints types and tests without schema
-changes.
+digests. Within this proposed branch, the constructors now reject brand
+versions above 32 ASCII bytes and mobile models above 64 UTF-8 bytes instead
+of retaining unbounded strings. Rollback removes the UA Client Hints types and
+tests without schema changes.
 
 ## Open follow-ups
 
