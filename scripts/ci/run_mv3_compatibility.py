@@ -629,6 +629,7 @@ def _run_browser_pass(
         raise
     finally:
         cleanup_error: Exception | None = None
+        unreviewed_cleanup_error: Exception | None = None
         try:
             if session_id is not None:
                 try:
@@ -640,6 +641,8 @@ def _run_browser_pass(
                     )
                 except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as error:
                     cleanup_error = error
+                except Exception as error:  # noqa: BLE001 - retained or re-raised after teardown.
+                    unreviewed_cleanup_error = error
         finally:
             teardown_error = _teardown_driver_process(driver)
         if primary_error is not None:
@@ -647,6 +650,12 @@ def _run_browser_pass(
                 primary_error.add_note(
                     "WebDriver session cleanup also failed after the primary browser-pass "
                     f"failure: {type(cleanup_error).__name__}"
+                )
+            if unreviewed_cleanup_error is not None:
+                primary_error.add_note(
+                    "Unreviewed WebDriver session cleanup also failed after the primary "
+                    "browser-pass failure: "
+                    f"{type(unreviewed_cleanup_error).__name__}"
                 )
             if teardown_error is not None:
                 primary_error.add_note(
@@ -663,6 +672,13 @@ def _run_browser_pass(
                     f"{type(teardown_error).__name__}"
                 )
             raise cleanup_failure from cleanup_error
+        elif unreviewed_cleanup_error is not None:
+            if teardown_error is not None:
+                unreviewed_cleanup_error.add_note(
+                    "ChromeDriver process teardown also failed: "
+                    f"{type(teardown_error).__name__}"
+                )
+            raise unreviewed_cleanup_error
         elif teardown_error is not None:
             raise teardown_error
 
@@ -747,7 +763,6 @@ def _pinned_workspace_binary(
 
     if relative_path.is_absolute() or ".." in relative_path.parts:
         raise SystemExit(f"{label} pinned workspace path is invalid")
-
     trusted_root = pathlib.Path(os.path.abspath(root))
     expected = pathlib.Path(os.path.abspath(trusted_root.joinpath(*relative_path.parts)))
     configured = os.environ.get(env_name)
