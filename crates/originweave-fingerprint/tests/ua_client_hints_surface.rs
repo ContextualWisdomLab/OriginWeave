@@ -47,6 +47,18 @@ fn brand_names_over_length_limit_fail_closed() {
 }
 
 #[test]
+fn brand_versions_over_resource_limit_fail_closed() {
+    let boundary_version = "1".repeat(32);
+    assert!(UaBrand::new("Chromium", &boundary_version).is_ok());
+
+    let long_version = "1".repeat(33);
+    assert_eq!(
+        UaBrand::new("Chromium", &long_version).expect_err("long version"),
+        ClientHintsError::BrandVersionTooLong
+    );
+}
+
+#[test]
 fn brand_names_with_invalid_grammar_fail_closed() {
     assert_eq!(
         UaBrand::new("Chromium!", "1.0").expect_err("bad name"),
@@ -127,6 +139,50 @@ fn mobile_hints_may_carry_a_model_without_exceeding_the_set() {
 }
 
 #[test]
+fn mobile_models_over_resource_limit_fail_closed() {
+    let brand = UaBrand::new("Chromium", "131.0.0.0").expect("brand");
+    let boundary_model = "M".repeat(64);
+    assert!(UaClientHints::new(
+        HintsPlatform::Linux,
+        HintsArchitecture::Arm,
+        HintsBitness::Bit64,
+        true,
+        &boundary_model,
+        vec![brand.clone()],
+    )
+    .is_ok());
+
+    let long_model = "M".repeat(65);
+    assert_eq!(
+        UaClientHints::new(
+            HintsPlatform::Linux,
+            HintsArchitecture::Arm,
+            HintsBitness::Bit64,
+            true,
+            &long_model,
+            vec![brand],
+        ),
+        Err(ClientHintsError::ModelTooLong)
+    );
+}
+
+#[test]
+fn non_mobile_model_semantics_precede_model_length_budget() {
+    let long_model = "M".repeat(65);
+    assert_eq!(
+        UaClientHints::new(
+            HintsPlatform::Linux,
+            HintsArchitecture::Arm,
+            HintsBitness::Bit64,
+            false,
+            &long_model,
+            vec![UaBrand::new("Chromium", "131.0.0.0").expect("brand")],
+        ),
+        Err(ClientHintsError::ModelWithoutMobile)
+    );
+}
+
+#[test]
 fn empty_brand_list_fails_closed() {
     assert_eq!(
         UaClientHints::new(
@@ -154,6 +210,14 @@ fn client_hints_error_has_deterministic_display() {
     assert_eq!(
         ClientHintsError::BrandTooLong.to_string(),
         "brand name must be at most 32 ASCII characters"
+    );
+    assert_eq!(
+        ClientHintsError::BrandVersionTooLong.to_string(),
+        "brand version must be at most 32 ASCII characters"
+    );
+    assert_eq!(
+        ClientHintsError::ModelTooLong.to_string(),
+        "mobile model must be at most 64 bytes"
     );
     assert_eq!(
         ClientHintsError::InvalidBrandName.to_string(),
