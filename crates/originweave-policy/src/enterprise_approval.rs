@@ -79,7 +79,11 @@ fn is_bidi_control(character: char) -> bool {
 fn is_invisible_format_control(character: char) -> bool {
     matches!(
         character,
-        '\u{200b}' | '\u{200c}' | '\u{200d}' | '\u{2060}' | '\u{feff}'
+        '\u{00ad}'
+            | '\u{200b}'..='\u{200d}'
+            | '\u{2060}'..='\u{2065}'
+            | '\u{206a}'..='\u{206f}'
+            | '\u{feff}'
     )
 }
 
