@@ -4,6 +4,8 @@
 //! protected value itself, performs no I/O, and grants no authority from ambient
 //! session, network, repository, or model state.
 
+use std::sync::Arc;
+
 use originweave_core::Origin;
 
 const MAX_AUTHORITY_IDENTIFIER_BYTES: usize = 128;
@@ -169,7 +171,7 @@ pub enum HandleUseDecision {
     Expired,
     /// The supplied trusted time predates time already observed by the reservation state.
     TrustedTimeRollback,
-    /// The bounded use count has already been consumed.
+    /// The bounded use count has already been consumed or reserved.
     UseLimitReached,
 }
 
@@ -258,29 +260,52 @@ impl HandleUseRequest {
     }
 }
 
-/// In-process authoritative use-count, trusted-time, and revocation state for one opaque sensitive-value handle scope.
+/// Opaque in-process identity for one unsettled sensitive-handle use reservation.
 ///
-/// This value removes the caller-supplied prior-use count from the reservation
-/// operation. A successful reservation compares the exact authority, exact
-/// non-transferable audience, trusted time, expiry, revocation state, and current
-/// count and then increments the count while the caller holds an exclusive mutable
-/// borrow of this state. The state remembers the latest trusted time observed for
-/// its exact authority-and-audience binding and rejects time rollback so an expired
-/// handle cannot regain authority from a stale clock value. Binding-mismatched
-/// requests cannot read or mutate that floor. Denied reservations never consume a
-/// use.
+/// This is not the sensitive-value handle and carries no protected value or
+/// authority fields. Each returned token and the corresponding state entry retain
+/// the same allocation-bound identity. A surviving stale token therefore keeps its
+/// allocation alive, so a later reservation cannot alias it even after compensation.
+/// The token is intentionally in-process-only, non-serializable, and non-copyable.
+#[derive(Debug)]
+pub struct SensitiveHandleUseReservation {
+    identity: Arc<[u8; 1]>,
+}
+
+impl PartialEq for SensitiveHandleUseReservation {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.identity, &other.identity)
+    }
+}
+
+impl Eq for SensitiveHandleUseReservation {}
+
+/// In-process authoritative use-count, reservation-settlement, trusted-time, and
+/// revocation state for one opaque sensitive-value handle scope.
+///
+/// The state supports two reservation modes. [`Self::reserve_use`] retains the
+/// earlier conservative behavior and immediately consumes a use without offering
+/// compensation. [`Self::reserve_tracked_use`] creates an identity-bound unsettled
+/// reservation that a trusted broker must later commit after disclosure or
+/// compensate only when it has authoritative proof that no disclosure occurred.
+/// Both paths retain the maximum trusted time observed by this state and reject
+/// rollback, so stale clock values cannot restore expired handle authority.
+/// Denied reservations never consume capacity.
 ///
 /// This is a policy-state primitive, not the trusted broker itself. It contains
 /// neither the opaque handle token nor protected data and provides no authenticated
 /// workload identity, durable or cross-process transaction, value resolution,
-/// compensation, or persistence. A shared or durable broker must derive the
-/// audience from authenticated caller identity, place the state behind its own
-/// transactional or locking boundary, persist lifecycle state and an equivalent
-/// trusted-time floor, and recheck both before disclosure.
+/// persistence, or proof that compensation is truthful. A shared or durable broker
+/// must derive audience from authenticated caller identity, place reserve/recheck/
+/// disclose/settle behind its own transactional or locking boundary, persist
+/// lifecycle state and an equivalent trusted-time floor, and recheck authority
+/// immediately before disclosure.
 #[derive(Debug, PartialEq, Eq)]
 pub struct SensitiveHandleUseState {
     scope: SensitiveValueHandleScope,
     reserved_uses: u32,
+    completed_uses: u32,
+    outstanding_reservations: Vec<SensitiveHandleUseReservation>,
     revocation_reason: Option<HandleRevocationReason>,
     latest_trusted_time_epoch_seconds: Option<u64>,
 }
@@ -292,15 +317,29 @@ impl SensitiveHandleUseState {
         Self {
             scope,
             reserved_uses: 0,
+            completed_uses: 0,
+            outstanding_reservations: Vec::new(),
             revocation_reason: None,
             latest_trusted_time_epoch_seconds: None,
         }
     }
 
-    /// Return the number of uses already reserved through this state value.
+    /// Return uses that are either permanently consumed or currently reserved.
     #[must_use]
     pub const fn reserved_uses(&self) -> u32 {
         self.reserved_uses
+    }
+
+    /// Return uses known to have completed or been conservatively consumed.
+    #[must_use]
+    pub const fn completed_uses(&self) -> u32 {
+        self.completed_uses
+    }
+
+    /// Return the number of tracked reservations awaiting commit or compensation.
+    #[must_use]
+    pub fn outstanding_reservations(&self) -> usize {
+        self.outstanding_reservations.len()
     }
 
     /// Return the first authoritative revocation reason, if this state was revoked.
@@ -313,6 +352,8 @@ impl SensitiveHandleUseState {
     ///
     /// Returns `true` only for the state transition from active to revoked. A
     /// later duplicate call is a no-op and cannot rewrite the original reason.
+    /// Existing tracked reservations remain settleable so a broker can record a
+    /// completed disclosure or compensate a failed pre-disclosure attempt.
     pub fn revoke(&mut self, reason: HandleRevocationReason) -> bool {
         if self.revocation_reason.is_some() {
             false
@@ -322,20 +363,100 @@ impl SensitiveHandleUseState {
         }
     }
 
-    /// Reserve one use from the current authoritative count when policy permits it.
+    /// Reserve and immediately consume one use when policy permits it.
     ///
-    /// The audience must be derived by the trusted broker from authenticated caller
-    /// identity, and the supplied time must come from the broker's trusted clock and
-    /// may not move backward relative to an earlier exact-binding reservation
-    /// attempt on this state. Exact authority and audience binding are evaluated
-    /// before lifecycle state; a caller outside either binding receives only
-    /// `ScopeMismatch` or `AudienceMismatch` and cannot read or advance revocation
-    /// or trusted-time state. For a correctly bound caller, revocation remains
-    /// terminal and precedes rollback, expiry, and use-limit results. A non-rollback
-    /// trusted time is recorded for downstream nonterminal policy denials, while
-    /// every denial leaves the authoritative count unchanged.
+    /// This compatibility path is deliberately non-compensatable. Callers that
+    /// need pre-disclosure rollback must use [`Self::reserve_tracked_use`] and
+    /// settle the returned identity explicitly. Exact scope and audience mismatch
+    /// are decided before lifecycle state is read; revocation then remains
+    /// authoritative over otherwise matching requests; trusted time cannot move
+    /// backward; and every denial leaves the authoritative count unchanged.
     #[must_use]
     pub fn reserve_use(
+        &mut self,
+        authority: SensitiveDataAuthority,
+        audience_id: &str,
+        now_epoch_seconds: u64,
+    ) -> HandleUseDecision {
+        let decision = self.evaluate_reservation(authority, audience_id, now_epoch_seconds);
+        if decision != HandleUseDecision::Authorized {
+            return decision;
+        }
+        self.reserved_uses += 1;
+        self.completed_uses += 1;
+        HandleUseDecision::Authorized
+    }
+
+    /// Reserve one identity-bound use without yet claiming that disclosure completed.
+    ///
+    /// The returned reservation is caller-unforgeable only to the extent that this
+    /// state object itself is protected by the trusted broker. It carries no secret
+    /// data and no caller-controlled identifier. The state retains a second strong
+    /// reference to the same allocation while the reservation is outstanding. If a
+    /// settled token survives, its allocation remains live and therefore cannot be
+    /// reused by a later reservation.
+    pub fn reserve_tracked_use(
+        &mut self,
+        authority: SensitiveDataAuthority,
+        audience_id: &str,
+        now_epoch_seconds: u64,
+    ) -> Result<SensitiveHandleUseReservation, HandleUseDecision> {
+        let decision = self.evaluate_reservation(authority, audience_id, now_epoch_seconds);
+        if decision != HandleUseDecision::Authorized {
+            return Err(decision);
+        }
+        let identity = Arc::new([0_u8]);
+        self.outstanding_reservations
+            .push(SensitiveHandleUseReservation {
+                identity: Arc::clone(&identity),
+            });
+        self.reserved_uses += 1;
+        Ok(SensitiveHandleUseReservation { identity })
+    }
+
+    /// Mark one exact tracked reservation as a completed, permanently consumed use.
+    ///
+    /// This method records settlement only; it does not authorize disclosure. A
+    /// trusted broker must already have performed the required immediate authority
+    /// recheck and must call this only after the protected value was actually
+    /// disclosed. Returns `false` for an unknown, stale, compensated, or already
+    /// committed reservation and leaves all counters unchanged.
+    pub fn commit_reservation(&mut self, reservation: &SensitiveHandleUseReservation) -> bool {
+        if let Some(index) = self
+            .outstanding_reservations
+            .iter()
+            .position(|candidate| candidate == reservation)
+        {
+            self.outstanding_reservations.swap_remove(index);
+            self.completed_uses += 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Release one exact tracked reservation after authoritative pre-disclosure failure.
+    ///
+    /// A trusted broker may call this only when it knows the protected value did
+    /// not cross the disclosure boundary. Compensation removes only the supplied
+    /// outstanding identity and restores one unit of capacity. Unknown, stale,
+    /// committed, or already compensated identities return `false` without
+    /// changing state. Revocation does not block cleanup compensation.
+    pub fn compensate_reservation(&mut self, reservation: &SensitiveHandleUseReservation) -> bool {
+        if let Some(index) = self
+            .outstanding_reservations
+            .iter()
+            .position(|candidate| candidate == reservation)
+        {
+            self.outstanding_reservations.swap_remove(index);
+            self.reserved_uses -= 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn evaluate_reservation(
         &mut self,
         authority: SensitiveDataAuthority,
         audience_id: &str,
@@ -366,9 +487,6 @@ impl SensitiveHandleUseState {
         }
         self.latest_trusted_time_epoch_seconds = Some(now_epoch_seconds);
 
-        if policy_decision == HandleUseDecision::Authorized {
-            self.reserved_uses += 1;
-        }
         policy_decision
     }
 }
@@ -379,7 +497,7 @@ impl SensitiveHandleUseState {
 /// handle, or release a protected value. It is therefore not standalone
 /// enforcement and cannot detect trusted-time rollback across calls. A trusted
 /// broker must obtain authenticated caller audience, trusted time, and
-/// caller-unforgeable handle state, reject time rollback through state such as
+/// caller-unforgeable handle state, reject rollback through state such as
 /// [`SensitiveHandleUseState`], atomically reserve or increment the use count
 /// before value resolution, and recheck the reserved authority immediately before
 /// disclosure. Missing or malformed authority or audience identifiers fail closed.
