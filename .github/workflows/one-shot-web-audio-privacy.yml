@@ -1,6 +1,6 @@
 name: One-shot Web Audio privacy materializer
 
-# Retry 3: derive the default policy instead of suppressing Clippy.
+# Retry 4: publish verified source/docs while workflow files remain connector-owned.
 on:
   push:
     branches:
@@ -42,14 +42,20 @@ jobs:
           cargo test --locked --workspace --all-targets
           cargo clippy --locked --workspace --all-targets -- -D warnings
           git diff --check
-      - name: Commit the verified one-shot result
+      - name: Commit verified source and documentation
         run: |
           set -euo pipefail
+          # The default Actions token cannot update workflow files. Restore those
+          # two reviewed files; the GitHub connector applies/removes them after
+          # this verified source commit reaches the branch.
+          git restore --source=HEAD -- \
+            .github/workflows/mv3-compatibility.yml \
+            .github/workflows/one-shot-web-audio-privacy.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git diff --cached --quiet && {
-            echo "materializer produced no reviewed change" >&2
+            echo "materializer produced no reviewed non-workflow change" >&2
             exit 1
           }
           git commit -m "feat(privacy): enforce default-deny Web Audio policy"
