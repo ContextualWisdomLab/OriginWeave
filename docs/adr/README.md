@@ -60,18 +60,11 @@ Proposed ADR files are reviewable target architecture without becoming Accepted 
 | ADR | Decision | Status | Governs |
 |---|---|---|---|
 | [0015](0015-vpn-profile-authority.md) | Keep VPN profile parsing secret-safe and non-privileged | Proposed | WireGuard and IKEv2 profile normalization, opaque secret import, and privileged-adapter separation |
-
-ADR 0013 and ADR 0014 exist only on this documentation branch until it integrates. After integration, that subsection remains historical provenance rather than an active-PR claim; both decisions remain Proposed until a later policy-compliant change explicitly changes their lifecycle. ADR 0015 likewise remains branch-local Proposed architecture until its feature lane integrates; neither file presence nor implementation on the active branch makes it protected-main or shipped truth.
-
-### Proposed decisions introduced by active feature work
-
-| ADR | Decision | Status | Governs |
-|---|---|---|---|
 | [0016](0016-bap-task-lifecycle-authority.md) | BAP task lifecycle and state authority | Proposed | BAP task states, transitions, recovery validation, transition sequencing, and authority separation |
 
-ADR 0016 belongs to the active BAP lifecycle feature branch. Indexing it makes the branch documentation graph complete while preserving its Proposed lifecycle and active-PR, non-protected-main maturity.
+ADR 0013 and ADR 0014 exist only on this documentation branch until it integrates. After integration, that subsection remains historical provenance rather than an active-PR claim; both decisions remain Proposed until a later policy-compliant change explicitly changes their lifecycle. ADR 0015 likewise remains branch-local Proposed architecture until its feature lane integrates; neither file presence nor implementation on the active branch makes it protected-main or shipped truth. ADR 0016 belongs to the active BAP lifecycle feature branch; indexing it in the same active-implementation group keeps both documentation indexes consistent while preserving its Proposed lifecycle and active-PR, non-protected-main maturity.
 
-After protected-main integration, retain this subsection only when it is intentionally serving as historical provenance; otherwise protected-main reconciliation must remove it. In either case, integration alone does not change ADR 0016 from Proposed or assert implementation maturity.
+After protected-main integration, retain this subsection only when it is intentionally serving as historical provenance; otherwise protected-main reconciliation must remove it. In either case, integration alone does not change ADR 0015 or ADR 0016 from Proposed or assert implementation maturity.
 
 Other active feature PRs may contain additional Proposed ADRs. Those files are not part of this canonical documentation line until integrated or deliberately reconciled here. Historical PR checks, stale branch state, or chat decisions never transfer ADR acceptance across a changed head.
 
