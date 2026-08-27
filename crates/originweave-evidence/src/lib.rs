@@ -7,8 +7,14 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+mod extraction_schema;
 mod sensitive_access;
 
+pub use extraction_schema::{
+    ExtractionCardinality, ExtractionField, ExtractionNormalizationRule, ExtractionSchema,
+    ExtractionSchemaError, ExtractionSourceChannel, ExtractionValueType,
+    MAX_EXTRACTION_FIELD_COUNT, MAX_EXTRACTION_IDENTIFIER_BYTES,
+};
 pub use sensitive_access::{
     MAX_SENSITIVE_FIELD_COUNT, MAX_SENSITIVE_IDENTIFIER_BYTES, SensitiveAccessClass,
     SensitiveAccessEvidence, SensitiveAccessEvidenceInput, SensitiveAccessOutcome,
