@@ -367,16 +367,33 @@ def _read_bounded(path: pathlib.Path) -> bytes:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Validate one local SPDX JSON-LD envelope without echoing untrusted document bytes."""
+    """Validate one local SPDX JSON-LD artifact without echoing untrusted values."""
 
     parser = argparse.ArgumentParser(
-        description="Validate a bounded SPDX 3.0.1 JSON-LD serialization envelope."
+        description=(
+            "Validate a bounded SPDX 3.0.1 JSON-LD serialization envelope, optionally "
+            "binding it to an exact manifest-backed SHA-256 identity."
+        )
     )
     parser.add_argument("document", type=pathlib.Path)
+    parser.add_argument(
+        "--expected-sha256",
+        help=(
+            "require the exact manifest-backed sha256: artifact identity before promoting "
+            "release evidence"
+        ),
+    )
     arguments = parser.parse_args(argv)
 
     try:
-        summary = validate_spdx_3_0_1_jsonld_bytes(_read_bounded(arguments.document))
+        payload = _read_bounded(arguments.document)
+        if arguments.expected_sha256 is None:
+            summary = validate_spdx_3_0_1_jsonld_bytes(payload)
+        else:
+            summary = validate_release_spdx_3_0_1_jsonld_bytes(
+                payload,
+                arguments.expected_sha256,
+            )
     except SpdxJsonLdEnvelopeError as error:
         print(error, file=sys.stderr)
         return 2
