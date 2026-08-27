@@ -188,6 +188,19 @@ fn signature_table_classifies_active_archival_image_text_and_binary_content() {
 }
 
 #[test]
+fn empty_content_is_binary_fallback_not_synthetic_plain_text() {
+    let supplied_pdf = MimeType::parse(b"application/pdf").expect("PDF MIME");
+    let observed = classify_observed_mime(b"", Some(&supplied_pdf));
+
+    assert_eq!(observed.mime_type().essence(), "application/octet-stream");
+    assert_eq!(observed.risk_class(), ContentRiskClass::UnknownBinary);
+    assert_eq!(
+        classify_mismatch(Some(&supplied_pdf), &observed),
+        MimeMismatch::SuppliedOnly
+    );
+}
+
+#[test]
 fn short_html_signatures_require_tag_termination() {
     for content in [
         b"<article>not an anchor signature</article>".as_slice(),
