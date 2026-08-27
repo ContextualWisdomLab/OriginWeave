@@ -21,9 +21,11 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+mod coherence;
 mod stealth;
 mod ua_hints;
 
+pub use coherence::{CoherenceError, require_hints_coherence};
 pub use stealth::{
     CanvasNoise, StealthError, StealthSurface, WebAudioRate, WebGlRendererToken, WebRtcInterface,
     require_stealth_surfaces,
@@ -291,6 +293,20 @@ impl PresentationPlatform {
             Self::Windows => "Win32",
             Self::MacOS => "MacIntel",
             Self::Linux => "Linux x86_64",
+        }
+    }
+
+    /// Return the canonical UA Client Hints platform token for this family.
+    ///
+    /// A page reconciles the presentation platform with
+    /// `navigator.userAgentData.platform`, so the two must agree; the mapping
+    /// is the single source of truth an adapter consumes (see ADR 0112).
+    #[must_use]
+    pub const fn hints_platform(self) -> HintsPlatform {
+        match self {
+            Self::Windows => HintsPlatform::Windows,
+            Self::MacOS => HintsPlatform::MacOs,
+            Self::Linux => HintsPlatform::Linux,
         }
     }
 }
