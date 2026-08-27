@@ -157,12 +157,14 @@ pub fn evaluate_disclosure(
 /// Result of evaluating one attempted use of an opaque sensitive-value handle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HandleUseDecision {
-    /// The supplied exact scope, classification, expiry, and prior-use count permit broker admission.
+    /// The supplied exact authority, audience, expiry, and prior-use count permit broker admission.
     Authorized,
     /// The authoritative in-process handle state was revoked before this use.
     Revoked,
     /// Tenant, task, field, purpose, destination, or classification did not match the handle scope.
     ScopeMismatch,
+    /// The caller audience was invalid or did not match the handle's non-transferable audience.
+    AudienceMismatch,
     /// The handle is no longer valid at the supplied trusted time.
     Expired,
     /// The supplied trusted time predates time already observed by the reservation state.
@@ -194,23 +196,29 @@ pub enum HandleRevocationReason {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SensitiveValueHandleScope {
     authority: SensitiveDataAuthority,
+    audience_id: String,
     expires_at_epoch_seconds: u64,
     max_uses: u32,
 }
 
 impl SensitiveValueHandleScope {
-    /// Build an opaque-handle scope with exact authority, exclusive expiry, and bounded use count.
+    /// Build an opaque-handle scope with exact authority, non-transferable audience,
+    /// exclusive expiry, and bounded use count.
     ///
-    /// A later field reclassification creates a different [`SensitiveDataAuthority`]
-    /// and therefore requires a newly authorized handle.
+    /// The audience identifier uses the same bounded ASCII policy-token grammar as
+    /// other authority identifiers. Invalid audience identifiers remain fail-closed
+    /// when the scope is evaluated. A later field reclassification or audience
+    /// change therefore requires a newly authorized handle.
     #[must_use]
-    pub const fn new(
+    pub fn new(
         authority: SensitiveDataAuthority,
+        audience_id: &str,
         expires_at_epoch_seconds: u64,
         max_uses: u32,
     ) -> Self {
         Self {
             authority,
+            audience_id: audience_id.to_owned(),
             expires_at_epoch_seconds,
             max_uses,
         }
@@ -221,24 +229,29 @@ impl SensitiveValueHandleScope {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HandleUseRequest {
     authority: SensitiveDataAuthority,
+    audience_id: String,
     now_epoch_seconds: u64,
     uses_so_far: u32,
 }
 
 impl HandleUseRequest {
-    /// Build a handle-use evaluation request from trusted time and authoritative broker state.
+    /// Build a handle-use evaluation request from exact authority, caller audience,
+    /// trusted time, and authoritative broker use state.
     ///
-    /// The eventual broker must supply these state values from its own trusted,
-    /// caller-unforgeable storage; accepting this struct does not make arbitrary
-    /// caller input authoritative.
+    /// The eventual broker must derive `audience_id` from authenticated service or
+    /// workload identity and supply the state values from caller-unforgeable
+    /// storage. Accepting this value object does not make arbitrary caller input
+    /// authoritative.
     #[must_use]
-    pub const fn new(
+    pub fn new(
         authority: SensitiveDataAuthority,
+        audience_id: &str,
         now_epoch_seconds: u64,
         uses_so_far: u32,
     ) -> Self {
         Self {
             authority,
+            audience_id: audience_id.to_owned(),
             now_epoch_seconds,
             uses_so_far,
         }
@@ -248,20 +261,22 @@ impl HandleUseRequest {
 /// In-process authoritative use-count, trusted-time, and revocation state for one opaque sensitive-value handle scope.
 ///
 /// This value removes the caller-supplied prior-use count from the reservation
-/// operation. A successful reservation compares the exact authority, trusted
-/// time, expiry, revocation state, and current count and then increments the
-/// count while the caller holds an exclusive mutable borrow of this state. The
-/// state remembers the latest trusted time observed for its exact authority and
-/// rejects time rollback so an expired handle cannot regain authority from a
-/// stale clock value. Scope-mismatched requests cannot read or mutate that floor.
-/// Denied reservations never consume a use.
+/// operation. A successful reservation compares the exact authority, exact
+/// non-transferable audience, trusted time, expiry, revocation state, and current
+/// count and then increments the count while the caller holds an exclusive mutable
+/// borrow of this state. The state remembers the latest trusted time observed for
+/// its exact authority-and-audience binding and rejects time rollback so an expired
+/// handle cannot regain authority from a stale clock value. Binding-mismatched
+/// requests cannot read or mutate that floor. Denied reservations never consume a
+/// use.
 ///
 /// This is a policy-state primitive, not the trusted broker itself. It contains
-/// neither the opaque handle token nor protected data and provides no durable or
-/// cross-process transaction, value resolution, compensation, or persistence. A
-/// shared or durable broker must place the state behind its own transactional or
-/// locking boundary, persist lifecycle state and an equivalent trusted-time floor,
-/// and recheck both before disclosure.
+/// neither the opaque handle token nor protected data and provides no authenticated
+/// workload identity, durable or cross-process transaction, value resolution,
+/// compensation, or persistence. A shared or durable broker must derive the
+/// audience from authenticated caller identity, place the state behind its own
+/// transactional or locking boundary, persist lifecycle state and an equivalent
+/// trusted-time floor, and recheck both before disclosure.
 #[derive(Debug, PartialEq, Eq)]
 pub struct SensitiveHandleUseState {
     scope: SensitiveValueHandleScope,
@@ -309,26 +324,35 @@ impl SensitiveHandleUseState {
 
     /// Reserve one use from the current authoritative count when policy permits it.
     ///
-    /// The supplied time must come from the trusted broker boundary and may not
-    /// move backward relative to an earlier exact-scope reservation attempt on
-    /// this state. Scope-mismatched requests never mutate trusted-time state and
-    /// always return [`HandleUseDecision::ScopeMismatch`], so foreign authority
-    /// cannot advance the rollback floor or learn its value. For exact-scope
-    /// requests, revocation remains terminal; expiry, use-limit, and trusted-time
-    /// rollback denial leave the authoritative use count unchanged. A non-rollback
-    /// exact-scope trusted time is recorded after the revocation check even when
-    /// expiry or the use limit denies the reservation so later stale time cannot
-    /// restore authority.
+    /// The audience must be derived by the trusted broker from authenticated caller
+    /// identity, and the supplied time must come from the broker's trusted clock and
+    /// may not move backward relative to an earlier exact-binding reservation
+    /// attempt on this state. Exact authority and audience binding are evaluated
+    /// before lifecycle state; a caller outside either binding receives only
+    /// `ScopeMismatch` or `AudienceMismatch` and cannot read or advance revocation
+    /// or trusted-time state. For a correctly bound caller, revocation remains
+    /// terminal and precedes rollback, expiry, and use-limit results. A non-rollback
+    /// trusted time is recorded for downstream nonterminal policy denials, while
+    /// every denial leaves the authoritative count unchanged.
     #[must_use]
     pub fn reserve_use(
         &mut self,
         authority: SensitiveDataAuthority,
+        audience_id: &str,
         now_epoch_seconds: u64,
     ) -> HandleUseDecision {
-        let request = HandleUseRequest::new(authority, now_epoch_seconds, self.reserved_uses);
+        let request = HandleUseRequest::new(
+            authority,
+            audience_id,
+            now_epoch_seconds,
+            self.reserved_uses,
+        );
         let policy_decision = evaluate_handle_use(&request, &self.scope);
-        if policy_decision == HandleUseDecision::ScopeMismatch {
-            return HandleUseDecision::ScopeMismatch;
+        if matches!(
+            policy_decision,
+            HandleUseDecision::ScopeMismatch | HandleUseDecision::AudienceMismatch
+        ) {
+            return policy_decision;
         }
 
         if self.revocation_reason.is_some() {
@@ -354,12 +378,13 @@ impl SensitiveHandleUseState {
 /// This pure function does not consume a use, mutate broker state, resolve a
 /// handle, or release a protected value. It is therefore not standalone
 /// enforcement and cannot detect trusted-time rollback across calls. A trusted
-/// broker must obtain trusted time and caller-unforgeable handle state, reject
-/// time rollback through state such as [`SensitiveHandleUseState`], atomically
-/// reserve or increment the use count before value resolution, and recheck the
-/// reserved authority immediately before disclosure. Missing or malformed
-/// authority identifiers fail closed as a scope mismatch. The authority
-/// destination must already have crossed the canonical [`Origin`] boundary.
+/// broker must obtain authenticated caller audience, trusted time, and
+/// caller-unforgeable handle state, reject time rollback through state such as
+/// [`SensitiveHandleUseState`], atomically reserve or increment the use count
+/// before value resolution, and recheck the reserved authority immediately before
+/// disclosure. Missing or malformed authority or audience identifiers fail closed.
+/// The authority destination must already have crossed the canonical [`Origin`]
+/// boundary.
 #[must_use]
 pub fn evaluate_handle_use(
     request: &HandleUseRequest,
@@ -370,6 +395,11 @@ pub fn evaluate_handle_use(
         || request.authority != scope.authority
     {
         HandleUseDecision::ScopeMismatch
+    } else if !authority_identifier_is_valid(&request.audience_id)
+        || !authority_identifier_is_valid(&scope.audience_id)
+        || request.audience_id != scope.audience_id
+    {
+        HandleUseDecision::AudienceMismatch
     } else if request.now_epoch_seconds >= scope.expires_at_epoch_seconds {
         HandleUseDecision::Expired
     } else if request.uses_so_far >= scope.max_uses {
