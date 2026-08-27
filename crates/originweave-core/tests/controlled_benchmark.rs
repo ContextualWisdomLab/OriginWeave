@@ -334,27 +334,29 @@ fn malformed_case_evidence_fails_closed_with_case_identity_and_source() {
         observed: CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS,
         total_trials: CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS - 1,
     };
-    let error = evaluate_controlled_benchmark_suite(profile, &evidence).unwrap_err();
-
+    let result = evaluate_controlled_benchmark_suite(profile, &evidence);
     assert_eq!(
-        error,
-        ControlledBenchmarkSuiteError::InvalidCaseEvidence {
+        result,
+        Err(ControlledBenchmarkSuiteError::InvalidCaseEvidence {
             case_id,
             source: expected_source,
-        }
+        })
     );
-    assert_eq!(
-        error.to_string(),
-        format!(
-            "controlled benchmark suite case {} has invalid evidence: {expected_source}",
-            case_id.as_str()
-        )
-    );
-    let standard_error: &dyn std::error::Error = &error;
-    assert_eq!(
-        standard_error.source().map(ToString::to_string),
-        Some(expected_source.to_string())
-    );
+
+    if let Err(error) = result {
+        assert_eq!(
+            error.to_string(),
+            format!(
+                "controlled benchmark suite case {} has invalid evidence: {expected_source}",
+                case_id.as_str()
+            )
+        );
+        let standard_error: &dyn std::error::Error = &error;
+        assert_eq!(
+            standard_error.source().map(ToString::to_string),
+            Some(expected_source.to_string())
+        );
+    }
 }
 
 #[test]
