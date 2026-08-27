@@ -6,10 +6,17 @@ on:
     paths:
       - ".github/workflows/mv3-compatibility.yml"
       - "crates/originweave-core/**"
+      - "crates/originweave-fingerprint/**"
+      - "extensions/originweave-privacy-guard/**"
       - "scripts/ci/run_mv3_compatibility.py"
+      - "scripts/ci/run_web_audio_privacy.py"
       - "tests/fixtures/mv3_basic/**"
+      - "tests/fixtures/web_audio_privacy/**"
       - "tests/test_mv3_compatibility_contract.py"
+      - "tests/test_web_audio_privacy_contract.py"
+      - "docs/adr/0114-default-deny-web-audio-fingerprinting.md"
       - "docs/doctoring/mv3-compatibility.md"
+      - "docs/doctoring/web-audio-privacy.md"
 
 permissions:
   contents: read
@@ -74,6 +81,7 @@ jobs:
           "$CHROME_BIN" --version
           "$CHROMEDRIVER_BIN" --version
           python3 scripts/ci/run_mv3_compatibility.py | tee mv3-compatibility.json
+          python3 scripts/ci/run_web_audio_privacy.py | tee web-audio-privacy.json
 
       - name: Upload bounded compatibility evidence
         if: always()
@@ -83,5 +91,6 @@ jobs:
           path: |
             mv3-download-sha256.txt
             mv3-compatibility.json
+            web-audio-privacy.json
           if-no-files-found: warn
           retention-days: 7
