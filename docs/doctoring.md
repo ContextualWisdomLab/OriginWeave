@@ -46,7 +46,11 @@ the basis for fingerprinting schemes of all sorts" (Web Platform Incubator
 Community Group, 2026), so OriginWeave bounds the User-Agent Client Hints
 object with enumerated architecture/bitness/platform tokens, an at-most-32
 ASCII brand-name limit, a non-empty brand list, and the draft's coherence rule
-that a non-mobile user agent reports an empty model (see ADR 0112).
+that a non-mobile user agent reports an empty model (see ADR 0112). The
+presentation platform, its `navigator.platform` token, and the UA Client
+Hints platform form a triad a page can reconcile; OriginWeave binds the three
+in one deterministic mapping so a presented identity cannot contradict itself
+across surfaces (see ADR 0113).
 
 The 25 August 2026 WebDriver BiDi Editor's Draft exposes locale, media, screen,
 user-agent, viewport, and time-zone emulation commands, but it does not define a
