@@ -19,6 +19,9 @@ const MAX_BRAND_NAME_LENGTH: usize = 32;
 /// The maximum accepted brand-version length in ASCII bytes.
 const MAX_BRAND_VERSION_LENGTH: usize = 32;
 
+/// The maximum number of brand/version pairs retained in one UA-CH surface.
+const MAX_BRAND_COUNT: usize = 16;
+
 /// The maximum accepted mobile-model length in UTF-8 bytes.
 const MAX_MOBILE_MODEL_LENGTH: usize = 64;
 
@@ -46,6 +49,8 @@ pub enum ClientHintsError {
     ModelTooLong,
     /// A client-hints set carried no brand.
     MissingBrand,
+    /// A client-hints set exceeded the bounded retained brand-list size.
+    TooManyBrands,
 }
 
 impl fmt::Display for ClientHintsError {
@@ -69,6 +74,9 @@ impl fmt::Display for ClientHintsError {
             Self::ModelTooLong => formatter.write_str("mobile model must be at most 64 bytes"),
             Self::MissingBrand => {
                 formatter.write_str("a client-hints value must contain at least one brand")
+            }
+            Self::TooManyBrands => {
+                formatter.write_str("a client-hints value must contain at most 16 brands")
             }
         }
     }
@@ -237,8 +245,8 @@ impl UaClientHints {
     ///
     /// The model must be empty when `mobile` is false. Mobile model values are
     /// capped at 64 UTF-8 bytes by OriginWeave's local resource budget. The
-    /// brand list must be non-empty, and every brand is validated by
-    /// [`UaBrand::new`].
+    /// brand list must contain between one and 16 already-validated brands, so
+    /// retained presentation state cannot grow with an unbounded caller list.
     pub fn new(
         platform: HintsPlatform,
         architecture: HintsArchitecture,
@@ -255,6 +263,9 @@ impl UaClientHints {
         }
         if brands.is_empty() {
             return Err(ClientHintsError::MissingBrand);
+        }
+        if brands.len() > MAX_BRAND_COUNT {
+            return Err(ClientHintsError::TooManyBrands);
         }
         Ok(Self {
             platform,
