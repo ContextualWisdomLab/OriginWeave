@@ -10,6 +10,7 @@
 mod extraction_schema;
 mod sensitive_access;
 mod sensitive_handle_lifecycle;
+mod sensitive_model_disclosure;
 
 pub use extraction_schema::{
     ExtractionCardinality, ExtractionField, ExtractionNormalizationRule, ExtractionSchema,
@@ -23,6 +24,9 @@ pub use sensitive_access::{
 };
 pub use sensitive_handle_lifecycle::{
     SensitiveHandleLifecycleEvidence, SensitiveHandleLifecycleEvidenceInput,
+};
+pub use sensitive_model_disclosure::{
+    SensitiveModelDisclosureEvidence, SensitiveModelDisclosureEvidenceInput,
 };
 
 use std::collections::BTreeMap;
