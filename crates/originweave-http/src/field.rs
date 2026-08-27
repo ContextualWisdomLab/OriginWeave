@@ -91,10 +91,7 @@ impl FieldLine {
         maximum_name_bytes: usize,
         maximum_value_bytes: usize,
     ) -> Result<Self, FieldSyntaxError> {
-        if name.is_empty()
-            || name.contains(&b'_')
-            || !name.iter().copied().all(is_token_byte)
-        {
+        if name.is_empty() || !name.iter().copied().all(is_token_byte) {
             return Err(FieldSyntaxError::InvalidName);
         }
         if name.len() > maximum_name_bytes {
@@ -277,22 +274,5 @@ mod tests {
         assert!(block_debug.contains("x-trace"));
         assert!(block_debug.contains("value_byte_count"));
         assert!(!block_debug.contains("secret-value"));
-    }
-
-    #[test]
-    fn underscore_field_names_are_rejected_before_normalization() {
-        assert!(matches!(
-            FieldLine::new(
-                b"X_Foo",
-                b"value",
-                DEFAULT_MAX_HEADER_NAME_BYTES,
-                DEFAULT_MAX_HEADER_VALUE_BYTES,
-            ),
-            Err(FieldSyntaxError::InvalidName)
-        ));
-        assert!(matches!(
-            RequestField::new("X_Foo", b"value"),
-            Err(HttpError::InvalidRequestFieldName)
-        ));
     }
 }
