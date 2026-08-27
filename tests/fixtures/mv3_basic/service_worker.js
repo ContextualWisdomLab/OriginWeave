@@ -55,7 +55,7 @@ async function waitForDownload(downloadId, expectedUrl) {
   }
   return {
     ready: false,
-    diagnostic: observedDownload ? "download-timeout" : "download-search-missing",
+    diagnostic: observedDownload ? "download-timeout" : "download-search-timeout",
   };
 }
 
