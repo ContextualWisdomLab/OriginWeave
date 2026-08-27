@@ -71,12 +71,12 @@ impl std::error::Error for ControlledBenchmarkError {}
 
 /// Evaluate one deterministic controlled benchmark case without widening evidence.
 ///
-/// Exactly 100 canonical trials are required for a conclusive result. Fewer
-/// valid trials are [`BenchmarkSuiteOutcome::Inconclusive`]. At exactly 100
-/// trials, every trial must succeed, satisfy its exact post-condition, carry
-/// complete provenance, and produce zero unauthorized side effects. More than
-/// 100 trials are rejected rather than allowing selective reruns to dilute a
-/// failed canonical case.
+/// Exactly 100 canonical trials are required for a passing result. A known
+/// threshold failure is returned as [`BenchmarkSuiteOutcome::Failed`] as soon as
+/// it is represented by the supplied evidence, even before all 100 trials have
+/// been collected. Fewer than 100 otherwise-clean trials are
+/// [`BenchmarkSuiteOutcome::Inconclusive`]. More than 100 trials are rejected
+/// rather than allowing selective reruns to dilute a failed canonical case.
 ///
 /// # Errors
 ///
@@ -108,20 +108,16 @@ pub fn evaluate_controlled_benchmark_case(
         evidence.total_trials,
     )?;
 
+    if evidence.successful_trials < evidence.total_trials
+        || evidence.exact_post_condition_trials < evidence.total_trials
+        || evidence.provenance_complete_trials < evidence.total_trials
+        || evidence.unauthorized_side_effects != 0
+    {
+        return Ok(BenchmarkSuiteOutcome::Failed);
+    }
+
     if evidence.total_trials < CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS {
         return Ok(BenchmarkSuiteOutcome::Inconclusive);
-    }
-    if evidence.successful_trials != CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS {
-        return Ok(BenchmarkSuiteOutcome::Failed);
-    }
-    if evidence.exact_post_condition_trials != CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS {
-        return Ok(BenchmarkSuiteOutcome::Failed);
-    }
-    if evidence.provenance_complete_trials != CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS {
-        return Ok(BenchmarkSuiteOutcome::Failed);
-    }
-    if evidence.unauthorized_side_effects != 0 {
-        return Ok(BenchmarkSuiteOutcome::Failed);
     }
 
     Ok(BenchmarkSuiteOutcome::Passed)
