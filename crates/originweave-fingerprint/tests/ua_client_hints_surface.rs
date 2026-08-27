@@ -200,6 +200,36 @@ fn empty_brand_list_fails_closed() {
 }
 
 #[test]
+fn brand_list_is_bounded_to_sixteen_entries() {
+    let brand = UaBrand::new("Chromium", "131.0.0.0").expect("brand");
+    let boundary = vec![brand.clone(); 16];
+    assert!(
+        UaClientHints::new(
+            HintsPlatform::Linux,
+            HintsArchitecture::X86,
+            HintsBitness::Bit64,
+            false,
+            "",
+            boundary,
+        )
+        .is_ok()
+    );
+
+    let oversized = vec![brand; 17];
+    assert_eq!(
+        UaClientHints::new(
+            HintsPlatform::Linux,
+            HintsArchitecture::X86,
+            HintsBitness::Bit64,
+            false,
+            "",
+            oversized,
+        ),
+        Err(ClientHintsError::TooManyBrands)
+    );
+}
+
+#[test]
 fn client_hints_error_has_deterministic_display() {
     assert_eq!(
         ClientHintsError::InvalidPlatform.to_string(),
