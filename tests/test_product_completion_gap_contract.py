@@ -17,9 +17,10 @@ class ProductCompletionGapContractTests(unittest.TestCase):
         text = BASELINE.read_text(encoding="utf-8")
 
         for phrase in (
-            "158 open pull requests",
-            "44 non-draft",
-            "114 draft",
+            "126 open pull requests",
+            "54 non-draft",
+            "72 draft",
+            "2026-08-24 158-PR snapshot",
             "#198",
             "#199",
             "#200",
@@ -41,12 +42,23 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "78 draft",
             "148 open pull requests",
             "79 draft PRs",
-            "150 open pull requests",
             "40 non-draft",
             "110 draft",
+            "150 open pull requests",
+            "prior 150-PR snapshot",
+            "128 open pull requests",
+            "74 draft",
         ):
             with self.subTest(stale_phrase=stale_phrase):
                 self.assertNotIn(stale_phrase, text)
+
+    def test_active_github_approval_rule_is_not_documented_as_bypassable(self) -> None:
+        """An active counted-approval rule must stop merge without an eligible approver."""
+        text = BASELINE.read_text(encoding="utf-8")
+
+        self.assertIn("eligible non-author", text)
+        self.assertIn("reviewer-provisioning gap", text)
+        self.assertNotIn("owner-directed administrative merge", text)
 
     def test_evidence_commands_reproduce_inventory_checks_and_review_state(self) -> None:
         """The evidence procedure must paginate the queue and inspect each exact PR head."""
