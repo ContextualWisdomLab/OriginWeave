@@ -21,6 +21,13 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+mod stealth;
+
+pub use stealth::{
+    CanvasNoise, StealthError, StealthSurface, WebAudioRate, WebGlRendererToken, WebRtcInterface,
+    require_stealth_surfaces,
+};
+
 use sha2::{Digest, Sha256};
 use std::error::Error;
 use std::fmt;
