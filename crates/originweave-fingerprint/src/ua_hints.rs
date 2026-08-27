@@ -16,6 +16,12 @@ use std::fmt;
 /// The maximum accepted brand-name length in ASCII bytes.
 const MAX_BRAND_NAME_LENGTH: usize = 32;
 
+/// The maximum accepted brand-version length in ASCII bytes.
+const MAX_BRAND_VERSION_LENGTH: usize = 32;
+
+/// The maximum accepted mobile-model length in UTF-8 bytes.
+const MAX_MOBILE_MODEL_LENGTH: usize = 64;
+
 /// WICG GREASE-compatible separators admitted inside bounded brand names.
 const BRAND_COMPATIBILITY_SEPARATORS: &[u8] = b" ()-./:;=?_";
 
@@ -28,12 +34,16 @@ fn is_valid_brand_name_byte(byte: u8) -> bool {
 pub enum ClientHintsError {
     /// A brand name exceeded the bounded ASCII length.
     BrandTooLong,
+    /// A brand version exceeded the OriginWeave resource budget.
+    BrandVersionTooLong,
     /// A brand name or version violated the bounded compatibility grammar.
     InvalidBrandName,
     /// A platform token was outside the enumerated low-entropy set.
     InvalidPlatform,
     /// A non-mobile user agent reported a non-empty model.
     ModelWithoutMobile,
+    /// A mobile model exceeded the OriginWeave resource budget.
+    ModelTooLong,
     /// A client-hints set carried no brand.
     MissingBrand,
 }
@@ -44,6 +54,9 @@ impl fmt::Display for ClientHintsError {
             Self::BrandTooLong => {
                 formatter.write_str("brand name must be at most 32 ASCII characters")
             }
+            Self::BrandVersionTooLong => {
+                formatter.write_str("brand version must be at most 32 ASCII characters")
+            }
             Self::InvalidBrandName => formatter.write_str(
                 "brand name must use bounded UA-CH-compatible ASCII and version must be non-empty dotted ASCII alphanumeric",
             ),
@@ -53,6 +66,7 @@ impl fmt::Display for ClientHintsError {
             Self::ModelWithoutMobile => {
                 formatter.write_str("a non-mobile user agent must report an empty model")
             }
+            Self::ModelTooLong => formatter.write_str("mobile model must be at most 64 bytes"),
             Self::MissingBrand => {
                 formatter.write_str("a client-hints value must contain at least one brand")
             }
@@ -74,12 +88,15 @@ impl UaBrand {
     ///
     /// Names must be non-empty ASCII and may contain alphanumerics plus the
     /// separator bytes used by the WICG GREASE brand algorithm. Versions must
-    /// be non-empty dotted ASCII alphanumeric strings. The 32-byte name cap is
-    /// an OriginWeave resource bound, not a UA Client Hints specification
-    /// limit.
+    /// be non-empty dotted ASCII alphanumeric strings. The 32-byte name and
+    /// version caps are OriginWeave resource bounds, not UA Client Hints
+    /// specification limits.
     pub fn new(name: &str, version: &str) -> Result<Self, ClientHintsError> {
         if name.len() > MAX_BRAND_NAME_LENGTH {
             return Err(ClientHintsError::BrandTooLong);
+        }
+        if version.len() > MAX_BRAND_VERSION_LENGTH {
+            return Err(ClientHintsError::BrandVersionTooLong);
         }
         if name.is_empty()
             || !name.bytes().all(is_valid_brand_name_byte)
@@ -218,8 +235,10 @@ pub struct UaClientHints {
 impl UaClientHints {
     /// Validate and build a UA Client Hints surface.
     ///
-    /// The model must be empty when `mobile` is false, and the brand list
-    /// must be non-empty. Every brand is validated by [`UaBrand::new`].
+    /// The model must be empty when `mobile` is false. Mobile model values are
+    /// capped at 64 UTF-8 bytes by OriginWeave's local resource budget. The
+    /// brand list must be non-empty, and every brand is validated by
+    /// [`UaBrand::new`].
     pub fn new(
         platform: HintsPlatform,
         architecture: HintsArchitecture,
@@ -230,6 +249,9 @@ impl UaClientHints {
     ) -> Result<Self, ClientHintsError> {
         if !mobile && !model.is_empty() {
             return Err(ClientHintsError::ModelWithoutMobile);
+        }
+        if model.len() > MAX_MOBILE_MODEL_LENGTH {
+            return Err(ClientHintsError::ModelTooLong);
         }
         if brands.is_empty() {
             return Err(ClientHintsError::MissingBrand);
