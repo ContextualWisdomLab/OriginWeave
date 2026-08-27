@@ -259,6 +259,10 @@ fn client_hints_error_has_deterministic_display() {
         ClientHintsError::MissingBrand.to_string(),
         "a client-hints value must contain at least one brand"
     );
+    assert_eq!(
+        ClientHintsError::TooManyBrands.to_string(),
+        "a client-hints value must contain at most 16 brands"
+    );
 }
 
 #[test]
