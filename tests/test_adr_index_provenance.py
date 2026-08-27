@@ -21,9 +21,12 @@ class AdrIndexProvenanceTests(unittest.TestCase):
             "### Proposed decisions introduced by documentation reconciliation", 1
         )[1].split("## Index completeness rule", 1)[0]
         adr = "[0110](0110-privacy-preserving-presentation-identity.md)"
+        adr_stealth = "[0111](0111-bounded-stealth-normalization-surfaces.md)"
 
         self.assertNotIn(adr, baseline)
         self.assertIn(adr, branch_only)
+        self.assertNotIn(adr_stealth, baseline)
+        self.assertIn(adr_stealth, branch_only)
 
 
 if __name__ == "__main__":

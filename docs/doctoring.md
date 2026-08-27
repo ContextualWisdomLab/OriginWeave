@@ -35,7 +35,12 @@ cited cohort evidence defines a meaningful anonymity set. A future Chromium
 adapter must apply all claimed surfaces before page script and prove that no
 ambient host value leaks. Camoufox is reviewed only as implementation precedent
 for native-layer consistency, not as policy authority for anti-detect, CAPTCHA,
-or access-control circumvention.
+or access-control circumvention. Render and media surfaces (canvas readback,
+WebGL renderer tokens, Web Audio sample rate, WebRTC interface exposure) are
+themselves strong re-identification signals (Laperdrix et al., 2020), so
+OriginWeave models them as bounded enumerated classes with a fail-closed
+surface-admission contract (see ADR 0110, ADR 0111) rather than per-session
+randomization, which W3C guidance warns can create new distinguishers.
 
 The 25 August 2026 WebDriver BiDi Editor's Draft exposes locale, media, screen,
 user-agent, viewport, and time-zone emulation commands, but it does not define a
