@@ -24,13 +24,16 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Active PR #170 adds conservative MCP `2026-07-28` `tools/list` discovery metadata derived from that protected-main catalog, with `resultType = complete`, zero freshness, private cache scope, no continuation cursor, per-request protocol/client-capability admission, and bounded protocol-version and method metadata validated before cross-field comparison. This remains active-PR evidence only and grants no browser, network, secret, approval, or Agent authority.
 - Deterministic fail-closed policy evaluation for untrusted instructions, origin grants, crawler restrictions, execution-mode and purpose consistency, approvals, and brokered secrets.
 - Fail-closed resolved-destination policy with IPv4/IPv6 special-purpose and reviewed cloud-platform endpoint classification, IPv4-mapped canonicalization, explicit class grants, non-empty origin-bound DNS snapshots capped at 256 resolver addresses, concrete connection pinning, DNS-set expansion detection, and per-hop redirect reauthorization.
+- Bounded resolution-freshness authority with trusted monotonic approval time, capped non-zero validity, half-open use windows, non-expanding revalidation, and credential-free authorization timestamps.
 - Direct-only `originweave-network` TCP boundary with explicit canonical `SocketAddr` authority, zero IPv6 flow and scope metadata unless separately modeled, a non-cloneable single-use plan, a 30-second per-attempt timeout ceiling, at most four attempts, exact `peer_addr` verification before stream exposure, and no hostname re-resolution or ambient proxy inheritance.
 - Authenticated `originweave-tls` service-identity boundary that consumes an existing verified TCP stream, requires exact TLS-origin and transport-origin equality, derives RFC 9525 DNS or literal-IP reference identity only from the canonical HTTPS origin, validates WebPKI with explicit roots and fixed time, permits only TLS 1.2 and TLS 1.3, and never reconnects or resolves.
 - Bounded TLS policy for total handshake time, ALPN identifiers, trust-root count and bytes, and server-presented certificate count and bytes, with explicit optional-versus-required ALPN behavior and `NotConfigured` revocation evidence.
+- Deterministic TLS revocation-material freshness authority with a strict signed `thisUpdate`→`nextUpdate` half-open window and typed invalid-window, not-yet-valid, and stale failures, without claiming OCSP/CRL acquisition, cryptographic validation, or certificate revocation status.
 - Credential-free TLS evidence containing canonical origin, TCP peers, reference identity, TLS version, cipher-suite identifier, selected ALPN or explicit absence, leaf certificate and SPKI hashes, server-presented certificate hashes and bounds, trust-bundle identity and hash, validity interval, fixed verification time, revocation configuration, and measured handshake duration.
+- Credential-free sensitive-handle lifecycle evidence binds issuance, exclusive expiry, bounded uses, observed resolution count, and revocation to the exact credential-free `OpaqueHandleOnly` sensitive-access receipt, preserving tenant, actor, task, field set, purpose, destination, classification, policy version, and decision time without storing opaque handle tokens or protected values.
 - Credential-free connection and redirect evidence containing canonical addresses, destination classes, target digests, hop numbers, and approved-address counts.
 - Credential-free verified TCP evidence containing the logical origin, requested socket, observed peer, destination class, successful attempt number, and per-attempt timeout.
-- Standard `Display` and `std::error::Error` contracts for destination, redirect, digest, direct-network, and TLS failures, including preserved destination-policy, rustls, and operating-system sources where applicable.
+- Standard `Display` and `std::error::Error` contracts for destination, redirect, digest, direct-network, TLS, and resource-budget failures, including preserved destination-policy, rustls, and operating-system sources where applicable.
 - Real loopback TCP integration proof plus deterministic timeout, refusal, retry, peer-inspection, peer-mismatch, canonicalization, IPv6 metadata, and single-use replay tests.
 - Real loopback rustls integration covering trusted DNS SAN, Common-Name fallback rejection, wrong-name and untrusted-root rejection, fixed-time expiry and not-yet-valid failures, exact IPv4 and IPv6 SANs, TLS 1.2/TLS 1.3, required and optional ALPN, and transport-origin binding.
 - Cumulative interactive-first RAM, VRAM, batch, local-model, admission, pause, and compositor-pressure mitigation plans, including active-consumer reduction at exact hard limits.
@@ -68,6 +71,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Security
 
+- Explicit proxy server identifiers require ASCII decimal port tokens before numeric range parsing, preventing Rust-specific leading-plus spellings from widening proxy authority.
 - Raw page content cannot become a trusted instruction.
 - Raw secrets are rejected and secret-capable actions require an opaque broker handle.
 - Crawler mode is read-only, must pair with the public-crawl purpose, and fails closed without an applicable robots-policy decision.
@@ -87,6 +91,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - TLS accepts only an already verified direct stream, never a hostname or new socket, and requires the TLS origin to match the transport-authority origin exactly.
 - DNS TLS identity requires an applicable subjectAltName and never falls back to Common Name; literal IPv4 and IPv6 origins require exact IP subjectAltName entries.
 - TLS uses an explicit immutable trust-root bundle and fixed verification time, and permits only TLS 1.2 and TLS 1.3.
+- TLS trust-bundle policy identifiers must contain at least one ASCII alphanumeric character; punctuation-only labels are rejected while `.`, `_`, `:`, and `-` remain permitted.
 - TLS resumption, 0-RTT, secret extraction, key logging, client certificates, certificate compression, and dangerous custom verifier hooks are disabled in the first slice.
 - The operating-system peer is rechecked before, during, and after the deadline-bound TLS handshake.
 - ALPN selection is restricted to the caller's bounded allow-list, while absence is either explicitly recorded or rejected by policy.
