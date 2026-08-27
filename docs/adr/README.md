@@ -57,7 +57,7 @@ Proposed ADR files are reviewable target architecture without becoming Accepted 
 | [0110](0110-privacy-preserving-presentation-identity.md) | Privacy-preserving presentation identity | Proposed | bounded normalization without access-control evasion |
 | [0111](0111-bounded-stealth-normalization-surfaces.md) | Bounded stealth-normalization surfaces | Proposed | canvas/WebGL/WebAudio/WebRTC bounded enumerated classes and surface admission |
 
-ADR 0013, ADR 0014, and ADR 0110 exist only on this documentation branch until it integrates. After integration, this subsection remains historical provenance rather than an active-PR claim; all three decisions remain Proposed until a later policy-compliant change explicitly changes their lifecycle.
+ADR 0013, ADR 0014, ADR 0110, and ADR 0111 exist only on this documentation branch until it integrates. After integration, this subsection remains historical provenance rather than an active-PR claim; all four decisions remain Proposed until a later policy-compliant change explicitly changes their lifecycle.
 
 ### Proposed decisions introduced by active feature work
 
