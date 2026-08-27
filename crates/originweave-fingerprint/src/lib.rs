@@ -30,6 +30,8 @@ use std::fmt;
 pub enum PresentationError {
     /// A digest was not `sha256:` followed by 64 lowercase hexadecimal digits.
     InvalidDigest,
+    /// A syntactically valid stored digest did not match the replayed fields.
+    DigestMismatch,
     /// A profile field violated its bounded plausibility contract.
     InvalidField,
     /// Cross-field consistency failed (for example viewport exceeds screen).
@@ -43,6 +45,9 @@ impl fmt::Display for PresentationError {
         match self {
             Self::InvalidDigest => {
                 formatter.write_str("digest must be sha256: plus 64 lowercase hex digits")
+            }
+            Self::DigestMismatch => {
+                formatter.write_str("stored presentation digest does not match profile fields")
             }
             Self::InvalidField => {
                 formatter.write_str("presentation field violates its bounded contract")
@@ -364,9 +369,9 @@ const SECOND_LANGUAGE: &str = "en";
 impl PresentationProfile {
     /// Construct and fully validate one profile from explicit fields.
     ///
-    /// Adapters use this when replaying a previously issued identity; the
-    /// digest is recomputed from the canonical serialization so stored
-    /// evidence always matches the presented values.
+    /// This binds a fresh digest to the canonical serialization. Callers that
+    /// replay persisted evidence must use [`Self::replay`] so a stored digest
+    /// is checked instead of silently replaced by a recomputed value.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         screen: ScreenMetrics,
@@ -414,6 +419,40 @@ impl PresentationProfile {
             languages,
             reduced_motion,
         ))
+    }
+
+    /// Replay a previously issued profile and verify its persisted digest.
+    ///
+    /// Field validation is identical to [`Self::new`]. The supplied digest is
+    /// then compared with the digest recomputed from the exact canonical field
+    /// serialization; a mismatch fails closed and never substitutes the newly
+    /// computed value for the persisted evidence identity.
+    #[allow(clippy::too_many_arguments)]
+    pub fn replay(
+        screen: ScreenMetrics,
+        viewport: ViewportBounds,
+        device_pixel_ratio: DevicePixelRatio,
+        hardware_concurrency: u16,
+        timezone: PresentationTimeZone,
+        platform: PresentationPlatform,
+        languages: Vec<String>,
+        reduced_motion: bool,
+        expected_digest: &PresentationDigest,
+    ) -> Result<Self, PresentationError> {
+        let profile = Self::new(
+            screen,
+            viewport,
+            device_pixel_ratio,
+            hardware_concurrency,
+            timezone,
+            platform,
+            languages,
+            reduced_motion,
+        )?;
+        if profile.digest() != expected_digest {
+            return Err(PresentationError::DigestMismatch);
+        }
+        Ok(profile)
     }
 
     /// Assemble one profile and bind its canonical digest.
@@ -566,6 +605,10 @@ mod tests {
         assert_eq!(
             PresentationError::InvalidDigest.to_string(),
             "digest must be sha256: plus 64 lowercase hex digits"
+        );
+        assert_eq!(
+            PresentationError::DigestMismatch.to_string(),
+            "stored presentation digest does not match profile fields"
         );
         assert_eq!(
             PresentationError::InvalidField.to_string(),
