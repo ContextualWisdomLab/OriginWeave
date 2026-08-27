@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import pathlib
+import re
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -81,6 +82,23 @@ class ManifestV3DownloadsContractTests(unittest.TestCase):
         self.assertNotIn("item.filename", worker)
         self.assertNotIn("_error.message", worker)
         self.assertNotIn("String(_error)", worker)
+
+    def test_download_search_api_failure_is_not_reported_as_missing(self) -> None:
+        """A rejected search call must remain distinct from an empty bounded search result."""
+
+        worker = (FIXTURE / "service_worker.js").read_text(encoding="utf-8")
+        self.assertRegex(
+            worker,
+            re.compile(
+                r"items = await chrome\.downloads\.search\(\{ id: downloadId, limit: 1 \}\);"
+                r"\s*\} catch \(_error\) \{"
+                r"\s*return \{ ready: false, diagnostic: \"download-not-evaluated\" \};"
+            ),
+        )
+        self.assertIn(
+            'diagnostic: observedDownload ? "download-timeout" : "download-search-missing"',
+            worker,
+        )
 
     def test_content_script_and_runner_require_downloads_on_every_pass(self) -> None:
         """The compatibility report must fail closed when downloads evidence is missing."""
