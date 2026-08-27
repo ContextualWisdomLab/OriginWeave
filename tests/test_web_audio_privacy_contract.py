@@ -117,6 +117,28 @@ class WebAudioPrivacyContractTests(unittest.TestCase):
                 with self.assertRaises(RuntimeError):
                     validate(invalid, "session identifier")
 
+        satisfies = namespace["_privacy_evidence_satisfies"]
+        protected = {
+            "audioContext": "blocked",
+            "webkitAudioContext": "unavailable",
+            "offlineAudioContext": "blocked",
+            "webkitOfflineAudioContext": "unavailable",
+            "audioWorkletNode": "blocked",
+            "childAudioContext": "blocked",
+            "childOfflineAudioContext": "blocked",
+        }
+        self.assertIs(satisfies(protected), True)
+        prefixed_blocked = dict(protected)
+        prefixed_blocked["webkitAudioContext"] = "blocked"
+        prefixed_blocked["webkitOfflineAudioContext"] = "blocked"
+        self.assertIs(satisfies(prefixed_blocked), True)
+        leaked = dict(protected)
+        leaked["audioContext"] = "leaked"
+        self.assertIs(satisfies(leaked), False)
+        missing = dict(protected)
+        del missing["childAudioContext"]
+        self.assertIs(satisfies(missing), False)
+
     def test_workflow_executes_and_publishes_the_real_browser_privacy_gate(self) -> None:
         """The pinned Chromium workflow must execute and retain privacy evidence."""
 

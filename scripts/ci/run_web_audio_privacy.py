@@ -34,6 +34,19 @@ STARTUP_TIMEOUT_SECONDS = 20.0
 FIXTURE_TIMEOUT_SECONDS = 20.0
 MAX_WEBDRIVER_RESPONSE_BYTES = 1_048_576
 PATH_TOKEN_CHARACTERS = frozenset(string.ascii_letters + string.digits + "-_.")
+REQUIRED_BLOCKED_SURFACES = frozenset(
+    {
+        "audioContext",
+        "offlineAudioContext",
+        "audioWorkletNode",
+        "childAudioContext",
+        "childOfflineAudioContext",
+    }
+)
+OPTIONAL_PREFIXED_SURFACES = frozenset(
+    {"webkitAudioContext", "webkitOfflineAudioContext"}
+)
+EXPECTED_SURFACES = REQUIRED_BLOCKED_SURFACES | OPTIONAL_PREFIXED_SURFACES
 
 
 class QuietFixtureHandler(http.server.SimpleHTTPRequestHandler):
@@ -41,6 +54,29 @@ class QuietFixtureHandler(http.server.SimpleHTTPRequestHandler):
 
     def log_message(self, _format: str, *args: object) -> None:
         """Suppress fixture request logs that contain no test evidence."""
+
+
+class PrivacyProbeError(RuntimeError):
+    """A controlled fixture failed to reach its required privacy state."""
+
+    def __init__(self, surfaces: dict[str, str]) -> None:
+        """Preserve only bounded fixture surface states for diagnosis."""
+
+        self.surfaces = dict(surfaces)
+        super().__init__("Web Audio privacy fixture did not converge")
+
+
+def _privacy_evidence_satisfies(surfaces: dict[str, str]) -> bool:
+    """Accept blocked core surfaces and absent-or-blocked vendor aliases."""
+
+    if set(surfaces) != EXPECTED_SURFACES:
+        return False
+    if any(surfaces[name] != "blocked" for name in REQUIRED_BLOCKED_SURFACES):
+        return False
+    return all(
+        surfaces[name] in {"blocked", "unavailable"}
+        for name in OPTIONAL_PREFIXED_SURFACES
+    )
 
 
 def _free_loopback_port() -> int:
@@ -167,27 +203,16 @@ return {
   childOfflineAudioContext: child?.originweaveOfflineAudioContext || "missing"
 };
 """
-    expected_keys = {
-        "audioContext",
-        "webkitAudioContext",
-        "offlineAudioContext",
-        "webkitOfflineAudioContext",
-        "audioWorkletNode",
-        "childAudioContext",
-        "childOfflineAudioContext",
-    }
     deadline = time.monotonic() + FIXTURE_TIMEOUT_SECONDS
     latest: dict[str, str] = {}
     while time.monotonic() < deadline:
         value = _execute(driver_port, session_id, script)
         if isinstance(value, dict):
             latest = {str(key): str(item) for key, item in value.items()}
-            if set(latest) == expected_keys and all(
-                item == "blocked" for item in latest.values()
-            ):
+            if _privacy_evidence_satisfies(latest):
                 return latest
         time.sleep(0.1)
-    raise RuntimeError(f"Web Audio privacy fixture did not converge: {latest!r}")
+    raise PrivacyProbeError(latest)
 
 
 def _run_trial(
@@ -327,6 +352,15 @@ def main() -> int:
                         fixture_url,
                         trial_number,
                     )
+                )
+            except PrivacyProbeError as exc:
+                trials.append(
+                    {
+                        "trial_number": trial_number,
+                        "passed": False,
+                        "error_type": type(exc).__name__,
+                        "surfaces": exc.surfaces,
+                    }
                 )
             except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
                 trials.append(
