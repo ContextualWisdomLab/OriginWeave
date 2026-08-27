@@ -951,6 +951,36 @@ def _write_output(path: pathlib.Path, serialized: str) -> None:
             or final_stat.st_nlink != 1
         ):
             raise WorkflowAuditError("published output identity is ambiguous")
+
+        try:
+            os.fsync(parent_fd)
+        except OSError as error:
+            rollback_stat = _stat_output_leaf(parent_fd, leaf_name)
+            if (
+                rollback_stat is None
+                or (rollback_stat.st_dev, rollback_stat.st_ino) != staging_identity
+                or not stat.S_ISREG(rollback_stat.st_mode)
+                or rollback_stat.st_nlink != 1
+            ):
+                raise WorkflowAuditError(
+                    "published output identity changed during durability rollback"
+                ) from error
+            rollback_error = _unlink_with_interrupted_retry(parent_fd, leaf_name)
+            if rollback_error is not None:
+                raise WorkflowAuditError(
+                    "published output rollback failed"
+                ) from rollback_error
+            primary_error = WorkflowAuditError(
+                "output parent directory could not be synchronized"
+            )
+            try:
+                os.fsync(parent_fd)
+            except OSError as rollback_sync_error:
+                primary_error.record_secondary_diagnostic(
+                    "output rollback directory sync also failed: "
+                    f"{type(rollback_sync_error).__name__}"
+                )
+            raise primary_error from error
     except OSError as error:
         raise WorkflowAuditError("output path is not writable") from error
     finally:
