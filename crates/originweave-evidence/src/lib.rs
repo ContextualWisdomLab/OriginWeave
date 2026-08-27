@@ -8,11 +8,17 @@
 #![deny(missing_docs)]
 
 mod action_outcome;
+mod extraction_schema;
 mod sensitive_access;
 
 pub use action_outcome::{
     PostConditionKind, PostConditionObservation, VerifiedActionOutcomeError,
     VerifiedActionOutcomeEvidence,
+};
+pub use extraction_schema::{
+    ExtractionCardinality, ExtractionField, ExtractionNormalizationRule, ExtractionSchema,
+    ExtractionSchemaError, ExtractionSourceChannel, ExtractionValueType,
+    MAX_EXTRACTION_FIELD_COUNT, MAX_EXTRACTION_IDENTIFIER_BYTES,
 };
 pub use sensitive_access::{
     MAX_SENSITIVE_FIELD_COUNT, MAX_SENSITIVE_IDENTIFIER_BYTES, SensitiveAccessClass,
