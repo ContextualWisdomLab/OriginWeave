@@ -9,6 +9,7 @@
 
 mod extraction_schema;
 mod sensitive_access;
+mod sensitive_handle_lifecycle;
 
 pub use extraction_schema::{
     ExtractionCardinality, ExtractionField, ExtractionNormalizationRule, ExtractionSchema,
@@ -19,6 +20,9 @@ pub use sensitive_access::{
     MAX_SENSITIVE_FIELD_COUNT, MAX_SENSITIVE_IDENTIFIER_BYTES, SensitiveAccessClass,
     SensitiveAccessEvidence, SensitiveAccessEvidenceInput, SensitiveAccessOutcome,
     SensitiveEvidenceError,
+};
+pub use sensitive_handle_lifecycle::{
+    SensitiveHandleLifecycleEvidence, SensitiveHandleLifecycleEvidenceInput,
 };
 
 use std::collections::BTreeMap;
