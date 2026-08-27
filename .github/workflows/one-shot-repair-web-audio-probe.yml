@@ -1,6 +1,6 @@
 name: One-shot Web Audio probe repair
 
-# Retry 3: allow only the pinned Rust and locked Cargo distribution endpoints.
+# Retry 4: publish only verified source/test changes, never downloaded browsers.
 on:
   push:
     branches:
@@ -92,9 +92,18 @@ jobs:
         run: |
           set -euo pipefail
           git restore --source=HEAD -- .github/workflows/one-shot-repair-web-audio-probe.yml
+          rm -rf \
+            .privacy-browser \
+            chrome-linux64.zip \
+            chromedriver-linux64.zip \
+            web-audio-privacy-repair.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
+          if git diff --cached --name-only | grep -Eq '(^|/)(chrome|chromedriver)(-|$)|^\.privacy-browser/'; then
+            echo "downloaded browser material entered the repair commit" >&2
+            exit 1
+          fi
           git diff --cached --quiet && {
             echo "probe repair produced no reviewed non-workflow change" >&2
             exit 1
