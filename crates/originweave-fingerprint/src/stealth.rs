@@ -181,13 +181,13 @@ impl WebAudioRate {
 /// A bounded WebRTC interface-candidate policy.
 ///
 /// This is policy only; the kernel never creates a peer connection or exposes
-/// an address. It distinguishes explicit disclosure from mDNS-only
-/// candidates so adapters fail closed unless they retain a route that hides
-/// host scope.
+/// an address. Variant names describe the page-visible candidate behavior
+/// directly so adapter code cannot mistake candidate disclosure for a safe
+/// privacy mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WebRtcInterface {
-    /// The adapter deliberately exposes interface candidates.
-    Disabled,
+    /// The adapter deliberately exposes direct interface candidates.
+    DirectCandidates,
     /// The adapter publishes only mDNS-candidate interfaces.
     MDnsOnly,
 }
@@ -196,6 +196,6 @@ impl WebRtcInterface {
     /// Whether this policy exposes local interface candidates directly.
     #[must_use]
     pub fn exposes_candidates(self) -> bool {
-        matches!(self, Self::Disabled)
+        matches!(self, Self::DirectCandidates)
     }
 }
