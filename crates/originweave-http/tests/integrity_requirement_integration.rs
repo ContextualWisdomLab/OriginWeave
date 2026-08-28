@@ -259,3 +259,13 @@ fn required_digest_rejects_response_without_any_supported_digest() {
 
     assert!(matches!(error, HttpError::SupportedDigestRequired));
 }
+
+#[test]
+fn required_digest_rejects_malformed_content_digest_on_no_content_response() {
+    let error = execute_response_result(
+        b"HTTP/1.1 204 No Content\r\nContent-Digest: sha-256=:not-base64!:\r\nConnection: close\r\n\r\n",
+    )
+    .expect_err("malformed no-content digest metadata must fail closed");
+
+    assert!(matches!(error, HttpError::InvalidDigestField));
+}
