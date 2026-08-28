@@ -196,10 +196,7 @@ pub(crate) fn parse_redirect_metadata(
 
 fn parse_filename_value(value: &[u8]) -> Result<String, HttpError> {
     if value.first() == Some(&b'"') {
-        // `split_semicolon_segments` rejects an unterminated opening quote before this parser is
-        // called. A quoted parameter therefore cannot have length one; only trailing material
-        // after a balanced closing quote remains a local syntax error here.
-        if value.last() != Some(&b'"') {
+        if value.len() < 2 || value.last() != Some(&b'"') {
             return Err(HttpError::InvalidContentDisposition);
         }
         let mut decoded = Vec::with_capacity(value.len() - 2);
@@ -551,6 +548,14 @@ mod tests {
         .expect("quoted filename")
         .expect("present");
         assert_eq!(disposition.filename(), Some("quarter one.txt"));
+    }
+
+    #[test]
+    fn quoted_filename_parser_rejects_a_lone_quote() {
+        assert!(matches!(
+            parse_filename_value(b"\""),
+            Err(HttpError::InvalidContentDisposition)
+        ));
     }
 
     #[test]

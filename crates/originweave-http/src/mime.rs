@@ -290,9 +290,7 @@ fn split_semicolon_segments(input: &[u8]) -> Result<Vec<&[u8]>, HttpError> {
 
 fn parse_parameter_value(value: &[u8]) -> Result<String, HttpError> {
     if value.first() == Some(&b'"') {
-        // `split_semicolon_segments` has already rejected any unterminated opening quote, so a
-        // quoted parameter cannot be a one-byte value at this point.
-        if value.last() != Some(&b'"') {
+        if value.len() < 2 || value.last() != Some(&b'"') {
             return Err(HttpError::InvalidMimeType);
         }
         let mut decoded = Vec::with_capacity(value.len() - 2);
@@ -445,4 +443,20 @@ fn trim_optional_whitespace(value: &[u8]) -> &[u8] {
         .rposition(|byte| !matches!(byte, b' ' | b'\t'))
         .map_or(start, |index| index + 1);
     &value[start..end]
+}
+
+#[cfg(test)]
+#[cfg_attr(coverage_nightly, coverage(off))]
+mod tests {
+    #![allow(clippy::expect_used)]
+
+    use super::*;
+
+    #[test]
+    fn quoted_parameter_parser_rejects_a_lone_quote() {
+        assert!(matches!(
+            parse_parameter_value(b"\""),
+            Err(HttpError::InvalidMimeType)
+        ));
+    }
 }
