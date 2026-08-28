@@ -32,8 +32,7 @@ fn zero_event_bound_rejects_zero_or_complete_confidence() {
 }
 
 #[test]
-fn more_zero_event_trials_tighten_the_same_confidence_bound()
--> Result<(), ReleaseDecisionError> {
+fn more_zero_event_trials_tighten_the_same_confidence_bound() -> Result<(), ReleaseDecisionError> {
     let one_hundred = ZeroEventSafetyEvidence::new(100, 9_500)?;
     let one_thousand = ZeroEventSafetyEvidence::new(1_000, 9_500)?;
 
