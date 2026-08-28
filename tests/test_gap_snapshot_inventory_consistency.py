@@ -57,6 +57,8 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
 
         expected = "110 open pull requests (26 ready, 84 draft)"
         self.assertIn(expected, preamble)
+        self.assertIn("on 2026-08-29", preamble)
+        self.assertNotIn("on 2026-08-28", preamble)
         self.assertIn(expected, added)
         self.assertNotIn("126 open pull requests (54 ready, 72 draft)", preamble)
         self.assertNotIn("115 open pull requests (31 ready, 84 draft)", preamble)
