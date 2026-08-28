@@ -50,9 +50,7 @@ fn duplicate_trial_ordinals_fail_closed_before_threshold_evaluation() {
 
     assert_eq!(
         aggregate_controlled_benchmark_trials(&duplicate),
-        Err(ControlledBenchmarkTrialAggregationError::DuplicateTrialOrdinal {
-            trial_ordinal: 1,
-        })
+        Err(ControlledBenchmarkTrialAggregationError::DuplicateTrialOrdinal { trial_ordinal: 1 })
     );
 }
 
@@ -61,10 +59,12 @@ fn trial_ordinals_outside_the_canonical_budget_fail_closed() {
     for observed in [0, CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS + 1] {
         assert_eq!(
             aggregate_controlled_benchmark_trials(&[clean_trial(observed)]),
-            Err(ControlledBenchmarkTrialAggregationError::InvalidTrialOrdinal {
-                observed,
-                maximum: CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS,
-            })
+            Err(
+                ControlledBenchmarkTrialAggregationError::InvalidTrialOrdinal {
+                    observed,
+                    maximum: CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS,
+                }
+            )
         );
     }
 }
