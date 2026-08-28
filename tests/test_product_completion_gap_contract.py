@@ -51,6 +51,11 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, text)
 
+        self.assertNotIn(
+            "current-head hosted CI, security, Noema, scheduler, and OpenCode workflows were still regenerating at the recheck",
+            text,
+        )
+
         for stale_phrase in (
             "100 open pull requests",
             "22 non-draft",
