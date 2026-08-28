@@ -77,6 +77,27 @@ class ProductCompletionGapContractTests(unittest.TestCase):
         self.assertIn("reviewer-provisioning gap", text)
         self.assertNotIn("owner-directed administrative merge", text)
 
+    def test_baseline_records_missing_required_workflow_identities(self) -> None:
+        """The baseline must preserve the exact current required-workflow gap."""
+        text = BASELINE.read_text(encoding="utf-8")
+
+        for phrase in (
+            "required workflow identities",
+            "close-empty-pr",
+            "opencode-review",
+            "pr-review-merge-scheduler",
+            "security-scan",
+            "strix",
+            "sast-semgrep",
+            "noema-review",
+            "run lookup returned 404",
+            "327727411",
+            "327727415",
+            "does not authorize bypass",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, text)
+
     def test_same_day_prior_inventory_is_bound_to_the_maintenance_record(self) -> None:
         """A same-day comparison must retain its exact prior observation in the record."""
         text = BASELINE.read_text(encoding="utf-8")
