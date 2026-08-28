@@ -43,6 +43,7 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
             "| #211 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `52a918577958a5701e1146c7eb8b62fe8f8ccd44` |",
             "| #195 | Draft | `6922dd98779e8f8aad132a3b1f563d7ba6e6d070` | `72f112d52a60e7caa992a3f5ff7f16d5d9a4d047` |",
             "| #124 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `028789d8bb6cc30b8e84b1ba7ed46556b26e75ea` |",
+            "| #37 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `5423803d3fbd9d2d8e08bbd6dbf81ae6b2addefe` |",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, self.baseline)
@@ -54,7 +55,8 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         changed = self.changelog.split("### Changed", 1)[1].split("### Security", 1)[0]
         self.assertIn(refresh, added)
         self.assertNotIn(refresh, changed)
-        self.assertIn("114 open pull requests (30 ready, 84 draft)", self.changelog)
+        self.assertIn("115 open pull requests (31 ready, 84 draft)", self.changelog)
+        self.assertNotIn("114 open pull requests (30 ready, 84 draft)", added)
         self.assertNotIn("126 open pull requests (54 ready, 72 draft)", added)
         self.assertNotIn("128 open pull requests (54 ready, 74 draft)", added)
         self.assertNotIn("153 open pull requests (39 ready, 114 draft)", added)

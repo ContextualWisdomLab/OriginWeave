@@ -20,13 +20,13 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
         cls.changelog = CHANGELOG.read_text(encoding="utf-8")
 
     def test_current_baseline_inventory_matches_the_verified_snapshot(self) -> None:
-        """The current snapshot must use the exact 114/30/84 inventory observation."""
+        """The current snapshot must use the exact 115/31/84 inventory observation."""
         current = self.baseline.split("### Open pull requests", 1)[1].split(
             "#### 2026-08-28 maintenance-loop record", 1
         )[0]
         for marker in (
-            "114 open pull requests",
-            "30 non-draft",
+            "115 open pull requests",
+            "31 non-draft",
             "84 draft",
         ):
             with self.subTest(marker=marker):
@@ -37,6 +37,8 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "126 open pull requests",
             "54 non-draft",
             "72 draft",
+            "114 open pull requests",
+            "30 non-draft",
             "153 open pull requests",
             "114 draft",
         ):
@@ -49,10 +51,11 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
         preamble, remainder = unreleased.split("### Added", 1)
         added = remainder.split("### Changed", 1)[0]
 
-        expected = "114 open pull requests (30 ready, 84 draft)"
+        expected = "115 open pull requests (31 ready, 84 draft)"
         self.assertIn(expected, preamble)
         self.assertIn(expected, added)
         self.assertNotIn("126 open pull requests (54 ready, 72 draft)", preamble)
+        self.assertNotIn("114 open pull requests (30 ready, 84 draft)", preamble)
         self.assertNotIn("126 open pull requests (54 ready, 72 draft)", added)
 
 

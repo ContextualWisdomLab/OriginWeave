@@ -20,10 +20,10 @@ class ProductCompletionGapContractTests(unittest.TestCase):
         )[0]
 
         for phrase in (
-            "114 open pull requests",
-            "30 non-draft",
+            "115 open pull requests",
+            "31 non-draft",
             "84 draft",
-            "2026-08-26 126-PR snapshot",
+            "2026-08-28 114-PR snapshot",
             "#198",
             "#199",
             "#200",
@@ -51,6 +51,8 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "prior 150-PR snapshot",
             "128 open pull requests",
             "74 draft",
+            "114 open pull requests",
+            "30 non-draft",
         ):
             with self.subTest(stale_phrase=stale_phrase):
                 self.assertNotIn(stale_phrase, current)

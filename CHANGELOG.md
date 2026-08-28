@@ -4,10 +4,10 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
-- Refreshed the product-gap queue to 114 open pull requests (30 ready, 84 draft) on 2026-08-28; these are queue evidence, not protected-main shipment.
+- Refreshed the product-gap queue to 115 open pull requests (31 ready, 84 draft) on 2026-08-28; these are queue evidence, not protected-main shipment.
 
 ### Added
-- Corrected the 2026-08-28 product-gap snapshot with protected-main `542ca1e9`, 114 open pull requests (30 ready, 84 draft), 11 open issues, current exact base/head pairs for representative PRs, PR #170's merged `tools/list` contract, the active counted-approval gate, and the unchanged Phase 1 browser gap.
+- Corrected the 2026-08-28 product-gap snapshot with protected-main `542ca1e9`, 115 open pull requests (31 ready, 84 draft), 11 open issues, current exact base/head pairs for representative PRs including #37, PR #170's merged `tools/list` contract, the active counted-approval gate, and the unchanged Phase 1 browser gap.
 - Refreshed the product and technical gap baseline onto the 2026-08-28 live inventory; current queue and exact-head evidence are explicitly separated from the historical 2026-08-26 snapshot so stale delivery evidence cannot be promoted.
 
 - Added `originweave_core::release_acceptance`, a deterministic fail-closed benchmark release-decision contract that requires one authoritative result for every mandatory suite, bounds explicit buyer-visible limitations, rejects duplicate limitation claim identities, and rejects non-canonical surrounding whitespace rather than normalizing it into an alternate claim spelling.
