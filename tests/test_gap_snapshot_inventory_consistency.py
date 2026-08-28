@@ -79,7 +79,7 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
         self.assertIn("66f360ccac5cec60c72222cc79d58e39f6f00088", record)
         self.assertIn(
             "| #210 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | "
-            "`66f360ccac5cec60c72222cc79d58e39f6f00088` |",
+            "`5f59947f5e4b0d3bc0aa5b2d4c6722d3b7c43047` |",
             self.baseline,
         )
         self.assertNotIn("| #217 |", current)
@@ -90,10 +90,10 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "#### 2026-08-29 maintenance-loop record", 1
         )[1].split("#### Current exact-head active PR evidence", 1)[0]
         for marker in (
-            "PR #238 current exact head is `d0b0d1ed92f891f14646fc673b8e1c0d912586fd`",
+            "The immediately preceding PR #238 head `d0b0d1ed92f891f14646fc673b8e1c0d912586fd` remains historical",
             "automatic OpenCode run `33193822920` / job `98926243116` failed closed",
             "current Strix run `33193822929` / job `98925769697` succeeded",
-            "Central dispatch run `33194506918` / job `98928580387` also failed closed at OpenCode",
+            "central dispatch run `33194506918` / job `98928580387` also failed closed at OpenCode",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, record)
