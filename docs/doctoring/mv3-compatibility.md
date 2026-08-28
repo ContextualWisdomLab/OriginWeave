@@ -1,7 +1,7 @@
 # Manifest V3 compatibility evidence baseline
 
 - **Status:** Active implementation evidence for issue #27
-- **Reviewed:** 2026-08-24
+- **Reviewed:** 2026-08-28
 - **Pinned browser:** Chrome for Testing `150.0.7871.129`, Chromium revision `r1639810`
 
 OriginWeave uses Chromium as its compatibility kernel, so browser-extension compatibility must be demonstrated with executable Chromium evidence rather than inferred from architecture alone. The protected-main lane exercises a controlled unpacked Manifest V3 extension against one exact Chrome for Testing build and proves service-worker, content-script, storage, declarative-network-request, tabs, windows, scripting, commands, side-panel, bookmarks/history read compatibility, restart persistence, repeatability, and one real WebDriver click/post-condition. Active stacked compatibility work adds downloads, bounded bookmark/history mutation, profile isolation, explicit extension update/version-migration evidence, and an exact content-script isolated-world check. OriginWeave does **not claim 100% Chrome extension compatibility**.
@@ -72,7 +72,7 @@ Chrome for Developers. (n.d.). *Manifest file format*. Google. Retrieved August 
 
 Chrome for Developers. (n.d.). *Native messaging*. Google. Retrieved August 24, 2026, from https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging
 
-Chromium Authors. (2026). *native_message_process_host.cc* [Source code, blob `9d205a90d70b0c1c9f0b3b1c5f296528f6b21755`]. Chromium. https://chromium.googlesource.com/chromium/src/+/refs/heads/main/chrome/browser/extensions/api/messaging/native_message_process_host.cc
+Chromium Authors. (2026). *native_message_process_host.cc* [Source code, blob `9d205a90d70b0c1c9f0b3b1c5f296528f6b21755` at revision `160af61f9d1316fd1f1dc41e9503cc1f1926d31f`]. Chromium. https://chromium.googlesource.com/chromium/src/+/160af61f9d1316fd1f1dc41e9503cc1f1926d31f/chrome/browser/extensions/api/messaging/native_message_process_host.cc
 
 Bynens, M. (2023, June 12). *Chrome for Testing*. Chrome for Developers. https://developer.chrome.com/docs/automation-and-testing/chrome-for-testing
 
