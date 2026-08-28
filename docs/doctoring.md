@@ -89,6 +89,7 @@ NIST AI 600-1 provides generative-AI lifecycle risk guidance. WASP demonstrates 
 ### Web-agent observation and evaluation
 
 Mind2Web reports that raw real-world HTML is often too large for direct LLM use and that filtering improves effectiveness and efficiency. OriginWeave prioritizes typed tools, structured data, redacted network responses, accessibility/DOM/layout semantics, and only then visual fallback. WebArena motivates repeatable task-success and failure-recovery benchmarks instead of anecdotal demonstrations.
+Semantic node actions revalidate the registry-owned node binding at the adapter handoff, so observation evidence cannot revive a retired or stale node handle.
 
 ### Learned test-time orchestration
 
