@@ -159,6 +159,8 @@ pub fn evaluate_disclosure(
 pub enum HandleUseDecision {
     /// The supplied exact scope, classification, expiry, and prior-use count permit broker admission.
     Authorized,
+    /// The authoritative in-process handle state was revoked before this use.
+    Revoked,
     /// Tenant, task, field, purpose, destination, or classification did not match the handle scope.
     ScopeMismatch,
     /// The handle is no longer valid at the supplied trusted time.
@@ -167,6 +169,25 @@ pub enum HandleUseDecision {
     TrustedTimeRollback,
     /// The bounded use count has already been consumed.
     UseLimitReached,
+}
+
+/// Reason that authoritative in-process handle state was revoked.
+///
+/// The reason is credential-free policy metadata. The first successful
+/// revocation is retained so a later duplicate transition cannot rewrite the
+/// original lifecycle cause.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HandleRevocationReason {
+    /// The delegated task completed and no further disclosure is permitted.
+    TaskCompleted,
+    /// A relevant authorization or disclosure policy changed.
+    PolicyChanged,
+    /// Key rotation invalidated the handle lifecycle controlled by the broker.
+    KeyRotated,
+    /// The task or browser session terminated.
+    SessionTerminated,
+    /// Security monitoring identified suspicious handle use.
+    SuspiciousUse,
 }
 
 /// Authority metadata attached to an opaque sensitive-value handle.
@@ -224,36 +245,39 @@ impl HandleUseRequest {
     }
 }
 
-/// In-process authoritative use-count state for one opaque sensitive-value handle scope.
+/// In-process authoritative use-count, trusted-time, and revocation state for one opaque sensitive-value handle scope.
 ///
 /// This value removes the caller-supplied prior-use count from the reservation
 /// operation. A successful reservation compares the exact authority, trusted
-/// time, expiry, and current count and then increments the count while the caller
-/// holds an exclusive mutable borrow of this state. The state also remembers the
-/// latest trusted time it has observed and rejects time rollback so an expired
-/// handle cannot regain authority from a later stale clock value. Denied
-/// reservations never consume a use.
+/// time, expiry, revocation state, and current count and then increments the
+/// count while the caller holds an exclusive mutable borrow of this state. The
+/// state remembers the latest trusted time observed for its exact authority and
+/// rejects time rollback so an expired handle cannot regain authority from a
+/// stale clock value. Scope-mismatched requests cannot read or mutate that floor.
+/// Denied reservations never consume a use.
 ///
 /// This is a policy-state primitive, not the trusted broker itself. It contains
 /// neither the opaque handle token nor protected data and provides no durable or
-/// cross-process transaction, revocation, value resolution, compensation, or
-/// persistence. A shared or durable broker must place the state behind its own
-/// transactional/locking boundary, persist an equivalent trusted-time floor, and
-/// recheck lifecycle state before disclosure.
+/// cross-process transaction, value resolution, compensation, or persistence. A
+/// shared or durable broker must place the state behind its own transactional or
+/// locking boundary, persist lifecycle state and an equivalent trusted-time floor,
+/// and recheck both before disclosure.
 #[derive(Debug, PartialEq, Eq)]
 pub struct SensitiveHandleUseState {
     scope: SensitiveValueHandleScope,
     reserved_uses: u32,
+    revocation_reason: Option<HandleRevocationReason>,
     latest_trusted_time_epoch_seconds: Option<u64>,
 }
 
 impl SensitiveHandleUseState {
-    /// Start authoritative in-process reservation state with no uses consumed.
+    /// Start authoritative in-process reservation state with no uses consumed or revocation recorded.
     #[must_use]
     pub const fn new(scope: SensitiveValueHandleScope) -> Self {
         Self {
             scope,
             reserved_uses: 0,
+            revocation_reason: None,
             latest_trusted_time_epoch_seconds: None,
         }
     }
@@ -264,6 +288,25 @@ impl SensitiveHandleUseState {
         self.reserved_uses
     }
 
+    /// Return the first authoritative revocation reason, if this state was revoked.
+    #[must_use]
+    pub const fn revocation_reason(&self) -> Option<HandleRevocationReason> {
+        self.revocation_reason
+    }
+
+    /// Revoke future reservations and retain the first lifecycle reason.
+    ///
+    /// Returns `true` only for the state transition from active to revoked. A
+    /// later duplicate call is a no-op and cannot rewrite the original reason.
+    pub fn revoke(&mut self, reason: HandleRevocationReason) -> bool {
+        if self.revocation_reason.is_some() {
+            false
+        } else {
+            self.revocation_reason = Some(reason);
+            true
+        }
+    }
+
     /// Reserve one use from the current authoritative count when policy permits it.
     ///
     /// The supplied time must come from the trusted broker boundary and may not
@@ -271,10 +314,11 @@ impl SensitiveHandleUseState {
     /// this state. Scope-mismatched requests never mutate trusted-time state and
     /// always return [`HandleUseDecision::ScopeMismatch`], so foreign authority
     /// cannot advance the rollback floor or learn its value. For exact-scope
-    /// requests, expiry, use-limit, and trusted-time rollback denial leave the
-    /// authoritative use count unchanged. A non-rollback trusted time is recorded
-    /// even when expiry or the use limit denies the reservation so later stale
-    /// time cannot restore authority.
+    /// requests, revocation remains terminal; expiry, use-limit, and trusted-time
+    /// rollback denial leave the authoritative use count unchanged. A non-rollback
+    /// exact-scope trusted time is recorded after the revocation check even when
+    /// expiry or the use limit denies the reservation so later stale time cannot
+    /// restore authority.
     #[must_use]
     pub fn reserve_use(
         &mut self,
@@ -283,11 +327,13 @@ impl SensitiveHandleUseState {
     ) -> HandleUseDecision {
         let request = HandleUseRequest::new(authority, now_epoch_seconds, self.reserved_uses);
         let policy_decision = evaluate_handle_use(&request, &self.scope);
-
         if policy_decision == HandleUseDecision::ScopeMismatch {
             return HandleUseDecision::ScopeMismatch;
         }
 
+        if self.revocation_reason.is_some() {
+            return HandleUseDecision::Revoked;
+        }
         if self
             .latest_trusted_time_epoch_seconds
             .is_some_and(|latest| now_epoch_seconds < latest)
