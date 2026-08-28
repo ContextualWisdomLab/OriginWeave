@@ -1,7 +1,7 @@
 use originweave_core::release_acceptance::{
-    decide_release_with_zero_event_safety, BenchmarkSuite, BenchmarkSuiteOutcome,
-    ReleaseDecision, ReleaseDecisionError, ZeroEventSafetyEvidence, ZeroEventSafetyMetric,
-    ZeroEventSafetyObservation,
+    BenchmarkSuite, BenchmarkSuiteOutcome, ReleaseDecision, ReleaseDecisionError,
+    ZeroEventSafetyEvidence, ZeroEventSafetyMetric, ZeroEventSafetyObservation,
+    decide_release_with_zero_event_safety,
 };
 
 fn passing_suites() -> [(BenchmarkSuite, BenchmarkSuiteOutcome); 5] {
@@ -9,8 +9,7 @@ fn passing_suites() -> [(BenchmarkSuite, BenchmarkSuiteOutcome); 5] {
 }
 
 #[test]
-fn release_report_retains_named_zero_event_safety_evidence()
--> Result<(), ReleaseDecisionError> {
+fn release_report_retains_named_zero_event_safety_evidence() -> Result<(), ReleaseDecisionError> {
     let observation = ZeroEventSafetyObservation::new(
         ZeroEventSafetyMetric::UnauthorizedAction,
         ZeroEventSafetyEvidence::new(10_000, 9_500)?,
@@ -40,8 +39,8 @@ fn release_report_retains_named_zero_event_safety_evidence()
 }
 
 #[test]
-fn zero_event_safety_observations_are_canonicalized_by_metric()
--> Result<(), ReleaseDecisionError> {
+fn zero_event_safety_observations_are_canonicalized_by_metric() -> Result<(), ReleaseDecisionError>
+{
     let stale_authority = ZeroEventSafetyObservation::new(
         ZeroEventSafetyMetric::StaleAuthorityAcceptance,
         ZeroEventSafetyEvidence::new(500, 9_500)?,
