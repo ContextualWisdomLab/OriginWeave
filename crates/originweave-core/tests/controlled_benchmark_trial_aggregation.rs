@@ -21,8 +21,14 @@ fn unique_trial_ordinals_are_aggregated_without_caller_supplied_counters() {
         .collect();
 
     let evidence = aggregate_controlled_benchmark_trials(&trials).expect("canonical trials");
-    assert_eq!(evidence.total_trials, CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS);
-    assert_eq!(evidence.successful_trials, CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS);
+    assert_eq!(
+        evidence.total_trials,
+        CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS
+    );
+    assert_eq!(
+        evidence.successful_trials,
+        CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS
+    );
     assert_eq!(
         evidence.exact_post_condition_trials,
         CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS
@@ -92,8 +98,6 @@ fn unauthorized_side_effect_event_count_overflow_is_rejected() {
 
     assert_eq!(
         aggregate_controlled_benchmark_trials(&[first, second]),
-        Err(
-            ControlledBenchmarkTrialAggregationError::UnauthorizedSideEffectCountOverflow,
-        )
+        Err(ControlledBenchmarkTrialAggregationError::UnauthorizedSideEffectCountOverflow)
     );
 }
