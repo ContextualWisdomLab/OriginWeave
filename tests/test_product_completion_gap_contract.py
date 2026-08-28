@@ -12,6 +12,12 @@ BASELINE = ROOT / "docs/product-technical-gap-baseline.md"
 class ProductCompletionGapContractTests(unittest.TestCase):
     """Keep the exact repository snapshot and completion tracks reviewable."""
 
+    def test_current_snapshot_checks_do_not_route_by_phrase_substrings(self) -> None:
+        """Current-snapshot assertions must not depend on count-word substrings."""
+        source = pathlib.Path(__file__).read_text(encoding="utf-8")
+        brittle_condition = '"pull requests" in phrase or ' + '"draft" in phrase'
+        self.assertNotIn(brittle_condition, source)
+
     def test_baseline_records_current_inventory_and_completion_issues(self) -> None:
         """The dated baseline must not retain superseded queue counts or omit buyer tracks."""
         text = BASELINE.read_text(encoding="utf-8")
@@ -24,6 +30,11 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "32 non-draft",
             "84 draft",
             "2026-08-28 115-PR snapshot",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, current)
+
+        for phrase in (
             "#198",
             "#199",
             "#200",
@@ -38,7 +49,7 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "commercial acceptance gate",
         ):
             with self.subTest(phrase=phrase):
-                self.assertIn(phrase, current if "pull requests" in phrase or "draft" in phrase else text)
+                self.assertIn(phrase, text)
 
         for stale_phrase in (
             "100 open pull requests",
