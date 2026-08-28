@@ -8,10 +8,8 @@ use originweave_evidence::{
 const RECORD_ID: &str = "urn:uuid:123e4567-e89b-12d3-a456-426614174000";
 const DATE: &str = "2026-08-28T00:00:00Z";
 const SOURCE_URL: &str = "https://example.com/item";
-const HELLO_HASH: &str =
-    "sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
-const OTHER_HASH: &str =
-    "sha256:486ea46224d1bb4fb680f34f7c9ad96a8f24ec88be73ea8e5a6c65260e9cb8a7";
+const HELLO_HASH: &str = "sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
+const OTHER_HASH: &str = "sha256:486ea46224d1bb4fb680f34f7c9ad96a8f24ec88be73ea8e5a6c65260e9cb8a7";
 
 fn provenance(source_hash: &str) -> ProvenanceRecord {
     ProvenanceRecord::new(
