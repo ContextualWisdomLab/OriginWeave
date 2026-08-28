@@ -1,4 +1,4 @@
-# ADR 0016: Release SBOM identity binding and bounded JSON-LD envelope verification
+# ADR 0018: Release SBOM identity binding and bounded JSON-LD envelope verification
 
 - Status: Proposed
 - Date: 2026-08-23

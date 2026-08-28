@@ -90,8 +90,11 @@ The second group exists only on this documentation branch until the branch integ
 ### Active feature proposed decisions
 
 - [ADR 0015: Release manifest identity boundary](adr/0015-release-manifest-identity.md)
-- [ADR 0016: Release SBOM identity binding](adr/0016-release-sbom-identity.md)
+- [ADR 0016: BAP task lifecycle and state authority](adr/0016-bap-task-lifecycle-authority.md)
+- [ADR 0018: Release SBOM identity binding](adr/0018-release-sbom-identity.md)
 
-ADR 0015 is active-PR architecture evidence for the release-manifest identity slice. ADR 0016 is stacked active-PR architecture evidence for the release-SBOM identity slice. Their presence in this index keeps the documentation graph complete without promoting either Proposed decision or its implementation to protected-main truth.
+ADR 0015 is active-PR architecture evidence for the release-manifest identity slice. ADR 0016 belongs to the active BAP lifecycle feature branch. ADR 0018 is stacked active-PR architecture evidence for the release-SBOM identity slice. All remain Proposed. Their presence here makes the branch documentation graph complete without promoting either decision or implementation to protected-main truth before integration.
+
+After protected-main integration, retain this subsection only when it is intentionally serving as historical provenance; otherwise protected-main reconciliation must remove it. In either case, integration alone does not change these ADRs from Proposed or assert implementation maturity.
 
 See the [ADR index](adr/README.md) for status rules, required decision structure, supersession rules, and active feature ADRs. The index and each ADR's own status metadata must agree; a PR body, chat transcript, automation prompt, or stale issue reference cannot change ADR status.
