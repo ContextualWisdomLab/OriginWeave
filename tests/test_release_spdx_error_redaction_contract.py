@@ -63,6 +63,23 @@ class ReleaseSpdxErrorRedactionContractTests(unittest.TestCase):
         self.assertIsNone(error.__cause__.__context__)
         self.assertIsNone(error.__context__)
 
+    def test_embedded_nul_path_fails_through_redacted_typed_boundary(self) -> None:
+        marker = "buyer-secret-nul-path-marker-must-not-survive-validation"
+        malformed_path = pathlib.Path("\0" + marker)
+
+        with self.assertRaises(self.error_type) as captured:
+            self.read_bounded(malformed_path)
+
+        error = captured.exception
+        self.assertEqual(error.code, "read_failed")
+        self.assertIsInstance(error.__cause__, OSError)
+        self.assertEqual(error.__cause__.errno, errno.EINVAL)
+        self.assertIsNone(error.__cause__.filename)
+        self.assertNotIn(marker, str(error.__cause__))
+        self.assertNotIn(marker, repr(error.__cause__))
+        self.assertIsNone(error.__cause__.__context__)
+        self.assertIsNone(error.__context__)
+
 
 if __name__ == "__main__":
     unittest.main()
