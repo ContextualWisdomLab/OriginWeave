@@ -22,12 +22,18 @@ This snapshot re-fetched the complete open-PR inventory, the protected `main` co
 
 The later exact-head recheck also recorded the WARC/PROV retention-lifecycle slice: #239 is Draft at `365c4a6b9e6d0f088d2f8330834f54c7cb5fb491` on #227 head `e45cd6cdcdee73b5c16dc942e6c98cb7e745fae0`, with its Rust contracts and production coverage checks successful, zero unresolved threads, and no counted approval. #237 is Draft at `21e9ad1e8da72c81f521152ea6739b088da230f7` on protected `main`; its deterministic contracts and coverage are successful, while exact-head `opencode-review` failed closed for the absent current-head verdict and `strix` remained in progress. Neither active branch is protected-main behavior.
 
+The controlled Chromium prerequisite stack was also re-fetched after its exact-head repairs: #70 is Ready at `51967a9f28a32e08e68b87b4f6cd46f1f1104ec7` on `93a85c1464ab73ed7386367dc78fbad9c4f2f107`, #71 is Ready at `54738f695b9d3508d96d1b95bede5a7dc4ceb3a8` on #70, #72 is Draft at `087f5527c68086dae2558c9f3ffd72191da1360d` on #71, and #73 is Draft at `be5509e970bde719908495c07210cc617e197791` on #72. #72's current Rust, pinned-Chrome, and production-coverage checks are successful; #73's new exact-head checks were queued at the end of this snapshot. These are active-stack evidence only, not protected-main behavior or merge authorization.
+
 #### Current exact-head active PR evidence
 
 The following representative slices were re-fetched from GitHub for this snapshot. Their exact base/head pairs are recorded so later checks, reviews, and restacks cannot be confused with predecessor evidence:
 
 | PR | State | Exact base head | Exact head |
 |---|---|---|---|
+| #73 | Draft | `087f5527c68086dae2558c9f3ffd72191da1360d` | `be5509e970bde719908495c07210cc617e197791` |
+| #72 | Draft | `54738f695b9d3508d96d1b95bede5a7dc4ceb3a8` | `087f5527c68086dae2558c9f3ffd72191da1360d` |
+| #71 | Ready | `51967a9f28a32e08e68b87b4f6cd46f1f1104ec7` | `54738f695b9d3508d96d1b95bede5a7dc4ceb3a8` |
+| #70 | Ready | `93a85c1464ab73ed7386367dc78fbad9c4f2f107` | `51967a9f28a32e08e68b87b4f6cd46f1f1104ec7` |
 | #237 | Draft | `542ca1e9c0a863595b8b6697790005d2471f5413` | `21e9ad1e8da72c81f521152ea6739b088da230f7` |
 | #239 | Draft | `e45cd6cdcdee73b5c16dc942e6c98cb7e745fae0` | `365c4a6b9e6d0f088d2f8330834f54c7cb5fb491` |
 | #229 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `fb868589d065c2cea0b9c8c0f5e655a89f42bee6` |
