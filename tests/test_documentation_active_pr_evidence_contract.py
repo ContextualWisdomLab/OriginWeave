@@ -90,6 +90,16 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         self.assertNotIn("128 open pull requests (54 ready, 74 draft)", refresh_line)
         self.assertNotIn("153 open pull requests (39 ready, 114 draft)", refresh_line)
 
+    def test_current_warc_provider_failures_are_bound_to_current_head(self) -> None:
+        """WARC provider failures must not rely only on a superseded head's runs."""
+        for marker in (
+            "PR #210 current exact head `bea65643109449d63d367a35b8d9bf327ee7cb2c`",
+            "run `33183939299` / job `98894420986` failed closed because no OpenCode current-head verdict existed",
+            "run `33183939193` / job `98892185954` failed closed after three provider HTTP 500 attempts",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, self.baseline)
+
     def test_dependency_stacks_are_explicit_and_non_shipped(self) -> None:
         """Current browser, network, sensitive and compatibility stacks stay active-only."""
         for pr_number in (52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66):
