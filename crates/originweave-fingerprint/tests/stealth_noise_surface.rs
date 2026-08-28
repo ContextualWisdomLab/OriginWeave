@@ -91,6 +91,13 @@ fn web_gl_renderer_tokens_are_bounded_and_standardized() {
 }
 
 #[test]
+fn oversized_web_gl_renderer_spellings_fail_closed_before_normalization() {
+    let oversized = format!("ANGLE{}", "X".repeat(252));
+    assert_eq!(oversized.len(), 257);
+    assert_eq!(WebGlRendererToken::canonical(&oversized), None);
+}
+
+#[test]
 fn web_audio_rates_normalize_only_standard_rates() {
     assert_eq!(WebAudioRate::normalize(44_100), Ok(WebAudioRate::Rate44100));
     assert_eq!(WebAudioRate::normalize(48_000), Ok(WebAudioRate::Rate48000));

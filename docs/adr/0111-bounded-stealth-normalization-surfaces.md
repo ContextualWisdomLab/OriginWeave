@@ -63,7 +63,8 @@ contract. This slice adds:
 - `CanvasNoise` — three bounded least-significant-bit classes with a `bit_shift`
   accessor (Crisp, Smooth, Diffuse) and a strict `quantize` guard.
 - `WebGlRendererToken` — canonicalization of renderer spellings to either an
-  `Angle` or `Standard` bounded token; unknown spellings fail closed.
+  `Angle` or `Standard` bounded token; spellings over 256 UTF-8 bytes are
+  rejected before case normalization and unknown spellings fail closed.
 - `WebAudioRate` — normalization to 44_100 or 48_000 Hz standard rates only.
 - `WebRtcInterface` — either `DirectCandidates` (the adapter deliberately
   exposes direct interface candidates) or `MDnsOnly` (candidates are
@@ -87,8 +88,9 @@ browser capability.
 
 ## Failure and degraded behavior
 
-Construction rejects unknown sample rates, unknown WebGL tokens, and unknown
-noise classes with typed errors. An adapter claiming fewer than all required
+Construction rejects unknown sample rates, unknown WebGL tokens, renderer
+spellings over the 256-byte normalization budget, and unknown noise classes
+with typed errors. An adapter claiming fewer than all required
 surfaces fails closed with the first missing surface in contract order.
 
 ## Security, privacy, and governance impact
