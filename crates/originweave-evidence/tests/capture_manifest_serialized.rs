@@ -5,8 +5,8 @@ use originweave_evidence::{
     ExtractionField, ExtractionSchema, ExtractionSourceChannel, ExtractionValueType,
     ProvenanceRecord, VerificationResult, WarcProvBundle, WarcResourceRecord,
 };
+use sha2::{Digest, Sha256};
 
-const SOURCE_HASH: &str = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 const RECORD_ID: &str = "urn:uuid:123e4567-e89b-12d3-a456-426614174000";
 const SOFTWARE_COMMIT_SHA: &str = "0123456789abcdef0123456789abcdef01234567";
 
@@ -20,10 +20,12 @@ fn manifest() -> CaptureManifest {
     )
     .expect("field contract");
     let schema = ExtractionSchema::new("catalog-v1", vec![field]).expect("schema contract");
+    let payload = b"captured-payload";
+    let source_hash = format!("sha256:{:x}", Sha256::digest(payload));
     let provenance = ProvenanceRecord::new(
         "https://example.com/item",
         "body",
-        SOURCE_HASH,
+        &source_hash,
         EvidenceSourceKind::NetworkResponse,
         VerificationResult::Verified,
     )
@@ -33,7 +35,7 @@ fn manifest() -> CaptureManifest {
         "2026-08-24T00:00:00Z",
         "https://example.com/item",
         "text/plain",
-        b"captured-payload".to_vec(),
+        payload.to_vec(),
         provenance,
     )
     .expect("WARC resource record");
