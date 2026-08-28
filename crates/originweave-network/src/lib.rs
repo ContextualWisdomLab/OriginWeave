@@ -59,3 +59,56 @@ pub use webdriver_bidi_websocket_handshake_raw::{
     WebDriverBiDiWebSocketOpeningWriteError,
 };
 pub use webdriver_bidi_websocket_mask_key::WebDriverBiDiWebSocketMaskKey;
+
+/// Required recovery posture after a failed WebDriver BiDi WebSocket opening-request write.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WebDriverBiDiWebSocketOpeningWriteRecoveryDisposition {
+    /// No complete opening request is known to have been submitted.
+    ///
+    /// This is not automatic retry permission. The caller must obtain fresh authority, route,
+    /// connection, and deadline validation before starting another opening request.
+    RevalidateBeforeNewAttempt,
+    /// The peer may already have received the complete opening request, or byte accounting is
+    /// inconsistent with the exact serialized request length.
+    ///
+    /// Blind redispatch is forbidden until the caller reconciles the potentially completed
+    /// external side effect.
+    ReconciliationRequired,
+}
+
+impl WebDriverBiDiWebSocketOpeningWriteError {
+    /// Classify the fail-closed recovery posture for this failed opening-request write.
+    ///
+    /// `request_byte_count` must be the exact serialized length of the request whose write produced
+    /// this error. A zero request length, complete-or-greater byte count, or timeout-cleanup failure
+    /// is treated as ambiguous external completion and therefore requires reconciliation.
+    #[must_use]
+    pub fn recovery_disposition(
+        &self,
+        request_byte_count: usize,
+    ) -> WebDriverBiDiWebSocketOpeningWriteRecoveryDisposition {
+        use WebDriverBiDiWebSocketOpeningWriteRecoveryDisposition::{
+            ReconciliationRequired, RevalidateBeforeNewAttempt,
+        };
+
+        if request_byte_count == 0 {
+            return ReconciliationRequired;
+        }
+
+        match self {
+            Self::InvalidWriteTimeout { .. } => RevalidateBeforeNewAttempt,
+            Self::WriteTimeoutCleanupFailed { .. } => ReconciliationRequired,
+            Self::WriteDeadlineExceeded { bytes_written }
+            | Self::WriteTimeoutConfigurationFailed { bytes_written, .. }
+            | Self::WriteTimedOut { bytes_written, .. }
+            | Self::WriteZero { bytes_written }
+            | Self::WriteFailed { bytes_written, .. } => {
+                if *bytes_written >= request_byte_count {
+                    ReconciliationRequired
+                } else {
+                    RevalidateBeforeNewAttempt
+                }
+            }
+        }
+    }
+}
