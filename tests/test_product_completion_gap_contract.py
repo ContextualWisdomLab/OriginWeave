@@ -77,12 +77,13 @@ class ProductCompletionGapContractTests(unittest.TestCase):
         self.assertIn("reviewer-provisioning gap", text)
         self.assertNotIn("owner-directed administrative merge", text)
 
-    def test_baseline_records_missing_required_workflow_identities(self) -> None:
-        """The baseline must preserve the exact current required-workflow gap."""
+    def test_baseline_records_central_required_workflow_failures(self) -> None:
+        """The baseline must preserve exact central workflow provenance and failures."""
         text = BASELINE.read_text(encoding="utf-8")
 
         for phrase in (
-            "required workflow identities",
+            "central `.github` repository",
+            "repository ID `1274066402`",
             "close-empty-pr",
             "opencode-review",
             "pr-review-merge-scheduler",
@@ -90,9 +91,12 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "strix",
             "sast-semgrep",
             "noema-review",
-            "run lookup returned 404",
-            "327727411",
-            "327727415",
+            "OpenCode current-head verdict",
+            "Strix provider/backend",
+            "internal server error",
+            "33177641855",
+            "33177641888",
+            "did not prove missing workflow identities",
             "does not authorize bypass",
         ):
             with self.subTest(phrase=phrase):
