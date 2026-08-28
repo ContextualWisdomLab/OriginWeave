@@ -49,6 +49,7 @@ fn provenance_query_support_rejects_credential_fields() {
         "https://example.com/callback?access_token=secret",
         "https://example.com/callback?ACCESS-TOKEN=secret",
         "https://example.com/callback?access%5Ftoken=secret",
+        "https://example.com/callback?access%255Ftoken=secret",
         "https://example.com/download?api_key=secret",
         "https://example.com/download?client_secret=secret",
         "https://example.com/download?X-Amz-Credential=secret",
