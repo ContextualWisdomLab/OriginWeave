@@ -23,7 +23,7 @@ fn unauthorized_side_effect_events_require_at_least_one_represented_trial() {
     );
     assert_eq!(
         expected.to_string(),
-        "controlled benchmark event counter unauthorized_side_effects has 1 observation but no represented trials",
+        "controlled benchmark event counter unauthorized_side_effects reports 1 events with no represented trials",
     );
     let standard_error: &dyn std::error::Error = &expected;
     assert!(standard_error.source().is_none());
