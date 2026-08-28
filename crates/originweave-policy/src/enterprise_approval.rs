@@ -18,10 +18,20 @@ const MAX_PRINCIPAL_REFERENCE_BYTES: usize = 256;
 ///
 /// Identity is the exact `(issuer, subject)` tuple. In particular, callers must
 /// not merge principals by email address or another mutable display attribute.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// Standard [`Debug`](fmt::Debug) output is deliberately identity-redacted and
+/// must not be treated as audit evidence.
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ApprovalPrincipalRef {
     issuer: String,
     subject: String,
+}
+
+impl fmt::Debug for ApprovalPrincipalRef {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ApprovalPrincipalRef")
+            .finish_non_exhaustive()
+    }
 }
 
 impl ApprovalPrincipalRef {
@@ -146,6 +156,8 @@ enum ApprovalUseInvalidation {
 /// supplied policy context and delegates to the normal fail-closed policy
 /// evaluator. The use is burned even when evaluation is denied for scope,
 /// expiry, time rollback, revocation, policy, or a different approval need.
+/// Standard [`Debug`](fmt::Debug) output deliberately omits the retained scope
+/// and must not be treated as audit evidence.
 ///
 /// ```compile_fail
 /// # use originweave_core::{ActionRequest, PolicyContext};
@@ -160,12 +172,26 @@ enum ApprovalUseInvalidation {
 /// let _ = approval_use.evaluate_at(request, context, trusted_now);
 /// # }
 /// ```
-#[derive(Debug, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 pub struct EnterpriseApprovalUse {
     scope: ApprovalScope,
     consumed_at_epoch_seconds: u64,
     expires_at_epoch_seconds: u64,
     invalidation_signal: Arc<OnceLock<ApprovalUseInvalidation>>,
+}
+
+impl fmt::Debug for EnterpriseApprovalUse {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("EnterpriseApprovalUse")
+            .field("consumed_at_epoch_seconds", &self.consumed_at_epoch_seconds)
+            .field("expires_at_epoch_seconds", &self.expires_at_epoch_seconds)
+            .field(
+                "has_terminal_invalidation",
+                &self.invalidation_signal.get().is_some(),
+            )
+            .finish_non_exhaustive()
+    }
 }
 
 impl EnterpriseApprovalUse {
@@ -220,7 +246,9 @@ impl EnterpriseApprovalUse {
 /// The caller supplies trusted control-plane epoch seconds to transition methods.
 /// Model output, page content, or another untrusted source must never supply that
 /// time value. This type performs no I/O and does not persist or authenticate data.
-#[derive(Debug, PartialEq, Eq)]
+/// Standard [`Debug`](fmt::Debug) output deliberately omits principal and scope
+/// identity and must not be treated as audit evidence.
+#[derive(PartialEq, Eq)]
 pub struct EnterpriseApprovalRequest {
     scope: ApprovalScope,
     requester: ApprovalPrincipalRef,
@@ -232,6 +260,24 @@ pub struct EnterpriseApprovalRequest {
     uses_consumed: u32,
     state: ApprovalLifecycleState,
     invalidation_signal: Arc<OnceLock<ApprovalUseInvalidation>>,
+}
+
+impl fmt::Debug for EnterpriseApprovalRequest {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("EnterpriseApprovalRequest")
+            .field("requested_at_epoch_seconds", &self.requested_at_epoch_seconds)
+            .field("expires_at_epoch_seconds", &self.expires_at_epoch_seconds)
+            .field(
+                "last_transition_at_epoch_seconds",
+                &self.last_transition_at_epoch_seconds,
+            )
+            .field("max_uses", &self.max_uses)
+            .field("uses_consumed", &self.uses_consumed)
+            .field("state", &self.state)
+            .field("has_decision_actor", &self.decision_actor.is_some())
+            .finish_non_exhaustive()
+    }
 }
 
 impl EnterpriseApprovalRequest {
