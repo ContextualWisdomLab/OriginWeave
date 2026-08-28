@@ -362,9 +362,8 @@ fn malformed_trial_evidence_fails_closed_with_case_identity_and_source() {
     let case_id = evidence[0].case_id;
     evidence[0].trials[1].trial_ordinal = 1;
 
-    let expected_source = ControlledBenchmarkTrialAggregationError::DuplicateTrialOrdinal {
-        trial_ordinal: 1,
-    };
+    let expected_source =
+        ControlledBenchmarkTrialAggregationError::DuplicateTrialOrdinal { trial_ordinal: 1 };
     let result = evaluate_controlled_benchmark_suite(
         CONTROLLED_DETERMINISTIC_REGISTRY_VERSION,
         profile,
