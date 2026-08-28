@@ -249,10 +249,7 @@ fn response_head_rejects_status_line_line_ending_and_budget_edge_cases() {
         parse_response_head(b"HTTP/1.0 200 OK\r\n\r\n", &policy),
         Err(HttpError::UnsupportedHttpVersion)
     ));
-    for response in [
-        b"HTTP/1.1 200 OK\n\n".as_slice(),
-        b"HTTP/1.1 200 OK\rX\r\n",
-    ] {
+    for response in [b"HTTP/1.1 200 OK\n\n".as_slice(), b"HTTP/1.1 200 OK\rX\r\n"] {
         assert!(matches!(
             parse_response_head(response, &policy),
             Err(HttpError::InvalidResponseLineEnding)
