@@ -88,6 +88,10 @@ fn lifecycle_fails_closed_on_bad_identity_order_and_time() -> Result<(), Box<dyn
 
     let mut lifecycle = CaptureLifecycle::new(MANIFEST_DIGEST, 100)?;
     assert_eq!(
+        lifecycle.place_legal_hold(101),
+        Err(CaptureLifecycleError::InvalidTransition)
+    );
+    assert_eq!(
         lifecycle.verify(101),
         Err(CaptureLifecycleError::InvalidTransition)
     );
