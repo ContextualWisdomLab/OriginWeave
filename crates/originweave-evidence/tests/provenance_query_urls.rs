@@ -58,6 +58,8 @@ fn provenance_query_support_rejects_credential_fields() {
         "https://example.com/login?password=secret",
         "https://example.com/login?auth=secret",
         "https://example.com/login?sig=secret",
+        "https://example.com/callback?redirect=https://example.com/landing?token=secret",
+        "https://example.com/callback?redirect=https%3A%2F%2Fexample.com%2Flanding%3Ftoken%3Dsecret",
     ] {
         assert_eq!(
             ProvenanceRecord::new(

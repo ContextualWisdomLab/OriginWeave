@@ -430,9 +430,40 @@ fn valid_query(query: &str) -> bool {
         index += 1;
     }
     query.split('&').all(|field| {
-        let name = field.split_once('=').map_or(field, |(name, _value)| name);
-        !is_credential_query_name(name)
+        let (name, value) = field
+            .split_once('=')
+            .map_or((field, ""), |(name, value)| (name, value));
+        !is_credential_query_name(name) && !nested_query_contains_credential(value)
     })
+}
+
+fn nested_query_contains_credential(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            let high = hexadecimal_value(bytes[index + 1]).unwrap_or(0);
+            let low = hexadecimal_value(bytes[index + 2]).unwrap_or(0);
+            decoded.push(high * 16 + low);
+            index += 3;
+        } else {
+            decoded.push(bytes[index]);
+            index += 1;
+        }
+    }
+    decoded
+        .split(|byte| *byte == b'?')
+        .skip(1)
+        .any(|nested_query| {
+            nested_query.split(|byte| *byte == b'&').any(|field| {
+                let name_end = field
+                    .iter()
+                    .position(|byte| *byte == b'=')
+                    .unwrap_or(field.len());
+                is_credential_query_name_bytes(&field[..name_end])
+            })
+        })
 }
 
 fn is_credential_query_name(name: &str) -> bool {
@@ -450,6 +481,11 @@ fn is_credential_query_name(name: &str) -> bool {
             index += 1;
         }
     }
+    is_credential_query_name_bytes(&decoded)
+}
+
+fn is_credential_query_name_bytes(decoded: &[u8]) -> bool {
+    let mut decoded = decoded.to_owned();
     decoded.make_ascii_lowercase();
     decoded.iter_mut().for_each(|byte| {
         if *byte == b'-' {
