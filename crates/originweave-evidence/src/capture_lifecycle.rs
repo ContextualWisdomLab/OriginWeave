@@ -117,17 +117,19 @@ impl CaptureLifecycle {
         &mut self,
         trusted_time_epoch_seconds: u64,
     ) -> Result<(), CaptureLifecycleError> {
-        self.observe_trusted_time(trusted_time_epoch_seconds)?;
+        self.require_trusted_time_not_rollback(trusted_time_epoch_seconds)?;
         self.require_state(CaptureLifecycleState::CaptureStarted)?;
         self.state = CaptureLifecycleState::CaptureCompleted;
+        self.accept_trusted_time(trusted_time_epoch_seconds);
         Ok(())
     }
 
     /// Mark a completed capture independently verified.
     pub fn verify(&mut self, trusted_time_epoch_seconds: u64) -> Result<(), CaptureLifecycleError> {
-        self.observe_trusted_time(trusted_time_epoch_seconds)?;
+        self.require_trusted_time_not_rollback(trusted_time_epoch_seconds)?;
         self.require_state(CaptureLifecycleState::CaptureCompleted)?;
         self.state = CaptureLifecycleState::Verified;
+        self.accept_trusted_time(trusted_time_epoch_seconds);
         Ok(())
     }
 
@@ -137,11 +139,15 @@ impl CaptureLifecycle {
         retention_deadline_epoch_seconds: u64,
         trusted_time_epoch_seconds: u64,
     ) -> Result<(), CaptureLifecycleError> {
-        self.observe_trusted_time(trusted_time_epoch_seconds)?;
+        self.require_trusted_time_not_rollback(trusted_time_epoch_seconds)?;
         self.require_state(CaptureLifecycleState::Verified)?;
-        self.require_future_deadline(retention_deadline_epoch_seconds)?;
+        Self::require_future_deadline(
+            retention_deadline_epoch_seconds,
+            trusted_time_epoch_seconds,
+        )?;
         self.retention_deadline_epoch_seconds = Some(retention_deadline_epoch_seconds);
         self.state = CaptureLifecycleState::Retained;
+        self.accept_trusted_time(trusted_time_epoch_seconds);
         Ok(())
     }
 
@@ -150,10 +156,11 @@ impl CaptureLifecycle {
         &mut self,
         trusted_time_epoch_seconds: u64,
     ) -> Result<(), CaptureLifecycleError> {
-        self.observe_trusted_time(trusted_time_epoch_seconds)?;
+        self.require_trusted_time_not_rollback(trusted_time_epoch_seconds)?;
         match self.state {
             CaptureLifecycleState::Verified | CaptureLifecycleState::Retained => {
                 self.state = CaptureLifecycleState::LegalHold;
+                self.accept_trusted_time(trusted_time_epoch_seconds);
                 Ok(())
             }
             _ => Err(CaptureLifecycleError::InvalidTransition),
@@ -170,11 +177,15 @@ impl CaptureLifecycle {
         retention_deadline_epoch_seconds: u64,
         trusted_time_epoch_seconds: u64,
     ) -> Result<(), CaptureLifecycleError> {
-        self.observe_trusted_time(trusted_time_epoch_seconds)?;
+        self.require_trusted_time_not_rollback(trusted_time_epoch_seconds)?;
         self.require_state(CaptureLifecycleState::LegalHold)?;
-        self.require_future_deadline(retention_deadline_epoch_seconds)?;
+        Self::require_future_deadline(
+            retention_deadline_epoch_seconds,
+            trusted_time_epoch_seconds,
+        )?;
         self.retention_deadline_epoch_seconds = Some(retention_deadline_epoch_seconds);
         self.state = CaptureLifecycleState::Retained;
+        self.accept_trusted_time(trusted_time_epoch_seconds);
         Ok(())
     }
 
@@ -183,21 +194,20 @@ impl CaptureLifecycle {
         &mut self,
         trusted_time_epoch_seconds: u64,
     ) -> Result<(), CaptureLifecycleError> {
-        self.observe_trusted_time(trusted_time_epoch_seconds)?;
+        self.require_trusted_time_not_rollback(trusted_time_epoch_seconds)?;
         if self.state == CaptureLifecycleState::LegalHold {
             return Err(CaptureLifecycleError::LegalHoldActive);
         }
         self.require_state(CaptureLifecycleState::Retained)?;
-        self.retention_deadline_epoch_seconds
-            .ok_or(CaptureLifecycleError::InvalidTransition)
-            .and_then(|deadline| {
-                if trusted_time_epoch_seconds < deadline {
-                    Err(CaptureLifecycleError::RetentionNotExpired)
-                } else {
-                    self.state = CaptureLifecycleState::DeletionRequested;
-                    Ok(())
-                }
-            })
+        let deadline = self
+            .retention_deadline_epoch_seconds
+            .ok_or(CaptureLifecycleError::InvalidTransition)?;
+        if trusted_time_epoch_seconds < deadline {
+            return Err(CaptureLifecycleError::RetentionNotExpired);
+        }
+        self.state = CaptureLifecycleState::DeletionRequested;
+        self.accept_trusted_time(trusted_time_epoch_seconds);
+        Ok(())
     }
 
     /// Confirm that the owning persistence boundary completed deletion.
@@ -205,21 +215,25 @@ impl CaptureLifecycle {
         &mut self,
         trusted_time_epoch_seconds: u64,
     ) -> Result<(), CaptureLifecycleError> {
-        self.observe_trusted_time(trusted_time_epoch_seconds)?;
+        self.require_trusted_time_not_rollback(trusted_time_epoch_seconds)?;
         self.require_state(CaptureLifecycleState::DeletionRequested)?;
         self.state = CaptureLifecycleState::Deleted;
+        self.accept_trusted_time(trusted_time_epoch_seconds);
         Ok(())
     }
 
-    fn observe_trusted_time(
-        &mut self,
+    fn require_trusted_time_not_rollback(
+        &self,
         trusted_time_epoch_seconds: u64,
     ) -> Result<(), CaptureLifecycleError> {
         if trusted_time_epoch_seconds < self.latest_trusted_time_epoch_seconds {
             return Err(CaptureLifecycleError::TrustedTimeRollback);
         }
-        self.latest_trusted_time_epoch_seconds = trusted_time_epoch_seconds;
         Ok(())
+    }
+
+    fn accept_trusted_time(&mut self, trusted_time_epoch_seconds: u64) {
+        self.latest_trusted_time_epoch_seconds = trusted_time_epoch_seconds;
     }
 
     fn require_state(
@@ -233,10 +247,10 @@ impl CaptureLifecycle {
     }
 
     fn require_future_deadline(
-        &self,
         retention_deadline_epoch_seconds: u64,
+        trusted_time_epoch_seconds: u64,
     ) -> Result<(), CaptureLifecycleError> {
-        if retention_deadline_epoch_seconds <= self.latest_trusted_time_epoch_seconds {
+        if retention_deadline_epoch_seconds <= trusted_time_epoch_seconds {
             return Err(CaptureLifecycleError::InvalidRetentionDeadline);
         }
         Ok(())
@@ -262,6 +276,6 @@ mod tests {
             Err(CaptureLifecycleError::InvalidTransition)
         );
         assert_eq!(lifecycle.state(), CaptureLifecycleState::Retained);
-        assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 101);
+        assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 100);
     }
 }
