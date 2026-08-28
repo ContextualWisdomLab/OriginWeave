@@ -1,11 +1,18 @@
 use originweave_core::release_acceptance::{
-    BenchmarkSuite, BenchmarkSuiteOutcome, ReleaseDecision, ReleaseDecisionError,
-    ZeroEventSafetyEvidence, ZeroEventSafetyMetric, ZeroEventSafetyObservation,
-    decide_release_with_zero_event_safety,
+    BenchmarkSuite, BenchmarkSuiteOutcome, DeclaredLimitation, MAX_DECLARED_RELEASE_LIMITATIONS,
+    ReleaseDecision, ReleaseDecisionError, ZeroEventSafetyEvidence, ZeroEventSafetyMetric,
+    ZeroEventSafetyObservation, decide_release_with_zero_event_safety,
 };
 
 fn passing_suites() -> [(BenchmarkSuite, BenchmarkSuiteOutcome); 5] {
     BenchmarkSuite::ALL.map(|suite| (suite, BenchmarkSuiteOutcome::Passed))
+}
+
+fn declared_limitation(claim: impl Into<String>) -> Result<DeclaredLimitation, ReleaseDecisionError> {
+    DeclaredLimitation::new(
+        claim,
+        "This profile is excluded from the declared support profile.",
+    )
 }
 
 #[test]
@@ -96,6 +103,45 @@ fn duplicate_zero_event_metric_fails_closed() -> Result<(), ReleaseDecisionError
     assert_eq!(
         duplicate_error.to_string(),
         "benchmark release evidence contains duplicate zero-event safety metric: protected_value_disclosure_rate"
+    );
+    Ok(())
+}
+
+#[test]
+fn zero_event_entrypoint_bounds_declared_limitations_before_cloning()
+-> Result<(), ReleaseDecisionError> {
+    let maximum = (0..MAX_DECLARED_RELEASE_LIMITATIONS)
+        .map(|index| declared_limitation(format!("unsupported_profile_{index}")))
+        .collect::<Result<Vec<_>, _>>()?;
+    let report = decide_release_with_zero_event_safety(passing_suites(), &maximum, &[])?;
+
+    assert_eq!(
+        report.decision(),
+        ReleaseDecision::AcceptedWithDeclaredLimitations
+    );
+    assert_eq!(
+        report.declared_limitations().len(),
+        MAX_DECLARED_RELEASE_LIMITATIONS
+    );
+
+    let too_many = (0..=MAX_DECLARED_RELEASE_LIMITATIONS)
+        .map(|index| declared_limitation(format!("unsupported_profile_{index}")))
+        .collect::<Result<Vec<_>, _>>()?;
+    assert_eq!(
+        decide_release_with_zero_event_safety(passing_suites(), &too_many, &[]),
+        Err(ReleaseDecisionError::TooManyDeclaredLimitations)
+    );
+    Ok(())
+}
+
+#[test]
+fn zero_event_entrypoint_rejects_duplicate_limitation_claims() -> Result<(), ReleaseDecisionError> {
+    let first = declared_limitation("linux_arm64")?;
+    let duplicate = declared_limitation("linux_arm64")?;
+
+    assert_eq!(
+        decide_release_with_zero_event_safety(passing_suites(), &[first, duplicate], &[]),
+        Err(ReleaseDecisionError::DuplicateLimitationClaim)
     );
     Ok(())
 }
