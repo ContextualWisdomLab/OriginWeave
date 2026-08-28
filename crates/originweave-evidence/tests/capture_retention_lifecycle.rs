@@ -80,6 +80,23 @@ fn verified_capture_can_enter_hold_without_inventing_retention() -> Result<(), B
 }
 
 #[test]
+fn rejected_transition_cannot_poison_latest_accepted_trusted_time() -> Result<(), Box<dyn Error>> {
+    let mut lifecycle = CaptureLifecycle::new(MANIFEST_DIGEST, 100)?;
+
+    assert_eq!(
+        lifecycle.place_legal_hold(10_000),
+        Err(CaptureLifecycleError::InvalidTransition)
+    );
+    assert_eq!(lifecycle.state(), CaptureLifecycleState::CaptureStarted);
+    assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 100);
+
+    lifecycle.complete(101)?;
+    assert_eq!(lifecycle.state(), CaptureLifecycleState::CaptureCompleted);
+    assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 101);
+    Ok(())
+}
+
+#[test]
 fn lifecycle_fails_closed_on_bad_identity_order_and_time() -> Result<(), Box<dyn Error>> {
     assert_eq!(
         CaptureLifecycle::new("sha256:not-a-digest", 10),
