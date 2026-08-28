@@ -51,7 +51,8 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
             "#### Historical 2026-08-26 maintenance-loop record",
         )
         for marker in (
-            "| #237 | Draft | `542ca1e9c0a863595b8b6697790005d2471f5413` | `8c5fc6a92e8a19e9b304c84b3517d1ff8711d379` |",
+            "| #237 | Draft | `542ca1e9c0a863595b8b6697790005d2471f5413` | `21e9ad1e8da72c81f521152ea6739b088da230f7` |",
+            "| #239 | Draft | `e45cd6cdcdee73b5c16dc942e6c98cb7e745fae0` | `365c4a6b9e6d0f088d2f8330834f54c7cb5fb491` |",
             "| #229 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `fb868589d065c2cea0b9c8c0f5e655a89f42bee6` |",
             "| #220 | Ready | `f658f329c83a106b68385e17cb714c4147c12f49` | `a2b0c5372dd6df803011933836c56136244dc8af` |",
             "| #211 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `52a918577958a5701e1146c7eb8b62fe8f8ccd44` |",
@@ -70,10 +71,10 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         refresh_lines = [line for line in added.splitlines() if line.startswith(refresh_prefix)]
         self.assertEqual(1, len(refresh_lines))
         refresh_line = refresh_lines[0]
-        self.assertIn("115 open pull requests (31 ready, 84 draft)", refresh_line)
+        self.assertIn("116 open pull requests (32 ready, 84 draft)", refresh_line)
         self.assertIn("11 open issues", refresh_line)
         self.assertNotIn(refresh_prefix, changed)
-        self.assertNotIn("114 open pull requests (30 ready, 84 draft)", refresh_line)
+        self.assertNotIn("115 open pull requests (31 ready, 84 draft)", refresh_line)
         self.assertNotIn("126 open pull requests (54 ready, 72 draft)", refresh_line)
         self.assertNotIn("128 open pull requests (54 ready, 74 draft)", refresh_line)
         self.assertNotIn("153 open pull requests (39 ready, 114 draft)", refresh_line)

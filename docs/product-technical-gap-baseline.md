@@ -14,11 +14,13 @@ This is a dated delivery baseline, not a substitute for the PRD, TRD, roadmap, a
 
 ### Open pull requests
 
-The live repository contained **115 open pull requests: 31 non-draft and 84 draft** when this snapshot re-paginated the complete open inventory. Compared with the prior **2026-08-28 114-PR snapshot**, the current inventory is one PR larger. These counts are queue evidence, not protected-main delivery; protected `main` remains `542ca1e9c0a863595b8b6697790005d2471f5413`, with 11 open issues and no releases or tags. The volume and stack depth remain themselves a product-delivery risk: review, exact-head checks, dependency order, and integration truth can drift faster than a buyer-visible vertical slice reaches protected `main`.
+The live repository contained **116 open pull requests: 32 non-draft and 84 draft** when this snapshot re-paginated the complete open inventory. Compared with the prior **2026-08-28 115-PR snapshot**, the current inventory is one PR larger. These counts are queue evidence, not protected-main delivery; protected `main` remains `542ca1e9c0a863595b8b6697790005d2471f5413`, with 11 open issues and no releases or tags. The volume and stack depth remain themselves a product-delivery risk: review, exact-head checks, dependency order, and integration truth can drift faster than a buyer-visible vertical slice reaches protected `main`.
 
 #### 2026-08-28 maintenance-loop record
 
-This snapshot re-fetched the complete open-PR inventory, the protected `main` commit, the active required-workflow ruleset, collaborator permissions, and the exact base/head pair for each representative PR. Before PR #238 was published, the same maintenance loop observed 114 open pull requests (30 ready, 84 draft); the current re-paginated inventory is one PR larger. The active ruleset still requires one counted approving review and resolved threads; the only repository collaborator is `seonghobae`, so review provisioning remains the merge blocker. PR #170 is merged and is not active-PR evidence.
+This snapshot re-fetched the complete open-PR inventory, the protected `main` commit, the active required-workflow ruleset, collaborator permissions, and the exact base/head pair for each representative PR. Before PR #238 was published, the same maintenance loop observed 115 open pull requests (31 ready, 84 draft); the current re-paginated inventory is one PR larger. The active ruleset still requires one counted approving review and resolved threads; the only repository collaborator is `seonghobae`, so review provisioning remains the merge blocker. PR #170 is merged and is not active-PR evidence.
+
+The later exact-head recheck also recorded the WARC/PROV retention-lifecycle slice: #239 is Draft at `365c4a6b9e6d0f088d2f8330834f54c7cb5fb491` on #227 head `e45cd6cdcdee73b5c16dc942e6c98cb7e745fae0`, with its Rust contracts and production coverage checks successful, zero unresolved threads, and no counted approval. #237 is Draft at `21e9ad1e8da72c81f521152ea6739b088da230f7` on protected `main`; its deterministic contracts and coverage are successful, while exact-head `opencode-review` failed closed for the absent current-head verdict and `strix` remained in progress. Neither active branch is protected-main behavior.
 
 #### Current exact-head active PR evidence
 
@@ -26,7 +28,8 @@ The following representative slices were re-fetched from GitHub for this snapsho
 
 | PR | State | Exact base head | Exact head |
 |---|---|---|---|
-| #237 | Draft | `542ca1e9c0a863595b8b6697790005d2471f5413` | `8c5fc6a92e8a19e9b304c84b3517d1ff8711d379` |
+| #237 | Draft | `542ca1e9c0a863595b8b6697790005d2471f5413` | `21e9ad1e8da72c81f521152ea6739b088da230f7` |
+| #239 | Draft | `e45cd6cdcdee73b5c16dc942e6c98cb7e745fae0` | `365c4a6b9e6d0f088d2f8330834f54c7cb5fb491` |
 | #229 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `fb868589d065c2cea0b9c8c0f5e655a89f42bee6` |
 | #220 | Ready | `f658f329c83a106b68385e17cb714c4147c12f49` | `a2b0c5372dd6df803011933836c56136244dc8af` |
 | #211 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `52a918577958a5701e1146c7eb8b62fe8f8ccd44` |
@@ -66,7 +69,7 @@ Representative active workstreams at this snapshot were:
 | MCP adapter | (#168 and #170 merged) | Typed MCP routing and conservative `tools/list` cache metadata are protected-main behavior; the complete MCP transport, OAuth, browser I/O, and persistence adapter remains planned |
 | Workflow-registry audit | #124 | Real Strix finding vuln-0001 (Unicode homoglyph path confusion, MEDIUM) remediated on head `30cc458b` with regression contract tests; fresh exact-head checks and review re-running |
 | Controlled Chromium and recovery | #65, #70-#73, #100, #105, #142-#152 and descendants | Real pinned-browser fixture, semantic location, resource, crash, and teardown evidence exists on active stacks; evidence does not transfer across heads or prerequisites |
-| Durable WARC/PROV evidence | #210, #217 | Bounded WARC resource records and PROV JSON-LD binding are draft active-PR foundations; durable ownership, replay, retention/deletion, and browser side-effect reconciliation remain open |
+| Durable WARC/PROV evidence | #210, #217, #239 | Bounded WARC resource records, PROV JSON-LD binding, and retention-lifecycle boundaries are draft active-PR foundations; durable ownership, replay, retention/deletion, and browser side-effect reconciliation remain open |
 | Manifest V3 and native messaging | #27, #43 governance remediation, and the extension/native-host stack including #154 and #169 | Compatibility and Agent-authority isolation remain incomplete until exact release artifacts and platform matrices are proven; #43's sandbox workflow mutation is now owner-authorized under issue #212 option (b) |
 | Sensitive-data and model route policy | #10 and its active policy stacks | Deterministic policy values exist, but trusted broker execution, retention/deletion, runtime isolation, and auditable product workflows remain open |
 | VPN/profile intent | #149 | Bounded WireGuard/IKEv2 profile authority reconciled with main (`54f96008`); it does not create a tunnel, route, DNS state, authenticated gateway, or connectivity proof |
@@ -189,7 +192,7 @@ OriginWeave is not complete merely because every low-level primitive exists in s
 
 ## Next executable queue
 
-1. Drain the merge gate in dependency order: for every ready root PR whose current head is check-green with resolved threads, obtain the current ruleset's counted `APPROVED` review from an eligible non-author collaborator; OpenCode approval or skip evidence does not substitute for that GitHub review. If no eligible approver exists, record the reviewer-provisioning gap and do not merge. Root candidates include #37, #40, #43, #45–#48, #51, #62–#65, #74, #82, #124, #149, #152, #156–#166, #173, #175, #208, #209, #211, #218, #219, #229, #237, and #238 as their current checks land. Treat dependent children separately: only after a predecessor reaches protected `main`, retarget and independently revalidate its immediate child; preserve orders such as #218 → #221 → #220 rather than treating #208–#220 as a flat merge range.
+1. Drain the merge gate in dependency order: for every ready root PR whose current head is check-green with resolved threads, obtain the current ruleset's counted `APPROVED` review from an eligible non-author collaborator; OpenCode approval or skip evidence does not substitute for that GitHub review. If no eligible approver exists, record the reviewer-provisioning gap and do not merge. Root candidates include #37, #40, #43, #45–#48, #51, #62–#65, #74, #82, #124, #149, #152, #156–#166, #173, #175, #208, #209, #211, #218, #219, #229, #237, #238, and #239 as their current checks land. Treat dependent children separately: only after a predecessor reaches protected `main`, retarget and independently revalidate its immediate child; preserve orders such as #218 → #221 → #220 rather than treating #208–#220 as a flat merge range.
 2. Keep the organization review pipeline healthy: monitor the central Actions backlog recorded above; if OpenCode reviews stop landing on OriginWeave heads while the queue is idle, repair `ContextualWisdomLab/.github` dispatch/concurrency configuration rather than weakening any gate.
 3. Finish the #9/#28 browser-network and Chromium vertical slice, including the #181–#205 WebSocket opening path and framed BiDi command/response stack, then semantic observation, policy, action, post-condition, and recovery boundaries on protected `main`.
 4. Finish #27 and #10 as separate security tracks; neither should be hidden inside the first browser PR.

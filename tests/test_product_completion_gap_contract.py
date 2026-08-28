@@ -20,10 +20,10 @@ class ProductCompletionGapContractTests(unittest.TestCase):
         current = text.split("## Observed snapshot: ", 1)[1].split(end_marker, 1)[0]
 
         for phrase in (
-            "115 open pull requests",
-            "31 non-draft",
+            "116 open pull requests",
+            "32 non-draft",
             "84 draft",
-            "2026-08-28 114-PR snapshot",
+            "2026-08-28 115-PR snapshot",
             "#198",
             "#199",
             "#200",
@@ -51,8 +51,8 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "prior 150-PR snapshot",
             "128 open pull requests",
             "74 draft",
-            "114 open pull requests",
-            "30 non-draft",
+            "115 open pull requests",
+            "31 non-draft",
         ):
             with self.subTest(stale_phrase=stale_phrase):
                 self.assertNotIn(stale_phrase, current)
@@ -71,7 +71,7 @@ class ProductCompletionGapContractTests(unittest.TestCase):
         record = text.split("#### 2026-08-28 maintenance-loop record", 1)[1].split(
             "#### Current exact-head active PR evidence", 1
         )[0]
-        self.assertIn("114 open pull requests (30 ready, 84 draft)", record)
+        self.assertIn("115 open pull requests (31 ready, 84 draft)", record)
 
     def test_issue_table_distinguishes_open_issues_from_governance_signals(self) -> None:
         """The table total must distinguish product issues from governance signals."""
