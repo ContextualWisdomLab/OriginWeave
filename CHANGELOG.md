@@ -4,7 +4,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
-- Refreshed the product-gap queue to 116 open pull requests (32 ready, 84 draft) on 2026-08-28; these are queue evidence, not protected-main shipment.
+- Refreshed the product-gap queue to 111 open pull requests (27 ready, 84 draft) on 2026-08-28 after #71, #154, #233, #234, and #235 merged into unprotected feature parents; these are queue evidence, not protected-main shipment.
 
 ### Added
 - Clarified the 2026-08-28 gap snapshot's prior queue observation and separated open issues from governance signals.

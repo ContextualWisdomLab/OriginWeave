@@ -26,10 +26,10 @@ class ProductCompletionGapContractTests(unittest.TestCase):
         current = text.split("## Observed snapshot: ", 1)[1].split(end_marker, 1)[0]
 
         for phrase in (
-            "116 open pull requests",
-            "32 non-draft",
+            "111 open pull requests",
+            "27 non-draft",
             "84 draft",
-            "2026-08-28 115-PR snapshot",
+            "2026-08-28 116-PR snapshot",
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, current)
@@ -41,7 +41,7 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "#201",
             "#202",
             "#203",
-            "Shrink the 116-PR queue",
+            "Shrink the 111-PR queue",
             "durable WARC/PROV replay",
             "stable BAP/MCP runtime API",
             "signed cross-platform Chromium distribution",
