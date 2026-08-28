@@ -15,9 +15,9 @@ class ProductCompletionGapContractTests(unittest.TestCase):
     def test_baseline_records_current_inventory_and_completion_issues(self) -> None:
         """The dated baseline must not retain superseded queue counts or omit buyer tracks."""
         text = BASELINE.read_text(encoding="utf-8")
-        current = text.split("## Observed snapshot: ", 1)[1].split(
-            "#### 2026-08-28 maintenance-loop record", 1
-        )[0]
+        end_marker = "#### 2026-08-28 maintenance-loop record"
+        self.assertIn(end_marker, text)
+        current = text.split("## Observed snapshot: ", 1)[1].split(end_marker, 1)[0]
 
         for phrase in (
             "115 open pull requests",
