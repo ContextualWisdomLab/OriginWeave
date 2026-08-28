@@ -11,8 +11,7 @@ use sha2::{Digest, Sha256};
 const RECORD_ID: &str = "urn:uuid:123e4567-e89b-12d3-a456-426614174000";
 const DATE: &str = "2026-08-29T00:00:00Z";
 const SOFTWARE_COMMIT_SHA: &str = "0123456789abcdef0123456789abcdef01234567";
-const VALUE_HASH: &str =
-    "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const VALUE_HASH: &str = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
 #[test]
 fn structured_value_rejects_truncated_warc_source() {
