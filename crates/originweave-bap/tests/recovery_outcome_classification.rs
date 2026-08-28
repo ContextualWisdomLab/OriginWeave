@@ -1,11 +1,14 @@
 use originweave_bap::{
-    BapCommandReceipt, BapCommandReceiptError, BapCommandRecovery, BapExternalSideEffectOutcome,
-    BapRecoveryAction, BapRecoveryDisposition, BapRecoveryEvidenceDigest,
-    BapRecoveryEvidenceDigestError, BapTaskEvent, BapTaskLifecycle, BapTaskState,
+    BapCommandReceipt, BapCommandReceiptError, BapCommandRecovery, BapCommandRecoveryError,
+    BapExternalSideEffectOutcome, BapRecoveryAction, BapRecoveryDisposition,
+    BapRecoveryEvidenceDigest, BapRecoveryEvidenceDigestError, BapTaskEvent, BapTaskLifecycle,
+    BapTaskState,
 };
 
 const RECOVERY_EVIDENCE_DIGEST: &str =
     "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const OTHER_RECOVERY_EVIDENCE_DIGEST: &str =
+    "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
 fn accepted_receipt() -> (BapTaskLifecycle, BapCommandReceipt) {
     let mut lifecycle = BapTaskLifecycle::new();
@@ -23,6 +26,15 @@ fn recovery_evidence_digest() -> BapRecoveryEvidenceDigest {
     assert!(digest.is_ok(), "{digest:?}");
     let Ok(digest) = digest else {
         unreachable!("asserted valid recovery evidence digest")
+    };
+    digest
+}
+
+fn other_recovery_evidence_digest() -> BapRecoveryEvidenceDigest {
+    let digest = BapRecoveryEvidenceDigest::parse(OTHER_RECOVERY_EVIDENCE_DIGEST);
+    assert!(digest.is_ok(), "{digest:?}");
+    let Ok(digest) = digest else {
+        unreachable!("asserted valid alternate recovery evidence digest")
     };
     digest
 }
@@ -58,7 +70,7 @@ fn crash_recovery_distinguishes_external_side_effect_outcomes_without_unsafe_rep
         assert_eq!(recovery.external_outcome(), outcome);
         assert_eq!(recovery.required_action(), expected_action);
         assert_eq!(
-            recovery.permits_redispatch(&lifecycle),
+            recovery.permits_redispatch(&lifecycle, recovery.evidence_digest()),
             Ok(expected_redispatch)
         );
         assert_eq!(lifecycle.state(), BapTaskState::Admitted);
@@ -100,7 +112,10 @@ fn lifecycle_aware_disposition_is_the_single_fail_closed_recovery_decision() {
     for (outcome, expected_disposition) in cases {
         let (lifecycle, receipt) = accepted_receipt();
         let recovery = BapCommandRecovery::new(receipt, outcome, recovery_evidence_digest());
-        assert_eq!(recovery.disposition(&lifecycle), Ok(expected_disposition));
+        assert_eq!(
+            recovery.disposition(&lifecycle, recovery.evidence_digest()),
+            Ok(expected_disposition)
+        );
     }
 
     let suspended_cases = [
@@ -135,12 +150,15 @@ fn lifecycle_aware_disposition_is_the_single_fail_closed_recovery_decision() {
             recovery_evidence_digest(),
         );
         assert_eq!(
-            recovery.disposition(&lifecycle),
+            recovery.disposition(&lifecycle, recovery.evidence_digest()),
             Ok(BapRecoveryDisposition::RedispatchBlockedByLifecycle {
                 state: expected_state
             })
         );
-        assert_eq!(recovery.permits_redispatch(&lifecycle), Ok(false));
+        assert_eq!(
+            recovery.permits_redispatch(&lifecycle, recovery.evidence_digest()),
+            Ok(false)
+        );
     }
 
     let mut terminal_lifecycle = BapTaskLifecycle::new();
@@ -162,7 +180,10 @@ fn lifecycle_aware_disposition_is_the_single_fail_closed_recovery_decision() {
         recovery_evidence_digest(),
     );
     assert_eq!(
-        terminal_recovery.disposition(&terminal_lifecycle),
+        terminal_recovery.disposition(
+            &terminal_lifecycle,
+            terminal_recovery.evidence_digest()
+        ),
         Ok(BapRecoveryDisposition::RedispatchBlockedByLifecycle {
             state: BapTaskState::Failed
         })
@@ -176,9 +197,46 @@ fn lifecycle_aware_disposition_is_the_single_fail_closed_recovery_decision() {
         recovery_evidence_digest(),
     );
     assert_eq!(
-        stale_recovery.disposition(&stale_lifecycle),
-        Err(BapCommandReceiptError::ReplayStateMismatch)
+        stale_recovery.disposition(&stale_lifecycle, stale_recovery.evidence_digest()),
+        Err(BapCommandRecoveryError::ReceiptValidation {
+            error: BapCommandReceiptError::ReplayStateMismatch,
+        })
     );
+}
+
+#[test]
+fn recovery_evidence_identity_must_match_before_lifecycle_state_is_considered() {
+    let (mut lifecycle, receipt) = accepted_receipt();
+    let recovery = BapCommandRecovery::new(
+        receipt,
+        BapExternalSideEffectOutcome::ConfirmedNoSideEffect,
+        recovery_evidence_digest(),
+    );
+    let alternate_evidence = other_recovery_evidence_digest();
+
+    assert!(lifecycle.apply(BapTaskEvent::Start).is_ok());
+    assert_eq!(
+        recovery.disposition(&lifecycle, &alternate_evidence),
+        Err(BapCommandRecoveryError::EvidenceDigestMismatch)
+    );
+    assert_eq!(
+        recovery.permits_redispatch(&lifecycle, &alternate_evidence),
+        Err(BapCommandRecoveryError::EvidenceDigestMismatch)
+    );
+    assert_eq!(lifecycle.state(), BapTaskState::Running);
+    assert_eq!(lifecycle.transition_sequence(), 2);
+
+    let mismatch = BapCommandRecoveryError::EvidenceDigestMismatch;
+    assert_eq!(
+        mismatch.to_string(),
+        "BAP recovery evidence digest does not match the retained recovery classification"
+    );
+    assert!(std::error::Error::source(&mismatch).is_none());
+
+    let receipt_failure = BapCommandRecoveryError::ReceiptValidation {
+        error: BapCommandReceiptError::ReplayStateMismatch,
+    };
+    assert!(std::error::Error::source(&receipt_failure).is_some());
 }
 
 #[test]
@@ -216,7 +274,10 @@ fn recovery_validation_requires_only_read_only_lifecycle_access() {
         recovery_evidence_digest(),
     );
 
-    assert_eq!(recovery.permits_redispatch(&lifecycle), Ok(true));
+    assert_eq!(
+        recovery.permits_redispatch(&lifecycle, recovery.evidence_digest()),
+        Ok(true)
+    );
     assert_eq!(lifecycle.state(), BapTaskState::Admitted);
     assert_eq!(lifecycle.transition_sequence(), 1);
 }
@@ -234,8 +295,10 @@ fn stale_recovery_receipt_cannot_signal_redispatch() {
     assert!(advance.is_ok(), "{advance:?}");
 
     assert_eq!(
-        recovery.permits_redispatch(&lifecycle),
-        Err(BapCommandReceiptError::ReplayStateMismatch)
+        recovery.permits_redispatch(&lifecycle, recovery.evidence_digest()),
+        Err(BapCommandRecoveryError::ReceiptValidation {
+            error: BapCommandReceiptError::ReplayStateMismatch,
+        })
     );
     assert_eq!(lifecycle.state(), BapTaskState::Running);
     assert_eq!(lifecycle.transition_sequence(), 2);
@@ -267,7 +330,10 @@ fn reconciliation_hold_never_signals_redispatch_before_explicit_resolution() {
         BapExternalSideEffectOutcome::ConfirmedNoSideEffect,
         recovery_evidence_digest(),
     );
-    assert_eq!(recovery.permits_redispatch(&lifecycle), Ok(false));
+    assert_eq!(
+        recovery.permits_redispatch(&lifecycle, recovery.evidence_digest()),
+        Ok(false)
+    );
     assert_eq!(lifecycle.state(), BapTaskState::ReconciliationRequired);
     assert_eq!(lifecycle.transition_sequence(), 3);
 }
@@ -310,7 +376,10 @@ fn suspended_lifecycle_never_signals_redispatch_before_resume() {
             BapExternalSideEffectOutcome::ConfirmedNoSideEffect,
             recovery_evidence_digest(),
         );
-        assert_eq!(recovery.permits_redispatch(&lifecycle), Ok(false));
+        assert_eq!(
+            recovery.permits_redispatch(&lifecycle, recovery.evidence_digest()),
+            Ok(false)
+        );
         assert_eq!(lifecycle.state(), expected_state);
     }
 }
@@ -347,6 +416,9 @@ fn terminal_lifecycle_never_signals_redispatch_even_for_confirmed_no_side_effect
             BapExternalSideEffectOutcome::ConfirmedNoSideEffect,
             recovery_evidence_digest(),
         );
-        assert_eq!(recovery.permits_redispatch(&lifecycle), Ok(false));
+        assert_eq!(
+            recovery.permits_redispatch(&lifecycle, recovery.evidence_digest()),
+            Ok(false)
+        );
     }
 }
