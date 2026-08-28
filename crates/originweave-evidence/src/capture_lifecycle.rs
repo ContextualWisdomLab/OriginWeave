@@ -188,14 +188,16 @@ impl CaptureLifecycle {
             return Err(CaptureLifecycleError::LegalHoldActive);
         }
         self.require_state(CaptureLifecycleState::Retained)?;
-        let Some(retention_deadline_epoch_seconds) = self.retention_deadline_epoch_seconds else {
-            return Err(CaptureLifecycleError::InvalidTransition);
-        };
-        if trusted_time_epoch_seconds < retention_deadline_epoch_seconds {
-            return Err(CaptureLifecycleError::RetentionNotExpired);
-        }
-        self.state = CaptureLifecycleState::DeletionRequested;
-        Ok(())
+        self.retention_deadline_epoch_seconds
+            .ok_or(CaptureLifecycleError::InvalidTransition)
+            .and_then(|deadline| {
+                if trusted_time_epoch_seconds < deadline {
+                    Err(CaptureLifecycleError::RetentionNotExpired)
+                } else {
+                    self.state = CaptureLifecycleState::DeletionRequested;
+                    Ok(())
+                }
+            })
     }
 
     /// Confirm that the owning persistence boundary completed deletion.

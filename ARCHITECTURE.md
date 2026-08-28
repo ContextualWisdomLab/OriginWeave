@@ -135,7 +135,7 @@ Owns validated task budgets and deterministic cumulative mitigation plans. Platf
 
 ### `originweave-evidence`
 
-Owns universally value-redacted network evidence and source-bound provenance records. Generic network records retain only bounded method, canonical origin, unambiguous bounded path, and bounded field names. Body capture, typed metadata values, WARC serialization, object storage, retention, encryption, and legal policy remain future bounded modules.
+Owns universally value-redacted network evidence and source-bound provenance records. Generic network records retain only bounded method, canonical origin, unambiguous bounded path, and bounded field names. Active PR #239 also adds the policy-neutral `CaptureLifecycle` value object: trusted-time-monotonic transitions move a manifest-bound capture from started, through completed and verified, to explicitly retained, legally held, deletion-requested, and deleted; deletion requires the retention deadline to have expired, and releasing a legal hold requires a new future deadline. This is active-PR evidence only until protected-main integration. The value object does not persist or delete artifacts, authenticate operators, decide legal entitlement, or grant capture, replay, export, or secret access. Body capture, typed metadata values, WARC serialization, object storage, retention policy, encryption, and legal policy remain separate bounded modules.
 
 ## 6. Planned modules
 

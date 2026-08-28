@@ -117,7 +117,81 @@ fn lifecycle_fails_closed_on_bad_identity_order_and_time() -> Result<(), Box<dyn
     );
     lifecycle.place_legal_hold(106)?;
     assert_eq!(
-        lifecycle.confirm_deleted(107),
+        lifecycle.retain_until(200, 107),
+        Err(CaptureLifecycleError::InvalidTransition)
+    );
+    assert_eq!(
+        lifecycle.place_legal_hold(108),
+        Err(CaptureLifecycleError::InvalidTransition)
+    );
+    assert_eq!(
+        lifecycle.confirm_deleted(108),
+        Err(CaptureLifecycleError::InvalidTransition)
+    );
+    Ok(())
+}
+
+#[test]
+fn every_transition_rejects_trusted_time_rollback() -> Result<(), Box<dyn Error>> {
+    let mut verifying = CaptureLifecycle::new(MANIFEST_DIGEST, 100)?;
+    assert_eq!(
+        verifying.verify(99),
+        Err(CaptureLifecycleError::TrustedTimeRollback)
+    );
+
+    let mut retaining = CaptureLifecycle::new(MANIFEST_DIGEST, 100)?;
+    retaining.complete(101)?;
+    retaining.verify(102)?;
+    assert_eq!(
+        retaining.retain_until(200, 101),
+        Err(CaptureLifecycleError::TrustedTimeRollback)
+    );
+
+    let mut holding = CaptureLifecycle::new(MANIFEST_DIGEST, 100)?;
+    holding.complete(101)?;
+    holding.verify(102)?;
+    assert_eq!(
+        holding.place_legal_hold(101),
+        Err(CaptureLifecycleError::TrustedTimeRollback)
+    );
+
+    let mut releasing = CaptureLifecycle::new(MANIFEST_DIGEST, 100)?;
+    releasing.complete(101)?;
+    releasing.verify(102)?;
+    releasing.place_legal_hold(103)?;
+    assert_eq!(
+        releasing.release_legal_hold_to_retained(200, 102),
+        Err(CaptureLifecycleError::TrustedTimeRollback)
+    );
+
+    let mut requesting = CaptureLifecycle::new(MANIFEST_DIGEST, 100)?;
+    requesting.complete(101)?;
+    requesting.verify(102)?;
+    requesting.retain_until(200, 103)?;
+    assert_eq!(
+        requesting.request_deletion(102),
+        Err(CaptureLifecycleError::TrustedTimeRollback)
+    );
+
+    let mut confirming = CaptureLifecycle::new(MANIFEST_DIGEST, 100)?;
+    confirming.complete(101)?;
+    confirming.verify(102)?;
+    confirming.retain_until(200, 103)?;
+    confirming.request_deletion(200)?;
+    assert_eq!(
+        confirming.confirm_deleted(199),
+        Err(CaptureLifecycleError::TrustedTimeRollback)
+    );
+
+    let mut started = CaptureLifecycle::new(MANIFEST_DIGEST, 100)?;
+    assert_eq!(
+        started.request_deletion(101),
+        Err(CaptureLifecycleError::InvalidTransition)
+    );
+
+    let mut not_held = CaptureLifecycle::new(MANIFEST_DIGEST, 100)?;
+    assert_eq!(
+        not_held.release_legal_hold_to_retained(200, 101),
         Err(CaptureLifecycleError::InvalidTransition)
     );
     Ok(())
