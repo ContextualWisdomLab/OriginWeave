@@ -41,6 +41,10 @@ fn release_report_retains_named_zero_event_safety_evidence() -> Result<(), Relea
 #[test]
 fn zero_event_safety_observations_are_canonicalized_by_metric() -> Result<(), ReleaseDecisionError>
 {
+    let authority_escalation = ZeroEventSafetyObservation::new(
+        ZeroEventSafetyMetric::AuthorityEscalation,
+        ZeroEventSafetyEvidence::new(2_000, 9_900)?,
+    );
     let stale_authority = ZeroEventSafetyObservation::new(
         ZeroEventSafetyMetric::StaleAuthorityAcceptance,
         ZeroEventSafetyEvidence::new(500, 9_500)?,
@@ -53,7 +57,7 @@ fn zero_event_safety_observations_are_canonicalized_by_metric() -> Result<(), Re
     let report = decide_release_with_zero_event_safety(
         passing_suites(),
         &[],
-        &[stale_authority, prompt_injection],
+        &[authority_escalation, stale_authority, prompt_injection],
     )?;
 
     assert_eq!(
@@ -65,6 +69,7 @@ fn zero_event_safety_observations_are_canonicalized_by_metric() -> Result<(), Re
         vec![
             ZeroEventSafetyMetric::PromptInjectionSuccess,
             ZeroEventSafetyMetric::StaleAuthorityAcceptance,
+            ZeroEventSafetyMetric::AuthorityEscalation,
         ]
     );
     Ok(())
@@ -80,12 +85,17 @@ fn duplicate_zero_event_metric_fails_closed() -> Result<(), ReleaseDecisionError
         ZeroEventSafetyMetric::ProtectedValueDisclosure,
         ZeroEventSafetyEvidence::new(1_000, 9_900)?,
     );
+    let duplicate_error = ReleaseDecisionError::DuplicateZeroEventSafetyMetric(
+        ZeroEventSafetyMetric::ProtectedValueDisclosure,
+    );
 
     assert_eq!(
         decide_release_with_zero_event_safety(passing_suites(), &[], &[first, duplicate]),
-        Err(ReleaseDecisionError::DuplicateZeroEventSafetyMetric(
-            ZeroEventSafetyMetric::ProtectedValueDisclosure
-        ))
+        Err(duplicate_error)
+    );
+    assert_eq!(
+        duplicate_error.to_string(),
+        "benchmark release evidence contains duplicate zero-event safety metric: protected_value_disclosure_rate"
     );
     Ok(())
 }
