@@ -7,8 +7,8 @@ use originweave_evidence::{
     MAX_CAPTURE_MANIFEST_RECORDS, ProvenanceRecord, VerificationResult, WarcProvBundle,
     WarcProvBundleVerificationError, WarcResourceRecord,
 };
+use sha2::{Digest, Sha256};
 
-const SOURCE_HASH: &str = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 const RECORD_ID_A: &str = "urn:uuid:123e4567-e89b-12d3-a456-426614174000";
 const RECORD_ID_B: &str = "urn:uuid:123e4567-e89b-12d3-a456-426614174001";
 const DATE: &str = "2026-08-24T00:00:00Z";
@@ -81,10 +81,11 @@ fn schema_covering_all_semantics(version: &str) -> ExtractionSchema {
 }
 
 fn resource_record(record_id: &str, payload: &[u8]) -> WarcResourceRecord {
+    let source_hash = format!("sha256:{:x}", Sha256::digest(payload));
     let provenance = ProvenanceRecord::new(
         "https://example.com/item",
         "body",
-        SOURCE_HASH,
+        &source_hash,
         EvidenceSourceKind::NetworkResponse,
         VerificationResult::Verified,
     )
@@ -137,7 +138,7 @@ fn capture_manifest_binds_schema_warc_prov_and_software_identity_without_payload
     assert!(json.contains(RECORD_ID_A));
     assert!(!json.contains("secret-like-captured-payload"));
     assert!(!json.contains("https://example.com/item"));
-    assert!(!json.contains(SOURCE_HASH));
+    assert!(!json.contains(record.provenance().source_hash()));
 }
 
 #[test]
