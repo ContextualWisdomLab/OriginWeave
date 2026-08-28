@@ -30,6 +30,7 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "#201",
             "#202",
             "#203",
+            "Shrink the 116-PR queue",
             "durable WARC/PROV replay",
             "stable BAP/MCP runtime API",
             "signed cross-platform Chromium distribution",
@@ -68,16 +69,20 @@ class ProductCompletionGapContractTests(unittest.TestCase):
     def test_same_day_prior_inventory_is_bound_to_the_maintenance_record(self) -> None:
         """A same-day comparison must retain its exact prior observation in the record."""
         text = BASELINE.read_text(encoding="utf-8")
+        record_end = "#### Current exact-head active PR evidence"
+        self.assertIn(record_end, text)
         record = text.split("#### 2026-08-28 maintenance-loop record", 1)[1].split(
-            "#### Current exact-head active PR evidence", 1
+            record_end, 1
         )[0]
         self.assertIn("115 open pull requests (31 ready, 84 draft)", record)
 
     def test_issue_table_distinguishes_open_issues_from_governance_signals(self) -> None:
         """The table total must distinguish product issues from governance signals."""
         text = BASELINE.read_text(encoding="utf-8")
+        table_end = "## Buyer-visible and technical gap matrix"
+        self.assertIn(table_end, text)
         table = text.split("### Open issues and governance signals", 1)[1].split(
-            "## Buyer-visible and technical gap matrix", 1
+            table_end, 1
         )[0]
         self.assertIn("11 open issues plus 2 governance signals", table)
         self.assertIn("Issue or signal", table)
