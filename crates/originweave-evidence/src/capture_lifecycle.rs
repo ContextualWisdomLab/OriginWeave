@@ -1,0 +1,245 @@
+use core::fmt;
+
+use super::valid_sha256;
+
+/// Lifecycle state for one manifest-bound capture package.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CaptureLifecycleState {
+    /// Capture materialization has started but is not complete.
+    CaptureStarted,
+    /// Capture materialization completed but has not been independently verified.
+    CaptureCompleted,
+    /// The completed capture passed deterministic verification.
+    Verified,
+    /// The verified capture is retained until its explicit deadline.
+    Retained,
+    /// The verified or retained capture is protected by an explicit legal hold.
+    LegalHold,
+    /// Deletion was requested after the applicable retention and hold gates allowed it.
+    DeletionRequested,
+    /// The owning persistence boundary confirmed deletion completion.
+    Deleted,
+}
+
+/// A fail-closed capture-lifecycle transition error.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CaptureLifecycleError {
+    /// The supplied capture-manifest identity was not a lowercase SHA-256 digest.
+    InvalidManifestDigest,
+    /// The requested transition is not allowed from the current lifecycle state.
+    InvalidTransition,
+    /// A caller supplied trusted time older than the latest accepted trusted time.
+    TrustedTimeRollback,
+    /// A retention deadline was not strictly later than the current trusted time.
+    InvalidRetentionDeadline,
+    /// Deletion was requested before the active retention deadline expired.
+    RetentionNotExpired,
+    /// Deletion was requested while an explicit legal hold remained active.
+    LegalHoldActive,
+}
+
+impl fmt::Display for CaptureLifecycleError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::InvalidManifestDigest => "capture manifest digest must be lowercase sha256",
+            Self::InvalidTransition => {
+                "capture lifecycle transition is not allowed from the current state"
+            }
+            Self::TrustedTimeRollback => "trusted capture lifecycle time moved backwards",
+            Self::InvalidRetentionDeadline => {
+                "capture retention deadline must be later than the current trusted time"
+            }
+            Self::RetentionNotExpired => "capture retention deadline has not expired",
+            Self::LegalHoldActive => "capture is under legal hold",
+        })
+    }
+}
+
+impl std::error::Error for CaptureLifecycleError {}
+
+/// In-memory policy-neutral lifecycle state for one capture-manifest identity.
+///
+/// This value object records only a manifest digest, lifecycle state, trusted
+/// monotonic transition time, and optional retention deadline. It does not
+/// authenticate an operator, persist artifacts, decide legal entitlement,
+/// delete storage objects, or grant capture, replay, export, or secret access.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CaptureLifecycle {
+    manifest_digest: String,
+    state: CaptureLifecycleState,
+    latest_trusted_time_epoch_seconds: u64,
+    retention_deadline_epoch_seconds: Option<u64>,
+}
+
+impl CaptureLifecycle {
+    /// Start lifecycle tracking for one validated capture-manifest digest.
+    pub fn new(
+        manifest_digest: &str,
+        trusted_time_epoch_seconds: u64,
+    ) -> Result<Self, CaptureLifecycleError> {
+        if !valid_sha256(manifest_digest) {
+            return Err(CaptureLifecycleError::InvalidManifestDigest);
+        }
+        Ok(Self {
+            manifest_digest: manifest_digest.to_owned(),
+            state: CaptureLifecycleState::CaptureStarted,
+            latest_trusted_time_epoch_seconds: trusted_time_epoch_seconds,
+            retention_deadline_epoch_seconds: None,
+        })
+    }
+
+    /// Return the immutable capture-manifest digest bound to this lifecycle.
+    #[must_use]
+    pub fn manifest_digest(&self) -> &str {
+        &self.manifest_digest
+    }
+
+    /// Return the current capture lifecycle state.
+    #[must_use]
+    pub const fn state(&self) -> CaptureLifecycleState {
+        self.state
+    }
+
+    /// Return the latest accepted trusted transition time in Unix epoch seconds.
+    #[must_use]
+    pub const fn latest_trusted_time_epoch_seconds(&self) -> u64 {
+        self.latest_trusted_time_epoch_seconds
+    }
+
+    /// Return the active retention deadline, when one has been established.
+    #[must_use]
+    pub const fn retention_deadline_epoch_seconds(&self) -> Option<u64> {
+        self.retention_deadline_epoch_seconds
+    }
+
+    /// Mark a started capture complete.
+    pub fn complete(
+        &mut self,
+        trusted_time_epoch_seconds: u64,
+    ) -> Result<(), CaptureLifecycleError> {
+        self.observe_trusted_time(trusted_time_epoch_seconds)?;
+        self.require_state(CaptureLifecycleState::CaptureStarted)?;
+        self.state = CaptureLifecycleState::CaptureCompleted;
+        Ok(())
+    }
+
+    /// Mark a completed capture independently verified.
+    pub fn verify(
+        &mut self,
+        trusted_time_epoch_seconds: u64,
+    ) -> Result<(), CaptureLifecycleError> {
+        self.observe_trusted_time(trusted_time_epoch_seconds)?;
+        self.require_state(CaptureLifecycleState::CaptureCompleted)?;
+        self.state = CaptureLifecycleState::Verified;
+        Ok(())
+    }
+
+    /// Retain a verified capture until a future trusted-time deadline.
+    pub fn retain_until(
+        &mut self,
+        retention_deadline_epoch_seconds: u64,
+        trusted_time_epoch_seconds: u64,
+    ) -> Result<(), CaptureLifecycleError> {
+        self.observe_trusted_time(trusted_time_epoch_seconds)?;
+        self.require_state(CaptureLifecycleState::Verified)?;
+        self.require_future_deadline(retention_deadline_epoch_seconds)?;
+        self.retention_deadline_epoch_seconds = Some(retention_deadline_epoch_seconds);
+        self.state = CaptureLifecycleState::Retained;
+        Ok(())
+    }
+
+    /// Place a verified or retained capture under an explicit legal hold.
+    pub fn place_legal_hold(
+        &mut self,
+        trusted_time_epoch_seconds: u64,
+    ) -> Result<(), CaptureLifecycleError> {
+        self.observe_trusted_time(trusted_time_epoch_seconds)?;
+        match self.state {
+            CaptureLifecycleState::Verified | CaptureLifecycleState::Retained => {
+                self.state = CaptureLifecycleState::LegalHold;
+                Ok(())
+            }
+            _ => Err(CaptureLifecycleError::InvalidTransition),
+        }
+    }
+
+    /// Release a legal hold into a newly bounded future retention period.
+    ///
+    /// A legal hold is never released directly into deletion eligibility. The
+    /// caller must supply a new future retention deadline before deletion can
+    /// later be requested.
+    pub fn release_legal_hold_to_retained(
+        &mut self,
+        retention_deadline_epoch_seconds: u64,
+        trusted_time_epoch_seconds: u64,
+    ) -> Result<(), CaptureLifecycleError> {
+        self.observe_trusted_time(trusted_time_epoch_seconds)?;
+        self.require_state(CaptureLifecycleState::LegalHold)?;
+        self.require_future_deadline(retention_deadline_epoch_seconds)?;
+        self.retention_deadline_epoch_seconds = Some(retention_deadline_epoch_seconds);
+        self.state = CaptureLifecycleState::Retained;
+        Ok(())
+    }
+
+    /// Request deletion after the active retention period has expired.
+    pub fn request_deletion(
+        &mut self,
+        trusted_time_epoch_seconds: u64,
+    ) -> Result<(), CaptureLifecycleError> {
+        self.observe_trusted_time(trusted_time_epoch_seconds)?;
+        if self.state == CaptureLifecycleState::LegalHold {
+            return Err(CaptureLifecycleError::LegalHoldActive);
+        }
+        self.require_state(CaptureLifecycleState::Retained)?;
+        let Some(retention_deadline_epoch_seconds) = self.retention_deadline_epoch_seconds else {
+            return Err(CaptureLifecycleError::InvalidTransition);
+        };
+        if trusted_time_epoch_seconds < retention_deadline_epoch_seconds {
+            return Err(CaptureLifecycleError::RetentionNotExpired);
+        }
+        self.state = CaptureLifecycleState::DeletionRequested;
+        Ok(())
+    }
+
+    /// Confirm that the owning persistence boundary completed deletion.
+    pub fn confirm_deleted(
+        &mut self,
+        trusted_time_epoch_seconds: u64,
+    ) -> Result<(), CaptureLifecycleError> {
+        self.observe_trusted_time(trusted_time_epoch_seconds)?;
+        self.require_state(CaptureLifecycleState::DeletionRequested)?;
+        self.state = CaptureLifecycleState::Deleted;
+        Ok(())
+    }
+
+    fn observe_trusted_time(
+        &mut self,
+        trusted_time_epoch_seconds: u64,
+    ) -> Result<(), CaptureLifecycleError> {
+        if trusted_time_epoch_seconds < self.latest_trusted_time_epoch_seconds {
+            return Err(CaptureLifecycleError::TrustedTimeRollback);
+        }
+        self.latest_trusted_time_epoch_seconds = trusted_time_epoch_seconds;
+        Ok(())
+    }
+
+    fn require_state(
+        &self,
+        required_state: CaptureLifecycleState,
+    ) -> Result<(), CaptureLifecycleError> {
+        if self.state != required_state {
+            return Err(CaptureLifecycleError::InvalidTransition);
+        }
+        Ok(())
+    }
+
+    fn require_future_deadline(
+        &self,
+        retention_deadline_epoch_seconds: u64,
+    ) -> Result<(), CaptureLifecycleError> {
+        if retention_deadline_epoch_seconds <= self.latest_trusted_time_epoch_seconds {
+            return Err(CaptureLifecycleError::InvalidRetentionDeadline);
+        }
+        Ok(())
+    }
+}
