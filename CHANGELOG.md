@@ -46,6 +46,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Purpose-bound data-governance and privacy baseline that rejects both blanket masking and ambient raw-value propagation, defines field-scoped just-in-time disclosure, opaque-handle/trusted-broker boundaries, model/provider/region policy, retention/deletion/residency/break-glass controls, truthful CSAP/SOC 2 readiness language, and machine-checkable documentation contracts without inventing an OriginWeave-owned production database.
 - Proposed product-wide target-architecture ADRs for the Rust control plane, isolated execution modes, typed actions, semantic observation/stale-node authority, prompt-injection and secret separation, resource-governor priority, provenance evidence, browser/protocol adapters, crawler policy, and hourly automation operational closure; these remain Proposed rather than shipped claims until protected review and merge.
 - Active PR #217 adds a bounded in-memory `WarcProvBundle` for deterministic W3C PROV-O JSON-LD projection and offline verification of exact WARC records; durable persistence, retention, and transport-specific export remain planned rather than shipped.
+- Connected the active WARC/PROV bundle evidence to the primary standards doctoring record, preserving the in-memory-only and non-shipped durable-adapter boundary.
 
 ### Changed
 
