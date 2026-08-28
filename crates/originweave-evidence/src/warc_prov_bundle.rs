@@ -2,7 +2,7 @@ use std::fmt;
 
 use sha2::{Digest, Sha256};
 
-use crate::{ProvenanceRecord, WarcPayloadCompleteness, WarcResourceRecord, WarcTruncationReason};
+use crate::{ProvenanceRecord, WarcPayloadCompleteness, WarcResourceRecord};
 
 const ORIGINWEAVE_COMMIT_URL_PREFIX: &str =
     "https://github.com/ContextualWisdomLab/OriginWeave/commit/";
@@ -238,17 +238,8 @@ fn warc_payload_completeness_attributes(completeness: WarcPayloadCompleteness) -
         }
         WarcPayloadCompleteness::Truncated(reason) => format!(
             "\"{WARC_PAYLOAD_COMPLETENESS_IRI}\":\"truncated\",\"{WARC_TRUNCATION_REASON_IRI}\":\"{}\"",
-            warc_truncation_reason_token(reason)
+            reason.warc_token()
         ),
-    }
-}
-
-const fn warc_truncation_reason_token(reason: WarcTruncationReason) -> &'static str {
-    match reason {
-        WarcTruncationReason::Length => "length",
-        WarcTruncationReason::Time => "time",
-        WarcTruncationReason::Disconnect => "disconnect",
-        WarcTruncationReason::Unspecified => "unspecified",
     }
 }
 
@@ -267,4 +258,20 @@ fn valid_software_commit_sha(software_commit_sha: &str) -> bool {
             .bytes()
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
         && software_commit_sha.bytes().any(|byte| byte != b'0')
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::WarcTruncationReason;
+
+    #[test]
+    fn truncation_tokens_use_the_shared_warc_mapping() {
+        assert_eq!(WarcTruncationReason::Length.warc_token(), "length");
+        assert_eq!(WarcTruncationReason::Time.warc_token(), "time");
+        assert_eq!(WarcTruncationReason::Disconnect.warc_token(), "disconnect");
+        assert_eq!(
+            WarcTruncationReason::Unspecified.warc_token(),
+            "unspecified"
+        );
+    }
 }

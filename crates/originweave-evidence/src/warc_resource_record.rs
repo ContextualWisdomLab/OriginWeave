@@ -27,7 +27,8 @@ pub enum WarcTruncationReason {
 }
 
 impl WarcTruncationReason {
-    const fn warc_token(self) -> &'static str {
+    /// Return the canonical WARC 1.1 truncation token for this reason.
+    pub(crate) const fn warc_token(self) -> &'static str {
         match self {
             Self::Length => "length",
             Self::Time => "time",
