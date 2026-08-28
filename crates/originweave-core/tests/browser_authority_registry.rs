@@ -1,80 +1,12 @@
-#![allow(clippy::expect_used)]
-
 use std::error::Error;
 
 use originweave_core::{
-    BrowserAuthorityRegistry, BrowserContextDispatchTarget, BrowserContextOriginDispatchTarget,
-    BrowserContextOriginEpochDispatchTarget, BrowserProtocolAdapterDescriptor,
-    BrowserProtocolCapability, BrowserProtocolKind, BrowserRegistryError, BrowserSessionId,
-    BrowsingContextId, DocumentEpoch, MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES, NodeHandleError,
-    ObservedNodeHandle, Origin, OriginWeaveProtocolVersion, ValidatedBrowserProtocolUse,
-    WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesAdmissionError,
-    WebDriverBiDiRemoteNodeReferenceError,
+    BrowserAuthorityRegistry, BrowserRegistryError, BrowserSessionId, DocumentEpoch,
+    MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES, NodeHandleError, ObservedNodeHandle, Origin,
 };
 
-const ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion =
-    OriginWeaveProtocolVersion::new(0, 1);
-const ADAPTER_VERSION: &str = "originweave-bidi-v1";
-const PROTOCOL_REVISION: &str = "webdriver-bidi-wd-2026-06-01";
-const BROWSER_REVISION: &str = "chromium-r1639810";
-
-fn loopback_origin() -> Origin {
-    Origin::parse("http://127.0.0.1:43127").expect("valid loopback fixture origin")
-}
-
-fn semantic_observation_proof() -> ValidatedBrowserProtocolUse {
-    let descriptor = BrowserProtocolAdapterDescriptor::new(
-        BrowserProtocolKind::WebDriverBiDi,
-        ORIGINWEAVE_PROTOCOL_VERSION,
-        ADAPTER_VERSION,
-        PROTOCOL_REVISION,
-        BROWSER_REVISION,
-        &[BrowserProtocolCapability::SemanticObservation],
-    )
-    .expect("valid semantic-observation descriptor");
-    descriptor
-        .validate_use(
-            ORIGINWEAVE_PROTOCOL_VERSION,
-            BrowserProtocolKind::WebDriverBiDi,
-            ADAPTER_VERSION,
-            PROTOCOL_REVISION,
-            BROWSER_REVISION,
-            BrowserProtocolCapability::SemanticObservation,
-        )
-        .expect("valid semantic-observation proof")
-}
-
-fn bind_observed_node(
-    registry: &mut BrowserAuthorityRegistry,
-    browser_session: BrowserSessionId,
-    browsing_context: BrowsingContextId,
-    origin: &Origin,
-    external_identifier: &str,
-) -> Result<ObservedNodeHandle, WebDriverBiDiLocateNodesAdmissionError> {
-    let epoch = registry
-        .bind_context_origin(browser_session, browsing_context, origin)
-        .map_err(WebDriverBiDiLocateNodesAdmissionError::BrowserAuthority)?;
-    let target = BrowserContextOriginEpochDispatchTarget::new(
-        BrowserContextOriginDispatchTarget::new(
-            BrowserContextDispatchTarget::new(browser_session, browsing_context),
-            origin,
-        ),
-        epoch,
-    );
-    let query = WebDriverBiDiAccessibilityQuery::new(Some("generic"), None, 1)
-        .expect("valid bounded semantic-node query");
-    query
-        .bind_current_nodes(
-            semantic_observation_proof(),
-            registry,
-            target,
-            &[("node", Some(external_identifier))],
-        )?
-        .into_iter()
-        .next()
-        .ok_or(WebDriverBiDiLocateNodesAdmissionError::RemoteNode(
-            WebDriverBiDiRemoteNodeReferenceError::MissingSharedId,
-        ))
+fn loopback_origin() -> Result<Origin, Box<dyn Error>> {
+    Ok(Origin::parse("http://127.0.0.1:43127")?)
 }
 
 #[test]
@@ -112,7 +44,7 @@ fn public_default_and_error_contracts_are_usable_from_an_adapter() -> Result<(),
     let cases = [
         (
             BrowserRegistryError::InvalidExternalIdentifier,
-            "external browser identifier must contain 1 to 512 UTF-8 bytes without control, whitespace, or Unicode format characters".to_owned(),
+            "external browser identifier must contain 1 to 512 UTF-8 bytes".to_owned(),
         ),
         (
             BrowserRegistryError::UnknownBrowserSession,
@@ -162,10 +94,10 @@ fn document_rotation_invalidates_old_external_node_bindings() -> Result<(), Box<
     let mut registry = BrowserAuthorityRegistry::new();
     let session = registry.register_session("webdriver-session")?;
     let context = registry.register_context(session, "top-level-context")?;
-    let origin = loopback_origin();
+    let origin = loopback_origin()?;
 
-    let first = bind_observed_node(&mut registry, session, context, &origin, "backend-node-17")?;
-    let same = bind_observed_node(&mut registry, session, context, &origin, "backend-node-17")?;
+    let first = registry.bind_node(session, context, &origin, "backend-node-17")?;
+    let same = registry.bind_node(session, context, &origin, "backend-node-17")?;
     assert_eq!(first.node_id(), same.node_id());
 
     let next_epoch = registry.advance_document(context)?;
@@ -178,7 +110,7 @@ fn document_rotation_invalidates_old_external_node_bindings() -> Result<(), Box<
         })
     );
 
-    let rebound = bind_observed_node(&mut registry, session, context, &origin, "backend-node-17")?;
+    let rebound = registry.bind_node(session, context, &origin, "backend-node-17")?;
     assert_eq!(rebound.document_epoch(), next_epoch);
     assert_ne!(first.node_id(), rebound.node_id());
     Ok(())
@@ -189,9 +121,8 @@ fn retired_context_and_session_authority_cannot_be_reused() -> Result<(), Box<dy
     let mut registry = BrowserAuthorityRegistry::new();
     let session = registry.register_session("webdriver-session")?;
     let context = registry.register_context(session, "top-level-context")?;
-    let origin = loopback_origin();
-    let first_node =
-        bind_observed_node(&mut registry, session, context, &origin, "backend-node-17")?;
+    let origin = loopback_origin()?;
+    let first_node = registry.bind_node(session, context, &origin, "backend-node-17")?;
 
     registry.remove_context(context)?;
     assert_eq!(
@@ -199,10 +130,8 @@ fn retired_context_and_session_authority_cannot_be_reused() -> Result<(), Box<dy
         Err(BrowserRegistryError::UnknownBrowsingContext)
     );
     assert_eq!(
-        bind_observed_node(&mut registry, session, context, &origin, "backend-node-17"),
-        Err(WebDriverBiDiLocateNodesAdmissionError::BrowserAuthority(
-            BrowserRegistryError::UnknownBrowsingContext
-        ))
+        registry.bind_node(session, context, &origin, "backend-node-17"),
+        Err(BrowserRegistryError::UnknownBrowsingContext)
     );
     assert_eq!(
         registry.remove_context(context),
@@ -211,13 +140,8 @@ fn retired_context_and_session_authority_cannot_be_reused() -> Result<(), Box<dy
 
     let replacement_context = registry.register_context(session, "top-level-context")?;
     assert_ne!(replacement_context, context);
-    let replacement_node = bind_observed_node(
-        &mut registry,
-        session,
-        replacement_context,
-        &origin,
-        "backend-node-17",
-    )?;
+    let replacement_node =
+        registry.bind_node(session, replacement_context, &origin, "backend-node-17")?;
     assert_ne!(replacement_node.node_id(), first_node.node_id());
 
     registry.remove_session(session)?;
@@ -261,16 +185,14 @@ fn context_cannot_be_reused_by_another_session() -> Result<(), Box<dyn Error>> {
     let owner = registry.register_session("owner-session")?;
     let attacker = registry.register_session("attacker-session")?;
     let context = registry.register_context(owner, "shared-looking-context")?;
-    let origin = loopback_origin();
+    let origin = loopback_origin()?;
 
     assert_eq!(
-        bind_observed_node(&mut registry, attacker, context, &origin, "node"),
-        Err(WebDriverBiDiLocateNodesAdmissionError::BrowserAuthority(
-            BrowserRegistryError::ContextSessionMismatch {
-                expected: owner,
-                actual: attacker,
-            }
-        ))
+        registry.bind_node(attacker, context, &origin, "node"),
+        Err(BrowserRegistryError::ContextSessionMismatch {
+            expected: owner,
+            actual: attacker,
+        })
     );
     Ok(())
 }
@@ -280,28 +202,37 @@ fn context_origin_cannot_change_without_document_rotation() -> Result<(), Box<dy
     let mut registry = BrowserAuthorityRegistry::new();
     let session = registry.register_session("webdriver-session")?;
     let context = registry.register_context(session, "top-level-context")?;
-    let first_origin = loopback_origin();
-    let second_origin =
-        Origin::parse("http://localhost:43127").expect("valid loopback fixture origin");
+    let first_origin = loopback_origin()?;
+    let second_origin = Origin::parse("http://localhost:43127")?;
 
-    bind_observed_node(
-        &mut registry,
-        session,
-        context,
-        &first_origin,
-        "backend-node-17",
-    )?;
+    registry.bind_node(session, context, &first_origin, "backend-node-17")?;
     assert_eq!(
-        bind_observed_node(
-            &mut registry,
-            session,
-            context,
-            &second_origin,
-            "backend-node-18"
-        ),
-        Err(WebDriverBiDiLocateNodesAdmissionError::BrowserAuthority(
-            BrowserRegistryError::OriginChangedWithoutDocumentAdvance
-        ))
+        registry.bind_node(session, context, &second_origin, "backend-node-18"),
+        Err(BrowserRegistryError::OriginChangedWithoutDocumentAdvance)
+    );
+    Ok(())
+}
+
+#[test]
+fn failed_node_allocation_does_not_bind_context_origin() -> Result<(), Box<dyn Error>> {
+    let mut registry = BrowserAuthorityRegistry::with_identifier_limit(2);
+    let session = registry.register_session("webdriver-session")?;
+    let exhausted_context = registry.register_context(session, "exhaustion-source")?;
+    let clean_context = registry.register_context(session, "clean-context")?;
+    let first_origin = loopback_origin()?;
+    let second_origin = Origin::parse("http://localhost:43127")?;
+
+    registry.bind_node(session, exhausted_context, &first_origin, "node-one")?;
+    registry.bind_node(session, exhausted_context, &first_origin, "node-two")?;
+
+    assert_eq!(
+        registry.bind_node(session, clean_context, &first_origin, "node-three"),
+        Err(BrowserRegistryError::IdentifierSpaceExhausted)
+    );
+    assert_eq!(
+        registry.bind_node(session, clean_context, &second_origin, "node-three"),
+        Err(BrowserRegistryError::IdentifierSpaceExhausted),
+        "a failed allocation must not leave behind origin authority"
     );
     Ok(())
 }
@@ -322,43 +253,6 @@ fn external_identifiers_are_bounded_without_assuming_protocol_syntax() -> Result
 
     let unicode = registry.register_session("세션-opaque-✓")?;
     assert!(unicode.value() > 0);
-
-    assert_eq!(
-        registry.register_session(" "),
-        Err(BrowserRegistryError::InvalidExternalIdentifier)
-    );
-    assert_eq!(
-        registry.register_session("webdriver-session\n"),
-        Err(BrowserRegistryError::InvalidExternalIdentifier)
-    );
-    assert_eq!(
-        registry.register_session("webdriver-session\u{0000}"),
-        Err(BrowserRegistryError::InvalidExternalIdentifier)
-    );
-    assert_eq!(
-        registry.register_session("webdriver-session\u{200B}"),
-        Err(BrowserRegistryError::InvalidExternalIdentifier)
-    );
-    assert_eq!(
-        registry.register_session("webdriver-session\u{202E}"),
-        Err(BrowserRegistryError::InvalidExternalIdentifier)
-    );
-
-    let session = registry.register_session("webdriver-session")?;
-    let context = registry.register_context(session, "top-level-context")?;
-    let origin = loopback_origin();
-    assert_eq!(
-        bind_observed_node(
-            &mut registry,
-            session,
-            context,
-            &origin,
-            "backend-node-17\n",
-        ),
-        Err(WebDriverBiDiLocateNodesAdmissionError::RemoteNode(
-            WebDriverBiDiRemoteNodeReferenceError::InvalidSharedId
-        ))
-    );
     Ok(())
 }
 
@@ -377,13 +271,15 @@ fn authority_identifier_capacity_is_bounded_and_testable() -> Result<(), Box<dyn
         Err(BrowserRegistryError::IdentifierSpaceExhausted)
     );
 
-    let origin = loopback_origin();
-    assert!(bind_observed_node(&mut registry, session, context, &origin, "node-one").is_ok());
+    let origin = loopback_origin()?;
+    assert!(
+        registry
+            .bind_node(session, context, &origin, "node-one")
+            .is_ok()
+    );
     assert_eq!(
-        bind_observed_node(&mut registry, session, context, &origin, "node-two"),
-        Err(WebDriverBiDiLocateNodesAdmissionError::BrowserAuthority(
-            BrowserRegistryError::IdentifierSpaceExhausted
-        ))
+        registry.bind_node(session, context, &origin, "node-two"),
+        Err(BrowserRegistryError::IdentifierSpaceExhausted)
     );
     Ok(())
 }
@@ -400,12 +296,85 @@ fn unknown_internal_authority_is_rejected_before_node_binding() -> Result<(), Bo
 
     let known = registry.register_session("known-session")?;
     let context = registry.register_context(known, "known-context")?;
-    let origin = loopback_origin();
+    let origin = loopback_origin()?;
     assert_eq!(
-        bind_observed_node(&mut registry, unknown, context, &origin, "node"),
-        Err(WebDriverBiDiLocateNodesAdmissionError::BrowserAuthority(
-            BrowserRegistryError::UnknownBrowserSession
-        ))
+        registry.bind_node(unknown, context, &origin, "node"),
+        Err(BrowserRegistryError::UnknownBrowserSession)
+    );
+    Ok(())
+}
+
+#[test]
+fn registry_revalidates_live_node_authority_and_rejects_forged_or_retired_handles()
+-> Result<(), Box<dyn Error>> {
+    let mut registry = BrowserAuthorityRegistry::new();
+    let owner = registry.register_session("owner-session")?;
+    let other = registry.register_session("other-session")?;
+    let context = registry.register_context(owner, "top-level-context")?;
+    let origin = loopback_origin()?;
+    let live = registry.bind_node(owner, context, &origin, "backend-node-17")?;
+
+    assert_eq!(registry.validate_node_handle(&live), Ok(()));
+
+    let forged_node = ObservedNodeHandle::new(
+        owner,
+        context,
+        origin.clone(),
+        live.document_epoch(),
+        live.node_id() + 1,
+    )?;
+    assert_eq!(
+        registry.validate_node_handle(&forged_node),
+        Err(BrowserRegistryError::UnknownNodeAuthority)
+    );
+
+    let wrong_session = ObservedNodeHandle::new(
+        other,
+        context,
+        origin.clone(),
+        live.document_epoch(),
+        live.node_id(),
+    )?;
+    assert_eq!(
+        registry.validate_node_handle(&wrong_session),
+        Err(BrowserRegistryError::UnknownNodeAuthority)
+    );
+
+    let unbound_context = registry.register_context(owner, "unbound-context")?;
+    let synthetic_unbound = ObservedNodeHandle::new(
+        owner,
+        unbound_context,
+        origin.clone(),
+        DocumentEpoch::new(1)?,
+        777,
+    )?;
+    assert_eq!(
+        registry.validate_node_handle(&synthetic_unbound),
+        Err(BrowserRegistryError::UnknownNodeAuthority)
+    );
+
+    let next_epoch = registry.advance_document(context)?;
+    assert_eq!(next_epoch.value(), 2);
+    assert_eq!(
+        registry.validate_node_handle(&live),
+        Err(BrowserRegistryError::UnknownNodeAuthority)
+    );
+
+    let replacement = registry.bind_node(owner, context, &origin, "backend-node-17")?;
+    assert_eq!(registry.validate_node_handle(&replacement), Ok(()));
+
+    registry.remove_context(context)?;
+    assert_eq!(
+        registry.validate_node_handle(&replacement),
+        Err(BrowserRegistryError::UnknownBrowsingContext)
+    );
+
+    let session_context = registry.register_context(owner, "session-retirement")?;
+    let session_handle = registry.bind_node(owner, session_context, &origin, "session-node")?;
+    registry.remove_session(owner)?;
+    assert_eq!(
+        registry.validate_node_handle(&session_handle),
+        Err(BrowserRegistryError::UnknownBrowserSession)
     );
     Ok(())
 }

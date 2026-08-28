@@ -7,20 +7,27 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+mod extraction_schema;
 mod sensitive_access;
+mod sensitive_handle_lifecycle;
 
+pub use extraction_schema::{
+    ExtractionCardinality, ExtractionField, ExtractionNormalizationRule, ExtractionSchema,
+    ExtractionSchemaError, ExtractionSourceChannel, ExtractionValueType,
+    MAX_EXTRACTION_FIELD_COUNT, MAX_EXTRACTION_IDENTIFIER_BYTES,
+};
 pub use sensitive_access::{
     MAX_SENSITIVE_FIELD_COUNT, MAX_SENSITIVE_IDENTIFIER_BYTES, SensitiveAccessClass,
     SensitiveAccessEvidence, SensitiveAccessEvidenceInput, SensitiveAccessOutcome,
     SensitiveEvidenceError,
 };
+pub use sensitive_handle_lifecycle::{
+    SensitiveHandleLifecycleEvidence, SensitiveHandleLifecycleEvidenceInput,
+};
 
 use std::collections::BTreeMap;
 
-use originweave_core::{
-    BrowserProtocolCapability, BrowserProtocolKind, Origin, OriginWeaveProtocolVersion,
-    ValidatedBrowserProtocolUse,
-};
+use originweave_core::Origin;
 
 const REDACTED: &str = "[REDACTED]";
 
@@ -36,75 +43,6 @@ pub const MAX_METADATA_NAME_BYTES: usize = 256;
 pub const MAX_METADATA_VALUE_BYTES: usize = 8_192;
 /// Maximum source URL or source-locator size retained in provenance metadata.
 pub const MAX_PROVENANCE_TEXT_BYTES: usize = 8_192;
-
-/// Immutable credential-safe audit metadata for one validated browser protocol use.
-///
-/// This value can only be constructed from [`ValidatedBrowserProtocolUse`], so
-/// it records metadata that already passed the exact OriginWeave generation,
-/// runtime protocol-family, pinned runtime-revision, and capability checks. It
-/// intentionally remains ordinary cloneable evidence: cloning this value does
-/// not recreate the non-cloneable validation prerequisite or grant browser,
-/// Agent, origin, session, context, network, or secret authority.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BrowserProtocolValidationEvidence {
-    kind: BrowserProtocolKind,
-    originweave_protocol_version: OriginWeaveProtocolVersion,
-    adapter_version: String,
-    protocol_revision: String,
-    browser_revision: String,
-    capability: BrowserProtocolCapability,
-}
-
-impl BrowserProtocolValidationEvidence {
-    /// Record owned audit metadata from one already validated browser protocol use.
-    #[must_use]
-    pub fn from_validated_use(validated: &ValidatedBrowserProtocolUse) -> Self {
-        Self {
-            kind: validated.kind(),
-            originweave_protocol_version: validated.originweave_protocol_version(),
-            adapter_version: validated.adapter_version().to_owned(),
-            protocol_revision: validated.protocol_revision().to_owned(),
-            browser_revision: validated.browser_revision().to_owned(),
-            capability: validated.capability(),
-        }
-    }
-
-    /// Return the validated browser protocol family.
-    #[must_use]
-    pub const fn kind(&self) -> BrowserProtocolKind {
-        self.kind
-    }
-
-    /// Return the validated OriginWeave Protocol generation.
-    #[must_use]
-    pub const fn originweave_protocol_version(&self) -> OriginWeaveProtocolVersion {
-        self.originweave_protocol_version
-    }
-
-    /// Return the bounded validated adapter-version metadata token.
-    #[must_use]
-    pub fn adapter_version(&self) -> &str {
-        &self.adapter_version
-    }
-
-    /// Return the bounded validated upstream protocol-revision metadata token.
-    #[must_use]
-    pub fn protocol_revision(&self) -> &str {
-        &self.protocol_revision
-    }
-
-    /// Return the bounded validated browser-revision metadata token.
-    #[must_use]
-    pub fn browser_revision(&self) -> &str {
-        &self.browser_revision
-    }
-
-    /// Return the exact browser protocol capability validated for this use.
-    #[must_use]
-    pub const fn capability(&self) -> BrowserProtocolCapability {
-        self.capability
-    }
-}
 
 /// An HTTP method recorded for network evidence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

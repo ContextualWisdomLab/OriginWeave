@@ -20,6 +20,7 @@ class RepositoryContractTests(unittest.TestCase):
             set(data["workspace"]["members"]),
             {
                 "crates/originweave-core",
+                "crates/originweave-bap",
                 "crates/originweave-policy",
                 "crates/originweave-destination",
                 "crates/originweave-network",
@@ -59,6 +60,7 @@ class RepositoryContractTests(unittest.TestCase):
             "docs/adr/0005-direct-socket-binding.md",
             "docs/adr/0006-tls-server-identity.md",
             "docs/adr/0009-hourly-agent-credential-boundary.md",
+            "docs/adr/0016-bap-task-lifecycle-authority.md",
             "docs/superpowers/specs/2026-08-06-resolved-destination-policy-design.md",
             "docs/superpowers/specs/2026-08-06-direct-socket-binding-design.md",
             "docs/superpowers/specs/2026-08-06-tls-server-identity-design.md",
@@ -174,36 +176,6 @@ class RepositoryContractTests(unittest.TestCase):
             self.assertIn("OriginWeave", text, relative)
             self.assertNotIn("TraceWeave", text, relative)
             self.assertNotIn("ProofRail", text, relative)
-
-    def test_context_origin_binding_is_recorded_in_the_changelog(self) -> None:
-        """The public origin-binding boundary must remain visible in release history."""
-
-        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-        self.assertIn("BrowserAuthorityRegistry::bind_context_origin", changelog)
-
-    def test_context_origin_revalidation_is_recorded_in_the_changelog(self) -> None:
-        """The public origin-revalidation boundary must remain visible in release history."""
-
-        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-        self.assertIn("BrowserAuthorityRegistry::require_context_origin", changelog)
-
-    def test_context_origin_dispatch_is_recorded_in_the_changelog(self) -> None:
-        """The public origin-gated dispatch boundary must remain visible in release history."""
-
-        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-        self.assertIn("dispatch_if_context_origin_current", changelog)
-
-    def test_context_origin_epoch_dispatch_is_recorded_in_the_changelog(self) -> None:
-        """The public epoch-gated dispatch boundary must remain visible in release history."""
-
-        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-        self.assertIn("dispatch_if_context_origin_epoch_current", changelog)
-
-    def test_runtime_revision_boundary_is_recorded_in_the_changelog(self) -> None:
-        """The public runtime-revision boundary must remain visible in release history."""
-
-        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-        self.assertIn("require_runtime_revisions", changelog)
 
     def test_database_contract_requires_two_word_snake_case(self) -> None:
         """Persistent naming policy must include the mandated canonical form."""

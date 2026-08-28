@@ -8,12 +8,6 @@ This document records external evidence that changes OriginWeave architecture, t
 
 The 1 June 2026 WebDriver BiDi Working Draft defines a bidirectional remote-control protocol, events, commands, and user contexts. Because it remains a W3C Working Draft, OriginWeave places BiDi behind a versioned adapter and Web Platform Tests-derived contract tests rather than make it the internal authority model.
 
-The same Working Draft defines `script.NodeRemoteValue` with a required `type` of `node` and an optional `sharedId`, and `browsingContext.locateNodes` returns a list of those remote values. A `script.SharedReference` is the protocol's node identity across realms; when both `handle` and `sharedId` are present, the protocol respects only `sharedId`. OriginWeave therefore admits a `locateNodes` result item only when the remote type is exactly `node` and a non-empty `sharedId` fits the same UTF-8 identifier budget used by browser session and context identifiers and contains no control, whitespace, or reviewed Unicode format characters. Requiring `sharedId` and rejecting control, whitespace, and format characters is a local fail-closed policy, not a claim that the Working Draft makes those fields mandatory or forbids whitespace. The admitted value is an untrusted transport handle, not an OriginWeave session, context, origin, or document-epoch node identity. The same-call QueryNodes admission boundary first obtains a non-cloneable SemanticObservation protocol-use proof and transfers that proof by ownership into `bind_current_nodes`, which refuses Navigation and TypedInput proofs before translating each admitted `sharedId` through the session-scoped registry into an `ObservedNodeHandle` only after the exact current session, browsing context, canonical origin, and document epoch are revalidated and the returned item count still fits the reviewed query budget. That composition still performs no browser I/O and does not authorize typed input.
-
-WAI-ARIA 1.2 defines host-language `role` values as a token list: user agents split on whitespace and use the first matching non-abstract role. OriginWeave's first `locateNodes` accessibility query asks for one exact role, so a role containing whitespace, a control character, or a Unicode format character is rejected rather than interpreted as a fallback-role list. Accessible Name and Description Computation 1.2, a W3C Working Draft as of 5 August 2026, treats accessible names as ordinary strings that may contain spaces and treats whitespace-only `aria-roledescription` values as absent. OriginWeave therefore keeps ordinary spaces in accessible-name locators, rejects control and reviewed format characters that would become protocol-text injection or bidirectional spoofing, and rejects whitespace-only names as non-selectors.
-
-UTS #39 Revision 32 is the current Unicode security-mechanisms standard and marks Default_Ignorable and bidirectional format characters as restricted in identifier profiles. UAX #9 defines the bidirectional format controls that can reorder displayed protocol text. UTR #36 Revision 15 remains a stabilized historical security-considerations report; its identifier recommendations are superseded by UTS #39 rather than cited as current normative profile rules. OriginWeave therefore rejects the reviewed format-character set in roles, shared identifiers, and registry external identifiers, and rejects those same characters inside accessible names while still allowing ordinary U+0020 spaces.
-
 The final Model Context Protocol `2026-07-28` specification defines the currently reviewed MCP generation. Its stateless request model carries protocol metadata per request and standard Streamable HTTP routing metadata for MCP operations; its Tools surface defines bounded, case-sensitive tool names and requires clients to treat tool annotations as untrusted unless supplied by a trusted server. OriginWeave therefore keeps MCP outside the product authority model. Active PR #168 implements only a bounded Rust `tools/call` routing/action-policy foundation for that exact generation; the complete transport, request-metadata, discovery, OAuth, browser, secret, and persistence adapter remains planned and cannot be inferred from the core routing primitive.
 
 ### Browser origin equivalence
@@ -29,6 +23,12 @@ RFC 6454 defines a web origin as the scheme, host, and port tuple that browsers 
 ### Extension-to-Agent grant exclusive expiry
 
 RFC 9700 is the current Best Current Practice for OAuth 2.0 security. It requires access tokens to be restricted in lifetime and treats long-lived bearer credentials as a standing authorization risk. An OriginWeave `extension_grant` that matches extension identity, session, browsing context, and canonical origin but has no exclusive expiry remains usable after the Agent Task window ends. OriginWeave therefore requires the grant to carry an exclusive `expires_at_epoch_seconds` deadline and the request to carry trusted `now_epoch_seconds`. Evaluation fails closed when `now >= expires_at`, matching the existing sensitive-handle exclusive-expiry rule. Page, extension, and model clocks are not trusted time. This slice does not bind task identity, install an extension, or mint Agent capabilities from Manifest V3 permissions.
+
+### Release-limitation presentation safety
+
+Unicode 17.0 defines `Default_Ignorable_Code_Point` in the Unicode Character Database and records the exact derived set in the versioned `DerivedCoreProperties.txt` data file. Those characters can be invisible or alter presentation without supplying an ordinary visible glyph. OriginWeave therefore treats the Unicode 17.0 derived property as a pinned presentation-safety input for buyer-visible release-limitation metadata, in addition to rejecting control characters and non-canonical leading or trailing whitespace. The admitted text is not silently normalized: accepted content retains its exact bytes, while ambiguous presentation characters and surrounding whitespace fail closed so one release claim cannot acquire multiple stored spellings. This is a bounded metadata-identity policy, not a claim of complete Unicode spoofing resistance or semantic text equivalence.
+
+Unicode Standard Annex #15, revision 57 for Unicode 17.0.0, defines canonical equivalence and NFC and states that normalized equivalent strings have a unique binary representation. A release limitation is an identity-bearing buyer artifact, so OriginWeave rejects canonically equivalent non-NFC spellings instead of silently rewriting them. The production boundary uses only `unicode_normalization::is_nfc`; accepted strings remain byte-for-byte caller input. Rust's standard library does not provide Unicode normalization, so `unicode-normalization` is pinned exactly to 0.1.25. The reviewed crate implements UAX #15 normalization, declares Rust 1.36+ compatibility (below OriginWeave's Rust 1.97.1 baseline), is dual MIT/Apache-2.0 licensed, and adds only `tinyvec`/`tinyvec_macros` transitively in this workspace lockfile. The dependency is narrow, deterministic, non-networked, and maintained through the existing locked-dependency/security-scan process; any future Unicode-version or crate-version movement requires renewed normalization and supply-chain review.
 
 ### Resolved destination and redirect safety
 
@@ -89,6 +89,8 @@ RFC 9309 standardizes robots parsing, matching, error handling, and caching. It 
 ### Provenance and capture
 
 W3C PROV-O supplies interoperable Entity, Activity, Agent, derivation, attribution, and responsibility concepts. ISO 28500:2017, confirmed in 2023, defines WARC storage for protocol payloads, control information, metadata, transformations, duplicate detection, integrity, and segmentation. OriginWeave uses source hashes and locators in the safety kernel, then adds WARC and PROV adapters as separately testable modules.
+
+The versioned `ExtractionSchema` is an admission and interpretation contract for typed extracted fields: each field is bounded, declares a value type, cardinality, normalization rule, and a canonical duplicate-free set of reviewed source-channel classes. That declaration does not create browser, network, model, secret, storage, retention, disclosure, or governance authority. PROV/WARC interoperability is therefore layered after the schema contract rather than inferred from it.
 
 RFC 3986 remains Internet Standard STD 66 for generic URI syntax. RFC 8820 is the current URI design-and-ownership Best Current Practice; it obsoletes RFC 7320 and updates RFC 3986 without replacing RFC 3986's path grammar. Section 3.3 of RFC 3986 defines each path segment as `*pchar`, where literal path characters are unreserved characters, sub-delimiters, `:`, or `@`; `/` separates segments and other reserved characters such as `[` and `]` are not literal `pchar`. OriginWeave's shared evidence-path validator therefore applies that literal ASCII `pchar` set plus validated percent-encoded octets and explicit slash separators to both `NetworkEvidence::capture` paths and provenance source-URL paths. Existing stricter evidence-safety rules continue to reject encoded separators, dot-segment ambiguity, controls, whitespace, query strings, fragments, backslashes, and credential-bearing authority. This fail-closed syntax tightening affects both evidence surfaces; it does not authorize the source origin, destination, network access, capture, disclosure, or retention.
 
@@ -180,21 +182,17 @@ The Rust Project Developers. (2026). *Ipv6Addr in std::net* (Rust 1.97.1) [Softw
 
 The Rust Project Developers. (2026). *TcpStream in std::net* (Rust 1.97.1) [Software documentation]. https://doc.rust-lang.org/stable/std/net/struct.TcpStream.html
 
-Unicode Consortium. (2014, September 19). *Unicode security considerations* (Unicode Technical Report #36, Revision 15). https://www.unicode.org/reports/tr36/tr36-15.html
+The Unicode Consortium. (2025). *DerivedCoreProperties-17.0.0.txt* [Data file]. https://www.unicode.org/Public/17.0.0/ucd/DerivedCoreProperties.txt
 
-Unicode Consortium. (2025a, September 4). *Unicode bidirectional algorithm* (Unicode Standard Annex #9, Version 17.0.0). https://www.unicode.org/reports/tr9/
+The Unicode Consortium. (2025, July 30). *Unicode Standard Annex #15: Unicode normalization forms* (Revision 57, Unicode 17.0.0). https://www.unicode.org/reports/tr15/
 
-Unicode Consortium. (2025b, September 4). *Unicode security mechanisms* (Unicode Technical Standard #39, Revision 32). https://www.unicode.org/reports/tr39/tr39-32.html
+Unicode-RS Project Developers. (2025). *unicode-normalization 0.1.25* [Computer software]. https://docs.rs/unicode-normalization/0.1.25/unicode_normalization/
 
 Web Hypertext Application Technology Working Group. (2026). *URL standard*. https://url.spec.whatwg.org/
 
 World Wide Web Consortium. (2013). *PROV-O: The PROV ontology*. https://www.w3.org/TR/prov-o/
 
-World Wide Web Consortium. (2023, June 6). *Accessible Rich Internet Applications (WAI-ARIA) 1.2*. https://www.w3.org/TR/2023/REC-wai-aria-1.2-20230606/
-
 World Wide Web Consortium. (2026, June 1). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260601/
-
-World Wide Web Consortium. (2026, August 5). *Accessible name and description computation 1.2* (W3C Working Draft). https://www.w3.org/TR/2026/WD-accname-1.2-20260805/
 
 Xu, J., Sun, Q., Schwendeman, P., Nielsen, S., Cetin, E., & Tang, Y. (2025). *TRINITY: An evolved LLM coordinator* [Preprint]. arXiv. https://doi.org/10.48550/arXiv.2512.04695
 

@@ -8,35 +8,6 @@ use crate::{BrowserSessionId, BrowsingContextId, DocumentEpoch, NodeHandleError,
 /// Maximum UTF-8 byte length of an opaque browser-protocol identifier retained by the registry.
 pub const MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES: usize = 512;
 
-/// Invisible and bidirectional Unicode format characters rejected in protocol text.
-///
-/// These code points are Default_Ignorable or bidirectional format controls. They can hide or
-/// reorder locator and identifier text without being `char::is_control` or `char::is_whitespace`.
-/// The reviewed set is a local fail-closed policy for OriginWeave protocol admission, not a claim
-/// that every Unicode format character is forbidden by WebDriver BiDi or WAI-ARIA.
-pub const UNICODE_PROTOCOL_FORMAT_INJECTION_CHARS: &[char] = &[
-    '\u{00AD}', '\u{061C}', '\u{180E}', '\u{200B}', '\u{200C}', '\u{200D}', '\u{200E}', '\u{200F}',
-    '\u{202A}', '\u{202B}', '\u{202C}', '\u{202D}', '\u{202E}', '\u{2060}', '\u{2061}', '\u{2062}',
-    '\u{2063}', '\u{2064}', '\u{2066}', '\u{2067}', '\u{2068}', '\u{2069}', '\u{206A}', '\u{206B}',
-    '\u{206C}', '\u{206D}', '\u{206E}', '\u{206F}', '\u{FEFF}',
-];
-
-/// Return whether protocol text contains a control, whitespace, or reviewed format character.
-///
-/// When `allow_ordinary_space` is true, U+0020 may appear so accessible names can keep ordinary
-/// spaces. Every other whitespace character, every control, and every reviewed format character
-/// still fail closed.
-pub(crate) fn contains_disallowed_protocol_text(value: &str, allow_ordinary_space: bool) -> bool {
-    value.chars().any(|character| {
-        if allow_ordinary_space && character == ' ' {
-            return false;
-        }
-        character.is_control()
-            || character.is_whitespace()
-            || UNICODE_PROTOCOL_FORMAT_INJECTION_CHARS.contains(&character)
-    })
-}
-
 /// Default maximum number of authority identifiers allocated per registry namespace.
 const DEFAULT_MAX_BROWSER_AUTHORITY_IDENTIFIERS: u64 = 1_000_000;
 
@@ -45,8 +16,8 @@ const DEFAULT_MAX_BROWSER_AUTHORITY_IDENTIFIERS: u64 = 1_000_000;
 /// [`ObservedNodeHandle::new`] creates a structurally valid but unregistered observation. Such a
 /// value is useful for parsing and fail-closed validation but cannot become live browser authority
 /// merely by reproducing session, context, origin, epoch, and node identifiers. Handles returned
-/// by the protocol-admission path additionally carry an unforgeable in-process registry-instance
-/// token. That token is never serialized or exposed through the public API.
+/// by [`BrowserAuthorityRegistry::bind_node`] additionally carry an unforgeable in-process
+/// registry-instance token. That token is never serialized or exposed through the public API.
 #[derive(Debug, Clone)]
 pub struct ObservedNodeHandle {
     observed: NodeTuple,
@@ -57,7 +28,7 @@ impl ObservedNodeHandle {
     /// Create one structurally valid, unregistered observed node handle.
     ///
     /// Directly constructed handles deliberately carry no registry issuance authority and are
-    /// rejected by the protocol-admission path when used as live browser authority.
+    /// rejected by [`BrowserAuthorityRegistry::validate_node_handle`].
     pub fn new(
         browser_session: BrowserSessionId,
         browsing_context: BrowsingContextId,
@@ -145,7 +116,6 @@ impl ObservedNodeHandle {
         )
     }
 
-    #[cfg(test)]
     fn belongs_to(&self, registry_authority: &Arc<()>) -> bool {
         self.registry_authority
             .as_ref()
@@ -337,111 +307,6 @@ impl BrowserAuthorityRegistry {
             .ok_or(BrowserRegistryError::UnknownBrowsingContext)
     }
 
-    /// Return the current document epoch only when the supplied session owns the context.
-    ///
-    /// This is an immediate-use registry check for trusted browser adapters. It proves only that
-    /// the OriginWeave session/context pair is currently registered together and returns the
-    /// registry's current document epoch. It does not authenticate a browser process, authorize an
-    /// origin or action, or make the returned epoch a reusable browser capability.
-    pub fn current_context_epoch(
-        &self,
-        browser_session: BrowserSessionId,
-        browsing_context: BrowsingContextId,
-    ) -> Result<DocumentEpoch, BrowserRegistryError> {
-        if !self.known_sessions.contains(&browser_session) {
-            return Err(BrowserRegistryError::UnknownBrowserSession);
-        }
-        let expected_session = self
-            .context_session
-            .get(&browsing_context)
-            .copied()
-            .ok_or(BrowserRegistryError::UnknownBrowsingContext)?;
-        if expected_session != browser_session {
-            return Err(BrowserRegistryError::ContextSessionMismatch {
-                expected: expected_session,
-                actual: browser_session,
-            });
-        }
-        self.current_epoch(browsing_context)
-    }
-
-    /// Require an opaque external browsing-context identifier to name this exact context.
-    ///
-    /// This read-only check binds transport-level context text back to the already-registered
-    /// OriginWeave session/context pair. It never registers a new external context as a side effect,
-    /// so an untrusted result cannot create authority merely by presenting a different identifier.
-    pub(crate) fn require_context_external_identifier(
-        &self,
-        browser_session: BrowserSessionId,
-        browsing_context: BrowsingContextId,
-        external_identifier: &str,
-    ) -> Result<(), BrowserRegistryError> {
-        validate_external_identifier(external_identifier)?;
-        self.current_context_epoch(browser_session, browsing_context)?;
-        let key = (browser_session, external_identifier.to_owned());
-        if self.context_by_external.get(&key).copied() != Some(browsing_context) {
-            return Err(BrowserRegistryError::ContextExternalIdentifierMismatch);
-        }
-        Ok(())
-    }
-
-    /// Bind the canonical origin observed for the exact current browser document.
-    ///
-    /// This boundary lets a trusted browser adapter establish current document-origin state before
-    /// semantic-node discovery begins. The supplied session must own the context. Rebinding the
-    /// same canonical origin in the same document epoch is idempotent, while a different origin
-    /// fails closed until [`Self::advance_document`] rotates the document epoch and clears the old
-    /// binding. The returned epoch is descriptive immediate-use state, not reusable capability.
-    ///
-    /// This method does not authenticate the adapter, derive an origin from Chromium, authorize a
-    /// destination or action, or prove that any browser I/O occurred.
-    pub fn bind_context_origin(
-        &mut self,
-        browser_session: BrowserSessionId,
-        browsing_context: BrowsingContextId,
-        origin: &Origin,
-    ) -> Result<DocumentEpoch, BrowserRegistryError> {
-        let epoch = self.current_context_epoch(browser_session, browsing_context)?;
-        match self.context_origin.get(&browsing_context) {
-            Some(expected_origin) if expected_origin != origin => {
-                return Err(BrowserRegistryError::OriginChangedWithoutDocumentAdvance);
-            }
-            Some(_expected_origin) => {}
-            None => {
-                self.context_origin.insert(browsing_context, origin.clone());
-            }
-        }
-        Ok(epoch)
-    }
-
-    /// Revalidate the canonical origin bound to the exact current browser document.
-    ///
-    /// This read-only immediate-use boundary lets a trusted browser adapter prove that the exact
-    /// OriginWeave session/context still has the expected canonical origin in its current document
-    /// epoch. It fails closed when the current document has no origin binding, including directly
-    /// after [`Self::advance_document`], and rejects a different origin without mutating registry
-    /// state. The returned epoch is descriptive current state, not a reusable capability.
-    ///
-    /// This method does not authenticate the adapter or browser process, derive the current origin
-    /// from Chromium, authorize a destination or action, perform browser I/O, or attest that the
-    /// caller-supplied origin came from the running browser.
-    pub fn require_context_origin(
-        &self,
-        browser_session: BrowserSessionId,
-        browsing_context: BrowsingContextId,
-        origin: &Origin,
-    ) -> Result<DocumentEpoch, BrowserRegistryError> {
-        let epoch = self.current_context_epoch(browser_session, browsing_context)?;
-        let expected_origin = self
-            .context_origin
-            .get(&browsing_context)
-            .ok_or(BrowserRegistryError::ContextOriginNotBound)?;
-        if expected_origin != origin {
-            return Err(BrowserRegistryError::OriginChangedWithoutDocumentAdvance);
-        }
-        Ok(epoch)
-    }
-
     /// Advance a browsing context to the next document epoch and invalidate old node bindings.
     ///
     /// Call this whenever navigation or document replacement invalidates actionable node identity.
@@ -545,7 +410,6 @@ impl BrowserAuthorityRegistry {
     /// also fails safe if private lookup state was duplicated or corrupted. Retirement does not
     /// claim that Chromium destroyed the underlying DOM/backend node, and the monotonic node
     /// identifier is never reused.
-    #[cfg(test)]
     pub fn remove_node(&mut self, handle: &ObservedNodeHandle) -> Result<(), BrowserRegistryError> {
         self.validate_node_handle(handle)?;
         let node_id = handle.node_id();
@@ -562,7 +426,6 @@ impl BrowserAuthorityRegistry {
     /// handle to have been issued by this exact registry instance, and resolves the node through a
     /// reverse index rather than scanning every live binding. Caller-constructed, cross-registry,
     /// or retired handles therefore cannot manufacture authority from a self-consistent tuple.
-    #[cfg(test)]
     pub fn validate_node_handle(
         &self,
         handle: &ObservedNodeHandle,
@@ -595,46 +458,6 @@ impl BrowserAuthorityRegistry {
         }
         Ok(())
     }
-
-    /// Bind a batch of node identifiers transactionally to the exact current browser authority.
-    ///
-    /// Successful bindings are retained only when every identifier in the batch succeeds. If a
-    /// later identifier fails validation, authority checks, identifier allocation, or handle
-    /// construction, node mappings allocated by this batch are removed, the next node identifier
-    /// is restored, and an origin first established by this batch is removed before the error is
-    /// returned. Handles created earlier in the failed batch never escape this method, so restoring
-    /// the local allocation cursor cannot revive externally observable stale authority.
-    pub(crate) fn bind_nodes(
-        &mut self,
-        browser_session: BrowserSessionId,
-        browsing_context: BrowsingContextId,
-        origin: &Origin,
-        external_identifiers: &[&str],
-    ) -> Result<Vec<ObservedNodeHandle>, BrowserRegistryError> {
-        let starting_next_node_id = self.next_node_id;
-        let had_origin = self.context_origin.contains_key(&browsing_context);
-        let mut handles = Vec::with_capacity(external_identifiers.len());
-        for external_identifier in external_identifiers {
-            match self.bind_node(
-                browser_session,
-                browsing_context,
-                origin,
-                external_identifier,
-            ) {
-                Ok(handle) => handles.push(handle),
-                Err(error) => {
-                    self.node_by_external
-                        .retain(|_key, node_id| *node_id < starting_next_node_id);
-                    self.next_node_id = starting_next_node_id;
-                    if !had_origin {
-                        self.context_origin.remove(&browsing_context);
-                    }
-                    return Err(error);
-                }
-            }
-        }
-        Ok(handles)
-    }
 }
 
 impl Default for BrowserAuthorityRegistry {
@@ -646,7 +469,7 @@ impl Default for BrowserAuthorityRegistry {
 /// A fail-closed error produced while translating external browser identifiers into local authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BrowserRegistryError {
-    /// An external identifier was empty, contained control, whitespace, or Unicode format text, or exceeded the reviewed byte bound.
+    /// An external identifier was empty or exceeded the reviewed byte bound.
     InvalidExternalIdentifier,
     /// The supplied OriginWeave browser session is not registered in this registry.
     UnknownBrowserSession,
@@ -659,10 +482,6 @@ pub enum BrowserRegistryError {
         /// Session supplied by the current caller.
         actual: BrowserSessionId,
     },
-    /// The transport-level browsing-context identifier does not name the supplied registered context.
-    ContextExternalIdentifierMismatch,
-    /// The current document has no canonical origin bound to the browsing context.
-    ContextOriginNotBound,
     /// The context origin changed without first rotating the document epoch.
     OriginChangedWithoutDocumentAdvance,
     /// The observed node handle is not a current node binding owned by this registry.
@@ -678,8 +497,9 @@ pub enum BrowserRegistryError {
 impl fmt::Display for BrowserRegistryError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidExternalIdentifier => formatter.write_str(
-                "external browser identifier must contain 1 to 512 UTF-8 bytes without control, whitespace, or Unicode format characters",
+            Self::InvalidExternalIdentifier => write!(
+                formatter,
+                "external browser identifier must contain 1 to {MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES} UTF-8 bytes"
             ),
             Self::UnknownBrowserSession => {
                 formatter.write_str("browser session is not registered in this authority registry")
@@ -692,12 +512,6 @@ impl fmt::Display for BrowserRegistryError {
                 "browsing context belongs to session {}, not session {}",
                 expected.value(),
                 actual.value()
-            ),
-            Self::ContextExternalIdentifierMismatch => formatter.write_str(
-                "browsing context external identifier does not match the registered context",
-            ),
-            Self::ContextOriginNotBound => formatter.write_str(
-                "browsing context has no canonical origin bound for the current document",
             ),
             Self::OriginChangedWithoutDocumentAdvance => formatter
                 .write_str("browsing context origin changed without advancing the document epoch"),
@@ -719,10 +533,7 @@ impl fmt::Display for BrowserRegistryError {
 impl std::error::Error for BrowserRegistryError {}
 
 fn validate_external_identifier(identifier: &str) -> Result<(), BrowserRegistryError> {
-    if identifier.is_empty()
-        || identifier.len() > MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES
-        || contains_disallowed_protocol_text(identifier, false)
-    {
+    if identifier.is_empty() || identifier.len() > MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES {
         return Err(BrowserRegistryError::InvalidExternalIdentifier);
     }
     Ok(())
@@ -1110,277 +921,6 @@ mod tests {
             take_identifier(&mut next, 1),
             Err(BrowserRegistryError::IdentifierSpaceExhausted)
         );
-    }
-
-    #[test]
-    fn registry_reports_all_resource_and_authority_failures() {
-        let known_sessions = values(BrowserSessionId::new(1));
-        let unknown_contexts = values(BrowsingContextId::new(1));
-        let initial_epochs = values(DocumentEpoch::new(1));
-        let origins = values(Origin::parse("http://127.0.0.1:43127"));
-        assert_eq!(known_sessions.len(), 1);
-        assert_eq!(unknown_contexts.len(), 1);
-        assert_eq!(initial_epochs.len(), 1);
-        assert_eq!(origins.len(), 1);
-        let known_session = known_sessions[0];
-        let unknown_context = unknown_contexts[0];
-        let initial_epoch = initial_epochs[0];
-        let origin = &origins[0];
-
-        let mut limited_registry = BrowserAuthorityRegistry::with_identifier_limit(1);
-        let limited_sessions = values(limited_registry.register_session("session-one"));
-        assert_eq!(limited_sessions.len(), 1);
-        let limited_session = limited_sessions[0];
-        assert_eq!(
-            limited_registry.register_session("session-two"),
-            Err(BrowserRegistryError::IdentifierSpaceExhausted)
-        );
-        let limited_contexts =
-            values(limited_registry.register_context(limited_session, "context-one"));
-        assert_eq!(limited_contexts.len(), 1);
-        let limited_context = limited_contexts[0];
-        assert_eq!(
-            limited_registry.register_context(limited_session, "context-two"),
-            Err(BrowserRegistryError::IdentifierSpaceExhausted)
-        );
-        assert!(
-            limited_registry
-                .bind_node(limited_session, limited_context, origin, "node-one")
-                .is_ok()
-        );
-        assert_eq!(
-            limited_registry.bind_node(limited_session, limited_context, origin, "node-two"),
-            Err(BrowserRegistryError::IdentifierSpaceExhausted)
-        );
-
-        let mut registry = BrowserAuthorityRegistry::default();
-        assert_eq!(
-            registry.current_epoch(unknown_context),
-            Err(BrowserRegistryError::UnknownBrowsingContext)
-        );
-        assert_eq!(
-            registry.advance_document(unknown_context),
-            Err(BrowserRegistryError::UnknownBrowsingContext)
-        );
-        assert_eq!(
-            registry.bind_node(known_session, unknown_context, origin, "node"),
-            Err(BrowserRegistryError::UnknownBrowserSession)
-        );
-
-        let sessions = values(registry.register_session("session"));
-        assert_eq!(sessions.len(), 1);
-        let session = sessions[0];
-        let contexts = values(registry.register_context(session, "context-a"));
-        assert_eq!(contexts.len(), 1);
-        let context = contexts[0];
-        assert_eq!(
-            registry.require_context_external_identifier(session, context, "context-a"),
-            Ok(())
-        );
-        assert_eq!(
-            registry.require_context_external_identifier(session, context, "context-b"),
-            Err(BrowserRegistryError::ContextExternalIdentifierMismatch)
-        );
-        assert_eq!(
-            registry.require_context_external_identifier(session, context, ""),
-            Err(BrowserRegistryError::InvalidExternalIdentifier)
-        );
-
-        let maximum_epochs = values(DocumentEpoch::new(u64::MAX));
-        assert_eq!(maximum_epochs.len(), 1);
-        registry.context_epoch.insert(context, maximum_epochs[0]);
-        assert_eq!(
-            registry.advance_document(context),
-            Err(BrowserRegistryError::DocumentEpochExhausted)
-        );
-        registry.context_epoch.insert(context, initial_epoch);
-
-        let unknown_sessions = values(BrowserSessionId::new(999));
-        let unknown_contexts = values(BrowsingContextId::new(999));
-        assert_eq!(unknown_sessions.len(), 1);
-        assert_eq!(unknown_contexts.len(), 1);
-        assert_eq!(
-            registry.require_context_external_identifier(unknown_sessions[0], context, "context-a"),
-            Err(BrowserRegistryError::UnknownBrowserSession)
-        );
-        assert_eq!(
-            registry.require_context_external_identifier(session, unknown_contexts[0], "context-a"),
-            Err(BrowserRegistryError::UnknownBrowsingContext)
-        );
-        assert_eq!(
-            registry.bind_node(unknown_sessions[0], context, origin, "node"),
-            Err(BrowserRegistryError::UnknownBrowserSession)
-        );
-        assert_eq!(
-            registry.bind_node(session, unknown_contexts[0], origin, "node"),
-            Err(BrowserRegistryError::UnknownBrowsingContext)
-        );
-    }
-
-    #[test]
-    fn batched_node_binding_rolls_back_partial_authority() {
-        let origins = values(Origin::parse("http://127.0.0.1:43127"));
-        assert_eq!(origins.len(), 1);
-        let origin = &origins[0];
-
-        let mut registry = BrowserAuthorityRegistry::with_identifier_limit(2);
-        let sessions = values(registry.register_session("session"));
-        assert_eq!(sessions.len(), 1);
-        let session = sessions[0];
-        let contexts = values(registry.register_context(session, "context"));
-        assert_eq!(contexts.len(), 1);
-        let context = contexts[0];
-        let existing = values(registry.bind_node(session, context, origin, "existing"));
-        assert_eq!(existing.len(), 1);
-        assert_eq!(existing[0].node_id(), 1);
-        assert_eq!(
-            registry.bind_nodes(session, context, origin, &["existing", "fresh", "overflow"]),
-            Err(BrowserRegistryError::IdentifierSpaceExhausted)
-        );
-        assert_eq!(registry.node_by_external.len(), 1);
-        assert_eq!(registry.next_node_id, 2);
-        assert!(registry.context_origin.contains_key(&context));
-        let recovery = values(registry.bind_node(session, context, origin, "recovery"));
-        assert_eq!(recovery.len(), 1);
-        assert_eq!(recovery[0].node_id(), 2);
-
-        let mut unbound_registry = BrowserAuthorityRegistry::with_identifier_limit(1);
-        let sessions = values(unbound_registry.register_session("unbound-session"));
-        assert_eq!(sessions.len(), 1);
-        let unbound_session = sessions[0];
-        let contexts =
-            values(unbound_registry.register_context(unbound_session, "unbound-context"));
-        assert_eq!(contexts.len(), 1);
-        let unbound_context = contexts[0];
-        assert!(
-            !unbound_registry
-                .context_origin
-                .contains_key(&unbound_context)
-        );
-        assert_eq!(
-            unbound_registry.bind_nodes(
-                unbound_session,
-                unbound_context,
-                origin,
-                &["first", "overflow"],
-            ),
-            Err(BrowserRegistryError::IdentifierSpaceExhausted)
-        );
-        assert!(
-            !unbound_registry
-                .context_origin
-                .contains_key(&unbound_context)
-        );
-        assert!(unbound_registry.node_by_external.is_empty());
-        assert_eq!(unbound_registry.next_node_id, 1);
-    }
-
-    #[test]
-    fn origin_rotation_and_node_cleanup_are_explicit() {
-        let mut registry = BrowserAuthorityRegistry::new();
-        let sessions = values(registry.register_session("session"));
-        assert_eq!(sessions.len(), 1);
-        let session = sessions[0];
-        let contexts = values(registry.register_context(session, "context"));
-        let second_contexts = values(registry.register_context(session, "context-two"));
-        assert_eq!(contexts.len(), 1);
-        assert_eq!(second_contexts.len(), 1);
-        let context = contexts[0];
-        let second_context = second_contexts[0];
-        assert_eq!(registry.register_context(session, "context"), Ok(context));
-
-        let first_origins = values(Origin::parse("http://127.0.0.1:43127"));
-        let second_origins = values(Origin::parse("http://localhost:43127"));
-        assert_eq!(first_origins.len(), 1);
-        assert_eq!(second_origins.len(), 1);
-        let first_origin = &first_origins[0];
-        let second_origin = &second_origins[0];
-        assert!(
-            registry
-                .bind_node(session, context, first_origin, "node-a")
-                .is_ok()
-        );
-        assert!(
-            registry
-                .bind_node(session, second_context, first_origin, "node-b")
-                .is_ok()
-        );
-        assert_eq!(
-            registry.bind_node(session, context, second_origin, "node-a"),
-            Err(BrowserRegistryError::OriginChangedWithoutDocumentAdvance)
-        );
-        assert_eq!(registry.node_by_external.len(), 2);
-        assert!(registry.advance_document(context).is_ok());
-        assert_eq!(registry.node_by_external.len(), 1);
-        assert!(
-            registry
-                .bind_node(session, context, second_origin, "node-a")
-                .is_ok()
-        );
-    }
-
-    #[test]
-    fn invalid_node_and_context_inputs_are_rejected() {
-        let mut registry = BrowserAuthorityRegistry::new();
-        let sessions = values(registry.register_session("session"));
-        assert_eq!(sessions.len(), 1);
-        let session = sessions[0];
-        assert_eq!(
-            registry.register_context(session, ""),
-            Err(BrowserRegistryError::InvalidExternalIdentifier)
-        );
-        assert_eq!(
-            registry.register_context(
-                session,
-                &"x".repeat(MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES + 1),
-            ),
-            Err(BrowserRegistryError::InvalidExternalIdentifier)
-        );
-        let contexts = values(registry.register_context(session, "context"));
-        let origins = values(Origin::parse("http://127.0.0.1:43127"));
-        assert_eq!(contexts.len(), 1);
-        assert_eq!(origins.len(), 1);
-        assert_eq!(
-            registry.bind_node(session, contexts[0], &origins[0], ""),
-            Err(BrowserRegistryError::InvalidExternalIdentifier)
-        );
-        assert_eq!(
-            registry.bind_node(
-                session,
-                contexts[0],
-                &origins[0],
-                &"x".repeat(MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES + 1),
-            ),
-            Err(BrowserRegistryError::InvalidExternalIdentifier)
-        );
-    }
-
-    #[test]
-    fn browser_registry_errors_have_non_sensitive_deterministic_text() {
-        let expected_values = values(BrowserSessionId::new(1));
-        let actual_values = values(BrowserSessionId::new(2));
-        assert_eq!(expected_values.len(), 1);
-        assert_eq!(actual_values.len(), 1);
-        let errors = [
-            BrowserRegistryError::InvalidExternalIdentifier,
-            BrowserRegistryError::UnknownBrowserSession,
-            BrowserRegistryError::UnknownBrowsingContext,
-            BrowserRegistryError::ContextSessionMismatch {
-                expected: expected_values[0],
-                actual: actual_values[0],
-            },
-            BrowserRegistryError::ContextExternalIdentifierMismatch,
-            BrowserRegistryError::ContextOriginNotBound,
-            BrowserRegistryError::OriginChangedWithoutDocumentAdvance,
-            BrowserRegistryError::IdentifierSpaceExhausted,
-            BrowserRegistryError::DocumentEpochExhausted,
-            BrowserRegistryError::InternalAuthorityInvariant,
-        ];
-        for error in errors {
-            let text = error.to_string();
-            assert!(!text.is_empty());
-            assert!(!text.contains("webdriver-session"));
-        }
     }
 
     #[test]

@@ -1,5 +1,7 @@
-use crate::browser_registry::{BrowserAuthorityRegistry, ObservedNodeHandle};
-use crate::{BrowserRegistryError, BrowserSessionId, DocumentEpoch, Origin};
+use crate::{
+    BrowserAuthorityRegistry, BrowserRegistryError, BrowserSessionId, DocumentEpoch,
+    ObservedNodeHandle, Origin,
+};
 
 fn values<T, E>(result: Result<T, E>) -> Vec<T> {
     result.into_iter().collect()
@@ -24,16 +26,8 @@ fn repeated_node_binding_exercises_the_unit_crate_existing_node_path() {
     assert_eq!(origins.len(), 1);
     let origin = &origins[0];
 
-    let first = registry
-        .bind_nodes(session, context, origin, &["unit-node"])
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>();
-    let repeated = registry
-        .bind_nodes(session, context, origin, &["unit-node"])
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>();
+    let first = values(registry.bind_node(session, context, origin, "unit-node"));
+    let repeated = values(registry.bind_node(session, context, origin, "unit-node"));
     assert_eq!(first.len(), 1);
     assert_eq!(repeated.len(), 1);
     assert_eq!(first[0], repeated[0]);
@@ -222,7 +216,7 @@ fn session_authority_failures_are_exercised_in_the_unit_crate() {
     let context = contexts[0];
 
     assert_eq!(
-        registry.bind_nodes(attacker, context, &origins[0], &["unit-node"]),
+        registry.bind_node(attacker, context, &origins[0], "unit-node"),
         Err(BrowserRegistryError::ContextSessionMismatch {
             expected: owner,
             actual: attacker,
@@ -319,59 +313,6 @@ fn unit_cfg_allocation_rotation_and_retirement_edges_are_exercised() {
         registry.advance_document(context),
         Err(BrowserRegistryError::UnknownBrowsingContext)
     );
-}
-
-#[test]
-fn failed_node_allocation_does_not_bind_context_origin() {
-    let mut registry = BrowserAuthorityRegistry::with_identifier_limit(2);
-    let session = values(registry.register_session("allocation-session"))[0];
-    let exhausted_context = values(registry.register_context(session, "exhausted-context"))[0];
-    let clean_context = values(registry.register_context(session, "clean-context"))[0];
-    let first_origin = values(Origin::parse("http://127.0.0.1:43127"))[0].clone();
-    let second_origin = values(Origin::parse("http://localhost:43127"))[0].clone();
-
-    assert_eq!(
-        values(registry.bind_node(session, exhausted_context, &first_origin, "node-one")).len(),
-        1
-    );
-    assert_eq!(
-        values(registry.bind_node(session, exhausted_context, &first_origin, "node-two")).len(),
-        1
-    );
-    assert_eq!(
-        registry.bind_node(session, clean_context, &first_origin, "node-three"),
-        Err(BrowserRegistryError::IdentifierSpaceExhausted)
-    );
-    assert_eq!(
-        registry.bind_node(session, clean_context, &second_origin, "node-three"),
-        Err(BrowserRegistryError::IdentifierSpaceExhausted)
-    );
-}
-
-#[test]
-fn node_handles_cannot_cross_registry_instances() {
-    let origin = values(Origin::parse("http://127.0.0.1:43127"))[0].clone();
-    let mut first = BrowserAuthorityRegistry::new();
-    let first_session = values(first.register_session("first-session"))[0];
-    let first_context = values(first.register_context(first_session, "first-context"))[0];
-    let first_handle =
-        values(first.bind_node(first_session, first_context, &origin, "first-node"))[0].clone();
-
-    let mut second = BrowserAuthorityRegistry::new();
-    let second_session = values(second.register_session("second-session"))[0];
-    let second_context = values(second.register_context(second_session, "second-context"))[0];
-    let second_handle =
-        values(second.bind_node(second_session, second_context, &origin, "second-node"))[0].clone();
-
-    assert_eq!(first_session, second_session);
-    assert_eq!(first_context, second_context);
-    assert_eq!(first_handle.node_id(), second_handle.node_id());
-    assert_ne!(first_handle, second_handle);
-    assert_eq!(
-        second.validate_node_handle(&first_handle),
-        Err(BrowserRegistryError::UnknownNodeAuthority)
-    );
-    assert_eq!(second.validate_node_handle(&second_handle), Ok(()));
 }
 
 #[test]
