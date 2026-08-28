@@ -26,6 +26,7 @@ import pathlib
 import socket
 import string
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -57,16 +58,39 @@ class QuietFixtureHandler(http.server.SimpleHTTPRequestHandler):
     """Serve only the controlled local fixture without noisy access logging."""
 
     def translate_path(self, path: str) -> str:
-        """Keep resolved request targets inside the configured fixture root."""
+        """Resolve requests only when their final path remains inside the fixture root."""
 
+        translated = pathlib.Path(super().translate_path(path))
         fixture_root = pathlib.Path(self.directory).resolve()
-        candidate = pathlib.Path(super().translate_path(path)).resolve()
-        if not candidate.is_relative_to(fixture_root):
-            return str(fixture_root / ".originweave-denied")
-        return str(candidate)
+        try:
+            resolved = translated.resolve(strict=False)
+            resolved.relative_to(fixture_root)
+        except (OSError, ValueError):
+            return str(fixture_root / ".originweave-rejected-fixture-path")
+        return str(resolved)
 
     def log_message(self, _format: str, *args: object) -> None:
         """Suppress request logs because the fixture contains no diagnostic value."""
+
+
+class BrowserSessionCleanupError(RuntimeError):
+    """Report bounded WebDriver-session cleanup failure without echoing remote text."""
+
+    def __init__(self, cleanup_error: BaseException) -> None:
+        self.cleanup_error_type = type(cleanup_error).__name__
+        super().__init__(
+            "WebDriver session cleanup failed; see the chained causal browser failure"
+        )
+
+
+class BrowserProfileCleanupError(RuntimeError):
+    """Report bounded profile cleanup failure without exposing filesystem details."""
+
+    def __init__(self, cleanup_error: BaseException) -> None:
+        self.cleanup_error_type = type(cleanup_error).__name__
+        super().__init__(
+            "browser profile cleanup failed; see the chained causal browser failure"
+        )
 
 
 def _free_loopback_port() -> int:
@@ -297,6 +321,19 @@ def _parse_linux_proc_status_rss_bytes(status_text: str) -> int:
     return rss_values[0]
 
 
+def _sample_linux_process_rss_bytes(process_id: int) -> int:
+    """Read one attributed Linux process RSS through a bounded ``/proc`` status file."""
+
+    if isinstance(process_id, bool) or not isinstance(process_id, int) or process_id <= 0:
+        raise ValueError("invalid Linux process identifier")
+    status_path = pathlib.Path("/proc") / str(process_id) / "status"
+    with status_path.open("r", encoding="utf-8", errors="strict") as status_file:
+        status_text = status_file.read(MAX_PROC_STATUS_CHARACTERS + 1)
+    if len(status_text) > MAX_PROC_STATUS_CHARACTERS:
+        raise RuntimeError("Linux proc status exceeded the bounded text limit")
+    return _parse_linux_proc_status_rss_bytes(status_text)
+
+
 def _parse_linux_proc_status_optional_rss_bytes(status_text: str) -> int | None:
     """Parse optional Linux ``VmRSS`` without normalizing malformed evidence."""
 
@@ -336,7 +373,10 @@ def _parse_linux_proc_status_process_identity(status_text: str) -> tuple[int, in
         raw_process_id = fields[1]
         if not raw_process_id.isascii() or not raw_process_id.isdigit():
             raise ValueError("malformed Linux process identity value")
-        parsed[label] = int(raw_process_id, 10)
+        process_id = int(raw_process_id, 10)
+        if process_id > MAX_U64:
+            raise OverflowError("Linux process identifier exceeds u64 range")
+        parsed[label] = process_id
 
     if set(parsed) != {"Pid:", "PPid:"}:
         raise ValueError("Linux proc status must contain exactly one Pid and PPid")
@@ -344,32 +384,18 @@ def _parse_linux_proc_status_process_identity(status_text: str) -> tuple[int, in
     parent_process_id = parsed["PPid:"]
     if process_id <= 0:
         raise ValueError("Linux process identifier must be positive")
-    if parent_process_id < 0:
-        raise ValueError("Linux parent process identifier must be non-negative")
     return process_id, parent_process_id
-
-
-def _sample_linux_process_rss_bytes(process_id: int) -> int:
-    """Read one attributed Linux process RSS through a bounded ``/proc`` status file."""
-
-    if isinstance(process_id, bool) or not isinstance(process_id, int) or process_id <= 0:
-        raise ValueError("invalid Linux process identifier")
-    status_path = pathlib.Path("/proc") / str(process_id) / "status"
-    with status_path.open("r", encoding="utf-8", errors="strict") as status_file:
-        status_text = status_file.read(MAX_PROC_STATUS_CHARACTERS + 1)
-    if len(status_text) > MAX_PROC_STATUS_CHARACTERS:
-        raise RuntimeError("Linux proc status exceeded the bounded text limit")
-    return _parse_linux_proc_status_rss_bytes(status_text)
 
 
 def _snapshot_linux_process_evidence() -> dict[int, tuple[int, int | None]]:
     """Capture one bounded best-effort PID/PPID/RSS sweep from Linux proc status."""
 
-    proc_root = pathlib.Path("/proc")
     process_entries: list[tuple[int, pathlib.Path]] = []
-    for entry in proc_root.iterdir():
+    for entry in pathlib.Path("/proc").iterdir():
         raw_process_id = entry.name
         if not raw_process_id.isascii() or not raw_process_id.isdigit():
+            continue
+        if entry.is_symlink() or not entry.is_dir():
             continue
         process_id = int(raw_process_id, 10)
         if process_id <= 0:
@@ -470,6 +496,39 @@ def _sample_linux_process_snapshot_rss_bytes(
     if process_id not in process_evidence:
         raise RuntimeError("Linux process snapshot did not contain the browser root PID")
     return _sample_linux_process_set_rss_bytes((process_id,), process_evidence)
+
+
+def _cleanup_browser_session(driver_port: int, session_id: str) -> None:
+    """Delete one WebDriver session through the fixed loopback authority."""
+
+    _json_request(
+        driver_port,
+        "DELETE",
+        _webdriver_path(session_id, ""),
+        {},
+    )
+
+
+def _cleanup_browser_session_preserving_primary(
+    driver_port: int,
+    session_id: str,
+    primary_error: BaseException | None,
+) -> None:
+    """Fail closed on expected cleanup errors while retaining an earlier causal failure."""
+
+    try:
+        _cleanup_browser_session(driver_port, session_id)
+    except (
+        OSError,
+        ValueError,
+        RuntimeError,
+        http.client.HTTPException,
+        json.JSONDecodeError,
+    ) as cleanup_error:
+        bounded_error = BrowserSessionCleanupError(cleanup_error)
+        if primary_error is None:
+            raise bounded_error from cleanup_error
+        raise bounded_error from primary_error
 
 
 def _wait_for_extension_evidence(
@@ -656,20 +715,21 @@ def _run_browser_pass(
             },
         }
     finally:
-        if session_id is not None:
-            with contextlib.suppress(Exception):
-                _json_request(
-                    driver_port,
-                    "DELETE",
-                    _webdriver_path(session_id, ""),
-                    {},
-                )
-        driver.terminate()
+        primary_error = sys.exc_info()[1]
         try:
-            driver.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            driver.kill()
-            driver.wait(timeout=5)
+            if session_id is not None:
+                _cleanup_browser_session_preserving_primary(
+                    driver_port,
+                    session_id,
+                    primary_error,
+                )
+        finally:
+            driver.terminate()
+            try:
+                driver.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                driver.kill()
+                driver.wait(timeout=5)
 
 
 def _run_restart_trial(
@@ -741,6 +801,12 @@ def _validate_agent_task_submitted_state(state: object) -> None:
 
     if state != "submitted":
         raise RuntimeError("Agent Task state post-condition failed")
+
+
+def _cleanup_agent_task_browser_session(driver_port: int, session_id: str) -> None:
+    """Delete one Agent Task WebDriver session without suppressing cleanup failures."""
+
+    _cleanup_browser_session(driver_port, session_id)
 
 
 def _run_agent_task_browser_pass(
@@ -925,7 +991,6 @@ def _run_agent_task_browser_pass(
         if text != AGENT_TASK_INPUT_VALUE:
             raise RuntimeError("Agent Task result did not match the synthetic typed value")
         structured_value_sha256 = _hash_agent_task_structured_value(text)
-
         process_evidence = _snapshot_linux_process_evidence()
         chromium_process_ids = _discover_linux_process_tree_ids(
             browser_process_id,
@@ -939,7 +1004,6 @@ def _run_agent_task_browser_pass(
             chromium_process_ids,
             process_evidence,
         )
-        chromium_process_count = len(chromium_process_ids)
         task_duration_ms = round((time.monotonic() - started) * 1000, 3)
         if task_duration_ms <= 0:
             raise RuntimeError("Agent Task measured a non-positive task duration")
@@ -955,7 +1019,7 @@ def _run_agent_task_browser_pass(
             "structured_value_sha256": structured_value_sha256,
             "extensions_disabled": True,
             "browser_process_rss_bytes": browser_process_rss_bytes,
-            "chromium_process_count": chromium_process_count,
+            "chromium_process_count": len(chromium_process_ids),
             "chromium_process_set_rss_bytes": chromium_process_set_rss_bytes,
             "semantic_observation_bytes": semantic_observation_bytes,
             "action_latency_ms": action_latency_ms,
@@ -963,20 +1027,21 @@ def _run_agent_task_browser_pass(
             "duration_ms": round(task_duration_ms),
         }
     finally:
-        if session_id is not None:
-            with contextlib.suppress(Exception):
-                _json_request(
-                    driver_port,
-                    "DELETE",
-                    _webdriver_path(session_id, ""),
-                    {},
-                )
-        driver.terminate()
+        primary_error = sys.exc_info()[1]
         try:
-            driver.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            driver.kill()
-            driver.wait(timeout=5)
+            if session_id is not None:
+                _cleanup_browser_session_preserving_primary(
+                    driver_port,
+                    session_id,
+                    primary_error,
+                )
+        finally:
+            driver.terminate()
+            try:
+                driver.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                driver.kill()
+                driver.wait(timeout=5)
 
 
 def _run_agent_task_trial(
@@ -988,18 +1053,32 @@ def _run_agent_task_trial(
     """Run one isolated Agent Task browser trial and prove its profile is removed."""
 
     trial_started = time.monotonic()
-    profile_path: pathlib.Path
-    with tempfile.TemporaryDirectory(
+    temporary_profile = tempfile.TemporaryDirectory(
         prefix=f"originweave-agent-task-trial-{trial_number}-"
-    ) as profile_dir:
-        profile_path = pathlib.Path(profile_dir)
+    )
+    profile_path = pathlib.Path(temporary_profile.name)
+    profile_observed_before_cleanup = profile_path.is_dir()
+    if not profile_observed_before_cleanup:
+        raise RuntimeError(f"Agent Task profile was not created in trial {trial_number}")
+
+    try:
         result = _run_agent_task_browser_pass(
             chrome_bin,
             chromedriver_bin,
             fixture_url,
-            profile_dir,
+            temporary_profile.name,
         )
-    profile_cleaned = not profile_path.exists()
+    finally:
+        primary_error = sys.exc_info()[1]
+        try:
+            temporary_profile.cleanup()
+        except OSError as cleanup_error:
+            bounded_error = BrowserProfileCleanupError(cleanup_error)
+            if primary_error is None:
+                raise bounded_error from cleanup_error
+            raise bounded_error from primary_error
+
+    profile_cleaned = profile_observed_before_cleanup and not profile_path.exists()
     if not profile_cleaned:
         raise RuntimeError(f"Agent Task profile cleanup failed in trial {trial_number}")
 
@@ -1027,9 +1106,42 @@ def _run_agent_task_trial(
     }
 
 
-def _start_fixture_server(
-    directory: pathlib.Path,
-) -> tuple[http.server.ThreadingHTTPServer, threading.Thread]:
+def _agent_task_surfaces_complete(agent_task_trials: list[dict[str, Any]]) -> bool:
+    """Require every recorded Agent Task trial to contain every success surface."""
+
+    if not agent_task_trials:
+        return False
+    return all(
+        trial.get("passed") is True
+        and trial.get("post_condition") is True
+        and trial.get("input_echo_verified") is True
+        and trial.get("url_unchanged") is True
+        and trial.get("input_semantics_verified") is True
+        and trial.get("submit_semantics_verified") is True
+        and trial.get("result_semantics_verified") is True
+        and trial.get("structured_value_field") == "task_result"
+        and isinstance(trial.get("structured_value_sha256"), str)
+        and len(trial["structured_value_sha256"]) == len("sha256:") + 64
+        and trial["structured_value_sha256"].startswith("sha256:")
+        and trial.get("extensions_disabled") is True
+        and trial.get("profile_cleaned") is True
+        and isinstance(trial.get("browser_process_rss_bytes"), int)
+        and trial["browser_process_rss_bytes"] > 0
+        and isinstance(trial.get("chromium_process_count"), int)
+        and 0 < trial["chromium_process_count"] <= MAX_BROWSER_PROCESS_TREE_SIZE
+        and isinstance(trial.get("chromium_process_set_rss_bytes"), int)
+        and trial["chromium_process_set_rss_bytes"] > 0
+        and isinstance(trial.get("semantic_observation_bytes"), int)
+        and trial["semantic_observation_bytes"] > 0
+        and isinstance(trial.get("action_latency_ms"), (int, float))
+        and trial["action_latency_ms"] > 0
+        and isinstance(trial.get("task_duration_ms"), (int, float))
+        and trial["task_duration_ms"] >= trial["action_latency_ms"]
+        for trial in agent_task_trials
+    )
+
+
+def _start_fixture_server(directory: pathlib.Path) -> tuple[http.server.ThreadingHTTPServer, threading.Thread]:
     """Start one loopback-only static fixture server for a bounded browser lane."""
 
     server = http.server.ThreadingHTTPServer(
@@ -1071,7 +1183,14 @@ def main() -> int:
         raise SystemExit("Agent Task fixture is missing")
 
     fixture_server, fixture_thread = _start_fixture_server(FIXTURE)
-    agent_task_server, agent_task_thread = _start_fixture_server(AGENT_TASK_FIXTURE)
+    try:
+        agent_task_server, agent_task_thread = _start_fixture_server(AGENT_TASK_FIXTURE)
+    except BaseException as startup_error:
+        try:
+            _stop_fixture_server(fixture_server, fixture_thread)
+        except BaseException as cleanup_error:
+            raise cleanup_error from startup_error
+        raise
     started = time.monotonic()
 
     try:
@@ -1145,34 +1264,7 @@ def main() -> int:
         agent_task_trial_pass_rate = (
             agent_task_successful_trials / AGENT_TASK_REPEATABILITY_TRIALS
         )
-        agent_task_surfaces_complete = all(
-            trial.get("post_condition") is True
-            and trial.get("input_echo_verified") is True
-            and trial.get("url_unchanged") is True
-            and trial.get("input_semantics_verified") is True
-            and trial.get("submit_semantics_verified") is True
-            and trial.get("result_semantics_verified") is True
-            and trial.get("structured_value_field") == "task_result"
-            and isinstance(trial.get("structured_value_sha256"), str)
-            and len(trial["structured_value_sha256"]) == len("sha256:") + 64
-            and trial["structured_value_sha256"].startswith("sha256:")
-            and trial.get("extensions_disabled") is True
-            and trial.get("profile_cleaned") is True
-            and isinstance(trial.get("browser_process_rss_bytes"), int)
-            and trial["browser_process_rss_bytes"] > 0
-            and isinstance(trial.get("chromium_process_count"), int)
-            and 0 < trial["chromium_process_count"] <= MAX_BROWSER_PROCESS_TREE_SIZE
-            and isinstance(trial.get("chromium_process_set_rss_bytes"), int)
-            and trial["chromium_process_set_rss_bytes"] > 0
-            and isinstance(trial.get("semantic_observation_bytes"), int)
-            and trial["semantic_observation_bytes"] > 0
-            and isinstance(trial.get("action_latency_ms"), (int, float))
-            and trial["action_latency_ms"] > 0
-            and isinstance(trial.get("task_duration_ms"), (int, float))
-            and trial["task_duration_ms"] >= trial["action_latency_ms"]
-            for trial in agent_task_trials
-            if trial.get("passed") is True
-        )
+        agent_task_surfaces_complete = _agent_task_surfaces_complete(agent_task_trials)
 
         evidence = {
             "chrome_version": PINNED_CHROME_VERSION,
@@ -1213,8 +1305,10 @@ def main() -> int:
             raise RuntimeError("Agent Task repeatability surfaces were incomplete")
         return 0
     finally:
-        _stop_fixture_server(agent_task_server, agent_task_thread)
-        _stop_fixture_server(fixture_server, fixture_thread)
+        try:
+            _stop_fixture_server(agent_task_server, agent_task_thread)
+        finally:
+            _stop_fixture_server(fixture_server, fixture_thread)
 
 
 if __name__ == "__main__":
