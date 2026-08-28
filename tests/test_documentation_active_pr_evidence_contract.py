@@ -37,12 +37,12 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         """The baseline must preserve exact heads for the newest active product slices."""
         for marker in (
             "Current exact-head active PR evidence",
-            "| #220 | Ready | `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | `e0740a6f3a41067a4460249378e0266815018a74` |",
-            "| #219 | Ready | `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | `3e34a54ae279686a28309d59b8b3b9bfbd283a80` |",
-            "| #218 | Ready | `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | `911ea33d8a5aca7673307bb6fdcad4b450f5c111` |",
-            "| #209 | Ready | `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | `b35d739017aa5d361b605be48045be50b5a35f6f` |",
-            "| #208 | Ready | `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | `e41d3be4c290c4e434aac33d777e511dfb94e03d` |",
-            "| #124 | Ready | `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | `296ad25bb541023dbc869ae07ae1d853820f83a4` |",
+            "| #237 | Draft | `542ca1e9c0a863595b8b6697790005d2471f5413` | `8c5fc6a92e8a19e9b304c84b3517d1ff8711d379` |",
+            "| #229 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `fb868589d065c2cea0b9c8c0f5e655a89f42bee6` |",
+            "| #220 | Ready | `f658f329c83a106b68385e17cb714c4147c12f49` | `a2b0c5372dd6df803011933836c56136244dc8af` |",
+            "| #211 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `52a918577958a5701e1146c7eb8b62fe8f8ccd44` |",
+            "| #195 | Draft | `6922dd98779e8f8aad132a3b1f563d7ba6e6d070` | `72f112d52a60e7caa992a3f5ff7f16d5d9a4d047` |",
+            "| #124 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `028789d8bb6cc30b8e84b1ba7ed46556b26e75ea` |",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, self.baseline)
@@ -54,7 +54,8 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         changed = self.changelog.split("### Changed", 1)[1].split("### Security", 1)[0]
         self.assertIn(refresh, added)
         self.assertNotIn(refresh, changed)
-        self.assertIn("126 open pull requests (54 ready, 72 draft)", self.changelog)
+        self.assertIn("114 open pull requests (30 ready, 84 draft)", self.changelog)
+        self.assertNotIn("126 open pull requests (54 ready, 72 draft)", added)
         self.assertNotIn("128 open pull requests (54 ready, 74 draft)", added)
         self.assertNotIn("153 open pull requests (39 ready, 114 draft)", added)
 

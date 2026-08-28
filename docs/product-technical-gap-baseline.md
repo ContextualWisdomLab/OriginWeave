@@ -2,11 +2,11 @@
 
 This is a dated delivery baseline, not a substitute for the PRD, TRD, roadmap, architecture decisions, or live GitHub state. It keeps buyer-visible gaps, current issues, active pull-request evidence, and commercial completion tracks in one discoverable place. Protected `main` is the implementation boundary: code in an open pull request is not shipped behavior.
 
-## Observed snapshot: 2026-08-26
+## Observed snapshot: 2026-08-28
 
 ### Protected-main truth
 
-- Protected `main` is at `b05d5acca82b9d916ada2c8e82f59f92a89817e1` for this snapshot. Since the 2026-08-24 observation (`0841d2ab`), protected `main` absorbed #196 (dated gap baseline publication), #216 (RFC 3986 evidence-path syntax enforcement), #194 (branch-coverage nightly and toolchain tracking refresh), #168 (typed MCP stateless tool-routing foundations), and #151 (exact crash-root termination before crash credit).
+- Protected `main` is at `542ca1e9c0a863595b8b6697790005d2471f5413` for this snapshot. Since the 2026-08-26 observation (`b05d5acca82b9d916ada2c8e82f59f92a89817e1`), protected `main` absorbed #161 (TLS trust-bundle identifier shape). PR #170's conservative `tools/list` discovery contract is also merged into protected `main`; the complete MCP adapter remains planned.
 - Phase 0 remains complete as a reusable safety-kernel foundation: typed policy contracts, destination classification, direct TCP peer verification, TLS service identity, evidence bounds, resource mitigation, document-node authority, and protected-main tests.
 - Phase 1 is **in progress**, not shipped. The first real Chromium vertical slice still needs the active WebDriver BiDi transport stack to reach protected `main`, then compose isolated Chromium launch, session/context identity, semantic observation, typed action authorization, native browser input, post-condition proof, evidence, cancellation, crash recovery, and profile/process teardown.
 - HTTP/1.1 bounds, downloads/MIME, proxy/PAC consumption, full browser-network integration, the sensitive-data broker runtime, durable WARC/PROV capture, persistent task/API surfaces, signed cross-platform distribution, enterprise administration, and release-grade buyer acceptance remain open.
@@ -14,9 +14,28 @@ This is a dated delivery baseline, not a substitute for the PRD, TRD, roadmap, a
 
 ### Open pull requests
 
-The live repository contained **126 open pull requests: 54 non-draft and 72 draft** when this snapshot re-paginated the complete open inventory. Compared with the prior **2026-08-24 158-PR snapshot**, the current inventory is 32 PRs smaller. Intervening queue consolidation includes #190, #188, #185, #192, #182, #184, #115, #181, #116, #117, #118, #183, #114, #127, #112, #109, #186, #110, #108, #111, #174, and #113 being merged into their immediate stacked prerequisites, while PRs #147, #146, #145, #144, #143, #142, #141, #139, #136, #132, #129, and #128 moved to ready after exact-head checks and thread review. Those transitions are queue consolidation, not protected-main delivery; protected `main` remains `b05d5acca82b9d916ada2c8e82f59f92a89817e1`, with 13 open issues and no releases or tags. The volume and stack depth remain themselves a product-delivery risk: review, exact-head checks, dependency order, and integration truth can drift faster than a buyer-visible vertical slice reaches protected `main`.
+The live repository contained **114 open pull requests: 30 non-draft and 84 draft** when this snapshot re-paginated the complete open inventory. Compared with the prior **2026-08-26 126-PR snapshot**, the current inventory is 12 PRs smaller. These counts are queue evidence, not protected-main delivery; protected `main` remains `542ca1e9c0a863595b8b6697790005d2471f5413`, with 11 open issues and no releases or tags. The volume and stack depth remain themselves a product-delivery risk: review, exact-head checks, dependency order, and integration truth can drift faster than a buyer-visible vertical slice reaches protected `main`.
 
-#### 2026-08-26 maintenance-loop record
+#### 2026-08-28 maintenance-loop record
+
+This snapshot re-fetched the complete open-PR inventory, the protected `main` commit, the active required-workflow ruleset, collaborator permissions, and the exact base/head pair for each representative PR. The active ruleset still requires one counted approving review and resolved threads; the only repository collaborator is `seonghobae`, so review provisioning remains the merge blocker. PR #170 is merged and is not active-PR evidence.
+
+#### Current exact-head active PR evidence
+
+The following representative slices were re-fetched from GitHub for this snapshot. Their exact base/head pairs are recorded so later checks, reviews, and restacks cannot be confused with predecessor evidence:
+
+| PR | State | Exact base head | Exact head |
+|---|---|---|---|
+| #237 | Draft | `542ca1e9c0a863595b8b6697790005d2471f5413` | `8c5fc6a92e8a19e9b304c84b3517d1ff8711d379` |
+| #229 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `fb868589d065c2cea0b9c8c0f5e655a89f42bee6` |
+| #220 | Ready | `f658f329c83a106b68385e17cb714c4147c12f49` | `a2b0c5372dd6df803011933836c56136244dc8af` |
+| #211 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `52a918577958a5701e1146c7eb8b62fe8f8ccd44` |
+| #195 | Draft | `6922dd98779e8f8aad132a3b1f563d7ba6e6d070` | `72f112d52a60e7caa992a3f5ff7f16d5d9a4d047` |
+| #124 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `028789d8bb6cc30b8e84b1ba7ed46556b26e75ea` |
+
+These rows are delivery evidence only. None has counted independent approval in the current collaborator inventory.
+
+#### Historical 2026-08-26 maintenance-loop record
 
 The interactive maintenance loop performed the following verified state changes on exact heads; none of them is protected-main behavior until merged:
 
@@ -38,12 +57,12 @@ Representative active workstreams at this snapshot were:
 | Workstream | Representative active PR evidence | Delivery boundary |
 |---|---|---|
 | Product baseline | (merged: #196 on 2026-08-24) | Baseline publication reached protected `main`; this document is its successor snapshot |
-| Presentation identity | #229 at `585a7d5545b13f18d76f79100ff4d47ac423e861` onto `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | Ready/non-draft local privacy kernel; all observed exact-head checks except Strix passed, but the PR remains blocked and review-required, and no Chromium adapter or protected-main shipment is claimed |
-| Enterprise approval authority | #220 | Ready/non-draft bounded maker-checker approval lifecycle on the exact `ApprovalScope`; all current-head checks green at snapshot, awaiting current-head review evidence |
+| Presentation identity | #229 at `fb868589d065c2cea0b9c8c0f5e655a89f42bee6` onto `542ca1e9c0a863595b8b6697790005d2471f5413` | Ready/non-draft local privacy kernel; current required checks include a failed Strix run, and the PR remains blocked without counted approval; no protected-main shipment is claimed |
+| Enterprise approval authority | #220 at `a2b0c5372dd6df803011933836c56136244dc8af` onto base `f658f329c83a106b68385e17cb714c4147c12f49` | Ready/non-draft bounded maker-checker approval lifecycle on the exact `ApprovalScope`; current checks are green except the latest failed Strix run, with changes requested and no counted approval |
 | Release artifact identity | #218 and #219 | Ready/non-draft fail-closed benchmark release decision and canonical release manifest binding; Strix provider-failure reruns completed green on both heads |
 | Schema-bound extraction and BAP lifecycle | #209 and #208 | Ready/non-draft schema-bound extraction contract and resumable task-lifecycle kernel; #209 Strix rerun green, #208 rerun re-dispatched after a further provider failure |
 | WebDriver BiDi transport | #188 through #205 | Active stack whose top #205 merged into its prerequisite branch, not protected `main`; it exercises framed `locateNodes` exchange over a bounded WebSocket opening path, but authenticated browser-process provenance, semantic task execution, and protected-main shipment remain unproven |
-| MCP adapter | (#168 merged) and #170 | Typed MCP routing foundations are protected-main behavior since 2026-08-24; conservative `tools/list` cache metadata remains active-PR evidence with a Strix rerun in flight |
+| MCP adapter | (#168 and #170 merged) | Typed MCP routing and conservative `tools/list` cache metadata are protected-main behavior; the complete MCP transport, OAuth, browser I/O, and persistence adapter remains planned |
 | Workflow-registry audit | #124 | Real Strix finding vuln-0001 (Unicode homoglyph path confusion, MEDIUM) remediated on head `30cc458b` with regression contract tests; fresh exact-head checks and review re-running |
 | Controlled Chromium and recovery | #65, #70-#73, #100, #105, #142-#152 and descendants | Real pinned-browser fixture, semantic location, resource, crash, and teardown evidence exists on active stacks; evidence does not transfer across heads or prerequisites |
 | Durable WARC/PROV evidence | #210, #217 | Bounded WARC resource records and PROV JSON-LD binding are draft active-PR foundations; durable ownership, replay, retention/deletion, and browser side-effect reconciliation remain open |
@@ -51,9 +70,9 @@ Representative active workstreams at this snapshot were:
 | Sensitive-data and model route policy | #10 and its active policy stacks | Deterministic policy values exist, but trusted broker execution, retention/deletion, runtime isolation, and auditable product workflows remain open |
 | VPN/profile intent | #149 | Bounded WireGuard/IKEv2 profile authority reconciled with main (`54f96008`); it does not create a tunnel, route, DNS state, authenticated gateway, or connectivity proof |
 
-PR #205 head `f427aa69151987d7e3369bd96d5739ea38d0f7ad` merged as `6c5ef5e2079d54c617183ecfa757e406f48f0aea` into stacked prerequisite branch `feat/webdriver-bidi-websocket-frame-transport` at base `c1bc7e78f3a9debf4f517fb6b5f11dd67be4ad92`. Its successful exact-head checks are stacked-branch integration evidence only; protected `main` remains `b05d5acca82b9d916ada2c8e82f59f92a89817e1`.
+PR #205 head `f427aa69151987d7e3369bd96d5739ea38d0f7ad` merged as `6c5ef5e2079d54c617183ecfa757e406f48f0aea` into stacked prerequisite branch `feat/webdriver-bidi-websocket-frame-transport` at base `c1bc7e78f3a9debf4f517fb6b5f11dd67be4ad92`. Its successful exact-head checks are stacked-branch integration evidence only; the current protected `main` is `542ca1e9c0a863595b8b6697790005d2471f5413`.
 
-#### Current exact-head active PR evidence
+#### Historical exact-head active PR evidence: 2026-08-26
 
 The following newest slices were re-fetched from GitHub for this snapshot. Their exact base/head pairs are recorded so later checks, reviews, and restacks cannot be confused with predecessor evidence:
 
@@ -68,7 +87,7 @@ The following newest slices were re-fetched from GitHub for this snapshot. Their
 
 These rows are delivery evidence only. None has counted independent approval in the current collaborator inventory, and predecessor rows from earlier snapshots are retained below as regression anchors that must never be promoted to current-head evidence.
 
-#### Regression-anchor exact-head evidence: superseded 2026-08-24 rows
+#### Historical regression-anchor exact-head evidence: superseded 2026-08-24 rows
 
 The following rows were current on 2026-08-24 and are retained only as regression anchors; every listed head has since been superseded or merged and must never be promoted to current-head evidence:
 
@@ -148,7 +167,7 @@ The hourly product-development loop is operational infrastructure, not proof tha
 | P1 | Buyers can install, update, verify, and roll back a supported product | **Not shipped** | #201; signed Windows/macOS/Linux/headless artifacts, Chromium revision manifest, updater security, patch SLA, SBOM, SLSA provenance, and recovery |
 | P1 | Enterprise teams can provision, approve, audit, operate, and recover the service | **Not shipped** | #202; Keyverse-compatible OIDC/SCIM, tenant isolation, policy/approval/evidence UI, SLO/incident controls, data residency, CSAP/SOC 2 evidence mapping, WCAG 2.2, Figma File ID, and Storybook |
 | P0 | A release has reproducible proof of usefulness, safety, evidence completeness, and recovery | **No product-wide release gate** | #203; deterministic, compatibility, adversarial, recovery, and enterprise suites with statistical reporting and an exact-artifact commercial acceptance gate |
-| P0 | Valid changes reach protected `main` without authority improvisation or unbounded stack growth | **Blocked / high integration debt** | Shrink the 126-PR queue in dependency order, provision legitimate review authority, require exact-current evidence, and close duplicates/superseded branches |
+| P0 | Valid changes reach protected `main` without authority improvisation or unbounded stack growth | **Blocked / high integration debt** | Shrink the 114-PR queue in dependency order, provision legitimate review authority, require exact-current evidence, and close duplicates/superseded branches |
 
 ## Commercial completion definition
 
@@ -167,7 +186,7 @@ OriginWeave is not complete merely because every low-level primitive exists in s
 
 ## Next executable queue
 
-1. Drain the merge gate in dependency order: for every ready root PR whose current head is check-green with resolved threads, obtain the current ruleset's counted `APPROVED` review from an eligible non-author collaborator; OpenCode approval or skip evidence does not substitute for that GitHub review. If no eligible approver exists, record the reviewer-provisioning gap and do not merge. Root candidates include #37, #40, #43, #45–#48, #51, #62–#65, #74, #82, #124, #149, #152, #156–#166, #170, #173, #175, #208, #209, #218, and #219 as their re-dispatched checks land. Treat dependent children separately: only after a predecessor reaches protected `main`, retarget and independently revalidate its immediate child; preserve orders such as #218 → #221 → #220 rather than treating #208–#220 as a flat merge range.
+1. Drain the merge gate in dependency order: for every ready root PR whose current head is check-green with resolved threads, obtain the current ruleset's counted `APPROVED` review from an eligible non-author collaborator; OpenCode approval or skip evidence does not substitute for that GitHub review. If no eligible approver exists, record the reviewer-provisioning gap and do not merge. Root candidates include #37, #40, #43, #45–#48, #51, #62–#65, #74, #82, #124, #149, #152, #156–#166, #173, #175, #208, #209, #211, #218, #219, #229, and #237 as their current checks land. Treat dependent children separately: only after a predecessor reaches protected `main`, retarget and independently revalidate its immediate child; preserve orders such as #218 → #221 → #220 rather than treating #208–#220 as a flat merge range.
 2. Keep the organization review pipeline healthy: monitor the central Actions backlog recorded above; if OpenCode reviews stop landing on OriginWeave heads while the queue is idle, repair `ContextualWisdomLab/.github` dispatch/concurrency configuration rather than weakening any gate.
 3. Finish the #9/#28 browser-network and Chromium vertical slice, including the #181–#205 WebSocket opening path and framed BiDi command/response stack, then semantic observation, policy, action, post-condition, and recovery boundaries on protected `main`.
 4. Finish #27 and #10 as separate security tracks; neither should be hidden inside the first browser PR.

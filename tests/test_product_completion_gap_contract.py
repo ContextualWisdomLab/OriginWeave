@@ -15,12 +15,15 @@ class ProductCompletionGapContractTests(unittest.TestCase):
     def test_baseline_records_current_inventory_and_completion_issues(self) -> None:
         """The dated baseline must not retain superseded queue counts or omit buyer tracks."""
         text = BASELINE.read_text(encoding="utf-8")
+        current = text.split("## Observed snapshot: ", 1)[1].split(
+            "#### 2026-08-28 maintenance-loop record", 1
+        )[0]
 
         for phrase in (
-            "126 open pull requests",
-            "54 non-draft",
-            "72 draft",
-            "2026-08-24 158-PR snapshot",
+            "114 open pull requests",
+            "30 non-draft",
+            "84 draft",
+            "2026-08-26 126-PR snapshot",
             "#198",
             "#199",
             "#200",
@@ -34,7 +37,7 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "commercial acceptance gate",
         ):
             with self.subTest(phrase=phrase):
-                self.assertIn(phrase, text)
+                self.assertIn(phrase, current if "pull requests" in phrase or "draft" in phrase else text)
 
         for stale_phrase in (
             "100 open pull requests",
@@ -50,7 +53,7 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "74 draft",
         ):
             with self.subTest(stale_phrase=stale_phrase):
-                self.assertNotIn(stale_phrase, text)
+                self.assertNotIn(stale_phrase, current)
 
     def test_active_github_approval_rule_is_not_documented_as_bypassable(self) -> None:
         """An active counted-approval rule must stop merge without an eligible approver."""
