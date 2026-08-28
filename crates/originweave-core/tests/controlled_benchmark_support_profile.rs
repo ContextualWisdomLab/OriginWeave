@@ -1,17 +1,20 @@
 use originweave_core::controlled_benchmark::{
     CONTROLLED_DETERMINISTIC_REGISTRY_VERSION, CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS,
-    ControlledBenchmarkCaseEvidence, ControlledBenchmarkCaseId, ControlledBenchmarkSuiteError,
-    ControlledBenchmarkSupportProfile, evaluate_controlled_benchmark_suite,
+    ControlledBenchmarkCaseId, ControlledBenchmarkCaseTrials, ControlledBenchmarkSuiteError,
+    ControlledBenchmarkSupportProfile, ControlledBenchmarkTrialEvidence,
+    evaluate_controlled_benchmark_suite,
 };
 
-fn passing_evidence() -> ControlledBenchmarkCaseEvidence {
-    ControlledBenchmarkCaseEvidence {
-        total_trials: CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS,
-        successful_trials: CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS,
-        exact_post_condition_trials: CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS,
-        provenance_complete_trials: CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS,
-        unauthorized_side_effects: 0,
-    }
+fn passing_trials() -> Vec<ControlledBenchmarkTrialEvidence> {
+    (1..=CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS)
+        .map(|trial_ordinal| ControlledBenchmarkTrialEvidence {
+            trial_ordinal,
+            action_succeeded: true,
+            exact_post_condition: true,
+            provenance_complete: true,
+            unauthorized_side_effects: 0,
+        })
+        .collect()
 }
 
 #[test]
@@ -23,7 +26,10 @@ fn native_messaging_support_cannot_omit_manifest_v3_isolation() {
     let evidence: Vec<_> = ControlledBenchmarkCaseId::ALL
         .into_iter()
         .filter(|case_id| case_id.required_for(malformed_profile))
-        .map(|case_id| (case_id, passing_evidence()))
+        .map(|case_id| ControlledBenchmarkCaseTrials {
+            case_id,
+            trials: passing_trials(),
+        })
         .collect();
 
     let error = ControlledBenchmarkSuiteError::InvalidSupportProfile;
@@ -33,7 +39,7 @@ fn native_messaging_support_cannot_omit_manifest_v3_isolation() {
             malformed_profile,
             &evidence,
         ),
-        Err(error),
+        Err(error.clone()),
     );
     assert_eq!(
         error.to_string(),
