@@ -22,7 +22,7 @@ This snapshot re-fetched the complete open-PR inventory, the protected `main` co
 
 The later exact-head recheck also recorded the WARC/PROV retention-lifecycle slice: #239 is Draft at `365c4a6b9e6d0f088d2f8330834f54c7cb5fb491` on #227 head `e45cd6cdcdee73b5c16dc942e6c98cb7e745fae0`, with its Rust contracts and production coverage checks successful, zero unresolved threads, and no counted approval. #237 is Draft at `21e9ad1e8da72c81f521152ea6739b088da230f7` on protected `main`; its deterministic contracts and coverage are successful, while exact-head `opencode-review` failed closed for the absent current-head verdict and `strix` remained in progress. Neither active branch is protected-main behavior.
 
-The controlled Chromium prerequisite stack was also re-fetched after its exact-head repairs: #70 is Ready at `378240888b39218c97c1b5c514492bb0a0cf3aa2` on protected `main` `542ca1e9c0a863595b8b6697790005d2471f5413`, #71 is Ready at `f86ce504138e79d6e95141a441f60b40920e1fa6` on #70, #72 is Draft at `600d3975c02b68da1974a4c73069b966b39dce7` on #71, and #73 is Draft at `ce1b138509ab4f52cb0f80290f104358473c6ed3` on #72. #70's Rust, coverage, pinned-Chrome, and ordinary security checks are successful but its exact-head `opencode-review` and `strix` checks failed closed; #71's Rust contracts, production coverage, and pinned-Chrome checks are successful, with no unresolved current thread, but neither has counted approval. #72's and #73's exact-head Rust, coverage, and pinned-Chrome checks are successful after their non-destructive restacks; no predecessor results transfer and neither has counted approval. #152 is Ready at `81407a0e5189a413d1be0963fea90a0c2f254ce1` on protected `main`; its source, coverage, and security checks are successful except exact-head `opencode-review`, which failed closed without a current-head verdict. These are active-stack evidence only, not protected-main behavior or merge authorization.
+The controlled Chromium prerequisite stack was also re-fetched after its exact-head repairs: #70 is Ready at `378240888b39218c97c1b5c514492bb0a0cf3aa2` on protected `main` `542ca1e9c0a863595b8b6697790005d2471f5413`, #71 is Ready at `f86ce504138e79d6e95141a441f60b40920e1fa6` on #70, #72 is Draft at `600d3975c02b68da1974a4c73069b966b39dce7b` on #71, and #73 is Draft at `ce1b138509ab4f52cb0f80290f104358473c6ed3` on #72. #70's Rust, coverage, pinned-Chrome, and ordinary security checks are successful but its exact-head `opencode-review` and `strix` checks failed closed; #71's Rust contracts, production coverage, and pinned-Chrome checks are successful, with no unresolved current thread, but neither has counted approval. #72's and #73's exact-head Rust, coverage, and pinned-Chrome checks are successful after their non-destructive restacks; no predecessor results transfer and neither has counted approval. #152 is Ready at `81407a0e5189a413d1be0963fea90a0c2f254ce1` on protected `main`; its source, coverage, and security checks are successful except exact-head `opencode-review`, which failed closed without a current-head verdict. These are active-stack evidence only, not protected-main behavior or merge authorization.
 
 #### Current exact-head active PR evidence
 
@@ -30,12 +30,12 @@ The following representative slices were re-fetched from GitHub for this snapsho
 
 | PR | State | Exact base head | Exact head |
 |---|---|---|---|
-| #73 | Draft | `600d3975c02b68da1974a4c73069b966b39dce7` | `ce1b138509ab4f52cb0f80290f104358473c6ed3` |
-| #72 | Draft | `f86ce504138e79d6e95141a441f60b40920e1fa6` | `600d3975c02b68da1974a4c73069b966b39dce7` |
+| #73 | Draft | `600d3975c02b68da1974a4c73069b966b39dce7b` | `ce1b138509ab4f52cb0f80290f104358473c6ed3` |
+| #72 | Draft | `f86ce504138e79d6e95141a441f60b40920e1fa6` | `600d3975c02b68da1974a4c73069b966b39dce7b` |
 | #71 | Ready | `378240888b39218c97c1b5c514492bb0a0cf3aa2` | `f86ce504138e79d6e95141a441f60b40920e1fa6` |
 | #70 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `378240888b39218c97c1b5c514492bb0a0cf3aa2` |
 | #237 | Draft | `542ca1e9c0a863595b8b6697790005d2471f5413` | `21e9ad1e8da72c81f521152ea6739b088da230f7` |
-| #238 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `685cf810c843e25b5a3b291cbb0374bed28d92a8` |
+| #238 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `0b2f278dc9f4a1392bc2f6a0424bd0c66b7e582c` |
 | #239 | Draft | `e45cd6cdcdee73b5c16dc942e6c98cb7e745fae0` | `365c4a6b9e6d0f088d2f8330834f54c7cb5fb491` |
 | #229 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `fb868589d065c2cea0b9c8c0f5e655a89f42bee6` |
 | #220 | Ready | `f658f329c83a106b68385e17cb714c4147c12f49` | `a2b0c5372dd6df803011933836c56136244dc8af` |
