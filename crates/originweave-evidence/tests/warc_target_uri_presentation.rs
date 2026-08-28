@@ -5,7 +5,7 @@ use originweave_evidence::{
     WarcResourceRecordError,
 };
 
-const SOURCE_HASH: &str = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+const SOURCE_HASH: &str = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 const RECORD_ID: &str = "urn:uuid:123e4567-e89b-12d3-a456-426614174000";
 const DATE: &str = "2026-08-21T00:00:00Z";
 
@@ -124,6 +124,21 @@ fn warc_target_uri_rejects_general_delimiters_in_path_segments() {
             "target_uri={target_uri:?}"
         );
     }
+}
+
+#[test]
+fn warc_target_uri_rejects_non_ip_literal_brackets_in_authority() {
+    assert_eq!(
+        WarcResourceRecord::new(
+            RECORD_ID,
+            DATE,
+            "https://[not-an-ip]/",
+            "text/plain",
+            Vec::new(),
+            provenance("https://example.com/valid"),
+        ),
+        Err(WarcResourceRecordError::InvalidTargetUri),
+    );
 }
 
 #[test]
