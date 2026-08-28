@@ -20,13 +20,13 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
         cls.changelog = CHANGELOG.read_text(encoding="utf-8")
 
     def test_current_baseline_inventory_matches_the_verified_snapshot(self) -> None:
-        """The current snapshot must use the exact 109/25/84 inventory observation."""
+        """The current snapshot must use the exact 108/24/84 inventory observation."""
         current = self.baseline.split("### Open pull requests", 1)[1].split(
             "#### 2026-08-29 maintenance-loop record", 1
         )[0]
         for marker in (
-            "109 open pull requests",
-            "25 non-draft",
+            "108 open pull requests",
+            "24 non-draft",
             "84 draft",
         ):
             with self.subTest(marker=marker):
@@ -55,7 +55,7 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
         preamble, remainder = unreleased.split("### Added", 1)
         added = remainder.split("### Changed", 1)[0]
 
-        expected = "109 open pull requests (25 ready, 84 draft)"
+        expected = "108 open pull requests (24 ready, 84 draft)"
         self.assertIn(expected, preamble)
         self.assertIn("on 2026-08-29", preamble)
         self.assertNotIn("on 2026-08-28", preamble)
@@ -65,7 +65,7 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
         self.assertNotIn("126 open pull requests (54 ready, 72 draft)", added)
         self.assertNotIn("110 open pull requests (26 ready, 84 draft)", preamble)
 
-    def test_current_snapshot_records_pr217_merge_and_pr210_revalidation(self) -> None:
+    def test_current_snapshot_records_recent_stack_merges_and_revalidation(self) -> None:
         """A stacked merge must update the live queue and parent exact-head evidence."""
         current = self.baseline.split("### Open pull requests", 1)[1].split(
             "#### 2026-08-29 maintenance-loop record", 1
@@ -73,10 +73,13 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
         record = self.baseline.split(
             "#### 2026-08-29 maintenance-loop record", 1
         )[1].split("#### Current exact-head active PR evidence", 1)[0]
-        self.assertIn("109 open pull requests", current)
-        self.assertIn("25 non-draft", current)
+        self.assertIn("108 open pull requests", current)
+        self.assertIn("24 non-draft", current)
         self.assertIn("#217 was squash-merged", record)
         self.assertIn("66f360ccac5cec60c72222cc79d58e39f6f00088", record)
+        self.assertIn("#67 was squash-merged", record)
+        self.assertIn("5021d142583cb5a8e393248048bb824762a98056", record)
+        self.assertIn("PR #64 consequently advanced", record)
         self.assertIn(
             "| #210 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | "
             "`7946dce9a3dd074047d93fca299d48c7aef40e47` |",

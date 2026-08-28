@@ -81,7 +81,7 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         self.assertEqual(1, len(refresh_lines))
         refresh_line = refresh_lines[0]
         self.assertIn("on 2026-08-29", refresh_line)
-        self.assertIn("109 open pull requests (25 ready, 84 draft)", refresh_line)
+        self.assertIn("108 open pull requests (24 ready, 84 draft)", refresh_line)
         self.assertIn("11 open issues", refresh_line)
         self.assertNotIn("- Corrected the 2026-08-28 product-gap snapshot", added)
         self.assertNotIn("- Revalidated the product-gap queue at", changed)
