@@ -158,7 +158,7 @@ Active #64 makes a successful action-outcome value require existing verified pro
 
 ### 3.19 Controlled Agent Task fixture
 
-Active #65 supplies a deterministic synthetic local web fixture with a labelled semantic input, submit control, same-document post-condition and explicitly hidden/untrusted prompt-injection text. Active #70 executes that fixture through real WebDriver on pinned Chrome with an isolated profile, disabled extensions, synthetic input, same-document post-condition verification and profile cleanup. If the second fixture server cannot start, the runner also closes the first one so partial setup does not leak a loopback thread. The fixture contains no credential collection surface and requires no live third-party site.
+Active #65 supplies a deterministic synthetic local web fixture with a labelled semantic input, submit control, same-document post-condition and explicitly hidden/untrusted prompt-injection text. Active #70 executes that fixture through real WebDriver on pinned Chrome with an isolated profile, disabled extensions, synthetic input, same-document post-condition verification and profile cleanup. If the second fixture server cannot start, the runner also closes the first one; cleanup attempts both servers even when one shutdown fails, so partial setup does not leak loopback threads. The fixture contains no credential collection surface and requires no live third-party site.
 
 **Resolution:** the #65/#70 lane makes controlled browser-level evidence reproducible without turning a third-party site into a test dependency. It is not a browser adapter, semantic extractor, OriginWeave input-dispatch authority, policy engine, trusted clock, process-attribution source or proof of the shipped product runtime.
 

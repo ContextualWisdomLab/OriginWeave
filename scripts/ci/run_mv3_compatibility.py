@@ -887,8 +887,10 @@ def main() -> int:
             raise RuntimeError("Agent Task repeatability surfaces were incomplete")
         return 0
     finally:
-        _stop_fixture_server(agent_task_server, agent_task_thread)
-        _stop_fixture_server(fixture_server, fixture_thread)
+        try:
+            _stop_fixture_server(agent_task_server, agent_task_thread)
+        finally:
+            _stop_fixture_server(fixture_server, fixture_thread)
 
 
 if __name__ == "__main__":
