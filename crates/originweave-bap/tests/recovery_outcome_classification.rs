@@ -123,12 +123,8 @@ fn lifecycle_aware_disposition_is_the_single_fail_closed_recovery_decision() {
         let mut lifecycle = BapTaskLifecycle::new();
         assert!(lifecycle.apply(BapTaskEvent::Admit).is_ok());
         assert!(lifecycle.apply(BapTaskEvent::Start).is_ok());
-        let receipt = lifecycle.apply_with_receipt(
-            "blocked-retry-key",
-            "tenant-a",
-            "task-a",
-            event,
-        );
+        let receipt =
+            lifecycle.apply_with_receipt("blocked-retry-key", "tenant-a", "task-a", event);
         assert!(receipt.is_ok(), "{receipt:?}");
         let Ok(receipt) = receipt else {
             unreachable!("asserted valid blocked-state command receipt")
