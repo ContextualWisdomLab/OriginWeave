@@ -1,7 +1,8 @@
 use originweave_core::controlled_benchmark::{
-    CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS, ControlledBenchmarkCaseOutcome,
-    ControlledBenchmarkTrialAggregationError, ControlledBenchmarkTrialEvidence,
-    aggregate_controlled_benchmark_trials, evaluate_controlled_benchmark_case,
+    CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS, ControlledBenchmarkCaseEvidence,
+    ControlledBenchmarkCaseOutcome, ControlledBenchmarkTrialAggregationError,
+    ControlledBenchmarkTrialEvidence, aggregate_controlled_benchmark_trials,
+    evaluate_controlled_benchmark_case,
 };
 
 fn clean_trial(trial_ordinal: u32) -> ControlledBenchmarkTrialEvidence {
@@ -19,43 +20,34 @@ fn unique_trial_ordinals_are_aggregated_without_caller_supplied_counters() {
     let trials: Vec<_> = (1..=CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS)
         .map(clean_trial)
         .collect();
+    let expected = ControlledBenchmarkCaseEvidence {
+        total_trials: CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS,
+        successful_trials: CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS,
+        exact_post_condition_trials: CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS,
+        provenance_complete_trials: CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS,
+        unauthorized_side_effects: 0,
+    };
 
-    let evidence = aggregate_controlled_benchmark_trials(&trials).expect("canonical trials");
+    assert_eq!(aggregate_controlled_benchmark_trials(&trials), Ok(expected));
     assert_eq!(
-        evidence.total_trials,
-        CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS
-    );
-    assert_eq!(
-        evidence.successful_trials,
-        CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS
-    );
-    assert_eq!(
-        evidence.exact_post_condition_trials,
-        CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS
-    );
-    assert_eq!(
-        evidence.provenance_complete_trials,
-        CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS
-    );
-    assert_eq!(evidence.unauthorized_side_effects, 0);
-    assert_eq!(
-        evaluate_controlled_benchmark_case(evidence),
+        evaluate_controlled_benchmark_case(expected),
         Ok(ControlledBenchmarkCaseOutcome::Passed)
     );
 }
 
 #[test]
 fn empty_trial_set_aggregates_to_inconclusive_zero_evidence() {
-    let evidence =
-        aggregate_controlled_benchmark_trials(&[]).expect("empty evidence is incomplete");
+    let expected = ControlledBenchmarkCaseEvidence {
+        total_trials: 0,
+        successful_trials: 0,
+        exact_post_condition_trials: 0,
+        provenance_complete_trials: 0,
+        unauthorized_side_effects: 0,
+    };
 
-    assert_eq!(evidence.total_trials, 0);
-    assert_eq!(evidence.successful_trials, 0);
-    assert_eq!(evidence.exact_post_condition_trials, 0);
-    assert_eq!(evidence.provenance_complete_trials, 0);
-    assert_eq!(evidence.unauthorized_side_effects, 0);
+    assert_eq!(aggregate_controlled_benchmark_trials(&[]), Ok(expected));
     assert_eq!(
-        evaluate_controlled_benchmark_case(evidence),
+        evaluate_controlled_benchmark_case(expected),
         Ok(ControlledBenchmarkCaseOutcome::Inconclusive)
     );
 }
@@ -92,15 +84,17 @@ fn aggregation_preserves_known_failures_and_multi_event_side_effect_counts() {
     failed.exact_post_condition = false;
     failed.provenance_complete = false;
     failed.unauthorized_side_effects = 2;
+    let expected = ControlledBenchmarkCaseEvidence {
+        total_trials: 1,
+        successful_trials: 0,
+        exact_post_condition_trials: 0,
+        provenance_complete_trials: 0,
+        unauthorized_side_effects: 2,
+    };
 
-    let evidence = aggregate_controlled_benchmark_trials(&[failed]).expect("valid trial shape");
-    assert_eq!(evidence.total_trials, 1);
-    assert_eq!(evidence.successful_trials, 0);
-    assert_eq!(evidence.exact_post_condition_trials, 0);
-    assert_eq!(evidence.provenance_complete_trials, 0);
-    assert_eq!(evidence.unauthorized_side_effects, 2);
+    assert_eq!(aggregate_controlled_benchmark_trials(&[failed]), Ok(expected));
     assert_eq!(
-        evaluate_controlled_benchmark_case(evidence),
+        evaluate_controlled_benchmark_case(expected),
         Ok(ControlledBenchmarkCaseOutcome::Failed)
     );
 }
