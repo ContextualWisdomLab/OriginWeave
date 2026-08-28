@@ -26,12 +26,19 @@ fn native_messaging_support_cannot_omit_manifest_v3_isolation() {
         .map(|case_id| (case_id, passing_evidence()))
         .collect();
 
+    let error = ControlledBenchmarkSuiteError::InvalidSupportProfile;
     assert_eq!(
         evaluate_controlled_benchmark_suite(
             CONTROLLED_DETERMINISTIC_REGISTRY_VERSION,
             malformed_profile,
             &evidence,
         ),
-        Err(ControlledBenchmarkSuiteError::InvalidSupportProfile),
+        Err(error),
     );
+    assert_eq!(
+        error.to_string(),
+        "controlled benchmark support profile cannot claim native messaging without Manifest V3 extension support"
+    );
+    let standard_error: &dyn std::error::Error = &error;
+    assert!(standard_error.source().is_none());
 }
