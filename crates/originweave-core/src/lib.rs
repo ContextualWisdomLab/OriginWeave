@@ -17,8 +17,9 @@ mod contracts;
 mod extension_authority;
 
 pub use browser_protocol::{
-    BrowserProtocolAdapterDescriptor, BrowserProtocolCapability, BrowserProtocolDescriptorError,
-    BrowserProtocolKind, MAX_BROWSER_PROTOCOL_METADATA_BYTES,
+    BrowserProtocolAdapterDescriptor, BrowserProtocolCapability,
+    BrowserProtocolCapabilityRequirementError, BrowserProtocolDescriptorError, BrowserProtocolKind,
+    MAX_BROWSER_PROTOCOL_METADATA_BYTES,
 };
 pub use browser_registry::{
     BrowserAuthorityRegistry, BrowserRegistryError, MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES,
