@@ -21,6 +21,17 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+mod stealth;
+mod ua_hints;
+
+pub use stealth::{
+    CanvasNoise, StealthError, StealthSurface, WebAudioRate, WebGlRendererToken, WebRtcInterface,
+    require_stealth_surfaces,
+};
+pub use ua_hints::{
+    ClientHintsError, HintsArchitecture, HintsBitness, HintsPlatform, UaBrand, UaClientHints,
+};
+
 use sha2::{Digest, Sha256};
 use std::error::Error;
 use std::fmt;
