@@ -75,7 +75,7 @@ This is bounded browser-computed evidence for a synthetic test target, not the O
 
 **Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
 
-PR #72 records browser-process RSS, semantic-observation bytes, action latency, and total task duration while the pinned-Chrome fixture runs. The measurements are bounded, positive observations from the trusted ChromeDriver process identifier and the controlled semantic payload; they make the real fixture's resource and timing evidence inspectable without introducing a new telemetry subsystem.
+PR #72 records browser-process RSS, semantic-observation bytes, action latency, and total task duration while the pinned-Chrome fixture runs. The measurements are bounded, positive observations from the trusted ChromeDriver process identifier and the controlled semantic payload; its shutdown regression double supplies every required semantic and resource surface before cleanup failures are exercised, so incomplete evidence cannot pass incidentally. This makes the real fixture's resource and timing evidence inspectable without introducing a new telemetry subsystem.
 
 This is resource evidence for the active test harness, not process-set attribution or a product resource adapter. It does not discover Chromium children, prove task ownership or ancestry, walk cgroups, sample GPU/VRAM, or export durable product telemetry.
 

@@ -314,6 +314,10 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
                 "input_semantics_verified": True,
                 "submit_semantics_verified": True,
                 "extensions_disabled": True,
+                "browser_process_rss_bytes": 1,
+                "semantic_observation_bytes": 1,
+                "action_latency_ms": 1,
+                "task_duration_ms": 2,
                 "profile_cleaned": True,
             }
 

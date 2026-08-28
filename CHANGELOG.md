@@ -10,6 +10,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Record truncated WebDriver trial responses as bounded failed-trial evidence instead of aborting the complete MV3 compatibility run.
 - Close the first pinned-Chrome fixture server when startup of the second server fails, and attempt both shutdowns when one cleanup fails, preventing partial compatibility runs from leaking loopback server threads.
 - The fixture-shutdown contract now exercises successful MV3 and Agent Task trial paths before asserting reverse-order server cleanup.
+- The resource-evidence shutdown fixture now supplies complete semantic and measured resource surfaces before exercising reverse-order cleanup.
 - The fixture-shutdown success double now includes both browser-computed semantic verification surfaces, so cleanup failures cannot mask incomplete Agent Task evidence.
 ### Added
 - Corrected the 2026-08-26 product-gap snapshot with current #229 presentation-identity evidence, stacked-only #205 integration evidence, current base/head pairs, the 126-PR queue count, explicit root-versus-child merge ordering, and the active GitHub counted-approval gate.
