@@ -1,15 +1,26 @@
 use originweave_core::controlled_benchmark::{
-    ControlledBenchmarkCaseEvidence, ControlledBenchmarkError, evaluate_controlled_benchmark_case,
+    ControlledBenchmarkCaseEvidence, ControlledBenchmarkCaseOutcome, ControlledBenchmarkError,
+    evaluate_controlled_benchmark_case,
 };
 
 #[test]
 fn unauthorized_side_effect_events_require_at_least_one_represented_trial() {
-    let evidence = ControlledBenchmarkCaseEvidence {
+    let empty = ControlledBenchmarkCaseEvidence {
         total_trials: 0,
         successful_trials: 0,
         exact_post_condition_trials: 0,
         provenance_complete_trials: 0,
+        unauthorized_side_effects: 0,
+    };
+    assert_eq!(
+        evaluate_controlled_benchmark_case(empty),
+        Ok(ControlledBenchmarkCaseOutcome::Inconclusive),
+        "an empty clean bundle remains incomplete rather than malformed",
+    );
+
+    let evidence = ControlledBenchmarkCaseEvidence {
         unauthorized_side_effects: 1,
+        ..empty
     };
     let expected = ControlledBenchmarkError::EventWithoutTrial {
         counter: "unauthorized_side_effects",
