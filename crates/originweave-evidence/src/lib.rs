@@ -10,6 +10,7 @@
 mod extraction_schema;
 mod sensitive_access;
 mod sensitive_handle_lifecycle;
+mod warc_prov_bundle;
 mod warc_resource_record;
 
 pub use extraction_schema::{
@@ -24,6 +25,10 @@ pub use sensitive_access::{
 };
 pub use sensitive_handle_lifecycle::{
     SensitiveHandleLifecycleEvidence, SensitiveHandleLifecycleEvidenceInput,
+};
+pub use warc_prov_bundle::{
+    MAX_PROV_SOFTWARE_COMMIT_SHA_BYTES, WarcProvBundle, WarcProvBundleError,
+    WarcProvBundleVerificationError,
 };
 pub use warc_resource_record::{
     MAX_WARC_CONTENT_TYPE_BYTES, MAX_WARC_DATE_BYTES, MAX_WARC_PAYLOAD_BYTES,

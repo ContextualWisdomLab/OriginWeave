@@ -29,6 +29,7 @@ pub enum WarcTruncationReason {
 }
 
 impl WarcTruncationReason {
+    /// Return the canonical WARC 1.1 truncation token for this reason.
     pub(crate) const fn warc_token(self) -> &'static str {
         match self {
             Self::Length => "length",
@@ -521,4 +522,41 @@ fn sha256_digest(payload: &[u8]) -> String {
         encoded.push_str(&format!("{byte:02x}"));
     }
     encoded
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod tests {
+    use super::*;
+    use crate::{WarcProvBundle, WarcProvBundleVerificationError};
+
+    #[test]
+    fn provenance_bundle_rejects_a_tampered_block_digest() {
+        let provenance = ProvenanceRecord::new(
+            "https://example.com/item",
+            "body",
+            "sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+            crate::EvidenceSourceKind::NetworkResponse,
+            crate::VerificationResult::Verified,
+        )
+        .expect("verified provenance");
+        let mut record = WarcResourceRecord::new(
+            "urn:uuid:123e4567-e89b-12d3-a456-426614174000",
+            "2026-08-22T12:00:00Z",
+            "https://example.com/item",
+            "text/plain",
+            b"hello".to_vec(),
+            provenance,
+        )
+        .expect("WARC resource record");
+        let bundle = WarcProvBundle::new(&record, "0123456789abcdef0123456789abcdef01234567")
+            .expect("PROV bundle");
+
+        record.block_digest = "sha256:tampered".to_owned();
+
+        assert_eq!(
+            bundle.verify_record(&record),
+            Err(WarcProvBundleVerificationError::WarcRecordDigestMismatch)
+        );
+    }
 }
