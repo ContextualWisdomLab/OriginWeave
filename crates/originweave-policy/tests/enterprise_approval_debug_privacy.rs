@@ -35,10 +35,7 @@ fn enterprise_approval_debug_omits_principal_and_scope_identity() {
     let checker_subject = "checker-private-subject";
     let maker = principal(maker_subject);
 
-    assert_debug_omits(
-        &format!("{maker:?}"),
-        &[PRIVATE_ISSUER, maker_subject],
-    );
+    assert_debug_omits(&format!("{maker:?}"), &[PRIVATE_ISSUER, maker_subject]);
 
     let scope = approval_scope();
     let mut request = EnterpriseApprovalRequest::new(scope.clone(), maker, 100, 200, 1)
@@ -46,7 +43,12 @@ fn enterprise_approval_debug_omits_principal_and_scope_identity() {
 
     assert_debug_omits(
         &format!("{request:?}"),
-        &[PRIVATE_ISSUER, maker_subject, PRIVATE_ORIGIN, PRIVATE_INTENT],
+        &[
+            PRIVATE_ISSUER,
+            maker_subject,
+            PRIVATE_ORIGIN,
+            PRIVATE_INTENT,
+        ],
     );
 
     request
