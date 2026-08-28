@@ -17,6 +17,9 @@ pub const MCP_PROTOCOL_VERSION: &str = "2026-07-28";
 /// The only MCP method that can enter the typed action-routing boundary.
 pub const MCP_TOOLS_CALL_METHOD: &str = "tools/call";
 
+/// The MCP discovery method accepted by the typed tools-list boundary.
+pub const MCP_TOOLS_LIST_METHOD: &str = "tools/list";
+
 /// Maximum accepted MCP method-name length in bytes.
 pub const MAX_MCP_METHOD_NAME_BYTES: usize = 64;
 
@@ -117,6 +120,233 @@ const MCP_TOOL_CATALOG: &[McpToolCatalogEntry] = &[
 #[must_use]
 pub const fn supported_mcp_tools() -> &'static [McpToolCatalogEntry] {
     MCP_TOOL_CATALOG
+}
+
+/// Protocol disposition carried by a typed MCP result.
+///
+/// OriginWeave currently constructs only terminal results at this boundary. A transport adapter
+/// must serialize [`Self::Complete`] as MCP's `"complete"` result type and must not omit or
+/// reinterpret the required protocol field.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum McpResultType {
+    /// The request completed and this value contains the final result.
+    Complete,
+}
+
+/// Cache-sharing scope for an MCP cacheable list result.
+///
+/// OriginWeave currently exposes only the conservative private scope. A transport adapter must
+/// serialize this as MCP's `"private"` cache scope and must not widen it without a separately
+/// reviewed policy that proves the returned catalog is safe to share across callers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum McpCacheScope {
+    /// The result may be cached only for the current caller's private context.
+    Private,
+}
+
+/// One typed MCP `tools/list` page derived from the reviewed tool catalog.
+///
+/// This value is discovery metadata only. It does not grant any tool capability or action
+/// authority. The initial contract is deliberately one complete private page with zero freshness
+/// so adapters cannot omit MCP's required result disposition or accidentally share or reuse
+/// discovery metadata beyond the current request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct McpToolsListPage {
+    result_type: McpResultType,
+    tools: &'static [McpToolCatalogEntry],
+    ttl_ms: u64,
+    cache_scope: McpCacheScope,
+    next_cursor: Option<&'static str>,
+}
+
+impl McpToolsListPage {
+    /// Return the mandatory MCP result disposition for this list page.
+    #[must_use]
+    pub const fn result_type(&self) -> McpResultType {
+        self.result_type
+    }
+
+    /// Return the deterministic reviewed tool entries in this page.
+    #[must_use]
+    pub const fn tools(&self) -> &'static [McpToolCatalogEntry] {
+        self.tools
+    }
+
+    /// Return the MCP freshness lifetime in milliseconds.
+    ///
+    /// The current conservative contract is zero, so clients must treat the result as
+    /// immediately stale rather than reusing it for a later request.
+    #[must_use]
+    pub const fn ttl_ms(&self) -> u64 {
+        self.ttl_ms
+    }
+
+    /// Return the MCP cache-sharing scope for this page.
+    #[must_use]
+    pub const fn cache_scope(&self) -> McpCacheScope {
+        self.cache_scope
+    }
+
+    /// Return the opaque continuation cursor when another page exists.
+    ///
+    /// The current fixed catalog is emitted as one complete page, so this is always `None`.
+    #[must_use]
+    pub const fn next_cursor(&self) -> Option<&'static str> {
+        self.next_cursor
+    }
+}
+
+/// Build the conservative typed MCP `tools/list` result for the reviewed catalog.
+///
+/// This function does not perform transport serialization, authorization, or pagination. It
+/// binds the catalog to the mandatory complete result disposition plus explicit zero-TTL/private
+/// cache hints so adapters cannot invent broader protocol or cache semantics independently from
+/// this reviewed boundary.
+#[must_use]
+pub const fn mcp_tools_list_page() -> McpToolsListPage {
+    McpToolsListPage {
+        result_type: McpResultType::Complete,
+        tools: MCP_TOOL_CATALOG,
+        ttl_ms: 0,
+        cache_scope: McpCacheScope::Private,
+        next_cursor: None,
+    }
+}
+
+/// A deterministic failure while validating one MCP `tools/list` request envelope.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum McpToolsListBoundaryError {
+    /// The transport request omitted the required MCP protocol-version header.
+    MissingProtocolVersionHeader,
+    /// The structured request metadata omitted the required MCP protocol version.
+    MissingProtocolVersionMetadata,
+    /// The transport protocol version disagrees with the structured request metadata.
+    ProtocolVersionHeaderBodyMismatch,
+    /// The request names an MCP protocol generation this boundary does not support.
+    UnsupportedProtocolVersion,
+    /// The structured request metadata omitted the required client-capabilities object.
+    MissingClientCapabilities,
+    /// The request method violates the bounded ASCII MCP routing syntax.
+    InvalidMethod,
+    /// MCP routing method metadata disagrees with the method in the request body.
+    MethodHeaderBodyMismatch,
+    /// The request method is not the supported `tools/list` operation.
+    UnsupportedMethod,
+    /// The request supplied a cursor that this fixed single-page catalog never issued.
+    UnsupportedCursor,
+}
+
+impl fmt::Display for McpToolsListBoundaryError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MissingProtocolVersionHeader => {
+                formatter.write_str("MCP protocol version header is required")
+            }
+            Self::MissingProtocolVersionMetadata => {
+                formatter.write_str("MCP request metadata protocol version is required")
+            }
+            Self::ProtocolVersionHeaderBodyMismatch => {
+                formatter.write_str("MCP protocol version header does not match request metadata")
+            }
+            Self::UnsupportedProtocolVersion => {
+                formatter.write_str("unsupported MCP protocol version")
+            }
+            Self::MissingClientCapabilities => {
+                formatter.write_str("MCP request metadata client capabilities are required")
+            }
+            Self::InvalidMethod => {
+                formatter.write_str("MCP method violates the bounded ASCII routing syntax")
+            }
+            Self::MethodHeaderBodyMismatch => {
+                formatter.write_str("MCP method header does not match the request body")
+            }
+            Self::UnsupportedMethod => {
+                formatter.write_str("only MCP tools/list requests can enter the discovery boundary")
+            }
+            Self::UnsupportedCursor => {
+                formatter.write_str("MCP tools/list cursor was not issued by this fixed catalog")
+            }
+        }
+    }
+}
+
+impl std::error::Error for McpToolsListBoundaryError {}
+
+/// An MCP `tools/list` request whose protocol, required metadata, and routing envelope were
+/// validated.
+///
+/// This boundary is deliberately narrower than a general transport or pagination implementation.
+/// A trusted structured parser must prove whether the required per-request client-capabilities
+/// object was present; this type never accepts its contents as authority. The current reviewed
+/// catalog returns one complete page and emits no continuation cursor, so no non-null cursor can
+/// be a value previously issued by OriginWeave. A transport adapter must not silently ignore or
+/// reinterpret a supplied cursor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ValidatedMcpToolsListRequest {
+    method: &'static str,
+}
+
+impl ValidatedMcpToolsListRequest {
+    /// Validate the stateless request envelope for the current fixed `tools/list` catalog.
+    ///
+    /// Both the required transport protocol-version header and structured request `_meta`
+    /// protocol version must be present, individually bounded to the exact supported-version
+    /// length before cross-field comparison, equal, and exactly [`MCP_PROTOCOL_VERSION`]. A
+    /// trusted structured parser must also attest that the required `_meta` client-capabilities
+    /// object was present; its contents grant no OriginWeave authority. Each untrusted method
+    /// value is shape-validated before comparison. The routing/body method must then agree exactly.
+    /// Any supplied cursor fails closed because [`mcp_tools_list_page`] emits no continuation
+    /// cursor; accepting one would silently invent pagination state that OriginWeave never issued.
+    pub fn new(
+        protocol_version_header: Option<&str>,
+        protocol_version_metadata: Option<&str>,
+        client_capabilities_present: bool,
+        routing_method: &str,
+        body_method: &str,
+        cursor: Option<&str>,
+    ) -> Result<Self, McpToolsListBoundaryError> {
+        let protocol_version_header = protocol_version_header
+            .ok_or(McpToolsListBoundaryError::MissingProtocolVersionHeader)?;
+        let protocol_version_metadata = protocol_version_metadata
+            .ok_or(McpToolsListBoundaryError::MissingProtocolVersionMetadata)?;
+
+        if protocol_version_header.len() > MCP_PROTOCOL_VERSION.len()
+            || protocol_version_metadata.len() > MCP_PROTOCOL_VERSION.len()
+        {
+            return Err(McpToolsListBoundaryError::UnsupportedProtocolVersion);
+        }
+        if protocol_version_header != protocol_version_metadata {
+            return Err(McpToolsListBoundaryError::ProtocolVersionHeaderBodyMismatch);
+        }
+        if protocol_version_metadata != MCP_PROTOCOL_VERSION {
+            return Err(McpToolsListBoundaryError::UnsupportedProtocolVersion);
+        }
+        if !client_capabilities_present {
+            return Err(McpToolsListBoundaryError::MissingClientCapabilities);
+        }
+        if !valid_method(routing_method) || !valid_method(body_method) {
+            return Err(McpToolsListBoundaryError::InvalidMethod);
+        }
+        if routing_method != body_method {
+            return Err(McpToolsListBoundaryError::MethodHeaderBodyMismatch);
+        }
+        if routing_method != MCP_TOOLS_LIST_METHOD {
+            return Err(McpToolsListBoundaryError::UnsupportedMethod);
+        }
+        if cursor.is_some() {
+            return Err(McpToolsListBoundaryError::UnsupportedCursor);
+        }
+
+        Ok(Self {
+            method: MCP_TOOLS_LIST_METHOD,
+        })
+    }
+
+    /// Return the canonical MCP method validated by this request.
+    #[must_use]
+    pub const fn method(&self) -> &'static str {
+        self.method
+    }
 }
 
 /// A deterministic failure while validating untrusted MCP routing metadata.
