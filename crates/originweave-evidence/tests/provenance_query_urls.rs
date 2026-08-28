@@ -11,7 +11,7 @@ const DATE: &str = "2026-08-28T00:00:00Z";
 
 #[test]
 fn provenance_and_warc_preserve_query_bearing_resource_urls_without_debug_disclosure() {
-    let source_url = "https://example.com/search?next=/products?category=widgets&q=public%20term";
+    let source_url = "https://example.com/search?next=/products?category=widgets&q=public%20term&literal_percent=percent%25&partial_percent=percent%252";
     let provenance = ProvenanceRecord::new(
         source_url,
         "body",
@@ -113,17 +113,16 @@ fn provenance_query_support_does_not_admit_fragments_or_unsafe_uri_octets() {
 
 #[test]
 fn provenance_query_support_rejects_recursively_encoded_controls() {
-    for source_url in ["https://example.com/search?q=%25250A"] {
-        assert_eq!(
-            ProvenanceRecord::new(
-                source_url,
-                "body",
-                EMPTY_SHA256,
-                EvidenceSourceKind::NetworkResponse,
-                VerificationResult::Verified,
-            ),
-            Err(EvidenceError::InvalidSourceUrl),
-            "recursively encoded control source_url={source_url:?}"
-        );
-    }
+    let source_url = "https://example.com/search?q=%25250A";
+    assert_eq!(
+        ProvenanceRecord::new(
+            source_url,
+            "body",
+            EMPTY_SHA256,
+            EvidenceSourceKind::NetworkResponse,
+            VerificationResult::Verified,
+        ),
+        Err(EvidenceError::InvalidSourceUrl),
+        "recursively encoded control source_url={source_url:?}"
+    );
 }
