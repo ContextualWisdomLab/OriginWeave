@@ -300,13 +300,25 @@ fn redact_all_values(values: BTreeMap<String, String>) -> BTreeMap<String, Strin
 }
 
 /// A provenance pointer from an extracted assertion to its exact evidence.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct ProvenanceRecord {
     source_url: String,
     source_locator: String,
     source_hash: String,
     source_kind: EvidenceSourceKind,
     verification_result: VerificationResult,
+}
+
+impl std::fmt::Debug for ProvenanceRecord {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ProvenanceRecord")
+            .field("source_url_byte_count", &self.source_url.len())
+            .field("source_locator_byte_count", &self.source_locator.len())
+            .field("source_kind", &self.source_kind)
+            .field("verification_result", &self.verification_result)
+            .finish()
+    }
 }
 
 impl ProvenanceRecord {
@@ -377,21 +389,147 @@ fn valid_source_url(source_url: &str) -> bool {
         || source_url
             .chars()
             .any(|character| character.is_control() || character.is_whitespace())
-        || source_url.contains(['?', '#', '\\'])
+        || source_url.contains(['#', '\\'])
     {
         return false;
     }
     let Some((scheme, remainder)) = source_url.split_once("://") else {
         return false;
     };
-    let authority_end = remainder.find('/').unwrap_or(remainder.len());
-    let authority = &remainder[..authority_end];
+    let (hierarchical, query) = remainder
+        .split_once('?')
+        .map_or((remainder, None), |(hierarchical, query)| {
+            (hierarchical, Some(query))
+        });
+    let authority_end = hierarchical.find('/').unwrap_or(hierarchical.len());
+    let authority = &hierarchical[..authority_end];
     let origin_text = format!("{scheme}://{authority}");
     if Origin::parse(&origin_text).is_err() {
         return false;
     }
-    let path = &remainder[authority_end..];
-    path.is_empty() || validate_path(path).is_ok()
+    let path = &hierarchical[authority_end..];
+    if !path.is_empty() && validate_path(path).is_err() {
+        return false;
+    }
+    query.is_none_or(valid_query)
+}
+
+fn valid_query(query: &str) -> bool {
+    let bytes = query.as_bytes();
+    let mut index = 0;
+    while index < bytes.len() {
+        let byte = bytes[index];
+        if byte == b'%' {
+            let Some(high) = bytes
+                .get(index + 1)
+                .and_then(|byte| hexadecimal_value(*byte))
+            else {
+                return false;
+            };
+            let Some(low) = bytes
+                .get(index + 2)
+                .and_then(|byte| hexadecimal_value(*byte))
+            else {
+                return false;
+            };
+            if (high * 16 + low).is_ascii_control() {
+                return false;
+            }
+            index += 3;
+            continue;
+        }
+        if !is_rfc3986_pchar(byte) && !matches!(byte, b'/' | b'?') {
+            return false;
+        }
+        index += 1;
+    }
+    query.split('&').all(|field| {
+        let (name, value) = field
+            .split_once('=')
+            .map_or((field, ""), |(name, value)| (name, value));
+        !is_credential_query_name(name) && !nested_query_contains_credential(value)
+    })
+}
+
+fn nested_query_contains_credential(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            let high = hexadecimal_value(bytes[index + 1]).unwrap_or(0);
+            let low = hexadecimal_value(bytes[index + 2]).unwrap_or(0);
+            decoded.push(high * 16 + low);
+            index += 3;
+        } else {
+            decoded.push(bytes[index]);
+            index += 1;
+        }
+    }
+    decoded
+        .split(|byte| *byte == b'?')
+        .skip(1)
+        .any(|nested_query| {
+            nested_query.split(|byte| *byte == b'&').any(|field| {
+                let name_end = field
+                    .iter()
+                    .position(|byte| *byte == b'=')
+                    .unwrap_or(field.len());
+                let name = &field[..name_end];
+                name.contains(&b'%') || is_credential_query_name_bytes(name)
+            })
+        })
+}
+
+fn is_credential_query_name(name: &str) -> bool {
+    let bytes = name.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            let high = hexadecimal_value(bytes[index + 1]).unwrap_or(0);
+            let low = hexadecimal_value(bytes[index + 2]).unwrap_or(0);
+            decoded.push(high * 16 + low);
+            index += 3;
+        } else {
+            decoded.push(bytes[index]);
+            index += 1;
+        }
+    }
+    decoded.contains(&b'%') || is_credential_query_name_bytes(&decoded)
+}
+
+fn is_credential_query_name_bytes(decoded: &[u8]) -> bool {
+    let mut decoded = decoded.to_owned();
+    decoded.make_ascii_lowercase();
+    decoded.iter_mut().for_each(|byte| {
+        if *byte == b'-' {
+            *byte = b'_';
+        }
+    });
+    matches!(
+        decoded.as_slice(),
+        b"access_token"
+            | b"api_key"
+            | b"auth"
+            | b"authorization"
+            | b"client_secret"
+            | b"credential"
+            | b"key"
+            | b"password"
+            | b"secret"
+            | b"secret_key"
+            | b"session"
+            | b"sig"
+            | b"signature"
+            | b"token"
+            | b"x_api_key"
+            | b"x_amz_credential"
+            | b"x_amz_security_token"
+            | b"x_amz_signature"
+            | b"x_goog_credential"
+            | b"x_goog_signature"
+    )
 }
 
 fn valid_sha256(source_hash: &str) -> bool {

@@ -73,6 +73,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Security
 
+- Provenance source URLs now reject case-insensitive and percent-encoded credential query-field names, including recursively encoded nested query-like values, and percent-encoded controls before query-bearing URLs can be retained or serialized into WARC target metadata.
 - Explicit proxy server identifiers require ASCII decimal port tokens before numeric range parsing, preventing Rust-specific leading-plus spellings from widening proxy authority.
 - Raw page content cannot become a trusted instruction.
 - Raw secrets are rejected and secret-capable actions require an opaque broker handle.
