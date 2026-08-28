@@ -295,13 +295,25 @@ fn redact_all_values(values: BTreeMap<String, String>) -> BTreeMap<String, Strin
 }
 
 /// A provenance pointer from an extracted assertion to its exact evidence.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct ProvenanceRecord {
     source_url: String,
     source_locator: String,
     source_hash: String,
     source_kind: EvidenceSourceKind,
     verification_result: VerificationResult,
+}
+
+impl std::fmt::Debug for ProvenanceRecord {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ProvenanceRecord")
+            .field("source_url_byte_count", &self.source_url.len())
+            .field("source_locator_byte_count", &self.source_locator.len())
+            .field("source_kind", &self.source_kind)
+            .field("verification_result", &self.verification_result)
+            .finish()
+    }
 }
 
 impl ProvenanceRecord {
@@ -372,21 +384,52 @@ fn valid_source_url(source_url: &str) -> bool {
         || source_url
             .chars()
             .any(|character| character.is_control() || character.is_whitespace())
-        || source_url.contains(['?', '#', '\\'])
+        || source_url.contains(['#', '\\'])
     {
         return false;
     }
     let Some((scheme, remainder)) = source_url.split_once("://") else {
         return false;
     };
-    let authority_end = remainder.find('/').unwrap_or(remainder.len());
-    let authority = &remainder[..authority_end];
+    let (hierarchical, query) = remainder
+        .split_once('?')
+        .map_or((remainder, None), |(hierarchical, query)| {
+            (hierarchical, Some(query))
+        });
+    let authority_end = hierarchical.find('/').unwrap_or(hierarchical.len());
+    let authority = &hierarchical[..authority_end];
     let origin_text = format!("{scheme}://{authority}");
     if Origin::parse(&origin_text).is_err() {
         return false;
     }
-    let path = &remainder[authority_end..];
-    path.is_empty() || validate_path(path).is_ok()
+    let path = &hierarchical[authority_end..];
+    if !path.is_empty() && validate_path(path).is_err() {
+        return false;
+    }
+    query.map_or(true, valid_query)
+}
+
+fn valid_query(query: &str) -> bool {
+    let bytes = query.as_bytes();
+    let mut index = 0;
+    while index < bytes.len() {
+        let byte = bytes[index];
+        if byte == b'%' {
+            if index + 2 >= bytes.len()
+                || hexadecimal_value(bytes[index + 1]).is_none()
+                || hexadecimal_value(bytes[index + 2]).is_none()
+            {
+                return false;
+            }
+            index += 3;
+            continue;
+        }
+        if !is_rfc3986_pchar(byte) && !matches!(byte, b'/' | b'?') {
+            return false;
+        }
+        index += 1;
+    }
+    true
 }
 
 fn valid_sha256(source_hash: &str) -> bool {
