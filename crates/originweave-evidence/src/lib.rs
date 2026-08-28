@@ -415,10 +415,19 @@ fn valid_query(query: &str) -> bool {
     while index < bytes.len() {
         let byte = bytes[index];
         if byte == b'%' {
-            if index + 2 >= bytes.len()
-                || hexadecimal_value(bytes[index + 1]).is_none()
-                || hexadecimal_value(bytes[index + 2]).is_none()
-            {
+            let Some(high) = bytes
+                .get(index + 1)
+                .and_then(|byte| hexadecimal_value(*byte))
+            else {
+                return false;
+            };
+            let Some(low) = bytes
+                .get(index + 2)
+                .and_then(|byte| hexadecimal_value(*byte))
+            else {
+                return false;
+            };
+            if (high * 16 + low).is_ascii_control() {
                 return false;
             }
             index += 3;
