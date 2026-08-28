@@ -16,6 +16,7 @@ mod browser_registry_coverage;
 mod contract_errors;
 mod contracts;
 mod extension_authority;
+mod semantic_action_target;
 mod semantic_observation;
 
 pub use browser_protocol::{
@@ -40,6 +41,7 @@ pub use extension_authority::{
     ExtensionAgentGrant as AuthorityExtensionAgentGrant,
     evaluate_extension_access as evaluate_extension_authority_access,
 };
+pub use semantic_action_target::{SemanticNodeActionTarget, SemanticNodeActionTargetError};
 pub use semantic_observation::{
     MAX_ACCESSIBLE_NAME_BYTES, MAX_SEMANTIC_CHILDREN, MAX_SEMANTIC_ROLE_BYTES,
     MAX_VISIBLE_TEXT_BYTES, NodeActionKind, ObservationChannel, SemanticNodeObservation,

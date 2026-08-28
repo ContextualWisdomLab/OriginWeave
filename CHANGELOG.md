@@ -40,6 +40,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Universally value-redacted network evidence with explicit path, metadata, and provenance bounds; ambiguous path rejection; validated source URLs; lowercase SHA-256 identifiers; and verification state.
 - Authority-bound, bounded semantic node observations with typed node-local action evidence and explicit observation-channel provenance for the first Chromium vertical slice; observation metadata grants no execution authority.
 - Bounded typed semantic node queries over reviewed role, accessible-name, and node-action evidence, without exposing raw DOM/protocol selector languages or granting execution authority.
+- Authority-bound semantic node action targets accept only observation-advertised node-local actions and revalidate the exact node binding against the live browser authority registry before later use, so retired or stale handles cannot be revived by caller-supplied authority tuples.
 - Versioned schema-bound extraction contracts with bounded identifiers and field counts, typed value/cardinality metadata, explicit duplicate-free reviewed source channels, fail-closed schema validation, and deterministic `Display`/`std::error::Error` contracts for public schema failures.
 - Rust 1.97.1 build contract, strict Clippy and rustdoc gates, and exact production function, line, region, and branch coverage enforcement.
 - Hourly bounded OpenCode product-development workflow using `NVIDIA_NIM_API_KEY`, an unprivileged disposable workspace, loopback-only model broker, independently verified patches, and publication through a dedicated `OPENCODE_PR_TOKEN` that cannot review or merge.
@@ -52,6 +53,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 ### Changed
 
 - Restored the public `originweave-core` crate-root export for `SemanticNodeQuery` and `SemanticNodeQueryError`, so the typed semantic-query contract is usable by downstream adapters and its regression test compiles against the actual library root.
+- Restored the public `originweave-core` crate-root export for `SemanticNodeActionTarget` and `SemanticNodeActionTargetError`, so authority-bound node actions are usable by downstream adapters after stack reconciliation.
 - Aligned the hourly product-development branch-coverage toolchain and its one-shot materializer with the reviewed `nightly-2026-08-18` pin, and corrected the official Dependabot Rust-toolchain reference.
 - Separated logical origin authority from resolved network destination authority; an origin grant no longer implies permission to connect to every resolver result.
 - Separated resolved-address authorization from direct transport evidence; an approved IP now becomes a usable stream only after the operating system reports the exact requested IP and port.
