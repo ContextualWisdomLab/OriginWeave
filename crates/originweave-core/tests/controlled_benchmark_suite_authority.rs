@@ -1,30 +1,32 @@
 use originweave_core::controlled_benchmark::{
     CONTROLLED_DETERMINISTIC_REGISTRY_VERSION, CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS,
-    ControlledBenchmarkCaseEvidence, ControlledBenchmarkCaseId, ControlledBenchmarkSupportProfile,
-    evaluate_controlled_benchmark_suite,
+    ControlledBenchmarkCaseId, ControlledBenchmarkCaseTrials, ControlledBenchmarkSupportProfile,
+    ControlledBenchmarkTrialEvidence, evaluate_controlled_benchmark_suite,
 };
 use originweave_core::release_acceptance::BenchmarkSuiteOutcome;
 
-fn passing_evidence() -> ControlledBenchmarkCaseEvidence {
-    ControlledBenchmarkCaseEvidence {
-        total_trials: CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS,
-        successful_trials: CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS,
-        exact_post_condition_trials: CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS,
-        provenance_complete_trials: CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS,
-        unauthorized_side_effects: 0,
-    }
+fn passing_trials() -> Vec<ControlledBenchmarkTrialEvidence> {
+    (1..=CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS)
+        .map(|trial_ordinal| ControlledBenchmarkTrialEvidence {
+            trial_ordinal,
+            action_succeeded: true,
+            exact_post_condition: true,
+            provenance_complete: true,
+            unauthorized_side_effects: 0,
+        })
+        .collect()
 }
 
 #[test]
-fn suite_authority_is_derived_from_raw_case_evidence() {
+fn suite_authority_is_derived_from_trial_evidence_not_caller_aggregate_counters() {
     let profile = ControlledBenchmarkSupportProfile {
         manifest_v3: false,
         native_messaging: false,
     };
-    let evidence = [(
-        ControlledBenchmarkCaseId::SemanticInteraction,
-        passing_evidence(),
-    )];
+    let evidence = [ControlledBenchmarkCaseTrials {
+        case_id: ControlledBenchmarkCaseId::SemanticInteraction,
+        trials: passing_trials(),
+    }];
 
     assert_eq!(
         evaluate_controlled_benchmark_suite(
