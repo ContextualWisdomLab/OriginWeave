@@ -1,9 +1,13 @@
 use std::error::Error;
 
-use originweave_evidence::{CaptureLifecycle, CaptureLifecycleError, CaptureLifecycleState};
+use originweave_evidence::{
+    CaptureDeletionReceipt, CaptureLifecycle, CaptureLifecycleError, CaptureLifecycleState,
+};
 
 const MANIFEST_DIGEST: &str =
     "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+const DELETION_EVIDENCE_DIGEST: &str =
+    "sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
 
 #[test]
 fn retained_capture_reaches_deleted_only_after_retention_expiry() -> Result<(), Box<dyn Error>> {
@@ -31,10 +35,12 @@ fn retained_capture_reaches_deleted_only_after_retention_expiry() -> Result<(), 
     lifecycle.request_deletion(200)?;
     assert_eq!(lifecycle.state(), CaptureLifecycleState::DeletionRequested);
     assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 200);
-    lifecycle.confirm_deleted(201)?;
+    let receipt = CaptureDeletionReceipt::new(MANIFEST_DIGEST, DELETION_EVIDENCE_DIGEST)?;
+    lifecycle.confirm_deleted(&receipt, 201)?;
     assert_eq!(lifecycle.state(), CaptureLifecycleState::Deleted);
     assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 201);
     assert_eq!(lifecycle.retention_deadline_epoch_seconds(), Some(200));
+    assert_eq!(lifecycle.deletion_receipt(), Some(&receipt));
     Ok(())
 }
 
@@ -149,11 +155,13 @@ fn lifecycle_fails_closed_on_bad_identity_order_and_time() -> Result<(), Box<dyn
         lifecycle.place_legal_hold(108),
         Err(CaptureLifecycleError::InvalidTransition)
     );
+    let receipt = CaptureDeletionReceipt::new(MANIFEST_DIGEST, DELETION_EVIDENCE_DIGEST)?;
     assert_eq!(
-        lifecycle.confirm_deleted(108),
+        lifecycle.confirm_deleted(&receipt, 108),
         Err(CaptureLifecycleError::InvalidTransition)
     );
     assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 106);
+    assert!(lifecycle.deletion_receipt().is_none());
     Ok(())
 }
 
@@ -204,10 +212,12 @@ fn every_transition_rejects_trusted_time_rollback() -> Result<(), Box<dyn Error>
     confirming.verify(102)?;
     confirming.retain_until(200, 103)?;
     confirming.request_deletion(200)?;
+    let receipt = CaptureDeletionReceipt::new(MANIFEST_DIGEST, DELETION_EVIDENCE_DIGEST)?;
     assert_eq!(
-        confirming.confirm_deleted(199),
+        confirming.confirm_deleted(&receipt, 199),
         Err(CaptureLifecycleError::TrustedTimeRollback)
     );
+    assert!(confirming.deletion_receipt().is_none());
 
     let mut started = CaptureLifecycle::new(MANIFEST_DIGEST, 100)?;
     assert_eq!(
@@ -231,6 +241,14 @@ fn lifecycle_errors_are_standard_credential_safe_errors() {
         (
             CaptureLifecycleError::InvalidManifestDigest,
             "capture manifest digest must be lowercase sha256",
+        ),
+        (
+            CaptureLifecycleError::InvalidDeletionEvidenceDigest,
+            "capture deletion evidence digest must be lowercase sha256",
+        ),
+        (
+            CaptureLifecycleError::DeletionReceiptMismatch,
+            "capture deletion receipt does not match lifecycle manifest",
         ),
         (
             CaptureLifecycleError::InvalidTransition,
