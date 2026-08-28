@@ -94,7 +94,8 @@ fn deletion_receipt_rejects_unbound_or_noncanonical_identity() {
 }
 
 #[test]
-fn deletion_request_rejects_noncanonical_request_identity_atomically() -> Result<(), Box<dyn Error>> {
+fn deletion_request_rejects_noncanonical_request_identity_atomically() -> Result<(), Box<dyn Error>>
+{
     let mut lifecycle = retained_lifecycle()?;
 
     assert_eq!(
