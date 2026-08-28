@@ -240,3 +240,27 @@ impl CaptureLifecycle {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{CaptureLifecycle, CaptureLifecycleError, CaptureLifecycleState};
+
+    #[test]
+    fn corrupted_retained_state_without_deadline_fails_closed() {
+        let mut lifecycle = CaptureLifecycle {
+            manifest_digest:
+                "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+                    .to_owned(),
+            state: CaptureLifecycleState::Retained,
+            latest_trusted_time_epoch_seconds: 100,
+            retention_deadline_epoch_seconds: None,
+        };
+
+        assert_eq!(
+            lifecycle.request_deletion(101),
+            Err(CaptureLifecycleError::InvalidTransition)
+        );
+        assert_eq!(lifecycle.state(), CaptureLifecycleState::Retained);
+        assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 101);
+    }
+}
