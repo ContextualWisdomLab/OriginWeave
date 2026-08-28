@@ -77,6 +77,19 @@ class ProductDocumentationContractTests(unittest.TestCase):
             vpn_status,
         )
 
+    def test_warc_prov_bundle_boundary_is_documented_as_in_memory_evidence(self) -> None:
+        """The public WARC/PROV projection must not be mistaken for durable persistence."""
+        adr = (ROOT / "docs/adr/0106-provenance-evidence-model.md").read_text(encoding="utf-8")
+        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        for text in (adr, changelog):
+            with self.subTest(document=text[:40]):
+                self.assertIn("WarcProvBundle", text)
+                self.assertIn("deterministic", text)
+                self.assertIn("JSON-LD", text)
+                self.assertIn("offline verification", text)
+                self.assertIn("in-memory", text)
+        self.assertIn("durable persistence remains planned", adr)
+
     def test_root_architecture_links_the_authoritative_product_graph(self) -> None:
         """Architecture readers must be able to reach requirements, decisions, diagrams, and data."""
         architecture = (ROOT / "ARCHITECTURE.md").read_text(encoding="utf-8")
