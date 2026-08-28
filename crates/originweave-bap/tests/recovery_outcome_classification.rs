@@ -233,6 +233,10 @@ fn recovery_evidence_identity_must_match_before_lifecycle_state_is_considered() 
     let receipt_failure = BapCommandRecoveryError::ReceiptValidation {
         error: BapCommandReceiptError::ReplayStateMismatch,
     };
+    assert_eq!(
+        receipt_failure.to_string(),
+        BapCommandReceiptError::ReplayStateMismatch.to_string()
+    );
     assert!(std::error::Error::source(&receipt_failure).is_some());
 }
 
