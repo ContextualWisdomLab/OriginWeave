@@ -461,7 +461,8 @@ fn nested_query_contains_credential(value: &str) -> bool {
                     .iter()
                     .position(|byte| *byte == b'=')
                     .unwrap_or(field.len());
-                is_credential_query_name_bytes(&field[..name_end])
+                let name = &field[..name_end];
+                name.contains(&b'%') || is_credential_query_name_bytes(name)
             })
         })
 }
