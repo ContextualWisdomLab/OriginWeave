@@ -112,6 +112,24 @@ impl std::error::Error for BapRecoveryEvidenceDigestError {}
 pub struct BapRecoveryEvidenceDigest(String);
 
 impl BapRecoveryEvidenceDigest {
+    /// Construct one canonical identity from an already-computed SHA-256 output.
+    ///
+    /// This function does not hash or authenticate recovery evidence. The durable evidence owner
+    /// must compute and authenticate the SHA-256 output before passing these exact 32 bytes into
+    /// the BAP boundary.
+    #[must_use]
+    pub fn from_sha256_bytes(digest: [u8; 32]) -> Self {
+        const HEX: &[u8; 16] = b"0123456789abcdef";
+
+        let mut value = String::with_capacity("sha256:".len() + digest.len() * 2);
+        value.push_str("sha256:");
+        for byte in digest {
+            value.push(char::from(HEX[usize::from(byte >> 4)]));
+            value.push(char::from(HEX[usize::from(byte & 0x0f)]));
+        }
+        Self(value)
+    }
+
     /// Parse one exact `sha256:` identity with 64 lowercase hexadecimal digits.
     pub fn parse(value: &str) -> Result<Self, BapRecoveryEvidenceDigestError> {
         let Some(hex_digest) = value.strip_prefix("sha256:") else {
