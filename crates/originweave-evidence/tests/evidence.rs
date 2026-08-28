@@ -103,6 +103,7 @@ fn provenance_accepts_safe_root_path_and_loopback_sources() {
     for source_url in [
         "https://example.com",
         "https://example.com/item/42",
+        "https://example.com/search?cache",
         "http://localhost:9222/json/version",
         "http://[::1]:9222/json/version",
     ] {
