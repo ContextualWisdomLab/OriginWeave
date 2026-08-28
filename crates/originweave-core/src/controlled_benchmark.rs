@@ -175,7 +175,8 @@ pub struct ControlledBenchmarkCaseEvidence {
     /// Unauthorized side-effect events observed across all represented trials.
     ///
     /// This is an event count rather than a per-trial outcome count: one trial
-    /// can expose more than one unauthorized side effect.
+    /// can expose more than one unauthorized side effect. A nonzero event count
+    /// requires at least one represented trial.
     pub unauthorized_side_effects: u32,
 }
 
@@ -198,6 +199,13 @@ pub enum ControlledBenchmarkError {
         /// Total number of represented trials.
         total_trials: u32,
     },
+    /// An event counter claims observations while the evidence represents no trial.
+    EventWithoutTrial {
+        /// Name of the invalid aggregate event counter.
+        counter: &'static str,
+        /// Event count claimed without a represented trial.
+        observed: u32,
+    },
 }
 
 impl fmt::Display for ControlledBenchmarkError {
@@ -214,6 +222,10 @@ impl fmt::Display for ControlledBenchmarkError {
             } => write!(
                 formatter,
                 "controlled benchmark counter {counter} has {observed} observations but only {total_trials} total trials"
+            ),
+            Self::EventWithoutTrial { counter, observed } => write!(
+                formatter,
+                "controlled benchmark event counter {counter} reports {observed} events with no represented trials"
             ),
         }
     }
@@ -300,7 +312,8 @@ impl std::error::Error for ControlledBenchmarkSuiteError {
 /// # Errors
 ///
 /// Returns [`ControlledBenchmarkError`] when the evidence exceeds the canonical
-/// trial count or when a per-trial outcome counter exceeds `total_trials`.
+/// trial count, when a per-trial outcome counter exceeds `total_trials`, or when
+/// an event counter reports observations despite `total_trials` being zero.
 pub fn evaluate_controlled_benchmark_case(
     evidence: ControlledBenchmarkCaseEvidence,
 ) -> Result<ControlledBenchmarkCaseOutcome, ControlledBenchmarkError> {
@@ -326,6 +339,13 @@ pub fn evaluate_controlled_benchmark_case(
         evidence.provenance_complete_trials,
         evidence.total_trials,
     )?;
+
+    if evidence.total_trials == 0 && evidence.unauthorized_side_effects != 0 {
+        return Err(ControlledBenchmarkError::EventWithoutTrial {
+            counter: "unauthorized_side_effects",
+            observed: evidence.unauthorized_side_effects,
+        });
+    }
 
     if evidence.successful_trials < evidence.total_trials
         || evidence.exact_post_condition_trials < evidence.total_trials
