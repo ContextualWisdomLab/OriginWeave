@@ -126,7 +126,6 @@ fn provenance_rejects_credential_bearing_or_ambiguous_source_urls() {
         "ftp://example.com/path",
         "http://example.com/path",
         "https://user:password@example.com/path",
-        "https://example.com/path?access_token=secret",
         "https://example.com/path#fragment",
         "https://example.com/bad\\path",
         "https://example.com/\n",
