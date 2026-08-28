@@ -1,12 +1,19 @@
 use crate::HttpClientPolicy;
-use crate::chunked::{ChunkParseResult, ChunkedDecoder};
+use crate::chunked::{ChunkParseResult, ChunkedDecoder, MAX_CHUNK_LINE_BYTES};
 use crate::exchange::{extend_chunked_wire, maximum_chunked_wire_bytes};
 use crate::field::FieldBlock;
 
 #[test]
 fn default_chunked_wire_prefix_stays_below_eighteen_mib() {
-    let maximum = maximum_chunked_wire_bytes(&HttpClientPolicy::strict_defaults());
-    assert_eq!(maximum, 18_104_340);
+    let policy = HttpClientPolicy::strict_defaults();
+    let maximum = maximum_chunked_wire_bytes(&policy);
+    let per_chunk_overhead = MAX_CHUNK_LINE_BYTES + 4;
+    let composed_maximum = policy
+        .max_encoded_content_bytes()
+        .saturating_add(policy.max_chunk_count().saturating_mul(per_chunk_overhead))
+        .saturating_add(policy.max_trailer_section_bytes());
+
+    assert_eq!(maximum, composed_maximum);
     assert!(maximum < 18 * 1024 * 1024);
 }
 
