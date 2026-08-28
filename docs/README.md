@@ -87,6 +87,7 @@ Proposed ADRs are reviewable architecture memory, not shipped behavior and not a
 - [ADR 0110: Privacy-preserving presentation identity](adr/0110-privacy-preserving-presentation-identity.md)
 - [ADR 0111: Bounded stealth-normalization surfaces](adr/0111-bounded-stealth-normalization-surfaces.md)
 - [ADR 0112: Bounded User-Agent Client Hints](adr/0112-bounded-user-agent-client-hints.md)
+- [ADR 0113: Cross-surface platform coherence](adr/0113-cross-surface-platform-coherence.md)
 
 The second group exists only on this documentation branch until the branch integrates. After integration, the heading remains useful historical provenance; it does not promote either ADR from Proposed to Accepted and it does not claim that the described runtime capability is implemented.
 

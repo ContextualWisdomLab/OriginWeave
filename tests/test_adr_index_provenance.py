@@ -23,6 +23,7 @@ class AdrIndexProvenanceTests(unittest.TestCase):
         adr = "[0110](0110-privacy-preserving-presentation-identity.md)"
         adr_stealth = "[0111](0111-bounded-stealth-normalization-surfaces.md)"
         adr_ua_hints = "[0112](0112-bounded-user-agent-client-hints.md)"
+        adr_coherence = "[0113](0113-cross-surface-platform-coherence.md)"
 
         self.assertNotIn(adr, baseline)
         self.assertIn(adr, branch_only)
@@ -30,6 +31,8 @@ class AdrIndexProvenanceTests(unittest.TestCase):
         self.assertIn(adr_stealth, branch_only)
         self.assertNotIn(adr_ua_hints, baseline)
         self.assertIn(adr_ua_hints, branch_only)
+        self.assertNotIn(adr_coherence, baseline)
+        self.assertIn(adr_coherence, branch_only)
 
 
 if __name__ == "__main__":
