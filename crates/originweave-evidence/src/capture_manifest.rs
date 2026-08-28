@@ -11,7 +11,7 @@ use sha2::{Digest, Sha256};
 
 use crate::{
     ExtractionCardinality, ExtractionNormalizationRule, ExtractionSchema, ExtractionSourceChannel,
-    ExtractionValueType, MAX_EXTRACTION_IDENTIFIER_BYTES, WarcProvBundle,
+    ExtractionValueType, MAX_EXTRACTION_IDENTIFIER_BYTES, WarcPayloadCompleteness, WarcProvBundle,
     WarcProvBundleVerificationError, WarcResourceRecord,
 };
 
@@ -45,6 +45,8 @@ pub enum CaptureManifestError {
     UnknownValueField,
     /// A structured value referenced a WARC record absent from the manifest.
     ValueSourceRecordMissing,
+    /// A structured value referenced a WARC record whose retained payload was truncated.
+    ValueSourceRecordTruncated,
     /// A structured value used WARC evidence for a field that did not admit network-response evidence.
     ValueSourceChannelMismatch,
     /// The same field, value digest, and source WARC record were supplied more than once.
@@ -83,6 +85,9 @@ impl fmt::Display for CaptureManifestError {
                 .write_str("capture manifest structured-value field is absent from the schema"),
             Self::ValueSourceRecordMissing => formatter
                 .write_str("capture manifest structured value references an absent WARC record"),
+            Self::ValueSourceRecordTruncated => formatter.write_str(
+                "capture manifest structured value references a truncated WARC record",
+            ),
             Self::ValueSourceChannelMismatch => formatter.write_str(
                 "capture manifest structured value is not admitted by the field source channels",
             ),
@@ -112,6 +117,7 @@ impl std::error::Error for CaptureManifestError {
             | Self::InvalidValueDigest
             | Self::UnknownValueField
             | Self::ValueSourceRecordMissing
+            | Self::ValueSourceRecordTruncated
             | Self::ValueSourceChannelMismatch
             | Self::DuplicateValue
             | Self::ValueCardinalityExceeded
@@ -301,11 +307,11 @@ impl CaptureManifest {
     /// Construct a schema-conforming manifest with WARC-backed structured-value identities.
     ///
     /// Every value must name a declared schema field that admits network-response evidence and an
-    /// exact WARC record present in this manifest. Required fields must be present; `One` and
-    /// `ZeroOrOne` fields admit at most one value. Duplicate bindings and over-limit collections
-    /// fail closed. Values are canonicalized independently of caller order. No raw extracted value
-    /// is retained and no browser, network, persistence, secret, model, or authorization operation
-    /// is performed.
+    /// exact complete WARC record present in this manifest. Required fields must be present; `One`
+    /// and `ZeroOrOne` fields admit at most one value. Duplicate bindings, truncated source records,
+    /// and over-limit collections fail closed. Values are canonicalized independently of caller
+    /// order. No raw extracted value is retained and no browser, network, persistence, secret,
+    /// model, or authorization operation is performed.
     pub fn new_with_warc_values(
         schema: &ExtractionSchema,
         records: &[(&WarcResourceRecord, &WarcProvBundle)],
@@ -322,12 +328,14 @@ impl CaptureManifest {
             let Some(field) = schema.field(value.field_name()) else {
                 return Err(CaptureManifestError::UnknownValueField);
             };
-            if !manifest
-                .records
+            let Some((source_record, _)) = records
                 .iter()
-                .any(|record| record.warc_record_id() == value.source_warc_record_id())
-            {
+                .find(|(record, _)| record.record_id() == value.source_warc_record_id())
+            else {
                 return Err(CaptureManifestError::ValueSourceRecordMissing);
+            };
+            if source_record.completeness() != WarcPayloadCompleteness::Complete {
+                return Err(CaptureManifestError::ValueSourceRecordTruncated);
             }
             if !field
                 .source_channels()
