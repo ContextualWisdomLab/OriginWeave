@@ -16,7 +16,9 @@ mod sensitive_handle_lifecycle;
 mod warc_prov_bundle;
 mod warc_resource_record;
 
-pub use capture_lifecycle::{CaptureLifecycle, CaptureLifecycleError, CaptureLifecycleState};
+pub use capture_lifecycle::{
+    CaptureDeletionReceipt, CaptureLifecycle, CaptureLifecycleError, CaptureLifecycleState,
+};
 pub use capture_manifest::{
     CAPTURE_MANIFEST_VERSION, CaptureManifest, CaptureManifestError, CaptureManifestRecord,
     CaptureManifestValueBinding, CaptureManifestVerificationError, MAX_CAPTURE_MANIFEST_RECORDS,
