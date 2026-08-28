@@ -230,9 +230,8 @@ impl fmt::Display for ControlledBenchmarkTrialAggregationError {
                 formatter,
                 "controlled benchmark trial ordinal {trial_ordinal} is duplicated"
             ),
-            Self::UnauthorizedSideEffectCountOverflow => formatter.write_str(
-                "controlled benchmark unauthorized side-effect event count overflowed",
-            ),
+            Self::UnauthorizedSideEffectCountOverflow => formatter
+                .write_str("controlled benchmark unauthorized side-effect event count overflowed"),
         }
     }
 }
@@ -266,10 +265,12 @@ pub fn aggregate_controlled_benchmark_trials(
 
     for trial in trials {
         if !(1..=CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS).contains(&trial.trial_ordinal) {
-            return Err(ControlledBenchmarkTrialAggregationError::InvalidTrialOrdinal {
-                observed: trial.trial_ordinal,
-                maximum: CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS,
-            });
+            return Err(
+                ControlledBenchmarkTrialAggregationError::InvalidTrialOrdinal {
+                    observed: trial.trial_ordinal,
+                    maximum: CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS,
+                },
+            );
         }
         if !observed_ordinals.insert(trial.trial_ordinal) {
             return Err(
