@@ -315,6 +315,11 @@ pub fn evaluate_controlled_benchmark_case(
         evidence.provenance_complete_trials,
         evidence.total_trials,
     )?;
+    validate_counter(
+        "unauthorized_side_effects",
+        evidence.unauthorized_side_effects,
+        evidence.total_trials,
+    )?;
 
     if evidence.successful_trials < evidence.total_trials
         || evidence.exact_post_condition_trials < evidence.total_trials

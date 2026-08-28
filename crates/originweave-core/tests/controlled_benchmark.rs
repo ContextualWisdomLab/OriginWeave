@@ -137,6 +137,16 @@ fn counters_cannot_claim_more_observations_than_the_total_trial_count() {
             },
             "provenance_complete_trials",
         ),
+        (
+            ControlledBenchmarkCaseEvidence {
+                total_trials,
+                successful_trials: total_trials,
+                exact_post_condition_trials: total_trials,
+                provenance_complete_trials: total_trials,
+                unauthorized_side_effects: impossible,
+            },
+            "unauthorized_side_effects",
+        ),
     ] {
         assert_eq!(
             evaluate_controlled_benchmark_case(evidence),
