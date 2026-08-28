@@ -42,8 +42,35 @@ pub enum BapRecoveryAction {
     ReconcileBeforeFurtherAction,
 }
 
+/// Lifecycle-aware fail-closed recovery disposition for one exact command receipt.
+///
+/// Unlike [`BapRecoveryAction`], this value incorporates the task lifecycle that owns the
+/// retained receipt. In particular, a confirmed absence of an external side effect cannot
+/// produce a redispatch disposition while the lifecycle is suspended, reconciliation-held,
+/// or terminal. The disposition is still not execution authority: durable callers must
+/// authenticate the referenced recovery evidence and revalidate all current authority before
+/// acting on it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BapRecoveryDisposition {
+    /// Current lifecycle state permits normal authority revalidation before redispatch is considered.
+    RevalidateBeforeRedispatch,
+    /// Lifecycle state forbids redispatch even though the external outcome would otherwise permit it.
+    RedispatchBlockedByLifecycle {
+        /// Exact lifecycle state that prevents command redispatch.
+        state: BapTaskState,
+    },
+    /// Verify the confirmed external side effect and its post-condition without redispatching it.
+    VerifyConfirmedSideEffect,
+    /// Reconcile external state before any retry, success, or terminal decision.
+    ReconcileBeforeFurtherAction,
+}
+
 impl BapExternalSideEffectOutcome {
     /// Map the classification to the minimum required recovery action.
+    ///
+    /// This mapping considers only the external side-effect classification. Use
+    /// [`BapCommandRecovery::disposition`] when lifecycle state must also be included in the
+    /// final fail-closed recovery decision.
     #[must_use]
     pub const fn required_action(self) -> BapRecoveryAction {
         match self {
@@ -156,29 +183,74 @@ impl BapCommandRecovery {
         &self.evidence_digest
     }
 
-    /// Return the minimum fail-closed handling required by the external outcome.
+    /// Return the minimum fail-closed handling required by the external outcome alone.
+    ///
+    /// This method deliberately excludes lifecycle state. Use [`Self::disposition`] for the
+    /// lifecycle-aware decision that prevents a caller from mistaking a suspended or terminal
+    /// task for a redispatch candidate.
     #[must_use]
     pub const fn required_action(&self) -> BapRecoveryAction {
         self.external_outcome.required_action()
     }
 
+    /// Return the lifecycle-aware fail-closed disposition for this exact recovery receipt.
+    ///
+    /// The retained receipt must first match the lifecycle's exact most recently accepted
+    /// transition. Stale, foreign, state-only restored, or divergent lifecycle history therefore
+    /// fails closed with the underlying typed receipt error before the external outcome is
+    /// interpreted. A confirmed absence of side effect is converted to an explicit lifecycle
+    /// block for terminal states, approval/input/checkpoint suspension, and reconciliation holds.
+    /// Confirmed side effects still require post-condition verification, while unknown or explicitly
+    /// unreconciled outcomes still require reconciliation even when the lifecycle is terminal.
+    ///
+    /// A returned disposition grants no authority. Durable callers must authenticate the exact
+    /// recovery evidence identified by [`Self::evidence_digest`] and independently revalidate
+    /// tenant, policy, destination, secret, browser, approval, and other current authority before
+    /// any external action.
+    pub fn disposition(
+        &self,
+        lifecycle: &BapTaskLifecycle,
+    ) -> Result<BapRecoveryDisposition, BapCommandReceiptError> {
+        lifecycle.validate_replay(
+            &self.receipt,
+            self.receipt.idempotency_key(),
+            self.receipt.tenant_id(),
+            self.receipt.task_id(),
+            self.receipt.event(),
+        )?;
+
+        match self.required_action() {
+            BapRecoveryAction::RevalidateBeforeRedispatch => {
+                let state = lifecycle.state();
+                if state.is_terminal()
+                    || matches!(
+                        state,
+                        BapTaskState::WaitingForApproval
+                            | BapTaskState::WaitingForExternalInput
+                            | BapTaskState::Checkpointed
+                            | BapTaskState::ReconciliationRequired
+                    )
+                {
+                    Ok(BapRecoveryDisposition::RedispatchBlockedByLifecycle { state })
+                } else {
+                    Ok(BapRecoveryDisposition::RevalidateBeforeRedispatch)
+                }
+            }
+            BapRecoveryAction::VerifyConfirmedSideEffect => {
+                Ok(BapRecoveryDisposition::VerifyConfirmedSideEffect)
+            }
+            BapRecoveryAction::ReconcileBeforeFurtherAction => {
+                Ok(BapRecoveryDisposition::ReconcileBeforeFurtherAction)
+            }
+        }
+    }
+
     /// Return whether redispatch may be considered for the current exact lifecycle state.
     ///
-    /// The retained receipt must still match the lifecycle's exact most recently accepted
-    /// transition before a confirmed absence of the external side effect can produce `true`.
-    /// Stale, foreign, state-only restored, or divergent lifecycle history therefore fails
-    /// closed with the underlying typed receipt error instead of emitting a redispatch signal.
-    /// An exact receipt for a terminal lifecycle also returns `Ok(false)` because a completed,
-    /// failed, cancelled, expired, or dead-lettered task cannot resume command dispatch. Exact
-    /// receipts for `WaitingForApproval`, `WaitingForExternalInput`, and `Checkpointed` likewise
-    /// return `Ok(false)`: recovery evidence cannot bypass an explicit suspension requiring a
-    /// separate `Resume` transition. An exact receipt for `ReconciliationRequired` also returns
-    /// `Ok(false)`: an explicit reconciliation hold cannot be bypassed merely because later
-    /// recovery evidence classifies the interrupted external operation as having caused no side
-    /// effect. Resuming or resolving any such hold is a separate lifecycle transition, which also
-    /// makes this retained receipt stale for subsequent replay. Validation requires only read
-    /// access to the lifecycle and cannot mutate an already accepted transition or consume mutable
-    /// execution authority.
+    /// This is a convenience projection of [`Self::disposition`], so receipt validation,
+    /// lifecycle suspension/terminal handling, and external-outcome handling have one canonical
+    /// decision path. Only [`BapRecoveryDisposition::RevalidateBeforeRedispatch`] produces
+    /// `Ok(true)`; every other disposition produces `Ok(false)`.
     ///
     /// `Ok(true)` is still not authorization to redispatch. The caller must separately
     /// authenticate the exact recovery evidence identified by [`Self::evidence_digest`] and
@@ -188,27 +260,9 @@ impl BapCommandRecovery {
         &self,
         lifecycle: &BapTaskLifecycle,
     ) -> Result<bool, BapCommandReceiptError> {
-        lifecycle.validate_replay(
-            &self.receipt,
-            self.receipt.idempotency_key(),
-            self.receipt.tenant_id(),
-            self.receipt.task_id(),
-            self.receipt.event(),
-        )?;
-        if lifecycle.state().is_terminal()
-            || matches!(
-                lifecycle.state(),
-                BapTaskState::WaitingForApproval
-                    | BapTaskState::WaitingForExternalInput
-                    | BapTaskState::Checkpointed
-                    | BapTaskState::ReconciliationRequired
-            )
-        {
-            return Ok(false);
-        }
         Ok(matches!(
-            self.required_action(),
-            BapRecoveryAction::RevalidateBeforeRedispatch
+            self.disposition(lifecycle)?,
+            BapRecoveryDisposition::RevalidateBeforeRedispatch
         ))
     }
 }
