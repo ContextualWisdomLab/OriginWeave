@@ -82,6 +82,13 @@ class ProductCompletionGapContractTests(unittest.TestCase):
         self.assertIn("reviewer-provisioning gap", text)
         self.assertNotIn("owner-directed administrative merge", text)
 
+    def test_changelog_marks_superseded_warc_head_as_historical(self) -> None:
+        """A predecessor WARC head must not look like the current exact evidence."""
+        text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+
+        self.assertIn("`d83748a70bd1b16dbfec46007fe02989ba6ce188` was superseded", text)
+        self.assertIn("0341079331f9cea669eb9a5cc21842fd6027431e", text)
+
     def test_baseline_records_central_required_workflow_failures(self) -> None:
         """The baseline must preserve exact central workflow provenance and failures."""
         text = BASELINE.read_text(encoding="utf-8")
