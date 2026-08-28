@@ -1,8 +1,7 @@
 use std::io;
 
 use originweave_network::{
-    WebDriverBiDiWebSocketOpeningWriteError,
-    WebDriverBiDiWebSocketOpeningWriteRecoveryDisposition,
+    WebDriverBiDiWebSocketOpeningWriteError, WebDriverBiDiWebSocketOpeningWriteRecoveryDisposition,
 };
 
 #[test]
