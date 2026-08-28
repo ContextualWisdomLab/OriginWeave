@@ -23,6 +23,16 @@ def active_pr_row(text: str, pr_number: int) -> str:
     return rows[0]
 
 
+def bounded_section(text: str, start: str, end: str) -> str:
+    """Return one explicitly bounded documentation section, failing closed on drift."""
+    if start not in text:
+        raise AssertionError(f"missing section start marker: {start}")
+    remainder = text.split(start, 1)[1]
+    if end not in remainder:
+        raise AssertionError(f"missing section end marker after {start}: {end}")
+    return remainder.split(end, 1)[0]
+
+
 class ActivePullRequestDocumentationContractTests(unittest.TestCase):
     """Keep volatile implementation evidence separate from protected-main truth."""
 
@@ -34,9 +44,13 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         cls.changelog = CHANGELOG.read_text(encoding="utf-8")
 
     def test_latest_live_pr_snapshot_is_recorded_in_the_product_baseline(self) -> None:
-        """The baseline must preserve exact heads for the newest active product slices."""
+        """The current section must preserve exact heads for the newest active slices."""
+        current = bounded_section(
+            self.baseline,
+            "#### Current exact-head active PR evidence",
+            "#### Historical 2026-08-26 maintenance-loop record",
+        )
         for marker in (
-            "Current exact-head active PR evidence",
             "| #237 | Draft | `542ca1e9c0a863595b8b6697790005d2471f5413` | `8c5fc6a92e8a19e9b304c84b3517d1ff8711d379` |",
             "| #229 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `fb868589d065c2cea0b9c8c0f5e655a89f42bee6` |",
             "| #220 | Ready | `f658f329c83a106b68385e17cb714c4147c12f49` | `a2b0c5372dd6df803011933836c56136244dc8af` |",
@@ -46,20 +60,23 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
             "| #37 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `5423803d3fbd9d2d8e08bbd6dbf81ae6b2addefe` |",
         ):
             with self.subTest(marker=marker):
-                self.assertIn(marker, self.baseline)
+                self.assertIn(marker, current)
 
     def test_baseline_refresh_changelog_matches_the_live_snapshot(self) -> None:
-        """The changelog must classify and state the same baseline refresh."""
-        refresh = "Refreshed the product and technical gap baseline with the current open-PR inventory"
+        """The current changelog refresh item must carry its own live queue evidence."""
         added = self.changelog.split("### Added", 1)[1].split("### Changed", 1)[0]
         changed = self.changelog.split("### Changed", 1)[1].split("### Security", 1)[0]
-        self.assertIn(refresh, added)
-        self.assertNotIn(refresh, changed)
-        self.assertIn("115 open pull requests (31 ready, 84 draft)", self.changelog)
-        self.assertNotIn("114 open pull requests (30 ready, 84 draft)", added)
-        self.assertNotIn("126 open pull requests (54 ready, 72 draft)", added)
-        self.assertNotIn("128 open pull requests (54 ready, 74 draft)", added)
-        self.assertNotIn("153 open pull requests (39 ready, 114 draft)", added)
+        refresh_prefix = "- Corrected the 2026-08-28 product-gap snapshot"
+        refresh_lines = [line for line in added.splitlines() if line.startswith(refresh_prefix)]
+        self.assertEqual(1, len(refresh_lines))
+        refresh_line = refresh_lines[0]
+        self.assertIn("115 open pull requests (31 ready, 84 draft)", refresh_line)
+        self.assertIn("11 open issues", refresh_line)
+        self.assertNotIn(refresh_prefix, changed)
+        self.assertNotIn("114 open pull requests (30 ready, 84 draft)", refresh_line)
+        self.assertNotIn("126 open pull requests (54 ready, 72 draft)", refresh_line)
+        self.assertNotIn("128 open pull requests (54 ready, 74 draft)", refresh_line)
+        self.assertNotIn("153 open pull requests (39 ready, 114 draft)", refresh_line)
 
     def test_dependency_stacks_are_explicit_and_non_shipped(self) -> None:
         """Current browser, network, sensitive and compatibility stacks stay active-only."""
