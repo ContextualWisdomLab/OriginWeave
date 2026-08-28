@@ -940,7 +940,21 @@ def _write_output(path: pathlib.Path, serialized: str) -> None:
                 raise WorkflowAuditError(
                     "published output rollback failed"
                 ) from rollback_error
-            raise WorkflowAuditError("output staging cleanup failed") from cleanup_error
+            primary_error = WorkflowAuditError("output staging cleanup failed")
+            try:
+                _unlink_matching_staging(parent_fd, staging_name, staging_identity)
+            except WorkflowAuditError as final_cleanup_error:
+                diagnostic_source = (
+                    final_cleanup_error.__cause__
+                    if final_cleanup_error.__cause__ is not None
+                    else final_cleanup_error
+                )
+                primary_error.record_secondary_diagnostic(
+                    "final staging cleanup failed: "
+                    f"{type(diagnostic_source).__name__}"
+                )
+            staging_name = None
+            raise primary_error from cleanup_error
 
         staging_name = None
         final_stat = _stat_output_leaf(parent_fd, leaf_name)
