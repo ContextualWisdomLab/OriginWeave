@@ -101,6 +101,17 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.assertIn(marker, self.baseline)
 
+    def test_current_opencode_dispatch_failures_are_bound_to_current_heads(self) -> None:
+        """OpenCode dispatch authorization failures must remain explicit blockers."""
+        for marker in (
+            "A direct central `opencode-review` dispatch run `33192478312` / job `98921183278` was rejected",
+            "On current head `5bd7991c71a7d542aa8779194033e64ab43a506f`, automatic OpenCode run `33192261383` / job `98920524559` failed closed",
+            "central `opencode-review` dispatch run `33192483900` / job `98921203971` was rejected",
+            "repository_dispatch actor `seonghobae` did not match configured scheduler identity `github-actions[bot]`",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, self.baseline)
+
     def test_dependency_stacks_are_explicit_and_non_shipped(self) -> None:
         """Current browser, network, sensitive and compatibility stacks stay active-only."""
         for pr_number in (52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66):
