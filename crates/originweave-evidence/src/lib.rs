@@ -447,8 +447,64 @@ fn valid_query(query: &str) -> bool {
         let (name, value) = field
             .split_once('=')
             .map_or((field, ""), |(name, value)| (name, value));
-        !is_credential_query_name(name) && !nested_query_contains_credential(value)
+        !is_credential_query_name(name)
+            && !nested_query_contains_credential(value)
+            && !contains_recursively_encoded_ascii_control(value)
     })
+}
+
+fn contains_recursively_encoded_ascii_control(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            let Some(high) = bytes
+                .get(index + 1)
+                .and_then(|byte| hexadecimal_value(*byte))
+            else {
+                return true;
+            };
+            let Some(low) = bytes
+                .get(index + 2)
+                .and_then(|byte| hexadecimal_value(*byte))
+            else {
+                return true;
+            };
+            decoded.push(high * 16 + low);
+            index += 3;
+        } else {
+            decoded.push(bytes[index]);
+            index += 1;
+        }
+    }
+
+    let mut decoded_index = 0;
+    while decoded_index < decoded.len() {
+        if decoded[decoded_index] != b'%' {
+            decoded_index += 1;
+            continue;
+        }
+        let Some(high) = decoded
+            .get(decoded_index + 1)
+            .and_then(|byte| hexadecimal_value(*byte))
+        else {
+            decoded_index += 1;
+            continue;
+        };
+        let Some(low) = decoded
+            .get(decoded_index + 2)
+            .and_then(|byte| hexadecimal_value(*byte))
+        else {
+            decoded_index += 1;
+            continue;
+        };
+        if (high * 16 + low).is_ascii_control() {
+            return true;
+        }
+        decoded_index += 3;
+    }
+    false
 }
 
 fn nested_query_contains_credential(value: &str) -> bool {
