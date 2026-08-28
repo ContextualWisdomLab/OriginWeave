@@ -23,7 +23,8 @@ use crate::mime::{classify_mismatch, classify_observed_mime, no_sniff_status, su
 use crate::request::serialize_request;
 use crate::response_head::{FinalHeadParseResult, ResponseHead, parse_final_response_head};
 use crate::{
-    AlpnHttp11Policy, HttpClientPolicy, HttpError, HttpMethod, HttpRequestTarget, RequestField,
+    AlpnHttp11Policy, HttpClientPolicy, HttpError, HttpMethod, HttpRequestTarget,
+    IntegrityRequirement, IntegrityStatus, RequestField,
 };
 
 const IO_BUFFER_BYTES: usize = 8 * 1_024;
@@ -117,12 +118,12 @@ impl HttpExchangePlan {
                     validate_content_digest_without_content(
                         &network.head.fields,
                         &network.trailers,
-                        self.policy.integrity_requirement(),
+                        IntegrityRequirement::Optional,
                     )?,
                     validate_representation_digest_without_content(
                         &network.head.fields,
                         &network.trailers,
-                        self.policy.integrity_requirement(),
+                        IntegrityRequirement::Optional,
                     )?,
                 )
             } else {
@@ -130,7 +131,7 @@ impl HttpExchangePlan {
                     &network.head.fields,
                     &network.trailers,
                     &network.encoded_content,
-                    self.policy.integrity_requirement(),
+                    IntegrityRequirement::Optional,
                 )?;
                 let has_content_range = !network.head.fields.values("content-range").is_empty();
                 let representation_digest_status = validate_representation_digest(
@@ -139,10 +140,21 @@ impl HttpExchangePlan {
                     &network.encoded_content,
                     network.head.status_code,
                     has_content_range,
-                    self.policy.integrity_requirement(),
+                    IntegrityRequirement::Optional,
                 )?;
                 (content_digest_status, representation_digest_status)
             };
+            if matches!(
+                self.policy.integrity_requirement(),
+                IntegrityRequirement::RequireSupportedDigest
+            ) && !matches!(content_digest_status, IntegrityStatus::Verified(_))
+                && !matches!(
+                    representation_digest_status,
+                    IntegrityStatus::Verified(_)
+                )
+            {
+                return Err(HttpError::SupportedDigestRequired);
+            }
             let decoded = if no_content {
                 crate::content::DecodedContent {
                     bytes: Vec::new(),
