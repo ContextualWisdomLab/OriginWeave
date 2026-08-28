@@ -180,6 +180,129 @@ pub struct ControlledBenchmarkCaseEvidence {
     pub unauthorized_side_effects: u32,
 }
 
+/// One canonical controlled-benchmark trial observation.
+///
+/// Trial ordinals are one-based slots in the fixed deterministic trial budget.
+/// This value records runner-reported outcomes but does not authenticate the
+/// runner, corpus, build identity, or provenance assertion; those remain duties
+/// of the benchmark runner and durable evidence pipeline.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ControlledBenchmarkTrialEvidence {
+    /// One-based canonical trial slot within the deterministic case budget.
+    pub trial_ordinal: u32,
+    /// Whether the typed browser action completed successfully.
+    pub action_succeeded: bool,
+    /// Whether the observed post-condition exactly matched the expected state.
+    pub exact_post_condition: bool,
+    /// Whether this trial carries the complete required provenance assertion.
+    pub provenance_complete: bool,
+    /// Unauthorized side-effect events observed during this trial.
+    pub unauthorized_side_effects: u32,
+}
+
+/// Invalid trial-level evidence supplied to the canonical aggregate boundary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ControlledBenchmarkTrialAggregationError {
+    /// A trial ordinal lies outside the one-based canonical trial budget.
+    InvalidTrialOrdinal {
+        /// Invalid ordinal supplied by the runner.
+        observed: u32,
+        /// Highest accepted canonical trial ordinal.
+        maximum: u32,
+    },
+    /// More than one observation claims the same canonical trial slot.
+    DuplicateTrialOrdinal {
+        /// Duplicated canonical trial ordinal.
+        trial_ordinal: u32,
+    },
+    /// Summing unauthorized side-effect events exceeded the representable count.
+    UnauthorizedSideEffectCountOverflow,
+}
+
+impl fmt::Display for ControlledBenchmarkTrialAggregationError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidTrialOrdinal { observed, maximum } => write!(
+                formatter,
+                "controlled benchmark trial ordinal {observed} is outside the canonical range 1..={maximum}"
+            ),
+            Self::DuplicateTrialOrdinal { trial_ordinal } => write!(
+                formatter,
+                "controlled benchmark trial ordinal {trial_ordinal} is duplicated"
+            ),
+            Self::UnauthorizedSideEffectCountOverflow => formatter.write_str(
+                "controlled benchmark unauthorized side-effect event count overflowed",
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ControlledBenchmarkTrialAggregationError {}
+
+/// Derive canonical aggregate evidence from individual controlled-benchmark trials.
+///
+/// Each accepted trial must claim one unique ordinal in the fixed one-based trial
+/// budget. Aggregate counters are derived here rather than accepted from callers,
+/// so duplicated or out-of-budget trial slots cannot inflate a case toward the
+/// passing threshold. This function validates evidence shape only: it does not
+/// authenticate the runner, corpus/build identity, outcome truth, or provenance
+/// assertion. Those remain fail-closed responsibilities of the runner and durable
+/// evidence pipeline.
+///
+/// # Errors
+///
+/// Returns [`ControlledBenchmarkTrialAggregationError`] when a trial ordinal is
+/// outside the canonical budget, a canonical slot is duplicated, or unauthorized
+/// side-effect event counts cannot be represented without overflow.
+pub fn aggregate_controlled_benchmark_trials(
+    trials: &[ControlledBenchmarkTrialEvidence],
+) -> Result<ControlledBenchmarkCaseEvidence, ControlledBenchmarkTrialAggregationError> {
+    let mut observed_ordinals = BTreeSet::new();
+    let mut total_trials = 0u32;
+    let mut successful_trials = 0u32;
+    let mut exact_post_condition_trials = 0u32;
+    let mut provenance_complete_trials = 0u32;
+    let mut unauthorized_side_effects = 0u32;
+
+    for trial in trials {
+        if !(1..=CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS).contains(&trial.trial_ordinal) {
+            return Err(ControlledBenchmarkTrialAggregationError::InvalidTrialOrdinal {
+                observed: trial.trial_ordinal,
+                maximum: CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS,
+            });
+        }
+        if !observed_ordinals.insert(trial.trial_ordinal) {
+            return Err(
+                ControlledBenchmarkTrialAggregationError::DuplicateTrialOrdinal {
+                    trial_ordinal: trial.trial_ordinal,
+                },
+            );
+        }
+
+        total_trials += 1;
+        if trial.action_succeeded {
+            successful_trials += 1;
+        }
+        if trial.exact_post_condition {
+            exact_post_condition_trials += 1;
+        }
+        if trial.provenance_complete {
+            provenance_complete_trials += 1;
+        }
+        unauthorized_side_effects = unauthorized_side_effects
+            .checked_add(trial.unauthorized_side_effects)
+            .ok_or(ControlledBenchmarkTrialAggregationError::UnauthorizedSideEffectCountOverflow)?;
+    }
+
+    Ok(ControlledBenchmarkCaseEvidence {
+        total_trials,
+        successful_trials,
+        exact_post_condition_trials,
+        provenance_complete_trials,
+        unauthorized_side_effects,
+    })
+}
+
 /// Malformed or non-canonical controlled benchmark evidence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ControlledBenchmarkError {
