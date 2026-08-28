@@ -93,6 +93,9 @@ fn provenance_query_support_does_not_admit_fragments_or_unsafe_uri_octets() {
         "https://example.com/search?q=%0A",
         "https://example.com/search?q=%09",
         "https://example.com/search?q=%7F",
+        "https://example.com/search?q=%250A",
+        "https://example.com/search?q=%2509",
+        "https://example.com/search?q=%257F",
     ] {
         assert_eq!(
             ProvenanceRecord::new(
