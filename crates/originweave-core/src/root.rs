@@ -21,8 +21,8 @@ pub use core_contracts::{
     BrowserRegistryError, BrowserSessionId, BrowsingContextId, Capability, DocumentEpoch,
     ExecutionPurpose, ExtensionAgentCapability, ExtensionId, ExtensionIdError, InstructionSource,
     MAX_BROWSER_PROTOCOL_METADATA_BYTES, MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES, NodeHandleError,
-    Origin, OriginError, PolicyContext, RegistryObservedNodeHandle as ObservedNodeHandle, RiskClass,
-    RobotsDecision, SecretDelivery, SessionMode,
+    Origin, OriginError, PolicyContext, RegistryObservedNodeHandle as ObservedNodeHandle,
+    RiskClass, RobotsDecision, SecretDelivery, SessionMode,
     evaluate_extension_authority_access as evaluate_extension_access,
 };
 
