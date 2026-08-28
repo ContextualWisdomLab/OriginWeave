@@ -22,7 +22,7 @@ This snapshot re-fetched the complete open-PR inventory, the protected `main` co
 
 The later exact-head recheck also recorded the WARC/PROV retention-lifecycle slice: #239 is Draft at `365c4a6b9e6d0f088d2f8330834f54c7cb5fb491` on #227 head `e45cd6cdcdee73b5c16dc942e6c98cb7e745fae0`, with its Rust contracts and production coverage checks successful, zero unresolved threads, and no counted approval. #237 is Draft at `21e9ad1e8da72c81f521152ea6739b088da230f7` on protected `main`; its deterministic contracts and coverage are successful, while exact-head `opencode-review` failed closed for the absent current-head verdict and `strix` remained in progress. Neither active branch is protected-main behavior.
 
-The controlled Chromium prerequisite stack was also re-fetched after its exact-head repairs: #70 is Ready at `378240888b39218c97c1b5c514492bb0a0cf3aa2` on protected `main` `542ca1e9c0a863595b8b6697790005d2471f5413`, #71 is Ready at `f86ce504138e79d6e95141a441f60b40920e1fa6` on #70, #72 remains Draft at `087f5527c68086dae2558c9f3ffd72191da1360d` on its older #71 head `54738f695b9d3508d96d1b95bede5a7dc4ceb3a8`, and #73 remains Draft at `be5509e970bde719908495c07210cc617e197791` on #72. #70's Rust, coverage, pinned-Chrome, and ordinary security checks are successful but its exact-head `opencode-review` and `strix` checks failed closed; #71's Rust contracts, production coverage, and pinned-Chrome checks are successful, with no unresolved current thread, but neither has counted approval. #152 is Ready at `81407a0e5189a413d1be0963fea90a0c2f254ce1` on protected `main`; its source, coverage, and security checks are successful except exact-head `opencode-review`, which failed closed without a current-head verdict. These are active-stack evidence only, not protected-main behavior or merge authorization.
+The controlled Chromium prerequisite stack was also re-fetched after its exact-head repairs: #70 is Ready at `378240888b39218c97c1b5c514492bb0a0cf3aa2` on protected `main` `542ca1e9c0a863595b8b6697790005d2471f5413`, #71 is Ready at `f86ce504138e79d6e95141a441f60b40920e1fa6` on #70, #72 is Draft at `600d3975c02b68da1974a4c73069b966b39dce7` on #71, and #73 is Draft at `ce1b138509ab4f52cb0f80290f104358473c6ed3` on #72. #70's Rust, coverage, pinned-Chrome, and ordinary security checks are successful but its exact-head `opencode-review` and `strix` checks failed closed; #71's Rust contracts, production coverage, and pinned-Chrome checks are successful, with no unresolved current thread, but neither has counted approval. #72's and #73's exact-head native checks are queued or in progress after their non-destructive restacks; no predecessor results transfer. #152 is Ready at `81407a0e5189a413d1be0963fea90a0c2f254ce1` on protected `main`; its source, coverage, and security checks are successful except exact-head `opencode-review`, which failed closed without a current-head verdict. These are active-stack evidence only, not protected-main behavior or merge authorization.
 
 #### Current exact-head active PR evidence
 
@@ -30,8 +30,8 @@ The following representative slices were re-fetched from GitHub for this snapsho
 
 | PR | State | Exact base head | Exact head |
 |---|---|---|---|
-| #73 | Draft | `087f5527c68086dae2558c9f3ffd72191da1360d` | `be5509e970bde719908495c07210cc617e197791` |
-| #72 | Draft | `54738f695b9d3508d96d1b95bede5a7dc4ceb3a8` | `087f5527c68086dae2558c9f3ffd72191da1360d` |
+| #73 | Draft | `600d3975c02b68da1974a4c73069b966b39dce7` | `ce1b138509ab4f52cb0f80290f104358473c6ed3` |
+| #72 | Draft | `f86ce504138e79d6e95141a441f60b40920e1fa6` | `600d3975c02b68da1974a4c73069b966b39dce7` |
 | #71 | Ready | `378240888b39218c97c1b5c514492bb0a0cf3aa2` | `f86ce504138e79d6e95141a441f60b40920e1fa6` |
 | #70 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `378240888b39218c97c1b5c514492bb0a0cf3aa2` |
 | #237 | Draft | `542ca1e9c0a863595b8b6697790005d2471f5413` | `21e9ad1e8da72c81f521152ea6739b088da230f7` |

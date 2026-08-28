@@ -51,8 +51,8 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
             "#### Historical 2026-08-26 maintenance-loop record",
         )
         for marker in (
-            "| #73 | Draft | `087f5527c68086dae2558c9f3ffd72191da1360d` | `be5509e970bde719908495c07210cc617e197791` |",
-            "| #72 | Draft | `54738f695b9d3508d96d1b95bede5a7dc4ceb3a8` | `087f5527c68086dae2558c9f3ffd72191da1360d` |",
+            "| #73 | Draft | `600d3975c02b68da1974a4c73069b966b39dce7` | `ce1b138509ab4f52cb0f80290f104358473c6ed3` |",
+            "| #72 | Draft | `f86ce504138e79d6e95141a441f60b40920e1fa6` | `600d3975c02b68da1974a4c73069b966b39dce7` |",
             "| #71 | Ready | `378240888b39218c97c1b5c514492bb0a0cf3aa2` | `f86ce504138e79d6e95141a441f60b40920e1fa6` |",
             "| #70 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `378240888b39218c97c1b5c514492bb0a0cf3aa2` |",
             "| #152 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `81407a0e5189a413d1be0963fea90a0c2f254ce1` |",
