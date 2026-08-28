@@ -1,7 +1,7 @@
 use originweave_bap::{
     BapCommandReceipt, BapCommandReceiptError, BapCommandRecovery, BapExternalSideEffectOutcome,
-    BapRecoveryAction, BapRecoveryEvidenceDigest, BapRecoveryEvidenceDigestError, BapTaskEvent,
-    BapTaskLifecycle, BapTaskState,
+    BapRecoveryAction, BapRecoveryDisposition, BapRecoveryEvidenceDigest,
+    BapRecoveryEvidenceDigestError, BapTaskEvent, BapTaskLifecycle, BapTaskState,
 };
 
 const RECOVERY_EVIDENCE_DIGEST: &str =
@@ -74,6 +74,115 @@ fn crash_recovery_distinguishes_external_side_effect_outcomes_without_unsafe_rep
         assert!(!debug.contains("tenant-a"));
         assert!(!debug.contains("task-a"));
     }
+}
+
+#[test]
+fn lifecycle_aware_disposition_is_the_single_fail_closed_recovery_decision() {
+    let cases = [
+        (
+            BapExternalSideEffectOutcome::ConfirmedNoSideEffect,
+            BapRecoveryDisposition::RevalidateBeforeRedispatch,
+        ),
+        (
+            BapExternalSideEffectOutcome::ConfirmedSideEffect,
+            BapRecoveryDisposition::VerifyConfirmedSideEffect,
+        ),
+        (
+            BapExternalSideEffectOutcome::UnknownOutcome,
+            BapRecoveryDisposition::ReconcileBeforeFurtherAction,
+        ),
+        (
+            BapExternalSideEffectOutcome::ReconciliationRequired,
+            BapRecoveryDisposition::ReconcileBeforeFurtherAction,
+        ),
+    ];
+
+    for (outcome, expected_disposition) in cases {
+        let (lifecycle, receipt) = accepted_receipt();
+        let recovery = BapCommandRecovery::new(receipt, outcome, recovery_evidence_digest());
+        assert_eq!(recovery.disposition(&lifecycle), Ok(expected_disposition));
+    }
+
+    let suspended_cases = [
+        (
+            BapTaskEvent::WaitForApproval,
+            BapTaskState::WaitingForApproval,
+        ),
+        (
+            BapTaskEvent::WaitForExternalInput,
+            BapTaskState::WaitingForExternalInput,
+        ),
+        (BapTaskEvent::Checkpoint, BapTaskState::Checkpointed),
+        (
+            BapTaskEvent::RequireReconciliation,
+            BapTaskState::ReconciliationRequired,
+        ),
+    ];
+
+    for (event, expected_state) in suspended_cases {
+        let mut lifecycle = BapTaskLifecycle::new();
+        assert!(lifecycle.apply(BapTaskEvent::Admit).is_ok());
+        assert!(lifecycle.apply(BapTaskEvent::Start).is_ok());
+        let receipt = lifecycle.apply_with_receipt(
+            "blocked-retry-key",
+            "tenant-a",
+            "task-a",
+            event,
+        );
+        assert!(receipt.is_ok(), "{receipt:?}");
+        let Ok(receipt) = receipt else {
+            unreachable!("asserted valid blocked-state command receipt")
+        };
+        let recovery = BapCommandRecovery::new(
+            receipt,
+            BapExternalSideEffectOutcome::ConfirmedNoSideEffect,
+            recovery_evidence_digest(),
+        );
+        assert_eq!(
+            recovery.disposition(&lifecycle),
+            Ok(BapRecoveryDisposition::RedispatchBlockedByLifecycle {
+                state: expected_state
+            })
+        );
+        assert_eq!(recovery.permits_redispatch(&lifecycle), Ok(false));
+    }
+
+    let mut terminal_lifecycle = BapTaskLifecycle::new();
+    assert!(terminal_lifecycle.apply(BapTaskEvent::Admit).is_ok());
+    assert!(terminal_lifecycle.apply(BapTaskEvent::Start).is_ok());
+    let terminal_receipt = terminal_lifecycle.apply_with_receipt(
+        "terminal-decision-key",
+        "tenant-a",
+        "task-a",
+        BapTaskEvent::Fail,
+    );
+    assert!(terminal_receipt.is_ok(), "{terminal_receipt:?}");
+    let Ok(terminal_receipt) = terminal_receipt else {
+        unreachable!("asserted valid terminal command receipt")
+    };
+    let terminal_recovery = BapCommandRecovery::new(
+        terminal_receipt,
+        BapExternalSideEffectOutcome::ConfirmedNoSideEffect,
+        recovery_evidence_digest(),
+    );
+    assert_eq!(
+        terminal_recovery.disposition(&terminal_lifecycle),
+        Ok(BapRecoveryDisposition::RedispatchBlockedByLifecycle {
+            state: BapTaskState::Failed
+        })
+    );
+
+    let (mut stale_lifecycle, stale_receipt) = accepted_receipt();
+    assert!(stale_lifecycle.apply(BapTaskEvent::Start).is_ok());
+    let stale_recovery = BapCommandRecovery::new(
+        stale_receipt,
+        BapExternalSideEffectOutcome::ConfirmedNoSideEffect,
+        recovery_evidence_digest(),
+    );
+    assert_eq!(
+        stale_recovery.disposition(&stale_lifecycle),
+        Err(BapCommandReceiptError::ReplayStateMismatch)
+    );
 }
 
 #[test]
