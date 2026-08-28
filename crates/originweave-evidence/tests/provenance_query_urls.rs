@@ -110,3 +110,20 @@ fn provenance_query_support_does_not_admit_fragments_or_unsafe_uri_octets() {
         );
     }
 }
+
+#[test]
+fn provenance_query_support_rejects_recursively_encoded_controls() {
+    for source_url in ["https://example.com/search?q=%25250A"] {
+        assert_eq!(
+            ProvenanceRecord::new(
+                source_url,
+                "body",
+                EMPTY_SHA256,
+                EvidenceSourceKind::NetworkResponse,
+                VerificationResult::Verified,
+            ),
+            Err(EvidenceError::InvalidSourceUrl),
+            "recursively encoded control source_url={source_url:?}"
+        );
+    }
+}
