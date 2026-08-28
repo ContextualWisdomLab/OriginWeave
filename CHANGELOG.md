@@ -7,6 +7,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Refreshed the product-gap queue to 115 open pull requests (31 ready, 84 draft) on 2026-08-28; these are queue evidence, not protected-main shipment.
 
 ### Added
+- Clarified the 2026-08-28 gap snapshot's prior queue observation and separated open issues from governance signals.
 - Corrected the 2026-08-28 product-gap snapshot with protected-main `542ca1e9`, 115 open pull requests (31 ready, 84 draft), 11 open issues, current exact base/head pairs for representative PRs including #37, PR #170's merged `tools/list` contract, the active counted-approval gate, and the unchanged Phase 1 browser gap.
 - Refreshed the product and technical gap baseline onto the 2026-08-28 live inventory; current queue and exact-head evidence are explicitly separated from the historical 2026-08-26 snapshot so stale delivery evidence cannot be promoted.
 

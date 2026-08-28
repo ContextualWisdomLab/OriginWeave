@@ -65,6 +65,23 @@ class ProductCompletionGapContractTests(unittest.TestCase):
         self.assertIn("reviewer-provisioning gap", text)
         self.assertNotIn("owner-directed administrative merge", text)
 
+    def test_same_day_prior_inventory_is_bound_to_the_maintenance_record(self) -> None:
+        """A same-day comparison must retain its exact prior observation in the record."""
+        text = BASELINE.read_text(encoding="utf-8")
+        record = text.split("#### 2026-08-28 maintenance-loop record", 1)[1].split(
+            "#### Current exact-head active PR evidence", 1
+        )[0]
+        self.assertIn("114 open pull requests (30 ready, 84 draft)", record)
+
+    def test_issue_table_distinguishes_open_issues_from_governance_signals(self) -> None:
+        """The table total must distinguish product issues from governance signals."""
+        text = BASELINE.read_text(encoding="utf-8")
+        table = text.split("### Open issues and governance signals", 1)[1].split(
+            "## Buyer-visible and technical gap matrix", 1
+        )[0]
+        self.assertIn("11 open issues plus 2 governance signals", table)
+        self.assertIn("Issue or signal", table)
+
     def test_evidence_commands_reproduce_inventory_checks_and_review_state(self) -> None:
         """The evidence procedure must paginate the queue and inspect each exact PR head."""
         text = BASELINE.read_text(encoding="utf-8")

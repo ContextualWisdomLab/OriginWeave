@@ -18,7 +18,7 @@ The live repository contained **115 open pull requests: 31 non-draft and 84 draf
 
 #### 2026-08-28 maintenance-loop record
 
-This snapshot re-fetched the complete open-PR inventory, the protected `main` commit, the active required-workflow ruleset, collaborator permissions, and the exact base/head pair for each representative PR. The active ruleset still requires one counted approving review and resolved threads; the only repository collaborator is `seonghobae`, so review provisioning remains the merge blocker. PR #170 is merged and is not active-PR evidence.
+This snapshot re-fetched the complete open-PR inventory, the protected `main` commit, the active required-workflow ruleset, collaborator permissions, and the exact base/head pair for each representative PR. Before PR #238 was published, the same maintenance loop observed 114 open pull requests (30 ready, 84 draft); the current re-paginated inventory is one PR larger. The active ruleset still requires one counted approving review and resolved threads; the only repository collaborator is `seonghobae`, so review provisioning remains the merge blocker. PR #170 is merged and is not active-PR evidence.
 
 #### Current exact-head active PR evidence
 
@@ -131,9 +131,11 @@ The active `CWL Central required workflows` ruleset (re-fetched for this snapsho
 
 This gap does not authorize self-approval, stale-head merges, administrative bypass, or weaker checks. Because the current GitHub ruleset independently requires a counted approval, the solo-maintainer hold does not satisfy the live merge gate: an eligible non-author collaborator must submit a formal `APPROVED` review on the current head. Until that reviewer-provisioning gap is repaired, protected-main merges stop even when exact-head checks, security gates, complete coverage, rustdoc/Clippy, threads, and AI-review evidence are otherwise complete. Before any merge decision, re-fetch the exact ruleset, collaborators, PR head/base, reviews, unresolved threads, and required checks; do not assume this dated observation remains current.
 
-### Open issues and operational signals
+### Open issues and governance signals
 
-| Issue | Current gap or signal |
+This snapshot contains 11 open issues plus 2 governance signals, for the 13 rows below. Governance signals remain visible because they affect delivery authority but are not counted as product or operational issues.
+
+| Issue or signal | Current gap or signal |
 |---|---|
 | #28 | First real Chromium Agent Task vertical slice; highest immediate Phase 1 buyer-visible gap |
 | #27 | Complete Manifest V3 compatibility and extension-authority isolation matrix |
