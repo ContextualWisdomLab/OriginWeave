@@ -148,6 +148,19 @@ def _failure_evidence(error: BaseException) -> dict[str, Any]:
     return {"failure_kind": "runtime_error"}
 
 
+def _record_secondary_diagnostic(error: BaseException, diagnostic: str) -> None:
+    """Retain bounded secondary context without requiring Python 3.11 ``add_note``."""
+
+    diagnostics = getattr(error, "_originweave_secondary_diagnostics", None)
+    if not isinstance(diagnostics, list):
+        diagnostics = []
+        setattr(error, "_originweave_secondary_diagnostics", diagnostics)
+    diagnostics.append(diagnostic)
+    add_note = getattr(error, "add_note", None)
+    if callable(add_note):
+        add_note(diagnostic)
+
+
 def _path_token(value: str, label: str) -> str:
     """Validate one ChromeDriver-issued identifier before interpolating a path."""
 
@@ -409,9 +422,10 @@ def _teardown_driver_process(driver: subprocess.Popen[bytes]) -> Exception | Non
             driver.kill()
             driver.wait(timeout=5)
         except (OSError, subprocess.TimeoutExpired) as fallback_error:
-            terminate_error.add_note(
+            _record_secondary_diagnostic(
+                terminate_error,
                 "bounded ChromeDriver kill fallback also failed: "
-                f"{type(fallback_error).__name__}"
+                f"{type(fallback_error).__name__}",
             )
             return terminate_error
         return None
@@ -482,9 +496,10 @@ def _start_chromedriver(
         teardown_error = _teardown_driver_process(driver)
         startup_error = RuntimeError("ChromeDriver startup output pipe was unavailable")
         if teardown_error is not None:
-            startup_error.add_note(
+            _record_secondary_diagnostic(
+                startup_error,
                 "ChromeDriver process teardown also failed: "
-                f"{type(teardown_error).__name__}"
+                f"{type(teardown_error).__name__}",
             )
         raise startup_error
 
@@ -524,9 +539,10 @@ def _start_chromedriver(
     teardown_error = _teardown_driver_process(driver)
     startup_error = RuntimeError("ChromeDriver did not publish a valid bound port")
     if teardown_error is not None:
-        startup_error.add_note(
+        _record_secondary_diagnostic(
+            startup_error,
             "ChromeDriver process teardown also failed: "
-            f"{type(teardown_error).__name__}"
+            f"{type(teardown_error).__name__}",
         )
     raise startup_error
 
@@ -650,36 +666,41 @@ def _run_browser_pass(
             teardown_error = _teardown_driver_process(driver)
         if primary_error is not None:
             if cleanup_error is not None:
-                primary_error.add_note(
+                _record_secondary_diagnostic(
+                    primary_error,
                     "WebDriver session cleanup also failed after the primary browser-pass "
-                    f"failure: {type(cleanup_error).__name__}"
+                    f"failure: {type(cleanup_error).__name__}",
                 )
             if unreviewed_cleanup_error is not None:
-                primary_error.add_note(
+                _record_secondary_diagnostic(
+                    primary_error,
                     "Unreviewed WebDriver session cleanup also failed after the primary "
                     "browser-pass failure: "
-                    f"{type(unreviewed_cleanup_error).__name__}"
+                    f"{type(unreviewed_cleanup_error).__name__}",
                 )
             if teardown_error is not None:
-                primary_error.add_note(
+                _record_secondary_diagnostic(
+                    primary_error,
                     "ChromeDriver process teardown also failed after the primary browser-pass "
-                    f"failure: {type(teardown_error).__name__}"
+                    f"failure: {type(teardown_error).__name__}",
                 )
         elif cleanup_error is not None:
             cleanup_failure = WebDriverSessionCleanupError(
                 "WebDriver session cleanup failed after bounded process teardown"
             )
             if teardown_error is not None:
-                cleanup_failure.add_note(
+                _record_secondary_diagnostic(
+                    cleanup_failure,
                     "ChromeDriver process teardown also failed: "
-                    f"{type(teardown_error).__name__}"
+                    f"{type(teardown_error).__name__}",
                 )
             raise cleanup_failure from cleanup_error
         elif unreviewed_cleanup_error is not None:
             if teardown_error is not None:
-                unreviewed_cleanup_error.add_note(
+                _record_secondary_diagnostic(
+                    unreviewed_cleanup_error,
                     "ChromeDriver process teardown also failed: "
-                    f"{type(teardown_error).__name__}"
+                    f"{type(teardown_error).__name__}",
                 )
             raise unreviewed_cleanup_error
         elif teardown_error is not None:
