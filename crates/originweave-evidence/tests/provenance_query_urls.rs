@@ -11,8 +11,7 @@ const DATE: &str = "2026-08-28T00:00:00Z";
 
 #[test]
 fn provenance_and_warc_preserve_query_bearing_resource_urls_without_debug_disclosure() {
-    let source_url =
-        "https://example.com/search?next=/products?category=widgets&q=public%20term";
+    let source_url = "https://example.com/search?next=/products?category=widgets&q=public%20term";
     let provenance = ProvenanceRecord::new(
         source_url,
         "body",
@@ -51,7 +50,10 @@ fn provenance_query_support_rejects_credential_fields() {
         "https://example.com/callback?ACCESS-TOKEN=secret",
         "https://example.com/callback?access%5Ftoken=secret",
         "https://example.com/download?api_key=secret",
+        "https://example.com/download?client_secret=secret",
+        "https://example.com/download?X-Amz-Credential=secret",
         "https://example.com/download?X-Amz-Signature=secret",
+        "https://example.com/download?X%2Damz%2DSignature=secret",
         "https://example.com/download?x-goog-credential=secret",
         "https://example.com/login?password=secret",
         "https://example.com/login?auth=secret",

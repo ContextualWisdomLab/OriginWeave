@@ -429,7 +429,56 @@ fn valid_query(query: &str) -> bool {
         }
         index += 1;
     }
-    true
+    query.split('&').all(|field| {
+        let name = field.split_once('=').map_or(field, |(name, _value)| name);
+        !is_credential_query_name(name)
+    })
+}
+
+fn is_credential_query_name(name: &str) -> bool {
+    let bytes = name.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            let high = hexadecimal_value(bytes[index + 1]).unwrap_or(0);
+            let low = hexadecimal_value(bytes[index + 2]).unwrap_or(0);
+            decoded.push(high * 16 + low);
+            index += 3;
+        } else {
+            decoded.push(bytes[index]);
+            index += 1;
+        }
+    }
+    decoded.make_ascii_lowercase();
+    decoded.iter_mut().for_each(|byte| {
+        if *byte == b'-' {
+            *byte = b'_';
+        }
+    });
+    matches!(
+        decoded.as_slice(),
+        b"access_token"
+            | b"api_key"
+            | b"auth"
+            | b"authorization"
+            | b"client_secret"
+            | b"credential"
+            | b"key"
+            | b"password"
+            | b"secret"
+            | b"secret_key"
+            | b"session"
+            | b"sig"
+            | b"signature"
+            | b"token"
+            | b"x_api_key"
+            | b"x_amz_credential"
+            | b"x_amz_security_token"
+            | b"x_amz_signature"
+            | b"x_goog_credential"
+            | b"x_goog_signature"
+    )
 }
 
 fn valid_sha256(source_hash: &str) -> bool {
