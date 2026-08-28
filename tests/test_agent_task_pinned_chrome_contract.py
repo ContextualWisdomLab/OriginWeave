@@ -362,6 +362,7 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
         self.assertIn("PR #70", traceability)
         self.assertIn("real WebDriver", traceability)
         self.assertIn("not a product browser adapter", traceability)
+        self.assertIn("None of these introduces a new trust domain", traceability)
         self.assertIn("pinned Chrome", fitness)
         self.assertIn("not a browser adapter", fitness)
 
