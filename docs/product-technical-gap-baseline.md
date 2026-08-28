@@ -38,7 +38,6 @@ The following representative slices were re-fetched from GitHub for this snapsho
 | #70 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `378240888b39218c97c1b5c514492bb0a0cf3aa2` |
 | #210 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `d83748a70bd1b16dbfec46007fe02989ba6ce188` |
 | #237 | Draft | `542ca1e9c0a863595b8b6697790005d2471f5413` | `21e9ad1e8da72c81f521152ea6739b088da230f7` |
-| #238 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `0b2f278dc9f4a1392bc2f6a0424bd0c66b7e582c` |
 | #239 | Draft | `e45cd6cdcdee73b5c16dc942e6c98cb7e745fae0` | `365c4a6b9e6d0f088d2f8330834f54c7cb5fb491` |
 | #229 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `fb868589d065c2cea0b9c8c0f5e655a89f42bee6` |
 | #220 | Ready | `f658f329c83a106b68385e17cb714c4147c12f49` | `a2b0c5372dd6df803011933836c56136244dc8af` |
@@ -49,6 +48,8 @@ The following representative slices were re-fetched from GitHub for this snapsho
 | #37 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `5423803d3fbd9d2d8e08bbd6dbf81ae6b2addefe` |
 
 These rows are delivery evidence only. None has counted independent approval in the current collaborator inventory.
+
+The current documentation branch is PR #238 itself, so its self-referential exact-head row is intentionally omitted; GitHub PR metadata and the PR body are the authoritative current-head record for this change.
 
 #### Historical 2026-08-26 maintenance-loop record
 

@@ -13,6 +13,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Hardened the product-completion documentation contract by classifying current-snapshot count markers explicitly instead of routing them by substring heuristics.
 - Corrected the baseline's #72/#73 exact SHA evidence to full 40-character values and tracked PR #238's current head.
 - Refreshed the baseline's #210 WARC row to exact Ready head `d83748a70bd1b16dbfec46007fe02989ba6ce188` and recorded its nested credential-query defense and current-head hosted-check regeneration.
+- Removed the self-referential #238 exact-head row from the baseline; the live PR metadata and body remain authoritative because every documentation update necessarily creates a new branch head.
 
 - Added `originweave_core::release_acceptance`, a deterministic fail-closed benchmark release-decision contract that requires one authoritative result for every mandatory suite, bounds explicit buyer-visible limitations, rejects duplicate limitation claim identities, and rejects non-canonical surrounding whitespace rather than normalizing it into an alternate claim spelling.
 - Refreshed the product and technical gap baseline with the 2026-08-24 live inventory: 158 open pull requests (44 ready, 114 draft), refreshed exact base/head evidence for the #208–#222 release, enterprise-approval, BAP, and WARC/PROV chains, the governance issue additions #212 and #215, and a required-check provider-failure record for the fail-closed Strix re-dispatches on #208/#218/#220.
