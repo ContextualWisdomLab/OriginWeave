@@ -767,7 +767,14 @@ def main() -> int:
         raise SystemExit("Agent Task fixture is missing")
 
     fixture_server, fixture_thread = _start_fixture_server(FIXTURE)
-    agent_task_server, agent_task_thread = _start_fixture_server(AGENT_TASK_FIXTURE)
+    try:
+        agent_task_server, agent_task_thread = _start_fixture_server(AGENT_TASK_FIXTURE)
+    except BaseException as startup_error:
+        try:
+            _stop_fixture_server(fixture_server, fixture_thread)
+        except BaseException as cleanup_error:
+            raise cleanup_error from startup_error
+        raise
     started = time.monotonic()
 
     try:
