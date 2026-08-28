@@ -66,8 +66,8 @@ impl PolicyAuthorizedSemanticNodeAction {
     where
         F: FnOnce(&SemanticNodeActionBinding) -> R,
     {
-        self.validate_current(registry)?;
-        Ok(dispatch(&self.binding))
+        self.validate_current(registry)
+            .map(|()| dispatch(&self.binding))
     }
 }
 
