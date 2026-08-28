@@ -19,3 +19,12 @@ fn recovery_evidence_digest_accepts_exact_sha256_output_without_owning_evidence_
     };
     assert_eq!(digest, parsed);
 }
+
+#[test]
+fn recovery_evidence_digest_debug_does_not_disclose_the_artifact_identity() {
+    let digest = BapRecoveryEvidenceDigest::from_sha256_bytes(EVIDENCE_SHA256);
+    let debug = format!("{digest:?}");
+
+    assert!(!debug.contains(EXPECTED_DIGEST));
+    assert!(!debug.contains("cdc7dc8d4a35adfc9e1351ad81821cf7"));
+}
