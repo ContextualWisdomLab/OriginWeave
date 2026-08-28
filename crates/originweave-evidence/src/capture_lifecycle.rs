@@ -26,10 +26,14 @@ pub enum CaptureLifecycleState {
 pub enum CaptureLifecycleError {
     /// The supplied capture-manifest identity was not a lowercase SHA-256 digest.
     InvalidManifestDigest,
+    /// The supplied deletion-request identity was not a lowercase SHA-256 digest.
+    InvalidDeletionRequestDigest,
     /// The supplied deletion-evidence identity was not a lowercase SHA-256 digest.
     InvalidDeletionEvidenceDigest,
     /// A deletion receipt was bound to a different capture-manifest identity.
     DeletionReceiptMismatch,
+    /// A deletion receipt was bound to a different deletion-request identity.
+    DeletionReceiptRequestMismatch,
     /// The requested transition is not allowed from the current lifecycle state.
     InvalidTransition,
     /// A caller supplied trusted time older than the latest accepted trusted time.
@@ -46,11 +50,17 @@ impl fmt::Display for CaptureLifecycleError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
             Self::InvalidManifestDigest => "capture manifest digest must be lowercase sha256",
+            Self::InvalidDeletionRequestDigest => {
+                "capture deletion request digest must be lowercase sha256"
+            }
             Self::InvalidDeletionEvidenceDigest => {
                 "capture deletion evidence digest must be lowercase sha256"
             }
             Self::DeletionReceiptMismatch => {
                 "capture deletion receipt does not match lifecycle manifest"
+            }
+            Self::DeletionReceiptRequestMismatch => {
+                "capture deletion receipt does not match lifecycle deletion request"
             }
             Self::InvalidTransition => {
                 "capture lifecycle transition is not allowed from the current state"
@@ -70,31 +80,38 @@ impl std::error::Error for CaptureLifecycleError {}
 /// Immutable identity receipt for persistence-side capture deletion evidence.
 ///
 /// The receipt binds one canonical deletion-evidence digest to the exact capture
-/// manifest that the evidence concerns. Construction validates identity shape
-/// only. It does not authenticate the evidence producer, prove that storage bytes
-/// were deleted, authorize deletion, or grant persistence, tenant, legal, replay,
-/// export, or secret authority. The owning trusted persistence boundary must
-/// authenticate the referenced evidence before presenting the receipt here.
+/// manifest and exact deletion request that the evidence concerns. Construction
+/// validates identity shape only. It does not authenticate the evidence producer,
+/// prove that storage bytes were deleted, authorize deletion, or grant persistence,
+/// tenant, legal, replay, export, or secret authority. The owning trusted persistence
+/// boundary must authenticate the referenced request and evidence before presenting
+/// the receipt here.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CaptureDeletionReceipt {
     manifest_digest: String,
+    deletion_request_digest: String,
     evidence_digest: String,
 }
 
 impl CaptureDeletionReceipt {
-    /// Bind one canonical deletion-evidence identity to one capture manifest.
+    /// Bind one canonical deletion-evidence identity to one capture manifest and deletion request.
     pub fn new(
         manifest_digest: &str,
+        deletion_request_digest: &str,
         evidence_digest: &str,
     ) -> Result<Self, CaptureLifecycleError> {
         if !valid_sha256(manifest_digest) {
             return Err(CaptureLifecycleError::InvalidManifestDigest);
+        }
+        if !valid_sha256(deletion_request_digest) {
+            return Err(CaptureLifecycleError::InvalidDeletionRequestDigest);
         }
         if !valid_sha256(evidence_digest) {
             return Err(CaptureLifecycleError::InvalidDeletionEvidenceDigest);
         }
         Ok(Self {
             manifest_digest: manifest_digest.to_owned(),
+            deletion_request_digest: deletion_request_digest.to_owned(),
             evidence_digest: evidence_digest.to_owned(),
         })
     }
@@ -103,6 +120,12 @@ impl CaptureDeletionReceipt {
     #[must_use]
     pub fn manifest_digest(&self) -> &str {
         &self.manifest_digest
+    }
+
+    /// Return the exact deletion-request digest to which this receipt is bound.
+    #[must_use]
+    pub fn deletion_request_digest(&self) -> &str {
+        &self.deletion_request_digest
     }
 
     /// Return the canonical deletion-evidence digest carried by this receipt.
@@ -115,17 +138,18 @@ impl CaptureDeletionReceipt {
 /// In-memory policy-neutral lifecycle state for one capture-manifest identity.
 ///
 /// This value object records only a manifest digest, lifecycle state, trusted
-/// monotonic transition time, optional retention deadline, and an optional
-/// manifest-bound deletion-evidence receipt after terminal confirmation. It does
-/// not authenticate an operator or evidence producer, persist artifacts, decide
-/// legal entitlement, delete storage objects, or grant capture, replay, export,
-/// or secret access.
+/// monotonic transition time, optional retention deadline, optional exact deletion
+/// request identity, and an optional request-bound deletion-evidence receipt after
+/// terminal confirmation. It does not authenticate an operator or evidence producer,
+/// persist artifacts, decide legal entitlement, delete storage objects, or grant
+/// capture, replay, export, or secret access.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CaptureLifecycle {
     manifest_digest: String,
     state: CaptureLifecycleState,
     latest_trusted_time_epoch_seconds: u64,
     retention_deadline_epoch_seconds: Option<u64>,
+    deletion_request_digest: Option<String>,
     deletion_receipt: Option<CaptureDeletionReceipt>,
 }
 
@@ -143,6 +167,7 @@ impl CaptureLifecycle {
             state: CaptureLifecycleState::CaptureStarted,
             latest_trusted_time_epoch_seconds: trusted_time_epoch_seconds,
             retention_deadline_epoch_seconds: None,
+            deletion_request_digest: None,
             deletion_receipt: None,
         })
     }
@@ -169,6 +194,12 @@ impl CaptureLifecycle {
     #[must_use]
     pub const fn retention_deadline_epoch_seconds(&self) -> Option<u64> {
         self.retention_deadline_epoch_seconds
+    }
+
+    /// Return the exact deletion-request digest after deletion has been requested.
+    #[must_use]
+    pub fn deletion_request_digest(&self) -> Option<&str> {
+        self.deletion_request_digest.as_deref()
     }
 
     /// Return the deletion-evidence receipt retained after terminal confirmation.
@@ -258,8 +289,14 @@ impl CaptureLifecycle {
     }
 
     /// Request deletion after the active retention period has expired.
+    ///
+    /// The caller supplies an opaque canonical digest for the exact deletion request.
+    /// The lifecycle retains only that digest and requires terminal evidence to bind
+    /// the same request, preventing a receipt from another request for the same
+    /// manifest from being replayed as current deletion evidence.
     pub fn request_deletion(
         &mut self,
+        deletion_request_digest: &str,
         trusted_time_epoch_seconds: u64,
     ) -> Result<(), CaptureLifecycleError> {
         self.require_trusted_time_not_rollback(trusted_time_epoch_seconds)?;
@@ -267,12 +304,16 @@ impl CaptureLifecycle {
             return Err(CaptureLifecycleError::LegalHoldActive);
         }
         self.require_state(CaptureLifecycleState::Retained)?;
+        if !valid_sha256(deletion_request_digest) {
+            return Err(CaptureLifecycleError::InvalidDeletionRequestDigest);
+        }
         self.retention_deadline_epoch_seconds
             .ok_or(CaptureLifecycleError::InvalidTransition)
             .and_then(|deadline| {
                 if trusted_time_epoch_seconds < deadline {
                     Err(CaptureLifecycleError::RetentionNotExpired)
                 } else {
+                    self.deletion_request_digest = Some(deletion_request_digest.to_owned());
                     self.state = CaptureLifecycleState::DeletionRequested;
                     self.accept_trusted_time(trusted_time_epoch_seconds);
                     Ok(())
@@ -280,13 +321,14 @@ impl CaptureLifecycle {
             })
     }
 
-    /// Confirm deletion with manifest-bound evidence from the owning persistence boundary.
+    /// Confirm deletion with request-bound evidence from the owning persistence boundary.
     ///
-    /// The receipt must bind the exact lifecycle manifest before lifecycle or
-    /// trusted-time state is consulted. Successful confirmation retains the exact
-    /// receipt so terminal `Deleted` state cannot exist without a deletion-evidence
-    /// identity. The receipt itself remains non-authenticating; callers must verify
-    /// the evidence at the trusted persistence boundary before invoking this method.
+    /// The receipt must bind the exact lifecycle manifest before lifecycle state is
+    /// consulted, then must bind the exact accepted deletion request before trusted-time
+    /// state is consulted. Successful confirmation retains the exact receipt so terminal
+    /// `Deleted` state cannot exist without request-specific deletion-evidence identity.
+    /// The receipt itself remains non-authenticating; callers must verify the request and
+    /// evidence at the trusted persistence boundary before invoking this method.
     pub fn confirm_deleted(
         &mut self,
         receipt: &CaptureDeletionReceipt,
@@ -295,8 +337,15 @@ impl CaptureLifecycle {
         if receipt.manifest_digest() != self.manifest_digest {
             return Err(CaptureLifecycleError::DeletionReceiptMismatch);
         }
-        self.require_trusted_time_not_rollback(trusted_time_epoch_seconds)?;
         self.require_state(CaptureLifecycleState::DeletionRequested)?;
+        let deletion_request_digest = self
+            .deletion_request_digest
+            .as_deref()
+            .ok_or(CaptureLifecycleError::InvalidTransition)?;
+        if receipt.deletion_request_digest() != deletion_request_digest {
+            return Err(CaptureLifecycleError::DeletionReceiptRequestMismatch);
+        }
+        self.require_trusted_time_not_rollback(trusted_time_epoch_seconds)?;
         self.deletion_receipt = Some(receipt.clone());
         self.state = CaptureLifecycleState::Deleted;
         self.accept_trusted_time(trusted_time_epoch_seconds);
@@ -342,23 +391,55 @@ impl CaptureLifecycle {
 mod tests {
     use super::{CaptureLifecycle, CaptureLifecycleError, CaptureLifecycleState};
 
+    const MANIFEST_DIGEST: &str =
+        "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    const DELETION_REQUEST_DIGEST: &str =
+        "sha256:1111111111111111111111111111111111111111111111111111111111111111";
+
     #[test]
     fn corrupted_retained_state_without_deadline_fails_closed() {
         let mut lifecycle = CaptureLifecycle {
-            manifest_digest:
-                "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".to_owned(),
+            manifest_digest: MANIFEST_DIGEST.to_owned(),
             state: CaptureLifecycleState::Retained,
             latest_trusted_time_epoch_seconds: 100,
             retention_deadline_epoch_seconds: None,
+            deletion_request_digest: None,
             deletion_receipt: None,
         };
 
         assert_eq!(
-            lifecycle.request_deletion(101),
+            lifecycle.request_deletion(DELETION_REQUEST_DIGEST, 101),
             Err(CaptureLifecycleError::InvalidTransition)
         );
         assert_eq!(lifecycle.state(), CaptureLifecycleState::Retained);
         assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 100);
+        assert_eq!(lifecycle.deletion_request_digest(), None);
+        assert!(lifecycle.deletion_receipt().is_none());
+    }
+
+    #[test]
+    fn corrupted_deletion_request_without_digest_fails_closed() {
+        let mut lifecycle = CaptureLifecycle {
+            manifest_digest: MANIFEST_DIGEST.to_owned(),
+            state: CaptureLifecycleState::DeletionRequested,
+            latest_trusted_time_epoch_seconds: 200,
+            retention_deadline_epoch_seconds: Some(200),
+            deletion_request_digest: None,
+            deletion_receipt: None,
+        };
+        let receipt = super::CaptureDeletionReceipt::new(
+            MANIFEST_DIGEST,
+            DELETION_REQUEST_DIGEST,
+            "sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+        )
+        .expect("canonical receipt");
+
+        assert_eq!(
+            lifecycle.confirm_deleted(&receipt, 201),
+            Err(CaptureLifecycleError::InvalidTransition)
+        );
+        assert_eq!(lifecycle.state(), CaptureLifecycleState::DeletionRequested);
+        assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 200);
         assert!(lifecycle.deletion_receipt().is_none());
     }
 }
