@@ -491,7 +491,7 @@ fn is_credential_query_name(name: &str) -> bool {
             index += 1;
         }
     }
-    is_credential_query_name_bytes(&decoded)
+    decoded.contains(&b'%') || is_credential_query_name_bytes(&decoded)
 }
 
 fn is_credential_query_name_bytes(decoded: &[u8]) -> bool {
