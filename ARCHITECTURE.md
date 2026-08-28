@@ -12,6 +12,7 @@ This file is the canonical product-wide topology and bounded-context view. It is
 - [Requirement, decision, standards, and implementation traceability](docs/traceability/README.md)
 - [Research and standards doctoring](docs/doctoring.md)
 - [Product roadmap](docs/product-roadmap.md)
+- [Live product and technical gap baseline](docs/product-technical-gap-baseline.md)
 
 Protected-main code and executable tests define current implementation truth; deployed build/release artifacts, migrations, and configuration are additional operational evidence when they exist. Accepted ADRs define design authority, not proof that planned behavior has shipped. The PRD/TRD/diagrams may also contain `Planned`, `Proposed`, or `Open` product direction; those labels must remain explicit until corresponding implementation and review evidence reaches protected `main`.
 

@@ -9,7 +9,9 @@
 
 mod action_outcome;
 mod browser_task_interruption;
+mod extraction_schema;
 mod sensitive_access;
+mod sensitive_handle_lifecycle;
 
 pub use action_outcome::{
     PostConditionKind, PostConditionObservation, VerifiedActionOutcomeError,
@@ -19,10 +21,18 @@ pub use browser_task_interruption::{
     BrowserTaskInterruptionEvidence, BrowserTaskInterruptionKind, ExternalEffectDisposition,
     RetryDisposition,
 };
+pub use extraction_schema::{
+    ExtractionCardinality, ExtractionField, ExtractionNormalizationRule, ExtractionSchema,
+    ExtractionSchemaError, ExtractionSourceChannel, ExtractionValueType,
+    MAX_EXTRACTION_FIELD_COUNT, MAX_EXTRACTION_IDENTIFIER_BYTES,
+};
 pub use sensitive_access::{
     MAX_SENSITIVE_FIELD_COUNT, MAX_SENSITIVE_IDENTIFIER_BYTES, SensitiveAccessClass,
     SensitiveAccessEvidence, SensitiveAccessEvidenceInput, SensitiveAccessOutcome,
     SensitiveEvidenceError,
+};
+pub use sensitive_handle_lifecycle::{
+    SensitiveHandleLifecycleEvidence, SensitiveHandleLifecycleEvidenceInput,
 };
 
 use std::collections::BTreeMap;
@@ -234,6 +244,9 @@ fn validate_path(path: &str) -> Result<(), EvidenceError> {
             index += 3;
             continue;
         }
+        if !is_rfc3986_pchar(byte) {
+            return Err(EvidenceError::InvalidPath);
+        }
         segment.push(byte);
         index += 1;
     }
@@ -241,6 +254,32 @@ fn validate_path(path: &str) -> Result<(), EvidenceError> {
         return Err(EvidenceError::InvalidPath);
     }
     Ok(())
+}
+
+const fn is_rfc3986_pchar(byte: u8) -> bool {
+    matches!(
+        byte,
+        b'A'..=b'Z'
+            | b'a'..=b'z'
+            | b'0'..=b'9'
+            | b'-'
+            | b'.'
+            | b'_'
+            | b'~'
+            | b'!'
+            | b'$'
+            | b'&'
+            | b'\''
+            | b'('
+            | b')'
+            | b'*'
+            | b'+'
+            | b','
+            | b';'
+            | b'='
+            | b':'
+            | b'@'
+    )
 }
 
 const fn hexadecimal_value(byte: u8) -> Option<u8> {
