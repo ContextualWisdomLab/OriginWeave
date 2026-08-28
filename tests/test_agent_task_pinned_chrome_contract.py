@@ -216,6 +216,47 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
 
         self.assertEqual(stopped, [(first_server, first_thread)])
 
+    def test_fixture_shutdown_attempts_both_servers_when_first_stop_fails(self) -> None:
+        """A cleanup failure for one fixture must not skip the other fixture."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="fixture_shutdown_contract")
+        first_server = object()
+        first_thread = object()
+        second_server = object()
+        second_thread = object()
+        starts = 0
+        stopped: list[tuple[object, object]] = []
+
+        def start_fixture_server(_directory: pathlib.Path) -> tuple[object, object]:
+            nonlocal starts
+            starts += 1
+            return (
+                (first_server, first_thread)
+                if starts == 1
+                else (second_server, second_thread)
+            )
+
+        def stop_fixture_server(server: object, thread: object) -> None:
+            stopped.append((server, thread))
+            if server is second_server:
+                raise OSError("agent-task fixture shutdown failed")
+
+        namespace["main"].__globals__["_start_fixture_server"] = start_fixture_server
+        namespace["main"].__globals__["_stop_fixture_server"] = stop_fixture_server
+        with patch.dict(
+            os.environ,
+            {"CHROME_BIN": "/bin/sh", "CHROMEDRIVER_BIN": "/bin/sh"},
+        ), self.assertRaisesRegex(OSError, r"^agent-task fixture shutdown failed$"):
+            namespace["main"]()
+
+        self.assertEqual(
+            stopped,
+            [
+                (second_server, second_thread),
+                (first_server, first_thread),
+            ],
+        )
+
     def test_agent_task_submission_preserves_the_loaded_url(self) -> None:
         """Submission must prove that the controlled action did not navigate away."""
 
