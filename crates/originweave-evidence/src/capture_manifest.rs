@@ -85,9 +85,8 @@ impl fmt::Display for CaptureManifestError {
                 .write_str("capture manifest structured-value field is absent from the schema"),
             Self::ValueSourceRecordMissing => formatter
                 .write_str("capture manifest structured value references an absent WARC record"),
-            Self::ValueSourceRecordTruncated => formatter.write_str(
-                "capture manifest structured value references a truncated WARC record",
-            ),
+            Self::ValueSourceRecordTruncated => formatter
+                .write_str("capture manifest structured value references a truncated WARC record"),
             Self::ValueSourceChannelMismatch => formatter.write_str(
                 "capture manifest structured value is not admitted by the field source channels",
             ),
