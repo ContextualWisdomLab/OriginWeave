@@ -265,9 +265,12 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
         """A cleanup failure for one fixture must not skip the other fixture."""
 
         namespace = runpy.run_path(str(RUNNER), run_name="fixture_shutdown_contract")
-        first_server = object()
+        class FakeServer:
+            server_port = 9515
+
+        first_server = FakeServer()
         first_thread = object()
-        second_server = object()
+        second_server = FakeServer()
         second_thread = object()
         starts = 0
         stopped: list[tuple[object, object]] = []
@@ -288,6 +291,26 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
 
         namespace["main"].__globals__["_start_fixture_server"] = start_fixture_server
         namespace["main"].__globals__["_stop_fixture_server"] = stop_fixture_server
+        namespace["main"].__globals__["_run_restart_trial"] = (
+            lambda *_args, **_kwargs: {
+                "trial_number": 1,
+                "passed": True,
+                "surfaces": {"worker": True},
+            }
+        )
+        namespace["main"].__globals__["_run_agent_task_trial"] = (
+            lambda *_args, **_kwargs: {
+                "trial_number": 1,
+                "passed": True,
+                "post_condition": True,
+                "input_echo_verified": True,
+                "url_unchanged": True,
+                "extensions_disabled": True,
+                "profile_cleaned": True,
+            }
+        )
+        namespace["main"].__globals__["REPEATABILITY_TRIALS"] = 1
+        namespace["main"].__globals__["AGENT_TASK_REPEATABILITY_TRIALS"] = 1
         with patch.dict(
             os.environ,
             {"CHROME_BIN": "/bin/sh", "CHROMEDRIVER_BIN": "/bin/sh"},

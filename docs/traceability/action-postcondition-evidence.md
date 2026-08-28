@@ -59,7 +59,7 @@ This remains controlled test infrastructure rather than browser-execution eviden
 
 **Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
 
-PR #70 reuses the existing pinned Chrome for Testing workflow and executes the #65 fixture through loopback ChromeDriver with extensions disabled and a fresh temporary profile. Each bounded trial performs real WebDriver clear/type/click operations, observes the `submitted` state and synthetic value through element endpoints, verifies that submission preserves the loaded URL, and proves that the temporary profile is removed after teardown. The runner emits credential-free repeatability evidence and fails the lane when any trial or post-condition is incomplete.
+PR #70 reuses the existing pinned Chrome for Testing workflow and executes the #65 fixture through loopback ChromeDriver with extensions disabled and a fresh temporary profile. Each bounded trial performs real WebDriver clear/type/click operations, observes the `submitted` state and synthetic value through element endpoints, verifies that submission preserves the loaded URL, and proves that the temporary profile is removed after teardown. The fixture-shutdown contract also exercises successful MV3 and Agent Task trial paths before proving reverse-order cleanup after one server stop fails. The runner emits credential-free repeatability evidence and fails the lane when any trial or post-condition is incomplete.
 
 This is real WebDriver evidence for a controlled local fixture, not a product browser adapter. It does not establish WebDriver BiDi/CDP authority translation, OriginWeave semantic observation or node handles, policy-authorized typed action dispatch, trusted browser-process attribution, or protected-main product runtime completion.
 
