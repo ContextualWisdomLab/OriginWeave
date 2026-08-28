@@ -131,6 +131,76 @@ impl ZeroEventSafetyEvidence {
     }
 }
 
+/// One named safety event class whose zero-observation evidence may be retained.
+///
+/// The declaration order is also the stable canonical report order. These
+/// metrics are evidence labels only: retaining one does not itself satisfy a
+/// release threshold or grant release authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ZeroEventSafetyMetric {
+    /// An attempted action completed without the required authority.
+    UnauthorizedAction,
+    /// Prompt injection changed protected behavior or authority.
+    PromptInjectionSuccess,
+    /// Stale or superseded authority was incorrectly accepted.
+    StaleAuthorityAcceptance,
+    /// A protected value was disclosed outside its authorized context.
+    ProtectedValueDisclosure,
+    /// Execution obtained authority broader than the approved capability set.
+    AuthorityEscalation,
+}
+
+impl ZeroEventSafetyMetric {
+    /// Return the stable snake-case identifier used in retained release evidence.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::UnauthorizedAction => "unauthorized_action_rate",
+            Self::PromptInjectionSuccess => "prompt_injection_success_rate",
+            Self::StaleAuthorityAcceptance => "stale_authority_acceptance_rate",
+            Self::ProtectedValueDisclosure => "protected_value_disclosure_rate",
+            Self::AuthorityEscalation => "authority_escalation_rate",
+        }
+    }
+
+    const fn index(self) -> usize {
+        match self {
+            Self::UnauthorizedAction => 0,
+            Self::PromptInjectionSuccess => 1,
+            Self::StaleAuthorityAcceptance => 2,
+            Self::ProtectedValueDisclosure => 3,
+            Self::AuthorityEscalation => 4,
+        }
+    }
+}
+
+/// One named zero-observed-event safety measurement retained in a release report.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ZeroEventSafetyObservation {
+    metric: ZeroEventSafetyMetric,
+    evidence: ZeroEventSafetyEvidence,
+}
+
+impl ZeroEventSafetyObservation {
+    /// Bind a named safety metric to its exact zero-event statistical evidence.
+    #[must_use]
+    pub const fn new(metric: ZeroEventSafetyMetric, evidence: ZeroEventSafetyEvidence) -> Self {
+        Self { metric, evidence }
+    }
+
+    /// Return the named safety metric represented by this observation.
+    #[must_use]
+    pub const fn metric(self) -> ZeroEventSafetyMetric {
+        self.metric
+    }
+
+    /// Return the exact trial count and confidence declaration for this metric.
+    #[must_use]
+    pub const fn evidence(self) -> ZeroEventSafetyEvidence {
+        self.evidence
+    }
+}
+
 /// One explicit narrowed release claim and its buyer-visible consequence.
 ///
 /// An accepted-with-limitations decision cannot be produced from an opaque
@@ -264,6 +334,8 @@ pub enum ReleaseDecisionError {
     MissingSafetyTrials,
     /// The requested zero-event safety confidence was outside `1..=9999` basis points.
     InvalidSafetyConfidenceBasisPoints,
+    /// More than one zero-event observation used the same named safety metric.
+    DuplicateZeroEventSafetyMetric(ZeroEventSafetyMetric),
     /// A declared limitation did not identify the unsupported release claim.
     EmptyLimitationClaim,
     /// A declared limitation claim exceeded the fixed UTF-8 byte budget.
@@ -292,6 +364,11 @@ impl fmt::Display for ReleaseDecisionError {
             }
             Self::InvalidSafetyConfidenceBasisPoints => formatter.write_str(
                 "zero-event safety confidence must be between 1 and 9999 basis points",
+            ),
+            Self::DuplicateZeroEventSafetyMetric(metric) => write!(
+                formatter,
+                "benchmark release evidence contains duplicate zero-event safety metric: {}",
+                metric.as_str()
             ),
             Self::EmptyLimitationClaim => {
                 formatter.write_str("declared release limitation must name an unsupported claim")
@@ -332,6 +409,7 @@ pub struct ReleaseDecisionReport {
     inconclusive_suites: Vec<BenchmarkSuite>,
     missing_suites: Vec<BenchmarkSuite>,
     declared_limitations: Vec<DeclaredLimitation>,
+    zero_event_safety_observations: Vec<ZeroEventSafetyObservation>,
 }
 
 impl ReleaseDecisionReport {
@@ -364,22 +442,44 @@ impl ReleaseDecisionReport {
     pub fn declared_limitations(&self) -> &[DeclaredLimitation] {
         &self.declared_limitations
     }
+
+    /// Return named zero-event safety evidence in canonical metric order.
+    #[must_use]
+    pub fn zero_event_safety_observations(&self) -> &[ZeroEventSafetyObservation] {
+        &self.zero_event_safety_observations
+    }
 }
 
 /// Produce one deterministic release decision from mandatory suite outcomes.
 ///
-/// Duplicate suite evidence, duplicate buyer-visible limitation claim identities,
-/// and excessive declared-limitation cardinality fail closed rather than selecting
-/// or retaining ambiguous or attacker-controlled release metadata. A known
-/// mandatory-threshold failure is always rejected, even when other suites are
-/// missing or inconclusive; all such evidence gaps remain in the returned report.
-/// Without a known failure, missing or inconclusive evidence is never promoted to
-/// acceptance. Accepted-with-limitations requires at least one validated
-/// [`DeclaredLimitation`], so the decision cannot be detached from the exact
-/// narrowed claim and buyer-visible consequence.
+/// This compatibility entrypoint retains no named zero-event safety observations.
+/// Use [`decide_release_with_zero_event_safety`] when the release report must carry
+/// explicit zero-observation statistical evidence.
 pub fn decide_release<I>(
     results: I,
     declared_limitations: &[DeclaredLimitation],
+) -> Result<ReleaseDecisionReport, ReleaseDecisionError>
+where
+    I: IntoIterator<Item = (BenchmarkSuite, BenchmarkSuiteOutcome)>,
+{
+    decide_release_with_zero_event_safety(results, declared_limitations, &[])
+}
+
+/// Produce a deterministic release decision while retaining named zero-event evidence.
+///
+/// Duplicate suite evidence, duplicate buyer-visible limitation claim identities,
+/// duplicate zero-event metric identities, and excessive declared-limitation
+/// cardinality fail closed rather than selecting ambiguous release metadata. A
+/// known mandatory-threshold failure is always rejected, even when other suites
+/// are missing or inconclusive; all such evidence gaps remain in the returned
+/// report. Without a known failure, missing or inconclusive suite evidence is
+/// never promoted to acceptance. Named zero-event observations are retained in
+/// canonical metric order and remain statistical evidence only: this function
+/// does not interpret their confidence bounds as an independent release threshold.
+pub fn decide_release_with_zero_event_safety<I>(
+    results: I,
+    declared_limitations: &[DeclaredLimitation],
+    zero_event_safety_observations: &[ZeroEventSafetyObservation],
 ) -> Result<ReleaseDecisionReport, ReleaseDecisionError>
 where
     I: IntoIterator<Item = (BenchmarkSuite, BenchmarkSuiteOutcome)>,
@@ -394,6 +494,18 @@ where
             return Err(ReleaseDecisionError::DuplicateLimitationClaim);
         }
     }
+
+    let mut seen_zero_event_metrics = [false; 5];
+    for observation in zero_event_safety_observations {
+        let metric = observation.metric();
+        let seen = &mut seen_zero_event_metrics[metric.index()];
+        if *seen {
+            return Err(ReleaseDecisionError::DuplicateZeroEventSafetyMetric(metric));
+        }
+        *seen = true;
+    }
+    let mut canonical_zero_event_safety_observations = zero_event_safety_observations.to_vec();
+    canonical_zero_event_safety_observations.sort_by_key(|observation| observation.metric());
 
     let mut outcomes = [None; BenchmarkSuite::ALL.len()];
     for (suite, outcome) in results {
@@ -432,5 +544,6 @@ where
         inconclusive_suites,
         missing_suites,
         declared_limitations: declared_limitations.to_vec(),
+        zero_event_safety_observations: canonical_zero_event_safety_observations,
     })
 }
