@@ -79,6 +79,14 @@ PR #72 records browser-process RSS, semantic-observation bytes, action latency, 
 
 This is resource evidence for the active test harness, not process-set attribution or a product resource adapter. It does not discover Chromium children, prove task ownership or ancestry, walk cgroups, sample GPU/VRAM, or export durable product telemetry.
 
+### PR #73 — bounded Chromium process-set resource evidence
+
+**Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
+
+PR #73 derives a bounded Chromium process count and process-set RSS from one Linux `/proc` snapshot, binding each sampled status file to its directory PID and rejecting proc-entry symlinks. It also contains the local fixture server within its configured root and records only a bounded failure type when a trial fails.
+
+This remains test-harness evidence, not trusted production process attribution or a product resource adapter. It does not prove cgroup/task ownership, GPU/VRAM accounting, durable telemetry, or the shipped browser runtime's process authority.
+
 ## 4. Non-transitive success semantics
 
 The intended first-slice chain is:
@@ -120,9 +128,10 @@ The first real Chromium vertical slice remains distributed across bounded active
 - PR #65 — controlled hostile local Agent Task workflow fixture; and
 - PR #70 — real WebDriver execution of that fixture on pinned Chrome, without claiming a product browser adapter; and
 - PR #71 — browser-computed role/name evidence before controlled action, without claiming a product semantic observer; and
-- PR #72 — bounded browser-process RSS, semantic-observation byte, latency, and task-duration resource evidence, without claiming process-set attribution or a product resource adapter.
+- PR #72 — bounded browser-process RSS, semantic-observation byte, latency, and task-duration resource evidence, without claiming process-set attribution or a product resource adapter; and
+- PR #73 — bounded Chromium process count and process-set RSS evidence from one proc snapshot, without claiming trusted production process attribution or a product resource adapter.
 
-These active PRs are non-shipped evidence. PR #70/#71/#72 prove bounded browser-level, semantic, and resource evidence, but the active set does not itself compose WebDriver BiDi/CDP transport, OriginWeave authority translation, trusted Chromium process attribution, policy-authorized real input dispatch, causal post-condition observation, or deterministic end-to-end teardown/recovery into one protected-main runtime.
+These active PRs are non-shipped evidence. PR #70/#71/#72/#73 prove bounded browser-level, semantic, and resource evidence, but the active set does not itself compose WebDriver BiDi/CDP transport, OriginWeave authority translation, trusted Chromium process attribution, policy-authorized real input dispatch, causal post-condition observation, or deterministic end-to-end teardown/recovery into one protected-main runtime.
 
 ## 6. Remaining issue #28 boundary
 
