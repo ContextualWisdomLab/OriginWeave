@@ -24,7 +24,7 @@ pub use core_contracts::{
     MAX_VISIBLE_TEXT_BYTES, NodeActionKind, NodeHandleError, ObservationChannel, Origin,
     OriginError, PolicyContext, RegistryObservedNodeHandle as ObservedNodeHandle, RiskClass,
     RobotsDecision, SecretDelivery, SemanticNodeObservation, SemanticNodeObservationError,
-    SemanticNodeObservationInput, SessionMode,
+    SemanticNodeObservationInput, SemanticNodeQuery, SemanticNodeQueryError, SessionMode,
     evaluate_extension_authority_access as evaluate_extension_access,
 };
 

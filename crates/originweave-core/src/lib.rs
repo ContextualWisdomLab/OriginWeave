@@ -43,5 +43,6 @@ pub use extension_authority::{
 pub use semantic_observation::{
     MAX_ACCESSIBLE_NAME_BYTES, MAX_SEMANTIC_CHILDREN, MAX_SEMANTIC_ROLE_BYTES,
     MAX_VISIBLE_TEXT_BYTES, NodeActionKind, ObservationChannel, SemanticNodeObservation,
-    SemanticNodeObservationError, SemanticNodeObservationInput,
+    SemanticNodeObservationError, SemanticNodeObservationInput, SemanticNodeQuery,
+    SemanticNodeQueryError,
 };
