@@ -103,5 +103,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Hard RAM and VRAM pressure pauses the active agent and rejects new admission; hard VRAM pressure also offloads a resident local model.
 - The hourly product agent has no Git metadata or repository authority. A separate post-verification publisher opens one PR and cannot approve or merge it.
 - The unprivileged OpenCode user is restricted to loopback egress during model execution, preventing runner-wide allow-listed endpoints from becoming direct source-exfiltration channels.
+- WARC resource-record debug output now omits untrusted Content-Type parameters while retaining the full validated media type for WARC serialization.
+- Active PR #210 now bounds WARC target URIs at the shared path ceiling and reuses the shared source-URL parser, rejecting non-IP-literal bracketed authorities before provenance comparison; this remains active-PR evidence only.
 
 [Unreleased]: https://github.com/ContextualWisdomLab/OriginWeave/compare/main...HEAD
