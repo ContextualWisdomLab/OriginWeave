@@ -7,6 +7,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Refreshed the product-gap queue to 126 open pull requests (54 ready, 72 draft) after #190, #188, #185, #192, #182, #184, #115, #181, #116, #117, #118, #183, #114, #127, #112, #109, #186, #110, #108, #111, #174, and #113 were merged into their immediate stacked prerequisites. PRs #147, #146, #145, #144, #143, #142, #141, #139, #136, #132, #129, and #128 moved to ready after exact-head checks and thread review; these are queue-consolidation results, not protected-main shipment.
 
 - Classified bounded WebDriver HTTP cleanup failures, including truncated responses, as typed cleanup evidence while preserving the primary browser error.
+- Record truncated WebDriver trial responses as bounded failed-trial evidence instead of aborting the complete MV3 compatibility run.
 - Close the first pinned-Chrome fixture server when startup of the second server fails, and attempt both shutdowns when one cleanup fails, preventing partial compatibility runs from leaking loopback server threads.
 ### Added
 - Corrected the 2026-08-26 product-gap snapshot with current #229 presentation-identity evidence, stacked-only #205 integration evidence, current base/head pairs, the 126-PR queue count, explicit root-versus-child merge ordering, and the active GitHub counted-approval gate.

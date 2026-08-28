@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import io
 import http.client
 import inspect
 import os
 import pathlib
 import runpy
 import unittest
+from contextlib import redirect_stdout
 from unittest.mock import patch
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -114,6 +116,51 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
         self.assertIs(raised.exception.__cause__, primary)
         self.assertEqual(raised.exception.cleanup_error_type, "IncompleteRead")
         self.assertNotIn("partial", str(raised.exception))
+
+    def test_agent_task_response_failure_is_recorded_as_a_failed_trial(self) -> None:
+        """A truncated WebDriver response must become bounded failed-trial evidence."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_trial_failure_contract")
+        main_globals = namespace["main"].__globals__
+
+        class FakeServer:
+            server_port = 9515
+
+        servers_started = 0
+
+        def start_fixture_server(_directory: pathlib.Path) -> tuple[FakeServer, object]:
+            nonlocal servers_started
+            servers_started += 1
+            return FakeServer(), object()
+
+        def successful_restart_trial(*_args: object, **_kwargs: object) -> dict[str, object]:
+            return {"trial_number": 1, "passed": True, "surfaces": {"worker": True}}
+
+        def truncated_agent_task_response(
+            *_args: object, **_kwargs: object
+        ) -> dict[str, object]:
+            raise http.client.IncompleteRead(b"partial", 32)
+
+        main_globals.update(
+            {
+                "_start_fixture_server": start_fixture_server,
+                "_stop_fixture_server": lambda *_args: None,
+                "_run_restart_trial": successful_restart_trial,
+                "_run_agent_task_trial": truncated_agent_task_response,
+                "REPEATABILITY_TRIALS": 1,
+                "AGENT_TASK_REPEATABILITY_TRIALS": 1,
+            }
+        )
+        with patch.dict(
+            os.environ,
+            {"CHROME_BIN": "/bin/sh", "CHROMEDRIVER_BIN": "/bin/sh"},
+        ), redirect_stdout(io.StringIO()), self.assertRaisesRegex(
+            RuntimeError,
+            r"^Agent Task repeatability gate failed: 0/1 trials passed$",
+        ):
+            namespace["main"]()
+
+        self.assertEqual(servers_started, 2)
 
     def test_unexpected_cleanup_programming_failure_is_not_normalized(self) -> None:
         """Programming failures in cleanup must propagate rather than enter fallback handling."""
