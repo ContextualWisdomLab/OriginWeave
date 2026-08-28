@@ -73,6 +73,64 @@ pub enum BenchmarkSuiteOutcome {
     Inconclusive,
 }
 
+/// Zero-observed-event safety evidence with an explicit one-sided confidence bound.
+///
+/// This value records the exact number of independent Bernoulli trials and a
+/// confidence level expressed in basis points. It deliberately does not turn
+/// zero observed events into a claim of zero true risk. Instead,
+/// [`Self::upper_event_rate`] reports the exact one-sided Clopper-Pearson upper
+/// confidence bound for the event probability when zero events were observed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ZeroEventSafetyEvidence {
+    trial_count: u64,
+    confidence_basis_points: u16,
+}
+
+impl ZeroEventSafetyEvidence {
+    /// Construct zero-event safety evidence from a nonzero trial count and a
+    /// confidence level in `1..=9999` basis points.
+    pub fn new(
+        trial_count: u64,
+        confidence_basis_points: u16,
+    ) -> Result<Self, ReleaseDecisionError> {
+        if trial_count == 0 {
+            return Err(ReleaseDecisionError::MissingSafetyTrials);
+        }
+        if confidence_basis_points == 0 || confidence_basis_points >= 10_000 {
+            return Err(ReleaseDecisionError::InvalidSafetyConfidenceBasisPoints);
+        }
+        Ok(Self {
+            trial_count,
+            confidence_basis_points,
+        })
+    }
+
+    /// Return the exact number of zero-event trials represented by this evidence.
+    #[must_use]
+    pub const fn trial_count(self) -> u64 {
+        self.trial_count
+    }
+
+    /// Return the requested one-sided confidence level in basis points.
+    #[must_use]
+    pub const fn confidence_basis_points(self) -> u16 {
+        self.confidence_basis_points
+    }
+
+    /// Return the exact one-sided binomial upper confidence bound for the event rate.
+    ///
+    /// For zero observed events in `n` trials and confidence `c`, this is
+    /// `1 - (1 - c)^(1/n)`. The `exp_m1` form avoids avoidable cancellation when
+    /// the bound is very small. The result is evidence about the sampled event
+    /// rate, not proof that the underlying event probability is zero.
+    #[must_use]
+    pub fn upper_event_rate(self) -> f64 {
+        let confidence = f64::from(self.confidence_basis_points) / 10_000.0;
+        let alpha = 1.0 - confidence;
+        -(alpha.ln() / self.trial_count as f64).exp_m1()
+    }
+}
+
 /// One explicit narrowed release claim and its buyer-visible consequence.
 ///
 /// An accepted-with-limitations decision cannot be produced from an opaque
@@ -202,6 +260,10 @@ pub enum ReleaseDecision {
 /// Fail-closed input error while constructing a release decision.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReleaseDecisionError {
+    /// A zero-event safety claim did not include any observed trial.
+    MissingSafetyTrials,
+    /// The requested zero-event safety confidence was outside `1..=9999` basis points.
+    InvalidSafetyConfidenceBasisPoints,
     /// A declared limitation did not identify the unsupported release claim.
     EmptyLimitationClaim,
     /// A declared limitation claim exceeded the fixed UTF-8 byte budget.
@@ -225,6 +287,12 @@ pub enum ReleaseDecisionError {
 impl fmt::Display for ReleaseDecisionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::MissingSafetyTrials => {
+                formatter.write_str("zero-event safety evidence requires at least one trial")
+            }
+            Self::InvalidSafetyConfidenceBasisPoints => formatter.write_str(
+                "zero-event safety confidence must be between 1 and 9999 basis points",
+            ),
             Self::EmptyLimitationClaim => {
                 formatter.write_str("declared release limitation must name an unsupported claim")
             }
