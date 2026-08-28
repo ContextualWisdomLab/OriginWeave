@@ -11,7 +11,8 @@ const DATE: &str = "2026-08-28T00:00:00Z";
 
 #[test]
 fn provenance_and_warc_preserve_query_bearing_resource_urls_without_debug_disclosure() {
-    let source_url = "https://example.com/search?q=private%20term&access_token=secret";
+    let source_url =
+        "https://example.com/search?next=/private?term=private%20term&access_token=secret";
     let provenance = ProvenanceRecord::new(
         source_url,
         "body",
@@ -57,6 +58,7 @@ fn provenance_query_support_does_not_admit_fragments_or_unsafe_uri_octets() {
         "https://example.com/search?q=%",
         "https://example.com/search?q=%2",
         "https://example.com/search?q=%GG",
+        "https://example.com/search?q=%2G",
     ] {
         assert_eq!(
             ProvenanceRecord::new(
