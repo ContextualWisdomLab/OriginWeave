@@ -105,7 +105,7 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         """OpenCode dispatch authorization failures must remain explicit blockers."""
         for marker in (
             "A direct central `opencode-review` dispatch run `33192478312` / job `98921183278` was rejected",
-            "On current head `5bd7991c71a7d542aa8779194033e64ab43a506f`, automatic OpenCode run `33192261383` / job `98920524559` failed closed",
+            "On the immediately preceding PR #238 head `5bd7991c71a7d542aa8779194033e64ab43a506f` (before this baseline commit), automatic OpenCode run `33192261383` / job `98920524559` failed closed",
             "central `opencode-review` dispatch run `33192483900` / job `98921203971` was rejected",
             "repository_dispatch actor `seonghobae` did not match configured scheduler identity `github-actions[bot]`",
         ):
