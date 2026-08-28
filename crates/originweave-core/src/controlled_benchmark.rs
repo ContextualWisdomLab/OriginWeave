@@ -1,6 +1,6 @@
 //! Deterministic acceptance policy for the controlled benchmark suite.
 //!
-//! This module evaluates already-collected, credential-free aggregate evidence.
+//! This module evaluates already-collected, credential-free trial evidence.
 //! It does not execute a browser, authenticate evidence, select or license a
 //! corpus, or establish provenance by itself; those responsibilities belong to
 //! the benchmark runner and evidence pipeline. Individual case outcomes remain
@@ -161,7 +161,12 @@ pub enum ControlledBenchmarkCaseOutcome {
     Inconclusive,
 }
 
-/// Aggregate evidence supplied by a trusted controlled-benchmark runner.
+/// Canonical aggregate evidence derived from controlled-benchmark trials.
+///
+/// Release-level suite authority does not accept this aggregate directly. Use
+/// [`aggregate_controlled_benchmark_trials`] for case-level diagnostics or pass
+/// raw [`ControlledBenchmarkTrialEvidence`] through [`ControlledBenchmarkCaseTrials`]
+/// to [`evaluate_controlled_benchmark_suite`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ControlledBenchmarkCaseEvidence {
     /// Number of canonical trials represented by this evidence bundle.
@@ -198,6 +203,19 @@ pub struct ControlledBenchmarkTrialEvidence {
     pub provenance_complete: bool,
     /// Unauthorized side-effect events observed during this trial.
     pub unauthorized_side_effects: u32,
+}
+
+/// Raw trial evidence for one stable controlled-benchmark case identity.
+///
+/// The suite evaluator owns aggregate derivation from these trials. Keeping the
+/// case identity and trial observations together prevents callers from minting a
+/// passing release-level suite result by supplying fabricated aggregate counters.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ControlledBenchmarkCaseTrials {
+    /// Stable case identity bound to the controlled registry version.
+    pub case_id: ControlledBenchmarkCaseId,
+    /// Raw canonical trial observations for this case.
+    pub trials: Vec<ControlledBenchmarkTrialEvidence>,
 }
 
 /// Invalid trial-level evidence supplied to the canonical aggregate boundary.
@@ -358,7 +376,7 @@ impl fmt::Display for ControlledBenchmarkError {
 impl std::error::Error for ControlledBenchmarkError {}
 
 /// Structurally or semantically invalid controlled-suite case evidence.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ControlledBenchmarkSuiteError {
     /// The declared support profile describes an impossible dependency combination.
     InvalidSupportProfile,
@@ -374,9 +392,16 @@ pub enum ControlledBenchmarkSuiteError {
         /// Conditional case outside the declared support profile.
         case_id: ControlledBenchmarkCaseId,
     },
-    /// Raw evidence for one case is malformed or non-canonical.
+    /// Trial evidence for one case is malformed or non-canonical.
+    InvalidTrialEvidence {
+        /// Case whose raw trial evidence failed canonical aggregation.
+        case_id: ControlledBenchmarkCaseId,
+        /// Trial aggregation error preserving the first causal boundary.
+        source: ControlledBenchmarkTrialAggregationError,
+    },
+    /// Derived aggregate evidence for one case is malformed or non-canonical.
     InvalidCaseEvidence {
-        /// Case whose aggregate evidence failed validation.
+        /// Case whose derived aggregate evidence failed validation.
         case_id: ControlledBenchmarkCaseId,
         /// Case-level validation error preserving the first causal boundary.
         source: ControlledBenchmarkError,
@@ -402,6 +427,11 @@ impl fmt::Display for ControlledBenchmarkSuiteError {
                 "controlled benchmark suite contains {} evidence outside the declared support profile",
                 case_id.as_str()
             ),
+            Self::InvalidTrialEvidence { case_id, source } => write!(
+                formatter,
+                "controlled benchmark suite case {} has invalid trial evidence: {source}",
+                case_id.as_str()
+            ),
             Self::InvalidCaseEvidence { case_id, source } => write!(
                 formatter,
                 "controlled benchmark suite case {} has invalid evidence: {source}",
@@ -414,6 +444,7 @@ impl fmt::Display for ControlledBenchmarkSuiteError {
 impl std::error::Error for ControlledBenchmarkSuiteError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::InvalidTrialEvidence { source, .. } => Some(source),
             Self::InvalidCaseEvidence { source, .. } => Some(source),
             Self::InvalidSupportProfile
             | Self::RegistryVersionMismatch
@@ -486,38 +517,37 @@ pub fn evaluate_controlled_benchmark_case(
     Ok(ControlledBenchmarkCaseOutcome::Passed)
 }
 
-/// Evaluate raw evidence for the authoritative controlled case registry.
+/// Evaluate raw trial evidence for the authoritative controlled case registry.
 ///
 /// The caller must bind the supplied evidence to the exact current
 /// [`CONTROLLED_DETERMINISTIC_REGISTRY_VERSION`]. A mismatched registry version
 /// fails closed before any case evidence can influence the suite outcome. The
 /// declared support profile is also validated before evidence admission: native
 /// messaging cannot be claimed without the Manifest V3 extension surface that
-/// owns that capability. The suite boundary accepts raw
-/// [`ControlledBenchmarkCaseEvidence`] rather than caller-constructed case
-/// outcomes, so release-level suite authority cannot be minted by fabricating
-/// [`ControlledBenchmarkCaseOutcome::Passed`]. Structural registry checks run
-/// before case threshold evaluation: duplicate identities or evidence for an
-/// undeclared conditional surface fail closed first. Every structurally accepted
-/// case is then evaluated by [`evaluate_controlled_benchmark_case`]. A known
-/// failure in any required case yields [`BenchmarkSuiteOutcome::Failed`]. Missing
-/// or inconclusive required evidence yields [`BenchmarkSuiteOutcome::Inconclusive`].
-/// Only raw evidence that evaluates to one passing outcome for every case required
-/// by the declared support profile yields [`BenchmarkSuiteOutcome::Passed`]. This
-/// function establishes evidence only for the controlled deterministic suite;
-/// release acceptance still requires the other mandatory benchmark suites
-/// independently.
+/// owns that capability. The release-level suite boundary accepts raw trial
+/// observations grouped in [`ControlledBenchmarkCaseTrials`] and derives each
+/// aggregate itself with [`aggregate_controlled_benchmark_trials`]. Callers cannot
+/// mint suite authority by supplying aggregate counters or precomputed passing
+/// case outcomes. Structural registry checks run before threshold evaluation:
+/// duplicate identities or evidence for an undeclared conditional surface fail
+/// closed first. A known failure in any required case yields
+/// [`BenchmarkSuiteOutcome::Failed`]. Missing or inconclusive required evidence
+/// yields [`BenchmarkSuiteOutcome::Inconclusive`]. Only trial evidence that derives
+/// one passing outcome for every case required by the declared support profile
+/// yields [`BenchmarkSuiteOutcome::Passed`]. This function establishes evidence
+/// only for the controlled deterministic suite; release acceptance still requires
+/// the other mandatory benchmark suites independently.
 ///
 /// # Errors
 ///
 /// Returns [`ControlledBenchmarkSuiteError`] for an invalid support-profile
 /// dependency combination, registry-version mismatch, duplicate case identities,
-/// evidence for a conditional case outside the declared support profile, or
-/// malformed/non-canonical raw evidence for any supplied case.
+/// evidence for a conditional case outside the declared support profile, malformed
+/// trial evidence, or malformed/non-canonical derived case evidence.
 pub fn evaluate_controlled_benchmark_suite(
     registry_version: &str,
     profile: ControlledBenchmarkSupportProfile,
-    cases: &[(ControlledBenchmarkCaseId, ControlledBenchmarkCaseEvidence)],
+    cases: &[ControlledBenchmarkCaseTrials],
 ) -> Result<BenchmarkSuiteOutcome, ControlledBenchmarkSuiteError> {
     if profile.native_messaging && !profile.manifest_v3 {
         return Err(ControlledBenchmarkSuiteError::InvalidSupportProfile);
@@ -529,7 +559,8 @@ pub fn evaluate_controlled_benchmark_suite(
 
     let mut observed = BTreeSet::new();
 
-    for &(case_id, _) in cases {
+    for case in cases {
+        let case_id = case.case_id;
         if !case_id.required_for(profile) {
             return Err(ControlledBenchmarkSuiteError::UnexpectedConditionalCase { case_id });
         }
@@ -540,7 +571,11 @@ pub fn evaluate_controlled_benchmark_suite(
 
     let mut any_failed = false;
     let mut any_inconclusive = false;
-    for &(case_id, evidence) in cases {
+    for case in cases {
+        let case_id = case.case_id;
+        let evidence = aggregate_controlled_benchmark_trials(&case.trials).map_err(|source| {
+            ControlledBenchmarkSuiteError::InvalidTrialEvidence { case_id, source }
+        })?;
         let outcome = evaluate_controlled_benchmark_case(evidence).map_err(|source| {
             ControlledBenchmarkSuiteError::InvalidCaseEvidence { case_id, source }
         })?;
