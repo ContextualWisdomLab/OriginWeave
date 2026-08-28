@@ -57,7 +57,7 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
             "| #70 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `441a8ce1d09c329c5c1168f4906d9a38fd0abc01` |",
             "| #82 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `f5776f5f233ac0a7c05e3f4a2846436c23438043` |",
             "| #152 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `81407a0e5189a413d1be0963fea90a0c2f254ce1` |",
-            "| #210 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `bea65643109449d63d367a35b8d9bf327ee7cb2c` |",
+            "| #210 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `66f360ccac5cec60c72222cc79d58e39f6f00088` |",
             "| #237 | Draft | `542ca1e9c0a863595b8b6697790005d2471f5413` | `2459af602e72fbfe1ce816919473a1075ec0c41f` |",
             "| #239 | Draft | `e45cd6cdcdee73b5c16dc942e6c98cb7e745fae0` | `e840ca299d29a15223c8b9bb1397002c4f41b4a3` |",
             "| #229 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `0145ccba5901e301b41d4be674ca1ed23483ad37` |",
@@ -81,7 +81,7 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         self.assertEqual(1, len(refresh_lines))
         refresh_line = refresh_lines[0]
         self.assertIn("on 2026-08-29", refresh_line)
-        self.assertIn("110 open pull requests (26 ready, 84 draft)", refresh_line)
+        self.assertIn("109 open pull requests (25 ready, 84 draft)", refresh_line)
         self.assertIn("11 open issues", refresh_line)
         self.assertNotIn("- Corrected the 2026-08-28 product-gap snapshot", added)
         self.assertNotIn("- Revalidated the product-gap queue at", changed)
@@ -91,12 +91,12 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         self.assertNotIn("153 open pull requests (39 ready, 114 draft)", refresh_line)
 
     def test_current_warc_provider_failures_are_bound_to_current_head(self) -> None:
-        """WARC provider failures must not rely only on a superseded head's runs."""
+        """WARC evidence must describe the current parent head after stack merge."""
         for marker in (
-            "PR #210 current exact head `bea65643109449d63d367a35b8d9bf327ee7cb2c`",
-            "run `33183939299` / job `98894420986` failed closed because no OpenCode current-head verdict existed",
-            "run `33183939193` / job `98892185954` failed closed after three provider HTTP 500 attempts",
-            "attempt-2 rerun `33172708455` / job `98915847518` also failed closed after three provider HTTP 500 attempts",
+            "PR #210 current exact head is `66f360ccac5cec60c72222cc79d58e39f6f00088`",
+            "`opencode-review` job `98931501473` is queued",
+            "`Production coverage` job `98931213826`, `Rust contracts` job `98931213574`, and `strix` job `98931205643` are in progress",
+            "Its prior exact head `bea65643109449d63d367a35b8d9bf327ee7cb2c` and its OpenCode/Strix provider failures remain historical evidence only",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, self.baseline)
@@ -105,9 +105,9 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         """OpenCode dispatch authorization failures must remain explicit blockers."""
         for marker in (
             "A direct central `opencode-review` dispatch run `33192478312` / job `98921183278` was rejected",
-            "On the immediately preceding PR #238 head `5bd7991c71a7d542aa8779194033e64ab43a506f` (before this baseline commit), automatic OpenCode run `33192261383` / job `98920524559` failed closed",
-            "central `opencode-review` dispatch run `33192483900` / job `98921203971` was rejected",
-            "repository_dispatch actor `seonghobae` did not match configured scheduler identity `github-actions[bot]`",
+            "PR #238 current exact head is `d0b0d1ed92f891f14646fc673b8e1c0d912586fd`",
+            "automatic OpenCode run `33193822920` / job `98926243116` failed closed without a current-head verdict",
+            "Central dispatch run `33194506918` / job `98928580387` also failed closed at OpenCode",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, self.baseline)
