@@ -124,10 +124,7 @@ impl CaptureLifecycle {
     }
 
     /// Mark a completed capture independently verified.
-    pub fn verify(
-        &mut self,
-        trusted_time_epoch_seconds: u64,
-    ) -> Result<(), CaptureLifecycleError> {
+    pub fn verify(&mut self, trusted_time_epoch_seconds: u64) -> Result<(), CaptureLifecycleError> {
         self.observe_trusted_time(trusted_time_epoch_seconds)?;
         self.require_state(CaptureLifecycleState::CaptureCompleted)?;
         self.state = CaptureLifecycleState::Verified;
