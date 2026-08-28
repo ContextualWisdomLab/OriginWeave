@@ -134,6 +134,8 @@ impl ControlledBenchmarkCaseId {
 ///
 /// A false field means that surface is outside the declared support profile; it
 /// does not convert evidence for that surface into a passing or skipped case.
+/// Native messaging is an extension capability, so a profile that claims native
+/// messaging while omitting Manifest V3 support is structurally invalid.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ControlledBenchmarkSupportProfile {
     /// Whether the release claims Manifest V3 extension support.
@@ -222,6 +224,8 @@ impl std::error::Error for ControlledBenchmarkError {}
 /// Structurally or semantically invalid controlled-suite case evidence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ControlledBenchmarkSuiteError {
+    /// The declared support profile describes an impossible dependency combination.
+    InvalidSupportProfile,
     /// Evidence belongs to a different controlled deterministic registry version.
     RegistryVersionMismatch,
     /// One stable case identity appears more than once in the supplied suite evidence.
@@ -246,6 +250,9 @@ pub enum ControlledBenchmarkSuiteError {
 impl fmt::Display for ControlledBenchmarkSuiteError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::InvalidSupportProfile => formatter.write_str(
+                "controlled benchmark support profile cannot claim native messaging without Manifest V3 extension support",
+            ),
             Self::RegistryVersionMismatch => formatter.write_str(
                 "controlled benchmark suite evidence registry version does not match the required registry",
             ),
@@ -272,7 +279,8 @@ impl std::error::Error for ControlledBenchmarkSuiteError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::InvalidCaseEvidence { source, .. } => Some(source),
-            Self::RegistryVersionMismatch
+            Self::InvalidSupportProfile
+            | Self::RegistryVersionMismatch
             | Self::DuplicateCase { .. }
             | Self::UnexpectedConditionalCase { .. } => None,
         }
@@ -339,31 +347,38 @@ pub fn evaluate_controlled_benchmark_case(
 /// The caller must bind the supplied evidence to the exact current
 /// [`CONTROLLED_DETERMINISTIC_REGISTRY_VERSION`]. A mismatched registry version
 /// fails closed before any case evidence can influence the suite outcome. The
-/// suite boundary accepts raw [`ControlledBenchmarkCaseEvidence`] rather than
-/// caller-constructed case outcomes, so release-level suite authority cannot be
-/// minted by fabricating [`ControlledBenchmarkCaseOutcome::Passed`]. Structural
-/// registry checks run before case threshold evaluation: duplicate identities or
-/// evidence for an undeclared conditional surface fail closed first. Every
-/// structurally accepted case is then evaluated by [`evaluate_controlled_benchmark_case`].
-/// A known failure in any required case yields [`BenchmarkSuiteOutcome::Failed`].
-/// Missing or inconclusive required evidence yields
-/// [`BenchmarkSuiteOutcome::Inconclusive`]. Only raw evidence that evaluates to
-/// one passing outcome for every case required by the declared support profile
-/// yields [`BenchmarkSuiteOutcome::Passed`]. This function establishes evidence
-/// only for the controlled deterministic suite; release acceptance still requires
-/// the other mandatory benchmark suites independently.
+/// declared support profile is also validated before evidence admission: native
+/// messaging cannot be claimed without the Manifest V3 extension surface that
+/// owns that capability. The suite boundary accepts raw
+/// [`ControlledBenchmarkCaseEvidence`] rather than caller-constructed case
+/// outcomes, so release-level suite authority cannot be minted by fabricating
+/// [`ControlledBenchmarkCaseOutcome::Passed`]. Structural registry checks run
+/// before case threshold evaluation: duplicate identities or evidence for an
+/// undeclared conditional surface fail closed first. Every structurally accepted
+/// case is then evaluated by [`evaluate_controlled_benchmark_case`]. A known
+/// failure in any required case yields [`BenchmarkSuiteOutcome::Failed`]. Missing
+/// or inconclusive required evidence yields [`BenchmarkSuiteOutcome::Inconclusive`].
+/// Only raw evidence that evaluates to one passing outcome for every case required
+/// by the declared support profile yields [`BenchmarkSuiteOutcome::Passed`]. This
+/// function establishes evidence only for the controlled deterministic suite;
+/// release acceptance still requires the other mandatory benchmark suites
+/// independently.
 ///
 /// # Errors
 ///
-/// Returns [`ControlledBenchmarkSuiteError`] for a registry-version mismatch,
-/// duplicate case identities, evidence for a conditional case outside the
-/// declared support profile, or malformed/non-canonical raw evidence for any
-/// supplied case.
+/// Returns [`ControlledBenchmarkSuiteError`] for an invalid support-profile
+/// dependency combination, registry-version mismatch, duplicate case identities,
+/// evidence for a conditional case outside the declared support profile, or
+/// malformed/non-canonical raw evidence for any supplied case.
 pub fn evaluate_controlled_benchmark_suite(
     registry_version: &str,
     profile: ControlledBenchmarkSupportProfile,
     cases: &[(ControlledBenchmarkCaseId, ControlledBenchmarkCaseEvidence)],
 ) -> Result<BenchmarkSuiteOutcome, ControlledBenchmarkSuiteError> {
+    if profile.native_messaging && !profile.manifest_v3 {
+        return Err(ControlledBenchmarkSuiteError::InvalidSupportProfile);
+    }
+
     if registry_version != CONTROLLED_DETERMINISTIC_REGISTRY_VERSION {
         return Err(ControlledBenchmarkSuiteError::RegistryVersionMismatch);
     }
