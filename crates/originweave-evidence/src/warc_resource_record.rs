@@ -96,11 +96,17 @@ pub struct WarcResourceRecord {
 
 impl fmt::Debug for WarcResourceRecord {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let content_type = self
+            .content_type
+            .split_once(';')
+            .map_or(self.content_type.as_str(), |(essence, _)| {
+                essence.trim_end_matches([' ', '\t'])
+            });
         formatter
             .debug_struct("WarcResourceRecord")
             .field("record_id", &self.record_id)
             .field("warc_date", &self.warc_date)
-            .field("content_type", &self.content_type)
+            .field("content_type", &content_type)
             .field("payload_byte_count", &self.payload.len())
             .field("block_digest", &self.block_digest)
             .field("completeness", &self.completeness)
