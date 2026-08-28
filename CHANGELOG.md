@@ -4,6 +4,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Revalidated the product-gap queue at 110 open pull requests (26 ready, 84 draft) on 2026-08-29; refreshed protected-main `542ca1e9` and PR #46 exact-head evidence at `373113119446d99f578febd39efc19366e7736b1` after its ADR 0007 authority-boundary repair. Current hosted checks and independent approval remain required; no protected-main shipment is claimed.
 - Refreshed the product-gap queue to 110 open pull requests (26 ready, 84 draft) on 2026-08-28 after #53, #71, #154, #233, #234, and #235 merged into unprotected feature parents; these are queue evidence, not protected-main shipment.
 
 ### Added

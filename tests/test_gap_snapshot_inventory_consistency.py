@@ -22,7 +22,7 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
     def test_current_baseline_inventory_matches_the_verified_snapshot(self) -> None:
         """The current snapshot must use the exact 110/26/84 inventory observation."""
         current = self.baseline.split("### Open pull requests", 1)[1].split(
-            "#### 2026-08-28 maintenance-loop record", 1
+            "#### 2026-08-29 maintenance-loop record", 1
         )[0]
         for marker in (
             "110 open pull requests",

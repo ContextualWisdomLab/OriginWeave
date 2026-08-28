@@ -2,7 +2,7 @@
 
 This is a dated delivery baseline, not a substitute for the PRD, TRD, roadmap, architecture decisions, or live GitHub state. It keeps buyer-visible gaps, current issues, active pull-request evidence, and commercial completion tracks in one discoverable place. Protected `main` is the implementation boundary: code in an open pull request is not shipped behavior.
 
-## Observed snapshot: 2026-08-28
+## Observed snapshot: 2026-08-29
 
 ### Protected-main truth
 
@@ -14,15 +14,15 @@ This is a dated delivery baseline, not a substitute for the PRD, TRD, roadmap, a
 
 ### Open pull requests
 
-The live repository contained **110 open pull requests: 26 non-draft and 84 draft** when this snapshot re-paginated the complete open inventory. Compared with the prior **2026-08-28 111-PR snapshot**, stacked evidence PR #53 was merged into its unprotected feature parent; the preceding **2026-08-28 116-PR snapshot** had already recorded #71, #154, #233, #234, and #235 merging into their unprotected feature parents. None reached protected `main`. These counts are queue evidence, not protected-main delivery; protected `main` remains `542ca1e9c0a863595b8b6697790005d2471f5413`, with 11 open issues and no releases or tags. The volume and stack depth remain themselves a product-delivery risk: review, exact-head checks, dependency order, and integration truth can drift faster than a buyer-visible vertical slice reaches protected `main`.
+The live repository contained **110 open pull requests: 26 non-draft and 84 draft** when this snapshot re-paginated the complete open inventory. Compared with the prior **2026-08-28 111-PR snapshot**, stacked evidence PR #53 was merged into its unprotected feature parent; the preceding **2026-08-28 116-PR snapshot** had already recorded #71, #154, #233, #234, and #235 merging into their unprotected feature parents. The 2026-08-29 exact-head recheck changed no queue counts. None reached protected `main`. These counts are queue evidence, not protected-main delivery; protected `main` remains `542ca1e9c0a863595b8b6697790005d2471f5413`, with 11 open issues and no releases or tags. The volume and stack depth remain themselves a product-delivery risk: review, exact-head checks, dependency order, and integration truth can drift faster than a buyer-visible vertical slice reaches protected `main`.
 
-#### 2026-08-28 maintenance-loop record
+#### 2026-08-29 maintenance-loop record
 
 This snapshot re-fetched the complete open-PR inventory, the protected `main` commit, the active required-workflow ruleset, collaborator permissions, and the exact base/head pair for each representative PR. Before PR #238 was published, the same maintenance loop observed 115 open pull requests (31 ready, 84 draft); a later 116-PR recheck preceded five stack merges, leaving 111 open pull requests (27 ready, 84 draft), and the exact current recheck leaves 110 open pull requests (26 ready, 84 draft) after #53 merged. The active ruleset still requires one counted approving review and resolved threads; the only repository collaborator is `seonghobae`, so review provisioning remains the merge blocker for main-targeting PRs. PR #170 is merged and is not active-PR evidence.
 
 During this recheck, #71, #154, #233, #234, and #235 were merged only into their unprotected feature-parent branches after exact current-head checks and review-thread resolution. Their successful stack checks are not protected-main delivery, and their child branches retain independent evidence requirements.
 
-The sensitive-data child slice #53 was subsequently squash-merged into the unprotected #46 feature branch at merge commit `93c713a107df05385f745db4dca20091f21c4a3a` after exact-head Rust/coverage checks passed and current inline review threads were resolved. PR #46 remains an active main-targeting parent and still requires its own current-head evidence and legitimate approval.
+The sensitive-data child slice #53 was subsequently squash-merged into the unprotected #46 feature branch at merge commit `93c713a107df05385f745db4dca20091f21c4a3a` after exact-head Rust/coverage checks passed and current inline review threads were resolved. PR #46 remains an active main-targeting parent. Its current exact base/head pair is protected `main` `542ca1e9c0a863595b8b6697790005d2471f5413` to `373113119446d99f578febd39efc19366e7736b1`; the head adds the ADR 0007 predicate-boundary clarification and regression contract, with local Python/Rust verification green. Current hosted security/review workflow runs are still pending or queued, and no qualifying non-author approval is present.
 
 The later exact-head recheck also recorded the WARC/PROV retention-lifecycle slice: #239 is Draft at `e840ca299d29a15223c8b9bb1397002c4f41b4a3` on #227 head `e45cd6cdcdee73b5c16dc942e6c98cb7e745fae0`, and #237 is Draft at `2459af602e72fbfe1ce816919473a1075ec0c41f` on protected `main`; their current exact checks and reviews remain independently actionable evidence. Neither active branch is protected-main behavior.
 
@@ -42,6 +42,7 @@ The following representative slices were re-fetched from GitHub for this snapsho
 |---|---|---|---|
 | #73 | Draft | `600d3975c02b68da1974a4c73069b966b39dce7b` | `ce1b138509ab4f52cb0f80290f104358473c6ed3` |
 | #72 | Draft | `f86ce504138e79d6e95141a441f60b40920e1fa6` | `600d3975c02b68da1974a4c73069b966b39dce7b` |
+| #46 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `373113119446d99f578febd39efc19366e7736b1` |
 | #70 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `441a8ce1d09c329c5c1168f4906d9a38fd0abc01` |
 | #82 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `f5776f5f233ac0a7c05e3f4a2846436c23438043` |
 | #210 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `bea65643109449d63d367a35b8d9bf327ee7cb2c` |
