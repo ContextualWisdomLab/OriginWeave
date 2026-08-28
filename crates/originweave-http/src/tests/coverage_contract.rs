@@ -230,22 +230,42 @@ fn response_head_rejects_status_line_line_ending_and_budget_edge_cases() {
         parse_response_head(b"HTTP/1.1 200", &policy),
         Ok(crate::response_head::HeadParseResult::Incomplete)
     ));
+
     for response in [
         b"HTTX/1.1 200 OK\r\n\r\n".as_slice(),
-        b"HTTP/1.0 200 OK\r\n\r\n",
         b"HTTP/1.1X200 OK\r\n\r\n",
         b"HTTP/1.1 2A0 OK\r\n\r\n",
         b"HTTP/1.1 200XOK\r\n\r\n",
         b"HTTP/1.1 099 Bad\r\n\r\n",
         b"HTTP/1.1 600 Bad\r\n\r\n",
         b"HTTP/1.1 200 bad\x00reason\r\n\r\n",
-        b"HTTP/1.1 200 OK\n\n",
-        b"HTTP/1.1 200 OK\rX\r\n",
-        b"HTTP/1.1 200 OK\r\n folded: x\r\n\r\n",
-        b"HTTP/1.1 200 OK\r\nmissing-colon\r\n\r\n",
     ] {
-        assert!(parse_response_head(response, &policy).is_err());
+        assert!(matches!(
+            parse_response_head(response, &policy),
+            Err(HttpError::InvalidResponseStatusLine)
+        ));
     }
+    assert!(matches!(
+        parse_response_head(b"HTTP/1.0 200 OK\r\n\r\n", &policy),
+        Err(HttpError::UnsupportedHttpVersion)
+    ));
+    for response in [
+        b"HTTP/1.1 200 OK\n\n".as_slice(),
+        b"HTTP/1.1 200 OK\rX\r\n",
+    ] {
+        assert!(matches!(
+            parse_response_head(response, &policy),
+            Err(HttpError::InvalidResponseLineEnding)
+        ));
+    }
+    assert!(matches!(
+        parse_response_head(b"HTTP/1.1 200 OK\r\n folded: x\r\n\r\n", &policy),
+        Err(HttpError::ObsoleteFieldFolding)
+    ));
+    assert!(matches!(
+        parse_response_head(b"HTTP/1.1 200 OK\r\nmissing-colon\r\n\r\n", &policy),
+        Err(HttpError::InvalidResponseFieldName)
+    ));
 
     let mut oversized_status = b"HTTP/1.1 200 ".to_vec();
     oversized_status.extend(std::iter::repeat_n(
@@ -295,11 +315,21 @@ fn chunked_parser_rejects_line_chunk_and_trailer_boundary_failures() {
         b"1\rXA\r\n0\r\n\r\n",
         b"Z\r\n",
         b"1\r\naX0\r\n\r\n",
-        b"0\r\n bad: x\r\n\r\n",
+    ] {
+        assert!(matches!(
+            parse_chunked_body(body, &policy),
+            Err(HttpError::MalformedChunkedBody)
+        ));
+    }
+    for body in [
+        b"0\r\n bad: x\r\n\r\n".as_slice(),
         b"0\r\nmissing-colon\r\n\r\n",
         b"0\r\ncontent-length: 0\r\n\r\n",
     ] {
-        assert!(parse_chunked_body(body, &policy).is_err());
+        assert!(matches!(
+            parse_chunked_body(body, &policy),
+            Err(HttpError::InvalidTrailerSection)
+        ));
     }
 
     let mut long_line = vec![b'a'; 1_026];
