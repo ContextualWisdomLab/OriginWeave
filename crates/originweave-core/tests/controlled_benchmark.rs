@@ -1,8 +1,10 @@
 use originweave_core::controlled_benchmark::{
     CONTROLLED_DETERMINISTIC_REGISTRY_VERSION, CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS,
     ControlledBenchmarkCaseEvidence, ControlledBenchmarkCaseId, ControlledBenchmarkCaseOutcome,
-    ControlledBenchmarkError, ControlledBenchmarkSuiteError, ControlledBenchmarkSupportProfile,
-    evaluate_controlled_benchmark_case, evaluate_controlled_benchmark_suite,
+    ControlledBenchmarkCaseTrials, ControlledBenchmarkError, ControlledBenchmarkSuiteError,
+    ControlledBenchmarkSupportProfile, ControlledBenchmarkTrialAggregationError,
+    ControlledBenchmarkTrialEvidence, evaluate_controlled_benchmark_case,
+    evaluate_controlled_benchmark_suite,
 };
 use originweave_core::release_acceptance::BenchmarkSuiteOutcome;
 
@@ -16,13 +18,28 @@ fn passing_evidence() -> ControlledBenchmarkCaseEvidence {
     }
 }
 
+fn passing_trials() -> Vec<ControlledBenchmarkTrialEvidence> {
+    (1..=CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS)
+        .map(|trial_ordinal| ControlledBenchmarkTrialEvidence {
+            trial_ordinal,
+            action_succeeded: true,
+            exact_post_condition: true,
+            provenance_complete: true,
+            unauthorized_side_effects: 0,
+        })
+        .collect()
+}
+
 fn required_suite_evidence(
     profile: ControlledBenchmarkSupportProfile,
-) -> Vec<(ControlledBenchmarkCaseId, ControlledBenchmarkCaseEvidence)> {
+) -> Vec<ControlledBenchmarkCaseTrials> {
     ControlledBenchmarkCaseId::ALL
         .into_iter()
         .filter(|case_id| case_id.required_for(profile))
-        .map(|case_id| (case_id, passing_evidence()))
+        .map(|case_id| ControlledBenchmarkCaseTrials {
+            case_id,
+            trials: passing_trials(),
+        })
         .collect()
 }
 
@@ -260,7 +277,10 @@ fn base_profile_requires_every_nonconditional_case_and_rejects_extra_conditional
         ControlledBenchmarkCaseId::NativeMessagingIsolation,
     ] {
         let mut with_unclaimed_case = evidence.clone();
-        with_unclaimed_case.push((conditional, passing_evidence()));
+        with_unclaimed_case.push(ControlledBenchmarkCaseTrials {
+            case_id: conditional,
+            trials: passing_trials(),
+        });
         assert_eq!(
             evaluate_controlled_benchmark_suite(
                 CONTROLLED_DETERMINISTIC_REGISTRY_VERSION,
@@ -291,7 +311,7 @@ fn declared_optional_surfaces_become_required_suite_evidence() {
         Ok(BenchmarkSuiteOutcome::Passed)
     );
 
-    evidence.retain(|(case_id, _)| *case_id != ControlledBenchmarkCaseId::ManifestV3Isolation);
+    evidence.retain(|case| case.case_id != ControlledBenchmarkCaseId::ManifestV3Isolation);
     assert_eq!(
         evaluate_controlled_benchmark_suite(
             CONTROLLED_DETERMINISTIC_REGISTRY_VERSION,
@@ -303,56 +323,47 @@ fn declared_optional_surfaces_become_required_suite_evidence() {
 }
 
 #[test]
-fn complete_registry_never_promotes_failed_or_inconclusive_case_evidence() {
+fn complete_registry_never_promotes_failed_or_inconclusive_trial_evidence() {
     let profile = ControlledBenchmarkSupportProfile {
         manifest_v3: false,
         native_messaging: false,
     };
-    let required = CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS;
-    let failed = ControlledBenchmarkCaseEvidence {
-        successful_trials: required - 1,
-        ..passing_evidence()
-    };
-    let inconclusive_trials = required - 1;
-    let inconclusive = ControlledBenchmarkCaseEvidence {
-        total_trials: inconclusive_trials,
-        successful_trials: inconclusive_trials,
-        exact_post_condition_trials: inconclusive_trials,
-        provenance_complete_trials: inconclusive_trials,
-        unauthorized_side_effects: 0,
-    };
 
-    for (case_evidence, expected_suite_outcome) in [
-        (failed, BenchmarkSuiteOutcome::Failed),
-        (inconclusive, BenchmarkSuiteOutcome::Inconclusive),
-    ] {
-        let mut evidence = required_suite_evidence(profile);
-        evidence[0].1 = case_evidence;
-        assert_eq!(
-            evaluate_controlled_benchmark_suite(
-                CONTROLLED_DETERMINISTIC_REGISTRY_VERSION,
-                profile,
-                &evidence,
-            ),
-            Ok(expected_suite_outcome)
-        );
-    }
+    let mut failed = required_suite_evidence(profile);
+    failed[0].trials[0].action_succeeded = false;
+    assert_eq!(
+        evaluate_controlled_benchmark_suite(
+            CONTROLLED_DETERMINISTIC_REGISTRY_VERSION,
+            profile,
+            &failed,
+        ),
+        Ok(BenchmarkSuiteOutcome::Failed)
+    );
+
+    let mut inconclusive = required_suite_evidence(profile);
+    inconclusive[0].trials.pop();
+    assert_eq!(
+        evaluate_controlled_benchmark_suite(
+            CONTROLLED_DETERMINISTIC_REGISTRY_VERSION,
+            profile,
+            &inconclusive,
+        ),
+        Ok(BenchmarkSuiteOutcome::Inconclusive)
+    );
 }
 
 #[test]
-fn malformed_case_evidence_fails_closed_with_case_identity_and_source() {
+fn malformed_trial_evidence_fails_closed_with_case_identity_and_source() {
     let profile = ControlledBenchmarkSupportProfile {
         manifest_v3: false,
         native_messaging: false,
     };
     let mut evidence = required_suite_evidence(profile);
-    let case_id = evidence[0].0;
-    evidence[0].1.total_trials = CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS - 1;
+    let case_id = evidence[0].case_id;
+    evidence[0].trials[1].trial_ordinal = 1;
 
-    let expected_source = ControlledBenchmarkError::CounterExceedsTrialCount {
-        counter: "successful_trials",
-        observed: CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS,
-        total_trials: CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS - 1,
+    let expected_source = ControlledBenchmarkTrialAggregationError::DuplicateTrialOrdinal {
+        trial_ordinal: 1,
     };
     let result = evaluate_controlled_benchmark_suite(
         CONTROLLED_DETERMINISTIC_REGISTRY_VERSION,
@@ -361,7 +372,7 @@ fn malformed_case_evidence_fails_closed_with_case_identity_and_source() {
     );
     assert_eq!(
         result,
-        Err(ControlledBenchmarkSuiteError::InvalidCaseEvidence {
+        Err(ControlledBenchmarkSuiteError::InvalidTrialEvidence {
             case_id,
             source: expected_source,
         })
@@ -371,7 +382,7 @@ fn malformed_case_evidence_fails_closed_with_case_identity_and_source() {
         assert_eq!(
             error.to_string(),
             format!(
-                "controlled benchmark suite case {} has invalid evidence: {expected_source}",
+                "controlled benchmark suite case {} has invalid trial evidence: {expected_source}",
                 case_id.as_str()
             )
         );
@@ -390,7 +401,8 @@ fn duplicate_case_evidence_fails_closed_before_suite_outcome_is_computed() {
         native_messaging: false,
     };
     let mut evidence = required_suite_evidence(profile);
-    let duplicate = evidence[0];
+    let duplicate = evidence[0].clone();
+    let duplicate_id = duplicate.case_id;
     evidence.push(duplicate);
 
     assert_eq!(
@@ -400,7 +412,7 @@ fn duplicate_case_evidence_fails_closed_before_suite_outcome_is_computed() {
             &evidence,
         ),
         Err(ControlledBenchmarkSuiteError::DuplicateCase {
-            case_id: duplicate.0,
+            case_id: duplicate_id,
         })
     );
 }
