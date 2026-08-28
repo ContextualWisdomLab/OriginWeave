@@ -140,8 +140,17 @@ impl std::error::Error for BapRecoveryEvidenceDigestError {}
 /// before relying on an external side-effect classification. Possession of this identity does not
 /// authenticate the evidence, prove the classified outcome, or grant retry, browser, network,
 /// secret, approval, or storage authority.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct BapRecoveryEvidenceDigest(String);
+
+impl std::fmt::Debug for BapRecoveryEvidenceDigest {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("BapRecoveryEvidenceDigest")
+            .field("algorithm", &"sha256")
+            .finish_non_exhaustive()
+    }
+}
 
 impl BapRecoveryEvidenceDigest {
     /// Construct one canonical identity from an already-computed SHA-256 output.
