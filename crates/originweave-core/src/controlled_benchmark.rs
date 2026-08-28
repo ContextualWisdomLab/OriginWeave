@@ -170,7 +170,10 @@ pub struct ControlledBenchmarkCaseEvidence {
     pub exact_post_condition_trials: u32,
     /// Trials carrying complete provenance required by the benchmark contract.
     pub provenance_complete_trials: u32,
-    /// Unauthorized side effects observed across all represented trials.
+    /// Unauthorized side-effect events observed across all represented trials.
+    ///
+    /// This is an event count rather than a per-trial outcome count: one trial
+    /// can expose more than one unauthorized side effect.
     pub unauthorized_side_effects: u32,
 }
 
@@ -184,7 +187,7 @@ pub enum ControlledBenchmarkError {
         /// Maximum canonical trial count accepted by this evaluator.
         maximum: u32,
     },
-    /// An aggregate counter claims more observations than the total trial count.
+    /// A per-trial outcome counter claims more observations than the trial count.
     CounterExceedsTrialCount {
         /// Name of the invalid aggregate counter.
         counter: &'static str,
@@ -289,7 +292,7 @@ impl std::error::Error for ControlledBenchmarkSuiteError {
 /// # Errors
 ///
 /// Returns [`ControlledBenchmarkError`] when the evidence exceeds the canonical
-/// trial count or when a per-trial aggregate counter exceeds `total_trials`.
+/// trial count or when a per-trial outcome counter exceeds `total_trials`.
 pub fn evaluate_controlled_benchmark_case(
     evidence: ControlledBenchmarkCaseEvidence,
 ) -> Result<ControlledBenchmarkCaseOutcome, ControlledBenchmarkError> {
@@ -313,11 +316,6 @@ pub fn evaluate_controlled_benchmark_case(
     validate_counter(
         "provenance_complete_trials",
         evidence.provenance_complete_trials,
-        evidence.total_trials,
-    )?;
-    validate_counter(
-        "unauthorized_side_effects",
-        evidence.unauthorized_side_effects,
         evidence.total_trials,
     )?;
 

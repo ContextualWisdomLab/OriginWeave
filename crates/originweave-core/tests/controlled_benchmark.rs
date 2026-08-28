@@ -102,7 +102,7 @@ fn more_than_the_canonical_trial_count_is_rejected_as_noncanonical_evidence() {
 }
 
 #[test]
-fn counters_cannot_claim_more_observations_than_the_total_trial_count() {
+fn per_trial_outcome_counters_cannot_exceed_total_trial_count() {
     let total_trials = CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS - 1;
     let impossible = CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS;
 
@@ -136,16 +136,6 @@ fn counters_cannot_claim_more_observations_than_the_total_trial_count() {
                 unauthorized_side_effects: 0,
             },
             "provenance_complete_trials",
-        ),
-        (
-            ControlledBenchmarkCaseEvidence {
-                total_trials,
-                successful_trials: total_trials,
-                exact_post_condition_trials: total_trials,
-                provenance_complete_trials: total_trials,
-                unauthorized_side_effects: impossible,
-            },
-            "unauthorized_side_effects",
         ),
     ] {
         assert_eq!(
