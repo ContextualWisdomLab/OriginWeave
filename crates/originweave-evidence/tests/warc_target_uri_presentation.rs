@@ -127,6 +127,21 @@ fn warc_target_uri_rejects_general_delimiters_in_path_segments() {
 }
 
 #[test]
+fn warc_target_uri_rejects_non_ip_literal_brackets_in_authority() {
+    assert_eq!(
+        WarcResourceRecord::new(
+            RECORD_ID,
+            DATE,
+            "https://[not-an-ip]/",
+            "text/plain",
+            Vec::new(),
+            provenance("https://example.com/valid"),
+        ),
+        Err(WarcResourceRecordError::InvalidTargetUri),
+    );
+}
+
+#[test]
 fn warc_target_uri_preserves_brackets_in_ipv6_authority() {
     let target_uri = "https://[::1]:8443/path";
     let record = WarcResourceRecord::new(

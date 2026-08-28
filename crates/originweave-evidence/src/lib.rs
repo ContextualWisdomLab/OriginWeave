@@ -27,8 +27,8 @@ pub use sensitive_handle_lifecycle::{
 };
 pub use warc_resource_record::{
     MAX_WARC_CONTENT_TYPE_BYTES, MAX_WARC_DATE_BYTES, MAX_WARC_PAYLOAD_BYTES,
-    MAX_WARC_RECORD_ID_BYTES, WarcPayloadCompleteness, WarcResourceRecord, WarcResourceRecordError,
-    WarcTruncationReason,
+    MAX_WARC_RECORD_ID_BYTES, MAX_WARC_TARGET_URI_BYTES, WarcPayloadCompleteness,
+    WarcResourceRecord, WarcResourceRecordError, WarcTruncationReason,
 };
 
 use std::collections::BTreeMap;

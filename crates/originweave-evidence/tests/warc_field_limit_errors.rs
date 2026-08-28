@@ -1,8 +1,8 @@
 #![allow(clippy::expect_used)]
 
 use originweave_evidence::{
-    EvidenceSourceKind, ProvenanceRecord, VerificationResult, WarcResourceRecord,
-    WarcResourceRecordError,
+    EvidenceSourceKind, MAX_WARC_TARGET_URI_BYTES, ProvenanceRecord, VerificationResult,
+    WarcResourceRecord, WarcResourceRecordError,
 };
 
 const SOURCE_HASH: &str = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
@@ -42,6 +42,49 @@ fn oversized_record_fields_report_the_bounded_limit_error() {
             RECORD_ID,
             oversized_date,
             TARGET_URI,
+            "text/plain",
+            Vec::new(),
+            provenance(),
+        ),
+        Err(WarcResourceRecordError::LimitExceeded),
+    );
+}
+
+#[test]
+fn target_uri_limit_is_inclusive_and_overflow_fails_closed() {
+    let prefix = "https://example.com/";
+    let target_uri = format!(
+        "{prefix}{}",
+        "a".repeat(MAX_WARC_TARGET_URI_BYTES - prefix.len())
+    );
+    assert_eq!(target_uri.len(), MAX_WARC_TARGET_URI_BYTES);
+
+    let exact_provenance = ProvenanceRecord::new(
+        &target_uri,
+        "body",
+        SOURCE_HASH,
+        EvidenceSourceKind::NetworkResponse,
+        VerificationResult::Verified,
+    )
+    .expect("exact target URI bound remains valid provenance");
+    assert!(
+        WarcResourceRecord::new(
+            RECORD_ID,
+            DATE,
+            &target_uri,
+            "text/plain",
+            Vec::new(),
+            exact_provenance,
+        )
+        .is_ok()
+    );
+
+    let oversized_target_uri = format!("{target_uri}a");
+    assert_eq!(
+        WarcResourceRecord::new(
+            RECORD_ID,
+            DATE,
+            &oversized_target_uri,
             "text/plain",
             Vec::new(),
             provenance(),

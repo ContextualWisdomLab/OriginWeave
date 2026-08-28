@@ -10,6 +10,8 @@ pub const MAX_WARC_RECORD_ID_BYTES: usize = 45;
 pub const MAX_WARC_DATE_BYTES: usize = 30;
 /// Maximum encoded size retained for a WARC content type.
 pub const MAX_WARC_CONTENT_TYPE_BYTES: usize = 256;
+/// Maximum encoded target URI size accepted by one immutable WARC record.
+pub const MAX_WARC_TARGET_URI_BYTES: usize = crate::MAX_PATH_BYTES;
 /// Maximum resource payload retained by one immutable WARC record.
 pub const MAX_WARC_PAYLOAD_BYTES: usize = 1_048_576;
 
@@ -171,6 +173,9 @@ impl WarcResourceRecord {
             } else {
                 WarcResourceRecordError::InvalidContentType
             });
+        }
+        if target_uri.len() > MAX_WARC_TARGET_URI_BYTES {
+            return Err(WarcResourceRecordError::LimitExceeded);
         }
         if !valid_target_uri_presentation(target_uri) {
             return Err(WarcResourceRecordError::InvalidTargetUri);
@@ -358,62 +363,7 @@ fn is_leap_year(year: u16) -> bool {
 }
 
 fn valid_target_uri_presentation(target_uri: &str) -> bool {
-    let bytes = target_uri.as_bytes();
-    let mut index = 0_usize;
-    let mut slash_count = 0_usize;
-    while index < bytes.len() {
-        let byte = bytes[index];
-        if !is_rfc3986_uri_byte(byte) {
-            return false;
-        }
-        if matches!(byte, b'[' | b']') && slash_count > 2 {
-            return false;
-        }
-        if byte == b'%' {
-            if index + 2 >= bytes.len()
-                || !bytes[index + 1].is_ascii_hexdigit()
-                || !bytes[index + 2].is_ascii_hexdigit()
-            {
-                return false;
-            }
-            index += 3;
-        } else {
-            if byte == b'/' {
-                slash_count += 1;
-            }
-            index += 1;
-        }
-    }
-    true
-}
-
-const fn is_rfc3986_uri_byte(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric()
-        || matches!(
-            byte,
-            b'-' | b'.'
-                | b'_'
-                | b'~'
-                | b':'
-                | b'/'
-                | b'?'
-                | b'#'
-                | b'['
-                | b']'
-                | b'@'
-                | b'!'
-                | b'$'
-                | b'&'
-                | b'\''
-                | b'('
-                | b')'
-                | b'*'
-                | b'+'
-                | b','
-                | b';'
-                | b'='
-                | b'%'
-        )
+    crate::valid_source_url(target_uri)
 }
 
 fn valid_content_type(content_type: &str) -> bool {
