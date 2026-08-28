@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import http.client
 import inspect
+import os
 import pathlib
 import runpy
 import unittest
+from unittest.mock import patch
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 RUNNER = ROOT / "scripts" / "ci" / "run_mv3_compatibility.py"
@@ -184,6 +186,35 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
             r"^unexpected cleanup programming failure$",
         ):
             cleanup_session(9515, "session-1")
+
+    def test_second_fixture_server_start_cleans_up_the_first(self) -> None:
+        """A partial fixture startup must not leak the server already created."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="fixture_startup_cleanup_contract")
+        first_server = object()
+        first_thread = object()
+        starts = 0
+        stopped: list[tuple[object, object]] = []
+
+        def start_fixture_server(_directory: pathlib.Path) -> tuple[object, object]:
+            nonlocal starts
+            starts += 1
+            if starts == 1:
+                return first_server, first_thread
+            raise RuntimeError("second fixture startup failed")
+
+        def stop_fixture_server(server: object, thread: object) -> None:
+            stopped.append((server, thread))
+
+        namespace["main"].__globals__["_start_fixture_server"] = start_fixture_server
+        namespace["main"].__globals__["_stop_fixture_server"] = stop_fixture_server
+        with patch.dict(
+            os.environ,
+            {"CHROME_BIN": "/bin/sh", "CHROMEDRIVER_BIN": "/bin/sh"},
+        ), self.assertRaisesRegex(RuntimeError, r"^second fixture startup failed$"):
+            namespace["main"]()
+
+        self.assertEqual(stopped, [(first_server, first_thread)])
 
     def test_agent_task_submission_preserves_the_loaded_url(self) -> None:
         """Submission must prove that the controlled action did not navigate away."""
