@@ -9,7 +9,7 @@ fn warc_record_debug_does_not_disclose_payload_or_provenance_locator() {
     let provenance = ProvenanceRecord::new(
         "https://example.com/resource",
         "private-selector-marker",
-        "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sha256:3684d4581255ca55e94c2cb89affc7d0dc914b7462c1f496780d7f2214877709",
         EvidenceSourceKind::NetworkResponse,
         VerificationResult::Verified,
     )
@@ -35,7 +35,7 @@ fn warc_record_debug_does_not_disclose_content_type_parameters() {
     let provenance = ProvenanceRecord::new(
         "https://example.com/resource",
         "body",
-        "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         EvidenceSourceKind::NetworkResponse,
         VerificationResult::Verified,
     )
