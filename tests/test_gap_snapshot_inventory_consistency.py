@@ -79,7 +79,7 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
         self.assertIn("66f360ccac5cec60c72222cc79d58e39f6f00088", record)
         self.assertIn(
             "| #210 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | "
-            "`5f59947f5e4b0d3bc0aa5b2d4c6722d3b7c43047` |",
+            "`7946dce9a3dd074047d93fca299d48c7aef40e47` |",
             self.baseline,
         )
         self.assertNotIn("| #217 |", current)

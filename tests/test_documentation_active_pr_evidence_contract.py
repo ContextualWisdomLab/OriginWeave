@@ -57,7 +57,7 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
             "| #70 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `441a8ce1d09c329c5c1168f4906d9a38fd0abc01` |",
             "| #82 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `f5776f5f233ac0a7c05e3f4a2846436c23438043` |",
             "| #152 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `81407a0e5189a413d1be0963fea90a0c2f254ce1` |",
-            "| #210 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `5f59947f5e4b0d3bc0aa5b2d4c6722d3b7c43047` |",
+            "| #210 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `7946dce9a3dd074047d93fca299d48c7aef40e47` |",
             "| #237 | Draft | `542ca1e9c0a863595b8b6697790005d2471f5413` | `2459af602e72fbfe1ce816919473a1075ec0c41f` |",
             "| #239 | Draft | `e45cd6cdcdee73b5c16dc942e6c98cb7e745fae0` | `e840ca299d29a15223c8b9bb1397002c4f41b4a3` |",
             "| #229 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `0145ccba5901e301b41d4be674ca1ed23483ad37` |",
@@ -93,10 +93,10 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
     def test_current_warc_provider_failures_are_bound_to_current_head(self) -> None:
         """WARC evidence must describe the current parent head after stack merge."""
         for marker in (
-            "PR #210 current exact head is `5f59947f5e4b0d3bc0aa5b2d4c6722d3b7c43047`",
-            "`coverage-evidence` job `98935786817` is queued",
-            "`Production coverage` job `98935658309` and `Rust contracts` job `98935657983` are in progress",
-            "Its prior stack merge head `66f360ccac5cec60c72222cc79d58e39f6f00088`, earlier exact head `bea65643109449d63d367a35b8d9bf327ee7cb2c`, and their OpenCode/Strix provider failures remain historical evidence only",
+            "PR #210 current exact head is `7946dce9a3dd074047d93fca299d48c7aef40e47`",
+            "`Rust contracts` job `98942518975` and `Production coverage` job `98942518680` succeeded",
+            "`noema-review` job `98942513421` and `strix` job `98942803402` remain in progress",
+            "Its predecessor head `5f59947f5e4b0d3bc0aa5b2d4c6722d3b7c43047`, prior stack merge head `66f360ccac5cec60c72222cc79d58e39f6f00088`, earlier exact head `bea65643109449d63d367a35b8d9bf327ee7cb2c`, and their OpenCode/Strix provider failures remain historical evidence only",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, self.baseline)
