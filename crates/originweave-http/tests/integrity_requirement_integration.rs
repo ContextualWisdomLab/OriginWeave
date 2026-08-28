@@ -9,8 +9,9 @@ use std::time::Duration;
 use originweave_core::Origin;
 use originweave_destination::{AddressClass, DestinationPolicy, ResolutionSnapshot};
 use originweave_http::{
-    AlpnHttp11Policy, AuthenticatedHttpResponse, HttpClientPolicy, HttpExchangePlan, HttpMethod,
-    HttpPolicyLimits, HttpRequestTarget, IntegrityAlgorithm, IntegrityRequirement, IntegrityStatus,
+    AlpnHttp11Policy, AuthenticatedHttpResponse, HttpClientPolicy, HttpError, HttpExchangePlan,
+    HttpMethod, HttpPolicyLimits, HttpRequestTarget, IntegrityAlgorithm, IntegrityRequirement,
+    IntegrityStatus,
 };
 use originweave_network::{ConnectionPlan, DirectTcpConnection};
 use originweave_tls::{
@@ -181,7 +182,9 @@ fn required_digest_policy() -> HttpClientPolicy {
     .expect("required-digest HTTP policy")
 }
 
-fn execute_response(wire_response: &'static [u8]) -> AuthenticatedHttpResponse {
+fn execute_response_result(
+    wire_response: &'static [u8],
+) -> Result<AuthenticatedHttpResponse, HttpError> {
     let material = certificate_material();
     let (root_der, config) = server_config(material);
     let (socket_address, server) = spawn_http_server(config, wire_response);
@@ -198,8 +201,7 @@ fn execute_response(wire_response: &'static [u8]) -> AuthenticatedHttpResponse {
         required_digest_policy(),
     )
     .expect("HTTP plan")
-    .execute()
-    .expect("one verified supported digest satisfies the response-level requirement");
+    .execute();
 
     let request = server
         .join()
@@ -207,6 +209,11 @@ fn execute_response(wire_response: &'static [u8]) -> AuthenticatedHttpResponse {
         .expect("HTTP server result");
     assert!(request.starts_with(b"GET /digest-contract HTTP/1.1\r\n"));
     response
+}
+
+fn execute_response(wire_response: &'static [u8]) -> AuthenticatedHttpResponse {
+    execute_response_result(wire_response)
+        .expect("one verified supported digest satisfies the response-level requirement")
 }
 
 #[test]
@@ -241,4 +248,14 @@ fn required_digest_accepts_a_single_verified_representation_digest() {
         response.evidence().representation_digest_status(),
         &IntegrityStatus::Verified(vec![IntegrityAlgorithm::Sha256])
     );
+}
+
+#[test]
+fn required_digest_rejects_response_without_any_supported_digest() {
+    let error = execute_response_result(
+        b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\nhello",
+    )
+    .expect_err("missing supported digest must fail");
+
+    assert!(matches!(error, HttpError::SupportedDigestRequired));
 }
