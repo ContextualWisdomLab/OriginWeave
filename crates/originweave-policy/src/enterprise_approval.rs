@@ -266,7 +266,10 @@ impl fmt::Debug for EnterpriseApprovalRequest {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("EnterpriseApprovalRequest")
-            .field("requested_at_epoch_seconds", &self.requested_at_epoch_seconds)
+            .field(
+                "requested_at_epoch_seconds",
+                &self.requested_at_epoch_seconds,
+            )
             .field("expires_at_epoch_seconds", &self.expires_at_epoch_seconds)
             .field(
                 "last_transition_at_epoch_seconds",
