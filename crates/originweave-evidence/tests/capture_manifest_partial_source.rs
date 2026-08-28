@@ -1,10 +1,10 @@
 #![allow(clippy::expect_used)]
 
 use originweave_evidence::{
-    CaptureManifest, CaptureManifestValueBinding, EvidenceSourceKind, ExtractionCardinality,
-    ExtractionField, ExtractionSchema, ExtractionSourceChannel, ExtractionValueType,
-    ProvenanceRecord, VerificationResult, WarcPayloadCompleteness, WarcProvBundle,
-    WarcResourceRecord, WarcTruncationReason,
+    CaptureManifest, CaptureManifestError, CaptureManifestValueBinding, EvidenceSourceKind,
+    ExtractionCardinality, ExtractionField, ExtractionSchema, ExtractionSourceChannel,
+    ExtractionValueType, ProvenanceRecord, VerificationResult, WarcPayloadCompleteness,
+    WarcProvBundle, WarcResourceRecord, WarcTruncationReason,
 };
 use sha2::{Digest, Sha256};
 
@@ -54,14 +54,16 @@ fn structured_value_rejects_truncated_warc_source() {
     let value = CaptureManifestValueBinding::new("title", VALUE_HASH, RECORD_ID)
         .expect("structured value binding");
 
-    let result = CaptureManifest::new_with_warc_values(
-        &schema,
-        &[(&record, &bundle)],
-        std::slice::from_ref(&value),
+    assert_eq!(
+        CaptureManifest::new_with_warc_values(
+            &schema,
+            &[(&record, &bundle)],
+            std::slice::from_ref(&value),
+        ),
+        Err(CaptureManifestError::ValueSourceRecordTruncated)
     );
-
-    assert!(
-        result.is_err(),
-        "a structured value must not be promoted from a truncated network source"
+    assert_eq!(
+        CaptureManifestError::ValueSourceRecordTruncated.to_string(),
+        "capture manifest structured value references a truncated WARC record"
     );
 }
