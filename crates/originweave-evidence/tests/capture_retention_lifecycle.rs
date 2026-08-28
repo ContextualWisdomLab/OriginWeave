@@ -6,6 +6,8 @@ use originweave_evidence::{
 
 const MANIFEST_DIGEST: &str =
     "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+const DELETION_REQUEST_DIGEST: &str =
+    "sha256:1111111111111111111111111111111111111111111111111111111111111111";
 const DELETION_EVIDENCE_DIGEST: &str =
     "sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
 
@@ -16,6 +18,7 @@ fn retained_capture_reaches_deleted_only_after_retention_expiry() -> Result<(), 
     assert_eq!(lifecycle.manifest_digest(), MANIFEST_DIGEST);
     assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 100);
     assert_eq!(lifecycle.retention_deadline_epoch_seconds(), None);
+    assert_eq!(lifecycle.deletion_request_digest(), None);
 
     lifecycle.complete(110)?;
     assert_eq!(lifecycle.state(), CaptureLifecycleState::CaptureCompleted);
@@ -26,16 +29,25 @@ fn retained_capture_reaches_deleted_only_after_retention_expiry() -> Result<(), 
     assert_eq!(lifecycle.retention_deadline_epoch_seconds(), Some(200));
 
     assert_eq!(
-        lifecycle.request_deletion(199),
+        lifecycle.request_deletion(DELETION_REQUEST_DIGEST, 199),
         Err(CaptureLifecycleError::RetentionNotExpired)
     );
     assert_eq!(lifecycle.state(), CaptureLifecycleState::Retained);
     assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 130);
+    assert_eq!(lifecycle.deletion_request_digest(), None);
 
-    lifecycle.request_deletion(200)?;
+    lifecycle.request_deletion(DELETION_REQUEST_DIGEST, 200)?;
     assert_eq!(lifecycle.state(), CaptureLifecycleState::DeletionRequested);
     assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 200);
-    let receipt = CaptureDeletionReceipt::new(MANIFEST_DIGEST, DELETION_EVIDENCE_DIGEST)?;
+    assert_eq!(
+        lifecycle.deletion_request_digest(),
+        Some(DELETION_REQUEST_DIGEST)
+    );
+    let receipt = CaptureDeletionReceipt::new(
+        MANIFEST_DIGEST,
+        DELETION_REQUEST_DIGEST,
+        DELETION_EVIDENCE_DIGEST,
+    )?;
     lifecycle.confirm_deleted(&receipt, 201)?;
     assert_eq!(lifecycle.state(), CaptureLifecycleState::Deleted);
     assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 201);
@@ -54,10 +66,11 @@ fn legal_hold_blocks_deletion_until_explicit_release() -> Result<(), Box<dyn Err
 
     assert_eq!(lifecycle.state(), CaptureLifecycleState::LegalHold);
     assert_eq!(
-        lifecycle.request_deletion(1_200),
+        lifecycle.request_deletion(DELETION_REQUEST_DIGEST, 1_200),
         Err(CaptureLifecycleError::LegalHoldActive)
     );
     assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 1_040);
+    assert_eq!(lifecycle.deletion_request_digest(), None);
 
     assert_eq!(
         lifecycle.release_legal_hold_to_retained(1_200, 1_200),
@@ -69,11 +82,11 @@ fn legal_hold_blocks_deletion_until_explicit_release() -> Result<(), Box<dyn Err
     assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 1_201);
     assert_eq!(lifecycle.retention_deadline_epoch_seconds(), Some(1_300));
     assert_eq!(
-        lifecycle.request_deletion(1_299),
+        lifecycle.request_deletion(DELETION_REQUEST_DIGEST, 1_299),
         Err(CaptureLifecycleError::RetentionNotExpired)
     );
     assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 1_201);
-    lifecycle.request_deletion(1_300)?;
+    lifecycle.request_deletion(DELETION_REQUEST_DIGEST, 1_300)?;
     assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 1_300);
     Ok(())
 }
@@ -155,7 +168,11 @@ fn lifecycle_fails_closed_on_bad_identity_order_and_time() -> Result<(), Box<dyn
         lifecycle.place_legal_hold(108),
         Err(CaptureLifecycleError::InvalidTransition)
     );
-    let receipt = CaptureDeletionReceipt::new(MANIFEST_DIGEST, DELETION_EVIDENCE_DIGEST)?;
+    let receipt = CaptureDeletionReceipt::new(
+        MANIFEST_DIGEST,
+        DELETION_REQUEST_DIGEST,
+        DELETION_EVIDENCE_DIGEST,
+    )?;
     assert_eq!(
         lifecycle.confirm_deleted(&receipt, 108),
         Err(CaptureLifecycleError::InvalidTransition)
@@ -203,7 +220,7 @@ fn every_transition_rejects_trusted_time_rollback() -> Result<(), Box<dyn Error>
     requesting.verify(102)?;
     requesting.retain_until(200, 103)?;
     assert_eq!(
-        requesting.request_deletion(102),
+        requesting.request_deletion(DELETION_REQUEST_DIGEST, 102),
         Err(CaptureLifecycleError::TrustedTimeRollback)
     );
 
@@ -211,8 +228,12 @@ fn every_transition_rejects_trusted_time_rollback() -> Result<(), Box<dyn Error>
     confirming.complete(101)?;
     confirming.verify(102)?;
     confirming.retain_until(200, 103)?;
-    confirming.request_deletion(200)?;
-    let receipt = CaptureDeletionReceipt::new(MANIFEST_DIGEST, DELETION_EVIDENCE_DIGEST)?;
+    confirming.request_deletion(DELETION_REQUEST_DIGEST, 200)?;
+    let receipt = CaptureDeletionReceipt::new(
+        MANIFEST_DIGEST,
+        DELETION_REQUEST_DIGEST,
+        DELETION_EVIDENCE_DIGEST,
+    )?;
     assert_eq!(
         confirming.confirm_deleted(&receipt, 199),
         Err(CaptureLifecycleError::TrustedTimeRollback)
@@ -221,7 +242,7 @@ fn every_transition_rejects_trusted_time_rollback() -> Result<(), Box<dyn Error>
 
     let mut started = CaptureLifecycle::new(MANIFEST_DIGEST, 100)?;
     assert_eq!(
-        started.request_deletion(101),
+        started.request_deletion(DELETION_REQUEST_DIGEST, 101),
         Err(CaptureLifecycleError::InvalidTransition)
     );
     assert_eq!(started.latest_trusted_time_epoch_seconds(), 100);
@@ -243,12 +264,20 @@ fn lifecycle_errors_are_standard_credential_safe_errors() {
             "capture manifest digest must be lowercase sha256",
         ),
         (
+            CaptureLifecycleError::InvalidDeletionRequestDigest,
+            "capture deletion request digest must be lowercase sha256",
+        ),
+        (
             CaptureLifecycleError::InvalidDeletionEvidenceDigest,
             "capture deletion evidence digest must be lowercase sha256",
         ),
         (
             CaptureLifecycleError::DeletionReceiptMismatch,
             "capture deletion receipt does not match lifecycle manifest",
+        ),
+        (
+            CaptureLifecycleError::DeletionReceiptRequestMismatch,
+            "capture deletion receipt does not match lifecycle deletion request",
         ),
         (
             CaptureLifecycleError::InvalidTransition,
