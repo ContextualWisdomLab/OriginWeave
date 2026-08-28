@@ -26,12 +26,14 @@ fn retained_capture_reaches_deleted_only_after_retention_expiry() -> Result<(), 
         Err(CaptureLifecycleError::RetentionNotExpired)
     );
     assert_eq!(lifecycle.state(), CaptureLifecycleState::Retained);
-    assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 199);
+    assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 130);
 
     lifecycle.request_deletion(200)?;
     assert_eq!(lifecycle.state(), CaptureLifecycleState::DeletionRequested);
+    assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 200);
     lifecycle.confirm_deleted(201)?;
     assert_eq!(lifecycle.state(), CaptureLifecycleState::Deleted);
+    assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 201);
     assert_eq!(lifecycle.retention_deadline_epoch_seconds(), Some(200));
     Ok(())
 }
@@ -49,20 +51,24 @@ fn legal_hold_blocks_deletion_until_explicit_release() -> Result<(), Box<dyn Err
         lifecycle.request_deletion(1_200),
         Err(CaptureLifecycleError::LegalHoldActive)
     );
-    assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 1_200);
+    assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 1_040);
 
     assert_eq!(
         lifecycle.release_legal_hold_to_retained(1_200, 1_200),
         Err(CaptureLifecycleError::InvalidRetentionDeadline)
     );
+    assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 1_040);
     lifecycle.release_legal_hold_to_retained(1_300, 1_201)?;
     assert_eq!(lifecycle.state(), CaptureLifecycleState::Retained);
+    assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 1_201);
     assert_eq!(lifecycle.retention_deadline_epoch_seconds(), Some(1_300));
     assert_eq!(
         lifecycle.request_deletion(1_299),
         Err(CaptureLifecycleError::RetentionNotExpired)
     );
+    assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 1_201);
     lifecycle.request_deletion(1_300)?;
+    assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 1_300);
     Ok(())
 }
 
@@ -113,12 +119,12 @@ fn lifecycle_fails_closed_on_bad_identity_order_and_time() -> Result<(), Box<dyn
         Err(CaptureLifecycleError::InvalidTransition)
     );
     assert_eq!(lifecycle.state(), CaptureLifecycleState::CaptureStarted);
-    assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 101);
+    assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 100);
     assert_eq!(
-        lifecycle.complete(100),
+        lifecycle.complete(99),
         Err(CaptureLifecycleError::TrustedTimeRollback)
     );
-    assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 101);
+    assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 100);
 
     lifecycle.complete(102)?;
     lifecycle.verify(103)?;
@@ -127,11 +133,13 @@ fn lifecycle_fails_closed_on_bad_identity_order_and_time() -> Result<(), Box<dyn
         Err(CaptureLifecycleError::InvalidRetentionDeadline)
     );
     assert_eq!(lifecycle.state(), CaptureLifecycleState::Verified);
+    assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 103);
     lifecycle.retain_until(105, 104)?;
     assert_eq!(
         lifecycle.complete(105),
         Err(CaptureLifecycleError::InvalidTransition)
     );
+    assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 104);
     lifecycle.place_legal_hold(106)?;
     assert_eq!(
         lifecycle.retain_until(200, 107),
@@ -145,6 +153,7 @@ fn lifecycle_fails_closed_on_bad_identity_order_and_time() -> Result<(), Box<dyn
         lifecycle.confirm_deleted(108),
         Err(CaptureLifecycleError::InvalidTransition)
     );
+    assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 106);
     Ok(())
 }
 
@@ -205,12 +214,14 @@ fn every_transition_rejects_trusted_time_rollback() -> Result<(), Box<dyn Error>
         started.request_deletion(101),
         Err(CaptureLifecycleError::InvalidTransition)
     );
+    assert_eq!(started.latest_trusted_time_epoch_seconds(), 100);
 
     let mut not_held = CaptureLifecycle::new(MANIFEST_DIGEST, 100)?;
     assert_eq!(
         not_held.release_legal_hold_to_retained(200, 101),
         Err(CaptureLifecycleError::InvalidTransition)
     );
+    assert_eq!(not_held.latest_trusted_time_epoch_seconds(), 100);
     Ok(())
 }
 
