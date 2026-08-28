@@ -108,6 +108,19 @@ class DocumentationFitnessContractTests(unittest.TestCase):
         self.assertIn("Semantic observation authority", assessment)
         self.assertIn("integration before any of these branch repairs become protected-main truth", assessment)
 
+    def test_sensitive_handle_predicate_documents_untrusted_counter_boundary(self) -> None:
+        """The ADR must not present a caller-supplied use count as authorization state."""
+        adr = (ADR_ROOT / "0007-purpose-bound-sensitive-data-authority.md").read_text(
+            encoding="utf-8"
+        )
+        for marker in (
+            "caller-supplied `uses_so_far` is untrusted",
+            "does not independently enforce the maximum-use limit",
+            "Only a trusted broker or `SensitiveHandleUseState` may treat its result as authorization",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, adr)
+
     def test_every_adr_is_indexed_once_with_its_file_status(self) -> None:
         """Both canonical indexes must exactly cover ADR files and their lifecycle status."""
         actual_files = _adr_files()
