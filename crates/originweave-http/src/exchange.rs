@@ -148,10 +148,7 @@ impl HttpExchangePlan {
                 self.policy.integrity_requirement(),
                 IntegrityRequirement::RequireSupportedDigest
             ) && !matches!(content_digest_status, IntegrityStatus::Verified(_))
-                && !matches!(
-                    representation_digest_status,
-                    IntegrityStatus::Verified(_)
-                )
+                && !matches!(representation_digest_status, IntegrityStatus::Verified(_))
             {
                 return Err(HttpError::SupportedDigestRequired);
             }
