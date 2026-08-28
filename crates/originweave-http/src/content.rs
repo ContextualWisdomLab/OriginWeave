@@ -2,20 +2,29 @@
 
 use std::io::{self, Read};
 
-use flate2::bufread::{GzDecoder, ZlibDecoder};
+use flate2::bufread::{DeflateDecoder, GzDecoder, ZlibDecoder};
 
 use crate::field::{FieldBlock, trim_optional_whitespace};
 use crate::{HttpClientPolicy, HttpError};
 
-/// One supported HTTP content-coding decision.
+/// One content-decoding decision recorded in HTTP exchange evidence.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ContentCoding {
     /// No content coding changes the message content bytes.
     Identity,
     /// The content uses the gzip wrapper and DEFLATE coding.
     Gzip,
-    /// The content uses zlib-wrapped DEFLATE; raw wrapperless DEFLATE is rejected as
-    /// [`HttpError::ContentDecodingFailed`].
+    /// The `deflate` content coding used the standards-defined zlib wrapper.
+    Deflate,
+    /// A non-conforming peer used raw DEFLATE for `Content-Encoding: deflate` and the bounded
+    /// compatibility fallback decoded it after the zlib decoder rejected the stream.
+    DeflateRawCompatibility,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SelectedContentCoding {
+    Identity,
+    Gzip,
     Deflate,
 }
 
@@ -38,16 +47,20 @@ pub(crate) fn decode_content(
             maximum_bytes: policy.max_encoded_content_bytes(),
         });
     }
-    let coding = select_content_coding(&fields.values("content-encoding"))?;
-    let bytes = match coding {
-        ContentCoding::Identity => {
+    match select_content_coding(&fields.values("content-encoding"))? {
+        SelectedContentCoding::Identity => {
             enforce_decoded_limits(encoded.len(), encoded.len(), policy)?;
-            encoded.to_vec()
+            Ok(DecodedContent {
+                bytes: encoded.to_vec(),
+                coding: ContentCoding::Identity,
+            })
         }
-        ContentCoding::Gzip => decode_gzip(encoded, policy)?,
-        ContentCoding::Deflate => decode_deflate(encoded, policy)?,
-    };
-    Ok(DecodedContent { bytes, coding })
+        SelectedContentCoding::Gzip => Ok(DecodedContent {
+            bytes: decode_gzip(encoded, policy)?,
+            coding: ContentCoding::Gzip,
+        }),
+        SelectedContentCoding::Deflate => decode_deflate(encoded, policy),
+    }
 }
 
 fn decode_gzip(encoded: &[u8], policy: &HttpClientPolicy) -> Result<Vec<u8>, HttpError> {
@@ -62,7 +75,31 @@ fn decode_gzip(encoded: &[u8], policy: &HttpClientPolicy) -> Result<Vec<u8>, Htt
     Ok(decoded)
 }
 
-fn decode_deflate(encoded: &[u8], policy: &HttpClientPolicy) -> Result<Vec<u8>, HttpError> {
+fn decode_deflate(encoded: &[u8], policy: &HttpClientPolicy) -> Result<DecodedContent, HttpError> {
+    let zlib_error = match decode_zlib_deflate(encoded, policy) {
+        Ok(bytes) => {
+            return Ok(DecodedContent {
+                bytes,
+                coding: ContentCoding::Deflate,
+            });
+        }
+        Err(HttpError::ContentDecodingFailed { source }) => source,
+        Err(error) => return Err(error),
+    };
+
+    match decode_raw_deflate(encoded, policy) {
+        Ok(bytes) => Ok(DecodedContent {
+            bytes,
+            coding: ContentCoding::DeflateRawCompatibility,
+        }),
+        Err(HttpError::ContentDecodingFailed { .. }) => {
+            Err(HttpError::ContentDecodingFailed { source: zlib_error })
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn decode_zlib_deflate(encoded: &[u8], policy: &HttpClientPolicy) -> Result<Vec<u8>, HttpError> {
     let mut decoder = ZlibDecoder::new(encoded);
     let decoded = decode_reader(&mut decoder, encoded.len(), policy)?;
     if !decoder.into_inner().is_empty() {
@@ -74,21 +111,33 @@ fn decode_deflate(encoded: &[u8], policy: &HttpClientPolicy) -> Result<Vec<u8>, 
     Ok(decoded)
 }
 
-fn select_content_coding(values: &[&[u8]]) -> Result<ContentCoding, HttpError> {
-    if values.is_empty() {
-        return Ok(ContentCoding::Identity);
+fn decode_raw_deflate(encoded: &[u8], policy: &HttpClientPolicy) -> Result<Vec<u8>, HttpError> {
+    let mut decoder = DeflateDecoder::new(encoded);
+    let decoded = decode_reader(&mut decoder, encoded.len(), policy)?;
+    if !decoder.into_inner().is_empty() {
+        return Err(content_decoding_error(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "unexpected bytes after the raw DEFLATE stream",
+        )));
     }
-    let mut selected = ContentCoding::Identity;
+    Ok(decoded)
+}
+
+fn select_content_coding(values: &[&[u8]]) -> Result<SelectedContentCoding, HttpError> {
+    if values.is_empty() {
+        return Ok(SelectedContentCoding::Identity);
+    }
+    let mut selected = SelectedContentCoding::Identity;
     let mut selected_one = false;
     for value in values {
         for member in value.split(|byte| *byte == b',') {
             let member = trim_optional_whitespace(member);
             let coding = if member.eq_ignore_ascii_case(b"identity") {
-                ContentCoding::Identity
+                SelectedContentCoding::Identity
             } else if member.eq_ignore_ascii_case(b"gzip") {
-                ContentCoding::Gzip
+                SelectedContentCoding::Gzip
             } else if member.eq_ignore_ascii_case(b"deflate") {
-                ContentCoding::Deflate
+                SelectedContentCoding::Deflate
             } else {
                 return Err(HttpError::UnsupportedContentCoding);
             };
@@ -273,7 +322,37 @@ mod tests {
         )
         .expect("raw deflate compatibility");
         assert_eq!(decoded.bytes, input);
-        assert_eq!(decoded.coding, ContentCoding::Deflate);
+        assert_eq!(decoded.coding, ContentCoding::DeflateRawCompatibility);
+    }
+
+    #[test]
+    fn deflate_fallback_never_bypasses_decoded_budgets() {
+        let expanded = vec![b'a'; 4_096];
+        for encoded in [deflate(&expanded), raw_deflate(&expanded)] {
+            assert!(matches!(
+                decode_content(
+                    &encoded,
+                    &fields(&[("content-encoding", b"deflate")]),
+                    &policy(8_192, 8_192, 2),
+                ),
+                Err(HttpError::ContentExpansionRatioExceeded { .. })
+            ));
+        }
+    }
+
+    #[test]
+    fn deflate_streams_reject_trailing_bytes() {
+        for mut encoded in [deflate(b"zlib"), raw_deflate(b"raw")] {
+            encoded.extend_from_slice(b"trailing");
+            assert!(matches!(
+                decode_content(
+                    &encoded,
+                    &fields(&[("content-encoding", b"deflate")]),
+                    &policy(1_024, 1_024, 32),
+                ),
+                Err(HttpError::ContentDecodingFailed { .. })
+            ));
+        }
     }
 
     #[test]
