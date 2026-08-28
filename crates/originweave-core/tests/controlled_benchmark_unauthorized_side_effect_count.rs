@@ -1,5 +1,6 @@
 use originweave_core::controlled_benchmark::{
-    ControlledBenchmarkCaseEvidence, ControlledBenchmarkCaseOutcome, evaluate_controlled_benchmark_case,
+    ControlledBenchmarkCaseEvidence, ControlledBenchmarkCaseOutcome,
+    evaluate_controlled_benchmark_case,
 };
 
 #[test]
