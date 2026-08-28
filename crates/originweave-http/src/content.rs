@@ -164,7 +164,7 @@ mod tests {
     use std::time::Duration;
 
     use flate2::Compression;
-    use flate2::write::{GzEncoder, ZlibEncoder};
+    use flate2::write::{DeflateEncoder, GzEncoder, ZlibEncoder};
 
     use crate::field::FieldLine;
     use crate::{AlpnHttp11Policy, IntegrityRequirement};
@@ -220,6 +220,12 @@ mod tests {
         encoder.finish().expect("deflate finish")
     }
 
+    fn raw_deflate(input: &[u8]) -> Vec<u8> {
+        let mut encoder = DeflateEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(input).expect("raw deflate input");
+        encoder.finish().expect("raw deflate finish")
+    }
+
     #[test]
     fn absent_and_identity_content_coding_preserve_bytes() {
         let input = b"plain content";
@@ -254,6 +260,20 @@ mod tests {
             assert_eq!(decoded.bytes, input);
             assert_eq!(decoded.coding, expected_coding);
         }
+    }
+
+    #[test]
+    fn raw_deflate_compatibility_preserves_bounded_decoding() {
+        let input = b"legacy raw deflate compatibility";
+        let encoded = raw_deflate(input);
+        let decoded = decode_content(
+            &encoded,
+            &fields(&[("content-encoding", b"deflate")]),
+            &policy(1_024, 1_024, 32),
+        )
+        .expect("raw deflate compatibility");
+        assert_eq!(decoded.bytes, input);
+        assert_eq!(decoded.coding, ContentCoding::Deflate);
     }
 
     #[test]
