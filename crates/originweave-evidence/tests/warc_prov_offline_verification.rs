@@ -99,10 +99,6 @@ fn warc_prov_bundle_offline_verification_accepts_only_the_exact_bound_record() {
         "WARC PROV capture time does not match"
     );
     assert_eq!(
-        WarcProvBundleVerificationError::PayloadDigestMismatch.to_string(),
-        "WARC PROV payload digest does not match"
-    );
-    assert_eq!(
         WarcProvBundleVerificationError::PayloadCompletenessMismatch.to_string(),
         "WARC PROV payload completeness does not match"
     );

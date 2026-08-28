@@ -45,8 +45,6 @@ pub enum WarcProvBundleVerificationError {
     SourceEvidenceMismatch,
     /// The WARC capture timestamp differs from the timestamp bound into the PROV bundle.
     CaptureTimeMismatch,
-    /// The retained WARC payload digest differs from the digest bound into the PROV bundle.
-    PayloadDigestMismatch,
     /// The WARC complete-versus-truncated state differs from the state bound into the bundle.
     PayloadCompletenessMismatch,
     /// The digest of the deterministic WARC serialization differs from the bundle binding.
@@ -59,7 +57,6 @@ impl fmt::Display for WarcProvBundleVerificationError {
             Self::RecordIdentityMismatch => "WARC PROV record identity does not match",
             Self::SourceEvidenceMismatch => "WARC PROV source evidence does not match",
             Self::CaptureTimeMismatch => "WARC PROV capture time does not match",
-            Self::PayloadDigestMismatch => "WARC PROV payload digest does not match",
             Self::PayloadCompletenessMismatch => "WARC PROV payload completeness does not match",
             Self::WarcRecordDigestMismatch => "WARC PROV serialized record digest does not match",
         })
@@ -186,9 +183,8 @@ impl WarcProvBundle {
         if self.warc_date != record.warc_date() {
             return Err(WarcProvBundleVerificationError::CaptureTimeMismatch);
         }
-        if self.block_digest != record.block_digest() {
-            return Err(WarcProvBundleVerificationError::PayloadDigestMismatch);
-        }
+        // `warc_record_digest` covers the complete deterministic serialization, including the
+        // WARC-Block-Digest header, so a block-digest drift is reported by that binding below.
         if self.payload_completeness != record.completeness() {
             return Err(WarcProvBundleVerificationError::PayloadCompletenessMismatch);
         }

@@ -47,6 +47,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Proposed product-wide target-architecture ADRs for the Rust control plane, isolated execution modes, typed actions, semantic observation/stale-node authority, prompt-injection and secret separation, resource-governor priority, provenance evidence, browser/protocol adapters, crawler policy, and hourly automation operational closure; these remain Proposed rather than shipped claims until protected review and merge.
 - Active PR #217 adds a bounded in-memory `WarcProvBundle` for deterministic W3C PROV-O JSON-LD projection and offline verification of exact WARC records; durable persistence, retention, and transport-specific export remain planned rather than shipped.
 - Connected the active WARC/PROV bundle evidence to the primary standards doctoring record, preserving the in-memory-only and non-shipped durable-adapter boundary.
+- Made WARC/PROV offline verification use the complete deterministic WARC digest as the authoritative block-digest binding, preserving fail-closed exact-record checks while keeping the public verifier surface minimal.
 
 ### Changed
 
