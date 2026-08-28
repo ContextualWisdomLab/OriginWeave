@@ -833,7 +833,13 @@ def main() -> int:
                         trial_number,
                     )
                 )
-            except (OSError, ValueError, RuntimeError, json.JSONDecodeError):
+            except (
+                OSError,
+                ValueError,
+                RuntimeError,
+                http.client.HTTPException,
+                json.JSONDecodeError,
+            ):
                 trial_results.append(
                     {
                         "trial_number": trial_number,
@@ -875,7 +881,13 @@ def main() -> int:
                         trial_number,
                     )
                 )
-            except (OSError, ValueError, RuntimeError, json.JSONDecodeError):
+            except (
+                OSError,
+                ValueError,
+                RuntimeError,
+                http.client.HTTPException,
+                json.JSONDecodeError,
+            ):
                 agent_task_trials.append(
                     {
                         "trial_number": trial_number,
