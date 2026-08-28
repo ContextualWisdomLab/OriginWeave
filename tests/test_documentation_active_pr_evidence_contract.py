@@ -56,15 +56,15 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
             "| #70 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `441a8ce1d09c329c5c1168f4906d9a38fd0abc01` |",
             "| #82 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `f5776f5f233ac0a7c05e3f4a2846436c23438043` |",
             "| #152 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `81407a0e5189a413d1be0963fea90a0c2f254ce1` |",
-            "| #210 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `0341079331f9cea669eb9a5cc21842fd6027431e` |",
-            "| #237 | Draft | `542ca1e9c0a863595b8b6697790005d2471f5413` | `21e9ad1e8da72c81f521152ea6739b088da230f7` |",
-            "| #239 | Draft | `e45cd6cdcdee73b5c16dc942e6c98cb7e745fae0` | `365c4a6b9e6d0f088d2f8330834f54c7cb5fb491` |",
+            "| #210 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `bea65643109449d63d367a35b8d9bf327ee7cb2c` |",
+            "| #237 | Draft | `542ca1e9c0a863595b8b6697790005d2471f5413` | `2459af602e72fbfe1ce816919473a1075ec0c41f` |",
+            "| #239 | Draft | `e45cd6cdcdee73b5c16dc942e6c98cb7e745fae0` | `e840ca299d29a15223c8b9bb1397002c4f41b4a3` |",
             "| #229 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `0145ccba5901e301b41d4be674ca1ed23483ad37` |",
-            "| #220 | Ready | `f658f329c83a106b68385e17cb714c4147c12f49` | `a2b0c5372dd6df803011933836c56136244dc8af` |",
+            "| #220 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `b11db2be68f9b6d71aa4c4290b97a8b22097b353` |",
             "| #211 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `52a918577958a5701e1146c7eb8b62fe8f8ccd44` |",
-            "| #195 | Draft | `6922dd98779e8f8aad132a3b1f563d7ba6e6d070` | `72f112d52a60e7caa992a3f5ff7f16d5d9a4d047` |",
-            "| #124 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `028789d8bb6cc30b8e84b1ba7ed46556b26e75ea` |",
-            "| #37 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `5423803d3fbd9d2d8e08bbd6dbf81ae6b2addefe` |",
+            "| #195 | Draft | `6922dd98779e8f8aad132a3b1f563d7ba6e6d070` | `05e440948840afff1dc6e62cdb6fa52e03ebdaa9` |",
+            "| #124 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `fdb88698ca20626a6643bc2ad7944fb968835700` |",
+            "| #37 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `5e3dfcbd7a4daea297782cb99635990368589232` |",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, current)
@@ -79,7 +79,7 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         refresh_lines = [line for line in added.splitlines() if line.startswith(refresh_prefix)]
         self.assertEqual(1, len(refresh_lines))
         refresh_line = refresh_lines[0]
-        self.assertIn("111 open pull requests (27 ready, 84 draft)", refresh_line)
+        self.assertIn("110 open pull requests (26 ready, 84 draft)", refresh_line)
         self.assertIn("11 open issues", refresh_line)
         self.assertNotIn(refresh_prefix, changed)
         self.assertNotIn("115 open pull requests (31 ready, 84 draft)", refresh_line)

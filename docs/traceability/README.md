@@ -30,6 +30,10 @@ Transient implementation evidence that materially tightens an existing authority
 
 These dossiers are evidence indexes, not substitute ADRs. A new ADR is required only when a durable architecture/trust/deployment decision changes.
 
+### 1.2 Protected-main authority dossiers
+
+- [`mcp-authority-route.md`](mcp-authority-route.md) — protected-main MCP `tools/call` and `tools/list` routing/discovery foundations, with their exact merged PR lineage and executable test paths; the complete MCP adapter remains planned.
+
 ## 2. Capability maturity vocabulary
 
 Capability maturity uses exactly one of these values:
