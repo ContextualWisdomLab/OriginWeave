@@ -349,6 +349,8 @@ def _read_bounded(path: pathlib.Path) -> bytes:
                     raise SpdxJsonLdEnvelopeError("invalid_file_type")
         finally:
             _EXPECTED_PARENT_IDENTITIES.reset(identity_token)
+    except SpdxJsonLdEnvelopeError:
+        raise
     except OSError as error:
         redacted_error = OSError(error.errno, "release SBOM file operation failed")
         read_error_code = (
@@ -356,6 +358,9 @@ def _read_bounded(path: pathlib.Path) -> bytes:
             if error.errno in {errno.ELOOP, errno.ENOTDIR}
             else "read_failed"
         )
+    except ValueError:
+        redacted_error = OSError(errno.EINVAL, "release SBOM file operation failed")
+        read_error_code = "read_failed"
     if read_error_code is not None:
         # Raise only after leaving the original handler. Otherwise Python retains the
         # path-bearing source error as implicit ``__context__`` even when an explicit
