@@ -29,7 +29,7 @@ pub enum WarcTruncationReason {
 }
 
 impl WarcTruncationReason {
-    const fn warc_token(self) -> &'static str {
+    pub(crate) const fn warc_token(self) -> &'static str {
         match self {
             Self::Length => "length",
             Self::Time => "time",
@@ -65,6 +65,8 @@ pub enum WarcResourceRecordError {
     TargetUriMismatch,
     /// The source provenance was not independently verified.
     UnverifiedProvenance,
+    /// The retained payload digest differed from the verified provenance digest.
+    PayloadProvenanceMismatch,
 }
 
 impl fmt::Display for WarcResourceRecordError {
@@ -77,6 +79,7 @@ impl fmt::Display for WarcResourceRecordError {
             Self::InvalidTargetUri => "invalid WARC target URI",
             Self::TargetUriMismatch => "WARC target URI does not match provenance",
             Self::UnverifiedProvenance => "WARC provenance is not independently verified",
+            Self::PayloadProvenanceMismatch => "WARC payload digest does not match provenance",
         })
     }
 }
@@ -145,7 +148,9 @@ impl WarcResourceRecord {
     ///
     /// Truncated records retain the caller-provided partial block and emit the standard WARC 1.1
     /// `WARC-Truncated` reason. This constructor never truncates an oversized payload implicitly;
-    /// the retained block must still satisfy [`MAX_WARC_PAYLOAD_BYTES`].
+    /// the retained block must still satisfy [`MAX_WARC_PAYLOAD_BYTES`]. The exact retained bytes,
+    /// including an explicitly truncated block, must match the independently verified provenance
+    /// digest rather than inheriting provenance from another representation of the same URL.
     pub fn new_with_completeness(
         record_id: &str,
         warc_date: &str,
@@ -189,13 +194,17 @@ impl WarcResourceRecord {
         if payload.len() > MAX_WARC_PAYLOAD_BYTES {
             return Err(WarcResourceRecordError::LimitExceeded);
         }
+        let block_digest = sha256_digest(&payload);
+        if block_digest != provenance.source_hash() {
+            return Err(WarcResourceRecordError::PayloadProvenanceMismatch);
+        }
 
         Ok(Self {
             record_id: record_id.to_owned(),
             warc_date: warc_date.to_owned(),
             target_uri: target_uri.to_owned(),
             content_type: content_type.to_owned(),
-            block_digest: sha256_digest(&payload),
+            block_digest,
             payload,
             provenance,
             completeness,
