@@ -10,6 +10,8 @@ pub const MAX_WARC_RECORD_ID_BYTES: usize = 45;
 pub const MAX_WARC_DATE_BYTES: usize = 30;
 /// Maximum encoded size retained for a WARC content type.
 pub const MAX_WARC_CONTENT_TYPE_BYTES: usize = 256;
+/// Maximum encoded target URI size accepted by one immutable WARC record.
+pub const MAX_WARC_TARGET_URI_BYTES: usize = crate::MAX_PATH_BYTES;
 /// Maximum resource payload retained by one immutable WARC record.
 pub const MAX_WARC_PAYLOAD_BYTES: usize = 1_048_576;
 
@@ -27,7 +29,8 @@ pub enum WarcTruncationReason {
 }
 
 impl WarcTruncationReason {
-    const fn warc_token(self) -> &'static str {
+    /// Return the canonical WARC 1.1 truncation token for this reason.
+    pub(crate) const fn warc_token(self) -> &'static str {
         match self {
             Self::Length => "length",
             Self::Time => "time",
@@ -63,6 +66,8 @@ pub enum WarcResourceRecordError {
     TargetUriMismatch,
     /// The source provenance was not independently verified.
     UnverifiedProvenance,
+    /// The retained payload digest differed from the verified provenance digest.
+    PayloadProvenanceMismatch,
 }
 
 impl fmt::Display for WarcResourceRecordError {
@@ -75,6 +80,7 @@ impl fmt::Display for WarcResourceRecordError {
             Self::InvalidTargetUri => "invalid WARC target URI",
             Self::TargetUriMismatch => "WARC target URI does not match provenance",
             Self::UnverifiedProvenance => "WARC provenance is not independently verified",
+            Self::PayloadProvenanceMismatch => "WARC payload digest does not match provenance",
         })
     }
 }
@@ -96,11 +102,17 @@ pub struct WarcResourceRecord {
 
 impl fmt::Debug for WarcResourceRecord {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let content_type = self
+            .content_type
+            .split_once(';')
+            .map_or(self.content_type.as_str(), |(essence, _)| {
+                essence.trim_end_matches([' ', '\t'])
+            });
         formatter
             .debug_struct("WarcResourceRecord")
             .field("record_id", &self.record_id)
             .field("warc_date", &self.warc_date)
-            .field("content_type", &self.content_type)
+            .field("content_type", &content_type)
             .field("payload_byte_count", &self.payload.len())
             .field("block_digest", &self.block_digest)
             .field("completeness", &self.completeness)
@@ -137,7 +149,9 @@ impl WarcResourceRecord {
     ///
     /// Truncated records retain the caller-provided partial block and emit the standard WARC 1.1
     /// `WARC-Truncated` reason. This constructor never truncates an oversized payload implicitly;
-    /// the retained block must still satisfy [`MAX_WARC_PAYLOAD_BYTES`].
+    /// the retained block must still satisfy [`MAX_WARC_PAYLOAD_BYTES`]. The exact retained bytes,
+    /// including an explicitly truncated block, must match the independently verified provenance
+    /// digest rather than inheriting provenance from another representation of the same URL.
     pub fn new_with_completeness(
         record_id: &str,
         warc_date: &str,
@@ -166,6 +180,9 @@ impl WarcResourceRecord {
                 WarcResourceRecordError::InvalidContentType
             });
         }
+        if target_uri.len() > MAX_WARC_TARGET_URI_BYTES {
+            return Err(WarcResourceRecordError::LimitExceeded);
+        }
         if !valid_target_uri_presentation(target_uri) {
             return Err(WarcResourceRecordError::InvalidTargetUri);
         }
@@ -178,13 +195,17 @@ impl WarcResourceRecord {
         if payload.len() > MAX_WARC_PAYLOAD_BYTES {
             return Err(WarcResourceRecordError::LimitExceeded);
         }
+        let block_digest = sha256_digest(&payload);
+        if block_digest != provenance.source_hash() {
+            return Err(WarcResourceRecordError::PayloadProvenanceMismatch);
+        }
 
         Ok(Self {
             record_id: record_id.to_owned(),
             warc_date: warc_date.to_owned(),
             target_uri: target_uri.to_owned(),
             content_type: content_type.to_owned(),
-            block_digest: sha256_digest(&payload),
+            block_digest,
             payload,
             provenance,
             completeness,
@@ -352,62 +373,7 @@ fn is_leap_year(year: u16) -> bool {
 }
 
 fn valid_target_uri_presentation(target_uri: &str) -> bool {
-    let bytes = target_uri.as_bytes();
-    let mut index = 0_usize;
-    let mut slash_count = 0_usize;
-    while index < bytes.len() {
-        let byte = bytes[index];
-        if !is_rfc3986_uri_byte(byte) {
-            return false;
-        }
-        if matches!(byte, b'[' | b']') && slash_count > 2 {
-            return false;
-        }
-        if byte == b'%' {
-            if index + 2 >= bytes.len()
-                || !bytes[index + 1].is_ascii_hexdigit()
-                || !bytes[index + 2].is_ascii_hexdigit()
-            {
-                return false;
-            }
-            index += 3;
-        } else {
-            if byte == b'/' {
-                slash_count += 1;
-            }
-            index += 1;
-        }
-    }
-    true
-}
-
-const fn is_rfc3986_uri_byte(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric()
-        || matches!(
-            byte,
-            b'-' | b'.'
-                | b'_'
-                | b'~'
-                | b':'
-                | b'/'
-                | b'?'
-                | b'#'
-                | b'['
-                | b']'
-                | b'@'
-                | b'!'
-                | b'$'
-                | b'&'
-                | b'\''
-                | b'('
-                | b')'
-                | b'*'
-                | b'+'
-                | b','
-                | b';'
-                | b'='
-                | b'%'
-        )
+    crate::valid_source_url(target_uri)
 }
 
 fn valid_content_type(content_type: &str) -> bool {
@@ -556,4 +522,41 @@ fn sha256_digest(payload: &[u8]) -> String {
         encoded.push_str(&format!("{byte:02x}"));
     }
     encoded
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod tests {
+    use super::*;
+    use crate::{WarcProvBundle, WarcProvBundleVerificationError};
+
+    #[test]
+    fn provenance_bundle_rejects_a_tampered_block_digest() {
+        let provenance = ProvenanceRecord::new(
+            "https://example.com/item",
+            "body",
+            "sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+            crate::EvidenceSourceKind::NetworkResponse,
+            crate::VerificationResult::Verified,
+        )
+        .expect("verified provenance");
+        let mut record = WarcResourceRecord::new(
+            "urn:uuid:123e4567-e89b-12d3-a456-426614174000",
+            "2026-08-22T12:00:00Z",
+            "https://example.com/item",
+            "text/plain",
+            b"hello".to_vec(),
+            provenance,
+        )
+        .expect("WARC resource record");
+        let bundle = WarcProvBundle::new(&record, "0123456789abcdef0123456789abcdef01234567")
+            .expect("PROV bundle");
+
+        record.block_digest = "sha256:tampered".to_owned();
+
+        assert_eq!(
+            bundle.verify_record(&record),
+            Err(WarcProvBundleVerificationError::WarcRecordDigestMismatch)
+        );
+    }
 }

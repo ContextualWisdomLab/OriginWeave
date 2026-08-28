@@ -7,8 +7,8 @@ use originweave_evidence::{
     ProvenanceRecord, VerificationResult, WarcProvBundle, WarcResourceRecord,
     verify_offline_capture_package,
 };
+use sha2::{Digest, Sha256};
 
-const SOURCE_HASH: &str = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 const VALUE_HASH: &str = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const DRIFTED_VALUE_HASH: &str =
     "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
@@ -29,10 +29,12 @@ fn schema() -> ExtractionSchema {
 }
 
 fn resource_record() -> WarcResourceRecord {
+    let payload = b"captured-payload";
+    let source_hash = format!("sha256:{:x}", Sha256::digest(payload));
     let provenance = ProvenanceRecord::new(
         "https://example.com/item",
         "body",
-        SOURCE_HASH,
+        &source_hash,
         EvidenceSourceKind::NetworkResponse,
         VerificationResult::Verified,
     )
@@ -42,7 +44,7 @@ fn resource_record() -> WarcResourceRecord {
         DATE,
         "https://example.com/item",
         "text/plain",
-        b"captured-payload".to_vec(),
+        payload.to_vec(),
         provenance,
     )
     .expect("WARC record")

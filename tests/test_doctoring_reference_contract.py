@@ -23,6 +23,18 @@ class DoctoringReferenceContractTests(unittest.TestCase):
         )
         self.assertIn(expected, text)
 
+    def test_warc_prov_decision_trace_distinguishes_in_memory_evidence(self) -> None:
+        """The standards record must bound the public WARC/PROV projection honestly."""
+        text = DOCTORING.read_text(encoding="utf-8")
+        for expected in (
+            "WarcProvBundle",
+            "deterministic W3C PROV-O JSON-LD projection",
+            "offline verification of exact WARC records",
+            "durable persistence, retention, and transport-specific export remain planned",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, text)
+
 
 if __name__ == "__main__":
     unittest.main()

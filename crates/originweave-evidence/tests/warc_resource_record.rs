@@ -5,19 +5,28 @@ use originweave_evidence::{
     WarcResourceRecord, WarcResourceRecordError,
 };
 
-const SOURCE_HASH: &str = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+const EMPTY_HASH: &str = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+const HELLO_HASH: &str = "sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
 const RECORD_ID: &str = "urn:uuid:123e4567-e89b-12d3-a456-426614174000";
 const DATE: &str = "2026-08-21T00:00:00Z";
 
-fn provenance(source_url: &str, verification: VerificationResult) -> ProvenanceRecord {
+fn provenance_with_hash(
+    source_url: &str,
+    source_hash: &str,
+    verification: VerificationResult,
+) -> ProvenanceRecord {
     ProvenanceRecord::new(
         source_url,
         "body",
-        SOURCE_HASH,
+        source_hash,
         EvidenceSourceKind::NetworkResponse,
         verification,
     )
     .expect("provenance")
+}
+
+fn provenance(source_url: &str, verification: VerificationResult) -> ProvenanceRecord {
+    provenance_with_hash(source_url, EMPTY_HASH, verification)
 }
 
 fn assert_standard_error_contract<E: std::error::Error + Send + Sync + 'static>() {}
@@ -52,6 +61,10 @@ fn warc_resource_record_error_implements_standard_error_contract() {
             WarcResourceRecordError::UnverifiedProvenance,
             "WARC provenance is not independently verified",
         ),
+        (
+            WarcResourceRecordError::PayloadProvenanceMismatch,
+            "WARC payload digest does not match provenance",
+        ),
     ] {
         assert_eq!(error.to_string(), message);
     }
@@ -65,7 +78,11 @@ fn resource_record_binds_verified_provenance_and_emits_deterministic_warc_bytes(
         "https://example.com/item",
         "text/plain",
         b"hello".to_vec(),
-        provenance("https://example.com/item", VerificationResult::Verified),
+        provenance_with_hash(
+            "https://example.com/item",
+            HELLO_HASH,
+            VerificationResult::Verified,
+        ),
     )
     .expect("resource record");
 
@@ -74,10 +91,7 @@ fn resource_record_binds_verified_provenance_and_emits_deterministic_warc_bytes(
     assert_eq!(record.target_uri(), "https://example.com/item");
     assert_eq!(record.content_type(), "text/plain");
     assert_eq!(record.payload(), b"hello");
-    assert_eq!(
-        record.block_digest(),
-        "sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
-    );
+    assert_eq!(record.block_digest(), HELLO_HASH);
     assert_eq!(record.provenance().source_url(), record.target_uri());
     assert!(record.provenance().verification_result() == VerificationResult::Verified);
     assert_eq!(

@@ -6,8 +6,8 @@ use originweave_evidence::{
     ExtractionSchema, ExtractionSourceChannel, ExtractionValueType, MAX_CAPTURE_MANIFEST_VALUES,
     ProvenanceRecord, VerificationResult, WarcProvBundle, WarcResourceRecord,
 };
+use sha2::{Digest, Sha256};
 
-const SOURCE_HASH: &str = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 const VALUE_HASH_A: &str =
     "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const VALUE_HASH_B: &str =
@@ -50,10 +50,11 @@ fn semantic_only_schema() -> ExtractionSchema {
 }
 
 fn resource_record(record_id: &str, payload: &[u8]) -> WarcResourceRecord {
+    let source_hash = format!("sha256:{:x}", Sha256::digest(payload));
     let provenance = ProvenanceRecord::new(
         "https://example.com/item",
         "body",
-        SOURCE_HASH,
+        &source_hash,
         EvidenceSourceKind::NetworkResponse,
         VerificationResult::Verified,
     )

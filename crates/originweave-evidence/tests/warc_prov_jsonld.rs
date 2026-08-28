@@ -6,7 +6,7 @@ use originweave_evidence::{
     WarcTruncationReason,
 };
 
-const SOURCE_HASH: &str = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+const SOURCE_HASH: &str = "sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
 const RECORD_ID: &str = "urn:uuid:123e4567-e89b-12d3-a456-426614174000";
 const DATE: &str = "2026-08-22T12:00:00Z";
 const SOFTWARE_COMMIT_SHA: &str = "0123456789abcdef0123456789abcdef01234567";
@@ -106,7 +106,7 @@ fn warc_prov_bundle_emits_deterministic_prov_o_json_ld_without_raw_payload() {
         json_ld,
         concat!(
             "{\"@context\":{\"prov\":\"http://www.w3.org/ns/prov#\",\"xsd\":\"http://www.w3.org/2001/XMLSchema#\"},\"@graph\":[",
-            "{\"@id\":\"urn:uuid:123e4567-e89b-12d3-a456-426614174000#source\",\"@type\":\"prov:Entity\",\"prov:atLocation\":{\"@id\":\"https://example.com/item\"},\"prov:value\":\"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\"},",
+            "{\"@id\":\"urn:uuid:123e4567-e89b-12d3-a456-426614174000#source\",\"@type\":\"prov:Entity\",\"prov:atLocation\":{\"@id\":\"https://example.com/item\"},\"prov:value\":\"sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824\"},",
             "{\"@id\":\"urn:uuid:123e4567-e89b-12d3-a456-426614174000#capture\",\"@type\":\"prov:Activity\",\"prov:startedAtTime\":{\"@value\":\"2026-08-22T12:00:00Z\",\"@type\":\"xsd:dateTime\"},\"prov:used\":{\"@id\":\"urn:uuid:123e4567-e89b-12d3-a456-426614174000#source\"},\"prov:wasAssociatedWith\":{\"@id\":\"https://github.com/ContextualWisdomLab/OriginWeave/commit/0123456789abcdef0123456789abcdef01234567\"}},",
             "{\"@id\":\"https://github.com/ContextualWisdomLab/OriginWeave/commit/0123456789abcdef0123456789abcdef01234567\",\"@type\":\"prov:SoftwareAgent\"},",
             "{\"@id\":\"urn:uuid:123e4567-e89b-12d3-a456-426614174000\",\"@type\":\"prov:Entity\",\"prov:value\":\"sha256:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824\",\"tag:contextualwisdomlab.github.io,2026:OriginWeave/warcRecordDigest\":\"sha256:b6ea360a1ec548527ff5ed9c03966b05c8afd5c2b882bee259e362effb0fe0a8\",\"tag:contextualwisdomlab.github.io,2026:OriginWeave/warcPayloadCompleteness\":\"complete\",\"prov:wasDerivedFrom\":{\"@id\":\"urn:uuid:123e4567-e89b-12d3-a456-426614174000#source\"},\"prov:wasGeneratedBy\":{\"@id\":\"urn:uuid:123e4567-e89b-12d3-a456-426614174000#capture\"}}",
