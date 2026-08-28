@@ -96,6 +96,7 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
             "PR #210 current exact head `bea65643109449d63d367a35b8d9bf327ee7cb2c`",
             "run `33183939299` / job `98894420986` failed closed because no OpenCode current-head verdict existed",
             "run `33183939193` / job `98892185954` failed closed after three provider HTTP 500 attempts",
+            "attempt-2 rerun `33172708455` / job `98915847518` also failed closed after three provider HTTP 500 attempts",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, self.baseline)
