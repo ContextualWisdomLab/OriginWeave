@@ -49,6 +49,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Active PR #217 adds a bounded in-memory `WarcProvBundle` for deterministic W3C PROV-O JSON-LD projection and offline verification of exact WARC records; durable persistence, retention, and transport-specific export remain planned rather than shipped.
 - Connected the active WARC/PROV bundle evidence to the primary standards doctoring record, preserving the in-memory-only and non-shipped durable-adapter boundary.
 - Made WARC/PROV offline verification use the complete deterministic WARC digest as the authoritative block-digest binding, preserving fail-closed exact-record checks while keeping the public verifier surface minimal.
+- Restored the exact architecture-contract wording that keeps the active capture lifecycle explicitly in-memory and non-persistent.
 
 ### Changed
 
