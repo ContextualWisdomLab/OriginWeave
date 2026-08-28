@@ -101,6 +101,12 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "internal server error",
             "33177641855",
             "33177641888",
+            "33182772296",
+            "MODEL_OUTPUT_UNAVAILABLE",
+            "model pool exhausted",
+            "33182749298",
+            "#1391",
+            "e4ba6b599cd1e50d0139762885682607b731655d",
             "did not prove missing workflow identities",
             "does not authorize bypass",
         ):
