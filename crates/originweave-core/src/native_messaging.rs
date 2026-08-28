@@ -8,6 +8,7 @@ use crate::ExtensionId;
 const MAX_NATIVE_MESSAGING_HOST_NAME_BYTES: usize = 256;
 const HOST_TO_BROWSER_NATIVE_MESSAGING_LIMIT: usize = 1_048_576;
 const BROWSER_TO_HOST_NATIVE_MESSAGING_LIMIT: usize = 67_108_864;
+const NATIVE_MESSAGING_READ_CHUNK_BYTES: usize = 64 * 1024;
 
 /// A canonical Chrome native-messaging host name admitted to OriginWeave policy.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -263,10 +264,15 @@ pub fn read_native_messaging_payload(
         ));
     }
 
-    let mut payload = vec![0_u8; advertised_length];
-    reader
-        .read_exact(&mut payload)
-        .map_err(NativeMessagingFrameReadError::Io)?;
+    let mut payload = Vec::with_capacity(advertised_length.min(NATIVE_MESSAGING_READ_CHUNK_BYTES));
+    while payload.len() < advertised_length {
+        let chunk_start = payload.len();
+        let chunk_length = (advertised_length - chunk_start).min(NATIVE_MESSAGING_READ_CHUNK_BYTES);
+        payload.resize(chunk_start + chunk_length, 0);
+        reader
+            .read_exact(&mut payload[chunk_start..])
+            .map_err(NativeMessagingFrameReadError::Io)?;
+    }
     Ok(payload)
 }
 
