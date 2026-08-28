@@ -206,6 +206,8 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
                         "post_condition": True,
                         "input_echo_verified": True,
                         "url_unchanged": True,
+                        "input_semantics_verified": True,
+                        "submit_semantics_verified": True,
                         "extensions_disabled": True,
                         "profile_cleaned": True,
                     }
@@ -298,17 +300,23 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
                 "surfaces": {"worker": True},
             }
         )
-        namespace["main"].__globals__["_run_agent_task_trial"] = (
-            lambda *_args, **_kwargs: {
+        def successful_agent_task_trial(*_args: object, **_kwargs: object) -> dict[str, object]:
+            return {
                 "trial_number": 1,
                 "passed": True,
                 "post_condition": True,
                 "input_echo_verified": True,
                 "url_unchanged": True,
+                "input_semantics_verified": True,
+                "submit_semantics_verified": True,
                 "extensions_disabled": True,
                 "profile_cleaned": True,
             }
+
+        self.assertTrue(
+            namespace["_agent_task_surfaces_complete"]([successful_agent_task_trial()])
         )
+        namespace["main"].__globals__["_run_agent_task_trial"] = successful_agent_task_trial
         namespace["main"].__globals__["REPEATABILITY_TRIALS"] = 1
         namespace["main"].__globals__["AGENT_TASK_REPEATABILITY_TRIALS"] = 1
         with patch.dict(
@@ -338,6 +346,25 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
                 self.assertIn(expected, runner)
         self.assertIn("Agent Task URL changed during submission", runner)
 
+    def test_agent_task_observes_computed_role_and_name_before_action(self) -> None:
+        """Real-browser evidence must bind the controlled targets to semantic role/name."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_semantics_contract")
+        runner = RUNNER.read_text(encoding="utf-8")
+        self.assertIn("_get_element_semantics", namespace)
+        for expected in (
+            '"/computedrole"',
+            '"/computedlabel"',
+            '"textbox"',
+            '"Task text"',
+            '"button"',
+            '"Submit task"',
+            '"input_semantics_verified"',
+            '"submit_semantics_verified"',
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, runner)
+
     def test_agent_task_fixture_runs_under_the_existing_pinned_chrome_job(self) -> None:
         """No floating browser or second workflow may be introduced for this slice."""
 
@@ -365,6 +392,10 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
         self.assertIn("None of these introduces a new trust domain", traceability)
         self.assertIn("pinned Chrome", fitness)
         self.assertIn("not a browser adapter", fitness)
+        self.assertIn("browser-computed role/name", changelog)
+        self.assertIn("PR #71", traceability)
+        self.assertIn("computed role/name", traceability)
+        self.assertIn("computed role/name", fitness)
 
 
 if __name__ == "__main__":

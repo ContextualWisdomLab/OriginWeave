@@ -85,6 +85,11 @@ browser-level fixture execution only; it does not replace the OriginWeave
 BiDi/CDP authority adapter, semantic node contract, policy dispatch or
 protected-main runtime acceptance required by issue #28.
 
+Active PR #71 additionally verifies browser-computed role/name for the
+controlled input and submit target before the real WebDriver action. CSS remains
+a fixture-harness locator; this does not establish OriginWeave node authority,
+semantic provenance or policy dispatch.
+
 ### 3.5 Buyer acceptance
 
 Versioned task packs measure repeatable product outcomes rather than one lucky agent run. The benchmark artifact records browser build, OriginWeave version, model/provider/reasoning configuration, seed where supported, policy profile, hardware profile and source fixtures.
