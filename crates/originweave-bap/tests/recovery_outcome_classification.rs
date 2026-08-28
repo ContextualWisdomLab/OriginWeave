@@ -180,10 +180,7 @@ fn lifecycle_aware_disposition_is_the_single_fail_closed_recovery_decision() {
         recovery_evidence_digest(),
     );
     assert_eq!(
-        terminal_recovery.disposition(
-            &terminal_lifecycle,
-            terminal_recovery.evidence_digest()
-        ),
+        terminal_recovery.disposition(&terminal_lifecycle, terminal_recovery.evidence_digest()),
         Ok(BapRecoveryDisposition::RedispatchBlockedByLifecycle {
             state: BapTaskState::Failed
         })
