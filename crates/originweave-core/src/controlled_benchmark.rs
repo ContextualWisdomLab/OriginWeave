@@ -399,13 +399,6 @@ pub enum ControlledBenchmarkSuiteError {
         /// Trial aggregation error preserving the first causal boundary.
         source: ControlledBenchmarkTrialAggregationError,
     },
-    /// Derived aggregate evidence for one case is malformed or non-canonical.
-    InvalidCaseEvidence {
-        /// Case whose derived aggregate evidence failed validation.
-        case_id: ControlledBenchmarkCaseId,
-        /// Case-level validation error preserving the first causal boundary.
-        source: ControlledBenchmarkError,
-    },
 }
 
 impl fmt::Display for ControlledBenchmarkSuiteError {
@@ -432,11 +425,6 @@ impl fmt::Display for ControlledBenchmarkSuiteError {
                 "controlled benchmark suite case {} has invalid trial evidence: {source}",
                 case_id.as_str()
             ),
-            Self::InvalidCaseEvidence { case_id, source } => write!(
-                formatter,
-                "controlled benchmark suite case {} has invalid evidence: {source}",
-                case_id.as_str()
-            ),
         }
     }
 }
@@ -445,7 +433,6 @@ impl std::error::Error for ControlledBenchmarkSuiteError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::InvalidTrialEvidence { source, .. } => Some(source),
-            Self::InvalidCaseEvidence { source, .. } => Some(source),
             Self::InvalidSupportProfile
             | Self::RegistryVersionMismatch
             | Self::DuplicateCase { .. }
@@ -502,19 +489,25 @@ pub fn evaluate_controlled_benchmark_case(
         });
     }
 
+    Ok(evaluate_valid_controlled_benchmark_case(evidence))
+}
+
+fn evaluate_valid_controlled_benchmark_case(
+    evidence: ControlledBenchmarkCaseEvidence,
+) -> ControlledBenchmarkCaseOutcome {
     if evidence.successful_trials < evidence.total_trials
         || evidence.exact_post_condition_trials < evidence.total_trials
         || evidence.provenance_complete_trials < evidence.total_trials
         || evidence.unauthorized_side_effects != 0
     {
-        return Ok(ControlledBenchmarkCaseOutcome::Failed);
+        return ControlledBenchmarkCaseOutcome::Failed;
     }
 
     if evidence.total_trials < CONTROLLED_DETERMINISTIC_REQUIRED_TRIALS {
-        return Ok(ControlledBenchmarkCaseOutcome::Inconclusive);
+        return ControlledBenchmarkCaseOutcome::Inconclusive;
     }
 
-    Ok(ControlledBenchmarkCaseOutcome::Passed)
+    ControlledBenchmarkCaseOutcome::Passed
 }
 
 /// Evaluate raw trial evidence for the authoritative controlled case registry.
@@ -542,8 +535,8 @@ pub fn evaluate_controlled_benchmark_case(
 ///
 /// Returns [`ControlledBenchmarkSuiteError`] for an invalid support-profile
 /// dependency combination, registry-version mismatch, duplicate case identities,
-/// evidence for a conditional case outside the declared support profile, malformed
-/// trial evidence, or malformed/non-canonical derived case evidence.
+/// evidence for a conditional case outside the declared support profile, or
+/// malformed trial evidence.
 pub fn evaluate_controlled_benchmark_suite(
     registry_version: &str,
     profile: ControlledBenchmarkSupportProfile,
@@ -576,9 +569,7 @@ pub fn evaluate_controlled_benchmark_suite(
         let evidence = aggregate_controlled_benchmark_trials(&case.trials).map_err(|source| {
             ControlledBenchmarkSuiteError::InvalidTrialEvidence { case_id, source }
         })?;
-        let outcome = evaluate_controlled_benchmark_case(evidence).map_err(|source| {
-            ControlledBenchmarkSuiteError::InvalidCaseEvidence { case_id, source }
-        })?;
+        let outcome = evaluate_valid_controlled_benchmark_case(evidence);
 
         match outcome {
             ControlledBenchmarkCaseOutcome::Passed => {}
