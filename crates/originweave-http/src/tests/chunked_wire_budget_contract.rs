@@ -8,10 +8,12 @@ fn default_chunked_wire_prefix_stays_below_eighteen_mib() {
     let policy = HttpClientPolicy::strict_defaults();
     let maximum = maximum_chunked_wire_bytes(&policy);
     let per_chunk_overhead = MAX_CHUNK_LINE_BYTES + 4;
+    let terminal_chunk_overhead = MAX_CHUNK_LINE_BYTES + 4;
     let composed_maximum = policy
         .max_encoded_content_bytes()
         .saturating_add(policy.max_chunk_count().saturating_mul(per_chunk_overhead))
-        .saturating_add(policy.max_trailer_section_bytes());
+        .saturating_add(policy.max_trailer_section_bytes())
+        .saturating_add(terminal_chunk_overhead);
 
     assert_eq!(maximum, composed_maximum);
     assert!(maximum < 18 * 1024 * 1024);
