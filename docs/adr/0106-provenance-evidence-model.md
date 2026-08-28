@@ -14,8 +14,11 @@ OriginWeave must not merely act; it must let a user, operator, auditor, or downs
 The extraction lane currently implements one bounded, verified in-memory WARC 1.1
 `resource` record contract over already-authorized bytes. It binds the WARC target
 URI to independently verified provenance, computes a SHA-256 block digest, and
-emits deterministic record bytes. This is active-PR evidence rather than a claim
-of durable storage, tenant retention, request/response capture, or PROV export.
+emits deterministic record bytes. The active-PR `WarcProvBundle` projection adds
+deterministic W3C PROV-O JSON-LD and offline verification of the exact bound WARC
+record without retaining the payload in the bundle. This is active-PR evidence;
+durable persistence remains planned, as do tenant retention, request/response
+capture, and transport-specific export adapters.
 
 ## Decision drivers
 
