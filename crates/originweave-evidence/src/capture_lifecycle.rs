@@ -249,8 +249,7 @@ mod tests {
     fn corrupted_retained_state_without_deadline_fails_closed() {
         let mut lifecycle = CaptureLifecycle {
             manifest_digest:
-                "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-                    .to_owned(),
+                "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".to_owned(),
             state: CaptureLifecycleState::Retained,
             latest_trusted_time_epoch_seconds: 100,
             retention_deadline_epoch_seconds: None,
