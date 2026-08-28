@@ -12,7 +12,7 @@ const DATE: &str = "2026-08-28T00:00:00Z";
 #[test]
 fn provenance_and_warc_preserve_query_bearing_resource_urls_without_debug_disclosure() {
     let source_url =
-        "https://example.com/search?next=/private?term=private%20term&access_token=secret";
+        "https://example.com/search?next=/products?category=widgets&q=public%20term";
     let provenance = ProvenanceRecord::new(
         source_url,
         "body",
@@ -25,9 +25,7 @@ fn provenance_and_warc_preserve_query_bearing_resource_urls_without_debug_disclo
     assert_eq!(provenance.source_url(), source_url);
     let provenance_debug = format!("{provenance:?}");
     assert!(!provenance_debug.contains(source_url));
-    assert!(!provenance_debug.contains("private%20term"));
-    assert!(!provenance_debug.contains("access_token"));
-    assert!(!provenance_debug.contains("secret"));
+    assert!(!provenance_debug.contains("public%20term"));
     assert!(!provenance_debug.contains(EMPTY_SHA256));
     assert!(!provenance_debug.contains("body"));
 
@@ -44,6 +42,33 @@ fn provenance_and_warc_preserve_query_bearing_resource_urls_without_debug_disclo
     assert_eq!(record.target_uri(), source_url);
     let warc = String::from_utf8(record.to_warc_bytes()).expect("bounded WARC bytes are UTF-8");
     assert!(warc.contains(&format!("WARC-Target-URI: {source_url}\r\n")));
+}
+
+#[test]
+fn provenance_query_support_rejects_credential_fields() {
+    for source_url in [
+        "https://example.com/callback?access_token=secret",
+        "https://example.com/callback?ACCESS-TOKEN=secret",
+        "https://example.com/callback?access%5Ftoken=secret",
+        "https://example.com/download?api_key=secret",
+        "https://example.com/download?X-Amz-Signature=secret",
+        "https://example.com/download?x-goog-credential=secret",
+        "https://example.com/login?password=secret",
+        "https://example.com/login?auth=secret",
+        "https://example.com/login?sig=secret",
+    ] {
+        assert_eq!(
+            ProvenanceRecord::new(
+                source_url,
+                "body",
+                EMPTY_SHA256,
+                EvidenceSourceKind::NetworkResponse,
+                VerificationResult::Verified,
+            ),
+            Err(EvidenceError::InvalidSourceUrl),
+            "credential-bearing source_url={source_url:?}"
+        );
+    }
 }
 
 #[test]
