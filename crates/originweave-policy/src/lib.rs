@@ -15,11 +15,10 @@ pub use sensitive_data::{
     evaluate_handle_use,
 };
 
+use originweave_core::mcp::ValidatedMcpToolCall;
 use originweave_core::{
-    ActionRequest, ApprovalEvidence, ApprovalScope, BrowserSessionId, BrowsingContextId,
-    Capability, ExecutionPurpose, ExtensionAccessDecision, ExtensionAccessRequest,
-    ExtensionAgentCapability, ExtensionAgentGrant, ExtensionId, InstructionSource, PolicyContext,
-    RiskClass, RobotsDecision, SecretDelivery, SessionMode, evaluate_extension_access,
+    ActionRequest, ApprovalEvidence, ApprovalScope, Capability, ExecutionPurpose,
+    InstructionSource, PolicyContext, RiskClass, RobotsDecision, SecretDelivery, SessionMode,
 };
 
 /// The result of evaluating one typed action request.
@@ -33,15 +32,6 @@ pub enum Decision {
     RequireApproval(RiskClass),
 }
 
-/// Result of composing exact extension proposal authority with ordinary action policy.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ExtensionProposalDecision {
-    /// The extension/session/context/origin/time lacks exact typed-action proposal authority.
-    ExtensionAccessDenied(ExtensionAccessDecision),
-    /// Proposal authority was present; this is the unchanged ordinary action-policy result.
-    ActionPolicy(Decision),
-}
-
 /// A stable reason that policy denied an action.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DenialReason {
@@ -51,6 +41,8 @@ pub enum DenialReason {
     ModePurposeMismatch,
     /// Page or document content attempted to become a trusted instruction.
     UntrustedInstructionSource,
+    /// The validated MCP route resolved to a different action than the policy request.
+    McpActionMismatch,
     /// The session lacks the exact capability required by the action.
     MissingCapability(Capability),
     /// The target origin is outside the session's read grant.
@@ -77,40 +69,21 @@ pub enum DenialReason {
     ApprovalScopeMismatch,
 }
 
-/// Evaluate one extension-originated typed-action proposal without promoting transport authority.
+/// Evaluate a policy request only when it matches an already validated MCP route.
 ///
-/// This function checks the exact extension, browser-session, browsing-context, request source
-/// origin, trusted current time and [`ExtensionAgentCapability::ProposeTypedAction`] grant before
-/// ordinary action policy. The source origin is taken from the caller-supplied [`ActionRequest`]
-/// rather than from a second extension-controlled field, so a navigation cannot reuse an otherwise
-/// matching grant. `now_epoch_seconds` must come from the trusted caller rather than extension or
-/// page content. When extension access is allowed, the [`ActionRequest`] is evaluated unchanged,
-/// so its instruction source, capability, origin, secret-delivery and approval requirements cannot
-/// be minted or rewritten by extension transport. This function does not parse extension messages,
-/// execute browser input, resolve secrets, or claim an action post-condition.
+/// Matching routing metadata grants no authority. Once route and request action agree, the request
+/// still passes through the existing action policy unchanged.
 #[must_use]
-pub fn evaluate_extension_action_proposal(
-    extension_id: &ExtensionId,
-    browser_session: BrowserSessionId,
-    browsing_context: BrowsingContextId,
-    now_epoch_seconds: u64,
-    grant: Option<&ExtensionAgentGrant>,
+pub fn evaluate_mcp(
+    call: &ValidatedMcpToolCall,
     request: &ActionRequest,
     context: &PolicyContext,
-) -> ExtensionProposalDecision {
-    let access_request = ExtensionAccessRequest::new(
-        extension_id.clone(),
-        browser_session,
-        browsing_context,
-        request.source_origin().clone(),
-        now_epoch_seconds,
-        ExtensionAgentCapability::ProposeTypedAction,
-    );
-    let access = evaluate_extension_access(&access_request, grant);
-    if access != ExtensionAccessDecision::Allow {
-        return ExtensionProposalDecision::ExtensionAccessDenied(access);
+) -> Decision {
+    if call.action_kind() != request.action() {
+        return Decision::Deny(DenialReason::McpActionMismatch);
     }
-    ExtensionProposalDecision::ActionPolicy(evaluate(request, context))
+
+    evaluate(request, context)
 }
 
 /// Evaluate a typed browser action against one explicit policy context.
