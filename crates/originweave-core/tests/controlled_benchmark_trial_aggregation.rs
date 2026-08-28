@@ -92,7 +92,10 @@ fn aggregation_preserves_known_failures_and_multi_event_side_effect_counts() {
         unauthorized_side_effects: 2,
     };
 
-    assert_eq!(aggregate_controlled_benchmark_trials(&[failed]), Ok(expected));
+    assert_eq!(
+        aggregate_controlled_benchmark_trials(&[failed]),
+        Ok(expected)
+    );
     assert_eq!(
         evaluate_controlled_benchmark_case(expected),
         Ok(ControlledBenchmarkCaseOutcome::Failed)
