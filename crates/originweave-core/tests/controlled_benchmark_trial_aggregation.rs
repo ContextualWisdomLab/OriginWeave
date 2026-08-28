@@ -46,7 +46,8 @@ fn unique_trial_ordinals_are_aggregated_without_caller_supplied_counters() {
 
 #[test]
 fn empty_trial_set_aggregates_to_inconclusive_zero_evidence() {
-    let evidence = aggregate_controlled_benchmark_trials(&[]).expect("empty evidence is incomplete");
+    let evidence =
+        aggregate_controlled_benchmark_trials(&[]).expect("empty evidence is incomplete");
 
     assert_eq!(evidence.total_trials, 0);
     assert_eq!(evidence.successful_trials, 0);
