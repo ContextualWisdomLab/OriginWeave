@@ -406,7 +406,7 @@ fn valid_source_url(source_url: &str) -> bool {
     if !path.is_empty() && validate_path(path).is_err() {
         return false;
     }
-    query.map_or(true, valid_query)
+    query.is_none_or(valid_query)
 }
 
 fn valid_query(query: &str) -> bool {
