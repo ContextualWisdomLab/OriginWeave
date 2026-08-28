@@ -11,13 +11,20 @@ fn unauthorized_side_effect_events_require_at_least_one_represented_trial() {
         provenance_complete_trials: 0,
         unauthorized_side_effects: 1,
     };
+    let expected = ControlledBenchmarkError::EventWithoutTrial {
+        counter: "unauthorized_side_effects",
+        observed: 1,
+    };
 
     assert_eq!(
         evaluate_controlled_benchmark_case(evidence),
-        Err(ControlledBenchmarkError::EventWithoutTrial {
-            counter: "unauthorized_side_effects",
-            observed: 1,
-        }),
+        Err(expected),
         "an event count cannot be attributed to an empty benchmark evidence bundle",
     );
+    assert_eq!(
+        expected.to_string(),
+        "controlled benchmark event counter unauthorized_side_effects has 1 observation but no represented trials",
+    );
+    let standard_error: &dyn std::error::Error = &expected;
+    assert!(standard_error.source().is_none());
 }
