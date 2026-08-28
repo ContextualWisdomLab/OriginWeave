@@ -462,7 +462,8 @@ pub fn decide_release<I>(
 where
     I: IntoIterator<Item = (BenchmarkSuite, BenchmarkSuiteOutcome)>,
 {
-    decide_release_with_zero_event_safety(results, declared_limitations, &[])
+    let mut results = results.into_iter();
+    decide_release_from_iterator(&mut results, declared_limitations, &[])
 }
 
 /// Produce a deterministic release decision while retaining named zero-event evidence.
@@ -484,6 +485,19 @@ pub fn decide_release_with_zero_event_safety<I>(
 where
     I: IntoIterator<Item = (BenchmarkSuite, BenchmarkSuiteOutcome)>,
 {
+    let mut results = results.into_iter();
+    decide_release_from_iterator(
+        &mut results,
+        declared_limitations,
+        zero_event_safety_observations,
+    )
+}
+
+fn decide_release_from_iterator(
+    results: &mut dyn Iterator<Item = (BenchmarkSuite, BenchmarkSuiteOutcome)>,
+    declared_limitations: &[DeclaredLimitation],
+    zero_event_safety_observations: &[ZeroEventSafetyObservation],
+) -> Result<ReleaseDecisionReport, ReleaseDecisionError> {
     if declared_limitations.len() > MAX_DECLARED_RELEASE_LIMITATIONS {
         return Err(ReleaseDecisionError::TooManyDeclaredLimitations);
     }
