@@ -154,7 +154,7 @@ jobs:
         run: |
           set -euo pipefail
           rustup toolchain install 1.97.1 --profile minimal --component clippy,rustfmt
-          rustup toolchain install nightly-2026-08-01 --profile minimal --component llvm-tools-preview
+          rustup toolchain install nightly-2026-08-18 --profile minimal --component llvm-tools-preview
           cargo +1.97.1 install cargo-llvm-cov --version 0.8.6 --locked
           archive="${RUNNER_TEMP}/opencode-linux-x64.tar.gz"
           curl -fsSL -o "$archive" \
@@ -894,7 +894,7 @@ jobs:
           cargo +1.97.1 test --locked --workspace --all-targets
           cargo +1.97.1 clippy --locked --workspace --all-targets -- -D warnings
           RUSTDOCFLAGS='-D warnings' cargo +1.97.1 doc --locked --workspace --no-deps
-          cargo +nightly-2026-08-01 llvm-cov \
+          cargo +nightly-2026-08-18 llvm-cov \
             --locked --workspace --all-features --branch --json --summary-only \
             --output-path "${RUNNER_TEMP}/coverage.json"
           python3 scripts/ci/verify_coverage.py "${RUNNER_TEMP}/coverage.json"

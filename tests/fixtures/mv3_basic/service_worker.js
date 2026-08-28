@@ -22,19 +22,17 @@ async function ensureWorkerState() {
 
 async function waitForDownload(downloadId, expectedUrl) {
   const expectedBytes = new TextEncoder().encode(DOWNLOAD_PAYLOAD).byteLength;
-  let observedDownload = false;
   for (let attempt = 0; attempt < DOWNLOAD_POLL_ATTEMPTS; attempt += 1) {
     let items;
     try {
       items = await chrome.downloads.search({ id: downloadId, limit: 1 });
     } catch (_error) {
-      return { ready: false, diagnostic: "download-search-missing" };
+      return { ready: false, diagnostic: "download-not-evaluated" };
     }
     if (!Array.isArray(items) || items.length !== 1) {
       await new Promise((resolve) => setTimeout(resolve, DOWNLOAD_POLL_INTERVAL_MS));
       continue;
     }
-    observedDownload = true;
     const item = items[0];
     if (item.state === "interrupted") {
       return { ready: false, diagnostic: "download-interrupted" };
@@ -53,10 +51,7 @@ async function waitForDownload(downloadId, expectedUrl) {
     }
     await new Promise((resolve) => setTimeout(resolve, DOWNLOAD_POLL_INTERVAL_MS));
   }
-  return {
-    ready: false,
-    diagnostic: observedDownload ? "download-timeout" : "download-search-missing",
-  };
+  return { ready: false, diagnostic: "download-timeout" };
 }
 
 async function exerciseDownload(sender) {

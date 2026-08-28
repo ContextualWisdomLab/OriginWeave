@@ -7,8 +7,14 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+mod extraction_schema;
 mod sensitive_access;
 
+pub use extraction_schema::{
+    ExtractionCardinality, ExtractionField, ExtractionNormalizationRule, ExtractionSchema,
+    ExtractionSchemaError, ExtractionSourceChannel, ExtractionValueType,
+    MAX_EXTRACTION_FIELD_COUNT, MAX_EXTRACTION_IDENTIFIER_BYTES,
+};
 pub use sensitive_access::{
     MAX_SENSITIVE_FIELD_COUNT, MAX_SENSITIVE_IDENTIFIER_BYTES, SensitiveAccessClass,
     SensitiveAccessEvidence, SensitiveAccessEvidenceInput, SensitiveAccessOutcome,
@@ -224,6 +230,9 @@ fn validate_path(path: &str) -> Result<(), EvidenceError> {
             index += 3;
             continue;
         }
+        if !is_rfc3986_pchar(byte) {
+            return Err(EvidenceError::InvalidPath);
+        }
         segment.push(byte);
         index += 1;
     }
@@ -231,6 +240,32 @@ fn validate_path(path: &str) -> Result<(), EvidenceError> {
         return Err(EvidenceError::InvalidPath);
     }
     Ok(())
+}
+
+const fn is_rfc3986_pchar(byte: u8) -> bool {
+    matches!(
+        byte,
+        b'A'..=b'Z'
+            | b'a'..=b'z'
+            | b'0'..=b'9'
+            | b'-'
+            | b'.'
+            | b'_'
+            | b'~'
+            | b'!'
+            | b'$'
+            | b'&'
+            | b'\''
+            | b'('
+            | b')'
+            | b'*'
+            | b'+'
+            | b','
+            | b';'
+            | b'='
+            | b':'
+            | b'@'
+    )
 }
 
 const fn hexadecimal_value(byte: u8) -> Option<u8> {
