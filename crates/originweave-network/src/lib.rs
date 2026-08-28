@@ -112,3 +112,96 @@ impl WebDriverBiDiWebSocketOpeningWriteError {
         }
     }
 }
+
+#[cfg(test)]
+mod opening_write_recovery_tests {
+    use std::{io, time::Duration};
+
+    use super::{
+        WebDriverBiDiWebSocketOpeningWriteError,
+        WebDriverBiDiWebSocketOpeningWriteRecoveryDisposition::{
+            ReconciliationRequired, RevalidateBeforeNewAttempt,
+        },
+    };
+
+    #[test]
+    fn ambiguous_or_complete_opening_writes_require_reconciliation() {
+        assert_eq!(
+            WebDriverBiDiWebSocketOpeningWriteError::WriteDeadlineExceeded { bytes_written: 16 }
+                .recovery_disposition(16),
+            ReconciliationRequired
+        );
+        assert_eq!(
+            WebDriverBiDiWebSocketOpeningWriteError::WriteFailed {
+                bytes_written: 17,
+                source: io::Error::other("write completion accounting exceeded request length"),
+            }
+            .recovery_disposition(16),
+            ReconciliationRequired
+        );
+        assert_eq!(
+            WebDriverBiDiWebSocketOpeningWriteError::WriteTimeoutCleanupFailed {
+                bytes_written: 16,
+                source: io::Error::other("write timeout cleanup failed after request completion"),
+            }
+            .recovery_disposition(16),
+            ReconciliationRequired
+        );
+        assert_eq!(
+            WebDriverBiDiWebSocketOpeningWriteError::InvalidWriteTimeout {
+                write_timeout: Duration::ZERO,
+                maximum_timeout: Duration::from_secs(5),
+            }
+            .recovery_disposition(0),
+            ReconciliationRequired
+        );
+    }
+
+    #[test]
+    fn incomplete_opening_writes_require_fresh_revalidation_before_another_attempt() {
+        let request_byte_count = 16;
+
+        assert_eq!(
+            WebDriverBiDiWebSocketOpeningWriteError::InvalidWriteTimeout {
+                write_timeout: Duration::ZERO,
+                maximum_timeout: Duration::from_secs(5),
+            }
+            .recovery_disposition(request_byte_count),
+            RevalidateBeforeNewAttempt
+        );
+        assert_eq!(
+            WebDriverBiDiWebSocketOpeningWriteError::WriteDeadlineExceeded { bytes_written: 3 }
+                .recovery_disposition(request_byte_count),
+            RevalidateBeforeNewAttempt
+        );
+        assert_eq!(
+            WebDriverBiDiWebSocketOpeningWriteError::WriteTimeoutConfigurationFailed {
+                bytes_written: 3,
+                source: io::Error::other("timeout configuration failed"),
+            }
+            .recovery_disposition(request_byte_count),
+            RevalidateBeforeNewAttempt
+        );
+        assert_eq!(
+            WebDriverBiDiWebSocketOpeningWriteError::WriteTimedOut {
+                bytes_written: 3,
+                source: io::Error::from(io::ErrorKind::TimedOut),
+            }
+            .recovery_disposition(request_byte_count),
+            RevalidateBeforeNewAttempt
+        );
+        assert_eq!(
+            WebDriverBiDiWebSocketOpeningWriteError::WriteZero { bytes_written: 3 }
+                .recovery_disposition(request_byte_count),
+            RevalidateBeforeNewAttempt
+        );
+        assert_eq!(
+            WebDriverBiDiWebSocketOpeningWriteError::WriteFailed {
+                bytes_written: 3,
+                source: io::Error::other("write failed before request completion"),
+            }
+            .recovery_disposition(request_byte_count),
+            RevalidateBeforeNewAttempt
+        );
+    }
+}
