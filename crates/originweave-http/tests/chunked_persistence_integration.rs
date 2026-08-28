@@ -25,7 +25,7 @@ use rustls::{ServerConfig, ServerConnection, StreamOwned};
 
 const TRUSTED_TIME_SECONDS: u64 = 1_767_225_600;
 const SOCKET_TIMEOUT: Duration = Duration::from_secs(3);
-const EXCHANGE_TIMEOUT: Duration = Duration::from_millis(250);
+const EXCHANGE_TIMEOUT: Duration = Duration::from_millis(750);
 const SEGMENT_DELAY: Duration = Duration::from_millis(50);
 const KEEP_ALIVE_AFTER_RESPONSE: Duration = Duration::from_secs(1);
 
