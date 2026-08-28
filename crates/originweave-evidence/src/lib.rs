@@ -8,6 +8,7 @@
 #![deny(missing_docs)]
 
 mod action_outcome;
+mod browser_task_interruption;
 mod extraction_schema;
 mod sensitive_access;
 mod sensitive_handle_lifecycle;
@@ -15,6 +16,10 @@ mod sensitive_handle_lifecycle;
 pub use action_outcome::{
     PostConditionKind, PostConditionObservation, VerifiedActionOutcomeError,
     VerifiedActionOutcomeEvidence,
+};
+pub use browser_task_interruption::{
+    BrowserTaskInterruptionEvidence, BrowserTaskInterruptionKind, ExternalEffectDisposition,
+    RetryDisposition,
 };
 pub use extraction_schema::{
     ExtractionCardinality, ExtractionField, ExtractionNormalizationRule, ExtractionSchema,
