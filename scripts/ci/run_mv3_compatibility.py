@@ -219,7 +219,13 @@ def _cleanup_browser_session_preserving_primary(
 
     try:
         _cleanup_browser_session(driver_port, session_id)
-    except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as cleanup_error:
+    except (
+        OSError,
+        ValueError,
+        RuntimeError,
+        http.client.HTTPException,
+        json.JSONDecodeError,
+    ) as cleanup_error:
         bounded_error = BrowserSessionCleanupError(cleanup_error)
         if primary_error is None:
             raise bounded_error from cleanup_error
