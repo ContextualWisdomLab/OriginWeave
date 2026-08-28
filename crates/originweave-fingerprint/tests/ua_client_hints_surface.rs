@@ -19,11 +19,42 @@ fn ua_brand_accepts_ascii_bounded_names_and_versions() {
 }
 
 #[test]
+fn ua_brand_accepts_realistic_chromium_and_grease_names() {
+    assert!(UaBrand::new("Google Chrome", "131").is_ok());
+    assert!(UaBrand::new("Not/A)Brand", "99").is_ok());
+    assert!(UaBrand::new("Not_A Brand", "24.0.0.0").is_ok());
+}
+
+#[test]
+fn empty_brand_name_or_version_fails_closed() {
+    assert_eq!(
+        UaBrand::new("", "131").expect_err("empty brand name"),
+        ClientHintsError::InvalidBrandName
+    );
+    assert_eq!(
+        UaBrand::new("Chromium", "").expect_err("empty brand version"),
+        ClientHintsError::InvalidBrandName
+    );
+}
+
+#[test]
 fn brand_names_over_length_limit_fail_closed() {
     let long_name = "X".repeat(33);
     assert_eq!(
         UaBrand::new(&long_name, "1.0").expect_err("long name"),
         ClientHintsError::BrandTooLong
+    );
+}
+
+#[test]
+fn brand_versions_over_resource_limit_fail_closed() {
+    let boundary_version = "1".repeat(32);
+    assert!(UaBrand::new("Chromium", &boundary_version).is_ok());
+
+    let long_version = "1".repeat(33);
+    assert_eq!(
+        UaBrand::new("Chromium", &long_version).expect_err("long version"),
+        ClientHintsError::BrandVersionTooLong
     );
 }
 
@@ -108,6 +139,52 @@ fn mobile_hints_may_carry_a_model_without_exceeding_the_set() {
 }
 
 #[test]
+fn mobile_models_over_resource_limit_fail_closed() {
+    let brand = UaBrand::new("Chromium", "131.0.0.0").expect("brand");
+    let boundary_model = "M".repeat(64);
+    assert!(
+        UaClientHints::new(
+            HintsPlatform::Linux,
+            HintsArchitecture::Arm,
+            HintsBitness::Bit64,
+            true,
+            &boundary_model,
+            vec![brand.clone()],
+        )
+        .is_ok()
+    );
+
+    let long_model = "M".repeat(65);
+    assert_eq!(
+        UaClientHints::new(
+            HintsPlatform::Linux,
+            HintsArchitecture::Arm,
+            HintsBitness::Bit64,
+            true,
+            &long_model,
+            vec![brand],
+        ),
+        Err(ClientHintsError::ModelTooLong)
+    );
+}
+
+#[test]
+fn non_mobile_model_semantics_precede_model_length_budget() {
+    let long_model = "M".repeat(65);
+    assert_eq!(
+        UaClientHints::new(
+            HintsPlatform::Linux,
+            HintsArchitecture::Arm,
+            HintsBitness::Bit64,
+            false,
+            &long_model,
+            vec![UaBrand::new("Chromium", "131.0.0.0").expect("brand")],
+        ),
+        Err(ClientHintsError::ModelWithoutMobile)
+    );
+}
+
+#[test]
 fn empty_brand_list_fails_closed() {
     assert_eq!(
         UaClientHints::new(
@@ -119,6 +196,36 @@ fn empty_brand_list_fails_closed() {
             vec![],
         ),
         Err(ClientHintsError::MissingBrand)
+    );
+}
+
+#[test]
+fn brand_list_is_bounded_to_sixteen_entries() {
+    let brand = UaBrand::new("Chromium", "131.0.0.0").expect("brand");
+    let boundary = vec![brand.clone(); 16];
+    assert!(
+        UaClientHints::new(
+            HintsPlatform::Linux,
+            HintsArchitecture::X86,
+            HintsBitness::Bit64,
+            false,
+            "",
+            boundary,
+        )
+        .is_ok()
+    );
+
+    let oversized = vec![brand; 17];
+    assert_eq!(
+        UaClientHints::new(
+            HintsPlatform::Linux,
+            HintsArchitecture::X86,
+            HintsBitness::Bit64,
+            false,
+            "",
+            oversized,
+        ),
+        Err(ClientHintsError::TooManyBrands)
     );
 }
 
@@ -137,12 +244,24 @@ fn client_hints_error_has_deterministic_display() {
         "brand name must be at most 32 ASCII characters"
     );
     assert_eq!(
+        ClientHintsError::BrandVersionTooLong.to_string(),
+        "brand version must be at most 32 ASCII characters"
+    );
+    assert_eq!(
+        ClientHintsError::ModelTooLong.to_string(),
+        "mobile model must be at most 64 bytes"
+    );
+    assert_eq!(
         ClientHintsError::InvalidBrandName.to_string(),
-        "brand name and version must use ASCII letters and digits"
+        "brand name must use bounded UA-CH-compatible ASCII and version must be non-empty dotted ASCII alphanumeric"
     );
     assert_eq!(
         ClientHintsError::MissingBrand.to_string(),
         "a client-hints value must contain at least one brand"
+    );
+    assert_eq!(
+        ClientHintsError::TooManyBrands.to_string(),
+        "a client-hints value must contain at most 16 brands"
     );
 }
 

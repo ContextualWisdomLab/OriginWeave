@@ -13,22 +13,44 @@
 use std::error::Error;
 use std::fmt;
 
-/// The maximum accepted brand-name length in ASCII characters.
+/// The maximum accepted brand-name length in ASCII bytes.
 const MAX_BRAND_NAME_LENGTH: usize = 32;
+
+/// The maximum accepted brand-version length in ASCII bytes.
+const MAX_BRAND_VERSION_LENGTH: usize = 32;
+
+/// The maximum number of brand/version pairs retained in one UA-CH surface.
+const MAX_BRAND_COUNT: usize = 16;
+
+/// The maximum accepted mobile-model length in UTF-8 bytes.
+const MAX_MOBILE_MODEL_LENGTH: usize = 64;
+
+/// WICG GREASE-compatible separators admitted inside bounded brand names.
+const BRAND_COMPATIBILITY_SEPARATORS: &[u8] = b" ()-./:;=?_";
+
+fn is_valid_brand_name_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || BRAND_COMPATIBILITY_SEPARATORS.contains(&byte)
+}
 
 /// A validation failure when assembling a UA Client Hints surface.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ClientHintsError {
     /// A brand name exceeded the bounded ASCII length.
     BrandTooLong,
-    /// A brand name contained a non-ASCII-alpha or non-digit character.
+    /// A brand version exceeded the OriginWeave resource budget.
+    BrandVersionTooLong,
+    /// A brand name or version violated the bounded compatibility grammar.
     InvalidBrandName,
     /// A platform token was outside the enumerated low-entropy set.
     InvalidPlatform,
     /// A non-mobile user agent reported a non-empty model.
     ModelWithoutMobile,
+    /// A mobile model exceeded the OriginWeave resource budget.
+    ModelTooLong,
     /// A client-hints set carried no brand.
     MissingBrand,
+    /// A client-hints set exceeded the bounded retained brand-list size.
+    TooManyBrands,
 }
 
 impl fmt::Display for ClientHintsError {
@@ -37,17 +59,24 @@ impl fmt::Display for ClientHintsError {
             Self::BrandTooLong => {
                 formatter.write_str("brand name must be at most 32 ASCII characters")
             }
-            Self::InvalidBrandName => {
-                formatter.write_str("brand name and version must use ASCII letters and digits")
+            Self::BrandVersionTooLong => {
+                formatter.write_str("brand version must be at most 32 ASCII characters")
             }
+            Self::InvalidBrandName => formatter.write_str(
+                "brand name must use bounded UA-CH-compatible ASCII and version must be non-empty dotted ASCII alphanumeric",
+            ),
             Self::InvalidPlatform => formatter.write_str(
                 "platform must be one of the enumerated UA Client Hints platform values",
             ),
             Self::ModelWithoutMobile => {
                 formatter.write_str("a non-mobile user agent must report an empty model")
             }
+            Self::ModelTooLong => formatter.write_str("mobile model must be at most 64 bytes"),
             Self::MissingBrand => {
                 formatter.write_str("a client-hints value must contain at least one brand")
+            }
+            Self::TooManyBrands => {
+                formatter.write_str("a client-hints value must contain at most 16 brands")
             }
         }
     }
@@ -65,14 +94,21 @@ pub struct UaBrand {
 impl UaBrand {
     /// Validate one brand/version token pair.
     ///
-    /// Names and versions must be ASCII alphanumeric or dotted numerals, and
-    /// the name must be at most 32 characters, matching the WICG brand
-    /// grammar requirement.
+    /// Names must be non-empty ASCII and may contain alphanumerics plus the
+    /// separator bytes used by the WICG GREASE brand algorithm. Versions must
+    /// be non-empty dotted ASCII alphanumeric strings. The 32-byte name and
+    /// version caps are OriginWeave resource bounds, not UA Client Hints
+    /// specification limits.
     pub fn new(name: &str, version: &str) -> Result<Self, ClientHintsError> {
         if name.len() > MAX_BRAND_NAME_LENGTH {
             return Err(ClientHintsError::BrandTooLong);
         }
-        if !name.bytes().all(|byte| byte.is_ascii_alphanumeric())
+        if version.len() > MAX_BRAND_VERSION_LENGTH {
+            return Err(ClientHintsError::BrandVersionTooLong);
+        }
+        if name.is_empty()
+            || !name.bytes().all(is_valid_brand_name_byte)
+            || version.is_empty()
             || !version
                 .bytes()
                 .all(|byte| byte.is_ascii_alphanumeric() || byte == b'.')
@@ -207,8 +243,10 @@ pub struct UaClientHints {
 impl UaClientHints {
     /// Validate and build a UA Client Hints surface.
     ///
-    /// The model must be empty when `mobile` is false, and the brand list
-    /// must be non-empty. Every brand is validated by [`UaBrand::new`].
+    /// The model must be empty when `mobile` is false. Mobile model values are
+    /// capped at 64 UTF-8 bytes by OriginWeave's local resource budget. The
+    /// brand list must contain between one and 16 already-validated brands, so
+    /// retained presentation state cannot grow with an unbounded caller list.
     pub fn new(
         platform: HintsPlatform,
         architecture: HintsArchitecture,
@@ -220,8 +258,14 @@ impl UaClientHints {
         if !mobile && !model.is_empty() {
             return Err(ClientHintsError::ModelWithoutMobile);
         }
+        if model.len() > MAX_MOBILE_MODEL_LENGTH {
+            return Err(ClientHintsError::ModelTooLong);
+        }
         if brands.is_empty() {
             return Err(ClientHintsError::MissingBrand);
+        }
+        if brands.len() > MAX_BRAND_COUNT {
+            return Err(ClientHintsError::TooManyBrands);
         }
         Ok(Self {
             platform,

@@ -15,6 +15,9 @@
 use std::error::Error;
 use std::fmt;
 
+/// Maximum renderer spelling length normalized before token classification.
+const MAX_WEBGL_RENDERER_SPELLING_BYTES: usize = 256;
+
 /// A page-observable render or media surface that a stealth adapter must
 /// prove before admission.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -140,6 +143,9 @@ impl WebGlRendererToken {
     /// to a new class, so an adapter cannot widen the token set by fiat.
     #[must_use]
     pub fn canonical(spelling: &str) -> Option<Self> {
+        if spelling.len() > MAX_WEBGL_RENDERER_SPELLING_BYTES {
+            return None;
+        }
         let upper = spelling.to_ascii_uppercase();
         if upper.contains("SOFTWARE") || upper.contains("SWIFTSHADER") {
             Some(Self::Standard)
