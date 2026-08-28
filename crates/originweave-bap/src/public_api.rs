@@ -65,6 +65,38 @@ pub enum BapRecoveryDisposition {
     ReconcileBeforeFurtherAction,
 }
 
+/// Fail-closed validation error while deciding recovery for one retained command.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BapCommandRecoveryError {
+    /// The presented recovery-evidence identity differs from the identity bound to the classification.
+    EvidenceDigestMismatch,
+    /// The retained command receipt does not validate against the current lifecycle.
+    ReceiptValidation {
+        /// Exact receipt validation failure preserved by the recovery boundary.
+        error: BapCommandReceiptError,
+    },
+}
+
+impl std::fmt::Display for BapCommandRecoveryError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::EvidenceDigestMismatch => formatter.write_str(
+                "BAP recovery evidence digest does not match the retained recovery classification",
+            ),
+            Self::ReceiptValidation { error } => error.fmt(formatter),
+        }
+    }
+}
+
+impl std::error::Error for BapCommandRecoveryError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::EvidenceDigestMismatch => None,
+            Self::ReceiptValidation { error } => Some(error),
+        }
+    }
+}
+
 impl BapExternalSideEffectOutcome {
     /// Map the classification to the minimum required recovery action.
     ///
@@ -213,29 +245,41 @@ impl BapCommandRecovery {
 
     /// Return the lifecycle-aware fail-closed disposition for this exact recovery receipt.
     ///
-    /// The retained receipt must first match the lifecycle's exact most recently accepted
-    /// transition. Stale, foreign, state-only restored, or divergent lifecycle history therefore
-    /// fails closed with the underlying typed receipt error before the external outcome is
-    /// interpreted. A confirmed absence of side effect is converted to an explicit lifecycle
-    /// block for terminal states, approval/input/checkpoint suspension, and reconciliation holds.
-    /// Confirmed side effects still require post-condition verification, while unknown or explicitly
-    /// unreconciled outcomes still require reconciliation even when the lifecycle is terminal.
+    /// `presented_evidence_digest` must be the digest of the exact recovery evidence that the
+    /// durable caller has independently authenticated. Matching this value only binds identity;
+    /// it does not authenticate the evidence or prove the external outcome. A mismatch fails
+    /// closed before lifecycle state is examined.
     ///
-    /// A returned disposition grants no authority. Durable callers must authenticate the exact
-    /// recovery evidence identified by [`Self::evidence_digest`] and independently revalidate
+    /// After evidence identity matches, the retained receipt must match the lifecycle's exact most
+    /// recently accepted transition. Stale, foreign, state-only restored, or divergent lifecycle
+    /// history therefore fails closed with a typed receipt-validation error before the external
+    /// outcome is interpreted. A confirmed absence of side effect is converted to an explicit
+    /// lifecycle block for terminal states, approval/input/checkpoint suspension, and reconciliation
+    /// holds. Confirmed side effects still require post-condition verification, while unknown or
+    /// explicitly unreconciled outcomes still require reconciliation even when the lifecycle is
+    /// terminal.
+    ///
+    /// A returned disposition grants no authority. Durable callers must independently revalidate
     /// tenant, policy, destination, secret, browser, approval, and other current authority before
     /// any external action.
     pub fn disposition(
         &self,
         lifecycle: &BapTaskLifecycle,
-    ) -> Result<BapRecoveryDisposition, BapCommandReceiptError> {
-        lifecycle.validate_replay(
-            &self.receipt,
-            self.receipt.idempotency_key(),
-            self.receipt.tenant_id(),
-            self.receipt.task_id(),
-            self.receipt.event(),
-        )?;
+        presented_evidence_digest: &BapRecoveryEvidenceDigest,
+    ) -> Result<BapRecoveryDisposition, BapCommandRecoveryError> {
+        if presented_evidence_digest != &self.evidence_digest {
+            return Err(BapCommandRecoveryError::EvidenceDigestMismatch);
+        }
+
+        lifecycle
+            .validate_replay(
+                &self.receipt,
+                self.receipt.idempotency_key(),
+                self.receipt.tenant_id(),
+                self.receipt.task_id(),
+                self.receipt.event(),
+            )
+            .map_err(|error| BapCommandRecoveryError::ReceiptValidation { error })?;
 
         match self.required_action() {
             BapRecoveryAction::RevalidateBeforeRedispatch => {
@@ -265,21 +309,23 @@ impl BapCommandRecovery {
 
     /// Return whether redispatch may be considered for the current exact lifecycle state.
     ///
-    /// This is a convenience projection of [`Self::disposition`], so receipt validation,
-    /// lifecycle suspension/terminal handling, and external-outcome handling have one canonical
-    /// decision path. Only [`BapRecoveryDisposition::RevalidateBeforeRedispatch`] produces
-    /// `Ok(true)`; every other disposition produces `Ok(false)`.
+    /// This is a convenience projection of [`Self::disposition`], so exact recovery-evidence
+    /// identity binding, receipt validation, lifecycle suspension/terminal handling, and
+    /// external-outcome handling have one canonical decision path. Only
+    /// [`BapRecoveryDisposition::RevalidateBeforeRedispatch`] produces `Ok(true)`; every other
+    /// disposition produces `Ok(false)`.
     ///
-    /// `Ok(true)` is still not authorization to redispatch. The caller must separately
-    /// authenticate the exact recovery evidence identified by [`Self::evidence_digest`] and
-    /// revalidate tenant, policy, destination, secret, browser, and any other current authority
-    /// before dispatching the command again.
+    /// `Ok(true)` is still not authorization to redispatch. The caller must have independently
+    /// authenticated the evidence represented by `presented_evidence_digest` and must revalidate
+    /// tenant, policy, destination, secret, browser, and any other current authority before
+    /// dispatching the command again.
     pub fn permits_redispatch(
         &self,
         lifecycle: &BapTaskLifecycle,
-    ) -> Result<bool, BapCommandReceiptError> {
+        presented_evidence_digest: &BapRecoveryEvidenceDigest,
+    ) -> Result<bool, BapCommandRecoveryError> {
         Ok(matches!(
-            self.disposition(lifecycle)?,
+            self.disposition(lifecycle, presented_evidence_digest)?,
             BapRecoveryDisposition::RevalidateBeforeRedispatch
         ))
     }
