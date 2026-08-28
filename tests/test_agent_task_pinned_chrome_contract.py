@@ -300,17 +300,23 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
                 "surfaces": {"worker": True},
             }
         )
-        namespace["main"].__globals__["_run_agent_task_trial"] = (
-            lambda *_args, **_kwargs: {
+        def successful_agent_task_trial(*_args: object, **_kwargs: object) -> dict[str, object]:
+            return {
                 "trial_number": 1,
                 "passed": True,
                 "post_condition": True,
                 "input_echo_verified": True,
                 "url_unchanged": True,
+                "input_semantics_verified": True,
+                "submit_semantics_verified": True,
                 "extensions_disabled": True,
                 "profile_cleaned": True,
             }
+
+        self.assertTrue(
+            namespace["_agent_task_surfaces_complete"]([successful_agent_task_trial()])
         )
+        namespace["main"].__globals__["_run_agent_task_trial"] = successful_agent_task_trial
         namespace["main"].__globals__["REPEATABILITY_TRIALS"] = 1
         namespace["main"].__globals__["AGENT_TASK_REPEATABILITY_TRIALS"] = 1
         with patch.dict(

@@ -67,7 +67,7 @@ This is real WebDriver evidence for a controlled local fixture, not a product br
 
 **Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
 
-PR #71 extends the pinned-Chrome fixture lane by reading WebDriver's browser-computed role and accessible name for the controlled input and submit button before sending input or clicking. The exact expected values are `textbox` / `Task text` and `button` / `Submit task`; the repeatability gate requires both semantic checks in every successful trial.
+PR #71 extends the pinned-Chrome fixture lane by reading WebDriver's browser-computed role and accessible name for the controlled input and submit button before sending input or clicking. The exact expected values are `textbox` / `Task text` and `button` / `Submit task`; the repeatability gate requires both semantic checks in every successful trial, and the cleanup regression double supplies both success surfaces so teardown failures cannot mask incomplete evidence.
 
 This is bounded browser-computed evidence for a synthetic test target, not the OriginWeave semantic observation adapter. CSS locators remain test-harness selectors, and the lane does not create OriginWeave node handles, source-channel provenance, policy authority, or permission to execute page-advertised actions.
 
