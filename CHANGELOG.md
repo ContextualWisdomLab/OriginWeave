@@ -53,6 +53,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 ### Changed
 
 - Restored the public `originweave-core` crate-root export for `SemanticNodeQuery` and `SemanticNodeQueryError`, so the typed semantic-query contract is usable by downstream adapters and its regression test compiles against the actual library root.
+- Restored the public `originweave-core` crate-root export for `SemanticNodeActionTarget` and `SemanticNodeActionTargetError`, so authority-bound node actions are usable by downstream adapters after stack reconciliation.
 - Aligned the hourly product-development branch-coverage toolchain and its one-shot materializer with the reviewed `nightly-2026-08-18` pin, and corrected the official Dependabot Rust-toolchain reference.
 - Separated logical origin authority from resolved network destination authority; an origin grant no longer implies permission to connect to every resolver result.
 - Separated resolved-address authorization from direct transport evidence; an approved IP now becomes a usable stream only after the operating system reports the exact requested IP and port.
