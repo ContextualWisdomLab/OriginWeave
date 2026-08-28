@@ -76,13 +76,15 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         """The current changelog refresh item must carry its own live queue evidence."""
         added = self.changelog.split("### Added", 1)[1].split("### Changed", 1)[0]
         changed = self.changelog.split("### Changed", 1)[1].split("### Security", 1)[0]
-        refresh_prefix = "- Corrected the 2026-08-28 product-gap snapshot"
+        refresh_prefix = "- Revalidated the product-gap queue at"
         refresh_lines = [line for line in added.splitlines() if line.startswith(refresh_prefix)]
         self.assertEqual(1, len(refresh_lines))
         refresh_line = refresh_lines[0]
+        self.assertIn("on 2026-08-29", refresh_line)
         self.assertIn("110 open pull requests (26 ready, 84 draft)", refresh_line)
         self.assertIn("11 open issues", refresh_line)
-        self.assertNotIn(refresh_prefix, changed)
+        self.assertNotIn("- Corrected the 2026-08-28 product-gap snapshot", added)
+        self.assertNotIn("- Revalidated the product-gap queue at", changed)
         self.assertNotIn("115 open pull requests (31 ready, 84 draft)", refresh_line)
         self.assertNotIn("126 open pull requests (54 ready, 72 draft)", refresh_line)
         self.assertNotIn("128 open pull requests (54 ready, 74 draft)", refresh_line)
