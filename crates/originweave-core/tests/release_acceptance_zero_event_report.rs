@@ -8,7 +8,9 @@ fn passing_suites() -> [(BenchmarkSuite, BenchmarkSuiteOutcome); 5] {
     BenchmarkSuite::ALL.map(|suite| (suite, BenchmarkSuiteOutcome::Passed))
 }
 
-fn declared_limitation(claim: impl Into<String>) -> Result<DeclaredLimitation, ReleaseDecisionError> {
+fn declared_limitation(
+    claim: impl Into<String>,
+) -> Result<DeclaredLimitation, ReleaseDecisionError> {
     DeclaredLimitation::new(
         claim,
         "This profile is excluded from the declared support profile.",
