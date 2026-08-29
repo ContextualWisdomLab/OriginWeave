@@ -337,6 +337,12 @@ mod tests {
     }
 
     #[test]
+    fn test_helpers_report_unexpected_assembly_variants() {
+        assert!(text(WebDriverBiDiWebSocketMessageAssembly::Pending).is_err());
+        assert!(control(WebDriverBiDiWebSocketMessageAssembly::Pending).is_err());
+    }
+
+    #[test]
     fn complete_text_and_debug_are_payload_redacted() -> Result<(), Box<dyn Error>> {
         let mut assembler = WebDriverBiDiWebSocketMessageAssembler::default();
         let message = text(assembler.push_parts(true, 0x1, b"secret-text")?)?;
