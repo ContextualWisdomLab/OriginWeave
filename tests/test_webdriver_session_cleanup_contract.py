@@ -32,6 +32,13 @@ class WebDriverSessionCleanupContractTests(unittest.TestCase):
             [((9515, "DELETE", "/session/session-1"), {})],
         )
 
+    def test_agent_task_cleanup_uses_shared_production_path_only(self) -> None:
+        """No test-only cleanup wrapper may shadow the executed shared finalizer path."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="webdriver_cleanup_path_contract")
+        self.assertNotIn("_cleanup_agent_task_browser_session", namespace)
+        self.assertIn("_cleanup_browser_session_preserving_primary", namespace)
+
 
 if __name__ == "__main__":
     unittest.main()
