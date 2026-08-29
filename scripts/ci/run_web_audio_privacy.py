@@ -154,8 +154,7 @@ def _json_request(
         if len(raw) > MAX_WEBDRIVER_RESPONSE_BYTES:
             raise RuntimeError("WebDriver response exceeded the bounded JSON limit")
         if response.status >= 400:
-            detail = raw.decode("utf-8", errors="replace")
-            raise RuntimeError(f"WebDriver HTTP {response.status}: {detail}")
+            raise RuntimeError(f"WebDriver HTTP {response.status}")
     finally:
         connection.close()
 
@@ -164,7 +163,7 @@ def _json_request(
         raise RuntimeError("WebDriver returned a non-object JSON payload")
     value = decoded.get("value")
     if isinstance(value, dict) and value.get("error"):
-        raise RuntimeError(f"WebDriver error: {value.get('error')}: {value.get('message')}")
+        raise RuntimeError("WebDriver returned an error response")
     return decoded
 
 
