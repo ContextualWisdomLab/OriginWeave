@@ -111,3 +111,27 @@ fn blank_required_reproducibility_context_field_fails_closed() {
         })
     );
 }
+
+#[test]
+fn surrounding_whitespace_reproducibility_context_field_fails_closed() {
+    let mut context = run_context();
+    context.chromium_revision = " chromium@140.0.7339.82 ";
+    let invalid = ControlledBenchmarkSuiteError::NonCanonicalRunContext {
+        field: "chromium_revision",
+    };
+
+    assert_eq!(
+        evaluate_controlled_benchmark_suite_for_run(
+            context,
+            context,
+            CONTROLLED_DETERMINISTIC_REGISTRY_VERSION,
+            base_profile(),
+            &[],
+        ),
+        Err(invalid.clone())
+    );
+    assert_eq!(
+        invalid.to_string(),
+        "controlled benchmark run context field chromium_revision contains non-canonical surrounding whitespace"
+    );
+}
