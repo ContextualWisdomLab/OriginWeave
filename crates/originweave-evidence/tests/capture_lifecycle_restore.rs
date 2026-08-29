@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use originweave_evidence::{
-    CaptureDeletionReceipt, CaptureLifecycle, CaptureLifecycleError, CaptureLifecycleState,
+    CaptureDeletionReceipt, CaptureLifecycle, CaptureLifecycleRestoreError, CaptureLifecycleState,
 };
 
 const MANIFEST_DIGEST: &str =
@@ -16,7 +16,8 @@ const DELETION_EVIDENCE_DIGEST: &str =
     "sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
 
 #[test]
-fn restored_lifecycle_states_preserve_only_valid_persisted_shapes() -> Result<(), Box<dyn Error>> {
+fn restored_lifecycle_states_preserve_only_valid_persisted_shapes()
+-> Result<(), Box<dyn Error>> {
     let started = CaptureLifecycle::restore(
         MANIFEST_DIGEST,
         CaptureLifecycleState::CaptureStarted,
@@ -66,7 +67,10 @@ fn restored_lifecycle_states_preserve_only_valid_persisted_shapes() -> Result<()
         None,
         None,
     )?;
-    assert_eq!(held_without_retention.state(), CaptureLifecycleState::LegalHold);
+    assert_eq!(
+        held_without_retention.state(),
+        CaptureLifecycleState::LegalHold
+    );
 
     let held_after_retention = CaptureLifecycle::restore(
         MANIFEST_DIGEST,
@@ -76,7 +80,10 @@ fn restored_lifecycle_states_preserve_only_valid_persisted_shapes() -> Result<()
         None,
         None,
     )?;
-    assert_eq!(held_after_retention.state(), CaptureLifecycleState::LegalHold);
+    assert_eq!(
+        held_after_retention.state(),
+        CaptureLifecycleState::LegalHold
+    );
     assert_eq!(
         held_after_retention.retention_deadline_epoch_seconds(),
         Some(200)
@@ -114,7 +121,8 @@ fn restored_lifecycle_states_preserve_only_valid_persisted_shapes() -> Result<()
 }
 
 #[test]
-fn restored_retained_and_pending_deletion_states_can_continue_safely() -> Result<(), Box<dyn Error>> {
+fn restored_retained_and_pending_deletion_states_can_continue_safely()
+-> Result<(), Box<dyn Error>> {
     let mut retained = CaptureLifecycle::restore(
         MANIFEST_DIGEST,
         CaptureLifecycleState::Retained,
@@ -156,7 +164,7 @@ fn restore_rejects_corrupt_persisted_lifecycle_shapes() -> Result<(), Box<dyn Er
             None,
             None,
         ),
-        Err(CaptureLifecycleError::InvalidManifestDigest)
+        Err(CaptureLifecycleRestoreError::InvalidManifestDigest)
     );
     assert_eq!(
         CaptureLifecycle::restore(
@@ -167,7 +175,7 @@ fn restore_rejects_corrupt_persisted_lifecycle_shapes() -> Result<(), Box<dyn Er
             None,
             None,
         ),
-        Err(CaptureLifecycleError::InvalidRestoredState)
+        Err(CaptureLifecycleRestoreError::InvalidPersistedState)
     );
     assert_eq!(
         CaptureLifecycle::restore(
@@ -178,7 +186,7 @@ fn restore_rejects_corrupt_persisted_lifecycle_shapes() -> Result<(), Box<dyn Er
             None,
             None,
         ),
-        Err(CaptureLifecycleError::InvalidRestoredState)
+        Err(CaptureLifecycleRestoreError::InvalidPersistedState)
     );
     assert_eq!(
         CaptureLifecycle::restore(
@@ -189,7 +197,7 @@ fn restore_rejects_corrupt_persisted_lifecycle_shapes() -> Result<(), Box<dyn Er
             None,
             None,
         ),
-        Err(CaptureLifecycleError::InvalidRestoredState)
+        Err(CaptureLifecycleRestoreError::InvalidPersistedState)
     );
     assert_eq!(
         CaptureLifecycle::restore(
@@ -200,7 +208,7 @@ fn restore_rejects_corrupt_persisted_lifecycle_shapes() -> Result<(), Box<dyn Er
             Some(DELETION_REQUEST_DIGEST),
             None,
         ),
-        Err(CaptureLifecycleError::InvalidRestoredState)
+        Err(CaptureLifecycleRestoreError::InvalidPersistedState)
     );
     assert_eq!(
         CaptureLifecycle::restore(
@@ -211,7 +219,7 @@ fn restore_rejects_corrupt_persisted_lifecycle_shapes() -> Result<(), Box<dyn Er
             Some("sha256:not-a-digest"),
             None,
         ),
-        Err(CaptureLifecycleError::InvalidDeletionRequestDigest)
+        Err(CaptureLifecycleRestoreError::InvalidDeletionRequestDigest)
     );
     assert_eq!(
         CaptureLifecycle::restore(
@@ -222,7 +230,7 @@ fn restore_rejects_corrupt_persisted_lifecycle_shapes() -> Result<(), Box<dyn Er
             Some(DELETION_REQUEST_DIGEST),
             None,
         ),
-        Err(CaptureLifecycleError::InvalidRestoredState)
+        Err(CaptureLifecycleRestoreError::InvalidPersistedState)
     );
 
     let receipt = CaptureDeletionReceipt::new(
@@ -239,7 +247,7 @@ fn restore_rejects_corrupt_persisted_lifecycle_shapes() -> Result<(), Box<dyn Er
             Some(DELETION_REQUEST_DIGEST),
             None,
         ),
-        Err(CaptureLifecycleError::InvalidRestoredState)
+        Err(CaptureLifecycleRestoreError::InvalidPersistedState)
     );
     assert_eq!(
         CaptureLifecycle::restore(
@@ -250,7 +258,7 @@ fn restore_rejects_corrupt_persisted_lifecycle_shapes() -> Result<(), Box<dyn Er
             Some(DELETION_REQUEST_DIGEST),
             Some(&receipt),
         ),
-        Err(CaptureLifecycleError::InvalidRestoredState)
+        Err(CaptureLifecycleRestoreError::InvalidPersistedState)
     );
 
     let wrong_manifest_receipt = CaptureDeletionReceipt::new(
@@ -267,7 +275,7 @@ fn restore_rejects_corrupt_persisted_lifecycle_shapes() -> Result<(), Box<dyn Er
             Some(DELETION_REQUEST_DIGEST),
             Some(&wrong_manifest_receipt),
         ),
-        Err(CaptureLifecycleError::DeletionReceiptMismatch)
+        Err(CaptureLifecycleRestoreError::DeletionReceiptMismatch)
     );
 
     let wrong_request_receipt = CaptureDeletionReceipt::new(
@@ -284,11 +292,11 @@ fn restore_rejects_corrupt_persisted_lifecycle_shapes() -> Result<(), Box<dyn Er
             Some(DELETION_REQUEST_DIGEST),
             Some(&wrong_request_receipt),
         ),
-        Err(CaptureLifecycleError::DeletionReceiptRequestMismatch)
+        Err(CaptureLifecycleRestoreError::DeletionReceiptRequestMismatch)
     );
 
     assert_eq!(
-        CaptureLifecycleError::InvalidRestoredState.to_string(),
+        CaptureLifecycleRestoreError::InvalidPersistedState.to_string(),
         "persisted capture lifecycle state is internally inconsistent"
     );
     Ok(())
