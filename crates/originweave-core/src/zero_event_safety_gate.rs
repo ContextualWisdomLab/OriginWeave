@@ -280,7 +280,8 @@ where
         declared_limitations,
         observations,
     )?;
-    let zero_event_safety_gate_report = evaluate_zero_event_safety_gate(requirements, observations)?;
+    let zero_event_safety_gate_report =
+        evaluate_zero_event_safety_gate(requirements, observations)?;
 
     let decision = match benchmark_report.decision() {
         ReleaseDecision::Rejected => ReleaseDecision::Rejected,
