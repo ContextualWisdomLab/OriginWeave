@@ -2,8 +2,8 @@
 
 use originweave_core::Origin;
 use originweave_policy::{
-    DataClassification, HandleUseDecision, HandleUseRequest, SensitiveDataAuthority,
-    SensitiveValueHandleScope, evaluate_handle_use,
+    DataClassification, HandleUseDecision, SensitiveDataAuthority, SensitiveHandleUseState,
+    SensitiveValueHandleScope,
 };
 
 fn destination() -> Origin {
@@ -25,19 +25,17 @@ fn authority(classification: DataClassification) -> SensitiveDataAuthority {
 fn opaque_handle_use_requires_the_exact_data_classification() {
     let scope =
         SensitiveValueHandleScope::new(authority(DataClassification::PersonalData), 2_000, 2);
-    let permitted = HandleUseRequest::new(authority(DataClassification::PersonalData), 1_999, 0);
-    let reclassified = HandleUseRequest::new(
-        authority(DataClassification::SensitivePersonalData),
-        1_999,
-        0,
-    );
+    let mut state = SensitiveHandleUseState::new(scope);
 
     assert_eq!(
-        evaluate_handle_use(&permitted, &scope),
+        state.reserve_use(authority(DataClassification::PersonalData), 1_999),
         HandleUseDecision::Authorized
     );
     assert_eq!(
-        evaluate_handle_use(&reclassified, &scope),
+        state.reserve_use(
+            authority(DataClassification::SensitivePersonalData),
+            1_999,
+        ),
         HandleUseDecision::ScopeMismatch
     );
 }
