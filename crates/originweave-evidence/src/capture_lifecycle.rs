@@ -250,7 +250,12 @@ impl CaptureLifecycle {
         Ok(())
     }
 
-    /// Place a verified or retained capture under an explicit legal hold.
+    /// Place a verified, retained, or deletion-pending capture under an explicit legal hold.
+    ///
+    /// A hold that races with a pending deletion request invalidates that request
+    /// before entering `LegalHold`; any receipt bound to the old request is stale.
+    /// Releasing the hold still requires a new future retention period before a
+    /// later deletion can be requested.
     pub fn place_legal_hold(
         &mut self,
         trusted_time_epoch_seconds: u64,
@@ -258,6 +263,13 @@ impl CaptureLifecycle {
         self.require_trusted_time_not_rollback(trusted_time_epoch_seconds)?;
         match self.state {
             CaptureLifecycleState::Verified | CaptureLifecycleState::Retained => {
+                self.state = CaptureLifecycleState::LegalHold;
+                self.accept_trusted_time(trusted_time_epoch_seconds);
+                Ok(())
+            }
+            CaptureLifecycleState::DeletionRequested => {
+                self.deletion_request_digest = None;
+                self.deletion_receipt = None;
                 self.state = CaptureLifecycleState::LegalHold;
                 self.accept_trusted_time(trusted_time_epoch_seconds);
                 Ok(())
