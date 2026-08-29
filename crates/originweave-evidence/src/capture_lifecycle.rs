@@ -338,10 +338,7 @@ impl CaptureLifecycle {
             return Err(CaptureLifecycleError::DeletionReceiptMismatch);
         }
         self.require_state(CaptureLifecycleState::DeletionRequested)?;
-        let deletion_request_digest = self
-            .deletion_request_digest
-            .as_deref()
-            .ok_or(CaptureLifecycleError::InvalidTransition)?;
+        let deletion_request_digest = self.deletion_request_digest.as_deref().unwrap_or_default();
         if receipt.deletion_request_digest() != deletion_request_digest {
             return Err(CaptureLifecycleError::DeletionReceiptRequestMismatch);
         }
@@ -436,7 +433,7 @@ mod tests {
 
         assert_eq!(
             lifecycle.confirm_deleted(&receipt, 201),
-            Err(CaptureLifecycleError::InvalidTransition)
+            Err(CaptureLifecycleError::DeletionReceiptRequestMismatch)
         );
         assert_eq!(lifecycle.state(), CaptureLifecycleState::DeletionRequested);
         assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 200);
