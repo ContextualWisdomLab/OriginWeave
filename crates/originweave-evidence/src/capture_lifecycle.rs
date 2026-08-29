@@ -418,8 +418,7 @@ mod tests {
     }
 
     #[test]
-    fn corrupted_deletion_request_without_digest_fails_closed() -> Result<(), CaptureLifecycleError>
-    {
+    fn corrupted_deletion_request_without_digest_fails_closed() {
         let mut lifecycle = CaptureLifecycle {
             manifest_digest: MANIFEST_DIGEST.to_owned(),
             state: CaptureLifecycleState::DeletionRequested,
@@ -432,7 +431,8 @@ mod tests {
             MANIFEST_DIGEST,
             DELETION_REQUEST_DIGEST,
             "sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
-        )?;
+        )
+        .expect("valid canonical deletion receipt");
 
         assert_eq!(
             lifecycle.confirm_deleted(&receipt, 201),
@@ -441,6 +441,5 @@ mod tests {
         assert_eq!(lifecycle.state(), CaptureLifecycleState::DeletionRequested);
         assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 200);
         assert!(lifecycle.deletion_receipt().is_none());
-        Ok(())
     }
 }
