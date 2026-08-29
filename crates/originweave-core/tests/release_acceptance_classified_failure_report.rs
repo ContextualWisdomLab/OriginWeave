@@ -100,6 +100,44 @@ fn classified_product_failure_rejects_release_and_retains_cause() -> Result<(), 
 }
 
 #[test]
+fn partial_unique_array_evidence_remains_inconclusive_and_retains_failure_cause()
+-> Result<(), ReleaseDecisionError> {
+    let report = decide_release_with_classified_benchmark_evidence(
+        [
+            passed(BenchmarkSuite::ControlledDeterministic),
+            BenchmarkSuiteEvidence::Failure {
+                suite: BenchmarkSuite::WebCompatibility,
+                classification: BenchmarkFailureClass::ExternalSiteDrift,
+            },
+        ],
+        &[],
+        &[],
+    )?;
+
+    assert_eq!(report.decision(), ReleaseDecision::Inconclusive);
+    assert_eq!(
+        report.inconclusive_suites(),
+        &[BenchmarkSuite::WebCompatibility]
+    );
+    assert_eq!(
+        report.missing_suites(),
+        &[
+            BenchmarkSuite::SecurityAdversarial,
+            BenchmarkSuite::ReliabilityRecovery,
+            BenchmarkSuite::EnterpriseOperability,
+        ]
+    );
+    assert_eq!(
+        report.benchmark_failures(),
+        &[BenchmarkFailureEvidence::new(
+            BenchmarkSuite::WebCompatibility,
+            BenchmarkFailureClass::ExternalSiteDrift,
+        )]
+    );
+    Ok(())
+}
+
+#[test]
 fn duplicate_suite_evidence_still_fails_closed() {
     let result =
         decide_release_with_classified_benchmark_evidence(duplicate_suite_evidence(), &[], &[]);
