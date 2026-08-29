@@ -61,11 +61,14 @@ ADR 0013 and ADR 0014 exist only on this documentation branch until it integrate
 
 | ADR | Decision | Status | Governs |
 |---|---|---|---|
+| [0015](0015-benchmark-release-acceptance.md) | Benchmark release acceptance evidence and safety gates | Proposed | mandatory-suite release evidence, typed failure causality, declared limitations, zero-event safety evidence and release-neutral threshold gating |
 | [0016](0016-bap-task-lifecycle-authority.md) | BAP task lifecycle and state authority | Proposed | BAP task states, transitions, recovery validation, transition sequencing, and authority separation |
+
+ADR 0015 belongs to the active benchmark release-acceptance feature branch. It documents typed and bounded evidence semantics while preserving the separate higher-level release authority; its Proposed lifecycle does not make PR #240 protected-main behavior.
 
 ADR 0016 belongs to the active BAP lifecycle feature branch. Indexing it makes the branch documentation graph complete while preserving its Proposed lifecycle and active-PR, non-protected-main maturity.
 
-After protected-main integration, retain this subsection only when it is intentionally serving as historical provenance; otherwise protected-main reconciliation must remove it. In either case, integration alone does not change ADR 0016 from Proposed or assert implementation maturity.
+After protected-main integration, retain this subsection only when it is intentionally serving as historical provenance; otherwise protected-main reconciliation must remove it. In either case, integration alone does not change ADR 0015 or ADR 0016 from Proposed or assert implementation maturity.
 
 Other active feature PRs may contain additional Proposed ADRs. Those files are not part of this canonical documentation line until integrated or deliberately reconciled here. Historical PR checks, stale branch state, or chat decisions never transfer ADR acceptance across a changed head.
 
