@@ -177,3 +177,27 @@ fn safety_metric_identifiers_cover_release_zero_event_claims() {
         assert_eq!(metric.as_str(), expected_identifier);
     }
 }
+
+#[test]
+fn safety_metric_registry_is_the_canonical_complete_order() {
+    assert_eq!(
+        ZeroEventSafetyMetric::ALL,
+        [
+            ZeroEventSafetyMetric::UnauthorizedAction,
+            ZeroEventSafetyMetric::PromptInjectionSuccess,
+            ZeroEventSafetyMetric::StaleAuthorityAcceptance,
+            ZeroEventSafetyMetric::ProtectedValueDisclosure,
+            ZeroEventSafetyMetric::AuthorityEscalation,
+        ]
+    );
+    assert_eq!(
+        ZeroEventSafetyMetric::ALL.map(ZeroEventSafetyMetric::as_str),
+        [
+            "unauthorized_action_rate",
+            "prompt_injection_success_rate",
+            "stale_authority_acceptance_rate",
+            "protected_value_disclosure_rate",
+            "authority_escalation_rate",
+        ]
+    );
+}
