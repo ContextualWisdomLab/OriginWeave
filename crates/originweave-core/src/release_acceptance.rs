@@ -151,6 +151,15 @@ pub enum ZeroEventSafetyMetric {
 }
 
 impl ZeroEventSafetyMetric {
+    /// Every named zero-event safety metric in canonical release-report order.
+    pub const ALL: [Self; 5] = [
+        Self::UnauthorizedAction,
+        Self::PromptInjectionSuccess,
+        Self::StaleAuthorityAcceptance,
+        Self::ProtectedValueDisclosure,
+        Self::AuthorityEscalation,
+    ];
+
     /// Return the stable snake-case identifier used in retained release evidence.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
@@ -509,7 +518,7 @@ fn decide_release_from_iterator(
         }
     }
 
-    let mut seen_zero_event_metrics = [false; 5];
+    let mut seen_zero_event_metrics = [false; ZeroEventSafetyMetric::ALL.len()];
     for observation in zero_event_safety_observations {
         let metric = observation.metric();
         let seen = &mut seen_zero_event_metrics[metric.index()];
