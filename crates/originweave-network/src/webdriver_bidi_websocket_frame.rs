@@ -924,7 +924,7 @@ mod tests {
         assert_eq!(format!("{first:?}"), "<redacted WebSocket masking key>");
         let mut history = ClientMaskKeyHistory::default();
         assert!(history.reserve(first).is_ok());
-        let reused = history.reserve(first).err().expect("reused key must fail");
+        let reused = history.reserve(first).expect_err("reused key must fail");
         assert_eq!(
             malformed_reason(&reused),
             Some(REUSED_CLIENT_MASK_KEY_REASON)
