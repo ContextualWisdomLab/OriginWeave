@@ -50,8 +50,8 @@ fn public_message_admission_consumes_real_validated_frame() -> Result<(), Box<dy
     let admitted = WebDriverBiDiWebSocketEndpoint::new(&endpoint)?;
     let correlated = admitted.correlate_session_id(SESSION_ID)?;
     let target = correlated.into_explicit_connect_target()?;
-    let connection = WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)?
-        .connect()?;
+    let connection =
+        WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)?.connect()?;
     let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?;
     let established = WebDriverBiDiWebSocketHandshakePlan::new(connection, key)?
         .write_opening_request(Duration::from_millis(500))?
