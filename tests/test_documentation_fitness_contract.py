@@ -108,15 +108,15 @@ class DocumentationFitnessContractTests(unittest.TestCase):
         self.assertIn("Semantic observation authority", assessment)
         self.assertIn("integration before any of these branch repairs become protected-main truth", assessment)
 
-    def test_sensitive_handle_predicate_documents_untrusted_counter_boundary(self) -> None:
-        """The ADR must not present a caller-supplied use count as authorization state."""
+    def test_sensitive_handle_reservation_documents_authoritative_state_boundary(self) -> None:
+        """The ADR must describe reservation state, not a caller-supplied authorization count."""
         adr = (ADR_ROOT / "0007-purpose-bound-sensitive-data-authority.md").read_text(
             encoding="utf-8"
         )
         for marker in (
-            "caller-supplied `uses_so_far` is untrusted",
-            "does not independently enforce the maximum-use limit",
-            "Only a trusted broker or `SensitiveHandleUseState` may treat its result as authorization",
+            "`SensitiveHandleUseState::reserve_use` is the only public handle-use authorization operation",
+            "Callers cannot supply a prior-use count or obtain `Authorized` from a stateless predicate",
+            "atomically increments its owned use count only for `Authorized`",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, adr)
