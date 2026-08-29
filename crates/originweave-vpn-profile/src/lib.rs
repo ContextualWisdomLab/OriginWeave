@@ -589,6 +589,17 @@ fn profile_lines(profile: &str) -> impl Iterator<Item = &str> {
         .filter(|line| !line.is_empty() && !line.starts_with('#'))
 }
 
+fn wireguard_profile_lines(profile: &str) -> impl Iterator<Item = &str> {
+    profile
+        .lines()
+        .map(|line| match line.split_once('#') {
+            Some((content, _)) => content,
+            None => line,
+        })
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+}
+
 fn parse_assignment(line: &str) -> Result<(&str, &str), ProfileError> {
     let (key, value) = line.split_once('=').ok_or(ProfileError::MalformedLine)?;
     Ok((bounded_value(key)?, bounded_value(value)?))
@@ -630,7 +641,7 @@ fn import_wireguard_profile_once(
     let mut peers = Vec::new();
     let mut peer: Option<WireGuardPeerBuilder> = None;
 
-    for line in profile_lines(profile) {
+    for line in wireguard_profile_lines(profile) {
         if line == "[Interface]" {
             if section.is_some() {
                 return Err(ProfileError::DuplicateField);
@@ -890,9 +901,11 @@ pub fn parse_vpn_profile(
     let first = profile_lines(profile)
         .next()
         .ok_or(ProfileError::UnsupportedProfile)?;
-    match first {
-        "[Interface]" => import_wireguard_profile(profile, importer).map(VpnProfile::WireGuard),
-        "[IKEv2]" => parse_ikev2_profile(profile, importer).map(VpnProfile::Ikev2),
+    if first == "[IKEv2]" {
+        return parse_ikev2_profile(profile, importer).map(VpnProfile::Ikev2);
+    }
+    match wireguard_profile_lines(profile).next() {
+        Some("[Interface]") => import_wireguard_profile(profile, importer).map(VpnProfile::WireGuard),
         _ => Err(ProfileError::UnsupportedProfile),
     }
 }
