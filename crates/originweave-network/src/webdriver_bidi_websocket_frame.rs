@@ -926,9 +926,11 @@ mod tests {
         assert_eq!(&small[..6], &[0x81, 0x83, 1, 2, 3, 4]);
         assert_eq!(&small[6..], &[b'a' ^ 1, b'b' ^ 2, b'c' ^ 3]);
 
-        let medium = serialize_client_frame(0x1, &vec![b'x'; 126], key);
+        let medium_payload = [b'x'; 126];
+        let medium = serialize_client_frame(0x1, &medium_payload, key);
         assert_eq!(&medium[..4], &[0x81, 0xfe, 0, 126]);
-        let large = serialize_client_frame(0x1, &vec![b'x'; 65_536], key);
+        let large_payload = vec![b'x'; 65_536].into_boxed_slice();
+        let large = serialize_client_frame(0x1, &large_payload, key);
         assert_eq!(large[0], 0x81);
         assert_eq!(large[1], 0xff);
         assert_eq!(&large[2..10], &65_536_u64.to_be_bytes());
