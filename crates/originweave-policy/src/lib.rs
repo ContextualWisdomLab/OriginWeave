@@ -11,8 +11,8 @@ mod sensitive_data;
 
 pub use sensitive_data::{
     DataClassification, DisclosureDecision, DisclosureScope, HandleRevocationReason,
-    HandleUseDecision, HandleUseRequest, SensitiveDataAuthority, SensitiveDataRequest,
-    SensitiveHandleUseState, SensitiveValueHandleScope, evaluate_disclosure, evaluate_handle_use,
+    HandleUseDecision, SensitiveDataAuthority, SensitiveDataRequest, SensitiveHandleUseState,
+    SensitiveValueHandleScope, evaluate_disclosure,
 };
 
 use originweave_core::mcp::ValidatedMcpToolCall;
