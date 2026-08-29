@@ -67,7 +67,8 @@ fn generic_dispatch_recognizes_a_commented_wg_quick_section_header() -> Result<(
 }
 
 #[test]
-fn provider_neutral_ikev2_preserves_hash_characters_inside_secret_values() -> Result<(), ProfileError> {
+fn provider_neutral_ikev2_preserves_hash_characters_inside_secret_values()
+-> Result<(), ProfileError> {
     let profile = concat!(
         "[IKEv2]\n",
         "Server=vpn.example\n",
