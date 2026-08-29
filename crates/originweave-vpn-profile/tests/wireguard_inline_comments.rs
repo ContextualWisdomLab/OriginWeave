@@ -32,10 +32,19 @@ fn wg_quick_inline_comments_are_ignored_before_wireguard_validation() -> Result<
 
     assert_eq!(normalized.addresses, vec!["10.0.0.2/32".to_owned()]);
     assert_eq!(normalized.dns_servers, vec!["1.1.1.1".to_owned()]);
-    assert_eq!(normalized.dns_search_domains, vec!["corp.example".to_owned()]);
+    assert_eq!(
+        normalized.dns_search_domains,
+        vec!["corp.example".to_owned()]
+    );
     assert_eq!(normalized.peers.len(), 1);
-    assert_eq!(normalized.peers[0].endpoint.as_deref(), Some("vpn.example.com:51820"));
-    assert_eq!(normalized.peers[0].allowed_ips, vec!["0.0.0.0/0".to_owned()]);
+    assert_eq!(
+        normalized.peers[0].endpoint.as_deref(),
+        Some("vpn.example.com:51820")
+    );
+    assert_eq!(
+        normalized.peers[0].allowed_ips,
+        vec!["0.0.0.0/0".to_owned()]
+    );
     assert_eq!(importer.calls, 1);
     Ok(())
 }
