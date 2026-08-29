@@ -16,6 +16,11 @@ fn benchmark_failure_classes_have_stable_evidence_identifiers() {
             BenchmarkFailureClass::ExternalSiteDrift,
             "external_site_drift",
         ),
+        (BenchmarkFailureClass::ExternalOutage, "external_outage"),
+        (
+            BenchmarkFailureClass::UnsupportedCapability,
+            "unsupported_capability",
+        ),
         (
             BenchmarkFailureClass::InfrastructureFailure,
             "infrastructure_failure",
@@ -45,6 +50,8 @@ fn product_threshold_failures_remain_failed_suite_evidence() {
 fn environment_or_benchmark_uncertainty_remains_inconclusive() {
     for classification in [
         BenchmarkFailureClass::ExternalSiteDrift,
+        BenchmarkFailureClass::ExternalOutage,
+        BenchmarkFailureClass::UnsupportedCapability,
         BenchmarkFailureClass::InfrastructureFailure,
         BenchmarkFailureClass::BenchmarkDefect,
     ] {
