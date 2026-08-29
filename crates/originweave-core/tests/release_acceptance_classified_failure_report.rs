@@ -106,3 +106,39 @@ fn duplicate_suite_evidence_still_fails_closed() {
         ReleaseDecisionError::DuplicateSuite(BenchmarkSuite::ControlledDeterministic)
     );
 }
+
+struct DuplicateThenPanic {
+    step: u8,
+}
+
+impl Iterator for DuplicateThenPanic {
+    type Item = BenchmarkSuiteEvidence;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let item = match self.step {
+            0 => passed(BenchmarkSuite::ControlledDeterministic),
+            1 => BenchmarkSuiteEvidence::Failure {
+                suite: BenchmarkSuite::ControlledDeterministic,
+                classification: BenchmarkFailureClass::BenchmarkDefect,
+            },
+            _ => panic!("release acceptance consumed evidence after the first duplicate suite"),
+        };
+        self.step += 1;
+        Some(item)
+    }
+}
+
+#[test]
+fn duplicate_suite_stops_consuming_unbounded_evidence() {
+    let error = decide_release_with_classified_benchmark_evidence(
+        DuplicateThenPanic { step: 0 },
+        &[],
+        &[],
+    )
+    .expect_err("the first duplicate suite must fail closed without reading further evidence");
+
+    assert_eq!(
+        error,
+        ReleaseDecisionError::DuplicateSuite(BenchmarkSuite::ControlledDeterministic)
+    );
+}
