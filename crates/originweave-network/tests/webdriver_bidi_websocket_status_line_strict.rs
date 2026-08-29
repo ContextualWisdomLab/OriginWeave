@@ -53,8 +53,8 @@ fn response_without_mandatory_space_after_status_code_fails_closed() -> TestResu
         Ok(())
     });
 
-    let endpoint =
-        WebDriverBiDiWebSocketEndpoint::new(format!("ws://{local_addr}/session/{SESSION_ID}"))?;
+    let endpoint_url = format!("ws://{local_addr}/session/{SESSION_ID}");
+    let endpoint = WebDriverBiDiWebSocketEndpoint::new(&endpoint_url)?;
     let correlated = endpoint.correlate_session_id(SESSION_ID)?;
     let target = correlated.into_explicit_connect_target()?;
     let connection =
