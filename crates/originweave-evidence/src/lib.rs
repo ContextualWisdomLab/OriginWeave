@@ -9,6 +9,7 @@
 
 mod capture_manifest;
 mod extraction_schema;
+mod offline_replay;
 mod sensitive_access;
 mod sensitive_handle_lifecycle;
 mod warc_prov_bundle;
@@ -23,6 +24,9 @@ pub use extraction_schema::{
     ExtractionCardinality, ExtractionField, ExtractionNormalizationRule, ExtractionSchema,
     ExtractionSchemaError, ExtractionSourceChannel, ExtractionValueType,
     MAX_EXTRACTION_FIELD_COUNT, MAX_EXTRACTION_IDENTIFIER_BYTES,
+};
+pub use offline_replay::{
+    OfflineReplayVerification, OfflineReplayVerificationError, verify_offline_capture_package,
 };
 pub use sensitive_access::{
     MAX_SENSITIVE_FIELD_COUNT, MAX_SENSITIVE_IDENTIFIER_BYTES, SensitiveAccessClass,
