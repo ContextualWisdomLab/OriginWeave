@@ -1,11 +1,22 @@
 use originweave_core::benchmark_failure::BenchmarkFailureClass;
 use originweave_core::release_acceptance::{
-    BenchmarkFailureEvidence, BenchmarkSuite, BenchmarkSuiteEvidence, ReleaseDecision,
-    ReleaseDecisionError, decide_release_with_classified_benchmark_evidence,
+    BenchmarkFailureEvidence, BenchmarkSuite, BenchmarkSuiteEvidence, DeclaredLimitation,
+    ReleaseDecision, ReleaseDecisionError, ZeroEventSafetyEvidence, ZeroEventSafetyMetric,
+    ZeroEventSafetyObservation, decide_release_with_classified_benchmark_evidence,
 };
 
 fn passed(suite: BenchmarkSuite) -> BenchmarkSuiteEvidence {
     BenchmarkSuiteEvidence::Passed(suite)
+}
+
+fn duplicate_suite_evidence() -> [BenchmarkSuiteEvidence; 2] {
+    [
+        passed(BenchmarkSuite::ControlledDeterministic),
+        BenchmarkSuiteEvidence::Failure {
+            suite: BenchmarkSuite::ControlledDeterministic,
+            classification: BenchmarkFailureClass::BenchmarkDefect,
+        },
+    ]
 }
 
 #[test]
@@ -91,13 +102,7 @@ fn classified_product_failure_rejects_release_and_retains_cause(
 #[test]
 fn duplicate_suite_evidence_still_fails_closed() {
     let result = decide_release_with_classified_benchmark_evidence(
-        [
-            passed(BenchmarkSuite::ControlledDeterministic),
-            BenchmarkSuiteEvidence::Failure {
-                suite: BenchmarkSuite::ControlledDeterministic,
-                classification: BenchmarkFailureClass::BenchmarkDefect,
-            },
-        ],
+        duplicate_suite_evidence(),
         &[],
         &[],
     );
@@ -108,6 +113,45 @@ fn duplicate_suite_evidence_still_fails_closed() {
             BenchmarkSuite::ControlledDeterministic
         ))
     );
+}
+
+#[test]
+fn invalid_limitation_metadata_precedes_duplicate_suite_evidence(
+) -> Result<(), ReleaseDecisionError> {
+    let limitation = DeclaredLimitation::new(
+        "unsupported browser profile",
+        "buyers must use the supported profile",
+    )?;
+    let result = decide_release_with_classified_benchmark_evidence(
+        duplicate_suite_evidence(),
+        &[limitation.clone(), limitation],
+        &[],
+    );
+
+    assert_eq!(result, Err(ReleaseDecisionError::DuplicateLimitationClaim));
+    Ok(())
+}
+
+#[test]
+fn invalid_zero_event_metadata_precedes_duplicate_suite_evidence(
+) -> Result<(), ReleaseDecisionError> {
+    let observation = ZeroEventSafetyObservation::new(
+        ZeroEventSafetyMetric::UnauthorizedAction,
+        ZeroEventSafetyEvidence::new(100, 9500)?,
+    );
+    let result = decide_release_with_classified_benchmark_evidence(
+        duplicate_suite_evidence(),
+        &[],
+        &[observation, observation],
+    );
+
+    assert_eq!(
+        result,
+        Err(ReleaseDecisionError::DuplicateZeroEventSafetyMetric(
+            ZeroEventSafetyMetric::UnauthorizedAction
+        ))
+    );
+    Ok(())
 }
 
 struct DuplicateThenTracked {
