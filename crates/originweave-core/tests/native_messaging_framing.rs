@@ -1,5 +1,5 @@
 use std::error::Error;
-use std::io::{Cursor, ErrorKind};
+use std::io::{Cursor, ErrorKind, Read};
 
 use originweave_core::{
     NativeMessagingFrameDirection, NativeMessagingFrameError, NativeMessagingFrameReadError,
@@ -9,6 +9,36 @@ use originweave_core::{
 
 const HOST_TO_BROWSER_LIMIT: usize = 1_048_576;
 const BROWSER_TO_HOST_LIMIT: usize = 67_108_864;
+
+struct RecordingReader {
+    data: Vec<u8>,
+    offset: usize,
+    max_request: usize,
+}
+
+impl RecordingReader {
+    fn new(data: Vec<u8>) -> Self {
+        Self {
+            data,
+            offset: 0,
+            max_request: 0,
+        }
+    }
+}
+
+impl Read for RecordingReader {
+    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        self.max_request = self.max_request.max(buffer.len());
+        let remaining = &self.data[self.offset..];
+        if remaining.is_empty() {
+            return Ok(0);
+        }
+        let amount = remaining.len().min(buffer.len());
+        buffer[..amount].copy_from_slice(&remaining[..amount]);
+        self.offset += amount;
+        Ok(amount)
+    }
+}
 
 #[test]
 fn native_messaging_payload_limits_are_direction_specific() {
@@ -88,6 +118,19 @@ fn native_messaging_stream_reader_preserves_truncated_payload_io_cause() {
         Err(NativeMessagingFrameReadError::Io(ref error))
             if error.kind() == ErrorKind::UnexpectedEof
     ));
+}
+
+#[test]
+fn native_messaging_stream_reader_bounds_each_payload_read_buffer() {
+    let prefix = (BROWSER_TO_HOST_LIMIT as u32).to_ne_bytes();
+    let mut reader = RecordingReader::new(prefix.to_vec());
+
+    assert!(matches!(
+        read_native_messaging_payload(NativeMessagingFrameDirection::BrowserToHost, &mut reader),
+        Err(NativeMessagingFrameReadError::Io(ref error))
+            if error.kind() == ErrorKind::UnexpectedEof
+    ));
+    assert!(reader.max_request <= 64 * 1024);
 }
 
 #[test]
