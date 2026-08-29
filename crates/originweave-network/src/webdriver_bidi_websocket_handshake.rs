@@ -575,11 +575,7 @@ fn parse_opening_response(
             },
         );
     }
-    let response_text = std::str::from_utf8(response).map_err(|_| {
-        WebDriverBiDiWebSocketHandshakeResponseError::MalformedResponse {
-            reason: "response headers are not valid UTF-8",
-        }
-    })?;
+    let response_text = String::from_utf8_lossy(response);
     let header_text = &response_text[..response_text.len() - 4];
     let (status_line, header_lines) = header_text
         .split_once("\r\n")
@@ -1140,6 +1136,7 @@ mod opening_write_tests {
             b"HTTP/1.1 101 Switching Protocols\r\nBad Header: value\r\n\r\n".to_vec(),
             b"HTTP/1.1 101 Switching Protocols\r\n: value\r\n\r\n".to_vec(),
             b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: web\x01socket\r\n\r\n".to_vec(),
+            b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: web\x80socket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n".to_vec(),
             b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nUpgrade: websocket\r\n\r\n".to_vec(),
             b"HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nConnection: Upgrade\r\n\r\n".to_vec(),
             b"HTTP/1.1 101 Switching Protocols\r\nSec-WebSocket-Accept: one\r\nSec-WebSocket-Accept: two\r\n\r\n".to_vec(),
