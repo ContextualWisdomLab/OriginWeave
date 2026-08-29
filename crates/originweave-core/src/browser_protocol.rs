@@ -177,6 +177,25 @@ impl BrowserProtocolAdapterDescriptor {
         self.capabilities.contains(&capability)
     }
 
+    /// Require one exact browser protocol family before later adapter use.
+    ///
+    /// This boundary never treats WebDriver BiDi and Chrome DevTools Protocol
+    /// as interchangeable. A kind mismatch fails closed with a typed error and
+    /// does not select or authorize another protocol family as a fallback.
+    pub fn require_kind(
+        &self,
+        required: BrowserProtocolKind,
+    ) -> Result<(), BrowserProtocolKindRequirementError> {
+        if self.kind == required {
+            Ok(())
+        } else {
+            Err(BrowserProtocolKindRequirementError::ProtocolKindMismatch {
+                required,
+                actual: self.kind,
+            })
+        }
+    }
+
     /// Require one exact OriginWeave Protocol generation before later adapter use.
     ///
     /// Pre-alpha compatibility is deliberately exact at this boundary. A caller
@@ -226,6 +245,13 @@ const fn capability_rank(capability: BrowserProtocolCapability) -> u8 {
     }
 }
 
+fn protocol_kind_name(kind: BrowserProtocolKind) -> &'static str {
+    match kind {
+        BrowserProtocolKind::WebDriverBiDi => "webdriver-bidi",
+        BrowserProtocolKind::ChromeDevToolsProtocol => "chrome-devtools-protocol",
+    }
+}
+
 fn capability_name(capability: BrowserProtocolCapability) -> &'static str {
     match capability {
         BrowserProtocolCapability::Navigation => "navigation",
@@ -244,6 +270,33 @@ fn metadata_token_is_valid(value: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
         && value.bytes().any(|byte| byte.is_ascii_alphanumeric())
 }
+
+/// Failure to require one exact browser protocol family from an adapter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BrowserProtocolKindRequirementError {
+    /// The adapter uses a different browser protocol family than required.
+    ProtocolKindMismatch {
+        /// Exact browser protocol family required by the caller.
+        required: BrowserProtocolKind,
+        /// Exact browser protocol family declared by the adapter.
+        actual: BrowserProtocolKind,
+    },
+}
+
+impl fmt::Display for BrowserProtocolKindRequirementError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ProtocolKindMismatch { required, actual } => write!(
+                formatter,
+                "browser protocol adapter uses {} but {} is required",
+                protocol_kind_name(*actual),
+                protocol_kind_name(*required)
+            ),
+        }
+    }
+}
+
+impl std::error::Error for BrowserProtocolKindRequirementError {}
 
 /// Failure to require one exact OriginWeave Protocol generation from an adapter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
