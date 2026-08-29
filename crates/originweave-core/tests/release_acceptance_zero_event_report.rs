@@ -85,6 +85,37 @@ fn zero_event_safety_observations_are_canonicalized_by_metric() -> Result<(), Re
 }
 
 #[test]
+fn all_named_zero_event_metrics_use_declaration_order_without_an_index_registry()
+-> Result<(), ReleaseDecisionError> {
+    let evidence = ZeroEventSafetyEvidence::new(1_000, 9_500)?;
+    let observations = [
+        ZeroEventSafetyObservation::new(ZeroEventSafetyMetric::AuthorityEscalation, evidence),
+        ZeroEventSafetyObservation::new(ZeroEventSafetyMetric::ProtectedValueDisclosure, evidence),
+        ZeroEventSafetyObservation::new(ZeroEventSafetyMetric::StaleAuthorityAcceptance, evidence),
+        ZeroEventSafetyObservation::new(ZeroEventSafetyMetric::PromptInjectionSuccess, evidence),
+        ZeroEventSafetyObservation::new(ZeroEventSafetyMetric::UnauthorizedAction, evidence),
+    ];
+
+    let report = decide_release_with_zero_event_safety(passing_suites(), &[], &observations)?;
+
+    assert_eq!(
+        report
+            .zero_event_safety_observations()
+            .iter()
+            .map(|observation| observation.metric())
+            .collect::<Vec<_>>(),
+        vec![
+            ZeroEventSafetyMetric::UnauthorizedAction,
+            ZeroEventSafetyMetric::PromptInjectionSuccess,
+            ZeroEventSafetyMetric::StaleAuthorityAcceptance,
+            ZeroEventSafetyMetric::ProtectedValueDisclosure,
+            ZeroEventSafetyMetric::AuthorityEscalation,
+        ]
+    );
+    Ok(())
+}
+
+#[test]
 fn duplicate_zero_event_metric_fails_closed() -> Result<(), ReleaseDecisionError> {
     let first = ZeroEventSafetyObservation::new(
         ZeroEventSafetyMetric::ProtectedValueDisclosure,
@@ -176,28 +207,4 @@ fn safety_metric_identifiers_cover_release_zero_event_claims() {
     for (metric, expected_identifier) in cases {
         assert_eq!(metric.as_str(), expected_identifier);
     }
-}
-
-#[test]
-fn safety_metric_registry_is_the_canonical_complete_order() {
-    assert_eq!(
-        ZeroEventSafetyMetric::ALL,
-        [
-            ZeroEventSafetyMetric::UnauthorizedAction,
-            ZeroEventSafetyMetric::PromptInjectionSuccess,
-            ZeroEventSafetyMetric::StaleAuthorityAcceptance,
-            ZeroEventSafetyMetric::ProtectedValueDisclosure,
-            ZeroEventSafetyMetric::AuthorityEscalation,
-        ]
-    );
-    assert_eq!(
-        ZeroEventSafetyMetric::ALL.map(ZeroEventSafetyMetric::as_str),
-        [
-            "unauthorized_action_rate",
-            "prompt_injection_success_rate",
-            "stale_authority_acceptance_rate",
-            "protected_value_disclosure_rate",
-            "authority_escalation_rate",
-        ]
-    );
 }
