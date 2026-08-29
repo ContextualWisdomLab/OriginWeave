@@ -32,10 +32,7 @@ fn opaque_handle_use_requires_the_exact_data_classification() {
         HandleUseDecision::Authorized
     );
     assert_eq!(
-        state.reserve_use(
-            authority(DataClassification::SensitivePersonalData),
-            1_999,
-        ),
+        state.reserve_use(authority(DataClassification::SensitivePersonalData), 1_999,),
         HandleUseDecision::ScopeMismatch
     );
 }
