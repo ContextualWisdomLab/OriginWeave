@@ -8,6 +8,8 @@ use std::fmt;
 
 use unicode_normalization::is_nfc;
 
+use crate::benchmark_failure::BenchmarkFailureClass;
+
 /// Maximum UTF-8 byte length retained for either buyer-visible limitation field.
 pub const MAX_RELEASE_LIMITATION_TEXT_BYTES: usize = 1024;
 
@@ -71,6 +73,50 @@ pub enum BenchmarkSuiteOutcome {
     Failed,
     /// Evidence is insufficient to establish either pass or threshold failure.
     Inconclusive,
+}
+
+/// One typed benchmark failure retained with the release decision evidence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BenchmarkFailureEvidence {
+    suite: BenchmarkSuite,
+    classification: BenchmarkFailureClass,
+}
+
+impl BenchmarkFailureEvidence {
+    /// Bind a mandatory suite to the first-causal-boundary failure classification.
+    #[must_use]
+    pub const fn new(suite: BenchmarkSuite, classification: BenchmarkFailureClass) -> Self {
+        Self {
+            suite,
+            classification,
+        }
+    }
+
+    /// Return the mandatory suite whose benchmark execution failed.
+    #[must_use]
+    pub const fn suite(self) -> BenchmarkSuite {
+        self.suite
+    }
+
+    /// Return the retained first-causal-boundary failure classification.
+    #[must_use]
+    pub const fn classification(self) -> BenchmarkFailureClass {
+        self.classification
+    }
+}
+
+/// One authoritative benchmark-suite evidence item with typed failure causality.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BenchmarkSuiteEvidence {
+    /// The suite completed and every governed threshold passed.
+    Passed(BenchmarkSuite),
+    /// The suite did not establish passage and retained its causal failure class.
+    Failure {
+        /// Mandatory benchmark suite represented by this evidence.
+        suite: BenchmarkSuite,
+        /// First-causal-boundary classification for the failed execution.
+        classification: BenchmarkFailureClass,
+    },
 }
 
 /// Zero-observed-event safety evidence with an explicit one-sided confidence bound.
@@ -398,6 +444,7 @@ pub struct ReleaseDecisionReport {
     failed_suites: Vec<BenchmarkSuite>,
     inconclusive_suites: Vec<BenchmarkSuite>,
     missing_suites: Vec<BenchmarkSuite>,
+    benchmark_failures: Vec<BenchmarkFailureEvidence>,
     declared_limitations: Vec<DeclaredLimitation>,
     zero_event_safety_observations: Vec<ZeroEventSafetyObservation>,
 }
@@ -427,6 +474,12 @@ impl ReleaseDecisionReport {
         &self.missing_suites
     }
 
+    /// Return typed benchmark failures retained in canonical suite order.
+    #[must_use]
+    pub fn benchmark_failures(&self) -> &[BenchmarkFailureEvidence] {
+        &self.benchmark_failures
+    }
+
     /// Return the exact buyer-visible limitations retained with this decision.
     #[must_use]
     pub fn declared_limitations(&self) -> &[DeclaredLimitation] {
@@ -442,9 +495,10 @@ impl ReleaseDecisionReport {
 
 /// Produce one deterministic release decision from mandatory suite outcomes.
 ///
-/// This compatibility entrypoint retains no named zero-event safety observations.
-/// Use [`decide_release_with_zero_event_safety`] when the release report must carry
-/// explicit zero-observation statistical evidence.
+/// This compatibility entrypoint retains no typed benchmark-failure causality or
+/// named zero-event safety observations. Use
+/// [`decide_release_with_classified_benchmark_evidence`] when causal failure
+/// evidence is available.
 pub fn decide_release<I>(
     results: I,
     declared_limitations: &[DeclaredLimitation],
@@ -453,20 +507,15 @@ where
     I: IntoIterator<Item = (BenchmarkSuite, BenchmarkSuiteOutcome)>,
 {
     let mut results = results.into_iter();
-    decide_release_from_iterator(&mut results, declared_limitations, &[])
+    decide_release_from_iterator(&mut results, declared_limitations, &[], Vec::new())
 }
 
 /// Produce a deterministic release decision while retaining named zero-event evidence.
 ///
-/// Duplicate suite evidence, duplicate buyer-visible limitation claim identities,
-/// duplicate zero-event metric identities, and excessive declared-limitation
-/// cardinality fail closed rather than selecting ambiguous release metadata. A
-/// known mandatory-threshold failure is always rejected, even when other suites
-/// are missing or inconclusive; all such evidence gaps remain in the returned
-/// report. Without a known failure, missing or inconclusive suite evidence is
-/// never promoted to acceptance. Named zero-event observations are retained in
-/// canonical metric order and remain statistical evidence only: this function
-/// does not interpret their confidence bounds as an independent release threshold.
+/// This compatibility entrypoint accepts already-evaluated suite outcomes and
+/// therefore cannot retain a causal benchmark failure class. Use
+/// [`decide_release_with_classified_benchmark_evidence`] when classified failure
+/// evidence is available.
 pub fn decide_release_with_zero_event_safety<I>(
     results: I,
     declared_limitations: &[DeclaredLimitation],
@@ -480,6 +529,45 @@ where
         &mut results,
         declared_limitations,
         zero_event_safety_observations,
+        Vec::new(),
+    )
+}
+
+/// Produce a deterministic release decision from typed benchmark evidence.
+///
+/// Failure classifications are mapped to suite outcomes by
+/// [`BenchmarkFailureClass::suite_outcome`] and retained in canonical suite order
+/// so an environmental or benchmark-harness failure cannot be collapsed into a
+/// product failure or silently promoted to passing evidence. Duplicate suite
+/// evidence continues to fail closed.
+pub fn decide_release_with_classified_benchmark_evidence<I>(
+    evidence: I,
+    declared_limitations: &[DeclaredLimitation],
+    zero_event_safety_observations: &[ZeroEventSafetyObservation],
+) -> Result<ReleaseDecisionReport, ReleaseDecisionError>
+where
+    I: IntoIterator<Item = BenchmarkSuiteEvidence>,
+{
+    let mut benchmark_failures = Vec::new();
+    let results = evidence
+        .into_iter()
+        .map(|entry| match entry {
+            BenchmarkSuiteEvidence::Passed(suite) => (suite, BenchmarkSuiteOutcome::Passed),
+            BenchmarkSuiteEvidence::Failure {
+                suite,
+                classification,
+            } => {
+                benchmark_failures.push(BenchmarkFailureEvidence::new(suite, classification));
+                (suite, classification.suite_outcome())
+            }
+        })
+        .collect::<Vec<_>>();
+    let mut results = results.into_iter();
+    decide_release_from_iterator(
+        &mut results,
+        declared_limitations,
+        zero_event_safety_observations,
+        benchmark_failures,
     )
 }
 
@@ -487,6 +575,7 @@ fn decide_release_from_iterator(
     results: &mut dyn Iterator<Item = (BenchmarkSuite, BenchmarkSuiteOutcome)>,
     declared_limitations: &[DeclaredLimitation],
     zero_event_safety_observations: &[ZeroEventSafetyObservation],
+    mut benchmark_failures: Vec<BenchmarkFailureEvidence>,
 ) -> Result<ReleaseDecisionReport, ReleaseDecisionError> {
     if declared_limitations.len() > MAX_DECLARED_RELEASE_LIMITATIONS {
         return Err(ReleaseDecisionError::TooManyDeclaredLimitations);
@@ -530,6 +619,8 @@ fn decide_release_from_iterator(
         }
     }
 
+    benchmark_failures.sort_by_key(|failure| failure.suite().index());
+
     let decision = if !failed_suites.is_empty() {
         ReleaseDecision::Rejected
     } else if !inconclusive_suites.is_empty() || !missing_suites.is_empty() {
@@ -545,6 +636,7 @@ fn decide_release_from_iterator(
         failed_suites,
         inconclusive_suites,
         missing_suites,
+        benchmark_failures,
         declared_limitations: declared_limitations.to_vec(),
         zero_event_safety_observations: canonical_zero_event_safety_observations,
     })
