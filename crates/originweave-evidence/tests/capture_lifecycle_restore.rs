@@ -1,7 +1,7 @@
 use std::error::Error;
 
 use originweave_evidence::{
-    CaptureDeletionReceipt, CaptureLifecycle, CaptureLifecycleRestoreError, CaptureLifecycleState,
+    CaptureDeletionReceipt, CaptureLifecycle, CaptureLifecycleError, CaptureLifecycleState,
 };
 
 const MANIFEST_DIGEST: &str =
@@ -162,7 +162,7 @@ fn restore_rejects_corrupt_persisted_states() -> Result<(), Box<dyn Error>> {
             None,
             None,
         ),
-        Err(CaptureLifecycleRestoreError::InvalidManifestDigest)
+        Err(CaptureLifecycleError::InvalidManifestDigest)
     );
     assert_eq!(
         CaptureLifecycle::restore(
@@ -173,7 +173,7 @@ fn restore_rejects_corrupt_persisted_states() -> Result<(), Box<dyn Error>> {
             None,
             None,
         ),
-        Err(CaptureLifecycleRestoreError::InvalidPersistedState)
+        Err(CaptureLifecycleError::InvalidRestoredState)
     );
     assert_eq!(
         CaptureLifecycle::restore(
@@ -184,7 +184,7 @@ fn restore_rejects_corrupt_persisted_states() -> Result<(), Box<dyn Error>> {
             None,
             None,
         ),
-        Err(CaptureLifecycleRestoreError::InvalidPersistedState)
+        Err(CaptureLifecycleError::InvalidRestoredState)
     );
     assert_eq!(
         CaptureLifecycle::restore(
@@ -195,7 +195,7 @@ fn restore_rejects_corrupt_persisted_states() -> Result<(), Box<dyn Error>> {
             None,
             None,
         ),
-        Err(CaptureLifecycleRestoreError::InvalidPersistedState)
+        Err(CaptureLifecycleError::InvalidRestoredState)
     );
     assert_eq!(
         CaptureLifecycle::restore(
@@ -206,7 +206,7 @@ fn restore_rejects_corrupt_persisted_states() -> Result<(), Box<dyn Error>> {
             Some(DELETION_REQUEST_DIGEST),
             None,
         ),
-        Err(CaptureLifecycleRestoreError::InvalidPersistedState)
+        Err(CaptureLifecycleError::InvalidRestoredState)
     );
     assert_eq!(
         CaptureLifecycle::restore(
@@ -217,7 +217,7 @@ fn restore_rejects_corrupt_persisted_states() -> Result<(), Box<dyn Error>> {
             Some("sha256:not-a-digest"),
             None,
         ),
-        Err(CaptureLifecycleRestoreError::InvalidDeletionRequestDigest)
+        Err(CaptureLifecycleError::InvalidDeletionRequestDigest)
     );
     assert_eq!(
         CaptureLifecycle::restore(
@@ -228,7 +228,7 @@ fn restore_rejects_corrupt_persisted_states() -> Result<(), Box<dyn Error>> {
             Some(DELETION_REQUEST_DIGEST),
             None,
         ),
-        Err(CaptureLifecycleRestoreError::InvalidPersistedState)
+        Err(CaptureLifecycleError::InvalidRestoredState)
     );
 
     let receipt = CaptureDeletionReceipt::new(
@@ -245,7 +245,7 @@ fn restore_rejects_corrupt_persisted_states() -> Result<(), Box<dyn Error>> {
             Some(DELETION_REQUEST_DIGEST),
             None,
         ),
-        Err(CaptureLifecycleRestoreError::InvalidPersistedState)
+        Err(CaptureLifecycleError::InvalidRestoredState)
     );
     assert_eq!(
         CaptureLifecycle::restore(
@@ -256,7 +256,7 @@ fn restore_rejects_corrupt_persisted_states() -> Result<(), Box<dyn Error>> {
             Some(DELETION_REQUEST_DIGEST),
             Some(&receipt),
         ),
-        Err(CaptureLifecycleRestoreError::InvalidPersistedState)
+        Err(CaptureLifecycleError::InvalidRestoredState)
     );
 
     let wrong_manifest_receipt = CaptureDeletionReceipt::new(
@@ -273,7 +273,7 @@ fn restore_rejects_corrupt_persisted_states() -> Result<(), Box<dyn Error>> {
             Some(DELETION_REQUEST_DIGEST),
             Some(&wrong_manifest_receipt),
         ),
-        Err(CaptureLifecycleRestoreError::DeletionReceiptMismatch)
+        Err(CaptureLifecycleError::DeletionReceiptMismatch)
     );
 
     let wrong_request_receipt = CaptureDeletionReceipt::new(
@@ -290,11 +290,11 @@ fn restore_rejects_corrupt_persisted_states() -> Result<(), Box<dyn Error>> {
             Some(DELETION_REQUEST_DIGEST),
             Some(&wrong_request_receipt),
         ),
-        Err(CaptureLifecycleRestoreError::DeletionReceiptRequestMismatch)
+        Err(CaptureLifecycleError::DeletionReceiptRequestMismatch)
     );
 
     assert_eq!(
-        CaptureLifecycleRestoreError::InvalidPersistedState.to_string(),
+        CaptureLifecycleError::InvalidRestoredState.to_string(),
         "persisted capture lifecycle state is internally inconsistent"
     );
     Ok(())
