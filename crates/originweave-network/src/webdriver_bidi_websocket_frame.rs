@@ -168,12 +168,12 @@ impl WebDriverBiDiWebSocketOpeningRequestSent {
         WebDriverBiDiWebSocketEstablished,
         handshake::WebDriverBiDiWebSocketHandshakeResponseError,
     > {
-        self.0
-            .read_opening_response(response_timeout)
-            .map(|raw| WebDriverBiDiWebSocketEstablished {
+        self.0.read_opening_response(response_timeout).map(|raw| {
+            WebDriverBiDiWebSocketEstablished {
                 raw,
                 client_mask_keys: ClientMaskKeyHistory::default(),
-            })
+            }
+        })
     }
 }
 
@@ -416,28 +416,39 @@ impl fmt::Display for WebDriverBiDiWebSocketFrameError {
         match self {
             Self::InvalidFrameTimeout { .. } => formatter
                 .write_str("WebDriver BiDi WebSocket frame timeout is outside the reviewed bound"),
-            Self::FrameTooLarge { .. } =>
-                formatter.write_str("WebDriver BiDi WebSocket frame payload exceeded its bound"),
-            Self::FrameReadModeConfigurationFailed { .. } =>
-                formatter.write_str("failed to configure bounded WebSocket frame reads"),
-            Self::FrameReadTimedOut { .. } =>
-                formatter.write_str("WebDriver BiDi WebSocket frame read timed out"),
-            Self::FrameReadFailed { .. } =>
-                formatter.write_str("WebDriver BiDi WebSocket frame read failed"),
-            Self::FrameEnded { .. } =>
-                formatter.write_str("WebDriver BiDi WebSocket peer ended the frame stream"),
-            Self::MalformedFrame { .. } =>
-                formatter.write_str("WebDriver BiDi WebSocket frame was malformed"),
-            Self::FrameWriteModeConfigurationFailed { .. } =>
-                formatter.write_str("failed to configure bounded WebSocket frame writes"),
-            Self::FrameWriteTimedOut { .. } =>
-                formatter.write_str("WebDriver BiDi WebSocket frame write timed out"),
-            Self::FrameWriteFailed { .. } =>
-                formatter.write_str("WebDriver BiDi WebSocket frame write failed"),
-            Self::FrameWriteZero { .. } =>
-                formatter.write_str("WebDriver BiDi WebSocket frame write made no progress"),
-            Self::FrameWriteCleanupFailed { .. } =>
-                formatter.write_str("failed to clear the WebDriver BiDi WebSocket frame timeout"),
+            Self::FrameTooLarge { .. } => {
+                formatter.write_str("WebDriver BiDi WebSocket frame payload exceeded its bound")
+            }
+            Self::FrameReadModeConfigurationFailed { .. } => {
+                formatter.write_str("failed to configure bounded WebSocket frame reads")
+            }
+            Self::FrameReadTimedOut { .. } => {
+                formatter.write_str("WebDriver BiDi WebSocket frame read timed out")
+            }
+            Self::FrameReadFailed { .. } => {
+                formatter.write_str("WebDriver BiDi WebSocket frame read failed")
+            }
+            Self::FrameEnded { .. } => {
+                formatter.write_str("WebDriver BiDi WebSocket peer ended the frame stream")
+            }
+            Self::MalformedFrame { .. } => {
+                formatter.write_str("WebDriver BiDi WebSocket frame was malformed")
+            }
+            Self::FrameWriteModeConfigurationFailed { .. } => {
+                formatter.write_str("failed to configure bounded WebSocket frame writes")
+            }
+            Self::FrameWriteTimedOut { .. } => {
+                formatter.write_str("WebDriver BiDi WebSocket frame write timed out")
+            }
+            Self::FrameWriteFailed { .. } => {
+                formatter.write_str("WebDriver BiDi WebSocket frame write failed")
+            }
+            Self::FrameWriteZero { .. } => {
+                formatter.write_str("WebDriver BiDi WebSocket frame write made no progress")
+            }
+            Self::FrameWriteCleanupFailed { .. } => {
+                formatter.write_str("failed to clear the WebDriver BiDi WebSocket frame timeout")
+            }
         }
     }
 }
@@ -608,11 +619,9 @@ fn read_exact_with_clock(
                 source: io::Error::new(io::ErrorKind::TimedOut, "frame read deadline elapsed"),
             });
         }
-        reader
-            .set_read_timeout(Some(remaining))
-            .map_err(|source| WebDriverBiDiWebSocketFrameError::FrameReadModeConfigurationFailed {
-                source,
-            })?;
+        reader.set_read_timeout(Some(remaining)).map_err(|source| {
+            WebDriverBiDiWebSocketFrameError::FrameReadModeConfigurationFailed { source }
+        })?;
         match reader.read_frame_bytes(&mut destination[offset..]) {
             Ok(0) => {
                 return Err(WebDriverBiDiWebSocketFrameError::FrameEnded {
@@ -791,6 +800,7 @@ fn validate_close_frame(
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod tests {
     use std::collections::VecDeque;
 
@@ -881,7 +891,9 @@ mod tests {
         }
     }
 
-    fn frame_from_bytes(bytes: &[u8]) -> Result<WebDriverBiDiWebSocketFrame, WebDriverBiDiWebSocketFrameError> {
+    fn frame_from_bytes(
+        bytes: &[u8],
+    ) -> Result<WebDriverBiDiWebSocketFrame, WebDriverBiDiWebSocketFrameError> {
         let start = Instant::now();
         let mut io = FakeIo::new();
         io.reads.push_back(ReadAction::Bytes(bytes.to_vec()));
@@ -942,12 +954,14 @@ mod tests {
         let start = Instant::now();
 
         let mut partial = FakeIo::new();
-        partial.writes.extend([WriteAction::Count(2), WriteAction::Count(4)]);
+        partial
+            .writes
+            .extend([WriteAction::Count(2), WriteAction::Count(4)]);
         let mut now = || start;
-        assert_eq!(
+        assert!(matches!(
             write_frame_with_clock(&mut partial, b"abcdef", Duration::from_secs(1), &mut now),
             Ok(6)
-        );
+        ));
 
         let mut interrupted = FakeIo::new();
         interrupted.writes.extend([
@@ -955,7 +969,15 @@ mod tests {
             WriteAction::Count(6),
         ]);
         let mut now = || start;
-        assert!(write_frame_with_clock(&mut interrupted, b"abcdef", Duration::from_secs(1), &mut now).is_ok());
+        assert!(
+            write_frame_with_clock(
+                &mut interrupted,
+                b"abcdef",
+                Duration::from_secs(1),
+                &mut now
+            )
+            .is_ok()
+        );
 
         let mut would_block = FakeIo::new();
         would_block.writes.extend([
@@ -963,7 +985,15 @@ mod tests {
             WriteAction::Count(6),
         ]);
         let mut now = || start;
-        assert!(write_frame_with_clock(&mut would_block, b"abcdef", Duration::from_secs(1), &mut now).is_ok());
+        assert!(
+            write_frame_with_clock(
+                &mut would_block,
+                b"abcdef",
+                Duration::from_secs(1),
+                &mut now
+            )
+            .is_ok()
+        );
 
         let mut zero = FakeIo::new();
         zero.writes.push_back(WriteAction::Count(0));
@@ -982,7 +1012,9 @@ mod tests {
         ));
 
         let mut failed = FakeIo::new();
-        failed.writes.push_back(WriteAction::Error(io::ErrorKind::BrokenPipe));
+        failed
+            .writes
+            .push_back(WriteAction::Error(io::ErrorKind::BrokenPipe));
         let mut now = || start;
         assert!(matches!(
             write_frame_with_clock(&mut failed, b"x", Duration::from_secs(1), &mut now),
@@ -990,7 +1022,9 @@ mod tests {
         ));
 
         let mut timed = FakeIo::new();
-        timed.writes.push_back(WriteAction::Error(io::ErrorKind::TimedOut));
+        timed
+            .writes
+            .push_back(WriteAction::Error(io::ErrorKind::TimedOut));
         let mut times = VecDeque::from([start, start, start + Duration::from_secs(1)]);
         let mut now = || times.pop_front().unwrap_or(start + Duration::from_secs(1));
         assert!(matches!(
@@ -1040,18 +1074,31 @@ mod tests {
 
         let mut extended_16 = vec![0x81, 126, 0, 126];
         extended_16.extend(vec![b'x'; 126]);
-        assert_eq!(frame_from_bytes(&extended_16).expect("valid 16-bit frame").payload().len(), 126);
+        assert_eq!(
+            frame_from_bytes(&extended_16)
+                .expect("valid 16-bit frame")
+                .payload()
+                .len(),
+            126
+        );
 
         let mut extended_64 = vec![0x81, 127];
         extended_64.extend_from_slice(&65_536_u64.to_be_bytes());
         extended_64.extend(vec![b'x'; 65_536]);
-        assert_eq!(frame_from_bytes(&extended_64).expect("valid 64-bit frame").payload().len(), 65_536);
+        assert_eq!(
+            frame_from_bytes(&extended_64)
+                .expect("valid 64-bit frame")
+                .payload()
+                .len(),
+            65_536
+        );
     }
 
     #[test]
     fn bounded_reader_rejects_protocol_violations() {
         let mut oversized = vec![0x81, 127];
-        oversized.extend_from_slice(&((MAX_WEBSOCKET_FRAME_PAYLOAD_BYTES as u64) + 1).to_be_bytes());
+        oversized
+            .extend_from_slice(&((MAX_WEBSOCKET_FRAME_PAYLOAD_BYTES as u64) + 1).to_be_bytes());
         for bytes in [
             vec![0xc1, 0],
             vec![0x09, 0],
@@ -1101,7 +1148,9 @@ mod tests {
             ReadAction::Bytes(vec![0x81, 0]),
         ]);
         let mut now = || start;
-        assert!(read_frame_with_clock(&mut interrupted, Duration::from_secs(1), &mut now).is_ok());
+        assert!(
+            read_frame_with_clock(&mut interrupted, Duration::from_secs(1), &mut now).is_ok()
+        );
 
         let mut would_block = FakeIo::new();
         would_block.reads.extend([
@@ -1112,7 +1161,9 @@ mod tests {
         assert!(read_frame_with_clock(&mut would_block, Duration::from_secs(1), &mut now).is_ok());
 
         let mut failed = FakeIo::new();
-        failed.reads.push_back(ReadAction::Error(io::ErrorKind::BrokenPipe));
+        failed
+            .reads
+            .push_back(ReadAction::Error(io::ErrorKind::BrokenPipe));
         let mut now = || start;
         assert!(matches!(
             read_frame_with_clock(&mut failed, Duration::from_secs(1), &mut now),
@@ -1120,7 +1171,9 @@ mod tests {
         ));
 
         let mut timed = FakeIo::new();
-        timed.reads.push_back(ReadAction::Error(io::ErrorKind::TimedOut));
+        timed
+            .reads
+            .push_back(ReadAction::Error(io::ErrorKind::TimedOut));
         let mut times = VecDeque::from([start, start, start + Duration::from_secs(1)]);
         let mut now = || times.pop_front().unwrap_or(start + Duration::from_secs(1));
         assert!(matches!(
@@ -1158,23 +1211,47 @@ mod tests {
 
     #[test]
     fn close_validation_is_fail_closed_and_wire_compatible() {
-        let data = WebDriverBiDiWebSocketFrame { fin: true, opcode: 1, payload: Vec::new() };
+        let data = WebDriverBiDiWebSocketFrame {
+            fin: true,
+            opcode: 1,
+            payload: Vec::new(),
+        };
         assert!(validate_close_frame(&data).is_ok());
-        let empty = WebDriverBiDiWebSocketFrame { fin: true, opcode: 8, payload: Vec::new() };
+        let empty = WebDriverBiDiWebSocketFrame {
+            fin: true,
+            opcode: 8,
+            payload: Vec::new(),
+        };
         assert!(validate_close_frame(&empty).is_ok());
-        let one = WebDriverBiDiWebSocketFrame { fin: true, opcode: 8, payload: vec![0] };
+        let one = WebDriverBiDiWebSocketFrame {
+            fin: true,
+            opcode: 8,
+            payload: vec![0],
+        };
         assert!(validate_close_frame(&one).is_err());
-        let invalid_utf8 = WebDriverBiDiWebSocketFrame { fin: true, opcode: 8, payload: vec![0x03, 0xe8, 0xff] };
+        let invalid_utf8 = WebDriverBiDiWebSocketFrame {
+            fin: true,
+            opcode: 8,
+            payload: vec![0x03, 0xe8, 0xff],
+        };
         assert!(validate_close_frame(&invalid_utf8).is_err());
         for status in [999_u16, 1004, 1005, 1006, 1015, 5000] {
             let payload = status.to_be_bytes().to_vec();
-            let frame = WebDriverBiDiWebSocketFrame { fin: true, opcode: 8, payload };
+            let frame = WebDriverBiDiWebSocketFrame {
+                fin: true,
+                opcode: 8,
+                payload,
+            };
             assert!(validate_close_frame(&frame).is_err());
         }
         for status in [1000_u16, 3000, 4000] {
             let mut payload = status.to_be_bytes().to_vec();
             payload.extend_from_slice(b"ok");
-            let frame = WebDriverBiDiWebSocketFrame { fin: true, opcode: 8, payload };
+            let frame = WebDriverBiDiWebSocketFrame {
+                fin: true,
+                opcode: 8,
+                payload,
+            };
             assert!(validate_close_frame(&frame).is_ok());
         }
     }
@@ -1182,18 +1259,43 @@ mod tests {
     #[test]
     fn frame_errors_have_stable_messages_and_sources() {
         let errors = [
-            WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout { frame_timeout: Duration::ZERO, maximum_timeout: MAX_WEBSOCKET_FRAME_TIMEOUT },
-            WebDriverBiDiWebSocketFrameError::FrameTooLarge { payload_bytes: 2, maximum_bytes: 1 },
-            WebDriverBiDiWebSocketFrameError::FrameReadModeConfigurationFailed { source: io::Error::from(io::ErrorKind::InvalidInput) },
-            WebDriverBiDiWebSocketFrameError::FrameReadTimedOut { bytes_read: 1, source: io::Error::from(io::ErrorKind::TimedOut) },
-            WebDriverBiDiWebSocketFrameError::FrameReadFailed { bytes_read: 1, source: io::Error::from(io::ErrorKind::BrokenPipe) },
+            WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout {
+                frame_timeout: Duration::ZERO,
+                maximum_timeout: MAX_WEBSOCKET_FRAME_TIMEOUT,
+            },
+            WebDriverBiDiWebSocketFrameError::FrameTooLarge {
+                payload_bytes: 2,
+                maximum_bytes: 1,
+            },
+            WebDriverBiDiWebSocketFrameError::FrameReadModeConfigurationFailed {
+                source: io::Error::from(io::ErrorKind::InvalidInput),
+            },
+            WebDriverBiDiWebSocketFrameError::FrameReadTimedOut {
+                bytes_read: 1,
+                source: io::Error::from(io::ErrorKind::TimedOut),
+            },
+            WebDriverBiDiWebSocketFrameError::FrameReadFailed {
+                bytes_read: 1,
+                source: io::Error::from(io::ErrorKind::BrokenPipe),
+            },
             WebDriverBiDiWebSocketFrameError::FrameEnded { bytes_read: 1 },
             WebDriverBiDiWebSocketFrameError::MalformedFrame { reason: "test" },
-            WebDriverBiDiWebSocketFrameError::FrameWriteModeConfigurationFailed { bytes_written: 1, source: io::Error::from(io::ErrorKind::InvalidInput) },
-            WebDriverBiDiWebSocketFrameError::FrameWriteTimedOut { bytes_written: 1, source: io::Error::from(io::ErrorKind::TimedOut) },
-            WebDriverBiDiWebSocketFrameError::FrameWriteFailed { bytes_written: 1, source: io::Error::from(io::ErrorKind::BrokenPipe) },
+            WebDriverBiDiWebSocketFrameError::FrameWriteModeConfigurationFailed {
+                bytes_written: 1,
+                source: io::Error::from(io::ErrorKind::InvalidInput),
+            },
+            WebDriverBiDiWebSocketFrameError::FrameWriteTimedOut {
+                bytes_written: 1,
+                source: io::Error::from(io::ErrorKind::TimedOut),
+            },
+            WebDriverBiDiWebSocketFrameError::FrameWriteFailed {
+                bytes_written: 1,
+                source: io::Error::from(io::ErrorKind::BrokenPipe),
+            },
             WebDriverBiDiWebSocketFrameError::FrameWriteZero { bytes_written: 1 },
-            WebDriverBiDiWebSocketFrameError::FrameWriteCleanupFailed { source: io::Error::from(io::ErrorKind::InvalidInput) },
+            WebDriverBiDiWebSocketFrameError::FrameWriteCleanupFailed {
+                source: io::Error::from(io::ErrorKind::InvalidInput),
+            },
         ];
         for (error, has_source) in errors.iter().zip([
             false, false, true, true, true, false, false, true, true, true, false, true,
