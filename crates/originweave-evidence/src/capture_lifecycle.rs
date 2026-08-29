@@ -430,8 +430,7 @@ mod tests {
             manifest_digest: MANIFEST_DIGEST.to_owned(),
             deletion_request_digest: DELETION_REQUEST_DIGEST.to_owned(),
             evidence_digest:
-                "sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
-                    .to_owned(),
+                "sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789".to_owned(),
         };
 
         assert_eq!(
