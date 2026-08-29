@@ -9,7 +9,6 @@ Web Audio construction entry point. It emits bounded credential-free evidence.
 
 from __future__ import annotations
 
-import contextlib
 import http.client
 import http.server
 import json
@@ -18,6 +17,7 @@ import pathlib
 import socket
 import string
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -64,6 +64,16 @@ class PrivacyProbeError(RuntimeError):
 
         self.surfaces = dict(surfaces)
         super().__init__("Web Audio privacy fixture did not converge")
+
+
+class BrowserSessionCleanupError(RuntimeError):
+    """A bounded WebDriver session cleanup failed."""
+
+    def __init__(self, cleanup_error: BaseException) -> None:
+        """Retain only the cleanup error class while chaining the causal error."""
+
+        self.cleanup_error_type = type(cleanup_error).__name__
+        super().__init__("WebDriver session cleanup failed; see the chained causal browser failure")
 
 
 def _privacy_evidence_satisfies(surfaces: dict[str, str]) -> bool:
@@ -156,6 +166,34 @@ def _json_request(
     if isinstance(value, dict) and value.get("error"):
         raise RuntimeError(f"WebDriver error: {value.get('error')}: {value.get('message')}")
     return decoded
+
+
+def _cleanup_browser_session(driver_port: int, session_id: str) -> None:
+    """Delete one validated loopback WebDriver session."""
+
+    _json_request(driver_port, "DELETE", _webdriver_path(session_id, ""), {})
+
+
+def _cleanup_browser_session_preserving_primary(
+    driver_port: int,
+    session_id: str,
+    primary_error: BaseException | None,
+) -> None:
+    """Fail closed on bounded cleanup errors without losing a primary failure."""
+
+    try:
+        _cleanup_browser_session(driver_port, session_id)
+    except (
+        OSError,
+        ValueError,
+        RuntimeError,
+        http.client.HTTPException,
+        json.JSONDecodeError,
+    ) as cleanup_error:
+        bounded_error = BrowserSessionCleanupError(cleanup_error)
+        if primary_error is None:
+            raise bounded_error from cleanup_error
+        raise bounded_error from primary_error
 
 
 def _wait_for_driver(driver_port: int) -> None:
@@ -297,20 +335,21 @@ def _run_trial(
                 "duration_ms": round((time.monotonic() - started) * 1000),
             }
         finally:
-            if session_id is not None:
-                with contextlib.suppress(Exception):
-                    _json_request(
-                        driver_port,
-                        "DELETE",
-                        _webdriver_path(session_id, ""),
-                        {},
-                    )
-            driver.terminate()
+            primary_error = sys.exc_info()[1]
             try:
-                driver.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                driver.kill()
-                driver.wait(timeout=5)
+                if session_id is not None:
+                    _cleanup_browser_session_preserving_primary(
+                        driver_port,
+                        session_id,
+                        primary_error,
+                    )
+            finally:
+                driver.terminate()
+                try:
+                    driver.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    driver.kill()
+                    driver.wait(timeout=5)
 
 
 def main() -> int:
