@@ -10,6 +10,12 @@ The 1 June 2026 WebDriver BiDi Working Draft defines a bidirectional remote-cont
 
 The final Model Context Protocol `2026-07-28` specification defines the currently reviewed MCP generation. Its stateless request model carries protocol metadata per request and standard Streamable HTTP routing metadata for MCP operations; its Tools surface defines bounded, case-sensitive tool names and requires clients to treat tool annotations as untrusted unless supplied by a trusted server. OriginWeave therefore keeps MCP outside the product authority model. Active PR #168 implements only a bounded Rust `tools/call` routing/action-policy foundation for that exact generation; the complete transport, request-metadata, discovery, OAuth, browser, secret, and persistence adapter remains planned and cannot be inferred from the core routing primitive.
 
+### Native messaging framing and authority
+
+Chrome's native-messaging protocol uses a UTF-8 JSON payload preceded by a 32-bit length in native byte order. Chrome documents a 1 MB native-host-to-browser message limit and a 4 GB browser-to-host protocol envelope; current Chromium source enforces the 1 MiB incoming-host limit before delivery. The nearby 64 MiB value is only a write-size histogram bucket, not a Chrome protocol limit. OriginWeave therefore keeps the browser protocol envelope separate from its own bounded resource policy: the native-messaging framing adapter applies a 64 MiB browser-to-host ceiling, reads admitted stream payloads in bounded 64 KiB chunks rather than allocating the declared maximum up front, rejects incomplete or trailing complete frames, and validates UTF-8 before text handling. It does not parse or trust JSON, launch or authenticate a host, or turn the `nativeMessaging` permission into Agent authority. The executable compatibility and process-ownership boundary remains the security-gated surface documented in `docs/doctoring/mv3-compatibility.md`.
+
+The reviewed Chromium source is pinned to immutable revision `160af61f9d1316fd1f1dc41e9503cc1f1926d31f` and its file blob `9d205a90d70b0c1c9f0b3b1c5f296528f6b21755`; a mutable branch URL is not reproducible evidence.
+
 ### Browser origin equivalence
 
 The WHATWG URL host parser and Chromium canonicalizer classify shortened decimal, integer, hexadecimal, legacy octal-looking, and mixed-component numeric hosts as IPv4 or broken IPv4 candidates rather than ordinary DNS names. Chromium's regression suite includes values such as `192`, `0xC0a80001`, `030052000001`, and mixed hexadecimal components. A non-final empty `0x` component can participate in Chromium's multi-part IPv4 truncation behavior, but a final `0x` label does not produce an IPv4 number because stripping its prefix leaves no digits; it remains a domain label. Chromium also warns that broken IP-like hosts must not be connected because another resolver could accept them. OriginWeave therefore admits only canonical dotted-decimal IPv4 into its policy origin type, rejects browser-special numeric spellings before DNS validation, and preserves final non-numeric DNS labels such as `0x`.
@@ -123,6 +129,8 @@ Berners-Lee, T., Fielding, R., & Masinter, L. (2005). *Uniform resource identifi
 Bonica, R., Cotton, M., Haberman, B., & Vegoda, L. (2017). *Updates to the special-purpose IP address registries* (RFC 8190). Internet Engineering Task Force. https://doi.org/10.17487/RFC8190
 
 Chromium Authors. (n.d.). *Proxy support in Chrome* [Source documentation]. Chromium. https://chromium.googlesource.com/chromium/src/+/a3e71ebfa307d8760eb68b777e2998a869940092/net/docs/proxy.md
+
+Chromium Authors. (2026). *native_message_process_host.cc* [Source code, blob `9d205a90d70b0c1c9f0b3b1c5f296528f6b21755` at revision `160af61f9d1316fd1f1dc41e9503cc1f1926d31f`]. Chromium. https://chromium.googlesource.com/chromium/src/+/160af61f9d1316fd1f1dc41e9503cc1f1926d31f/chrome/browser/extensions/api/messaging/native_message_process_host.cc
 
 Chromium Authors. (2026). *URL canonicalizer unit tests* [Source code]. Chromium. https://chromium.googlesource.com/chromium/src/+/446d05d21720f0b3505ec21057b3e9f909784262/url/url_canon_unittest.cc
 

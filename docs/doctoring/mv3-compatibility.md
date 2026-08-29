@@ -1,7 +1,7 @@
 # Manifest V3 compatibility evidence baseline
 
 - **Status:** Active implementation evidence for issue #27
-- **Reviewed:** 2026-08-24
+- **Reviewed:** 2026-08-28
 - **Pinned browser:** Chrome for Testing `150.0.7871.129`, Chromium revision `r1639810`
 
 OriginWeave uses Chromium as its compatibility kernel, so browser-extension compatibility must be demonstrated with executable Chromium evidence rather than inferred from architecture alone. The protected-main lane exercises a controlled unpacked Manifest V3 extension against one exact Chrome for Testing build and proves service-worker, content-script, storage, declarative-network-request, tabs, windows, scripting, commands, side-panel, bookmarks/history read compatibility, restart persistence, repeatability, and one real WebDriver click/post-condition. Active stacked compatibility work adds downloads, bounded bookmark/history mutation, profile isolation, explicit extension update/version-migration evidence, and an exact content-script isolated-world check. OriginWeave does **not claim 100% Chrome extension compatibility**.
@@ -50,7 +50,7 @@ Content-script injection and content-script JavaScript isolation are separate co
 
 Chrome's native-messaging protocol uses a UTF-8 JSON message preceded by a 32-bit payload length in native byte order. Chrome's documented protocol ceiling is 1 MB for a message sent by the native host to the browser and 4 GB for a message sent by the browser to the native host. Current Chromium source independently enforces the 1 MiB incoming-host ceiling before delivering host data. Its extension-to-host write path encodes the payload length through a checked `uint32_t`; the nearby 64 MiB value is the upper bucket used by the `Extensions.NativeMessaging.MessageSize.Extension` histogram, not an enforced Chrome protocol ceiling. The reviewed source content is identified by Chromium blob `9d205a90d70b0c1c9f0b3b1c5f296528f6b21755`.
 
-Draft PR #154 therefore mirrors Chrome's 1 MiB host-to-browser safety boundary but deliberately applies a stricter **OriginWeave-owned 64 MiB resource ceiling** to browser-to-host frames. That local bound limits allocation and buffering below Chrome's protocol envelope; it must not be described as a Chrome compatibility maximum. The reusable Rust boundary rejects oversized encoder input before allocation, rejects an oversized advertised decoder length before payload slicing, requires the complete frame length to equal the advertised byte count so truncation and trailing data fail closed, and rejects invalid UTF-8 before a caller can treat framed bytes as native-messaging text. It still does not validate JSON syntax or semantics, trust the decoded text, launch or authenticate a native-host process, validate operating-system registration, or convert Chrome `nativeMessaging` permission into OriginWeave Agent authority.
+Draft PR #154 therefore mirrors Chrome's 1 MiB host-to-browser safety boundary but deliberately applies a stricter **OriginWeave-owned 64 MiB resource ceiling** to browser-to-host frames. That local bound limits allocation and buffering below Chrome's protocol envelope; it must not be described as a Chrome compatibility maximum. The reusable Rust boundary rejects oversized encoder input before allocation, rejects an oversized advertised decoder length before payload slicing, reads admitted stream payloads in 64 KiB chunks instead of committing the full declared ceiling before bytes arrive, requires the complete frame length to equal the advertised byte count so truncation and trailing data fail closed, and rejects invalid UTF-8 before a caller can treat framed bytes as native-messaging text. It still does not validate JSON syntax or semantics, trust the decoded text, launch or authenticate a native-host process, validate operating-system registration, or convert Chrome `nativeMessaging` permission into OriginWeave Agent authority.
 
 ## Supply-chain and repeatability evidence
 
@@ -72,7 +72,7 @@ Chrome for Developers. (n.d.). *Manifest file format*. Google. Retrieved August 
 
 Chrome for Developers. (n.d.). *Native messaging*. Google. Retrieved August 24, 2026, from https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging
 
-Chromium Authors. (2026). *native_message_process_host.cc* [Source code, blob `9d205a90d70b0c1c9f0b3b1c5f296528f6b21755`]. Chromium. https://chromium.googlesource.com/chromium/src/+/refs/heads/main/chrome/browser/extensions/api/messaging/native_message_process_host.cc
+Chromium Authors. (2026). *native_message_process_host.cc* [Source code, blob `9d205a90d70b0c1c9f0b3b1c5f296528f6b21755` at revision `160af61f9d1316fd1f1dc41e9503cc1f1926d31f`]. Chromium. https://chromium.googlesource.com/chromium/src/+/160af61f9d1316fd1f1dc41e9503cc1f1926d31f/chrome/browser/extensions/api/messaging/native_message_process_host.cc
 
 Bynens, M. (2023, June 12). *Chrome for Testing*. Chrome for Developers. https://developer.chrome.com/docs/automation-and-testing/chrome-for-testing
 
