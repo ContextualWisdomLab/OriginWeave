@@ -310,39 +310,39 @@ impl Default for WebDriverBiDiWebSocketMessageAssembler {
 
 #[cfg(test)]
 mod tests {
+    use std::io;
+
     use super::*;
 
     fn text(
         assembly: WebDriverBiDiWebSocketMessageAssembly,
-    ) -> Option<WebDriverBiDiWebSocketTextMessage> {
+    ) -> Result<WebDriverBiDiWebSocketTextMessage, io::Error> {
         match assembly {
-            WebDriverBiDiWebSocketMessageAssembly::Text(text) => Some(text),
-            _ => None,
+            WebDriverBiDiWebSocketMessageAssembly::Text(text) => Ok(text),
+            _ => Err(io::Error::other("expected assembled WebSocket text message")),
         }
     }
 
     fn control(
         assembly: WebDriverBiDiWebSocketMessageAssembly,
-    ) -> Option<WebDriverBiDiWebSocketControlMessage> {
+    ) -> Result<WebDriverBiDiWebSocketControlMessage, io::Error> {
         match assembly {
-            WebDriverBiDiWebSocketMessageAssembly::Control(control) => Some(control),
-            _ => None,
+            WebDriverBiDiWebSocketMessageAssembly::Control(control) => Ok(control),
+            _ => Err(io::Error::other("expected assembled WebSocket control message")),
         }
     }
 
     #[test]
     fn test_helpers_report_unexpected_assembly_variants() {
-        assert!(text(WebDriverBiDiWebSocketMessageAssembly::Pending).is_none());
-        assert!(control(WebDriverBiDiWebSocketMessageAssembly::Pending).is_none());
+        assert!(text(WebDriverBiDiWebSocketMessageAssembly::Pending).is_err());
+        assert!(control(WebDriverBiDiWebSocketMessageAssembly::Pending).is_err());
     }
 
     #[test]
-    fn complete_text_and_debug_are_payload_redacted() {
+    fn complete_text_and_debug_are_payload_redacted() -> Result<(), Box<dyn std::error::Error>> {
         let mut assembler = WebDriverBiDiWebSocketMessageAssembler::default();
-        let assembly = assembler
-            .push_parts(true, 0x1, b"secret-text")
-            .expect("complete text should be admitted");
-        let message = text(assembly).expect("complete text should produce a text message");
+        let assembly = assembler.push_parts(true, 0x1, b"secret-text")?;
+        let message = text(assembly)?;
         assert_eq!(message.as_str(), "secret-text");
         let message_debug = format!("{message:?}");
         assert!(message_debug.contains("payload_bytes: 11"));
@@ -350,85 +350,71 @@ mod tests {
         let assembler_debug = format!("{assembler:?}");
         assert!(assembler_debug.contains("fragmented_payload_bytes: 0"));
         assert!(assembler_debug.contains("terminal: false"));
+        Ok(())
     }
 
     #[test]
-    fn fragments_reassemble_only_after_final_continuation() {
+    fn fragments_reassemble_only_after_final_continuation(
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
         assert_eq!(
-            assembler
-                .push_parts(false, 0x1, b"A\xe2")
-                .expect("initial text fragment should be admitted"),
+            assembler.push_parts(false, 0x1, b"A\xe2")?,
             WebDriverBiDiWebSocketMessageAssembly::Pending
         );
         assert_eq!(
-            assembler
-                .push_parts(false, 0x0, b"\x82")
-                .expect("middle continuation should be admitted"),
+            assembler.push_parts(false, 0x0, b"\x82")?,
             WebDriverBiDiWebSocketMessageAssembly::Pending
         );
-        let assembly = assembler
-            .push_parts(true, 0x0, b"\xacB")
-            .expect("final continuation should be admitted");
-        let message = text(assembly).expect("final continuation should produce text");
+        let assembly = assembler.push_parts(true, 0x0, b"\xacB")?;
+        let message = text(assembly)?;
         assert_eq!(message.as_str(), "A€B");
+        Ok(())
     }
 
     #[test]
-    fn ping_and_pong_preserve_fragmented_text_state() {
+    fn ping_and_pong_preserve_fragmented_text_state(
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-        assembler
-            .push_parts(false, 0x1, b"left-")
-            .expect("initial fragment should be admitted");
-        let ping = control(
-            assembler
-                .push_parts(true, 0x9, b"ping-data")
-                .expect("ping should be admitted"),
-        )
-        .expect("ping should produce a control message");
+        assert_eq!(
+            assembler.push_parts(false, 0x1, b"left-")?,
+            WebDriverBiDiWebSocketMessageAssembly::Pending
+        );
+        let ping = control(assembler.push_parts(true, 0x9, b"ping-data")?)?;
         assert_eq!(ping.kind(), WebDriverBiDiWebSocketControlKind::Ping);
         assert_eq!(ping.payload(), b"ping-data");
         let ping_debug = format!("{ping:?}");
         assert!(ping_debug.contains("payload_bytes: 9"));
         assert!(!ping_debug.contains("ping-data"));
 
-        let pong = control(
-            assembler
-                .push_parts(true, 0xa, b"pong")
-                .expect("pong should be admitted"),
-        )
-        .expect("pong should produce a control message");
+        let pong = control(assembler.push_parts(true, 0xa, b"pong")?)?;
         assert_eq!(pong.kind(), WebDriverBiDiWebSocketControlKind::Pong);
         assert_eq!(pong.payload(), b"pong");
-        let assembly = assembler
-            .push_parts(true, 0x0, b"right")
-            .expect("final continuation should be admitted");
-        let message = text(assembly).expect("final continuation should produce text");
+        let assembly = assembler.push_parts(true, 0x0, b"right")?;
+        let message = text(assembly)?;
         assert_eq!(message.as_str(), "left-right");
+        Ok(())
     }
 
     #[test]
-    fn close_is_returned_once_and_makes_assembler_terminal() {
+    fn close_is_returned_once_and_makes_assembler_terminal(
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-        assembler
-            .push_parts(false, 0x1, b"discarded")
-            .expect("initial fragment should be admitted");
-        let close = control(
-            assembler
-                .push_parts(true, 0x8, b"bye")
-                .expect("close should be returned once"),
-        )
-        .expect("close should produce a control message");
+        assert_eq!(
+            assembler.push_parts(false, 0x1, b"discarded")?,
+            WebDriverBiDiWebSocketMessageAssembly::Pending
+        );
+        let close = control(assembler.push_parts(true, 0x8, b"bye")?)?;
         assert_eq!(close.kind(), WebDriverBiDiWebSocketControlKind::Close);
         assert_eq!(close.payload(), b"bye");
         assert_eq!(
             assembler.push_parts(true, 0x1, b"later"),
             Err(WebDriverBiDiWebSocketMessageError::AssemblerPoisoned)
         );
+        Ok(())
     }
 
     #[test]
-    fn semantic_data_sequence_errors_fail_closed() {
+    fn semantic_data_sequence_errors_fail_closed() -> Result<(), Box<dyn std::error::Error>> {
         let cases = [
             (
                 0x0,
@@ -453,22 +439,26 @@ mod tests {
         }
 
         let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-        assembler
-            .push_parts(false, 0x1, b"partial")
-            .expect("initial fragment should be admitted");
+        assert_eq!(
+            assembler.push_parts(false, 0x1, b"partial")?,
+            WebDriverBiDiWebSocketMessageAssembly::Pending
+        );
         assert_eq!(
             assembler.push_parts(true, 0x1, b"new-message"),
             Err(WebDriverBiDiWebSocketMessageError::InterruptedFragmentedText)
         );
+        Ok(())
     }
 
     #[test]
-    fn aggregate_message_bound_rejects_fragmentation_bypass() {
+    fn aggregate_message_bound_rejects_fragmentation_bypass(
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
         let maximum = vec![b'x'; MAX_WEBDRIVER_BIDI_MESSAGE_SIZE];
-        assembler
-            .push_parts(false, 0x1, &maximum)
-            .expect("maximum-size initial fragment should be admitted");
+        assert_eq!(
+            assembler.push_parts(false, 0x1, &maximum)?,
+            WebDriverBiDiWebSocketMessageAssembly::Pending
+        );
         assert_eq!(
             assembler.push_parts(true, 0x0, b"y"),
             Err(WebDriverBiDiWebSocketMessageError::MessageTooLarge {
@@ -486,10 +476,12 @@ mod tests {
                 maximum_bytes: MAX_WEBDRIVER_BIDI_MESSAGE_SIZE,
             })
         );
+        Ok(())
     }
 
     #[test]
-    fn utf8_validation_waits_for_complete_message_and_then_fails_closed() {
+    fn utf8_validation_waits_for_complete_message_and_then_fails_closed(
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
         assert_eq!(
             assembler.push_parts(true, 0x1, b"\xff"),
@@ -501,13 +493,15 @@ mod tests {
         );
 
         let mut fragmented = WebDriverBiDiWebSocketMessageAssembler::new();
-        fragmented
-            .push_parts(false, 0x1, b"\xe2")
-            .expect("initial UTF-8 fragment should be admitted");
+        assert_eq!(
+            fragmented.push_parts(false, 0x1, b"\xe2")?,
+            WebDriverBiDiWebSocketMessageAssembly::Pending
+        );
         assert_eq!(
             fragmented.push_parts(true, 0x0, b"x"),
             Err(WebDriverBiDiWebSocketMessageError::InvalidTextUtf8)
         );
+        Ok(())
     }
 
     #[test]
