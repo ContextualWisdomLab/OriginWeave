@@ -50,6 +50,12 @@ Exact head `e83749acd1cf5a0b778ba38eb9d6ed5a9bd1e68f` deliberately keeps only th
 
 The exact head has successful CI, exact owned production coverage, Security Scan, SAST and CodeRabbit status and is Ready for review. It has no raw secret bytes and does not create approval evidence, a broker, browser-fill adapter, protected-value store, KMS path, authenticated workload identity, persistence owner, or release claim.
 
+### Origin-bound extension grant evaluation
+
+**Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
+
+The current origin-binding slice requires `ExtensionAgentGrant` and `ExtensionAccessRequest` to carry the same canonical origin. A same-session, same-context request for `https://other.example` or `https://app.example:8443` against a grant for `https://app.example` is `DenyOriginMismatch`. Exclusive trusted-time expiry is evaluated after that origin match: `now >= expires_at` is `DenyExpired`. This does not install an extension, parse Chrome messages, bind task identity, or mint Agent capabilities from Manifest V3 permissions.
+
 ## 4. Security interpretation
 
 The executable authority chain is intentionally non-transitive:
