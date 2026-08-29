@@ -130,12 +130,11 @@ impl Iterator for DuplicateThenPanic {
 
 #[test]
 fn duplicate_suite_stops_consuming_unbounded_evidence() {
-    let error = decide_release_with_classified_benchmark_evidence(
-        DuplicateThenPanic { step: 0 },
-        &[],
-        &[],
-    )
-    .expect_err("the first duplicate suite must fail closed without reading further evidence");
+    let error =
+        decide_release_with_classified_benchmark_evidence(DuplicateThenPanic { step: 0 }, &[], &[])
+            .expect_err(
+                "the first duplicate suite must fail closed without reading further evidence",
+            );
 
     assert_eq!(
         error,
