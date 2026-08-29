@@ -91,3 +91,23 @@ fn blank_reproducibility_context_field_fails_closed() {
         "controlled benchmark run context field random_seed_set is blank"
     );
 }
+
+#[test]
+fn blank_required_reproducibility_context_field_fails_closed() {
+    let mut expected = run_context();
+    expected.hardware_profile = " ";
+    let observed = run_context();
+
+    assert_eq!(
+        evaluate_controlled_benchmark_suite_for_run(
+            expected,
+            observed,
+            CONTROLLED_DETERMINISTIC_REGISTRY_VERSION,
+            base_profile(),
+            &[],
+        ),
+        Err(ControlledBenchmarkSuiteError::InvalidRunContext {
+            field: "hardware_profile",
+        })
+    );
+}
