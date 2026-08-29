@@ -77,7 +77,8 @@ fn write_server_frame(
 }
 
 #[test]
-fn message_assembler_reassembles_split_utf8_around_interleaved_ping() -> Result<(), Box<dyn Error>> {
+fn message_assembler_reassembles_split_utf8_around_interleaved_ping() -> Result<(), Box<dyn Error>>
+{
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let server = thread::spawn(move || -> io::Result<()> {
