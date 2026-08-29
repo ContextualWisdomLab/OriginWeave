@@ -94,6 +94,22 @@ fn require_peer_closed_before_second_frame(stream: &mut TcpStream) -> io::Result
     }
 }
 
+fn require_peer_closed_without_frame(stream: &mut TcpStream) -> io::Result<()> {
+    stream.set_read_timeout(Some(Duration::from_secs(2)))?;
+    let mut byte = [0_u8; 1];
+    match stream.read(&mut byte) {
+        Ok(0) => Ok(()),
+        Ok(_) => Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "client emitted a frame after rejecting an oversized payload",
+        )),
+        Err(error) => Err(io::Error::new(
+            error.kind(),
+            format!("client did not close after rejecting an oversized payload: {error}"),
+        )),
+    }
+}
+
 #[test]
 fn established_stream_rejects_client_mask_reuse_across_sequential_frames()
 -> Result<(), Box<dyn Error>> {
@@ -141,8 +157,7 @@ fn established_stream_rejects_client_mask_reuse_across_sequential_frames()
 }
 
 #[test]
-fn established_stream_round_trips_pong_and_unmasked_server_text()
--> Result<(), Box<dyn Error>> {
+fn established_stream_round_trips_pong_and_unmasked_server_text() -> Result<(), Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let server = thread::spawn(move || -> io::Result<Vec<u8>> {
@@ -173,5 +188,69 @@ fn established_stream_round_trips_pong_and_unmasked_server_text()
         .join()
         .map_err(|_| io::Error::other("WebSocket frame round-trip test server panicked"))??;
     assert_eq!(pong_payload, b"probe");
+    Ok(())
+}
+
+#[test]
+fn established_stream_rejects_payloads_above_reviewed_bounds() -> Result<(), Box<dyn Error>> {
+    for (text_case, payload_bytes, maximum_bytes) in [
+        (true, 1_048_577_usize, 1_048_576_usize),
+        (false, 126_usize, 125_usize),
+    ] {
+        let listener = TcpListener::bind(("127.0.0.1", 0))?;
+        let local_addr = listener.local_addr()?;
+        let server = thread::spawn(move || -> io::Result<()> {
+            let (mut stream, _) = listener.accept()?;
+            read_opening_request(&mut stream)?;
+            stream.write_all(OPENING_RESPONSE)?;
+            require_peer_closed_without_frame(&mut stream)
+        });
+
+        let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+        let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?;
+        let plan = WebDriverBiDiWebSocketHandshakePlan::new(connect(&endpoint)?, key)?;
+        let written = plan.write_opening_request(Duration::from_millis(500))?;
+        let established = written.read_opening_response(Duration::from_millis(500))?;
+        let masking_key = WebDriverBiDiWebSocketMaskKey::new([0x41, 0x42, 0x43, 0x44]);
+        let error = if text_case {
+            let oversized_text = "x".repeat(payload_bytes);
+            match established.write_text_frame(
+                &oversized_text,
+                masking_key,
+                Duration::from_millis(500),
+            ) {
+                Ok(_) => return Err(io::Error::other("oversized text frame succeeded").into()),
+                Err(error) => error,
+            }
+        } else {
+            let oversized_pong = vec![0_u8; payload_bytes];
+            match established.write_pong_frame(
+                &oversized_pong,
+                masking_key,
+                Duration::from_millis(500),
+            ) {
+                Ok(_) => return Err(io::Error::other("oversized Pong frame succeeded").into()),
+                Err(error) => error,
+            }
+        };
+        match error {
+            WebDriverBiDiWebSocketFrameError::FrameTooLarge {
+                payload_bytes: actual_payload_bytes,
+                maximum_bytes: actual_maximum_bytes,
+            } => {
+                assert_eq!(actual_payload_bytes, payload_bytes);
+                assert_eq!(actual_maximum_bytes, maximum_bytes);
+            }
+            other => {
+                return Err(io::Error::other(format!(
+                    "oversized payload failed with the wrong error: {other}"
+                ))
+                .into());
+            }
+        }
+        server
+            .join()
+            .map_err(|_| io::Error::other("oversized-frame test server panicked"))??;
+    }
     Ok(())
 }
