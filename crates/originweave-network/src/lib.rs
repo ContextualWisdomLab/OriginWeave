@@ -30,7 +30,7 @@ pub use webdriver_bidi_connection::{
     WebDriverBiDiTcpConnectionEvidence, WebDriverBiDiTcpConnectionPlan,
 };
 pub use webdriver_bidi_json_envelope::{
-    MAX_WEBDRIVER_BIDI_JSON_DEPTH, MAX_WEBDRIVER_BIDI_JS_UINT, WebDriverBiDiJsonEnvelope,
+    MAX_WEBDRIVER_BIDI_JS_UINT, MAX_WEBDRIVER_BIDI_JSON_DEPTH, WebDriverBiDiJsonEnvelope,
     WebDriverBiDiJsonEnvelopeError, WebDriverBiDiJsonEnvelopeKind,
 };
 pub use webdriver_bidi_websocket_frame::{
