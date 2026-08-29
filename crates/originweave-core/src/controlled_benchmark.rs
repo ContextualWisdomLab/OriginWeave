@@ -144,6 +144,50 @@ pub struct ControlledBenchmarkSupportProfile {
     pub native_messaging: bool,
 }
 
+/// Exact reproducibility context required to compare one controlled benchmark run.
+///
+/// These identity strings are supplied by the benchmark runner and remain
+/// credential-free. This evaluator does not authenticate them; durable evidence
+/// must bind them to signed execution artifacts before release authority can rely
+/// on the run. The expected and observed contexts must match byte-for-byte.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ControlledBenchmarkRunContext<'a> {
+    /// Exact OriginWeave source or signed-release revision identity.
+    pub originweave_revision: &'a str,
+    /// Exact Chromium revision used by the browser lane.
+    pub chromium_revision: &'a str,
+    /// Exact operating-system image identity.
+    pub os_image: &'a str,
+    /// Exact hardware profile used for the run.
+    pub hardware_profile: &'a str,
+    /// Exact browser protocol-adapter generation set.
+    pub protocol_adapters: &'a str,
+    /// Exact model/provider route, or an explicit deterministic no-model marker.
+    pub model_provider: &'a str,
+    /// Exact prompt/reasoning or deterministic-oracle configuration identity.
+    pub reasoning_configuration: &'a str,
+    /// Exact fixture or corpus version identity.
+    pub fixture_corpus_version: &'a str,
+    /// Exact deterministic random-seed set identity.
+    pub random_seed_set: &'a str,
+}
+
+impl<'a> ControlledBenchmarkRunContext<'a> {
+    fn fields(self) -> [(&'static str, &'a str); 9] {
+        [
+            ("originweave_revision", self.originweave_revision),
+            ("chromium_revision", self.chromium_revision),
+            ("os_image", self.os_image),
+            ("hardware_profile", self.hardware_profile),
+            ("protocol_adapters", self.protocol_adapters),
+            ("model_provider", self.model_provider),
+            ("reasoning_configuration", self.reasoning_configuration),
+            ("fixture_corpus_version", self.fixture_corpus_version),
+            ("random_seed_set", self.random_seed_set),
+        ]
+    }
+}
+
 /// Evaluated threshold outcome for one controlled benchmark case.
 ///
 /// This type is deliberately distinct from
@@ -382,6 +426,16 @@ pub enum ControlledBenchmarkSuiteError {
     InvalidSupportProfile,
     /// Evidence belongs to a different controlled deterministic registry version.
     RegistryVersionMismatch,
+    /// A required or observed reproducibility-context field is blank.
+    InvalidRunContext {
+        /// Name of the invalid reproducibility-context field.
+        field: &'static str,
+    },
+    /// Observed execution context does not match the required reproducibility context.
+    RunContextMismatch {
+        /// Name of the mismatched reproducibility-context field.
+        field: &'static str,
+    },
     /// One stable case identity appears more than once in the supplied suite evidence.
     DuplicateCase {
         /// Duplicated case identity.
@@ -410,6 +464,14 @@ impl fmt::Display for ControlledBenchmarkSuiteError {
             Self::RegistryVersionMismatch => formatter.write_str(
                 "controlled benchmark suite evidence registry version does not match the required registry",
             ),
+            Self::InvalidRunContext { field } => write!(
+                formatter,
+                "controlled benchmark run context field {field} is blank"
+            ),
+            Self::RunContextMismatch { field } => write!(
+                formatter,
+                "controlled benchmark run context field {field} does not match the required reproducibility context"
+            ),
             Self::DuplicateCase { case_id } => write!(
                 formatter,
                 "controlled benchmark suite contains duplicate case {}",
@@ -435,6 +497,8 @@ impl std::error::Error for ControlledBenchmarkSuiteError {
             Self::InvalidTrialEvidence { source, .. } => Some(source),
             Self::InvalidSupportProfile
             | Self::RegistryVersionMismatch
+            | Self::InvalidRunContext { .. }
+            | Self::RunContextMismatch { .. }
             | Self::DuplicateCase { .. }
             | Self::UnexpectedConditionalCase { .. } => None,
         }
@@ -508,6 +572,42 @@ fn evaluate_valid_controlled_benchmark_case(
     }
 
     ControlledBenchmarkCaseOutcome::Passed
+}
+
+/// Evaluate raw controlled-suite evidence only when execution context is reproducible.
+///
+/// Every required identity in the expected and observed contexts must be nonblank,
+/// and the observed context must match the expected context byte-for-byte before
+/// case evidence is allowed to influence the suite outcome. This does not
+/// authenticate either context; it is a fail-closed comparison boundary for a
+/// benchmark runner or durable evidence pipeline that performs that authentication.
+///
+/// # Errors
+///
+/// Returns [`ControlledBenchmarkSuiteError::InvalidRunContext`] for a blank
+/// required or observed identity and [`ControlledBenchmarkSuiteError::RunContextMismatch`]
+/// for the first mismatched identity. After context validation, all errors from
+/// [`evaluate_controlled_benchmark_suite`] are preserved unchanged.
+pub fn evaluate_controlled_benchmark_suite_for_run(
+    expected_context: ControlledBenchmarkRunContext<'_>,
+    observed_context: ControlledBenchmarkRunContext<'_>,
+    registry_version: &str,
+    profile: ControlledBenchmarkSupportProfile,
+    cases: &[ControlledBenchmarkCaseTrials],
+) -> Result<BenchmarkSuiteOutcome, ControlledBenchmarkSuiteError> {
+    for ((field, expected_value), (_, observed_value)) in expected_context
+        .fields()
+        .into_iter()
+        .zip(observed_context.fields())
+    {
+        validate_run_context_field(field, expected_value)?;
+        validate_run_context_field(field, observed_value)?;
+        if expected_value != observed_value {
+            return Err(ControlledBenchmarkSuiteError::RunContextMismatch { field });
+        }
+    }
+
+    evaluate_controlled_benchmark_suite(registry_version, profile, cases)
 }
 
 /// Evaluate raw trial evidence for the authoritative controlled case registry.
@@ -590,6 +690,16 @@ pub fn evaluate_controlled_benchmark_suite(
     }
 
     Ok(BenchmarkSuiteOutcome::Passed)
+}
+
+fn validate_run_context_field(
+    field: &'static str,
+    value: &str,
+) -> Result<(), ControlledBenchmarkSuiteError> {
+    if value.trim().is_empty() {
+        return Err(ControlledBenchmarkSuiteError::InvalidRunContext { field });
+    }
+    Ok(())
 }
 
 fn validate_counter(
