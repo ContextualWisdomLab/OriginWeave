@@ -186,7 +186,9 @@ fn established_stream_rejects_mask_reuse_across_text_and_pong() -> Result<(), Bo
         Duration::from_millis(500),
     ) {
         Ok(_) => {
-            return Err(io::Error::other("cross-type masking-key reuse unexpectedly succeeded").into());
+            return Err(
+                io::Error::other("cross-type masking-key reuse unexpectedly succeeded").into(),
+            );
         }
         Err(error) => error,
     };
