@@ -8,7 +8,9 @@
 use std::{collections::BTreeMap, fmt};
 
 use crate::{
-    release_acceptance::{ZeroEventSafetyMetric, ZeroEventSafetyObservation},
+    release_acceptance::{
+        MAX_ZERO_EVENT_SAFETY_METRICS, ZeroEventSafetyMetric, ZeroEventSafetyObservation,
+    },
     zero_event_threshold::{ZeroEventSafetyThreshold, ZeroEventSafetyThresholdOutcome},
 };
 
@@ -73,6 +75,10 @@ impl ZeroEventSafetyGateReport {
 pub enum ZeroEventSafetyGateError {
     /// No metric thresholds were declared, which would otherwise create a vacuous passing gate.
     MissingRequirements,
+    /// More metric thresholds were supplied than the fixed zero-event safety metric budget.
+    TooManyRequirements,
+    /// More retained observations were supplied than the fixed zero-event safety metric budget.
+    TooManyObservations,
     /// The same metric appeared more than once in the declared threshold policy.
     DuplicateRequirement(ZeroEventSafetyMetric),
     /// The same metric appeared more than once in retained zero-event observations.
@@ -85,6 +91,12 @@ impl fmt::Display for ZeroEventSafetyGateError {
             Self::MissingRequirements => formatter.write_str(
                 "zero-event safety gate requires at least one declared metric threshold",
             ),
+            Self::TooManyRequirements => {
+                formatter.write_str("zero-event safety gate contains too many requirements")
+            }
+            Self::TooManyObservations => {
+                formatter.write_str("zero-event safety gate contains too many observations")
+            }
             Self::DuplicateRequirement(metric) => write!(
                 formatter,
                 "zero-event safety gate contains duplicate requirement: {}",
@@ -112,6 +124,12 @@ pub fn evaluate_zero_event_safety_gate(
 ) -> Result<ZeroEventSafetyGateReport, ZeroEventSafetyGateError> {
     if requirements.is_empty() {
         return Err(ZeroEventSafetyGateError::MissingRequirements);
+    }
+    if requirements.len() > MAX_ZERO_EVENT_SAFETY_METRICS {
+        return Err(ZeroEventSafetyGateError::TooManyRequirements);
+    }
+    if observations.len() > MAX_ZERO_EVENT_SAFETY_METRICS {
+        return Err(ZeroEventSafetyGateError::TooManyObservations);
     }
 
     let mut thresholds_by_metric = BTreeMap::new();
