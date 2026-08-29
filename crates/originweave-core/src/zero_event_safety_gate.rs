@@ -3,13 +3,17 @@
 //! This gate consumes explicit per-metric thresholds and retained zero-event observations. Missing
 //! or statistically insufficient evidence is `Inconclusive`; it is never promoted to product
 //! success or converted into a known product failure. The gate does not itself grant release
-//! authority.
+//! authority. [`decide_commercial_release_with_zero_event_safety`] combines the gate with mandatory
+//! benchmark evidence so a threshold miss cannot remain commercially accepted while repository,
+//! review, provenance, and operator release authority remain external controls.
 
 use std::{collections::BTreeMap, fmt};
 
 use crate::{
     release_acceptance::{
-        MAX_ZERO_EVENT_SAFETY_METRICS, ZeroEventSafetyMetric, ZeroEventSafetyObservation,
+        BenchmarkSuiteEvidence, DeclaredLimitation, MAX_ZERO_EVENT_SAFETY_METRICS, ReleaseDecision,
+        ReleaseDecisionError, ReleaseDecisionReport, ZeroEventSafetyMetric,
+        ZeroEventSafetyObservation, decide_release_with_classified_benchmark_evidence,
     },
     zero_event_threshold::{ZeroEventSafetyThreshold, ZeroEventSafetyThresholdOutcome},
 };
@@ -113,6 +117,79 @@ impl fmt::Display for ZeroEventSafetyGateError {
 
 impl std::error::Error for ZeroEventSafetyGateError {}
 
+/// Combined benchmark and zero-event evidence used by commercial release acceptance.
+///
+/// The final decision is still evidence, not permission to merge, tag, publish, or release. A
+/// caller must separately satisfy repository governance, authenticated provenance, independent
+/// review, operator authorization, and every other mandatory release control.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommercialReleaseAcceptanceReport {
+    benchmark_report: ReleaseDecisionReport,
+    zero_event_safety_gate_report: ZeroEventSafetyGateReport,
+    decision: ReleaseDecision,
+}
+
+impl CommercialReleaseAcceptanceReport {
+    /// Return the fail-closed combined evidence decision.
+    #[must_use]
+    pub const fn decision(&self) -> ReleaseDecision {
+        self.decision
+    }
+
+    /// Return the retained mandatory-suite release evidence.
+    #[must_use]
+    pub const fn benchmark_report(&self) -> &ReleaseDecisionReport {
+        &self.benchmark_report
+    }
+
+    /// Return the retained quantitative zero-event safety-gate evidence.
+    #[must_use]
+    pub const fn zero_event_safety_gate_report(&self) -> &ZeroEventSafetyGateReport {
+        &self.zero_event_safety_gate_report
+    }
+}
+
+/// Fail-closed error while constructing combined commercial release evidence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CommercialReleaseAcceptanceError {
+    /// Mandatory-suite or buyer-visible limitation evidence was invalid.
+    ReleaseEvidence(ReleaseDecisionError),
+    /// Quantitative zero-event safety requirements or observations were invalid.
+    ZeroEventSafetyGate(ZeroEventSafetyGateError),
+}
+
+impl fmt::Display for CommercialReleaseAcceptanceError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ReleaseEvidence(error) => write!(formatter, "invalid release evidence: {error}"),
+            Self::ZeroEventSafetyGate(error) => {
+                write!(formatter, "invalid zero-event safety gate: {error}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for CommercialReleaseAcceptanceError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::ReleaseEvidence(error) => Some(error),
+            Self::ZeroEventSafetyGate(error) => Some(error),
+        }
+    }
+}
+
+impl From<ReleaseDecisionError> for CommercialReleaseAcceptanceError {
+    fn from(error: ReleaseDecisionError) -> Self {
+        Self::ReleaseEvidence(error)
+    }
+}
+
+impl From<ZeroEventSafetyGateError> for CommercialReleaseAcceptanceError {
+    fn from(error: ZeroEventSafetyGateError) -> Self {
+        Self::ZeroEventSafetyGate(error)
+    }
+}
+
 /// Evaluate explicit zero-event safety requirements against retained observations.
 ///
 /// Duplicate policy or evidence entries are rejected. Requirements are evaluated in the metric
@@ -179,4 +256,46 @@ pub fn evaluate_zero_event_safety_gate(
         ZeroEventSafetyGateDecision::Inconclusive
     };
     Ok(ZeroEventSafetyGateReport { decision, failures })
+}
+
+/// Combine mandatory benchmark evidence with mandatory quantitative zero-event safety policy.
+///
+/// The benchmark evaluator retains product failures, evidence insufficiency, and explicit buyer
+/// limitations. The quantitative gate is then applied as a mandatory acceptance condition: an
+/// otherwise accepted benchmark report becomes `Inconclusive` when any declared zero-event
+/// requirement is missing or statistically insufficient. A known benchmark failure remains
+/// `Rejected`. Invalid inputs from either evidence boundary are returned with their original typed
+/// source error instead of being converted to success.
+pub fn decide_commercial_release_with_zero_event_safety<I>(
+    evidence: I,
+    declared_limitations: &[DeclaredLimitation],
+    observations: &[ZeroEventSafetyObservation],
+    requirements: &[ZeroEventSafetyRequirement],
+) -> Result<CommercialReleaseAcceptanceReport, CommercialReleaseAcceptanceError>
+where
+    I: IntoIterator<Item = BenchmarkSuiteEvidence>,
+{
+    let benchmark_report = decide_release_with_classified_benchmark_evidence(
+        evidence,
+        declared_limitations,
+        observations,
+    )?;
+    let zero_event_safety_gate_report = evaluate_zero_event_safety_gate(requirements, observations)?;
+
+    let decision = match benchmark_report.decision() {
+        ReleaseDecision::Rejected => ReleaseDecision::Rejected,
+        ReleaseDecision::Inconclusive => ReleaseDecision::Inconclusive,
+        ReleaseDecision::Accepted | ReleaseDecision::AcceptedWithDeclaredLimitations => {
+            match zero_event_safety_gate_report.decision() {
+                ZeroEventSafetyGateDecision::Satisfied => benchmark_report.decision(),
+                ZeroEventSafetyGateDecision::Inconclusive => ReleaseDecision::Inconclusive,
+            }
+        }
+    };
+
+    Ok(CommercialReleaseAcceptanceReport {
+        benchmark_report,
+        zero_event_safety_gate_report,
+        decision,
+    })
 }
