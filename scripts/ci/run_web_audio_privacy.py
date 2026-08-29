@@ -138,7 +138,7 @@ def _json_request(
     if not path.startswith("/") or "://" in path or any(
         character in path for character in "\r\n"
     ):
-        raise ValueError("invalid ChromeDriver path")
+        raise ValueError("invalid WebDriver path")
 
     body = None if payload is None else json.dumps(payload).encode("utf-8")
     connection = http.client.HTTPConnection("127.0.0.1", driver_port, timeout=timeout)
@@ -192,7 +192,10 @@ def _cleanup_browser_session_preserving_primary(
         bounded_error = BrowserSessionCleanupError(cleanup_error)
         if primary_error is None:
             raise bounded_error from cleanup_error
-        raise bounded_error from primary_error
+        primary_error.add_note(
+            f"WebDriver session cleanup also failed with {bounded_error.cleanup_error_type}"
+        )
+        raise primary_error
 
 
 def _wait_for_driver(driver_port: int) -> None:
