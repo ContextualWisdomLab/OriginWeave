@@ -17,5 +17,7 @@ pub mod benchmark_failure;
 pub mod mcp;
 /// Deterministic fail-closed release benchmark acceptance aggregation.
 pub mod release_acceptance;
+/// Fail-closed evaluation of declared zero-event benchmark safety requirements.
+pub mod zero_event_safety_gate;
 /// Fixed-point statistical thresholds for zero-event benchmark safety evidence.
 pub mod zero_event_threshold;
