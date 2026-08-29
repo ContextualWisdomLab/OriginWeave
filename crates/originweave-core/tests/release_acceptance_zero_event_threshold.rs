@@ -30,6 +30,24 @@ fn zero_event_threshold_requires_both_confidence_and_a_tight_enough_upper_bound(
 }
 
 #[test]
+fn exact_fixed_point_boundary_is_satisfied_without_float_rounding_drift()
+-> Result<(), Box<dyn std::error::Error>> {
+    let evidence = ZeroEventSafetyEvidence::new(1, 10)?;
+    let exact_boundary = ZeroEventSafetyThreshold::new(1_000, 10)?;
+    let one_ppm_tighter = ZeroEventSafetyThreshold::new(999, 10)?;
+
+    assert_eq!(
+        exact_boundary.evaluate(evidence),
+        ZeroEventSafetyThresholdOutcome::Satisfied
+    );
+    assert_eq!(
+        one_ppm_tighter.evaluate(evidence),
+        ZeroEventSafetyThresholdOutcome::UpperBoundExceedsThreshold
+    );
+    Ok(())
+}
+
+#[test]
 fn zero_event_threshold_retains_exact_fixed_point_policy_inputs()
 -> Result<(), ZeroEventSafetyThresholdError> {
     let threshold = ZeroEventSafetyThreshold::new(2_500, 9_900)?;
