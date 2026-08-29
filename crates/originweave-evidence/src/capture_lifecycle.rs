@@ -13,7 +13,7 @@ pub enum CaptureLifecycleState {
     Verified,
     /// The verified capture is retained until its explicit deadline.
     Retained,
-    /// The verified or retained capture is protected by an explicit legal hold.
+    /// A verified, retained, or deletion-pending capture is protected by an explicit legal hold.
     LegalHold,
     /// Deletion was requested after the applicable retention and hold gates allowed it.
     DeletionRequested,
