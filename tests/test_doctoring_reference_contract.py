@@ -38,15 +38,21 @@ class DoctoringReferenceContractTests(unittest.TestCase):
         ):
             with self.subTest(expected=expected):
                 self.assertIn(expected, text)
-        self.assertIn(
-            "https://chromium.googlesource.com/chromium/src/+/160af61f9d1316fd1f1dc41e9503cc1f1926d31f/",
-            compatibility,
+        expected_source_url = (
+            "https://chromium.googlesource.com/chromium/src/+/"
+            "160af61f9d1316fd1f1dc41e9503cc1f1926d31f/"
+            "chrome/browser/extensions/api/messaging/native_message_process_host.cc"
         )
-        self.assertNotIn(
+        expected_blob = "9d205a90d70b0c1c9f0b3b1c5f296528f6b21755"
+        mutable_source_url = (
             "https://chromium.googlesource.com/chromium/src/+/refs/heads/main/"
-            "chrome/browser/extensions/api/messaging/native_message_process_host.cc",
-            compatibility,
+            "chrome/browser/extensions/api/messaging/native_message_process_host.cc"
         )
+        for document in (text, compatibility):
+            with self.subTest(document=document[:24]):
+                self.assertIn(expected_source_url, document)
+                self.assertIn(expected_blob, document)
+                self.assertNotIn(mutable_source_url, document)
 
 
 if __name__ == "__main__":
