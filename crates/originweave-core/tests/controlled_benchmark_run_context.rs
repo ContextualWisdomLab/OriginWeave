@@ -47,6 +47,9 @@ fn chromium_revision_mismatch_fails_closed_before_suite_acceptance() {
     let expected = run_context();
     let mut observed = expected;
     observed.chromium_revision = "chromium@140.0.7339.83";
+    let mismatch = ControlledBenchmarkSuiteError::RunContextMismatch {
+        field: "chromium_revision",
+    };
 
     assert_eq!(
         evaluate_controlled_benchmark_suite_for_run(
@@ -56,9 +59,11 @@ fn chromium_revision_mismatch_fails_closed_before_suite_acceptance() {
             base_profile(),
             &[],
         ),
-        Err(ControlledBenchmarkSuiteError::RunContextMismatch {
-            field: "chromium_revision",
-        })
+        Err(mismatch.clone())
+    );
+    assert_eq!(
+        mismatch.to_string(),
+        "controlled benchmark run context field chromium_revision does not match the required reproducibility context"
     );
 }
 
@@ -67,6 +72,9 @@ fn blank_reproducibility_context_field_fails_closed() {
     let expected = run_context();
     let mut observed = expected;
     observed.random_seed_set = " ";
+    let invalid = ControlledBenchmarkSuiteError::InvalidRunContext {
+        field: "random_seed_set",
+    };
 
     assert_eq!(
         evaluate_controlled_benchmark_suite_for_run(
@@ -76,8 +84,10 @@ fn blank_reproducibility_context_field_fails_closed() {
             base_profile(),
             &[],
         ),
-        Err(ControlledBenchmarkSuiteError::InvalidRunContext {
-            field: "random_seed_set",
-        })
+        Err(invalid.clone())
+    );
+    assert_eq!(
+        invalid.to_string(),
+        "controlled benchmark run context field random_seed_set is blank"
     );
 }
