@@ -258,8 +258,7 @@ impl WebDriverBiDiWebSocketEstablished {
         self.client_mask_keys.reserve(masking_key)?;
         let frame = serialize_client_frame(0x1, text.as_bytes(), masking_key);
         let mut now = Instant::now;
-        write_frame_with_clock(&mut self.raw.stream, &frame, frame_timeout, &mut now)?;
-        Ok(self)
+        write_frame_with_clock(&mut self.raw.stream, &frame, frame_timeout, &mut now).map(|_| self)
     }
 
     /// Write one final masked RFC 6455 Pong control frame on this verified stream.
@@ -282,8 +281,7 @@ impl WebDriverBiDiWebSocketEstablished {
         self.client_mask_keys.reserve(masking_key)?;
         let frame = serialize_client_frame(0xa, payload, masking_key);
         let mut now = Instant::now;
-        write_frame_with_clock(&mut self.raw.stream, &frame, frame_timeout, &mut now)?;
-        Ok(self)
+        write_frame_with_clock(&mut self.raw.stream, &frame, frame_timeout, &mut now).map(|_| self)
     }
 
     /// Read one bounded RFC 6455 frame from this verified stream.
@@ -298,9 +296,9 @@ impl WebDriverBiDiWebSocketEstablished {
     ) -> Result<(Self, WebDriverBiDiWebSocketFrame), WebDriverBiDiWebSocketFrameError> {
         validate_frame_timeout(frame_timeout)?;
         let mut now = Instant::now;
-        let frame = read_frame_with_clock(&mut self.raw.stream, frame_timeout, &mut now)?;
-        validate_close_frame(&frame)?;
-        Ok((self, frame))
+        read_frame_with_clock(&mut self.raw.stream, frame_timeout, &mut now).and_then(|frame| {
+            validate_close_frame(&frame).map(|()| (self, frame))
+        })
     }
 }
 
@@ -901,6 +899,24 @@ mod tests {
         read_frame_with_clock(&mut io, Duration::from_secs(1), &mut now)
     }
 
+    fn assert_error_variant<T>(
+        result: Result<T, WebDriverBiDiWebSocketFrameError>,
+        expected: WebDriverBiDiWebSocketFrameError,
+    ) {
+        let actual = result.err().expect("expected WebSocket frame error");
+        assert_eq!(
+            std::mem::discriminant(&actual),
+            std::mem::discriminant(&expected)
+        );
+    }
+
+    fn malformed_reason(error: &WebDriverBiDiWebSocketFrameError) -> Option<&'static str> {
+        match error {
+            WebDriverBiDiWebSocketFrameError::MalformedFrame { reason } => Some(*reason),
+            _ => None,
+        }
+    }
+
     #[test]
     fn mask_key_debug_and_history_preserve_entropy_contract() {
         let first = WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]);
@@ -909,12 +925,13 @@ mod tests {
         assert_eq!(format!("{first:?}"), "<redacted WebSocket masking key>");
         let mut history = ClientMaskKeyHistory::default();
         assert!(history.reserve(first).is_ok());
-        assert!(matches!(
-            history.reserve(first),
-            Err(WebDriverBiDiWebSocketFrameError::MalformedFrame {
-                reason: REUSED_CLIENT_MASK_KEY_REASON
-            })
-        ));
+        let reused = history.reserve(first).err().expect("reused key must fail");
+        assert_eq!(malformed_reason(&reused), Some(REUSED_CLIENT_MASK_KEY_REASON));
+        let non_malformed = WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout {
+            frame_timeout: Duration::ZERO,
+            maximum_timeout: MAX_WEBSOCKET_FRAME_TIMEOUT,
+        };
+        assert_eq!(malformed_reason(&non_malformed), None);
         assert!(history.reserve(second).is_ok());
         assert!(history.reserve(first).is_ok());
     }
@@ -941,14 +958,20 @@ mod tests {
     #[test]
     fn frame_timeout_validation_is_bounded() {
         assert!(validate_frame_timeout(Duration::from_nanos(1)).is_ok());
-        assert!(matches!(
+        assert_error_variant(
             validate_frame_timeout(Duration::ZERO),
-            Err(WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout { .. })
-        ));
-        assert!(matches!(
+            WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout {
+                frame_timeout: Duration::ZERO,
+                maximum_timeout: MAX_WEBSOCKET_FRAME_TIMEOUT,
+            },
+        );
+        assert_error_variant(
             validate_frame_timeout(MAX_WEBSOCKET_FRAME_TIMEOUT + Duration::from_nanos(1)),
-            Err(WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout { .. })
-        ));
+            WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout {
+                frame_timeout: MAX_WEBSOCKET_FRAME_TIMEOUT + Duration::from_nanos(1),
+                maximum_timeout: MAX_WEBSOCKET_FRAME_TIMEOUT,
+            },
+        );
     }
 
     #[test]
@@ -960,10 +983,11 @@ mod tests {
             .writes
             .extend([WriteAction::Count(2), WriteAction::Count(4)]);
         let mut now = || start;
-        assert!(matches!(
-            write_frame_with_clock(&mut partial, b"abcdef", Duration::from_secs(1), &mut now),
-            Ok(6)
-        ));
+        assert_eq!(
+            write_frame_with_clock(&mut partial, b"abcdef", Duration::from_secs(1), &mut now)
+                .expect("partial frame writes must finish"),
+            6
+        );
 
         let mut interrupted = FakeIo::new();
         interrupted.writes.extend([
@@ -1000,28 +1024,34 @@ mod tests {
         let mut zero = FakeIo::new();
         zero.writes.push_back(WriteAction::Count(0));
         let mut now = || start;
-        assert!(matches!(
+        assert_error_variant(
             write_frame_with_clock(&mut zero, b"x", Duration::from_secs(1), &mut now),
-            Err(WebDriverBiDiWebSocketFrameError::FrameWriteZero { .. })
-        ));
+            WebDriverBiDiWebSocketFrameError::FrameWriteZero { bytes_written: 0 },
+        );
 
         let mut configure = FakeIo::new();
         configure.write_mode_error = Some(io::ErrorKind::PermissionDenied);
         let mut now = || start;
-        assert!(matches!(
+        assert_error_variant(
             write_frame_with_clock(&mut configure, b"x", Duration::from_secs(1), &mut now),
-            Err(WebDriverBiDiWebSocketFrameError::FrameWriteModeConfigurationFailed { .. })
-        ));
+            WebDriverBiDiWebSocketFrameError::FrameWriteModeConfigurationFailed {
+                bytes_written: 0,
+                source: io::Error::from(io::ErrorKind::PermissionDenied),
+            },
+        );
 
         let mut failed = FakeIo::new();
         failed
             .writes
             .push_back(WriteAction::Error(io::ErrorKind::BrokenPipe));
         let mut now = || start;
-        assert!(matches!(
+        assert_error_variant(
             write_frame_with_clock(&mut failed, b"x", Duration::from_secs(1), &mut now),
-            Err(WebDriverBiDiWebSocketFrameError::FrameWriteFailed { .. })
-        ));
+            WebDriverBiDiWebSocketFrameError::FrameWriteFailed {
+                bytes_written: 0,
+                source: io::Error::from(io::ErrorKind::BrokenPipe),
+            },
+        );
 
         let mut timed = FakeIo::new();
         timed
@@ -1029,35 +1059,46 @@ mod tests {
             .push_back(WriteAction::Error(io::ErrorKind::TimedOut));
         let mut times = VecDeque::from([start, start, start + Duration::from_secs(1)]);
         let mut now = || times.pop_front().unwrap_or(start + Duration::from_secs(1));
-        assert!(matches!(
+        assert_error_variant(
             write_frame_with_clock(&mut timed, b"x", Duration::from_secs(1), &mut now),
-            Err(WebDriverBiDiWebSocketFrameError::FrameWriteTimedOut { .. })
-        ));
+            WebDriverBiDiWebSocketFrameError::FrameWriteTimedOut {
+                bytes_written: 0,
+                source: io::Error::from(io::ErrorKind::TimedOut),
+            },
+        );
 
         let mut before = FakeIo::new();
         let mut times = VecDeque::from([start, start + Duration::from_secs(1)]);
         let mut now = || times.pop_front().unwrap_or(start + Duration::from_secs(1));
-        assert!(matches!(
+        assert_error_variant(
             write_frame_with_clock(&mut before, b"x", Duration::from_secs(1), &mut now),
-            Err(WebDriverBiDiWebSocketFrameError::FrameWriteTimedOut { .. })
-        ));
+            WebDriverBiDiWebSocketFrameError::FrameWriteTimedOut {
+                bytes_written: 0,
+                source: io::Error::from(io::ErrorKind::TimedOut),
+            },
+        );
 
         let mut late = FakeIo::new();
         late.writes.push_back(WriteAction::Count(1));
         let mut times = VecDeque::from([start, start, start + Duration::from_secs(1)]);
         let mut now = || times.pop_front().unwrap_or(start + Duration::from_secs(1));
-        assert!(matches!(
+        assert_error_variant(
             write_frame_with_clock(&mut late, b"x", Duration::from_secs(1), &mut now),
-            Err(WebDriverBiDiWebSocketFrameError::FrameWriteTimedOut { .. })
-        ));
+            WebDriverBiDiWebSocketFrameError::FrameWriteTimedOut {
+                bytes_written: 1,
+                source: io::Error::from(io::ErrorKind::TimedOut),
+            },
+        );
 
         let mut cleanup = FakeIo::new();
         cleanup.write_cleanup_error = Some(io::ErrorKind::PermissionDenied);
         let mut now = || start;
-        assert!(matches!(
+        assert_error_variant(
             write_frame_with_clock(&mut cleanup, b"x", Duration::from_secs(1), &mut now),
-            Err(WebDriverBiDiWebSocketFrameError::FrameWriteCleanupFailed { .. })
-        ));
+            WebDriverBiDiWebSocketFrameError::FrameWriteCleanupFailed {
+                source: io::Error::from(io::ErrorKind::PermissionDenied),
+            },
+        );
     }
 
     #[test]
@@ -1123,26 +1164,31 @@ mod tests {
         let mut ended = FakeIo::new();
         ended.reads.push_back(ReadAction::End);
         let mut now = || start;
-        assert!(matches!(
+        assert_error_variant(
             read_frame_with_clock(&mut ended, Duration::from_secs(1), &mut now),
-            Err(WebDriverBiDiWebSocketFrameError::FrameEnded { .. })
-        ));
+            WebDriverBiDiWebSocketFrameError::FrameEnded { bytes_read: 0 },
+        );
 
         let mut impossible_count = FakeIo::new();
         impossible_count.reads.push_back(ReadAction::Count(3));
         let mut now = || start;
-        assert!(matches!(
+        assert_error_variant(
             read_frame_with_clock(&mut impossible_count, Duration::from_secs(1), &mut now),
-            Err(WebDriverBiDiWebSocketFrameError::FrameReadFailed { .. })
-        ));
+            WebDriverBiDiWebSocketFrameError::FrameReadFailed {
+                bytes_read: 0,
+                source: io::Error::from(io::ErrorKind::InvalidData),
+            },
+        );
 
         let mut configure = FakeIo::new();
         configure.read_mode_error = Some(io::ErrorKind::PermissionDenied);
         let mut now = || start;
-        assert!(matches!(
+        assert_error_variant(
             read_frame_with_clock(&mut configure, Duration::from_secs(1), &mut now),
-            Err(WebDriverBiDiWebSocketFrameError::FrameReadModeConfigurationFailed { .. })
-        ));
+            WebDriverBiDiWebSocketFrameError::FrameReadModeConfigurationFailed {
+                source: io::Error::from(io::ErrorKind::PermissionDenied),
+            },
+        );
 
         let mut interrupted = FakeIo::new();
         interrupted.reads.extend([
@@ -1165,10 +1211,13 @@ mod tests {
             .reads
             .push_back(ReadAction::Error(io::ErrorKind::BrokenPipe));
         let mut now = || start;
-        assert!(matches!(
+        assert_error_variant(
             read_frame_with_clock(&mut failed, Duration::from_secs(1), &mut now),
-            Err(WebDriverBiDiWebSocketFrameError::FrameReadFailed { .. })
-        ));
+            WebDriverBiDiWebSocketFrameError::FrameReadFailed {
+                bytes_read: 0,
+                source: io::Error::from(io::ErrorKind::BrokenPipe),
+            },
+        );
 
         let mut timed = FakeIo::new();
         timed
@@ -1176,37 +1225,59 @@ mod tests {
             .push_back(ReadAction::Error(io::ErrorKind::TimedOut));
         let mut times = VecDeque::from([start, start, start + Duration::from_secs(1)]);
         let mut now = || times.pop_front().unwrap_or(start + Duration::from_secs(1));
-        assert!(matches!(
+        assert_error_variant(
             read_frame_with_clock(&mut timed, Duration::from_secs(1), &mut now),
-            Err(WebDriverBiDiWebSocketFrameError::FrameReadTimedOut { .. })
-        ));
+            WebDriverBiDiWebSocketFrameError::FrameReadTimedOut {
+                bytes_read: 0,
+                source: io::Error::from(io::ErrorKind::TimedOut),
+            },
+        );
 
         let mut before = FakeIo::new();
         before.reads.push_back(ReadAction::Bytes(vec![0x81, 0]));
         let mut times = VecDeque::from([start, start + Duration::from_secs(1)]);
         let mut now = || times.pop_front().unwrap_or(start + Duration::from_secs(1));
-        assert!(matches!(
+        assert_error_variant(
             read_frame_with_clock(&mut before, Duration::from_secs(1), &mut now),
-            Err(WebDriverBiDiWebSocketFrameError::FrameReadTimedOut { .. })
-        ));
+            WebDriverBiDiWebSocketFrameError::FrameReadTimedOut {
+                bytes_read: 0,
+                source: io::Error::from(io::ErrorKind::TimedOut),
+            },
+        );
 
         let mut late = FakeIo::new();
         late.reads.push_back(ReadAction::Bytes(vec![0x81, 0]));
         let mut times = VecDeque::from([start, start, start + Duration::from_secs(1)]);
         let mut now = || times.pop_front().unwrap_or(start + Duration::from_secs(1));
-        assert!(matches!(
+        assert_error_variant(
             read_frame_with_clock(&mut late, Duration::from_secs(1), &mut now),
-            Err(WebDriverBiDiWebSocketFrameError::FrameReadTimedOut { .. })
-        ));
+            WebDriverBiDiWebSocketFrameError::FrameReadTimedOut {
+                bytes_read: 2,
+                source: io::Error::from(io::ErrorKind::TimedOut),
+            },
+        );
 
         let mut cleanup = FakeIo::new();
         cleanup.reads.push_back(ReadAction::Bytes(vec![0x81, 0]));
         cleanup.read_cleanup_error = Some(io::ErrorKind::PermissionDenied);
         let mut now = || start;
-        assert!(matches!(
+        assert_error_variant(
             read_frame_with_clock(&mut cleanup, Duration::from_secs(1), &mut now),
-            Err(WebDriverBiDiWebSocketFrameError::FrameReadFailed { .. })
-        ));
+            WebDriverBiDiWebSocketFrameError::FrameReadFailed {
+                bytes_read: 2,
+                source: io::Error::from(io::ErrorKind::PermissionDenied),
+            },
+        );
+
+        for prefix in [vec![0x81, 126], vec![0x81, 127], vec![0x81, 1]] {
+            let mut truncated = FakeIo::new();
+            truncated.reads.extend([ReadAction::Bytes(prefix), ReadAction::End]);
+            let mut now = || start;
+            assert_error_variant(
+                read_frame_with_clock(&mut truncated, Duration::from_secs(1), &mut now),
+                WebDriverBiDiWebSocketFrameError::FrameEnded { bytes_read: 2 },
+            );
+        }
     }
 
     #[test]
