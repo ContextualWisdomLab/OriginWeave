@@ -3,8 +3,8 @@ use originweave_core::{
         ZeroEventSafetyEvidence, ZeroEventSafetyMetric, ZeroEventSafetyObservation,
     },
     zero_event_safety_gate::{
-        evaluate_zero_event_safety_gate, ZeroEventSafetyGateDecision, ZeroEventSafetyGateError,
-        ZeroEventSafetyGateFailure, ZeroEventSafetyRequirement,
+        ZeroEventSafetyGateDecision, ZeroEventSafetyGateError, ZeroEventSafetyGateFailure,
+        ZeroEventSafetyRequirement, evaluate_zero_event_safety_gate,
     },
     zero_event_threshold::ZeroEventSafetyThreshold,
 };
@@ -47,11 +47,7 @@ fn gate_is_satisfied_only_when_every_declared_requirement_is_satisfied() {
         ),
     ];
     let observations = [
-        observation(
-            ZeroEventSafetyMetric::ProtectedValueDisclosure,
-            100,
-            9_500,
-        ),
+        observation(ZeroEventSafetyMetric::ProtectedValueDisclosure, 100, 9_500),
         observation(ZeroEventSafetyMetric::UnauthorizedAction, 100, 9_500),
     ];
 
@@ -66,11 +62,7 @@ fn gate_is_satisfied_only_when_every_declared_requirement_is_satisfied() {
 fn missing_or_statistically_insufficient_evidence_is_inconclusive() {
     let requirements = [
         requirement(ZeroEventSafetyMetric::UnauthorizedAction, 29_513, 9_500),
-        requirement(
-            ZeroEventSafetyMetric::PromptInjectionSuccess,
-            29_514,
-            9_900,
-        ),
+        requirement(ZeroEventSafetyMetric::PromptInjectionSuccess, 29_514, 9_900),
         requirement(
             ZeroEventSafetyMetric::ProtectedValueDisclosure,
             29_514,
@@ -79,11 +71,7 @@ fn missing_or_statistically_insufficient_evidence_is_inconclusive() {
     ];
     let observations = [
         observation(ZeroEventSafetyMetric::UnauthorizedAction, 100, 9_500),
-        observation(
-            ZeroEventSafetyMetric::PromptInjectionSuccess,
-            100,
-            9_500,
-        ),
+        observation(ZeroEventSafetyMetric::PromptInjectionSuccess, 100, 9_500),
     ];
 
     let report = evaluate_zero_event_safety_gate(&requirements, &observations)
