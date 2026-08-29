@@ -16,8 +16,7 @@ const DELETION_EVIDENCE_DIGEST: &str =
     "sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
 
 #[test]
-fn restored_lifecycle_states_preserve_only_valid_persisted_shapes()
--> Result<(), Box<dyn Error>> {
+fn restore_accepts_valid_persisted_states() -> Result<(), Box<dyn Error>> {
     let started = CaptureLifecycle::restore(
         MANIFEST_DIGEST,
         CaptureLifecycleState::CaptureStarted,
@@ -121,8 +120,7 @@ fn restored_lifecycle_states_preserve_only_valid_persisted_shapes()
 }
 
 #[test]
-fn restored_retained_and_pending_deletion_states_can_continue_safely()
--> Result<(), Box<dyn Error>> {
+fn restored_states_can_continue_safely() -> Result<(), Box<dyn Error>> {
     let mut retained = CaptureLifecycle::restore(
         MANIFEST_DIGEST,
         CaptureLifecycleState::Retained,
@@ -154,7 +152,7 @@ fn restored_retained_and_pending_deletion_states_can_continue_safely()
 }
 
 #[test]
-fn restore_rejects_corrupt_persisted_lifecycle_shapes() -> Result<(), Box<dyn Error>> {
+fn restore_rejects_corrupt_persisted_states() -> Result<(), Box<dyn Error>> {
     assert_eq!(
         CaptureLifecycle::restore(
             "sha256:not-a-digest",
