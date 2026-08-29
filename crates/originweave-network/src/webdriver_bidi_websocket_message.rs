@@ -1,4 +1,4 @@
-use std::{error::Error, fmt, str};
+use std::{error::Error, fmt};
 
 use crate::{MAX_WEBSOCKET_FRAME_PAYLOAD_SIZE, WebDriverBiDiWebSocketFrame};
 
@@ -255,28 +255,22 @@ impl WebDriverBiDiWebSocketMessageAssembler {
         fin: bool,
         payload: &[u8],
     ) -> Result<WebDriverBiDiWebSocketMessageAssembly, WebDriverBiDiWebSocketMessageError> {
-        let Some(current_len) = self.fragmented_text.as_ref().map(Vec::len) else {
+        let Some(mut buffer) = self.fragmented_text.take() else {
             return self.reject(WebDriverBiDiWebSocketMessageError::UnexpectedContinuation);
         };
+        let current_len = buffer.len();
         if payload.len() > MAX_WEBDRIVER_BIDI_MESSAGE_SIZE - current_len {
             return self.reject(WebDriverBiDiWebSocketMessageError::MessageTooLarge {
                 payload_bytes: current_len.saturating_add(payload.len()),
                 maximum_bytes: MAX_WEBDRIVER_BIDI_MESSAGE_SIZE,
             });
         }
-        let buffer = self
-            .fragmented_text
-            .as_mut()
-            .expect("fragmented text presence was established above");
         buffer.extend_from_slice(payload);
         if !fin {
+            self.fragmented_text = Some(buffer);
             return Ok(WebDriverBiDiWebSocketMessageAssembly::Pending);
         }
-        let complete = self
-            .fragmented_text
-            .take()
-            .expect("fragmented text presence was established above");
-        Self::complete_text(complete)
+        Self::complete_text(buffer)
             .map(WebDriverBiDiWebSocketMessageAssembly::Text)
             .map_err(|error| {
                 self.poisoned = true;
