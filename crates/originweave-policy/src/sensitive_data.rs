@@ -157,7 +157,7 @@ pub fn evaluate_disclosure(
 /// Result of evaluating one attempted use of an opaque sensitive-value handle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HandleUseDecision {
-    /// The supplied exact scope, classification, expiry, and prior-use count permit broker admission.
+    /// The authoritative state reserved one use for the exact scope at a trusted pre-expiry time.
     Authorized,
     /// The authoritative in-process handle state was revoked before this use.
     Revoked,
@@ -217,44 +217,16 @@ impl SensitiveValueHandleScope {
     }
 }
 
-/// One proposed use of an opaque sensitive-value handle.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct HandleUseRequest {
-    authority: SensitiveDataAuthority,
-    now_epoch_seconds: u64,
-    uses_so_far: u32,
-}
-
-impl HandleUseRequest {
-    /// Build a handle-use evaluation request from trusted time and authoritative broker state.
-    ///
-    /// The eventual broker must supply these state values from its own trusted,
-    /// caller-unforgeable storage; accepting this struct does not make arbitrary
-    /// caller input authoritative.
-    #[must_use]
-    pub const fn new(
-        authority: SensitiveDataAuthority,
-        now_epoch_seconds: u64,
-        uses_so_far: u32,
-    ) -> Self {
-        Self {
-            authority,
-            now_epoch_seconds,
-            uses_so_far,
-        }
-    }
-}
-
 /// In-process authoritative use-count, trusted-time, and revocation state for one opaque sensitive-value handle scope.
 ///
-/// This value removes the caller-supplied prior-use count from the reservation
-/// operation. A successful reservation compares the exact authority, trusted
-/// time, expiry, revocation state, and current count and then increments the
-/// count while the caller holds an exclusive mutable borrow of this state. The
-/// state remembers the latest trusted time observed for its exact authority and
-/// rejects time rollback so an expired handle cannot regain authority from a
-/// stale clock value. Scope-mismatched requests cannot read or mutate that floor.
-/// Denied reservations never consume a use.
+/// This value removes the caller-supplied prior-use count from the authorization
+/// surface. A successful reservation compares the exact authority, trusted time,
+/// expiry, revocation state, and current count and then increments the count while
+/// the caller holds an exclusive mutable borrow of this state. The state remembers
+/// the latest trusted time observed for its exact authority and rejects time
+/// rollback so an expired handle cannot regain authority from a stale clock value.
+/// Scope-mismatched requests cannot read or mutate that floor. Denied reservations
+/// never consume a use.
 ///
 /// This is a policy-state primitive, not the trusted broker itself. It contains
 /// neither the opaque handle token nor protected data and provides no durable or
@@ -309,6 +281,8 @@ impl SensitiveHandleUseState {
 
     /// Reserve one use from the current authoritative count when policy permits it.
     ///
+    /// This is the only public handle-use authorization operation: callers cannot
+    /// supply a prior-use count or obtain `Authorized` from a stateless predicate.
     /// The supplied time must come from the trusted broker boundary and may not
     /// move backward relative to an earlier exact-scope reservation attempt on
     /// this state. Scope-mismatched requests never mutate trusted-time state and
@@ -325,9 +299,10 @@ impl SensitiveHandleUseState {
         authority: SensitiveDataAuthority,
         now_epoch_seconds: u64,
     ) -> HandleUseDecision {
-        let request = HandleUseRequest::new(authority, now_epoch_seconds, self.reserved_uses);
-        let policy_decision = evaluate_handle_use(&request, &self.scope);
-        if policy_decision == HandleUseDecision::ScopeMismatch {
+        if !authority.is_complete()
+            || !self.scope.authority.is_complete()
+            || authority != self.scope.authority
+        {
             return HandleUseDecision::ScopeMismatch;
         }
 
@@ -342,39 +317,14 @@ impl SensitiveHandleUseState {
         }
         self.latest_trusted_time_epoch_seconds = Some(now_epoch_seconds);
 
-        if policy_decision == HandleUseDecision::Authorized {
-            self.reserved_uses += 1;
+        if now_epoch_seconds >= self.scope.expires_at_epoch_seconds {
+            return HandleUseDecision::Expired;
         }
-        policy_decision
-    }
-}
+        if self.reserved_uses >= self.scope.max_uses {
+            return HandleUseDecision::UseLimitReached;
+        }
 
-/// Evaluate whether authoritative broker state is admissible for one handle use.
-///
-/// This pure function does not consume a use, mutate broker state, resolve a
-/// handle, or release a protected value. It is therefore not standalone
-/// enforcement and cannot detect trusted-time rollback across calls. A trusted
-/// broker must obtain trusted time and caller-unforgeable handle state, reject
-/// time rollback through state such as [`SensitiveHandleUseState`], atomically
-/// reserve or increment the use count before value resolution, and recheck the
-/// reserved authority immediately before disclosure. Missing or malformed
-/// authority identifiers fail closed as a scope mismatch. The authority
-/// destination must already have crossed the canonical [`Origin`] boundary.
-#[must_use]
-pub fn evaluate_handle_use(
-    request: &HandleUseRequest,
-    scope: &SensitiveValueHandleScope,
-) -> HandleUseDecision {
-    if !request.authority.is_complete()
-        || !scope.authority.is_complete()
-        || request.authority != scope.authority
-    {
-        HandleUseDecision::ScopeMismatch
-    } else if request.now_epoch_seconds >= scope.expires_at_epoch_seconds {
-        HandleUseDecision::Expired
-    } else if request.uses_so_far >= scope.max_uses {
-        HandleUseDecision::UseLimitReached
-    } else {
+        self.reserved_uses += 1;
         HandleUseDecision::Authorized
     }
 }
