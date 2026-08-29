@@ -29,6 +29,15 @@ fn connect(
     Ok(plan.connect()?)
 }
 
+fn establish(
+    endpoint: &str,
+) -> Result<originweave_network::WebDriverBiDiWebSocketEstablished, Box<dyn Error>> {
+    let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?;
+    let plan = WebDriverBiDiWebSocketHandshakePlan::new(connect(endpoint)?, key)?;
+    let written = plan.write_opening_request(Duration::from_millis(500))?;
+    Ok(written.read_opening_response(Duration::from_millis(500))?)
+}
+
 fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
     let mut request = Vec::new();
@@ -101,11 +110,11 @@ fn require_peer_closed_without_frame(stream: &mut TcpStream) -> io::Result<()> {
         Ok(0) => Ok(()),
         Ok(_) => Err(io::Error::new(
             io::ErrorKind::InvalidData,
-            "client emitted a frame after rejecting an oversized payload",
+            "client emitted a frame after rejecting the operation",
         )),
         Err(error) => Err(io::Error::new(
             error.kind(),
-            format!("client did not close after rejecting an oversized payload: {error}"),
+            format!("client did not close after rejecting the operation: {error}"),
         )),
     }
 }
@@ -125,10 +134,7 @@ fn established_stream_rejects_client_mask_reuse_across_sequential_frames()
     });
 
     let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
-    let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?;
-    let plan = WebDriverBiDiWebSocketHandshakePlan::new(connect(&endpoint)?, key)?;
-    let written = plan.write_opening_request(Duration::from_millis(500))?;
-    let established = written.read_opening_response(Duration::from_millis(500))?;
+    let established = establish(&endpoint)?;
     let reused_mask = WebDriverBiDiWebSocketMaskKey::new([0x21, 0x22, 0x23, 0x24]);
     let established =
         established.write_text_frame("first-frame", reused_mask, Duration::from_millis(500))?;
@@ -157,6 +163,48 @@ fn established_stream_rejects_client_mask_reuse_across_sequential_frames()
 }
 
 #[test]
+fn established_stream_rejects_mask_reuse_across_text_and_pong() -> Result<(), Box<dyn Error>> {
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let local_addr = listener.local_addr()?;
+    let server = thread::spawn(move || -> io::Result<String> {
+        let (mut stream, _) = listener.accept()?;
+        read_opening_request(&mut stream)?;
+        stream.write_all(OPENING_RESPONSE)?;
+        let first = read_masked_text(&mut stream)?;
+        require_peer_closed_before_second_frame(&mut stream)?;
+        Ok(first)
+    });
+
+    let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+    let established = establish(&endpoint)?;
+    let reused_mask = WebDriverBiDiWebSocketMaskKey::new([0x25, 0x26, 0x27, 0x28]);
+    let established =
+        established.write_text_frame("first-frame", reused_mask, Duration::from_millis(500))?;
+    let error = match established.write_pong_frame(
+        b"second-frame",
+        reused_mask,
+        Duration::from_millis(500),
+    ) {
+        Ok(_) => {
+            return Err(io::Error::other("cross-type masking-key reuse unexpectedly succeeded").into());
+        }
+        Err(error) => error,
+    };
+    assert!(matches!(
+        error,
+        WebDriverBiDiWebSocketFrameError::MalformedFrame {
+            reason: REUSED_MASK_REASON
+        }
+    ));
+
+    let received = server
+        .join()
+        .map_err(|_| io::Error::other("cross-type mask-reuse test server panicked"))??;
+    assert_eq!(received, "first-frame");
+    Ok(())
+}
+
+#[test]
 fn established_stream_round_trips_pong_and_unmasked_server_text() -> Result<(), Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
@@ -170,10 +218,7 @@ fn established_stream_round_trips_pong_and_unmasked_server_text() -> Result<(), 
     });
 
     let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
-    let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?;
-    let plan = WebDriverBiDiWebSocketHandshakePlan::new(connect(&endpoint)?, key)?;
-    let written = plan.write_opening_request(Duration::from_millis(500))?;
-    let established = written.read_opening_response(Duration::from_millis(500))?;
+    let established = establish(&endpoint)?;
     let established = established.write_pong_frame(
         b"probe",
         WebDriverBiDiWebSocketMaskKey::new([0x31, 0x32, 0x33, 0x34]),
@@ -207,10 +252,7 @@ fn established_stream_rejects_payloads_above_reviewed_bounds() -> Result<(), Box
         });
 
         let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
-        let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?;
-        let plan = WebDriverBiDiWebSocketHandshakePlan::new(connect(&endpoint)?, key)?;
-        let written = plan.write_opening_request(Duration::from_millis(500))?;
-        let established = written.read_opening_response(Duration::from_millis(500))?;
+        let established = establish(&endpoint)?;
         let masking_key = WebDriverBiDiWebSocketMaskKey::new([0x41, 0x42, 0x43, 0x44]);
         let error = if text_case {
             let oversized_text = "x".repeat(payload_bytes);
@@ -251,6 +293,49 @@ fn established_stream_rejects_payloads_above_reviewed_bounds() -> Result<(), Box
         server
             .join()
             .map_err(|_| io::Error::other("oversized-frame test server panicked"))??;
+    }
+    Ok(())
+}
+
+#[test]
+fn established_stream_rejects_invalid_frame_timeouts_before_io() -> Result<(), Box<dyn Error>> {
+    for operation in 0_u8..3 {
+        let listener = TcpListener::bind(("127.0.0.1", 0))?;
+        let local_addr = listener.local_addr()?;
+        let server = thread::spawn(move || -> io::Result<()> {
+            let (mut stream, _) = listener.accept()?;
+            read_opening_request(&mut stream)?;
+            stream.write_all(OPENING_RESPONSE)?;
+            require_peer_closed_without_frame(&mut stream)
+        });
+
+        let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+        let established = establish(&endpoint)?;
+        let masking_key = WebDriverBiDiWebSocketMaskKey::new([0x51, 0x52, 0x53, 0x54]);
+        let error = match operation {
+            0 => established
+                .write_text_frame("probe", masking_key, Duration::ZERO)
+                .err()
+                .ok_or_else(|| io::Error::other("zero-timeout text frame succeeded"))?,
+            1 => established
+                .write_pong_frame(b"probe", masking_key, Duration::ZERO)
+                .err()
+                .ok_or_else(|| io::Error::other("zero-timeout Pong frame succeeded"))?,
+            _ => established
+                .read_frame(Duration::ZERO)
+                .err()
+                .ok_or_else(|| io::Error::other("zero-timeout frame read succeeded"))?,
+        };
+        assert!(matches!(
+            error,
+            WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout {
+                frame_timeout: Duration::ZERO,
+                ..
+            }
+        ));
+        server
+            .join()
+            .map_err(|_| io::Error::other("invalid-timeout test server panicked"))??;
     }
     Ok(())
 }
