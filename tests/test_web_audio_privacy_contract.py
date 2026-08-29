@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import http.server
 import json
 import pathlib
 import runpy
+import threading
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -19,6 +21,28 @@ RUST_POLICY = (
     / "src"
     / "web_audio_guard.rs"
 )
+SECRET_MARKER = "buyer-secret-marker-must-not-reach-ci"
+
+
+class _ErrorResponseHandler(http.server.BaseHTTPRequestHandler):
+    """Serve deterministic hostile ChromeDriver-shaped error responses."""
+
+    response_status = 403
+    response_body = (
+        b'{"value":{"error":"unknown error","message":"'
+        + SECRET_MARKER.encode("ascii")
+        + b'"}}'
+    )
+
+    def do_GET(self) -> None:  # noqa: N802 - stdlib handler contract.
+        self.send_response(self.response_status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(self.response_body)))
+        self.end_headers()
+        self.wfile.write(self.response_body)
+
+    def log_message(self, _format: str, *args: object) -> None:
+        """Keep the hostile marker out of test-server logging."""
 
 
 class WebAudioPrivacyContractTests(unittest.TestCase):
@@ -138,6 +162,43 @@ class WebAudioPrivacyContractTests(unittest.TestCase):
         missing = dict(protected)
         del missing["childAudioContext"]
         self.assertIs(satisfies(missing), False)
+
+    def _webdriver_error_against(self, *, status: int) -> RuntimeError:
+        """Return one runner error produced by a hostile local ChromeDriver response."""
+
+        namespace = runpy.run_path(
+            str(RUNNER), run_name="web_audio_chromedriver_diagnostic_contract"
+        )
+        json_request = namespace["_json_request"]
+
+        class Handler(_ErrorResponseHandler):
+            response_status = status
+
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with self.assertRaises(RuntimeError) as captured:
+                json_request(int(server.server_port), "GET", "/status")
+            return captured.exception
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2.0)
+
+    def test_webdriver_http_error_does_not_reflect_response_body(self) -> None:
+        """HTTP status may remain diagnostic evidence; response bytes may not."""
+
+        error = self._webdriver_error_against(status=403)
+        self.assertIn("403", str(error))
+        self.assertNotIn(SECRET_MARKER, str(error))
+
+    def test_webdriver_error_object_does_not_reflect_response_message(self) -> None:
+        """A 2xx WebDriver error object must fail closed without its raw message."""
+
+        error = self._webdriver_error_against(status=200)
+        self.assertIn("WebDriver", str(error))
+        self.assertNotIn(SECRET_MARKER, str(error))
 
     def test_webdriver_session_cleanup_is_typed_and_fail_closed(self) -> None:
         """Cleanup failure must never be silently converted into a passing browser trial."""
