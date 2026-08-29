@@ -16,6 +16,9 @@ pub const MAX_RELEASE_LIMITATION_TEXT_BYTES: usize = 1024;
 /// Maximum number of buyer-visible limitations retained in one release report.
 pub const MAX_DECLARED_RELEASE_LIMITATIONS: usize = 64;
 
+/// Maximum number of distinct zero-event safety metrics retained in one report.
+pub const MAX_ZERO_EVENT_SAFETY_METRICS: usize = 5;
+
 /// One mandatory benchmark suite in the release acceptance contract.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum BenchmarkSuite {
@@ -370,6 +373,8 @@ pub enum ReleaseDecisionError {
     MissingSafetyTrials,
     /// The requested zero-event safety confidence was outside `1..=9999` basis points.
     InvalidSafetyConfidenceBasisPoints,
+    /// More zero-event observations were supplied than the fixed metric budget.
+    TooManyZeroEventSafetyObservations,
     /// More than one zero-event observation used the same named safety metric.
     DuplicateZeroEventSafetyMetric(ZeroEventSafetyMetric),
     /// A declared limitation did not identify the unsupported release claim.
@@ -400,6 +405,9 @@ impl fmt::Display for ReleaseDecisionError {
             }
             Self::InvalidSafetyConfidenceBasisPoints => formatter.write_str(
                 "zero-event safety confidence must be between 1 and 9999 basis points",
+            ),
+            Self::TooManyZeroEventSafetyObservations => formatter.write_str(
+                "benchmark release evidence contains too many zero-event safety observations",
             ),
             Self::DuplicateZeroEventSafetyMetric(metric) => write!(
                 formatter,
@@ -603,6 +611,10 @@ fn validate_release_metadata(
         if !limitation_claims.insert(limitation.unsupported_claim()) {
             return Err(ReleaseDecisionError::DuplicateLimitationClaim);
         }
+    }
+
+    if zero_event_safety_observations.len() > MAX_ZERO_EVENT_SAFETY_METRICS {
+        return Err(ReleaseDecisionError::TooManyZeroEventSafetyObservations);
     }
 
     let mut seen_zero_event_metrics = std::collections::BTreeSet::new();
