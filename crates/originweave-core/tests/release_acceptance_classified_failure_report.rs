@@ -1,7 +1,7 @@
 use originweave_core::benchmark_failure::BenchmarkFailureClass;
 use originweave_core::release_acceptance::{
-    decide_release_with_classified_benchmark_evidence, BenchmarkFailureEvidence, BenchmarkSuite,
-    BenchmarkSuiteEvidence, ReleaseDecision, ReleaseDecisionError,
+    BenchmarkFailureEvidence, BenchmarkSuite, BenchmarkSuiteEvidence, ReleaseDecision,
+    ReleaseDecisionError, decide_release_with_classified_benchmark_evidence,
 };
 
 fn passed(suite: BenchmarkSuite) -> BenchmarkSuiteEvidence {
