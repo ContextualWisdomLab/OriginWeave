@@ -132,18 +132,23 @@ impl fmt::Display for WebDriverBiDiJsonEnvelopeError {
             Self::RootMustBeObject => {
                 formatter.write_str("WebDriver BiDi local-end message must be a JSON object")
             }
-            Self::DuplicateTopLevelMember => {
-                formatter.write_str("WebDriver BiDi JSON object contains a duplicate top-level member")
-            }
+            Self::DuplicateTopLevelMember => formatter
+                .write_str("WebDriver BiDi JSON object contains a duplicate top-level member"),
             Self::NestingTooDeep { maximum_depth } => write!(
                 formatter,
                 "WebDriver BiDi JSON nesting exceeds maximum depth {maximum_depth}"
             ),
             Self::MissingRequiredMember { member } => {
-                write!(formatter, "WebDriver BiDi envelope is missing required member {member}")
+                write!(
+                    formatter,
+                    "WebDriver BiDi envelope is missing required member {member}"
+                )
             }
             Self::InvalidMember { member } => {
-                write!(formatter, "WebDriver BiDi envelope member {member} is invalid")
+                write!(
+                    formatter,
+                    "WebDriver BiDi envelope member {member} is invalid"
+                )
             }
             Self::UnsupportedEnvelopeType => {
                 formatter.write_str("unsupported WebDriver BiDi local-end envelope type")
@@ -199,9 +204,7 @@ impl TopLevelFields {
         }
     }
 
-    fn into_success(
-        self,
-    ) -> Result<WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeError> {
+    fn into_success(self) -> Result<WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeError> {
         let command_id = required_js_uint(self.id, "id")?;
         require_object(self.result, "result")?;
         Ok(WebDriverBiDiJsonEnvelope {
@@ -348,17 +351,12 @@ impl<'a> JsonCursor<'a> {
     }
 
     fn skip_whitespace(&mut self) {
-        while matches!(
-            self.current_byte(),
-            Some(b' ' | b'\t' | b'\n' | b'\r')
-        ) {
+        while matches!(self.current_byte(), Some(b' ' | b'\t' | b'\n' | b'\r')) {
             self.index += 1;
         }
     }
 
-    fn parse_top_level_object(
-        &mut self,
-    ) -> Result<TopLevelFields, WebDriverBiDiJsonEnvelopeError> {
+    fn parse_top_level_object(&mut self) -> Result<TopLevelFields, WebDriverBiDiJsonEnvelopeError> {
         self.skip_whitespace();
         if !self.consume_byte(b'{') {
             return Err(WebDriverBiDiJsonEnvelopeError::RootMustBeObject);
@@ -389,10 +387,7 @@ impl<'a> JsonCursor<'a> {
         }
     }
 
-    fn parse_value(
-        &mut self,
-        depth: usize,
-    ) -> Result<JsonValue, WebDriverBiDiJsonEnvelopeError> {
+    fn parse_value(&mut self, depth: usize) -> Result<JsonValue, WebDriverBiDiJsonEnvelopeError> {
         if depth > MAX_WEBDRIVER_BIDI_JSON_DEPTH {
             return Err(WebDriverBiDiJsonEnvelopeError::NestingTooDeep {
                 maximum_depth: MAX_WEBDRIVER_BIDI_JSON_DEPTH,
@@ -667,10 +662,9 @@ mod tests {
         assert!(!debug.contains("invalid argument"));
         assert!(!debug.contains("secret detail"));
 
-        let event = parse(
-            r#"{"type":"event","method":"browsingContext.load","params":{},"vendor":true}"#,
-        )
-        .ok();
+        let event =
+            parse(r#"{"type":"event","method":"browsingContext.load","params":{},"vendor":true}"#)
+                .ok();
         assert!(event.is_some());
         let Some(event) = event else {
             return;
@@ -684,7 +678,13 @@ mod tests {
     #[test]
     fn accepts_correlatable_error_and_extensible_success_members() {
         let error = parse(r#"{"type":"error","id":7,"error":"unknown error","message":"","x":0}"#);
-        assert_eq!(error.as_ref().ok().and_then(WebDriverBiDiJsonEnvelope::command_id), Some(7));
+        assert_eq!(
+            error
+                .as_ref()
+                .ok()
+                .and_then(WebDriverBiDiJsonEnvelope::command_id),
+            Some(7)
+        );
 
         let success = parse(
             "{\n \"\\u0074ype\":\"success\", \"id\":0, \"result\":{\"escaped\":\"\\\\/\\b\\f\\n\\r\\t\\\"\",\"unicode\":\"é\"}, \"method\":123 } \r\n",
@@ -753,7 +753,9 @@ mod tests {
             ),
             (
                 r#"{"type":"error","id":null,"error":"x","message":"m","stacktrace":0}"#,
-                WebDriverBiDiJsonEnvelopeError::InvalidMember { member: "stacktrace" },
+                WebDriverBiDiJsonEnvelopeError::InvalidMember {
+                    member: "stacktrace",
+                },
             ),
             (
                 r#"{"type":"event","params":{}}"#,
