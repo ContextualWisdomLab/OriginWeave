@@ -19,21 +19,24 @@ mod extension_authority;
 pub use browser_protocol::{
     BrowserProtocolAdapterDescriptor, BrowserProtocolCapability,
     BrowserProtocolCapabilityRequirementError, BrowserProtocolDescriptorError, BrowserProtocolKind,
-    BrowserProtocolRuntimeRequirementError, BrowserProtocolVersionRequirementError,
-    MAX_BROWSER_PROTOCOL_METADATA_BYTES, OriginWeaveProtocolVersion,
-    OriginWeaveProtocolVersionParseError,
+    BrowserProtocolVersionRequirementError, MAX_BROWSER_PROTOCOL_METADATA_BYTES,
+    OriginWeaveProtocolVersion,
 };
 pub use browser_registry::{
     BrowserAuthorityRegistry, BrowserRegistryError, MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES,
+    ObservedNodeHandle as RegistryObservedNodeHandle,
 };
 pub use contracts::{
     ActionIntentDigest, ActionIntentDigestError, ActionKind, ActionRequest, ApprovalEvidence,
     ApprovalScope, BrowserSessionId, BrowsingContextId, Capability, DocumentEpoch,
-    ExecutionPurpose, ExtensionAgentCapability, ExtensionId, ExtensionIdError, InstructionSource,
-    NodeHandleError, ObservedNodeHandle, Origin, OriginError, PolicyContext, RiskClass,
-    RobotsDecision, SecretDelivery, SessionMode,
+    ExecutionPurpose, ExtensionAccessDecision, ExtensionAccessRequest, ExtensionAgentCapability,
+    ExtensionAgentGrant, ExtensionId, ExtensionIdError, InstructionSource, NodeHandleError,
+    ObservedNodeHandle, Origin, OriginError, PolicyContext, RiskClass, RobotsDecision,
+    SecretDelivery, SessionMode, evaluate_extension_access,
 };
 pub use extension_authority::{
-    AgentTaskId, AgentTaskIdError, ExtensionAccessDecision, ExtensionAccessRequest,
-    ExtensionAgentGrant, evaluate_extension_access,
+    AgentTaskId, AgentTaskIdError, ExtensionAccessDecision as AuthorityExtensionAccessDecision,
+    ExtensionAccessRequest as AuthorityExtensionAccessRequest,
+    ExtensionAgentGrant as AuthorityExtensionAgentGrant,
+    evaluate_extension_access as evaluate_extension_authority_access,
 };

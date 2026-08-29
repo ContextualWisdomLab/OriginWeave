@@ -73,13 +73,13 @@ jobs:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
         with:
-          toolchain: nightly-2026-08-01
+          toolchain: nightly-2026-08-18
           components: llvm-tools-preview
       - name: Install pinned cargo-llvm-cov
         run: cargo +1.97.1 install cargo-llvm-cov --version 0.8.6 --locked
       - name: Measure production functions, lines, regions, and branches
         run: >-
-          cargo +nightly-2026-08-01 llvm-cov
+          cargo +nightly-2026-08-18 llvm-cov
           --locked
           --workspace
           --all-features
@@ -88,11 +88,11 @@ jobs:
           --output-path coverage.json
       - name: Record uncovered production lines
         run: >-
-          cargo +nightly-2026-08-01 llvm-cov report
+          cargo +nightly-2026-08-18 llvm-cov report
           --branch
           --text
           --show-missing-lines
-          | tee missing-lines.txt
+          > missing-lines.txt
       - name: Upload exact coverage diagnostics
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:

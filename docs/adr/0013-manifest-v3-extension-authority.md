@@ -105,4 +105,12 @@ Supersede this ADR if Chromium adopts a materially different extension authority
 
 ## References
 
-Primary browser/extension/protocol evidence and APA 7 references are maintained in [`../doctoring/browser-agent-protocols.md`](../doctoring/browser-agent-protocols.md) and [`../doctoring.md`](../doctoring.md). Related decisions include ADR 0001, ADR 0002, ADR 0007, ADR 0010, ADR 0101, ADR 0104, and ADR 0107.
+The following primary Chrome extension documentation directly supports this ADR's service-worker execution plane, untrusted-message boundary, and separately bounded native-messaging decision:
+
+Google Chrome. (2023, May 2). *Extension service worker basics*. Chrome for Developers. https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/basics
+
+Google Chrome. (2023, February 27). *Native messaging*. Chrome for Developers. https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging
+
+Google Chrome. (2025, December 3). *Message passing*. Chrome for Developers. https://developer.chrome.com/docs/extensions/develop/concepts/messaging
+
+Additional primary browser/extension/protocol evidence and APA 7 references are maintained in [`../doctoring/browser-agent-protocols.md`](../doctoring/browser-agent-protocols.md) and [`../doctoring.md`](../doctoring.md). Related decisions include ADR 0001, ADR 0002, ADR 0007, ADR 0010, ADR 0101, ADR 0104, and ADR 0107.
