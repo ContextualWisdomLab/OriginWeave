@@ -229,7 +229,6 @@ def _cleanup_browser_session(driver_port: int, session_id: str) -> None:
         driver_port,
         "DELETE",
         _webdriver_path(session_id, ""),
-        {},
     )
 
 
