@@ -96,6 +96,27 @@ Sec-WebSocket-Accept: {RFC6455_SAMPLE_ACCEPT}\r\n\r\n"
 }
 
 #[test]
+fn unknown_header_obs_text_is_ignored_without_weakening_required_fields() -> TestResult<()> {
+    let mut response = b"HTTP/1.1 101 Switching Protocols\r\nX-OriginWeave-Ignored: ".to_vec();
+    response.push(0x80);
+    response.extend_from_slice(
+        format!(
+            "\r\nUpgrade: websocket\r\n\
+Connection: Upgrade\r\n\
+Sec-WebSocket-Accept: {RFC6455_SAMPLE_ACCEPT}\r\n\r\n"
+        )
+        .as_bytes(),
+    );
+
+    let result = exercise_response(response)?;
+    assert!(
+        result.is_ok(),
+        "RFC 9110 obs-text in an ignored extension field must not invalidate the opening response: {result:?}"
+    );
+    Ok(())
+}
+
+#[test]
 fn repeated_sec_websocket_accept_remains_fail_closed() -> TestResult<()> {
     let response = format!(
         "HTTP/1.1 101 Switching Protocols\r\n\
