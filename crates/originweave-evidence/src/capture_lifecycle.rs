@@ -338,9 +338,10 @@ impl CaptureLifecycle {
             return Err(CaptureLifecycleError::DeletionReceiptMismatch);
         }
         self.require_state(CaptureLifecycleState::DeletionRequested)?;
-        let Some(deletion_request_digest) = self.deletion_request_digest.as_deref() else {
-            return Err(CaptureLifecycleError::InvalidTransition);
-        };
+        let deletion_request_digest = self
+            .deletion_request_digest
+            .as_deref()
+            .ok_or(CaptureLifecycleError::InvalidTransition)?;
         if receipt.deletion_request_digest() != deletion_request_digest {
             return Err(CaptureLifecycleError::DeletionReceiptRequestMismatch);
         }
