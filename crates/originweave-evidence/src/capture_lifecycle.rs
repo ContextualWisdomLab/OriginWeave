@@ -44,6 +44,8 @@ pub enum CaptureLifecycleError {
     RetentionNotExpired,
     /// Deletion was requested while an explicit legal hold remained active.
     LegalHoldActive,
+    /// Persisted lifecycle fields cannot represent a state produced by the lifecycle API.
+    InvalidRestoredState,
 }
 
 impl fmt::Display for CaptureLifecycleError {
@@ -71,6 +73,9 @@ impl fmt::Display for CaptureLifecycleError {
             }
             Self::RetentionNotExpired => "capture retention deadline has not expired",
             Self::LegalHoldActive => "capture is under legal hold",
+            Self::InvalidRestoredState => {
+                "persisted capture lifecycle state is internally inconsistent"
+            }
         })
     }
 }
@@ -395,6 +400,8 @@ impl CaptureLifecycle {
         Ok(())
     }
 }
+
+include!("capture_lifecycle_restore.rs");
 
 #[cfg(test)]
 mod tests {
