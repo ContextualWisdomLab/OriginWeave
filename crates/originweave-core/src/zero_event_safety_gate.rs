@@ -146,9 +146,9 @@ pub fn evaluate_zero_event_safety_gate(
         };
         match threshold.evaluate(evidence) {
             ZeroEventSafetyThresholdOutcome::Satisfied => {}
-            ZeroEventSafetyThresholdOutcome::InsufficientConfidence => failures.push(
-                ZeroEventSafetyGateFailure::InsufficientConfidence(metric),
-            ),
+            ZeroEventSafetyThresholdOutcome::InsufficientConfidence => {
+                failures.push(ZeroEventSafetyGateFailure::InsufficientConfidence(metric))
+            }
             ZeroEventSafetyThresholdOutcome::UpperBoundExceedsThreshold => failures.push(
                 ZeroEventSafetyGateFailure::UpperBoundExceedsThreshold(metric),
             ),
