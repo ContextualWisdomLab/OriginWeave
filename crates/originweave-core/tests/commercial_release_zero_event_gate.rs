@@ -129,7 +129,8 @@ fn known_benchmark_failure_remains_rejected() -> Result<(), Box<dyn std::error::
 fn incomplete_benchmark_evidence_remains_inconclusive() -> Result<(), Box<dyn std::error::Error>> {
     let observation = observation(1_000)?;
     let requirement = requirement()?;
-    let evidence = passed_benchmarks().into_iter().take(4);
+    let mut evidence = passed_benchmarks();
+    evidence.truncate(4);
 
     let report = decide_commercial_release_with_zero_event_safety(
         evidence,
@@ -147,11 +148,12 @@ fn invalid_benchmark_evidence_preserves_typed_source() -> Result<(), Box<dyn std
     let observation = observation(1_000)?;
     let requirement = requirement()?;
     let duplicate = BenchmarkSuite::ControlledDeterministic;
+    let duplicate_evidence = Vec::from([
+        BenchmarkSuiteEvidence::Passed(duplicate),
+        BenchmarkSuiteEvidence::Passed(duplicate),
+    ]);
     let error = match decide_commercial_release_with_zero_event_safety(
-        [
-            BenchmarkSuiteEvidence::Passed(duplicate),
-            BenchmarkSuiteEvidence::Passed(duplicate),
-        ],
+        duplicate_evidence,
         &[],
         &[observation],
         &[requirement],
