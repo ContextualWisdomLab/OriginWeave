@@ -459,8 +459,8 @@ mod tests {
     }
 
     #[test]
-    fn utf8_validation_waits_for_complete_message_and_then_fails_closed(
-    ) -> Result<(), Box<dyn Error>> {
+    fn utf8_validation_waits_for_complete_message_and_then_fails_closed()
+    -> Result<(), Box<dyn Error>> {
         let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
         assert_eq!(
             assembler.push_parts(true, 0x1, b"\xff"),
