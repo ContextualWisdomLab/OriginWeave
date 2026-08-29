@@ -17,6 +17,7 @@ const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
 const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
 const REUSED_MASK_REASON: &str =
     "client masking key was reused for consecutive frames on this established WebSocket";
+const OPENING_RESPONSE: &[u8] = b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n";
 
 fn connect(
     endpoint: &str,
@@ -45,21 +46,21 @@ fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     Ok(())
 }
 
-fn read_masked_text(stream: &mut TcpStream) -> io::Result<String> {
+fn read_masked_frame(stream: &mut TcpStream, expected_opcode: u8) -> io::Result<Vec<u8>> {
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
     let mut header = [0_u8; 2];
     stream.read_exact(&mut header)?;
-    if header[0] != 0x81 || header[1] & 0x80 == 0 {
+    if header[0] != 0x80 | expected_opcode || header[1] & 0x80 == 0 {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
-            "client did not send one final masked text frame",
+            "client did not send the expected final masked frame",
         ));
     }
     let payload_length = usize::from(header[1] & 0x7f);
     if payload_length > 125 {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
-            "test text payload unexpectedly used an extended length",
+            "test payload unexpectedly used an extended length",
         ));
     }
     let mut mask = [0_u8; 4];
@@ -69,6 +70,11 @@ fn read_masked_text(stream: &mut TcpStream) -> io::Result<String> {
     for (index, byte) in payload.iter_mut().enumerate() {
         *byte ^= mask[index % mask.len()];
     }
+    Ok(payload)
+}
+
+fn read_masked_text(stream: &mut TcpStream) -> io::Result<String> {
+    let payload = read_masked_frame(stream, 0x1)?;
     String::from_utf8(payload).map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
 }
 
@@ -96,9 +102,7 @@ fn established_stream_rejects_client_mask_reuse_across_sequential_frames()
     let server = thread::spawn(move || -> io::Result<String> {
         let (mut stream, _) = listener.accept()?;
         read_opening_request(&mut stream)?;
-        stream.write_all(
-            b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n",
-        )?;
+        stream.write_all(OPENING_RESPONSE)?;
         let first = read_masked_text(&mut stream)?;
         require_peer_closed_before_second_frame(&mut stream)?;
         Ok(first)
@@ -133,5 +137,41 @@ fn established_stream_rejects_client_mask_reuse_across_sequential_frames()
         .join()
         .map_err(|_| io::Error::other("WebSocket mask-reuse test server panicked"))??;
     assert_eq!(received, "first-frame");
+    Ok(())
+}
+
+#[test]
+fn established_stream_round_trips_pong_and_unmasked_server_text()
+-> Result<(), Box<dyn Error>> {
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let local_addr = listener.local_addr()?;
+    let server = thread::spawn(move || -> io::Result<Vec<u8>> {
+        let (mut stream, _) = listener.accept()?;
+        read_opening_request(&mut stream)?;
+        stream.write_all(OPENING_RESPONSE)?;
+        let pong_payload = read_masked_frame(&mut stream, 0x0a)?;
+        stream.write_all(&[0x81, 0x05, b'r', b'e', b'p', b'l', b'y'])?;
+        Ok(pong_payload)
+    });
+
+    let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+    let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?;
+    let plan = WebDriverBiDiWebSocketHandshakePlan::new(connect(&endpoint)?, key)?;
+    let written = plan.write_opening_request(Duration::from_millis(500))?;
+    let established = written.read_opening_response(Duration::from_millis(500))?;
+    let established = established.write_pong_frame(
+        b"probe",
+        WebDriverBiDiWebSocketMaskKey::new([0x31, 0x32, 0x33, 0x34]),
+        Duration::from_millis(500),
+    )?;
+    let (_established, frame) = established.read_frame(Duration::from_millis(500))?;
+    assert!(frame.fin());
+    assert_eq!(frame.opcode(), 0x1);
+    assert_eq!(frame.payload(), b"reply");
+
+    let pong_payload = server
+        .join()
+        .map_err(|_| io::Error::other("WebSocket frame round-trip test server panicked"))??;
+    assert_eq!(pong_payload, b"probe");
     Ok(())
 }
