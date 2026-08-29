@@ -296,9 +296,8 @@ impl WebDriverBiDiWebSocketEstablished {
     ) -> Result<(Self, WebDriverBiDiWebSocketFrame), WebDriverBiDiWebSocketFrameError> {
         validate_frame_timeout(frame_timeout)?;
         let mut now = Instant::now;
-        read_frame_with_clock(&mut self.raw.stream, frame_timeout, &mut now).and_then(|frame| {
-            validate_close_frame(&frame).map(|()| (self, frame))
-        })
+        read_frame_with_clock(&mut self.raw.stream, frame_timeout, &mut now)
+            .and_then(|frame| validate_close_frame(&frame).map(|()| (self, frame)))
     }
 }
 
@@ -926,7 +925,10 @@ mod tests {
         let mut history = ClientMaskKeyHistory::default();
         assert!(history.reserve(first).is_ok());
         let reused = history.reserve(first).err().expect("reused key must fail");
-        assert_eq!(malformed_reason(&reused), Some(REUSED_CLIENT_MASK_KEY_REASON));
+        assert_eq!(
+            malformed_reason(&reused),
+            Some(REUSED_CLIENT_MASK_KEY_REASON)
+        );
         let non_malformed = WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout {
             frame_timeout: Duration::ZERO,
             maximum_timeout: MAX_WEBSOCKET_FRAME_TIMEOUT,
@@ -1271,7 +1273,9 @@ mod tests {
 
         for prefix in [vec![0x81, 126], vec![0x81, 127], vec![0x81, 1]] {
             let mut truncated = FakeIo::new();
-            truncated.reads.extend([ReadAction::Bytes(prefix), ReadAction::End]);
+            truncated
+                .reads
+                .extend([ReadAction::Bytes(prefix), ReadAction::End]);
             let mut now = || start;
             assert_error_variant(
                 read_frame_with_clock(&mut truncated, Duration::from_secs(1), &mut now),
