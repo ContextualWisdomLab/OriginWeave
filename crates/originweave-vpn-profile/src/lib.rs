@@ -905,7 +905,9 @@ pub fn parse_vpn_profile(
         return parse_ikev2_profile(profile, importer).map(VpnProfile::Ikev2);
     }
     match wireguard_profile_lines(profile).next() {
-        Some("[Interface]") => import_wireguard_profile(profile, importer).map(VpnProfile::WireGuard),
+        Some("[Interface]") => {
+            import_wireguard_profile(profile, importer).map(VpnProfile::WireGuard)
+        }
         _ => Err(ProfileError::UnsupportedProfile),
     }
 }
