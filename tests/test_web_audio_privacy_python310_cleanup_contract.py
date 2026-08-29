@@ -73,6 +73,36 @@ class WebAudioPrivacyRecoveryContractTests(unittest.TestCase):
         finally:
             globals_dict["_json_request"] = original_request
 
+    def test_driver_readiness_retries_transient_bad_status_line(self) -> None:
+        """A malformed startup response must use the same bounded readiness retry."""
+
+        namespace = self._namespace()
+        wait_for_driver = namespace["_wait_for_driver"]
+        globals_dict = wait_for_driver.__globals__
+        original_request = globals_dict["_json_request"]
+        attempts = 0
+
+        def transient_request(
+            _driver_port: int,
+            _method: str,
+            _path: str,
+            _payload: dict[str, object] | None = None,
+            *,
+            timeout: float,
+        ) -> dict[str, object]:
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                raise http.client.BadStatusLine("simulated startup protocol noise")
+            return {"value": {"ready": True}}
+
+        globals_dict["_json_request"] = transient_request
+        try:
+            wait_for_driver(9515)
+            self.assertEqual(attempts, 2)
+        finally:
+            globals_dict["_json_request"] = original_request
+
 
 if __name__ == "__main__":
     unittest.main()
