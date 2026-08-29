@@ -319,7 +319,9 @@ mod tests {
     ) -> Result<WebDriverBiDiWebSocketTextMessage, io::Error> {
         match assembly {
             WebDriverBiDiWebSocketMessageAssembly::Text(text) => Ok(text),
-            _ => Err(io::Error::other("expected assembled WebSocket text message")),
+            _ => Err(io::Error::other(
+                "expected assembled WebSocket text message",
+            )),
         }
     }
 
@@ -328,7 +330,9 @@ mod tests {
     ) -> Result<WebDriverBiDiWebSocketControlMessage, io::Error> {
         match assembly {
             WebDriverBiDiWebSocketMessageAssembly::Control(control) => Ok(control),
-            _ => Err(io::Error::other("expected assembled WebSocket control message")),
+            _ => Err(io::Error::other(
+                "expected assembled WebSocket control message",
+            )),
         }
     }
 
@@ -354,8 +358,8 @@ mod tests {
     }
 
     #[test]
-    fn fragments_reassemble_only_after_final_continuation(
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    fn fragments_reassemble_only_after_final_continuation() -> Result<(), Box<dyn std::error::Error>>
+    {
         let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
         assert_eq!(
             assembler.push_parts(false, 0x1, b"A\xe2")?,
@@ -372,8 +376,7 @@ mod tests {
     }
 
     #[test]
-    fn ping_and_pong_preserve_fragmented_text_state(
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    fn ping_and_pong_preserve_fragmented_text_state() -> Result<(), Box<dyn std::error::Error>> {
         let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
         assert_eq!(
             assembler.push_parts(false, 0x1, b"left-")?,
@@ -396,8 +399,8 @@ mod tests {
     }
 
     #[test]
-    fn close_is_returned_once_and_makes_assembler_terminal(
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    fn close_is_returned_once_and_makes_assembler_terminal()
+    -> Result<(), Box<dyn std::error::Error>> {
         let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
         assert_eq!(
             assembler.push_parts(false, 0x1, b"discarded")?,
@@ -451,8 +454,8 @@ mod tests {
     }
 
     #[test]
-    fn aggregate_message_bound_rejects_fragmentation_bypass(
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    fn aggregate_message_bound_rejects_fragmentation_bypass()
+    -> Result<(), Box<dyn std::error::Error>> {
         let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
         let maximum = vec![b'x'; MAX_WEBDRIVER_BIDI_MESSAGE_SIZE];
         assert_eq!(
@@ -480,8 +483,8 @@ mod tests {
     }
 
     #[test]
-    fn utf8_validation_waits_for_complete_message_and_then_fails_closed(
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    fn utf8_validation_waits_for_complete_message_and_then_fails_closed()
+    -> Result<(), Box<dyn std::error::Error>> {
         let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
         assert_eq!(
             assembler.push_parts(true, 0x1, b"\xff"),
