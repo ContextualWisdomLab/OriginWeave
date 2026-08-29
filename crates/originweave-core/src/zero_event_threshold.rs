@@ -96,10 +96,41 @@ impl ZeroEventSafetyThreshold {
 
         let maximum_upper_event_rate = f64::from(self.maximum_upper_event_rate_parts_per_million)
             / f64::from(MAX_SAFETY_EVENT_RATE_PARTS_PER_MILLION);
-        if evidence.upper_event_rate() <= maximum_upper_event_rate {
+        if exact_fixed_point_boundary_matches(evidence, self.maximum_upper_event_rate_parts_per_million)
+            || evidence.upper_event_rate() < maximum_upper_event_rate
+        {
             ZeroEventSafetyThresholdOutcome::Satisfied
         } else {
             ZeroEventSafetyThresholdOutcome::UpperBoundExceedsThreshold
         }
     }
+}
+
+fn exact_fixed_point_boundary_matches(
+    evidence: ZeroEventSafetyEvidence,
+    maximum_upper_event_rate_parts_per_million: u32,
+) -> bool {
+    let trial_count = evidence.trial_count();
+    if trial_count > 4 {
+        return false;
+    }
+
+    // For zero events, equality at threshold `t` is
+    // `(1 - confidence) = (1 - t)^trial_count`. Both policy inputs are fixed-point
+    // rationals. After reduction, the confidence denominator divides 10_000, so an
+    // exact nontrivial equality cannot require more than four repeated denominator
+    // factors. The bounded exponent therefore fits safely in `u128` without a
+    // floating-point comparison at the policy boundary.
+    let confidence_complement_numerator =
+        u128::from(10_000 - evidence.confidence_basis_points());
+    let confidence_denominator = 10_000_u128;
+    let rate_complement_numerator = u128::from(
+        MAX_SAFETY_EVENT_RATE_PARTS_PER_MILLION
+            - maximum_upper_event_rate_parts_per_million,
+    );
+    let rate_denominator = u128::from(MAX_SAFETY_EVENT_RATE_PARTS_PER_MILLION);
+    let exponent = trial_count as u32;
+
+    confidence_complement_numerator * rate_denominator.pow(exponent)
+        == confidence_denominator * rate_complement_numerator.pow(exponent)
 }
