@@ -24,7 +24,6 @@ pub use redirect::{
     RedirectTargetDigestError,
 };
 pub use resolution::{
-    ConnectionEvidence, DestinationError, DestinationPolicy, FreshConnectionEvidence,
-    FreshResolutionSnapshot, MAX_RESOLUTION_ADDRESS_COUNT, MAX_RESOLUTION_VALIDITY,
+    ConnectionEvidence, DestinationError, DestinationPolicy, MAX_RESOLUTION_ADDRESS_COUNT,
     ResolutionSnapshot,
 };

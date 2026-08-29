@@ -12,7 +12,6 @@ This file is the canonical product-wide topology and bounded-context view. It is
 - [Requirement, decision, standards, and implementation traceability](docs/traceability/README.md)
 - [Research and standards doctoring](docs/doctoring.md)
 - [Product roadmap](docs/product-roadmap.md)
-- [Live product and technical gap baseline](docs/product-technical-gap-baseline.md)
 
 Protected-main code and executable tests define current implementation truth; deployed build/release artifacts, migrations, and configuration are additional operational evidence when they exist. Accepted ADRs define design authority, not proof that planned behavior has shipped. The PRD/TRD/diagrams may also contain `Planned`, `Proposed`, or `Open` product direction; those labels must remain explicit until corresponding implementation and review evidence reaches protected `main`.
 
@@ -167,7 +166,7 @@ Observation should prefer the most structured trustworthy source available:
 4. accessibility tree combined with DOM and layout;
 5. screenshot or vision fallback for canvas and inaccessible custom interfaces.
 
-Raw HTML is not the default model input. Full snapshots are followed by incremental semantic diffs, versioned by document epoch. Node references become invalid after navigation or epoch change.
+Raw HTML is not the default model input. Full snapshots are followed by incremental semantic diffs, versioned by document epoch. Node references become invalid after navigation or epoch change. An untrusted WebDriver BiDi `locateNodes` result becomes an `ObservedNodeHandle` only after the adapter transfers a non-cloneable `QueryNodes` / `SemanticObservation` protocol-use proof into `bind_current_nodes` and the exact current session, browsing context, canonical origin, and document epoch still match. Navigation or TypedInput proofs fail closed. That control-plane composition does not perform browser I/O or authorize typed input.
 
 ## 8. Action lifecycle
 

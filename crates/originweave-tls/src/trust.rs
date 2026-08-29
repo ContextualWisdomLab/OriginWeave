@@ -19,7 +19,6 @@ impl TrustBundleIdentifier {
     pub fn parse(input: &str) -> Result<Self, TlsError> {
         if input.is_empty()
             || input.len() > 128
-            || !input.bytes().any(|byte| byte.is_ascii_alphanumeric())
             || !input.bytes().all(|byte| {
                 byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b':' | b'-')
             })

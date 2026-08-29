@@ -8,9 +8,15 @@ This addendum complements the main doctoring record. The main record already car
 
 ## WebDriver BiDi
 
-The W3C publication reviewed for this baseline is the 1 June 2026 **Working Draft**, not a Recommendation. OriginWeave therefore treats BiDi as a versioned browser-automation adapter rather than product-internal authority. Raw BiDi session/context/node identifiers do not become durable OriginWeave identities.
+The latest published W3C technical-report baseline reviewed here remains the 1 June 2026 **Working Draft**, not a Recommendation. The current Editor’s Draft reviewed on 18 August 2026 identifies itself as the 20 July 2026 draft. OriginWeave therefore treats BiDi as a versioned browser-automation adapter rather than product-internal authority. Raw BiDi session/context/node identifiers do not become durable OriginWeave identities.
 
-Primary source: World Wide Web Consortium, *WebDriver BiDi*.
+For the bounded `browsingContext.locateNodes` command-serialization boundary, the reviewed Editor’s Draft defines a command envelope with `id: js-uint`, defines `js-uint` as `0..9007199254740991`, and defines `browsingContext.locateNodes` parameters containing a browsing context, locator, optional positive `maxNodeCount`, optional `serializationOptions`, and optional `startNodes`. OriginWeave serializes only its separately reviewed accessibility-locator subset and fixed minimal serialization options; this deterministic JSON value is not transport authentication or browser/Agent authority.
+
+WebDriver BiDi commands may execute concurrently and finish out of order. The Editor’s Draft defines the command id as the local end’s correlation identifier and sets a successful `CommandResponse.id` to that exact command id; an `ErrorResponse.id` may be `null` when no valid command id can be recovered. OriginWeave therefore fails closed unless a non-null protocol-range response id exactly matches the consumed command before later payload admission. Parsing success/error envelopes, handling nullable malformed-command errors, and authenticating the browser transport remain separate adapter boundaries.
+
+The same reviewed Editor’s Draft defines a closed `ErrorCode` vocabulary that currently includes `no such client window`. OriginWeave admits only the reviewed vocabulary at its bounded response-envelope parser and rejects unknown error-code text fail closed; adding a newly reviewed protocol code changes compatibility only and grants no browser, transport, node, policy, or Agent authority.
+
+Primary sources: World Wide Web Consortium, *WebDriver BiDi* (published Working Draft and current Editor’s Draft).
 
 ## Chrome Manifest V3
 
@@ -38,10 +44,6 @@ Primary sources: Chrome for Developers, *WebMCP*; *WebMCP tool security*; *Agent
 
 The Model Context Protocol project released specification version `2026-07-28` on 28 July 2026. That release moved the protocol core toward stateless request/response operation and removed the earlier protocol-session assumptions described by previous releases. OriginWeave therefore keeps durable browser state in explicit OriginWeave application handles and exposes MCP only as a high-level adapter to the Rust runtime. MCP clients or servers do not connect models directly to Chromium/CDP authority.
 
-The final `2026-07-28` schema requires every client request to carry `io.modelcontextprotocol/protocolVersion` and `io.modelcontextprotocol/clientCapabilities` in request `_meta`; client capabilities are request-scoped and servers must not infer them from prior requests. `io.modelcontextprotocol/clientInfo` is optional/SHOULD rather than authorization evidence. For Streamable HTTP, `MCP-Protocol-Version` must agree with the body protocol version, `Mcp-Method` is required for every request, and `Mcp-Name` is required only for named operations such as `tools/call`, `resources/read`, and `prompts/get`, not `tools/list`. OriginWeave's typed `tools/list` admission boundary therefore independently requires the transport protocol-version header and body `_meta` protocol version, rejects disagreement or an unsupported generation, requires per-request client-capabilities presence without treating its contents as OriginWeave authority, validates routing/body `tools/list` method agreement, and does not invent a name header. It rejects any supplied cursor because the current fixed catalog emits no `nextCursor`; this is a conservative local invariant against accepting pagination state OriginWeave never issued, not a claim that MCP forbids `tools/list` cursors generally.
-
-The same specification requires every Result to carry `resultType`, using `complete` for a terminal result, and adds explicit cache hints for cacheable result families including `tools/list`: `ttlMs` expresses freshness lifetime and `cacheScope` expresses whether reuse is private or shareable. OriginWeave's first typed `tools/list` result therefore binds `resultType = complete`, chooses the conservative boundary `ttlMs = 0` and private scope, derives the page directly from the reviewed tool catalog, and emits no continuation cursor for the current fixed single-page catalog. These metadata choices do not grant tool authority and do not claim JSON-RPC serialization, transport caching, OAuth, or a general pagination implementation.
-
 Primary sources: Model Context Protocol, *2026-07-28 Specification* and the maintainers' official release announcement.
 
 ## Provenance standards
@@ -50,15 +52,14 @@ The main [`docs/doctoring.md`](../doctoring.md) records the stable W3C PROV-O Re
 
 ## Product consequences
 
-1. Version adapter contracts independently from OriginWeave session/context/action/evidence types.
-2. Pin exact Chromium/CDP compatibility evidence at release time.
-3. Keep WebDriver BiDi's Working Draft status visible in compatibility claims.
-4. Keep WebMCP experimental/optional and propagate untrusted-content semantics.
-5. Keep MCP browser state application-level rather than equating protocol transport/session metadata with browser authority.
-6. Require modern MCP per-request protocol version and client capabilities from request `_meta`; on Streamable HTTP require the matching protocol-version header and exact method routing, while treating optional client identity metadata as non-authoritative.
-7. Bind mandatory MCP result disposition and cacheable-list metadata to reviewed typed results; use a complete terminal result with zero freshness and private scope unless a separate reviewed policy proves broader semantics safe. Reject a `tools/list` cursor while the current fixed page has never issued one.
-8. Test Manifest V3 compatibility and extension-to-Agent authority isolation as separate evidence classes.
-9. Treat WARC/PROV as provenance representations, not policy or truth escalation.
+1. Version adapter contracts independently from OriginWeave session/context/action/evidence types. Admit a BiDi `script.NodeRemoteValue` only as an untrusted transport handle when its type is exactly `node` and a usable control-free `sharedId` is present; do not treat a realm-local `handle`, a missing shared identifier, or control/whitespace-bearing protocol text as OriginWeave node authority. Treat an accessibility-query role as one exact WAI-ARIA token, not a whitespace-separated fallback list.
+2. Serialize reviewed BiDi commands from already validated bounded values only, then correlate each non-null response id to the exact consumed command before payload admission; a protocol-shaped JSON envelope or matching id never substitutes for authenticated browser transport, current session/context/origin/document authority, policy authorization, or post-condition evidence.
+3. Pin exact Chromium/CDP compatibility evidence at release time.
+4. Keep WebDriver BiDi's Working Draft status visible in compatibility claims.
+5. Keep WebMCP experimental/optional and propagate untrusted-content semantics.
+6. Keep MCP browser state application-level rather than equating protocol transport/session metadata with browser authority.
+7. Test Manifest V3 compatibility and extension-to-Agent authority isolation as separate evidence classes.
+8. Treat WARC/PROV as provenance representations, not policy or truth escalation.
 
 ## References — APA 7th
 
@@ -80,6 +81,12 @@ Model Context Protocol. (2026). *Model Context Protocol specification (2026-07-2
 
 World Wide Web Consortium. (2013). *PROV-O: The PROV ontology*. https://www.w3.org/TR/prov-o/
 
+World Wide Web Consortium. (2023, June 6). *Accessible Rich Internet Applications (WAI-ARIA) 1.2*. https://www.w3.org/TR/2023/REC-wai-aria-1.2-20230606/
+
 World Wide Web Consortium. (2026, June 1). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260601/
+
+World Wide Web Consortium. (2026, July 20). *WebDriver BiDi* (Editor’s Draft). https://w3c.github.io/webdriver-bidi/
+
+World Wide Web Consortium. (2026, August 5). *Accessible name and description computation 1.2* (W3C Working Draft). https://www.w3.org/TR/2026/WD-accname-1.2-20260805/
 
 International Organization for Standardization. (2017). *Information and documentation—WARC file format* (ISO Standard No. 28500:2017). https://www.iso.org/standard/68004.html
