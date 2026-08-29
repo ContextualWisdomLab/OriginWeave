@@ -84,7 +84,8 @@ fn cdp_capability_is_not_inferred_from_protocol_kind() -> Result<(), Box<dyn Err
 }
 
 #[test]
-fn required_protocol_kind_fails_closed_without_cross_protocol_fallback() -> Result<(), Box<dyn Error>> {
+fn required_protocol_kind_fails_closed_without_cross_protocol_fallback()
+-> Result<(), Box<dyn Error>> {
     let descriptor = BrowserProtocolAdapterDescriptor::new(
         BrowserProtocolKind::WebDriverBiDi,
         CURRENT_ORIGINWEAVE_PROTOCOL_VERSION,
