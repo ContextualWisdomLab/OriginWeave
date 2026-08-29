@@ -192,9 +192,11 @@ def _cleanup_browser_session_preserving_primary(
         bounded_error = BrowserSessionCleanupError(cleanup_error)
         if primary_error is None:
             raise bounded_error from cleanup_error
-        primary_error.add_note(
-            f"WebDriver session cleanup also failed with {bounded_error.cleanup_error_type}"
-        )
+        add_note = getattr(primary_error, "add_note", None)
+        if callable(add_note):
+            add_note(
+                f"WebDriver session cleanup also failed with {bounded_error.cleanup_error_type}"
+            )
         raise primary_error
 
 
