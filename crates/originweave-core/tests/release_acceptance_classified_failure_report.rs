@@ -9,7 +9,8 @@ fn passed(suite: BenchmarkSuite) -> BenchmarkSuiteEvidence {
 }
 
 #[test]
-fn classified_environment_failures_remain_inconclusive_and_are_retained() {
+fn classified_environment_failures_remain_inconclusive_and_are_retained(
+) -> Result<(), ReleaseDecisionError> {
     let report = decide_release_with_classified_benchmark_evidence(
         [
             passed(BenchmarkSuite::ControlledDeterministic),
@@ -26,8 +27,7 @@ fn classified_environment_failures_remain_inconclusive_and_are_retained() {
         ],
         &[],
         &[],
-    )
-    .expect("distinct mandatory suite evidence should be accepted");
+    )?;
 
     assert_eq!(report.decision(), ReleaseDecision::Inconclusive);
     assert_eq!(
@@ -50,10 +50,12 @@ fn classified_environment_failures_remain_inconclusive_and_are_retained() {
             ),
         ]
     );
+    Ok(())
 }
 
 #[test]
-fn classified_product_failure_rejects_release_and_retains_cause() {
+fn classified_product_failure_rejects_release_and_retains_cause(
+) -> Result<(), ReleaseDecisionError> {
     let report = decide_release_with_classified_benchmark_evidence(
         [
             passed(BenchmarkSuite::ControlledDeterministic),
@@ -67,8 +69,7 @@ fn classified_product_failure_rejects_release_and_retains_cause() {
         ],
         &[],
         &[],
-    )
-    .expect("distinct mandatory suite evidence should be accepted");
+    )?;
 
     assert_eq!(report.decision(), ReleaseDecision::Rejected);
     assert_eq!(
@@ -84,11 +85,12 @@ fn classified_product_failure_rejects_release_and_retains_cause() {
         report.benchmark_failures()[0].suite(),
         BenchmarkSuite::SecurityAdversarial
     );
+    Ok(())
 }
 
 #[test]
 fn duplicate_suite_evidence_still_fails_closed() {
-    let error = decide_release_with_classified_benchmark_evidence(
+    let result = decide_release_with_classified_benchmark_evidence(
         [
             passed(BenchmarkSuite::ControlledDeterministic),
             BenchmarkSuiteEvidence::Failure {
@@ -98,20 +100,21 @@ fn duplicate_suite_evidence_still_fails_closed() {
         ],
         &[],
         &[],
-    )
-    .expect_err("duplicate suite evidence must fail closed");
+    );
 
     assert_eq!(
-        error,
-        ReleaseDecisionError::DuplicateSuite(BenchmarkSuite::ControlledDeterministic)
+        result,
+        Err(ReleaseDecisionError::DuplicateSuite(
+            BenchmarkSuite::ControlledDeterministic
+        ))
     );
 }
 
-struct DuplicateThenPanic {
+struct DuplicateThenTracked {
     step: u8,
 }
 
-impl Iterator for DuplicateThenPanic {
+impl Iterator for DuplicateThenTracked {
     type Item = BenchmarkSuiteEvidence;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -121,7 +124,8 @@ impl Iterator for DuplicateThenPanic {
                 suite: BenchmarkSuite::ControlledDeterministic,
                 classification: BenchmarkFailureClass::BenchmarkDefect,
             },
-            _ => panic!("release acceptance consumed evidence after the first duplicate suite"),
+            2 => passed(BenchmarkSuite::WebCompatibility),
+            _ => return None,
         };
         self.step += 1;
         Some(item)
@@ -129,15 +133,16 @@ impl Iterator for DuplicateThenPanic {
 }
 
 #[test]
-fn duplicate_suite_stops_consuming_unbounded_evidence() {
-    let error =
-        decide_release_with_classified_benchmark_evidence(DuplicateThenPanic { step: 0 }, &[], &[])
-            .expect_err(
-                "the first duplicate suite must fail closed without reading further evidence",
-            );
+fn duplicate_suite_stops_consuming_evidence_at_first_duplicate() {
+    let mut evidence = DuplicateThenTracked { step: 0 };
+    let result =
+        decide_release_with_classified_benchmark_evidence(&mut evidence, &[], &[]);
 
     assert_eq!(
-        error,
-        ReleaseDecisionError::DuplicateSuite(BenchmarkSuite::ControlledDeterministic)
+        result,
+        Err(ReleaseDecisionError::DuplicateSuite(
+            BenchmarkSuite::ControlledDeterministic
+        ))
     );
+    assert_eq!(evidence.step, 2);
 }
