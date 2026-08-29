@@ -6,14 +6,16 @@
 //! It also bridges a session-correlated WebDriver BiDi loopback target from
 //! `originweave-core` into one bounded exact TCP connection, binds and validates
 //! the RFC 6455 opening exchange, provides bounded masked client writes and
-//! unmasked server-frame reads, and assembles bounded WebDriver BiDi text messages
-//! without granting browser, TLS, policy, or Agent authority.
+//! unmasked server-frame reads, assembles bounded WebDriver BiDi text messages, and
+//! classifies complete local-end JSON envelopes without exposing generic JSON bodies
+//! or granting browser, TLS, policy, secret, or Agent authority.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
 mod connection;
 mod webdriver_bidi_connection;
+mod webdriver_bidi_json_envelope;
 mod webdriver_bidi_websocket_frame;
 mod webdriver_bidi_websocket_handshake;
 mod webdriver_bidi_websocket_message;
@@ -26,6 +28,10 @@ pub use connection::{
 pub use webdriver_bidi_connection::{
     WebDriverBiDiTcpConnection, WebDriverBiDiTcpConnectionError,
     WebDriverBiDiTcpConnectionEvidence, WebDriverBiDiTcpConnectionPlan,
+};
+pub use webdriver_bidi_json_envelope::{
+    MAX_WEBDRIVER_BIDI_JSON_DEPTH, MAX_WEBDRIVER_BIDI_JS_UINT, WebDriverBiDiJsonEnvelope,
+    WebDriverBiDiJsonEnvelopeError, WebDriverBiDiJsonEnvelopeKind,
 };
 pub use webdriver_bidi_websocket_frame::{
     MAX_WEBSOCKET_FRAME_PAYLOAD_SIZE, MAX_WEBSOCKET_FRAME_TIMEOUT,
