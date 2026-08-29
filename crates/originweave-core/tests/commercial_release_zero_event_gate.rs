@@ -81,8 +81,8 @@ fn satisfied_safety_gate_preserves_full_acceptance() -> Result<(), Box<dyn std::
 }
 
 #[test]
-fn satisfied_safety_gate_preserves_declared_limitations()
--> Result<(), Box<dyn std::error::Error>> {
+fn satisfied_safety_gate_preserves_declared_limitations() -> Result<(), Box<dyn std::error::Error>>
+{
     let observation = observation(1_000)?;
     let requirement = requirement()?;
     let limitation = DeclaredLimitation::new(
@@ -126,8 +126,7 @@ fn known_benchmark_failure_remains_rejected() -> Result<(), Box<dyn std::error::
 }
 
 #[test]
-fn incomplete_benchmark_evidence_remains_inconclusive()
--> Result<(), Box<dyn std::error::Error>> {
+fn incomplete_benchmark_evidence_remains_inconclusive() -> Result<(), Box<dyn std::error::Error>> {
     let observation = observation(1_000)?;
     let requirement = requirement()?;
     let evidence = passed_benchmarks().into_iter().take(4);
