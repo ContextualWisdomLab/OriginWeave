@@ -362,6 +362,37 @@ def _run_trial(
                     driver.wait(timeout=5)
 
 
+def _run_trial_with_evidence(
+    chrome_bin: pathlib.Path,
+    chromedriver_bin: pathlib.Path,
+    fixture_url: str,
+    trial_number: int,
+) -> dict[str, Any]:
+    """Convert one bounded recoverable browser failure into failed-trial evidence."""
+
+    try:
+        return _run_trial(chrome_bin, chromedriver_bin, fixture_url, trial_number)
+    except PrivacyProbeError as exc:
+        return {
+            "trial_number": trial_number,
+            "passed": False,
+            "error_type": type(exc).__name__,
+            "surfaces": exc.surfaces,
+        }
+    except (
+        OSError,
+        ValueError,
+        RuntimeError,
+        http.client.HTTPException,
+        json.JSONDecodeError,
+    ) as exc:
+        return {
+            "trial_number": trial_number,
+            "passed": False,
+            "error_type": type(exc).__name__,
+        }
+
+
 def main() -> int:
     """Run three isolated trials and emit bounded repeatability evidence."""
 
@@ -391,34 +422,15 @@ def main() -> int:
     started = time.monotonic()
     try:
         fixture_url = f"http://127.0.0.1:{fixture_server.server_port}/page.html"
-        trials: list[dict[str, Any]] = []
-        for trial_number in range(1, REPEATABILITY_TRIALS + 1):
-            try:
-                trials.append(
-                    _run_trial(
-                        chrome_bin,
-                        chromedriver_bin,
-                        fixture_url,
-                        trial_number,
-                    )
-                )
-            except PrivacyProbeError as exc:
-                trials.append(
-                    {
-                        "trial_number": trial_number,
-                        "passed": False,
-                        "error_type": type(exc).__name__,
-                        "surfaces": exc.surfaces,
-                    }
-                )
-            except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
-                trials.append(
-                    {
-                        "trial_number": trial_number,
-                        "passed": False,
-                        "error_type": type(exc).__name__,
-                    }
-                )
+        trials = [
+            _run_trial_with_evidence(
+                chrome_bin,
+                chromedriver_bin,
+                fixture_url,
+                trial_number,
+            )
+            for trial_number in range(1, REPEATABILITY_TRIALS + 1)
+        ]
 
         successful_trials = sum(trial.get("passed") is True for trial in trials)
         evidence = {
