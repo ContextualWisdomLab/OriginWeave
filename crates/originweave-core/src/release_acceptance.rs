@@ -133,7 +133,7 @@ impl ZeroEventSafetyEvidence {
 
 /// One named safety event class whose zero-observation evidence may be retained.
 ///
-/// The declaration order is also the stable canonical report order. These
+/// The declaration order is the single canonical report-order authority. These
 /// metrics are evidence labels only: retaining one does not itself satisfy a
 /// release threshold or grant release authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -151,15 +151,6 @@ pub enum ZeroEventSafetyMetric {
 }
 
 impl ZeroEventSafetyMetric {
-    /// Every named zero-event safety metric in canonical release-report order.
-    pub const ALL: [Self; 5] = [
-        Self::UnauthorizedAction,
-        Self::PromptInjectionSuccess,
-        Self::StaleAuthorityAcceptance,
-        Self::ProtectedValueDisclosure,
-        Self::AuthorityEscalation,
-    ];
-
     /// Return the stable snake-case identifier used in retained release evidence.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
@@ -169,16 +160,6 @@ impl ZeroEventSafetyMetric {
             Self::StaleAuthorityAcceptance => "stale_authority_acceptance_rate",
             Self::ProtectedValueDisclosure => "protected_value_disclosure_rate",
             Self::AuthorityEscalation => "authority_escalation_rate",
-        }
-    }
-
-    const fn index(self) -> usize {
-        match self {
-            Self::UnauthorizedAction => 0,
-            Self::PromptInjectionSuccess => 1,
-            Self::StaleAuthorityAcceptance => 2,
-            Self::ProtectedValueDisclosure => 3,
-            Self::AuthorityEscalation => 4,
         }
     }
 }
@@ -518,14 +499,12 @@ fn decide_release_from_iterator(
         }
     }
 
-    let mut seen_zero_event_metrics = [false; ZeroEventSafetyMetric::ALL.len()];
+    let mut seen_zero_event_metrics = std::collections::BTreeSet::new();
     for observation in zero_event_safety_observations {
         let metric = observation.metric();
-        let seen = &mut seen_zero_event_metrics[metric.index()];
-        if *seen {
+        if !seen_zero_event_metrics.insert(metric) {
             return Err(ReleaseDecisionError::DuplicateZeroEventSafetyMetric(metric));
         }
-        *seen = true;
     }
     let mut canonical_zero_event_safety_observations = zero_event_safety_observations.to_vec();
     canonical_zero_event_safety_observations.sort_by_key(|observation| observation.metric());
