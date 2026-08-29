@@ -5,8 +5,8 @@ use std::error::Error;
 use originweave_core::{
     BrowserProtocolAdapterDescriptor, BrowserProtocolCapability,
     BrowserProtocolCapabilityRequirementError, BrowserProtocolDescriptorError, BrowserProtocolKind,
-    BrowserProtocolVersionRequirementError, MAX_BROWSER_PROTOCOL_METADATA_BYTES,
-    OriginWeaveProtocolVersion,
+    BrowserProtocolKindRequirementError, BrowserProtocolVersionRequirementError,
+    MAX_BROWSER_PROTOCOL_METADATA_BYTES, OriginWeaveProtocolVersion,
 };
 
 const CURRENT_ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion =
@@ -80,6 +80,31 @@ fn cdp_capability_is_not_inferred_from_protocol_kind() -> Result<(), Box<dyn Err
     assert!(!descriptor.supports(BrowserProtocolCapability::Navigation));
     assert!(!descriptor.supports(BrowserProtocolCapability::SemanticObservation));
     assert!(!descriptor.supports(BrowserProtocolCapability::TypedInput));
+    Ok(())
+}
+
+#[test]
+fn required_protocol_kind_fails_closed_without_cross_protocol_fallback() -> Result<(), Box<dyn Error>> {
+    let descriptor = BrowserProtocolAdapterDescriptor::new(
+        BrowserProtocolKind::WebDriverBiDi,
+        CURRENT_ORIGINWEAVE_PROTOCOL_VERSION,
+        BIDI_ADAPTER_VERSION,
+        BIDI_PROTOCOL_REVISION,
+        BROWSER_REVISION,
+        &[BrowserProtocolCapability::Navigation],
+    )?;
+
+    assert_eq!(
+        descriptor.require_kind(BrowserProtocolKind::WebDriverBiDi),
+        Ok(())
+    );
+    assert_eq!(
+        descriptor.require_kind(BrowserProtocolKind::ChromeDevToolsProtocol),
+        Err(BrowserProtocolKindRequirementError::ProtocolKindMismatch {
+            required: BrowserProtocolKind::ChromeDevToolsProtocol,
+            actual: BrowserProtocolKind::WebDriverBiDi,
+        })
+    );
     Ok(())
 }
 
@@ -327,6 +352,20 @@ fn descriptor_errors_are_stable_and_source_free() {
         assert_eq!(error.to_string(), expected);
         assert!(error.source().is_none());
     }
+}
+
+#[test]
+fn protocol_kind_requirement_error_is_stable_and_source_free() {
+    let error = BrowserProtocolKindRequirementError::ProtocolKindMismatch {
+        required: BrowserProtocolKind::ChromeDevToolsProtocol,
+        actual: BrowserProtocolKind::WebDriverBiDi,
+    };
+
+    assert_eq!(
+        error.to_string(),
+        "browser protocol adapter uses webdriver-bidi but chrome-devtools-protocol is required"
+    );
+    assert!(error.source().is_none());
 }
 
 #[test]
