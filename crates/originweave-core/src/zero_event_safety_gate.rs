@@ -3,7 +3,7 @@
 //! This gate consumes explicit per-metric thresholds and retained zero-event observations. Missing
 //! or statistically insufficient evidence is `Inconclusive`; it is never promoted to product
 //! success or converted into a known product failure. The gate does not itself grant release
-//! authority. [`decide_commercial_release_with_zero_event_safety`] combines the gate with mandatory
+//! authority. [`decide_commercial_release_with_zero_event_safety`](crate::zero_event_safety_gate::decide_commercial_release_with_zero_event_safety) combines the gate with mandatory
 //! benchmark evidence so a threshold miss cannot remain commercially accepted while repository,
 //! review, provenance, and operator release authority remain external controls.
 
