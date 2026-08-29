@@ -139,6 +139,36 @@ class WebAudioPrivacyContractTests(unittest.TestCase):
         del missing["childAudioContext"]
         self.assertIs(satisfies(missing), False)
 
+    def test_webdriver_session_cleanup_is_typed_and_fail_closed(self) -> None:
+        """Cleanup failure must never be silently converted into a passing browser trial."""
+
+        runner = RUNNER.read_text(encoding="utf-8")
+        self.assertNotIn("contextlib.suppress(Exception)", runner)
+
+        namespace = runpy.run_path(str(RUNNER), run_name="web_audio_cleanup_contract")
+        cleanup = namespace["_cleanup_browser_session_preserving_primary"]
+        cleanup_error_type = namespace["BrowserSessionCleanupError"]
+        globals_dict = cleanup.__globals__
+        original_cleanup = globals_dict["_cleanup_browser_session"]
+
+        def fail_cleanup(_driver_port: int, _session_id: str) -> None:
+            raise OSError("simulated bounded cleanup failure")
+
+        globals_dict["_cleanup_browser_session"] = fail_cleanup
+        try:
+            with self.assertRaises(cleanup_error_type) as no_primary:
+                cleanup(9515, "safe-session", None)
+            self.assertEqual(no_primary.exception.cleanup_error_type, "OSError")
+            self.assertIsInstance(no_primary.exception.__cause__, OSError)
+
+            primary = RuntimeError("primary browser failure")
+            with self.assertRaises(cleanup_error_type) as with_primary:
+                cleanup(9515, "safe-session", primary)
+            self.assertEqual(with_primary.exception.cleanup_error_type, "OSError")
+            self.assertIs(with_primary.exception.__cause__, primary)
+        finally:
+            globals_dict["_cleanup_browser_session"] = original_cleanup
+
     def test_workflow_executes_and_publishes_the_real_browser_privacy_gate(self) -> None:
         """The pinned Chromium workflow must execute and retain privacy evidence."""
 
