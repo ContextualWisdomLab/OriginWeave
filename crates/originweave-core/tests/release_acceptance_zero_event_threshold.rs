@@ -27,11 +27,14 @@ fn zero_event_threshold_requires_both_confidence_and_a_tight_enough_upper_bound(
 }
 
 #[test]
-fn zero_event_threshold_retains_exact_fixed_point_policy_inputs()
--> Result<(), ReleaseDecisionError> {
+fn zero_event_threshold_retains_exact_fixed_point_policy_inputs() -> Result<(), ReleaseDecisionError>
+{
     let threshold = ZeroEventSafetyThreshold::new(2_500, 9_900)?;
 
-    assert_eq!(threshold.maximum_upper_event_rate_parts_per_million(), 2_500);
+    assert_eq!(
+        threshold.maximum_upper_event_rate_parts_per_million(),
+        2_500
+    );
     assert_eq!(threshold.minimum_confidence_basis_points(), 9_900);
     Ok(())
 }
