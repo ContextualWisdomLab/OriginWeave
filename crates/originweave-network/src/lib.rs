@@ -17,6 +17,8 @@ mod webdriver_bidi_connection;
 mod webdriver_bidi_websocket_frame;
 mod webdriver_bidi_websocket_handshake;
 mod webdriver_bidi_websocket_message;
+#[cfg(test)]
+mod webdriver_bidi_websocket_message_public_contract;
 mod webdriver_bidi_websocket_opening_recovery;
 
 pub use connection::{
