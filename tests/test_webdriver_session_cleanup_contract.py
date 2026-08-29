@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import pathlib
 import runpy
 import unittest
@@ -33,10 +34,12 @@ class WebDriverSessionCleanupContractTests(unittest.TestCase):
         )
 
     def test_agent_task_cleanup_uses_shared_production_path_only(self) -> None:
-        """No test-only cleanup wrapper may shadow the executed shared finalizer path."""
+        """The executed Agent Task finalizer must use the shared cleanup path directly."""
 
         namespace = runpy.run_path(str(RUNNER), run_name="webdriver_cleanup_path_contract")
-        self.assertNotIn("_cleanup_agent_task_browser_session", namespace)
+        browser_pass_source = inspect.getsource(namespace["_run_agent_task_browser_pass"])
+        self.assertIn("_cleanup_browser_session_preserving_primary(", browser_pass_source)
+        self.assertNotIn("_cleanup_agent_task_browser_session(", browser_pass_source)
         self.assertIn("_cleanup_browser_session_preserving_primary", namespace)
 
 
