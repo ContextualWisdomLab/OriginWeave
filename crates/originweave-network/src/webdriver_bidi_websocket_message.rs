@@ -115,15 +115,13 @@ impl fmt::Display for WebDriverBiDiWebSocketMessageError {
             Self::AssemblerPoisoned => formatter.write_str(
                 "WebDriver BiDi WebSocket message assembly is terminal after failure or Close",
             ),
-            Self::UnexpectedContinuation => formatter.write_str(
-                "WebDriver BiDi WebSocket continuation arrived without fragmented text",
-            ),
+            Self::UnexpectedContinuation => formatter
+                .write_str("WebDriver BiDi WebSocket continuation arrived without fragmented text"),
             Self::UnexpectedBinaryMessage => formatter.write_str(
                 "WebDriver BiDi requires WebSocket text messages; binary message rejected",
             ),
-            Self::InterruptedFragmentedText => formatter.write_str(
-                "WebDriver BiDi fragmented text was interrupted by a new data message",
-            ),
+            Self::InterruptedFragmentedText => formatter
+                .write_str("WebDriver BiDi fragmented text was interrupted by a new data message"),
             Self::MessageTooLarge {
                 payload_bytes,
                 maximum_bytes,
@@ -316,9 +314,7 @@ impl Default for WebDriverBiDiWebSocketMessageAssembler {
 mod tests {
     use super::*;
 
-    fn text(
-        assembly: WebDriverBiDiWebSocketMessageAssembly,
-    ) -> WebDriverBiDiWebSocketTextMessage {
+    fn text(assembly: WebDriverBiDiWebSocketMessageAssembly) -> WebDriverBiDiWebSocketTextMessage {
         match assembly {
             WebDriverBiDiWebSocketMessageAssembly::Text(text) => text,
             other => panic!("expected text message, got {other:?}"),
