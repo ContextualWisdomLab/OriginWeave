@@ -539,7 +539,8 @@ where
 /// [`BenchmarkFailureClass::suite_outcome`] and retained in canonical suite order
 /// so an environmental or benchmark-harness failure cannot be collapsed into a
 /// product failure or silently promoted to passing evidence. Duplicate suite
-/// evidence continues to fail closed.
+/// evidence fails closed at the first duplicate while the input is consumed,
+/// preventing arbitrary iterators from forcing unbounded evidence buffering.
 pub fn decide_release_with_classified_benchmark_evidence<I>(
     evidence: I,
     declared_limitations: &[DeclaredLimitation],
@@ -548,21 +549,39 @@ pub fn decide_release_with_classified_benchmark_evidence<I>(
 where
     I: IntoIterator<Item = BenchmarkSuiteEvidence>,
 {
-    let mut benchmark_failures = Vec::new();
-    let results = evidence
-        .into_iter()
-        .map(|entry| match entry {
-            BenchmarkSuiteEvidence::Passed(suite) => (suite, BenchmarkSuiteOutcome::Passed),
+    let mut outcomes = [None; BenchmarkSuite::ALL.len()];
+    let mut classified_failures = [None; BenchmarkSuite::ALL.len()];
+
+    for entry in evidence {
+        let (suite, outcome, failure) = match entry {
+            BenchmarkSuiteEvidence::Passed(suite) => {
+                (suite, BenchmarkSuiteOutcome::Passed, None)
+            }
             BenchmarkSuiteEvidence::Failure {
                 suite,
                 classification,
-            } => {
-                benchmark_failures.push(BenchmarkFailureEvidence::new(suite, classification));
-                (suite, classification.suite_outcome())
-            }
-        })
-        .collect::<Vec<_>>();
-    let mut results = results.into_iter();
+            } => (
+                suite,
+                classification.suite_outcome(),
+                Some(BenchmarkFailureEvidence::new(suite, classification)),
+            ),
+        };
+        let index = suite.index();
+        if outcomes[index].is_some() {
+            return Err(ReleaseDecisionError::DuplicateSuite(suite));
+        }
+        outcomes[index] = Some(outcome);
+        classified_failures[index] = failure;
+    }
+
+    let mut results = BenchmarkSuite::ALL.into_iter().filter_map(|suite| {
+        outcomes[suite.index()].map(|outcome| (suite, outcome))
+    });
+    let benchmark_failures = BenchmarkSuite::ALL
+        .into_iter()
+        .filter_map(|suite| classified_failures[suite.index()])
+        .collect();
+
     decide_release_from_iterator(
         &mut results,
         declared_limitations,
