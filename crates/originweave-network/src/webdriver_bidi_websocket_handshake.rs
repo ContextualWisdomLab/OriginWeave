@@ -591,11 +591,7 @@ fn parse_opening_response(
             },
         );
     }
-    let status_code = status_line
-        .strip_prefix("HTTP/1.1 ")
-        .and_then(|rest| rest.split_whitespace().next())
-        .and_then(|value| value.parse::<u16>().ok());
-    if status_code != Some(101) {
+    if !status_line.starts_with("HTTP/1.1 101 ") {
         return Err(
             WebDriverBiDiWebSocketHandshakeResponseError::MalformedResponse {
                 reason: "status line is not HTTP/1.1 101",
