@@ -1,39 +1,3 @@
-use core::fmt;
-use std::error::Error;
-
-use crate::{
-    CaptureDeletionReceipt, CaptureLifecycle, CaptureLifecycleError, CaptureLifecycleState,
-    valid_sha256,
-};
-
-/// A fail-closed error returned while reconstructing persisted capture lifecycle state.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CaptureLifecycleRestoreError {
-    /// The persisted lifecycle fields cannot represent a state produced by the lifecycle API.
-    InvalidPersistedState,
-    /// An existing lifecycle identity or receipt invariant rejected the persisted input.
-    Lifecycle(CaptureLifecycleError),
-}
-
-impl fmt::Display for CaptureLifecycleRestoreError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::InvalidPersistedState => formatter
-                .write_str("persisted capture lifecycle state is internally inconsistent"),
-            Self::Lifecycle(error) => error.fmt(formatter),
-        }
-    }
-}
-
-impl Error for CaptureLifecycleRestoreError {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        match self {
-            Self::InvalidPersistedState => None,
-            Self::Lifecycle(error) => Some(error),
-        }
-    }
-}
-
 impl CaptureLifecycle {
     /// Reconstruct one previously persisted lifecycle snapshot without widening authority.
     ///
@@ -52,11 +16,9 @@ impl CaptureLifecycle {
         retention_deadline_epoch_seconds: Option<u64>,
         deletion_request_digest: Option<&str>,
         deletion_receipt: Option<&CaptureDeletionReceipt>,
-    ) -> Result<Self, CaptureLifecycleRestoreError> {
+    ) -> Result<Self, CaptureLifecycleError> {
         if !valid_sha256(manifest_digest) {
-            return Err(CaptureLifecycleRestoreError::Lifecycle(
-                CaptureLifecycleError::InvalidManifestDigest,
-            ));
+            return Err(CaptureLifecycleError::InvalidManifestDigest);
         }
 
         match (
@@ -67,15 +29,10 @@ impl CaptureLifecycle {
         ) {
             (CaptureLifecycleState::CaptureStarted, None, None, None) => {
                 Self::new(manifest_digest, latest_trusted_time_epoch_seconds)
-                    .map_err(map_lifecycle_error)
             }
             (CaptureLifecycleState::CaptureCompleted, None, None, None) => {
-                let mut lifecycle =
-                    Self::new(manifest_digest, latest_trusted_time_epoch_seconds)
-                        .map_err(map_lifecycle_error)?;
-                lifecycle
-                    .complete(latest_trusted_time_epoch_seconds)
-                    .map_err(map_lifecycle_error)?;
+                let mut lifecycle = Self::new(manifest_digest, latest_trusted_time_epoch_seconds)?;
+                lifecycle.complete(latest_trusted_time_epoch_seconds)?;
                 Ok(lifecycle)
             }
             (CaptureLifecycleState::Verified, None, None, None) => {
@@ -86,37 +43,29 @@ impl CaptureLifecycle {
                     verified_at(manifest_digest, latest_trusted_time_epoch_seconds)?;
                 lifecycle
                     .retain_until(deadline, latest_trusted_time_epoch_seconds)
-                    .map_err(map_lifecycle_error)?;
+                    .map_err(map_restore_error)?;
                 Ok(lifecycle)
             }
             (CaptureLifecycleState::LegalHold, None, None, None) => {
                 let mut lifecycle =
                     verified_at(manifest_digest, latest_trusted_time_epoch_seconds)?;
-                lifecycle
-                    .place_legal_hold(latest_trusted_time_epoch_seconds)
-                    .map_err(map_lifecycle_error)?;
+                lifecycle.place_legal_hold(latest_trusted_time_epoch_seconds)?;
                 Ok(lifecycle)
             }
             (CaptureLifecycleState::LegalHold, Some(deadline), None, None) => {
                 let replay_time = retained_replay_time(deadline, latest_trusted_time_epoch_seconds)?;
                 let mut lifecycle = verified_at(manifest_digest, replay_time)?;
-                lifecycle
-                    .retain_until(deadline, replay_time)
-                    .map_err(map_lifecycle_error)?;
-                lifecycle
-                    .place_legal_hold(latest_trusted_time_epoch_seconds)
-                    .map_err(map_lifecycle_error)?;
+                lifecycle.retain_until(deadline, replay_time)?;
+                lifecycle.place_legal_hold(latest_trusted_time_epoch_seconds)?;
                 Ok(lifecycle)
             }
             (CaptureLifecycleState::DeletionRequested, Some(deadline), Some(request), None) => {
                 let replay_time = deletion_replay_time(deadline, latest_trusted_time_epoch_seconds)?;
                 let mut lifecycle = verified_at(manifest_digest, replay_time)?;
-                lifecycle
-                    .retain_until(deadline, replay_time)
-                    .map_err(map_lifecycle_error)?;
+                lifecycle.retain_until(deadline, replay_time)?;
                 lifecycle
                     .request_deletion(request, latest_trusted_time_epoch_seconds)
-                    .map_err(map_lifecycle_error)?;
+                    .map_err(map_restore_error)?;
                 Ok(lifecycle)
             }
             (
@@ -127,18 +76,16 @@ impl CaptureLifecycle {
             ) => {
                 let replay_time = deletion_replay_time(deadline, latest_trusted_time_epoch_seconds)?;
                 let mut lifecycle = verified_at(manifest_digest, replay_time)?;
-                lifecycle
-                    .retain_until(deadline, replay_time)
-                    .map_err(map_lifecycle_error)?;
+                lifecycle.retain_until(deadline, replay_time)?;
                 lifecycle
                     .request_deletion(request, latest_trusted_time_epoch_seconds)
-                    .map_err(map_lifecycle_error)?;
+                    .map_err(map_restore_error)?;
                 lifecycle
                     .confirm_deleted(receipt, latest_trusted_time_epoch_seconds)
-                    .map_err(map_lifecycle_error)?;
+                    .map_err(map_restore_error)?;
                 Ok(lifecycle)
             }
-            _ => Err(CaptureLifecycleRestoreError::InvalidPersistedState),
+            _ => Err(CaptureLifecycleError::InvalidRestoredState),
         }
     }
 }
@@ -146,24 +93,19 @@ impl CaptureLifecycle {
 fn verified_at(
     manifest_digest: &str,
     trusted_time_epoch_seconds: u64,
-) -> Result<CaptureLifecycle, CaptureLifecycleRestoreError> {
-    let mut lifecycle = CaptureLifecycle::new(manifest_digest, trusted_time_epoch_seconds)
-        .map_err(map_lifecycle_error)?;
-    lifecycle
-        .complete(trusted_time_epoch_seconds)
-        .map_err(map_lifecycle_error)?;
-    lifecycle
-        .verify(trusted_time_epoch_seconds)
-        .map_err(map_lifecycle_error)?;
+) -> Result<CaptureLifecycle, CaptureLifecycleError> {
+    let mut lifecycle = CaptureLifecycle::new(manifest_digest, trusted_time_epoch_seconds)?;
+    lifecycle.complete(trusted_time_epoch_seconds)?;
+    lifecycle.verify(trusted_time_epoch_seconds)?;
     Ok(lifecycle)
 }
 
 fn retained_replay_time(
     retention_deadline_epoch_seconds: u64,
     latest_trusted_time_epoch_seconds: u64,
-) -> Result<u64, CaptureLifecycleRestoreError> {
+) -> Result<u64, CaptureLifecycleError> {
     if retention_deadline_epoch_seconds == 0 {
-        return Err(CaptureLifecycleRestoreError::InvalidPersistedState);
+        return Err(CaptureLifecycleError::InvalidRestoredState);
     }
     Ok(latest_trusted_time_epoch_seconds.min(retention_deadline_epoch_seconds - 1))
 }
@@ -171,28 +113,27 @@ fn retained_replay_time(
 fn deletion_replay_time(
     retention_deadline_epoch_seconds: u64,
     latest_trusted_time_epoch_seconds: u64,
-) -> Result<u64, CaptureLifecycleRestoreError> {
+) -> Result<u64, CaptureLifecycleError> {
     if retention_deadline_epoch_seconds == 0
         || retention_deadline_epoch_seconds > latest_trusted_time_epoch_seconds
     {
-        return Err(CaptureLifecycleRestoreError::InvalidPersistedState);
+        return Err(CaptureLifecycleError::InvalidRestoredState);
     }
     Ok(retention_deadline_epoch_seconds - 1)
 }
 
-fn map_lifecycle_error(error: CaptureLifecycleError) -> CaptureLifecycleRestoreError {
+fn map_restore_error(error: CaptureLifecycleError) -> CaptureLifecycleError {
     match error {
         CaptureLifecycleError::InvalidManifestDigest
         | CaptureLifecycleError::InvalidDeletionRequestDigest
         | CaptureLifecycleError::InvalidDeletionEvidenceDigest
         | CaptureLifecycleError::DeletionReceiptMismatch
-        | CaptureLifecycleError::DeletionReceiptRequestMismatch => {
-            CaptureLifecycleRestoreError::Lifecycle(error)
-        }
+        | CaptureLifecycleError::DeletionReceiptRequestMismatch => error,
         CaptureLifecycleError::InvalidTransition
         | CaptureLifecycleError::TrustedTimeRollback
         | CaptureLifecycleError::InvalidRetentionDeadline
         | CaptureLifecycleError::RetentionNotExpired
-        | CaptureLifecycleError::LegalHoldActive => CaptureLifecycleRestoreError::InvalidPersistedState,
+        | CaptureLifecycleError::LegalHoldActive
+        | CaptureLifecycleError::InvalidRestoredState => CaptureLifecycleError::InvalidRestoredState,
     }
 }
