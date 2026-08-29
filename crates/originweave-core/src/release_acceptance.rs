@@ -549,6 +549,8 @@ pub fn decide_release_with_classified_benchmark_evidence<I>(
 where
     I: IntoIterator<Item = BenchmarkSuiteEvidence>,
 {
+    validate_release_metadata(declared_limitations, zero_event_safety_observations)?;
+
     let mut outcomes = [None; BenchmarkSuite::ALL.len()];
     let mut classified_failures = [None; BenchmarkSuite::ALL.len()];
 
@@ -588,12 +590,10 @@ where
     )
 }
 
-fn decide_release_from_iterator(
-    results: &mut dyn Iterator<Item = (BenchmarkSuite, BenchmarkSuiteOutcome)>,
+fn validate_release_metadata(
     declared_limitations: &[DeclaredLimitation],
     zero_event_safety_observations: &[ZeroEventSafetyObservation],
-    mut benchmark_failures: Vec<BenchmarkFailureEvidence>,
-) -> Result<ReleaseDecisionReport, ReleaseDecisionError> {
+) -> Result<(), ReleaseDecisionError> {
     if declared_limitations.len() > MAX_DECLARED_RELEASE_LIMITATIONS {
         return Err(ReleaseDecisionError::TooManyDeclaredLimitations);
     }
@@ -612,6 +612,18 @@ fn decide_release_from_iterator(
             return Err(ReleaseDecisionError::DuplicateZeroEventSafetyMetric(metric));
         }
     }
+
+    Ok(())
+}
+
+fn decide_release_from_iterator(
+    results: &mut dyn Iterator<Item = (BenchmarkSuite, BenchmarkSuiteOutcome)>,
+    declared_limitations: &[DeclaredLimitation],
+    zero_event_safety_observations: &[ZeroEventSafetyObservation],
+    mut benchmark_failures: Vec<BenchmarkFailureEvidence>,
+) -> Result<ReleaseDecisionReport, ReleaseDecisionError> {
+    validate_release_metadata(declared_limitations, zero_event_safety_observations)?;
+
     let mut canonical_zero_event_safety_observations = zero_event_safety_observations.to_vec();
     canonical_zero_event_safety_observations.sort_by_key(|observation| observation.metric());
 
