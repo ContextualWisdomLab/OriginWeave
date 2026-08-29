@@ -20,8 +20,8 @@ fn duplicate_suite_evidence() -> [BenchmarkSuiteEvidence; 2] {
 }
 
 #[test]
-fn classified_environment_failures_remain_inconclusive_and_are_retained(
-) -> Result<(), ReleaseDecisionError> {
+fn classified_environment_failures_remain_inconclusive_and_are_retained()
+-> Result<(), ReleaseDecisionError> {
     let report = decide_release_with_classified_benchmark_evidence(
         [
             passed(BenchmarkSuite::ControlledDeterministic),
@@ -65,8 +65,8 @@ fn classified_environment_failures_remain_inconclusive_and_are_retained(
 }
 
 #[test]
-fn classified_product_failure_rejects_release_and_retains_cause(
-) -> Result<(), ReleaseDecisionError> {
+fn classified_product_failure_rejects_release_and_retains_cause() -> Result<(), ReleaseDecisionError>
+{
     let report = decide_release_with_classified_benchmark_evidence(
         [
             passed(BenchmarkSuite::ControlledDeterministic),
@@ -101,11 +101,8 @@ fn classified_product_failure_rejects_release_and_retains_cause(
 
 #[test]
 fn duplicate_suite_evidence_still_fails_closed() {
-    let result = decide_release_with_classified_benchmark_evidence(
-        duplicate_suite_evidence(),
-        &[],
-        &[],
-    );
+    let result =
+        decide_release_with_classified_benchmark_evidence(duplicate_suite_evidence(), &[], &[]);
 
     assert_eq!(
         result,
@@ -116,8 +113,8 @@ fn duplicate_suite_evidence_still_fails_closed() {
 }
 
 #[test]
-fn invalid_limitation_metadata_precedes_duplicate_suite_evidence(
-) -> Result<(), ReleaseDecisionError> {
+fn invalid_limitation_metadata_precedes_duplicate_suite_evidence()
+-> Result<(), ReleaseDecisionError> {
     let limitation = DeclaredLimitation::new(
         "unsupported browser profile",
         "buyers must use the supported profile",
@@ -133,8 +130,8 @@ fn invalid_limitation_metadata_precedes_duplicate_suite_evidence(
 }
 
 #[test]
-fn invalid_zero_event_metadata_precedes_duplicate_suite_evidence(
-) -> Result<(), ReleaseDecisionError> {
+fn invalid_zero_event_metadata_precedes_duplicate_suite_evidence()
+-> Result<(), ReleaseDecisionError> {
     let observation = ZeroEventSafetyObservation::new(
         ZeroEventSafetyMetric::UnauthorizedAction,
         ZeroEventSafetyEvidence::new(100, 9500)?,
@@ -179,8 +176,7 @@ impl Iterator for DuplicateThenTracked {
 #[test]
 fn duplicate_suite_stops_consuming_evidence_at_first_duplicate() {
     let mut evidence = DuplicateThenTracked { step: 0 };
-    let result =
-        decide_release_with_classified_benchmark_evidence(&mut evidence, &[], &[]);
+    let result = decide_release_with_classified_benchmark_evidence(&mut evidence, &[], &[]);
 
     assert_eq!(
         result,
