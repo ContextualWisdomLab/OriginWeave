@@ -20,10 +20,7 @@ fn benchmark_failure_classes_have_stable_evidence_identifiers() {
             BenchmarkFailureClass::InfrastructureFailure,
             "infrastructure_failure",
         ),
-        (
-            BenchmarkFailureClass::BenchmarkDefect,
-            "benchmark_defect",
-        ),
+        (BenchmarkFailureClass::BenchmarkDefect, "benchmark_defect"),
     ];
 
     for (classification, identifier) in expected {
