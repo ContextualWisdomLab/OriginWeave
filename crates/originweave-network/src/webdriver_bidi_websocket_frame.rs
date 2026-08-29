@@ -1148,9 +1148,7 @@ mod tests {
             ReadAction::Bytes(vec![0x81, 0]),
         ]);
         let mut now = || start;
-        assert!(
-            read_frame_with_clock(&mut interrupted, Duration::from_secs(1), &mut now).is_ok()
-        );
+        assert!(read_frame_with_clock(&mut interrupted, Duration::from_secs(1), &mut now).is_ok());
 
         let mut would_block = FakeIo::new();
         would_block.reads.extend([
