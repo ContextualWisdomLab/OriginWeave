@@ -147,7 +147,7 @@ fn invalid_benchmark_evidence_preserves_typed_source() -> Result<(), Box<dyn std
     let observation = observation(1_000)?;
     let requirement = requirement()?;
     let duplicate = BenchmarkSuite::ControlledDeterministic;
-    let error = decide_commercial_release_with_zero_event_safety(
+    let error = match decide_commercial_release_with_zero_event_safety(
         [
             BenchmarkSuiteEvidence::Passed(duplicate),
             BenchmarkSuiteEvidence::Passed(duplicate),
@@ -155,8 +155,12 @@ fn invalid_benchmark_evidence_preserves_typed_source() -> Result<(), Box<dyn std
         &[],
         &[observation],
         &[requirement],
-    )
-    .expect_err("duplicate benchmark evidence must fail closed");
+    ) {
+        Err(error) => error,
+        Ok(_) => {
+            return Err(std::io::Error::other("duplicate benchmark evidence was accepted").into());
+        }
+    };
 
     assert_eq!(
         error,
@@ -172,13 +176,17 @@ fn invalid_benchmark_evidence_preserves_typed_source() -> Result<(), Box<dyn std
 #[test]
 fn invalid_safety_policy_preserves_typed_source() -> Result<(), Box<dyn std::error::Error>> {
     let observation = observation(1_000)?;
-    let error = decide_commercial_release_with_zero_event_safety(
+    let error = match decide_commercial_release_with_zero_event_safety(
         passed_benchmarks(),
         &[],
         &[observation],
         &[],
-    )
-    .expect_err("missing safety requirements must fail closed");
+    ) {
+        Err(error) => error,
+        Ok(_) => {
+            return Err(std::io::Error::other("missing safety requirements were accepted").into());
+        }
+    };
 
     assert_eq!(
         error,
