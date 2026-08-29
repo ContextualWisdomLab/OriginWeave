@@ -3,8 +3,8 @@
 use originweave_core::Origin;
 use originweave_policy::{
     DataClassification, DisclosureDecision, DisclosureScope, HandleUseDecision,
-    SensitiveDataAuthority, SensitiveDataRequest, SensitiveHandleUseState, SensitiveValueHandleScope,
-    evaluate_disclosure,
+    SensitiveDataAuthority, SensitiveDataRequest, SensitiveHandleUseState,
+    SensitiveValueHandleScope, evaluate_disclosure,
 };
 
 const TENANT: &str = "tenant_alpha";
@@ -212,10 +212,8 @@ fn every_supported_disclosure_outcome_is_preserved_by_exact_scope() {
 #[test]
 fn opaque_handle_use_is_bound_to_scope_classification_expiry_and_use_count() {
     let exact = exact_authority();
-    let mut authorized_state = SensitiveHandleUseState::new(handle_scope(
-        exact,
-        DataClassification::PersonalData,
-    ));
+    let mut authorized_state =
+        SensitiveHandleUseState::new(handle_scope(exact, DataClassification::PersonalData));
     assert_eq!(
         authorized_state.reserve_use(
             sensitive_authority(exact, DataClassification::PersonalData),
@@ -230,10 +228,8 @@ fn opaque_handle_use_is_bound_to_scope_classification_expiry_and_use_count() {
     );
     assert_handle_scope_mismatch(exact, DataClassification::SensitivePersonalData);
 
-    let mut expired_state = SensitiveHandleUseState::new(handle_scope(
-        exact,
-        DataClassification::PersonalData,
-    ));
+    let mut expired_state =
+        SensitiveHandleUseState::new(handle_scope(exact, DataClassification::PersonalData));
     assert_eq!(
         expired_state.reserve_use(
             sensitive_authority(exact, DataClassification::PersonalData),
@@ -242,10 +238,8 @@ fn opaque_handle_use_is_bound_to_scope_classification_expiry_and_use_count() {
         HandleUseDecision::Expired
     );
 
-    let mut exhausted_state = SensitiveHandleUseState::new(handle_scope(
-        exact,
-        DataClassification::PersonalData,
-    ));
+    let mut exhausted_state =
+        SensitiveHandleUseState::new(handle_scope(exact, DataClassification::PersonalData));
     for now in [1_998, 1_999] {
         assert_eq!(
             exhausted_state.reserve_use(
