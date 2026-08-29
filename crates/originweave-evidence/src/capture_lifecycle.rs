@@ -418,8 +418,8 @@ mod tests {
     }
 
     #[test]
-    fn corrupted_deletion_request_without_digest_fails_closed(
-    ) -> Result<(), CaptureLifecycleError> {
+    fn corrupted_deletion_request_without_digest_fails_closed() -> Result<(), CaptureLifecycleError>
+    {
         let mut lifecycle = CaptureLifecycle {
             manifest_digest: MANIFEST_DIGEST.to_owned(),
             state: CaptureLifecycleState::DeletionRequested,
