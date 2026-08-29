@@ -338,10 +338,9 @@ impl CaptureLifecycle {
             return Err(CaptureLifecycleError::DeletionReceiptMismatch);
         }
         self.require_state(CaptureLifecycleState::DeletionRequested)?;
-        let deletion_request_digest = self
-            .deletion_request_digest
-            .as_deref()
-            .ok_or(CaptureLifecycleError::InvalidTransition)?;
+        let Some(deletion_request_digest) = self.deletion_request_digest.as_deref() else {
+            return Err(CaptureLifecycleError::InvalidTransition);
+        };
         if receipt.deletion_request_digest() != deletion_request_digest {
             return Err(CaptureLifecycleError::DeletionReceiptRequestMismatch);
         }
@@ -427,12 +426,13 @@ mod tests {
             deletion_request_digest: None,
             deletion_receipt: None,
         };
-        let receipt = super::CaptureDeletionReceipt::new(
-            MANIFEST_DIGEST,
-            DELETION_REQUEST_DIGEST,
-            "sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
-        )
-        .expect("valid canonical deletion receipt");
+        let receipt = super::CaptureDeletionReceipt {
+            manifest_digest: MANIFEST_DIGEST.to_owned(),
+            deletion_request_digest: DELETION_REQUEST_DIGEST.to_owned(),
+            evidence_digest:
+                "sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+                    .to_owned(),
+        };
 
         assert_eq!(
             lifecycle.confirm_deleted(&receipt, 201),
