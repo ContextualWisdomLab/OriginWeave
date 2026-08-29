@@ -24,6 +24,7 @@
 mod coherence;
 mod stealth;
 mod ua_hints;
+mod web_audio_guard;
 
 pub use coherence::{CoherenceError, require_hints_coherence};
 pub use stealth::{
@@ -33,6 +34,7 @@ pub use stealth::{
 pub use ua_hints::{
     ClientHintsError, HintsArchitecture, HintsBitness, HintsPlatform, UaBrand, UaClientHints,
 };
+pub use web_audio_guard::{WebAudioDecision, WebAudioFingerprintPolicy, WebAudioPolicyError};
 
 use sha2::{Digest, Sha256};
 use std::error::Error;
