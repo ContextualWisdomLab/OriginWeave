@@ -71,6 +71,27 @@ fn restore_accepts_valid_persisted_states() -> Result<(), Box<dyn Error>> {
         CaptureLifecycleState::LegalHold
     );
 
+    let held_before_retention_deadline = CaptureLifecycle::restore(
+        MANIFEST_DIGEST,
+        CaptureLifecycleState::LegalHold,
+        150,
+        Some(200),
+        None,
+        None,
+    )?;
+    assert_eq!(
+        held_before_retention_deadline.state(),
+        CaptureLifecycleState::LegalHold
+    );
+    assert_eq!(
+        held_before_retention_deadline.retention_deadline_epoch_seconds(),
+        Some(200)
+    );
+    assert_eq!(
+        held_before_retention_deadline.latest_trusted_time_epoch_seconds(),
+        150
+    );
+
     let held_after_retention = CaptureLifecycle::restore(
         MANIFEST_DIGEST,
         CaptureLifecycleState::LegalHold,
@@ -211,6 +232,17 @@ fn restore_rejects_corrupt_persisted_states() -> Result<(), Box<dyn Error>> {
     assert_eq!(
         CaptureLifecycle::restore(
             MANIFEST_DIGEST,
+            CaptureLifecycleState::LegalHold,
+            210,
+            Some(0),
+            None,
+            None,
+        ),
+        Err(CaptureLifecycleError::InvalidRestoredState)
+    );
+    assert_eq!(
+        CaptureLifecycle::restore(
+            MANIFEST_DIGEST,
             CaptureLifecycleState::DeletionRequested,
             200,
             Some(200),
@@ -225,6 +257,17 @@ fn restore_rejects_corrupt_persisted_states() -> Result<(), Box<dyn Error>> {
             CaptureLifecycleState::DeletionRequested,
             199,
             Some(200),
+            Some(DELETION_REQUEST_DIGEST),
+            None,
+        ),
+        Err(CaptureLifecycleError::InvalidRestoredState)
+    );
+    assert_eq!(
+        CaptureLifecycle::restore(
+            MANIFEST_DIGEST,
+            CaptureLifecycleState::DeletionRequested,
+            200,
+            Some(0),
             Some(DELETION_REQUEST_DIGEST),
             None,
         ),
