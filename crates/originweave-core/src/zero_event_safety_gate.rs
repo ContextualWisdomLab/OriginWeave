@@ -283,10 +283,11 @@ where
         Ok(report) => report,
         Err(error) => return Err(error.into()),
     };
-    let zero_event_safety_gate_report = match evaluate_zero_event_safety_gate(requirements, observations) {
-        Ok(report) => report,
-        Err(error) => return Err(error.into()),
-    };
+    let zero_event_safety_gate_report =
+        match evaluate_zero_event_safety_gate(requirements, observations) {
+            Ok(report) => report,
+            Err(error) => return Err(error.into()),
+        };
 
     let decision = match benchmark_report.decision() {
         ReleaseDecision::Rejected => ReleaseDecision::Rejected,
