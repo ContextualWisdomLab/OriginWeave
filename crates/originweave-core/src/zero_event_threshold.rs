@@ -63,9 +63,7 @@ impl ZeroEventSafetyThreshold {
         maximum_upper_event_rate_parts_per_million: u32,
         minimum_confidence_basis_points: u16,
     ) -> Result<Self, ZeroEventSafetyThresholdError> {
-        if maximum_upper_event_rate_parts_per_million
-            > MAX_SAFETY_EVENT_RATE_PARTS_PER_MILLION
-        {
+        if maximum_upper_event_rate_parts_per_million > MAX_SAFETY_EVENT_RATE_PARTS_PER_MILLION {
             return Err(ZeroEventSafetyThresholdError::InvalidUpperRatePartsPerMillion);
         }
         if minimum_confidence_basis_points == 0 || minimum_confidence_basis_points >= 10_000 {
@@ -96,9 +94,8 @@ impl ZeroEventSafetyThreshold {
             return ZeroEventSafetyThresholdOutcome::InsufficientConfidence;
         }
 
-        let maximum_upper_event_rate =
-            f64::from(self.maximum_upper_event_rate_parts_per_million)
-                / f64::from(MAX_SAFETY_EVENT_RATE_PARTS_PER_MILLION);
+        let maximum_upper_event_rate = f64::from(self.maximum_upper_event_rate_parts_per_million)
+            / f64::from(MAX_SAFETY_EVENT_RATE_PARTS_PER_MILLION);
         if evidence.upper_event_rate() <= maximum_upper_event_rate {
             ZeroEventSafetyThresholdOutcome::Satisfied
         } else {
