@@ -554,9 +554,7 @@ where
 
     for entry in evidence {
         let (suite, outcome, failure) = match entry {
-            BenchmarkSuiteEvidence::Passed(suite) => {
-                (suite, BenchmarkSuiteOutcome::Passed, None)
-            }
+            BenchmarkSuiteEvidence::Passed(suite) => (suite, BenchmarkSuiteOutcome::Passed, None),
             BenchmarkSuiteEvidence::Failure {
                 suite,
                 classification,
@@ -574,9 +572,9 @@ where
         classified_failures[index] = failure;
     }
 
-    let mut results = BenchmarkSuite::ALL.into_iter().filter_map(|suite| {
-        outcomes[suite.index()].map(|outcome| (suite, outcome))
-    });
+    let mut results = BenchmarkSuite::ALL
+        .into_iter()
+        .filter_map(|suite| outcomes[suite.index()].map(|outcome| (suite, outcome)));
     let benchmark_failures = BenchmarkSuite::ALL
         .into_iter()
         .filter_map(|suite| classified_failures[suite.index()])
