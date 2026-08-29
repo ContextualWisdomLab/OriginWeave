@@ -223,10 +223,14 @@ class WebAudioPrivacyContractTests(unittest.TestCase):
             self.assertIsInstance(no_primary.exception.__cause__, OSError)
 
             primary = RuntimeError("primary browser failure")
-            with self.assertRaises(cleanup_error_type) as with_primary:
+            with self.assertRaises(RuntimeError) as with_primary:
                 cleanup(9515, "safe-session", primary)
-            self.assertEqual(with_primary.exception.cleanup_error_type, "OSError")
-            self.assertIs(with_primary.exception.__cause__, primary)
+            self.assertIs(with_primary.exception, primary)
+            self.assertIsInstance(with_primary.exception.__context__, OSError)
+            self.assertIn(
+                "WebDriver session cleanup also failed with OSError",
+                getattr(with_primary.exception, "__notes__", []),
+            )
         finally:
             globals_dict["_cleanup_browser_session"] = original_cleanup
 
