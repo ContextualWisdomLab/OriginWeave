@@ -17,6 +17,11 @@ const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
 const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
 const OPENING_RESPONSE: &[u8] = b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n";
 
+type EstablishedWithServer = (
+    originweave_network::WebDriverBiDiWebSocketEstablished,
+    thread::JoinHandle<io::Result<()>>,
+);
+
 fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
     let mut request = Vec::new();
@@ -36,13 +41,7 @@ fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
 
 fn established_with_server_frame(
     frame: Option<&'static [u8]>,
-) -> Result<
-    (
-        originweave_network::WebDriverBiDiWebSocketEstablished,
-        thread::JoinHandle<io::Result<()>>,
-    ),
-    Box<dyn Error>,
-> {
+) -> Result<EstablishedWithServer, Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let server = thread::spawn(move || -> io::Result<()> {
@@ -115,11 +114,15 @@ fn application_frame_after_teardown_does_not_become_closure_evidence() -> Result
 {
     let (established, server) = established_with_server_frame(Some(&[0x81, 0x02, b'o', b'k']))?;
 
-    let error = WebDriverBiDiWebSocketTransportClosureObservation::observe(
+    let Err(error) = WebDriverBiDiWebSocketTransportClosureObservation::observe(
         established,
         Duration::from_millis(500),
-    )
-    .expect_err("an application frame must not become transport-closure evidence");
+    ) else {
+        return Err(io::Error::other(
+            "application frame unexpectedly became transport-closure evidence",
+        )
+        .into());
+    };
 
     server
         .join()
