@@ -331,7 +331,8 @@ fn navigation_observation_rejects_valid_json_with_invalid_required_values()
         br#"{"type":"event","method":"browsingContext.navigationCommitted","params":{"context":"context-a","navigation":null,"timestamp":1,"url":false}}"#,
     ];
     for payload in cases {
-        let (event, registry, session, context) = click_then_observe_navigation_with_event(payload)?;
+        let (event, registry, session, context) =
+            click_then_observe_navigation_with_event(payload)?;
         let result = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
             &event,
             &registry,
@@ -359,7 +360,8 @@ fn navigation_observation_fails_closed_for_wrong_url_or_registered_context()
         context,
         "https://example.test/not-the-post-condition",
     );
-    let Err(wrong_url @ WebDriverBiDiNavigationCommittedObservationError::UnexpectedUrl) = wrong_url
+    let Err(wrong_url @ WebDriverBiDiNavigationCommittedObservationError::UnexpectedUrl) =
+        wrong_url
     else {
         return Err(io::Error::other("wrong URL did not fail closed").into());
     };
