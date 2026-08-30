@@ -74,8 +74,7 @@ fn pointer_click(command_id: u64) -> Result<WebDriverBiDiPointerClickCommand, Bo
 }
 
 #[test]
-fn pointer_click_rejects_duplicate_correlation_before_frame_write()
--> Result<(), Box<dyn Error>> {
+fn pointer_click_rejects_duplicate_correlation_before_frame_write() -> Result<(), Box<dyn Error>> {
     let (established, server) = establish_with_handshake_only_server()?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     correlation.register_command(7)?;
@@ -108,8 +107,8 @@ fn pointer_click_rejects_duplicate_correlation_before_frame_write()
 }
 
 #[test]
-fn pointer_click_preserves_registration_when_frame_timeout_is_invalid()
--> Result<(), Box<dyn Error>> {
+fn pointer_click_preserves_registration_when_frame_timeout_is_invalid() -> Result<(), Box<dyn Error>>
+{
     let (established, server) = establish_with_handshake_only_server()?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     let command = pointer_click(11)?;
