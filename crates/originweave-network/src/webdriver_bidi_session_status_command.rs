@@ -116,6 +116,7 @@ impl Error for WebDriverBiDiSessionStatusCommandError {
 }
 
 #[cfg(test)]
+#[cfg_attr(coverage_nightly, coverage(off))]
 mod tests {
     use std::io;
 
@@ -126,10 +127,12 @@ mod tests {
         let rejected = WebDriverBiDiSessionStatusCommand::new(MAX_WEBDRIVER_BIDI_JS_UINT + 1);
         assert!(matches!(
             rejected,
-            Err(WebDriverBiDiSessionStatusCommandError::CommandIdOutOfRange {
-                maximum_command_id: MAX_WEBDRIVER_BIDI_JS_UINT,
-                ..
-            })
+            Err(
+                WebDriverBiDiSessionStatusCommandError::CommandIdOutOfRange {
+                    maximum_command_id: MAX_WEBDRIVER_BIDI_JS_UINT,
+                    ..
+                }
+            )
         ));
     }
 
