@@ -121,3 +121,28 @@ fn navigation_committed_unicode_scalar_failures_remain_fail_closed_after_real_tr
     }
     Ok(())
 }
+
+#[test]
+fn navigation_committed_extensible_string_escapes_survive_real_transport()
+-> Result<(), Box<dyn Error>> {
+    let payload = r#"{"type":"event","method":"browsingContext.navigationCommitted","meta":"quote:\" slash:\/ backslash:\\ back:\b form:\f newline:\n return:\r tab:\t bmp:\u00AF raw:é","params":{"context":"context-a","navigation":"nav-\u0061","timestamp":1,"url":"https://example.test/after"}}"#;
+    let event = receive_navigation_event(payload.as_bytes())?;
+    let mut registry = BrowserAuthorityRegistry::new();
+    let session = registry.register_session(SESSION_ID)?;
+    let context = registry.register_context(session, "context-a")?;
+
+    let observed = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
+        &event,
+        &registry,
+        session,
+        context,
+        EXPECTED_URL,
+    )?;
+
+    assert_eq!(observed.browser_session(), session);
+    assert_eq!(observed.browsing_context(), context);
+    assert_eq!(observed.navigation_id(), Some("nav-a"));
+    assert_eq!(observed.timestamp(), 1);
+    assert_eq!(observed.url(), EXPECTED_URL);
+    Ok(())
+}
