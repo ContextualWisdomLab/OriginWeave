@@ -25,6 +25,7 @@ const SUCCESS_MESSAGE: &[u8] =
     br#"{"type":"success","id":7,"result":{"ready":true,"slash":"\/","upper":"\uABCD"}}"#;
 const EMPTY_STATUS_RESULT: &[u8] = br#"{"type":"success","id":7,"result":{}}"#;
 const NAVIGATION_COMMITTED_EVENT: &[u8] = br#"{"type":"event","method":"browsingContext.navigationCommitted","params":{"context":"a","navigation":null,"timestamp":0,"url":"x"}}"#;
+const NAVIGATION_COMMITTED_UTF8_EVENT: &str = r#"{"type":"event","method":"browsingContext.navigationCommitted","params":{"context":"a","navigation":null,"timestamp":1,"url":"https://example.test/café"}}"#;
 const NAVIGATION_COMMITTED_MISSING_CONTEXT: &[u8] = br#"{"type":"event","method":"browsingContext.navigationCommitted","params":{"navigation":null,"timestamp":0,"url":"x"}}"#;
 const MALFORMED_NAVIGATION_COMMITTED_EVENT: &[u8] =
     br#"{"type":"event","method":"browsingContext.navigationCommitted","params":"#;
@@ -185,6 +186,17 @@ fn public_navigation_committed_boundary_is_exercised_from_unit_build() -> Result
     assert!(debug.contains("WebDriverBiDiNavigationCommittedObservation"));
     assert!(debug.contains("has_navigation_id: false"));
     assert!(!debug.contains("url: \"x\""));
+
+    let utf8_event = read_text_over_loopback(NAVIGATION_COMMITTED_UTF8_EVENT.as_bytes())?;
+    let utf8_observation = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
+        &utf8_event,
+        &registry,
+        session,
+        context,
+        "https://example.test/café",
+    )?;
+    assert_eq!(utf8_observation.timestamp(), 1);
+    assert_eq!(utf8_observation.url(), "https://example.test/café");
 
     let wrong_url = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
         &event, &registry, session, context, "y",
