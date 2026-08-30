@@ -182,7 +182,7 @@ fn status_projection_accepts_extensible_json_and_unicode_through_real_transport(
 #[test]
 fn status_projection_accepts_all_string_escapes_and_unknown_value_shapes()
 -> Result<(), Box<dyn Error>> {
-    let response = r#"{"type":"success","id":7,"before":{"k":"v"},"result":{"unknown_string":"x","unknown_true":true,"unknown_false":false,"unknown_null":null,"unknown_number":-12.5e+2,"unknown_empty_array":[],"unknown_array":[{},[],"x"],"unknown_empty_object":{},"unknown_object":{"k":"v"},"ready":true,"message":"quote:\" slash:\/ backslash:\\ back:\b form:\f newline:\n return:\r tab:\t bmp:\u00AF raw:é"},"after":[1]}"#
+    let response = r#"{"type":"success","id":7,"before":{"k":"v","sequence":2},"result":{"unknown_string":"x","unknown_true":true,"unknown_false":false,"unknown_null":null,"unknown_number":-12.5e+2,"unknown_empty_array":[],"unknown_array":[{},[],"x"],"unknown_empty_object":{},"unknown_object":{"k":"v","sequence":2},"ready":true,"message":"quote:\" slash:\/ backslash:\\ back:\b form:\f newline:\n return:\r tab:\t bmp:\u00AF raw:é"},"after":[1]}"#
         .as_bytes()
         .to_vec();
     let (parsed, correlation) = parse_response(response)?;
