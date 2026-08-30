@@ -60,6 +60,54 @@ pub enum BapRecoveryAction {
     ReconcileBeforeFurtherAction,
 }
 
+/// Fail-closed parse error for one canonical recovery-action value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BapRecoveryActionParseError {
+    /// The supplied text is not one exact canonical recovery-action value.
+    UnsupportedValue,
+}
+
+impl std::fmt::Display for BapRecoveryActionParseError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UnsupportedValue => {
+                formatter.write_str("BAP recovery action has an unsupported canonical value")
+            }
+        }
+    }
+}
+
+impl std::error::Error for BapRecoveryActionParseError {}
+
+impl BapRecoveryAction {
+    /// Return the exact storage-neutral canonical value for this required recovery action.
+    ///
+    /// The value is protocol metadata only. It is not evidence authentication, policy approval,
+    /// lifecycle authority, or permission to redispatch an interrupted command.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::RevalidateBeforeRedispatch => "revalidate_before_redispatch",
+            Self::VerifyConfirmedSideEffect => "verify_confirmed_side_effect",
+            Self::ReconcileBeforeFurtherAction => "reconcile_before_further_action",
+        }
+    }
+
+    /// Parse one exact storage-neutral canonical recovery-action value.
+    ///
+    /// Aliases, case changes, surrounding whitespace, and other noncanonical values fail closed.
+    /// Parsing reconstructs only the required action classification; callers must still validate
+    /// lifecycle state, evidence identity, and all current authority before taking external action.
+    pub fn parse(value: &str) -> Result<Self, BapRecoveryActionParseError> {
+        match value {
+            "revalidate_before_redispatch" => Ok(Self::RevalidateBeforeRedispatch),
+            "verify_confirmed_side_effect" => Ok(Self::VerifyConfirmedSideEffect),
+            "reconcile_before_further_action" => Ok(Self::ReconcileBeforeFurtherAction),
+            _ => Err(BapRecoveryActionParseError::UnsupportedValue),
+        }
+    }
+}
+
 /// Lifecycle-aware fail-closed recovery disposition for one exact command receipt.
 ///
 /// Unlike [`BapRecoveryAction`], this value incorporates the task lifecycle that owns the
