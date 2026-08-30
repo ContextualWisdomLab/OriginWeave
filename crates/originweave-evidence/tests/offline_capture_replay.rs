@@ -5,7 +5,7 @@ use originweave_evidence::{
     CaptureManifestVerificationError, EvidenceSourceKind, ExtractionCardinality, ExtractionField,
     ExtractionSchema, ExtractionSourceChannel, ExtractionValueType, OfflineReplayVerificationError,
     ProvenanceRecord, VerificationResult, WarcProvBundle, WarcResourceRecord,
-    verify_offline_capture_package, verify_persisted_offline_capture_package,
+    verify_offline_capture_package,
 };
 use sha2::{Digest, Sha256};
 
@@ -51,7 +51,7 @@ fn resource_record() -> WarcResourceRecord {
 }
 
 #[test]
-fn offline_replay_verifies_exact_manifest_evidence_and_structured_result() {
+fn offline_replay_verifies_exact_persisted_manifest_warc_prov_and_structured_result() {
     let schema = schema();
     let record = resource_record();
     let bundle = WarcProvBundle::new(&record, SOFTWARE_COMMIT_SHA).expect("PROV bundle");
@@ -64,12 +64,15 @@ fn offline_replay_verifies_exact_manifest_evidence_and_structured_result() {
     )
     .expect("manifest");
     let serialized_manifest = manifest.to_json();
+    let persisted_warc = record.to_warc_bytes();
+    let persisted_prov = bundle.to_json_ld();
 
     let verification = verify_offline_capture_package(
         &manifest,
         serialized_manifest.as_bytes(),
         &schema,
         &[(&record, &bundle)],
+        &[(&persisted_warc, persisted_prov.as_bytes())],
         std::slice::from_ref(&value),
     )
     .expect("offline replay verification");
@@ -80,7 +83,7 @@ fn offline_replay_verifies_exact_manifest_evidence_and_structured_result() {
 }
 
 #[test]
-fn persisted_offline_replay_rejects_warc_byte_drift() {
+fn offline_replay_rejects_persisted_warc_byte_drift() {
     let schema = schema();
     let record = resource_record();
     let bundle = WarcProvBundle::new(&record, SOFTWARE_COMMIT_SHA).expect("PROV bundle");
@@ -98,7 +101,7 @@ fn persisted_offline_replay_rejects_warc_byte_drift() {
     let persisted_prov = bundle.to_json_ld();
 
     assert_eq!(
-        verify_persisted_offline_capture_package(
+        verify_offline_capture_package(
             &manifest,
             serialized_manifest.as_bytes(),
             &schema,
@@ -107,6 +110,65 @@ fn persisted_offline_replay_rejects_warc_byte_drift() {
             std::slice::from_ref(&value),
         ),
         Err(OfflineReplayVerificationError::WarcBytes { record_index: 0 })
+    );
+}
+
+#[test]
+fn offline_replay_rejects_persisted_prov_byte_drift() {
+    let schema = schema();
+    let record = resource_record();
+    let bundle = WarcProvBundle::new(&record, SOFTWARE_COMMIT_SHA).expect("PROV bundle");
+    let value =
+        CaptureManifestValueBinding::new("title", VALUE_HASH, RECORD_ID).expect("value binding");
+    let manifest = CaptureManifest::new_with_warc_values(
+        &schema,
+        &[(&record, &bundle)],
+        std::slice::from_ref(&value),
+    )
+    .expect("manifest");
+    let serialized_manifest = manifest.to_json();
+    let persisted_warc = record.to_warc_bytes();
+    let mut persisted_prov = bundle.to_json_ld().into_bytes();
+    persisted_prov.push(b' ');
+
+    assert_eq!(
+        verify_offline_capture_package(
+            &manifest,
+            serialized_manifest.as_bytes(),
+            &schema,
+            &[(&record, &bundle)],
+            &[(&persisted_warc, &persisted_prov)],
+            std::slice::from_ref(&value),
+        ),
+        Err(OfflineReplayVerificationError::ProvBytes { record_index: 0 })
+    );
+}
+
+#[test]
+fn offline_replay_rejects_persisted_record_count_mismatch() {
+    let schema = schema();
+    let record = resource_record();
+    let bundle = WarcProvBundle::new(&record, SOFTWARE_COMMIT_SHA).expect("PROV bundle");
+    let value =
+        CaptureManifestValueBinding::new("title", VALUE_HASH, RECORD_ID).expect("value binding");
+    let manifest = CaptureManifest::new_with_warc_values(
+        &schema,
+        &[(&record, &bundle)],
+        std::slice::from_ref(&value),
+    )
+    .expect("manifest");
+    let serialized_manifest = manifest.to_json();
+
+    assert_eq!(
+        verify_offline_capture_package(
+            &manifest,
+            serialized_manifest.as_bytes(),
+            &schema,
+            &[(&record, &bundle)],
+            &[],
+            std::slice::from_ref(&value),
+        ),
+        Err(OfflineReplayVerificationError::PersistedRecordCountMismatch)
     );
 }
 
@@ -125,6 +187,8 @@ fn offline_replay_rejects_persisted_manifest_byte_drift_before_evidence_replay()
     .expect("manifest");
     let mut serialized_manifest = manifest.to_json().into_bytes();
     serialized_manifest.push(b' ');
+    let persisted_warc = record.to_warc_bytes();
+    let persisted_prov = bundle.to_json_ld();
 
     assert_eq!(
         verify_offline_capture_package(
@@ -132,6 +196,7 @@ fn offline_replay_rejects_persisted_manifest_byte_drift_before_evidence_replay()
             &serialized_manifest,
             &schema,
             &[(&record, &bundle)],
+            &[(&persisted_warc, persisted_prov.as_bytes())],
             std::slice::from_ref(&value),
         ),
         Err(OfflineReplayVerificationError::ManifestBytes(
@@ -156,6 +221,8 @@ fn offline_replay_rejects_structured_result_identity_drift() {
     )
     .expect("manifest");
     let serialized_manifest = manifest.to_json();
+    let persisted_warc = record.to_warc_bytes();
+    let persisted_prov = bundle.to_json_ld();
 
     assert_eq!(
         verify_offline_capture_package(
@@ -163,6 +230,7 @@ fn offline_replay_rejects_structured_result_identity_drift() {
             serialized_manifest.as_bytes(),
             &schema,
             &[(&record, &bundle)],
+            &[(&persisted_warc, persisted_prov.as_bytes())],
             std::slice::from_ref(&drifted_value),
         ),
         Err(OfflineReplayVerificationError::Evidence(
@@ -192,6 +260,7 @@ fn offline_replay_rejects_missing_warc_evidence() {
             serialized_manifest.as_bytes(),
             &schema,
             &[],
+            &[],
             std::slice::from_ref(&value),
         ),
         Err(OfflineReplayVerificationError::Evidence(
@@ -208,6 +277,9 @@ fn offline_replay_errors_preserve_typed_diagnostics_and_sources() {
     let evidence_error = OfflineReplayVerificationError::Evidence(
         CaptureManifestVerificationError::IdentityMismatch,
     );
+    let count_error = OfflineReplayVerificationError::PersistedRecordCountMismatch;
+    let warc_error = OfflineReplayVerificationError::WarcBytes { record_index: 2 };
+    let prov_error = OfflineReplayVerificationError::ProvBytes { record_index: 3 };
 
     assert_eq!(
         manifest_error.to_string(),
@@ -218,6 +290,18 @@ fn offline_replay_errors_preserve_typed_diagnostics_and_sources() {
         "offline replay capture evidence failed verification: capture manifest identity does not match"
     );
     assert_eq!(
+        count_error.to_string(),
+        "offline replay persisted WARC/PROV record count does not match typed evidence"
+    );
+    assert_eq!(
+        warc_error.to_string(),
+        "offline replay persisted WARC bytes failed verification at record 2"
+    );
+    assert_eq!(
+        prov_error.to_string(),
+        "offline replay persisted PROV bytes failed verification at record 3"
+    );
+    assert_eq!(
         std::error::Error::source(&manifest_error).map(ToString::to_string),
         Some("capture manifest identity does not match".to_owned())
     );
@@ -225,4 +309,7 @@ fn offline_replay_errors_preserve_typed_diagnostics_and_sources() {
         std::error::Error::source(&evidence_error).map(ToString::to_string),
         Some("capture manifest identity does not match".to_owned())
     );
+    assert!(std::error::Error::source(&count_error).is_none());
+    assert!(std::error::Error::source(&warc_error).is_none());
+    assert!(std::error::Error::source(&prov_error).is_none());
 }
