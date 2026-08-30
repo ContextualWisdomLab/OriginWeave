@@ -116,7 +116,6 @@ impl Error for WebDriverBiDiSessionStatusCommandError {
 }
 
 #[cfg(test)]
-#[cfg_attr(coverage_nightly, coverage(off))]
 mod tests {
     use std::io;
 
@@ -137,15 +136,15 @@ mod tests {
     }
 
     #[test]
-    fn command_serialization_is_static_and_exact()
-    -> Result<(), WebDriverBiDiSessionStatusCommandError> {
-        let command = WebDriverBiDiSessionStatusCommand::new(42)?;
-        assert_eq!(command.command_id(), 42);
+    fn command_serialization_is_static_and_exact() {
+        let serialized = WebDriverBiDiSessionStatusCommand::new(42).map(|command| {
+            assert_eq!(command.command_id(), 42);
+            command.serialized()
+        });
         assert_eq!(
-            command.serialized(),
-            r#"{"id":42,"method":"session.status","params":{}}"#
+            serialized.as_deref(),
+            Ok(r#"{"id":42,"method":"session.status","params":{}}"#)
         );
-        Ok(())
     }
 
     #[test]
