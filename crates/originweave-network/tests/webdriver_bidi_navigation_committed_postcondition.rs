@@ -12,7 +12,8 @@ use originweave_core::{
 };
 use originweave_network::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiNavigationCommittedObservation,
-    WebDriverBiDiNavigationCommittedObservationError, WebDriverBiDiPointerClickResult,
+    WebDriverBiDiNavigationCommittedObservationError,
+    WebDriverBiDiNavigationCommittedProjectionError, WebDriverBiDiPointerClickResult,
     WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
     WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
     WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
@@ -111,7 +112,9 @@ fn assemble_text(
     }
 }
 
-fn click_then_observe_navigation() -> Result<
+fn click_then_observe_navigation_with_event(
+    event_payload: &[u8],
+) -> Result<
     (
         WebDriverBiDiWebSocketTextMessage,
         BrowserAuthorityRegistry,
@@ -128,6 +131,7 @@ fn click_then_observe_navigation() -> Result<
         &WebDriverBiDiRemoteNodeReference::new("node", Some("shared-node-42"))?,
     )?;
     let expected_json = expected.as_json().as_bytes().to_vec();
+    let event_payload = event_payload.to_vec();
 
     let server = thread::spawn(move || -> io::Result<()> {
         let (mut stream, _) = listener.accept()?;
@@ -141,7 +145,7 @@ fn click_then_observe_navigation() -> Result<
             ));
         }
         write_unmasked_text_frame(&mut stream, CLICK_SUCCESS_RESPONSE)?;
-        write_unmasked_text_frame(&mut stream, NAVIGATION_COMMITTED_EVENT)
+        write_unmasked_text_frame(&mut stream, &event_payload)
     });
 
     let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
@@ -192,6 +196,18 @@ fn click_then_observe_navigation() -> Result<
     Ok((event_text, registry, session, context))
 }
 
+fn click_then_observe_navigation() -> Result<
+    (
+        WebDriverBiDiWebSocketTextMessage,
+        BrowserAuthorityRegistry,
+        originweave_core::BrowserSessionId,
+        originweave_core::BrowsingContextId,
+    ),
+    Box<dyn Error>,
+> {
+    click_then_observe_navigation_with_event(NAVIGATION_COMMITTED_EVENT)
+}
+
 #[test]
 fn navigation_committed_event_proves_exact_context_and_declared_url_post_condition()
 -> Result<(), Box<dyn Error>> {
@@ -209,6 +225,125 @@ fn navigation_committed_event_proves_exact_context_and_declared_url_post_conditi
     assert_eq!(observation.navigation_id(), Some("nav-42"));
     assert_eq!(observation.timestamp(), 1234);
     assert_eq!(observation.url(), EXPECTED_URL);
+    let debug = format!("{observation:?}");
+    assert!(debug.contains("has_navigation_id: true"));
+    assert!(debug.contains("url_bytes"));
+    assert!(!debug.contains("nav-42"));
+    assert!(!debug.contains(EXPECTED_URL));
+    Ok(())
+}
+
+#[test]
+fn navigation_observation_accepts_extensible_valid_json_without_retaining_extension_values()
+-> Result<(), Box<dyn Error>> {
+    let payload = br#"{"type":"event","method":"browsingContext.navigationCommitted","meta":{"escaped":"\"\\\/\b\f\n\r\t\u0061\ud83d\ude80","items":[null,true,false,-2.5e+3,{"nested":"value"}]},"params":{"context":"context-a","navigation":null,"timestamp":0,"url":"https:\/\/example.test\/after","vendor":["café",{"nested":true}]}}"#;
+    let (event, registry, session, context) = click_then_observe_navigation_with_event(payload)?;
+    let observation = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
+        &event,
+        &registry,
+        session,
+        context,
+        EXPECTED_URL,
+    )?;
+    assert_eq!(observation.navigation_id(), None);
+    assert_eq!(observation.timestamp(), 0);
+    assert_eq!(observation.url(), EXPECTED_URL);
+    let debug = format!("{observation:?}");
+    assert!(debug.contains("has_navigation_id: false"));
+    assert!(!debug.contains("café"));
+    Ok(())
+}
+
+#[test]
+fn navigation_observation_fails_closed_for_envelope_event_and_projection_errors()
+-> Result<(), Box<dyn Error>> {
+    let malformed = br#"{"type":"event","method":"browsingContext.navigationCommitted","params":#;
+    let (event, registry, session, context) = click_then_observe_navigation_with_event(malformed)?;
+    let envelope_error = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
+        &event,
+        &registry,
+        session,
+        context,
+        EXPECTED_URL,
+    );
+    let Err(WebDriverBiDiNavigationCommittedObservationError::Envelope { source }) = envelope_error
+    else {
+        return Err(io::Error::other("malformed event did not fail at envelope validation").into());
+    };
+    assert!(!source.to_string().is_empty());
+    assert!(!WebDriverBiDiNavigationCommittedObservationError::Envelope { source }
+        .to_string()
+        .is_empty());
+
+    let other_event = br#"{"type":"event","method":"browsingContext.load","params":{}}"#;
+    let (event, registry, session, context) =
+        click_then_observe_navigation_with_event(other_event)?;
+    let unexpected = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
+        &event,
+        &registry,
+        session,
+        context,
+        EXPECTED_URL,
+    );
+    let Err(unexpected @ WebDriverBiDiNavigationCommittedObservationError::UnexpectedEvent) =
+        unexpected
+    else {
+        return Err(io::Error::other("different event method was not rejected").into());
+    };
+    assert!(!unexpected.to_string().is_empty());
+    assert!(unexpected.source().is_none());
+
+    let missing_context = br#"{"type":"event","method":"browsingContext.navigationCommitted","params":{"navigation":null,"timestamp":1,"url":"https://example.test/after"}}"#;
+    let (event, registry, session, context) =
+        click_then_observe_navigation_with_event(missing_context)?;
+    let projection = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
+        &event,
+        &registry,
+        session,
+        context,
+        EXPECTED_URL,
+    );
+    let Err(WebDriverBiDiNavigationCommittedObservationError::Projection { source }) = projection
+    else {
+        return Err(io::Error::other("missing context did not fail at typed projection").into());
+    };
+    assert!(matches!(
+        source,
+        WebDriverBiDiNavigationCommittedProjectionError::MissingRequiredMember {
+            member: "context"
+        }
+    ));
+    let projection_error = WebDriverBiDiNavigationCommittedObservationError::Projection { source };
+    assert!(!projection_error.to_string().is_empty());
+    assert!(projection_error.source().is_some());
+    Ok(())
+}
+
+#[test]
+fn navigation_observation_rejects_valid_json_with_invalid_required_values()
+-> Result<(), Box<dyn Error>> {
+    let cases: &[&[u8]] = &[
+        br#"{"type":"event","method":"browsingContext.navigationCommitted","params":{"context":"bad context","navigation":null,"timestamp":1,"url":"https://example.test/after"}}"#,
+        br#"{"type":"event","method":"browsingContext.navigationCommitted","params":{"context":"context-a","navigation":false,"timestamp":1,"url":"https://example.test/after"}}"#,
+        br#"{"type":"event","method":"browsingContext.navigationCommitted","params":{"context":"context-a","navigation":null,"timestamp":-1,"url":"https://example.test/after"}}"#,
+        br#"{"type":"event","method":"browsingContext.navigationCommitted","params":{"context":"context-a","navigation":null,"timestamp":1.5,"url":"https://example.test/after"}}"#,
+        br#"{"type":"event","method":"browsingContext.navigationCommitted","params":{"context":"context-a","navigation":null,"timestamp":"1","url":"https://example.test/after"}}"#,
+        br#"{"type":"event","method":"browsingContext.navigationCommitted","params":{"context":"context-a","navigation":null,"timestamp":1,"url":false}}"#,
+    ];
+    for payload in cases {
+        let (event, registry, session, context) = click_then_observe_navigation_with_event(payload)?;
+        let result = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
+            &event,
+            &registry,
+            session,
+            context,
+            EXPECTED_URL,
+        );
+        assert!(matches!(
+            result,
+            Err(WebDriverBiDiNavigationCommittedObservationError::Projection { .. })
+        ));
+    }
     Ok(())
 }
 
@@ -224,10 +359,12 @@ fn navigation_observation_fails_closed_for_wrong_url_or_registered_context()
         context,
         "https://example.test/not-the-post-condition",
     );
-    assert!(matches!(
-        wrong_url,
-        Err(WebDriverBiDiNavigationCommittedObservationError::UnexpectedUrl)
-    ));
+    let Err(wrong_url @ WebDriverBiDiNavigationCommittedObservationError::UnexpectedUrl) = wrong_url
+    else {
+        return Err(io::Error::other("wrong URL did not fail closed").into());
+    };
+    assert!(!wrong_url.to_string().is_empty());
+    assert!(wrong_url.source().is_none());
 
     let other_context = registry.register_context(session, "context-b")?;
     let wrong_context = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
@@ -237,10 +374,15 @@ fn navigation_observation_fails_closed_for_wrong_url_or_registered_context()
         other_context,
         EXPECTED_URL,
     );
-    assert!(matches!(
-        wrong_context,
-        Err(WebDriverBiDiNavigationCommittedObservationError::ContextBinding { .. })
-    ));
+    let Err(WebDriverBiDiNavigationCommittedObservationError::ContextBinding { source }) =
+        wrong_context
+    else {
+        return Err(io::Error::other("wrong registered context did not fail closed").into());
+    };
+    assert!(!source.to_string().is_empty());
+    let context_error = WebDriverBiDiNavigationCommittedObservationError::ContextBinding { source };
+    assert!(!context_error.to_string().is_empty());
+    assert!(context_error.source().is_some());
     assert_eq!(registry.current_context_epoch(session, context)?.value(), 1);
     assert_eq!(
         registry
