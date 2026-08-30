@@ -89,6 +89,28 @@ fn validated_peer_close_frame_yields_nonforgeable_transport_observation()
 }
 
 #[test]
+fn one_unsolicited_pong_before_close_does_not_block_closure_observation()
+-> Result<(), Box<dyn Error>> {
+    let (established, server) =
+        established_with_server_frame(Some(&[0x8a, 0x00, 0x88, 0x02, 0x03, 0xe8]))?;
+
+    let observation = WebDriverBiDiWebSocketTransportClosureObservation::observe(
+        established,
+        Duration::from_millis(500),
+    )?;
+
+    server
+        .join()
+        .map_err(|_| io::Error::other("pong-before-close test server panicked"))??;
+    assert_eq!(
+        observation.kind(),
+        WebDriverBiDiWebSocketTransportClosureKind::PeerCloseFrame
+    );
+    assert_eq!(observation.peer_close_status_code(), Some(1000));
+    Ok(())
+}
+
+#[test]
 fn clean_peer_eof_yields_transport_observation_without_inventing_close_status()
 -> Result<(), Box<dyn Error>> {
     let (established, server) = established_with_server_frame(None)?;
