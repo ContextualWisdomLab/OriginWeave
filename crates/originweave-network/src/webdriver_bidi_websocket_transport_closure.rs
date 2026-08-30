@@ -41,9 +41,11 @@ impl WebDriverBiDiWebSocketTransportClosureObservation {
         match established.read_frame(frame_timeout) {
             Ok((established, frame)) => {
                 if frame.opcode() != 0x8 {
-                    return Err(WebDriverBiDiWebSocketTransportClosureError::UnexpectedFrame {
-                        opcode: frame.opcode(),
-                    });
+                    return Err(
+                        WebDriverBiDiWebSocketTransportClosureError::UnexpectedFrame {
+                            opcode: frame.opcode(),
+                        },
+                    );
                 }
                 let peer_close_status_code = frame
                     .payload()
@@ -96,8 +98,9 @@ impl fmt::Display for WebDriverBiDiWebSocketTransportClosureError {
         match self {
             Self::UnexpectedFrame { .. } => formatter
                 .write_str("WebDriver BiDi peer sent application traffic instead of closing"),
-            Self::Frame { .. } => formatter
-                .write_str("WebDriver BiDi transport closure could not be observed safely"),
+            Self::Frame { .. } => {
+                formatter.write_str("WebDriver BiDi transport closure could not be observed safely")
+            }
         }
     }
 }
