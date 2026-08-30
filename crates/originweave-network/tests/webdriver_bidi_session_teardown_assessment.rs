@@ -66,8 +66,13 @@ fn read_masked_text_frame(stream: &mut TcpStream) -> io::Result<Vec<u8>> {
     Ok(payload)
 }
 
-fn correlated_session_end_ack_and_transport()
--> Result<(WebDriverBiDiSessionEndResult, WebDriverBiDiWebSocketEstablished), Box<dyn Error>> {
+fn correlated_session_end_ack_and_transport() -> Result<
+    (
+        WebDriverBiDiSessionEndResult,
+        WebDriverBiDiWebSocketEstablished,
+    ),
+    Box<dyn Error>,
+> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let server = thread::spawn(move || -> io::Result<()> {
@@ -115,8 +120,7 @@ fn correlated_session_end_ack_and_transport()
             .into());
         }
     };
-    let acknowledged =
-        WebDriverBiDiSessionEndResult::parse_and_correlate(&text, &mut correlation)?;
+    let acknowledged = WebDriverBiDiSessionEndResult::parse_and_correlate(&text, &mut correlation)?;
     server
         .join()
         .map_err(|_| io::Error::other("session.end teardown test server panicked"))??;
