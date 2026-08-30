@@ -9,9 +9,8 @@
 //! unmasked server-frame reads, assembles bounded WebDriver BiDi text messages,
 //! classifies complete local-end JSON envelopes, tracks bounded command-response
 //! correlation, sends narrowly typed `session.status` and `session.end` commands,
-//! and admits the required readiness result through one command-specific correlated
-//! parser without exposing generic JSON bodies or granting browser, TLS, policy,
-//! secret, or Agent authority.
+//! and admits typed correlated status and end responses without exposing generic
+//! JSON bodies or granting browser, TLS, policy, secret, or Agent authority.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -21,6 +20,7 @@ mod webdriver_bidi_command_correlation;
 mod webdriver_bidi_connection;
 mod webdriver_bidi_json_envelope;
 mod webdriver_bidi_session_end_command;
+mod webdriver_bidi_session_end_response;
 mod webdriver_bidi_session_status_command;
 mod webdriver_bidi_session_status_response;
 mod webdriver_bidi_websocket_frame;
@@ -50,6 +50,9 @@ pub use webdriver_bidi_json_envelope::{
 };
 pub use webdriver_bidi_session_end_command::{
     WebDriverBiDiSessionEndCommand, WebDriverBiDiSessionEndCommandError,
+};
+pub use webdriver_bidi_session_end_response::{
+    WebDriverBiDiSessionEndResponseError, WebDriverBiDiSessionEndResult,
 };
 pub use webdriver_bidi_session_status_command::{
     WebDriverBiDiSessionStatusCommand, WebDriverBiDiSessionStatusCommandError,
