@@ -6,7 +6,10 @@ use std::{
     time::Duration,
 };
 
-use originweave_core::{WebDriverBiDiPointerClickCommand, WebDriverBiDiRemoteNodeReference, WebDriverBiDiWebSocketEndpoint};
+use originweave_core::{
+    WebDriverBiDiPointerClickCommand, WebDriverBiDiRemoteNodeReference,
+    WebDriverBiDiWebSocketEndpoint,
+};
 use originweave_network::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
