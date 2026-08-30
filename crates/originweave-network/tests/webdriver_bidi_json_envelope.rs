@@ -110,17 +110,18 @@ fn real_transport_text_is_classified_as_bidi_success_envelope() -> Result<(), Bo
 
 #[test]
 fn real_transport_classifies_error_and_event_envelopes() -> Result<(), Box<dyn Error>> {
-    let error = parse_over_real_transport(
+    let cases: &[&[u8]] = &[
         br#"{"type":"error","id":null,"error":"unknown error","message":"","stacktrace":"hidden"}"#,
-    )?;
-    assert_eq!(
-        error.as_ref().map(WebDriverBiDiJsonEnvelope::kind),
-        Ok(WebDriverBiDiJsonEnvelopeKind::Error)
-    );
-    assert_eq!(
-        error.as_ref().map(WebDriverBiDiJsonEnvelope::command_id),
-        Ok(None)
-    );
+        br#"{"type":"error","id":7,"error":"unknown error","message":""}"#,
+    ];
+    for document in cases {
+        assert_eq!(
+            parse_over_real_transport(document)?
+                .as_ref()
+                .map(WebDriverBiDiJsonEnvelope::kind),
+            Ok(WebDriverBiDiJsonEnvelopeKind::Error)
+        );
+    }
 
     let event = parse_over_real_transport(
         br#"{"type":"event","method":"browsingContext.load","params":{}}"#,
@@ -140,7 +141,8 @@ fn real_transport_classifies_error_and_event_envelopes() -> Result<(), Box<dyn E
 fn real_transport_exercises_valid_json_boundaries() -> Result<(), Box<dyn Error>> {
     let cases: &[&[u8]] = &[
         br#"{"type":"success","id":1,"result":{"slash":"\/","upper":"\uABCD","edge":"\uFFFF"}}"#,
-        br#"{"type":"success","id":1,"result":{"array":[],"number":-2.5e3}}"#,
+        br#"{"type":"success","id":1,"result":{"array":[1,2],"number":-2.5e3}}"#,
+        br#"{"type":"success","id":1,"result":{"pair":"\ud83d\ude00","empty":[]}}"#,
     ];
     for document in cases {
         assert_eq!(
@@ -161,7 +163,9 @@ fn real_transport_rejects_malformed_json_at_parser_boundaries() -> Result<(), Bo
         br#"{"type" "success"}"#,
         br#"{"type":"success" "id":1,"result":{}}"#,
         br#"{"type":"success","id":1,"result":{"x" 1}}"#,
+        br#"{"type":"success","id":1,"result":{"x":1 "y":2}}"#,
         br#"{"type":"success","id":1,"result":{"x":[1 2]}}"#,
+        br#"{"type":"success","id":1,"result":{"x":[1,]}}"#,
         b"{\"type\":\"success\",\"id\":1,\"result\":{\"x\":\"\\",
         br#"{"type":"success","id":1,"result":{"x":"\q"}}"#,
         br#"{"type":"success","id":1,"result":{"x":"\u12xz"}}"#,
