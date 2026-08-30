@@ -69,7 +69,8 @@ fn established_with_server_frame(
 }
 
 #[test]
-fn validated_peer_close_frame_yields_nonforgeable_transport_observation() -> Result<(), Box<dyn Error>> {
+fn validated_peer_close_frame_yields_nonforgeable_transport_observation()
+-> Result<(), Box<dyn Error>> {
     let (established, server) = established_with_server_frame(Some(&[0x88, 0x02, 0x03, 0xe8]))?;
 
     let observation = WebDriverBiDiWebSocketTransportClosureObservation::observe(
@@ -89,7 +90,8 @@ fn validated_peer_close_frame_yields_nonforgeable_transport_observation() -> Res
 }
 
 #[test]
-fn clean_peer_eof_yields_transport_observation_without_inventing_close_status() -> Result<(), Box<dyn Error>> {
+fn clean_peer_eof_yields_transport_observation_without_inventing_close_status()
+-> Result<(), Box<dyn Error>> {
     let (established, server) = established_with_server_frame(None)?;
 
     let observation = WebDriverBiDiWebSocketTransportClosureObservation::observe(
@@ -109,7 +111,8 @@ fn clean_peer_eof_yields_transport_observation_without_inventing_close_status() 
 }
 
 #[test]
-fn application_frame_after_teardown_does_not_become_closure_evidence() -> Result<(), Box<dyn Error>> {
+fn application_frame_after_teardown_does_not_become_closure_evidence() -> Result<(), Box<dyn Error>>
+{
     let (established, server) = established_with_server_frame(Some(&[0x81, 0x02, b'o', b'k']))?;
 
     let error = WebDriverBiDiWebSocketTransportClosureObservation::observe(
