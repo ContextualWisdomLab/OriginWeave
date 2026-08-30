@@ -7,8 +7,9 @@ use std::{
 };
 
 use originweave_core::{
-    BrowserAuthorityRegistry, MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES, WebDriverBiDiPointerClickCommand,
-    WebDriverBiDiRemoteNodeReference, WebDriverBiDiWebSocketEndpoint,
+    BrowserAuthorityRegistry, MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES,
+    WebDriverBiDiPointerClickCommand, WebDriverBiDiRemoteNodeReference,
+    WebDriverBiDiWebSocketEndpoint,
 };
 use originweave_network::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiNavigationCommittedObservation,
@@ -381,9 +382,11 @@ fn navigation_observation_rejects_valid_json_with_invalid_required_values()
     );
     assert!(matches!(
         result,
-        Err(WebDriverBiDiNavigationCommittedObservationError::Projection {
-            source: WebDriverBiDiNavigationCommittedProjectionError::InvalidContextIdentifier
-        })
+        Err(
+            WebDriverBiDiNavigationCommittedObservationError::Projection {
+                source: WebDriverBiDiNavigationCommittedProjectionError::InvalidContextIdentifier
+            }
+        )
     ));
     Ok(())
 }
