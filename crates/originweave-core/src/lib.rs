@@ -28,6 +28,7 @@ mod browser_protocol;
 mod browser_protocol_dispatch;
 mod browser_protocol_operation;
 mod browser_registry;
+mod browser_registry_external_context;
 #[cfg(test)]
 mod browser_registry_coverage;
 mod contracts;
