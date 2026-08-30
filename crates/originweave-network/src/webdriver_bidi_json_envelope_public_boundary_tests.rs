@@ -221,13 +221,10 @@ fn public_navigation_committed_boundary_is_exercised_from_unit_build() -> Result
 
     let malformed = read_text_over_loopback(MALFORMED_NAVIGATION_COMMITTED_EVENT)?;
     let envelope = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
-        &malformed,
-        &registry,
-        session,
-        context,
-        "x",
+        &malformed, &registry, session, context, "x",
     );
-    let Err(WebDriverBiDiNavigationCommittedObservationError::Envelope { source }) = envelope else {
+    let Err(WebDriverBiDiNavigationCommittedObservationError::Envelope { source }) = envelope
+    else {
         return Err(io::Error::other("malformed event did not fail at envelope validation").into());
     };
     assert!(!source.to_string().is_empty());
