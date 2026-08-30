@@ -1,6 +1,4 @@
-use crate::{
-    WebDriverBiDiSessionEndResult, WebDriverBiDiWebSocketTransportClosureObservation,
-};
+use crate::{WebDriverBiDiSessionEndResult, WebDriverBiDiWebSocketTransportClosureObservation};
 
 /// Fail-closed operational disposition derived from explicit teardown observations.
 ///
