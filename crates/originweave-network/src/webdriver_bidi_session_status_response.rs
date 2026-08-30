@@ -68,18 +68,15 @@ impl WebDriverBiDiSessionStatusResult {
                 })
             }
             WebDriverBiDiJsonEnvelopeKind::Error => {
-                let error_code = retain_validated_error_code(envelope.error_code())?;
-                let completed = correlation
-                    .correlate_response(&envelope)
-                    .map_err(
-                        |source| WebDriverBiDiSessionStatusResponseError::Correlation { source },
-                    )?;
-                Err(
-                    WebDriverBiDiSessionStatusResponseError::RemoteProtocolError {
+                retain_validated_error_code(envelope.error_code()).and_then(|error_code| {
+                    let completed = correlation.correlate_response(&envelope).map_err(|source| {
+                        WebDriverBiDiSessionStatusResponseError::Correlation { source }
+                    })?;
+                    Err(WebDriverBiDiSessionStatusResponseError::RemoteProtocolError {
                         command_id: completed.command_id(),
                         error_code,
-                    },
-                )
+                    })
+                })
             }
             WebDriverBiDiJsonEnvelopeKind::Event => {
                 Err(WebDriverBiDiSessionStatusResponseError::Correlation {
@@ -207,11 +204,11 @@ impl Error for WebDriverBiDiSessionStatusResponseError {
 fn retain_validated_error_code(
     error_code: Option<&str>,
 ) -> Result<String, WebDriverBiDiSessionStatusResponseError> {
-    error_code.map(str::to_owned).ok_or(
-        WebDriverBiDiSessionStatusResponseError::Envelope {
+    error_code
+        .map(str::to_owned)
+        .ok_or(WebDriverBiDiSessionStatusResponseError::Envelope {
             source: WebDriverBiDiJsonEnvelopeError::MissingRequiredMember { member: "error" },
-        },
-    )
+        })
 }
 
 struct StatusProjection {
@@ -481,26 +478,26 @@ impl<'a> ProjectionCursor<'a> {
                     }
                 }
                 0x00..=0x1f => return None,
-                _ if byte.is_ascii() => {
-                    output.push(char::from(byte));
+                0x20..=0x7f => {
                     self.index += 1;
+                    output.push(char::from(byte));
                 }
                 _ => {
-                    let width = byte.leading_ones() as usize;
-                    let end = self.index + width;
-                    output.push_str(&self.input[self.index..end]);
-                    self.index = end;
+                    let tail = self.input.get(self.index..)?;
+                    let character = tail.chars().next()?;
+                    self.index += character.len_utf8();
+                    output.push(character);
                 }
             }
         }
     }
 
     fn parse_escape(&mut self, output: &mut String) -> bool {
-        let Some(escape) = self.current_byte() else {
+        let Some(escaped) = self.current_byte() else {
             return false;
         };
         self.index += 1;
-        match escape {
+        match escaped {
             b'"' => output.push('"'),
             b'\\' => output.push('\\'),
             b'/' => output.push('/'),
@@ -529,30 +526,44 @@ impl<'a> ProjectionCursor<'a> {
             if !(0xdc00..=0xdfff).contains(&second) {
                 return false;
             }
-            output.push_str(&String::from_utf16_lossy(&[first, second]));
+            let scalar = 0x1_0000
+                + ((u32::from(first) - 0xd800) << 10)
+                + (u32::from(second) - 0xdc00);
+            let Some(character) = char::from_u32(scalar) else {
+                return false;
+            };
+            output.push(character);
             true
         } else if (0xdc00..=0xdfff).contains(&first) {
             false
         } else {
-            output.push_str(&String::from_utf16_lossy(&[first]));
+            let Some(character) = char::from_u32(u32::from(first)) else {
+                return false;
+            };
+            output.push(character);
             true
         }
     }
 
     fn parse_hex_u16(&mut self) -> Option<u16> {
+        let end = self.index.checked_add(4)?;
+        let digits = self.input.as_bytes().get(self.index..end)?;
         let mut value = 0_u16;
-        for _ in 0..4 {
-            let byte = self.current_byte()?;
-            let digit = match byte {
-                b'0'..=b'9' => u16::from(byte - b'0'),
-                b'a'..=b'f' => u16::from(byte - b'a' + 10),
-                b'A'..=b'F' => u16::from(byte - b'A' + 10),
-                _ => return None,
-            };
-            value = (value << 4) | digit;
-            self.index += 1;
+        for byte in digits {
+            value = value.checked_mul(16)?;
+            value = value.checked_add(u16::from(hex_digit(*byte)?))?;
         }
+        self.index = end;
         Some(value)
+    }
+}
+
+fn hex_digit(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
     }
 }
 
@@ -561,61 +572,89 @@ mod tests {
     use super::*;
 
     #[test]
-    fn projection_accepts_required_fields_unknown_metadata_and_escaped_keys() {
-        let projected = StatusProjection::parse(
-            r#"{"meta":[null,true,false,1,-2.5e+3,{"nested":"value"}],"re\u0073ult":{"message":"re\u0061dy \ud83d\ude80","extra":{},"ready":false}}"#,
-        );
-        assert!(projected.is_ok());
-        let projected = projected.ok();
-        assert_eq!(projected.as_ref().map(|value| value.ready), Some(false));
-        assert_eq!(
-            projected.as_ref().map(|value| value.message.as_str()),
-            Some("ready 🚀")
-        );
+    fn status_projection_covers_required_and_extensible_members() {
+        let projection = StatusProjection::parse(
+            r#"{"type":"success","id":7,"ignored":[null,true,false,1,-2.5e+3,{"nested":"value"}],"result":{"unknown":{},"ready":false,"message":"a\n\u0042"}}"#,
+        )
+        .expect("valid projection");
+        assert!(!projection.ready);
+        assert_eq!(projection.message, "a\nB");
 
-        let spaced = StatusProjection::parse(
-            "\n\t { \r\n \"result\" : { \"ready\" : true , \"message\" : \"ok\" } }",
-        );
-        assert!(spaced.is_ok());
+        let projection = StatusProjection::parse(
+            r#" { "result" : { "ready" : true , "message" : "ok" } } "#,
+        )
+        .expect("whitespace projection");
+        assert!(projection.ready);
+        assert_eq!(projection.message, "ok");
     }
 
     #[test]
-    fn projection_rejects_missing_invalid_duplicate_and_oversized_required_fields() {
+    fn status_projection_reports_specific_result_contract_failures() {
         let cases = [
-            (r#"{"result":{"message":"x"}}"#.to_owned(), "missing ready"),
+            (
+                r#"{"result":{}}"#.to_owned(),
+                WebDriverBiDiSessionStatusResponseError::MissingReady,
+            ),
+            (
+                r#"{"result":{"message":"x"}}"#.to_owned(),
+                WebDriverBiDiSessionStatusResponseError::MissingReady,
+            ),
             (
                 r#"{"result":{"ready":0,"message":"x"}}"#.to_owned(),
-                "invalid ready",
+                WebDriverBiDiSessionStatusResponseError::InvalidReady,
             ),
-            (r#"{"result":{"ready":true}}"#.to_owned(), "missing message"),
+            (
+                r#"{"result":{"ready":true}}"#.to_owned(),
+                WebDriverBiDiSessionStatusResponseError::MissingMessage,
+            ),
             (
                 r#"{"result":{"ready":true,"message":false}}"#.to_owned(),
-                "invalid message",
+                WebDriverBiDiSessionStatusResponseError::InvalidMessage,
             ),
             (
                 r#"{"result":{"ready":true,"ready":false,"message":"x"}}"#.to_owned(),
-                "duplicate ready",
+                WebDriverBiDiSessionStatusResponseError::DuplicateResultMember { member: "ready" },
             ),
             (
                 r#"{"result":{"ready":true,"message":"x","message":"y"}}"#.to_owned(),
-                "duplicate message",
+                WebDriverBiDiSessionStatusResponseError::DuplicateResultMember { member: "message" },
             ),
             (
                 format!(
                     "{{\"result\":{{\"ready\":true,\"message\":\"{}\"}}}}",
                     "x".repeat(MAX_WEBDRIVER_BIDI_SESSION_STATUS_MESSAGE_SIZE + 1)
                 ),
-                "oversized message",
+                WebDriverBiDiSessionStatusResponseError::MessageTooLarge {
+                    maximum_bytes: MAX_WEBDRIVER_BIDI_SESSION_STATUS_MESSAGE_SIZE,
+                },
             ),
         ];
-
-        for (document, label) in cases {
-            assert!(StatusProjection::parse(&document).is_err(), "{label}");
+        for (document, expected) in cases {
+            let actual = StatusProjection::parse(&document).expect_err("invalid projection");
+            match (actual, expected) {
+                (
+                    WebDriverBiDiSessionStatusResponseError::DuplicateResultMember {
+                        member: actual,
+                    },
+                    WebDriverBiDiSessionStatusResponseError::DuplicateResultMember {
+                        member: expected,
+                    },
+                ) => assert_eq!(actual, expected),
+                (
+                    WebDriverBiDiSessionStatusResponseError::MessageTooLarge {
+                        maximum_bytes: actual,
+                    },
+                    WebDriverBiDiSessionStatusResponseError::MessageTooLarge {
+                        maximum_bytes: expected,
+                    },
+                ) => assert_eq!(actual, expected),
+                (actual, expected) => assert_eq!(actual.to_string(), expected.to_string()),
+            }
         }
     }
 
     #[test]
-    fn projection_cursor_rejects_malformed_private_inputs_without_panicking() {
+    fn status_projection_rejects_malformed_json_shapes() {
         let malformed = [
             "",
             "[]",
@@ -749,15 +788,23 @@ mod tests {
         );
 
         let retained_error_code = retain_validated_error_code(Some("unknown error"));
-        assert!(matches!(retained_error_code.as_deref(), Ok("unknown error")));
+        assert!(matches!(
+            retained_error_code.as_deref(),
+            Ok("unknown error")
+        ));
 
-        let missing_error_code = retain_validated_error_code(None);
+        let mut correlation_followup_ran = false;
+        let missing_error_code = retain_validated_error_code(None).and_then(|_| {
+            correlation_followup_ran = true;
+            Ok(String::new())
+        });
         assert!(matches!(
             missing_error_code,
             Err(WebDriverBiDiSessionStatusResponseError::Envelope {
                 source: WebDriverBiDiJsonEnvelopeError::MissingRequiredMember { member: "error" },
             })
         ));
+        assert!(!correlation_followup_ran);
 
         let leaf_errors = [
             WebDriverBiDiSessionStatusResponseError::MissingReady,
