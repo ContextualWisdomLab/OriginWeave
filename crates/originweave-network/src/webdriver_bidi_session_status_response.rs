@@ -69,15 +69,18 @@ impl WebDriverBiDiSessionStatusResult {
             }
             WebDriverBiDiJsonEnvelopeKind::Error => {
                 retain_validated_error_code(envelope.error_code()).and_then(|error_code| {
-                    let completed = correlation
-                        .correlate_response(&envelope)
-                        .map_err(|source| {
-                            WebDriverBiDiSessionStatusResponseError::Correlation { source }
-                        })?;
-                    Err(WebDriverBiDiSessionStatusResponseError::RemoteProtocolError {
-                        command_id: completed.command_id(),
-                        error_code,
-                    })
+                    let completed =
+                        correlation
+                            .correlate_response(&envelope)
+                            .map_err(|source| {
+                                WebDriverBiDiSessionStatusResponseError::Correlation { source }
+                            })?;
+                    Err(
+                        WebDriverBiDiSessionStatusResponseError::RemoteProtocolError {
+                            command_id: completed.command_id(),
+                            error_code,
+                        },
+                    )
                 })
             }
             WebDriverBiDiJsonEnvelopeKind::Event => {
@@ -206,11 +209,11 @@ impl Error for WebDriverBiDiSessionStatusResponseError {
 fn retain_validated_error_code(
     error_code: Option<&str>,
 ) -> Result<String, WebDriverBiDiSessionStatusResponseError> {
-    error_code.map(str::to_owned).ok_or(
-        WebDriverBiDiSessionStatusResponseError::Envelope {
+    error_code
+        .map(str::to_owned)
+        .ok_or(WebDriverBiDiSessionStatusResponseError::Envelope {
             source: WebDriverBiDiJsonEnvelopeError::MissingRequiredMember { member: "error" },
-        },
-    )
+        })
 }
 
 struct StatusProjection {
@@ -748,7 +751,10 @@ mod tests {
         );
 
         let retained_error_code = retain_validated_error_code(Some("unknown error"));
-        assert!(matches!(retained_error_code.as_deref(), Ok("unknown error")));
+        assert!(matches!(
+            retained_error_code.as_deref(),
+            Ok("unknown error")
+        ));
 
         let missing_error_code = retain_validated_error_code(None);
         assert!(matches!(
