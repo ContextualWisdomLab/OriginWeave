@@ -5,7 +5,7 @@ use crate::{
     ExtractionSchema, WarcProvBundle, WarcResourceRecord,
 };
 
-/// Credential-safe receipt proving one in-memory capture package matched its persisted identity.
+/// Credential-safe receipt proving one capture package matched its exact persisted identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OfflineReplayVerification {
     manifest_digest: String,
@@ -91,49 +91,20 @@ impl std::error::Error for OfflineReplayVerificationError {
     }
 }
 
-fn verification_receipt(expected_manifest: &CaptureManifest) -> OfflineReplayVerification {
-    OfflineReplayVerification {
-        manifest_digest: expected_manifest.manifest_digest(),
-        record_count: expected_manifest.records().len(),
-        value_count: expected_manifest.values().len(),
-    }
-}
-
-/// Verify one already-materialized capture package without contacting or executing its source.
-///
-/// Verification first requires `persisted_manifest_bytes` to equal the expected deterministic
-/// manifest serialization byte-for-byte. It then reconstructs and verifies the schema-bound
-/// WARC/PROV/value identity through [`CaptureManifest::verify_with_warc_values`]. The operation is
-/// deliberately in-memory only: it performs no DNS, network, browser, JavaScript, external-reference,
-/// secret, persistence, retention, signing, or authorization action and does not establish factual
-/// correctness beyond the supplied evidence contracts.
-pub fn verify_offline_capture_package(
-    expected_manifest: &CaptureManifest,
-    persisted_manifest_bytes: &[u8],
-    schema: &ExtractionSchema,
-    records: &[(&WarcResourceRecord, &WarcProvBundle)],
-    values: &[CaptureManifestValueBinding],
-) -> Result<OfflineReplayVerification, OfflineReplayVerificationError> {
-    expected_manifest
-        .verify_serialized_json(persisted_manifest_bytes)
-        .map_err(OfflineReplayVerificationError::ManifestBytes)?;
-    expected_manifest
-        .verify_with_warc_values(schema, records, values)
-        .map_err(OfflineReplayVerificationError::Evidence)?;
-
-    Ok(verification_receipt(expected_manifest))
-}
-
-/// Verify exact persisted manifest, WARC, and PROV bytes against one typed offline capture package.
+/// Verify exact persisted manifest, WARC, and PROV bytes without contacting the live source.
 ///
 /// `persisted_record_bytes` must contain exactly one `(WARC bytes, PROV JSON-LD bytes)` pair for
-/// each typed WARC/PROV pair in `records`, in the same canonical order. The persisted bytes are
-/// compared byte-for-byte with [`WarcResourceRecord::to_warc_bytes`] and
-/// [`WarcProvBundle::to_json_ld`] before the manifest's typed schema/WARC/PROV/value identity is
-/// revalidated. This closes the gap between reconstructing trusted in-memory objects and verifying
-/// the exact artifacts a buyer retained for offline replay. It performs no parsing, execution,
-/// network access, persistence mutation, signing, retention decision, or authority escalation.
-pub fn verify_persisted_offline_capture_package(
+/// each typed WARC/PROV pair in `records`, in the same canonical order. Verification first requires
+/// `persisted_manifest_bytes` to equal the deterministic manifest serialization byte-for-byte, then
+/// requires each persisted WARC and PROV artifact to equal [`WarcResourceRecord::to_warc_bytes`]
+/// and [`WarcProvBundle::to_json_ld`] respectively, and finally revalidates schema/WARC/PROV/value
+/// identity through [`CaptureManifest::verify_with_warc_values`].
+///
+/// This closes the gap between reconstructing trusted in-memory objects and verifying the exact
+/// artifacts retained for offline replay. The operation performs no parsing, DNS, network, browser,
+/// JavaScript, external-reference traversal, secret access, persistence mutation, retention decision,
+/// signing, or authority escalation, and byte identity does not authenticate the artifact producer.
+pub fn verify_offline_capture_package(
     expected_manifest: &CaptureManifest,
     persisted_manifest_bytes: &[u8],
     schema: &ExtractionSchema,
@@ -166,5 +137,9 @@ pub fn verify_persisted_offline_capture_package(
         .verify_with_warc_values(schema, records, values)
         .map_err(OfflineReplayVerificationError::Evidence)?;
 
-    Ok(verification_receipt(expected_manifest))
+    Ok(OfflineReplayVerification {
+        manifest_digest: expected_manifest.manifest_digest(),
+        record_count: expected_manifest.records().len(),
+        value_count: expected_manifest.values().len(),
+    })
 }
