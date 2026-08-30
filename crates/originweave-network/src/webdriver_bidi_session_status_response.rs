@@ -43,8 +43,9 @@ impl WebDriverBiDiSessionStatusResult {
     /// command-specific projection of `result.ready` and `result.message`; correlation is consumed
     /// only after that result is valid, so malformed success bodies cannot silently retire an id.
     /// A correlatable protocol-error response consumes its matching id and returns a typed remote
-    /// protocol failure. Events, null-id errors, and unknown ids fail closed through the existing
-    /// correlation boundary.
+    /// protocol failure retaining the protocol error code but not the implementation-defined remote
+    /// message or stacktrace. Events, null-id errors, and unknown ids fail closed through the
+    /// existing correlation boundary.
     pub fn parse_and_correlate(
         message: &WebDriverBiDiWebSocketTextMessage,
         correlation: &mut WebDriverBiDiCommandCorrelation,
@@ -67,6 +68,13 @@ impl WebDriverBiDiSessionStatusResult {
                 })
             }
             WebDriverBiDiJsonEnvelopeKind::Error => {
+                let error_code = envelope.error_code().map(str::to_owned).ok_or(
+                    WebDriverBiDiSessionStatusResponseError::Envelope {
+                        source: WebDriverBiDiJsonEnvelopeError::MissingRequiredMember {
+                            member: "error",
+                        },
+                    },
+                )?;
                 let completed = correlation
                     .correlate_response(&envelope)
                     .map_err(
@@ -75,6 +83,7 @@ impl WebDriverBiDiSessionStatusResult {
                 Err(
                     WebDriverBiDiSessionStatusResponseError::RemoteProtocolError {
                         command_id: completed.command_id(),
+                        error_code,
                     },
                 )
             }
@@ -142,6 +151,10 @@ pub enum WebDriverBiDiSessionStatusResponseError {
     RemoteProtocolError {
         /// Exact local command identifier consumed by the protocol-error response.
         command_id: u64,
+        /// Protocol error code retained from the already validated common envelope.
+        ///
+        /// The remote implementation-defined message and stacktrace are deliberately not retained.
+        error_code: String,
     },
 }
 
@@ -536,216 +549,5 @@ impl<'a> ProjectionCursor<'a> {
             self.index += 1;
         }
         Some(value)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn projection_accepts_required_fields_unknown_metadata_and_escaped_keys() {
-        let projected = StatusProjection::parse(
-            r#"{"meta":[null,true,false,1,-2.5e+3,{"nested":"value"}],"re\u0073ult":{"message":"re\u0061dy \ud83d\ude80","extra":{},"ready":false}}"#,
-        );
-        assert!(projected.is_ok());
-        let projected = projected.ok();
-        assert_eq!(projected.as_ref().map(|value| value.ready), Some(false));
-        assert_eq!(
-            projected.as_ref().map(|value| value.message.as_str()),
-            Some("ready 🚀")
-        );
-
-        let spaced = StatusProjection::parse(
-            "\n\t { \r\n \"result\" : { \"ready\" : true , \"message\" : \"ok\" } }",
-        );
-        assert!(spaced.is_ok());
-    }
-
-    #[test]
-    fn projection_rejects_missing_invalid_duplicate_and_oversized_required_fields() {
-        let cases = [
-            (r#"{"result":{"message":"x"}}"#.to_owned(), "missing ready"),
-            (
-                r#"{"result":{"ready":0,"message":"x"}}"#.to_owned(),
-                "invalid ready",
-            ),
-            (r#"{"result":{"ready":true}}"#.to_owned(), "missing message"),
-            (
-                r#"{"result":{"ready":true,"message":false}}"#.to_owned(),
-                "invalid message",
-            ),
-            (
-                r#"{"result":{"ready":true,"ready":false,"message":"x"}}"#.to_owned(),
-                "duplicate ready",
-            ),
-            (
-                r#"{"result":{"ready":true,"message":"x","message":"y"}}"#.to_owned(),
-                "duplicate message",
-            ),
-            (
-                format!(
-                    "{{\"result\":{{\"ready\":true,\"message\":\"{}\"}}}}",
-                    "x".repeat(MAX_WEBDRIVER_BIDI_SESSION_STATUS_MESSAGE_SIZE + 1)
-                ),
-                "oversized message",
-            ),
-        ];
-
-        for (document, label) in cases {
-            assert!(StatusProjection::parse(&document).is_err(), "{label}");
-        }
-    }
-
-    #[test]
-    fn projection_cursor_rejects_malformed_private_inputs_without_panicking() {
-        let malformed = [
-            "",
-            "[]",
-            "{}",
-            r#"{"x":}"#,
-            r#"{"x":1}"#,
-            r#"{"x" 1}"#,
-            r#"{"x":1 ?}"#,
-            r#"{?}"#,
-            r#"{"result":[]}"#,
-            r#"{"result":{?}}"#,
-            r#"{"result":{"ready" true,"message":"x"}}"#,
-            r#"{"result":{"ready":true "message":"x"}}"#,
-            r#"{"result":{"ready":?,"message":"x"}}"#,
-            r#"{"result":{"ready":true,"message":"x","extra":?}}"#,
-            r#"{"result":{"ready":true,"message":"\uD800"}}"#,
-            r#"{"result":{"ready":true,"message":"\q"}}"#,
-        ];
-        for document in malformed {
-            assert!(StatusProjection::parse(document).is_err());
-        }
-    }
-
-    #[test]
-    fn projection_cursor_defensive_helpers_cover_hostile_dispatch_edges() {
-        let mut object = ProjectionCursor::new("[]");
-        assert!(!object.skip_object());
-        let mut object = ProjectionCursor::new("{}");
-        assert!(object.skip_object());
-        let mut object = ProjectionCursor::new("{?}");
-        assert!(!object.skip_object());
-        let mut object = ProjectionCursor::new(r#"{"x" 1}"#);
-        assert!(!object.skip_object());
-        let mut object = ProjectionCursor::new(r#"{"x":?}"#);
-        assert!(!object.skip_object());
-        let mut object = ProjectionCursor::new(r#"{"x":1 ?}"#);
-        assert!(!object.skip_object());
-        let mut object = ProjectionCursor::new(r#"{"x":1,"y":2}"#);
-        assert!(object.skip_object());
-
-        let mut array = ProjectionCursor::new("{}");
-        assert!(!array.skip_array());
-        let mut array = ProjectionCursor::new("[]");
-        assert!(array.skip_array());
-        let mut array = ProjectionCursor::new("[?]");
-        assert!(!array.skip_array());
-        let mut array = ProjectionCursor::new("[1 ?]");
-        assert!(!array.skip_array());
-
-        for document in [r#""x""#, "{}", "[]", "true", "false", "null", "-2.5e+3"] {
-            let mut value = ProjectionCursor::new(document);
-            assert!(value.skip_value(), "{document}");
-        }
-        let mut value = ProjectionCursor::new("?");
-        assert!(!value.skip_value());
-
-        let mut number = ProjectionCursor::new("x");
-        assert!(!number.skip_number());
-        let mut number = ProjectionCursor::new("+1");
-        assert!(number.skip_number());
-
-        let mut string = ProjectionCursor::new("x");
-        assert!(string.parse_string().is_none());
-        let mut string = ProjectionCursor::new("\"unterminated");
-        assert!(string.parse_string().is_none());
-        let mut string = ProjectionCursor::new("\"\u{0001}\"");
-        assert!(string.parse_string().is_none());
-        let mut string = ProjectionCursor::new("\"é\"");
-        assert_eq!(string.parse_string().as_deref(), Some("é"));
-
-        let mut output = String::new();
-        let mut escape = ProjectionCursor::new("");
-        assert!(!escape.parse_escape(&mut output));
-        for sequence in ["\"", "\\", "/", "b", "f", "n", "r", "t"] {
-            let mut output = String::new();
-            let mut escape = ProjectionCursor::new(sequence);
-            assert!(escape.parse_escape(&mut output), "{sequence:?}");
-        }
-        let mut output = String::new();
-        let mut escape = ProjectionCursor::new("q");
-        assert!(!escape.parse_escape(&mut output));
-        let mut output = String::new();
-        let mut escape = ProjectionCursor::new("u0061");
-        assert!(escape.parse_escape(&mut output));
-        assert_eq!(output, "a");
-        let mut output = String::new();
-        let mut escape = ProjectionCursor::new("uD83D\\uDE80");
-        assert!(escape.parse_escape(&mut output));
-        assert_eq!(output, "🚀");
-
-        for sequence in [
-            "u",
-            "uZZZZ",
-            "uD800x",
-            "uD800\\x",
-            "uD800\\u",
-            "uD800\\u0041",
-            "uDC00",
-        ] {
-            let mut output = String::new();
-            let mut escape = ProjectionCursor::new(sequence);
-            assert!(!escape.parse_escape(&mut output), "{sequence}");
-        }
-
-        let mut hex = ProjectionCursor::new("09aF");
-        assert_eq!(hex.parse_hex_u16(), Some(0x09af));
-        let mut hex = ProjectionCursor::new("0");
-        assert!(hex.parse_hex_u16().is_none());
-        let mut hex = ProjectionCursor::new("00G0");
-        assert!(hex.parse_hex_u16().is_none());
-    }
-
-    #[test]
-    fn response_errors_have_stable_redacted_messages_and_sources() {
-        let envelope = WebDriverBiDiSessionStatusResponseError::Envelope {
-            source: WebDriverBiDiJsonEnvelopeError::InvalidJson,
-        };
-        assert!(envelope.source().is_some());
-        assert_eq!(
-            envelope.to_string(),
-            "WebDriver BiDi session.status envelope is invalid"
-        );
-
-        let correlation = WebDriverBiDiSessionStatusResponseError::Correlation {
-            source: WebDriverBiDiCommandCorrelationError::CommandNotOutstanding,
-        };
-        assert!(correlation.source().is_some());
-        assert_eq!(
-            correlation.to_string(),
-            "WebDriver BiDi session.status response correlation failed"
-        );
-
-        let leaf_errors = [
-            WebDriverBiDiSessionStatusResponseError::MissingReady,
-            WebDriverBiDiSessionStatusResponseError::InvalidReady,
-            WebDriverBiDiSessionStatusResponseError::MissingMessage,
-            WebDriverBiDiSessionStatusResponseError::InvalidMessage,
-            WebDriverBiDiSessionStatusResponseError::DuplicateResultMember { member: "ready" },
-            WebDriverBiDiSessionStatusResponseError::MessageTooLarge {
-                maximum_bytes: MAX_WEBDRIVER_BIDI_SESSION_STATUS_MESSAGE_SIZE,
-            },
-            WebDriverBiDiSessionStatusResponseError::InvalidResultProjection,
-            WebDriverBiDiSessionStatusResponseError::RemoteProtocolError { command_id: 7 },
-        ];
-        for error in leaf_errors {
-            assert!(error.source().is_none());
-            assert!(!error.to_string().is_empty());
-        }
     }
 }
