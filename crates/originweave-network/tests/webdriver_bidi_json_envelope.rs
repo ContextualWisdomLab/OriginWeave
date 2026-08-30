@@ -8,8 +8,8 @@ use std::{
 
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
-    WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeError, WebDriverBiDiJsonEnvelopeKind,
-    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
+    MAX_WEBDRIVER_BIDI_JSON_DEPTH, WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeError,
+    WebDriverBiDiJsonEnvelopeKind, WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
     WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMessageAssembler,
     WebDriverBiDiWebSocketMessageAssembly,
 };
@@ -222,6 +222,60 @@ fn real_transport_rejects_missing_required_envelope_members() -> Result<(), Box<
     for (document, expected) in cases {
         assert_eq!(parse_over_real_transport(document)?, Err(expected.clone()));
     }
+    Ok(())
+}
+
+#[test]
+fn real_transport_debug_and_error_display_remain_payload_minimal() -> Result<(), Box<dyn Error>> {
+    let parsed = parse_over_real_transport(
+        br#"{"type":"success","id":7,"result":{"ready":"sensitive-result"}}"#,
+    )?;
+    let envelope = parsed.map_err(|error| io::Error::other(error.to_string()))?;
+    let debug = format!("{envelope:?}");
+    assert!(debug.contains("Success"));
+    assert!(!debug.contains("ready"));
+    assert!(!debug.contains("sensitive-result"));
+
+    let cases: &[(&[u8], WebDriverBiDiJsonEnvelopeError)] = &[
+        (br#"[]"#, WebDriverBiDiJsonEnvelopeError::RootMustBeObject),
+        (
+            br#"{"type":"success","type":"event","id":1,"result":{}}"#,
+            WebDriverBiDiJsonEnvelopeError::DuplicateTopLevelMember,
+        ),
+        (
+            br#"{"type":"other"}"#,
+            WebDriverBiDiJsonEnvelopeError::UnsupportedEnvelopeType,
+        ),
+        (
+            br#"{}"#,
+            WebDriverBiDiJsonEnvelopeError::MissingRequiredMember { member: "type" },
+        ),
+        (
+            br#"{"type":"error","id":-1,"error":"x","message":"secret-message"}"#,
+            WebDriverBiDiJsonEnvelopeError::InvalidMember { member: "id" },
+        ),
+        (
+            br#"{"type":"success","id":1,"result":{}} trailing secret"#,
+            WebDriverBiDiJsonEnvelopeError::InvalidJson,
+        ),
+    ];
+    for (document, expected) in cases {
+        let parsed = parse_over_real_transport(document)?;
+        let error = parsed
+            .err()
+            .ok_or_else(|| io::Error::other("invalid envelope unexpectedly parsed"))?;
+        assert_eq!(error, expected.clone());
+        let display = error.to_string();
+        assert!(!display.is_empty());
+        assert!(!display.contains("secret-message"));
+        assert!(!display.contains("trailing secret"));
+    }
+
+    let nesting_error = WebDriverBiDiJsonEnvelopeError::NestingTooDeep {
+        maximum_depth: MAX_WEBDRIVER_BIDI_JSON_DEPTH,
+    };
+    let display = nesting_error.to_string();
+    assert!(display.contains("maximum depth"));
     Ok(())
 }
 
