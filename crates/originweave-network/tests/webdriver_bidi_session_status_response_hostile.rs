@@ -180,6 +180,24 @@ fn status_projection_accepts_extensible_json_and_unicode_through_real_transport(
 }
 
 #[test]
+fn status_projection_accepts_all_string_escapes_and_unknown_value_shapes()
+-> Result<(), Box<dyn Error>> {
+    let response = br#"{"type":"success","id":7,"before":{"k":"v"},"result":{"unknown_string":"x","unknown_true":true,"unknown_false":false,"unknown_null":null,"unknown_number":-12.5e+2,"unknown_empty_array":[],"unknown_array":[{},[],"x"],"unknown_empty_object":{},"unknown_object":{"k":"v"},"ready":true,"message":"quote:\" slash:\/ backslash:\\ back:\b form:\f newline:\n return:\r tab:\t bmp:\u00AF raw:é"},"after":[1]}"#
+        .to_vec();
+    let (parsed, correlation) = parse_response(response)?;
+    let result = parsed?;
+
+    assert_eq!(result.command_id(), 7);
+    assert!(result.ready());
+    assert_eq!(
+        result.message(),
+        "quote:\" slash:/ backslash:\\ back:\u{0008} form:\u{000c} newline:\n return:\r tab:\t bmp:¯ raw:é"
+    );
+    assert_eq!(correlation.outstanding_count(), 0);
+    Ok(())
+}
+
+#[test]
 fn malformed_success_bodies_fail_closed_without_consuming_correlation() -> Result<(), Box<dyn Error>>
 {
     let oversized = format!(
@@ -188,7 +206,13 @@ fn malformed_success_bodies_fail_closed_without_consuming_correlation() -> Resul
     )
     .into_bytes();
     let cases = [
+        br#"{"type":"success","id":7,"result":{}}"#.to_vec(),
+        br#"{"type":"success","id":7,"result":{"message":"x"}}"#.to_vec(),
         br#"{"type":"success","id":7,"result":{"ready":0,"message":"x"}}"#.to_vec(),
+        br#"{"type":"success","id":7,"result":{"ready":"true","message":"x"}}"#.to_vec(),
+        br#"{"type":"success","id":7,"result":{"ready":null,"message":"x"}}"#.to_vec(),
+        br#"{"type":"success","id":7,"result":{"ready":[],"message":"x"}}"#.to_vec(),
+        br#"{"type":"success","id":7,"result":{"ready":{},"message":"x"}}"#.to_vec(),
         br#"{"type":"success","id":7,"result":{"ready":true}}"#.to_vec(),
         br#"{"type":"success","id":7,"result":{"ready":true,"message":false}}"#.to_vec(),
         br#"{"type":"success","id":7,"result":{"ready":true,"ready":false,"message":"x"}}"#
@@ -231,6 +255,26 @@ fn envelope_correlation_and_remote_error_failures_preserve_exact_command_semanti
         parse_response(br#"{"type":"event","method":"log.entryAdded","params":{}}"#.to_vec())?;
     assert!(matches!(
         event,
+        Err(WebDriverBiDiSessionStatusResponseError::Correlation { .. })
+    ));
+    assert_eq!(correlation.outstanding_count(), 1);
+
+    let (unknown_error, correlation) = parse_response(
+        br#"{"type":"error","id":8,"error":"unknown error","message":"remote refused status"}"#
+            .to_vec(),
+    )?;
+    assert!(matches!(
+        unknown_error,
+        Err(WebDriverBiDiSessionStatusResponseError::Correlation { .. })
+    ));
+    assert_eq!(correlation.outstanding_count(), 1);
+
+    let (null_error, correlation) = parse_response(
+        br#"{"type":"error","id":null,"error":"unknown error","message":"remote refused status"}"#
+            .to_vec(),
+    )?;
+    assert!(matches!(
+        null_error,
         Err(WebDriverBiDiSessionStatusResponseError::Correlation { .. })
     ));
     assert_eq!(correlation.outstanding_count(), 1);
