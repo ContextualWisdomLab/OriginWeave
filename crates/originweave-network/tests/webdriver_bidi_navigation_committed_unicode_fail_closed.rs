@@ -52,7 +52,9 @@ fn write_unmasked_text_frame(stream: &mut TcpStream, payload: &[u8]) -> io::Resu
     stream.write_all(payload)
 }
 
-fn receive_navigation_event(payload: &[u8]) -> Result<WebDriverBiDiWebSocketTextMessage, Box<dyn Error>> {
+fn receive_navigation_event(
+    payload: &[u8],
+) -> Result<WebDriverBiDiWebSocketTextMessage, Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let payload = payload.to_vec();
@@ -67,7 +69,8 @@ fn receive_navigation_event(payload: &[u8]) -> Result<WebDriverBiDiWebSocketText
     let target = WebDriverBiDiWebSocketEndpoint::new(&endpoint)?
         .correlate_session_id(SESSION_ID)?
         .into_explicit_connect_target()?;
-    let connection = WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)?.connect()?;
+    let connection =
+        WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)?.connect()?;
     let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?;
     let established = WebDriverBiDiWebSocketHandshakePlan::new(connection, key)?
         .write_opening_request(Duration::from_millis(500))?
