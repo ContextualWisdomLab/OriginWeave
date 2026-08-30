@@ -68,13 +68,7 @@ impl WebDriverBiDiSessionStatusResult {
                 })
             }
             WebDriverBiDiJsonEnvelopeKind::Error => {
-                let error_code = envelope.error_code().map(str::to_owned).ok_or(
-                    WebDriverBiDiSessionStatusResponseError::Envelope {
-                        source: WebDriverBiDiJsonEnvelopeError::MissingRequiredMember {
-                            member: "error",
-                        },
-                    },
-                )?;
+                let error_code = retain_validated_error_code(envelope.error_code())?;
                 let completed = correlation
                     .correlate_response(&envelope)
                     .map_err(
@@ -208,6 +202,16 @@ impl Error for WebDriverBiDiSessionStatusResponseError {
             | Self::RemoteProtocolError { .. } => None,
         }
     }
+}
+
+fn retain_validated_error_code(
+    error_code: Option<&str>,
+) -> Result<String, WebDriverBiDiSessionStatusResponseError> {
+    error_code.map(str::to_owned).ok_or(
+        WebDriverBiDiSessionStatusResponseError::Envelope {
+            source: WebDriverBiDiJsonEnvelopeError::MissingRequiredMember { member: "error" },
+        },
+    )
 }
 
 struct StatusProjection {
@@ -743,6 +747,17 @@ mod tests {
             correlation.to_string(),
             "WebDriver BiDi session.status response correlation failed"
         );
+
+        let retained_error_code = retain_validated_error_code(Some("unknown error"));
+        assert!(matches!(retained_error_code.as_deref(), Ok("unknown error")));
+
+        let missing_error_code = retain_validated_error_code(None);
+        assert!(matches!(
+            missing_error_code,
+            Err(WebDriverBiDiSessionStatusResponseError::Envelope {
+                source: WebDriverBiDiJsonEnvelopeError::MissingRequiredMember { member: "error" },
+            })
+        ));
 
         let leaf_errors = [
             WebDriverBiDiSessionStatusResponseError::MissingReady,
