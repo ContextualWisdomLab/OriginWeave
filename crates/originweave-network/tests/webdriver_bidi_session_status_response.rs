@@ -19,7 +19,8 @@ use originweave_network::{
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
 const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
 const OPENING_RESPONSE: &[u8] = b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n";
-const STATUS_RESPONSE: &[u8] = br#"{"type":"success","id":7,"result":{"ready":true,"message":"capacity available"}}"#;
+const STATUS_RESPONSE: &[u8] =
+    br#"{"type":"success","id":7,"result":{"ready":true,"message":"capacity available"}}"#;
 const STATUS_RESPONSE_MISSING_READY: &[u8] =
     br#"{"type":"success","id":7,"result":{"message":"capacity available"}}"#;
 
@@ -147,7 +148,8 @@ fn session_status_success_result_is_typed_correlated_and_message_redacted_in_deb
 }
 
 #[test]
-fn malformed_status_result_does_not_consume_the_outstanding_command() -> Result<(), Box<dyn Error>> {
+fn malformed_status_result_does_not_consume_the_outstanding_command() -> Result<(), Box<dyn Error>>
+{
     let (text, mut correlation) = send_status_and_read_response(STATUS_RESPONSE_MISSING_READY)?;
     let parsed = WebDriverBiDiSessionStatusResult::parse_and_correlate(&text, &mut correlation);
 
