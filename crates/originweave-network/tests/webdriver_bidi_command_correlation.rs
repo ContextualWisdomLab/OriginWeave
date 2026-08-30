@@ -37,7 +37,9 @@ fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     Ok(())
 }
 
-fn parse_over_loopback(document: &'static [u8]) -> Result<WebDriverBiDiJsonEnvelope, Box<dyn Error>> {
+fn parse_over_loopback(
+    document: &'static [u8],
+) -> Result<WebDriverBiDiJsonEnvelope, Box<dyn Error>> {
     if document.len() > 125 {
         return Err(io::Error::other("test JSON document exceeded one-byte frame length").into());
     }
@@ -80,7 +82,8 @@ fn parse_over_loopback(document: &'static [u8]) -> Result<WebDriverBiDiJsonEnvel
 }
 
 #[test]
-fn responses_correlate_out_of_order_and_ids_can_be_reused_after_completion() -> Result<(), Box<dyn Error>> {
+fn responses_correlate_out_of_order_and_ids_can_be_reused_after_completion()
+-> Result<(), Box<dyn Error>> {
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     correlation.register_command(7)?;
     correlation.register_command(8)?;
@@ -89,7 +92,10 @@ fn responses_correlate_out_of_order_and_ids_can_be_reused_after_completion() -> 
     let success = parse_over_loopback(br#"{"type":"success","id":8,"result":{}}"#)?;
     let completed = correlation.correlate_response(&success)?;
     assert_eq!(completed.command_id(), 8);
-    assert_eq!(completed.outcome(), WebDriverBiDiCorrelatedResponseOutcome::Success);
+    assert_eq!(
+        completed.outcome(),
+        WebDriverBiDiCorrelatedResponseOutcome::Success
+    );
     assert_eq!(correlation.outstanding_count(), 1);
 
     let error = parse_over_loopback(
@@ -97,7 +103,10 @@ fn responses_correlate_out_of_order_and_ids_can_be_reused_after_completion() -> 
     )?;
     let completed = correlation.correlate_response(&error)?;
     assert_eq!(completed.command_id(), 7);
-    assert_eq!(completed.outcome(), WebDriverBiDiCorrelatedResponseOutcome::Error);
+    assert_eq!(
+        completed.outcome(),
+        WebDriverBiDiCorrelatedResponseOutcome::Error
+    );
     assert_eq!(correlation.outstanding_count(), 0);
 
     correlation.register_command(8)?;
@@ -106,7 +115,8 @@ fn responses_correlate_out_of_order_and_ids_can_be_reused_after_completion() -> 
 }
 
 #[test]
-fn correlation_fails_closed_without_consuming_unrelated_outstanding_commands() -> Result<(), Box<dyn Error>> {
+fn correlation_fails_closed_without_consuming_unrelated_outstanding_commands()
+-> Result<(), Box<dyn Error>> {
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     correlation.register_command(7)?;
 
@@ -157,13 +167,19 @@ fn outstanding_command_budget_and_retirement_are_bounded() -> Result<(), Box<dyn
     for command_id in 0..MAX_WEBDRIVER_BIDI_OUTSTANDING_COMMANDS as u64 {
         correlation.register_command(command_id)?;
     }
-    assert_eq!(correlation.outstanding_count(), MAX_WEBDRIVER_BIDI_OUTSTANDING_COMMANDS);
+    assert_eq!(
+        correlation.outstanding_count(),
+        MAX_WEBDRIVER_BIDI_OUTSTANDING_COMMANDS
+    );
     assert_eq!(
         correlation.register_command(MAX_WEBDRIVER_BIDI_OUTSTANDING_COMMANDS as u64),
         Err(WebDriverBiDiCommandCorrelationError::OutstandingCommandLimit)
     );
     correlation.retire_command(0)?;
     correlation.register_command(MAX_WEBDRIVER_BIDI_OUTSTANDING_COMMANDS as u64)?;
-    assert_eq!(correlation.outstanding_count(), MAX_WEBDRIVER_BIDI_OUTSTANDING_COMMANDS);
+    assert_eq!(
+        correlation.outstanding_count(),
+        MAX_WEBDRIVER_BIDI_OUTSTANDING_COMMANDS
+    );
     Ok(())
 }
