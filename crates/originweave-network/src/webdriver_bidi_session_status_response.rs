@@ -57,9 +57,9 @@ impl WebDriverBiDiSessionStatusResult {
                 let projected = StatusProjection::parse(message.as_str())?;
                 let completed = correlation
                     .correlate_response(&envelope)
-                    .map_err(|source| WebDriverBiDiSessionStatusResponseError::Correlation {
-                        source,
-                    })?;
+                    .map_err(
+                        |source| WebDriverBiDiSessionStatusResponseError::Correlation { source },
+                    )?;
                 Ok(Self {
                     command_id: completed.command_id(),
                     ready: projected.ready,
@@ -69,12 +69,14 @@ impl WebDriverBiDiSessionStatusResult {
             WebDriverBiDiJsonEnvelopeKind::Error => {
                 let completed = correlation
                     .correlate_response(&envelope)
-                    .map_err(|source| WebDriverBiDiSessionStatusResponseError::Correlation {
-                        source,
-                    })?;
-                Err(WebDriverBiDiSessionStatusResponseError::RemoteProtocolError {
-                    command_id: completed.command_id(),
-                })
+                    .map_err(
+                        |source| WebDriverBiDiSessionStatusResponseError::Correlation { source },
+                    )?;
+                Err(
+                    WebDriverBiDiSessionStatusResponseError::RemoteProtocolError {
+                        command_id: completed.command_id(),
+                    },
+                )
             }
             WebDriverBiDiJsonEnvelopeKind::Event => correlation
                 .correlate_response(&envelope)
@@ -566,9 +568,15 @@ mod tests {
     fn projection_rejects_missing_invalid_duplicate_and_oversized_required_fields() {
         let cases = [
             (r#"{"result":{"message":"x"}}"#.to_owned(), "missing ready"),
-            (r#"{"result":{"ready":0,"message":"x"}}"#.to_owned(), "invalid ready"),
+            (
+                r#"{"result":{"ready":0,"message":"x"}}"#.to_owned(),
+                "invalid ready",
+            ),
             (r#"{"result":{"ready":true}}"#.to_owned(), "missing message"),
-            (r#"{"result":{"ready":true,"message":false}}"#.to_owned(), "invalid message"),
+            (
+                r#"{"result":{"ready":true,"message":false}}"#.to_owned(),
+                "invalid message",
+            ),
             (
                 r#"{"result":{"ready":true,"ready":false,"message":"x"}}"#.to_owned(),
                 "duplicate ready",
