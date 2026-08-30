@@ -8,11 +8,12 @@
 //! the RFC 6455 opening exchange, provides bounded masked client writes and
 //! unmasked server-frame reads, assembles bounded WebDriver BiDi text messages,
 //! classifies complete local-end JSON envelopes, tracks bounded command-response
-//! correlation, sends narrowly typed `session.status` and `session.end` commands,
-//! admits typed correlated status and end responses, observes bounded peer Close
-//! or clean-EOF transport cessation, and keeps protocol/transport evidence separate
-//! from explicit operational teardown observations without exposing generic JSON
-//! bodies or granting browser, TLS, policy, secret, process, profile, or Agent authority.
+//! correlation, transports a narrowly typed pointer click, sends narrowly typed
+//! `session.status` and `session.end` commands, admits typed correlated status and
+//! end responses, observes bounded peer Close or clean-EOF transport cessation,
+//! and keeps protocol/transport evidence separate from explicit operational
+//! teardown observations without exposing generic JSON bodies or granting browser,
+//! TLS, policy, secret, process, profile, or Agent authority.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -21,6 +22,7 @@ mod connection;
 mod webdriver_bidi_command_correlation;
 mod webdriver_bidi_connection;
 mod webdriver_bidi_json_envelope;
+mod webdriver_bidi_pointer_click_transport;
 mod webdriver_bidi_session_end_command;
 mod webdriver_bidi_session_end_response;
 mod webdriver_bidi_session_status_command;
@@ -51,6 +53,9 @@ pub use webdriver_bidi_connection::{
 pub use webdriver_bidi_json_envelope::{
     MAX_WEBDRIVER_BIDI_JS_UINT, MAX_WEBDRIVER_BIDI_JSON_DEPTH, WebDriverBiDiJsonEnvelope,
     WebDriverBiDiJsonEnvelopeError, WebDriverBiDiJsonEnvelopeKind,
+};
+pub use webdriver_bidi_pointer_click_transport::{
+    WebDriverBiDiPointerClickSendError, send_webdriver_bidi_pointer_click,
 };
 pub use webdriver_bidi_session_end_command::{
     WebDriverBiDiSessionEndCommand, WebDriverBiDiSessionEndCommandError,
