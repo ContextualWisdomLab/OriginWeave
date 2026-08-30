@@ -9,12 +9,13 @@
 //! unmasked server-frame reads, assembles bounded WebDriver BiDi text messages,
 //! classifies complete local-end JSON envelopes, tracks bounded command-response
 //! correlation, transports a narrowly typed pointer click, admits its typed
-//! correlated protocol acknowledgment, sends narrowly typed `session.status` and
-//! `session.end` commands, admits typed correlated status and end responses,
-//! observes bounded peer Close or clean-EOF transport cessation, and keeps
-//! protocol/transport evidence separate from explicit operational teardown
-//! observations without exposing generic JSON bodies or granting browser, TLS,
-//! policy, secret, process, profile, or Agent authority.
+//! correlated protocol acknowledgment, admits a bounded navigation-committed
+//! post-condition observation for one exact registered context and URL, sends
+//! narrowly typed `session.status` and `session.end` commands, admits typed
+//! correlated status and end responses, observes bounded peer Close or clean-EOF
+//! transport cessation, and keeps protocol/transport evidence separate from
+//! explicit operational teardown observations without exposing generic JSON
+//! bodies or granting browser, TLS, policy, secret, process, profile, or Agent authority.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -23,6 +24,7 @@ mod connection;
 mod webdriver_bidi_command_correlation;
 mod webdriver_bidi_connection;
 mod webdriver_bidi_json_envelope;
+mod webdriver_bidi_navigation_committed_postcondition;
 mod webdriver_bidi_pointer_click_response;
 mod webdriver_bidi_pointer_click_transport;
 mod webdriver_bidi_session_end_command;
@@ -55,6 +57,12 @@ pub use webdriver_bidi_connection::{
 pub use webdriver_bidi_json_envelope::{
     MAX_WEBDRIVER_BIDI_JS_UINT, MAX_WEBDRIVER_BIDI_JSON_DEPTH, WebDriverBiDiJsonEnvelope,
     WebDriverBiDiJsonEnvelopeError, WebDriverBiDiJsonEnvelopeKind,
+};
+pub use webdriver_bidi_navigation_committed_postcondition::{
+    MAX_WEBDRIVER_BIDI_NAVIGATION_IDENTIFIER_BYTES, MAX_WEBDRIVER_BIDI_NAVIGATION_URL_BYTES,
+    WEBDRIVER_BIDI_NAVIGATION_COMMITTED_METHOD, WebDriverBiDiNavigationCommittedObservation,
+    WebDriverBiDiNavigationCommittedObservationError,
+    WebDriverBiDiNavigationCommittedProjectionError,
 };
 pub use webdriver_bidi_pointer_click_response::{
     WebDriverBiDiPointerClickResponseError, WebDriverBiDiPointerClickResult,
