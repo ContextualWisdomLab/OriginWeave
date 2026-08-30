@@ -392,6 +392,52 @@ fn navigation_observation_rejects_valid_json_with_invalid_required_values()
 }
 
 #[test]
+fn navigation_projection_errors_expose_specific_public_diagnostics() {
+    let cases = [
+        (
+            WebDriverBiDiNavigationCommittedProjectionError::InvalidStructure,
+            "navigation-committed projection encountered invalid JSON structure",
+        ),
+        (
+            WebDriverBiDiNavigationCommittedProjectionError::MissingRequiredMember {
+                member: "url",
+            },
+            "navigation-committed params are missing url",
+        ),
+        (
+            WebDriverBiDiNavigationCommittedProjectionError::DuplicateRequiredMember {
+                member: "url",
+            },
+            "navigation-committed params contain duplicate url",
+        ),
+        (
+            WebDriverBiDiNavigationCommittedProjectionError::InvalidContextIdentifier,
+            "navigation-committed context identifier is invalid",
+        ),
+        (
+            WebDriverBiDiNavigationCommittedProjectionError::InvalidNavigationIdentifier,
+            "navigation-committed navigation identifier is invalid",
+        ),
+        (
+            WebDriverBiDiNavigationCommittedProjectionError::InvalidTimestamp,
+            "navigation-committed timestamp is not a JavaScript uint",
+        ),
+        (
+            WebDriverBiDiNavigationCommittedProjectionError::UrlTooLarge {
+                maximum_bytes: originweave_network::MAX_WEBDRIVER_BIDI_NAVIGATION_URL_BYTES,
+            },
+            "navigation-committed URL exceeds the 16384-byte observation limit",
+        ),
+    ];
+
+    for (error, expected) in cases {
+        assert_eq!(error.to_string(), expected);
+        let source: &dyn Error = &error;
+        assert!(source.source().is_none());
+    }
+}
+
+#[test]
 fn navigation_observation_fails_closed_for_wrong_url_or_registered_context()
 -> Result<(), Box<dyn Error>> {
     let (event, mut registry, session, context) = click_then_observe_navigation()?;
