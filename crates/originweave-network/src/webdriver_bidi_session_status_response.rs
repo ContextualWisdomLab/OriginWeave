@@ -470,9 +470,8 @@ impl<'a> ProjectionCursor<'a> {
                 }
                 _ => {
                     let width = byte.leading_ones() as usize;
-                    let end = self.index.checked_add(width)?;
-                    let character = self.input.get(self.index..end)?;
-                    output.push_str(character);
+                    let end = self.index + width;
+                    output.push_str(&self.input[self.index..end]);
                     self.index = end;
                 }
             }
