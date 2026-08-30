@@ -503,7 +503,7 @@ impl<'a> ProjectionCursor<'a> {
         let Some(first) = self.parse_hex_u16() else {
             return false;
         };
-        let scalar = if (0xd800..=0xdbff).contains(&first) {
+        if (0xd800..=0xdbff).contains(&first) {
             if !self.consume_byte(b'\\') || !self.consume_byte(b'u') {
                 return false;
             }
@@ -513,17 +513,14 @@ impl<'a> ProjectionCursor<'a> {
             if !(0xdc00..=0xdfff).contains(&second) {
                 return false;
             }
-            0x1_0000 + ((u32::from(first) - 0xd800) << 10) + (u32::from(second) - 0xdc00)
+            output.push_str(&String::from_utf16_lossy(&[first, second]));
+            true
         } else if (0xdc00..=0xdfff).contains(&first) {
-            return false;
+            false
         } else {
-            u32::from(first)
-        };
-        let Some(character) = char::from_u32(scalar) else {
-            return false;
-        };
-        output.push(character);
-        true
+            output.push_str(&String::from_utf16_lossy(&[first]));
+            true
+        }
     }
 
     fn parse_hex_u16(&mut self) -> Option<u16> {
@@ -639,6 +636,8 @@ mod tests {
         assert!(!object.skip_object());
         let mut object = ProjectionCursor::new(r#"{"x":1 ?}"#);
         assert!(!object.skip_object());
+        let mut object = ProjectionCursor::new(r#"{"x":1,"y":2}"#);
+        assert!(object.skip_object());
 
         let mut array = ProjectionCursor::new("{}");
         assert!(!array.skip_array());
