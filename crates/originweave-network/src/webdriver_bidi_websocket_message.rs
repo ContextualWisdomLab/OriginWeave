@@ -69,6 +69,11 @@ impl WebDriverBiDiWebSocketTextMessage {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+    #[cfg(test)]
+    pub(crate) fn from_test_text(value: &str) -> Self {
+        Self(value.to_owned())
+    }
 }
 
 /// Result of admitting one RFC 6455 frame into the bounded BiDi message assembler.
