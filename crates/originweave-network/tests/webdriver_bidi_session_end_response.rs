@@ -150,7 +150,9 @@ fn session_end_remote_error_consumes_only_the_correlated_command() -> Result<(),
     let (text, mut correlation) = send_end_and_read_response(END_REMOTE_ERROR_RESPONSE)?;
     let parsed = WebDriverBiDiSessionEndResult::parse_and_correlate(&text, &mut correlation);
     let error = match parsed {
-        Ok(_) => return Err(io::Error::other("remote error was accepted as session.end success").into()),
+        Ok(_) => {
+            return Err(io::Error::other("remote error was accepted as session.end success").into());
+        }
         Err(error) => error,
     };
 
@@ -173,7 +175,9 @@ fn malformed_session_end_envelope_fails_before_consuming_correlation() -> Result
     let (text, mut correlation) = send_end_and_read_response(END_MALFORMED_RESPONSE)?;
     let parsed = WebDriverBiDiSessionEndResult::parse_and_correlate(&text, &mut correlation);
     let error = match parsed {
-        Ok(_) => return Err(io::Error::other("malformed session.end response was accepted").into()),
+        Ok(_) => {
+            return Err(io::Error::other("malformed session.end response was accepted").into());
+        }
         Err(error) => error,
     };
 
@@ -196,7 +200,9 @@ fn unknown_session_end_response_id_does_not_consume_the_outstanding_command()
     let (text, mut correlation) = send_end_and_read_response(END_UNKNOWN_ID_RESPONSE)?;
     let parsed = WebDriverBiDiSessionEndResult::parse_and_correlate(&text, &mut correlation);
     let error = match parsed {
-        Ok(_) => return Err(io::Error::other("unknown session.end response id was accepted").into()),
+        Ok(_) => {
+            return Err(io::Error::other("unknown session.end response id was accepted").into());
+        }
         Err(error) => error,
     };
 
