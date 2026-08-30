@@ -2,8 +2,8 @@ use std::{error::Error, fmt};
 
 use crate::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
-    WebDriverBiDiCorrelatedResponseOutcome, WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeError,
-    WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiCorrelatedResponseOutcome, WebDriverBiDiJsonEnvelope,
+    WebDriverBiDiJsonEnvelopeError, WebDriverBiDiWebSocketTextMessage,
 };
 
 /// Typed protocol acknowledgment for one correlated WebDriver BiDi `session.end` command.
