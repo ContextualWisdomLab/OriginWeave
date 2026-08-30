@@ -64,7 +64,10 @@ fn read_masked_text_frame(stream: &mut TcpStream) -> io::Result<Vec<u8>> {
             let mut extended = [0_u8; 8];
             stream.read_exact(&mut extended)?;
             usize::try_from(u64::from_be_bytes(extended)).map_err(|_| {
-                io::Error::new(io::ErrorKind::InvalidData, "client frame length exceeds usize")
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "client frame length exceeds usize",
+                )
             })?
         }
         _ => unreachable!(),
@@ -108,8 +111,7 @@ fn assemble_text(
     }
 }
 
-fn click_then_observe_navigation(
-) -> Result<
+fn click_then_observe_navigation() -> Result<
     (
         WebDriverBiDiWebSocketTextMessage,
         BrowserAuthorityRegistry,
@@ -170,12 +172,12 @@ fn click_then_observe_navigation(
     let (established, response_frame) = established.read_frame(Duration::from_millis(500))?;
     let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
     let response_text = assemble_text(&mut assembler, response_frame)?;
-    let response = WebDriverBiDiPointerClickResult::parse_and_correlate(
-        &response_text,
-        &mut correlation,
-    )?;
+    let response =
+        WebDriverBiDiPointerClickResult::parse_and_correlate(&response_text, &mut correlation)?;
     if response.command_id() != 42 || correlation.outstanding_count() != 0 {
-        return Err(io::Error::other("pointer-click acknowledgment was not correlated exactly").into());
+        return Err(
+            io::Error::other("pointer-click acknowledgment was not correlated exactly").into(),
+        );
     }
 
     let (_established, event_frame) = established.read_frame(Duration::from_millis(500))?;
@@ -191,8 +193,8 @@ fn click_then_observe_navigation(
 }
 
 #[test]
-fn navigation_committed_event_proves_exact_context_and_declared_url_post_condition(
-) -> Result<(), Box<dyn Error>> {
+fn navigation_committed_event_proves_exact_context_and_declared_url_post_condition()
+-> Result<(), Box<dyn Error>> {
     let (event, registry, session, context) = click_then_observe_navigation()?;
     let observation = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
         &event,
@@ -211,8 +213,8 @@ fn navigation_committed_event_proves_exact_context_and_declared_url_post_conditi
 }
 
 #[test]
-fn navigation_observation_fails_closed_for_wrong_url_or_registered_context(
-) -> Result<(), Box<dyn Error>> {
+fn navigation_observation_fails_closed_for_wrong_url_or_registered_context()
+-> Result<(), Box<dyn Error>> {
     let (event, mut registry, session, context) = click_then_observe_navigation()?;
 
     let wrong_url = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
@@ -240,6 +242,11 @@ fn navigation_observation_fails_closed_for_wrong_url_or_registered_context(
         Err(WebDriverBiDiNavigationCommittedObservationError::ContextBinding { .. })
     ));
     assert_eq!(registry.current_context_epoch(session, context)?.value(), 1);
-    assert_eq!(registry.current_context_epoch(session, other_context)?.value(), 1);
+    assert_eq!(
+        registry
+            .current_context_epoch(session, other_context)?
+            .value(),
+        1
+    );
     Ok(())
 }
