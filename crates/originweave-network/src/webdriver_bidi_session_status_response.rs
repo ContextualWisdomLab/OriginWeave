@@ -609,6 +609,7 @@ mod tests {
             r#"{"x":1 ?}"#,
             r#"{?}"#,
             r#"{"result":[]}"#,
+            r#"{"result":{?}}"#,
             r#"{"result":{"ready" true,"message":"x"}}"#,
             r#"{"result":{"ready":true "message":"x"}}"#,
             r#"{"result":{"ready":?,"message":"x"}}"#,
