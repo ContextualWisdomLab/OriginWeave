@@ -1,6 +1,4 @@
-use originweave_bap::{
-    BapExternalSideEffectOutcome, BapExternalSideEffectOutcomeParseError,
-};
+use originweave_bap::{BapExternalSideEffectOutcome, BapExternalSideEffectOutcomeParseError};
 
 #[test]
 fn recovery_outcome_has_a_canonical_storage_neutral_round_trip() {
@@ -13,7 +11,10 @@ fn recovery_outcome_has_a_canonical_storage_neutral_round_trip() {
             BapExternalSideEffectOutcome::ConfirmedSideEffect,
             "confirmed_side_effect",
         ),
-        (BapExternalSideEffectOutcome::UnknownOutcome, "unknown_outcome"),
+        (
+            BapExternalSideEffectOutcome::UnknownOutcome,
+            "unknown_outcome",
+        ),
         (
             BapExternalSideEffectOutcome::ReconciliationRequired,
             "reconciliation_required",
