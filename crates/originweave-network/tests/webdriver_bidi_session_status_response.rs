@@ -23,6 +23,7 @@ const STATUS_RESPONSE: &[u8] =
     br#"{"type":"success","id":7,"result":{"ready":true,"message":"capacity available"}}"#;
 const STATUS_RESPONSE_MISSING_READY: &[u8] =
     br#"{"type":"success","id":7,"result":{"message":"capacity available"}}"#;
+const STATUS_RESPONSE_EMPTY_RESULT: &[u8] = br#"{"type":"success","id":7,"result":{}}"#;
 
 fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
@@ -151,6 +152,20 @@ fn session_status_success_result_is_typed_correlated_and_message_redacted_in_deb
 fn malformed_status_result_does_not_consume_the_outstanding_command() -> Result<(), Box<dyn Error>>
 {
     let (text, mut correlation) = send_status_and_read_response(STATUS_RESPONSE_MISSING_READY)?;
+    let parsed = WebDriverBiDiSessionStatusResult::parse_and_correlate(&text, &mut correlation);
+
+    assert!(matches!(
+        parsed,
+        Err(WebDriverBiDiSessionStatusResponseError::MissingReady)
+    ));
+    assert_eq!(correlation.outstanding_count(), 1);
+    Ok(())
+}
+
+#[test]
+fn empty_status_result_fails_before_consuming_the_outstanding_command() -> Result<(), Box<dyn Error>>
+{
+    let (text, mut correlation) = send_status_and_read_response(STATUS_RESPONSE_EMPTY_RESULT)?;
     let parsed = WebDriverBiDiSessionStatusResult::parse_and_correlate(&text, &mut correlation);
 
     assert!(matches!(
