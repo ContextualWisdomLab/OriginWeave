@@ -17,7 +17,7 @@ use originweave_network::{
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
 const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
 const OPENING_RESPONSE: &[u8] = b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n";
-const SUCCESS_MESSAGE: &[u8] = br#"{\"type\":\"success\",\"id\":7,\"result\":{\"ready\":true}}"#;
+const SUCCESS_MESSAGE: &[u8] = br#"{"type":"success","id":7,"result":{"ready":true}}"#;
 
 fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
@@ -115,7 +115,7 @@ fn real_transport_text_is_classified_as_bidi_success_envelope() -> Result<(), Bo
 #[test]
 fn real_transport_exercises_valid_escape_boundaries() -> Result<(), Box<dyn Error>> {
     let envelope = parse_over_real_transport(
-        br#"{\"type\":\"success\",\"id\":1,\"result\":{\"slash\":\"\\/\",\"upper\":\"\\uABCD\",\"edge\":\"\\uFFFF\"}}"#,
+        br#"{"type":"success","id":1,"result":{"slash":"\/","upper":"\uABCD","edge":"\uFFFF"}}"#,
     )?;
     assert_eq!(
         envelope.as_ref().map(WebDriverBiDiJsonEnvelope::kind),
@@ -127,13 +127,13 @@ fn real_transport_exercises_valid_escape_boundaries() -> Result<(), Box<dyn Erro
 #[test]
 fn real_transport_rejects_malformed_json_at_parser_boundaries() -> Result<(), Box<dyn Error>> {
     let cases: &[&[u8]] = &[
-        br#"{\"type\":\"success\",\"unterminated"#,
-        br#"{\"type\" \"success\"}"#,
-        br#"{\"type\":\"success\" \"id\":1,\"result\":{}}"#,
-        br#"{\"type\":\"success\",\"id\":1,\"result\":{\"x\" 1}}"#,
-        br#"{\"type\":\"success\",\"id\":1,\"result\":{\"x\":[1 2]}}"#,
+        br#"{"type":"success","unterminated"#,
+        br#"{"type" "success"}"#,
+        br#"{"type":"success" "id":1,"result":{}}"#,
+        br#"{"type":"success","id":1,"result":{"x" 1}}"#,
+        br#"{"type":"success","id":1,"result":{"x":[1 2]}}"#,
         b"{\"type\":\"success\",\"id\":1,\"result\":{\"x\":\"\\",
-        br#"{\"type\":\"success\",\"id\":1,\"result\":{\"x\":\"\\ud800\\x\"}}"#,
+        br#"{"type":"success","id":1,"result":{"x":"\ud800\x"}}"#,
         b"{\"type\":\"success\",\"id\":1,\"result\":{\"x\":\"\\ud800\\u",
     ];
     for document in cases {
