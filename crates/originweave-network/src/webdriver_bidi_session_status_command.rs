@@ -22,10 +22,12 @@ impl WebDriverBiDiSessionStatusCommand {
     /// Construct one `session.status` command with a JavaScript-safe correlation identifier.
     pub fn new(command_id: u64) -> Result<Self, WebDriverBiDiSessionStatusCommandError> {
         if command_id > MAX_WEBDRIVER_BIDI_JS_UINT {
-            return Err(WebDriverBiDiSessionStatusCommandError::CommandIdOutOfRange {
-                command_id,
-                maximum_command_id: MAX_WEBDRIVER_BIDI_JS_UINT,
-            });
+            return Err(
+                WebDriverBiDiSessionStatusCommandError::CommandIdOutOfRange {
+                    command_id,
+                    maximum_command_id: MAX_WEBDRIVER_BIDI_JS_UINT,
+                },
+            );
         }
         Ok(Self { command_id })
     }
@@ -96,8 +98,9 @@ impl fmt::Display for WebDriverBiDiSessionStatusCommandError {
                 .write_str("WebDriver BiDi session.status command id is outside the js-uint range"),
             Self::Correlation { .. } => formatter
                 .write_str("WebDriver BiDi session.status command correlation was rejected"),
-            Self::FrameWrite { .. } => formatter
-                .write_str("WebDriver BiDi session.status command frame write failed"),
+            Self::FrameWrite { .. } => {
+                formatter.write_str("WebDriver BiDi session.status command frame write failed")
+            }
         }
     }
 }
@@ -131,7 +134,8 @@ mod tests {
     }
 
     #[test]
-    fn command_serialization_is_static_and_exact() -> Result<(), WebDriverBiDiSessionStatusCommandError> {
+    fn command_serialization_is_static_and_exact()
+    -> Result<(), WebDriverBiDiSessionStatusCommandError> {
         let command = WebDriverBiDiSessionStatusCommand::new(42)?;
         assert_eq!(command.command_id(), 42);
         assert_eq!(
