@@ -788,6 +788,7 @@ mod tests {
         for document in [
             "",
             "[]",
+            "{?}",
             r#"{"x" 1}"#,
             r#"{"x":?}"#,
             r#"{"x":1 ?}"#,
@@ -798,6 +799,7 @@ mod tests {
             r#"{"params":{"context":"\uD800","navigation":null,"timestamp":1,"url":"x"}}"#,
             r#"{"params":{"context":"\q","navigation":null,"timestamp":1,"url":"x"}}"#,
             r#"{"params":{"context":"a","navigation":null,"timestamp":?,"url":"x"}}"#,
+            r#"{"params":{"context":"a","navigation":null,"timestamp":18446744073709551616,"url":"x"}}"#,
         ] {
             assert!(NavigationCommittedProjection::parse(document).is_err());
         }
@@ -839,6 +841,9 @@ mod tests {
 
         for invalid in [
             "\"abc\\",
+            "\"abc",
+            "\"a\n\"",
+            "\"\\u12",
             r#""\uD800""#,
             r#""\uDC00""#,
             r#""\uD800\x""#,
