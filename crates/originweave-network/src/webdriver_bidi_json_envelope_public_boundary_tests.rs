@@ -181,14 +181,20 @@ fn public_navigation_committed_boundary_is_exercised_from_unit_build() -> Result
     assert_eq!(observation.navigation_id(), None);
     assert_eq!(observation.timestamp(), 0);
     assert_eq!(observation.url(), "x");
+    let debug = format!("{observation:?}");
+    assert!(debug.contains("WebDriverBiDiNavigationCommittedObservation"));
+    assert!(debug.contains("has_navigation_id: false"));
+    assert!(!debug.contains("url: \"x\""));
 
     let wrong_url = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
         &event, &registry, session, context, "y",
     );
-    assert!(matches!(
-        wrong_url,
-        Err(WebDriverBiDiNavigationCommittedObservationError::UnexpectedUrl)
-    ));
+    let Err(wrong_url @ WebDriverBiDiNavigationCommittedObservationError::UnexpectedUrl) = wrong_url
+    else {
+        return Err(io::Error::other("wrong URL did not fail closed").into());
+    };
+    assert!(!wrong_url.to_string().is_empty());
+    assert!(wrong_url.source().is_none());
 
     let other_context = registry.register_context(session, "b")?;
     let wrong_context = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
@@ -198,12 +204,13 @@ fn public_navigation_committed_boundary_is_exercised_from_unit_build() -> Result
         other_context,
         "x",
     );
-    let Err(WebDriverBiDiNavigationCommittedObservationError::ContextBinding { source }) =
+    let Err(wrong_context @ WebDriverBiDiNavigationCommittedObservationError::ContextBinding { .. }) =
         wrong_context
     else {
         return Err(io::Error::other("wrong registered context did not fail closed").into());
     };
-    assert!(!source.to_string().is_empty());
+    assert!(!wrong_context.to_string().is_empty());
+    assert!(wrong_context.source().is_some());
 
     let missing_context = read_text_over_loopback(NAVIGATION_COMMITTED_MISSING_CONTEXT)?;
     let projection = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
@@ -213,33 +220,40 @@ fn public_navigation_committed_boundary_is_exercised_from_unit_build() -> Result
         context,
         "x",
     );
-    let Err(WebDriverBiDiNavigationCommittedObservationError::Projection { source }) = projection
+    let Err(projection @ WebDriverBiDiNavigationCommittedObservationError::Projection { .. }) =
+        projection
     else {
         return Err(io::Error::other("missing context did not fail at projection").into());
     };
-    assert!(!source.to_string().is_empty());
+    assert!(!projection.to_string().is_empty());
+    assert!(projection.source().is_some());
 
     let malformed = read_text_over_loopback(MALFORMED_NAVIGATION_COMMITTED_EVENT)?;
     let envelope = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
         &malformed, &registry, session, context, "x",
     );
-    let Err(WebDriverBiDiNavigationCommittedObservationError::Envelope { source }) = envelope
+    let Err(envelope @ WebDriverBiDiNavigationCommittedObservationError::Envelope { .. }) = envelope
     else {
         return Err(io::Error::other("malformed event did not fail at envelope validation").into());
     };
-    assert!(!source.to_string().is_empty());
+    assert!(!envelope.to_string().is_empty());
+    assert!(envelope.source().is_some());
 
     let other_event = read_text_over_loopback(OTHER_EVENT)?;
-    assert!(matches!(
-        WebDriverBiDiNavigationCommittedObservation::parse_and_match(
-            &other_event,
-            &registry,
-            session,
-            context,
-            "x",
-        ),
-        Err(WebDriverBiDiNavigationCommittedObservationError::UnexpectedEvent)
-    ));
+    let unexpected = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
+        &other_event,
+        &registry,
+        session,
+        context,
+        "x",
+    );
+    let Err(unexpected @ WebDriverBiDiNavigationCommittedObservationError::UnexpectedEvent) =
+        unexpected
+    else {
+        return Err(io::Error::other("different event method was not rejected").into());
+    };
+    assert!(!unexpected.to_string().is_empty());
+    assert!(unexpected.source().is_none());
 
     let non_event = read_text_over_loopback(SUCCESS_MESSAGE)?;
     assert!(matches!(
