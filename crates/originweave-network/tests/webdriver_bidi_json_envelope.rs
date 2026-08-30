@@ -143,6 +143,7 @@ fn real_transport_exercises_valid_json_boundaries() -> Result<(), Box<dyn Error>
         br#"{"type":"success","id":1,"result":{"slash":"\/","upper":"\uABCD","edge":"\uFFFF"}}"#,
         br#"{"type":"success","id":1,"result":{"array":[1,2],"number":-2.5e3}}"#,
         br#"{"type":"success","id":1,"result":{"pair":"\ud83d\ude00","empty":[]}}"#,
+        br#"{"type":"success","id":1,"result":{"unicode":"é"}}"#,
     ];
     for document in cases {
         assert_eq!(
