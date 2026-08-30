@@ -236,7 +236,7 @@ fn navigation_committed_event_proves_exact_context_and_declared_url_post_conditi
 #[test]
 fn navigation_observation_accepts_extensible_valid_json_without_retaining_extension_values()
 -> Result<(), Box<dyn Error>> {
-    let payload = br#"{"type":"event","method":"browsingContext.navigationCommitted","meta":{"escaped":"\"\\\/\b\f\n\r\t\u0061\ud83d\ude80","items":[null,true,false,-2.5e+3,{"nested":"value"}]},"params":{"context":"context-a","navigation":null,"timestamp":0,"url":"https:\/\/example.test\/after","vendor":["café",{"nested":true}]}}"#;
+    let payload = r#"{"type":"event","method":"browsingContext.navigationCommitted","meta":{"escaped":"\"\\\/\b\f\n\r\t\u0061\ud83d\ude80","items":[null,true,false,-2.5e+3,{"nested":"value"}]},"params":{"context":"context-a","navigation":null,"timestamp":0,"url":"https:\/\/example.test\/after","vendor":["café",{"nested":true}]}}"#.as_bytes();
     let (event, registry, session, context) = click_then_observe_navigation_with_event(payload)?;
     let observation = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
         &event,
