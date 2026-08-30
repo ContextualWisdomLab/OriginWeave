@@ -271,9 +271,9 @@ fn navigation_observation_fails_closed_for_envelope_event_and_projection_errors(
         return Err(io::Error::other("malformed event did not fail at envelope validation").into());
     };
     assert!(!source.to_string().is_empty());
-    assert!(!WebDriverBiDiNavigationCommittedObservationError::Envelope { source }
-        .to_string()
-        .is_empty());
+    let envelope_error = WebDriverBiDiNavigationCommittedObservationError::Envelope { source };
+    assert!(!envelope_error.to_string().is_empty());
+    assert!(envelope_error.source().is_some());
 
     let other_event = br#"{"type":"event","method":"browsingContext.load","params":{}}"#;
     let (event, registry, session, context) =
