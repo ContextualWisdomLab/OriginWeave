@@ -17,6 +17,10 @@ use originweave_network::{
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
 const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
 const OPENING_RESPONSE: &[u8] = b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n";
+type HandshakeOnlyServer = (
+    WebDriverBiDiWebSocketEstablished,
+    thread::JoinHandle<io::Result<()>>,
+);
 
 fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
@@ -35,13 +39,7 @@ fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     Ok(())
 }
 
-fn establish_with_handshake_only_server() -> Result<
-    (
-        WebDriverBiDiWebSocketEstablished,
-        thread::JoinHandle<io::Result<()>>,
-    ),
-    Box<dyn Error>,
-> {
+fn establish_with_handshake_only_server() -> Result<HandshakeOnlyServer, Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let server = thread::spawn(move || -> io::Result<()> {
