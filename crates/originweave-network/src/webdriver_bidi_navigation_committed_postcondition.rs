@@ -11,8 +11,7 @@ use crate::{
 };
 
 /// WebDriver BiDi event method that reports a committed browsing-context navigation.
-pub const WEBDRIVER_BIDI_NAVIGATION_COMMITTED_METHOD: &str =
-    "browsingContext.navigationCommitted";
+pub const WEBDRIVER_BIDI_NAVIGATION_COMMITTED_METHOD: &str = "browsingContext.navigationCommitted";
 
 /// Maximum UTF-8 bytes retained for one opaque WebDriver BiDi navigation identifier.
 pub const MAX_WEBDRIVER_BIDI_NAVIGATION_IDENTIFIER_BYTES: usize =
@@ -66,18 +65,21 @@ impl WebDriverBiDiNavigationCommittedObservation {
             return Err(WebDriverBiDiNavigationCommittedObservationError::UnexpectedEvent);
         }
 
-        let projected = NavigationCommittedProjection::parse(message.as_str()).map_err(|source| {
-            WebDriverBiDiNavigationCommittedObservationError::Projection { source }
-        })?;
+        let projected =
+            NavigationCommittedProjection::parse(message.as_str()).map_err(|source| {
+                WebDriverBiDiNavigationCommittedObservationError::Projection { source }
+            })?;
         registry
             .require_registered_context_external_identifier(
                 browser_session,
                 browsing_context,
                 &projected.context,
             )
-            .map_err(|source| {
-                WebDriverBiDiNavigationCommittedObservationError::ContextBinding { source }
-            })?;
+            .map_err(
+                |source| WebDriverBiDiNavigationCommittedObservationError::ContextBinding {
+                    source,
+                },
+            )?;
         if projected.url != expected_url {
             return Err(WebDriverBiDiNavigationCommittedObservationError::UnexpectedUrl);
         }
@@ -208,25 +210,27 @@ pub enum WebDriverBiDiNavigationCommittedProjectionError {
 impl fmt::Display for WebDriverBiDiNavigationCommittedProjectionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidStructure => formatter.write_str(
-                "navigation-committed projection encountered invalid JSON structure",
-            ),
+            Self::InvalidStructure => formatter
+                .write_str("navigation-committed projection encountered invalid JSON structure"),
             Self::MissingRequiredMember { member } => {
-                write!(formatter, "navigation-committed params are missing {member}")
+                write!(
+                    formatter,
+                    "navigation-committed params are missing {member}"
+                )
             }
             Self::DuplicateRequiredMember { member } => write!(
                 formatter,
                 "navigation-committed params contain duplicate {member}"
             ),
-            Self::InvalidContextIdentifier => formatter.write_str(
-                "navigation-committed context identifier is invalid",
-            ),
-            Self::InvalidNavigationIdentifier => formatter.write_str(
-                "navigation-committed navigation identifier is invalid",
-            ),
-            Self::InvalidTimestamp => formatter.write_str(
-                "navigation-committed timestamp is not a JavaScript uint",
-            ),
+            Self::InvalidContextIdentifier => {
+                formatter.write_str("navigation-committed context identifier is invalid")
+            }
+            Self::InvalidNavigationIdentifier => {
+                formatter.write_str("navigation-committed navigation identifier is invalid")
+            }
+            Self::InvalidTimestamp => {
+                formatter.write_str("navigation-committed timestamp is not a JavaScript uint")
+            }
             Self::UrlTooLarge { maximum_bytes } => write!(
                 formatter,
                 "navigation-committed URL exceeds the {maximum_bytes}-byte observation limit"
@@ -376,10 +380,8 @@ impl<'a> ProjectionCursor<'a> {
                     let parsed = self.parse_string().ok_or(
                         WebDriverBiDiNavigationCommittedProjectionError::InvalidContextIdentifier,
                     )?;
-                    if !protocol_identifier_is_valid(
-                        &parsed,
-                        MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES,
-                    ) {
+                    if !protocol_identifier_is_valid(&parsed, MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES)
+                    {
                         return Err(
                             WebDriverBiDiNavigationCommittedProjectionError::InvalidContextIdentifier,
                         );
@@ -488,9 +490,7 @@ impl<'a> ProjectionCursor<'a> {
         })
     }
 
-    fn parse_js_uint(
-        &mut self,
-    ) -> Result<u64, WebDriverBiDiNavigationCommittedProjectionError> {
+    fn parse_js_uint(&mut self) -> Result<u64, WebDriverBiDiNavigationCommittedProjectionError> {
         let start = self.index;
         if !self.skip_number() {
             if !self.skip_value() {
@@ -713,10 +713,21 @@ mod tests {
         );
         assert!(projected.is_ok());
         let projected = projected.ok();
-        assert_eq!(projected.as_ref().map(|value| value.context.as_str()), Some("context-a"));
-        assert_eq!(projected.as_ref().and_then(|value| value.navigation_id.as_deref()), Some("nav-🚀"));
+        assert_eq!(
+            projected.as_ref().map(|value| value.context.as_str()),
+            Some("context-a")
+        );
+        assert_eq!(
+            projected
+                .as_ref()
+                .and_then(|value| value.navigation_id.as_deref()),
+            Some("nav-🚀")
+        );
         assert_eq!(projected.as_ref().map(|value| value.timestamp), Some(42));
-        assert_eq!(projected.as_ref().map(|value| value.url.as_str()), Some("https://example.test/after"));
+        assert_eq!(
+            projected.as_ref().map(|value| value.url.as_str()),
+            Some("https://example.test/after")
+        );
 
         let projected = NavigationCommittedProjection::parse(
             r#"{"params":{"context":"context-a","navigation":null,"timestamp":0,"url":"about:blank"}}"#,
@@ -823,7 +834,13 @@ mod tests {
         let mut number = ProjectionCursor::new("+1");
         assert!(number.skip_number());
 
-        for invalid in [r#""\uD800""#, r#""\uDC00""#, r#""\uD800\u0041""#, r#""\uZZZZ""#, r#""\q""#] {
+        for invalid in [
+            r#""\uD800""#,
+            r#""\uDC00""#,
+            r#""\uD800\u0041""#,
+            r#""\uZZZZ""#,
+            r#""\q""#,
+        ] {
             let mut string = ProjectionCursor::new(invalid);
             assert!(string.parse_string().is_none());
         }
@@ -833,8 +850,12 @@ mod tests {
     fn projection_error_display_is_specific_and_source_free() {
         let errors = [
             WebDriverBiDiNavigationCommittedProjectionError::InvalidStructure,
-            WebDriverBiDiNavigationCommittedProjectionError::MissingRequiredMember { member: "url" },
-            WebDriverBiDiNavigationCommittedProjectionError::DuplicateRequiredMember { member: "url" },
+            WebDriverBiDiNavigationCommittedProjectionError::MissingRequiredMember {
+                member: "url",
+            },
+            WebDriverBiDiNavigationCommittedProjectionError::DuplicateRequiredMember {
+                member: "url",
+            },
             WebDriverBiDiNavigationCommittedProjectionError::InvalidContextIdentifier,
             WebDriverBiDiNavigationCommittedProjectionError::InvalidNavigationIdentifier,
             WebDriverBiDiNavigationCommittedProjectionError::InvalidTimestamp,
