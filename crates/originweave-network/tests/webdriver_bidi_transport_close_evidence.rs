@@ -112,8 +112,7 @@ fn one_unsolicited_pong_before_close_does_not_block_closure_observation()
 
 #[test]
 fn repeated_pong_frames_remain_fail_closed_under_fixed_read_budget() -> Result<(), Box<dyn Error>> {
-    let (established, server) =
-        established_with_server_frame(Some(&[0x8a, 0x00, 0x8a, 0x00]))?;
+    let (established, server) = established_with_server_frame(Some(&[0x8a, 0x00, 0x8a, 0x00]))?;
 
     let Err(error) = WebDriverBiDiWebSocketTransportClosureObservation::observe(
         established,
