@@ -422,7 +422,9 @@ impl<'a> JsonCursor<'a> {
     }
 
     fn parse_object(&mut self, depth: usize) -> Result<(), WebDriverBiDiJsonEnvelopeError> {
-        self.expect_byte(b'{')?;
+        // `parse_value` dispatches here only after observing `{`; consume that proven delimiter
+        // directly so an impossible second validation branch does not masquerade as parser evidence.
+        self.index += 1;
         self.skip_whitespace();
         if self.consume_byte(b'}') {
             return Ok(());
@@ -443,7 +445,9 @@ impl<'a> JsonCursor<'a> {
     }
 
     fn parse_array(&mut self, depth: usize) -> Result<(), WebDriverBiDiJsonEnvelopeError> {
-        self.expect_byte(b'[')?;
+        // `parse_value` dispatches here only after observing `[`; consume that proven delimiter
+        // directly so an impossible second validation branch does not masquerade as parser evidence.
+        self.index += 1;
         self.skip_whitespace();
         if self.consume_byte(b']') {
             return Ok(());
@@ -545,12 +549,12 @@ impl<'a> JsonCursor<'a> {
                     self.index += 1;
                 }
                 _ => {
-                    let remaining = &self.input[self.index..];
-                    let Some(character) = remaining.chars().next() else {
-                        return Err(WebDriverBiDiJsonEnvelopeError::InvalidJson);
-                    };
-                    output.push(character);
-                    self.index += character.len_utf8();
+                    // `input` is valid UTF-8 and `index` advances only on character boundaries.
+                    // For a non-ASCII lead byte, leading_ones therefore yields the exact width.
+                    let character_byte_count = byte.leading_ones() as usize;
+                    let end = self.index + character_byte_count;
+                    output.push_str(&self.input[self.index..end]);
+                    self.index = end;
                 }
             }
         }
@@ -594,10 +598,9 @@ impl<'a> JsonCursor<'a> {
         } else {
             u32::from(first)
         };
-        let Some(character) = char::from_u32(scalar) else {
-            return Err(WebDriverBiDiJsonEnvelopeError::InvalidJson);
-        };
-        output.push(character);
+        // `scalar` is either a non-surrogate `u16` or the scalar constructed from a validated
+        // high/low surrogate pair, so `char::from_u32` is always `Some` under this parser invariant.
+        output.extend(char::from_u32(scalar));
         Ok(())
     }
 
@@ -632,47 +635,68 @@ mod tests {
     fn classifies_all_local_end_envelope_kinds_and_redacts_debug() {
         let success = parse(
             r#"{"type":"success","id":9007199254740991,"result":{"ready":true},"ext":[null,false,1.5,-2e3,"\u20ac","\ud83d\ude00"]}"#,
-        )
-        .ok();
-        assert!(success.is_some());
-        let Some(success) = success else {
-            return;
-        };
-        assert_eq!(success.kind(), WebDriverBiDiJsonEnvelopeKind::Success);
-        assert_eq!(success.command_id(), Some(MAX_WEBDRIVER_BIDI_JS_UINT));
-        assert_eq!(success.method(), None);
-        assert_eq!(success.error_code(), None);
+        );
+        assert_eq!(
+            success.as_ref().map(WebDriverBiDiJsonEnvelope::kind),
+            Ok(WebDriverBiDiJsonEnvelopeKind::Success)
+        );
+        assert_eq!(
+            success.as_ref().map(WebDriverBiDiJsonEnvelope::command_id),
+            Ok(Some(MAX_WEBDRIVER_BIDI_JS_UINT))
+        );
+        assert_eq!(
+            success.as_ref().map(WebDriverBiDiJsonEnvelope::method),
+            Ok(None)
+        );
+        assert_eq!(
+            success.as_ref().map(WebDriverBiDiJsonEnvelope::error_code),
+            Ok(None)
+        );
         let debug = format!("{success:?}");
         assert!(debug.contains("Success"));
         assert!(!debug.contains("ready"));
 
         let error = parse(
             r#"{"type":"error","id":null,"error":"invalid argument","message":"secret detail","stacktrace":"hidden","vendor":{"x":[]}}"#,
-        )
-        .ok();
-        assert!(error.is_some());
-        let Some(error) = error else {
-            return;
-        };
-        assert_eq!(error.kind(), WebDriverBiDiJsonEnvelopeKind::Error);
-        assert_eq!(error.command_id(), None);
-        assert_eq!(error.error_code(), Some("invalid argument"));
-        assert_eq!(error.method(), None);
+        );
+        assert_eq!(
+            error.as_ref().map(WebDriverBiDiJsonEnvelope::kind),
+            Ok(WebDriverBiDiJsonEnvelopeKind::Error)
+        );
+        assert_eq!(
+            error.as_ref().map(WebDriverBiDiJsonEnvelope::command_id),
+            Ok(None)
+        );
+        assert_eq!(
+            error.as_ref().map(WebDriverBiDiJsonEnvelope::error_code),
+            Ok(Some("invalid argument"))
+        );
+        assert_eq!(
+            error.as_ref().map(WebDriverBiDiJsonEnvelope::method),
+            Ok(None)
+        );
         let debug = format!("{error:?}");
         assert!(!debug.contains("invalid argument"));
         assert!(!debug.contains("secret detail"));
 
         let event =
-            parse(r#"{"type":"event","method":"browsingContext.load","params":{},"vendor":true}"#)
-                .ok();
-        assert!(event.is_some());
-        let Some(event) = event else {
-            return;
-        };
-        assert_eq!(event.kind(), WebDriverBiDiJsonEnvelopeKind::Event);
-        assert_eq!(event.command_id(), None);
-        assert_eq!(event.method(), Some("browsingContext.load"));
-        assert_eq!(event.error_code(), None);
+            parse(r#"{"type":"event","method":"browsingContext.load","params":{},"vendor":true}"#);
+        assert_eq!(
+            event.as_ref().map(WebDriverBiDiJsonEnvelope::kind),
+            Ok(WebDriverBiDiJsonEnvelopeKind::Event)
+        );
+        assert_eq!(
+            event.as_ref().map(WebDriverBiDiJsonEnvelope::command_id),
+            Ok(None)
+        );
+        assert_eq!(
+            event.as_ref().map(WebDriverBiDiJsonEnvelope::method),
+            Ok(Some("browsingContext.load"))
+        );
+        assert_eq!(
+            event.as_ref().map(WebDriverBiDiJsonEnvelope::error_code),
+            Ok(None)
+        );
     }
 
     #[test]
