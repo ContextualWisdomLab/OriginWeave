@@ -25,6 +25,9 @@ const SUCCESS_MESSAGE: &[u8] =
     br#"{"type":"success","id":7,"result":{"ready":true,"slash":"\/","upper":"\uABCD"}}"#;
 const EMPTY_STATUS_RESULT: &[u8] = br#"{"type":"success","id":7,"result":{}}"#;
 const NAVIGATION_COMMITTED_EVENT: &[u8] = br#"{"type":"event","method":"browsingContext.navigationCommitted","params":{"context":"a","navigation":null,"timestamp":0,"url":"x"}}"#;
+const NAVIGATION_COMMITTED_MISSING_CONTEXT: &[u8] = br#"{"type":"event","method":"browsingContext.navigationCommitted","params":{"navigation":null,"timestamp":0,"url":"x"}}"#;
+const MALFORMED_NAVIGATION_COMMITTED_EVENT: &[u8] =
+    br#"{"type":"event","method":"browsingContext.navigationCommitted","params":"#;
 const OTHER_EVENT: &[u8] = br#"{"type":"event","method":"x","params":{}}"#;
 
 fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
@@ -186,6 +189,48 @@ fn public_navigation_committed_boundary_is_exercised_from_unit_build() -> Result
         wrong_url,
         Err(WebDriverBiDiNavigationCommittedObservationError::UnexpectedUrl)
     ));
+
+    let other_context = registry.register_context(session, "b")?;
+    let wrong_context = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
+        &event,
+        &registry,
+        session,
+        other_context,
+        "x",
+    );
+    let Err(WebDriverBiDiNavigationCommittedObservationError::ContextBinding { source }) =
+        wrong_context
+    else {
+        return Err(io::Error::other("wrong registered context did not fail closed").into());
+    };
+    assert!(!source.to_string().is_empty());
+
+    let missing_context = read_text_over_loopback(NAVIGATION_COMMITTED_MISSING_CONTEXT)?;
+    let projection = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
+        &missing_context,
+        &registry,
+        session,
+        context,
+        "x",
+    );
+    let Err(WebDriverBiDiNavigationCommittedObservationError::Projection { source }) = projection
+    else {
+        return Err(io::Error::other("missing context did not fail at projection").into());
+    };
+    assert!(!source.to_string().is_empty());
+
+    let malformed = read_text_over_loopback(MALFORMED_NAVIGATION_COMMITTED_EVENT)?;
+    let envelope = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
+        &malformed,
+        &registry,
+        session,
+        context,
+        "x",
+    );
+    let Err(WebDriverBiDiNavigationCommittedObservationError::Envelope { source }) = envelope else {
+        return Err(io::Error::other("malformed event did not fail at envelope validation").into());
+    };
+    assert!(!source.to_string().is_empty());
 
     let other_event = read_text_over_loopback(OTHER_EVENT)?;
     assert!(matches!(
