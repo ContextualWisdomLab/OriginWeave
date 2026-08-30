@@ -6,11 +6,12 @@ use std::{
     time::Duration,
 };
 
-use originweave_core::WebDriverBiDiWebSocketEndpoint;
+use originweave_core::{BrowserAuthorityRegistry, WebDriverBiDiWebSocketEndpoint};
 
 use crate::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeError,
-    WebDriverBiDiJsonEnvelopeKind, WebDriverBiDiSessionStatusResponseError,
+    WebDriverBiDiJsonEnvelopeKind, WebDriverBiDiNavigationCommittedObservation,
+    WebDriverBiDiNavigationCommittedObservationError, WebDriverBiDiSessionStatusResponseError,
     WebDriverBiDiSessionStatusResult, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
     WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
@@ -23,6 +24,8 @@ const OPENING_RESPONSE: &[u8] = b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: w
 const SUCCESS_MESSAGE: &[u8] =
     br#"{"type":"success","id":7,"result":{"ready":true,"slash":"\/","upper":"\uABCD"}}"#;
 const EMPTY_STATUS_RESULT: &[u8] = br#"{"type":"success","id":7,"result":{}}"#;
+const NAVIGATION_COMMITTED_EVENT: &[u8] = br#"{"type":"event","method":"browsingContext.navigationCommitted","params":{"context":"a","navigation":null,"timestamp":0,"url":"x"}}"#;
+const OTHER_EVENT: &[u8] = br#"{"type":"event","method":"x","params":{}}"#;
 
 fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
@@ -41,21 +44,35 @@ fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     Ok(())
 }
 
+fn write_unmasked_text_frame(stream: &mut TcpStream, document: &[u8]) -> io::Result<()> {
+    if document.len() <= 125 {
+        let length = u8::try_from(document.len()).map_err(|_| {
+            io::Error::new(io::ErrorKind::InvalidData, "short frame length exceeds u8")
+        })?;
+        stream.write_all(&[0x81, length])?;
+    } else {
+        let length = u16::try_from(document.len()).map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "unit JSON document exceeds two-byte frame length",
+            )
+        })?;
+        stream.write_all(&[0x81, 126])?;
+        stream.write_all(&length.to_be_bytes())?;
+    }
+    stream.write_all(document)
+}
+
 fn read_text_over_loopback(
     document: &'static [u8],
 ) -> Result<WebDriverBiDiWebSocketTextMessage, Box<dyn Error>> {
-    if document.len() > 125 {
-        return Err(io::Error::other("unit JSON document exceeded one-byte frame length").into());
-    }
-
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let server = thread::spawn(move || -> io::Result<()> {
         let (mut stream, _) = listener.accept()?;
         read_opening_request(&mut stream)?;
         stream.write_all(OPENING_RESPONSE)?;
-        stream.write_all(&[0x81, document.len() as u8])?;
-        stream.write_all(document)
+        write_unmasked_text_frame(&mut stream, document)
     });
 
     let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
@@ -142,5 +159,63 @@ fn public_session_status_empty_result_fails_closed_from_unit_build() -> Result<(
         Err(WebDriverBiDiSessionStatusResponseError::MissingReady)
     ));
     assert_eq!(correlation.outstanding_count(), 1);
+    Ok(())
+}
+
+#[test]
+fn public_navigation_committed_boundary_is_exercised_from_unit_build() -> Result<(), Box<dyn Error>> {
+    let mut registry = BrowserAuthorityRegistry::new();
+    let session = registry.register_session(SESSION_ID)?;
+    let context = registry.register_context(session, "a")?;
+
+    let event = read_text_over_loopback(NAVIGATION_COMMITTED_EVENT)?;
+    let observation = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
+        &event,
+        &registry,
+        session,
+        context,
+        "x",
+    )?;
+    assert_eq!(observation.browser_session(), session);
+    assert_eq!(observation.browsing_context(), context);
+    assert_eq!(observation.navigation_id(), None);
+    assert_eq!(observation.timestamp(), 0);
+    assert_eq!(observation.url(), "x");
+
+    let wrong_url = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
+        &event,
+        &registry,
+        session,
+        context,
+        "y",
+    );
+    assert!(matches!(
+        wrong_url,
+        Err(WebDriverBiDiNavigationCommittedObservationError::UnexpectedUrl)
+    ));
+
+    let other_event = read_text_over_loopback(OTHER_EVENT)?;
+    assert!(matches!(
+        WebDriverBiDiNavigationCommittedObservation::parse_and_match(
+            &other_event,
+            &registry,
+            session,
+            context,
+            "x",
+        ),
+        Err(WebDriverBiDiNavigationCommittedObservationError::UnexpectedEvent)
+    ));
+
+    let non_event = read_text_over_loopback(SUCCESS_MESSAGE)?;
+    assert!(matches!(
+        WebDriverBiDiNavigationCommittedObservation::parse_and_match(
+            &non_event,
+            &registry,
+            session,
+            context,
+            "x",
+        ),
+        Err(WebDriverBiDiNavigationCommittedObservationError::UnexpectedEvent)
+    ));
     Ok(())
 }
