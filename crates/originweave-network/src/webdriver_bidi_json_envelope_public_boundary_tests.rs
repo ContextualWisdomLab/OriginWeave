@@ -9,10 +9,12 @@ use std::{
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 
 use crate::{
-    WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeError, WebDriverBiDiJsonEnvelopeKind,
-    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
-    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMessageAssembler,
-    WebDriverBiDiWebSocketMessageAssembly,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeError,
+    WebDriverBiDiJsonEnvelopeKind, WebDriverBiDiSessionStatusResponseError,
+    WebDriverBiDiSessionStatusResult, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
+    WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
+    WebDriverBiDiWebSocketTextMessage,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -20,6 +22,7 @@ const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
 const OPENING_RESPONSE: &[u8] = b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n";
 const SUCCESS_MESSAGE: &[u8] =
     br#"{"type":"success","id":7,"result":{"ready":true,"slash":"\/","upper":"\uABCD"}}"#;
+const EMPTY_STATUS_RESULT: &[u8] = br#"{"type":"success","id":7,"result":{}}"#;
 
 fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
@@ -38,9 +41,9 @@ fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     Ok(())
 }
 
-fn parse_over_loopback(
+fn read_text_over_loopback(
     document: &'static [u8],
-) -> Result<Result<WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeError>, Box<dyn Error>> {
+) -> Result<WebDriverBiDiWebSocketTextMessage, Box<dyn Error>> {
     if document.len() > 125 {
         return Err(io::Error::other("unit JSON document exceeded one-byte frame length").into());
     }
@@ -77,12 +80,18 @@ fn parse_over_loopback(
             .into());
         }
     };
-    let parsed = WebDriverBiDiJsonEnvelope::parse(&text);
 
     server
         .join()
         .map_err(|_| io::Error::other("JSON-envelope unit server panicked"))??;
-    Ok(parsed)
+    Ok(text)
+}
+
+fn parse_over_loopback(
+    document: &'static [u8],
+) -> Result<Result<WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeError>, Box<dyn Error>> {
+    let text = read_text_over_loopback(document)?;
+    Ok(WebDriverBiDiJsonEnvelope::parse(&text))
 }
 
 #[test]
@@ -118,5 +127,20 @@ fn public_json_envelope_unit_build_covers_fail_closed_json_edges() -> Result<(),
             Err(WebDriverBiDiJsonEnvelopeError::InvalidJson)
         );
     }
+    Ok(())
+}
+
+#[test]
+fn public_session_status_empty_result_fails_closed_from_unit_build() -> Result<(), Box<dyn Error>> {
+    let text = read_text_over_loopback(EMPTY_STATUS_RESULT)?;
+    let mut correlation = WebDriverBiDiCommandCorrelation::new();
+    correlation.register_command(7)?;
+
+    let parsed = WebDriverBiDiSessionStatusResult::parse_and_correlate(&text, &mut correlation);
+    assert!(matches!(
+        parsed,
+        Err(WebDriverBiDiSessionStatusResponseError::MissingReady)
+    ));
+    assert_eq!(correlation.outstanding_count(), 1);
     Ok(())
 }
