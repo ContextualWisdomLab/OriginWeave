@@ -128,8 +128,42 @@ fn application_frame_after_teardown_does_not_become_closure_evidence() -> Result
         .join()
         .map_err(|_| io::Error::other("unexpected-frame test server panicked"))??;
     assert!(matches!(
-        error,
+        &error,
         WebDriverBiDiWebSocketTransportClosureError::UnexpectedFrame { opcode: 0x1 }
     ));
+    assert_eq!(
+        error.to_string(),
+        "WebDriver BiDi peer sent application traffic instead of closing"
+    );
+    assert!(error.source().is_none());
+    Ok(())
+}
+
+#[test]
+fn malformed_close_frame_remains_a_typed_frame_failure() -> Result<(), Box<dyn Error>> {
+    let (established, server) = established_with_server_frame(Some(&[0x88, 0x01, 0x00]))?;
+
+    let Err(error) = WebDriverBiDiWebSocketTransportClosureObservation::observe(
+        established,
+        Duration::from_millis(500),
+    ) else {
+        return Err(io::Error::other(
+            "malformed close frame unexpectedly became transport-closure evidence",
+        )
+        .into());
+    };
+
+    server
+        .join()
+        .map_err(|_| io::Error::other("malformed-close test server panicked"))??;
+    assert!(matches!(
+        &error,
+        WebDriverBiDiWebSocketTransportClosureError::Frame { .. }
+    ));
+    assert_eq!(
+        error.to_string(),
+        "WebDriver BiDi transport closure could not be observed safely"
+    );
+    assert!(error.source().is_some());
     Ok(())
 }
