@@ -163,18 +163,15 @@ fn public_session_status_empty_result_fails_closed_from_unit_build() -> Result<(
 }
 
 #[test]
-fn public_navigation_committed_boundary_is_exercised_from_unit_build() -> Result<(), Box<dyn Error>> {
+fn public_navigation_committed_boundary_is_exercised_from_unit_build() -> Result<(), Box<dyn Error>>
+{
     let mut registry = BrowserAuthorityRegistry::new();
     let session = registry.register_session(SESSION_ID)?;
     let context = registry.register_context(session, "a")?;
 
     let event = read_text_over_loopback(NAVIGATION_COMMITTED_EVENT)?;
     let observation = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
-        &event,
-        &registry,
-        session,
-        context,
-        "x",
+        &event, &registry, session, context, "x",
     )?;
     assert_eq!(observation.browser_session(), session);
     assert_eq!(observation.browsing_context(), context);
@@ -183,11 +180,7 @@ fn public_navigation_committed_boundary_is_exercised_from_unit_build() -> Result
     assert_eq!(observation.url(), "x");
 
     let wrong_url = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
-        &event,
-        &registry,
-        session,
-        context,
-        "y",
+        &event, &registry, session, context, "y",
     );
     assert!(matches!(
         wrong_url,
@@ -209,11 +202,7 @@ fn public_navigation_committed_boundary_is_exercised_from_unit_build() -> Result
     let non_event = read_text_over_loopback(SUCCESS_MESSAGE)?;
     assert!(matches!(
         WebDriverBiDiNavigationCommittedObservation::parse_and_match(
-            &non_event,
-            &registry,
-            session,
-            context,
-            "x",
+            &non_event, &registry, session, context, "x",
         ),
         Err(WebDriverBiDiNavigationCommittedObservationError::UnexpectedEvent)
     ));
