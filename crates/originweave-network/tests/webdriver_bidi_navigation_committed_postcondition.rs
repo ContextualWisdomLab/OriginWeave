@@ -293,6 +293,24 @@ fn navigation_observation_fails_closed_for_envelope_event_and_projection_errors(
     assert!(!unexpected.to_string().is_empty());
     assert!(unexpected.source().is_none());
 
+    let non_event = CLICK_SUCCESS_RESPONSE;
+    let (event, registry, session, context) =
+        click_then_observe_navigation_with_event(non_event)?;
+    let unexpected = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
+        &event,
+        &registry,
+        session,
+        context,
+        EXPECTED_URL,
+    );
+    let Err(unexpected @ WebDriverBiDiNavigationCommittedObservationError::UnexpectedEvent) =
+        unexpected
+    else {
+        return Err(io::Error::other("non-event WebDriver BiDi envelope was not rejected").into());
+    };
+    assert!(!unexpected.to_string().is_empty());
+    assert!(unexpected.source().is_none());
+
     let missing_context = br#"{"type":"event","method":"browsingContext.navigationCommitted","params":{"navigation":null,"timestamp":1,"url":"https://example.test/after"}}"#;
     let (event, registry, session, context) =
         click_then_observe_navigation_with_event(missing_context)?;
