@@ -31,6 +31,25 @@ pub enum BapExternalSideEffectOutcome {
     ReconciliationRequired,
 }
 
+/// Fail-closed parse error for one persisted external side-effect outcome value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BapExternalSideEffectOutcomeParseError {
+    /// The supplied text is not one exact canonical recovery-outcome value.
+    UnsupportedValue,
+}
+
+impl std::fmt::Display for BapExternalSideEffectOutcomeParseError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UnsupportedValue => formatter.write_str(
+                "BAP external side-effect outcome has an unsupported canonical value",
+            ),
+        }
+    }
+}
+
+impl std::error::Error for BapExternalSideEffectOutcomeParseError {}
+
 /// Required fail-closed handling for one classified external recovery outcome.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BapRecoveryAction {
@@ -98,6 +117,35 @@ impl std::error::Error for BapCommandRecoveryError {
 }
 
 impl BapExternalSideEffectOutcome {
+    /// Return the exact storage-neutral canonical value for this classification.
+    ///
+    /// The value is stable protocol metadata only. It is not recovery-evidence authentication,
+    /// persistence authority, or permission to retry an interrupted command.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::ConfirmedNoSideEffect => "confirmed_no_side_effect",
+            Self::ConfirmedSideEffect => "confirmed_side_effect",
+            Self::UnknownOutcome => "unknown_outcome",
+            Self::ReconciliationRequired => "reconciliation_required",
+        }
+    }
+
+    /// Parse one exact storage-neutral canonical recovery-outcome value.
+    ///
+    /// Aliases, case changes, surrounding whitespace, and other noncanonical values fail closed.
+    /// Parsing reconstructs the classification only; callers remain responsible for authenticating
+    /// the exact recovery evidence and revalidating current authority before acting on it.
+    pub fn parse(value: &str) -> Result<Self, BapExternalSideEffectOutcomeParseError> {
+        match value {
+            "confirmed_no_side_effect" => Ok(Self::ConfirmedNoSideEffect),
+            "confirmed_side_effect" => Ok(Self::ConfirmedSideEffect),
+            "unknown_outcome" => Ok(Self::UnknownOutcome),
+            "reconciliation_required" => Ok(Self::ReconciliationRequired),
+            _ => Err(BapExternalSideEffectOutcomeParseError::UnsupportedValue),
+        }
+    }
+
     /// Map the classification to the minimum required recovery action.
     ///
     /// This mapping considers only the external side-effect classification. Use
