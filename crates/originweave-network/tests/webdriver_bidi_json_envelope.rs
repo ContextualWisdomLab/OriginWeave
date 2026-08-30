@@ -184,6 +184,48 @@ fn real_transport_rejects_malformed_json_at_parser_boundaries() -> Result<(), Bo
 }
 
 #[test]
+fn real_transport_rejects_missing_required_envelope_members() -> Result<(), Box<dyn Error>> {
+    let cases: &[(&[u8], WebDriverBiDiJsonEnvelopeError)] = &[
+        (
+            br#"{}"#,
+            WebDriverBiDiJsonEnvelopeError::MissingRequiredMember { member: "type" },
+        ),
+        (
+            br#"{"type":"success","result":{}}"#,
+            WebDriverBiDiJsonEnvelopeError::MissingRequiredMember { member: "id" },
+        ),
+        (
+            br#"{"type":"success","id":1}"#,
+            WebDriverBiDiJsonEnvelopeError::MissingRequiredMember { member: "result" },
+        ),
+        (
+            br#"{"type":"error","error":"x","message":"m"}"#,
+            WebDriverBiDiJsonEnvelopeError::MissingRequiredMember { member: "id" },
+        ),
+        (
+            br#"{"type":"error","id":null,"message":"m"}"#,
+            WebDriverBiDiJsonEnvelopeError::MissingRequiredMember { member: "error" },
+        ),
+        (
+            br#"{"type":"error","id":null,"error":"x"}"#,
+            WebDriverBiDiJsonEnvelopeError::MissingRequiredMember { member: "message" },
+        ),
+        (
+            br#"{"type":"event","params":{}}"#,
+            WebDriverBiDiJsonEnvelopeError::MissingRequiredMember { member: "method" },
+        ),
+        (
+            br#"{"type":"event","method":"x"}"#,
+            WebDriverBiDiJsonEnvelopeError::MissingRequiredMember { member: "params" },
+        ),
+    ];
+    for (document, expected) in cases {
+        assert_eq!(parse_over_real_transport(document)?, Err(expected.clone()));
+    }
+    Ok(())
+}
+
+#[test]
 fn real_transport_rejects_negative_error_response_id() -> Result<(), Box<dyn Error>> {
     let error = parse_over_real_transport(
         br#"{"type":"error","id":-1,"error":"invalid argument","message":"bad id"}"#,
