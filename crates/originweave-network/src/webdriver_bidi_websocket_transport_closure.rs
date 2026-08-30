@@ -31,14 +31,28 @@ pub struct WebDriverBiDiWebSocketTransportClosureObservation {
 impl WebDriverBiDiWebSocketTransportClosureObservation {
     /// Consume one established connection and observe one bounded transport-closure condition.
     ///
-    /// A validated peer Close frame and zero-byte clean EOF are the only success cases. Any data
-    /// frame, partial-frame EOF, timeout, malformed Close, I/O failure, or integrity failure remains
-    /// a typed error and is never normalized into successful teardown evidence.
+    /// A validated peer Close frame and zero-byte clean EOF are the only success cases. One
+    /// unsolicited Pong may be ignored before that closure signal because Pong requires no client
+    /// response; a second Pong, Ping, data frame, partial-frame EOF, timeout, malformed Close, I/O
+    /// failure, or integrity failure remains a typed error. This fixed two-read envelope prevents
+    /// peer control traffic from extending teardown observation indefinitely and does not invent
+    /// masking entropy or outbound authority to answer Ping frames.
     pub fn observe(
         established: WebDriverBiDiWebSocketEstablished,
         frame_timeout: Duration,
     ) -> Result<Self, WebDriverBiDiWebSocketTransportClosureError> {
+        Self::observe_frame(established, frame_timeout, true)
+    }
+
+    fn observe_frame(
+        established: WebDriverBiDiWebSocketEstablished,
+        frame_timeout: Duration,
+        allow_pong: bool,
+    ) -> Result<Self, WebDriverBiDiWebSocketTransportClosureError> {
         match established.read_frame(frame_timeout) {
+            Ok((established, frame)) if frame.opcode() == 0xa && allow_pong => {
+                Self::observe_frame(established, frame_timeout, false)
+            }
             Ok((established, frame)) => {
                 if frame.opcode() != 0x8 {
                     return Err(
@@ -81,9 +95,9 @@ impl WebDriverBiDiWebSocketTransportClosureObservation {
 /// Fail-closed errors while converting one established BiDi transport into closure evidence.
 #[derive(Debug)]
 pub enum WebDriverBiDiWebSocketTransportClosureError {
-    /// The peer sent a valid WebSocket frame that was not a Close frame.
+    /// The peer sent a valid WebSocket frame that was not an admissible closure signal.
     UnexpectedFrame {
-        /// Exact validated RFC 6455 opcode observed instead of a Close frame.
+        /// Exact validated RFC 6455 opcode observed instead of an admissible closure signal.
         opcode: u8,
     },
     /// The existing bounded WebSocket frame reader failed before closure was proven.
@@ -97,7 +111,7 @@ impl fmt::Display for WebDriverBiDiWebSocketTransportClosureError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::UnexpectedFrame { .. } => formatter
-                .write_str("WebDriver BiDi peer sent application traffic instead of closing"),
+                .write_str("WebDriver BiDi peer sent non-closure traffic instead of closing"),
             Self::Frame { .. } => {
                 formatter.write_str("WebDriver BiDi transport closure could not be observed safely")
             }
