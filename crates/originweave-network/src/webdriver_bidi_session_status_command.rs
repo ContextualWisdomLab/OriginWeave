@@ -122,17 +122,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn constructor_rejects_ids_outside_the_webdriver_bidi_js_uint_range() {
+    fn constructor_enforces_the_webdriver_bidi_js_uint_range() {
+        let accepted = WebDriverBiDiSessionStatusCommand::new(MAX_WEBDRIVER_BIDI_JS_UINT);
+        assert_eq!(
+            accepted.ok().map(|command| command.command_id()),
+            Some(MAX_WEBDRIVER_BIDI_JS_UINT)
+        );
+
         let rejected = WebDriverBiDiSessionStatusCommand::new(MAX_WEBDRIVER_BIDI_JS_UINT + 1);
-        assert!(matches!(
-            rejected,
-            Err(
-                WebDriverBiDiSessionStatusCommandError::CommandIdOutOfRange {
-                    maximum_command_id: MAX_WEBDRIVER_BIDI_JS_UINT,
-                    ..
-                }
-            )
-        ));
+        assert_eq!(
+            rejected.err().map(|error| error.to_string()).as_deref(),
+            Some("WebDriver BiDi session.status command id is outside the js-uint range")
+        );
     }
 
     #[test]
