@@ -137,13 +137,11 @@ mod tests {
 
     #[test]
     fn command_serialization_is_static_and_exact() {
-        let serialized = WebDriverBiDiSessionStatusCommand::new(42).map(|command| {
-            assert_eq!(command.command_id(), 42);
-            command.serialized()
-        });
+        let command = WebDriverBiDiSessionStatusCommand { command_id: 42 };
+        assert_eq!(command.command_id(), 42);
         assert_eq!(
-            serialized.as_deref(),
-            Ok(r#"{"id":42,"method":"session.status","params":{}}"#)
+            command.serialized(),
+            r#"{"id":42,"method":"session.status","params":{}}"#
         );
     }
 
