@@ -8,15 +8,16 @@ use std::{
 
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
-    WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeKind, WebDriverBiDiTcpConnectionPlan,
-    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
+    WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeError, WebDriverBiDiJsonEnvelopeKind,
+    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
+    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMessageAssembler,
+    WebDriverBiDiWebSocketMessageAssembly,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
 const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
 const OPENING_RESPONSE: &[u8] = b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n";
-const SUCCESS_MESSAGE: &[u8] = br#"{"type":"success","id":7,"result":{"ready":true}}"#;
+const SUCCESS_MESSAGE: &[u8] = br#"{\"type\":\"success\",\"id\":7,\"result\":{\"ready\":true}}"#;
 
 fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
@@ -35,18 +36,24 @@ fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     Ok(())
 }
 
-#[test]
-fn real_transport_text_is_classified_as_bidi_success_envelope() -> Result<(), Box<dyn Error>> {
+fn parse_over_real_transport(
+    payload: &[u8],
+) -> Result<Result<WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeError>, Box<dyn Error>> {
+    if payload.len() > 125 {
+        return Err(io::Error::other("test payload exceeded one-byte frame length").into());
+    }
+
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
+    let payload = payload.to_vec();
     let server = thread::spawn(move || -> io::Result<()> {
         let (mut stream, _) = listener.accept()?;
         read_opening_request(&mut stream)?;
         stream.write_all(OPENING_RESPONSE)?;
-        let payload_len = u8::try_from(SUCCESS_MESSAGE.len())
-            .map_err(|_| io::Error::other("test payload exceeded one-byte frame length"))?;
+        let payload_len = u8::try_from(payload.len())
+            .map_err(|_| io::Error::other("test payload length does not fit u8"))?;
         stream.write_all(&[0x81, payload_len])?;
-        stream.write_all(SUCCESS_MESSAGE)
+        stream.write_all(&payload)
     });
 
     let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
@@ -71,14 +78,69 @@ fn real_transport_text_is_classified_as_bidi_success_envelope() -> Result<(), Bo
             .into());
         }
     };
-    let envelope = WebDriverBiDiJsonEnvelope::parse(&text)?;
-    assert_eq!(envelope.kind(), WebDriverBiDiJsonEnvelopeKind::Success);
-    assert_eq!(envelope.command_id(), Some(7));
-    assert_eq!(envelope.method(), None);
-    assert_eq!(envelope.error_code(), None);
+    let parsed = WebDriverBiDiJsonEnvelope::parse(&text);
 
     server
         .join()
         .map_err(|_| io::Error::other("JSON-envelope server panicked"))??;
+    Ok(parsed)
+}
+
+#[test]
+fn real_transport_text_is_classified_as_bidi_success_envelope() -> Result<(), Box<dyn Error>> {
+    let envelope = parse_over_real_transport(SUCCESS_MESSAGE)?;
+    assert_eq!(
+        envelope.as_ref().map(WebDriverBiDiJsonEnvelope::kind),
+        Ok(WebDriverBiDiJsonEnvelopeKind::Success)
+    );
+    assert_eq!(
+        envelope
+            .as_ref()
+            .map(WebDriverBiDiJsonEnvelope::command_id),
+        Ok(Some(7))
+    );
+    assert_eq!(
+        envelope.as_ref().map(WebDriverBiDiJsonEnvelope::method),
+        Ok(None)
+    );
+    assert_eq!(
+        envelope
+            .as_ref()
+            .map(WebDriverBiDiJsonEnvelope::error_code),
+        Ok(None)
+    );
+    Ok(())
+}
+
+#[test]
+fn real_transport_exercises_valid_escape_boundaries() -> Result<(), Box<dyn Error>> {
+    let envelope = parse_over_real_transport(
+        br#"{\"type\":\"success\",\"id\":1,\"result\":{\"slash\":\"\\/\",\"upper\":\"\\uABCD\",\"edge\":\"\\uFFFF\"}}"#,
+    )?;
+    assert_eq!(
+        envelope.as_ref().map(WebDriverBiDiJsonEnvelope::kind),
+        Ok(WebDriverBiDiJsonEnvelopeKind::Success)
+    );
+    Ok(())
+}
+
+#[test]
+fn real_transport_rejects_malformed_json_at_parser_boundaries() -> Result<(), Box<dyn Error>> {
+    let cases: &[&[u8]] = &[
+        br#"{\"type\":\"success\",\"unterminated"#,
+        br#"{\"type\" \"success\"}"#,
+        br#"{\"type\":\"success\" \"id\":1,\"result\":{}}"#,
+        br#"{\"type\":\"success\",\"id\":1,\"result\":{\"x\" 1}}"#,
+        br#"{\"type\":\"success\",\"id\":1,\"result\":{\"x\":[1 2]}}"#,
+        b"{\"type\":\"success\",\"id\":1,\"result\":{\"x\":\"\\",
+        br#"{\"type\":\"success\",\"id\":1,\"result\":{\"x\":\"\\ud800\\x\"}}"#,
+        b"{\"type\":\"success\",\"id\":1,\"result\":{\"x\":\"\\ud800\\u",
+    ];
+    for document in cases {
+        assert_eq!(
+            parse_over_real_transport(document)?,
+            Err(WebDriverBiDiJsonEnvelopeError::InvalidJson)
+        );
+    }
     Ok(())
 }
