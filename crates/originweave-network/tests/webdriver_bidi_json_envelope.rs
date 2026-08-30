@@ -177,3 +177,15 @@ fn real_transport_rejects_malformed_json_at_parser_boundaries() -> Result<(), Bo
     }
     Ok(())
 }
+
+#[test]
+fn real_transport_rejects_negative_error_response_id() -> Result<(), Box<dyn Error>> {
+    let error = parse_over_real_transport(
+        br#"{"type":"error","id":-1,"error":"invalid argument","message":"bad id"}"#,
+    )?;
+    assert_eq!(
+        error,
+        Err(WebDriverBiDiJsonEnvelopeError::InvalidMember { member: "id" })
+    );
+    Ok(())
+}
