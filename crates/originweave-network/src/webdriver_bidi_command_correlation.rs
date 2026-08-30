@@ -1,8 +1,6 @@
 use std::{collections::BTreeSet, error::Error, fmt};
 
-use crate::{
-    MAX_WEBDRIVER_BIDI_JS_UINT, WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeKind,
-};
+use crate::{MAX_WEBDRIVER_BIDI_JS_UINT, WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeKind};
 
 /// Maximum number of local WebDriver BiDi commands retained as outstanding at once.
 ///
@@ -153,9 +151,7 @@ impl WebDriverBiDiCommandCorrelation {
             }
             WebDriverBiDiJsonEnvelopeKind::Error => {
                 let Some(command_id) = envelope.command_id() else {
-                    return Err(
-                        WebDriverBiDiCommandCorrelationError::UncorrelatableErrorResponse,
-                    );
+                    return Err(WebDriverBiDiCommandCorrelationError::UncorrelatableErrorResponse);
                 };
                 self.complete(command_id, WebDriverBiDiCorrelatedResponseOutcome::Error)
             }
