@@ -8,10 +8,11 @@ use std::{
 
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiSessionStatusCommand,
-    WebDriverBiDiSessionStatusCommandError, WebDriverBiDiTcpConnectionPlan,
-    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketEstablished,
-    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
+    MAX_WEBDRIVER_BIDI_JS_UINT, WebDriverBiDiCommandCorrelation,
+    WebDriverBiDiSessionStatusCommand, WebDriverBiDiSessionStatusCommandError,
+    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
+    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketHandshakePlan,
+    WebDriverBiDiWebSocketMaskKey,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -59,6 +60,15 @@ fn establish_with_handshake_only_server() -> Result<HandshakeOnlyServer, Box<dyn
         .write_opening_request(Duration::from_millis(500))?
         .read_opening_response(Duration::from_millis(500))?;
     Ok((established, server))
+}
+
+#[test]
+fn session_status_rejects_ids_above_the_webdriver_bidi_js_uint_range() {
+    let rejected = WebDriverBiDiSessionStatusCommand::new(MAX_WEBDRIVER_BIDI_JS_UINT + 1);
+    assert_eq!(
+        rejected.err().map(|error| error.to_string()).as_deref(),
+        Some("WebDriver BiDi session.status command id is outside the js-uint range")
+    );
 }
 
 #[test]
