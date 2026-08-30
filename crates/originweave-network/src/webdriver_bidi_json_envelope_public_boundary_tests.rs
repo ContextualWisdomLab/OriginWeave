@@ -189,7 +189,8 @@ fn public_navigation_committed_boundary_is_exercised_from_unit_build() -> Result
     let wrong_url = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
         &event, &registry, session, context, "y",
     );
-    let Err(wrong_url @ WebDriverBiDiNavigationCommittedObservationError::UnexpectedUrl) = wrong_url
+    let Err(wrong_url @ WebDriverBiDiNavigationCommittedObservationError::UnexpectedUrl) =
+        wrong_url
     else {
         return Err(io::Error::other("wrong URL did not fail closed").into());
     };
@@ -204,8 +205,9 @@ fn public_navigation_committed_boundary_is_exercised_from_unit_build() -> Result
         other_context,
         "x",
     );
-    let Err(wrong_context @ WebDriverBiDiNavigationCommittedObservationError::ContextBinding { .. }) =
-        wrong_context
+    let Err(
+        wrong_context @ WebDriverBiDiNavigationCommittedObservationError::ContextBinding { .. },
+    ) = wrong_context
     else {
         return Err(io::Error::other("wrong registered context did not fail closed").into());
     };
@@ -232,7 +234,8 @@ fn public_navigation_committed_boundary_is_exercised_from_unit_build() -> Result
     let envelope = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
         &malformed, &registry, session, context, "x",
     );
-    let Err(envelope @ WebDriverBiDiNavigationCommittedObservationError::Envelope { .. }) = envelope
+    let Err(envelope @ WebDriverBiDiNavigationCommittedObservationError::Envelope { .. }) =
+        envelope
     else {
         return Err(io::Error::other("malformed event did not fail at envelope validation").into());
     };
