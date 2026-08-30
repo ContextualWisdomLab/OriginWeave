@@ -9,15 +9,17 @@ use std::{
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 
 use crate::{
-    WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeKind, WebDriverBiDiTcpConnectionPlan,
-    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
+    WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeError, WebDriverBiDiJsonEnvelopeKind,
+    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
+    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMessageAssembler,
+    WebDriverBiDiWebSocketMessageAssembly,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
 const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
 const OPENING_RESPONSE: &[u8] = b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n";
-const SUCCESS_MESSAGE: &[u8] = br#"{"type":"success","id":7,"result":{"ready":true}}"#;
+const SUCCESS_MESSAGE: &[u8] =
+    br#"{"type":"success","id":7,"result":{"ready":true,"upper":"\uABCD"}}"#;
 
 fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
@@ -36,16 +38,21 @@ fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     Ok(())
 }
 
-#[test]
-fn public_json_envelope_boundary_is_exercised_from_unit_build() -> Result<(), Box<dyn Error>> {
+fn parse_over_loopback(
+    document: &'static [u8],
+) -> Result<Result<WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeError>, Box<dyn Error>> {
+    if document.len() > 125 {
+        return Err(io::Error::other("unit JSON document exceeded one-byte frame length").into());
+    }
+
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let server = thread::spawn(move || -> io::Result<()> {
         let (mut stream, _) = listener.accept()?;
         read_opening_request(&mut stream)?;
         stream.write_all(OPENING_RESPONSE)?;
-        stream.write_all(&[0x81, SUCCESS_MESSAGE.len() as u8])?;
-        stream.write_all(SUCCESS_MESSAGE)
+        stream.write_all(&[0x81, document.len() as u8])?;
+        stream.write_all(document)
     });
 
     let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
@@ -75,6 +82,12 @@ fn public_json_envelope_boundary_is_exercised_from_unit_build() -> Result<(), Bo
     server
         .join()
         .map_err(|_| io::Error::other("JSON-envelope unit server panicked"))??;
+    Ok(parsed)
+}
+
+#[test]
+fn public_json_envelope_boundary_is_exercised_from_unit_build() -> Result<(), Box<dyn Error>> {
+    let parsed = parse_over_loopback(SUCCESS_MESSAGE)?;
     assert_eq!(
         parsed.as_ref().map(WebDriverBiDiJsonEnvelope::kind),
         Ok(WebDriverBiDiJsonEnvelopeKind::Success)
@@ -83,5 +96,27 @@ fn public_json_envelope_boundary_is_exercised_from_unit_build() -> Result<(), Bo
         parsed.as_ref().map(WebDriverBiDiJsonEnvelope::command_id),
         Ok(Some(7))
     );
+    Ok(())
+}
+
+#[test]
+fn public_json_envelope_unit_build_covers_fail_closed_json_edges() -> Result<(), Box<dyn Error>> {
+    let malformed_documents: [&'static [u8]; 8] = [
+        br#"{"unterminated"#,
+        br#"{"type" "success"}"#,
+        br#"{"type":"success" "id":1}"#,
+        br#"{"type":"success","id":1,"result":{"a" 1}}"#,
+        br#"{"type":"success","id":1,"result":[1 2]}"#,
+        br##"{"type":"success","id":1,"result":{"bad":"\"##,
+        br#"{"type":"success","id":1,"result":{"bad":"\ud800\0041"}}"#,
+        br##"{"type":"success","id":1,"result":{"bad":"\ud800\u"##,
+    ];
+
+    for document in malformed_documents {
+        assert_eq!(
+            parse_over_loopback(document)?,
+            Err(WebDriverBiDiJsonEnvelopeError::InvalidJson)
+        );
+    }
     Ok(())
 }
