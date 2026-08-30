@@ -64,7 +64,8 @@ fn establish_with_handshake_only_server() -> Result<
 }
 
 #[test]
-fn session_status_rejects_duplicate_correlation_before_any_frame_write() -> Result<(), Box<dyn Error>> {
+fn session_status_rejects_duplicate_correlation_before_any_frame_write()
+-> Result<(), Box<dyn Error>> {
     let (established, server) = establish_with_handshake_only_server()?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     correlation.register_command(7)?;
@@ -92,7 +93,8 @@ fn session_status_rejects_duplicate_correlation_before_any_frame_write() -> Resu
 }
 
 #[test]
-fn session_status_preserves_registration_when_frame_timeout_is_invalid() -> Result<(), Box<dyn Error>> {
+fn session_status_preserves_registration_when_frame_timeout_is_invalid()
+-> Result<(), Box<dyn Error>> {
     let (established, server) = establish_with_handshake_only_server()?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     let command = WebDriverBiDiSessionStatusCommand::new(11)?;
