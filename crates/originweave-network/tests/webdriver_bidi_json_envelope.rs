@@ -109,26 +109,63 @@ fn real_transport_text_is_classified_as_bidi_success_envelope() -> Result<(), Bo
 }
 
 #[test]
-fn real_transport_exercises_valid_escape_boundaries() -> Result<(), Box<dyn Error>> {
-    let envelope = parse_over_real_transport(
-        br#"{"type":"success","id":1,"result":{"slash":"\/","upper":"\uABCD","edge":"\uFFFF"}}"#,
+fn real_transport_classifies_error_and_event_envelopes() -> Result<(), Box<dyn Error>> {
+    let error = parse_over_real_transport(
+        br#"{"type":"error","id":null,"error":"unknown error","message":"","stacktrace":"hidden"}"#,
     )?;
     assert_eq!(
-        envelope.as_ref().map(WebDriverBiDiJsonEnvelope::kind),
-        Ok(WebDriverBiDiJsonEnvelopeKind::Success)
+        error.as_ref().map(WebDriverBiDiJsonEnvelope::kind),
+        Ok(WebDriverBiDiJsonEnvelopeKind::Error)
     );
+    assert_eq!(
+        error.as_ref().map(WebDriverBiDiJsonEnvelope::command_id),
+        Ok(None)
+    );
+
+    let event = parse_over_real_transport(
+        br#"{"type":"event","method":"browsingContext.load","params":{}}"#,
+    )?;
+    assert_eq!(
+        event.as_ref().map(WebDriverBiDiJsonEnvelope::kind),
+        Ok(WebDriverBiDiJsonEnvelopeKind::Event)
+    );
+    assert_eq!(
+        event.as_ref().map(WebDriverBiDiJsonEnvelope::method),
+        Ok(Some("browsingContext.load"))
+    );
+    Ok(())
+}
+
+#[test]
+fn real_transport_exercises_valid_json_boundaries() -> Result<(), Box<dyn Error>> {
+    let cases: &[&[u8]] = &[
+        br#"{"type":"success","id":1,"result":{"slash":"\/","upper":"\uABCD","edge":"\uFFFF"}}"#,
+        br#"{"type":"success","id":1,"result":{"array":[],"number":-2.5e3}}"#,
+    ];
+    for document in cases {
+        assert_eq!(
+            parse_over_real_transport(document)?
+                .as_ref()
+                .map(WebDriverBiDiJsonEnvelope::kind),
+            Ok(WebDriverBiDiJsonEnvelopeKind::Success)
+        );
+    }
     Ok(())
 }
 
 #[test]
 fn real_transport_rejects_malformed_json_at_parser_boundaries() -> Result<(), Box<dyn Error>> {
     let cases: &[&[u8]] = &[
+        br#"{"type":"success","id":1,"result":{}} trailing"#,
         br#"{"type":"success","unterminated"#,
         br#"{"type" "success"}"#,
         br#"{"type":"success" "id":1,"result":{}}"#,
         br#"{"type":"success","id":1,"result":{"x" 1}}"#,
         br#"{"type":"success","id":1,"result":{"x":[1 2]}}"#,
         b"{\"type\":\"success\",\"id\":1,\"result\":{\"x\":\"\\",
+        br#"{"type":"success","id":1,"result":{"x":"\q"}}"#,
+        br#"{"type":"success","id":1,"result":{"x":"\u12xz"}}"#,
+        br#"{"type":"success","id":1,"result":{"x":"\udc00"}}"#,
         br#"{"type":"success","id":1,"result":{"x":"\ud800\x"}}"#,
         b"{\"type\":\"success\",\"id\":1,\"result\":{\"x\":\"\\ud800\\u",
     ];
