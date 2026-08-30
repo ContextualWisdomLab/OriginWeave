@@ -111,6 +111,36 @@ fn one_unsolicited_pong_before_close_does_not_block_closure_observation()
 }
 
 #[test]
+fn repeated_pong_frames_remain_fail_closed_under_fixed_read_budget() -> Result<(), Box<dyn Error>> {
+    let (established, server) =
+        established_with_server_frame(Some(&[0x8a, 0x00, 0x8a, 0x00]))?;
+
+    let Err(error) = WebDriverBiDiWebSocketTransportClosureObservation::observe(
+        established,
+        Duration::from_millis(500),
+    ) else {
+        return Err(io::Error::other(
+            "repeated Pong frames unexpectedly became transport-closure evidence",
+        )
+        .into());
+    };
+
+    server
+        .join()
+        .map_err(|_| io::Error::other("repeated-pong test server panicked"))??;
+    assert!(matches!(
+        &error,
+        WebDriverBiDiWebSocketTransportClosureError::UnexpectedFrame { opcode: 0xa }
+    ));
+    assert_eq!(
+        error.to_string(),
+        "WebDriver BiDi peer sent non-closure traffic instead of closing"
+    );
+    assert!(error.source().is_none());
+    Ok(())
+}
+
+#[test]
 fn clean_peer_eof_yields_transport_observation_without_inventing_close_status()
 -> Result<(), Box<dyn Error>> {
     let (established, server) = established_with_server_frame(None)?;
@@ -155,7 +185,7 @@ fn application_frame_after_teardown_does_not_become_closure_evidence() -> Result
     ));
     assert_eq!(
         error.to_string(),
-        "WebDriver BiDi peer sent application traffic instead of closing"
+        "WebDriver BiDi peer sent non-closure traffic instead of closing"
     );
     assert!(error.source().is_none());
     Ok(())
