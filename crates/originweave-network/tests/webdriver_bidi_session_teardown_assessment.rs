@@ -121,23 +121,43 @@ fn correlated_session_end_ack() -> Result<WebDriverBiDiSessionEndResult, Box<dyn
 }
 
 #[test]
-fn protocol_ack_does_not_claim_operational_teardown_without_all_observations()
--> Result<(), Box<dyn Error>> {
-    let acknowledged = correlated_session_end_ack()?;
-    let assessment = WebDriverBiDiSessionTeardownAssessment::from_protocol_ack(
-        acknowledged,
-        WebDriverBiDiSessionTeardownObservations::new(true, false, true),
-    );
+fn every_missing_operational_observation_keeps_teardown_pending() -> Result<(), Box<dyn Error>> {
+    let incomplete_observations = [
+        (false, true, true),
+        (true, false, true),
+        (true, true, false),
+    ];
 
-    assert_eq!(assessment.command_id(), 7);
-    assert!(assessment.observations().transport_closed_observed());
-    assert!(!assessment.observations().browser_process_exited_observed());
-    assert!(assessment.observations().task_profile_removed_observed());
-    assert!(!assessment.is_operationally_complete());
-    assert_eq!(
-        assessment.disposition(),
-        WebDriverBiDiSessionTeardownDisposition::OperationalTeardownPending
-    );
+    for (transport_closed, browser_exited, profile_removed) in incomplete_observations {
+        let acknowledged = correlated_session_end_ack()?;
+        let assessment = WebDriverBiDiSessionTeardownAssessment::from_protocol_ack(
+            acknowledged,
+            WebDriverBiDiSessionTeardownObservations::new(
+                transport_closed,
+                browser_exited,
+                profile_removed,
+            ),
+        );
+
+        assert_eq!(assessment.command_id(), 7);
+        assert_eq!(
+            assessment.observations().transport_closed_observed(),
+            transport_closed
+        );
+        assert_eq!(
+            assessment.observations().browser_process_exited_observed(),
+            browser_exited
+        );
+        assert_eq!(
+            assessment.observations().task_profile_removed_observed(),
+            profile_removed
+        );
+        assert!(!assessment.is_operationally_complete());
+        assert_eq!(
+            assessment.disposition(),
+            WebDriverBiDiSessionTeardownDisposition::OperationalTeardownPending
+        );
+    }
     Ok(())
 }
 
