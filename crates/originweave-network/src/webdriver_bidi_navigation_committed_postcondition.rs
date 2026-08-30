@@ -499,7 +499,7 @@ impl<'a> ProjectionCursor<'a> {
             return Err(WebDriverBiDiNavigationCommittedProjectionError::InvalidTimestamp);
         }
         let raw = &self.input[start..self.index];
-        if raw.is_empty() || !raw.bytes().all(|byte| byte.is_ascii_digit()) {
+        if !raw.bytes().all(|byte| byte.is_ascii_digit()) {
             return Err(WebDriverBiDiNavigationCommittedProjectionError::InvalidTimestamp);
         }
         let value = raw
@@ -749,6 +749,7 @@ mod tests {
             r#"{"params":{"context":"context-a","navigation":null,"url":"x"}}"#.to_owned(),
             r#"{"params":{"context":"context-a","navigation":null,"timestamp":1}}"#.to_owned(),
             r#"{"params":{},"params":{}}"#.to_owned(),
+            r#"{"params":{"context":"a","navigation":null,"timestamp":1,"url":"x"},"params":{"context":"b","navigation":null,"timestamp":2,"url":"y"}}"#.to_owned(),
             r#"{"params":{"context":"a","context":"b","navigation":null,"timestamp":1,"url":"x"}}"#.to_owned(),
             r#"{"params":{"context":"a","navigation":null,"navigation":"b","timestamp":1,"url":"x"}}"#.to_owned(),
             r#"{"params":{"context":"a","navigation":null,"timestamp":1,"timestamp":2,"url":"x"}}"#.to_owned(),
@@ -758,6 +759,8 @@ mod tests {
             r#"{"params":{"context":"a","navigation":false,"timestamp":1,"url":"x"}}"#.to_owned(),
             r#"{"params":{"context":"a","navigation":null,"timestamp":-1,"url":"x"}}"#.to_owned(),
             r#"{"params":{"context":"a","navigation":null,"timestamp":1.5,"url":"x"}}"#.to_owned(),
+            r#"{"params":{"context":"a","navigation":null,"timestamp":1,"url":"x"}}?"#.to_owned(),
+            r#"{"params":{"context":"a","vendor":?,"navigation":null,"timestamp":1,"url":"x"}}"#.to_owned(),
             format!(
                 "{{\"params\":{{\"context\":\"a\",\"navigation\":null,\"timestamp\":{},\"url\":\"x\"}}}}",
                 MAX_WEBDRIVER_BIDI_JS_UINT + 1
@@ -835,8 +838,11 @@ mod tests {
         assert!(number.skip_number());
 
         for invalid in [
+            "\"abc\\",
             r#""\uD800""#,
             r#""\uDC00""#,
+            r#""\uD800\x""#,
+            r#""\uD800\uZZZZ""#,
             r#""\uD800\u0041""#,
             r#""\uZZZZ""#,
             r#""\q""#,
@@ -844,6 +850,15 @@ mod tests {
             let mut string = ProjectionCursor::new(invalid);
             assert!(string.parse_string().is_none());
         }
+
+        assert!(!protocol_identifier_is_valid(
+            "",
+            MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES
+        ));
+        assert!(!protocol_identifier_is_valid(
+            "\u{0000}",
+            MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES
+        ));
     }
 
     #[test]
