@@ -78,14 +78,11 @@ impl WebDriverBiDiSessionStatusResult {
                     },
                 )
             }
-            WebDriverBiDiJsonEnvelopeKind::Event => correlation
-                .correlate_response(&envelope)
-                .map(|completed| Self {
-                    command_id: completed.command_id(),
-                    ready: false,
-                    message: String::new(),
+            WebDriverBiDiJsonEnvelopeKind::Event => {
+                Err(WebDriverBiDiSessionStatusResponseError::Correlation {
+                    source: WebDriverBiDiCommandCorrelationError::EventIsNotResponse,
                 })
-                .map_err(|source| WebDriverBiDiSessionStatusResponseError::Correlation { source }),
+            }
         }
     }
 
@@ -562,6 +559,11 @@ mod tests {
             projected.as_ref().map(|value| value.message.as_str()),
             Some("ready 🚀")
         );
+
+        let spaced = StatusProjection::parse(
+            "\n\t { \r\n \"result\" : { \"ready\" : true , \"message\" : \"ok\" } }",
+        );
+        assert!(spaced.is_ok());
     }
 
     #[test]
@@ -607,13 +609,107 @@ mod tests {
             "{}",
             r#"{"x":}"#,
             r#"{"x":1}"#,
+            r#"{"x" 1}"#,
+            r#"{"x":1 ?}"#,
+            r#"{?}"#,
             r#"{"result":[]}"#,
+            r#"{"result":{"ready" true,"message":"x"}}"#,
+            r#"{"result":{"ready":true "message":"x"}}"#,
+            r#"{"result":{"ready":?,"message":"x"}}"#,
+            r#"{"result":{"ready":true,"message":"x","extra":?}}"#,
             r#"{"result":{"ready":true,"message":"\uD800"}}"#,
             r#"{"result":{"ready":true,"message":"\q"}}"#,
         ];
         for document in malformed {
             assert!(StatusProjection::parse(document).is_err());
         }
+    }
+
+    #[test]
+    fn projection_cursor_defensive_helpers_cover_hostile_dispatch_edges() {
+        let mut object = ProjectionCursor::new("[]");
+        assert!(!object.skip_object());
+        let mut object = ProjectionCursor::new("{}");
+        assert!(object.skip_object());
+        let mut object = ProjectionCursor::new("{?}");
+        assert!(!object.skip_object());
+        let mut object = ProjectionCursor::new(r#"{"x" 1}"#);
+        assert!(!object.skip_object());
+        let mut object = ProjectionCursor::new(r#"{"x":?}"#);
+        assert!(!object.skip_object());
+        let mut object = ProjectionCursor::new(r#"{"x":1 ?}"#);
+        assert!(!object.skip_object());
+
+        let mut array = ProjectionCursor::new("{}");
+        assert!(!array.skip_array());
+        let mut array = ProjectionCursor::new("[]");
+        assert!(array.skip_array());
+        let mut array = ProjectionCursor::new("[?]");
+        assert!(!array.skip_array());
+        let mut array = ProjectionCursor::new("[1 ?]");
+        assert!(!array.skip_array());
+
+        for document in [r#""x""#, "{}", "[]", "true", "false", "null", "-2.5e+3"] {
+            let mut value = ProjectionCursor::new(document);
+            assert!(value.skip_value(), "{document}");
+        }
+        let mut value = ProjectionCursor::new("?");
+        assert!(!value.skip_value());
+
+        let mut number = ProjectionCursor::new("x");
+        assert!(!number.skip_number());
+        let mut number = ProjectionCursor::new("+1");
+        assert!(number.skip_number());
+
+        let mut string = ProjectionCursor::new("x");
+        assert!(string.parse_string().is_none());
+        let mut string = ProjectionCursor::new("\"unterminated");
+        assert!(string.parse_string().is_none());
+        let mut string = ProjectionCursor::new("\"\u{0001}\"");
+        assert!(string.parse_string().is_none());
+        let mut string = ProjectionCursor::new("\"é\"");
+        assert_eq!(string.parse_string().as_deref(), Some("é"));
+
+        let mut output = String::new();
+        let mut escape = ProjectionCursor::new("");
+        assert!(!escape.parse_escape(&mut output));
+        for sequence in ["\"", "\\", "/", "b", "f", "n", "r", "t"] {
+            let mut output = String::new();
+            let mut escape = ProjectionCursor::new(sequence);
+            assert!(escape.parse_escape(&mut output), "{sequence:?}");
+        }
+        let mut output = String::new();
+        let mut escape = ProjectionCursor::new("q");
+        assert!(!escape.parse_escape(&mut output));
+        let mut output = String::new();
+        let mut escape = ProjectionCursor::new("u0061");
+        assert!(escape.parse_escape(&mut output));
+        assert_eq!(output, "a");
+        let mut output = String::new();
+        let mut escape = ProjectionCursor::new("uD83D\\uDE80");
+        assert!(escape.parse_escape(&mut output));
+        assert_eq!(output, "🚀");
+
+        for sequence in [
+            "u",
+            "uZZZZ",
+            "uD800x",
+            "uD800\\x",
+            "uD800\\u",
+            "uD800\\u0041",
+            "uDC00",
+        ] {
+            let mut output = String::new();
+            let mut escape = ProjectionCursor::new(sequence);
+            assert!(!escape.parse_escape(&mut output), "{sequence}");
+        }
+
+        let mut hex = ProjectionCursor::new("09aF");
+        assert_eq!(hex.parse_hex_u16(), Some(0x09af));
+        let mut hex = ProjectionCursor::new("0");
+        assert!(hex.parse_hex_u16().is_none());
+        let mut hex = ProjectionCursor::new("00G0");
+        assert!(hex.parse_hex_u16().is_none());
     }
 
     #[test]
