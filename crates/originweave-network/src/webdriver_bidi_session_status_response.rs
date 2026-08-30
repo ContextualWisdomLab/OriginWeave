@@ -68,18 +68,17 @@ impl WebDriverBiDiSessionStatusResult {
                 })
             }
             WebDriverBiDiJsonEnvelopeKind::Error => {
-                let error_code = retain_validated_error_code(envelope.error_code())?;
-                let completed = correlation
-                    .correlate_response(&envelope)
-                    .map_err(
-                        |source| WebDriverBiDiSessionStatusResponseError::Correlation { source },
-                    )?;
-                Err(
-                    WebDriverBiDiSessionStatusResponseError::RemoteProtocolError {
+                retain_validated_error_code(envelope.error_code()).and_then(|error_code| {
+                    let completed = correlation
+                        .correlate_response(&envelope)
+                        .map_err(|source| {
+                            WebDriverBiDiSessionStatusResponseError::Correlation { source }
+                        })?;
+                    Err(WebDriverBiDiSessionStatusResponseError::RemoteProtocolError {
                         command_id: completed.command_id(),
                         error_code,
-                    },
-                )
+                    })
+                })
             }
             WebDriverBiDiJsonEnvelopeKind::Event => {
                 Err(WebDriverBiDiSessionStatusResponseError::Correlation {
