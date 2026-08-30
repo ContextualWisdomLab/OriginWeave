@@ -5,7 +5,7 @@ use originweave_evidence::{
     CaptureManifestVerificationError, EvidenceSourceKind, ExtractionCardinality, ExtractionField,
     ExtractionSchema, ExtractionSourceChannel, ExtractionValueType, OfflineReplayVerificationError,
     ProvenanceRecord, VerificationResult, WarcProvBundle, WarcResourceRecord,
-    verify_offline_capture_package,
+    verify_offline_capture_package, verify_persisted_offline_capture_package,
 };
 use sha2::{Digest, Sha256};
 
@@ -77,6 +77,37 @@ fn offline_replay_verifies_exact_manifest_evidence_and_structured_result() {
     assert_eq!(verification.manifest_digest(), manifest.manifest_digest());
     assert_eq!(verification.record_count(), 1);
     assert_eq!(verification.value_count(), 1);
+}
+
+#[test]
+fn persisted_offline_replay_rejects_warc_byte_drift() {
+    let schema = schema();
+    let record = resource_record();
+    let bundle = WarcProvBundle::new(&record, SOFTWARE_COMMIT_SHA).expect("PROV bundle");
+    let value =
+        CaptureManifestValueBinding::new("title", VALUE_HASH, RECORD_ID).expect("value binding");
+    let manifest = CaptureManifest::new_with_warc_values(
+        &schema,
+        &[(&record, &bundle)],
+        std::slice::from_ref(&value),
+    )
+    .expect("manifest");
+    let serialized_manifest = manifest.to_json();
+    let mut persisted_warc = record.to_warc_bytes();
+    persisted_warc.push(b' ');
+    let persisted_prov = bundle.to_json_ld();
+
+    assert_eq!(
+        verify_persisted_offline_capture_package(
+            &manifest,
+            serialized_manifest.as_bytes(),
+            &schema,
+            &[(&record, &bundle)],
+            &[(&persisted_warc, persisted_prov.as_bytes())],
+            std::slice::from_ref(&value),
+        ),
+        Err(OfflineReplayVerificationError::WarcBytes { record_index: 0 })
+    );
 }
 
 #[test]
