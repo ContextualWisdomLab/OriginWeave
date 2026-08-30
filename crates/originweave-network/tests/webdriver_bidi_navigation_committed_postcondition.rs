@@ -294,8 +294,7 @@ fn navigation_observation_fails_closed_for_envelope_event_and_projection_errors(
     assert!(unexpected.source().is_none());
 
     let non_event = CLICK_SUCCESS_RESPONSE;
-    let (event, registry, session, context) =
-        click_then_observe_navigation_with_event(non_event)?;
+    let (event, registry, session, context) = click_then_observe_navigation_with_event(non_event)?;
     let unexpected = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
         &event,
         &registry,
