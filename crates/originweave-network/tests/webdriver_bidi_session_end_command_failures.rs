@@ -71,8 +71,8 @@ fn session_end_rejects_ids_above_the_webdriver_bidi_js_uint_range() {
 }
 
 #[test]
-fn session_end_rejects_duplicate_correlation_before_any_frame_write()
--> Result<(), Box<dyn Error>> {
+fn session_end_rejects_duplicate_correlation_before_any_frame_write() -> Result<(), Box<dyn Error>>
+{
     let (established, server) = establish_with_handshake_only_server()?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     correlation.register_command(7)?;
@@ -100,8 +100,8 @@ fn session_end_rejects_duplicate_correlation_before_any_frame_write()
 }
 
 #[test]
-fn session_end_preserves_registration_when_frame_timeout_is_invalid()
--> Result<(), Box<dyn Error>> {
+fn session_end_preserves_registration_when_frame_timeout_is_invalid() -> Result<(), Box<dyn Error>>
+{
     let (established, server) = establish_with_handshake_only_server()?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     let command = WebDriverBiDiSessionEndCommand::new(11)?;
