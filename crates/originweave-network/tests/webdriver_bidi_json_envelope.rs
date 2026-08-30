@@ -94,9 +94,7 @@ fn real_transport_text_is_classified_as_bidi_success_envelope() -> Result<(), Bo
         Ok(WebDriverBiDiJsonEnvelopeKind::Success)
     );
     assert_eq!(
-        envelope
-            .as_ref()
-            .map(WebDriverBiDiJsonEnvelope::command_id),
+        envelope.as_ref().map(WebDriverBiDiJsonEnvelope::command_id),
         Ok(Some(7))
     );
     assert_eq!(
@@ -104,9 +102,7 @@ fn real_transport_text_is_classified_as_bidi_success_envelope() -> Result<(), Bo
         Ok(None)
     );
     assert_eq!(
-        envelope
-            .as_ref()
-            .map(WebDriverBiDiJsonEnvelope::error_code),
+        envelope.as_ref().map(WebDriverBiDiJsonEnvelope::error_code),
         Ok(None)
     );
     Ok(())
