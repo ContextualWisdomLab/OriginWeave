@@ -8,12 +8,12 @@ use std::{
 
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiSessionStatusCommand,
-    WebDriverBiDiSessionStatusResponseError, WebDriverBiDiSessionStatusResult,
-    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
-    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
-    WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
-    WebDriverBiDiWebSocketTextMessage, MAX_WEBDRIVER_BIDI_SESSION_STATUS_MESSAGE_SIZE,
+    MAX_WEBDRIVER_BIDI_SESSION_STATUS_MESSAGE_SIZE, WebDriverBiDiCommandCorrelation,
+    WebDriverBiDiSessionStatusCommand, WebDriverBiDiSessionStatusResponseError,
+    WebDriverBiDiSessionStatusResult, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
+    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageAssembler,
+    WebDriverBiDiWebSocketMessageAssembly, WebDriverBiDiWebSocketTextMessage,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -78,7 +78,10 @@ fn write_unmasked_text_frame(stream: &mut TcpStream, payload: &[u8]) -> io::Resu
         }
         126..=65_535 => {
             let length = u16::try_from(payload.len()).map_err(|_| {
-                io::Error::new(io::ErrorKind::InvalidInput, "extended frame length overflow")
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "extended frame length overflow",
+                )
             })?;
             stream.write_all(&[0x81, 126])?;
             stream.write_all(&length.to_be_bytes())?;
@@ -224,9 +227,8 @@ fn envelope_correlation_and_remote_error_failures_preserve_exact_command_semanti
     ));
     assert_eq!(correlation.outstanding_count(), 1);
 
-    let (event, correlation) = parse_response(
-        br#"{"type":"event","method":"log.entryAdded","params":{}}"#.to_vec(),
-    )?;
+    let (event, correlation) =
+        parse_response(br#"{"type":"event","method":"log.entryAdded","params":{}}"#.to_vec())?;
     assert!(matches!(
         event,
         Err(WebDriverBiDiSessionStatusResponseError::Correlation { .. })
