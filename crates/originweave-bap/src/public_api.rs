@@ -41,9 +41,8 @@ pub enum BapExternalSideEffectOutcomeParseError {
 impl std::fmt::Display for BapExternalSideEffectOutcomeParseError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::UnsupportedValue => formatter.write_str(
-                "BAP external side-effect outcome has an unsupported canonical value",
-            ),
+            Self::UnsupportedValue => formatter
+                .write_str("BAP external side-effect outcome has an unsupported canonical value"),
         }
     }
 }
