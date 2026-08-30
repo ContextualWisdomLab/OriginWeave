@@ -21,6 +21,9 @@ mod webdriver_bidi_websocket_handshake;
 mod webdriver_bidi_websocket_message;
 mod webdriver_bidi_websocket_opening_recovery;
 
+#[cfg(test)]
+mod webdriver_bidi_json_envelope_public_boundary_tests;
+
 pub use connection::{
     ConnectionPlan, DirectTcpConnection, MAX_CONNECT_TIMEOUT, MAX_CONNECTION_ATTEMPTS,
     NetworkError, SocketConnectionEvidence,
