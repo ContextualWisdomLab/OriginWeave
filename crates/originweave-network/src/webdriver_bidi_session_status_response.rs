@@ -43,8 +43,9 @@ impl WebDriverBiDiSessionStatusResult {
     /// command-specific projection of `result.ready` and `result.message`; correlation is consumed
     /// only after that result is valid, so malformed success bodies cannot silently retire an id.
     /// A correlatable protocol-error response consumes its matching id and returns a typed remote
-    /// protocol failure. Events, null-id errors, and unknown ids fail closed through the existing
-    /// correlation boundary.
+    /// protocol failure retaining the protocol error code but not the implementation-defined remote
+    /// message or stacktrace. Events, null-id errors, and unknown ids fail closed through the
+    /// existing correlation boundary.
     pub fn parse_and_correlate(
         message: &WebDriverBiDiWebSocketTextMessage,
         correlation: &mut WebDriverBiDiCommandCorrelation,
@@ -67,16 +68,20 @@ impl WebDriverBiDiSessionStatusResult {
                 })
             }
             WebDriverBiDiJsonEnvelopeKind::Error => {
-                let completed = correlation
-                    .correlate_response(&envelope)
-                    .map_err(
-                        |source| WebDriverBiDiSessionStatusResponseError::Correlation { source },
-                    )?;
-                Err(
-                    WebDriverBiDiSessionStatusResponseError::RemoteProtocolError {
-                        command_id: completed.command_id(),
-                    },
-                )
+                retain_validated_error_code(envelope.error_code()).and_then(|error_code| {
+                    let completed =
+                        correlation
+                            .correlate_response(&envelope)
+                            .map_err(|source| {
+                                WebDriverBiDiSessionStatusResponseError::Correlation { source }
+                            })?;
+                    Err(
+                        WebDriverBiDiSessionStatusResponseError::RemoteProtocolError {
+                            command_id: completed.command_id(),
+                            error_code,
+                        },
+                    )
+                })
             }
             WebDriverBiDiJsonEnvelopeKind::Event => {
                 Err(WebDriverBiDiSessionStatusResponseError::Correlation {
@@ -142,6 +147,10 @@ pub enum WebDriverBiDiSessionStatusResponseError {
     RemoteProtocolError {
         /// Exact local command identifier consumed by the protocol-error response.
         command_id: u64,
+        /// Protocol error code retained from the already validated common envelope.
+        ///
+        /// The remote implementation-defined message and stacktrace are deliberately not retained.
+        error_code: String,
     },
 }
 
@@ -195,6 +204,16 @@ impl Error for WebDriverBiDiSessionStatusResponseError {
             | Self::RemoteProtocolError { .. } => None,
         }
     }
+}
+
+fn retain_validated_error_code(
+    error_code: Option<&str>,
+) -> Result<String, WebDriverBiDiSessionStatusResponseError> {
+    error_code
+        .map(str::to_owned)
+        .ok_or(WebDriverBiDiSessionStatusResponseError::Envelope {
+            source: WebDriverBiDiJsonEnvelopeError::MissingRequiredMember { member: "error" },
+        })
 }
 
 struct StatusProjection {
@@ -731,6 +750,20 @@ mod tests {
             "WebDriver BiDi session.status response correlation failed"
         );
 
+        let retained_error_code = retain_validated_error_code(Some("unknown error"));
+        assert!(matches!(
+            retained_error_code.as_deref(),
+            Ok("unknown error")
+        ));
+
+        let missing_error_code = retain_validated_error_code(None);
+        assert!(matches!(
+            missing_error_code,
+            Err(WebDriverBiDiSessionStatusResponseError::Envelope {
+                source: WebDriverBiDiJsonEnvelopeError::MissingRequiredMember { member: "error" },
+            })
+        ));
+
         let leaf_errors = [
             WebDriverBiDiSessionStatusResponseError::MissingReady,
             WebDriverBiDiSessionStatusResponseError::InvalidReady,
@@ -741,7 +774,10 @@ mod tests {
                 maximum_bytes: MAX_WEBDRIVER_BIDI_SESSION_STATUS_MESSAGE_SIZE,
             },
             WebDriverBiDiSessionStatusResponseError::InvalidResultProjection,
-            WebDriverBiDiSessionStatusResponseError::RemoteProtocolError { command_id: 7 },
+            WebDriverBiDiSessionStatusResponseError::RemoteProtocolError {
+                command_id: 7,
+                error_code: "unknown error".to_owned(),
+            },
         ];
         for error in leaf_errors {
             assert!(error.source().is_none());

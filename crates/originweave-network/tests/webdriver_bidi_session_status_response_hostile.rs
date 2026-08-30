@@ -286,7 +286,10 @@ fn envelope_correlation_and_remote_error_failures_preserve_exact_command_semanti
     )?;
     assert!(matches!(
         remote_error,
-        Err(WebDriverBiDiSessionStatusResponseError::RemoteProtocolError { command_id: 7 })
+        Err(WebDriverBiDiSessionStatusResponseError::RemoteProtocolError {
+            command_id: 7,
+            ref error_code,
+        }) if error_code == "unknown error"
     ));
     assert_eq!(correlation.outstanding_count(), 0);
     Ok(())
