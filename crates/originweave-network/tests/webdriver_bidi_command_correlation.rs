@@ -183,3 +183,14 @@ fn outstanding_command_budget_and_retirement_are_bounded() -> Result<(), Box<dyn
     );
     Ok(())
 }
+
+#[test]
+fn correlation_debug_redacts_outstanding_command_identifiers() -> Result<(), Box<dyn Error>> {
+    let mut correlation = WebDriverBiDiCommandCorrelation::new();
+    correlation.register_command(123_456_789)?;
+
+    let debug = format!("{correlation:?}");
+    assert!(debug.contains("outstanding_count"));
+    assert!(!debug.contains("123456789"));
+    Ok(())
+}
