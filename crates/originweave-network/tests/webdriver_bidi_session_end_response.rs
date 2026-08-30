@@ -151,7 +151,9 @@ fn session_end_remote_error_consumes_only_the_correlated_command() -> Result<(),
     let parsed = WebDriverBiDiSessionEndResult::parse_and_correlate(&text, &mut correlation);
     let error = match parsed {
         Ok(_) => {
-            return Err(io::Error::other("remote error was accepted as session.end success").into());
+            return Err(
+                io::Error::other("remote error was accepted as session.end success").into(),
+            );
         }
         Err(error) => error,
     };
