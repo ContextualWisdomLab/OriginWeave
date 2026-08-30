@@ -257,7 +257,7 @@ fn navigation_observation_accepts_extensible_valid_json_without_retaining_extens
 #[test]
 fn navigation_observation_fails_closed_for_envelope_event_and_projection_errors()
 -> Result<(), Box<dyn Error>> {
-    let malformed = br#"{"type":"event","method":"browsingContext.navigationCommitted","params":#;
+    let malformed = br#"{"type":"event","method":"browsingContext.navigationCommitted","params":"#;
     let (event, registry, session, context) = click_then_observe_navigation_with_event(malformed)?;
     let envelope_error = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
         &event,
