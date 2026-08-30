@@ -95,8 +95,9 @@ impl fmt::Display for WebDriverBiDiSessionEndCommandError {
         match self {
             Self::CommandIdOutOfRange { .. } => formatter
                 .write_str("WebDriver BiDi session.end command id is outside the js-uint range"),
-            Self::Correlation { .. } => formatter
-                .write_str("WebDriver BiDi session.end command correlation was rejected"),
+            Self::Correlation { .. } => {
+                formatter.write_str("WebDriver BiDi session.end command correlation was rejected")
+            }
             Self::FrameWrite { .. } => {
                 formatter.write_str("WebDriver BiDi session.end command frame write failed")
             }
