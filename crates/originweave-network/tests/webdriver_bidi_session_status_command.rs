@@ -18,7 +18,8 @@ use originweave_network::{
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
 const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
 const OPENING_RESPONSE: &[u8] = b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n";
-const STATUS_RESPONSE: &[u8] = br#"{"type":"success","id":7,"result":{"ready":true,"message":"ready"}}"#;
+const STATUS_RESPONSE: &[u8] =
+    br#"{"type":"success","id":7,"result":{"ready":true,"message":"ready"}}"#;
 
 fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
@@ -76,7 +77,10 @@ fn session_status_command_round_trips_over_the_verified_websocket_and_correlatio
         if command != br#"{"id":7,"method":"session.status","params":{}}"# {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!("unexpected session.status command: {}", String::from_utf8_lossy(&command)),
+                format!(
+                    "unexpected session.status command: {}",
+                    String::from_utf8_lossy(&command)
+                ),
             ));
         }
         stream.write_all(&[0x81, STATUS_RESPONSE.len() as u8])?;
