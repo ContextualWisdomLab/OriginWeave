@@ -82,10 +82,20 @@ impl Error for WebDriverBiDiCommandCorrelationError {}
 /// Register an id only after the caller has committed to one outbound command. A success or
 /// correlatable error response consumes the id exactly once. Events and null-id errors leave all
 /// outstanding state untouched. This type performs no I/O, retry, command serialization, browser
-/// authentication, or authority grant.
-#[derive(Debug, Default)]
+/// authentication, or authority grant. Debug output reports only the outstanding-count summary;
+/// command identifiers remain private correlation state.
+#[derive(Default)]
 pub struct WebDriverBiDiCommandCorrelation {
     outstanding: BTreeSet<u64>,
+}
+
+impl fmt::Debug for WebDriverBiDiCommandCorrelation {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("WebDriverBiDiCommandCorrelation")
+            .field("outstanding_count", &self.outstanding.len())
+            .finish()
+    }
 }
 
 impl WebDriverBiDiCommandCorrelation {
