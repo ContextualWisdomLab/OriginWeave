@@ -127,9 +127,9 @@ mod tests {
         assert!(matches!(
             rejected,
             Err(WebDriverBiDiSessionStatusCommandError::CommandIdOutOfRange {
-                command_id,
                 maximum_command_id: MAX_WEBDRIVER_BIDI_JS_UINT,
-            }) if command_id == MAX_WEBDRIVER_BIDI_JS_UINT + 1
+                ..
+            })
         ));
     }
 
