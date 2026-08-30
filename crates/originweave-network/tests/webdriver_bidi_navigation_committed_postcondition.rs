@@ -7,8 +7,8 @@ use std::{
 };
 
 use originweave_core::{
-    BrowserAuthorityRegistry, WebDriverBiDiPointerClickCommand, WebDriverBiDiRemoteNodeReference,
-    WebDriverBiDiWebSocketEndpoint,
+    BrowserAuthorityRegistry, MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES, WebDriverBiDiPointerClickCommand,
+    WebDriverBiDiRemoteNodeReference, WebDriverBiDiWebSocketEndpoint,
 };
 use originweave_network::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiNavigationCommittedObservation,
@@ -341,11 +341,14 @@ fn navigation_observation_rejects_valid_json_with_invalid_required_values()
 -> Result<(), Box<dyn Error>> {
     let cases: &[&[u8]] = &[
         br#"{"type":"event","method":"browsingContext.navigationCommitted","params":{"context":"bad context","navigation":null,"timestamp":1,"url":"https://example.test/after"}}"#,
+        br#"{"type":"event","method":"browsingContext.navigationCommitted","params":{"context":"","navigation":null,"timestamp":1,"url":"https://example.test/after"}}"#,
+        br#"{"type":"event","method":"browsingContext.navigationCommitted","params":{"context":"bad\u0001context","navigation":null,"timestamp":1,"url":"https://example.test/after"}}"#,
         br#"{"type":"event","method":"browsingContext.navigationCommitted","params":{"context":"context-a","navigation":false,"timestamp":1,"url":"https://example.test/after"}}"#,
         br#"{"type":"event","method":"browsingContext.navigationCommitted","params":{"context":"context-a","navigation":null,"timestamp":-1,"url":"https://example.test/after"}}"#,
         br#"{"type":"event","method":"browsingContext.navigationCommitted","params":{"context":"context-a","navigation":null,"timestamp":1.5,"url":"https://example.test/after"}}"#,
         br#"{"type":"event","method":"browsingContext.navigationCommitted","params":{"context":"context-a","navigation":null,"timestamp":"1","url":"https://example.test/after"}}"#,
         br#"{"type":"event","method":"browsingContext.navigationCommitted","params":{"context":"context-a","navigation":null,"timestamp":1,"url":false}}"#,
+        br#"{"type":"event","method":"browsingContext.navigationCommitted","params":{"context":"context-a","navigation":null,"timestamp":18446744073709551616,"url":"https://example.test/after"}}"#,
     ];
     for payload in cases {
         let (event, registry, session, context) =
@@ -362,6 +365,26 @@ fn navigation_observation_rejects_valid_json_with_invalid_required_values()
             Err(WebDriverBiDiNavigationCommittedObservationError::Projection { .. })
         ));
     }
+
+    let oversized_context = "c".repeat(MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES + 1);
+    let oversized_payload = format!(
+        r#"{{"type":"event","method":"browsingContext.navigationCommitted","params":{{"context":"{oversized_context}","navigation":null,"timestamp":1,"url":"https://example.test/after"}}}}"#
+    );
+    let (event, registry, session, context) =
+        click_then_observe_navigation_with_event(oversized_payload.as_bytes())?;
+    let result = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
+        &event,
+        &registry,
+        session,
+        context,
+        EXPECTED_URL,
+    );
+    assert!(matches!(
+        result,
+        Err(WebDriverBiDiNavigationCommittedObservationError::Projection {
+            source: WebDriverBiDiNavigationCommittedProjectionError::InvalidContextIdentifier
+        })
+    ));
     Ok(())
 }
 
