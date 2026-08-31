@@ -223,15 +223,11 @@ mod tests {
         assert_eq!(context.len(), 1);
         assert_eq!(epoch.len(), 1);
 
-        let errors: Vec<_> = require_expected_document_epoch(
-            &registry,
-            session[0],
-            context[0],
-            epoch[0],
-        )
-        .err()
-        .into_iter()
-        .collect();
+        let errors: Vec<_> =
+            require_expected_document_epoch(&registry, session[0], context[0], epoch[0])
+                .err()
+                .into_iter()
+                .collect();
         assert_eq!(errors.len(), 1);
         let error = &errors[0];
         assert!(matches!(
