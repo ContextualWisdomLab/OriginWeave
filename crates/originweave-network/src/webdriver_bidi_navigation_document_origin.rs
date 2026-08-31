@@ -149,8 +149,8 @@ pub fn advance_and_bind_webdriver_bidi_navigation_document_origin(
         registry,
         expected_previous_epoch,
     )
-    .map_err(|source| WebDriverBiDiNavigationCommittedDocumentOriginError::DocumentAdvance {
-        source,
+    .map_err(|source| {
+        WebDriverBiDiNavigationCommittedDocumentOriginError::DocumentAdvance { source }
     })?;
     bind_advanced_document_origin(
         registry,
@@ -158,13 +158,15 @@ pub fn advance_and_bind_webdriver_bidi_navigation_document_origin(
         advance.browsing_context(),
         &origin,
     )
-    .map(|current_epoch| WebDriverBiDiNavigationCommittedDocumentOrigin {
-        browser_session: advance.browser_session(),
-        browsing_context: advance.browsing_context(),
-        previous_epoch: advance.previous_epoch(),
-        current_epoch,
-        origin,
-    })
+    .map(
+        |current_epoch| WebDriverBiDiNavigationCommittedDocumentOrigin {
+            browser_session: advance.browser_session(),
+            browsing_context: advance.browsing_context(),
+            previous_epoch: advance.previous_epoch(),
+            current_epoch,
+            origin,
+        },
+    )
 }
 
 #[cfg(test)]
@@ -207,13 +209,8 @@ mod tests {
         assert_eq!(sessions.len(), 1);
         assert_eq!(contexts.len(), 1);
         let origin = Origin::parse("https://example.test").expect("fixture origin is valid");
-        let error = bind_advanced_document_origin(
-            &mut registry,
-            sessions[0],
-            contexts[0],
-            &origin,
-        )
-        .expect_err("unknown registry session must fail closed");
+        let error = bind_advanced_document_origin(&mut registry, sessions[0], contexts[0], &origin)
+            .expect_err("unknown registry session must fail closed");
         assert_eq!(
             error.to_string(),
             "WebDriver BiDi committed navigation origin cannot bind registered document authority"
