@@ -48,6 +48,25 @@ fn semantic_observation_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn E
     )?)
 }
 
+fn typed_input_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn Error>> {
+    let descriptor = BrowserProtocolAdapterDescriptor::new(
+        BrowserProtocolKind::WebDriverBiDi,
+        ORIGINWEAVE_PROTOCOL_VERSION,
+        ADAPTER_VERSION,
+        PROTOCOL_REVISION,
+        BROWSER_REVISION,
+        &[BrowserProtocolCapability::TypedInput],
+    )?;
+    Ok(descriptor.validate_use(
+        ORIGINWEAVE_PROTOCOL_VERSION,
+        BrowserProtocolKind::WebDriverBiDi,
+        ADAPTER_VERSION,
+        PROTOCOL_REVISION,
+        BROWSER_REVISION,
+        BrowserProtocolCapability::TypedInput,
+    )?)
+}
+
 fn admitted_pointer_click_command(
     command_id: u64,
 ) -> Result<WebDriverBiDiPointerClickCommand, Box<dyn Error>> {
@@ -196,6 +215,7 @@ fn pointer_click_command_writes_exact_masked_bidi_frame_and_stays_outstanding()
     let command = admitted_pointer_click_command(42)?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     let _established = send_webdriver_bidi_pointer_click(
+        typed_input_proof()?,
         &command,
         established,
         &mut correlation,
