@@ -3,9 +3,9 @@ use crate::{WebDriverBiDiSessionEndResult, WebDriverBiDiWebSocketTransportClosur
 /// Fail-closed operational disposition derived from teardown observations.
 ///
 /// The current assessment can report only `OperationalTeardownPending`. Transport closure already
-/// has a typed owner, but browser-process exit and task-profile removal are still caller-supplied
-/// placeholders. Those placeholders cannot establish operational completion or grant process,
-/// profile, browser, network, policy, or Agent authority.
+/// has a typed owner, while browser-process exit and task-profile removal are not represented until
+/// their own typed runtime owners are connected. Missing owner evidence cannot establish operational
+/// completion or grant process, profile, browser, network, policy, secret, or Agent authority.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WebDriverBiDiSessionTeardownDisposition {
     /// Operational teardown is not yet proven by typed observations from every owning boundary.
@@ -16,33 +16,26 @@ pub enum WebDriverBiDiSessionTeardownDisposition {
 ///
 /// Transport closure is represented by the typed observation produced only by consuming the exact
 /// established WebSocket at its bounded closure-observation boundary. Browser-process exit and task
-/// profile removal remain caller-supplied observation placeholders until their own typed runtime
-/// owners are connected. Placeholder booleans are retained for diagnostics only and can never make
-/// this assessment operationally complete.
+/// profile removal are deliberately absent until their own typed runtime owners can supply
+/// non-forgeable evidence.
 #[derive(Debug, Eq, PartialEq)]
 pub struct WebDriverBiDiSessionTeardownObservations {
     transport_closure_observation: Option<WebDriverBiDiWebSocketTransportClosureObservation>,
-    browser_process_exited_observed: bool,
-    task_profile_removed_observed: bool,
 }
 
 impl WebDriverBiDiSessionTeardownObservations {
-    /// Construct the three explicit operational observations retained by this boundary.
+    /// Construct the typed transport observation retained by this boundary.
     ///
     /// Transport closure cannot be asserted with a caller-supplied boolean. `Some` requires the
     /// typed closure observation returned by the bounded transport owner; `None` keeps teardown
-    /// pending. The remaining booleans are diagnostic placeholders for later typed runtime owners
-    /// and cannot establish operational completion.
+    /// pending. Process and profile state cannot be supplied as placeholders and remain unproven
+    /// until their typed runtime owners are connected.
     #[must_use]
     pub const fn new(
         transport_closure_observation: Option<WebDriverBiDiWebSocketTransportClosureObservation>,
-        browser_process_exited_observed: bool,
-        task_profile_removed_observed: bool,
     ) -> Self {
         Self {
             transport_closure_observation,
-            browser_process_exited_observed,
-            task_profile_removed_observed,
         }
     }
 
@@ -59,30 +52,14 @@ impl WebDriverBiDiSessionTeardownObservations {
     ) -> Option<&WebDriverBiDiWebSocketTransportClosureObservation> {
         self.transport_closure_observation.as_ref()
     }
-
-    /// Return the caller-supplied browser-process-exit placeholder observation.
-    ///
-    /// This value is diagnostic only until a typed process-supervision owner replaces it.
-    #[must_use]
-    pub const fn browser_process_exited_observed(&self) -> bool {
-        self.browser_process_exited_observed
-    }
-
-    /// Return the caller-supplied task-profile-removal placeholder observation.
-    ///
-    /// This value is diagnostic only until a typed profile-lifecycle owner replaces it.
-    #[must_use]
-    pub const fn task_profile_removed_observed(&self) -> bool {
-        self.task_profile_removed_observed
-    }
 }
 
 /// One correlated `session.end` acknowledgment kept separate from operational teardown evidence.
 ///
 /// A protocol acknowledgment alone is never operational completion. Typed transport closure is
-/// retained from the consumed WebSocket, while process/profile observations remain non-authoritative
-/// placeholders. Consequently this assessment remains fail closed until those owning runtime
-/// boundaries supply typed evidence in a later dependency-ordered slice.
+/// retained from the consumed WebSocket, while process/profile evidence remains absent until its
+/// owning runtime boundaries can provide typed observations. Consequently this assessment remains
+/// fail closed in the current dependency-ordered slice.
 #[derive(Debug, Eq, PartialEq)]
 pub struct WebDriverBiDiSessionTeardownAssessment {
     protocol_ack: WebDriverBiDiSessionEndResult,
@@ -116,8 +93,8 @@ impl WebDriverBiDiSessionTeardownAssessment {
 
     /// Return whether typed evidence proves every required operational teardown boundary.
     ///
-    /// This is always `false` while browser-process exit and task-profile removal remain
-    /// caller-supplied placeholders rather than typed evidence from their owning runtime boundaries.
+    /// This is always `false` while typed browser-process-exit and task-profile-removal evidence is
+    /// absent from this boundary.
     #[must_use]
     pub const fn is_operationally_complete(&self) -> bool {
         false
