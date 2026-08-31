@@ -5,9 +5,10 @@ use originweave_core::{
     BrowserContextDispatchTarget, BrowserContextOriginDispatchTarget,
     BrowserContextOriginEpochDispatchTarget, BrowserProtocolAdapterDescriptor,
     BrowserProtocolCapability, BrowserProtocolKind, BrowserRegistryError, BrowserSessionId,
-    BrowsingContextId, NodeHandleError, Origin, OriginWeaveProtocolVersion,
-    ValidatedBrowserProtocolUse, WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesCommand,
-    WebDriverBiDiPointerClickAuthorityError, WebDriverBiDiPointerClickCommand,
+    BrowsingContextId, MAX_WEBDRIVER_BIDI_COMMAND_ID, NodeHandleError, Origin,
+    OriginWeaveProtocolVersion, ValidatedBrowserProtocolUse, WebDriverBiDiAccessibilityQuery,
+    WebDriverBiDiLocateNodesCommand, WebDriverBiDiPointerClickAuthorityError,
+    WebDriverBiDiPointerClickCommand, WebDriverBiDiPointerClickCommandError,
     WebDriverBiDiRemoteNodeReference,
 };
 
@@ -106,16 +107,21 @@ fn pointer_click_rejects_a_caller_selected_unadmitted_shared_id() -> Result<(), 
     let fixture = admitted_node()?;
     let forged = WebDriverBiDiRemoteNodeReference::new("node", Some("caller-selected-node"))?;
 
+    let error = WebDriverBiDiPointerClickCommand::new_for_current_node(
+        42,
+        "context-a",
+        &fixture.handle,
+        &forged,
+        &fixture.registry,
+    )
+    .err()
+    .ok_or("expected unadmitted sharedId rejection")?;
     assert_eq!(
-        WebDriverBiDiPointerClickCommand::new_for_current_node(
-            42,
-            "context-a",
-            &fixture.handle,
-            &forged,
-            &fixture.registry,
-        ),
-        Err(WebDriverBiDiPointerClickAuthorityError::NodeExternalIdentifierMismatch)
+        error,
+        WebDriverBiDiPointerClickAuthorityError::NodeExternalIdentifierMismatch
     );
+    assert!(error.source().is_none());
+    assert!(error.to_string().contains("wire node identifier"));
     Ok(())
 }
 
@@ -124,18 +130,23 @@ fn pointer_click_rejects_the_right_node_under_the_wrong_external_context()
 -> Result<(), Box<dyn Error>> {
     let fixture = admitted_node()?;
 
+    let error = WebDriverBiDiPointerClickCommand::new_for_current_node(
+        42,
+        "context-b",
+        &fixture.handle,
+        &fixture.remote,
+        &fixture.registry,
+    )
+    .err()
+    .ok_or("expected external context rejection")?;
     assert_eq!(
-        WebDriverBiDiPointerClickCommand::new_for_current_node(
-            42,
-            "context-b",
-            &fixture.handle,
-            &fixture.remote,
-            &fixture.registry,
-        ),
-        Err(WebDriverBiDiPointerClickAuthorityError::BrowserAuthority(
+        error,
+        WebDriverBiDiPointerClickAuthorityError::BrowserAuthority(
             BrowserRegistryError::ContextExternalIdentifierMismatch,
-        ))
+        )
     );
+    assert!(error.source().is_some());
+    assert!(error.to_string().contains("browser authority"));
     Ok(())
 }
 
@@ -148,18 +159,24 @@ fn pointer_click_rejects_a_pre_navigation_node_after_document_advance() -> Resul
         .registry
         .advance_document(fixture.browsing_context)?;
 
+    let error = WebDriverBiDiPointerClickCommand::new_for_current_node(
+        42,
+        "context-a",
+        &fixture.handle,
+        &fixture.remote,
+        &fixture.registry,
+    )
+    .err()
+    .ok_or("expected stale document rejection")?;
     assert_eq!(
-        WebDriverBiDiPointerClickCommand::new_for_current_node(
-            42,
-            "context-a",
-            &fixture.handle,
-            &fixture.remote,
-            &fixture.registry,
-        ),
-        Err(WebDriverBiDiPointerClickAuthorityError::NodeHandle(
-            NodeHandleError::StaleDocumentEpoch { observed, current },
-        ))
+        error,
+        WebDriverBiDiPointerClickAuthorityError::NodeHandle(NodeHandleError::StaleDocumentEpoch {
+            observed,
+            current,
+        })
     );
+    assert!(error.source().is_some());
+    assert!(error.to_string().contains("node authority"));
     Ok(())
 }
 
@@ -188,6 +205,82 @@ fn pointer_click_rejects_an_admitted_node_from_another_registry_even_when_public
             &fixture.registry,
         ),
         Err(WebDriverBiDiPointerClickAuthorityError::NodeExternalIdentifierMismatch)
+    );
+    Ok(())
+}
+
+#[test]
+fn pointer_click_rejects_a_matching_context_bound_to_a_different_origin()
+-> Result<(), Box<dyn Error>> {
+    let fixture = admitted_node()?;
+    let mut foreign_registry = BrowserAuthorityRegistry::new();
+    let session = foreign_registry.register_session("webdriver-session")?;
+    let context = foreign_registry.register_context(session, "context-a")?;
+    let other_origin = Origin::parse("https://other.example").map_err(|error| {
+        std::io::Error::other(format!("fixture origin rejected unexpectedly: {error:?}"))
+    })?;
+    foreign_registry.bind_context_origin(session, context, &other_origin)?;
+
+    let error = WebDriverBiDiPointerClickCommand::new_for_current_node(
+        42,
+        "context-a",
+        &fixture.handle,
+        &fixture.remote,
+        &foreign_registry,
+    )
+    .err()
+    .ok_or("expected origin mismatch rejection")?;
+    assert_eq!(
+        error,
+        WebDriverBiDiPointerClickAuthorityError::BrowserAuthority(
+            BrowserRegistryError::OriginChangedWithoutDocumentAdvance,
+        )
+    );
+    assert!(error.source().is_some());
+    Ok(())
+}
+
+#[test]
+fn pointer_click_reports_bounded_command_serialization_failure() -> Result<(), Box<dyn Error>> {
+    let fixture = admitted_node()?;
+
+    let error = WebDriverBiDiPointerClickCommand::new_for_current_node(
+        MAX_WEBDRIVER_BIDI_COMMAND_ID + 1,
+        "context-a",
+        &fixture.handle,
+        &fixture.remote,
+        &fixture.registry,
+    )
+    .err()
+    .ok_or("expected command identifier rejection")?;
+    assert_eq!(
+        error,
+        WebDriverBiDiPointerClickAuthorityError::Command(
+            WebDriverBiDiPointerClickCommandError::InvalidCommandId,
+        )
+    );
+    assert!(error.source().is_some());
+    assert!(error.to_string().contains("command rejected input"));
+    Ok(())
+}
+
+#[test]
+fn authority_registry_rejects_document_advance_for_a_foreign_context()
+-> Result<(), Box<dyn Error>> {
+    let mut registry = BrowserAuthorityRegistry::new();
+    let session = registry.register_session("local-session")?;
+    let _local_context = registry.register_context(session, "local-context")?;
+
+    let mut foreign_registry = BrowserAuthorityRegistry::new();
+    let foreign_session = foreign_registry.register_session("foreign-session")?;
+    let _first_foreign_context =
+        foreign_registry.register_context(foreign_session, "foreign-context-a")?;
+    let second_foreign_context =
+        foreign_registry.register_context(foreign_session, "foreign-context-b")?;
+
+    assert_eq!(
+        registry.advance_document(second_foreign_context),
+        Err(BrowserRegistryError::UnknownBrowsingContext)
     );
     Ok(())
 }
