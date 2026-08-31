@@ -59,10 +59,12 @@ fn admitted_text_field(
     })?;
     let epoch = registry.bind_context_origin(browser_session, browsing_context, &origin)?;
     let target = BrowserContextOriginEpochDispatchTarget::new(
-        BrowserContextOriginDispatchTarget::new(browser_session, browsing_context),
-        &origin,
+        BrowserContextOriginDispatchTarget::new(
+            BrowserContextDispatchTarget::new(browser_session, browsing_context),
+            &origin,
+        ),
+        epoch,
     );
-    let target = BrowserContextOriginEpochDispatchTarget::new(target.context_origin(), epoch);
     let query = WebDriverBiDiAccessibilityQuery::new(Some("textbox"), Some("Task name"), 1)?;
     let locate = WebDriverBiDiLocateNodesCommand::new(41, external_context, &query)?;
     let escaped_shared_id = shared_id.replace('\\', "\\\\").replace('"', "\\\"");
