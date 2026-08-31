@@ -154,7 +154,9 @@ fn pointer_click_rejects_the_right_node_under_the_wrong_external_context()
 fn pointer_click_rejects_a_pre_navigation_node_before_new_origin_binding()
 -> Result<(), Box<dyn Error>> {
     let mut fixture = admitted_node()?;
-    fixture.registry.advance_document(fixture.browsing_context)?;
+    fixture
+        .registry
+        .advance_document(fixture.browsing_context)?;
 
     let error = WebDriverBiDiPointerClickCommand::new_for_current_node(
         42,
@@ -296,8 +298,8 @@ fn pointer_click_reports_bounded_command_serialization_failure() -> Result<(), B
 }
 
 #[test]
-fn authority_registry_rejects_document_advance_for_a_foreign_context()
--> Result<(), Box<dyn Error>> {
+fn authority_registry_rejects_document_advance_for_a_foreign_context() -> Result<(), Box<dyn Error>>
+{
     let mut registry = BrowserAuthorityRegistry::new();
     let session = registry.register_session("local-session")?;
     let _local_context = registry.register_context(session, "local-context")?;
