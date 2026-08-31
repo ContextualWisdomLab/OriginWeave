@@ -95,12 +95,23 @@ impl Error for WebDriverBiDiTypeTextAuthorityError {
 /// The payload is intentionally limited to non-secret, single-line protocol-safe text. Secret
 /// material must use the separately governed broker/fill path rather than this public text value.
 /// Construction grants no policy, destination, secret, or Agent authority and performs no I/O.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 pub struct WebDriverBiDiTypeTextCommand {
     command_id: u64,
     browsing_context: String,
     text_bytes: usize,
     json: String,
+}
+
+impl std::fmt::Debug for WebDriverBiDiTypeTextCommand {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("WebDriverBiDiTypeTextCommand")
+            .field("command_id", &self.command_id)
+            .field("method", &WEBDRIVER_BIDI_PERFORM_ACTIONS_METHOD)
+            .field("text_bytes", &self.text_bytes)
+            .finish_non_exhaustive()
+    }
 }
 
 impl WebDriverBiDiTypeTextCommand {
