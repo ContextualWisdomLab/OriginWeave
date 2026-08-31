@@ -202,9 +202,11 @@ fn correlated_result_rejects_non_bidi_protocol_proof() -> Result<(), Box<dyn Err
                 target,
             )
             .err(),
-        Some(WebDriverBiDiLocateNodesAdmissionError::UnsupportedProtocolKind(
-            BrowserProtocolKind::ChromeDevToolsProtocol,
-        ))
+        Some(
+            WebDriverBiDiLocateNodesAdmissionError::UnsupportedProtocolKind(
+                BrowserProtocolKind::ChromeDevToolsProtocol,
+            )
+        )
     );
     Ok(())
 }
@@ -227,9 +229,11 @@ fn correlated_result_rejects_non_observation_protocol_proof() -> Result<(), Box<
                 target,
             )
             .err(),
-        Some(WebDriverBiDiLocateNodesAdmissionError::UnsupportedCapability(
-            BrowserProtocolCapability::TypedInput,
-        ))
+        Some(
+            WebDriverBiDiLocateNodesAdmissionError::UnsupportedCapability(
+                BrowserProtocolCapability::TypedInput,
+            )
+        )
     );
     Ok(())
 }
@@ -272,10 +276,12 @@ fn correlated_result_rejects_stale_document_epoch() -> Result<(), Box<dyn Error>
         result
             .bind_current_nodes(semantic_observation_proof()?, &mut registry, target)
             .err(),
-        Some(WebDriverBiDiLocateNodesAdmissionError::DocumentEpochMismatch {
-            expected: target.expected_epoch(),
-            current: current_epoch,
-        })
+        Some(
+            WebDriverBiDiLocateNodesAdmissionError::DocumentEpochMismatch {
+                expected: target.expected_epoch(),
+                current: current_epoch,
+            }
+        )
     );
     Ok(())
 }
