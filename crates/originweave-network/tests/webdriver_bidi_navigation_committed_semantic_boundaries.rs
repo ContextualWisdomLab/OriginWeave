@@ -118,3 +118,29 @@ fn navigation_committed_rejects_valid_json_semantic_type_and_js_uint_boundaries_
     }
     Ok(())
 }
+
+#[test]
+fn navigation_committed_ignores_extension_strings_with_all_json_escapes_after_transport()
+-> Result<(), Box<dyn Error>> {
+    let event = receive_event(
+        br#"{"type":"event","method":"browsingContext.navigationCommitted","params":{"context":"context-a","navigation":null,"timestamp":1,"url":"https://example.test/after","extension":"\"\\\/\b\f\n\r\t"}}"#,
+    )?;
+    let mut registry = BrowserAuthorityRegistry::new();
+    let session = registry.register_session(SESSION_ID)?;
+    let context = registry.register_context(session, "context-a")?;
+
+    let observation = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
+        &event,
+        &registry,
+        session,
+        context,
+        EXPECTED_URL,
+    )?;
+
+    assert_eq!(observation.browser_session(), session);
+    assert_eq!(observation.browsing_context(), context);
+    assert_eq!(observation.navigation_id(), None);
+    assert_eq!(observation.timestamp(), 1);
+    assert_eq!(observation.url(), EXPECTED_URL);
+    Ok(())
+}
