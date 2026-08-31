@@ -34,23 +34,40 @@ type HandshakeOnlyServer = (
     thread::JoinHandle<io::Result<()>>,
 );
 
-fn semantic_observation_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn Error>> {
+fn protocol_proof(
+    kind: BrowserProtocolKind,
+    capability: BrowserProtocolCapability,
+) -> Result<ValidatedBrowserProtocolUse, Box<dyn Error>> {
     let descriptor = BrowserProtocolAdapterDescriptor::new(
-        BrowserProtocolKind::WebDriverBiDi,
+        kind,
         ORIGINWEAVE_PROTOCOL_VERSION,
         ADAPTER_VERSION,
         PROTOCOL_REVISION,
         BROWSER_REVISION,
-        &[BrowserProtocolCapability::SemanticObservation],
+        &[capability],
     )?;
     Ok(descriptor.validate_use(
         ORIGINWEAVE_PROTOCOL_VERSION,
-        BrowserProtocolKind::WebDriverBiDi,
+        kind,
         ADAPTER_VERSION,
         PROTOCOL_REVISION,
         BROWSER_REVISION,
-        BrowserProtocolCapability::SemanticObservation,
+        capability,
     )?)
+}
+
+fn semantic_observation_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn Error>> {
+    protocol_proof(
+        BrowserProtocolKind::WebDriverBiDi,
+        BrowserProtocolCapability::SemanticObservation,
+    )
+}
+
+fn typed_input_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn Error>> {
+    protocol_proof(
+        BrowserProtocolKind::WebDriverBiDi,
+        BrowserProtocolCapability::TypedInput,
+    )
 }
 
 fn pointer_click(command_id: u64) -> Result<WebDriverBiDiPointerClickCommand, Box<dyn Error>> {
@@ -134,6 +151,81 @@ fn establish_with_handshake_only_server() -> Result<HandshakeOnlyServer, Box<dyn
 }
 
 #[test]
+fn pointer_click_rejects_non_typed_input_proof_before_correlation_or_frame_write()
+-> Result<(), Box<dyn Error>> {
+    let (established, server) = establish_with_handshake_only_server()?;
+    let mut correlation = WebDriverBiDiCommandCorrelation::new();
+    let command = pointer_click(5)?;
+
+    let error = send_webdriver_bidi_pointer_click(
+        semantic_observation_proof()?,
+        &command,
+        established,
+        &mut correlation,
+        WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
+        Duration::from_millis(500),
+    )
+    .err()
+    .ok_or_else(|| io::Error::other("semantic-observation proof unexpectedly sent a pointer click"))?;
+    assert!(matches!(
+        error,
+        WebDriverBiDiPointerClickSendError::UnsupportedCapability(
+            BrowserProtocolCapability::SemanticObservation
+        )
+    ));
+    assert_eq!(
+        error.to_string(),
+        "WebDriver BiDi pointer-click send requires typed-input capability"
+    );
+    assert!(error.source().is_none());
+    assert_eq!(correlation.outstanding_count(), 0);
+
+    server
+        .join()
+        .map_err(|_| io::Error::other("typed-input capability rejection server panicked"))??;
+    Ok(())
+}
+
+#[test]
+fn pointer_click_rejects_non_webdriver_bidi_proof_before_correlation_or_frame_write()
+-> Result<(), Box<dyn Error>> {
+    let (established, server) = establish_with_handshake_only_server()?;
+    let mut correlation = WebDriverBiDiCommandCorrelation::new();
+    let command = pointer_click(6)?;
+
+    let error = send_webdriver_bidi_pointer_click(
+        protocol_proof(
+            BrowserProtocolKind::ChromeDevToolsProtocol,
+            BrowserProtocolCapability::TypedInput,
+        )?,
+        &command,
+        established,
+        &mut correlation,
+        WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
+        Duration::from_millis(500),
+    )
+    .err()
+    .ok_or_else(|| io::Error::other("CDP typed-input proof unexpectedly sent a pointer click"))?;
+    assert!(matches!(
+        error,
+        WebDriverBiDiPointerClickSendError::UnsupportedProtocolKind(
+            BrowserProtocolKind::ChromeDevToolsProtocol
+        )
+    ));
+    assert_eq!(
+        error.to_string(),
+        "WebDriver BiDi pointer-click send requires a WebDriver BiDi proof"
+    );
+    assert!(error.source().is_none());
+    assert_eq!(correlation.outstanding_count(), 0);
+
+    server
+        .join()
+        .map_err(|_| io::Error::other("WebDriver BiDi proof rejection server panicked"))??;
+    Ok(())
+}
+
+#[test]
 fn pointer_click_rejects_duplicate_correlation_before_frame_write() -> Result<(), Box<dyn Error>> {
     let (established, server) = establish_with_handshake_only_server()?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
@@ -141,6 +233,7 @@ fn pointer_click_rejects_duplicate_correlation_before_frame_write() -> Result<()
     let command = pointer_click(7)?;
 
     let error = send_webdriver_bidi_pointer_click(
+        typed_input_proof()?,
         &command,
         established,
         &mut correlation,
@@ -174,6 +267,7 @@ fn pointer_click_preserves_registration_when_frame_timeout_is_invalid() -> Resul
     let command = pointer_click(11)?;
 
     let error = send_webdriver_bidi_pointer_click(
+        typed_input_proof()?,
         &command,
         established,
         &mut correlation,
