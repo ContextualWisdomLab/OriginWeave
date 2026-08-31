@@ -166,7 +166,9 @@ fn pointer_click_rejects_non_typed_input_proof_before_correlation_or_frame_write
         Duration::from_millis(500),
     )
     .err()
-    .ok_or_else(|| io::Error::other("semantic-observation proof unexpectedly sent a pointer click"))?;
+    .ok_or_else(|| {
+        io::Error::other("semantic-observation proof unexpectedly sent a pointer click")
+    })?;
     assert!(matches!(
         error,
         WebDriverBiDiPointerClickSendError::UnsupportedCapability(
