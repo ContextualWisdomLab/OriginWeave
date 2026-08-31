@@ -147,7 +147,7 @@ impl ValidatedWebDriverBiDiLocateNodesResult {
             .map(WebDriverBiDiRemoteNodeReference::shared_id)
             .collect::<Vec<_>>();
         authority_registry
-            .bind_nodes(
+            .bind_admitted_nodes(
                 context.browser_session(),
                 context.browsing_context(),
                 context_origin.expected_origin(),

@@ -32,11 +32,11 @@ impl Deref for AdmittedNodeHandle {
 ///
 /// Browser-session, browsing-context, document-epoch, and canonical-origin lifecycle operations are
 /// public because trusted adapters need them to maintain current authority. Converting untrusted
-/// browser-protocol node identifiers into [`ObservedNodeHandle`] values is deliberately
+/// browser-protocol node identifiers into descriptive [`ObservedNodeHandle`] values is deliberately
 /// crate-private: external callers must use a reviewed semantic-observation admission boundary such
-/// as [`crate::WebDriverBiDiAccessibilityQuery::bind_current_nodes`], which consumes the required
-/// protocol-use proof, validates the complete batch, and revalidates the exact current document
-/// before atomically minting handles.
+/// as [`crate::WebDriverBiDiAccessibilityQuery::bind_current_nodes`]. Action-capable paths use the
+/// stricter registry-issued [`AdmittedNodeHandle`] wrapper so a copied descriptive tuple cannot
+/// become typed-input authority.
 pub struct BrowserAuthorityRegistry {
     inner: RawBrowserAuthorityRegistry,
     admitted_node_external_identifiers: BTreeMap<(u64, u64, u64, u64), String>,
@@ -178,40 +178,58 @@ impl BrowserAuthorityRegistry {
         Ok(next_epoch)
     }
 
-    /// Bind one admitted batch of adapter-local node identifiers to current browser authority.
+    /// Bind one admitted batch of adapter-local identifiers as descriptive current-node evidence.
     ///
     /// This operation is intentionally crate-private. The raw registry commits the batch only when
     /// every identifier can be bound; a later failure rolls back node identifiers and any origin
-    /// binding created by the batch before the error is returned. Production callers outside this
-    /// crate therefore cannot bypass semantic admission or observe partial authority from a failed
-    /// `locateNodes` result. Successful admission also retains the exact external identifier and
-    /// wraps each descriptive node in registry-instance provenance so later typed actions can prove
-    /// both facts without trusting caller-reproducible tuple fields.
+    /// binding created by the batch before the error is returned. The exact external identifier is
+    /// retained for later action admission, but the returned [`ObservedNodeHandle`] values remain
+    /// descriptive and publicly reproducible rather than typed-input authority.
     pub(crate) fn bind_nodes(
         &mut self,
         browser_session: BrowserSessionId,
         browsing_context: BrowsingContextId,
         origin: &Origin,
         external_identifiers: &[&str],
-    ) -> Result<Vec<AdmittedNodeHandle>, BrowserRegistryError> {
+    ) -> Result<Vec<ObservedNodeHandle>, BrowserRegistryError> {
         let handles = self.inner.bind_nodes(
             browser_session,
             browsing_context,
             origin,
             external_identifiers,
         )?;
-        let mut admitted_handles = Vec::with_capacity(handles.len());
-        for (handle, external_identifier) in handles.into_iter().zip(external_identifiers) {
+        for (handle, external_identifier) in handles.iter().zip(external_identifiers) {
             self.admitted_node_external_identifiers.insert(
-                node_authority_key(&handle),
+                node_authority_key(handle),
                 (*external_identifier).to_owned(),
             );
-            admitted_handles.push(AdmittedNodeHandle {
-                observed: handle,
-                registry_instance: Arc::clone(&self.registry_instance),
-            });
         }
-        Ok(admitted_handles)
+        Ok(handles)
+    }
+
+    /// Bind one admitted batch and attach opaque registry-instance provenance for typed actions.
+    pub(crate) fn bind_admitted_nodes(
+        &mut self,
+        browser_session: BrowserSessionId,
+        browsing_context: BrowsingContextId,
+        origin: &Origin,
+        external_identifiers: &[&str],
+    ) -> Result<Vec<AdmittedNodeHandle>, BrowserRegistryError> {
+        self.bind_nodes(
+            browser_session,
+            browsing_context,
+            origin,
+            external_identifiers,
+        )
+        .map(|handles| {
+            handles
+                .into_iter()
+                .map(|observed| AdmittedNodeHandle {
+                    observed,
+                    registry_instance: Arc::clone(&self.registry_instance),
+                })
+                .collect()
+        })
     }
 
     /// Return whether this registry issued the handle under the exact supplied wire identifier.
