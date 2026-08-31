@@ -151,13 +151,44 @@ fn pointer_click_rejects_the_right_node_under_the_wrong_external_context()
 }
 
 #[test]
-fn pointer_click_rejects_a_pre_navigation_node_after_document_advance() -> Result<(), Box<dyn Error>>
-{
+fn pointer_click_rejects_a_pre_navigation_node_before_new_origin_binding()
+-> Result<(), Box<dyn Error>> {
+    let mut fixture = admitted_node()?;
+    fixture.registry.advance_document(fixture.browsing_context)?;
+
+    let error = WebDriverBiDiPointerClickCommand::new_for_current_node(
+        42,
+        "context-a",
+        &fixture.handle,
+        &fixture.remote,
+        &fixture.registry,
+    )
+    .err()
+    .ok_or("expected missing current origin rejection")?;
+    assert_eq!(
+        error,
+        WebDriverBiDiPointerClickAuthorityError::BrowserAuthority(
+            BrowserRegistryError::ContextOriginNotBound,
+        )
+    );
+    assert!(error.source().is_some());
+    assert!(error.to_string().contains("browser authority"));
+    Ok(())
+}
+
+#[test]
+fn pointer_click_rejects_a_stale_node_after_new_origin_is_rebound() -> Result<(), Box<dyn Error>> {
     let mut fixture = admitted_node()?;
     let observed = fixture.handle.document_epoch();
     let current = fixture
         .registry
         .advance_document(fixture.browsing_context)?;
+    let origin = fixture.handle.origin().clone();
+    fixture.registry.bind_context_origin(
+        fixture.browser_session,
+        fixture.browsing_context,
+        &origin,
+    )?;
 
     let error = WebDriverBiDiPointerClickCommand::new_for_current_node(
         42,
