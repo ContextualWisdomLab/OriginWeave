@@ -248,7 +248,10 @@ mod tests {
             Some(MAX_WEBDRIVER_BIDI_JS_UINT)
         );
         assert_eq!(
-            command.as_ref().map(|command| command.browser_session()).ok(),
+            command
+                .as_ref()
+                .map(|command| command.browser_session())
+                .ok(),
             Some(session)
         );
         assert_eq!(

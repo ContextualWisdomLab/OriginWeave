@@ -108,7 +108,9 @@ fn retired_context_is_rejected_before_correlation_or_command_write() -> Result<(
         Duration::from_millis(500),
     );
     let error = match result {
-        Ok(_) => return Err(io::Error::other("retired context unexpectedly sent subscription").into()),
+        Ok(_) => {
+            return Err(io::Error::other("retired context unexpectedly sent subscription").into());
+        }
         Err(error) => error,
     };
     assert_eq!(
@@ -152,7 +154,11 @@ fn duplicate_command_id_is_rejected_before_command_write() -> Result<(), Box<dyn
         Duration::from_millis(500),
     );
     let error = match result {
-        Ok(_) => return Err(io::Error::other("duplicate command id unexpectedly sent subscription").into()),
+        Ok(_) => {
+            return Err(
+                io::Error::other("duplicate command id unexpectedly sent subscription").into(),
+            );
+        }
         Err(error) => error,
     };
     assert_eq!(
@@ -169,7 +175,8 @@ fn duplicate_command_id_is_rejected_before_command_write() -> Result<(), Box<dyn
 }
 
 #[test]
-fn invalid_frame_timeout_consumes_transport_and_retains_correlation() -> Result<(), Box<dyn Error>> {
+fn invalid_frame_timeout_consumes_transport_and_retains_correlation() -> Result<(), Box<dyn Error>>
+{
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let server = spawn_no_command_server(listener);
@@ -195,7 +202,11 @@ fn invalid_frame_timeout_consumes_transport_and_retains_correlation() -> Result<
         Duration::ZERO,
     );
     let error = match result {
-        Ok(_) => return Err(io::Error::other("zero frame timeout unexpectedly sent subscription").into()),
+        Ok(_) => {
+            return Err(
+                io::Error::other("zero frame timeout unexpectedly sent subscription").into(),
+            );
+        }
         Err(error) => error,
     };
     assert_eq!(
