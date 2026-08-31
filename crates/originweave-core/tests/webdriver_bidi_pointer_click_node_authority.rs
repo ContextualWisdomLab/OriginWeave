@@ -187,3 +187,28 @@ fn pointer_click_rejects_a_fabricated_current_epoch_handle_without_registry_node
     );
     Ok(())
 }
+
+#[test]
+fn pointer_click_rejects_a_publicly_fabricated_handle_that_copies_the_exact_admitted_tuple()
+-> Result<(), Box<dyn Error>> {
+    let fixture = admitted_node()?;
+    let fabricated = ObservedNodeHandle::new(
+        fixture.handle.browser_session(),
+        fixture.handle.browsing_context(),
+        fixture.handle.origin().clone(),
+        fixture.handle.document_epoch(),
+        fixture.handle.node_id(),
+    )?;
+
+    assert_eq!(
+        WebDriverBiDiPointerClickCommand::new_for_current_node(
+            42,
+            "context-a",
+            &fabricated,
+            &fixture.remote,
+            &fixture.registry,
+        ),
+        Err(WebDriverBiDiPointerClickAuthorityError::NodeExternalIdentifierMismatch)
+    );
+    Ok(())
+}
