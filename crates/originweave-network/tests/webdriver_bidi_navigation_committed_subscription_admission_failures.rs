@@ -108,7 +108,9 @@ fn next_text(
     }
 }
 
-fn establish(local_addr: std::net::SocketAddr) -> Result<originweave_network::WebDriverBiDiWebSocketEstablished, Box<dyn Error>> {
+fn establish(
+    local_addr: std::net::SocketAddr,
+) -> Result<originweave_network::WebDriverBiDiWebSocketEstablished, Box<dyn Error>> {
     let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
     let target = WebDriverBiDiWebSocketEndpoint::new(&endpoint)?
         .correlate_session_id(SESSION_ID)?
