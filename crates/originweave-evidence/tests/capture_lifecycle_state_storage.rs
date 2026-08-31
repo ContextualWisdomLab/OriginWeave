@@ -1,4 +1,4 @@
-use originweave_evidence::{CaptureLifecycleState, CaptureLifecycleStateParseError};
+use originweave_evidence::{CaptureLifecycleError, CaptureLifecycleState};
 
 #[test]
 fn capture_lifecycle_state_has_a_canonical_storage_neutral_round_trip() {
@@ -34,14 +34,16 @@ fn capture_lifecycle_state_parser_rejects_aliases_and_ambiguous_values() {
     ] {
         assert_eq!(
             CaptureLifecycleState::parse(invalid),
-            Err(CaptureLifecycleStateParseError::UnsupportedValue)
+            Err(CaptureLifecycleError::InvalidRestoredState)
         );
     }
 
-    let error = CaptureLifecycleStateParseError::UnsupportedValue;
+    let error = CaptureLifecycleState::parse("future_state")
+        .err()
+        .unwrap_or(CaptureLifecycleError::InvalidTransition);
     assert_eq!(
         error.to_string(),
-        "capture lifecycle state has an unsupported canonical value"
+        "persisted capture lifecycle state is internally inconsistent"
     );
     assert!(std::error::Error::source(&error).is_none());
 }
