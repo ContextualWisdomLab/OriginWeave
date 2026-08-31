@@ -122,8 +122,13 @@ fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     Ok(())
 }
 
-fn establish_rejecting_post_handshake_bytes()
--> Result<(WebDriverBiDiWebSocketEstablished, thread::JoinHandle<io::Result<()>>), Box<dyn Error>> {
+fn establish_rejecting_post_handshake_bytes() -> Result<
+    (
+        WebDriverBiDiWebSocketEstablished,
+        thread::JoinHandle<io::Result<()>>,
+    ),
+    Box<dyn Error>,
+> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let server = thread::spawn(move || -> io::Result<()> {
@@ -142,10 +147,13 @@ fn establish_rejecting_post_handshake_bytes()
                 if matches!(
                     error.kind(),
                     io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
-                ) => Err(io::Error::new(
+                ) =>
+            {
+                Err(io::Error::new(
                     io::ErrorKind::TimedOut,
                     "stale pointer-click authority kept the transport open instead of failing closed",
-                )),
+                ))
+            }
             Err(error) => Err(error),
         }
     });
@@ -183,7 +191,9 @@ fn stale_admitted_node_is_rejected_at_send_time_before_correlation_or_wire_io()
         Duration::from_millis(500),
     )
     .err()
-    .ok_or_else(|| io::Error::other("stale admitted node unexpectedly reached pointer-click I/O"))?;
+    .ok_or_else(|| {
+        io::Error::other("stale admitted node unexpectedly reached pointer-click I/O")
+    })?;
 
     assert!(matches!(
         error,
