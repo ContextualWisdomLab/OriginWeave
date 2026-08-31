@@ -9,8 +9,8 @@ use std::{
 use originweave_core::{BrowserAuthorityRegistry, WebDriverBiDiWebSocketEndpoint};
 use originweave_network::{
     MAX_WEBDRIVER_BIDI_JS_UINT, WebDriverBiDiCommandCorrelation,
-    WebDriverBiDiCorrelatedResponseOutcome, WebDriverBiDiJsonEnvelope,
-    WebDriverBiDiNavigationCommittedSubscriptionCommand, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiNavigationCommittedSubscriptionCommand,
+    WebDriverBiDiNavigationCommittedSubscriptionResult, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
     WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageAssembler,
     WebDriverBiDiWebSocketMessageAssembly,
@@ -141,13 +141,12 @@ fn navigation_committed_subscription_round_trips_on_the_registered_context()
             .into());
         }
     };
-    let envelope = WebDriverBiDiJsonEnvelope::parse(&text)?;
-    let completed = correlation.correlate_response(&envelope)?;
-    assert_eq!(completed.command_id(), 7);
-    assert_eq!(
-        completed.outcome(),
-        WebDriverBiDiCorrelatedResponseOutcome::Success
-    );
+    let result = WebDriverBiDiNavigationCommittedSubscriptionResult::parse_and_correlate(
+        &text,
+        &mut correlation,
+    )?;
+    assert_eq!(result.command_id(), 7);
+    assert_eq!(result.subscription_id(), "subscription-a");
     assert_eq!(correlation.outstanding_count(), 0);
 
     server
