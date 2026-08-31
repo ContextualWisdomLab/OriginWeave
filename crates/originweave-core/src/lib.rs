@@ -34,6 +34,7 @@ mod browser_registry_external_context;
 mod contracts;
 mod webdriver_bidi_command;
 mod webdriver_bidi_error_code;
+mod webdriver_bidi_pointer_click_authority;
 mod webdriver_bidi_response_document;
 mod webdriver_bidi_response_document_correlation;
 mod webdriver_bidi_response_envelope;
@@ -79,6 +80,7 @@ pub use webdriver_bidi_command::{
     WebDriverBiDiPointerClickCommandError,
 };
 pub use webdriver_bidi_error_code::WebDriverBiDiErrorCode;
+pub use webdriver_bidi_pointer_click_authority::WebDriverBiDiPointerClickAuthorityError;
 pub use webdriver_bidi_response_document::{
     BoundedWebDriverBiDiResponseDocument, MAX_WEBDRIVER_BIDI_RESPONSE_DOCUMENT_BYTES,
     WebDriverBiDiResponseDocumentAdmissionError,
