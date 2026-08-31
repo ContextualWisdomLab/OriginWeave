@@ -12,17 +12,17 @@
 //! correlated protocol acknowledgment, sends a context-bound subscription for
 //! committed-navigation events, retains its typed bounded correlated subscription
 //! identifier, binds navigation-event admission to that exact active command/receipt
-//! lifecycle, explicitly tears down that exact subscription by identifier, admits
-//! its typed correlated unsubscribe acknowledgment, admits a bounded
-//! navigation-committed post-condition observation for one exact registered context
-//! and URL, rotates the matched context's document epoch only from an exact
-//! caller-captured pre-action epoch, derives and binds the committed HTTP(S) URL's
-//! canonical origin to that newly advanced document, sends narrowly typed
-//! `session.status` and `session.end` commands, admits typed correlated status and
-//! end responses, observes bounded peer Close or clean-EOF transport cessation, and
-//! keeps protocol/transport evidence separate from explicit operational teardown
-//! observations without exposing generic JSON bodies or granting browser, TLS,
-//! policy, secret, process, profile, or Agent authority.
+//! lifecycle with bounded fail-closed navigation replay prevention, explicitly tears
+//! down that exact subscription by identifier, admits its typed correlated unsubscribe
+//! acknowledgment, admits a bounded navigation-committed post-condition observation
+//! for one exact registered context and URL, rotates the matched context's document
+//! epoch only from an exact caller-captured pre-action epoch, derives and binds the
+//! committed HTTP(S) URL's canonical origin to that newly advanced document, sends
+//! narrowly typed `session.status` and `session.end` commands, admits typed correlated
+//! status and end responses, observes bounded peer Close or clean-EOF transport
+//! cessation, and keeps protocol/transport evidence separate from explicit operational
+//! teardown observations without exposing generic JSON bodies or granting browser,
+//! TLS, policy, secret, process, profile, or Agent authority.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -83,10 +83,12 @@ pub use webdriver_bidi_navigation_committed_subscription::{
     WebDriverBiDiNavigationCommittedSubscriptionCommandError,
 };
 pub use webdriver_bidi_navigation_committed_subscription_admission::{
+    MAX_WEBDRIVER_BIDI_NAVIGATION_COMMITTED_ADMISSIONS,
     WebDriverBiDiNavigationCommittedSubscribedObservation,
     WebDriverBiDiNavigationCommittedSubscriptionAdmission,
     WebDriverBiDiNavigationCommittedSubscriptionAdmissionError,
     WebDriverBiDiNavigationCommittedSubscriptionBinding,
+    WebDriverBiDiNavigationCommittedSubscriptionEventError,
 };
 pub use webdriver_bidi_navigation_committed_subscription_response::{
     MAX_WEBDRIVER_BIDI_SUBSCRIPTION_IDENTIFIER_BYTES,
