@@ -8,14 +8,16 @@ use std::{
 
 use originweave_core::{BrowserAuthorityRegistry, WebDriverBiDiWebSocketEndpoint};
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiCorrelatedResponseOutcome,
-    WebDriverBiDiJsonEnvelope, WebDriverBiDiNavigationCommittedSubscriptionCommand,
-    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
-    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
-    WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
+    MAX_WEBDRIVER_BIDI_JS_UINT, WebDriverBiDiCommandCorrelation,
+    WebDriverBiDiCorrelatedResponseOutcome, WebDriverBiDiJsonEnvelope,
+    WebDriverBiDiNavigationCommittedSubscriptionCommand, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
+    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageAssembler,
+    WebDriverBiDiWebSocketMessageAssembly,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
+const CONTEXT_ID: &str = "context-\"a\\b";
 const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
 const OPENING_RESPONSE: &[u8] = b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n";
 const SUBSCRIBE_RESPONSE: &[u8] =
@@ -75,7 +77,7 @@ fn navigation_committed_subscription_round_trips_on_the_registered_context()
         stream.write_all(OPENING_RESPONSE)?;
         let command = read_masked_text_frame(&mut stream)?;
         if command
-            != br#"{"id":7,"method":"session.subscribe","params":{"events":["browsingContext.navigationCommitted"],"contexts":["context-a"]}}"#
+            != br#"{"id":7,"method":"session.subscribe","params":{"events":["browsingContext.navigationCommitted"],"contexts":["context-\"a\\b"]}}"#
         {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -91,7 +93,7 @@ fn navigation_committed_subscription_round_trips_on_the_registered_context()
 
     let mut registry = BrowserAuthorityRegistry::new();
     let session = registry.register_session(SESSION_ID)?;
-    let context = registry.register_context(session, "context-a")?;
+    let context = registry.register_context(session, CONTEXT_ID)?;
 
     let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
     let target = WebDriverBiDiWebSocketEndpoint::new(&endpoint)?
@@ -110,8 +112,12 @@ fn navigation_committed_subscription_round_trips_on_the_registered_context()
         &registry,
         session,
         context,
-        "context-a",
+        CONTEXT_ID,
     )?;
+    assert_eq!(command.command_id(), 7);
+    assert_eq!(command.browser_session(), session);
+    assert_eq!(command.browsing_context(), context);
+    assert_eq!(command.external_context(), CONTEXT_ID);
     let established = command.send(
         &registry,
         established,
@@ -144,5 +150,36 @@ fn navigation_committed_subscription_round_trips_on_the_registered_context()
     server
         .join()
         .map_err(|_| io::Error::other("session.subscribe command test server panicked"))??;
+    Ok(())
+}
+
+#[test]
+fn subscription_constructor_rejects_out_of_range_command_id_without_source()
+-> Result<(), Box<dyn Error>> {
+    let mut registry = BrowserAuthorityRegistry::new();
+    let session = registry.register_session(SESSION_ID)?;
+    let context = registry.register_context(session, CONTEXT_ID)?;
+
+    let result = WebDriverBiDiNavigationCommittedSubscriptionCommand::new(
+        MAX_WEBDRIVER_BIDI_JS_UINT + 1,
+        &registry,
+        session,
+        context,
+        CONTEXT_ID,
+    );
+    let error = match result {
+        Ok(_) => {
+            return Err(io::Error::other(
+                "out-of-range session.subscribe command id was unexpectedly accepted",
+            )
+            .into());
+        }
+        Err(error) => error,
+    };
+    assert_eq!(
+        error.to_string(),
+        "WebDriver BiDi navigation subscription command id is outside the js-uint range"
+    );
+    assert!(error.source().is_none());
     Ok(())
 }
