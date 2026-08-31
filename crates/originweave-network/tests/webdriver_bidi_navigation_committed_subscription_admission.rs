@@ -10,7 +10,8 @@ use originweave_core::{
     BrowserAuthorityRegistry, BrowserSessionId, BrowsingContextId, WebDriverBiDiWebSocketEndpoint,
 };
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiNavigationCommittedSubscriptionAdmission,
+    MAX_WEBDRIVER_BIDI_NAVIGATION_COMMITTED_ADMISSIONS, WebDriverBiDiCommandCorrelation,
+    WebDriverBiDiNavigationCommittedSubscriptionAdmission,
     WebDriverBiDiNavigationCommittedSubscriptionBinding,
     WebDriverBiDiNavigationCommittedSubscriptionCommand,
     WebDriverBiDiNavigationCommittedSubscriptionResult, WebDriverBiDiTcpConnectionPlan,
@@ -209,7 +210,18 @@ fn committed_navigation_requires_the_exact_active_subscription_before_document_m
             return Err(io::Error::other("unexpected session.subscribe command"));
         }
         write_text_frame(&mut stream, SUBSCRIBE_RESPONSE)?;
-        write_text_frame(&mut stream, NAVIGATION_EVENT)
+        write_text_frame(&mut stream, NAVIGATION_EVENT)?;
+        for index in 1..MAX_WEBDRIVER_BIDI_NAVIGATION_COMMITTED_ADMISSIONS {
+            let event = format!(
+                "{{\"type\":\"event\",\"method\":\"browsingContext.navigationCommitted\",\"params\":{{\"context\":\"{CONTEXT_ID}\",\"navigation\":\"nav-fill-{index}\",\"timestamp\":{},\"url\":\"{EXPECTED_URL}\"}}}}",
+                2_000 + index
+            );
+            write_text_frame(&mut stream, event.as_bytes())?;
+        }
+        let overflow_event = format!(
+            "{{\"type\":\"event\",\"method\":\"browsingContext.navigationCommitted\",\"params\":{{\"context\":\"{CONTEXT_ID}\",\"navigation\":\"nav-overflow\",\"timestamp\":9999,\"url\":\"{EXPECTED_URL}\"}}}}"
+        );
+        write_text_frame(&mut stream, overflow_event.as_bytes())
     });
 
     let mut registry = BrowserAuthorityRegistry::new();
@@ -267,7 +279,17 @@ fn committed_navigation_requires_the_exact_active_subscription_before_document_m
     assert!(admission_debug.contains("command_id: 7"));
     assert!(!admission_debug.contains("subscription-a"));
 
-    let (_established, event) = next_text(established, &mut assembler)?;
+    let (mut established, event) = next_text(established, &mut assembler)?;
+    let observation_error = admission
+        .admit(&event, &registry, "https://example.test/unexpected")
+        .err()
+        .ok_or_else(|| io::Error::other("mismatched navigation URL unexpectedly admitted"))?;
+    assert_eq!(
+        observation_error.to_string(),
+        "WebDriver BiDi navigation-committed event is not admissible"
+    );
+    assert!(observation_error.source().is_some());
+
     let observation = admission.admit(&event, &registry, EXPECTED_URL)?;
     assert_eq!(observation.browser_session(), session);
     assert_eq!(observation.browsing_context(), context);
@@ -299,6 +321,26 @@ fn committed_navigation_requires_the_exact_active_subscription_before_document_m
         registry.current_context_epoch(session, context)?,
         advanced.current_epoch()
     );
+
+    for _ in 1..MAX_WEBDRIVER_BIDI_NAVIGATION_COMMITTED_ADMISSIONS {
+        let (next_established, fill_event) = next_text(established, &mut assembler)?;
+        established = next_established;
+        admission.admit(&fill_event, &registry, EXPECTED_URL)?;
+    }
+    let (_established, overflow_event) = next_text(established, &mut assembler)?;
+    let exhausted = admission
+        .admit(&overflow_event, &registry, EXPECTED_URL)
+        .err()
+        .ok_or_else(|| {
+            io::Error::other("full navigation replay history unexpectedly admitted another event")
+        })?;
+    assert_eq!(
+        exhausted.to_string(),
+        format!(
+            "WebDriver BiDi navigation subscription reached its {MAX_WEBDRIVER_BIDI_NAVIGATION_COMMITTED_ADMISSIONS}-event replay-history limit"
+        )
+    );
+    assert!(exhausted.source().is_none());
 
     registry.remove_context(context)?;
     let stale_error = admission
