@@ -2,9 +2,9 @@ use std::error::Error;
 use std::fmt::{Display, Formatter};
 
 use crate::{
-    AdmittedNodeHandle, BrowserAuthorityRegistry, BrowserRegistryError, NodeHandleError,
-    WebDriverBiDiRemoteNodeReference, MAX_WEBDRIVER_BIDI_COMMAND_ID,
-    WEBDRIVER_BIDI_PERFORM_ACTIONS_METHOD, contains_disallowed_protocol_text,
+    AdmittedNodeHandle, BrowserAuthorityRegistry, BrowserRegistryError,
+    MAX_WEBDRIVER_BIDI_COMMAND_ID, NodeHandleError, WEBDRIVER_BIDI_PERFORM_ACTIONS_METHOD,
+    WebDriverBiDiRemoteNodeReference, contains_disallowed_protocol_text,
 };
 
 /// Maximum UTF-8 bytes accepted by one non-secret WebDriver BiDi text-input command.
@@ -56,10 +56,16 @@ impl Display for WebDriverBiDiTypeTextAuthorityError {
         match self {
             Self::Command(error) => write!(formatter, "text-input command rejected input: {error}"),
             Self::BrowserAuthority(error) => {
-                write!(formatter, "text-input browser authority rejected input: {error}")
+                write!(
+                    formatter,
+                    "text-input browser authority rejected input: {error}"
+                )
             }
             Self::NodeHandle(error) => {
-                write!(formatter, "text-input node authority rejected input: {error}")
+                write!(
+                    formatter,
+                    "text-input node authority rejected input: {error}"
+                )
             }
             Self::NodeExternalIdentifierMismatch => formatter.write_str(
                 "text-input wire node identifier does not match the admitted current node",
@@ -167,7 +173,9 @@ impl WebDriverBiDiTypeTextCommand {
         push_json_string(&mut json, browsing_context);
         json.push_str(",\"actions\":[{\"type\":\"pointer\",\"id\":\"originweave-mouse\",\"parameters\":{\"pointerType\":\"mouse\"},\"actions\":[{\"type\":\"pointerMove\",\"x\":0,\"y\":0,\"origin\":{\"type\":\"element\",\"element\":{\"sharedId\":");
         push_json_string(&mut json, node.shared_id());
-        json.push_str("}}},{\"type\":\"pointerDown\",\"button\":0},{\"type\":\"pointerUp\",\"button\":0}");
+        json.push_str(
+            "}}},{\"type\":\"pointerDown\",\"button\":0},{\"type\":\"pointerUp\",\"button\":0}",
+        );
         for _ in 0..character_count.saturating_mul(2) {
             json.push_str(",{\"type\":\"pause\"}");
         }
