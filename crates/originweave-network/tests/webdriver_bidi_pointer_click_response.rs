@@ -7,12 +7,13 @@ use std::{
 };
 
 use originweave_core::{
-    BoundedWebDriverBiDiResponseDocument, BrowserAuthorityRegistry, BrowserContextDispatchTarget,
-    BrowserContextOriginDispatchTarget, BrowserContextOriginEpochDispatchTarget,
-    BrowserProtocolAdapterDescriptor, BrowserProtocolCapability, BrowserProtocolKind, Origin,
-    OriginWeaveProtocolVersion, ValidatedBrowserProtocolUse, WebDriverBiDiAccessibilityQuery,
-    WebDriverBiDiLocateNodesCommand, WebDriverBiDiPointerClickCommand,
-    WebDriverBiDiRemoteNodeReference, WebDriverBiDiWebSocketEndpoint,
+    AdmittedNodeHandle, BoundedWebDriverBiDiResponseDocument, BrowserAuthorityRegistry,
+    BrowserContextDispatchTarget, BrowserContextOriginDispatchTarget,
+    BrowserContextOriginEpochDispatchTarget, BrowserProtocolAdapterDescriptor,
+    BrowserProtocolCapability, BrowserProtocolKind, Origin, OriginWeaveProtocolVersion,
+    ValidatedBrowserProtocolUse, WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesCommand,
+    WebDriverBiDiPointerClickCommand, WebDriverBiDiRemoteNodeReference,
+    WebDriverBiDiWebSocketEndpoint,
 };
 use originweave_network::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiPointerClickResponseError,
@@ -38,6 +39,12 @@ const ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion =
 const ADAPTER_VERSION: &str = "originweave-bidi-v1";
 const PROTOCOL_REVISION: &str = "webdriver-bidi-wd-2026-06-01";
 const BROWSER_REVISION: &str = "chromium-r1639810";
+
+type AdmittedPointerClickFixture = (
+    BrowserAuthorityRegistry,
+    AdmittedNodeHandle,
+    WebDriverBiDiRemoteNodeReference,
+);
 
 fn semantic_observation_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn Error>> {
     let descriptor = BrowserProtocolAdapterDescriptor::new(
@@ -77,9 +84,7 @@ fn typed_input_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn Error>> {
     )?)
 }
 
-fn admitted_pointer_click_command(
-    command_id: u64,
-) -> Result<WebDriverBiDiPointerClickCommand, Box<dyn Error>> {
+fn admitted_pointer_click_fixture() -> Result<AdmittedPointerClickFixture, Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
     let browser_session = registry.register_session(SESSION_ID)?;
     let browsing_context = registry.register_context(browser_session, "context-a")?;
@@ -110,13 +115,7 @@ fn admitted_pointer_click_command(
         .next()
         .ok_or_else(|| io::Error::other("locateNodes fixture did not bind its node"))?;
     let remote = WebDriverBiDiRemoteNodeReference::new("node", Some("shared-node-42"))?;
-    Ok(WebDriverBiDiPointerClickCommand::new_for_current_node(
-        command_id,
-        "context-a",
-        &handle,
-        &remote,
-        &registry,
-    )?)
+    Ok((registry, handle, remote))
 }
 
 fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
@@ -197,10 +196,17 @@ fn send_click_and_read_response(
 > {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
-    let expected_json = admitted_pointer_click_command(42)?
-        .as_json()
-        .as_bytes()
-        .to_vec();
+    let (registry, handle, remote) = admitted_pointer_click_fixture()?;
+    let expected_json = WebDriverBiDiPointerClickCommand::new_for_current_node(
+        42,
+        "context-a",
+        &handle,
+        &remote,
+        &registry,
+    )?
+    .as_json()
+    .as_bytes()
+    .to_vec();
 
     let server = thread::spawn(move || -> io::Result<()> {
         let (mut stream, _) = listener.accept()?;
@@ -228,11 +234,14 @@ fn send_click_and_read_response(
         .write_opening_request(Duration::from_millis(500))?
         .read_opening_response(Duration::from_millis(500))?;
 
-    let command = admitted_pointer_click_command(42)?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     let established = send_webdriver_bidi_pointer_click(
         typed_input_proof()?,
-        &command,
+        42,
+        "context-a",
+        &handle,
+        &remote,
+        &registry,
         established,
         &mut correlation,
         WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
