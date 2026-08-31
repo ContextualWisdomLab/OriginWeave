@@ -21,7 +21,8 @@ const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
 const CONTEXT_ID: &str = "context-a";
 const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
 const OPENING_RESPONSE: &[u8] = b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n";
-const SUBSCRIBE_RESPONSE: &[u8] = br#"{"type":"success","id":7,"result":{"subscription":"sub-\"\\\n\u0001-구독"}}"#;
+const SUBSCRIBE_RESPONSE: &str =
+    r#"{"type":"success","id":7,"result":{"subscription":"sub-\"\\\n\u0001-구독"}}"#;
 const UNSUBSCRIBE_RESPONSE: &[u8] = br#"{"type":"success","id":8,"result":{}}"#;
 
 fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
@@ -107,11 +108,12 @@ fn validated_subscription_can_be_unsubscribed_without_losing_opaque_text()
                 ),
             ));
         }
-        write_server_text_frame(&mut stream, SUBSCRIBE_RESPONSE)?;
+        write_server_text_frame(&mut stream, SUBSCRIBE_RESPONSE.as_bytes())?;
 
         let unsubscribe = read_masked_text_frame(&mut stream)?;
         if unsubscribe
-            != br#"{"id":8,"method":"session.unsubscribe","params":{"subscriptions":["sub-\"\\\n\u0001-구독"]}}"#
+            != r#"{"id":8,"method":"session.unsubscribe","params":{"subscriptions":["sub-\"\\\n\u0001-구독"]}}"#
+                .as_bytes()
         {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
