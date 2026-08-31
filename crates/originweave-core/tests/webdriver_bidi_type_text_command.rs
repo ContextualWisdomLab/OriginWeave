@@ -231,6 +231,40 @@ fn type_text_command_rejects_wrong_context_and_unadmitted_node() -> Result<(), B
 }
 
 #[test]
+fn type_text_command_rejects_changed_origin_authority() -> Result<(), Box<dyn Error>> {
+    let mut fixture = admitted_text_field("context-a", "shared-input-42")?;
+    fixture
+        .registry
+        .advance_document(fixture.browsing_context)?;
+    let changed_origin = Origin::parse("https://changed.example").map_err(|error| {
+        io::Error::other(format!("changed fixture origin rejected unexpectedly: {error:?}"))
+    })?;
+    fixture.registry.bind_context_origin(
+        fixture.browser_session,
+        fixture.browsing_context,
+        &changed_origin,
+    )?;
+
+    let error = WebDriverBiDiTypeTextCommand::new_for_current_node(
+        42,
+        &fixture.external_context,
+        "safe text",
+        &fixture.handle,
+        &fixture.remote,
+        &fixture.registry,
+    )
+    .err()
+    .ok_or("expected changed-origin rejection")?;
+    assert!(matches!(
+        error,
+        WebDriverBiDiTypeTextAuthorityError::BrowserAuthority(_)
+    ));
+    assert!(error.source().is_some());
+    assert!(error.to_string().contains("browser authority"));
+    Ok(())
+}
+
+#[test]
 fn type_text_command_rejects_stale_document_authority() -> Result<(), Box<dyn Error>> {
     let mut fixture = admitted_text_field("context-a", "shared-input-42")?;
     let observed = fixture.handle.document_epoch();
