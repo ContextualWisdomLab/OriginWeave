@@ -8,7 +8,10 @@ fn capture_lifecycle_state_has_a_canonical_storage_neutral_round_trip() {
         (CaptureLifecycleState::Verified, "verified"),
         (CaptureLifecycleState::Retained, "retained"),
         (CaptureLifecycleState::LegalHold, "legal_hold"),
-        (CaptureLifecycleState::DeletionRequested, "deletion_requested"),
+        (
+            CaptureLifecycleState::DeletionRequested,
+            "deletion_requested",
+        ),
         (CaptureLifecycleState::Deleted, "deleted"),
     ];
 
