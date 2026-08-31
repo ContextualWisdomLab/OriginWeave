@@ -52,6 +52,7 @@ mod webdriver_bidi_response_document;
 mod webdriver_bidi_response_document_correlation;
 mod webdriver_bidi_response_envelope;
 mod webdriver_bidi_result;
+mod webdriver_bidi_type_text;
 mod webdriver_bidi_websocket_connect_target;
 mod webdriver_bidi_websocket_endpoint;
 
@@ -105,6 +106,10 @@ pub use webdriver_bidi_response_envelope::{
 };
 pub use webdriver_bidi_result::{
     ValidatedWebDriverBiDiLocateNodesResult, WebDriverBiDiLocateNodesResultAdmissionError,
+};
+pub use webdriver_bidi_type_text::{
+    MAX_WEBDRIVER_BIDI_TYPE_TEXT_BYTES, WebDriverBiDiTypeTextAuthorityError,
+    WebDriverBiDiTypeTextCommand, WebDriverBiDiTypeTextCommandError,
 };
 pub use webdriver_bidi_websocket_connect_target::{
     VerifiedWebDriverBiDiSocketPeer, WebDriverBiDiSocketPeerVerificationError,
