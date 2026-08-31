@@ -6,9 +6,12 @@ use std::{
     time::Duration,
 };
 
-use originweave_core::{BrowserAuthorityRegistry, WebDriverBiDiWebSocketEndpoint};
+use originweave_core::{
+    BrowserAuthorityRegistry, BrowserSessionId, BrowsingContextId, WebDriverBiDiWebSocketEndpoint,
+};
 use originweave_network::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiNavigationCommittedSubscriptionAdmission,
+    WebDriverBiDiNavigationCommittedSubscriptionBinding,
     WebDriverBiDiNavigationCommittedSubscriptionCommand,
     WebDriverBiDiNavigationCommittedSubscriptionResult, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
@@ -113,6 +116,83 @@ fn next_text(
     }
 }
 
+fn receive_subscription_result(
+    registry: &BrowserAuthorityRegistry,
+    browser_session: BrowserSessionId,
+    browsing_context: BrowsingContextId,
+    command_id: u64,
+) -> Result<
+    (
+        WebDriverBiDiNavigationCommittedSubscriptionResult,
+        WebDriverBiDiNavigationCommittedSubscriptionBinding,
+    ),
+    Box<dyn Error>,
+> {
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let local_addr = listener.local_addr()?;
+    let expected_command = format!(
+        "{{\"id\":{command_id},\"method\":\"session.subscribe\",\"params\":{{\"events\":[\"browsingContext.navigationCommitted\"],\"contexts\":[\"{CONTEXT_ID}\"]}}}}"
+    )
+    .into_bytes();
+    let response = format!(
+        "{{\"type\":\"success\",\"id\":{command_id},\"result\":{{\"subscription\":\"subscription-{command_id}\"}}}}"
+    )
+    .into_bytes();
+    let server = thread::spawn(move || -> io::Result<()> {
+        let (mut stream, _) = listener.accept()?;
+        read_opening_request(&mut stream)?;
+        stream.write_all(OPENING_RESPONSE)?;
+        let command = read_masked_text_frame(&mut stream)?;
+        if command != expected_command {
+            return Err(io::Error::other(
+                "unexpected session.subscribe failure-contract command",
+            ));
+        }
+        write_text_frame(&mut stream, &response)
+    });
+
+    let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+    let target = WebDriverBiDiWebSocketEndpoint::new(&endpoint)?
+        .correlate_session_id(SESSION_ID)?
+        .into_explicit_connect_target()?;
+    let connection =
+        WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)?.connect()?;
+    let established = WebDriverBiDiWebSocketHandshakePlan::new(
+        connection,
+        WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?,
+    )?
+    .write_opening_request(Duration::from_millis(500))?
+    .read_opening_response(Duration::from_millis(500))?;
+
+    let command = WebDriverBiDiNavigationCommittedSubscriptionCommand::new(
+        command_id,
+        registry,
+        browser_session,
+        browsing_context,
+        CONTEXT_ID,
+    )?;
+    let binding = command.admission_binding();
+    let mut correlation = WebDriverBiDiCommandCorrelation::new();
+    let established = command.send(
+        registry,
+        established,
+        &mut correlation,
+        WebDriverBiDiWebSocketMaskKey::new([9, 8, 7, 6]),
+        Duration::from_millis(500),
+    )?;
+    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
+    let (_established, response) = next_text(established, &mut assembler)?;
+    let result = WebDriverBiDiNavigationCommittedSubscriptionResult::parse_and_correlate(
+        &response,
+        &mut correlation,
+    )?;
+
+    server
+        .join()
+        .map_err(|_| io::Error::other("subscription result test server panicked"))??;
+    Ok((result, binding))
+}
+
 #[test]
 fn committed_navigation_requires_the_exact_active_subscription_before_document_mutation()
 -> Result<(), Box<dyn Error>> {
@@ -154,6 +234,13 @@ fn committed_navigation_requires_the_exact_active_subscription_before_document_m
         7, &registry, session, context, CONTEXT_ID,
     )?;
     let binding = command.admission_binding();
+    assert_eq!(binding.command_id(), 7);
+    assert_eq!(binding.browser_session(), session);
+    assert_eq!(binding.browsing_context(), context);
+    let binding_debug = format!("{binding:?}");
+    assert!(binding_debug.contains("command_id: 7"));
+    assert!(!binding_debug.contains(CONTEXT_ID));
+
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     let established = command.send(
         &registry,
@@ -174,12 +261,22 @@ fn committed_navigation_requires_the_exact_active_subscription_before_document_m
         binding,
         &registry,
     )?;
+    assert_eq!(admission.browser_session(), session);
+    assert_eq!(admission.browsing_context(), context);
+    let admission_debug = format!("{admission:?}");
+    assert!(admission_debug.contains("command_id: 7"));
+    assert!(!admission_debug.contains("subscription-a"));
 
     let (_established, event) = next_text(established, &mut assembler)?;
     let observation = admission.admit(&event, &registry, EXPECTED_URL)?;
     assert_eq!(observation.browser_session(), session);
     assert_eq!(observation.browsing_context(), context);
     assert_eq!(observation.navigation_id(), Some("nav-8"));
+    assert_eq!(observation.timestamp(), 1234);
+    assert!(
+        format!("{observation:?}")
+            .contains("WebDriverBiDiNavigationCommittedSubscribedObservation")
+    );
 
     let advanced = advance_webdriver_bidi_navigation_document_epoch(
         observation,
@@ -189,11 +286,60 @@ fn committed_navigation_requires_the_exact_active_subscription_before_document_m
     assert_eq!(advanced.browser_session(), session);
     assert_eq!(advanced.browsing_context(), context);
 
+    registry.remove_context(context)?;
+    let stale_error = admission
+        .admit(&event, &registry, EXPECTED_URL)
+        .err()
+        .ok_or_else(|| io::Error::other("retired context unexpectedly admitted navigation event"))?;
+    assert!(stale_error.source().is_some());
+
     let unsubscribe = admission.into_unsubscribe(8)?;
     assert_eq!(unsubscribe.command_id(), 8);
 
     server
         .join()
         .map_err(|_| io::Error::other("subscription admission test server panicked"))??;
+    Ok(())
+}
+
+#[test]
+fn subscription_admission_rejects_mismatched_command_and_retired_context()
+-> Result<(), Box<dyn Error>> {
+    let mut registry = BrowserAuthorityRegistry::new();
+    let session = registry.register_session(SESSION_ID)?;
+    let context = registry.register_context(session, CONTEXT_ID)?;
+
+    let (subscription, _) = receive_subscription_result(&registry, session, context, 8)?;
+    let wrong_binding = WebDriverBiDiNavigationCommittedSubscriptionCommand::new(
+        9, &registry, session, context, CONTEXT_ID,
+    )?
+    .admission_binding();
+    let mismatch = WebDriverBiDiNavigationCommittedSubscriptionAdmission::new(
+        subscription,
+        wrong_binding,
+        &registry,
+    )
+    .err()
+    .ok_or_else(|| io::Error::other("mismatched subscription command unexpectedly admitted"))?;
+    assert_eq!(
+        mismatch.to_string(),
+        "WebDriver BiDi navigation subscription response does not match its command binding"
+    );
+    assert!(mismatch.source().is_none());
+
+    let (subscription, binding) = receive_subscription_result(&registry, session, context, 10)?;
+    registry.remove_context(context)?;
+    let retired = WebDriverBiDiNavigationCommittedSubscriptionAdmission::new(
+        subscription,
+        binding,
+        &registry,
+    )
+    .err()
+    .ok_or_else(|| io::Error::other("retired subscription context unexpectedly admitted"))?;
+    assert_eq!(
+        retired.to_string(),
+        "WebDriver BiDi navigation subscription context is no longer registered authority"
+    );
+    assert!(retired.source().is_some());
     Ok(())
 }

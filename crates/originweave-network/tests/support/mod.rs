@@ -136,7 +136,9 @@ pub fn receive_subscribed_navigation_event(
         stream.write_all(OPENING_RESPONSE)?;
         let command = read_masked_text_frame(&mut stream)?;
         if command != expected_command {
-            return Err(io::Error::other("unexpected session.subscribe fixture command"));
+            return Err(io::Error::other(
+                "unexpected session.subscribe fixture command",
+            ));
         }
         write_text_frame(&mut stream, SUBSCRIBE_RESPONSE)?;
         write_text_frame(&mut stream, &event)
