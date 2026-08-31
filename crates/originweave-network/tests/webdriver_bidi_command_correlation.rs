@@ -10,7 +10,7 @@ use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
     MAX_WEBDRIVER_BIDI_JS_UINT, MAX_WEBDRIVER_BIDI_OUTSTANDING_COMMANDS,
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
-    WebDriverBiDiCorrelatedResponseOutcome, WebDriverBiDiJsonEnvelope,
+    WebDriverBiDiCommandKind, WebDriverBiDiCorrelatedResponseOutcome, WebDriverBiDiJsonEnvelope,
     WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
     WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMessageAssembler,
     WebDriverBiDiWebSocketMessageAssembly,
@@ -85,12 +85,13 @@ fn parse_over_loopback(
 fn responses_correlate_out_of_order_and_ids_can_be_reused_after_completion()
 -> Result<(), Box<dyn Error>> {
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command(7)?;
-    correlation.register_command(8)?;
+    correlation.register_command_for(7, WebDriverBiDiCommandKind::SessionStatus)?;
+    correlation.register_command_for(8, WebDriverBiDiCommandKind::SessionStatus)?;
     assert_eq!(correlation.outstanding_count(), 2);
 
     let success = parse_over_loopback(br#"{"type":"success","id":8,"result":{}}"#)?;
-    let completed = correlation.correlate_response(&success)?;
+    let completed =
+        correlation.correlate_response_for(&success, WebDriverBiDiCommandKind::SessionStatus)?;
     assert_eq!(completed.command_id(), 8);
     assert_eq!(
         completed.outcome(),
@@ -101,7 +102,8 @@ fn responses_correlate_out_of_order_and_ids_can_be_reused_after_completion()
     let error = parse_over_loopback(
         br#"{"type":"error","id":7,"error":"invalid argument","message":"redacted by parser"}"#,
     )?;
-    let completed = correlation.correlate_response(&error)?;
+    let completed =
+        correlation.correlate_response_for(&error, WebDriverBiDiCommandKind::SessionStatus)?;
     assert_eq!(completed.command_id(), 7);
     assert_eq!(
         completed.outcome(),
@@ -109,7 +111,7 @@ fn responses_correlate_out_of_order_and_ids_can_be_reused_after_completion()
     );
     assert_eq!(correlation.outstanding_count(), 0);
 
-    correlation.register_command(8)?;
+    correlation.register_command_for(8, WebDriverBiDiCommandKind::SessionStatus)?;
     assert_eq!(correlation.outstanding_count(), 1);
     Ok(())
 }
@@ -118,18 +120,18 @@ fn responses_correlate_out_of_order_and_ids_can_be_reused_after_completion()
 fn correlation_fails_closed_without_consuming_unrelated_outstanding_commands()
 -> Result<(), Box<dyn Error>> {
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command(7)?;
+    correlation.register_command_for(7, WebDriverBiDiCommandKind::SessionStatus)?;
 
     let unknown = parse_over_loopback(br#"{"type":"success","id":8,"result":{}}"#)?;
     assert_eq!(
-        correlation.correlate_response(&unknown),
+        correlation.correlate_response_for(&unknown, WebDriverBiDiCommandKind::SessionStatus),
         Err(WebDriverBiDiCommandCorrelationError::CommandNotOutstanding)
     );
     assert_eq!(correlation.outstanding_count(), 1);
 
     let event = parse_over_loopback(br#"{"type":"event","method":"log.entryAdded","params":{}}"#)?;
     assert_eq!(
-        correlation.correlate_response(&event),
+        correlation.correlate_response_for(&event, WebDriverBiDiCommandKind::SessionStatus),
         Err(WebDriverBiDiCommandCorrelationError::EventIsNotResponse)
     );
     assert_eq!(correlation.outstanding_count(), 1);
@@ -138,7 +140,10 @@ fn correlation_fails_closed_without_consuming_unrelated_outstanding_commands()
         br#"{"type":"error","id":null,"error":"invalid argument","message":"no command id"}"#,
     )?;
     assert_eq!(
-        correlation.correlate_response(&uncorrelatable),
+        correlation.correlate_response_for(
+            &uncorrelatable,
+            WebDriverBiDiCommandKind::SessionStatus,
+        ),
         Err(WebDriverBiDiCommandCorrelationError::UncorrelatableErrorResponse)
     );
     assert_eq!(correlation.outstanding_count(), 1);
@@ -149,34 +154,51 @@ fn correlation_fails_closed_without_consuming_unrelated_outstanding_commands()
 fn outstanding_command_budget_and_retirement_are_bounded() -> Result<(), Box<dyn Error>> {
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     assert_eq!(
-        correlation.register_command(MAX_WEBDRIVER_BIDI_JS_UINT + 1),
+        correlation.register_command_for(
+            MAX_WEBDRIVER_BIDI_JS_UINT + 1,
+            WebDriverBiDiCommandKind::SessionStatus,
+        ),
         Err(WebDriverBiDiCommandCorrelationError::CommandIdOutOfRange)
     );
-    correlation.register_command(1)?;
+    correlation.register_command_for(1, WebDriverBiDiCommandKind::SessionStatus)?;
     assert_eq!(
-        correlation.register_command(1),
+        correlation.register_command_for(1, WebDriverBiDiCommandKind::SessionEnd),
         Err(WebDriverBiDiCommandCorrelationError::CommandAlreadyOutstanding)
     );
-    correlation.retire_command(1)?;
+    assert_eq!(
+        correlation.retire_command_for(1, WebDriverBiDiCommandKind::SessionEnd),
+        Err(WebDriverBiDiCommandCorrelationError::CommandKindMismatch {
+            expected: WebDriverBiDiCommandKind::SessionEnd,
+            actual: WebDriverBiDiCommandKind::SessionStatus,
+        })
+    );
+    assert_eq!(correlation.outstanding_count(), 1);
+    correlation.retire_command_for(1, WebDriverBiDiCommandKind::SessionStatus)?;
     assert_eq!(correlation.outstanding_count(), 0);
     assert_eq!(
-        correlation.retire_command(1),
+        correlation.retire_command_for(1, WebDriverBiDiCommandKind::SessionStatus),
         Err(WebDriverBiDiCommandCorrelationError::CommandNotOutstanding)
     );
 
     for command_id in 0..MAX_WEBDRIVER_BIDI_OUTSTANDING_COMMANDS as u64 {
-        correlation.register_command(command_id)?;
+        correlation.register_command_for(command_id, WebDriverBiDiCommandKind::SessionStatus)?;
     }
     assert_eq!(
         correlation.outstanding_count(),
         MAX_WEBDRIVER_BIDI_OUTSTANDING_COMMANDS
     );
     assert_eq!(
-        correlation.register_command(MAX_WEBDRIVER_BIDI_OUTSTANDING_COMMANDS as u64),
+        correlation.register_command_for(
+            MAX_WEBDRIVER_BIDI_OUTSTANDING_COMMANDS as u64,
+            WebDriverBiDiCommandKind::SessionStatus,
+        ),
         Err(WebDriverBiDiCommandCorrelationError::OutstandingCommandLimit)
     );
-    correlation.retire_command(0)?;
-    correlation.register_command(MAX_WEBDRIVER_BIDI_OUTSTANDING_COMMANDS as u64)?;
+    correlation.retire_command_for(0, WebDriverBiDiCommandKind::SessionStatus)?;
+    correlation.register_command_for(
+        MAX_WEBDRIVER_BIDI_OUTSTANDING_COMMANDS as u64,
+        WebDriverBiDiCommandKind::SessionStatus,
+    )?;
     assert_eq!(
         correlation.outstanding_count(),
         MAX_WEBDRIVER_BIDI_OUTSTANDING_COMMANDS
@@ -187,10 +209,11 @@ fn outstanding_command_budget_and_retirement_are_bounded() -> Result<(), Box<dyn
 #[test]
 fn correlation_debug_redacts_outstanding_command_identifiers() -> Result<(), Box<dyn Error>> {
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command(123_456_789)?;
+    correlation.register_command_for(123_456_789, WebDriverBiDiCommandKind::SessionStatus)?;
 
     let debug = format!("{correlation:?}");
     assert!(debug.contains("outstanding_count"));
     assert!(!debug.contains("123456789"));
+    assert!(!debug.contains("SessionStatus"));
     Ok(())
 }

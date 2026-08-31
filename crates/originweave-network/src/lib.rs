@@ -32,7 +32,7 @@ pub use connection::{
 };
 pub use webdriver_bidi_command_correlation::{
     MAX_WEBDRIVER_BIDI_OUTSTANDING_COMMANDS, WebDriverBiDiCommandCorrelation,
-    WebDriverBiDiCommandCorrelationError, WebDriverBiDiCorrelatedResponse,
+    WebDriverBiDiCommandCorrelationError, WebDriverBiDiCommandKind, WebDriverBiDiCorrelatedResponse,
     WebDriverBiDiCorrelatedResponseOutcome,
 };
 pub use webdriver_bidi_connection::{
