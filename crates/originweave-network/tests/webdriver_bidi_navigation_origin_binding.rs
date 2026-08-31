@@ -8,6 +8,7 @@ use std::{
 
 use originweave_core::{BrowserAuthorityRegistry, Origin, WebDriverBiDiWebSocketEndpoint};
 use originweave_network::{
+    WebDriverBiDiNavigationCommittedDocumentAdvanceError,
     WebDriverBiDiNavigationCommittedObservation, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
     WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
@@ -173,6 +174,64 @@ fn invalid_observed_origin_fails_before_document_authority_is_rotated() -> Resul
     assert_eq!(
         registry.require_context_origin(session, context, &previous_origin)?,
         before
+    );
+    Ok(())
+}
+
+#[test]
+fn stale_pre_action_epoch_fails_before_observed_origin_is_bound() -> Result<(), Box<dyn Error>> {
+    let mut registry = BrowserAuthorityRegistry::new();
+    let session = registry.register_session(SESSION_ID)?;
+    let context = registry.register_context(session, "context-a")?;
+    let before = registry.current_context_epoch(session, context)?;
+    let previous_origin = fixture_origin("https://before.example")?;
+    registry.bind_context_origin(session, context, &previous_origin)?;
+
+    let observed_url = "https://example.test/after";
+    let event = receive_navigation_event(observed_url)?;
+    let observation = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
+        &event,
+        &registry,
+        session,
+        context,
+        observed_url,
+    )?;
+
+    let intervening_epoch = registry.advance_document(context)?;
+    let intervening_origin = fixture_origin("https://intervening.example")?;
+    registry.bind_context_origin(session, context, &intervening_origin)?;
+
+    let error = advance_and_bind_webdriver_bidi_navigation_document_origin(
+        observation,
+        &mut registry,
+        before,
+    )
+    .err()
+    .ok_or_else(|| io::Error::other("stale pre-action epoch unexpectedly advanced document"))?;
+
+    assert_eq!(
+        error.to_string(),
+        "WebDriver BiDi committed navigation cannot rotate registered document authority"
+    );
+    assert_eq!(
+        error
+            .source()
+            .and_then(|source| {
+                source.downcast_ref::<WebDriverBiDiNavigationCommittedDocumentAdvanceError>()
+            })
+            .map(ToString::to_string)
+            .as_deref(),
+        Some(
+            "WebDriver BiDi navigation document advance does not match the expected pre-action document epoch"
+        )
+    );
+    assert_eq!(
+        registry.current_context_epoch(session, context)?,
+        intervening_epoch
+    );
+    assert_eq!(
+        registry.require_context_origin(session, context, &intervening_origin)?,
+        intervening_epoch
     );
     Ok(())
 }
