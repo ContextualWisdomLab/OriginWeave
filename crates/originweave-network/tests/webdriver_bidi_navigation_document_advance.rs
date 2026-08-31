@@ -100,9 +100,8 @@ fn accepted_navigation_advances_only_the_exact_pre_action_document_epoch()
     let session = registry.register_session(SESSION_ID)?;
     let context = registry.register_context(session, "context-a")?;
     let before = registry.current_context_epoch(session, context)?;
-    let previous_origin = Origin::parse("https://example.test").map_err(|error| {
-        io::Error::other(format!("fixture origin parse failed: {error:?}"))
-    })?;
+    let previous_origin = Origin::parse("https://example.test")
+        .map_err(|error| io::Error::other(format!("fixture origin parse failed: {error:?}")))?;
     registry.bind_context_origin(session, context, &previous_origin)?;
 
     let event = receive_navigation_event()?;
