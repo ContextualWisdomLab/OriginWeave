@@ -104,7 +104,7 @@ impl WebDriverBiDiNavigationCommittedSubscriptionResult {
 }
 
 /// Fail-closed failures while admitting one typed WebDriver BiDi `session.subscribe` response.
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum WebDriverBiDiNavigationCommittedSubscriptionResponseError {
     /// Common local-end JSON envelope validation failed.
     Envelope {
