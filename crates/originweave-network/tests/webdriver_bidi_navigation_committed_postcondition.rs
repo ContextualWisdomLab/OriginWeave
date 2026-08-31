@@ -9,20 +9,18 @@ use std::{
 use originweave_core::{
     BoundedWebDriverBiDiResponseDocument, BrowserAuthorityRegistry, BrowserContextDispatchTarget,
     BrowserContextOriginDispatchTarget, BrowserContextOriginEpochDispatchTarget,
-    BrowserProtocolAdapterDescriptor, BrowserProtocolCapability, BrowserProtocolKind,
-    MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES, Origin, OriginWeaveProtocolVersion,
-    ValidatedBrowserProtocolUse, WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesCommand,
-    WebDriverBiDiPointerClickCommand, WebDriverBiDiRemoteNodeReference,
-    WebDriverBiDiWebSocketEndpoint,
+    BrowserProtocolAdapterDescriptor, BrowserProtocolCapability, BrowserProtocolKind, Origin,
+    OriginWeaveProtocolVersion, ValidatedBrowserProtocolUse, WebDriverBiDiAccessibilityQuery,
+    WebDriverBiDiLocateNodesCommand, WebDriverBiDiPointerClickCommand,
+    WebDriverBiDiRemoteNodeReference, WebDriverBiDiWebSocketEndpoint,
 };
 use originweave_network::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiNavigationCommittedObservation,
-    WebDriverBiDiNavigationCommittedObservationError,
-    WebDriverBiDiNavigationCommittedProjectionError, WebDriverBiDiPointerClickResult,
-    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
-    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
-    WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
-    WebDriverBiDiWebSocketTextMessage, send_webdriver_bidi_pointer_click,
+    WebDriverBiDiPointerClickResult, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
+    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageAssembler,
+    WebDriverBiDiWebSocketMessageAssembly, WebDriverBiDiWebSocketTextMessage,
+    send_webdriver_bidi_pointer_click,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
