@@ -9,10 +9,10 @@ use std::{
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
-    WebDriverBiDiCommandKind, WebDriverBiDiCorrelatedResponseOutcome,
-    WebDriverBiDiJsonEnvelope, WebDriverBiDiTcpConnectionPlan,
-    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
+    WebDriverBiDiCommandKind, WebDriverBiDiCorrelatedResponseOutcome, WebDriverBiDiJsonEnvelope,
+    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
+    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMessageAssembler,
+    WebDriverBiDiWebSocketMessageAssembly,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -91,8 +91,8 @@ fn response_cannot_consume_a_different_outstanding_command_kind() -> Result<(), 
     );
     assert_eq!(correlation.outstanding_count(), 1);
 
-    let completed = correlation
-        .correlate_response_for(&response, WebDriverBiDiCommandKind::SessionStatus)?;
+    let completed =
+        correlation.correlate_response_for(&response, WebDriverBiDiCommandKind::SessionStatus)?;
     assert_eq!(completed.command_id(), 42);
     assert_eq!(
         completed.outcome(),
