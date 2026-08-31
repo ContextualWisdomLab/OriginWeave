@@ -100,8 +100,7 @@ fn accepted_navigation_advances_only_the_exact_pre_action_document_epoch()
     let session = registry.register_session(SESSION_ID)?;
     let context = registry.register_context(session, "context-a")?;
     let before = registry.current_context_epoch(session, context)?;
-    let previous_origin =
-        Origin::parse("https://example.test").expect("constant fixture origin must be canonical");
+    let previous_origin = Origin::parse("https://example.test")?;
     registry.bind_context_origin(session, context, &previous_origin)?;
 
     let event = receive_navigation_event()?;
