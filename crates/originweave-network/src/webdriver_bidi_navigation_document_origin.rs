@@ -213,15 +213,11 @@ mod tests {
         assert_eq!(origins.len(), 1);
         assert_eq!(origins[0].as_str(), "https://example.test");
 
-        let errors = bind_advanced_document_origin(
-            &mut registry,
-            sessions[0],
-            contexts[0],
-            &origins[0],
-        )
-        .err()
-        .into_iter()
-        .collect::<Vec<_>>();
+        let errors =
+            bind_advanced_document_origin(&mut registry, sessions[0], contexts[0], &origins[0])
+                .err()
+                .into_iter()
+                .collect::<Vec<_>>();
         assert_eq!(errors.len(), 1);
         assert_eq!(
             errors[0].to_string(),
