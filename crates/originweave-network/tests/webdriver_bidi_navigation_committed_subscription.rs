@@ -113,6 +113,7 @@ fn navigation_committed_subscription_round_trips_on_the_registered_context()
         "context-a",
     )?;
     let established = command.send(
+        &registry,
         established,
         &mut correlation,
         WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
