@@ -256,7 +256,7 @@ fn committed_navigation_requires_the_exact_active_subscription_before_document_m
         &response,
         &mut correlation,
     )?;
-    let admission = WebDriverBiDiNavigationCommittedSubscriptionAdmission::new(
+    let mut admission = WebDriverBiDiNavigationCommittedSubscriptionAdmission::new(
         subscription,
         binding,
         &registry,
@@ -285,6 +285,22 @@ fn committed_navigation_requires_the_exact_active_subscription_before_document_m
     )?;
     assert_eq!(advanced.browser_session(), session);
     assert_eq!(advanced.browsing_context(), context);
+
+    let replay_error = admission
+        .admit(&event, &registry, EXPECTED_URL)
+        .err()
+        .ok_or_else(|| {
+            io::Error::other("replayed navigation event unexpectedly readmitted")
+        })?;
+    assert_eq!(
+        replay_error.to_string(),
+        "WebDriver BiDi navigation-committed event was already admitted by this active subscription"
+    );
+    assert!(replay_error.source().is_none());
+    assert_eq!(
+        registry.current_context_epoch(session, context)?,
+        advanced.current_epoch()
+    );
 
     registry.remove_context(context)?;
     let stale_error = admission
