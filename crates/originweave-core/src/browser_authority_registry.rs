@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use crate::browser_registry::BrowserAuthorityRegistry as RawBrowserAuthorityRegistry;
 use crate::{
     BrowserRegistryError, BrowserSessionId, BrowsingContextId, DocumentEpoch, ObservedNodeHandle,
@@ -15,6 +17,7 @@ use crate::{
 /// before atomically minting handles.
 pub struct BrowserAuthorityRegistry {
     inner: RawBrowserAuthorityRegistry,
+    admitted_node_external_identifiers: BTreeMap<(u64, u64, u64, u64), String>,
 }
 
 impl BrowserAuthorityRegistry {
@@ -23,6 +26,7 @@ impl BrowserAuthorityRegistry {
     pub fn new() -> Self {
         Self {
             inner: RawBrowserAuthorityRegistry::new(),
+            admitted_node_external_identifiers: BTreeMap::new(),
         }
     }
 
@@ -34,6 +38,7 @@ impl BrowserAuthorityRegistry {
     pub fn with_identifier_limit(maximum_identifier: u64) -> Self {
         Self {
             inner: RawBrowserAuthorityRegistry::with_identifier_limit(maximum_identifier),
+            admitted_node_external_identifiers: BTreeMap::new(),
         }
     }
 
@@ -60,7 +65,13 @@ impl BrowserAuthorityRegistry {
         &mut self,
         browsing_context: BrowsingContextId,
     ) -> Result<(), BrowserRegistryError> {
-        self.inner.remove_context(browsing_context)
+        self.inner.remove_context(browsing_context)?;
+        let browsing_context_value = browsing_context.value();
+        self.admitted_node_external_identifiers
+            .retain(|(_session, context, _epoch, _node), _external| {
+                *context != browsing_context_value
+            });
+        Ok(())
     }
 
     /// Retire one browser session and every registered context and node binding beneath it.
@@ -68,7 +79,13 @@ impl BrowserAuthorityRegistry {
         &mut self,
         browser_session: BrowserSessionId,
     ) -> Result<(), BrowserRegistryError> {
-        self.inner.remove_session(browser_session)
+        self.inner.remove_session(browser_session)?;
+        let browser_session_value = browser_session.value();
+        self.admitted_node_external_identifiers
+            .retain(|(session, _context, _epoch, _node), _external| {
+                *session != browser_session_value
+            });
+        Ok(())
     }
 
     /// Return the currently active document epoch for a known browsing context.
@@ -130,7 +147,13 @@ impl BrowserAuthorityRegistry {
         &mut self,
         browsing_context: BrowsingContextId,
     ) -> Result<DocumentEpoch, BrowserRegistryError> {
-        self.inner.advance_document(browsing_context)
+        let next_epoch = self.inner.advance_document(browsing_context)?;
+        let browsing_context_value = browsing_context.value();
+        self.admitted_node_external_identifiers
+            .retain(|(_session, context, _epoch, _node), _external| {
+                *context != browsing_context_value
+            });
+        Ok(next_epoch)
     }
 
     /// Bind one admitted batch of adapter-local node identifiers to current browser authority.
@@ -139,7 +162,9 @@ impl BrowserAuthorityRegistry {
     /// every identifier can be bound; a later failure rolls back node identifiers and any origin
     /// binding created by the batch before the error is returned. Production callers outside this
     /// crate therefore cannot bypass semantic admission or observe partial authority from a failed
-    /// `locateNodes` result.
+    /// `locateNodes` result. Successful admission also retains the exact external identifier behind
+    /// the same private authority key so later typed actions can prove they serialize the admitted
+    /// wire node rather than a caller-selected identifier.
     pub(crate) fn bind_nodes(
         &mut self,
         browser_session: BrowserSessionId,
@@ -147,12 +172,28 @@ impl BrowserAuthorityRegistry {
         origin: &Origin,
         external_identifiers: &[&str],
     ) -> Result<Vec<ObservedNodeHandle>, BrowserRegistryError> {
-        self.inner.bind_nodes(
+        let handles = self.inner.bind_nodes(
             browser_session,
             browsing_context,
             origin,
             external_identifiers,
-        )
+        )?;
+        for (handle, external_identifier) in handles.iter().zip(external_identifiers) {
+            self.admitted_node_external_identifiers
+                .insert(node_authority_key(handle), (*external_identifier).to_owned());
+        }
+        Ok(handles)
+    }
+
+    /// Return whether the exact authority-bound node was admitted under this wire identifier.
+    pub(crate) fn node_external_identifier_matches(
+        &self,
+        handle: &ObservedNodeHandle,
+        external_identifier: &str,
+    ) -> bool {
+        self.admitted_node_external_identifiers
+            .get(&node_authority_key(handle))
+            .is_some_and(|admitted| admitted == external_identifier)
     }
 }
 
@@ -160,4 +201,13 @@ impl Default for BrowserAuthorityRegistry {
     fn default() -> Self {
         Self::new()
     }
+}
+
+fn node_authority_key(handle: &ObservedNodeHandle) -> (u64, u64, u64, u64) {
+    (
+        handle.browser_session().value(),
+        handle.browsing_context().value(),
+        handle.document_epoch().value(),
+        handle.node_id(),
+    )
 }
