@@ -1,3 +1,43 @@
+impl CaptureLifecycleState {
+    /// Return the exact storage-neutral token for this lifecycle state.
+    ///
+    /// These tokens are the only accepted persisted textual representation. They are
+    /// intentionally independent of Rust variant names so persistence adapters do not
+    /// rely on `Debug` output or case conversion conventions that can drift across
+    /// releases.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::CaptureStarted => "capture_started",
+            Self::CaptureCompleted => "capture_completed",
+            Self::Verified => "verified",
+            Self::Retained => "retained",
+            Self::LegalHold => "legal_hold",
+            Self::DeletionRequested => "deletion_requested",
+            Self::Deleted => "deleted",
+        }
+    }
+
+    /// Parse one exact storage-neutral lifecycle token without accepting aliases.
+    ///
+    /// Unknown values fail closed as `InvalidRestoredState`; callers must not infer a
+    /// lifecycle transition from differently cased, hyphenated, padded, or future
+    /// values. This parser grants no persistence, tenant, legal, deletion, or replay
+    /// authority.
+    pub fn parse(value: &str) -> Result<Self, CaptureLifecycleError> {
+        match value {
+            "capture_started" => Ok(Self::CaptureStarted),
+            "capture_completed" => Ok(Self::CaptureCompleted),
+            "verified" => Ok(Self::Verified),
+            "retained" => Ok(Self::Retained),
+            "legal_hold" => Ok(Self::LegalHold),
+            "deletion_requested" => Ok(Self::DeletionRequested),
+            "deleted" => Ok(Self::Deleted),
+            _ => Err(CaptureLifecycleError::InvalidRestoredState),
+        }
+    }
+}
+
 impl CaptureLifecycle {
     /// Reconstruct one previously persisted lifecycle snapshot without widening authority.
     ///
