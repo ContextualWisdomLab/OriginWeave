@@ -19,6 +19,19 @@
 //! let _handle = registry.bind_node(session, context, &origin, "backend-node-17")?;
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
+//!
+//! Raw pointer-command serialization is likewise not a public escape hatch. External callers must
+//! bind the exact registry-issued admitted node and current browser authority through the reviewed
+//! current-node constructor instead of selecting an arbitrary WebDriver BiDi `sharedId` or
+//! recreating authority from a descriptive [`ObservedNodeHandle`] tuple:
+//!
+//! ```compile_fail
+//! use originweave_core::{WebDriverBiDiPointerClickCommand, WebDriverBiDiRemoteNodeReference};
+//!
+//! if let Ok(node) = WebDriverBiDiRemoteNodeReference::new("node", Some("caller-selected-node")) {
+//!     let _command = WebDriverBiDiPointerClickCommand::new(1, "context-a", &node);
+//! }
+//! ```
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -34,6 +47,7 @@ mod browser_registry_external_context;
 mod contracts;
 mod webdriver_bidi_command;
 mod webdriver_bidi_error_code;
+mod webdriver_bidi_pointer_click_authority;
 mod webdriver_bidi_response_document;
 mod webdriver_bidi_response_document_correlation;
 mod webdriver_bidi_response_envelope;
@@ -41,7 +55,7 @@ mod webdriver_bidi_result;
 mod webdriver_bidi_websocket_connect_target;
 mod webdriver_bidi_websocket_endpoint;
 
-pub use browser_authority_registry::BrowserAuthorityRegistry;
+pub use browser_authority_registry::{AdmittedNodeHandle, BrowserAuthorityRegistry};
 pub use browser_protocol::{
     BrowserProtocolAdapterDescriptor, BrowserProtocolCapability,
     BrowserProtocolCapabilityRequirementError, BrowserProtocolDescriptorError, BrowserProtocolKind,
@@ -79,6 +93,7 @@ pub use webdriver_bidi_command::{
     WebDriverBiDiPointerClickCommandError,
 };
 pub use webdriver_bidi_error_code::WebDriverBiDiErrorCode;
+pub use webdriver_bidi_pointer_click_authority::WebDriverBiDiPointerClickAuthorityError;
 pub use webdriver_bidi_response_document::{
     BoundedWebDriverBiDiResponseDocument, MAX_WEBDRIVER_BIDI_RESPONSE_DOCUMENT_BYTES,
     WebDriverBiDiResponseDocumentAdmissionError,

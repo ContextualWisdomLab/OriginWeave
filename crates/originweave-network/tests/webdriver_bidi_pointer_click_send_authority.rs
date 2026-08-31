@@ -10,14 +10,15 @@ use originweave_core::{
     AdmittedNodeHandle, BoundedWebDriverBiDiResponseDocument, BrowserAuthorityRegistry,
     BrowserContextDispatchTarget, BrowserContextOriginDispatchTarget,
     BrowserContextOriginEpochDispatchTarget, BrowserProtocolAdapterDescriptor,
-    BrowserProtocolCapability, BrowserProtocolKind, Origin, OriginWeaveProtocolVersion,
-    ValidatedBrowserProtocolUse, WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesCommand,
-    WebDriverBiDiPointerClickCommand, WebDriverBiDiRemoteNodeReference,
-    WebDriverBiDiWebSocketEndpoint,
+    BrowserProtocolCapability, BrowserProtocolKind, BrowsingContextId, Origin,
+    OriginWeaveProtocolVersion, ValidatedBrowserProtocolUse, WebDriverBiDiAccessibilityQuery,
+    WebDriverBiDiLocateNodesCommand, WebDriverBiDiPointerClickAuthorityError,
+    WebDriverBiDiRemoteNodeReference, WebDriverBiDiWebSocketEndpoint,
 };
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiTcpConnectionPlan,
-    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiPointerClickSendError,
+    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
+    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketHandshakePlan,
     WebDriverBiDiWebSocketMaskKey, send_webdriver_bidi_pointer_click,
 };
 
@@ -30,39 +31,35 @@ const ADAPTER_VERSION: &str = "originweave-bidi-v1";
 const PROTOCOL_REVISION: &str = "webdriver-bidi-wd-2026-06-01";
 const BROWSER_REVISION: &str = "chromium-r1639810";
 
-type AdmittedPointerClickFixture = (
+type StaleNodeFixture = (
     BrowserAuthorityRegistry,
+    BrowsingContextId,
     AdmittedNodeHandle,
     WebDriverBiDiRemoteNodeReference,
 );
+type RejectingPostHandshakeServer = (
+    WebDriverBiDiWebSocketEstablished,
+    thread::JoinHandle<io::Result<()>>,
+);
 
 fn semantic_observation_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn Error>> {
-    let descriptor = BrowserProtocolAdapterDescriptor::new(
-        BrowserProtocolKind::WebDriverBiDi,
-        ORIGINWEAVE_PROTOCOL_VERSION,
-        ADAPTER_VERSION,
-        PROTOCOL_REVISION,
-        BROWSER_REVISION,
-        &[BrowserProtocolCapability::SemanticObservation],
-    )?;
-    Ok(descriptor.validate_use(
-        ORIGINWEAVE_PROTOCOL_VERSION,
-        BrowserProtocolKind::WebDriverBiDi,
-        ADAPTER_VERSION,
-        PROTOCOL_REVISION,
-        BROWSER_REVISION,
-        BrowserProtocolCapability::SemanticObservation,
-    )?)
+    protocol_proof(BrowserProtocolCapability::SemanticObservation)
 }
 
 fn typed_input_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn Error>> {
+    protocol_proof(BrowserProtocolCapability::TypedInput)
+}
+
+fn protocol_proof(
+    capability: BrowserProtocolCapability,
+) -> Result<ValidatedBrowserProtocolUse, Box<dyn Error>> {
     let descriptor = BrowserProtocolAdapterDescriptor::new(
         BrowserProtocolKind::WebDriverBiDi,
         ORIGINWEAVE_PROTOCOL_VERSION,
         ADAPTER_VERSION,
         PROTOCOL_REVISION,
         BROWSER_REVISION,
-        &[BrowserProtocolCapability::TypedInput],
+        &[capability],
     )?;
     Ok(descriptor.validate_use(
         ORIGINWEAVE_PROTOCOL_VERSION,
@@ -70,13 +67,13 @@ fn typed_input_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn Error>> {
         ADAPTER_VERSION,
         PROTOCOL_REVISION,
         BROWSER_REVISION,
-        BrowserProtocolCapability::TypedInput,
+        capability,
     )?)
 }
 
-fn admitted_pointer_click_fixture() -> Result<AdmittedPointerClickFixture, Box<dyn Error>> {
+fn stale_node_fixture() -> Result<StaleNodeFixture, Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
-    let browser_session = registry.register_session("webdriver-session")?;
+    let browser_session = registry.register_session(SESSION_ID)?;
     let browsing_context = registry.register_context(browser_session, "context-a")?;
     let origin = Origin::parse("https://app.example").map_err(|error| {
         io::Error::other(format!("fixture origin rejected unexpectedly: {error:?}"))
@@ -106,7 +103,10 @@ fn admitted_pointer_click_fixture() -> Result<AdmittedPointerClickFixture, Box<d
         .ok_or_else(|| io::Error::other("locateNodes fixture did not bind its node"))?;
     let remote = WebDriverBiDiRemoteNodeReference::new("node", Some("shared-node-42"))?;
 
-    Ok((registry, handle, remote))
+    registry.advance_document(browsing_context)?;
+    registry.bind_context_origin(browser_session, browsing_context, &origin)?;
+
+    Ok((registry, browsing_context, handle, remote))
 }
 
 fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
@@ -126,85 +126,35 @@ fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     Ok(())
 }
 
-fn read_masked_text_frame(stream: &mut TcpStream) -> io::Result<Vec<u8>> {
-    let mut header = [0_u8; 2];
-    stream.read_exact(&mut header)?;
-    if header[0] != 0x81 || header[1] & 0x80 == 0 {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "expected one final masked client text frame",
-        ));
-    }
-
-    let marker = header[1] & 0x7f;
-    let length = match marker {
-        0..=125 => usize::from(marker),
-        126 => {
-            let mut extended = [0_u8; 2];
-            stream.read_exact(&mut extended)?;
-            let length = usize::from(u16::from_be_bytes(extended));
-            if length <= 125 {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "client text frame used non-minimal 16-bit length encoding",
-                ));
-            }
-            length
-        }
-        127 => {
-            let mut extended = [0_u8; 8];
-            stream.read_exact(&mut extended)?;
-            let length = u64::from_be_bytes(extended);
-            if length <= u64::from(u16::MAX) || length > usize::MAX as u64 {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "client text frame used invalid 64-bit length encoding",
-                ));
-            }
-            length as usize
-        }
-        _ => unreachable!(),
-    };
-
-    let mut mask = [0_u8; 4];
-    stream.read_exact(&mut mask)?;
-    let mut payload = vec![0_u8; length];
-    stream.read_exact(&mut payload)?;
-    for (index, byte) in payload.iter_mut().enumerate() {
-        *byte ^= mask[index % mask.len()];
-    }
-    Ok(payload)
-}
-
-#[test]
-fn pointer_click_command_writes_exact_masked_bidi_frame_and_stays_outstanding()
--> Result<(), Box<dyn Error>> {
+fn establish_rejecting_post_handshake_bytes() -> Result<RejectingPostHandshakeServer, Box<dyn Error>>
+{
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
-    let (registry, handle, remote) = admitted_pointer_click_fixture()?;
-    let expected_json = WebDriverBiDiPointerClickCommand::new_for_current_node(
-        42,
-        "context-a",
-        &handle,
-        &remote,
-        &registry,
-    )?
-    .as_json()
-    .as_bytes()
-    .to_vec();
-
     let server = thread::spawn(move || -> io::Result<()> {
         let (mut stream, _) = listener.accept()?;
         read_opening_request(&mut stream)?;
         stream.write_all(OPENING_RESPONSE)?;
-        let command = read_masked_text_frame(&mut stream)?;
-        if command != expected_json {
-            return Err(io::Error::new(
+        stream.set_read_timeout(Some(Duration::from_secs(2)))?;
+        let mut byte = [0_u8; 1];
+        match stream.read(&mut byte) {
+            Ok(0) => Ok(()),
+            Ok(_) => Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                "unexpected input.performActions pointer-click command",
-            ));
+                "stale pointer-click authority wrote bytes after the WebSocket handshake",
+            )),
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
+                ) =>
+            {
+                Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "stale pointer-click authority kept the transport open instead of failing closed",
+                ))
+            }
+            Err(error) => Err(error),
         }
-        Ok(())
     });
 
     let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
@@ -217,9 +167,17 @@ fn pointer_click_command_writes_exact_masked_bidi_frame_and_stays_outstanding()
     let established = WebDriverBiDiWebSocketHandshakePlan::new(connection, key)?
         .write_opening_request(Duration::from_millis(500))?
         .read_opening_response(Duration::from_millis(500))?;
+    Ok((established, server))
+}
 
+#[test]
+fn stale_admitted_node_is_rejected_at_send_time_before_correlation_or_wire_io()
+-> Result<(), Box<dyn Error>> {
+    let (registry, _browsing_context, handle, remote) = stale_node_fixture()?;
+    let (established, server) = establish_rejecting_post_handshake_bytes()?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    let _established = send_webdriver_bidi_pointer_click(
+
+    let error = send_webdriver_bidi_pointer_click(
         typed_input_proof()?,
         42,
         "context-a",
@@ -230,11 +188,27 @@ fn pointer_click_command_writes_exact_masked_bidi_frame_and_stays_outstanding()
         &mut correlation,
         WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
         Duration::from_millis(500),
-    )?;
-    assert_eq!(correlation.outstanding_count(), 1);
+    )
+    .err()
+    .ok_or_else(|| {
+        io::Error::other("stale admitted node unexpectedly reached pointer-click I/O")
+    })?;
+
+    assert!(matches!(
+        error,
+        WebDriverBiDiPointerClickSendError::Authority {
+            source: WebDriverBiDiPointerClickAuthorityError::NodeHandle(_)
+        }
+    ));
+    assert_eq!(
+        error.to_string(),
+        "WebDriver BiDi pointer-click node authority was rejected"
+    );
+    assert!(error.source().is_some());
+    assert_eq!(correlation.outstanding_count(), 0);
 
     server
         .join()
-        .map_err(|_| io::Error::other("pointer-click transport test server panicked"))??;
+        .map_err(|_| io::Error::other("stale-authority pointer server panicked"))??;
     Ok(())
 }

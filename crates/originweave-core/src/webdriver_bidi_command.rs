@@ -38,9 +38,9 @@ impl Error for WebDriverBiDiPointerClickCommandError {}
 /// Deterministic command for one primary-button click on an admitted remote node.
 ///
 /// The fixed mouse action sequence moves to the element origin, presses button zero, and releases
-/// button zero. Construction accepts an already admitted remote node reference and does not grant
-/// browser-session, context, origin, document-epoch, policy, approval, or Agent authority. A trusted
-/// adapter must bind this inert command to current authority before transport.
+/// button zero. Public construction is authority-bound through
+/// [`Self::new_for_current_node`]; raw wire serialization remains crate-private so external callers
+/// cannot choose an arbitrary WebDriver BiDi node identifier while bypassing current node authority.
 #[derive(Debug, PartialEq, Eq)]
 pub struct WebDriverBiDiPointerClickCommand {
     command_id: u64,
@@ -49,20 +49,15 @@ pub struct WebDriverBiDiPointerClickCommand {
 }
 
 impl WebDriverBiDiPointerClickCommand {
-    /// Validate and serialize one bounded `input.performActions` pointer click command.
-    pub fn new(
+    /// Serialize one bounded `input.performActions` pointer click command for an already
+    /// authority-validated browsing context.
+    pub(crate) fn new(
         command_id: u64,
         browsing_context: &str,
         node: &crate::WebDriverBiDiRemoteNodeReference,
     ) -> Result<Self, WebDriverBiDiPointerClickCommandError> {
         if command_id > MAX_WEBDRIVER_BIDI_COMMAND_ID {
             return Err(WebDriverBiDiPointerClickCommandError::InvalidCommandId);
-        }
-        if browsing_context.is_empty()
-            || browsing_context.len() > MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES
-            || contains_disallowed_protocol_text(browsing_context, false)
-        {
-            return Err(WebDriverBiDiPointerClickCommandError::InvalidBrowsingContext);
         }
 
         let mut json = String::from("{\"id\":");
