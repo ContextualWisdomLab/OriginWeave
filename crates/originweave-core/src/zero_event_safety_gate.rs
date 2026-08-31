@@ -2,7 +2,9 @@
 //!
 //! This gate consumes explicit per-metric thresholds and retained zero-event observations. Missing
 //! or statistically insufficient evidence is `Inconclusive`; it is never promoted to product
-//! success or converted into a known product failure. The gate does not itself grant release
+//! success or converted into a known product failure. The generic gate can evaluate a bounded
+//! subset, but commercial release acceptance requires every named safety metric so callers cannot
+//! weaken the release policy by omitting a metric. The gate does not itself grant release
 //! authority. [`decide_commercial_release_with_zero_event_safety`](crate::zero_event_safety_gate::decide_commercial_release_with_zero_event_safety) combines the gate with mandatory
 //! benchmark evidence so a threshold miss cannot remain commercially accepted while repository,
 //! review, provenance, and operator release authority remain external controls.
@@ -17,6 +19,14 @@ use crate::{
     },
     zero_event_threshold::{ZeroEventSafetyThreshold, ZeroEventSafetyThresholdOutcome},
 };
+
+const COMMERCIAL_RELEASE_SAFETY_METRICS: [ZeroEventSafetyMetric; MAX_ZERO_EVENT_SAFETY_METRICS] = [
+    ZeroEventSafetyMetric::UnauthorizedAction,
+    ZeroEventSafetyMetric::PromptInjectionSuccess,
+    ZeroEventSafetyMetric::StaleAuthorityAcceptance,
+    ZeroEventSafetyMetric::ProtectedValueDisclosure,
+    ZeroEventSafetyMetric::AuthorityEscalation,
+];
 
 /// One declared zero-event safety threshold bound to its named metric.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -79,6 +89,8 @@ impl ZeroEventSafetyGateReport {
 pub enum ZeroEventSafetyGateError {
     /// No metric thresholds were declared, which would otherwise create a vacuous passing gate.
     MissingRequirements,
+    /// A commercial release policy omitted one mandatory named safety metric.
+    MissingRequirement(ZeroEventSafetyMetric),
     /// More metric thresholds were supplied than the fixed zero-event safety metric budget.
     TooManyRequirements,
     /// More retained observations were supplied than the fixed zero-event safety metric budget.
@@ -94,6 +106,11 @@ impl fmt::Display for ZeroEventSafetyGateError {
         match self {
             Self::MissingRequirements => formatter.write_str(
                 "zero-event safety gate requires at least one declared metric threshold",
+            ),
+            Self::MissingRequirement(metric) => write!(
+                formatter,
+                "commercial release safety policy is missing mandatory requirement: {}",
+                metric.as_str()
             ),
             Self::TooManyRequirements => {
                 formatter.write_str("zero-event safety gate contains too many requirements")
@@ -258,14 +275,30 @@ pub fn evaluate_zero_event_safety_gate(
     Ok(ZeroEventSafetyGateReport { decision, failures })
 }
 
+fn validate_commercial_zero_event_safety_policy(
+    requirements: &[ZeroEventSafetyRequirement],
+) -> Result<(), ZeroEventSafetyGateError> {
+    for metric in COMMERCIAL_RELEASE_SAFETY_METRICS {
+        if !requirements
+            .iter()
+            .any(|requirement| requirement.metric == metric)
+        {
+            return Err(ZeroEventSafetyGateError::MissingRequirement(metric));
+        }
+    }
+    Ok(())
+}
+
 /// Combine mandatory benchmark evidence with mandatory quantitative zero-event safety policy.
 ///
 /// The benchmark evaluator retains product failures, evidence insufficiency, and explicit buyer
-/// limitations. The quantitative gate is then applied as a mandatory acceptance condition: an
-/// otherwise accepted benchmark report becomes `Inconclusive` when any declared zero-event
-/// requirement is missing or statistically insufficient. A known benchmark failure remains
-/// `Rejected`. Invalid inputs from either evidence boundary are returned with their original typed
-/// source error instead of being converted to success.
+/// limitations. Commercial acceptance requires a threshold for every named zero-event safety
+/// metric; omitting one is an invalid policy rather than a narrower successful profile. The
+/// quantitative gate is then applied as a mandatory acceptance condition: an otherwise accepted
+/// benchmark report becomes `Inconclusive` when any mandatory observation is missing or
+/// statistically insufficient. A known benchmark failure remains `Rejected`. Invalid inputs from
+/// either evidence boundary are returned with their original typed source error instead of being
+/// converted to success.
 pub fn decide_commercial_release_with_zero_event_safety<I>(
     evidence: I,
     declared_limitations: &[DeclaredLimitation],
@@ -282,6 +315,7 @@ where
     )?;
     let zero_event_safety_gate_report =
         evaluate_zero_event_safety_gate(requirements, observations)?;
+    validate_commercial_zero_event_safety_policy(requirements)?;
 
     let decision = match benchmark_report.decision() {
         ReleaseDecision::Rejected => ReleaseDecision::Rejected,
