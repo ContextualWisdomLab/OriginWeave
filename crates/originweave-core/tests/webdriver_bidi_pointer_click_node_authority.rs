@@ -48,7 +48,9 @@ fn admitted_node() -> Result<AdmittedNodeFixture, Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
     let browser_session = registry.register_session("webdriver-session")?;
     let browsing_context = registry.register_context(browser_session, "context-a")?;
-    let origin = Origin::parse("https://app.example")?;
+    let origin = Origin::parse("https://app.example").map_err(|error| {
+        std::io::Error::other(format!("fixture origin rejected unexpectedly: {error:?}"))
+    })?;
     let epoch = registry.bind_context_origin(browser_session, browsing_context, &origin)?;
     let target = BrowserContextOriginEpochDispatchTarget::new(
         BrowserContextOriginDispatchTarget::new(
