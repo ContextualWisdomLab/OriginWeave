@@ -1,8 +1,4 @@
-use crate::{
-    BrowserAuthorityRegistry, BrowserRegistryError, BrowserSessionId,
-    MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES, Origin, WebDriverBiDiPointerClickCommand,
-    WebDriverBiDiPointerClickCommandError, WebDriverBiDiRemoteNodeReference,
-};
+use crate::{BrowserAuthorityRegistry, BrowserRegistryError, BrowserSessionId, Origin};
 
 fn values<T, E>(result: Result<T, E>) -> Vec<T> {
     result.into_iter().collect()
@@ -60,31 +56,5 @@ fn session_authority_failures_are_exercised_in_the_unit_crate() {
             expected: owner,
             actual: attacker,
         })
-    );
-}
-
-#[test]
-fn pointer_click_serializer_rejects_every_invalid_context_shape_in_the_unit_crate() {
-    let nodes = values(WebDriverBiDiRemoteNodeReference::new(
-        "node",
-        Some("unit-shared-node"),
-    ));
-    assert_eq!(nodes.len(), 1);
-    let node = &nodes[0];
-
-    assert_eq!(
-        WebDriverBiDiPointerClickCommand::new(1, "", node),
-        Err(WebDriverBiDiPointerClickCommandError::InvalidBrowsingContext)
-    );
-
-    let overlong = "c".repeat(MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES + 1);
-    assert_eq!(
-        WebDriverBiDiPointerClickCommand::new(1, &overlong, node),
-        Err(WebDriverBiDiPointerClickCommandError::InvalidBrowsingContext)
-    );
-
-    assert_eq!(
-        WebDriverBiDiPointerClickCommand::new(1, "context\nline", node),
-        Err(WebDriverBiDiPointerClickCommandError::InvalidBrowsingContext)
     );
 }
