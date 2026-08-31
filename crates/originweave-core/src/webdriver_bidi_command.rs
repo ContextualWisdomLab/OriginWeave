@@ -49,7 +49,8 @@ pub struct WebDriverBiDiPointerClickCommand {
 }
 
 impl WebDriverBiDiPointerClickCommand {
-    /// Validate and serialize one bounded `input.performActions` pointer click command.
+    /// Serialize one bounded `input.performActions` pointer click command for an already
+    /// authority-validated browsing context.
     pub(crate) fn new(
         command_id: u64,
         browsing_context: &str,
@@ -57,12 +58,6 @@ impl WebDriverBiDiPointerClickCommand {
     ) -> Result<Self, WebDriverBiDiPointerClickCommandError> {
         if command_id > MAX_WEBDRIVER_BIDI_COMMAND_ID {
             return Err(WebDriverBiDiPointerClickCommandError::InvalidCommandId);
-        }
-        if browsing_context.is_empty()
-            || browsing_context.len() > MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES
-            || contains_disallowed_protocol_text(browsing_context, false)
-        {
-            return Err(WebDriverBiDiPointerClickCommandError::InvalidBrowsingContext);
         }
 
         let mut json = String::from("{\"id\":");
