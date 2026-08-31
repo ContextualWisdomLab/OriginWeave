@@ -12,6 +12,53 @@ use crate::{
     WebDriverBiDiWebSocketMaskKey,
 };
 
+/// Borrowed immediate-use inputs for one pointer-click transport decision.
+///
+/// This request is not durable authority. It deliberately retains references to the live browser
+/// authority registry, admitted node handle, and exact remote node reference so the transport
+/// boundary can reconstruct and revalidate the command immediately before correlation and wire I/O.
+/// Holding a request across navigation does not preserve node authority: sending it still observes
+/// the registry's current document epoch and origin binding.
+#[must_use]
+pub struct WebDriverBiDiPointerClickSendRequest<'a> {
+    command_id: u64,
+    browsing_context: &'a str,
+    handle: &'a AdmittedNodeHandle,
+    node: &'a WebDriverBiDiRemoteNodeReference,
+    registry: &'a BrowserAuthorityRegistry,
+}
+
+impl<'a> WebDriverBiDiPointerClickSendRequest<'a> {
+    /// Borrow the exact command identity and live node-authority inputs for immediate send-time use.
+    pub fn new(
+        command_id: u64,
+        browsing_context: &'a str,
+        handle: &'a AdmittedNodeHandle,
+        node: &'a WebDriverBiDiRemoteNodeReference,
+        registry: &'a BrowserAuthorityRegistry,
+    ) -> Self {
+        Self {
+            command_id,
+            browsing_context,
+            handle,
+            node,
+            registry,
+        }
+    }
+
+    fn current_command(
+        &self,
+    ) -> Result<WebDriverBiDiPointerClickCommand, WebDriverBiDiPointerClickAuthorityError> {
+        WebDriverBiDiPointerClickCommand::new_for_current_node(
+            self.command_id,
+            self.browsing_context,
+            self.handle,
+            self.node,
+            self.registry,
+        )
+    }
+}
+
 /// Fail-closed errors while transporting one current-authority pointer click.
 #[derive(Debug)]
 pub enum WebDriverBiDiPointerClickSendError {
@@ -74,12 +121,11 @@ impl Error for WebDriverBiDiPointerClickSendError {
 /// proofs cannot dispatch a pointer click through this transport boundary.
 ///
 /// After protocol validation and immediately before correlation, this boundary reconstructs the
-/// bounded pointer command from the exact [`AdmittedNodeHandle`], external browsing-context
-/// identifier, remote node reference, and live [`BrowserAuthorityRegistry`]. That immediate-use
-/// check rejects stale document epochs, cross-registry handles, changed origins, mismatched external
-/// contexts, and unadmitted wire node identifiers before any command identifier is registered or
-/// any action frame is written. A previously constructed command therefore cannot outlive its node
-/// authority and later bypass revalidation at transport time.
+/// bounded pointer command from the exact [`WebDriverBiDiPointerClickSendRequest`]. That
+/// immediate-use check rejects stale document epochs, cross-registry handles, changed origins,
+/// mismatched external contexts, and unadmitted wire node identifiers before any command identifier
+/// is registered or any action frame is written. A previously prepared request therefore cannot
+/// outlive its node authority and later bypass revalidation at transport time.
 ///
 /// Registration occurs before the first possible remote side effect. A correlation failure therefore
 /// writes nothing. Once registration succeeds, a frame-write failure leaves the identifier
@@ -93,11 +139,7 @@ impl Error for WebDriverBiDiPointerClickSendError {
 /// another destination.
 pub fn send_webdriver_bidi_pointer_click(
     validated: ValidatedBrowserProtocolUse,
-    command_id: u64,
-    browsing_context: &str,
-    handle: &AdmittedNodeHandle,
-    node: &WebDriverBiDiRemoteNodeReference,
-    registry: &BrowserAuthorityRegistry,
+    request: WebDriverBiDiPointerClickSendRequest<'_>,
     established: WebDriverBiDiWebSocketEstablished,
     correlation: &mut WebDriverBiDiCommandCorrelation,
     masking_key: WebDriverBiDiWebSocketMaskKey,
@@ -115,14 +157,9 @@ pub fn send_webdriver_bidi_pointer_click(
     }
     let _consumed_typed_input_proof = validated;
 
-    let command = WebDriverBiDiPointerClickCommand::new_for_current_node(
-        command_id,
-        browsing_context,
-        handle,
-        node,
-        registry,
-    )
-    .map_err(|source| WebDriverBiDiPointerClickSendError::Authority { source })?;
+    let command = request
+        .current_command()
+        .map_err(|source| WebDriverBiDiPointerClickSendError::Authority { source })?;
 
     correlation
         .register_command(command.command_id())
