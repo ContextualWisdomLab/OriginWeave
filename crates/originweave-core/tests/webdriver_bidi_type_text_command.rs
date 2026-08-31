@@ -237,7 +237,9 @@ fn type_text_command_rejects_changed_origin_authority() -> Result<(), Box<dyn Er
         .registry
         .advance_document(fixture.browsing_context)?;
     let changed_origin = Origin::parse("https://changed.example").map_err(|error| {
-        io::Error::other(format!("changed fixture origin rejected unexpectedly: {error:?}"))
+        io::Error::other(format!(
+            "changed fixture origin rejected unexpectedly: {error:?}"
+        ))
     })?;
     fixture.registry.bind_context_origin(
         fixture.browser_session,
