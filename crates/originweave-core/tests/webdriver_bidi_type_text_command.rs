@@ -59,12 +59,10 @@ fn admitted_text_field(
     })?;
     let epoch = registry.bind_context_origin(browser_session, browsing_context, &origin)?;
     let target = BrowserContextOriginEpochDispatchTarget::new(
-        BrowserContextOriginDispatchTarget::new(
-            BrowserContextDispatchTarget::new(browser_session, browsing_context),
-            &origin,
-        ),
-        epoch,
+        BrowserContextOriginDispatchTarget::new(browser_session, browsing_context),
+        &origin,
     );
+    let target = BrowserContextOriginEpochDispatchTarget::new(target.context_origin(), epoch);
     let query = WebDriverBiDiAccessibilityQuery::new(Some("textbox"), Some("Task name"), 1)?;
     let locate = WebDriverBiDiLocateNodesCommand::new(41, external_context, &query)?;
     let escaped_shared_id = shared_id.replace('\\', "\\\\").replace('"', "\\\"");
@@ -150,7 +148,10 @@ fn type_text_command_rejects_unbounded_or_protocol_dangerous_text() -> Result<()
             overlong.as_str(),
             WebDriverBiDiTypeTextCommandError::TextTooLong,
         ),
-        ("line\nbreak", WebDriverBiDiTypeTextCommandError::InvalidText),
+        (
+            "line\nbreak",
+            WebDriverBiDiTypeTextCommandError::InvalidText,
+        ),
         (
             format_text.as_str(),
             WebDriverBiDiTypeTextCommandError::InvalidText,
@@ -231,7 +232,9 @@ fn type_text_command_rejects_wrong_context_and_unadmitted_node() -> Result<(), B
 fn type_text_command_rejects_stale_document_authority() -> Result<(), Box<dyn Error>> {
     let mut fixture = admitted_text_field("context-a", "shared-input-42")?;
     let observed = fixture.handle.document_epoch();
-    let current = fixture.registry.advance_document(fixture.browsing_context)?;
+    let current = fixture
+        .registry
+        .advance_document(fixture.browsing_context)?;
     let origin = fixture.handle.origin().clone();
     fixture.registry.bind_context_origin(
         fixture.browser_session,
