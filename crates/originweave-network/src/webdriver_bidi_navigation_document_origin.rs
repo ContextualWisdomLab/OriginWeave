@@ -207,27 +207,28 @@ mod tests {
         assert_eq!(sessions.len(), 1);
         assert_eq!(contexts.len(), 1);
 
-        let origin = origin_from_serialized_navigation_url("https://example.test");
-        assert_eq!(
-            origin.as_ref().map(Origin::as_str),
-            Some("https://example.test")
-        );
-        let Some(origin) = origin else {
-            return;
-        };
+        let origins = origin_from_serialized_navigation_url("https://example.test")
+            .into_iter()
+            .collect::<Vec<_>>();
+        assert_eq!(origins.len(), 1);
+        assert_eq!(origins[0].as_str(), "https://example.test");
 
-        let result =
-            bind_advanced_document_origin(&mut registry, sessions[0], contexts[0], &origin);
-        assert!(result.is_err());
-        let Err(error) = result else {
-            return;
-        };
+        let errors = bind_advanced_document_origin(
+            &mut registry,
+            sessions[0],
+            contexts[0],
+            &origins[0],
+        )
+        .err()
+        .into_iter()
+        .collect::<Vec<_>>();
+        assert_eq!(errors.len(), 1);
         assert_eq!(
-            error.to_string(),
+            errors[0].to_string(),
             "WebDriver BiDi committed navigation origin cannot bind registered document authority"
         );
         assert_eq!(
-            error
+            errors[0]
                 .source()
                 .and_then(|source| source.downcast_ref::<BrowserRegistryError>()),
             Some(&BrowserRegistryError::UnknownBrowserSession)
