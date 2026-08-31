@@ -23,12 +23,20 @@ pub enum WebDriverBiDiPointerClickAuthorityError {
 impl Display for WebDriverBiDiPointerClickAuthorityError {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Command(error) => write!(formatter, "pointer click command rejected input: {error}"),
+            Self::Command(error) => {
+                write!(formatter, "pointer click command rejected input: {error}")
+            }
             Self::BrowserAuthority(error) => {
-                write!(formatter, "pointer click browser authority rejected input: {error}")
+                write!(
+                    formatter,
+                    "pointer click browser authority rejected input: {error}"
+                )
             }
             Self::NodeHandle(error) => {
-                write!(formatter, "pointer click node authority rejected input: {error}")
+                write!(
+                    formatter,
+                    "pointer click node authority rejected input: {error}"
+                )
             }
             Self::NodeExternalIdentifierMismatch => formatter.write_str(
                 "pointer click wire node identifier does not match the admitted current node",
