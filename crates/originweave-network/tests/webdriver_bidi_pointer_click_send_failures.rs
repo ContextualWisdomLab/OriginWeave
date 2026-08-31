@@ -7,11 +7,11 @@ use std::{
 };
 
 use originweave_core::{
-    BoundedWebDriverBiDiResponseDocument, BrowserAuthorityRegistry, BrowserContextDispatchTarget,
-    BrowserContextOriginDispatchTarget, BrowserContextOriginEpochDispatchTarget,
-    BrowserProtocolAdapterDescriptor, BrowserProtocolCapability, BrowserProtocolKind, Origin,
-    OriginWeaveProtocolVersion, ValidatedBrowserProtocolUse, WebDriverBiDiAccessibilityQuery,
-    WebDriverBiDiLocateNodesCommand, WebDriverBiDiPointerClickCommand,
+    AdmittedNodeHandle, BoundedWebDriverBiDiResponseDocument, BrowserAuthorityRegistry,
+    BrowserContextDispatchTarget, BrowserContextOriginDispatchTarget,
+    BrowserContextOriginEpochDispatchTarget, BrowserProtocolAdapterDescriptor,
+    BrowserProtocolCapability, BrowserProtocolKind, Origin, OriginWeaveProtocolVersion,
+    ValidatedBrowserProtocolUse, WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesCommand,
     WebDriverBiDiRemoteNodeReference, WebDriverBiDiWebSocketEndpoint,
 };
 use originweave_network::{
@@ -29,9 +29,15 @@ const ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion =
 const ADAPTER_VERSION: &str = "originweave-bidi-v1";
 const PROTOCOL_REVISION: &str = "webdriver-bidi-wd-2026-06-01";
 const BROWSER_REVISION: &str = "chromium-r1639810";
+
 type HandshakeOnlyServer = (
     WebDriverBiDiWebSocketEstablished,
     thread::JoinHandle<io::Result<()>>,
+);
+type PointerClickFixture = (
+    BrowserAuthorityRegistry,
+    AdmittedNodeHandle,
+    WebDriverBiDiRemoteNodeReference,
 );
 
 fn protocol_proof(
@@ -70,7 +76,7 @@ fn typed_input_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn Error>> {
     )
 }
 
-fn pointer_click(command_id: u64) -> Result<WebDriverBiDiPointerClickCommand, Box<dyn Error>> {
+fn pointer_click_fixture() -> Result<PointerClickFixture, Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
     let browser_session = registry.register_session("webdriver-session")?;
     let browsing_context = registry.register_context(browser_session, "context-a")?;
@@ -101,14 +107,7 @@ fn pointer_click(command_id: u64) -> Result<WebDriverBiDiPointerClickCommand, Bo
         .next()
         .ok_or_else(|| io::Error::other("locateNodes fixture did not bind its node"))?;
     let remote = WebDriverBiDiRemoteNodeReference::new("node", Some("shared-node-42"))?;
-
-    Ok(WebDriverBiDiPointerClickCommand::new_for_current_node(
-        command_id,
-        "context-a",
-        &handle,
-        &remote,
-        &registry,
-    )?)
+    Ok((registry, handle, remote))
 }
 
 fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
@@ -155,11 +154,15 @@ fn pointer_click_rejects_non_typed_input_proof_before_correlation_or_frame_write
 -> Result<(), Box<dyn Error>> {
     let (established, server) = establish_with_handshake_only_server()?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    let command = pointer_click(5)?;
+    let (registry, handle, remote) = pointer_click_fixture()?;
 
     let error = send_webdriver_bidi_pointer_click(
         semantic_observation_proof()?,
-        &command,
+        5,
+        "context-a",
+        &handle,
+        &remote,
+        &registry,
         established,
         &mut correlation,
         WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
@@ -193,14 +196,18 @@ fn pointer_click_rejects_non_webdriver_bidi_proof_before_correlation_or_frame_wr
 -> Result<(), Box<dyn Error>> {
     let (established, server) = establish_with_handshake_only_server()?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    let command = pointer_click(6)?;
+    let (registry, handle, remote) = pointer_click_fixture()?;
 
     let error = send_webdriver_bidi_pointer_click(
         protocol_proof(
             BrowserProtocolKind::ChromeDevToolsProtocol,
             BrowserProtocolCapability::TypedInput,
         )?,
-        &command,
+        6,
+        "context-a",
+        &handle,
+        &remote,
+        &registry,
         established,
         &mut correlation,
         WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
@@ -232,11 +239,15 @@ fn pointer_click_rejects_duplicate_correlation_before_frame_write() -> Result<()
     let (established, server) = establish_with_handshake_only_server()?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     correlation.register_command(7)?;
-    let command = pointer_click(7)?;
+    let (registry, handle, remote) = pointer_click_fixture()?;
 
     let error = send_webdriver_bidi_pointer_click(
         typed_input_proof()?,
-        &command,
+        7,
+        "context-a",
+        &handle,
+        &remote,
+        &registry,
         established,
         &mut correlation,
         WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
@@ -266,11 +277,15 @@ fn pointer_click_preserves_registration_when_frame_timeout_is_invalid() -> Resul
 {
     let (established, server) = establish_with_handshake_only_server()?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    let command = pointer_click(11)?;
+    let (registry, handle, remote) = pointer_click_fixture()?;
 
     let error = send_webdriver_bidi_pointer_click(
         typed_input_proof()?,
-        &command,
+        11,
+        "context-a",
+        &handle,
+        &remote,
+        &registry,
         established,
         &mut correlation,
         WebDriverBiDiWebSocketMaskKey::new([5, 6, 7, 8]),
