@@ -230,13 +230,7 @@ fn partial_zero_event_requirement_policy_is_typed_fail_closed()
 -> Result<(), Box<dyn std::error::Error>> {
     let observations = observations(1_000)?;
     let mut requirements = requirements()?;
-    requirements.retain(|requirement| {
-        *requirement
-            != ZeroEventSafetyRequirement::new(
-                ZeroEventSafetyMetric::ProtectedValueDisclosure,
-                ZeroEventSafetyThreshold::new(10_000, 9_500).expect("valid fixed test threshold"),
-            )
-    });
+    requirements.remove(3);
 
     let error = match decide_commercial_release_with_zero_event_safety(
         passed_benchmarks(),
