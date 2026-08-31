@@ -21,8 +21,9 @@
 //! ```
 //!
 //! Raw pointer-command serialization is likewise not a public escape hatch. External callers must
-//! bind the exact admitted node and current browser authority through the reviewed current-node
-//! constructor instead of selecting an arbitrary WebDriver BiDi `sharedId`:
+//! bind the exact registry-issued admitted node and current browser authority through the reviewed
+//! current-node constructor instead of selecting an arbitrary WebDriver BiDi `sharedId` or
+//! recreating authority from a descriptive [`ObservedNodeHandle`] tuple:
 //!
 //! ```compile_fail
 //! use originweave_core::{WebDriverBiDiPointerClickCommand, WebDriverBiDiRemoteNodeReference};
@@ -54,7 +55,7 @@ mod webdriver_bidi_result;
 mod webdriver_bidi_websocket_connect_target;
 mod webdriver_bidi_websocket_endpoint;
 
-pub use browser_authority_registry::BrowserAuthorityRegistry;
+pub use browser_authority_registry::{AdmittedNodeHandle, BrowserAuthorityRegistry};
 pub use browser_protocol::{
     BrowserProtocolAdapterDescriptor, BrowserProtocolCapability,
     BrowserProtocolCapabilityRequirementError, BrowserProtocolDescriptorError, BrowserProtocolKind,

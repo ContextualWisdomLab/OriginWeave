@@ -1,10 +1,32 @@
 use std::collections::BTreeMap;
+use std::ops::Deref;
+use std::sync::Arc;
 
 use crate::browser_registry::BrowserAuthorityRegistry as RawBrowserAuthorityRegistry;
 use crate::{
     BrowserRegistryError, BrowserSessionId, BrowsingContextId, DocumentEpoch, ObservedNodeHandle,
     Origin,
 };
+
+/// A registry-issued node handle that carries opaque provenance in addition to descriptive node state.
+///
+/// The contained [`ObservedNodeHandle`] remains readable through [`Deref`], but only
+/// [`BrowserAuthorityRegistry`] can construct this wrapper. Typed actions therefore can require
+/// proof that a node came from the same live registry instance instead of trusting a publicly
+/// reproducible session/context/origin/epoch/node tuple.
+#[derive(Debug)]
+pub struct AdmittedNodeHandle {
+    observed: ObservedNodeHandle,
+    registry_instance: Arc<()>,
+}
+
+impl Deref for AdmittedNodeHandle {
+    type Target = ObservedNodeHandle;
+
+    fn deref(&self) -> &Self::Target {
+        &self.observed
+    }
+}
 
 /// Public browser-authority registry with raw node minting kept inside the crate.
 ///
@@ -18,6 +40,7 @@ use crate::{
 pub struct BrowserAuthorityRegistry {
     inner: RawBrowserAuthorityRegistry,
     admitted_node_external_identifiers: BTreeMap<(u64, u64, u64, u64), String>,
+    registry_instance: Arc<()>,
 }
 
 impl BrowserAuthorityRegistry {
@@ -27,6 +50,7 @@ impl BrowserAuthorityRegistry {
         Self {
             inner: RawBrowserAuthorityRegistry::new(),
             admitted_node_external_identifiers: BTreeMap::new(),
+            registry_instance: Arc::new(()),
         }
     }
 
@@ -39,6 +63,7 @@ impl BrowserAuthorityRegistry {
         Self {
             inner: RawBrowserAuthorityRegistry::with_identifier_limit(maximum_identifier),
             admitted_node_external_identifiers: BTreeMap::new(),
+            registry_instance: Arc::new(()),
         }
     }
 
@@ -159,39 +184,47 @@ impl BrowserAuthorityRegistry {
     /// every identifier can be bound; a later failure rolls back node identifiers and any origin
     /// binding created by the batch before the error is returned. Production callers outside this
     /// crate therefore cannot bypass semantic admission or observe partial authority from a failed
-    /// `locateNodes` result. Successful admission also retains the exact external identifier behind
-    /// the same private authority key so later typed actions can prove they serialize the admitted
-    /// wire node rather than a caller-selected identifier.
+    /// `locateNodes` result. Successful admission also retains the exact external identifier and
+    /// wraps each descriptive node in registry-instance provenance so later typed actions can prove
+    /// both facts without trusting caller-reproducible tuple fields.
     pub(crate) fn bind_nodes(
         &mut self,
         browser_session: BrowserSessionId,
         browsing_context: BrowsingContextId,
         origin: &Origin,
         external_identifiers: &[&str],
-    ) -> Result<Vec<ObservedNodeHandle>, BrowserRegistryError> {
+    ) -> Result<Vec<AdmittedNodeHandle>, BrowserRegistryError> {
         let handles = self.inner.bind_nodes(
             browser_session,
             browsing_context,
             origin,
             external_identifiers,
         )?;
-        for (handle, external_identifier) in handles.iter().zip(external_identifiers) {
+        let mut admitted_handles = Vec::with_capacity(handles.len());
+        for (handle, external_identifier) in handles.into_iter().zip(external_identifiers) {
             self.admitted_node_external_identifiers.insert(
-                node_authority_key(handle),
+                node_authority_key(&handle),
                 (*external_identifier).to_owned(),
             );
+            admitted_handles.push(AdmittedNodeHandle {
+                observed: handle,
+                registry_instance: Arc::clone(&self.registry_instance),
+            });
         }
-        Ok(handles)
+        Ok(admitted_handles)
     }
 
-    /// Return whether the exact authority-bound node was admitted under this wire identifier.
+    /// Return whether this registry issued the handle under the exact supplied wire identifier.
     pub(crate) fn node_external_identifier_matches(
         &self,
-        handle: &ObservedNodeHandle,
+        handle: &AdmittedNodeHandle,
         external_identifier: &str,
     ) -> bool {
+        if !Arc::ptr_eq(&self.registry_instance, &handle.registry_instance) {
+            return false;
+        }
         self.admitted_node_external_identifiers
-            .get(&node_authority_key(handle))
+            .get(&node_authority_key(&handle.observed))
             .is_some_and(|admitted| admitted == external_identifier)
     }
 }

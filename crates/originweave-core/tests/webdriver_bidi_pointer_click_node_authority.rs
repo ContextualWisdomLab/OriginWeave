@@ -1,12 +1,12 @@
 use std::error::Error;
 
 use originweave_core::{
-    BoundedWebDriverBiDiResponseDocument, BrowserAuthorityRegistry, BrowserContextDispatchTarget,
-    BrowserContextOriginDispatchTarget, BrowserContextOriginEpochDispatchTarget,
-    BrowserProtocolAdapterDescriptor, BrowserProtocolCapability, BrowserProtocolKind,
-    BrowserRegistryError, BrowserSessionId, BrowsingContextId, NodeHandleError, ObservedNodeHandle,
-    Origin, OriginWeaveProtocolVersion, ValidatedBrowserProtocolUse,
-    WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesCommand,
+    AdmittedNodeHandle, BoundedWebDriverBiDiResponseDocument, BrowserAuthorityRegistry,
+    BrowserContextDispatchTarget, BrowserContextOriginDispatchTarget,
+    BrowserContextOriginEpochDispatchTarget, BrowserProtocolAdapterDescriptor,
+    BrowserProtocolCapability, BrowserProtocolKind, BrowserRegistryError, BrowserSessionId,
+    BrowsingContextId, NodeHandleError, Origin, OriginWeaveProtocolVersion,
+    ValidatedBrowserProtocolUse, WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesCommand,
     WebDriverBiDiPointerClickAuthorityError, WebDriverBiDiPointerClickCommand,
     WebDriverBiDiRemoteNodeReference,
 };
@@ -21,7 +21,7 @@ struct AdmittedNodeFixture {
     registry: BrowserAuthorityRegistry,
     browser_session: BrowserSessionId,
     browsing_context: BrowsingContextId,
-    handle: ObservedNodeHandle,
+    handle: AdmittedNodeHandle,
     remote: WebDriverBiDiRemoteNodeReference,
 }
 
@@ -164,47 +164,23 @@ fn pointer_click_rejects_a_pre_navigation_node_after_document_advance() -> Resul
 }
 
 #[test]
-fn pointer_click_rejects_a_fabricated_current_epoch_handle_without_registry_node_authority()
+fn pointer_click_rejects_an_admitted_node_from_another_registry_even_when_public_fields_match()
 -> Result<(), Box<dyn Error>> {
     let fixture = admitted_node()?;
-    let fabricated = ObservedNodeHandle::new(
-        fixture.browser_session,
-        fixture.browsing_context,
-        fixture.handle.origin().clone(),
-        fixture.handle.document_epoch(),
-        fixture.handle.node_id() + 1,
-    )?;
+    let foreign = admitted_node()?;
+
+    assert_eq!(fixture.browser_session, foreign.handle.browser_session());
+    assert_eq!(fixture.browsing_context, foreign.handle.browsing_context());
+    assert_eq!(fixture.handle.origin(), foreign.handle.origin());
+    assert_eq!(fixture.handle.document_epoch(), foreign.handle.document_epoch());
+    assert_eq!(fixture.handle.node_id(), foreign.handle.node_id());
+    assert_eq!(fixture.remote.shared_id(), foreign.remote.shared_id());
 
     assert_eq!(
         WebDriverBiDiPointerClickCommand::new_for_current_node(
             42,
             "context-a",
-            &fabricated,
-            &fixture.remote,
-            &fixture.registry,
-        ),
-        Err(WebDriverBiDiPointerClickAuthorityError::NodeExternalIdentifierMismatch)
-    );
-    Ok(())
-}
-
-#[test]
-fn pointer_click_rejects_a_publicly_fabricated_handle_that_copies_the_exact_admitted_tuple()
--> Result<(), Box<dyn Error>> {
-    let fixture = admitted_node()?;
-    let fabricated = ObservedNodeHandle::new(
-        fixture.handle.browser_session(),
-        fixture.handle.browsing_context(),
-        fixture.handle.origin().clone(),
-        fixture.handle.document_epoch(),
-        fixture.handle.node_id(),
-    )?;
-
-    assert_eq!(
-        WebDriverBiDiPointerClickCommand::new_for_current_node(
-            42,
-            "context-a",
-            &fabricated,
+            &foreign.handle,
             &fixture.remote,
             &fixture.registry,
         ),

@@ -1,11 +1,12 @@
 use std::{error::Error, io};
 
 use originweave_core::{
-    BoundedWebDriverBiDiResponseDocument, BrowserAuthorityRegistry, BrowserContextDispatchTarget,
-    BrowserContextOriginDispatchTarget, BrowserContextOriginEpochDispatchTarget,
-    BrowserProtocolAdapterDescriptor, BrowserProtocolCapability, BrowserProtocolKind,
-    BrowserRegistryError, MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES, MAX_WEBDRIVER_BIDI_COMMAND_ID,
-    Origin, OriginWeaveProtocolVersion, UNICODE_PROTOCOL_FORMAT_INJECTION_CHARS,
+    AdmittedNodeHandle, BoundedWebDriverBiDiResponseDocument, BrowserAuthorityRegistry,
+    BrowserContextDispatchTarget, BrowserContextOriginDispatchTarget,
+    BrowserContextOriginEpochDispatchTarget, BrowserProtocolAdapterDescriptor,
+    BrowserProtocolCapability, BrowserProtocolKind, BrowserRegistryError,
+    MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES, MAX_WEBDRIVER_BIDI_COMMAND_ID, Origin,
+    OriginWeaveProtocolVersion, UNICODE_PROTOCOL_FORMAT_INJECTION_CHARS,
     ValidatedBrowserProtocolUse, WEBDRIVER_BIDI_PERFORM_ACTIONS_METHOD,
     WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesCommand,
     WebDriverBiDiPointerClickAuthorityError, WebDriverBiDiPointerClickCommand,
@@ -55,7 +56,7 @@ fn admitted_fixture(
 ) -> Result<
     (
         BrowserAuthorityRegistry,
-        originweave_core::ObservedNodeHandle,
+        AdmittedNodeHandle,
         WebDriverBiDiRemoteNodeReference,
     ),
     Box<dyn Error>,

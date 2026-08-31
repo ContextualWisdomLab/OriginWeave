@@ -2,7 +2,7 @@ use std::error::Error;
 use std::fmt::{Display, Formatter};
 
 use crate::{
-    BrowserAuthorityRegistry, BrowserRegistryError, NodeHandleError, ObservedNodeHandle,
+    AdmittedNodeHandle, BrowserAuthorityRegistry, BrowserRegistryError, NodeHandleError,
     WebDriverBiDiPointerClickCommand, WebDriverBiDiPointerClickCommandError,
     WebDriverBiDiRemoteNodeReference,
 };
@@ -57,17 +57,19 @@ impl Error for WebDriverBiDiPointerClickAuthorityError {
 }
 
 impl WebDriverBiDiPointerClickCommand {
-    /// Bind one pointer click to the exact current semantic node admitted by the authority registry.
+    /// Bind one pointer click to the exact current semantic node admitted by this authority registry.
     ///
     /// The external browsing-context identifier must still name the handle's registered context,
     /// the handle must still belong to the registry's current document epoch and canonical origin,
     /// and the remote `sharedId` must be the exact wire identifier retained during semantic-node
-    /// admission. These checks are immediate-use validation only: they do not authenticate the
-    /// browser process, grant policy or Agent authority, authorize a destination, or perform I/O.
+    /// admission. The handle also carries opaque registry-instance provenance, so copying the same
+    /// public session/context/origin/epoch/node tuple cannot recreate action authority. These checks
+    /// are immediate-use validation only: they do not authenticate the browser process, grant policy
+    /// or Agent authority, authorize a destination, or perform I/O.
     pub fn new_for_current_node(
         command_id: u64,
         browsing_context: &str,
-        handle: &ObservedNodeHandle,
+        handle: &AdmittedNodeHandle,
         node: &WebDriverBiDiRemoteNodeReference,
         registry: &BrowserAuthorityRegistry,
     ) -> Result<Self, WebDriverBiDiPointerClickAuthorityError> {
