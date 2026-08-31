@@ -186,3 +186,33 @@ fn subscription_constructor_rejects_out_of_range_command_id_without_source()
     assert!(error.source().is_none());
     Ok(())
 }
+
+#[test]
+fn subscription_constructor_rejects_mismatched_registered_context() -> Result<(), Box<dyn Error>> {
+    let mut registry = BrowserAuthorityRegistry::new();
+    let session = registry.register_session(SESSION_ID)?;
+    let context = registry.register_context(session, CONTEXT_ID)?;
+
+    let result = WebDriverBiDiNavigationCommittedSubscriptionCommand::new(
+        7,
+        &registry,
+        session,
+        context,
+        "different-context",
+    );
+    let error = match result {
+        Ok(_) => {
+            return Err(io::Error::other(
+                "mismatched session.subscribe context was unexpectedly accepted",
+            )
+            .into());
+        }
+        Err(error) => error,
+    };
+    assert_eq!(
+        error.to_string(),
+        "WebDriver BiDi navigation subscription context does not match registered authority"
+    );
+    assert!(error.source().is_some());
+    Ok(())
+}
