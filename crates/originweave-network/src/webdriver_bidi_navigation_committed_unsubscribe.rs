@@ -81,9 +81,11 @@ impl WebDriverBiDiNavigationCommittedUnsubscribeCommand {
         let message = self.serialized();
         established
             .write_text_frame(&message, masking_key, frame_timeout)
-            .map_err(|source| {
-                WebDriverBiDiNavigationCommittedUnsubscribeCommandError::FrameWrite { source }
-            })
+            .map_err(
+                |source| WebDriverBiDiNavigationCommittedUnsubscribeCommandError::FrameWrite {
+                    source,
+                },
+            )
     }
 
     fn serialized(&self) -> String {
@@ -121,8 +123,9 @@ impl fmt::Display for WebDriverBiDiNavigationCommittedUnsubscribeCommandError {
             ),
             Self::Correlation { .. } => formatter
                 .write_str("WebDriver BiDi session.unsubscribe command correlation was rejected"),
-            Self::FrameWrite { .. } => formatter
-                .write_str("WebDriver BiDi session.unsubscribe command frame write failed"),
+            Self::FrameWrite { .. } => {
+                formatter.write_str("WebDriver BiDi session.unsubscribe command frame write failed")
+            }
         }
     }
 }
