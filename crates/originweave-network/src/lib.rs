@@ -10,16 +10,16 @@
 //! classifies complete local-end JSON envelopes, tracks bounded command-response
 //! correlation, transports a narrowly typed pointer click, admits its typed
 //! correlated protocol acknowledgment, sends a context-bound subscription for
-//! committed-navigation events, admits a bounded navigation-committed
-//! post-condition observation for one exact registered context and URL, rotates
-//! the matched context's document epoch only from an exact caller-captured
-//! pre-action epoch, derives and binds the committed HTTP(S) URL's canonical
-//! origin to that newly advanced document, sends narrowly typed `session.status`
-//! and `session.end` commands, admits typed correlated status and end responses,
-//! observes bounded peer Close or clean-EOF transport cessation, and keeps
-//! protocol/transport evidence separate from explicit operational teardown
-//! observations without exposing generic JSON bodies or granting browser, TLS,
-//! policy, secret, process, profile, or Agent authority.
+//! committed-navigation events, retains its typed bounded correlated subscription
+//! identifier, admits a bounded navigation-committed post-condition observation
+//! for one exact registered context and URL, rotates the matched context's document
+//! epoch only from an exact caller-captured pre-action epoch, derives and binds the
+//! committed HTTP(S) URL's canonical origin to that newly advanced document, sends
+//! narrowly typed `session.status` and `session.end` commands, admits typed
+//! correlated status and end responses, observes bounded peer Close or clean-EOF
+//! transport cessation, and keeps protocol/transport evidence separate from
+//! explicit operational teardown observations without exposing generic JSON bodies
+//! or granting browser, TLS, policy, secret, process, profile, or Agent authority.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -30,6 +30,7 @@ mod webdriver_bidi_connection;
 mod webdriver_bidi_json_envelope;
 mod webdriver_bidi_navigation_committed_postcondition;
 mod webdriver_bidi_navigation_committed_subscription;
+mod webdriver_bidi_navigation_committed_subscription_response;
 mod webdriver_bidi_navigation_document_advance;
 mod webdriver_bidi_navigation_document_origin;
 mod webdriver_bidi_pointer_click_response;
@@ -74,6 +75,11 @@ pub use webdriver_bidi_navigation_committed_postcondition::{
 pub use webdriver_bidi_navigation_committed_subscription::{
     WebDriverBiDiNavigationCommittedSubscriptionCommand,
     WebDriverBiDiNavigationCommittedSubscriptionCommandError,
+};
+pub use webdriver_bidi_navigation_committed_subscription_response::{
+    MAX_WEBDRIVER_BIDI_SUBSCRIPTION_IDENTIFIER_BYTES,
+    WebDriverBiDiNavigationCommittedSubscriptionResponseError,
+    WebDriverBiDiNavigationCommittedSubscriptionResult,
 };
 pub use webdriver_bidi_navigation_document_advance::{
     WebDriverBiDiNavigationCommittedDocumentAdvance,
