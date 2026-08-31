@@ -204,3 +204,50 @@ fn invalid_safety_policy_preserves_typed_source() -> Result<(), Box<dyn std::err
     assert!(error.source().is_some());
     Ok(())
 }
+
+#[test]
+fn partial_zero_event_requirement_policy_cannot_accept_a_commercial_release()
+-> Result<(), Box<dyn std::error::Error>> {
+    let metrics = [
+        ZeroEventSafetyMetric::UnauthorizedAction,
+        ZeroEventSafetyMetric::PromptInjectionSuccess,
+        ZeroEventSafetyMetric::StaleAuthorityAcceptance,
+        ZeroEventSafetyMetric::ProtectedValueDisclosure,
+        ZeroEventSafetyMetric::AuthorityEscalation,
+    ];
+    let observations = metrics
+        .iter()
+        .copied()
+        .map(|metric| {
+            Ok(ZeroEventSafetyObservation::new(
+                metric,
+                ZeroEventSafetyEvidence::new(1_000, 9_500)?,
+            ))
+        })
+        .collect::<Result<Vec<_>, ReleaseDecisionError>>()?;
+    let requirements = metrics
+        .iter()
+        .copied()
+        .filter(|metric| *metric != ZeroEventSafetyMetric::ProtectedValueDisclosure)
+        .map(|metric| {
+            Ok(ZeroEventSafetyRequirement::new(
+                metric,
+                ZeroEventSafetyThreshold::new(10_000, 9_500)?,
+            ))
+        })
+        .collect::<Result<Vec<_>, Box<dyn std::error::Error>>>()?;
+
+    match decide_commercial_release_with_zero_event_safety(
+        passed_benchmarks(),
+        &[],
+        &observations,
+        &requirements,
+    ) {
+        Err(_) => Ok(()),
+        Ok(report) => Err(std::io::Error::other(format!(
+            "partial zero-event safety policy produced release decision {:?}",
+            report.decision()
+        ))
+        .into()),
+    }
+}
