@@ -104,7 +104,10 @@ impl fmt::Debug for WebDriverBiDiNavigationCommittedSubscriptionAdmission {
                 "subscription_id_bytes",
                 &self.subscription.subscription_id().len(),
             )
-            .field("admitted_navigation_count", &self.admitted_navigation_ids.len())
+            .field(
+                "admitted_navigation_count",
+                &self.admitted_navigation_ids.len(),
+            )
             .finish()
     }
 }
@@ -180,8 +183,8 @@ impl WebDriverBiDiNavigationCommittedSubscriptionAdmission {
             self.binding.browsing_context,
             expected_url,
         )
-        .map_err(|source| WebDriverBiDiNavigationCommittedSubscriptionEventError::Observation {
-            source,
+        .map_err(|source| {
+            WebDriverBiDiNavigationCommittedSubscriptionEventError::Observation { source }
         })?;
         let navigation_id = observation.navigation_id().ok_or(
             WebDriverBiDiNavigationCommittedSubscriptionEventError::MissingNavigationIdentity,
@@ -191,12 +194,9 @@ impl WebDriverBiDiNavigationCommittedSubscriptionAdmission {
             .iter()
             .any(|admitted| admitted == navigation_id)
         {
-            return Err(
-                WebDriverBiDiNavigationCommittedSubscriptionEventError::ReplayedNavigation,
-            );
+            return Err(WebDriverBiDiNavigationCommittedSubscriptionEventError::ReplayedNavigation);
         }
-        if self.admitted_navigation_ids.len()
-            >= MAX_WEBDRIVER_BIDI_NAVIGATION_COMMITTED_ADMISSIONS
+        if self.admitted_navigation_ids.len() >= MAX_WEBDRIVER_BIDI_NAVIGATION_COMMITTED_ADMISSIONS
         {
             return Err(
                 WebDriverBiDiNavigationCommittedSubscriptionEventError::ReplayHistoryExhausted {
