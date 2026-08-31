@@ -143,15 +143,8 @@ fn observed_transport_closure(
 }
 
 #[test]
-fn missing_typed_transport_or_process_profile_observation_keeps_teardown_pending()
--> Result<(), Box<dyn Error>> {
-    let incomplete_observations = [
-        (false, true, true),
-        (true, false, true),
-        (true, true, false),
-    ];
-
-    for (transport_closed, browser_exited, profile_removed) in incomplete_observations {
+fn missing_typed_transport_observation_keeps_teardown_pending() -> Result<(), Box<dyn Error>> {
+    for transport_closed in [false, true] {
         let (acknowledged, established) = correlated_session_end_ack_and_transport()?;
         let transport_closure = if transport_closed {
             Some(observed_transport_closure(established)?)
@@ -161,11 +154,7 @@ fn missing_typed_transport_or_process_profile_observation_keeps_teardown_pending
         };
         let assessment = WebDriverBiDiSessionTeardownAssessment::from_protocol_ack(
             acknowledged,
-            WebDriverBiDiSessionTeardownObservations::new(
-                transport_closure,
-                browser_exited,
-                profile_removed,
-            ),
+            WebDriverBiDiSessionTeardownObservations::new(transport_closure),
         );
 
         assert_eq!(assessment.command_id(), 7);
@@ -180,14 +169,6 @@ fn missing_typed_transport_or_process_profile_observation_keeps_teardown_pending
                 .map(WebDriverBiDiWebSocketTransportClosureObservation::kind),
             transport_closed.then_some(WebDriverBiDiWebSocketTransportClosureKind::PeerCloseFrame)
         );
-        assert_eq!(
-            assessment.observations().browser_process_exited_observed(),
-            browser_exited
-        );
-        assert_eq!(
-            assessment.observations().task_profile_removed_observed(),
-            profile_removed
-        );
         assert!(!assessment.is_operationally_complete());
         assert_eq!(
             assessment.disposition(),
@@ -198,13 +179,13 @@ fn missing_typed_transport_or_process_profile_observation_keeps_teardown_pending
 }
 
 #[test]
-fn caller_asserted_process_and_profile_placeholders_cannot_complete_teardown()
+fn typed_transport_closure_cannot_complete_teardown_without_process_and_profile_evidence()
 -> Result<(), Box<dyn Error>> {
     let (acknowledged, established) = correlated_session_end_ack_and_transport()?;
     let transport_closure = observed_transport_closure(established)?;
     let assessment = WebDriverBiDiSessionTeardownAssessment::from_protocol_ack(
         acknowledged,
-        WebDriverBiDiSessionTeardownObservations::new(Some(transport_closure), true, true),
+        WebDriverBiDiSessionTeardownObservations::new(Some(transport_closure)),
     );
 
     assert!(!assessment.is_operationally_complete());
