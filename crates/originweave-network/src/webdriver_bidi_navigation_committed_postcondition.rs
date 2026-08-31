@@ -758,6 +758,7 @@ mod tests {
             r#"{"params":{"context":"bad context","navigation":null,"timestamp":1,"url":"x"}}"#.to_owned(),
             r#"{"params":{"context":"a","navigation":"bad nav","timestamp":1,"url":"x"}}"#.to_owned(),
             r#"{"params":{"context":"a","navigation":false,"timestamp":1,"url":"x"}}"#.to_owned(),
+            r#"{"params":{"context":"a","navigation":null,"timestamp":1,"url":false}}"#.to_owned(),
             r#"{"params":{"context":"a","navigation":null,"timestamp":-1,"url":"x"}}"#.to_owned(),
             r#"{"params":{"context":"a","navigation":null,"timestamp":1.5,"url":"x"}}"#.to_owned(),
             r#"{"params":{"context":"a","navigation":null,"timestamp":1,"url":"x"}}?"#.to_owned(),
@@ -856,6 +857,12 @@ mod tests {
             let mut string = ProjectionCursor::new(invalid);
             assert!(string.parse_string().is_none());
         }
+
+        let mut escaped = ProjectionCursor::new(r#""\"\\\/\b\f\n\r\t""#);
+        assert_eq!(
+            escaped.parse_string().as_deref(),
+            Some("\"\\/\u{0008}\u{000c}\n\r\t")
+        );
 
         assert!(!protocol_identifier_is_valid(
             "",
