@@ -140,10 +140,8 @@ fn correlation_fails_closed_without_consuming_unrelated_outstanding_commands()
         br#"{"type":"error","id":null,"error":"invalid argument","message":"no command id"}"#,
     )?;
     assert_eq!(
-        correlation.correlate_response_for(
-            &uncorrelatable,
-            WebDriverBiDiCommandKind::SessionStatus,
-        ),
+        correlation
+            .correlate_response_for(&uncorrelatable, WebDriverBiDiCommandKind::SessionStatus,),
         Err(WebDriverBiDiCommandCorrelationError::UncorrelatableErrorResponse)
     );
     assert_eq!(correlation.outstanding_count(), 1);
