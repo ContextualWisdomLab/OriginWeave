@@ -556,6 +556,10 @@ mod tests {
     fn projection_rejects_missing_invalid_duplicate_and_oversized_subscription() {
         let cases = [
             (r#"{"result":{}}"#.to_owned(), "missing"),
+            (
+                r#"{"result":{"extra":1}}"#.to_owned(),
+                "missing after metadata",
+            ),
             (r#"{"result":{"subscription":false}}"#.to_owned(), "invalid"),
             (
                 r#"{"result":{"subscription":"a","subscription":"b"}}"#.to_owned(),
@@ -634,6 +638,8 @@ mod tests {
         }
         let mut value = ProjectionCursor::new("?");
         assert!(!value.skip_value());
+        let mut literal = ProjectionCursor::new("tru?");
+        assert!(!literal.consume_literal(b"true"));
 
         let mut number = ProjectionCursor::new("x");
         assert!(!number.skip_number());
@@ -674,6 +680,7 @@ mod tests {
             ("0041", true),
             ("d83d\\ude80", true),
             ("d83d", false),
+            ("d83d\\u0", false),
             ("d83d\\u0041", false),
             ("dc00", false),
             ("zzzz", false),
