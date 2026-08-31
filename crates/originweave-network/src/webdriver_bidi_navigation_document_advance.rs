@@ -98,6 +98,16 @@ fn validate_document_epoch(
     Ok(())
 }
 
+fn map_advance_document_error(
+    source: BrowserRegistryError,
+) -> WebDriverBiDiNavigationCommittedDocumentAdvanceError {
+    if source == BrowserRegistryError::DocumentEpochExhausted {
+        WebDriverBiDiNavigationCommittedDocumentAdvanceError::DocumentEpochExhausted
+    } else {
+        WebDriverBiDiNavigationCommittedDocumentAdvanceError::RegistryState { source }
+    }
+}
+
 fn require_expected_document_epoch(
     registry: &BrowserAuthorityRegistry,
     browser_session: BrowserSessionId,
@@ -122,7 +132,8 @@ fn require_expected_document_epoch(
 /// A successful advance delegates to [`BrowserAuthorityRegistry::advance_document`], which clears
 /// the previous canonical-origin binding and all node bindings owned by the context. The new
 /// document still has no origin binding until a separately trusted browser observation establishes
-/// one through the canonical registry lifecycle.
+/// one through the canonical registry lifecycle. Any registry failure remains typed rather than
+/// being converted into a panic or a successful authority transition.
 pub fn advance_webdriver_bidi_navigation_document_epoch(
     observation: WebDriverBiDiNavigationCommittedObservation,
     registry: &mut BrowserAuthorityRegistry,
@@ -140,12 +151,9 @@ pub fn advance_webdriver_bidi_navigation_document_epoch(
         expected_previous_epoch,
     )?;
 
-    // The exclusive mutable borrow prevents an intervening registry mutation. After the preceding
-    // revalidation, the context exists, belongs to this session, and its epoch is below u64::MAX,
-    // so every documented failure of `advance_document` has already been ruled out.
     let current_epoch = registry
         .advance_document(browsing_context)
-        .expect("validated document epoch must have one representable registry successor");
+        .map_err(map_advance_document_error)?;
 
     Ok(WebDriverBiDiNavigationCommittedDocumentAdvance {
         browser_session,
@@ -159,31 +167,66 @@ pub fn advance_webdriver_bidi_navigation_document_epoch(
 mod tests {
     use super::*;
 
+    fn document_epochs(value: u64) -> Vec<DocumentEpoch> {
+        DocumentEpoch::new(value).into_iter().collect()
+    }
+
+    fn browser_sessions(value: u64) -> Vec<BrowserSessionId> {
+        BrowserSessionId::new(value).into_iter().collect()
+    }
+
+    fn browsing_contexts(value: u64) -> Vec<BrowsingContextId> {
+        BrowsingContextId::new(value).into_iter().collect()
+    }
+
     #[test]
     fn epoch_validation_distinguishes_stale_and_exhausted_state() {
-        let one = DocumentEpoch::new(1).expect("one is a valid document epoch");
-        let two = DocumentEpoch::new(2).expect("two is a valid document epoch");
-        let maximum = DocumentEpoch::new(u64::MAX).expect("u64::MAX is a valid document epoch");
+        let one = document_epochs(1);
+        let two = document_epochs(2);
+        let maximum = document_epochs(u64::MAX);
+        assert_eq!(one.len(), 1);
+        assert_eq!(two.len(), 1);
+        assert_eq!(maximum.len(), 1);
 
-        assert!(validate_document_epoch(one, one).is_ok());
+        assert!(validate_document_epoch(one[0], one[0]).is_ok());
         assert!(matches!(
-            validate_document_epoch(one, two),
+            validate_document_epoch(one[0], two[0]),
             Err(WebDriverBiDiNavigationCommittedDocumentAdvanceError::UnexpectedDocumentEpoch)
         ));
         assert!(matches!(
-            validate_document_epoch(maximum, maximum),
+            validate_document_epoch(maximum[0], maximum[0]),
             Err(WebDriverBiDiNavigationCommittedDocumentAdvanceError::DocumentEpochExhausted)
+        ));
+    }
+
+    #[test]
+    fn registry_errors_map_without_panicking_or_becoming_success() {
+        assert!(matches!(
+            map_advance_document_error(BrowserRegistryError::DocumentEpochExhausted),
+            WebDriverBiDiNavigationCommittedDocumentAdvanceError::DocumentEpochExhausted
+        ));
+        assert!(matches!(
+            map_advance_document_error(BrowserRegistryError::UnknownBrowsingContext),
+            WebDriverBiDiNavigationCommittedDocumentAdvanceError::RegistryState {
+                source: BrowserRegistryError::UnknownBrowsingContext
+            }
         ));
     }
 
     #[test]
     fn registry_revalidation_and_public_diagnostics_fail_closed() {
         let registry = BrowserAuthorityRegistry::new();
-        let session = BrowserSessionId::new(1).expect("one is a valid browser session id");
-        let context = BrowsingContextId::new(1).expect("one is a valid browsing context id");
-        let epoch = DocumentEpoch::new(1).expect("one is a valid document epoch");
-        let error = require_expected_document_epoch(&registry, session, context, epoch)
-            .expect_err("unregistered authority must fail closed");
+        let session = browser_sessions(1);
+        let context = browsing_contexts(1);
+        let epoch = document_epochs(1);
+        assert_eq!(session.len(), 1);
+        assert_eq!(context.len(), 1);
+        assert_eq!(epoch.len(), 1);
+
+        let error = match require_expected_document_epoch(&registry, session[0], context[0], epoch[0]) {
+            Err(error) => error,
+            Ok(()) => return,
+        };
 
         assert!(matches!(
             error,
