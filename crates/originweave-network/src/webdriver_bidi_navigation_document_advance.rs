@@ -107,9 +107,7 @@ fn require_expected_document_epoch(
     let current = registry
         .current_context_epoch(browser_session, browsing_context)
         .map_err(
-            |source| WebDriverBiDiNavigationCommittedDocumentAdvanceError::RegistryState {
-                source,
-            },
+            |source| WebDriverBiDiNavigationCommittedDocumentAdvanceError::RegistryState { source },
         )?;
     validate_document_epoch(current, expected_previous)
 }
@@ -204,7 +202,8 @@ mod tests {
         );
         assert!(stale.source().is_none());
 
-        let exhausted = WebDriverBiDiNavigationCommittedDocumentAdvanceError::DocumentEpochExhausted;
+        let exhausted =
+            WebDriverBiDiNavigationCommittedDocumentAdvanceError::DocumentEpochExhausted;
         assert_eq!(
             exhausted.to_string(),
             "WebDriver BiDi navigation document advance exhausted the document epoch space"
