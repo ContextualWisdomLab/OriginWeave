@@ -49,13 +49,20 @@ fn read_masked_text_frame(stream: &mut TcpStream) -> io::Result<Vec<u8>> {
             "expected one final masked client text frame",
         ));
     }
-    let length = usize::from(header[1] & 0x7f);
-    if length > 125 {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "test command unexpectedly required extended framing",
-        ));
-    }
+    let length = match header[1] & 0x7f {
+        length @ 0..=125 => usize::from(length),
+        126 => {
+            let mut extended = [0_u8; 2];
+            stream.read_exact(&mut extended)?;
+            usize::from(u16::from_be_bytes(extended))
+        }
+        _ => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "test command unexpectedly required 64-bit framing",
+            ));
+        }
+    };
     let mut mask = [0_u8; 4];
     stream.read_exact(&mut mask)?;
     let mut payload = vec![0_u8; length];
@@ -108,11 +115,7 @@ fn navigation_committed_subscription_round_trips_on_the_registered_context()
 
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     let command = WebDriverBiDiNavigationCommittedSubscriptionCommand::new(
-        7,
-        &registry,
-        session,
-        context,
-        CONTEXT_ID,
+        7, &registry, session, context, CONTEXT_ID,
     )?;
     assert_eq!(command.command_id(), 7);
     assert_eq!(command.browser_session(), session);
