@@ -136,13 +136,62 @@ fn accepted_navigation_advances_only_the_exact_pre_action_document_epoch()
         context,
         EXPECTED_URL,
     )?;
+    let replay_error =
+        advance_webdriver_bidi_navigation_document_epoch(replay, &mut registry, before)
+            .err()
+            .ok_or_else(|| io::Error::other("stale navigation unexpectedly advanced again"))?;
     assert!(matches!(
-        advance_webdriver_bidi_navigation_document_epoch(replay, &mut registry, before),
-        Err(WebDriverBiDiNavigationCommittedDocumentAdvanceError::UnexpectedDocumentEpoch)
+        replay_error,
+        WebDriverBiDiNavigationCommittedDocumentAdvanceError::UnexpectedDocumentEpoch
     ));
+    assert_eq!(
+        replay_error.to_string(),
+        "WebDriver BiDi navigation document advance does not match the expected pre-action document epoch"
+    );
+    assert!(replay_error.source().is_none());
     assert_eq!(
         registry.current_context_epoch(session, context)?,
         advance.current_epoch()
+    );
+    Ok(())
+}
+
+#[test]
+fn retired_context_between_observation_and_advance_fails_closed_with_typed_source()
+-> Result<(), Box<dyn Error>> {
+    let mut registry = BrowserAuthorityRegistry::new();
+    let session = registry.register_session(SESSION_ID)?;
+    let context = registry.register_context(session, "context-a")?;
+    let before = registry.current_context_epoch(session, context)?;
+    let event = receive_navigation_event()?;
+    let observation = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
+        &event,
+        &registry,
+        session,
+        context,
+        EXPECTED_URL,
+    )?;
+
+    registry.remove_context(context)?;
+    let error = advance_webdriver_bidi_navigation_document_epoch(observation, &mut registry, before)
+        .err()
+        .ok_or_else(|| io::Error::other("retired context unexpectedly advanced"))?;
+    assert!(matches!(
+        error,
+        WebDriverBiDiNavigationCommittedDocumentAdvanceError::RegistryState { .. }
+    ));
+    assert_eq!(
+        error.to_string(),
+        "WebDriver BiDi navigation document advance cannot transition registered authority"
+    );
+    let source = error
+        .source()
+        .and_then(|source| source.downcast_ref::<BrowserRegistryError>())
+        .ok_or_else(|| io::Error::other("registry failure source was not preserved"))?;
+    assert_eq!(source, &BrowserRegistryError::UnknownBrowsingContext);
+    assert_eq!(
+        registry.current_context_epoch(session, context),
+        Err(BrowserRegistryError::UnknownBrowsingContext)
     );
     Ok(())
 }
