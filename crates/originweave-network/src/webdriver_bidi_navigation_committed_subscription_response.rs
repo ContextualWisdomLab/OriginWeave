@@ -67,20 +67,19 @@ impl WebDriverBiDiNavigationCommittedSubscriptionResult {
                 })
             }
             WebDriverBiDiJsonEnvelopeKind::Error => {
-                let error_code = retain_validated_error_code(envelope.error_code())?;
-                let completed = correlation
-                    .correlate_response(&envelope)
-                    .map_err(|source| {
+                retain_validated_error_code(envelope.error_code()).and_then(|error_code| {
+                    let completed = correlation.correlate_response(&envelope).map_err(|source| {
                         WebDriverBiDiNavigationCommittedSubscriptionResponseError::Correlation {
                             source,
                         }
                     })?;
-                Err(
-                    WebDriverBiDiNavigationCommittedSubscriptionResponseError::RemoteProtocolError {
-                        command_id: completed.command_id(),
-                        error_code,
-                    },
-                )
+                    Err(
+                        WebDriverBiDiNavigationCommittedSubscriptionResponseError::RemoteProtocolError {
+                            command_id: completed.command_id(),
+                            error_code,
+                        },
+                    )
+                })
             }
             WebDriverBiDiJsonEnvelopeKind::Event => Err(
                 WebDriverBiDiNavigationCommittedSubscriptionResponseError::Correlation {
