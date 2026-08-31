@@ -38,9 +38,9 @@ impl Error for WebDriverBiDiPointerClickCommandError {}
 /// Deterministic command for one primary-button click on an admitted remote node.
 ///
 /// The fixed mouse action sequence moves to the element origin, presses button zero, and releases
-/// button zero. Construction accepts an already admitted remote node reference and does not grant
-/// browser-session, context, origin, document-epoch, policy, approval, or Agent authority. A trusted
-/// adapter must bind this inert command to current authority before transport.
+/// button zero. Public construction is authority-bound through
+/// [`Self::new_for_current_node`]; raw wire serialization remains crate-private so external callers
+/// cannot choose an arbitrary WebDriver BiDi node identifier while bypassing current node authority.
 #[derive(Debug, PartialEq, Eq)]
 pub struct WebDriverBiDiPointerClickCommand {
     command_id: u64,
@@ -50,7 +50,7 @@ pub struct WebDriverBiDiPointerClickCommand {
 
 impl WebDriverBiDiPointerClickCommand {
     /// Validate and serialize one bounded `input.performActions` pointer click command.
-    pub fn new(
+    pub(crate) fn new(
         command_id: u64,
         browsing_context: &str,
         node: &crate::WebDriverBiDiRemoteNodeReference,
