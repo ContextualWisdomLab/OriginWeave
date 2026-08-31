@@ -11,6 +11,13 @@ use crate::{
     WebDriverBiDiNavigationCommittedUnsubscribeCommandError, WebDriverBiDiWebSocketTextMessage,
 };
 
+/// Maximum distinct committed-navigation identifiers retained by one active subscription admission.
+///
+/// Exhaustion fails closed instead of evicting old identifiers because eviction would permit an old
+/// protocol event to become fresh state-changing evidence again. Callers can explicitly unsubscribe
+/// and establish a new typed subscription when this reviewed per-subscription resource bound is met.
+pub const MAX_WEBDRIVER_BIDI_NAVIGATION_COMMITTED_ADMISSIONS: usize = 256;
+
 /// Immutable command-side binding retained before a committed-navigation subscription is sent.
 ///
 /// The binding carries only the exact local command identifier and the already-registered
@@ -78,9 +85,12 @@ impl WebDriverBiDiNavigationCommittedSubscriptionBinding {
 /// Holding this value is therefore narrower than holding an opaque protocol subscription string.
 /// It grants only admission of the matching committed-navigation event through the existing bounded
 /// parser; it grants no navigation, destination, origin, policy, secret, node, or Agent authority.
+/// Each admitted non-null WebDriver BiDi navigation identifier is retained until unsubscribe so a
+/// replayed remote event cannot mint a second state-changing observation from the same navigation.
 pub struct WebDriverBiDiNavigationCommittedSubscriptionAdmission {
     subscription: WebDriverBiDiNavigationCommittedSubscriptionResult,
     binding: WebDriverBiDiNavigationCommittedSubscriptionBinding,
+    admitted_navigation_ids: Vec<String>,
 }
 
 impl fmt::Debug for WebDriverBiDiNavigationCommittedSubscriptionAdmission {
@@ -94,6 +104,7 @@ impl fmt::Debug for WebDriverBiDiNavigationCommittedSubscriptionAdmission {
                 "subscription_id_bytes",
                 &self.subscription.subscription_id().len(),
             )
+            .field("admitted_navigation_count", &self.admitted_navigation_ids.len())
             .finish()
     }
 }
@@ -123,6 +134,7 @@ impl WebDriverBiDiNavigationCommittedSubscriptionAdmission {
         Ok(Self {
             subscription,
             binding,
+            admitted_navigation_ids: Vec::new(),
         })
     }
 
@@ -142,28 +154,60 @@ impl WebDriverBiDiNavigationCommittedSubscriptionAdmission {
     ///
     /// The original command-side external-context mapping is revalidated immediately before parsing
     /// the event. The event must then independently carry that same registered context and the exact
-    /// declared URL. The returned subscribed observation is the only navigation observation type
-    /// accepted by the state-changing document-advance boundary.
+    /// declared URL. State-changing admission additionally requires the WebDriver BiDi navigation
+    /// identifier to be present and unique within this active subscription. The specification defines
+    /// non-null navigation identifiers as unique identifiers for ongoing navigations; retaining them
+    /// prevents replay of an already-admitted event. The history is resource bounded and fails closed
+    /// at capacity rather than evicting evidence that would make an older replay admissible again.
+    /// The returned subscribed observation is the only navigation observation type accepted by the
+    /// state-changing document-advance boundary.
     pub fn admit(
-        &self,
+        &mut self,
         message: &WebDriverBiDiWebSocketTextMessage,
         registry: &BrowserAuthorityRegistry,
         expected_url: &str,
     ) -> Result<
         WebDriverBiDiNavigationCommittedSubscribedObservation,
-        WebDriverBiDiNavigationCommittedObservationError,
+        WebDriverBiDiNavigationCommittedSubscriptionEventError,
     > {
         require_current_binding(registry, &self.binding).map_err(|source| {
-            WebDriverBiDiNavigationCommittedObservationError::ContextBinding { source }
+            WebDriverBiDiNavigationCommittedSubscriptionEventError::ContextBinding { source }
         })?;
-        WebDriverBiDiNavigationCommittedObservation::parse_and_match(
+        let observation = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
             message,
             registry,
             self.binding.browser_session,
             self.binding.browsing_context,
             expected_url,
         )
-        .map(WebDriverBiDiNavigationCommittedSubscribedObservation)
+        .map_err(|source| WebDriverBiDiNavigationCommittedSubscriptionEventError::Observation {
+            source,
+        })?;
+        let navigation_id = observation.navigation_id().ok_or(
+            WebDriverBiDiNavigationCommittedSubscriptionEventError::MissingNavigationIdentity,
+        )?;
+        if self
+            .admitted_navigation_ids
+            .iter()
+            .any(|admitted| admitted == navigation_id)
+        {
+            return Err(
+                WebDriverBiDiNavigationCommittedSubscriptionEventError::ReplayedNavigation,
+            );
+        }
+        if self.admitted_navigation_ids.len()
+            >= MAX_WEBDRIVER_BIDI_NAVIGATION_COMMITTED_ADMISSIONS
+        {
+            return Err(
+                WebDriverBiDiNavigationCommittedSubscriptionEventError::ReplayHistoryExhausted {
+                    maximum_events: MAX_WEBDRIVER_BIDI_NAVIGATION_COMMITTED_ADMISSIONS,
+                },
+            );
+        }
+        self.admitted_navigation_ids.push(navigation_id.to_owned());
+        Ok(WebDriverBiDiNavigationCommittedSubscribedObservation(
+            observation,
+        ))
     }
 
     /// Consume active event admission and construct teardown for this exact subscription receipt.
@@ -279,6 +323,65 @@ impl Error for WebDriverBiDiNavigationCommittedSubscriptionAdmissionError {
         match self {
             Self::CommandIdMismatch { .. } => None,
             Self::ContextBinding { source } => Some(source),
+        }
+    }
+}
+
+/// Fail-closed failures while admitting an event through one active subscription capability.
+#[derive(Debug)]
+pub enum WebDriverBiDiNavigationCommittedSubscriptionEventError {
+    /// The original external context no longer maps to the exact registered session/context pair.
+    ContextBinding {
+        /// Exact browser-registry authority failure.
+        source: BrowserRegistryError,
+    },
+    /// The bounded committed-navigation observation itself could not be admitted.
+    Observation {
+        /// Underlying typed observation failure.
+        source: WebDriverBiDiNavigationCommittedObservationError,
+    },
+    /// The event did not carry a non-null navigation identity suitable for state-changing evidence.
+    MissingNavigationIdentity,
+    /// The same WebDriver BiDi navigation identity was already admitted by this active subscription.
+    ReplayedNavigation,
+    /// The bounded replay-prevention history is full and must not evict older evidence.
+    ReplayHistoryExhausted {
+        /// Maximum distinct navigation identities retained by one active subscription admission.
+        maximum_events: usize,
+    },
+}
+
+impl fmt::Display for WebDriverBiDiNavigationCommittedSubscriptionEventError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ContextBinding { .. } => formatter.write_str(
+                "WebDriver BiDi navigation subscription context is no longer registered authority",
+            ),
+            Self::Observation { .. } => {
+                formatter.write_str("WebDriver BiDi navigation-committed event is not admissible")
+            }
+            Self::MissingNavigationIdentity => formatter.write_str(
+                "WebDriver BiDi navigation-committed event has no reusable-safe navigation identity",
+            ),
+            Self::ReplayedNavigation => formatter.write_str(
+                "WebDriver BiDi navigation-committed event was already admitted by this active subscription",
+            ),
+            Self::ReplayHistoryExhausted { maximum_events } => write!(
+                formatter,
+                "WebDriver BiDi navigation subscription reached its {maximum_events}-event replay-history limit"
+            ),
+        }
+    }
+}
+
+impl Error for WebDriverBiDiNavigationCommittedSubscriptionEventError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::ContextBinding { source } => Some(source),
+            Self::Observation { source } => Some(source),
+            Self::MissingNavigationIdentity
+            | Self::ReplayedNavigation
+            | Self::ReplayHistoryExhausted { .. } => None,
         }
     }
 }
