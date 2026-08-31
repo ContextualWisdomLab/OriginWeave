@@ -165,7 +165,7 @@ mod tests {
         assert_eq!(epoch_one.len(), 1);
         assert_eq!(epoch_two.len(), 1);
 
-        assert!(matches!(
+        assert_eq!(
             advance_registered_document_if_expected(
                 &mut registry,
                 synthetic_session[0],
@@ -173,7 +173,7 @@ mod tests {
                 epoch_one[0],
             ),
             Err(BrowserRegistryError::UnknownBrowserSession)
-        ));
+        );
 
         let session = registry.register_session("session-a");
         assert!(session.is_ok());
