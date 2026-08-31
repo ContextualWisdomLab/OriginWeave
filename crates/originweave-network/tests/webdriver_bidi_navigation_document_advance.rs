@@ -14,7 +14,7 @@ use originweave_network::{
     WebDriverBiDiNavigationCommittedObservation, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
     WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
-    WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiWebSocketTextMessage, advance_webdriver_bidi_navigation_document_epoch,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -100,7 +100,8 @@ fn accepted_navigation_advances_only_the_exact_pre_action_document_epoch()
     let session = registry.register_session(SESSION_ID)?;
     let context = registry.register_context(session, "context-a")?;
     let before = registry.current_context_epoch(session, context)?;
-    let previous_origin = Origin::parse("https://example.test")?;
+    let previous_origin =
+        Origin::parse("https://example.test").expect("constant fixture origin must be canonical");
     registry.bind_context_origin(session, context, &previous_origin)?;
 
     let event = receive_navigation_event()?;
@@ -111,7 +112,8 @@ fn accepted_navigation_advances_only_the_exact_pre_action_document_epoch()
         context,
         EXPECTED_URL,
     )?;
-    let advance = observation.advance_document_epoch(&mut registry, before)?;
+    let advance =
+        advance_webdriver_bidi_navigation_document_epoch(observation, &mut registry, before)?;
 
     assert_eq!(advance.browser_session(), session);
     assert_eq!(advance.browsing_context(), context);
@@ -135,7 +137,7 @@ fn accepted_navigation_advances_only_the_exact_pre_action_document_epoch()
         EXPECTED_URL,
     )?;
     assert!(matches!(
-        replay.advance_document_epoch(&mut registry, before),
+        advance_webdriver_bidi_navigation_document_epoch(replay, &mut registry, before),
         Err(WebDriverBiDiNavigationCommittedDocumentAdvanceError::UnexpectedDocumentEpoch)
     ));
     assert_eq!(
