@@ -8,6 +8,8 @@ OriginWeave uses Chromium as its compatibility kernel, so browser-extension comp
 
 The checked-in fixture is intentionally local-only. Its host permission is limited to loopback HTTP used by the deterministic test server. It contains no remote code, user credential, model call, external content, native-messaging host, or production PII. Chrome permissions remain distinct from the explicit OriginWeave extension-to-Agent grant implemented in `originweave-core`. Compatibility mutation tests create only controlled synthetic state inside the ephemeral test profile and must clean it up; successful API compatibility never grants the OriginWeave Agent ambient bookmarks/history/downloads authority.
 
+The runner treats expected `http.client.HTTPException` transport failures, including truncated ChromeDriver responses, as failed trials and continues to emit bounded aggregate evidence. It does not classify such a run as successful: the repeatability gate still fails when the required trial count is not met.
+
 ## Supported-capability evidence matrix
 
 This matrix separates protected-main executable evidence from active, non-shipped evidence and from genuinely unproven surfaces. A row marked **ACTIVE_PR** is never a release claim; exact head/run provenance belongs in `docs/evidence/2026-08-10-active-pr-maturity.md` and must be refreshed when the branch changes.

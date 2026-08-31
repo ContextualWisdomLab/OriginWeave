@@ -59,7 +59,7 @@ This remains controlled test infrastructure rather than browser-execution eviden
 
 **Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
 
-PR #70 reuses the existing pinned Chrome for Testing workflow and executes the #65 fixture through loopback ChromeDriver with extensions disabled and a fresh temporary profile. Each bounded trial performs real WebDriver clear/type/click operations, observes the `submitted` state and synthetic value through element endpoints, verifies that submission preserves the loaded URL, and proves that the temporary profile is removed after teardown. The runner emits credential-free repeatability evidence and fails the lane when any trial or post-condition is incomplete.
+PR #70 reuses the existing pinned Chrome for Testing workflow and executes the #65 fixture through loopback ChromeDriver with extensions disabled and a fresh temporary profile. Each bounded trial performs real WebDriver clear/type/click operations, observes the `submitted` state and synthetic value through element endpoints, verifies that submission preserves the loaded URL, and proves that the temporary profile is removed after teardown. The fixture-shutdown contract also exercises successful MV3 and Agent Task trial paths before proving reverse-order cleanup after one server stop fails. The runner emits credential-free repeatability evidence and fails the lane when any trial or post-condition is incomplete.
 
 This is real WebDriver evidence for a controlled local fixture, not a product browser adapter. It does not establish WebDriver BiDi/CDP authority translation, OriginWeave semantic observation or node handles, policy-authorized typed action dispatch, trusted browser-process attribution, or protected-main product runtime completion.
 
@@ -67,7 +67,7 @@ This is real WebDriver evidence for a controlled local fixture, not a product br
 
 **Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
 
-PR #71 extends the pinned-Chrome fixture lane by reading WebDriver's browser-computed role and accessible name for the controlled input and submit button before sending input or clicking. The exact expected values are `textbox` / `Task text` and `button` / `Submit task`; the repeatability gate requires both semantic checks in every successful trial.
+PR #71 extends the pinned-Chrome fixture lane by reading WebDriver's browser-computed role and accessible name for the controlled input and submit button before sending input or clicking. The exact expected values are `textbox` / `Task text` and `button` / `Submit task`; the repeatability gate requires both semantic checks in every successful trial, and the cleanup regression double supplies both success surfaces so teardown failures cannot mask incomplete evidence.
 
 This is bounded browser-computed evidence for a synthetic test target, not the OriginWeave semantic observation adapter. CSS locators remain test-harness selectors, and the lane does not create OriginWeave node handles, source-channel provenance, policy authority, or permission to execute page-advertised actions.
 
@@ -75,7 +75,7 @@ This is bounded browser-computed evidence for a synthetic test target, not the O
 
 **Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
 
-PR #72 records browser-process RSS, semantic-observation bytes, action latency, and total task duration while the pinned-Chrome fixture runs. The measurements are bounded, positive observations from the trusted ChromeDriver process identifier and the controlled semantic payload; they make the real fixture's resource and timing evidence inspectable without introducing a new telemetry subsystem.
+PR #72 records browser-process RSS, semantic-observation bytes, action latency, and total task duration while the pinned-Chrome fixture runs. The measurements are bounded, positive observations from the trusted ChromeDriver process identifier and the controlled semantic payload; its shutdown regression double supplies every required semantic and resource surface before cleanup failures are exercised, so incomplete evidence cannot pass incidentally. This makes the real fixture's resource and timing evidence inspectable without introducing a new telemetry subsystem.
 
 This is resource evidence for the active test harness, not process-set attribution or a product resource adapter. It does not discover Chromium children, prove task ownership or ancestry, walk cgroups, sample GPU/VRAM, or export durable product telemetry.
 
@@ -83,7 +83,7 @@ This is resource evidence for the active test harness, not process-set attributi
 
 **Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
 
-PR #73 derives a bounded Chromium process count and process-set RSS from one Linux `/proc` snapshot, binding each sampled status file to its directory PID and rejecting proc-entry symlinks. It also contains the local fixture server within its configured root and records only a bounded failure type when a trial fails.
+PR #73 derives a bounded Chromium process count and process-set RSS from one Linux `/proc` snapshot, binding each sampled status file to its directory PID and rejecting proc-entry symlinks. Its cleanup regression double supplies the Chromium count and aggregate RSS surfaces before shutdown failure is exercised, so incomplete process evidence cannot pass incidentally. It also contains the local fixture server within its configured root and records only a bounded failure type when a trial fails.
 
 This remains test-harness evidence, not trusted production process attribution or a product resource adapter. It does not prove cgroup/task ownership, GPU/VRAM accounting, durable telemetry, or the shipped browser runtime's process authority.
 
@@ -149,4 +149,4 @@ This dossier does **not** close issue #28. Material remaining work includes:
 
 ## 7. Documentation fitness consequence
 
-The ADR/PRD/TRD/Architecture/UML/ERD graph remains **DESIGN-SUFFICIENT / PROTECTED-MAIN-PARTIAL**. PR #64 narrows a typed evidence gap, PR #65 supplies the controlled fixture, and PR #70/#71 supply real WebDriver and browser-computed semantic evidence for that fixture. Neither introduces a new trust domain, deployed component, persistence owner, database schema, or independent architecture decision, so a new ADR or physical ERD entity would overstate the implementation. Detailed real-Chromium dispatch/post-condition sequence diagrams should be reconciled when the executable adapter chain stabilizes rather than manufacturing as-built detail before that runtime exists.
+The ADR/PRD/TRD/Architecture/UML/ERD graph remains **DESIGN-SUFFICIENT / PROTECTED-MAIN-PARTIAL**. PR #64 narrows a typed evidence gap, PR #65 supplies the controlled fixture, and PR #70/#71 supply real WebDriver and browser-computed semantic evidence for that fixture. None of these introduces a new trust domain, deployed component, persistence owner, database schema, or independent architecture decision, so a new ADR or physical ERD entity would overstate the implementation. Detailed real-Chromium dispatch/post-condition sequence diagrams should be reconciled when the executable adapter chain stabilizes rather than manufacturing as-built detail before that runtime exists.

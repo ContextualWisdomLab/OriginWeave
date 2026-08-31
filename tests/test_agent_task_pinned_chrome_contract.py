@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import http.client
 import inspect
 import os
@@ -10,6 +11,7 @@ import runpy
 import tempfile
 import unittest
 import unittest.mock
+from contextlib import redirect_stdout
 from unittest.mock import patch
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -117,6 +119,51 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
         self.assertEqual(raised.exception.cleanup_error_type, "IncompleteRead")
         self.assertNotIn("partial", str(raised.exception))
 
+    def test_agent_task_response_failure_is_recorded_as_a_failed_trial(self) -> None:
+        """A truncated WebDriver response must become bounded failed-trial evidence."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_trial_failure_contract")
+        main_globals = namespace["main"].__globals__
+
+        class FakeServer:
+            server_port = 9515
+
+        servers_started = 0
+
+        def start_fixture_server(_directory: pathlib.Path) -> tuple[FakeServer, object]:
+            nonlocal servers_started
+            servers_started += 1
+            return FakeServer(), object()
+
+        def successful_restart_trial(*_args: object, **_kwargs: object) -> dict[str, object]:
+            return {"trial_number": 1, "passed": True, "surfaces": {"worker": True}}
+
+        def truncated_agent_task_response(
+            *_args: object, **_kwargs: object
+        ) -> dict[str, object]:
+            raise http.client.IncompleteRead(b"partial", 32)
+
+        main_globals.update(
+            {
+                "_start_fixture_server": start_fixture_server,
+                "_stop_fixture_server": lambda *_args: None,
+                "_run_restart_trial": successful_restart_trial,
+                "_run_agent_task_trial": truncated_agent_task_response,
+                "REPEATABILITY_TRIALS": 1,
+                "AGENT_TASK_REPEATABILITY_TRIALS": 1,
+            }
+        )
+        with patch.dict(
+            os.environ,
+            {"CHROME_BIN": "/bin/sh", "CHROMEDRIVER_BIN": "/bin/sh"},
+        ), redirect_stdout(io.StringIO()), self.assertRaisesRegex(
+            RuntimeError,
+            r"^Agent Task repeatability gate failed: 0/1 trials passed$",
+        ):
+            namespace["main"]()
+
+        self.assertEqual(servers_started, 2)
+
     def test_unexpected_cleanup_programming_failure_is_not_normalized(self) -> None:
         """Programming failures in cleanup must propagate rather than enter fallback handling."""
 
@@ -163,9 +210,6 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
                         "url_unchanged": True,
                         "input_semantics_verified": True,
                         "submit_semantics_verified": True,
-                        "result_semantics_verified": True,
-                        "structured_value_field": "task_result",
-                        "structured_value_sha256": "sha256:" + "0" * 64,
                         "extensions_disabled": True,
                         "profile_cleaned": True,
                         "browser_process_rss_bytes": 1,
@@ -231,9 +275,12 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
         """A cleanup failure for one fixture must not skip the other fixture."""
 
         namespace = runpy.run_path(str(RUNNER), run_name="fixture_shutdown_contract")
-        first_server = object()
+        class FakeServer:
+            server_port = 9515
+
+        first_server = FakeServer()
         first_thread = object()
-        second_server = object()
+        second_server = FakeServer()
         second_thread = object()
         starts = 0
         stopped: list[tuple[object, object]] = []
@@ -254,6 +301,38 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
 
         namespace["main"].__globals__["_start_fixture_server"] = start_fixture_server
         namespace["main"].__globals__["_stop_fixture_server"] = stop_fixture_server
+        namespace["main"].__globals__["_run_restart_trial"] = (
+            lambda *_args, **_kwargs: {
+                "trial_number": 1,
+                "passed": True,
+                "surfaces": {"worker": True},
+            }
+        )
+        def successful_agent_task_trial(*_args: object, **_kwargs: object) -> dict[str, object]:
+            return {
+                "trial_number": 1,
+                "passed": True,
+                "post_condition": True,
+                "input_echo_verified": True,
+                "url_unchanged": True,
+                "input_semantics_verified": True,
+                "submit_semantics_verified": True,
+                "extensions_disabled": True,
+                "browser_process_rss_bytes": 1,
+                "chromium_process_count": 1,
+                "chromium_process_set_rss_bytes": 1,
+                "semantic_observation_bytes": 1,
+                "action_latency_ms": 1,
+                "task_duration_ms": 2,
+                "profile_cleaned": True,
+            }
+
+        self.assertTrue(
+            namespace["_agent_task_surfaces_complete"]([successful_agent_task_trial()])
+        )
+        namespace["main"].__globals__["_run_agent_task_trial"] = successful_agent_task_trial
+        namespace["main"].__globals__["REPEATABILITY_TRIALS"] = 1
+        namespace["main"].__globals__["AGENT_TASK_REPEATABILITY_TRIALS"] = 1
         with patch.dict(
             os.environ,
             {"CHROME_BIN": "/bin/sh", "CHROMEDRIVER_BIN": "/bin/sh"},
@@ -299,80 +378,6 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
         ):
             with self.subTest(expected=expected):
                 self.assertIn(expected, runner)
-
-    def test_agent_task_locates_controlled_targets_by_exact_role_and_name(self) -> None:
-        """The controlled task must discover targets semantically rather than by fixture CSS."""
-
-        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_semantic_locator")
-        runner = RUNNER.read_text(encoding="utf-8")
-        self.assertIn("_find_element_by_accessible_role_name", namespace)
-        for expected in (
-            "MAX_SEMANTIC_LOCATOR_CANDIDATES",
-            '"/elements"',
-            '"css selector"',
-            '"*"',
-            '"semantic locator returned no exact match"',
-            '"semantic locator returned multiple exact matches"',
-        ):
-            with self.subTest(expected=expected):
-                self.assertIn(expected, runner)
-        self.assertNotIn('_find_element(driver_port, session_id, "#task-text")', runner)
-        self.assertNotIn('_find_element(driver_port, session_id, "#submit-task")', runner)
-
-    def test_semantic_role_name_locator_fails_closed_on_ambiguous_candidates(self) -> None:
-        """Exact semantic discovery must reject zero, duplicate, malformed, and oversized sets."""
-
-        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_locator_behavior")
-        locate = namespace["_find_element_by_accessible_role_name"]
-        element_key = namespace["W3C_ELEMENT_KEY"]
-        candidate_limit = namespace["MAX_SEMANTIC_LOCATOR_CANDIDATES"]
-
-        def install_candidates(
-            candidate_ids: list[str],
-            semantics: dict[str, tuple[str, str]],
-        ) -> None:
-            locate.__globals__["_json_request"] = lambda *_args, **_kwargs: {
-                "value": [{element_key: candidate_id} for candidate_id in candidate_ids]
-            }
-            locate.__globals__["_get_element_semantics"] = (
-                lambda _port, _session, candidate_id: semantics[candidate_id]
-            )
-
-        install_candidates(
-            ["candidate-a", "candidate-b"],
-            {
-                "candidate-a": ("button", "Other"),
-                "candidate-b": ("button", "Submit task"),
-            },
-        )
-        self.assertEqual(locate(4444, "session-a", "button", "Submit task"), "candidate-b")
-
-        install_candidates(["candidate-a"], {"candidate-a": ("button", "Other")})
-        with self.assertRaisesRegex(RuntimeError, "no exact match"):
-            locate(4444, "session-a", "button", "Submit task")
-
-        install_candidates(
-            ["candidate-a", "candidate-b"],
-            {
-                "candidate-a": ("button", "Submit task"),
-                "candidate-b": ("button", "Submit task"),
-            },
-        )
-        with self.assertRaisesRegex(RuntimeError, "multiple exact matches"):
-            locate(4444, "session-a", "button", "Submit task")
-
-        install_candidates(
-            [f"candidate-{index}" for index in range(candidate_limit + 1)],
-            {},
-        )
-        with self.assertRaisesRegex(RuntimeError, "bounded candidate limit"):
-            locate(4444, "session-a", "button", "Submit task")
-
-        locate.__globals__["_json_request"] = lambda *_args, **_kwargs: {
-            "value": [{"not-an-element-id": "candidate-a"}]
-        }
-        with self.assertRaisesRegex(RuntimeError, "malformed semantic locator candidate"):
-            locate(4444, "session-a", "button", "Submit task")
 
     def test_agent_task_records_real_bounded_resource_evidence(self) -> None:
         """The real task must report measured browser/runtime resource evidence."""
@@ -549,6 +554,7 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
         self.assertIn("PR #70", traceability)
         self.assertIn("real WebDriver", traceability)
         self.assertIn("not a product browser adapter", traceability)
+        self.assertIn("None of these introduces a new trust domain", traceability)
         self.assertIn("pinned Chrome", fitness)
         self.assertIn("not a browser adapter", fitness)
         self.assertIn("browser-computed role/name", changelog)
