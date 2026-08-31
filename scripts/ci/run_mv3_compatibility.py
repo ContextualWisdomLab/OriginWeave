@@ -321,19 +321,6 @@ def _parse_linux_proc_status_rss_bytes(status_text: str) -> int:
     return rss_values[0]
 
 
-def _sample_linux_process_rss_bytes(process_id: int) -> int:
-    """Read one attributed Linux process RSS through a bounded ``/proc`` status file."""
-
-    if isinstance(process_id, bool) or not isinstance(process_id, int) or process_id <= 0:
-        raise ValueError("invalid Linux process identifier")
-    status_path = pathlib.Path("/proc") / str(process_id) / "status"
-    with status_path.open("r", encoding="utf-8", errors="strict") as status_file:
-        status_text = status_file.read(MAX_PROC_STATUS_CHARACTERS + 1)
-    if len(status_text) > MAX_PROC_STATUS_CHARACTERS:
-        raise RuntimeError("Linux proc status exceeded the bounded text limit")
-    return _parse_linux_proc_status_rss_bytes(status_text)
-
-
 def _parse_linux_proc_status_optional_rss_bytes(status_text: str) -> int | None:
     """Parse optional Linux ``VmRSS`` without normalizing malformed evidence."""
 
@@ -1206,7 +1193,13 @@ def main() -> int:
                         trial_number,
                     )
                 )
-            except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+            except (
+                OSError,
+                ValueError,
+                RuntimeError,
+                http.client.HTTPException,
+                json.JSONDecodeError,
+            ) as exc:
                 trial_results.append(
                     {
                         "trial_number": trial_number,
@@ -1249,7 +1242,13 @@ def main() -> int:
                         trial_number,
                     )
                 )
-            except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+            except (
+                OSError,
+                ValueError,
+                RuntimeError,
+                http.client.HTTPException,
+                json.JSONDecodeError,
+            ) as exc:
                 agent_task_trials.append(
                     {
                         "trial_number": trial_number,
