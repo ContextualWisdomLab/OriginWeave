@@ -7,7 +7,7 @@ use originweave_core::{
     BrowserRegistryError, BrowserSessionId, BrowsingContextId, NodeHandleError, ObservedNodeHandle,
     Origin, OriginWeaveProtocolVersion, ValidatedBrowserProtocolUse,
     WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesCommand,
-    WebDriverBiDiPointerClickCommand, WebDriverBiDiPointerClickCommandError,
+    WebDriverBiDiPointerClickAuthorityError, WebDriverBiDiPointerClickCommand,
     WebDriverBiDiRemoteNodeReference,
 };
 
@@ -112,9 +112,7 @@ fn pointer_click_rejects_a_caller_selected_unadmitted_shared_id() -> Result<(), 
             &forged,
             &fixture.registry,
         ),
-        Err(WebDriverBiDiPointerClickCommandError::BrowserAuthority(
-            BrowserRegistryError::NodeExternalIdentifierMismatch,
-        ))
+        Err(WebDriverBiDiPointerClickAuthorityError::NodeExternalIdentifierMismatch)
     );
     Ok(())
 }
@@ -132,7 +130,7 @@ fn pointer_click_rejects_the_right_node_under_the_wrong_external_context()
             &fixture.remote,
             &fixture.registry,
         ),
-        Err(WebDriverBiDiPointerClickCommandError::BrowserAuthority(
+        Err(WebDriverBiDiPointerClickAuthorityError::BrowserAuthority(
             BrowserRegistryError::ContextExternalIdentifierMismatch,
         ))
     );
@@ -140,11 +138,13 @@ fn pointer_click_rejects_the_right_node_under_the_wrong_external_context()
 }
 
 #[test]
-fn pointer_click_rejects_a_pre_navigation_node_after_document_advance()
--> Result<(), Box<dyn Error>> {
+fn pointer_click_rejects_a_pre_navigation_node_after_document_advance() -> Result<(), Box<dyn Error>>
+{
     let mut fixture = admitted_node()?;
     let observed = fixture.handle.document_epoch();
-    let current = fixture.registry.advance_document(fixture.browsing_context)?;
+    let current = fixture
+        .registry
+        .advance_document(fixture.browsing_context)?;
 
     assert_eq!(
         WebDriverBiDiPointerClickCommand::new_for_current_node(
@@ -154,7 +154,7 @@ fn pointer_click_rejects_a_pre_navigation_node_after_document_advance()
             &fixture.remote,
             &fixture.registry,
         ),
-        Err(WebDriverBiDiPointerClickCommandError::NodeHandle(
+        Err(WebDriverBiDiPointerClickAuthorityError::NodeHandle(
             NodeHandleError::StaleDocumentEpoch { observed, current },
         ))
     );
@@ -181,9 +181,7 @@ fn pointer_click_rejects_a_fabricated_current_epoch_handle_without_registry_node
             &fixture.remote,
             &fixture.registry,
         ),
-        Err(WebDriverBiDiPointerClickCommandError::BrowserAuthority(
-            BrowserRegistryError::NodeExternalIdentifierMismatch,
-        ))
+        Err(WebDriverBiDiPointerClickAuthorityError::NodeExternalIdentifierMismatch)
     );
     Ok(())
 }
