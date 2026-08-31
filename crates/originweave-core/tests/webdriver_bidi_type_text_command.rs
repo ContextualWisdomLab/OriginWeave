@@ -317,3 +317,23 @@ fn type_text_error_contracts_expose_only_typed_sources() {
         assert!(!authority.to_string().is_empty());
     }
 }
+
+#[test]
+fn type_text_command_debug_redacts_typed_text_and_wire_payload() -> Result<(), Box<dyn Error>> {
+    let fixture = admitted_text_field("context-a", "shared-input-42")?;
+    let command = WebDriverBiDiTypeTextCommand::new_for_current_node(
+        42,
+        &fixture.external_context,
+        "buyer-private-marker",
+        &fixture.handle,
+        &fixture.remote,
+        &fixture.registry,
+    )?;
+
+    let debug = format!("{command:?}");
+    assert!(!debug.contains("buyer-private-marker"));
+    assert!(!debug.contains("originweave-keyboard"));
+    assert!(debug.contains("command_id: 42"));
+    assert!(debug.contains("text_bytes: 20"));
+    Ok(())
+}
