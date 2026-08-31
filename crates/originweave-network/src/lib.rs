@@ -117,8 +117,7 @@ pub use webdriver_bidi_pointer_click_response::{
     WebDriverBiDiPointerClickResponseError, WebDriverBiDiPointerClickResult,
 };
 pub use webdriver_bidi_pointer_click_transport::{
-    WebDriverBiDiPointerClickSendError, WebDriverBiDiPointerClickSendRequest,
-    send_webdriver_bidi_pointer_click,
+    WebDriverBiDiPointerClickSendError, send_webdriver_bidi_pointer_click,
 };
 pub use webdriver_bidi_session_end_command::{
     WebDriverBiDiSessionEndCommand, WebDriverBiDiSessionEndCommandError,
