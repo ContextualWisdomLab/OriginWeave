@@ -172,7 +172,10 @@ fn pointer_click_rejects_an_admitted_node_from_another_registry_even_when_public
     assert_eq!(fixture.browser_session, foreign.handle.browser_session());
     assert_eq!(fixture.browsing_context, foreign.handle.browsing_context());
     assert_eq!(fixture.handle.origin(), foreign.handle.origin());
-    assert_eq!(fixture.handle.document_epoch(), foreign.handle.document_epoch());
+    assert_eq!(
+        fixture.handle.document_epoch(),
+        foreign.handle.document_epoch()
+    );
     assert_eq!(fixture.handle.node_id(), foreign.handle.node_id());
     assert_eq!(fixture.remote.shared_id(), foreign.remote.shared_id());
 
