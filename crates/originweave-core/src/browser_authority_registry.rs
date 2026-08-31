@@ -67,10 +67,9 @@ impl BrowserAuthorityRegistry {
     ) -> Result<(), BrowserRegistryError> {
         self.inner.remove_context(browsing_context)?;
         let browsing_context_value = browsing_context.value();
-        self.admitted_node_external_identifiers
-            .retain(|(_session, context, _epoch, _node), _external| {
-                *context != browsing_context_value
-            });
+        self.admitted_node_external_identifiers.retain(
+            |(_session, context, _epoch, _node), _external| *context != browsing_context_value,
+        );
         Ok(())
     }
 
@@ -81,10 +80,9 @@ impl BrowserAuthorityRegistry {
     ) -> Result<(), BrowserRegistryError> {
         self.inner.remove_session(browser_session)?;
         let browser_session_value = browser_session.value();
-        self.admitted_node_external_identifiers
-            .retain(|(session, _context, _epoch, _node), _external| {
-                *session != browser_session_value
-            });
+        self.admitted_node_external_identifiers.retain(
+            |(session, _context, _epoch, _node), _external| *session != browser_session_value,
+        );
         Ok(())
     }
 
@@ -149,10 +147,9 @@ impl BrowserAuthorityRegistry {
     ) -> Result<DocumentEpoch, BrowserRegistryError> {
         let next_epoch = self.inner.advance_document(browsing_context)?;
         let browsing_context_value = browsing_context.value();
-        self.admitted_node_external_identifiers
-            .retain(|(_session, context, _epoch, _node), _external| {
-                *context != browsing_context_value
-            });
+        self.admitted_node_external_identifiers.retain(
+            |(_session, context, _epoch, _node), _external| *context != browsing_context_value,
+        );
         Ok(next_epoch)
     }
 
@@ -179,8 +176,10 @@ impl BrowserAuthorityRegistry {
             external_identifiers,
         )?;
         for (handle, external_identifier) in handles.iter().zip(external_identifiers) {
-            self.admitted_node_external_identifiers
-                .insert(node_authority_key(handle), (*external_identifier).to_owned());
+            self.admitted_node_external_identifiers.insert(
+                node_authority_key(handle),
+                (*external_identifier).to_owned(),
+            );
         }
         Ok(handles)
     }
