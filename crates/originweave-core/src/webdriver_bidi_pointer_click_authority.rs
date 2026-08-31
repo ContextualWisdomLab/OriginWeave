@@ -82,7 +82,11 @@ impl WebDriverBiDiPointerClickCommand {
             .map_err(WebDriverBiDiPointerClickAuthorityError::BrowserAuthority)?;
 
         let current_epoch = registry
-            .current_context_epoch(handle.browser_session(), handle.browsing_context())
+            .require_context_origin(
+                handle.browser_session(),
+                handle.browsing_context(),
+                handle.origin(),
+            )
             .map_err(WebDriverBiDiPointerClickAuthorityError::BrowserAuthority)?;
         handle
             .validate_current(
@@ -92,14 +96,6 @@ impl WebDriverBiDiPointerClickCommand {
                 current_epoch,
             )
             .map_err(WebDriverBiDiPointerClickAuthorityError::NodeHandle)?;
-
-        registry
-            .require_context_origin(
-                handle.browser_session(),
-                handle.browsing_context(),
-                handle.origin(),
-            )
-            .map_err(WebDriverBiDiPointerClickAuthorityError::BrowserAuthority)?;
 
         if !registry.node_external_identifier_matches(handle, node.shared_id()) {
             return Err(WebDriverBiDiPointerClickAuthorityError::NodeExternalIdentifierMismatch);
