@@ -6,7 +6,9 @@ use std::{
     time::Duration,
 };
 
-use originweave_core::{BrowserAuthorityRegistry, BrowserRegistryError, Origin, WebDriverBiDiWebSocketEndpoint};
+use originweave_core::{
+    BrowserAuthorityRegistry, BrowserRegistryError, Origin, WebDriverBiDiWebSocketEndpoint,
+};
 use originweave_network::{
     WebDriverBiDiNavigationCommittedDocumentAdvanceError,
     WebDriverBiDiNavigationCommittedObservation, WebDriverBiDiTcpConnectionPlan,
@@ -114,7 +116,10 @@ fn accepted_navigation_advances_only_the_exact_pre_action_document_epoch()
     assert_eq!(advance.browser_session(), session);
     assert_eq!(advance.browsing_context(), context);
     assert_eq!(advance.previous_epoch(), before);
-    assert_eq!(advance.current_epoch(), registry.current_context_epoch(session, context)?);
+    assert_eq!(
+        advance.current_epoch(),
+        registry.current_context_epoch(session, context)?
+    );
     assert_ne!(advance.current_epoch(), before);
     assert_eq!(
         registry.require_context_origin(session, context, &previous_origin),
