@@ -217,11 +217,12 @@ mod tests {
             registry_error.to_string(),
             "WebDriver BiDi navigation document advance cannot transition registered authority"
         );
-        assert!(matches!(
-            registry_error.source(),
-            Some(source) if source.downcast_ref::<BrowserRegistryError>()
-                == Some(&BrowserRegistryError::DocumentEpochExhausted)
-        ));
+        assert_eq!(
+            registry_error
+                .source()
+                .and_then(|source| source.downcast_ref::<BrowserRegistryError>()),
+            Some(&BrowserRegistryError::DocumentEpochExhausted)
+        );
 
         let stale = WebDriverBiDiNavigationCommittedDocumentAdvanceError::UnexpectedDocumentEpoch;
         assert_eq!(
