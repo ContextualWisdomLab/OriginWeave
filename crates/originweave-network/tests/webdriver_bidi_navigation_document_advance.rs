@@ -173,9 +173,10 @@ fn retired_context_between_observation_and_advance_fails_closed_with_typed_sourc
     )?;
 
     registry.remove_context(context)?;
-    let error = advance_webdriver_bidi_navigation_document_epoch(observation, &mut registry, before)
-        .err()
-        .ok_or_else(|| io::Error::other("retired context unexpectedly advanced"))?;
+    let error =
+        advance_webdriver_bidi_navigation_document_epoch(observation, &mut registry, before)
+            .err()
+            .ok_or_else(|| io::Error::other("retired context unexpectedly advanced"))?;
     assert!(matches!(
         error,
         WebDriverBiDiNavigationCommittedDocumentAdvanceError::RegistryState { .. }
