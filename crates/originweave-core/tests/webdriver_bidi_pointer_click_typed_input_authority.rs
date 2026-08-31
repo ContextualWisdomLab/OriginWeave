@@ -32,7 +32,10 @@ fn protocol_proof(
         ADAPTER_VERSION,
         PROTOCOL_REVISION,
         BROWSER_REVISION,
-        &[BrowserProtocolCapability::SemanticObservation, BrowserProtocolCapability::TypedInput],
+        &[
+            BrowserProtocolCapability::SemanticObservation,
+            BrowserProtocolCapability::TypedInput,
+        ],
     )?;
     Ok(descriptor.validate_use(
         ORIGINWEAVE_PROTOCOL_VERSION,
