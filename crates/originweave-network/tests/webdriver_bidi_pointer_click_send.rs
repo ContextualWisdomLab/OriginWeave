@@ -163,7 +163,10 @@ fn pointer_click_command_writes_exact_masked_bidi_frame_and_stays_outstanding()
 -> Result<(), Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
-    let expected_json = admitted_pointer_click_command(42)?.as_json().as_bytes().to_vec();
+    let expected_json = admitted_pointer_click_command(42)?
+        .as_json()
+        .as_bytes()
+        .to_vec();
 
     let server = thread::spawn(move || -> io::Result<()> {
         let (mut stream, _) = listener.accept()?;
