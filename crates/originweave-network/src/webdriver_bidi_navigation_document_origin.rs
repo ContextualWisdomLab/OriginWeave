@@ -6,7 +6,6 @@ use originweave_core::{
 };
 
 use crate::{
-    WebDriverBiDiNavigationCommittedDocumentAdvance,
     WebDriverBiDiNavigationCommittedDocumentAdvanceError,
     WebDriverBiDiNavigationCommittedObservation, advance_webdriver_bidi_navigation_document_epoch,
 };
@@ -113,15 +112,12 @@ fn origin_from_serialized_navigation_url(serialized_url: &str) -> Option<Origin>
 
 fn bind_advanced_document_origin(
     registry: &mut BrowserAuthorityRegistry,
-    advance: &WebDriverBiDiNavigationCommittedDocumentAdvance,
+    browser_session: BrowserSessionId,
+    browsing_context: BrowsingContextId,
     origin: &Origin,
 ) -> Result<DocumentEpoch, WebDriverBiDiNavigationCommittedDocumentOriginError> {
     registry
-        .bind_context_origin(
-            advance.browser_session(),
-            advance.browsing_context(),
-            origin,
-        )
+        .bind_context_origin(browser_session, browsing_context, origin)
         .map_err(
             |source| WebDriverBiDiNavigationCommittedDocumentOriginError::RegistryState { source },
         )
@@ -156,14 +152,18 @@ pub fn advance_and_bind_webdriver_bidi_navigation_document_origin(
     .map_err(|source| WebDriverBiDiNavigationCommittedDocumentOriginError::DocumentAdvance {
         source,
     })?;
-    bind_advanced_document_origin(registry, &advance, &origin).map(|current_epoch| {
-        WebDriverBiDiNavigationCommittedDocumentOrigin {
-            browser_session: advance.browser_session(),
-            browsing_context: advance.browsing_context(),
-            previous_epoch: advance.previous_epoch(),
-            current_epoch,
-            origin,
-        }
+    bind_advanced_document_origin(
+        registry,
+        advance.browser_session(),
+        advance.browsing_context(),
+        &origin,
+    )
+    .map(|current_epoch| WebDriverBiDiNavigationCommittedDocumentOrigin {
+        browser_session: advance.browser_session(),
+        browsing_context: advance.browsing_context(),
+        previous_epoch: advance.previous_epoch(),
+        current_epoch,
+        origin,
     })
 }
 
@@ -184,7 +184,10 @@ mod tests {
         let canonical = origin_from_serialized_navigation_url(
             "HTTPS://EXAMPLE.TEST:443/path?query=value#fragment",
         );
-        assert_eq!(canonical.as_ref().map(Origin::as_str), Some("https://example.test"));
+        assert_eq!(
+            canonical.as_ref().map(Origin::as_str),
+            Some("https://example.test")
+        );
         assert!(origin_from_serialized_navigation_url("https://user@example.test/path").is_none());
         assert!(origin_from_serialized_navigation_url("data:text/plain,originweave").is_none());
         assert!(origin_from_serialized_navigation_url("http://example.test/path").is_none());
@@ -203,15 +206,14 @@ mod tests {
         let contexts = browsing_contexts(1);
         assert_eq!(sessions.len(), 1);
         assert_eq!(contexts.len(), 1);
-        let advance = WebDriverBiDiNavigationCommittedDocumentAdvance {
-            browser_session: sessions[0],
-            browsing_context: contexts[0],
-            previous_epoch: DocumentEpoch::new(1).expect("one is a valid document epoch"),
-            current_epoch: DocumentEpoch::new(2).expect("two is a valid document epoch"),
-        };
         let origin = Origin::parse("https://example.test").expect("fixture origin is valid");
-        let error = bind_advanced_document_origin(&mut registry, &advance, &origin)
-            .expect_err("unknown registry session must fail closed");
+        let error = bind_advanced_document_origin(
+            &mut registry,
+            sessions[0],
+            contexts[0],
+            &origin,
+        )
+        .expect_err("unknown registry session must fail closed");
         assert_eq!(
             error.to_string(),
             "WebDriver BiDi committed navigation origin cannot bind registered document authority"
