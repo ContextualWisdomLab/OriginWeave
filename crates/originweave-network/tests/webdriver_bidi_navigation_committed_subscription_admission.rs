@@ -290,7 +290,9 @@ fn committed_navigation_requires_the_exact_active_subscription_before_document_m
     let stale_error = admission
         .admit(&event, &registry, EXPECTED_URL)
         .err()
-        .ok_or_else(|| io::Error::other("retired context unexpectedly admitted navigation event"))?;
+        .ok_or_else(|| {
+            io::Error::other("retired context unexpectedly admitted navigation event")
+        })?;
     assert!(stale_error.source().is_some());
 
     let unsubscribe = admission.into_unsubscribe(8)?;
