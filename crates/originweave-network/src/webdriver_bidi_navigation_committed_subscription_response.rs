@@ -154,10 +154,12 @@ impl fmt::Display for WebDriverBiDiNavigationCommittedSubscriptionResponseError 
             Self::SubscriptionTooLarge { .. } => formatter.write_str(
                 "WebDriver BiDi session.subscribe result subscription exceeds the size bound",
             ),
-            Self::InvalidResultProjection => formatter
-                .write_str("WebDriver BiDi session.subscribe result projection is invalid"),
-            Self::Correlation { .. } => formatter
-                .write_str("WebDriver BiDi session.subscribe response correlation failed"),
+            Self::InvalidResultProjection => {
+                formatter.write_str("WebDriver BiDi session.subscribe result projection is invalid")
+            }
+            Self::Correlation { .. } => {
+                formatter.write_str("WebDriver BiDi session.subscribe response correlation failed")
+            }
             Self::RemoteProtocolError { .. } => {
                 formatter.write_str("WebDriver BiDi session.subscribe returned a protocol error")
             }
@@ -593,7 +595,10 @@ mod tests {
             r#"{"result":{"subscription":"\q"}}"#,
         ];
         for document in malformed {
-            assert!(SubscriptionProjection::parse(document).is_err(), "{document}");
+            assert!(
+                SubscriptionProjection::parse(document).is_err(),
+                "{document}"
+            );
         }
     }
 
@@ -691,10 +696,9 @@ mod tests {
         );
         assert!(envelope.source().is_some());
 
-        let correlation =
-            WebDriverBiDiNavigationCommittedSubscriptionResponseError::Correlation {
-                source: WebDriverBiDiCommandCorrelationError::CommandNotOutstanding,
-            };
+        let correlation = WebDriverBiDiNavigationCommittedSubscriptionResponseError::Correlation {
+            source: WebDriverBiDiCommandCorrelationError::CommandNotOutstanding,
+        };
         assert_eq!(
             correlation.to_string(),
             "WebDriver BiDi session.subscribe response correlation failed"
