@@ -128,12 +128,12 @@ pub fn advance_webdriver_bidi_navigation_document_epoch(
             previous_epoch: expected_previous_epoch,
             current_epoch,
         }),
-        Ok(None) => Err(
-            WebDriverBiDiNavigationCommittedDocumentAdvanceError::UnexpectedDocumentEpoch,
-        ),
-        Err(source) => Err(WebDriverBiDiNavigationCommittedDocumentAdvanceError::RegistryState {
-            source,
-        }),
+        Ok(None) => {
+            Err(WebDriverBiDiNavigationCommittedDocumentAdvanceError::UnexpectedDocumentEpoch)
+        }
+        Err(source) => {
+            Err(WebDriverBiDiNavigationCommittedDocumentAdvanceError::RegistryState { source })
+        }
     }
 }
 
@@ -210,10 +210,9 @@ mod tests {
 
     #[test]
     fn public_diagnostics_preserve_registry_sources() {
-        let registry_error =
-            WebDriverBiDiNavigationCommittedDocumentAdvanceError::RegistryState {
-                source: BrowserRegistryError::DocumentEpochExhausted,
-            };
+        let registry_error = WebDriverBiDiNavigationCommittedDocumentAdvanceError::RegistryState {
+            source: BrowserRegistryError::DocumentEpochExhausted,
+        };
         assert_eq!(
             registry_error.to_string(),
             "WebDriver BiDi navigation document advance cannot transition registered authority"
