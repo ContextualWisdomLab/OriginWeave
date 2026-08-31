@@ -19,6 +19,18 @@
 //! let _handle = registry.bind_node(session, context, &origin, "backend-node-17")?;
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
+//!
+//! Raw pointer-command serialization is likewise not a public escape hatch. External callers must
+//! bind the exact admitted node and current browser authority through the reviewed current-node
+//! constructor instead of selecting an arbitrary WebDriver BiDi `sharedId`:
+//!
+//! ```compile_fail
+//! use originweave_core::{WebDriverBiDiPointerClickCommand, WebDriverBiDiRemoteNodeReference};
+//!
+//! if let Ok(node) = WebDriverBiDiRemoteNodeReference::new("node", Some("caller-selected-node")) {
+//!     let _command = WebDriverBiDiPointerClickCommand::new(1, "context-a", &node);
+//! }
+//! ```
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
