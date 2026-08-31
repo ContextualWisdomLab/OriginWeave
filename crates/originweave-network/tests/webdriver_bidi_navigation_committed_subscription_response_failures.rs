@@ -9,8 +9,7 @@ use std::{
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
-    WebDriverBiDiJsonEnvelopeError,
-    WebDriverBiDiNavigationCommittedSubscriptionResponseError,
+    WebDriverBiDiJsonEnvelopeError, WebDriverBiDiNavigationCommittedSubscriptionResponseError,
     WebDriverBiDiNavigationCommittedSubscriptionResult, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
     WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
@@ -21,13 +20,15 @@ const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
 const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
 const OPENING_RESPONSE: &[u8] = b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n";
 const MALFORMED_SUCCESS_RESPONSE: &[u8] = br#"{"type":"success","id":7,"result":"#;
-const MISSING_SUBSCRIPTION_RESPONSE: &[u8] =
-    br#"{"type":"success","id":7,"result":{"extra":1}}"#;
+const MISSING_SUBSCRIPTION_RESPONSE: &[u8] = br#"{"type":"success","id":7,"result":{"extra":1}}"#;
 const UNKNOWN_SUCCESS_RESPONSE: &[u8] =
     br#"{"type":"success","id":8,"result":{"subscription":"subscription-b"}}"#;
-const MATCHED_ERROR_RESPONSE: &[u8] = br#"{"type":"error","id":7,"error":"invalid argument","message":"denied"}"#;
-const UNKNOWN_ERROR_RESPONSE: &[u8] = br#"{"type":"error","id":8,"error":"invalid argument","message":"denied"}"#;
-const NAVIGATION_EVENT: &[u8] = br#"{"type":"event","method":"browsingContext.navigationCommitted","params":{}}"#;
+const MATCHED_ERROR_RESPONSE: &[u8] =
+    br#"{"type":"error","id":7,"error":"invalid argument","message":"denied"}"#;
+const UNKNOWN_ERROR_RESPONSE: &[u8] =
+    br#"{"type":"error","id":8,"error":"invalid argument","message":"denied"}"#;
+const NAVIGATION_EVENT: &[u8] =
+    br#"{"type":"event","method":"browsingContext.navigationCommitted","params":{}}"#;
 
 fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
@@ -118,9 +119,11 @@ fn malformed_and_invalid_success_responses_preserve_outstanding_correlation()
             &malformed,
             &mut correlation,
         ),
-        Err(WebDriverBiDiNavigationCommittedSubscriptionResponseError::Envelope {
-            source: WebDriverBiDiJsonEnvelopeError::InvalidJson,
-        })
+        Err(
+            WebDriverBiDiNavigationCommittedSubscriptionResponseError::Envelope {
+                source: WebDriverBiDiJsonEnvelopeError::InvalidJson,
+            }
+        )
     );
     assert_eq!(correlation.outstanding_count(), 1);
 
@@ -140,9 +143,11 @@ fn malformed_and_invalid_success_responses_preserve_outstanding_correlation()
             &unknown,
             &mut correlation,
         ),
-        Err(WebDriverBiDiNavigationCommittedSubscriptionResponseError::Correlation {
-            source: WebDriverBiDiCommandCorrelationError::CommandNotOutstanding,
-        })
+        Err(
+            WebDriverBiDiNavigationCommittedSubscriptionResponseError::Correlation {
+                source: WebDriverBiDiCommandCorrelationError::CommandNotOutstanding,
+            }
+        )
     );
     assert_eq!(correlation.outstanding_count(), 1);
     Ok(())
@@ -159,9 +164,11 @@ fn protocol_error_consumes_only_its_exact_outstanding_command() -> Result<(), Bo
             &unknown,
             &mut correlation,
         ),
-        Err(WebDriverBiDiNavigationCommittedSubscriptionResponseError::Correlation {
-            source: WebDriverBiDiCommandCorrelationError::CommandNotOutstanding,
-        })
+        Err(
+            WebDriverBiDiNavigationCommittedSubscriptionResponseError::Correlation {
+                source: WebDriverBiDiCommandCorrelationError::CommandNotOutstanding,
+            }
+        )
     );
     assert_eq!(correlation.outstanding_count(), 1);
 
@@ -183,7 +190,8 @@ fn protocol_error_consumes_only_its_exact_outstanding_command() -> Result<(), Bo
 }
 
 #[test]
-fn event_response_is_rejected_without_consuming_outstanding_command() -> Result<(), Box<dyn Error>> {
+fn event_response_is_rejected_without_consuming_outstanding_command() -> Result<(), Box<dyn Error>>
+{
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     correlation.register_command(7)?;
     let event = read_text_over_loopback(NAVIGATION_EVENT)?;
@@ -193,9 +201,11 @@ fn event_response_is_rejected_without_consuming_outstanding_command() -> Result<
             &event,
             &mut correlation,
         ),
-        Err(WebDriverBiDiNavigationCommittedSubscriptionResponseError::Correlation {
-            source: WebDriverBiDiCommandCorrelationError::EventIsNotResponse,
-        })
+        Err(
+            WebDriverBiDiNavigationCommittedSubscriptionResponseError::Correlation {
+                source: WebDriverBiDiCommandCorrelationError::EventIsNotResponse,
+            }
+        )
     );
     assert_eq!(correlation.outstanding_count(), 1);
     Ok(())
