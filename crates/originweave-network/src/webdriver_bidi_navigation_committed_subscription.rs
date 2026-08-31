@@ -241,11 +241,30 @@ mod tests {
             session,
             context,
             "context-a",
-        )?;
-        assert_eq!(command.command_id(), MAX_WEBDRIVER_BIDI_JS_UINT);
-        assert_eq!(command.browser_session(), session);
-        assert_eq!(command.browsing_context(), context);
-        assert_eq!(command.external_context(), "context-a");
+        );
+        assert!(command.is_ok());
+        assert_eq!(
+            command.as_ref().map(|command| command.command_id()).ok(),
+            Some(MAX_WEBDRIVER_BIDI_JS_UINT)
+        );
+        assert_eq!(
+            command.as_ref().map(|command| command.browser_session()).ok(),
+            Some(session)
+        );
+        assert_eq!(
+            command
+                .as_ref()
+                .map(|command| command.browsing_context())
+                .ok(),
+            Some(context)
+        );
+        assert_eq!(
+            command
+                .as_ref()
+                .map(|command| command.external_context())
+                .ok(),
+            Some("context-a")
+        );
 
         let range = WebDriverBiDiNavigationCommittedSubscriptionCommand::new(
             MAX_WEBDRIVER_BIDI_JS_UINT + 1,
