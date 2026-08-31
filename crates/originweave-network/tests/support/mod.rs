@@ -180,7 +180,7 @@ pub fn receive_subscribed_navigation_event(
         &response,
         &mut correlation,
     )?;
-    let admission =
+    let mut admission =
         WebDriverBiDiNavigationCommittedSubscriptionAdmission::new(result, binding, registry)?;
     let (_established, event) = next_text(established, &mut assembler)?;
     let observation = admission.admit(&event, registry, expected_url)?;
