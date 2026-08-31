@@ -14,6 +14,14 @@ use originweave_core::{
     zero_event_threshold::ZeroEventSafetyThreshold,
 };
 
+const SAFETY_METRICS: [ZeroEventSafetyMetric; 5] = [
+    ZeroEventSafetyMetric::UnauthorizedAction,
+    ZeroEventSafetyMetric::PromptInjectionSuccess,
+    ZeroEventSafetyMetric::StaleAuthorityAcceptance,
+    ZeroEventSafetyMetric::ProtectedValueDisclosure,
+    ZeroEventSafetyMetric::AuthorityEscalation,
+];
+
 fn passed_benchmarks() -> Vec<BenchmarkSuiteEvidence> {
     BenchmarkSuite::ALL
         .into_iter()
@@ -21,31 +29,43 @@ fn passed_benchmarks() -> Vec<BenchmarkSuiteEvidence> {
         .collect()
 }
 
-fn observation(trial_count: u64) -> Result<ZeroEventSafetyObservation, ReleaseDecisionError> {
-    Ok(ZeroEventSafetyObservation::new(
-        ZeroEventSafetyMetric::UnauthorizedAction,
-        ZeroEventSafetyEvidence::new(trial_count, 9_500)?,
-    ))
+fn observations(
+    trial_count: u64,
+) -> Result<Vec<ZeroEventSafetyObservation>, ReleaseDecisionError> {
+    SAFETY_METRICS
+        .into_iter()
+        .map(|metric| {
+            Ok(ZeroEventSafetyObservation::new(
+                metric,
+                ZeroEventSafetyEvidence::new(trial_count, 9_500)?,
+            ))
+        })
+        .collect()
 }
 
-fn requirement() -> Result<ZeroEventSafetyRequirement, Box<dyn std::error::Error>> {
-    Ok(ZeroEventSafetyRequirement::new(
-        ZeroEventSafetyMetric::UnauthorizedAction,
-        ZeroEventSafetyThreshold::new(10_000, 9_500)?,
-    ))
+fn requirements() -> Result<Vec<ZeroEventSafetyRequirement>, Box<dyn std::error::Error>> {
+    SAFETY_METRICS
+        .into_iter()
+        .map(|metric| {
+            Ok(ZeroEventSafetyRequirement::new(
+                metric,
+                ZeroEventSafetyThreshold::new(10_000, 9_500)?,
+            ))
+        })
+        .collect()
 }
 
 #[test]
 fn quantitative_safety_threshold_miss_blocks_release_acceptance()
 -> Result<(), Box<dyn std::error::Error>> {
-    let observation = observation(100)?;
-    let requirement = requirement()?;
+    let observations = observations(100)?;
+    let requirements = requirements()?;
 
     let report = decide_commercial_release_with_zero_event_safety(
         passed_benchmarks(),
         &[],
-        &[observation],
-        &[requirement],
+        &observations,
+        &requirements,
     )?;
 
     assert_eq!(
@@ -62,14 +82,14 @@ fn quantitative_safety_threshold_miss_blocks_release_acceptance()
 
 #[test]
 fn satisfied_safety_gate_preserves_full_acceptance() -> Result<(), Box<dyn std::error::Error>> {
-    let observation = observation(1_000)?;
-    let requirement = requirement()?;
+    let observations = observations(1_000)?;
+    let requirements = requirements()?;
 
     let report = decide_commercial_release_with_zero_event_safety(
         passed_benchmarks(),
         &[],
-        &[observation],
-        &[requirement],
+        &observations,
+        &requirements,
     )?;
 
     assert_eq!(report.decision(), ReleaseDecision::Accepted);
@@ -83,8 +103,8 @@ fn satisfied_safety_gate_preserves_full_acceptance() -> Result<(), Box<dyn std::
 #[test]
 fn satisfied_safety_gate_preserves_declared_limitations() -> Result<(), Box<dyn std::error::Error>>
 {
-    let observation = observation(1_000)?;
-    let requirement = requirement()?;
+    let observations = observations(1_000)?;
+    let requirements = requirements()?;
     let limitation = DeclaredLimitation::new(
         "DRM playback",
         "Excluded from the declared commercial support profile",
@@ -93,8 +113,8 @@ fn satisfied_safety_gate_preserves_declared_limitations() -> Result<(), Box<dyn 
     let report = decide_commercial_release_with_zero_event_safety(
         passed_benchmarks(),
         &[limitation],
-        &[observation],
-        &[requirement],
+        &observations,
+        &requirements,
     )?;
 
     assert_eq!(
@@ -106,8 +126,8 @@ fn satisfied_safety_gate_preserves_declared_limitations() -> Result<(), Box<dyn 
 
 #[test]
 fn known_benchmark_failure_remains_rejected() -> Result<(), Box<dyn std::error::Error>> {
-    let observation = observation(1_000)?;
-    let requirement = requirement()?;
+    let observations = observations(1_000)?;
+    let requirements = requirements()?;
     let mut evidence = passed_benchmarks();
     evidence[0] = BenchmarkSuiteEvidence::Failure {
         suite: BenchmarkSuite::ControlledDeterministic,
@@ -117,8 +137,8 @@ fn known_benchmark_failure_remains_rejected() -> Result<(), Box<dyn std::error::
     let report = decide_commercial_release_with_zero_event_safety(
         evidence,
         &[],
-        &[observation],
-        &[requirement],
+        &observations,
+        &requirements,
     )?;
 
     assert_eq!(report.decision(), ReleaseDecision::Rejected);
@@ -127,16 +147,16 @@ fn known_benchmark_failure_remains_rejected() -> Result<(), Box<dyn std::error::
 
 #[test]
 fn incomplete_benchmark_evidence_remains_inconclusive() -> Result<(), Box<dyn std::error::Error>> {
-    let observation = observation(1_000)?;
-    let requirement = requirement()?;
+    let observations = observations(1_000)?;
+    let requirements = requirements()?;
     let mut evidence = passed_benchmarks();
     evidence.truncate(4);
 
     let report = decide_commercial_release_with_zero_event_safety(
         evidence,
         &[],
-        &[observation],
-        &[requirement],
+        &observations,
+        &requirements,
     )?;
 
     assert_eq!(report.decision(), ReleaseDecision::Inconclusive);
@@ -145,8 +165,8 @@ fn incomplete_benchmark_evidence_remains_inconclusive() -> Result<(), Box<dyn st
 
 #[test]
 fn invalid_benchmark_evidence_preserves_typed_source() -> Result<(), Box<dyn std::error::Error>> {
-    let observation = observation(1_000)?;
-    let requirement = requirement()?;
+    let observations = observations(1_000)?;
+    let requirements = requirements()?;
     let duplicate = BenchmarkSuite::ControlledDeterministic;
     let duplicate_evidence = Vec::from([
         BenchmarkSuiteEvidence::Passed(duplicate),
@@ -155,8 +175,8 @@ fn invalid_benchmark_evidence_preserves_typed_source() -> Result<(), Box<dyn std
     let error = match decide_commercial_release_with_zero_event_safety(
         duplicate_evidence,
         &[],
-        &[observation],
-        &[requirement],
+        &observations,
+        &requirements,
     ) {
         Err(error) => error,
         Ok(_) => {
@@ -177,11 +197,11 @@ fn invalid_benchmark_evidence_preserves_typed_source() -> Result<(), Box<dyn std
 
 #[test]
 fn invalid_safety_policy_preserves_typed_source() -> Result<(), Box<dyn std::error::Error>> {
-    let observation = observation(1_000)?;
+    let observations = observations(1_000)?;
     let error = match decide_commercial_release_with_zero_event_safety(
         passed_benchmarks(),
         &[],
-        &[observation],
+        &observations,
         &[],
     ) {
         Err(error) => error,
@@ -206,48 +226,46 @@ fn invalid_safety_policy_preserves_typed_source() -> Result<(), Box<dyn std::err
 }
 
 #[test]
-fn partial_zero_event_requirement_policy_cannot_accept_a_commercial_release()
+fn partial_zero_event_requirement_policy_is_typed_fail_closed()
 -> Result<(), Box<dyn std::error::Error>> {
-    let metrics = [
-        ZeroEventSafetyMetric::UnauthorizedAction,
-        ZeroEventSafetyMetric::PromptInjectionSuccess,
-        ZeroEventSafetyMetric::StaleAuthorityAcceptance,
-        ZeroEventSafetyMetric::ProtectedValueDisclosure,
-        ZeroEventSafetyMetric::AuthorityEscalation,
-    ];
-    let observations = metrics
-        .iter()
-        .copied()
-        .map(|metric| {
-            Ok(ZeroEventSafetyObservation::new(
-                metric,
-                ZeroEventSafetyEvidence::new(1_000, 9_500)?,
-            ))
-        })
-        .collect::<Result<Vec<_>, ReleaseDecisionError>>()?;
-    let requirements = metrics
-        .iter()
-        .copied()
-        .filter(|metric| *metric != ZeroEventSafetyMetric::ProtectedValueDisclosure)
-        .map(|metric| {
-            Ok(ZeroEventSafetyRequirement::new(
-                metric,
-                ZeroEventSafetyThreshold::new(10_000, 9_500)?,
-            ))
-        })
-        .collect::<Result<Vec<_>, Box<dyn std::error::Error>>>()?;
+    let observations = observations(1_000)?;
+    let mut requirements = requirements()?;
+    requirements.retain(|requirement| {
+        *requirement
+            != ZeroEventSafetyRequirement::new(
+                ZeroEventSafetyMetric::ProtectedValueDisclosure,
+                ZeroEventSafetyThreshold::new(10_000, 9_500).expect("valid fixed test threshold"),
+            )
+    });
 
-    match decide_commercial_release_with_zero_event_safety(
+    let error = match decide_commercial_release_with_zero_event_safety(
         passed_benchmarks(),
         &[],
         &observations,
         &requirements,
     ) {
-        Err(_) => Ok(()),
-        Ok(report) => Err(std::io::Error::other(format!(
-            "partial zero-event safety policy produced release decision {:?}",
-            report.decision()
-        ))
-        .into()),
-    }
+        Err(error) => error,
+        Ok(report) => {
+            return Err(std::io::Error::other(format!(
+                "partial zero-event safety policy produced release decision {:?}",
+                report.decision()
+            ))
+            .into());
+        }
+    };
+
+    assert_eq!(
+        error,
+        CommercialReleaseAcceptanceError::ZeroEventSafetyGate(
+            ZeroEventSafetyGateError::MissingRequirement(
+                ZeroEventSafetyMetric::ProtectedValueDisclosure
+            )
+        )
+    );
+    assert_eq!(
+        error.to_string(),
+        "invalid zero-event safety gate: commercial release safety policy is missing mandatory requirement: protected_value_disclosure_rate"
+    );
+    assert!(error.source().is_some());
+    Ok(())
 }
