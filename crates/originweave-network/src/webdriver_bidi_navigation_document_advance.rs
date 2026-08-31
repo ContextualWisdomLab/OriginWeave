@@ -223,20 +223,18 @@ mod tests {
         assert_eq!(context.len(), 1);
         assert_eq!(epoch.len(), 1);
 
-        let error = match require_expected_document_epoch(&registry, session[0], context[0], epoch[0]) {
-            Err(error) => error,
-            Ok(()) => return,
-        };
-
+        let result = require_expected_document_epoch(&registry, session[0], context[0], epoch[0]);
         assert!(matches!(
-            error,
-            WebDriverBiDiNavigationCommittedDocumentAdvanceError::RegistryState { .. }
+            result,
+            Err(WebDriverBiDiNavigationCommittedDocumentAdvanceError::RegistryState { .. })
         ));
-        assert_eq!(
-            error.to_string(),
-            "WebDriver BiDi navigation document advance cannot revalidate registered authority"
-        );
-        assert!(error.source().is_some());
+        if let Err(error) = result {
+            assert_eq!(
+                error.to_string(),
+                "WebDriver BiDi navigation document advance cannot revalidate registered authority"
+            );
+            assert!(error.source().is_some());
+        }
 
         let stale = WebDriverBiDiNavigationCommittedDocumentAdvanceError::UnexpectedDocumentEpoch;
         assert_eq!(
