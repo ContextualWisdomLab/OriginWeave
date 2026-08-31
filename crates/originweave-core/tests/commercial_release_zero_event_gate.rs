@@ -29,9 +29,7 @@ fn passed_benchmarks() -> Vec<BenchmarkSuiteEvidence> {
         .collect()
 }
 
-fn observations(
-    trial_count: u64,
-) -> Result<Vec<ZeroEventSafetyObservation>, ReleaseDecisionError> {
+fn observations(trial_count: u64) -> Result<Vec<ZeroEventSafetyObservation>, ReleaseDecisionError> {
     SAFETY_METRICS
         .into_iter()
         .map(|metric| {
