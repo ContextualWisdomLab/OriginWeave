@@ -493,9 +493,10 @@ impl<'a> ProjectionCursor<'a> {
     fn parse_js_uint(&mut self) -> Result<u64, WebDriverBiDiNavigationCommittedProjectionError> {
         let start = self.index;
         if !self.skip_number() {
-            if !self.skip_value() {
-                return Err(WebDriverBiDiNavigationCommittedProjectionError::InvalidStructure);
-            }
+            // Common envelope validation already proved that a complete JSON value exists here.
+            // Consume that non-number value so this projection cursor preserves its position while
+            // reporting the semantic timestamp failure at the typed boundary.
+            let _ = self.skip_value();
             return Err(WebDriverBiDiNavigationCommittedProjectionError::InvalidTimestamp);
         }
         let raw = &self.input[start..self.index];
