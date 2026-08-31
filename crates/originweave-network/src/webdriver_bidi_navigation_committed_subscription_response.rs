@@ -680,6 +680,7 @@ mod tests {
             ("0041", true),
             ("d83d\\ude80", true),
             ("d83d", false),
+            ("d83d\\x", false),
             ("d83d\\u0", false),
             ("d83d\\u0041", false),
             ("dc00", false),
