@@ -7,8 +7,8 @@ use originweave_core::{
 use crate::{
     MAX_WEBDRIVER_BIDI_JS_UINT, WEBDRIVER_BIDI_NAVIGATION_COMMITTED_METHOD,
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
-    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrameError,
-    WebDriverBiDiWebSocketMaskKey,
+    WebDriverBiDiNavigationCommittedSubscriptionBinding, WebDriverBiDiWebSocketEstablished,
+    WebDriverBiDiWebSocketFrameError, WebDriverBiDiWebSocketMaskKey,
 };
 
 const SESSION_SUBSCRIBE_METHOD: &str = "session.subscribe";
@@ -85,6 +85,21 @@ impl WebDriverBiDiNavigationCommittedSubscriptionCommand {
     #[must_use]
     pub fn external_context(&self) -> &str {
         &self.external_context
+    }
+
+    /// Capture the exact command-side binding required to admit the correlated subscription later.
+    ///
+    /// The binding is intentionally captured before this single-use command is consumed by
+    /// [`Self::send`]. It contains no remote subscription identifier and grants no event authority by
+    /// itself; the exact correlated `session.subscribe` result must be bound to it separately.
+    #[must_use]
+    pub fn admission_binding(&self) -> WebDriverBiDiNavigationCommittedSubscriptionBinding {
+        WebDriverBiDiNavigationCommittedSubscriptionBinding::new(
+            self.command_id,
+            self.browser_session,
+            self.browsing_context,
+            &self.external_context,
+        )
     }
 
     /// Revalidate, register, and write this exact subscription on an established verified BiDi stream.

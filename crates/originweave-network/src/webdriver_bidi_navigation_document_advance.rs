@@ -5,9 +5,9 @@ use originweave_core::{
     DocumentEpoch,
 };
 
-use crate::WebDriverBiDiNavigationCommittedObservation;
+use crate::WebDriverBiDiNavigationCommittedSubscribedObservation;
 
-/// Immutable evidence that one accepted navigation observation rotated one exact document epoch.
+/// Immutable evidence that one subscribed navigation observation rotated one exact document epoch.
 ///
 /// The value records only the registry-local session/context transition. It does not bind the new
 /// document origin, authenticate the browser adapter, prove which action caused the navigation, or
@@ -46,7 +46,7 @@ impl WebDriverBiDiNavigationCommittedDocumentAdvance {
     }
 }
 
-/// Fail-closed failures while rotating document authority from an accepted navigation observation.
+/// Fail-closed failures while rotating document authority from a subscribed navigation observation.
 #[derive(Debug)]
 pub enum WebDriverBiDiNavigationCommittedDocumentAdvanceError {
     /// Registered session/context state could not be revalidated or advanced.
@@ -93,12 +93,14 @@ fn advance_registered_document_if_expected(
     registry.advance_document(browsing_context).map(Some)
 }
 
-/// Consume one exact accepted navigation observation and rotate that context's document authority.
+/// Consume one exact subscription-admitted navigation and rotate that context's document authority.
 ///
 /// The caller must supply the document epoch captured before dispatching the action whose
-/// post-condition is being evaluated. The observation is consumed so one admitted event cannot be
-/// reused to rotate the registry twice. The exact session/context pair and caller-captured epoch
-/// are revalidated immediately before mutation, and stale state fails closed without mutation.
+/// post-condition is being evaluated. The subscribed observation is consumed so one admitted event
+/// cannot be reused to rotate the registry twice, and raw protocol observations cannot cross this
+/// state-changing boundary without first being bound to an active exact `session.subscribe`
+/// command/receipt. The exact session/context pair and caller-captured epoch are revalidated
+/// immediately before mutation, and stale state fails closed without mutation.
 ///
 /// A successful advance delegates to [`BrowserAuthorityRegistry::advance_document`], which clears
 /// the previous canonical-origin binding and all node bindings owned by the context. The new
@@ -107,7 +109,7 @@ fn advance_registered_document_if_expected(
 /// exhaustion, remain available as the typed [`BrowserRegistryError`] source instead of being
 /// converted into a panic or successful authority transition.
 pub fn advance_webdriver_bidi_navigation_document_epoch(
-    observation: WebDriverBiDiNavigationCommittedObservation,
+    observation: WebDriverBiDiNavigationCommittedSubscribedObservation,
     registry: &mut BrowserAuthorityRegistry,
     expected_previous_epoch: DocumentEpoch,
 ) -> Result<

@@ -7,16 +7,17 @@ use originweave_core::{
 
 use crate::{
     WebDriverBiDiNavigationCommittedDocumentAdvanceError,
-    WebDriverBiDiNavigationCommittedObservation, advance_webdriver_bidi_navigation_document_epoch,
+    WebDriverBiDiNavigationCommittedSubscribedObservation,
+    advance_webdriver_bidi_navigation_document_epoch,
 };
 
-/// Immutable evidence that one accepted navigation rotated its document and bound its observed origin.
+/// Immutable evidence that one subscribed navigation rotated its document and bound its observed origin.
 ///
 /// The value records only the registry-local session/context/document transition and the canonical
-/// origin derived from the exact serialized URL carried by the accepted WebDriver BiDi navigation
-/// observation. It does not authenticate the browser adapter, prove which action caused the
-/// navigation, authorize the destination, or grant browser, policy, node, credential, process, or
-/// reusable Agent authority.
+/// origin derived from the exact serialized URL carried by the subscription-admitted WebDriver BiDi
+/// navigation observation. It does not authenticate the browser adapter, prove which action caused
+/// the navigation, authorize the destination, or grant browser, policy, node, credential, process,
+/// or reusable Agent authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WebDriverBiDiNavigationCommittedDocumentOrigin {
     browser_session: BrowserSessionId,
@@ -121,19 +122,21 @@ fn bind_advanced_document_origin(
         )
 }
 
-/// Consume one accepted navigation, rotate the exact expected document, and bind its canonical origin.
+/// Consume one subscription-admitted navigation, rotate its document, and bind its canonical origin.
 ///
 /// Origin derivation is completed before any registry mutation. Only serialized HTTP(S) URLs whose
 /// authority can enter [`Origin`] are accepted; credential-bearing, opaque, malformed, insecure
 /// remote HTTP, and otherwise unsupported authorities therefore fail before document rotation.
-/// The accepted observation is then consumed by the existing exact-epoch document-advance boundary,
-/// which clears stale origin and node authority. Finally, the derived canonical origin is bound to
-/// that newly advanced document through the canonical browser registry lifecycle.
+/// The observation must already have crossed the exact active-subscription admission boundary; raw
+/// protocol observations cannot reach this state-changing API. The subscribed observation is then
+/// consumed by the exact-epoch document-advance boundary, which clears stale origin and node
+/// authority. Finally, the derived canonical origin is bound to that newly advanced document
+/// through the canonical browser registry lifecycle.
 ///
 /// The caller must still treat the returned value as immediate-use registry evidence rather than as
 /// proof of action causality, browser authenticity, destination authorization, or reusable authority.
 pub fn advance_and_bind_webdriver_bidi_navigation_document_origin(
-    observation: WebDriverBiDiNavigationCommittedObservation,
+    observation: WebDriverBiDiNavigationCommittedSubscribedObservation,
     registry: &mut BrowserAuthorityRegistry,
     expected_previous_epoch: DocumentEpoch,
 ) -> Result<
