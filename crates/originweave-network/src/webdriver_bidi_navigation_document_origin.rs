@@ -103,9 +103,7 @@ impl Error for WebDriverBiDiNavigationCommittedDocumentOriginError {
 
 fn origin_from_serialized_navigation_url(serialized_url: &str) -> Option<Origin> {
     let (scheme, remainder) = serialized_url.split_once("://")?;
-    let authority_end = remainder
-        .find(|character| matches!(character, '/' | '?' | '#'))
-        .unwrap_or(remainder.len());
+    let authority_end = remainder.find(['/', '?', '#']).unwrap_or(remainder.len());
     let authority = &remainder[..authority_end];
     Origin::parse(&format!("{scheme}://{authority}")).ok()
 }
@@ -208,9 +206,21 @@ mod tests {
         let contexts = browsing_contexts(1);
         assert_eq!(sessions.len(), 1);
         assert_eq!(contexts.len(), 1);
-        let origin = Origin::parse("https://example.test").expect("fixture origin is valid");
-        let error = bind_advanced_document_origin(&mut registry, sessions[0], contexts[0], &origin)
-            .expect_err("unknown registry session must fail closed");
+
+        let origin = origin_from_serialized_navigation_url("https://example.test");
+        assert_eq!(
+            origin.as_ref().map(Origin::as_str),
+            Some("https://example.test")
+        );
+        let Some(origin) = origin else {
+            return;
+        };
+
+        let result = bind_advanced_document_origin(&mut registry, sessions[0], contexts[0], &origin);
+        assert!(result.is_err());
+        let Err(error) = result else {
+            return;
+        };
         assert_eq!(
             error.to_string(),
             "WebDriver BiDi committed navigation origin cannot bind registered document authority"
