@@ -216,7 +216,8 @@ mod tests {
             return;
         };
 
-        let result = bind_advanced_document_origin(&mut registry, sessions[0], contexts[0], &origin);
+        let result =
+            bind_advanced_document_origin(&mut registry, sessions[0], contexts[0], &origin);
         assert!(result.is_err());
         let Err(error) = result else {
             return;
