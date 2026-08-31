@@ -51,7 +51,9 @@ fn write_unmasked_text_frame(stream: &mut TcpStream, payload: &[u8]) -> io::Resu
     stream.write_all(payload)
 }
 
-fn receive_navigation_event(url: &str) -> Result<WebDriverBiDiWebSocketTextMessage, Box<dyn Error>> {
+fn receive_navigation_event(
+    url: &str,
+) -> Result<WebDriverBiDiWebSocketTextMessage, Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let payload = format!(
@@ -94,7 +96,7 @@ fn receive_navigation_event(url: &str) -> Result<WebDriverBiDiWebSocketTextMessa
 
 fn fixture_origin(value: &str) -> Result<Origin, Box<dyn Error>> {
     Origin::parse(value)
-        .map_err(|error| io::Error::other(format!("fixture origin parse failed: {error:?}" )).into())
+        .map_err(|error| io::Error::other(format!("fixture origin parse failed: {error:?}")).into())
 }
 
 #[test]
@@ -136,8 +138,8 @@ fn committed_navigation_rotates_document_and_binds_canonical_observed_origin()
 }
 
 #[test]
-fn invalid_observed_origin_fails_before_document_authority_is_rotated()
--> Result<(), Box<dyn Error>> {
+fn invalid_observed_origin_fails_before_document_authority_is_rotated() -> Result<(), Box<dyn Error>>
+{
     let mut registry = BrowserAuthorityRegistry::new();
     let session = registry.register_session(SESSION_ID)?;
     let context = registry.register_context(session, "context-a")?;
