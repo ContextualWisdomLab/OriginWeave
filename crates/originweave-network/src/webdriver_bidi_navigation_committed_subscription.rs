@@ -148,11 +148,9 @@ fn require_registered_context(
             browsing_context,
             external_context,
         )
-        .map_err(
-            |source| WebDriverBiDiNavigationCommittedSubscriptionCommandError::ContextBinding {
-                source,
-            },
-        )
+        .map_err(|source| {
+            WebDriverBiDiNavigationCommittedSubscriptionCommandError::ContextBinding { source }
+        })
 }
 
 fn push_json_string(target: &mut String, value: &str) {
@@ -231,19 +229,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn constructor_binds_the_exact_registered_context_and_js_uint_range() {
+    fn constructor_binds_the_exact_registered_context_and_js_uint_range()
+    -> Result<(), Box<dyn std::error::Error>> {
         let mut registry = BrowserAuthorityRegistry::new();
-        let session = registry.register_session("session-a").unwrap();
-        let context = registry.register_context(session, "context-a").unwrap();
+        let session = registry.register_session("session-a")?;
+        let context = registry.register_context(session, "context-a")?;
 
-        let accepted = WebDriverBiDiNavigationCommittedSubscriptionCommand::new(
+        let command = WebDriverBiDiNavigationCommittedSubscriptionCommand::new(
             MAX_WEBDRIVER_BIDI_JS_UINT,
             &registry,
             session,
             context,
             "context-a",
-        );
-        let command = accepted.unwrap();
+        )?;
         assert_eq!(command.command_id(), MAX_WEBDRIVER_BIDI_JS_UINT);
         assert_eq!(command.browser_session(), session);
         assert_eq!(command.browsing_context(), context);
@@ -274,29 +272,34 @@ mod tests {
                 "WebDriver BiDi navigation subscription context does not match registered authority"
             )
         );
+        Ok(())
     }
 
     #[test]
-    fn serialization_is_narrow_exact_and_json_escapes_the_registered_context() {
+    fn serialization_is_narrow_exact_and_json_escapes_the_registered_context()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let mut registry = BrowserAuthorityRegistry::new();
+        let session = registry.register_session("session-a")?;
+        let context = registry.register_context(session, "context-a")?;
         let command = WebDriverBiDiNavigationCommittedSubscriptionCommand {
             command_id: 42,
-            browser_session: BrowserSessionId::new(1).unwrap(),
-            browsing_context: BrowsingContextId::new(1).unwrap(),
+            browser_session: session,
+            browsing_context: context,
             external_context: "context-\"a\\b".to_owned(),
         };
         assert_eq!(
             command.serialized(),
             r#"{"id":42,"method":"session.subscribe","params":{"events":["browsingContext.navigationCommitted"],"contexts":["context-\"a\\b"]}}"#
         );
+        Ok(())
     }
 
     #[test]
     fn command_errors_have_stable_messages_and_typed_sources() {
-        let range =
-            WebDriverBiDiNavigationCommittedSubscriptionCommandError::CommandIdOutOfRange {
-                command_id: MAX_WEBDRIVER_BIDI_JS_UINT + 1,
-                maximum_command_id: MAX_WEBDRIVER_BIDI_JS_UINT,
-            };
+        let range = WebDriverBiDiNavigationCommittedSubscriptionCommandError::CommandIdOutOfRange {
+            command_id: MAX_WEBDRIVER_BIDI_JS_UINT + 1,
+            maximum_command_id: MAX_WEBDRIVER_BIDI_JS_UINT,
+        };
         assert!(range.source().is_none());
 
         let context = WebDriverBiDiNavigationCommittedSubscriptionCommandError::ContextBinding {
