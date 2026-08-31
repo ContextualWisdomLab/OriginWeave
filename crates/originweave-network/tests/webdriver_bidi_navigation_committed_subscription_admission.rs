@@ -289,9 +289,7 @@ fn committed_navigation_requires_the_exact_active_subscription_before_document_m
     let replay_error = admission
         .admit(&event, &registry, EXPECTED_URL)
         .err()
-        .ok_or_else(|| {
-            io::Error::other("replayed navigation event unexpectedly readmitted")
-        })?;
+        .ok_or_else(|| io::Error::other("replayed navigation event unexpectedly readmitted"))?;
     assert_eq!(
         replay_error.to_string(),
         "WebDriver BiDi navigation-committed event was already admitted by this active subscription"
