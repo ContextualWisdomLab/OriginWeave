@@ -37,6 +37,10 @@ type StaleNodeFixture = (
     AdmittedNodeHandle,
     WebDriverBiDiRemoteNodeReference,
 );
+type RejectingPostHandshakeServer = (
+    WebDriverBiDiWebSocketEstablished,
+    thread::JoinHandle<io::Result<()>>,
+);
 
 fn semantic_observation_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn Error>> {
     protocol_proof(BrowserProtocolCapability::SemanticObservation)
@@ -122,13 +126,8 @@ fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     Ok(())
 }
 
-fn establish_rejecting_post_handshake_bytes() -> Result<
-    (
-        WebDriverBiDiWebSocketEstablished,
-        thread::JoinHandle<io::Result<()>>,
-    ),
-    Box<dyn Error>,
-> {
+fn establish_rejecting_post_handshake_bytes()
+-> Result<RejectingPostHandshakeServer, Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let server = thread::spawn(move || -> io::Result<()> {
