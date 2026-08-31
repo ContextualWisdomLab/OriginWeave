@@ -146,8 +146,8 @@ fn establish_websocket(
         .read_opening_response(Duration::from_millis(500))?)
 }
 
-fn obtain_subscription_receipt(
-) -> Result<WebDriverBiDiNavigationCommittedSubscriptionResult, Box<dyn Error>> {
+fn obtain_subscription_receipt()
+-> Result<WebDriverBiDiNavigationCommittedSubscriptionResult, Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let server = thread::spawn(move || -> io::Result<()> {
@@ -176,11 +176,7 @@ fn obtain_subscription_receipt(
     let established = establish_websocket(local_addr)?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     let subscribe = WebDriverBiDiNavigationCommittedSubscriptionCommand::new(
-        7,
-        &registry,
-        session,
-        context,
-        CONTEXT_ID,
+        7, &registry, session, context, CONTEXT_ID,
     )?;
     let established = subscribe.send(
         &registry,
@@ -250,7 +246,9 @@ fn command_validation_and_debug_are_public_and_subscription_safe() -> Result<(),
         &subscription,
     ) {
         Ok(_) => {
-            return Err(io::Error::other("out-of-range unsubscribe command id was accepted").into());
+            return Err(
+                io::Error::other("out-of-range unsubscribe command id was accepted").into(),
+            );
         }
         Err(error) => error,
     };
@@ -320,8 +318,8 @@ fn duplicate_command_id_is_rejected_before_unsubscribe_write() -> Result<(), Box
 }
 
 #[test]
-fn invalid_frame_timeout_consumes_transport_and_retains_unsubscribe_correlation(
-) -> Result<(), Box<dyn Error>> {
+fn invalid_frame_timeout_consumes_transport_and_retains_unsubscribe_correlation()
+-> Result<(), Box<dyn Error>> {
     let subscription = obtain_subscription_receipt()?;
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
@@ -360,8 +358,8 @@ fn invalid_frame_timeout_consumes_transport_and_retains_unsubscribe_correlation(
 }
 
 #[test]
-fn malformed_and_unknown_unsubscribe_responses_preserve_outstanding_correlation(
-) -> Result<(), Box<dyn Error>> {
+fn malformed_and_unknown_unsubscribe_responses_preserve_outstanding_correlation()
+-> Result<(), Box<dyn Error>> {
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     correlation.register_command(8)?;
 
@@ -420,7 +418,9 @@ fn matched_unsubscribe_protocol_error_consumes_only_its_command() -> Result<(), 
         &mut correlation,
     ) {
         Ok(_) => {
-            return Err(io::Error::other("protocol-error unsubscribe response was accepted").into());
+            return Err(
+                io::Error::other("protocol-error unsubscribe response was accepted").into(),
+            );
         }
         Err(error) => error,
     };
