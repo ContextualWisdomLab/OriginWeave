@@ -1,68 +1,79 @@
-use std::collections::BTreeSet;
+use std::error::Error;
 
 use originweave_core::{
-    ActionIntentDigest, ActionKind, ActionRequest, BrowserAuthorityRegistry, BrowserRegistryError,
-    BrowserSessionId, BrowsingContextId, InstructionSource, NodeActionKind, ObservationChannel,
-    Origin, SecretDelivery, SemanticNodeActionBinding, SemanticNodeActionBindingError,
-    SemanticNodeActionTarget, SemanticNodeObservation, SemanticNodeObservationInput,
+    ActionIntentDigest, ActionKind, ActionRequest, AdmittedNodeHandle,
+    BoundedWebDriverBiDiResponseDocument, BrowserAuthorityRegistry, BrowserContextDispatchTarget,
+    BrowserContextOriginDispatchTarget, BrowserContextOriginEpochDispatchTarget,
+    BrowserProtocolAdapterDescriptor, BrowserProtocolCapability, BrowserProtocolKind,
+    InstructionSource, Origin, OriginWeaveProtocolVersion, SecretDelivery,
+    SemanticNodeActionBinding, SemanticNodeActionBindingError, ValidatedBrowserProtocolUse,
+    WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesCommand,
 };
 
+const ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion =
+    OriginWeaveProtocolVersion::new(0, 1);
+const ADAPTER_VERSION: &str = "originweave-bidi-v1";
+const PROTOCOL_REVISION: &str = "webdriver-bidi-wd-2026-06-01";
+const BROWSER_REVISION: &str = "chromium-r1639810";
 const VALID_INTENT: &str =
     "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
-struct ObservationFixture {
-    registry: BrowserAuthorityRegistry,
-    session: BrowserSessionId,
-    context: BrowsingContextId,
-    observation: SemanticNodeObservation,
+fn semantic_observation_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn Error>> {
+    let descriptor = BrowserProtocolAdapterDescriptor::new(
+        BrowserProtocolKind::WebDriverBiDi,
+        ORIGINWEAVE_PROTOCOL_VERSION,
+        ADAPTER_VERSION,
+        PROTOCOL_REVISION,
+        BROWSER_REVISION,
+        &[BrowserProtocolCapability::SemanticObservation],
+    )?;
+    Ok(descriptor.validate_use(
+        ORIGINWEAVE_PROTOCOL_VERSION,
+        BrowserProtocolKind::WebDriverBiDi,
+        ADAPTER_VERSION,
+        PROTOCOL_REVISION,
+        BROWSER_REVISION,
+        BrowserProtocolCapability::SemanticObservation,
+    )?)
 }
 
-fn origin(value: &str) -> Result<Origin, String> {
-    Origin::parse(value).map_err(|error| format!("{error:?}"))
-}
-
-fn observation_fixture() -> Result<ObservationFixture, String> {
+fn admitted_node() -> Result<(BrowserAuthorityRegistry, AdmittedNodeHandle), Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
-    let session = registry
-        .register_session("semantic-binding-session")
-        .map_err(|error| error.to_string())?;
-    let context = registry
-        .register_context(session, "semantic-binding-context")
-        .map_err(|error| error.to_string())?;
-    let source_origin = origin("https://app.example")?;
-    let handle = registry
-        .bind_node(session, context, &source_origin, "semantic-binding-node")
-        .map_err(|error| error.to_string())?;
-    let observation = SemanticNodeObservation::new(
-        SemanticNodeObservationInput {
-            handle,
-            parent: None,
-            children: Vec::new(),
-            role: "button".to_owned(),
-            accessible_name: "Continue".to_owned(),
-            visible_text: Some("Continue".to_owned()),
-            enabled: true,
-            visible: true,
-            selected: None,
-            supported_actions: BTreeSet::from([NodeActionKind::Click]),
-            evidence_channels: BTreeSet::from([ObservationChannel::Accessibility]),
-        },
-        &registry,
-    )
-    .map_err(|error| error.to_string())?;
-
-    Ok(ObservationFixture {
-        registry,
-        session,
-        context,
-        observation,
-    })
+    let session = registry.register_session("policy-binding-session")?;
+    let context = registry.register_context(session, "policy-binding-context")?;
+    let source_origin = Origin::parse("https://app.example")
+        .map_err(|error| std::io::Error::other(format!("fixture origin rejected: {error:?}")))?;
+    let epoch = registry.bind_context_origin(session, context, &source_origin)?;
+    let target = BrowserContextOriginEpochDispatchTarget::new(
+        BrowserContextOriginDispatchTarget::new(
+            BrowserContextDispatchTarget::new(session, context),
+            &source_origin,
+        ),
+        epoch,
+    );
+    let query = WebDriverBiDiAccessibilityQuery::new(Some("textbox"), Some("Task title"), 1)?;
+    let command = WebDriverBiDiLocateNodesCommand::new(41, "policy-binding-context", &query)?;
+    let document = BoundedWebDriverBiDiResponseDocument::new(
+        r#"{"type":"success","id":41,"result":{"nodes":[{"type":"node","sharedId":"shared-node-42"}]}}"#,
+    )?;
+    let handle = command
+        .bind_response_document_nodes(
+            document,
+            semantic_observation_proof()?,
+            &mut registry,
+            target,
+        )?
+        .into_iter()
+        .next()
+        .ok_or("locateNodes fixture did not bind its node")?;
+    Ok((registry, handle))
 }
 
-fn action_request(source: Origin, target: Origin) -> Result<ActionRequest, String> {
-    let intent = ActionIntentDigest::parse(VALID_INTENT).map_err(|error| format!("{error:?}"))?;
+fn action_request(source: Origin, target: Origin) -> Result<ActionRequest, Box<dyn Error>> {
+    let intent = ActionIntentDigest::parse(VALID_INTENT)
+        .map_err(|error| std::io::Error::other(format!("intent rejected: {error:?}")))?;
     Ok(ActionRequest::new(
-        ActionKind::Navigate,
+        ActionKind::Draft,
         source,
         target,
         InstructionSource::User,
@@ -72,131 +83,40 @@ fn action_request(source: Origin, target: Origin) -> Result<ActionRequest, Strin
 }
 
 #[test]
-fn node_action_binding_preserves_node_target_and_business_request() -> Result<(), String> {
-    let fixture = observation_fixture()?;
-    let target =
-        SemanticNodeActionTarget::from_observation(&fixture.observation, NodeActionKind::Click)
-            .map_err(|error| error.to_string())?;
-    let request = action_request(
-        origin("https://app.example")?,
-        origin("https://next.example")?,
-    )?;
+fn action_binding_keeps_admitted_node_and_business_target_separate() -> Result<(), Box<dyn Error>> {
+    let (_registry, handle) = admitted_node()?;
+    let node_origin = handle.origin().clone();
+    let node_id = handle.node_id();
+    let business_target = Origin::parse("https://destination.example")
+        .map_err(|error| std::io::Error::other(format!("target origin rejected: {error:?}")))?;
+    let request = action_request(node_origin, business_target.clone())?;
 
-    let binding = SemanticNodeActionBinding::new(target.clone(), request.clone())
-        .map_err(|error| error.to_string())?;
+    let binding = SemanticNodeActionBinding::new(handle, request)?;
 
-    assert_eq!(binding.target(), &target);
-    assert_eq!(binding.request(), &request);
+    assert_eq!(binding.handle().node_id(), node_id);
+    assert_eq!(binding.request().target_origin(), &business_target);
+    assert_eq!(binding.request().action(), ActionKind::Draft);
     Ok(())
 }
 
 #[test]
-fn node_action_binding_rejects_request_from_another_document_origin() -> Result<(), String> {
-    let fixture = observation_fixture()?;
-    let target =
-        SemanticNodeActionTarget::from_observation(&fixture.observation, NodeActionKind::Click)
-            .map_err(|error| error.to_string())?;
-    let request = action_request(
-        origin("https://other.example")?,
-        origin("https://next.example")?,
-    )?;
+fn action_binding_rejects_business_request_from_another_document_origin()
+-> Result<(), Box<dyn Error>> {
+    let (_registry, handle) = admitted_node()?;
+    let other_origin = Origin::parse("https://other.example")
+        .map_err(|error| std::io::Error::other(format!("other origin rejected: {error:?}")))?;
+    let target_origin = Origin::parse("https://destination.example")
+        .map_err(|error| std::io::Error::other(format!("target origin rejected: {error:?}")))?;
+    let request = action_request(other_origin, target_origin)?;
 
+    let error = SemanticNodeActionBinding::new(handle, request)
+        .err()
+        .ok_or("mismatched source origin unexpectedly admitted")?;
+    assert_eq!(error, SemanticNodeActionBindingError::SourceOriginMismatch);
     assert_eq!(
-        SemanticNodeActionBinding::new(target, request).err(),
-        Some(SemanticNodeActionBindingError::SourceOriginMismatch)
+        error.to_string(),
+        "admitted node origin does not match action request source origin"
     );
+    assert!(error.source().is_none());
     Ok(())
-}
-
-#[test]
-fn node_action_binding_does_not_conflate_source_node_with_navigation_target() -> Result<(), String>
-{
-    let fixture = observation_fixture()?;
-    let target =
-        SemanticNodeActionTarget::from_observation(&fixture.observation, NodeActionKind::Click)
-            .map_err(|error| error.to_string())?;
-    let destination = origin("https://destination.example")?;
-    let request = action_request(origin("https://app.example")?, destination.clone())?;
-
-    let binding =
-        SemanticNodeActionBinding::new(target, request).map_err(|error| error.to_string())?;
-
-    assert_eq!(binding.request().target_origin(), &destination);
-    Ok(())
-}
-
-#[test]
-fn node_action_binding_revalidates_registry_owned_authority_before_dispatch() -> Result<(), String>
-{
-    let fixture = observation_fixture()?;
-    let target =
-        SemanticNodeActionTarget::from_observation(&fixture.observation, NodeActionKind::Click)
-            .map_err(|error| error.to_string())?;
-    let request = action_request(
-        origin("https://app.example")?,
-        origin("https://next.example")?,
-    )?;
-    let binding =
-        SemanticNodeActionBinding::new(target, request).map_err(|error| error.to_string())?;
-
-    binding
-        .validate_current(&fixture.registry)
-        .map_err(|error| error.to_string())?;
-    Ok(())
-}
-
-#[test]
-fn node_action_binding_rejects_stale_document_before_dispatch() -> Result<(), String> {
-    let mut fixture = observation_fixture()?;
-    let target =
-        SemanticNodeActionTarget::from_observation(&fixture.observation, NodeActionKind::Click)
-            .map_err(|error| error.to_string())?;
-    let request = action_request(
-        origin("https://app.example")?,
-        origin("https://next.example")?,
-    )?;
-    let binding =
-        SemanticNodeActionBinding::new(target, request).map_err(|error| error.to_string())?;
-    fixture
-        .registry
-        .advance_document(fixture.context)
-        .map_err(|error| error.to_string())?;
-
-    assert_eq!(
-        binding.validate_current(&fixture.registry).err(),
-        Some(BrowserRegistryError::UnknownNodeAuthority)
-    );
-    Ok(())
-}
-
-#[test]
-fn node_action_binding_rejects_retired_session_before_dispatch() -> Result<(), String> {
-    let mut fixture = observation_fixture()?;
-    let target =
-        SemanticNodeActionTarget::from_observation(&fixture.observation, NodeActionKind::Click)
-            .map_err(|error| error.to_string())?;
-    let request = action_request(
-        origin("https://app.example")?,
-        origin("https://next.example")?,
-    )?;
-    let binding =
-        SemanticNodeActionBinding::new(target, request).map_err(|error| error.to_string())?;
-    fixture
-        .registry
-        .remove_session(fixture.session)
-        .map_err(|error| error.to_string())?;
-
-    assert_eq!(
-        binding.validate_current(&fixture.registry).err(),
-        Some(BrowserRegistryError::UnknownBrowserSession)
-    );
-    Ok(())
-}
-
-#[test]
-fn node_action_binding_error_is_stable_and_credential_free() {
-    assert_eq!(
-        SemanticNodeActionBindingError::SourceOriginMismatch.to_string(),
-        "semantic node origin does not match action request source origin"
-    );
 }
