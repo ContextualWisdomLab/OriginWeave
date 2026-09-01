@@ -2,8 +2,9 @@ use std::{error::Error, fmt, time::Duration};
 
 use crate::{
     MAX_WEBDRIVER_BIDI_JS_UINT, WebDriverBiDiCommandCorrelation,
-    WebDriverBiDiCommandCorrelationError, WebDriverBiDiWebSocketEstablished,
-    WebDriverBiDiWebSocketFrameError, WebDriverBiDiWebSocketMaskKey,
+    WebDriverBiDiCommandCorrelationError, WebDriverBiDiCommandKind,
+    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrameError,
+    WebDriverBiDiWebSocketMaskKey,
 };
 
 const SESSION_END_METHOD: &str = "session.end";
@@ -52,7 +53,7 @@ impl WebDriverBiDiSessionEndCommand {
         frame_timeout: Duration,
     ) -> Result<WebDriverBiDiWebSocketEstablished, WebDriverBiDiSessionEndCommandError> {
         correlation
-            .register_command(self.command_id)
+            .register_command_for(self.command_id, WebDriverBiDiCommandKind::SessionEnd)
             .map_err(|source| WebDriverBiDiSessionEndCommandError::Correlation { source })?;
         let message = self.serialized();
         established
