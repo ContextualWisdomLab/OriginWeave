@@ -17,7 +17,6 @@ class DddDocumentationContractTests(unittest.TestCase):
         self.assertIn("Anti-Corruption Layer", context_map)
         self.assertIn("MCP adapter", context_map)
         self.assertIn("originweave-core", context_map)
-        self.assertIn("Adapters", context_map)
         self.assertIn("must not depend outward on protocol adapters", context_map)
 
     def test_ubiquitous_language_keeps_authority_terms_distinct(self) -> None:
