@@ -13,7 +13,7 @@ class RepositoryContractTests(unittest.TestCase):
     """Validate the non-generated repository and governance contract."""
 
     def test_workspace_declares_all_independently_reusable_crates(self) -> None:
-        """The root workspace must expose every reusable policy kernel."""
+        """The root workspace must expose every reusable product boundary."""
 
         data = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))
         self.assertEqual(
@@ -27,8 +27,45 @@ class RepositoryContractTests(unittest.TestCase):
                 "crates/originweave-tls",
                 "crates/originweave-resource",
                 "crates/originweave-evidence",
+                "crates/originweave-release",
             },
         )
+
+    def test_release_acceptance_isolated_from_shared_domain_contracts(self) -> None:
+        """Commercial release evidence owns a dedicated bounded context, not shared core."""
+
+        for name in (
+            "benchmark_failure.rs",
+            "release_acceptance.rs",
+            "zero_event_safety_gate.rs",
+            "zero_event_threshold.rs",
+        ):
+            self.assertFalse((ROOT / "crates/originweave-core/src" / name).exists(), name)
+
+        release_manifest = tomllib.loads(
+            (ROOT / "crates/originweave-release/Cargo.toml").read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            set(release_manifest.get("dependencies", {})),
+            {"unicode-normalization"},
+        )
+        release_source = (ROOT / "crates/originweave-release/src/lib.rs").read_text(
+            encoding="utf-8"
+        )
+        for module in (
+            "benchmark_failure",
+            "release_acceptance",
+            "zero_event_safety_gate",
+            "zero_event_threshold",
+        ):
+            with self.subTest(module=module):
+                self.assertIn(f"pub mod {module};", release_source)
+
+        core_source = (ROOT / "crates/originweave-core/src/root.rs").read_text(encoding="utf-8")
+        self.assertNotIn("release_acceptance", core_source)
+        self.assertNotIn("benchmark_failure", core_source)
+        self.assertNotIn("zero_event_safety_gate", core_source)
+        self.assertNotIn("zero_event_threshold", core_source)
 
     def test_toolchain_is_pinned_to_current_project_baseline(self) -> None:
         """Reproducible builds require an explicit Rust patch version."""
