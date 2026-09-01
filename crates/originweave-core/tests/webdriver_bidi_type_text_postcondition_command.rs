@@ -169,8 +169,8 @@ fn text_value_postcondition_rejects_invalid_command_id() -> Result<(), Box<dyn E
 }
 
 #[test]
-fn text_value_postcondition_rejects_wrong_context_and_unadmitted_node()
--> Result<(), Box<dyn Error>> {
+fn text_value_postcondition_rejects_wrong_context_and_unadmitted_node() -> Result<(), Box<dyn Error>>
+{
     let fixture = admitted_text_field("context-a", "shared-input-42")?;
     let wrong_context = WebDriverBiDiTextValueObservationCommand::new_for_current_node(
         43,
@@ -233,7 +233,9 @@ fn text_value_postcondition_rejects_cross_registry_handle() -> Result<(), Box<dy
 #[test]
 fn text_value_postcondition_rejects_changed_origin_authority() -> Result<(), Box<dyn Error>> {
     let mut fixture = admitted_text_field("context-a", "shared-input-42")?;
-    fixture.registry.advance_document(fixture.browsing_context)?;
+    fixture
+        .registry
+        .advance_document(fixture.browsing_context)?;
     let changed_origin = Origin::parse("https://changed.example").map_err(|error| {
         io::Error::other(format!(
             "changed fixture origin rejected unexpectedly: {error:?}"
@@ -267,7 +269,9 @@ fn text_value_postcondition_rejects_changed_origin_authority() -> Result<(), Box
 fn text_value_postcondition_rejects_stale_document_authority() -> Result<(), Box<dyn Error>> {
     let mut fixture = admitted_text_field("context-a", "shared-input-42")?;
     let observed = fixture.handle.document_epoch();
-    let current = fixture.registry.advance_document(fixture.browsing_context)?;
+    let current = fixture
+        .registry
+        .advance_document(fixture.browsing_context)?;
     let origin = fixture.handle.origin().clone();
     fixture.registry.bind_context_origin(
         fixture.browser_session,
