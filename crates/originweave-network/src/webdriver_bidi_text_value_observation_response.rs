@@ -624,7 +624,10 @@ mod tests {
     #[test]
     fn projection_accepts_typed_script_exception_without_retaining_details() {
         let response = r#"{"type":"success","id":8,"result":{"type":"exception","realm":"realm-1","exceptionDetails":{"text":"page-secret","columnNumber":1,"lineNumber":1,"stackTrace":{"callFrames":[]}}}}"#;
-        assert_eq!(project_script_result(response), Ok(ScriptResultProjection::Exception));
+        assert_eq!(
+            project_script_result(response),
+            Ok(ScriptResultProjection::Exception)
+        );
     }
 
     #[test]
@@ -761,7 +764,7 @@ mod tests {
                 .as_deref(),
             Some("expected text-value postcondition exceeds the local byte budget")
         );
-        assert!(validate_expected_text("ordinary space").is_ok());
+        assert_eq!(validate_expected_text("ordinary space").is_ok(), true);
         for rejected in ["tab\tvalue", "control\u{0001}", "bidi\u{202e}override"] {
             assert_eq!(
                 validate_expected_text(rejected)
@@ -956,22 +959,22 @@ mod tests {
             WebDriverBiDiTextValueObservationResponseError::ScriptException { command_id: 8 },
         ];
         for error in cases {
-            assert!(error.source().is_none());
-            assert!(!error.to_string().is_empty());
+            assert_eq!(error.source().is_none(), true);
+            assert_eq!(error.to_string().is_empty(), false);
         }
 
         let envelope = WebDriverBiDiTextValueObservationResponseError::Envelope {
             source: WebDriverBiDiJsonEnvelopeError::InvalidJson,
         };
-        assert!(envelope.source().is_some());
+        assert_eq!(envelope.source().is_some(), true);
         let projection = WebDriverBiDiTextValueObservationResponseError::Projection {
             source: WebDriverBiDiTextValueObservationProjectionError::InvalidValue,
         };
-        assert!(projection.source().is_some());
+        assert_eq!(projection.source().is_some(), true);
         let correlation = WebDriverBiDiTextValueObservationResponseError::Correlation {
             source: WebDriverBiDiCommandCorrelationError::CommandNotOutstanding,
         };
-        assert!(correlation.source().is_some());
+        assert_eq!(correlation.source().is_some(), true);
 
         let projection_errors = [
             WebDriverBiDiTextValueObservationProjectionError::InvalidObject { member: "result" },
@@ -987,7 +990,7 @@ mod tests {
             WebDriverBiDiTextValueObservationProjectionError::InvalidValue,
         ];
         for error in projection_errors {
-            assert!(!error.to_string().is_empty());
+            assert_eq!(error.to_string().is_empty(), false);
         }
     }
 }
