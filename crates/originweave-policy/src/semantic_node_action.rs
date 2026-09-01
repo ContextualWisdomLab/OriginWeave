@@ -1,8 +1,8 @@
-use std::fmt;
+use std::{error::Error, fmt};
 
 use originweave_core::{
-    BrowserSessionId, BrowsingContextId, DocumentEpoch, NodeHandleError, Origin, PolicyContext,
-    RiskClass, SemanticNodeActionBinding, SemanticNodeActionTargetError, SemanticNodeObservation,
+    BrowserAuthorityRegistry, BrowserRegistryError, PolicyContext, RiskClass,
+    SemanticNodeActionBinding, SemanticNodeActionTargetError, SemanticNodeObservation,
 };
 
 use crate::{Decision, DenialReason, evaluate};
@@ -39,68 +39,89 @@ impl PolicyAuthorizedSemanticNodeAction {
         &self.binding
     }
 
-    /// Revalidate browser session, context, origin, and document epoch immediately before dispatch.
+    /// Revalidate registry-owned browser authority immediately before dispatch.
+    ///
+    /// The exact node binding retained by the policy-authorized action must still be live in the
+    /// supplied registry. Caller-presented session/context/origin/epoch tuples cannot revive a
+    /// retired, stale, forged, or cross-registry node target.
     pub fn validate_current(
         &self,
-        current_session: BrowserSessionId,
-        current_context: BrowsingContextId,
-        current_origin: &Origin,
-        current_epoch: DocumentEpoch,
-    ) -> Result<(), NodeHandleError> {
-        self.binding.validate_current(
-            current_session,
-            current_context,
-            current_origin,
-            current_epoch,
-        )
+        registry: &BrowserAuthorityRegistry,
+    ) -> Result<(), BrowserRegistryError> {
+        self.binding.validate_current(registry)
     }
 
-    /// Revalidate exact browser authority and immediately invoke one adapter dispatch callback.
+    /// Revalidate registry-owned browser authority and invoke one dispatch callback in the same call.
     ///
-    /// The supplied session, context, origin, and document epoch must be trusted adapter state
-    /// sampled for the action that is about to be dispatched. The callback is never invoked when
-    /// that state no longer matches the semantic-node binding. A successful callback invocation
-    /// does not authenticate the adapter, grant destination, secret, or approval authority, or
-    /// prove the action's post-condition; those remain separate execution boundaries.
+    /// The registry must be the trusted adapter's current authority registry for the action that is
+    /// about to be dispatched. The callback is never invoked if the retained node binding is stale,
+    /// retired, forged, or belongs to another registry. A successful callback invocation does not
+    /// authenticate the adapter, grant destination, secret, or approval authority, or prove the
+    /// action's post-condition; those remain separate execution boundaries.
     pub fn dispatch_if_current<R, F>(
         &self,
-        current_session: BrowserSessionId,
-        current_context: BrowsingContextId,
-        current_origin: &Origin,
-        current_epoch: DocumentEpoch,
+        registry: &BrowserAuthorityRegistry,
         dispatch: F,
-    ) -> Result<R, NodeHandleError>
+    ) -> Result<R, BrowserRegistryError>
     where
         F: FnOnce(&SemanticNodeActionBinding) -> R,
     {
-        self.validate_current(
-            current_session,
-            current_context,
-            current_origin,
-            current_epoch,
-        )?;
-        Ok(dispatch(&self.binding))
+        self.validate_current(registry)
+            .map(|()| dispatch(&self.binding))
     }
 
-    /// Revalidate one fresh semantic observation and immediately invoke the dispatch callback.
+    /// Revalidate browser authority and one fresh semantic observation before dispatch.
     ///
-    /// The caller must obtain `current_observation` from a trusted browser adapter immediately
-    /// before the side effect. The callback is not invoked when the observation describes a
-    /// different OriginWeave-owned node, no longer advertises the selected node-local action, or
-    /// reports the node disabled for an action that requires enabled state. This method does not
-    /// obtain or authenticate the observation and does not prove execution success.
+    /// The caller must supply the trusted adapter's current authority registry and obtain
+    /// `current_observation` from that same current browser boundary immediately before the side
+    /// effect. Registry authority is checked first, followed by exact semantic node identity,
+    /// advertised action, and enabled-state evidence. The callback is invoked only after both
+    /// independent validations succeed. Adapter success remains distinct from post-condition proof.
     pub fn dispatch_if_current_observation<R, F>(
         &self,
+        registry: &BrowserAuthorityRegistry,
         current_observation: &SemanticNodeObservation,
         dispatch: F,
-    ) -> Result<R, SemanticNodeActionTargetError>
+    ) -> Result<R, SemanticNodeDispatchValidationError>
     where
         F: FnOnce(&SemanticNodeActionBinding) -> R,
     {
+        self.validate_current(registry)
+            .map_err(SemanticNodeDispatchValidationError::BrowserAuthority)?;
         self.binding
             .target()
-            .validate_current_observation(current_observation)?;
+            .validate_current_observation(current_observation)
+            .map_err(SemanticNodeDispatchValidationError::SemanticState)?;
         Ok(dispatch(&self.binding))
+    }
+}
+
+/// A fail-closed dispatch validation failure before any adapter callback can run.
+#[derive(Debug)]
+pub enum SemanticNodeDispatchValidationError {
+    /// The registry no longer recognizes the exact browser-owned node binding.
+    BrowserAuthority(BrowserRegistryError),
+    /// The fresh semantic observation no longer matches the authorized target state.
+    SemanticState(SemanticNodeActionTargetError),
+}
+
+impl fmt::Display for SemanticNodeDispatchValidationError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::BrowserAuthority(_) => formatter
+                .write_str("semantic node dispatch browser authority revalidation failed"),
+            Self::SemanticState(_) => formatter
+                .write_str("semantic node dispatch semantic-state revalidation failed"),
+        }
+    }
+}
+
+impl Error for SemanticNodeDispatchValidationError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::BrowserAuthority(source) => Some(source),
+            Self::SemanticState(source) => Some(source),
+        }
     }
 }
 
