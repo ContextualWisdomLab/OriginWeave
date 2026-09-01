@@ -1,17 +1,12 @@
 #![allow(clippy::expect_used)]
 
 use originweave_core::{
-    AgentTaskId, BrowserSessionId, BrowsingContextId, ExtensionAccessDecision,
-    ExtensionAccessRequest, ExtensionAgentCapability, ExtensionAgentGrant, ExtensionId, Origin,
-    evaluate_extension_access,
+    BrowserSessionId, BrowsingContextId, ExtensionAccessDecision, ExtensionAccessRequest,
+    ExtensionAgentCapability, ExtensionAgentGrant, ExtensionId, evaluate_extension_access,
 };
 
 fn extension_id(value: &str) -> ExtensionId {
     ExtensionId::parse(value).expect("valid extension id")
-}
-
-fn task(value: u64) -> AgentTaskId {
-    AgentTaskId::new(value).expect("nonzero Agent Task identity")
 }
 
 fn session(value: u64) -> BrowserSessionId {
@@ -21,14 +16,6 @@ fn session(value: u64) -> BrowserSessionId {
 fn context(value: u64) -> BrowsingContextId {
     BrowsingContextId::new(value).expect("nonzero browsing context")
 }
-
-fn origin(value: &str) -> Origin {
-    Origin::parse(value).expect("canonical origin")
-}
-
-const UNEXPIRED_NOW_EPOCH_SECONDS: u64 = 1_700_000_000;
-const UNEXPIRED_EXPIRES_AT_EPOCH_SECONDS: u64 = 1_700_000_600;
-const AGENT_TASK_ID: u64 = 29;
 
 #[test]
 fn extension_id_accepts_only_canonical_chromium_extension_ids() {
@@ -56,24 +43,17 @@ fn extension_id_accepts_only_canonical_chromium_extension_ids() {
 fn extension_agent_access_requires_an_explicit_exact_grant() {
     let allowed_extension = extension_id("abcdefghijklmnopabcdefghijklmnop");
     let other_extension = extension_id("bcdefghijklmnopabcdefghijklmnopa");
-    let granted_origin = origin("https://app.example");
     let grant = ExtensionAgentGrant::new(
         allowed_extension.clone(),
-        task(AGENT_TASK_ID),
         session(7),
         context(11),
-        granted_origin.clone(),
-        UNEXPIRED_EXPIRES_AT_EPOCH_SECONDS,
         [ExtensionAgentCapability::ObserveCurrentContext],
     );
 
     let exact = ExtensionAccessRequest::new(
         allowed_extension.clone(),
-        task(AGENT_TASK_ID),
         session(7),
         context(11),
-        granted_origin.clone(),
-        UNEXPIRED_NOW_EPOCH_SECONDS,
         ExtensionAgentCapability::ObserveCurrentContext,
     );
     assert_eq!(
@@ -86,11 +66,8 @@ fn extension_agent_access_requires_an_explicit_exact_grant() {
 
     let wrong_extension = ExtensionAccessRequest::new(
         other_extension,
-        task(AGENT_TASK_ID),
         session(7),
         context(11),
-        granted_origin.clone(),
-        UNEXPIRED_NOW_EPOCH_SECONDS,
         ExtensionAgentCapability::ObserveCurrentContext,
     );
     assert_eq!(
@@ -100,11 +77,8 @@ fn extension_agent_access_requires_an_explicit_exact_grant() {
 
     let wrong_session = ExtensionAccessRequest::new(
         allowed_extension.clone(),
-        task(AGENT_TASK_ID),
         session(8),
         context(11),
-        granted_origin.clone(),
-        UNEXPIRED_NOW_EPOCH_SECONDS,
         ExtensionAgentCapability::ObserveCurrentContext,
     );
     assert_eq!(
@@ -113,69 +87,31 @@ fn extension_agent_access_requires_an_explicit_exact_grant() {
     );
 
     let wrong_context = ExtensionAccessRequest::new(
-        allowed_extension.clone(),
-        task(AGENT_TASK_ID),
+        allowed_extension,
         session(7),
         context(12),
-        granted_origin.clone(),
-        UNEXPIRED_NOW_EPOCH_SECONDS,
         ExtensionAgentCapability::ObserveCurrentContext,
     );
     assert_eq!(
         evaluate_extension_access(&wrong_context, Some(&grant)),
         ExtensionAccessDecision::DenyBrowsingContextMismatch
     );
-
-    let wrong_origin = ExtensionAccessRequest::new(
-        allowed_extension.clone(),
-        task(AGENT_TASK_ID),
-        session(7),
-        context(11),
-        origin("https://other.example"),
-        UNEXPIRED_NOW_EPOCH_SECONDS,
-        ExtensionAgentCapability::ObserveCurrentContext,
-    );
-    assert_eq!(
-        evaluate_extension_access(&wrong_origin, Some(&grant)),
-        ExtensionAccessDecision::DenyOriginMismatch
-    );
-
-    let wrong_port = ExtensionAccessRequest::new(
-        allowed_extension,
-        task(AGENT_TASK_ID),
-        session(7),
-        context(11),
-        origin("https://app.example:8443"),
-        UNEXPIRED_NOW_EPOCH_SECONDS,
-        ExtensionAgentCapability::ObserveCurrentContext,
-    );
-    assert_eq!(
-        evaluate_extension_access(&wrong_port, Some(&grant)),
-        ExtensionAccessDecision::DenyOriginMismatch
-    );
 }
 
 #[test]
 fn chrome_permissions_never_imply_originweave_agent_capabilities() {
     let id = extension_id("abcdefghijklmnopabcdefghijklmnop");
-    let granted_origin = origin("https://mail.example");
     let grant = ExtensionAgentGrant::new(
         id.clone(),
-        task(AGENT_TASK_ID),
         session(3),
         context(5),
-        granted_origin.clone(),
-        UNEXPIRED_EXPIRES_AT_EPOCH_SECONDS,
         [ExtensionAgentCapability::ObserveCurrentContext],
     );
 
     let propose_action = ExtensionAccessRequest::new(
         id,
-        task(AGENT_TASK_ID),
         session(3),
         context(5),
-        granted_origin,
-        UNEXPIRED_NOW_EPOCH_SECONDS,
         ExtensionAgentCapability::ProposeTypedAction,
     );
     assert_eq!(
@@ -187,14 +123,10 @@ fn chrome_permissions_never_imply_originweave_agent_capabilities() {
 #[test]
 fn explicit_grant_can_authorize_multiple_bounded_agent_capabilities() {
     let id = extension_id("abcdefghijklmnopabcdefghijklmnop");
-    let granted_origin = origin("http://127.0.0.1:8080");
     let grant = ExtensionAgentGrant::new(
         id.clone(),
-        task(AGENT_TASK_ID),
         session(13),
         context(17),
-        granted_origin.clone(),
-        UNEXPIRED_EXPIRES_AT_EPOCH_SECONDS,
         [
             ExtensionAgentCapability::ObserveCurrentContext,
             ExtensionAgentCapability::ProposeTypedAction,
@@ -205,76 +137,10 @@ fn explicit_grant_can_authorize_multiple_bounded_agent_capabilities() {
         ExtensionAgentCapability::ObserveCurrentContext,
         ExtensionAgentCapability::ProposeTypedAction,
     ] {
-        let request = ExtensionAccessRequest::new(
-            id.clone(),
-            task(AGENT_TASK_ID),
-            session(13),
-            context(17),
-            granted_origin.clone(),
-            UNEXPIRED_NOW_EPOCH_SECONDS,
-            capability,
-        );
+        let request = ExtensionAccessRequest::new(id.clone(), session(13), context(17), capability);
         assert_eq!(
             evaluate_extension_access(&request, Some(&grant)),
             ExtensionAccessDecision::Allow
         );
     }
-}
-
-#[test]
-fn expired_origin_bound_grant_cannot_be_reused_after_exclusive_deadline() {
-    let id = extension_id("abcdefghijklmnopabcdefghijklmnop");
-    let granted_origin = origin("https://billing.example");
-    let expires_at_epoch_seconds = 1_700_000_100;
-    let grant = ExtensionAgentGrant::new(
-        id.clone(),
-        task(AGENT_TASK_ID),
-        session(19),
-        context(23),
-        granted_origin.clone(),
-        expires_at_epoch_seconds,
-        [ExtensionAgentCapability::ObserveCurrentContext],
-    );
-
-    let before_deadline = ExtensionAccessRequest::new(
-        id.clone(),
-        task(AGENT_TASK_ID),
-        session(19),
-        context(23),
-        granted_origin.clone(),
-        expires_at_epoch_seconds - 1,
-        ExtensionAgentCapability::ObserveCurrentContext,
-    );
-    assert_eq!(
-        evaluate_extension_access(&before_deadline, Some(&grant)),
-        ExtensionAccessDecision::Allow
-    );
-
-    let at_deadline = ExtensionAccessRequest::new(
-        id.clone(),
-        task(AGENT_TASK_ID),
-        session(19),
-        context(23),
-        granted_origin.clone(),
-        expires_at_epoch_seconds,
-        ExtensionAgentCapability::ObserveCurrentContext,
-    );
-    assert_eq!(
-        evaluate_extension_access(&at_deadline, Some(&grant)),
-        ExtensionAccessDecision::DenyExpired
-    );
-
-    let after_deadline = ExtensionAccessRequest::new(
-        id,
-        task(AGENT_TASK_ID),
-        session(19),
-        context(23),
-        granted_origin,
-        expires_at_epoch_seconds + 1,
-        ExtensionAgentCapability::ObserveCurrentContext,
-    );
-    assert_eq!(
-        evaluate_extension_access(&after_deadline, Some(&grant)),
-        ExtensionAccessDecision::DenyExpired
-    );
 }

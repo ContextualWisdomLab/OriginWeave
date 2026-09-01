@@ -1,15 +1,188 @@
-//! Direct-only policy-bound TCP connection authority for OriginWeave.
+//! Direct-only policy-bound TCP and WebSocket transport authority for OriginWeave.
 //!
-//! The crate consumes a validated connection plan, opens one exact socket
-//! address without hostname resolution or proxy inheritance, verifies the
-//! operating-system peer, and emits credential-free evidence.
+//! The crate consumes validated connection plans, opens exact socket addresses
+//! without hostname resolution or proxy inheritance, verifies operating-system
+//! peers before exposing transport I/O, and emits credential-free evidence.
+//! It also bridges a session-correlated WebDriver BiDi loopback target from
+//! `originweave-core` into one bounded exact TCP connection, binds and validates
+//! the RFC 6455 opening exchange, provides bounded masked client writes and
+//! unmasked server-frame reads, assembles bounded WebDriver BiDi text messages,
+//! classifies complete local-end JSON envelopes, tracks bounded command-response
+//! correlation, transports narrowly typed pointer-click and node-bound non-secret
+//! text-input actions plus fixed sandboxed text-value observations, admits typed
+//! correlated protocol acknowledgments and text-value post-condition comparisons,
+//! requires an explicit positive text-value post-condition gate before success,
+//! sends a context-bound subscription for committed-navigation events, retains its
+//! typed bounded correlated subscription identifier, binds navigation-event
+//! admission to that exact active command/receipt lifecycle with bounded fail-closed
+//! navigation replay prevention, explicitly tears down that exact subscription by
+//! identifier, admits its typed correlated unsubscribe acknowledgment, admits a
+//! bounded navigation-committed post-condition observation for one exact registered
+//! context and URL, rotates the matched context's document epoch only from an exact
+//! caller-captured pre-action epoch, derives and binds the committed HTTP(S) URL's
+//! canonical origin to that newly advanced document, sends narrowly typed
+//! `session.status` and `session.end` commands, admits typed correlated status and
+//! end responses, observes bounded peer Close or clean-EOF transport cessation, and
+//! keeps protocol/transport evidence separate from explicit operational teardown
+//! observations without exposing generic JSON bodies or granting browser, TLS,
+//! policy, secret, process, profile, or Agent authority.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
 mod connection;
+mod webdriver_bidi_command_correlation;
+mod webdriver_bidi_connection;
+mod webdriver_bidi_json_envelope;
+mod webdriver_bidi_navigation_committed_postcondition;
+mod webdriver_bidi_navigation_committed_subscription;
+mod webdriver_bidi_navigation_committed_subscription_admission;
+mod webdriver_bidi_navigation_committed_subscription_response;
+mod webdriver_bidi_navigation_committed_unsubscribe;
+mod webdriver_bidi_navigation_committed_unsubscribe_response;
+mod webdriver_bidi_navigation_document_advance;
+mod webdriver_bidi_navigation_document_origin;
+mod webdriver_bidi_pointer_click_response;
+mod webdriver_bidi_pointer_click_transport;
+mod webdriver_bidi_session_end_command;
+mod webdriver_bidi_session_end_response;
+mod webdriver_bidi_session_status_command;
+mod webdriver_bidi_session_status_response;
+mod webdriver_bidi_session_teardown;
+mod webdriver_bidi_text_value_observation_response;
+mod webdriver_bidi_text_value_observation_transport;
+mod webdriver_bidi_text_value_postcondition;
+mod webdriver_bidi_type_text_response;
+mod webdriver_bidi_type_text_transport;
+mod webdriver_bidi_websocket_frame;
+mod webdriver_bidi_websocket_handshake;
+mod webdriver_bidi_websocket_message;
+mod webdriver_bidi_websocket_opening_recovery;
+mod webdriver_bidi_websocket_transport_closure;
+
+#[cfg(test)]
+mod webdriver_bidi_json_envelope_public_boundary_tests;
+#[cfg(test)]
+mod webdriver_bidi_text_value_observation_public_boundary_tests;
 
 pub use connection::{
     ConnectionPlan, DirectTcpConnection, MAX_CONNECT_TIMEOUT, MAX_CONNECTION_ATTEMPTS,
     NetworkError, SocketConnectionEvidence,
+};
+pub use webdriver_bidi_command_correlation::{
+    MAX_WEBDRIVER_BIDI_OUTSTANDING_COMMANDS, WebDriverBiDiCommandCorrelation,
+    WebDriverBiDiCommandCorrelationError, WebDriverBiDiCorrelatedResponse,
+    WebDriverBiDiCorrelatedResponseOutcome,
+};
+pub use webdriver_bidi_connection::{
+    WebDriverBiDiTcpConnection, WebDriverBiDiTcpConnectionError,
+    WebDriverBiDiTcpConnectionEvidence, WebDriverBiDiTcpConnectionPlan,
+};
+pub use webdriver_bidi_json_envelope::{
+    MAX_WEBDRIVER_BIDI_JS_UINT, MAX_WEBDRIVER_BIDI_JSON_DEPTH, WebDriverBiDiJsonEnvelope,
+    WebDriverBiDiJsonEnvelopeError, WebDriverBiDiJsonEnvelopeKind,
+};
+pub use webdriver_bidi_navigation_committed_postcondition::{
+    MAX_WEBDRIVER_BIDI_NAVIGATION_IDENTIFIER_BYTES, MAX_WEBDRIVER_BIDI_NAVIGATION_URL_BYTES,
+    WEBDRIVER_BIDI_NAVIGATION_COMMITTED_METHOD, WebDriverBiDiNavigationCommittedObservation,
+    WebDriverBiDiNavigationCommittedObservationError,
+    WebDriverBiDiNavigationCommittedProjectionError,
+};
+pub use webdriver_bidi_navigation_committed_subscription::{
+    WebDriverBiDiNavigationCommittedSubscriptionCommand,
+    WebDriverBiDiNavigationCommittedSubscriptionCommandError,
+};
+pub use webdriver_bidi_navigation_committed_subscription_admission::{
+    MAX_WEBDRIVER_BIDI_NAVIGATION_COMMITTED_ADMISSIONS,
+    WebDriverBiDiNavigationCommittedSubscribedObservation,
+    WebDriverBiDiNavigationCommittedSubscriptionAdmission,
+    WebDriverBiDiNavigationCommittedSubscriptionAdmissionError,
+    WebDriverBiDiNavigationCommittedSubscriptionBinding,
+    WebDriverBiDiNavigationCommittedSubscriptionEventError,
+};
+pub use webdriver_bidi_navigation_committed_subscription_response::{
+    MAX_WEBDRIVER_BIDI_SUBSCRIPTION_IDENTIFIER_BYTES,
+    WebDriverBiDiNavigationCommittedSubscriptionResponseError,
+    WebDriverBiDiNavigationCommittedSubscriptionResult,
+};
+pub use webdriver_bidi_navigation_committed_unsubscribe::{
+    WebDriverBiDiNavigationCommittedUnsubscribeCommand,
+    WebDriverBiDiNavigationCommittedUnsubscribeCommandError,
+};
+pub use webdriver_bidi_navigation_committed_unsubscribe_response::{
+    WebDriverBiDiNavigationCommittedUnsubscribeResponseError,
+    WebDriverBiDiNavigationCommittedUnsubscribeResult,
+};
+pub use webdriver_bidi_navigation_document_advance::{
+    WebDriverBiDiNavigationCommittedDocumentAdvance,
+    WebDriverBiDiNavigationCommittedDocumentAdvanceError,
+    advance_webdriver_bidi_navigation_document_epoch,
+};
+pub use webdriver_bidi_navigation_document_origin::{
+    WebDriverBiDiNavigationCommittedDocumentOrigin,
+    WebDriverBiDiNavigationCommittedDocumentOriginError,
+    advance_and_bind_webdriver_bidi_navigation_document_origin,
+};
+pub use webdriver_bidi_pointer_click_response::{
+    WebDriverBiDiPointerClickResponseError, WebDriverBiDiPointerClickResult,
+};
+pub use webdriver_bidi_pointer_click_transport::{
+    WebDriverBiDiPointerClickSendError, send_webdriver_bidi_pointer_click,
+};
+pub use webdriver_bidi_session_end_command::{
+    WebDriverBiDiSessionEndCommand, WebDriverBiDiSessionEndCommandError,
+};
+pub use webdriver_bidi_session_end_response::{
+    WebDriverBiDiSessionEndResponseError, WebDriverBiDiSessionEndResult,
+};
+pub use webdriver_bidi_session_status_command::{
+    WebDriverBiDiSessionStatusCommand, WebDriverBiDiSessionStatusCommandError,
+};
+pub use webdriver_bidi_session_status_response::{
+    MAX_WEBDRIVER_BIDI_SESSION_STATUS_MESSAGE_SIZE, WebDriverBiDiSessionStatusResponseError,
+    WebDriverBiDiSessionStatusResult,
+};
+pub use webdriver_bidi_session_teardown::{
+    WebDriverBiDiSessionTeardownAssessment, WebDriverBiDiSessionTeardownDisposition,
+    WebDriverBiDiSessionTeardownObservations,
+};
+pub use webdriver_bidi_text_value_observation_response::{
+    WebDriverBiDiTextValueObservationProjectionError,
+    WebDriverBiDiTextValueObservationResponseError, WebDriverBiDiTextValueObservationResult,
+};
+pub use webdriver_bidi_text_value_observation_transport::{
+    WebDriverBiDiTextValueObservationSendError, send_webdriver_bidi_text_value_observation,
+};
+pub use webdriver_bidi_text_value_postcondition::{
+    WebDriverBiDiTextValuePostcondition, WebDriverBiDiTextValuePostconditionError,
+    verify_webdriver_bidi_text_value_postcondition,
+};
+pub use webdriver_bidi_type_text_response::{
+    WebDriverBiDiTypeTextResponseError, WebDriverBiDiTypeTextResult,
+};
+pub use webdriver_bidi_type_text_transport::{
+    WebDriverBiDiTypeTextSendError, send_webdriver_bidi_type_text,
+};
+pub use webdriver_bidi_websocket_frame::{
+    MAX_WEBSOCKET_FRAME_PAYLOAD_SIZE, MAX_WEBSOCKET_FRAME_TIMEOUT,
+    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrame,
+    WebDriverBiDiWebSocketFrameError, WebDriverBiDiWebSocketHandshakePlan,
+    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketOpeningRequestSent,
+};
+pub use webdriver_bidi_websocket_handshake::{
+    MAX_WEBSOCKET_OPENING_RESPONSE_SIZE, MAX_WEBSOCKET_OPENING_RESPONSE_TIMEOUT,
+    MAX_WEBSOCKET_OPENING_WRITE_TIMEOUT, WebDriverBiDiWebSocketClientKey,
+    WebDriverBiDiWebSocketHandshakeError, WebDriverBiDiWebSocketHandshakeResponseError,
+    WebDriverBiDiWebSocketOpeningWriteError,
+};
+pub use webdriver_bidi_websocket_message::{
+    MAX_WEBDRIVER_BIDI_MESSAGE_SIZE, WebDriverBiDiWebSocketControlKind,
+    WebDriverBiDiWebSocketControlMessage, WebDriverBiDiWebSocketMessageAssembler,
+    WebDriverBiDiWebSocketMessageAssembly, WebDriverBiDiWebSocketMessageError,
+    WebDriverBiDiWebSocketTextMessage,
+};
+pub use webdriver_bidi_websocket_opening_recovery::WebDriverBiDiWebSocketOpeningWriteRecoveryDisposition;
+pub use webdriver_bidi_websocket_transport_closure::{
+    WebDriverBiDiWebSocketTransportClosureError, WebDriverBiDiWebSocketTransportClosureKind,
+    WebDriverBiDiWebSocketTransportClosureObservation,
 };
