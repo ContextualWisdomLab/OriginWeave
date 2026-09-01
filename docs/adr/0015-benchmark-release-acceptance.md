@@ -9,7 +9,7 @@
 
 OriginWeave needs commercial benchmark evidence that distinguishes a known product failure from missing, non-authoritative, externally disrupted, or statistically insufficient evidence. A binary pass/fail aggregate would create two unacceptable failure modes: an external benchmark outage could be misreported as a product defect, while absent or weak evidence could be promoted into release success.
 
-Active PR #240 introduces a bounded, deterministic release-evidence contract in `originweave-core`. This ADR records the intended authority boundary for that active work. It is **Proposed** and therefore does not make the branch protected-main truth or grant release authority.
+Active PR #240 introduces a bounded, deterministic release-evidence contract in the dedicated `originweave-release` bounded context. This ADR records the intended authority boundary for that active work. It is **Proposed** and therefore does not make the branch protected-main truth or grant release authority.
 
 Zero observed safety events also do not prove zero underlying risk. The branch therefore retains exact trial counts and declared one-sided confidence, computes the zero-event Clopper-Pearson upper bound, evaluates separately declared fixed-point thresholds, and combines the benchmark and quantitative-safety reports into one fail-closed commercial acceptance evidence decision without turning that evidence into release authority.
 
@@ -26,7 +26,7 @@ Zero observed safety events also do not prove zero underlying risk. The branch t
 
 ## Assumptions and authority boundaries
 
-`originweave-core` owns pure value contracts and deterministic evaluation only. It does not execute benchmarks, authenticate artifacts, query CI, select supported browser/profile claims, approve exceptions, publish releases, or decide whether an operator is authorized to release.
+`originweave-release` owns the benchmark release-acceptance bounded context: pure release-evidence value contracts and deterministic acceptance evaluation. `originweave-core` remains the stable cross-context value-contract kernel and must not depend outward on release-specific policy or evidence types. Neither crate executes benchmarks, authenticates artifacts, queries CI, selects supported browser/profile claims, approves exceptions, publishes releases, or decides whether an operator is authorized to release.
 
 `BenchmarkFailureClass` is evidence causality, not an approval signal. `ZeroEventSafetyEvidence` and `ZeroEventSafetyThreshold` quantify retained observations and policy thresholds, while `decide_commercial_release_with_zero_event_safety` combines benchmark and zero-event reports only as commercial acceptance **evidence**. `DeclaredLimitation` is buyer-visible scope narrowing, not permission to waive a failed mandatory threshold.
 
@@ -131,9 +131,11 @@ Acceptance for this ADR requires current-head Rust contracts, full tests, rustdo
 
 ## Migration and rollback
 
-The change is additive inside the active `originweave-core` release-evidence surface. Existing `decide_release` callers retain the compatibility entrypoint with no zero-event observations. Callers that need commercial acceptance evidence should migrate to `decide_commercial_release_with_zero_event_safety` and provide thresholds for all five named zero-event safety metrics together with their retained observations; they must not infer repository or operator release authority from the resulting report.
+This branch performs a deliberate **pre-GA breaking migration** of the release-acceptance public path from protected-main `originweave_core::release_acceptance::*` to the dedicated `originweave_release::*` crate. The repository currently has no published GitHub release, so the migration is being made before a GA compatibility promise rather than preserving the obsolete bounded-context ownership by adding a reverse dependency from `originweave-core` to `originweave-release`.
 
-Rollback is removal of the active-PR API and its callers before protected-main integration, or a later policy-compliant superseding change after integration. Rollback must not replace typed inconclusive states with optimistic success.
+Repository consumers of `originweave_core::release_acceptance::*` must migrate their dependency and imports to `originweave-release` in the same integration lineage. No compatibility shim may make `originweave-core` depend outward on release-specific contracts or duplicate those contracts in both contexts. Existing `decide_release` semantics remain available from the release crate; callers that need commercial acceptance evidence should use `decide_commercial_release_with_zero_event_safety` and provide thresholds for all five named zero-event safety metrics together with their retained observations. Neither entrypoint grants repository or operator release authority.
+
+Rollback before protected-main integration is restoration of the current protected-main `originweave_core::release_acceptance::*` owner and removal of the new release crate. After integration, reversal requires a policy-compliant superseding change and coordinated consumer migration; rollback must not create two authoritative copies or replace typed inconclusive states with optimistic success.
 
 ## Open follow-ups
 
