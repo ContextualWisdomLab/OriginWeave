@@ -17,7 +17,11 @@ class DddDocumentationContractTests(unittest.TestCase):
         self.assertIn("Anti-Corruption Layer", context_map)
         self.assertIn("MCP adapter", context_map)
         self.assertIn("originweave-core", context_map)
+        self.assertIn("originweave-policy", context_map)
         self.assertIn("must not depend outward on protocol adapters", context_map)
+        self.assertIn("MCP adapter → policy decision", context_map)
+        self.assertNotIn("Policy decision → MCP adapter", context_map)
+        self.assertIn("policy depends only on `originweave-core`", context_map)
 
     def test_ubiquitous_language_keeps_authority_terms_distinct(self) -> None:
         glossary = (ROOT / "docs/ubiquitous-language.md").read_text(encoding="utf-8")
@@ -47,6 +51,9 @@ class DddDocumentationContractTests(unittest.TestCase):
         self.assertIn("active PR #272", trace)
         self.assertIn("crates/originweave-core/src/mcp.rs", trace)
         self.assertIn("crates/originweave-mcp/src/routing.rs", trace)
+        self.assertIn("originweave_mcp::evaluate_mcp", trace)
+        self.assertIn("originweave_policy::evaluate", trace)
+        self.assertIn("protocol-independent", trace)
         self.assertIn("active-PR evidence, not protected-main behavior", trace)
 
 
