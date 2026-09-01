@@ -2,7 +2,7 @@ use std::{error::Error, fmt};
 
 use crate::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
-    WebDriverBiDiCorrelatedResponseOutcome, WebDriverBiDiJsonEnvelope,
+    WebDriverBiDiCommandKind, WebDriverBiDiCorrelatedResponseOutcome, WebDriverBiDiJsonEnvelope,
     WebDriverBiDiJsonEnvelopeError, WebDriverBiDiWebSocketTextMessage,
 };
 
@@ -25,8 +25,8 @@ impl WebDriverBiDiSessionEndResult {
     /// Complete JSON and common WebDriver BiDi envelope validation occur before correlation state
     /// can be consumed. Successful responses retain only the matched command id. A correlatable
     /// protocol-error response consumes its matching id and returns a typed remote failure, while
-    /// events, null-id errors, malformed envelopes, and unknown ids fail closed without consuming
-    /// unrelated outstanding state.
+    /// events, null-id errors, malformed envelopes, unknown ids, and command-kind mismatches fail
+    /// closed without consuming unrelated outstanding state.
     pub fn parse_and_correlate(
         message: &WebDriverBiDiWebSocketTextMessage,
         correlation: &mut WebDriverBiDiCommandCorrelation,
@@ -34,7 +34,7 @@ impl WebDriverBiDiSessionEndResult {
         let envelope = WebDriverBiDiJsonEnvelope::parse(message)
             .map_err(|source| WebDriverBiDiSessionEndResponseError::Envelope { source })?;
         let completed = correlation
-            .correlate_response(&envelope)
+            .correlate_response_for(&envelope, WebDriverBiDiCommandKind::SessionEnd)
             .map_err(|source| WebDriverBiDiSessionEndResponseError::Correlation { source })?;
 
         match completed.outcome() {

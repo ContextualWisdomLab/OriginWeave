@@ -8,10 +8,11 @@ use std::{
 
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
-    MAX_WEBDRIVER_BIDI_JS_UINT, WebDriverBiDiCommandCorrelation, WebDriverBiDiSessionEndCommand,
-    WebDriverBiDiSessionEndCommandError, WebDriverBiDiTcpConnectionPlan,
-    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketEstablished,
-    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
+    MAX_WEBDRIVER_BIDI_JS_UINT, WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind,
+    WebDriverBiDiSessionEndCommand, WebDriverBiDiSessionEndCommandError,
+    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
+    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketHandshakePlan,
+    WebDriverBiDiWebSocketMaskKey,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -75,7 +76,7 @@ fn session_end_rejects_duplicate_correlation_before_any_frame_write() -> Result<
 {
     let (established, server) = establish_with_handshake_only_server()?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command(7)?;
+    correlation.register_command_for(7, WebDriverBiDiCommandKind::SessionEnd)?;
     let command = WebDriverBiDiSessionEndCommand::new(7)?;
 
     let error = command
@@ -120,6 +121,8 @@ fn session_end_preserves_registration_when_frame_timeout_is_invalid() -> Result<
         WebDriverBiDiSessionEndCommandError::FrameWrite { .. }
     ));
     assert_eq!(correlation.outstanding_count(), 1);
+    correlation.retire_command_for(11, WebDriverBiDiCommandKind::SessionEnd)?;
+    assert_eq!(correlation.outstanding_count(), 0);
 
     server
         .join()
