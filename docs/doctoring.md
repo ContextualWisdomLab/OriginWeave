@@ -8,19 +8,19 @@ This document records external evidence that changes OriginWeave architecture, t
 
 The 1 June 2026 WebDriver BiDi Working Draft defines a bidirectional remote-control protocol, events, commands, and user contexts. Because it remains a W3C Working Draft, OriginWeave places BiDi behind a versioned adapter and Web Platform Tests-derived contract tests rather than make it the internal authority model.
 
+The same Working Draft defines `script.NodeRemoteValue` with a required `type` of `node` and an optional `sharedId`, and `browsingContext.locateNodes` returns a list of those remote values. A `script.SharedReference` is the protocol's node identity across realms; when both `handle` and `sharedId` are present, the protocol respects only `sharedId`. OriginWeave therefore admits a `locateNodes` result item only when the remote type is exactly `node` and a non-empty `sharedId` fits the same UTF-8 identifier budget used by browser session and context identifiers and contains no control, whitespace, or reviewed Unicode format characters. Requiring `sharedId` and rejecting control, whitespace, and format characters is a local fail-closed policy, not a claim that the Working Draft makes those fields mandatory or forbids whitespace. The admitted value is an untrusted transport handle, not an OriginWeave session, context, origin, or document-epoch node identity. The same-call QueryNodes admission boundary first obtains a non-cloneable SemanticObservation protocol-use proof and transfers that proof by ownership into `bind_current_nodes`, which refuses Navigation and TypedInput proofs before translating each admitted `sharedId` through the session-scoped registry into an `ObservedNodeHandle` only after the exact current session, browsing context, canonical origin, and document epoch are revalidated and the returned item count still fits the reviewed query budget. That composition still performs no browser I/O and does not authorize typed input.
+
+WAI-ARIA 1.2 defines host-language `role` values as a token list: user agents split on whitespace and use the first matching non-abstract role. OriginWeave's first `locateNodes` accessibility query asks for one exact role, so a role containing whitespace, a control character, or a Unicode format character is rejected rather than interpreted as a fallback-role list. Accessible Name and Description Computation 1.2, a W3C Working Draft as of 5 August 2026, treats accessible names as ordinary strings that may contain spaces and treats whitespace-only `aria-roledescription` values as absent. OriginWeave therefore keeps ordinary spaces in accessible-name locators, rejects control and reviewed format characters that would become protocol-text injection or bidirectional spoofing, and rejects whitespace-only names as non-selectors.
+
+UTS #39 Revision 32 is the current Unicode security-mechanisms standard and marks Default_Ignorable and bidirectional format characters as restricted in identifier profiles. UAX #9 defines the bidirectional format controls that can reorder displayed protocol text. UTR #36 Revision 15 remains a stabilized historical security-considerations report; its identifier recommendations are superseded by UTS #39 rather than cited as current normative profile rules. OriginWeave therefore rejects the reviewed format-character set in roles, shared identifiers, and registry external identifiers, and rejects those same characters inside accessible names while still allowing ordinary U+0020 spaces.
+
+RFC 6455 carries the WebSocket opening handshake over HTTP/1.1, and RFC 9110 permits `obs-text` octets (`%x80-FF`) in field values while retaining ASCII field-name and delimiter syntax. RFC 6455 also specifies that unknown opening-handshake header fields are ignored. OriginWeave therefore treats unknown extension-field values as opaque compatibility data rather than requiring the entire opening response to be UTF-8, while keeping the authority-bearing `Upgrade`, `Connection`, and `Sec-WebSocket-Accept` checks fail closed: opaque replacement material cannot satisfy the reviewed ASCII token or exact accept-value contracts. Ignoring an unknown field never grants browser, network, secret, approval, or Agent authority.
+
 ### Browser origin equivalence
 
 The WHATWG URL host parser and Chromium canonicalizer classify shortened decimal, integer, hexadecimal, legacy octal-looking, and mixed-component numeric hosts as IPv4 or broken IPv4 candidates rather than ordinary DNS names. Chromium's regression suite includes values such as `192`, `0xC0a80001`, `030052000001`, and mixed hexadecimal components. A non-final empty `0x` component can participate in Chromium's multi-part IPv4 truncation behavior, but a final `0x` label does not produce an IPv4 number because stripping its prefix leaves no digits; it remains a domain label. Chromium also warns that broken IP-like hosts must not be connected because another resolver could accept them. OriginWeave therefore admits only canonical dotted-decimal IPv4 into its policy origin type, rejects browser-special numeric spellings before DNS validation, and preserves final non-numeric DNS labels such as `0x`.
 
 The exact Chromium regression evidence is pinned to revision `446d05d21720f0b3505ec21057b3e9f909784262`. A mutable `HEAD` reference is not sufficient for a reproducible security contract.
-
-### Extension-to-Agent grant origin binding
-
-RFC 6454 defines a web origin as the scheme, host, and port tuple that browsers use to isolate authority. An OriginWeave `extension_grant` that is bound only to extension identity, session, and browsing context would remain valid after the same context navigates to another origin. OriginWeave therefore requires the grant and the request to carry the same canonical origin. A host change or a non-default port change is a different origin and cannot reuse the grant. This is grant-scope isolation only; it does not install an extension, parse Chrome messages, or mint Agent capabilities from Manifest V3 permissions.
-
-### Extension-to-Agent grant exclusive expiry
-
-RFC 9700 is the current Best Current Practice for OAuth 2.0 security. It requires access tokens to be restricted in lifetime and treats long-lived bearer credentials as a standing authorization risk. An OriginWeave `extension_grant` that matches extension identity, session, browsing context, and canonical origin but has no exclusive expiry remains usable after the Agent Task window ends. OriginWeave therefore requires the grant to carry an exclusive `expires_at_epoch_seconds` deadline and the request to carry trusted `now_epoch_seconds`. Evaluation fails closed when `now >= expires_at`, matching the existing sensitive-handle exclusive-expiry rule. Page, extension, and model clocks are not trusted time. This slice does not bind task identity, install an extension, or mint Agent capabilities from Manifest V3 permissions.
 
 ### Resolved destination and redirect safety
 
@@ -89,7 +89,6 @@ NIST AI 600-1 provides generative-AI lifecycle risk guidance. WASP demonstrates 
 ### Web-agent observation and evaluation
 
 Mind2Web reports that raw real-world HTML is often too large for direct LLM use and that filtering improves effectiveness and efficiency. OriginWeave prioritizes typed tools, structured data, redacted network responses, accessibility/DOM/layout semantics, and only then visual fallback. WebArena motivates repeatable task-success and failure-recovery benchmarks instead of anecdotal demonstrations.
-Semantic node actions revalidate the registry-owned node binding at the adapter handoff, so observation evidence cannot revive a retired or stale node handle.
 
 ### Learned test-time orchestration
 
@@ -104,8 +103,6 @@ These results motivate explicit OriginWeave configuration for model routing, wor
 Amazon Web Services. (n.d.). *Set up the Amazon EKS Pod Identity Agent*. Retrieved August 6, 2026, from https://docs.aws.amazon.com/eks/latest/userguide/pod-id-agent-setup.html
 
 Autio, C., Schwartz, R., Dunietz, J., Jain, S., Stanley, M., Tabassi, E., Hall, P., & Roberts, K. (2024). *Artificial intelligence risk management framework: Generative artificial intelligence profile* (NIST AI 600-1). National Institute of Standards and Technology. https://doi.org/10.6028/NIST.AI.600-1
-
-Barth, A. (2011). *The web origin concept* (RFC 6454). Internet Engineering Task Force. https://doi.org/10.17487/RFC6454
 
 Bonica, R., Cotton, M., Haberman, B., & Vegoda, L. (2017). *Updates to the special-purpose IP address registries* (RFC 8190). Internet Engineering Task Force. https://doi.org/10.17487/RFC8190
 
@@ -123,6 +120,8 @@ Eddy, W. M. (Ed.). (2022). *Transmission Control Protocol (TCP)* (RFC 9293). Int
 
 Evtimov, I., Zharmagambetov, A., Grattafiori, A., Guo, C., & Chaudhuri, K. (2025). *WASP: Benchmarking web agent security against prompt injection attacks*. arXiv. https://doi.org/10.48550/arXiv.2504.18575
 
+Fette, I., & Melnikov, A. (2011). *The WebSocket Protocol* (RFC 6455). Internet Engineering Task Force. https://doi.org/10.17487/RFC6455
+
 Fielding, R., Nottingham, M., & Reschke, J. (2022). *HTTP semantics* (RFC 9110). Internet Engineering Task Force. https://doi.org/10.17487/RFC9110
 
 Fugu Team, Sakana AI. (2026). *Sakana Fugu technical report* [Technical report]. arXiv. https://doi.org/10.48550/arXiv.2606.21228
@@ -138,8 +137,6 @@ Internet Assigned Numbers Authority. (2025, October 10). *IPv6 global unicast ad
 International Organization for Standardization. (2017). *Information and documentation—WARC file format* (ISO Standard No. 28500:2017). https://www.iso.org/standard/68004.html
 
 Koster, M., Illyes, G., Zeller, H., & Sassman, L. (2022). *Robots Exclusion Protocol* (RFC 9309). Internet Engineering Task Force. https://doi.org/10.17487/RFC9309
-
-Lodderstedt, T., Bradley, J., Labunets, A., & Fett, D. (2025). *OAuth 2.0 security best current practice* (RFC 9700). Internet Engineering Task Force. https://doi.org/10.17487/RFC9700
 
 Microsoft. (2025, July 25). *Azure IP address 168.63.129.16 overview*. Microsoft Learn. https://learn.microsoft.com/azure/virtual-network/what-is-ip-address-168-63-129-16
 
@@ -163,11 +160,21 @@ The Rust Project Developers. (2026). *Ipv6Addr in std::net* (Rust 1.97.1) [Softw
 
 The Rust Project Developers. (2026). *TcpStream in std::net* (Rust 1.97.1) [Software documentation]. https://doc.rust-lang.org/stable/std/net/struct.TcpStream.html
 
+Unicode Consortium. (2014, September 19). *Unicode security considerations* (Unicode Technical Report #36, Revision 15). https://www.unicode.org/reports/tr36/tr36-15.html
+
+Unicode Consortium. (2025a, September 4). *Unicode bidirectional algorithm* (Unicode Standard Annex #9, Version 17.0.0). https://www.unicode.org/reports/tr9/
+
+Unicode Consortium. (2025b, September 4). *Unicode security mechanisms* (Unicode Technical Standard #39, Revision 32). https://www.unicode.org/reports/tr39/tr39-32.html
+
 Web Hypertext Application Technology Working Group. (2026). *URL standard*. https://url.spec.whatwg.org/
 
 World Wide Web Consortium. (2013). *PROV-O: The PROV ontology*. https://www.w3.org/TR/prov-o/
 
+World Wide Web Consortium. (2023, June 6). *Accessible Rich Internet Applications (WAI-ARIA) 1.2*. https://www.w3.org/TR/2023/REC-wai-aria-1.2-20230606/
+
 World Wide Web Consortium. (2026, June 1). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260601/
+
+World Wide Web Consortium. (2026, August 5). *Accessible name and description computation 1.2* (W3C Working Draft). https://www.w3.org/TR/2026/WD-accname-1.2-20260805/
 
 Xu, J., Sun, Q., Schwendeman, P., Nielsen, S., Cetin, E., & Tang, Y. (2025). *TRINITY: An evolved LLM coordinator* [Preprint]. arXiv. https://doi.org/10.48550/arXiv.2512.04695
 
