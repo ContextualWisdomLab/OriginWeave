@@ -43,9 +43,17 @@ class ReleaseAcceptanceDocumentationContractTests(unittest.TestCase):
             "ZeroEventSafetyThreshold",
             "Inconclusive",
             "does not grant release authority",
+            "`originweave-release` owns the benchmark release-acceptance bounded context",
+            "pre-GA breaking migration",
+            "`originweave_core::release_acceptance::*`",
+            "`originweave_release::*`",
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, adr)
+        self.assertNotIn(
+            "The change is additive inside the active `originweave-core` release-evidence surface.",
+            adr,
+        )
 
         index = (ROOT / "docs/adr/README.md").read_text(encoding="utf-8")
         self.assertIn("[0015](0015-benchmark-release-acceptance.md)", index)
