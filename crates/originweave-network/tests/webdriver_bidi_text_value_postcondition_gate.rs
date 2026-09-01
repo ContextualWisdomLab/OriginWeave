@@ -122,11 +122,14 @@ fn mismatch_is_typed_failure_after_consuming_its_exact_response() -> Result<(), 
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     correlation.register_command(71)?;
 
-    let error =
+    let Err(error) =
         verify_webdriver_bidi_text_value_postcondition(&response, "expected", &mut correlation)
-            .expect_err(
-                "a mismatched page value must not be returned as successful postcondition evidence",
-            );
+    else {
+        return Err(io::Error::other(
+            "a mismatched page value must not be returned as successful postcondition evidence",
+        )
+        .into());
+    };
 
     assert!(matches!(
         &error,
@@ -154,9 +157,11 @@ fn malformed_observation_stays_a_typed_source_error_without_consuming_state()
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     correlation.register_command(72)?;
 
-    let error =
+    let Err(error) =
         verify_webdriver_bidi_text_value_postcondition(&response, "expected", &mut correlation)
-            .expect_err("malformed observation must fail closed");
+    else {
+        return Err(io::Error::other("malformed observation must fail closed").into());
+    };
 
     assert!(matches!(
         &error,
