@@ -764,7 +764,10 @@ mod tests {
                 .as_deref(),
             Some("expected text-value postcondition exceeds the local byte budget")
         );
-        assert_eq!(validate_expected_text("ordinary space"), Ok(()));
+        assert_eq!(
+            validate_expected_text("ordinary space").map_err(|_| ()),
+            Ok(())
+        );
         for rejected in ["tab\tvalue", "control\u{0001}", "bidi\u{202e}override"] {
             assert_eq!(
                 validate_expected_text(rejected)
@@ -797,7 +800,6 @@ mod tests {
                 }
             )
         );
-
         let many_members = (0..=MAX_SCRIPT_RESULT_OBJECT_MEMBERS)
             .map(|index| format!("\"k{index}\":0"))
             .collect::<Vec<_>>()
