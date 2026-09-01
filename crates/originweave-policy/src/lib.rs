@@ -19,7 +19,6 @@ use originweave_core::{
     ActionRequest, ApprovalEvidence, ApprovalScope, Capability, ExecutionPurpose,
     InstructionSource, PolicyContext, RiskClass, RobotsDecision, SecretDelivery, SessionMode,
 };
-use originweave_mcp::ValidatedMcpToolCall;
 
 /// The result of evaluating one typed action request.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -41,7 +40,7 @@ pub enum DenialReason {
     ModePurposeMismatch,
     /// Page or document content attempted to become a trusted instruction.
     UntrustedInstructionSource,
-    /// The validated MCP route resolved to a different action than the policy request.
+    /// A validated external route resolved to a different action than the policy request.
     McpActionMismatch,
     /// The session lacks the exact capability required by the action.
     MissingCapability(Capability),
@@ -67,23 +66,6 @@ pub enum DenialReason {
     ForbiddenRisk,
     /// Approval evidence covers a different action, origin, or intent digest.
     ApprovalScopeMismatch,
-}
-
-/// Evaluate a policy request only when it matches an already validated MCP route.
-///
-/// Matching routing metadata grants no authority. Once route and request action agree, the request
-/// still passes through the existing action policy unchanged.
-#[must_use]
-pub fn evaluate_mcp(
-    call: &ValidatedMcpToolCall,
-    request: &ActionRequest,
-    context: &PolicyContext,
-) -> Decision {
-    if call.action_kind() != request.action() {
-        return Decision::Deny(DenialReason::McpActionMismatch);
-    }
-
-    evaluate(request, context)
 }
 
 /// Evaluate a typed browser action against one explicit policy context.

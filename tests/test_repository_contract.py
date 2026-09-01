@@ -32,23 +32,32 @@ class RepositoryContractTests(unittest.TestCase):
         )
 
     def test_mcp_adapter_isolated_from_shared_domain_contracts(self) -> None:
-        """External MCP protocol DTOs and routing must not live in originweave-core."""
+        """Protocol adapters may depend inward on policy; policy must not depend outward on MCP."""
 
         self.assertFalse((ROOT / "crates/originweave-core/src/mcp.rs").exists())
         mcp_manifest = tomllib.loads(
             (ROOT / "crates/originweave-mcp/Cargo.toml").read_text(encoding="utf-8")
         )
-        self.assertEqual(set(mcp_manifest.get("dependencies", {})), {"originweave-core"})
+        self.assertEqual(
+            set(mcp_manifest.get("dependencies", {})),
+            {"originweave-core", "originweave-policy"},
+        )
 
         policy_manifest = tomllib.loads(
             (ROOT / "crates/originweave-policy/Cargo.toml").read_text(encoding="utf-8")
         )
-        self.assertIn("originweave-mcp", policy_manifest["dependencies"])
+        self.assertEqual(set(policy_manifest.get("dependencies", {})), {"originweave-core"})
         policy_source = (ROOT / "crates/originweave-policy/src/lib.rs").read_text(
             encoding="utf-8"
         )
-        self.assertNotIn("originweave_core::mcp", policy_source)
-        self.assertIn("originweave_mcp::ValidatedMcpToolCall", policy_source)
+        self.assertNotIn("originweave_mcp", policy_source)
+        self.assertNotIn("ValidatedMcpToolCall", policy_source)
+
+        mcp_source = (ROOT / "crates/originweave-mcp/src/lib.rs").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("originweave_policy", mcp_source)
+        self.assertIn("evaluate_mcp", mcp_source)
 
     def test_toolchain_is_pinned_to_current_project_baseline(self) -> None:
         """Reproducible builds require an explicit Rust patch version."""

@@ -6,8 +6,10 @@ use originweave_core::{
     ActionIntentDigest, ActionKind, ActionRequest, ApprovalEvidence, Capability, ExecutionPurpose,
     InstructionSource, Origin, PolicyContext, RobotsDecision, SecretDelivery, SessionMode,
 };
-use originweave_mcp::{MCP_PROTOCOL_VERSION, MCP_TOOLS_CALL_METHOD, ValidatedMcpToolCall};
-use originweave_policy::{Decision, DenialReason, evaluate_mcp};
+use originweave_mcp::{
+    MCP_PROTOCOL_VERSION, MCP_TOOLS_CALL_METHOD, ValidatedMcpToolCall, evaluate_mcp,
+};
+use originweave_policy::{Decision, DenialReason};
 
 const VALID_INTENT: &str =
     "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";

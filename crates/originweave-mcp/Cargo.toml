@@ -12,6 +12,7 @@ publish = false
 
 [dependencies]
 originweave-core = { path = "../originweave-core" }
+originweave-policy = { path = "../originweave-policy" }
 
 [lints]
 workspace = true
