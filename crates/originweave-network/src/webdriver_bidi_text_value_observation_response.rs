@@ -171,14 +171,26 @@ impl fmt::Display for WebDriverBiDiTextValueObservationResponseError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
             Self::EmptyExpectedText => "expected text-value postcondition must not be empty",
-            Self::ExpectedTextTooLong => "expected text-value postcondition exceeds the local byte budget",
-            Self::InvalidExpectedText => "expected text-value postcondition contains a disallowed character",
+            Self::ExpectedTextTooLong => {
+                "expected text-value postcondition exceeds the local byte budget"
+            }
+            Self::InvalidExpectedText => {
+                "expected text-value postcondition contains a disallowed character"
+            }
             Self::Envelope { .. } => "WebDriver BiDi text-value observation envelope is invalid",
-            Self::UnexpectedEvent => "WebDriver BiDi text-value observation received an event instead of a command response",
+            Self::UnexpectedEvent => {
+                "WebDriver BiDi text-value observation received an event instead of a command response"
+            }
             Self::Projection { .. } => "WebDriver BiDi text-value observation result is invalid",
-            Self::Correlation { .. } => "WebDriver BiDi text-value observation response correlation failed",
-            Self::RemoteProtocolError { .. } => "WebDriver BiDi text-value observation returned a protocol error",
-            Self::ScriptException { .. } => "WebDriver BiDi text-value observation returned a script exception",
+            Self::Correlation { .. } => {
+                "WebDriver BiDi text-value observation response correlation failed"
+            }
+            Self::RemoteProtocolError { .. } => {
+                "WebDriver BiDi text-value observation returned a protocol error"
+            }
+            Self::ScriptException { .. } => {
+                "WebDriver BiDi text-value observation returned a script exception"
+            }
         })
     }
 }
@@ -284,6 +296,7 @@ fn validate_expected_text(
     Ok(())
 }
 
+#[derive(Debug, Eq, PartialEq)]
 enum ScriptResultProjection {
     String(String),
     Exception,
@@ -600,12 +613,12 @@ mod tests {
     #[test]
     fn projection_accepts_extensions_and_decodes_string_escapes() {
         let response = r#"{"type":"success","id":7,"vendor":true,"result":{"realm":"realm-1","type":"success","vendor":{"nested":[1,true,null]},"result":{"value":"A\"B\\C\/D\b\f\n\r\t\u20ac\ud83d\ude00","type":"string","vendor":0}}}"#;
-        let projection = project_script_result(response);
-        assert!(matches!(
-            projection,
-            Ok(ScriptResultProjection::String(ref value))
-                if value == "A\"B\\C/D\u{0008}\u{000c}\n\r\t€😀"
-        ));
+        assert_eq!(
+            project_script_result(response),
+            Ok(ScriptResultProjection::String(
+                "A\"B\\C/D\u{0008}\u{000c}\n\r\t€😀".to_owned(),
+            ))
+        );
     }
 
     #[test]
@@ -683,6 +696,10 @@ mod tests {
         );
         assert_eq!(
             decode_json_string(r#""\uD800x""#).err(),
+            Some(WebDriverBiDiTextValueObservationProjectionError::InvalidString)
+        );
+        assert_eq!(
+            decode_json_string(r#""\uD800\x""#).err(),
             Some(WebDriverBiDiTextValueObservationProjectionError::InvalidString)
         );
         assert_eq!(
@@ -800,6 +817,7 @@ mod tests {
         );
 
         assert_eq!(scan_value_end(b"[]", 0, 0), Ok(2));
+        assert_eq!(scan_value_end(b"terminal", 0, 0), Ok(b"terminal".len()));
         assert_eq!(
             scan_value_end(b",", 0, 0).err(),
             Some(WebDriverBiDiTextValueObservationProjectionError::InvalidValue)
