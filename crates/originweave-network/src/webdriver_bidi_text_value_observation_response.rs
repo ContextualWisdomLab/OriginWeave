@@ -60,34 +60,41 @@ impl WebDriverBiDiTextValueObservationResult {
         correlation: &mut WebDriverBiDiCommandCorrelation,
     ) -> Result<Self, WebDriverBiDiTextValueObservationResponseError> {
         validate_expected_text(expected_text)?;
-        let envelope = WebDriverBiDiJsonEnvelope::parse(message)
-            .map_err(|source| WebDriverBiDiTextValueObservationResponseError::Envelope { source })?;
+        let envelope = WebDriverBiDiJsonEnvelope::parse(message).map_err(|source| {
+            WebDriverBiDiTextValueObservationResponseError::Envelope { source }
+        })?;
 
         match envelope.kind() {
             WebDriverBiDiJsonEnvelopeKind::Event => {
                 Err(WebDriverBiDiTextValueObservationResponseError::UnexpectedEvent)
             }
             WebDriverBiDiJsonEnvelopeKind::Error => {
-                let completed = correlation.correlate_response(&envelope).map_err(|source| {
-                    WebDriverBiDiTextValueObservationResponseError::Correlation { source }
-                })?;
-                Err(WebDriverBiDiTextValueObservationResponseError::RemoteProtocolError {
-                    command_id: completed.command_id(),
-                })
+                let completed = correlation
+                    .correlate_response(&envelope)
+                    .map_err(|source| {
+                        WebDriverBiDiTextValueObservationResponseError::Correlation { source }
+                    })?;
+                Err(
+                    WebDriverBiDiTextValueObservationResponseError::RemoteProtocolError {
+                        command_id: completed.command_id(),
+                    },
+                )
             }
             WebDriverBiDiJsonEnvelopeKind::Success => {
                 let projection = project_script_result(message.as_str()).map_err(|source| {
                     WebDriverBiDiTextValueObservationResponseError::Projection { source }
                 })?;
-                let completed = correlation.correlate_response(&envelope).map_err(|source| {
-                    WebDriverBiDiTextValueObservationResponseError::Correlation { source }
-                })?;
+                let completed = correlation
+                    .correlate_response(&envelope)
+                    .map_err(|source| {
+                        WebDriverBiDiTextValueObservationResponseError::Correlation { source }
+                    })?;
                 match projection {
-                    ScriptResultProjection::Exception => {
-                        Err(WebDriverBiDiTextValueObservationResponseError::ScriptException {
+                    ScriptResultProjection::Exception => Err(
+                        WebDriverBiDiTextValueObservationResponseError::ScriptException {
                             command_id: completed.command_id(),
-                        })
-                    }
+                        },
+                    ),
                     ScriptResultProjection::String(observed_text) => {
                         let observed_text_bytes = observed_text.len();
                         let matches_expected_text = observed_text == expected_text;
@@ -230,14 +237,27 @@ impl fmt::Display for WebDriverBiDiTextValueObservationProjectionError {
         match self {
             Self::InvalidObject { member } => write!(formatter, "invalid object at {member}"),
             Self::MissingMember { member } => write!(formatter, "missing member {member}"),
-            Self::DuplicateMember => formatter.write_str("duplicate command-specific result member"),
-            Self::TooManyMembers => formatter.write_str("command-specific result object has too many members"),
-            Self::MemberNameTooLong => formatter.write_str("command-specific result member name is too long"),
+            Self::DuplicateMember => {
+                formatter.write_str("duplicate command-specific result member")
+            }
+            Self::TooManyMembers => {
+                formatter.write_str("command-specific result object has too many members")
+            }
+            Self::MemberNameTooLong => {
+                formatter.write_str("command-specific result member name is too long")
+            }
             Self::InvalidString => formatter.write_str("invalid command-specific JSON string"),
-            Self::UnsupportedScriptResultType => formatter.write_str("unsupported script result type"),
-            Self::UnsupportedRemoteValueType => formatter.write_str("text-value observation did not return a string RemoteValue"),
-            Self::ObservedTextTooLong => formatter.write_str("observed text-value postcondition exceeds the local byte budget"),
-            Self::NestingTooDeep => formatter.write_str("command-specific result nesting is too deep"),
+            Self::UnsupportedScriptResultType => {
+                formatter.write_str("unsupported script result type")
+            }
+            Self::UnsupportedRemoteValueType => {
+                formatter.write_str("text-value observation did not return a string RemoteValue")
+            }
+            Self::ObservedTextTooLong => formatter
+                .write_str("observed text-value postcondition exceeds the local byte budget"),
+            Self::NestingTooDeep => {
+                formatter.write_str("command-specific result nesting is too deep")
+            }
             Self::InvalidValue => formatter.write_str("invalid command-specific result value"),
         }
     }
@@ -289,8 +309,7 @@ fn project_script_result(
                     WebDriverBiDiTextValueObservationProjectionError::UnsupportedRemoteValueType,
                 );
             }
-            let observed =
-                required_string_member(&remote_members, "value", "result.result.value")?;
+            let observed = required_string_member(&remote_members, "value", "result.result.value")?;
             if observed.len() > MAX_WEBDRIVER_BIDI_TYPE_TEXT_BYTES {
                 return Err(WebDriverBiDiTextValueObservationProjectionError::ObservedTextTooLong);
             }
@@ -319,9 +338,9 @@ fn required_object_member<'a>(
         .ok_or(WebDriverBiDiTextValueObservationProjectionError::MissingMember { member: path })?;
     let trimmed = value.trim();
     if !trimmed.starts_with('{') {
-        return Err(WebDriverBiDiTextValueObservationProjectionError::InvalidObject {
-            member: path,
-        });
+        return Err(
+            WebDriverBiDiTextValueObservationProjectionError::InvalidObject { member: path },
+        );
     }
     Ok(trimmed)
 }
@@ -345,9 +364,9 @@ fn parse_object_members<'a>(
     let bytes = text.as_bytes();
     let mut index = skip_whitespace(bytes, 0);
     if bytes.get(index) != Some(&b'{') {
-        return Err(WebDriverBiDiTextValueObservationProjectionError::InvalidObject {
-            member: path,
-        });
+        return Err(
+            WebDriverBiDiTextValueObservationProjectionError::InvalidObject { member: path },
+        );
     }
     index += 1;
     let mut members = Vec::new();
@@ -535,25 +554,31 @@ fn decode_json_string(
                 let first = decode_hex_quad(&mut characters)?;
                 if (0xd800..=0xdbff).contains(&first) {
                     if characters.next() != Some('\\') || characters.next() != Some('u') {
-                        return Err(WebDriverBiDiTextValueObservationProjectionError::InvalidString);
+                        return Err(
+                            WebDriverBiDiTextValueObservationProjectionError::InvalidString,
+                        );
                     }
                     let second = decode_hex_quad(&mut characters)?;
                     if !(0xdc00..=0xdfff).contains(&second) {
-                        return Err(WebDriverBiDiTextValueObservationProjectionError::InvalidString);
+                        return Err(
+                            WebDriverBiDiTextValueObservationProjectionError::InvalidString,
+                        );
                     }
                     let scalar = 0x1_0000
                         + ((u32::from(first) - 0xd800) << 10)
                         + (u32::from(second) - 0xdc00);
                     output.push(
-                        char::from_u32(scalar)
-                            .ok_or(WebDriverBiDiTextValueObservationProjectionError::InvalidString)?,
+                        char::from_u32(scalar).ok_or(
+                            WebDriverBiDiTextValueObservationProjectionError::InvalidString,
+                        )?,
                     );
                 } else if (0xdc00..=0xdfff).contains(&first) {
                     return Err(WebDriverBiDiTextValueObservationProjectionError::InvalidString);
                 } else {
                     output.push(
-                        char::from_u32(u32::from(first))
-                            .ok_or(WebDriverBiDiTextValueObservationProjectionError::InvalidString)?,
+                        char::from_u32(u32::from(first)).ok_or(
+                            WebDriverBiDiTextValueObservationProjectionError::InvalidString,
+                        )?,
                     );
                 }
             }
@@ -624,9 +649,11 @@ mod tests {
         let missing = r#"{"type":"success","id":11,"result":{"type":"success","realm":"realm-1"}}"#;
         assert_eq!(
             project_script_result(missing).err(),
-            Some(WebDriverBiDiTextValueObservationProjectionError::MissingMember {
-                member: "result.result"
-            })
+            Some(
+                WebDriverBiDiTextValueObservationProjectionError::MissingMember {
+                    member: "result.result"
+                }
+            )
         );
 
         let duplicate = r#"{"type":"success","id":12,"result":{"type":"success","type":"success","realm":"realm-1","result":{"type":"string","value":"x"}}}"#;
@@ -638,12 +665,15 @@ mod tests {
         let invalid_object = r#"{"type":"success","id":13,"result":false}"#;
         assert_eq!(
             project_script_result(invalid_object).err(),
-            Some(WebDriverBiDiTextValueObservationProjectionError::InvalidObject {
-                member: "result"
-            })
+            Some(
+                WebDriverBiDiTextValueObservationProjectionError::InvalidObject {
+                    member: "result"
+                }
+            )
         );
 
-        let unsupported = r#"{"type":"success","id":14,"result":{"type":"future","realm":"realm-1"}}"#;
+        let unsupported =
+            r#"{"type":"success","id":14,"result":{"type":"future","realm":"realm-1"}}"#;
         assert_eq!(
             project_script_result(unsupported).err(),
             Some(WebDriverBiDiTextValueObservationProjectionError::UnsupportedScriptResultType)
@@ -679,7 +709,9 @@ mod tests {
 
         assert_eq!(
             parse_object_members("[]", "root").err(),
-            Some(WebDriverBiDiTextValueObservationProjectionError::InvalidObject { member: "root" })
+            Some(
+                WebDriverBiDiTextValueObservationProjectionError::InvalidObject { member: "root" }
+            )
         );
         assert_eq!(
             parse_object_members("{\"a\":1} trailing", "root").err(),
