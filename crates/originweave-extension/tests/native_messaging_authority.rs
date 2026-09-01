@@ -2,9 +2,11 @@
 
 use originweave_core::{
     BrowserSessionId, BrowsingContextId, ExtensionAccessDecision, ExtensionAccessRequest,
-    ExtensionAgentCapability, ExtensionId, NativeMessagingAccessDecision,
-    NativeMessagingAccessRequest, NativeMessagingHostGrant, NativeMessagingHostName, Origin,
-    evaluate_extension_access, evaluate_native_messaging_access,
+    ExtensionAgentCapability, ExtensionId, Origin, evaluate_extension_access,
+};
+use originweave_extension::{
+    NativeMessagingAccessDecision, NativeMessagingAccessRequest, NativeMessagingHostGrant,
+    NativeMessagingHostName, evaluate_native_messaging_access,
 };
 
 const UNEXPIRED_NOW_EPOCH_SECONDS: u64 = 1_700_000_000;
