@@ -74,6 +74,26 @@ class RepositoryContractTests(unittest.TestCase):
         self.assertGreaterEqual(core_source.count("#[deprecated("), len(release_modules))
         self.assertIn("Temporary compatibility path", core_source)
 
+    def test_release_acceptance_tests_follow_release_context_ownership(self) -> None:
+        """Domain tests must live with the release bounded context they exercise."""
+
+        core_tests = ROOT / "crates/originweave-core/tests"
+        release_tests = ROOT / "crates/originweave-release/tests"
+        release_owned_prefixes = (
+            "benchmark_",
+            "commercial_release_",
+            "release_acceptance",
+            "zero_event_",
+        )
+        misplaced = sorted(
+            path.name
+            for path in core_tests.glob("*.rs")
+            if path.name.startswith(release_owned_prefixes)
+        )
+        self.assertEqual(misplaced, [])
+        self.assertTrue(release_tests.is_dir())
+        self.assertTrue(any(release_tests.glob("*.rs")))
+
     def test_toolchain_is_pinned_to_current_project_baseline(self) -> None:
         """Reproducible builds require an explicit Rust patch version."""
 
