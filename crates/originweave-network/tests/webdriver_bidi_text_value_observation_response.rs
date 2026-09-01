@@ -302,14 +302,22 @@ fn response_admission_failures_preserve_or_consume_exact_correlation_state()
     let invalid = receive_server_text(b"not-json")?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     correlation.register_command(70)?;
+    let Err(envelope_error) = WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
+        &invalid,
+        "expected",
+        &mut correlation,
+    ) else {
+        return Err(io::Error::other("invalid envelope unexpectedly admitted").into());
+    };
     assert!(matches!(
-        WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
-            &invalid,
-            "expected",
-            &mut correlation,
-        ),
-        Err(WebDriverBiDiTextValueObservationResponseError::Envelope { .. })
+        &envelope_error,
+        WebDriverBiDiTextValueObservationResponseError::Envelope { .. }
     ));
+    assert_eq!(
+        envelope_error.to_string(),
+        "WebDriver BiDi text-value observation envelope is invalid"
+    );
+    assert!(envelope_error.source().is_some());
     assert_eq!(correlation.outstanding_count(), 1);
 
     let event = receive_server_text(br#"{"type":"event","method":"log.entryAdded","params":{}}"#)?;
@@ -340,28 +348,48 @@ fn response_admission_failures_preserve_or_consume_exact_correlation_state()
     let unknown_success = receive_server_text(
         br#"{"type":"success","id":72,"result":{"type":"success","realm":"realm-1","result":{"type":"string","value":"expected"}}}"#,
     )?;
-    assert!(matches!(
+    let Err(correlation_error) =
         WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
             &unknown_success,
             "expected",
             &mut correlation,
-        ),
-        Err(WebDriverBiDiTextValueObservationResponseError::Correlation { .. })
+        )
+    else {
+        return Err(io::Error::other("unknown response id unexpectedly correlated").into());
+    };
+    assert!(matches!(
+        &correlation_error,
+        WebDriverBiDiTextValueObservationResponseError::Correlation { .. }
     ));
+    assert_eq!(
+        correlation_error.to_string(),
+        "WebDriver BiDi text-value observation response correlation failed"
+    );
+    assert!(correlation_error.source().is_some());
     assert_eq!(correlation.outstanding_count(), 1);
 
     correlation.register_command(73)?;
     let malformed_projection = receive_server_text(
         br#"{"type":"success","id":73,"result":{"type":"success","result":{"type":"string","value":"expected"}}}"#,
     )?;
-    assert!(matches!(
+    let Err(projection_error) =
         WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
             &malformed_projection,
             "expected",
             &mut correlation,
-        ),
-        Err(WebDriverBiDiTextValueObservationResponseError::Projection { .. })
+        )
+    else {
+        return Err(io::Error::other("malformed script result unexpectedly admitted").into());
+    };
+    assert!(matches!(
+        &projection_error,
+        WebDriverBiDiTextValueObservationResponseError::Projection { .. }
     ));
+    assert_eq!(
+        projection_error.to_string(),
+        "WebDriver BiDi text-value observation result is invalid"
+    );
+    assert!(projection_error.source().is_some());
     assert_eq!(correlation.outstanding_count(), 2);
 
     let script_exception = receive_server_text(
