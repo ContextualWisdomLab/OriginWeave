@@ -133,7 +133,7 @@ fn mismatch_is_typed_failure_after_consuming_its_exact_response() -> Result<(), 
     .expect_err("a mismatched page value must not be returned as successful postcondition evidence");
 
     assert!(matches!(
-        error,
+        &error,
         WebDriverBiDiTextValuePostconditionError::PostconditionMismatch {
             command_id: 71,
             observed_text_bytes: 10,
