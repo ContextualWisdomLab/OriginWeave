@@ -175,3 +175,28 @@ fn malformed_observation_stays_a_typed_source_error_without_consuming_state()
     assert_eq!(correlation.outstanding_count(), 1);
     Ok(())
 }
+
+#[test]
+fn unrelated_outstanding_command_cannot_certify_text_postcondition() -> Result<(), Box<dyn Error>> {
+    let response = receive_server_text(
+        br#"{"type":"success","id":73,"result":{"type":"success","realm":"realm-1","result":{"type":"string","value":"expected"}}}"#,
+    )?;
+    let mut correlation = WebDriverBiDiCommandCorrelation::new();
+    correlation.register_command(73)?;
+
+    let Err(error) =
+        verify_webdriver_bidi_text_value_postcondition(&response, "expected", &mut correlation)
+    else {
+        return Err(io::Error::other(
+            "an unrelated outstanding command id must not certify a text-value postcondition",
+        )
+        .into());
+    };
+
+    assert!(matches!(
+        &error,
+        WebDriverBiDiTextValuePostconditionError::Observation { .. }
+    ));
+    assert_eq!(correlation.outstanding_count(), 1);
+    Ok(())
+}
