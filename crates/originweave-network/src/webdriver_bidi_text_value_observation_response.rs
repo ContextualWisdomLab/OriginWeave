@@ -624,10 +624,7 @@ mod tests {
     #[test]
     fn projection_accepts_typed_script_exception_without_retaining_details() {
         let response = r#"{"type":"success","id":8,"result":{"type":"exception","realm":"realm-1","exceptionDetails":{"text":"page-secret","columnNumber":1,"lineNumber":1,"stackTrace":{"callFrames":[]}}}}"#;
-        assert!(matches!(
-            project_script_result(response),
-            Ok(ScriptResultProjection::Exception)
-        ));
+        assert_eq!(project_script_result(response), Ok(ScriptResultProjection::Exception));
     }
 
     #[test]
@@ -703,6 +700,10 @@ mod tests {
             Some(WebDriverBiDiTextValueObservationProjectionError::InvalidString)
         );
         assert_eq!(
+            decode_json_string(r#""\uD800\u12xz""#).err(),
+            Some(WebDriverBiDiTextValueObservationProjectionError::InvalidString)
+        );
+        assert_eq!(
             decode_json_string(r#""\uD800\u0041""#).err(),
             Some(WebDriverBiDiTextValueObservationProjectionError::InvalidString)
         );
@@ -745,28 +746,31 @@ mod tests {
 
     #[test]
     fn expected_text_validation_covers_budget_and_injection_policy() {
-        assert!(matches!(
-            validate_expected_text(""),
-            Err(WebDriverBiDiTextValueObservationResponseError::EmptyExpectedText)
-        ));
+        assert_eq!(
+            validate_expected_text("")
+                .err()
+                .map(|error| error.to_string())
+                .as_deref(),
+            Some("expected text-value postcondition must not be empty")
+        );
         let oversized = "x".repeat(MAX_WEBDRIVER_BIDI_TYPE_TEXT_BYTES + 1);
-        assert!(matches!(
-            validate_expected_text(&oversized),
-            Err(WebDriverBiDiTextValueObservationResponseError::ExpectedTextTooLong)
-        ));
+        assert_eq!(
+            validate_expected_text(&oversized)
+                .err()
+                .map(|error| error.to_string())
+                .as_deref(),
+            Some("expected text-value postcondition exceeds the local byte budget")
+        );
         assert!(validate_expected_text("ordinary space").is_ok());
-        assert!(matches!(
-            validate_expected_text("tab\tvalue"),
-            Err(WebDriverBiDiTextValueObservationResponseError::InvalidExpectedText)
-        ));
-        assert!(matches!(
-            validate_expected_text("control\u{0001}"),
-            Err(WebDriverBiDiTextValueObservationResponseError::InvalidExpectedText)
-        ));
-        assert!(matches!(
-            validate_expected_text("bidi\u{202e}override"),
-            Err(WebDriverBiDiTextValueObservationResponseError::InvalidExpectedText)
-        ));
+        for rejected in ["tab\tvalue", "control\u{0001}", "bidi\u{202e}override"] {
+            assert_eq!(
+                validate_expected_text(rejected)
+                    .err()
+                    .map(|error| error.to_string())
+                    .as_deref(),
+                Some("expected text-value postcondition contains a disallowed character")
+            );
+        }
     }
 
     #[test]
