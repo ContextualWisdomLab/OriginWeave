@@ -8,7 +8,7 @@ use std::{
 
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiSessionEndCommand,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind, WebDriverBiDiSessionEndCommand,
     WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
     WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
 };
@@ -103,6 +103,8 @@ fn session_end_command_writes_the_exact_typed_frame_without_claiming_completion(
     )?;
 
     assert_eq!(correlation.outstanding_count(), 1);
+    correlation.retire_command_for(11, WebDriverBiDiCommandKind::SessionEnd)?;
+    assert_eq!(correlation.outstanding_count(), 0);
     server
         .join()
         .map_err(|_| io::Error::other("session.end command test server panicked"))??;
