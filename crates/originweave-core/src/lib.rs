@@ -52,6 +52,7 @@ mod webdriver_bidi_response_document;
 mod webdriver_bidi_response_document_correlation;
 mod webdriver_bidi_response_envelope;
 mod webdriver_bidi_result;
+mod webdriver_bidi_text_value_observation;
 mod webdriver_bidi_type_text;
 mod webdriver_bidi_websocket_connect_target;
 mod webdriver_bidi_websocket_endpoint;
@@ -106,6 +107,11 @@ pub use webdriver_bidi_response_envelope::{
 };
 pub use webdriver_bidi_result::{
     ValidatedWebDriverBiDiLocateNodesResult, WebDriverBiDiLocateNodesResultAdmissionError,
+};
+pub use webdriver_bidi_text_value_observation::{
+    WEBDRIVER_BIDI_SCRIPT_CALL_FUNCTION_METHOD, WEBDRIVER_BIDI_TEXT_VALUE_FUNCTION_DECLARATION,
+    WEBDRIVER_BIDI_TEXT_VALUE_SANDBOX, WebDriverBiDiTextValueObservationAuthorityError,
+    WebDriverBiDiTextValueObservationCommand, WebDriverBiDiTextValueObservationCommandError,
 };
 pub use webdriver_bidi_type_text::{
     MAX_WEBDRIVER_BIDI_TYPE_TEXT_BYTES, WebDriverBiDiTypeTextAuthorityError,
