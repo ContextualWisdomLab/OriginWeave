@@ -8,8 +8,9 @@ use std::{
 
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiCorrelatedResponseOutcome,
-    WebDriverBiDiJsonEnvelope, WebDriverBiDiSessionStatusCommand, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind,
+    WebDriverBiDiCorrelatedResponseOutcome, WebDriverBiDiJsonEnvelope,
+    WebDriverBiDiSessionStatusCommand, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
     WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageAssembler,
     WebDriverBiDiWebSocketMessageAssembly,
@@ -120,7 +121,8 @@ fn session_status_command_round_trips_over_the_verified_websocket_and_correlatio
         }
     };
     let envelope = WebDriverBiDiJsonEnvelope::parse(&text)?;
-    let completed = correlation.correlate_response(&envelope)?;
+    let completed =
+        correlation.correlate_response_for(&envelope, WebDriverBiDiCommandKind::SessionStatus)?;
     assert_eq!(completed.command_id(), 7);
     assert_eq!(
         completed.outcome(),
