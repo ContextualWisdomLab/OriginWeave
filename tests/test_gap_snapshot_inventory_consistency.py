@@ -19,8 +19,29 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
         cls.baseline = BASELINE.read_text(encoding="utf-8")
         cls.changelog = CHANGELOG.read_text(encoding="utf-8")
 
+    def test_current_live_state_is_distinct_from_dated_snapshot(self) -> None:
+        """A volatile live section must not rely on the historical dated inventory."""
+        current = self.baseline.split("## Current live delivery state", 1)[1].split(
+            "## Observed snapshot: 2026-08-29", 1
+        )[0]
+        for marker in (
+            "141 open pull requests",
+            "26 Ready/non-draft",
+            "115 Draft",
+            "11 open non-PR issues",
+            "542ca1e9c0a863595b8b6697790005d2471f5413",
+            "18156473",
+            "1bdd8aec51b43cf9f87086411e693c812b5d3597",
+            "b3595ef5656ebdb5aa301d4d2f3e487f6a1f21c8",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, current)
+        self.assertIn("Strix run `33473689091` is cancelled before job creation", current)
+        self.assertIn("OpenCode run `33473689030` remains queued", current)
+        self.assertIn("active-PR evidence only", current)
+
     def test_current_baseline_inventory_matches_the_verified_snapshot(self) -> None:
-        """The current snapshot must use the exact 108/24/84 inventory observation."""
+        """The dated 2026-08-29 snapshot must keep its exact historical inventory."""
         current = self.baseline.split("### Open pull requests", 1)[1].split(
             "#### 2026-08-29 maintenance-loop record", 1
         )[0]
@@ -50,7 +71,7 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
                 self.assertNotIn(stale, current)
 
     def test_unreleased_changelog_uses_one_current_inventory(self) -> None:
-        """The Unreleased current snapshot must agree before and inside Added."""
+        """The historical Unreleased entry remains internally self-consistent."""
         unreleased = self.changelog.split("## [Unreleased]", 1)[1]
         preamble, remainder = unreleased.split("### Added", 1)
         added = remainder.split("### Changed", 1)[0]
@@ -66,7 +87,7 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
         self.assertNotIn("110 open pull requests (26 ready, 84 draft)", preamble)
 
     def test_current_snapshot_records_recent_stack_merges_and_revalidation(self) -> None:
-        """A stacked merge must update the live queue and parent exact-head evidence."""
+        """A stacked merge must update the dated queue and parent exact-head evidence."""
         current = self.baseline.split("### Open pull requests", 1)[1].split(
             "#### 2026-08-29 maintenance-loop record", 1
         )[0]
@@ -88,7 +109,7 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
         self.assertNotIn("| #217 |", current)
 
     def test_current_documentation_head_records_security_and_review_state(self) -> None:
-        """The self-referential documentation PR must preserve current-head gate truth."""
+        """The dated self-referential record must preserve its historical gate truth."""
         record = self.baseline.split(
             "#### 2026-08-29 maintenance-loop record", 1
         )[1].split("#### Current exact-head active PR evidence", 1)[0]
