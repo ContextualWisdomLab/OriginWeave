@@ -1,16 +1,19 @@
 use std::fmt;
 
-use originweave_core::{PolicyContext, RiskClass, SemanticNodeActionBinding};
+use originweave_core::{
+    BrowserAuthorityRegistry, BrowserRegistryError, PolicyContext, RiskClass,
+    SemanticNodeActionBinding,
+};
 
 use crate::{Decision, DenialReason, evaluate};
 
-/// A semantic-node action that deterministic policy explicitly allowed.
+/// A semantic-node action that the deterministic action policy explicitly allowed.
 ///
 /// Construction evaluates the exact [`SemanticNodeActionBinding`] request through the ordinary
 /// OriginWeave action policy. This value does not grant browser authority, approval, destination
-/// authority, secret access, or execution success. Browser-local authority is revalidated by the
-/// typed command/transport boundary immediately before I/O rather than by this policy wrapper.
-#[derive(Debug)]
+/// authority, secret access, or execution success. Callers must still revalidate the bound browser
+/// authority immediately before dispatch and satisfy every later execution boundary.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PolicyAuthorizedSemanticNodeAction {
     binding: SemanticNodeActionBinding,
 }
@@ -30,10 +33,22 @@ impl PolicyAuthorizedSemanticNodeAction {
         }
     }
 
-    /// Return the exact admitted-node binding and business request that policy allowed together.
+    /// Return the exact semantic-node target and business request that policy allowed together.
     #[must_use]
     pub const fn binding(&self) -> &SemanticNodeActionBinding {
         &self.binding
+    }
+
+    /// Revalidate registry-owned browser authority immediately before dispatch.
+    ///
+    /// The exact node binding retained by the policy-authorized action must still be live in the
+    /// supplied registry. Caller-presented session/context/origin/epoch tuples cannot revive a
+    /// retired, stale, forged, or cross-registry node target.
+    pub fn validate_current(
+        &self,
+        registry: &BrowserAuthorityRegistry,
+    ) -> Result<(), BrowserRegistryError> {
+        self.binding.validate_current(registry)
     }
 }
 
