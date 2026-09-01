@@ -78,9 +78,9 @@ Owns stable value contracts without I/O:
 - exact action, target-origin, and intent-bound `ApprovalScope` and `ApprovalEvidence`;
 - `ActionRequest` and `PolicyContext`.
 
-#### Active PR #240 — benchmark release acceptance
+#### Active PR #240 — benchmark release acceptance migration
 
-PR #240 extends `originweave-core` with a pure, bounded release-evidence contract. This subsection is active-PR architecture, not protected-main truth, and [ADR 0015](docs/adr/0015-benchmark-release-acceptance.md) remains Proposed until policy-compliant integration.
+PR #240 moves the pure, bounded benchmark release-evidence contract out of `originweave-core` into the dedicated `originweave-release` bounded context. This subsection is active-PR architecture, not protected-main truth, and [ADR 0015](docs/adr/0015-benchmark-release-acceptance.md) remains Proposed until policy-compliant integration. `originweave-core` retains only stable cross-context value contracts and does not depend on `originweave-release`; this pre-GA breaking migration intentionally provides no compatibility shim that duplicates release policy back into core.
 
 - `BenchmarkFailureClass` preserves first-causal-boundary failure taxonomy so deterministic/stochastic product failures become failed suite evidence while site drift, outages, unsupported capability, infrastructure failure, and benchmark defects remain `Inconclusive` rather than being promoted to success.
 - `DeclaredLimitation` makes narrowed buyer-facing claims explicit and resource-bounded; it cannot erase failed or missing mandatory evidence.
