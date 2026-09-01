@@ -16,7 +16,26 @@ This map records bounded-context ownership and allowed dependency direction. Pro
 | Browser Agent Protocol | Supporting | `originweave-bap` | Browser-agent protocol contracts and lifecycle vocabulary |
 | MCP protocol adapter | Generic integration | `originweave-mcp` (**active PR #272**) | MCP version/method/tool discovery, routing integrity, and translation into typed OriginWeave action contracts; grants no execution authority |
 
-Planned contexts such as browser sessions, HTTP, proxy, observation, typed browser execution, secret brokering, WebDriver BiDi/CDP adapters, WARC/PROV persistence, and release benchmarks remain planned until code reaches protected `main`. Their planned names do not grant ownership to unrelated current crates.
+## Product bounded contexts
+
+The product vocabulary below names stable responsibility boundaries even when the final implementation has not reached protected `main`. A planned or active-PR context is not shipment truth and must not be used to claim implemented browser behavior.
+
+| Bounded Context | Classification | Current implementation status | Authority boundary |
+|---|---|---|---|
+| Browser Session | Core | **planned / active-PR work**, not integrated on protected-main | Owns browser-process/session lifetime and attachment identity; session existence does not grant action, network, profile, secret, or evidence authority |
+| Profile/Identity Boundary | Core | **planned / active-PR work**, not integrated on protected-main | Owns explicit profile selection, isolation, and identity attachment; the user default profile is never ambient agent authority |
+| Semantic Observation | Core | **planned / active-PR work**, not integrated on protected-main | Owns source-bound semantic observation and node identity; observed page text remains untrusted input and does not become an instruction |
+| Typed Action Execution | Core | **planned / active-PR work**, not integrated on protected-main | Owns execution of already-authorized typed browser actions; protocol or selector validity alone does not authorize execution |
+| Resource Governance | Supporting | `originweave-resource` contracts are on protected-main; wider browser/process enforcement remains incremental | Owns bounded resource budgets and deterministic mitigation; budget availability does not confer browser or policy authority |
+| Scraping/Extraction | Supporting | **planned / active-PR work**, not integrated as a complete bounded context on protected-main | Owns extraction semantics and crawl-specific constraints; extracted content is data, not trusted control input |
+| Provenance | Supporting | `originweave-evidence` contracts are on protected-main; durable WARC/PROV persistence remains planned | Owns source/evidence identity and redaction-safe provenance; an evidence record proves only its declared invariant |
+| Extension Policy | Supporting | **planned / active-PR work**, not integrated as a complete bounded context on protected-main | Owns extension/native-messaging admission and isolation; extension installation or connection does not inherit session authority |
+| Secret Broker | Supporting | policy contracts for broker-handle use exist; complete broker lifecycle remains planned | Owns opaque secret-handle lifecycle and delivery; secret values never enter model-visible context and handles grant only their explicit scope |
+| Agent Integration | Generic integration | BAP contracts are on protected-main; MCP ownership repair is **active PR #272**; complete MCP/WebMCP runtime remains planned | Owns external agent-protocol anti-corruption adapters; protocol success does not transfer policy, browser, network, secret, approval, or evidence authority |
+
+These contexts may share published contracts, but cross-context success **does not transfer authority**. New implementation must land in the context that owns the invariant instead of using `originweave-core`, an adapter, or another convenient technical package as a temporary dumping ground.
+
+Planned contexts such as HTTP, proxy, WebDriver BiDi/CDP adapters, WARC/PROV persistence, and release benchmarks remain planned until code reaches protected `main`. Their planned names do not grant ownership to unrelated current crates.
 
 ## Context relationships
 
@@ -110,4 +129,4 @@ Evidence and resource governance expose bounded value contracts. Browser/protoco
 
 ## Machine-checkable fitness
 
-`tests/test_repository_contract.py` enforces the first MCP ownership slice introduced with PR #272: `originweave-mcp` is a workspace package, MCP routing does not live under `originweave-core`, the adapter depends inward on `originweave-core` and `originweave-policy`, and policy depends only on `originweave-core` without MCP protocol or adapter vocabulary. The adapter owns route/action integrity rejection and delegates only matching routes to the ordinary policy evaluator. `tests/test_ddd_documentation_contract.py` binds this Context Map to the same ownership language. Additional context relationships should gain equivalent import/dependency fitness checks when their production boundaries land.
+`tests/test_repository_contract.py` enforces the first MCP ownership slice introduced with PR #272: `originweave-mcp` is a workspace package, MCP routing does not live under `originweave-core`, the adapter depends inward on `originweave-core` and `originweave-policy`, and policy depends only on `originweave-core` without MCP protocol or adapter vocabulary. The adapter owns route/action integrity rejection and delegates only matching routes to the ordinary policy evaluator. `tests/test_ddd_documentation_contract.py` binds this Context Map to the same ownership language and the explicit product bounded-context vocabulary above. Additional context relationships should gain equivalent import/dependency fitness checks when their production boundaries land.
