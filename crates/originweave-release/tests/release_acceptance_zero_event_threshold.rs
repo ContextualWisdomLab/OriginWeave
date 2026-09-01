@@ -1,4 +1,4 @@
-use originweave_core::{
+use originweave_release::{
     release_acceptance::ZeroEventSafetyEvidence,
     zero_event_threshold::{
         MAX_SAFETY_EVENT_RATE_PARTS_PER_MILLION, ZeroEventSafetyThreshold,

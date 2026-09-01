@@ -1,5 +1,5 @@
-use originweave_core::benchmark_failure::BenchmarkFailureClass;
-use originweave_core::release_acceptance::BenchmarkSuiteOutcome;
+use originweave_release::benchmark_failure::BenchmarkFailureClass;
+use originweave_release::release_acceptance::BenchmarkSuiteOutcome;
 
 #[test]
 fn benchmark_failure_classes_have_stable_evidence_identifiers() {

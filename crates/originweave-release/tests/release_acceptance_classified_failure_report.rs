@@ -1,5 +1,5 @@
-use originweave_core::benchmark_failure::BenchmarkFailureClass;
-use originweave_core::release_acceptance::{
+use originweave_release::benchmark_failure::BenchmarkFailureClass;
+use originweave_release::release_acceptance::{
     BenchmarkFailureEvidence, BenchmarkSuite, BenchmarkSuiteEvidence, DeclaredLimitation,
     ReleaseDecision, ReleaseDecisionError, ZeroEventSafetyEvidence, ZeroEventSafetyMetric,
     ZeroEventSafetyObservation, decide_release_with_classified_benchmark_evidence,

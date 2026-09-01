@@ -1,4 +1,4 @@
-use originweave_core::{
+use originweave_release::{
     release_acceptance::{
         ZeroEventSafetyEvidence, ZeroEventSafetyMetric, ZeroEventSafetyObservation,
     },

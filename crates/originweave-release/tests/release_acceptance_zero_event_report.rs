@@ -1,4 +1,4 @@
-use originweave_core::release_acceptance::{
+use originweave_release::release_acceptance::{
     BenchmarkSuite, BenchmarkSuiteOutcome, DeclaredLimitation, MAX_DECLARED_RELEASE_LIMITATIONS,
     ReleaseDecision, ReleaseDecisionError, ZeroEventSafetyEvidence, ZeroEventSafetyMetric,
     ZeroEventSafetyObservation, decide_release_with_zero_event_safety,

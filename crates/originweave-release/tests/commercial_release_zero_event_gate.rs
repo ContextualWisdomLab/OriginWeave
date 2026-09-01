@@ -1,6 +1,6 @@
 use std::error::Error as _;
 
-use originweave_core::{
+use originweave_release::{
     benchmark_failure::BenchmarkFailureClass,
     release_acceptance::{
         BenchmarkSuite, BenchmarkSuiteEvidence, DeclaredLimitation, ReleaseDecision,

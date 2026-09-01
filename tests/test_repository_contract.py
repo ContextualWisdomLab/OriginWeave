@@ -64,15 +64,14 @@ class RepositoryContractTests(unittest.TestCase):
         )
         self.assertEqual(
             set(core_manifest.get("dependencies", {})),
-            {"originweave-release", "unicode-normalization"},
+            {"unicode-normalization"},
         )
         core_source = (ROOT / "crates/originweave-core/src/root.rs").read_text(encoding="utf-8")
         for module in release_modules:
             with self.subTest(module=module):
                 self.assertNotIn(f"pub mod {module};", core_source)
-                self.assertIn(f"pub use originweave_release::{module};", core_source)
-        self.assertGreaterEqual(core_source.count("#[deprecated("), len(release_modules))
-        self.assertIn("Temporary compatibility path", core_source)
+        self.assertNotIn("originweave_release", core_source)
+        self.assertNotIn("Temporary compatibility path", core_source)
 
     def test_release_acceptance_tests_follow_release_context_ownership(self) -> None:
         """Domain tests must live with the release bounded context they exercise."""
@@ -93,6 +92,12 @@ class RepositoryContractTests(unittest.TestCase):
         self.assertEqual(misplaced, [])
         self.assertTrue(release_tests.is_dir())
         self.assertTrue(any(release_tests.glob("*.rs")))
+        for test_path in release_tests.glob("*.rs"):
+            with self.subTest(test_path=test_path.name):
+                source = test_path.read_text(encoding="utf-8")
+                self.assertNotIn("originweave_core::release_acceptance", source)
+                self.assertNotIn("originweave_core::benchmark_failure", source)
+                self.assertNotIn("originweave_core::zero_event_", source)
 
     def test_toolchain_is_pinned_to_current_project_baseline(self) -> None:
         """Reproducible builds require an explicit Rust patch version."""

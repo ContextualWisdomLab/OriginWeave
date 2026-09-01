@@ -1,4 +1,4 @@
-use originweave_core::release_acceptance::{ReleaseDecisionError, ZeroEventSafetyEvidence};
+use originweave_release::release_acceptance::{ReleaseDecisionError, ZeroEventSafetyEvidence};
 
 #[test]
 fn zero_observed_events_report_an_exact_one_sided_binomial_upper_bound()
