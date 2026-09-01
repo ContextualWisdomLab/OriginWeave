@@ -8,7 +8,7 @@ use originweave_core::{
 
 use crate::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
-    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrameError,
+    WebDriverBiDiCommandKind, WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrameError,
     WebDriverBiDiWebSocketMaskKey,
 };
 
@@ -83,10 +83,12 @@ impl Error for WebDriverBiDiTextValueObservationSendError {
 /// session, context, origin, document epoch, registry provenance, and exact admitted wire node
 /// identifier. Callers cannot supply function source, sandbox, or generic script arguments.
 ///
-/// Registration occurs before the first possible remote side effect. A correlation failure writes
-/// nothing. Once registration succeeds, a frame-write failure leaves the identifier outstanding
-/// because partial or complete remote execution is ambiguous and the identifier must not be
-/// silently reused.
+/// Registration records [`WebDriverBiDiCommandKind::TextValueObservation`] before the first
+/// possible remote side effect. A later typed response boundary must match both the exact id and
+/// this command provenance; an unrelated outstanding command id therefore cannot certify a text
+/// post-condition. A correlation failure writes nothing. Once registration succeeds, a frame-write
+/// failure leaves the identifier outstanding because partial or complete remote execution is
+/// ambiguous and the identifier must not be silently reused.
 ///
 /// Dispatch is only protocol-level observation transport. This function does not authenticate the
 /// browser, authorize the preceding text-input action, compare the eventual remote value with the
@@ -132,7 +134,10 @@ pub fn send_webdriver_bidi_text_value_observation(
     .map_err(|source| WebDriverBiDiTextValueObservationSendError::Authority { source })?;
 
     correlation
-        .register_command(command.command_id())
+        .register_command_for(
+            command.command_id(),
+            WebDriverBiDiCommandKind::TextValueObservation,
+        )
         .map_err(|source| WebDriverBiDiTextValueObservationSendError::Correlation { source })?;
     established
         .write_text_frame(command.as_json(), masking_key, frame_timeout)
