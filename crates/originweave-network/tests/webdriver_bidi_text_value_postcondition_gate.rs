@@ -144,6 +144,7 @@ fn mismatch_is_typed_failure_after_consuming_its_exact_response() -> Result<(), 
         error.to_string(),
         "WebDriver BiDi text-value postcondition did not match the authorized expected text"
     );
+    assert!(error.source().is_none());
     let debug = format!("{error:?}");
     assert!(!debug.contains("expected"));
     assert!(!debug.contains("unexpected"));
@@ -168,6 +169,10 @@ fn malformed_observation_stays_a_typed_source_error_without_consuming_state()
         &error,
         WebDriverBiDiTextValuePostconditionError::Observation { .. }
     ));
+    assert_eq!(
+        error.to_string(),
+        "WebDriver BiDi text-value postcondition observation failed"
+    );
     assert!(error.source().is_some());
     assert_eq!(correlation.outstanding_count(), 1);
     Ok(())
