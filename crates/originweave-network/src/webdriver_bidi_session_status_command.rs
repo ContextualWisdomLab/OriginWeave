@@ -2,8 +2,9 @@ use std::{error::Error, fmt, time::Duration};
 
 use crate::{
     MAX_WEBDRIVER_BIDI_JS_UINT, WebDriverBiDiCommandCorrelation,
-    WebDriverBiDiCommandCorrelationError, WebDriverBiDiWebSocketEstablished,
-    WebDriverBiDiWebSocketFrameError, WebDriverBiDiWebSocketMaskKey,
+    WebDriverBiDiCommandCorrelationError, WebDriverBiDiCommandKind,
+    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrameError,
+    WebDriverBiDiWebSocketMaskKey,
 };
 
 const SESSION_STATUS_METHOD: &str = "session.status";
@@ -53,7 +54,7 @@ impl WebDriverBiDiSessionStatusCommand {
         frame_timeout: Duration,
     ) -> Result<WebDriverBiDiWebSocketEstablished, WebDriverBiDiSessionStatusCommandError> {
         correlation
-            .register_command(self.command_id)
+            .register_command_for(self.command_id, WebDriverBiDiCommandKind::SessionStatus)
             .map_err(|source| WebDriverBiDiSessionStatusCommandError::Correlation { source })?;
         let message = self.serialized();
         established

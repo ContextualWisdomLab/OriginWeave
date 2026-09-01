@@ -8,10 +8,11 @@ use std::{
 
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
-    MAX_WEBDRIVER_BIDI_JS_UINT, WebDriverBiDiCommandCorrelation, WebDriverBiDiSessionStatusCommand,
-    WebDriverBiDiSessionStatusCommandError, WebDriverBiDiTcpConnectionPlan,
-    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketEstablished,
-    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
+    MAX_WEBDRIVER_BIDI_JS_UINT, WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind,
+    WebDriverBiDiSessionStatusCommand, WebDriverBiDiSessionStatusCommandError,
+    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
+    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketHandshakePlan,
+    WebDriverBiDiWebSocketMaskKey,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -75,7 +76,7 @@ fn session_status_rejects_duplicate_correlation_before_any_frame_write()
 -> Result<(), Box<dyn Error>> {
     let (established, server) = establish_with_handshake_only_server()?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command(7)?;
+    correlation.register_command_for(7, WebDriverBiDiCommandKind::SessionStatus)?;
     let command = WebDriverBiDiSessionStatusCommand::new(7)?;
 
     let error = command
