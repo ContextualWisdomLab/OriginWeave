@@ -2,8 +2,8 @@ use std::{error::Error, fmt};
 
 use crate::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
-    WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeError, WebDriverBiDiJsonEnvelopeKind,
-    WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiCommandKind, WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeError,
+    WebDriverBiDiJsonEnvelopeKind, WebDriverBiDiWebSocketTextMessage,
 };
 
 /// Maximum decoded byte length retained from WebDriver BiDi `session.status` implementation text.
@@ -57,7 +57,7 @@ impl WebDriverBiDiSessionStatusResult {
             WebDriverBiDiJsonEnvelopeKind::Success => {
                 let projected = StatusProjection::parse(message.as_str())?;
                 let completed = correlation
-                    .correlate_response(&envelope)
+                    .correlate_response_for(&envelope, WebDriverBiDiCommandKind::SessionStatus)
                     .map_err(
                         |source| WebDriverBiDiSessionStatusResponseError::Correlation { source },
                     )?;
@@ -69,12 +69,11 @@ impl WebDriverBiDiSessionStatusResult {
             }
             WebDriverBiDiJsonEnvelopeKind::Error => {
                 retain_validated_error_code(envelope.error_code()).and_then(|error_code| {
-                    let completed =
-                        correlation
-                            .correlate_response(&envelope)
-                            .map_err(|source| {
-                                WebDriverBiDiSessionStatusResponseError::Correlation { source }
-                            })?;
+                    let completed = correlation
+                        .correlate_response_for(&envelope, WebDriverBiDiCommandKind::SessionStatus)
+                        .map_err(|source| {
+                            WebDriverBiDiSessionStatusResponseError::Correlation { source }
+                        })?;
                     Err(
                         WebDriverBiDiSessionStatusResponseError::RemoteProtocolError {
                             command_id: completed.command_id(),
