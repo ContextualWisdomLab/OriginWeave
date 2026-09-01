@@ -121,7 +121,8 @@ fn semantic_node_action_becomes_policy_authorized_only_after_allow() -> Result<(
 }
 
 #[test]
-fn semantic_node_action_preserves_approval_required_as_non_authorized() -> Result<(), Box<dyn Error>> {
+fn semantic_node_action_preserves_approval_required_as_non_authorized() -> Result<(), Box<dyn Error>>
+{
     let binding = binding(ActionKind::Purchase, InstructionSource::User)?;
     let context = context(ActionKind::Purchase)?;
 
