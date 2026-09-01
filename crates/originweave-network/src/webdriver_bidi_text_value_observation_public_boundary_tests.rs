@@ -23,7 +23,8 @@ const ERROR_UNKNOWN_COMMAND: &[u8] =
     br#"{"type":"error","id":71,"error":"unknown error","message":"remote failure"}"#;
 const MALFORMED_PROJECTION: &[u8] = br#"{"type":"success","id":70,"result":{"type":"success","result":{"type":"string","value":"expected"}}}"#;
 const SUCCESS_UNKNOWN_COMMAND: &[u8] = br#"{"type":"success","id":72,"result":{"type":"success","realm":"realm-1","result":{"type":"string","value":"expected"}}}"#;
-const VALID_SUCCESS: &[u8] = br#"{"type":"success","id":70,"result":{"type":"success","realm":"realm-1","result":{"type":"string","value":"expected"}}}"#;
+const FINAL_EXPECTED_TEXT: &str = "Quarterly review";
+const VALID_SUCCESS: &[u8] = br#"{"type":"success","id":70,"result":{"type":"success","realm":"realm-1","result":{"type":"string","value":"Quarterly review"}}}"#;
 
 fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
@@ -156,16 +157,16 @@ fn public_text_value_boundary_covers_error_adapters_and_credential_safe_result()
     let valid_success = read_text_over_loopback(VALID_SUCCESS)?;
     let result = WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
         &valid_success,
-        "expected",
+        FINAL_EXPECTED_TEXT,
         &mut correlation,
     )?;
     assert_eq!(result.command_id(), 70);
-    assert_eq!(result.observed_text_bytes(), "expected".len());
+    assert_eq!(result.observed_text_bytes(), FINAL_EXPECTED_TEXT.len());
     assert!(result.matches_expected_text());
     assert_eq!(correlation.outstanding_count(), 0);
 
     let debug = format!("{result:?}");
     assert!(debug.contains("WebDriverBiDiTextValueObservationResult"));
-    assert!(!debug.contains("expected"));
+    assert!(!debug.contains(FINAL_EXPECTED_TEXT));
     Ok(())
 }
