@@ -805,14 +805,7 @@ mod tests {
             Some(WebDriverBiDiTextValueObservationProjectionError::InvalidValue)
         );
         assert_eq!(
-            scan_container_end(
-                b"{}",
-                0,
-                b'{',
-                b'}',
-                MAX_SCRIPT_RESULT_NESTING_DEPTH + 1
-            )
-            .err(),
+            scan_container_end(b"{}", 0, b'{', b'}', MAX_SCRIPT_RESULT_NESTING_DEPTH + 1).err(),
             Some(WebDriverBiDiTextValueObservationProjectionError::NestingTooDeep)
         );
 
