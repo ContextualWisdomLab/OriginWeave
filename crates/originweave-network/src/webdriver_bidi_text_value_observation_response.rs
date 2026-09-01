@@ -608,7 +608,7 @@ mod tests {
 
     #[test]
     fn projection_accepts_extensions_and_decodes_string_escapes() {
-        let response = r#"{"type":"success","id":7,"vendor":true,"result":{"realm":"realm-1","type":"success","vendor":{"nested":[1,true,null]},"result":{"value":"A\\\"B\\\\C\\/D\\b\\f\\n\\r\\t\\u20ac\\ud83d\\ude00","type":"string","vendor":0}}}"#;
+        let response = r#"{"type":"success","id":7,"vendor":true,"result":{"realm":"realm-1","type":"success","vendor":{"nested":[1,true,null]},"result":{"value":"A\"B\\C\/D\b\f\n\r\t\u20ac\ud83d\ude00","type":"string","vendor":0}}}"#;
         match project_script_result(response).expect("valid projection") {
             ScriptResultProjection::String(value) => {
                 assert_eq!(value, "A\"B\\C/D\u{0008}\u{000c}\n\r\t€😀")
