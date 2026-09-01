@@ -2,9 +2,9 @@ use std::cell::Cell;
 use std::collections::BTreeSet;
 
 use originweave_core::{
-    ActionIntentDigest, ActionKind, ActionRequest, ApprovalEvidence, BrowserSessionId,
-    BrowsingContextId, DocumentEpoch, ExecutionPurpose, InstructionSource, NodeActionKind,
-    ObservationChannel, ObservedNodeHandle, Origin, PolicyContext, RobotsDecision, SecretDelivery,
+    ActionIntentDigest, ActionKind, ActionRequest, ApprovalEvidence, BrowserAuthorityRegistry,
+    BrowserRegistryError, BrowsingContextId, ExecutionPurpose, InstructionSource, NodeActionKind,
+    ObservationChannel, Origin, PolicyContext, RobotsDecision, SecretDelivery,
     SemanticNodeActionBinding, SemanticNodeActionTarget, SemanticNodeObservation,
     SemanticNodeObservationInput, SessionMode,
 };
@@ -13,33 +13,44 @@ use originweave_policy::PolicyAuthorizedSemanticNodeAction;
 const VALID_INTENT: &str =
     "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
+struct AuthorizedFixture {
+    registry: BrowserAuthorityRegistry,
+    context: BrowsingContextId,
+    authorized: PolicyAuthorizedSemanticNodeAction,
+}
+
 fn origin(value: &str) -> Result<Origin, String> {
     Origin::parse(value).map_err(|error| format!("{error:?}"))
 }
 
-fn authorized_action() -> Result<PolicyAuthorizedSemanticNodeAction, String> {
+fn authorized_action() -> Result<AuthorizedFixture, String> {
+    let mut registry = BrowserAuthorityRegistry::new();
+    let session = registry
+        .register_session("semantic-dispatch-session")
+        .map_err(|error| error.to_string())?;
+    let context = registry
+        .register_context(session, "semantic-dispatch-context")
+        .map_err(|error| error.to_string())?;
     let site = origin("https://app.example")?;
-    let handle = ObservedNodeHandle::new(
-        BrowserSessionId::new(7).map_err(|error| error.to_string())?,
-        BrowsingContextId::new(11).map_err(|error| error.to_string())?,
-        site.clone(),
-        DocumentEpoch::new(3).map_err(|error| error.to_string())?,
-        17,
+    let handle = registry
+        .bind_node(session, context, &site, "semantic-dispatch-node")
+        .map_err(|error| error.to_string())?;
+    let observation = SemanticNodeObservation::new(
+        SemanticNodeObservationInput {
+            handle,
+            parent: None,
+            children: Vec::new(),
+            role: "button".to_owned(),
+            accessible_name: "Continue".to_owned(),
+            visible_text: Some("Continue".to_owned()),
+            enabled: true,
+            visible: true,
+            selected: None,
+            supported_actions: BTreeSet::from([NodeActionKind::Click]),
+            evidence_channels: BTreeSet::from([ObservationChannel::Accessibility]),
+        },
+        &registry,
     )
-    .map_err(|error| error.to_string())?;
-    let observation = SemanticNodeObservation::new(SemanticNodeObservationInput {
-        handle,
-        parent: None,
-        children: Vec::new(),
-        role: "button".to_owned(),
-        accessible_name: "Continue".to_owned(),
-        visible_text: Some("Continue".to_owned()),
-        enabled: true,
-        visible: true,
-        selected: None,
-        supported_actions: BTreeSet::from([NodeActionKind::Click]),
-        evidence_channels: BTreeSet::from([ObservationChannel::Accessibility]),
-    })
     .map_err(|error| error.to_string())?;
     let target = SemanticNodeActionTarget::from_observation(&observation, NodeActionKind::Click)
         .map_err(|error| error.to_string())?;
@@ -53,7 +64,7 @@ fn authorized_action() -> Result<PolicyAuthorizedSemanticNodeAction, String> {
     );
     let binding =
         SemanticNodeActionBinding::new(target, request).map_err(|error| error.to_string())?;
-    let context = PolicyContext::new(
+    let policy_context = PolicyContext::new(
         SessionMode::AgentTask,
         ExecutionPurpose::UserDelegatedTask,
         BTreeSet::from([ActionKind::Navigate.required_capability()]),
@@ -62,43 +73,35 @@ fn authorized_action() -> Result<PolicyAuthorizedSemanticNodeAction, String> {
         RobotsDecision::Allowed,
         ApprovalEvidence::None,
     );
+    let authorized = PolicyAuthorizedSemanticNodeAction::authorize(binding, &policy_context)
+        .map_err(|error| error.to_string())?;
 
-    PolicyAuthorizedSemanticNodeAction::authorize(binding, &context)
-        .map_err(|error| error.to_string())
+    Ok(AuthorizedFixture {
+        registry,
+        context,
+        authorized,
+    })
 }
 
 fn dispatch_unit_callback(
     authorized: &PolicyAuthorizedSemanticNodeAction,
-    document_epoch: u64,
+    registry: &BrowserAuthorityRegistry,
     called: &Cell<bool>,
-) -> Result<(), String> {
-    authorized
-        .dispatch_if_current(
-            BrowserSessionId::new(7).map_err(|error| error.to_string())?,
-            BrowsingContextId::new(11).map_err(|error| error.to_string())?,
-            &origin("https://app.example")?,
-            DocumentEpoch::new(document_epoch).map_err(|error| error.to_string())?,
-            |_binding| called.set(true),
-        )
-        .map_err(|error| error.to_string())
+) -> Result<(), BrowserRegistryError> {
+    authorized.dispatch_if_current(registry, |_binding| called.set(true))
 }
 
 #[test]
-fn dispatch_callback_runs_only_after_exact_browser_revalidation() -> Result<(), String> {
-    let authorized = authorized_action()?;
+fn dispatch_callback_runs_only_after_registry_owned_browser_revalidation() -> Result<(), String> {
+    let fixture = authorized_action()?;
     let called = Cell::new(false);
 
-    let result = authorized
-        .dispatch_if_current(
-            BrowserSessionId::new(7).map_err(|error| error.to_string())?,
-            BrowsingContextId::new(11).map_err(|error| error.to_string())?,
-            &origin("https://app.example")?,
-            DocumentEpoch::new(3).map_err(|error| error.to_string())?,
-            |binding| {
-                called.set(true);
-                (binding.target().action(), binding.request().action())
-            },
-        )
+    let result = fixture
+        .authorized
+        .dispatch_if_current(&fixture.registry, |binding| {
+            called.set(true);
+            (binding.target().action(), binding.request().action())
+        })
         .map_err(|error| error.to_string())?;
 
     assert!(called.get());
@@ -107,34 +110,39 @@ fn dispatch_callback_runs_only_after_exact_browser_revalidation() -> Result<(), 
 }
 
 #[test]
-fn stale_browser_authority_never_reaches_dispatch_callback() -> Result<(), String> {
-    let authorized = authorized_action()?;
+fn stale_registry_authority_never_reaches_dispatch_callback() -> Result<(), String> {
+    let mut fixture = authorized_action()?;
     let called = Cell::new(false);
 
-    dispatch_unit_callback(&authorized, 3, &called)?;
+    dispatch_unit_callback(&fixture.authorized, &fixture.registry, &called)
+        .map_err(|error| error.to_string())?;
     assert!(called.replace(false));
 
-    let error = dispatch_unit_callback(&authorized, 4, &called)
-        .err()
-        .ok_or_else(|| "stale browser authority unexpectedly reached dispatch".to_owned())?;
+    fixture
+        .registry
+        .advance_document(fixture.context)
+        .map_err(|error| error.to_string())?;
 
+    assert_eq!(
+        fixture
+            .authorized
+            .dispatch_if_current(&fixture.registry, |_binding| called.set(true))
+            .err(),
+        Some(BrowserRegistryError::UnknownNodeAuthority)
+    );
     assert!(!called.get());
-    assert!(error.contains("stale"));
     Ok(())
 }
 
 #[test]
 fn adapter_failure_remains_separate_after_successful_revalidation() -> Result<(), String> {
-    let authorized = authorized_action()?;
+    let fixture = authorized_action()?;
 
-    let adapter_result = authorized
-        .dispatch_if_current(
-            BrowserSessionId::new(7).map_err(|error| error.to_string())?,
-            BrowsingContextId::new(11).map_err(|error| error.to_string())?,
-            &origin("https://app.example")?,
-            DocumentEpoch::new(3).map_err(|error| error.to_string())?,
-            |_binding| -> Result<(), &'static str> { Err("adapter failed") },
-        )
+    let adapter_result = fixture
+        .authorized
+        .dispatch_if_current(&fixture.registry, |_binding| -> Result<(), &'static str> {
+            Err("adapter failed")
+        })
         .map_err(|error| error.to_string())?;
 
     assert_eq!(adapter_result, Err("adapter failed"));

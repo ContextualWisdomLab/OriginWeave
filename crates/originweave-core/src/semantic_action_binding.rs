@@ -1,36 +1,36 @@
 use std::fmt;
 
-use crate::{
-    ActionRequest, BrowserAuthorityRegistry, BrowserRegistryError, SemanticNodeActionTarget,
-};
+use crate::{ActionRequest, AdmittedNodeHandle};
 
-/// One semantic node target explicitly paired with the business action request it would serve.
+/// One registry-issued browser node explicitly paired with the business action request it would serve.
 ///
-/// The binding prevents independently validated browser-node authority and business intent from
-/// being combined across different source documents. It does not grant policy authority, map a
-/// node-local action to business risk, authorize a destination, or execute browser input.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// The binding prevents a caller from independently validating one current browser node and a
+/// different business intent and then combining them as if they originated from the same document.
+/// It deliberately does not authorize policy, map browser-local input to a business risk class,
+/// grant a destination, resolve secrets, or execute browser I/O. The later typed command boundary
+/// still revalidates registry provenance and the exact admitted wire node immediately before I/O.
+#[derive(Debug)]
 pub struct SemanticNodeActionBinding {
-    target: SemanticNodeActionTarget,
+    handle: AdmittedNodeHandle,
     request: ActionRequest,
 }
 
 impl SemanticNodeActionBinding {
-    /// Bind a semantic node target to a business request from the same current document origin.
+    /// Bind one registry-issued admitted node to a business request from the same source origin.
     pub fn new(
-        target: SemanticNodeActionTarget,
+        handle: AdmittedNodeHandle,
         request: ActionRequest,
     ) -> Result<Self, SemanticNodeActionBindingError> {
-        if target.handle().origin() != request.source_origin() {
+        if handle.origin() != request.source_origin() {
             return Err(SemanticNodeActionBindingError::SourceOriginMismatch);
         }
-        Ok(Self { target, request })
+        Ok(Self { handle, request })
     }
 
-    /// Return the exact authority-bound semantic node target.
+    /// Return the exact registry-issued node retained for later immediate-use authority checks.
     #[must_use]
-    pub const fn target(&self) -> &SemanticNodeActionTarget {
-        &self.target
+    pub const fn handle(&self) -> &AdmittedNodeHandle {
+        &self.handle
     }
 
     /// Return the independently classified business action request.
@@ -38,20 +38,12 @@ impl SemanticNodeActionBinding {
     pub const fn request(&self) -> &ActionRequest {
         &self.request
     }
-
-    /// Revalidate exact registry-owned browser authority immediately before a later dispatch.
-    pub fn validate_current(
-        &self,
-        registry: &BrowserAuthorityRegistry,
-    ) -> Result<(), BrowserRegistryError> {
-        self.target.validate_current(registry)
-    }
 }
 
-/// A bounded failure to pair browser-node authority with the requested business action.
+/// A bounded failure to pair admitted browser-node authority with a business action request.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SemanticNodeActionBindingError {
-    /// The business request belongs to a different source origin than the observed node.
+    /// The request claims a different source document origin than the admitted node.
     SourceOriginMismatch,
 }
 
@@ -59,7 +51,7 @@ impl fmt::Display for SemanticNodeActionBindingError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::SourceOriginMismatch => formatter
-                .write_str("semantic node origin does not match action request source origin"),
+                .write_str("admitted node origin does not match action request source origin"),
         }
     }
 }
