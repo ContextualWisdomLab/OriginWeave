@@ -31,12 +31,18 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "11 open non-PR issues",
             "542ca1e9c0a863595b8b6697790005d2471f5413",
             "18156473",
-            "48aeba93e659999c51e76c69e58ff0bdeb1af863",
+            "61bd2e00d2c60f9d846d5a5d59c7329695d5a3ed",
+            "9ba972838e44c15a0a88148533bec787ffd87a47",
+            "f0dcf215f3f2477a18798ef302560fc43c74fac3",
+            "cf5fd422a329acbfa04ac0685d32a405942a7146",
             "b3595ef5656ebdb5aa301d4d2f3e487f6a1f21c8",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, current)
-        self.assertIn("CI run `33544819779` is queued", current)
+        self.assertIn("CI run `33548339062` is **success**", current)
+        self.assertIn("CI run `33553936912` is queued", current)
+        self.assertIn("CI run `33554087393` is queued", current)
+        self.assertIn("CI run `33554207683` is queued", current)
         self.assertIn("Strix run `33473689091` is cancelled before job creation", current)
         self.assertIn("OpenCode run `33473689030` remains queued", current)
         self.assertIn("active-PR evidence only", current)
