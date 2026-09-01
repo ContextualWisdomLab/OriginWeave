@@ -47,6 +47,7 @@ mod webdriver_bidi_session_end_response;
 mod webdriver_bidi_session_status_command;
 mod webdriver_bidi_session_status_response;
 mod webdriver_bidi_session_teardown;
+mod webdriver_bidi_type_text_response;
 mod webdriver_bidi_type_text_transport;
 mod webdriver_bidi_websocket_frame;
 mod webdriver_bidi_websocket_handshake;
@@ -137,6 +138,9 @@ pub use webdriver_bidi_session_status_response::{
 pub use webdriver_bidi_session_teardown::{
     WebDriverBiDiSessionTeardownAssessment, WebDriverBiDiSessionTeardownDisposition,
     WebDriverBiDiSessionTeardownObservations,
+};
+pub use webdriver_bidi_type_text_response::{
+    WebDriverBiDiTypeTextResponseError, WebDriverBiDiTypeTextResult,
 };
 pub use webdriver_bidi_type_text_transport::{
     WebDriverBiDiTypeTextSendError, send_webdriver_bidi_type_text,
