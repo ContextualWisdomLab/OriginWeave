@@ -111,14 +111,23 @@ fn public_text_value_boundary_covers_error_adapters_and_credential_safe_result()
     correlation.register_command(70)?;
 
     let invalid = read_text_over_loopback(b"not-json")?;
+    let envelope_result = WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
+        &invalid,
+        "expected",
+        &mut correlation,
+    );
     assert!(matches!(
-        WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
-            &invalid,
-            "expected",
-            &mut correlation,
-        ),
+        &envelope_result,
         Err(WebDriverBiDiTextValueObservationResponseError::Envelope { .. })
     ));
+    assert_eq!(
+        envelope_result
+            .as_ref()
+            .err()
+            .map(ToString::to_string)
+            .as_deref(),
+        Some("WebDriver BiDi text-value observation envelope is invalid")
+    );
     assert_eq!(correlation.outstanding_count(), 1);
 
     let error_unknown = read_text_over_loopback(ERROR_UNKNOWN_COMMAND)?;
@@ -133,25 +142,43 @@ fn public_text_value_boundary_covers_error_adapters_and_credential_safe_result()
     assert_eq!(correlation.outstanding_count(), 1);
 
     let malformed_projection = read_text_over_loopback(MALFORMED_PROJECTION)?;
+    let projection_result = WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
+        &malformed_projection,
+        "expected",
+        &mut correlation,
+    );
     assert!(matches!(
-        WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
-            &malformed_projection,
-            "expected",
-            &mut correlation,
-        ),
+        &projection_result,
         Err(WebDriverBiDiTextValueObservationResponseError::Projection { .. })
     ));
+    assert_eq!(
+        projection_result
+            .as_ref()
+            .err()
+            .map(ToString::to_string)
+            .as_deref(),
+        Some("WebDriver BiDi text-value observation result is invalid")
+    );
     assert_eq!(correlation.outstanding_count(), 1);
 
     let success_unknown = read_text_over_loopback(SUCCESS_UNKNOWN_COMMAND)?;
+    let correlation_result = WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
+        &success_unknown,
+        "expected",
+        &mut correlation,
+    );
     assert!(matches!(
-        WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
-            &success_unknown,
-            "expected",
-            &mut correlation,
-        ),
+        &correlation_result,
         Err(WebDriverBiDiTextValueObservationResponseError::Correlation { .. })
     ));
+    assert_eq!(
+        correlation_result
+            .as_ref()
+            .err()
+            .map(ToString::to_string)
+            .as_deref(),
+        Some("WebDriver BiDi text-value observation response correlation failed")
+    );
     assert_eq!(correlation.outstanding_count(), 1);
 
     let valid_success = read_text_over_loopback(VALID_SUCCESS)?;
