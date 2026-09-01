@@ -4,8 +4,8 @@ use originweave_core::WebDriverBiDiPointerClickCommand;
 
 use crate::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
-    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrameError,
-    WebDriverBiDiWebSocketMaskKey,
+    WebDriverBiDiCommandKind, WebDriverBiDiWebSocketEstablished,
+    WebDriverBiDiWebSocketFrameError, WebDriverBiDiWebSocketMaskKey,
 };
 
 /// Fail-closed errors while transporting one already validated pointer-click command.
@@ -64,7 +64,7 @@ pub fn send_webdriver_bidi_pointer_click(
     frame_timeout: Duration,
 ) -> Result<WebDriverBiDiWebSocketEstablished, WebDriverBiDiPointerClickSendError> {
     correlation
-        .register_command(command.command_id())
+        .register_command_for(command.command_id(), WebDriverBiDiCommandKind::PointerClick)
         .map_err(|source| WebDriverBiDiPointerClickSendError::Correlation { source })?;
     established
         .write_text_frame(command.as_json(), masking_key, frame_timeout)

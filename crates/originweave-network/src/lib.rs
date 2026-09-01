@@ -9,7 +9,7 @@
 //! unmasked server-frame reads, assembles bounded WebDriver BiDi text messages,
 //! classifies complete local-end JSON envelopes, tracks bounded command-response
 //! correlation, transports a narrowly typed pointer click, admits its typed
-//! correlated protocol acknowledgment, sends narrowly typed `session.status` and
+//! correlated protocol response, sends narrowly typed `session.status` and
 //! `session.end` commands, admits typed correlated status and end responses,
 //! observes bounded peer Close or clean-EOF transport cessation, and keeps
 //! protocol/transport evidence separate from explicit operational teardown
@@ -45,8 +45,8 @@ pub use connection::{
 };
 pub use webdriver_bidi_command_correlation::{
     MAX_WEBDRIVER_BIDI_OUTSTANDING_COMMANDS, WebDriverBiDiCommandCorrelation,
-    WebDriverBiDiCommandCorrelationError, WebDriverBiDiCorrelatedResponse,
-    WebDriverBiDiCorrelatedResponseOutcome,
+    WebDriverBiDiCommandCorrelationError, WebDriverBiDiCommandKind,
+    WebDriverBiDiCorrelatedResponse, WebDriverBiDiCorrelatedResponseOutcome,
 };
 pub use webdriver_bidi_connection::{
     WebDriverBiDiTcpConnection, WebDriverBiDiTcpConnectionError,
