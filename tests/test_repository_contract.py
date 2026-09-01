@@ -13,7 +13,7 @@ class RepositoryContractTests(unittest.TestCase):
     """Validate the non-generated repository and governance contract."""
 
     def test_workspace_declares_all_independently_reusable_crates(self) -> None:
-        """The root workspace must expose every reusable policy kernel."""
+        """The root workspace must expose every reusable product boundary."""
 
         data = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))
         self.assertEqual(
@@ -21,6 +21,7 @@ class RepositoryContractTests(unittest.TestCase):
             {
                 "crates/originweave-core",
                 "crates/originweave-bap",
+                "crates/originweave-mcp",
                 "crates/originweave-policy",
                 "crates/originweave-destination",
                 "crates/originweave-network",
@@ -29,6 +30,25 @@ class RepositoryContractTests(unittest.TestCase):
                 "crates/originweave-evidence",
             },
         )
+
+    def test_mcp_adapter_isolated_from_shared_domain_contracts(self) -> None:
+        """External MCP protocol DTOs and routing must not live in originweave-core."""
+
+        self.assertFalse((ROOT / "crates/originweave-core/src/mcp.rs").exists())
+        mcp_manifest = tomllib.loads(
+            (ROOT / "crates/originweave-mcp/Cargo.toml").read_text(encoding="utf-8")
+        )
+        self.assertEqual(set(mcp_manifest.get("dependencies", {})), {"originweave-core"})
+
+        policy_manifest = tomllib.loads(
+            (ROOT / "crates/originweave-policy/Cargo.toml").read_text(encoding="utf-8")
+        )
+        self.assertIn("originweave-mcp", policy_manifest["dependencies"])
+        policy_source = (ROOT / "crates/originweave-policy/src/lib.rs").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("originweave_core::mcp", policy_source)
+        self.assertIn("originweave_mcp::ValidatedMcpToolCall", policy_source)
 
     def test_toolchain_is_pinned_to_current_project_baseline(self) -> None:
         """Reproducible builds require an explicit Rust patch version."""
