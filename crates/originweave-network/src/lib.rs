@@ -60,6 +60,8 @@ mod webdriver_bidi_websocket_transport_closure;
 
 #[cfg(test)]
 mod webdriver_bidi_json_envelope_public_boundary_tests;
+#[cfg(test)]
+mod webdriver_bidi_text_value_observation_public_boundary_tests;
 
 pub use connection::{
     ConnectionPlan, DirectTcpConnection, MAX_CONNECT_TIMEOUT, MAX_CONNECTION_ATTEMPTS,
