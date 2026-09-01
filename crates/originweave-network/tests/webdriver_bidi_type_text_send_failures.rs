@@ -236,7 +236,8 @@ fn type_text_rejects_non_webdriver_bidi_proof_before_correlation_or_frame_write(
 }
 
 #[test]
-fn type_text_rejects_invalid_text_before_correlation_or_frame_write() -> Result<(), Box<dyn Error>> {
+fn type_text_rejects_invalid_text_before_correlation_or_frame_write() -> Result<(), Box<dyn Error>>
+{
     let (established, server) = establish_with_handshake_only_server()?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     let (registry, handle, remote) = type_text_fixture()?;
