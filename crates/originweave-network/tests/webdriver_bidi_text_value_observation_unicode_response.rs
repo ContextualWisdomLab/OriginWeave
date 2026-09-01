@@ -90,7 +90,7 @@ fn receive_server_text(
 #[test]
 fn escaped_unicode_is_compared_after_bounded_response_projection() -> Result<(), Box<dyn Error>> {
     let response = receive_server_text(
-        br#"{\"type\":\"success\",\"id\":81,\"result\":{\"type\":\"success\",\"realm\":\"r\",\"result\":{\"type\":\"string\",\"value\":\"\\u20ac\"}}}"#,
+        br#"{"type":"success","id":81,"result":{"type":"success","realm":"r","result":{"type":"string","value":"\u20ac"}}}"#,
     )?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     correlation.register_command(81)?;
@@ -112,7 +112,7 @@ fn escaped_unicode_is_compared_after_bounded_response_projection() -> Result<(),
 fn projection_error_diagnostic_remains_structural_and_non_sensitive() -> Result<(), Box<dyn Error>>
 {
     let response = receive_server_text(
-        br#"{\"type\":\"success\",\"id\":82,\"result\":{\"type\":\"success\",\"result\":{\"type\":\"string\",\"value\":\"x\"}}}"#,
+        br#"{"type":"success","id":82,"result":{"type":"success","result":{"type":"string","value":"x"}}}"#,
     )?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     correlation.register_command(82)?;
