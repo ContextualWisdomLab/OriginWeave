@@ -15,11 +15,11 @@ pub use sensitive_data::{
     evaluate_handle_use,
 };
 
-use originweave_core::mcp::ValidatedMcpToolCall;
 use originweave_core::{
     ActionRequest, ApprovalEvidence, ApprovalScope, Capability, ExecutionPurpose,
     InstructionSource, PolicyContext, RiskClass, RobotsDecision, SecretDelivery, SessionMode,
 };
+use originweave_mcp::ValidatedMcpToolCall;
 
 /// The result of evaluating one typed action request.
 #[derive(Debug, Clone, PartialEq, Eq)]
