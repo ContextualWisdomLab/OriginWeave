@@ -6,7 +6,7 @@ use std::{
     time::Duration,
 };
 
-use originweave_core::WebDriverBiDiWebSocketEndpoint;
+use originweave_core::{MAX_WEBDRIVER_BIDI_TYPE_TEXT_BYTES, WebDriverBiDiWebSocketEndpoint};
 use originweave_network::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiTextValueObservationResponseError, WebDriverBiDiTextValueObservationResult,
@@ -110,6 +110,21 @@ fn require_observation_error(
     }
 }
 
+fn require_expected_text_error(
+    message: &WebDriverBiDiWebSocketTextMessage,
+    expected_text: &str,
+    correlation: &mut WebDriverBiDiCommandCorrelation,
+) -> Result<WebDriverBiDiTextValueObservationResponseError, Box<dyn Error>> {
+    match WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
+        message,
+        expected_text,
+        correlation,
+    ) {
+        Err(error) => Ok(error),
+        Ok(_) => Err(io::Error::other("fixture unexpectedly admitted invalid expected text").into()),
+    }
+}
+
 #[test]
 fn protocol_error_correlation_and_diagnostics_fail_closed_without_consuming_other_state()
 -> Result<(), Box<dyn Error>> {
@@ -154,6 +169,44 @@ fn protocol_error_correlation_and_diagnostics_fail_closed_without_consuming_othe
         projection_error.to_string(),
         "WebDriver BiDi text-value observation result is invalid"
     );
+    assert_eq!(correlation.outstanding_count(), 1);
+
+    Ok(())
+}
+
+#[test]
+fn invalid_expected_text_fails_before_response_or_correlation_state_is_touched()
+-> Result<(), Box<dyn Error>> {
+    let invalid_envelope = receive_server_text(b"not-json")?;
+    let mut correlation = WebDriverBiDiCommandCorrelation::new();
+    correlation.register_command(70)?;
+
+    let empty_error =
+        require_expected_text_error(&invalid_envelope, "", &mut correlation)?;
+    assert!(matches!(
+        empty_error,
+        WebDriverBiDiTextValueObservationResponseError::EmptyExpectedText
+    ));
+    assert_eq!(correlation.outstanding_count(), 1);
+
+    let oversized = "x".repeat(MAX_WEBDRIVER_BIDI_TYPE_TEXT_BYTES + 1);
+    let oversized_error =
+        require_expected_text_error(&invalid_envelope, &oversized, &mut correlation)?;
+    assert!(matches!(
+        oversized_error,
+        WebDriverBiDiTextValueObservationResponseError::ExpectedTextTooLong
+    ));
+    assert_eq!(correlation.outstanding_count(), 1);
+
+    let control_error = require_expected_text_error(
+        &invalid_envelope,
+        "bad\u{0001}value",
+        &mut correlation,
+    )?;
+    assert!(matches!(
+        control_error,
+        WebDriverBiDiTextValueObservationResponseError::InvalidExpectedText
+    ));
     assert_eq!(correlation.outstanding_count(), 1);
 
     Ok(())
