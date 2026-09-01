@@ -564,22 +564,13 @@ fn decode_json_string(
                             WebDriverBiDiTextValueObservationProjectionError::InvalidString,
                         );
                     }
-                    let scalar = 0x1_0000
-                        + ((u32::from(first) - 0xd800) << 10)
-                        + (u32::from(second) - 0xdc00);
-                    output.push(
-                        char::from_u32(scalar).ok_or(
-                            WebDriverBiDiTextValueObservationProjectionError::InvalidString,
-                        )?,
-                    );
+                    let units = [first, second];
+                    output.push_str(&String::from_utf16_lossy(&units));
                 } else if (0xdc00..=0xdfff).contains(&first) {
                     return Err(WebDriverBiDiTextValueObservationProjectionError::InvalidString);
                 } else {
-                    output.push(
-                        char::from_u32(u32::from(first)).ok_or(
-                            WebDriverBiDiTextValueObservationProjectionError::InvalidString,
-                        )?,
-                    );
+                    let units = [first];
+                    output.push_str(&String::from_utf16_lossy(&units));
                 }
             }
             _ => return Err(WebDriverBiDiTextValueObservationProjectionError::InvalidString),
@@ -589,7 +580,7 @@ fn decode_json_string(
 }
 
 fn decode_hex_quad(
-    characters: &mut impl Iterator<Item = char>,
+    characters: &mut std::str::Chars<'_>,
 ) -> Result<u16, WebDriverBiDiTextValueObservationProjectionError> {
     let mut value = 0_u16;
     for _ in 0..4 {
@@ -731,6 +722,149 @@ mod tests {
         );
         assert_eq!(
             scan_string_end(b"x", 0).err(),
+            Some(WebDriverBiDiTextValueObservationProjectionError::InvalidString)
+        );
+    }
+
+    #[test]
+    fn expected_text_validation_covers_budget_and_injection_policy() {
+        assert!(matches!(
+            validate_expected_text(""),
+            Err(WebDriverBiDiTextValueObservationResponseError::EmptyExpectedText)
+        ));
+        let oversized = "x".repeat(MAX_WEBDRIVER_BIDI_TYPE_TEXT_BYTES + 1);
+        assert!(matches!(
+            validate_expected_text(&oversized),
+            Err(WebDriverBiDiTextValueObservationResponseError::ExpectedTextTooLong)
+        ));
+        assert!(validate_expected_text("ordinary space").is_ok());
+        assert!(matches!(
+            validate_expected_text("tab\tvalue"),
+            Err(WebDriverBiDiTextValueObservationResponseError::InvalidExpectedText)
+        ));
+        assert!(matches!(
+            validate_expected_text("control\u{0001}"),
+            Err(WebDriverBiDiTextValueObservationResponseError::InvalidExpectedText)
+        ));
+        assert!(matches!(
+            validate_expected_text("bidi\u{202e}override"),
+            Err(WebDriverBiDiTextValueObservationResponseError::InvalidExpectedText)
+        ));
+    }
+
+    #[test]
+    fn projection_helpers_cover_structural_and_terminal_failures() {
+        let missing_exception_details =
+            r#"{"type":"success","id":15,"result":{"type":"exception","realm":"realm-1"}}"#;
+        assert_eq!(
+            project_script_result(missing_exception_details).err(),
+            Some(
+                WebDriverBiDiTextValueObservationProjectionError::MissingMember {
+                    member: "result.exceptionDetails"
+                }
+            )
+        );
+        let invalid_exception_details = r#"{"type":"success","id":16,"result":{"type":"exception","realm":"realm-1","exceptionDetails":false}}"#;
+        assert_eq!(
+            project_script_result(invalid_exception_details).err(),
+            Some(
+                WebDriverBiDiTextValueObservationProjectionError::InvalidObject {
+                    member: "result.exceptionDetails"
+                }
+            )
+        );
+
+        let many_members = (0..=MAX_SCRIPT_RESULT_OBJECT_MEMBERS)
+            .map(|index| format!("\"k{index}\":0"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let too_many = format!("{{{many_members}}}");
+        assert_eq!(
+            parse_object_members(&too_many, "root").err(),
+            Some(WebDriverBiDiTextValueObservationProjectionError::TooManyMembers)
+        );
+
+        let long_name = "k".repeat(MAX_SCRIPT_RESULT_MEMBER_NAME_BYTES + 1);
+        let long_member = format!("{{\"{long_name}\":0}}");
+        assert_eq!(
+            parse_object_members(&long_member, "root").err(),
+            Some(WebDriverBiDiTextValueObservationProjectionError::MemberNameTooLong)
+        );
+        assert_eq!(
+            parse_object_members(r#"{"a" 1}"#, "root").err(),
+            Some(WebDriverBiDiTextValueObservationProjectionError::InvalidValue)
+        );
+        assert_eq!(
+            parse_object_members(r#"{"a":1]"#, "root").err(),
+            Some(WebDriverBiDiTextValueObservationProjectionError::InvalidValue)
+        );
+
+        assert_eq!(scan_value_end(b"[]", 0, 0), Ok(2));
+        assert_eq!(
+            scan_value_end(b",", 0, 0).err(),
+            Some(WebDriverBiDiTextValueObservationProjectionError::InvalidValue)
+        );
+        assert_eq!(
+            scan_container_end(
+                b"{}",
+                0,
+                b'{',
+                b'}',
+                MAX_SCRIPT_RESULT_NESTING_DEPTH + 1
+            )
+            .err(),
+            Some(WebDriverBiDiTextValueObservationProjectionError::NestingTooDeep)
+        );
+
+        let deep_objects = "{".repeat(MAX_SCRIPT_RESULT_NESTING_DEPTH + 1);
+        assert_eq!(
+            scan_container_end(deep_objects.as_bytes(), 0, b'{', b'}', 1).err(),
+            Some(WebDriverBiDiTextValueObservationProjectionError::NestingTooDeep)
+        );
+        let deep_arrays = "[".repeat(MAX_SCRIPT_RESULT_NESTING_DEPTH + 1);
+        assert_eq!(
+            scan_container_end(deep_arrays.as_bytes(), 0, b'[', b']', 1).err(),
+            Some(WebDriverBiDiTextValueObservationProjectionError::NestingTooDeep)
+        );
+        assert_eq!(
+            scan_container_end(b"{]", 0, b'{', b'}', 1).err(),
+            Some(WebDriverBiDiTextValueObservationProjectionError::InvalidValue)
+        );
+        assert_eq!(
+            scan_container_end(b"{", 0, b'{', b'}', 1).err(),
+            Some(WebDriverBiDiTextValueObservationProjectionError::InvalidValue)
+        );
+
+        assert_eq!(
+            scan_string_end(b"\"\\", 0).err(),
+            Some(WebDriverBiDiTextValueObservationProjectionError::InvalidString)
+        );
+        assert_eq!(
+            scan_string_end(b"\"\x01\"", 0).err(),
+            Some(WebDriverBiDiTextValueObservationProjectionError::InvalidString)
+        );
+        assert_eq!(
+            scan_string_end(b"\"x", 0).err(),
+            Some(WebDriverBiDiTextValueObservationProjectionError::InvalidString)
+        );
+
+        assert_eq!(
+            decode_json_string("\"").err(),
+            Some(WebDriverBiDiTextValueObservationProjectionError::InvalidString)
+        );
+        assert_eq!(
+            decode_json_string("\"x").err(),
+            Some(WebDriverBiDiTextValueObservationProjectionError::InvalidString)
+        );
+        let raw_control = format!("\"{}\"", '\u{0001}');
+        assert_eq!(
+            decode_json_string(&raw_control).err(),
+            Some(WebDriverBiDiTextValueObservationProjectionError::InvalidString)
+        );
+        assert_eq!(decode_json_string(r#""\uD83D\uDE00""#).as_deref(), Ok("😀"));
+        assert_eq!(decode_json_string(r#""\u20AC""#).as_deref(), Ok("€"));
+        assert_eq!(
+            decode_json_string(r#""\u12""#).err(),
             Some(WebDriverBiDiTextValueObservationProjectionError::InvalidString)
         );
     }
