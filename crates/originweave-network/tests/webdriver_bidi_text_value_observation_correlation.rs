@@ -121,7 +121,9 @@ fn require_expected_text_error(
         correlation,
     ) {
         Err(error) => Ok(error),
-        Ok(_) => Err(io::Error::other("fixture unexpectedly admitted invalid expected text").into()),
+        Ok(_) => {
+            Err(io::Error::other("fixture unexpectedly admitted invalid expected text").into())
+        }
     }
 }
 
@@ -181,8 +183,7 @@ fn invalid_expected_text_fails_before_response_or_correlation_state_is_touched()
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     correlation.register_command(70)?;
 
-    let empty_error =
-        require_expected_text_error(&invalid_envelope, "", &mut correlation)?;
+    let empty_error = require_expected_text_error(&invalid_envelope, "", &mut correlation)?;
     assert!(matches!(
         empty_error,
         WebDriverBiDiTextValueObservationResponseError::EmptyExpectedText
@@ -198,11 +199,8 @@ fn invalid_expected_text_fails_before_response_or_correlation_state_is_touched()
     ));
     assert_eq!(correlation.outstanding_count(), 1);
 
-    let control_error = require_expected_text_error(
-        &invalid_envelope,
-        "bad\u{0001}value",
-        &mut correlation,
-    )?;
+    let control_error =
+        require_expected_text_error(&invalid_envelope, "bad\u{0001}value", &mut correlation)?;
     assert!(matches!(
         control_error,
         WebDriverBiDiTextValueObservationResponseError::InvalidExpectedText
