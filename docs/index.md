@@ -9,7 +9,7 @@ OriginWeave is a Chromium-compatible, Rust-first control plane for governed AI a
 - [Repository overview](https://github.com/ContextualWisdomLab/OriginWeave#readme)
 - [Architecture and trust boundaries](https://github.com/ContextualWisdomLab/OriginWeave/blob/main/ARCHITECTURE.md)
 - [Product roadmap](product-roadmap.md)
-- [Architecture decisions](adr/)
+- [Architecture decisions](adr/README.md)
 - [Product and technical gap baseline](product-technical-gap-baseline.md)
 - [Repository releases](https://github.com/ContextualWisdomLab/OriginWeave/releases)
 - [Ask DeepWiki](https://deepwiki.com/ContextualWisdomLab/OriginWeave)
