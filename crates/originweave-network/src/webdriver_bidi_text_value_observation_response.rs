@@ -703,6 +703,10 @@ mod tests {
             Some(WebDriverBiDiTextValueObservationProjectionError::InvalidString)
         );
         assert_eq!(
+            decode_json_string(r#""\uD800\u12xz""#).err(),
+            Some(WebDriverBiDiTextValueObservationProjectionError::InvalidString)
+        );
+        assert_eq!(
             decode_json_string(r#""\uD800\u0041""#).err(),
             Some(WebDriverBiDiTextValueObservationProjectionError::InvalidString)
         );
@@ -846,6 +850,19 @@ mod tests {
             Some(WebDriverBiDiTextValueObservationProjectionError::InvalidValue)
         );
 
+        let unterminated_escaped_string_container = [b'{', b'"', b'\\'];
+        assert_eq!(
+            scan_container_end(
+                &unterminated_escaped_string_container,
+                0,
+                b'{',
+                b'}',
+                1,
+            )
+            .err(),
+            Some(WebDriverBiDiTextValueObservationProjectionError::InvalidString)
+        );
+
         assert_eq!(
             scan_string_end(b"\"\\", 0).err(),
             Some(WebDriverBiDiTextValueObservationProjectionError::InvalidString)
@@ -865,6 +882,11 @@ mod tests {
         );
         assert_eq!(
             decode_json_string("\"x").err(),
+            Some(WebDriverBiDiTextValueObservationProjectionError::InvalidString)
+        );
+        let dangling_escape_json_string = format!("{}{}{}", '"', '\\', '"');
+        assert_eq!(
+            decode_json_string(&dangling_escape_json_string).err(),
             Some(WebDriverBiDiTextValueObservationProjectionError::InvalidString)
         );
         let raw_control = format!("\"{}\"", '\u{0001}');
