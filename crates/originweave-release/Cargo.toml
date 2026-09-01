@@ -1,6 +1,6 @@
 [package]
-name = "originweave-core"
-description = "OriginWeave core contracts."
+name = "originweave-release"
+description = "OriginWeave commercial release-acceptance evidence contracts."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,11 +10,7 @@ repository.workspace = true
 homepage.workspace = true
 publish = false
 
-[lib]
-path = "src/root.rs"
-
 [dependencies]
-originweave-release = { path = "../originweave-release" }
 unicode-normalization = "=0.1.25"
 
 [lints]
