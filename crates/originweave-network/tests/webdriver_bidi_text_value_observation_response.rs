@@ -166,7 +166,9 @@ fn write_text_frame(stream: &mut TcpStream, payload: &[u8]) -> io::Result<()> {
     stream.write_all(payload)
 }
 
-fn receive_server_text(payload: &[u8]) -> Result<WebDriverBiDiWebSocketTextMessage, Box<dyn Error>> {
+fn receive_server_text(
+    payload: &[u8],
+) -> Result<WebDriverBiDiWebSocketTextMessage, Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let response = payload.to_vec();
@@ -310,9 +312,7 @@ fn response_admission_failures_preserve_or_consume_exact_correlation_state()
     ));
     assert_eq!(correlation.outstanding_count(), 1);
 
-    let event = receive_server_text(
-        br#"{"type":"event","method":"log.entryAdded","params":{}}"#,
-    )?;
+    let event = receive_server_text(br#"{"type":"event","method":"log.entryAdded","params":{}}"#)?;
     assert!(matches!(
         WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
             &event,
@@ -333,9 +333,7 @@ fn response_admission_failures_preserve_or_consume_exact_correlation_state()
             "expected",
             &mut correlation,
         ),
-        Err(WebDriverBiDiTextValueObservationResponseError::RemoteProtocolError {
-            command_id: 71
-        })
+        Err(WebDriverBiDiTextValueObservationResponseError::RemoteProtocolError { command_id: 71 })
     ));
     assert_eq!(correlation.outstanding_count(), 1);
 
@@ -375,9 +373,7 @@ fn response_admission_failures_preserve_or_consume_exact_correlation_state()
             "expected",
             &mut correlation,
         ),
-        Err(WebDriverBiDiTextValueObservationResponseError::ScriptException {
-            command_id: 73
-        })
+        Err(WebDriverBiDiTextValueObservationResponseError::ScriptException { command_id: 73 })
     ));
     assert_eq!(correlation.outstanding_count(), 1);
 
