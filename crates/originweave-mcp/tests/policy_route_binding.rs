@@ -7,7 +7,8 @@ use originweave_core::{
     InstructionSource, Origin, PolicyContext, RobotsDecision, SecretDelivery, SessionMode,
 };
 use originweave_mcp::{
-    MCP_PROTOCOL_VERSION, MCP_TOOLS_CALL_METHOD, ValidatedMcpToolCall, evaluate_mcp,
+    MCP_PROTOCOL_VERSION, MCP_TOOLS_CALL_METHOD, McpRouteRejection, ValidatedMcpToolCall,
+    evaluate_mcp,
 };
 use originweave_policy::{Decision, DenialReason};
 
@@ -67,7 +68,7 @@ fn matching_mcp_route_enters_the_existing_policy_boundary() {
         &context(BTreeSet::from([Capability::Observe])),
     );
 
-    assert_eq!(decision, Decision::Allow);
+    assert_eq!(decision, Ok(Decision::Allow));
 }
 
 #[test]
@@ -79,7 +80,7 @@ fn mismatched_mcp_route_cannot_be_reinterpreted_as_another_action() {
         &context(BTreeSet::from([Capability::Navigate])),
     );
 
-    assert_eq!(decision, Decision::Deny(DenialReason::McpActionMismatch));
+    assert_eq!(decision, Err(McpRouteRejection::ActionMismatch));
 }
 
 #[test]
@@ -93,6 +94,6 @@ fn matching_mcp_route_does_not_bypass_existing_policy_denials() {
 
     assert_eq!(
         decision,
-        Decision::Deny(DenialReason::MissingCapability(Capability::Navigate))
+        Ok(Decision::Deny(DenialReason::MissingCapability(Capability::Navigate)))
     );
 }
