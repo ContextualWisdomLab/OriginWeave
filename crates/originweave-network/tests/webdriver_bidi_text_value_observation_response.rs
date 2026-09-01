@@ -17,9 +17,10 @@ use originweave_core::{
 };
 use originweave_network::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiTcpConnectionPlan,
-    WebDriverBiDiTextValueObservationResult, WebDriverBiDiWebSocketClientKey,
-    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
-    WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
+    WebDriverBiDiTextValueObservationResponseError, WebDriverBiDiTextValueObservationResult,
+    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
+    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageAssembler,
+    WebDriverBiDiWebSocketMessageAssembly, WebDriverBiDiWebSocketTextMessage,
     send_webdriver_bidi_text_value_observation,
 };
 
@@ -165,6 +166,46 @@ fn write_text_frame(stream: &mut TcpStream, payload: &[u8]) -> io::Result<()> {
     stream.write_all(payload)
 }
 
+fn receive_server_text(payload: &[u8]) -> Result<WebDriverBiDiWebSocketTextMessage, Box<dyn Error>> {
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let local_addr = listener.local_addr()?;
+    let response = payload.to_vec();
+    let server = thread::spawn(move || -> io::Result<()> {
+        let (mut stream, _) = listener.accept()?;
+        read_opening_request(&mut stream)?;
+        stream.write_all(OPENING_RESPONSE)?;
+        write_text_frame(&mut stream, &response)
+    });
+
+    let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+    let target = WebDriverBiDiWebSocketEndpoint::new(&endpoint)?
+        .correlate_session_id(SESSION_ID)?
+        .into_explicit_connect_target()?;
+    let connection =
+        WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)?.connect()?;
+    let established = WebDriverBiDiWebSocketHandshakePlan::new(
+        connection,
+        WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?,
+    )?
+    .write_opening_request(Duration::from_millis(500))?
+    .read_opening_response(Duration::from_millis(500))?;
+    let (_established, frame) = established.read_frame(Duration::from_millis(500))?;
+    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
+    let message = match assembler.push_frame(frame)? {
+        WebDriverBiDiWebSocketMessageAssembly::Text(text) => text,
+        other => {
+            return Err(io::Error::other(format!(
+                "fixture produced unexpected message assembly state: {other:?}"
+            ))
+            .into());
+        }
+    };
+    server
+        .join()
+        .map_err(|_| io::Error::other("response fixture server panicked"))??;
+    Ok(message)
+}
+
 #[test]
 fn observed_text_postcondition_consumes_exact_command_without_exposing_page_text()
 -> Result<(), Box<dyn Error>> {
@@ -250,5 +291,115 @@ fn observed_text_postcondition_consumes_exact_command_without_exposing_page_text
     server
         .join()
         .map_err(|_| io::Error::other("text-value observation response server panicked"))??;
+    Ok(())
+}
+
+#[test]
+fn response_admission_failures_preserve_or_consume_exact_correlation_state()
+-> Result<(), Box<dyn Error>> {
+    let invalid = receive_server_text(b"not-json")?;
+    let mut correlation = WebDriverBiDiCommandCorrelation::new();
+    correlation.register_command(70)?;
+    assert!(matches!(
+        WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
+            &invalid,
+            "expected",
+            &mut correlation,
+        ),
+        Err(WebDriverBiDiTextValueObservationResponseError::Envelope { .. })
+    ));
+    assert_eq!(correlation.outstanding_count(), 1);
+
+    let event = receive_server_text(
+        br#"{"type":"event","method":"log.entryAdded","params":{}}"#,
+    )?;
+    assert!(matches!(
+        WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
+            &event,
+            "expected",
+            &mut correlation,
+        ),
+        Err(WebDriverBiDiTextValueObservationResponseError::UnexpectedEvent)
+    ));
+    assert_eq!(correlation.outstanding_count(), 1);
+
+    correlation.register_command(71)?;
+    let protocol_error = receive_server_text(
+        br#"{"type":"error","id":71,"error":"unknown error","message":"remote failure"}"#,
+    )?;
+    assert!(matches!(
+        WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
+            &protocol_error,
+            "expected",
+            &mut correlation,
+        ),
+        Err(WebDriverBiDiTextValueObservationResponseError::RemoteProtocolError {
+            command_id: 71
+        })
+    ));
+    assert_eq!(correlation.outstanding_count(), 1);
+
+    let unknown_success = receive_server_text(
+        br#"{"type":"success","id":72,"result":{"type":"success","realm":"realm-1","result":{"type":"string","value":"expected"}}}"#,
+    )?;
+    assert!(matches!(
+        WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
+            &unknown_success,
+            "expected",
+            &mut correlation,
+        ),
+        Err(WebDriverBiDiTextValueObservationResponseError::Correlation { .. })
+    ));
+    assert_eq!(correlation.outstanding_count(), 1);
+
+    correlation.register_command(73)?;
+    let malformed_projection = receive_server_text(
+        br#"{"type":"success","id":73,"result":{"type":"success","result":{"type":"string","value":"expected"}}}"#,
+    )?;
+    assert!(matches!(
+        WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
+            &malformed_projection,
+            "expected",
+            &mut correlation,
+        ),
+        Err(WebDriverBiDiTextValueObservationResponseError::Projection { .. })
+    ));
+    assert_eq!(correlation.outstanding_count(), 2);
+
+    let script_exception = receive_server_text(
+        br#"{"type":"success","id":73,"result":{"type":"exception","realm":"realm-1","exceptionDetails":{}}}"#,
+    )?;
+    assert!(matches!(
+        WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
+            &script_exception,
+            "expected",
+            &mut correlation,
+        ),
+        Err(WebDriverBiDiTextValueObservationResponseError::ScriptException {
+            command_id: 73
+        })
+    ));
+    assert_eq!(correlation.outstanding_count(), 1);
+
+    let valid_success = receive_server_text(
+        br#"{"type":"success","id":70,"result":{"type":"success","realm":"realm-1","result":{"type":"string","value":"expected"}}}"#,
+    )?;
+    assert!(matches!(
+        WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
+            &valid_success,
+            "bad\ttext",
+            &mut correlation,
+        ),
+        Err(WebDriverBiDiTextValueObservationResponseError::InvalidExpectedText)
+    ));
+    assert_eq!(correlation.outstanding_count(), 1);
+
+    let result = WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
+        &valid_success,
+        "expected",
+        &mut correlation,
+    )?;
+    assert!(result.matches_expected_text());
+    assert_eq!(correlation.outstanding_count(), 0);
     Ok(())
 }
