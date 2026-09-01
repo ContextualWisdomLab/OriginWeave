@@ -26,6 +26,7 @@ This glossary defines terms that must mean the same thing in code, tests, ADRs, 
 | Resource Budget | Explicit bounded allowance for task/resource consumption | `originweave-resource`; hard pressure must reduce the active consumer and reject unsafe admission |
 | Mitigation Plan | Deterministic cumulative response to observed resource pressure | `originweave-resource`; may combine actions rather than collapse simultaneous pressures into one flag |
 | MCP Route | Validated MCP protocol-version/method/tool binding that maps to an OriginWeave `ActionKind` | `originweave-mcp` active PR #272; proves routing consistency only, not authorization |
+| MCP Route Rejection | Fail-closed adapter outcome when a validated MCP route and the typed `ActionRequest` disagree about the action | `originweave-mcp`; `McpRouteRejection` is protocol-integrity evidence, not a policy `DenialReason` or authorization decision |
 | MCP Tool | External MCP-visible name for one supported typed OriginWeave action | `originweave-mcp`; unknown or malformed names fail closed |
 | Browser Agent Protocol (BAP) | OriginWeave browser-agent protocol contract and lifecycle vocabulary | `originweave-bap`; it is not a synonym for MCP, WebDriver BiDi, or CDP |
 | Adapter | Boundary translating an external protocol/runtime representation into OriginWeave contracts | Protocol/infrastructure context; must not leak provider DTOs into domain contracts |
@@ -40,6 +41,7 @@ These distinctions are security and product invariants, not editorial preference
 
 - **Origin ≠ destination ≠ TCP peer ≠ TLS service identity.** Each is proven at a different boundary.
 - **MCP route ≠ policy decision ≠ browser execution.** Protocol validity cannot grant capability or approval.
+- **MCP route rejection ≠ policy denial.** A protocol-integrity mismatch is owned by the MCP adapter and must not enter the policy domain as an MCP-specific denial reason.
 - **Capability ≠ approval.** Possessing the capability to request an action does not satisfy approval requirements for its risk class.
 - **Action request ≠ observed post-condition.** Dispatch success is not proof that the intended browser state was reached.
 - **Evidence ≠ authority.** Evidence records what a boundary proved; possession of an evidence object does not create new permission.

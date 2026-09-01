@@ -14,7 +14,7 @@ This map records bounded-context ownership and allowed dependency direction. Pro
 | Resource governance | Supporting | `originweave-resource` | Bounded task budgets and deterministic mitigation plans |
 | Evidence contracts | Supporting | `originweave-evidence` | Value-redacted network evidence and source-bound provenance records |
 | Browser Agent Protocol | Supporting | `originweave-bap` | Browser-agent protocol contracts and lifecycle vocabulary |
-| MCP protocol adapter | Generic integration | `originweave-mcp` (**active PR #272**) | MCP version/method/tool discovery and routing into typed OriginWeave action contracts; grants no execution authority |
+| MCP protocol adapter | Generic integration | `originweave-mcp` (**active PR #272**) | MCP version/method/tool discovery, routing integrity, and translation into typed OriginWeave action contracts; grants no execution authority |
 
 Planned contexts such as browser sessions, HTTP, proxy, observation, typed browser execution, secret brokering, WebDriver BiDi/CDP adapters, WARC/PROV persistence, and release benchmarks remain planned until code reaches protected `main`. Their planned names do not grant ownership to unrelated current crates.
 
@@ -28,7 +28,8 @@ External MCP client
 | MCP adapter        |  generic integration / ACL
 | originweave-mcp    |
 +---------+----------+
-          | route/action equality, then ordinary policy evaluation
+          | route/action equality; mismatch stays adapter-owned
+          | accepted routes enter ordinary policy evaluation
           v
 +--------------------+        +----------------------+
 | Policy decision    |------->| Browser authority    |
@@ -71,7 +72,7 @@ The MCP adapter may depend on stable OriginWeave action vocabulary from `originw
 
 Relationship: **published contract consumption**.
 
-After the adapter proves MCP route/action equality, it may call the protocol-independent policy API published by `originweave-policy`. Policy owns authorization invariants and depends only on stable OriginWeave domain contracts; it does not import MCP DTOs or `ValidatedMcpToolCall`. MCP owns protocol validation and the protocol-to-policy bridge. Neither context may absorb the other's responsibility.
+A route/action mismatch remains adapter-owned as `McpRouteRejection::ActionMismatch`; it is not a policy `DenialReason` and never enters policy evaluation. After the adapter proves MCP route/action equality, it may call the protocol-independent policy API published by `originweave-policy`. Policy owns authorization invariants and depends only on stable OriginWeave domain contracts; it does not import MCP DTOs, `ValidatedMcpToolCall`, MCP-specific denial reasons, or other adapter vocabulary. MCP owns protocol validation and the protocol-to-policy bridge. Neither context may absorb the other's responsibility.
 
 ### Destination authority → browser authority contracts
 
@@ -101,7 +102,7 @@ Evidence and resource governance expose bounded value contracts. Browser/protoco
 
 1. Domain/security contracts must not import MCP, BiDi, CDP, Chromium SDK, HTTP client, persistence, UI, or provider DTOs.
 2. Protocol adapters may depend inward on stable OriginWeave contracts and policy ports; stable contracts and policy must not depend outward on protocol adapters.
-3. Policy authorization remains centralized in `originweave-policy`; adapters cannot duplicate or weaken it.
+3. Policy authorization remains centralized in `originweave-policy`; adapters cannot duplicate or weaken it. Protocol-integrity failures remain owned by the adapter that can interpret them.
 4. Cross-context calls use public crate APIs or explicit application ports. Direct access to another context's internals is forbidden.
 5. No context may infer authority from another context's success. Each boundary emits evidence specific to the invariant it proves.
 6. Shared Kernel additions require an accepted ADR and must be smaller than the contexts that consume them. `originweave-core` is not a dumping ground for integration DTOs.
@@ -109,4 +110,4 @@ Evidence and resource governance expose bounded value contracts. Browser/protoco
 
 ## Machine-checkable fitness
 
-`tests/test_repository_contract.py` enforces the first MCP ownership slice introduced with PR #272: `originweave-mcp` is a workspace package, MCP routing does not live under `originweave-core`, the adapter depends inward on `originweave-core` and `originweave-policy`, and policy depends only on `originweave-core` without importing MCP protocol types. The adapter owns the route/action guard and delegates accepted routes to the ordinary policy evaluator. Additional context relationships should gain equivalent import/dependency fitness checks when their production boundaries land.
+`tests/test_repository_contract.py` enforces the first MCP ownership slice introduced with PR #272: `originweave-mcp` is a workspace package, MCP routing does not live under `originweave-core`, the adapter depends inward on `originweave-core` and `originweave-policy`, and policy depends only on `originweave-core` without MCP protocol or adapter vocabulary. The adapter owns route/action integrity rejection and delegates only matching routes to the ordinary policy evaluator. `tests/test_ddd_documentation_contract.py` binds this Context Map to the same ownership language. Additional context relationships should gain equivalent import/dependency fitness checks when their production boundaries land.

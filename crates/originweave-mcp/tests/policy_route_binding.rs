@@ -94,6 +94,8 @@ fn matching_mcp_route_does_not_bypass_existing_policy_denials() {
 
     assert_eq!(
         decision,
-        Ok(Decision::Deny(DenialReason::MissingCapability(Capability::Navigate)))
+        Ok(Decision::Deny(DenialReason::MissingCapability(
+            Capability::Navigate
+        )))
     );
 }
