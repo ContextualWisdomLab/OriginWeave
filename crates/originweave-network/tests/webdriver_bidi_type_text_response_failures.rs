@@ -59,7 +59,9 @@ fn write_text_frame(stream: &mut TcpStream, payload: &[u8]) -> io::Result<()> {
     stream.write_all(payload)
 }
 
-fn receive_response(payload: &'static [u8]) -> Result<WebDriverBiDiWebSocketTextMessage, Box<dyn Error>> {
+fn receive_response(
+    payload: &'static [u8],
+) -> Result<WebDriverBiDiWebSocketTextMessage, Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let server = thread::spawn(move || -> io::Result<()> {
@@ -100,14 +102,17 @@ fn receive_response(payload: &'static [u8]) -> Result<WebDriverBiDiWebSocketText
 }
 
 #[test]
-fn remote_protocol_error_consumes_only_the_exact_text_input_command() -> Result<(), Box<dyn Error>> {
+fn remote_protocol_error_consumes_only_the_exact_text_input_command() -> Result<(), Box<dyn Error>>
+{
     let text = receive_response(REMOTE_ERROR_RESPONSE)?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     correlation.register_command(42)?;
 
     let error = WebDriverBiDiTypeTextResult::parse_and_correlate(&text, &mut correlation)
         .err()
-        .ok_or_else(|| io::Error::other("remote protocol error was accepted as text-input success"))?;
+        .ok_or_else(|| {
+            io::Error::other("remote protocol error was accepted as text-input success")
+        })?;
     assert!(matches!(
         error,
         WebDriverBiDiTypeTextResponseError::RemoteProtocolError { command_id: 42 }
@@ -122,7 +127,8 @@ fn remote_protocol_error_consumes_only_the_exact_text_input_command() -> Result<
 }
 
 #[test]
-fn malformed_text_input_envelope_fails_before_consuming_correlation() -> Result<(), Box<dyn Error>> {
+fn malformed_text_input_envelope_fails_before_consuming_correlation() -> Result<(), Box<dyn Error>>
+{
     let text = receive_response(MALFORMED_RESPONSE)?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     correlation.register_command(42)?;
