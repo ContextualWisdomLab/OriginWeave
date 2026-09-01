@@ -40,8 +40,6 @@ pub enum DenialReason {
     ModePurposeMismatch,
     /// Page or document content attempted to become a trusted instruction.
     UntrustedInstructionSource,
-    /// A validated external route resolved to a different action than the policy request.
-    McpActionMismatch,
     /// The session lacks the exact capability required by the action.
     MissingCapability(Capability),
     /// The target origin is outside the session's read grant.

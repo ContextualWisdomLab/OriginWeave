@@ -9,7 +9,7 @@
 #![deny(missing_docs)]
 
 use originweave_core::{ActionRequest, PolicyContext};
-use originweave_policy::{Decision, DenialReason};
+use originweave_policy::Decision;
 
 pub(crate) use originweave_core::{ActionKind, Capability, RiskClass};
 
@@ -17,20 +17,28 @@ mod routing;
 
 pub use routing::*;
 
+/// A fail-closed rejection owned by the MCP routing boundary rather than policy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum McpRouteRejection {
+    /// The validated MCP route resolves to a different action than the typed request.
+    ActionMismatch,
+}
+
 /// Evaluate one validated MCP route through the ordinary OriginWeave policy boundary.
 ///
 /// Route validation proves only protocol integrity. It grants no capability, origin, approval,
-/// secret, browser, network, or evidence authority. A route/action mismatch fails closed before
-/// the request is delegated to the protocol-independent policy evaluator.
+/// secret, browser, network, or evidence authority. A route/action mismatch is returned as an
+/// MCP-owned rejection before the request reaches policy. Callers may execute only
+/// `Ok(Decision::Allow)`; every other result remains non-authorizing.
 #[must_use]
 pub fn evaluate_mcp(
     call: &ValidatedMcpToolCall,
     request: &ActionRequest,
     context: &PolicyContext,
-) -> Decision {
+) -> Result<Decision, McpRouteRejection> {
     if call.action_kind() != request.action() {
-        return Decision::Deny(DenialReason::McpActionMismatch);
+        return Err(McpRouteRejection::ActionMismatch);
     }
 
-    originweave_policy::evaluate(request, context)
+    Ok(originweave_policy::evaluate(request, context))
 }

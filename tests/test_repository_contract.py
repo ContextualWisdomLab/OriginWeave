@@ -52,6 +52,7 @@ class RepositoryContractTests(unittest.TestCase):
         )
         self.assertNotIn("originweave_mcp", policy_source)
         self.assertNotIn("ValidatedMcpToolCall", policy_source)
+        self.assertNotIn("Mcp", policy_source)
 
         mcp_source = (ROOT / "crates/originweave-mcp/src/lib.rs").read_text(
             encoding="utf-8"
