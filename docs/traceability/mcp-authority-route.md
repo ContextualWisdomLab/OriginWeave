@@ -1,25 +1,40 @@
 # MCP 2026-07-28 authority-route traceability
 
 - **`tools/call` capability maturity:** `IMPLEMENTED_ON_PROTECTED_MAIN`
-- **`tools/list` capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
-- **Protected-main owning work:** merged PR #168 `feat(mcp): bind stateless tool routing to typed actions`
-- **Active follow-on:** PR #170 `feat(mcp): expose conservative tools list cache contract`
+- **`tools/list` capability maturity:** `IMPLEMENTED_ON_PROTECTED_MAIN`
+- **Protected-main owning work:** merged PR #168 (`tools/call`) and merged PR #170 (`tools/list`)
+- **Bounded-context correction:** active PR #272 moves MCP protocol contracts from `originweave-core` to `originweave-mcp` without changing routing or policy semantics
 - **Complete MCP adapter status:** `PLANNED`
 - **Governing decision:** ADR 0107
 
 ## Scope
 
-Protected main at `b05d5acca82b9d916ada2c8e82f59f92a89817e1` contains the bounded Rust control-plane foundation for MCP `2026-07-28` `tools/call` routing that merged through PR #168. It validates the represented stateless routing envelope, bounds and syntax-validates both attacker-controlled method fields and both attacker-controlled tool-name fields before correlation, maps only an explicit reviewed `originweave.*` catalog to existing typed `ActionKind` values, derives discovery metadata from the same catalog, and rejects route/action mismatch before ordinary deterministic policy evaluation. Methods are nonempty reviewed-ASCII routing tokens of at most 64 bytes; tool names are nonempty reviewed-ASCII identifiers of at most 128 bytes. Invalid method metadata is rejected distinctly from a bounded but unsupported MCP method.
+Protected main at `542ca1e9c0a863595b8b6697790005d2471f5413` contains the bounded Rust control-plane foundations for MCP `2026-07-28` `tools/call` routing and conservative `tools/list` discovery. PR #168 established stateless route validation and mapping to existing typed `ActionKind` values. PR #170, merged on 2026-08-27 as `c4e127036e75cd3c5682ef15b69fb9ec29ff1dd2`, added the fixed discovery page and request metadata validation.
+
+The protected-main implementation validates represented stateless routing envelopes, bounds and syntax-validates attacker-controlled method and tool-name fields before correlation, maps only the reviewed `originweave.*` catalog to existing typed actions, derives discovery metadata from the same catalog, and rejects route/action mismatch before ordinary deterministic policy evaluation. Methods are nonempty reviewed-ASCII routing tokens of at most 64 bytes; tool names are nonempty reviewed-ASCII identifiers of at most 128 bytes. Invalid method metadata remains distinct from a bounded but unsupported MCP method.
 
 A successful `ValidatedMcpToolCall` proves routing integrity only. It grants no capability, origin, approval, secret, browser, tenant, persistence, network, or evidence authority. `originweave_policy::evaluate_mcp` still delegates to the ordinary policy evaluator after the route/action match.
 
-Active PR #170 builds on that protected-main catalog with a conservative typed `tools/list` request/result boundary. Its current branch requires matching MCP protocol metadata, required client-capability presence, bounded and syntax-validated routing/body methods, exact `tools/list` routing, and no caller-supplied cursor because the fixed catalog issues none. Its result is one complete page with zero freshness, private cache scope, and no continuation cursor. This active-PR slice remains non-shipped until it reaches protected main and does not grant any OriginWeave action authority.
+The protected-main `tools/list` contract requires matching MCP protocol metadata, required client-capability presence, bounded and syntax-validated routing/body methods, exact `tools/list` routing, and no caller-supplied cursor because the fixed catalog issues none. Its result is one complete page with zero freshness, private cache scope, and no continuation cursor. Discovery metadata grants no OriginWeave action authority.
+
+## Bounded-context correction
+
+Protected main still places the MCP protocol implementation under `crates/originweave-core/src/mcp.rs`. That placement conflicts with the architecture rule that stable shared domain/security contracts remain free of external protocol DTOs and adapters. Active PR #272 is the canonical DDD repair for that ownership drift:
+
+- introduces `crates/originweave-mcp` as the MCP protocol-adapter bounded context;
+- moves the existing routing/discovery implementation without semantic changes;
+- moves protocol-boundary tests with the adapter;
+- keeps `originweave-core` as the stable shared action/authority vocabulary;
+- makes `originweave-policy` consume `ValidatedMcpToolCall` from the adapter boundary; and
+- adds a machine-checkable repository fitness test preventing MCP protocol code from returning to core.
+
+PR #272 is active-PR evidence, not protected-main behavior. Until it merges, the protected-main source paths below remain the shipped ownership truth even though the architectural defect is known.
 
 ## Product-status reconciliation
 
-`docs/PRD.md` PRD-INT-004 and `docs/TRD.md` Section 12 intentionally remain **Planned** at the complete-adapter level. That status is not contradicted by the bounded `tools/call` foundation now on protected main or by active PR #170: both are reusable control-plane contracts below the complete product adapter. `README.md` and `CHANGELOG.md` distinguish protected-main routing from the active discovery refinement, and ADR 0107 records the protocol/version and authority boundary.
+`docs/PRD.md` PRD-INT-004 and `docs/TRD.md` Section 12 intentionally remain **Planned** at the complete-adapter level. That status is not contradicted by the protected-main `tools/call` and `tools/list` foundations: both are reusable protocol contracts below the complete product adapter.
 
-The following remain outside protected main and PR #170 and must not be inferred from either:
+The following remain outside the complete protected-main adapter and must not be inferred from the routing/discovery foundations or PR #272:
 
 - Streamable HTTP transport parsing and header materialization;
 - JSON-RPC/HTTP response serialization of the typed discovery page;
@@ -32,7 +47,7 @@ The following remain outside protected main and PR #170 and must not be inferred
 
 ## Version boundary
 
-The protected-main routing foundation and active discovery refinement accept only protocol generation `2026-07-28`. MCP versioning is independent of the OriginWeave Protocol. A later MCP revision does not silently change OriginWeave action, risk, capability, approval, secret, origin, tenant, browser, or evidence semantics.
+The routing and discovery foundations accept only protocol generation `2026-07-28`. MCP versioning is independent of the OriginWeave Protocol. A later MCP revision does not silently change OriginWeave action, risk, capability, approval, secret, origin, tenant, browser, or evidence semantics.
 
 The reviewed primary source is:
 
@@ -42,17 +57,24 @@ The canonical bibliography remains `docs/doctoring.md`.
 
 ## Executable evidence
 
-Protected-main PR #168 production/test surfaces include:
+Protected-main production/test surfaces before PR #272 are:
 
-- `crates/originweave-core/src/mcp.rs` — bounded deterministic catalog plus method/tool routing validation in the `ValidatedMcpToolCall` primitive;
-- `crates/originweave-core/tests/mcp_authority_route.rs` — mapping, exact method/tool bounds, empty/oversized/malformed inputs, version/method/header-body correlation, and error-contract evidence;
+- `crates/originweave-core/src/mcp.rs` — bounded deterministic catalog plus `tools/call` and `tools/list` protocol validation;
+- `crates/originweave-core/tests/mcp_authority_route.rs` — action mapping, method/tool bounds, malformed inputs, version/method/header-body correlation, and error contracts;
+- `crates/originweave-core/tests/mcp_tools_list_cache.rs` — fixed discovery result/cache semantics, protocol/client metadata, method validation, routing correlation, cursor rejection, and public errors;
 - `crates/originweave-policy/src/lib.rs` — `evaluate_mcp` route/action guard before normal policy evaluation; and
 - `crates/originweave-policy/tests/mcp_route_binding.rs` — confused-deputy and policy-preservation evidence.
 
-Active PR #170 additionally exercises its discovery contract in `crates/originweave-core/tests/mcp_tools_list_cache.rs`, including result/cache semantics, required protocol/client metadata, bounded protocol and method validation, routing correlation, cursor rejection, and public error contracts.
+On active PR #272 the same protocol implementation and its tests move to:
 
-Exact current-head CI/security/review evidence must be regenerated after every branch mutation. Protected-main evidence proves only the merged `tools/call` foundation; predecessor or protected-main results are not current-head proof for active PR #170.
+- `crates/originweave-mcp/src/routing.rs`;
+- `crates/originweave-mcp/tests/mcp_authority_route.rs`; and
+- `crates/originweave-mcp/tests/mcp_tools_list_cache.rs`.
+
+The repository fitness contract in `tests/test_repository_contract.py` verifies the new package boundary, prevents `originweave-core/src/mcp.rs` from reappearing, restricts `originweave-mcp` to the stable core dependency, and requires policy to import the validated MCP route through the adapter crate.
+
+Exact current-head CI/security/review evidence must be regenerated after every branch mutation. Protected-main evidence proves only the integrated foundations; predecessor or protected-main results are not current-head proof for PR #272.
 
 ## Promotion rule
 
-The bounded `tools/call` routing foundation is already `IMPLEMENTED_ON_PROTECTED_MAIN`. The `tools/list` discovery refinement may change to `IMPLEMENTED_ON_PROTECTED_MAIN` only after PR #170 reaches protected `main` under live governance and exact-head acceptance. Neither promotion makes the complete MCP adapter implemented; each remaining transport/runtime boundary requires its own integrated evidence.
+The bounded `tools/call` and `tools/list` foundations are already `IMPLEMENTED_ON_PROTECTED_MAIN`. The ownership correction may be described as protected-main architecture only after PR #272 reaches protected `main` under live governance and exact-head acceptance. That promotion still does not make the complete MCP server implemented; each remaining transport/runtime boundary requires its own integrated evidence.
