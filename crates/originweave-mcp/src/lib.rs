@@ -30,7 +30,6 @@ pub enum McpRouteRejection {
 /// secret, browser, network, or evidence authority. A route/action mismatch is returned as an
 /// MCP-owned rejection before the request reaches policy. Callers may execute only
 /// `Ok(Decision::Allow)`; every other result remains non-authorizing.
-#[must_use]
 pub fn evaluate_mcp(
     call: &ValidatedMcpToolCall,
     request: &ActionRequest,
