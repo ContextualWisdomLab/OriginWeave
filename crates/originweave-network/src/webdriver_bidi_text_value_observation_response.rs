@@ -881,6 +881,67 @@ mod tests {
     }
 
     #[test]
+    fn projection_propagates_malformed_nested_json_without_consuming_detail() {
+        assert_eq!(
+            project_script_result("[]").err(),
+            Some(
+                WebDriverBiDiTextValueObservationProjectionError::InvalidObject {
+                    member: "response"
+                }
+            )
+        );
+
+        let invalid_result_type =
+            r#"{"type":"success","id":17,"result":{"type":"\q","realm":"realm-1"}}"#;
+        assert_eq!(
+            project_script_result(invalid_result_type).err(),
+            Some(WebDriverBiDiTextValueObservationProjectionError::InvalidString)
+        );
+
+        let malformed_remote = r#"{"type":"success","id":18,"result":{"type":"success","realm":"realm-1","result":{"type" 1}}}"#;
+        assert_eq!(
+            project_script_result(malformed_remote).err(),
+            Some(WebDriverBiDiTextValueObservationProjectionError::InvalidValue)
+        );
+
+        let invalid_remote_type = r#"{"type":"success","id":19,"result":{"type":"success","realm":"realm-1","result":{"type":"\q","value":"x"}}}"#;
+        assert_eq!(
+            project_script_result(invalid_remote_type).err(),
+            Some(WebDriverBiDiTextValueObservationProjectionError::InvalidString)
+        );
+
+        let invalid_remote_value = r#"{"type":"success","id":20,"result":{"type":"success","realm":"realm-1","result":{"type":"string","value":"\q"}}}"#;
+        assert_eq!(
+            project_script_result(invalid_remote_value).err(),
+            Some(WebDriverBiDiTextValueObservationProjectionError::InvalidString)
+        );
+
+        assert_eq!(
+            parse_object_members(r#"{"unterminated}"#, "root").err(),
+            Some(WebDriverBiDiTextValueObservationProjectionError::InvalidString)
+        );
+        assert_eq!(
+            parse_object_members(r#"{"\q":1}"#, "root").err(),
+            Some(WebDriverBiDiTextValueObservationProjectionError::InvalidString)
+        );
+        assert_eq!(
+            parse_object_members(r#"{"a":"#, "root").err(),
+            Some(WebDriverBiDiTextValueObservationProjectionError::InvalidValue)
+        );
+
+        assert_eq!(
+            scan_container_end(b"{\"unterminated", 0, b'{', b'}', 1).err(),
+            Some(WebDriverBiDiTextValueObservationProjectionError::InvalidString)
+        );
+
+        let dangling_escape_json_string = format!("{}{}{}", '"', '\\', '"');
+        assert_eq!(
+            decode_json_string(&dangling_escape_json_string).err(),
+            Some(WebDriverBiDiTextValueObservationProjectionError::InvalidString)
+        );
+    }
+
+    #[test]
     fn response_and_projection_errors_are_stable_and_non_sensitive() {
         let cases: Vec<WebDriverBiDiTextValueObservationResponseError> = vec![
             WebDriverBiDiTextValueObservationResponseError::EmptyExpectedText,
