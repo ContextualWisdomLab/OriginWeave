@@ -34,13 +34,16 @@ class RepositoryContractTests(unittest.TestCase):
     def test_release_acceptance_isolated_from_shared_domain_contracts(self) -> None:
         """Commercial release evidence owns a dedicated bounded context, not shared core."""
 
-        for name in (
-            "benchmark_failure.rs",
-            "release_acceptance.rs",
-            "zero_event_safety_gate.rs",
-            "zero_event_threshold.rs",
-        ):
-            self.assertFalse((ROOT / "crates/originweave-core/src" / name).exists(), name)
+        release_modules = (
+            "benchmark_failure",
+            "release_acceptance",
+            "zero_event_safety_gate",
+            "zero_event_threshold",
+        )
+        for module in release_modules:
+            self.assertFalse(
+                (ROOT / "crates/originweave-core/src" / f"{module}.rs").exists(), module
+            )
 
         release_manifest = tomllib.loads(
             (ROOT / "crates/originweave-release/Cargo.toml").read_text(encoding="utf-8")
@@ -52,20 +55,24 @@ class RepositoryContractTests(unittest.TestCase):
         release_source = (ROOT / "crates/originweave-release/src/lib.rs").read_text(
             encoding="utf-8"
         )
-        for module in (
-            "benchmark_failure",
-            "release_acceptance",
-            "zero_event_safety_gate",
-            "zero_event_threshold",
-        ):
+        for module in release_modules:
             with self.subTest(module=module):
                 self.assertIn(f"pub mod {module};", release_source)
 
+        core_manifest = tomllib.loads(
+            (ROOT / "crates/originweave-core/Cargo.toml").read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            set(core_manifest.get("dependencies", {})),
+            {"originweave-release", "unicode-normalization"},
+        )
         core_source = (ROOT / "crates/originweave-core/src/root.rs").read_text(encoding="utf-8")
-        self.assertNotIn("release_acceptance", core_source)
-        self.assertNotIn("benchmark_failure", core_source)
-        self.assertNotIn("zero_event_safety_gate", core_source)
-        self.assertNotIn("zero_event_threshold", core_source)
+        for module in release_modules:
+            with self.subTest(module=module):
+                self.assertNotIn(f"pub mod {module};", core_source)
+                self.assertIn(f"pub use originweave_release::{module};", core_source)
+        self.assertGreaterEqual(core_source.count("#[deprecated("), len(release_modules))
+        self.assertIn("Temporary compatibility path", core_source)
 
     def test_toolchain_is_pinned_to_current_project_baseline(self) -> None:
         """Reproducible builds require an explicit Rust patch version."""
