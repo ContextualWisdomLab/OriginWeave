@@ -11,6 +11,7 @@
 //! correlation, transports narrowly typed pointer-click and node-bound non-secret
 //! text-input actions plus fixed sandboxed text-value observations, admits typed
 //! correlated protocol acknowledgments and text-value post-condition comparisons,
+//! requires an explicit positive text-value post-condition gate before success,
 //! sends a context-bound subscription for committed-navigation events, retains its
 //! typed bounded correlated subscription identifier, binds navigation-event
 //! admission to that exact active command/receipt lifecycle with bounded fail-closed
@@ -50,6 +51,7 @@ mod webdriver_bidi_session_status_response;
 mod webdriver_bidi_session_teardown;
 mod webdriver_bidi_text_value_observation_response;
 mod webdriver_bidi_text_value_observation_transport;
+mod webdriver_bidi_text_value_postcondition;
 mod webdriver_bidi_type_text_response;
 mod webdriver_bidi_type_text_transport;
 mod webdriver_bidi_websocket_frame;
@@ -150,6 +152,10 @@ pub use webdriver_bidi_text_value_observation_response::{
 };
 pub use webdriver_bidi_text_value_observation_transport::{
     WebDriverBiDiTextValueObservationSendError, send_webdriver_bidi_text_value_observation,
+};
+pub use webdriver_bidi_text_value_postcondition::{
+    WebDriverBiDiTextValuePostcondition, WebDriverBiDiTextValuePostconditionError,
+    verify_webdriver_bidi_text_value_postcondition,
 };
 pub use webdriver_bidi_type_text_response::{
     WebDriverBiDiTypeTextResponseError, WebDriverBiDiTypeTextResult,
