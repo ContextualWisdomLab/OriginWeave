@@ -18,8 +18,7 @@ use originweave_network::{
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
 const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
 const OPENING_RESPONSE: &[u8] = b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n";
-const EVENT: &[u8] =
-    br#"{"type":"event","method":"browsingContext.load","params":{}}"#;
+const EVENT: &[u8] = br#"{"type":"event","method":"browsingContext.load","params":{}}"#;
 const PROTOCOL_ERROR: &[u8] =
     br#"{"type":"error","id":73,"error":"unknown error","message":"page-controlled detail"}"#;
 const SCRIPT_EXCEPTION: &[u8] = br#"{"type":"success","id":74,"result":{"type":"exception","realm":"realm-1","exceptionDetails":{"text":"page-controlled detail"}}}"#;
@@ -103,8 +102,8 @@ fn read_text_over_loopback(
 }
 
 #[test]
-fn production_instantiation_fails_closed_for_event_protocol_error_and_script_exception(
-) -> Result<(), Box<dyn Error>> {
+fn production_instantiation_fails_closed_for_event_protocol_error_and_script_exception()
+-> Result<(), Box<dyn Error>> {
     let event = read_text_over_loopback(EVENT)?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     assert!(matches!(
@@ -125,9 +124,7 @@ fn production_instantiation_fails_closed_for_event_protocol_error_and_script_exc
             "expected",
             &mut correlation,
         ),
-        Err(WebDriverBiDiTextValueObservationResponseError::RemoteProtocolError {
-            command_id: 73
-        })
+        Err(WebDriverBiDiTextValueObservationResponseError::RemoteProtocolError { command_id: 73 })
     ));
     assert_eq!(correlation.outstanding_count(), 0);
 
@@ -139,9 +136,7 @@ fn production_instantiation_fails_closed_for_event_protocol_error_and_script_exc
             "expected",
             &mut correlation,
         ),
-        Err(WebDriverBiDiTextValueObservationResponseError::ScriptException {
-            command_id: 74
-        })
+        Err(WebDriverBiDiTextValueObservationResponseError::ScriptException { command_id: 74 })
     ));
     assert_eq!(correlation.outstanding_count(), 0);
     Ok(())
