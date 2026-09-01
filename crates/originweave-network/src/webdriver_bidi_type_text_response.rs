@@ -42,11 +42,11 @@ impl WebDriverBiDiTypeTextResult {
             WebDriverBiDiCorrelatedResponseOutcome::Success => Ok(Self {
                 command_id: completed.command_id(),
             }),
-            WebDriverBiDiCorrelatedResponseOutcome::Error => Err(
-                WebDriverBiDiTypeTextResponseError::RemoteProtocolError {
+            WebDriverBiDiCorrelatedResponseOutcome::Error => {
+                Err(WebDriverBiDiTypeTextResponseError::RemoteProtocolError {
                     command_id: completed.command_id(),
-                },
-            ),
+                })
+            }
         }
     }
 
