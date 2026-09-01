@@ -28,16 +28,17 @@ External MCP client
 | MCP adapter        |  generic integration / ACL
 | originweave-mcp    |
 +---------+----------+
-          | typed ActionKind / Capability / RiskClass
+          | route/action equality, then ordinary policy evaluation
           v
 +--------------------+        +----------------------+
 | Policy decision    |------->| Browser authority    |
 | originweave-policy |        | originweave-core     |
 +--------------------+        +----------------------+
-                                      ^
+          ^                           ^
+          |                           |
+          +------ typed request ------+
                                       |
                   +-------------------+-------------------+
-                  |                   |                   |
                   |                   |                   |
           +-------+--------+  +-------+--------+  +-------+--------+
           | Destination    |  | Evidence       |  | Resource       |
@@ -66,11 +67,11 @@ Relationship: **Anti-Corruption Layer / conformist at the protocol edge**.
 
 The MCP adapter may depend on stable OriginWeave action vocabulary from `originweave-core`. External MCP method names, tool names, protocol versions, cursors, and request metadata remain adapter types. They must not be promoted into `originweave-core` domain entities. The adapter maps a bounded, validated MCP request to an existing typed action kind and does not invent capabilities or approvals.
 
-### Policy decision → MCP adapter
+### MCP adapter → policy decision
 
 Relationship: **published contract consumption**.
 
-`originweave-policy` may consume the adapter's validated route token only to prove route/action equality before applying the normal policy decision. Policy owns authorization invariants; MCP owns protocol validation. Neither context may absorb the other's responsibility.
+After the adapter proves MCP route/action equality, it may call the protocol-independent policy API published by `originweave-policy`. Policy owns authorization invariants and depends only on stable OriginWeave domain contracts; it does not import MCP DTOs or `ValidatedMcpToolCall`. MCP owns protocol validation and the protocol-to-policy bridge. Neither context may absorb the other's responsibility.
 
 ### Destination authority → browser authority contracts
 
@@ -99,7 +100,7 @@ Evidence and resource governance expose bounded value contracts. Browser/protoco
 ## Dependency rules
 
 1. Domain/security contracts must not import MCP, BiDi, CDP, Chromium SDK, HTTP client, persistence, UI, or provider DTOs.
-2. Protocol adapters may depend inward on stable OriginWeave contracts; stable contracts must not depend outward on protocol adapters.
+2. Protocol adapters may depend inward on stable OriginWeave contracts and policy ports; stable contracts and policy must not depend outward on protocol adapters.
 3. Policy authorization remains centralized in `originweave-policy`; adapters cannot duplicate or weaken it.
 4. Cross-context calls use public crate APIs or explicit application ports. Direct access to another context's internals is forbidden.
 5. No context may infer authority from another context's success. Each boundary emits evidence specific to the invariant it proves.
@@ -108,4 +109,4 @@ Evidence and resource governance expose bounded value contracts. Browser/protoco
 
 ## Machine-checkable fitness
 
-`tests/test_repository_contract.py` enforces the first MCP ownership slice introduced with PR #272: `originweave-mcp` is a workspace package, MCP routing does not live under `originweave-core`, the adapter depends only on `originweave-core`, and policy imports the validated MCP route from the adapter crate. Additional context relationships should gain equivalent import/dependency fitness checks when their production boundaries land.
+`tests/test_repository_contract.py` enforces the first MCP ownership slice introduced with PR #272: `originweave-mcp` is a workspace package, MCP routing does not live under `originweave-core`, the adapter depends inward on `originweave-core` and `originweave-policy`, and policy depends only on `originweave-core` without importing MCP protocol types. The adapter owns the route/action guard and delegates accepted routes to the ordinary policy evaluator. Additional context relationships should gain equivalent import/dependency fitness checks when their production boundaries land.
