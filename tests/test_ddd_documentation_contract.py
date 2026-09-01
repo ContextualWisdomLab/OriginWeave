@@ -24,6 +24,27 @@ class DddDocumentationContractTests(unittest.TestCase):
         self.assertIn("policy depends only on `originweave-core`", context_map)
         self.assertIn("route/action mismatch remains adapter-owned", context_map)
 
+    def test_context_map_names_product_bounded_contexts_explicitly(self) -> None:
+        context_map = (ROOT / "docs/context-map.md").read_text(encoding="utf-8")
+        for bounded_context in (
+            "Browser Session",
+            "Profile/Identity Boundary",
+            "Semantic Observation",
+            "Typed Action Execution",
+            "Resource Governance",
+            "Scraping/Extraction",
+            "Provenance",
+            "Extension Policy",
+            "Secret Broker",
+            "Agent Integration",
+        ):
+            with self.subTest(bounded_context=bounded_context):
+                self.assertIn(bounded_context, context_map)
+        self.assertIn("protected-main", context_map)
+        self.assertIn("active PR", context_map)
+        self.assertIn("planned", context_map)
+        self.assertIn("does not transfer authority", context_map)
+
     def test_ubiquitous_language_keeps_authority_terms_distinct(self) -> None:
         glossary = (ROOT / "docs/ubiquitous-language.md").read_text(encoding="utf-8")
         for term in (
