@@ -764,7 +764,7 @@ mod tests {
                 .as_deref(),
             Some("expected text-value postcondition exceeds the local byte budget")
         );
-        assert_eq!(validate_expected_text("ordinary space").is_ok(), true);
+        assert_eq!(validate_expected_text("ordinary space"), Ok(()));
         for rejected in ["tab\tvalue", "control\u{0001}", "bidi\u{202e}override"] {
             assert_eq!(
                 validate_expected_text(rejected)
@@ -959,22 +959,22 @@ mod tests {
             WebDriverBiDiTextValueObservationResponseError::ScriptException { command_id: 8 },
         ];
         for error in cases {
-            assert_eq!(error.source().is_none(), true);
-            assert_eq!(error.to_string().is_empty(), false);
+            assert_eq!(error.source().map(|_| ()), None);
+            assert_ne!(error.to_string(), "");
         }
 
         let envelope = WebDriverBiDiTextValueObservationResponseError::Envelope {
             source: WebDriverBiDiJsonEnvelopeError::InvalidJson,
         };
-        assert_eq!(envelope.source().is_some(), true);
+        assert_eq!(envelope.source().map(|_| ()), Some(()));
         let projection = WebDriverBiDiTextValueObservationResponseError::Projection {
             source: WebDriverBiDiTextValueObservationProjectionError::InvalidValue,
         };
-        assert_eq!(projection.source().is_some(), true);
+        assert_eq!(projection.source().map(|_| ()), Some(()));
         let correlation = WebDriverBiDiTextValueObservationResponseError::Correlation {
             source: WebDriverBiDiCommandCorrelationError::CommandNotOutstanding,
         };
-        assert_eq!(correlation.source().is_some(), true);
+        assert_eq!(correlation.source().map(|_| ()), Some(()));
 
         let projection_errors = [
             WebDriverBiDiTextValueObservationProjectionError::InvalidObject { member: "result" },
@@ -990,7 +990,7 @@ mod tests {
             WebDriverBiDiTextValueObservationProjectionError::InvalidValue,
         ];
         for error in projection_errors {
-            assert_eq!(error.to_string().is_empty(), false);
+            assert_ne!(error.to_string(), "");
         }
     }
 }
