@@ -1,4 +1,4 @@
-use originweave_core::release_acceptance::{DeclaredLimitation, ReleaseDecisionError};
+use originweave_release::release_acceptance::{DeclaredLimitation, ReleaseDecisionError};
 
 #[test]
 fn limitation_accepts_canonical_boundary_text() {

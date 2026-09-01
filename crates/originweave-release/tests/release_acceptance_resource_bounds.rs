@@ -1,4 +1,4 @@
-use originweave_core::release_acceptance::{
+use originweave_release::release_acceptance::{
     DeclaredLimitation, MAX_RELEASE_LIMITATION_TEXT_BYTES, ReleaseDecisionError,
 };
 
