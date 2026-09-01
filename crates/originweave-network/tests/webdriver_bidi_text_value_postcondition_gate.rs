@@ -104,11 +104,8 @@ fn exact_match_is_the_only_successful_text_postcondition() -> Result<(), Box<dyn
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     correlation.register_command(70)?;
 
-    let verified = verify_webdriver_bidi_text_value_postcondition(
-        &response,
-        "expected",
-        &mut correlation,
-    )?;
+    let verified =
+        verify_webdriver_bidi_text_value_postcondition(&response, "expected", &mut correlation)?;
 
     assert_eq!(verified.command_id(), 70);
     assert_eq!(verified.observed_text_bytes(), "expected".len());
@@ -125,12 +122,11 @@ fn mismatch_is_typed_failure_after_consuming_its_exact_response() -> Result<(), 
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     correlation.register_command(71)?;
 
-    let error = verify_webdriver_bidi_text_value_postcondition(
-        &response,
-        "expected",
-        &mut correlation,
-    )
-    .expect_err("a mismatched page value must not be returned as successful postcondition evidence");
+    let error =
+        verify_webdriver_bidi_text_value_postcondition(&response, "expected", &mut correlation)
+            .expect_err(
+                "a mismatched page value must not be returned as successful postcondition evidence",
+            );
 
     assert!(matches!(
         &error,
@@ -158,12 +154,9 @@ fn malformed_observation_stays_a_typed_source_error_without_consuming_state()
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     correlation.register_command(72)?;
 
-    let error = verify_webdriver_bidi_text_value_postcondition(
-        &response,
-        "expected",
-        &mut correlation,
-    )
-    .expect_err("malformed observation must fail closed");
+    let error =
+        verify_webdriver_bidi_text_value_postcondition(&response, "expected", &mut correlation)
+            .expect_err("malformed observation must fail closed");
 
     assert!(matches!(
         &error,
