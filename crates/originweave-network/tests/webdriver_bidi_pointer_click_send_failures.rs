@@ -11,7 +11,8 @@ use originweave_core::{
     WebDriverBiDiWebSocketEndpoint,
 };
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiPointerClickSendError,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
+    WebDriverBiDiCommandKind, WebDriverBiDiPointerClickSendError,
     WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
     WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketHandshakePlan,
     WebDriverBiDiWebSocketMaskKey, send_webdriver_bidi_pointer_click,
@@ -77,7 +78,7 @@ fn pointer_click(command_id: u64) -> Result<WebDriverBiDiPointerClickCommand, Bo
 fn pointer_click_rejects_duplicate_correlation_before_frame_write() -> Result<(), Box<dyn Error>> {
     let (established, server) = establish_with_handshake_only_server()?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command(7)?;
+    correlation.register_command_for(7, WebDriverBiDiCommandKind::PointerClick)?;
     let command = pointer_click(7)?;
 
     let error = send_webdriver_bidi_pointer_click(
@@ -107,8 +108,8 @@ fn pointer_click_rejects_duplicate_correlation_before_frame_write() -> Result<()
 }
 
 #[test]
-fn pointer_click_preserves_registration_when_frame_timeout_is_invalid() -> Result<(), Box<dyn Error>>
-{
+fn pointer_click_preserves_typed_registration_when_frame_timeout_is_invalid()
+-> Result<(), Box<dyn Error>> {
     let (established, server) = establish_with_handshake_only_server()?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     let command = pointer_click(11)?;
@@ -131,6 +132,18 @@ fn pointer_click_preserves_registration_when_frame_timeout_is_invalid() -> Resul
         "WebDriver BiDi pointer-click command frame write failed"
     );
     assert!(error.source().is_some());
+    assert_eq!(correlation.outstanding_count(), 1);
+
+    let kind_error = correlation
+        .retire_command_for(11, WebDriverBiDiCommandKind::SessionEnd)
+        .expect_err("pointer-click correlation must not retire as session.end");
+    assert_eq!(
+        kind_error,
+        WebDriverBiDiCommandCorrelationError::CommandKindMismatch {
+            expected: WebDriverBiDiCommandKind::SessionEnd,
+            actual: WebDriverBiDiCommandKind::PointerClick,
+        }
+    );
     assert_eq!(correlation.outstanding_count(), 1);
 
     server
