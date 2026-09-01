@@ -1,63 +1,73 @@
 # Action Post-Condition Evidence Traceability
 
-- **Documentation status:** Active-PR evidence dossier
-- **Canonical owner:** PR #44 (`docs: reconcile architecture documentation fitness`)
-- **Protected-main baseline:** `67af7c87589edc2039545af335c95064d9b8391c`
+- **Documentation status:** Active-stack evidence dossier; protected-main truth is called out separately
+- **Canonical owner:** issue #28 (`Complete the first real Chromium agent vertical slice`)
+- **Protected-main baseline:** `542ca1e9c0a863595b8b6697790005d2471f5413`
+- **Active stack tip at this revision:** PR #266 (`feat/core: add node-bound WebDriver BiDi text input`)
 - **Capability maturity:** **PARTIAL**
 - **Governing decisions:** Accepted ADR 0003 plus Proposed ADR 0106 preserve provenance-native evidence and separation of action execution from verification.
 
 ## 1. Why this dossier exists
 
-OriginWeave's protected-main API contract already defines a durable product rule: returning from a browser command is not equivalent to successful action completion. A state-changing action becomes successful only after the declared or derived post-condition is observed and verified. Protected main also provides generic credential-safe provenance with explicit verification state, but that design rule was not yet represented by a reusable typed action-outcome evidence object.
+OriginWeave has a durable product rule: returning from a browser command is not equivalent to successful action completion. A state-changing action becomes successful only after the declared or derived post-condition is observed and verified. This dossier tracks the executable pieces that narrow the first Chromium vertical-slice gap without promoting active pull-request behavior to protected-main shipped truth.
 
-This dossier records the active implementation evidence that narrows that gap. It does not promote active pull requests to protected-main shipped truth and it does not claim that a real Chromium adapter already observes the post-condition after dispatch.
+Every exact branch head below is volatile evidence. If a contributor head, live base, dependency, review, or check state moves, its recorded evidence must be revalidated on the new exact state before it is reused.
 
-## 2. Protected-main design and implementation boundary
+## 2. Protected-main truth
 
-Protected `main` already provides:
+Protected `main` at `542ca1e9c0a863595b8b6697790005d2471f5413` already contains the controlled local Agent Task fixture from merged PR #65. The checked-in fixture provides a labelled synthetic text field, submit control, deterministic `idle` → `submitted` state transition, and hidden untrusted page instruction used by hostile-content regressions. Its presence on protected main is test-infrastructure truth; it is not proof of a production browser runtime.
 
-- typed `ActionKind` and immutable `ActionIntentDigest` values;
-- canonical `Origin` authority values;
-- credential-safe `ProvenanceRecord` with explicit `VerificationResult`;
-- API/TRD requirements that state-changing success waits for an observed post-condition; and
-- provenance architecture that keeps observation, policy, execution, and verification as distinct authorities.
+Protected main also retains the generic authority/evidence primitives and design requirements that keep observation, policy, execution, and verification separate. It still does not by itself establish the complete pinned-Chromium observation → policy → action → post-condition → evidence → teardown chain required by issue #28.
 
-The generic value primitives are **IMPLEMENTED_ON_PROTECTED_MAIN**. The complete action dispatch → observation → independent verification → successful outcome chain remains **PARTIAL** because protected main does not yet contain the real Chromium runtime that composes them end to end.
+## 3. Current executable evidence
 
-## 3. Active executable evidence
-
-### PR #64 — verified, temporally ordered post-condition becomes typed action-outcome evidence
+### PR #64 — verified action-outcome and interruption evidence
 
 **Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
 
-Exact head `2c45411ed9aa0eecca2d06c85659db9f4bb85e4d` adds `VerifiedActionOutcomeEvidence` in the existing credential-safe evidence crate. It binds:
+PR #64 remains open on exact head `5021d142583cb5a8e393248048bb824762a98056` against protected main. Its typed evidence boundary binds verified post-condition provenance to an action intent and keeps retry eligibility fail-closed around exact browser authority, cleanup/finalization state, and possible external effects.
 
-1. the exact typed `ActionKind`;
-2. canonical target `Origin`;
-3. complete immutable `ActionIntentDigest`;
-4. a bounded first-slice `PostConditionKind` (`UrlChanged`, `NodeStateChanged`, `DialogStateChanged`, or `NetworkMutationObserved`);
-5. caller-supplied action-dispatch and post-condition-observation timestamps that must come from one monotonic clock domain; and
-6. the exact `ProvenanceRecord` used as the post-condition proof.
+The branch is not protected-main shipped truth. Its current outstanding failures are central review/provider evidence rather than a verified source-level vulnerability: the exact-head OpenCode path lacks an authenticated qualifying review verdict and Strix has returned provider/backend failures. Those states do not become passing evidence and do not justify a local product workaround that weakens the central gate.
 
-Construction fails closed unless the supplied provenance has `VerificationResult::Verified`. Both `Unverified` and `Rejected` observations are rejected as `PostConditionNotVerified`. An observation timestamp earlier than dispatch is rejected as `PostConditionPredatesDispatch`; equal ticks remain valid for coarse monotonic clocks.
+### PRs #261–#264 — committed-navigation lifecycle and subscription authority
 
-On this exact head, CI run `31441848670`, Security Scan run `31441848649`, SAST Semgrep run `31441848615`, exact owned production function/line/region/branch coverage, strict Clippy, rustdoc and CodeRabbit exact-head status are successful. GitHub reports the PR mergeable and Ready for review; no formal reviews or inline review threads are currently returned.
+**Capability maturity:** `IMPLEMENTED_ON_ACTIVE_STACK`
 
-### PR #65 — controlled hostile local workflow fixture
+The current issue-#28 navigation stack is dependency ordered:
 
-**Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
+- PR #261 exact `da84955d74ff12b158a8cb2e75eadf218c787f46`: canonical origin binding after an admitted committed-navigation observation and exact pre-action document epoch;
+- PR #262 exact `9df2fc23abf42133beaebab4f5466fbdc942d336`: typed, context-scoped `session.subscribe` for `browsingContext.navigationCommitted` with bounded WebSocket transport and exact correlation;
+- PR #263 exact `24fc763f0c4ae4e0dd2c62b9dca4b5bc0d23a94b`: typed unsubscribe consuming the validated opaque subscription receipt; and
+- PR #264 exact `9c4116b23e5b35e50bb66fff9f72d52bba3adbd0`: admission of committed-navigation events only while the exact typed subscription authority remains active.
 
-Test-only head `d2580305f05aba93d10b5342ec1886d601c6752e` was based directly on the protected-main baseline and intentionally required a checked-in `tests/fixtures/agent_task_basic/index.html` before that fixture existed. CI run `31445088008`, Rust contracts job `93637443229`, checked out that exact head and failed with three `FileNotFoundError` results for the missing fixture, establishing the intended fail-first boundary.
+Each remains Draft and mergeable at this revision. Their exact native CI evidence is branch-local and is not transferred to descendants or protected main. Organization-required central checks that are absent from an exact stacked head remain absent evidence rather than implicit success.
 
-Exact head `0888fe3a6ef6da547a37fd075733cc73dc52b2ab` adds the smallest controlled fixture satisfying the contract: a labelled semantic field, submit control, deterministic `idle` → `submitted` observable state change carrying only synthetic text, one explicitly hidden/untrusted prompt-injection marker, and no password/OTP/API-key/secret collection surface.
+### PR #265 — pointer input revalidated against admitted node authority
 
-On that unchanged exact head, CI run `31445201739` succeeds; Rust contracts job `93637824750` passes repository contracts, formatting, locked workspace check, full tests, strict Clippy and rustdoc; Production coverage job `93637824824` passes exact owned production function/line/region/branch enforcement; Security Scan run `31445201774`, SAST Semgrep run `31445201669` and CodeRabbit exact-head status succeed. GitHub reports the PR mergeable and Ready for review with no formal reviews or inline review threads currently returned.
+**Capability maturity:** `IMPLEMENTED_ON_ACTIVE_STACK`
 
-This remains controlled test infrastructure rather than browser-execution evidence. The fixture itself does not establish WebDriver BiDi/CDP transport, Chromium semantic extraction, policy dispatch, native input, post-condition provenance, profile teardown or process attribution.
+PR #265 exact `ffa70ee0f499b86ff51837fb95733fd5cf57ff89` binds pointer-click serialization and transport to a registry-issued `AdmittedNodeHandle`, the exact admitted WebDriver BiDi `sharedId`, current browser session/context/origin/document epoch, and a non-cloneable validated `TypedInput` protocol-use proof immediately before correlation and network I/O. Cross-registry handles, stale nodes, changed origin authority, wrong external contexts, and caller-selected unadmitted node identifiers fail closed.
+
+The branch remains Draft and mergeable. Native CI and Manifest V3 compatibility were successful on that exact head, but neither automation nor author activity counts as independent approval.
+
+### PR #266 — node-bound non-secret text input and diagnostic redaction
+
+**Capability maturity:** `IMPLEMENTED_ON_ACTIVE_STACK`
+
+PR #266 is stacked directly on PR #265. The current implementation adds a deterministic WebDriver BiDi `input.performActions` text-input command that:
+
+1. revalidates the exact registry-issued browser session, external browsing-context identifier, canonical origin, current document epoch, node provenance, and admitted `sharedId` before serialization;
+2. focuses the exact admitted element with an element-origin primary-button sequence before keyboard input;
+3. accepts only non-empty, bounded, protocol-safe non-secret text; and
+4. keeps secrets on the separately governed broker/fill path rather than this public text-input surface.
+
+A current-source privacy defect was found and repaired test-first on this same canonical branch. The original derived `Debug` implementation exposed the complete serialized command, including buyer-provided typed text. Exact RED head `11ada2a54fc3f9fc3225e654670319bc5fa6f0b2` added a diagnostic regression that failed because the private marker was present. The production repair replaced derived `Debug` with a metadata-only representation that retains command id, method, and text byte count while omitting typed text, browsing-context identifiers, admitted node identifiers, and the serialized wire payload.
+
+The pre-documentation exact repaired head `1958720a2f0f7e33e40bcea0073c486f37ad278d` passed CI run `33451284736` and Manifest V3 Compatibility run `33451284820`; Rust contracts included formatting, workspace checks, full tests, strict Clippy, and public API documentation, while Production coverage passed exact owned-production function/line/region/branch enforcement. A later documentation-only head must obtain its own fresh exact-head evidence before these results can be treated as current for the PR.
 
 ## 4. Non-transitive success semantics
 
-The intended first-slice chain is:
+The intended first-slice chain remains:
 
 ```text
 typed action intent
@@ -65,52 +75,51 @@ typed action intent
 -> real browser input/event
 -> observed bounded post-condition
 -> independently verified provenance
--> temporally ordered VerifiedActionOutcomeEvidence
+-> temporally ordered verified action outcome
 ```
 
-The active PR implements only the final typed evidence boundary. The following implications are explicitly invalid:
+The following implications remain invalid:
 
 ```text
 command return -/> successful action completion
 protocol acknowledgement -/> successful action completion
-Unverified -/> successful action completion
-Rejected -/> successful action completion
-caller-supplied timestamp ordering -/> proof of trusted clock provenance
-VerifiedActionOutcomeEvidence type existence -/> proof of real Chromium execution
+subscription receipt -/> event occurrence
+admitted node handle -/> policy authorization
+successful pointer/text serialization -/> successful browser state change
+Unverified or Rejected provenance -/> successful action completion
+caller-supplied timestamp ordering -/> trusted clock provenance
+typed evidence object existence -/> proof of real Chromium execution
 controlled fixture success -/> proof of real Chromium execution
 ```
 
-PR #64 now rejects a caller-supplied observation timestamp that predates caller-supplied dispatch time, but the type cannot independently prove the clock source, that a real browser actually dispatched the action, that the supplied provenance belongs to the claimed browser target/node, or that the observed state was caused by that action. PR #65 supplies deterministic hostile input and a post-condition target but no browser execution. Those claims remain the responsibility of the real adapter/runtime composition under issue #28.
+The active navigation/input stack narrows browser transport and node-lifetime authority, but it does not prove that a dispatched input caused the declared post-condition. The verified outcome boundary remains separate, and the final runtime must compose real browser execution with post-dispatch observation and credential-safe provenance without inheriting ambient browser, policy, destination, secret, or model authority.
 
-## 5. Active prerequisite graph for issue #28
+## 5. Current issue #28 dependency shape
 
-The first real Chromium vertical slice remains distributed across bounded active prerequisites rather than one shipped runtime:
+The first real Chromium vertical slice remains distributed rather than shipped as one protected-main runtime. Current relevant boundaries include:
 
-- PR #40 — protocol/browser identifiers → OriginWeave session/context/origin/document/node authority;
-- PR #52 — bounded semantic node observation with explicit source-channel provenance;
-- PR #57 — typed semantic-node query contract;
-- PR #58 — authority-bound semantic node action target;
-- PR #49 — ephemeral compatibility-profile lifecycle regression stacked on #43;
-- PR #51 — bounded browser-task telemetry plus one explicitly supplied Linux PID `VmRSS` sampler; Chromium process discovery/process-set attribution remains outside that slice;
-- PR #64 — verified and caller-timestamp-ordered post-condition action-outcome evidence; and
-- PR #65 — controlled hostile local Agent Task workflow fixture, gate-clean and Ready for review.
+- protected-main controlled hostile workflow fixture from merged PR #65;
+- browser protocol/session/context/origin/document/node authority primitives already represented in the repository;
+- PR #64 verified post-condition and interruption evidence;
+- PRs #261–#264 committed-navigation origin/subscription/admission lifecycle;
+- PR #265 send-time pointer input revalidation against admitted node authority; and
+- PR #266 node-bound non-secret text input with privacy-safe diagnostics.
 
-These active PRs are non-shipped evidence. They do not themselves compose WebDriver BiDi/CDP transport, trusted Chromium process attribution, policy-authorized real input dispatch, causal post-condition observation, or deterministic end-to-end teardown/recovery into one protected-main runtime.
+These pieces do not transfer evidence across heads. A descendant must be revalidated after any parent movement, and protected-main shipment requires fresh integrated acceptance after dependency-ordered merge by an authorized integrator.
 
 ## 6. Remaining issue #28 boundary
 
 This dossier does **not** close issue #28. Material remaining work includes:
 
-- pinned stock Chromium exercised as one reproducible end-to-end Agent Task runtime path, not only extension compatibility fixtures;
-- isolated Agent Task profile/context lifecycle and cleanup in the production vertical path;
-- versioned WebDriver BiDi adapter plus explicitly bounded CDP observation fallback where needed;
+- one reproducible pinned stock-Chromium Agent Task path that composes the current authority kernels rather than proving them only in isolated protocol fixtures;
+- isolated task profile/context lifecycle and deterministic cleanup in that production vertical path;
 - real semantic observation feeding typed query and policy-authorized typed action;
-- real browser input dispatch followed by post-dispatch observation of the declared condition;
-- hostile/stale/cross-session/cross-context/cross-origin/prompt-injection/secret-leak/crash/oversize regressions;
-- deterministic failure/recovery evidence and task teardown;
-- Chromium process discovery/process-set attribution composed into resource telemetry; and
-- protected-main integration plus fresh acceptance before any active-PR capability becomes shipped truth.
+- real pointer/text dispatch followed by an independently observed declared post-condition and verified credential-safe evidence;
+- hostile stale/cross-session/cross-context/cross-origin/prompt-injection/secret-leak/crash/oversize regressions across the integrated runtime;
+- deterministic renderer/tab/process failure and recovery evidence;
+- Chromium process-set discovery/attribution composed into resource telemetry; and
+- fresh protected-main security, coverage, rustdoc, browser compatibility, provenance, review, rollback, and operational acceptance before release claims.
 
 ## 7. Documentation fitness consequence
 
-The ADR/PRD/TRD/Architecture/UML/ERD graph remains **DESIGN-SUFFICIENT / PROTECTED-MAIN-PARTIAL**. PR #64 narrows a typed evidence gap already governed by existing provenance/action-success decisions, while PR #65 supplies controlled test infrastructure for the eventual real-browser proof. Neither introduces a new trust domain, deployed component, persistence owner, database schema, or independent architecture decision, so a new ADR or physical ERD entity would overstate the implementation. Detailed real-Chromium dispatch/post-condition sequence diagrams should be reconciled when the executable adapter chain stabilizes rather than manufacturing as-built detail before that runtime exists.
+The documentation graph remains **DESIGN-SUFFICIENT / PROTECTED-MAIN-PARTIAL**. The active stack materially narrows WebDriver BiDi navigation and typed-input authority, but it introduces no new OriginWeave-owned durable database schema or persistence owner. A physical ERD entity would therefore overstate the implementation. Detailed as-built sequence diagrams should be reconciled when the executable pinned-Chromium composition is stable enough that they describe measured runtime behavior rather than anticipated integration.
