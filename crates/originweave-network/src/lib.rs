@@ -8,21 +8,22 @@
 //! the RFC 6455 opening exchange, provides bounded masked client writes and
 //! unmasked server-frame reads, assembles bounded WebDriver BiDi text messages,
 //! classifies complete local-end JSON envelopes, tracks bounded command-response
-//! correlation, transports a narrowly typed pointer click, admits its typed
-//! correlated protocol acknowledgment, sends a context-bound subscription for
-//! committed-navigation events, retains its typed bounded correlated subscription
-//! identifier, binds navigation-event admission to that exact active command/receipt
-//! lifecycle with bounded fail-closed navigation replay prevention, explicitly tears
-//! down that exact subscription by identifier, admits its typed correlated unsubscribe
-//! acknowledgment, admits a bounded navigation-committed post-condition observation
-//! for one exact registered context and URL, rotates the matched context's document
-//! epoch only from an exact caller-captured pre-action epoch, derives and binds the
-//! committed HTTP(S) URL's canonical origin to that newly advanced document, sends
-//! narrowly typed `session.status` and `session.end` commands, admits typed correlated
-//! status and end responses, observes bounded peer Close or clean-EOF transport
-//! cessation, and keeps protocol/transport evidence separate from explicit operational
-//! teardown observations without exposing generic JSON bodies or granting browser,
-//! TLS, policy, secret, process, profile, or Agent authority.
+//! correlation, transports narrowly typed pointer-click and node-bound non-secret
+//! text-input actions, admits typed correlated protocol acknowledgments, sends a
+//! context-bound subscription for committed-navigation events, retains its typed
+//! bounded correlated subscription identifier, binds navigation-event admission to
+//! that exact active command/receipt lifecycle with bounded fail-closed navigation
+//! replay prevention, explicitly tears down that exact subscription by identifier,
+//! admits its typed correlated unsubscribe acknowledgment, admits a bounded
+//! navigation-committed post-condition observation for one exact registered context
+//! and URL, rotates the matched context's document epoch only from an exact
+//! caller-captured pre-action epoch, derives and binds the committed HTTP(S) URL's
+//! canonical origin to that newly advanced document, sends narrowly typed
+//! `session.status` and `session.end` commands, admits typed correlated status and
+//! end responses, observes bounded peer Close or clean-EOF transport cessation, and
+//! keeps protocol/transport evidence separate from explicit operational teardown
+//! observations without exposing generic JSON bodies or granting browser, TLS,
+//! policy, secret, process, profile, or Agent authority.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -46,6 +47,7 @@ mod webdriver_bidi_session_end_response;
 mod webdriver_bidi_session_status_command;
 mod webdriver_bidi_session_status_response;
 mod webdriver_bidi_session_teardown;
+mod webdriver_bidi_type_text_transport;
 mod webdriver_bidi_websocket_frame;
 mod webdriver_bidi_websocket_handshake;
 mod webdriver_bidi_websocket_message;
@@ -135,6 +137,9 @@ pub use webdriver_bidi_session_status_response::{
 pub use webdriver_bidi_session_teardown::{
     WebDriverBiDiSessionTeardownAssessment, WebDriverBiDiSessionTeardownDisposition,
     WebDriverBiDiSessionTeardownObservations,
+};
+pub use webdriver_bidi_type_text_transport::{
+    WebDriverBiDiTypeTextSendError, send_webdriver_bidi_type_text,
 };
 pub use webdriver_bidi_websocket_frame::{
     MAX_WEBSOCKET_FRAME_PAYLOAD_SIZE, MAX_WEBSOCKET_FRAME_TIMEOUT,
