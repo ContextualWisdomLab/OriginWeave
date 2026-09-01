@@ -1,0 +1,74 @@
+name: One-shot PR240 DDD documentation repair
+
+on:
+  push:
+    branches:
+      - feat/benchmark-release-decision
+
+permissions:
+  contents: write
+
+concurrency:
+  group: originweave-pr240-ddd-docs-repair
+  cancel-in-progress: true
+
+jobs:
+  repair:
+    runs-on: macos-15
+    steps:
+      - name: Checkout exact writer head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # actions/checkout@v7
+        with:
+          ref: ${{ github.ref_name }}
+          persist-credentials: true
+
+      - name: Repair stale DDD ownership documentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          arch = Path("ARCHITECTURE.md")
+          text = arch.read_text(encoding="utf-8")
+          old = """#### Active PR #240 — benchmark release acceptance\n\nPR #240 extends `originweave-core` with a pure, bounded release-evidence contract. This subsection is active-PR architecture, not protected-main truth, and [ADR 0015](docs/adr/0015-benchmark-release-acceptance.md) remains Proposed until policy-compliant integration.\n"""
+          new = """#### Active PR #240 — benchmark release acceptance migration\n\nPR #240 moves the pure, bounded benchmark release-evidence contract out of `originweave-core` into the dedicated `originweave-release` bounded context. This subsection is active-PR architecture, not protected-main truth, and [ADR 0015](docs/adr/0015-benchmark-release-acceptance.md) remains Proposed until policy-compliant integration. `originweave-core` retains only stable cross-context value contracts and does not depend on `originweave-release`; this pre-GA breaking migration intentionally provides no compatibility shim that duplicates release policy back into core.\n"""
+          if text.count(old) != 1:
+              raise SystemExit(f"ARCHITECTURE anchor count={text.count(old)}")
+          arch.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          changelog = Path("CHANGELOG.md")
+          text = changelog.read_text(encoding="utf-8")
+          old = """- Added `originweave_core::release_acceptance`, a deterministic fail-closed benchmark release-decision contract that requires one authoritative result for every mandatory suite, bounds explicit buyer-visible limitations, rejects duplicate limitation claim identities, and rejects non-canonical surrounding whitespace rather than normalizing it into an alternate claim spelling.\n"""
+          new = """- Moved benchmark release-acceptance ownership out of `originweave-core` into the dedicated `originweave-release` bounded context. The pre-GA `originweave_core::release_acceptance` public path is removed without a compatibility shim; repository consumers must migrate to `originweave_release::*`, while core retains only stable cross-context value contracts.\n"""
+          if text.count(old) != 1:
+              raise SystemExit(f"CHANGELOG anchor count={text.count(old)}")
+          changelog.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          baseline = Path("docs/product-technical-gap-baseline.md")
+          if baseline.exists():
+              text = baseline.read_text(encoding="utf-8")
+              marker = "## PR #240 DDD migration repair (2026-09-02)"
+              if marker not in text:
+                  text += """\n\n## PR #240 DDD migration repair (2026-09-02)\n\n- Causal defect: active-PR architecture and changelog copy still described benchmark release acceptance as additive `originweave-core` ownership after the branch intentionally moved that policy/evidence responsibility to the `originweave-release` bounded context.\n- Repair: documentation now records the pre-GA breaking migration, preserves the no-compatibility-shim DDD direction, and keeps `originweave-core` limited to stable cross-context value contracts.\n- Admission rule: this documentation repair is evidence only; exact-head tests, reviews, security checks, and protected-branch governance remain required before merge or release.\n"""
+                  baseline.write_text(text, encoding="utf-8")
+          PY
+
+          python tests/test_release_acceptance_documentation_contract.py
+          python tests/test_ddd_release_dependency_direction.py
+          git diff --check
+
+      - name: Commit repair and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/_temp_pr240_ddd_docs_repair.yml
+          git add ARCHITECTURE.md CHANGELOG.md
+          if test -f docs/product-technical-gap-baseline.md; then
+            git add docs/product-technical-gap-baseline.md
+          fi
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "docs(release): correct PR240 DDD ownership contract"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
