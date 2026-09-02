@@ -140,7 +140,7 @@ fn public_json_envelope_unit_build_covers_fail_closed_json_edges() -> Result<(),
         br#"{"type":"success","id":1,"result":[1 2]}"#,
         br##"{"type":"success","id":1,"result":{"bad":"\"##,
         br#"{"type":"success","id":1,"result":{"bad":"\ud800\0041"}}"#,
-        br##"{"type":"success","id":1,"result":{"bad":"\ud800\u"#",
+        br##"{"type":"success","id":1,"result":{"bad":"\ud800\u"##,
     ];
 
     for document in malformed_documents {
