@@ -10,10 +10,12 @@ use crate::{Decision, DenialReason, evaluate};
 /// A semantic-node action that the deterministic action policy explicitly allowed.
 ///
 /// Construction evaluates the exact [`SemanticNodeActionBinding`] request through the ordinary
-/// OriginWeave action policy. This value does not grant browser authority, approval, destination
-/// authority, secret access, or execution success. Callers must still revalidate the bound browser
-/// authority immediately before dispatch and satisfy every later execution boundary.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// OriginWeave action policy. The retained binding keeps the registry-issued node handle, exact
+/// node-local action, and business request together, but this value does not grant current browser
+/// authority, approval, destination authority, secret access, or execution success. The trusted
+/// browser adapter must still revalidate its current registry-owned node authority immediately
+/// before any side effect.
+#[derive(Debug)]
 pub struct PolicyAuthorizedSemanticNodeAction {
     binding: SemanticNodeActionBinding,
 }
@@ -33,17 +35,21 @@ impl PolicyAuthorizedSemanticNodeAction {
         }
     }
 
-    /// Return the exact semantic-node target and business request that policy allowed together.
+    /// Return the exact registry-issued node, node-local action, and business request policy allowed.
+    ///
+    /// Possessing this binding proves only the deterministic policy decision made at construction
+    /// time. Callers must not infer that the browser document or node authority is still current.
     #[must_use]
     pub const fn binding(&self) -> &SemanticNodeActionBinding {
         &self.binding
     }
 
-    /// Revalidate registry-owned browser authority immediately before dispatch.
+    /// Revalidate the registry-owned browser authority immediately before later dispatch.
     ///
-    /// The exact node binding retained by the policy-authorized action must still be live in the
-    /// supplied registry. Caller-presented session/context/origin/epoch tuples cannot revive a
-    /// retired, stale, forged, or cross-registry node target.
+    /// The exact node binding retained by this policy-authorized action must still be live in the
+    /// trusted adapter's current [`BrowserAuthorityRegistry`]. A caller-presented tuple cannot revive
+    /// a retired, stale, forged, or cross-registry node authority. This check does not execute the
+    /// browser action or prove its post-condition; those remain separate execution boundaries.
     pub fn validate_current(
         &self,
         registry: &BrowserAuthorityRegistry,
@@ -51,13 +57,12 @@ impl PolicyAuthorizedSemanticNodeAction {
         self.binding.validate_current(registry)
     }
 
-    /// Revalidate registry-owned browser authority and invoke one dispatch callback in the same call.
+    /// Revalidate browser authority and invoke one adapter callback in the same call boundary.
     ///
-    /// The registry must be the trusted adapter's current authority registry for the action that is
-    /// about to be dispatched. The callback is never invoked if the retained node binding is stale,
-    /// retired, forged, or belongs to another registry. A successful callback invocation does not
-    /// authenticate the adapter, grant destination, secret, or approval authority, or prove the
-    /// action's post-condition; those remain separate execution boundaries.
+    /// The callback is never invoked when the retained registry-issued node authority is stale,
+    /// retired, forged, or belongs to another registry. Callback completion remains only adapter
+    /// execution evidence: it does not grant destination, secret, or approval authority and does not
+    /// prove the browser action's post-condition.
     pub fn dispatch_if_current<R, F>(
         &self,
         registry: &BrowserAuthorityRegistry,

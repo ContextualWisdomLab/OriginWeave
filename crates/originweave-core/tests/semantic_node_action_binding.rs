@@ -5,7 +5,7 @@ use originweave_core::{
     BoundedWebDriverBiDiResponseDocument, BrowserAuthorityRegistry, BrowserContextDispatchTarget,
     BrowserContextOriginDispatchTarget, BrowserContextOriginEpochDispatchTarget,
     BrowserProtocolAdapterDescriptor, BrowserProtocolCapability, BrowserProtocolKind,
-    InstructionSource, Origin, OriginWeaveProtocolVersion, SecretDelivery,
+    InstructionSource, NodeActionKind, Origin, OriginWeaveProtocolVersion, SecretDelivery,
     SemanticNodeActionBinding, SemanticNodeActionBindingError, ValidatedBrowserProtocolUse,
     WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesCommand,
 };
@@ -83,7 +83,7 @@ fn action_request(source: Origin, target: Origin) -> Result<ActionRequest, Box<d
 }
 
 #[test]
-fn action_binding_keeps_admitted_node_and_business_target_separate() -> Result<(), Box<dyn Error>> {
+fn action_binding_keeps_node_action_and_business_target_separate() -> Result<(), Box<dyn Error>> {
     let (_registry, handle) = admitted_node()?;
     let node_origin = handle.origin().clone();
     let node_id = handle.node_id();
@@ -91,9 +91,10 @@ fn action_binding_keeps_admitted_node_and_business_target_separate() -> Result<(
         .map_err(|error| std::io::Error::other(format!("target origin rejected: {error:?}")))?;
     let request = action_request(node_origin, business_target.clone())?;
 
-    let binding = SemanticNodeActionBinding::new(handle, request)?;
+    let binding = SemanticNodeActionBinding::new(handle, NodeActionKind::TypeText, request)?;
 
     assert_eq!(binding.handle().node_id(), node_id);
+    assert_eq!(binding.node_action(), NodeActionKind::TypeText);
     assert_eq!(binding.request().target_origin(), &business_target);
     assert_eq!(binding.request().action(), ActionKind::Draft);
     Ok(())
@@ -109,7 +110,7 @@ fn action_binding_rejects_business_request_from_another_document_origin()
         .map_err(|error| std::io::Error::other(format!("target origin rejected: {error:?}")))?;
     let request = action_request(other_origin, target_origin)?;
 
-    let error = SemanticNodeActionBinding::new(handle, request)
+    let error = SemanticNodeActionBinding::new(handle, NodeActionKind::Click, request)
         .err()
         .ok_or("mismatched source origin unexpectedly admitted")?;
     assert_eq!(error, SemanticNodeActionBindingError::SourceOriginMismatch);
