@@ -1,0 +1,20 @@
+[package]
+name = "originweave-extension"
+description = "OriginWeave extension and native-host policy contracts."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish = false
+
+[lib]
+path = "src/root.rs"
+
+[dependencies]
+originweave-core = { path = "../originweave-core" }
+
+[lints]
+workspace = true

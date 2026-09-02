@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use originweave_core::{
+use originweave_extension::{
     NativeMessagingHostPlatform, NativeMessagingManifestDocument, NativeMessagingManifestParseError,
 };
 

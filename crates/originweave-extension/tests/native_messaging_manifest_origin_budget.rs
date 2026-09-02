@@ -1,6 +1,6 @@
 #![allow(clippy::expect_used)]
 
-use originweave_core::{
+use originweave_extension::{
     NativeMessagingHostPlatform, NativeMessagingManifestDocument, NativeMessagingManifestParseError,
 };
 

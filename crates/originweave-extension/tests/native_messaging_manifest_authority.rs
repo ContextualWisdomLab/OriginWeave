@@ -2,7 +2,7 @@
 
 use std::error::Error;
 
-use originweave_core::{
+use originweave_extension::{
     ExtensionId, MAX_NATIVE_MESSAGING_ALLOWED_ORIGINS, MAX_NATIVE_MESSAGING_EXECUTABLE_PATH_BYTES,
     NativeMessagingAccessRequest, NativeMessagingHostManifest,
     NativeMessagingHostManifestAccessDecision, NativeMessagingHostManifestError,

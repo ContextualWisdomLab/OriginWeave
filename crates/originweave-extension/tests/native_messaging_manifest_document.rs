@@ -2,7 +2,7 @@
 
 use std::error::Error;
 
-use originweave_core::{
+use originweave_extension::{
     MAX_NATIVE_MESSAGING_MANIFEST_DOCUMENT_BYTES, NativeMessagingHostManifestError,
     NativeMessagingHostPlatform, NativeMessagingManifestDocument,
     NativeMessagingManifestDocumentError, NativeMessagingManifestParseError,

@@ -16,18 +16,5 @@ pub mod mcp;
 mod native_messaging;
 pub use native_messaging::*;
 
-mod native_messaging_manifest;
-pub use native_messaging_manifest::{
-    MAX_NATIVE_MESSAGING_ALLOWED_ORIGINS, MAX_NATIVE_MESSAGING_EXECUTABLE_PATH_BYTES,
-    NativeMessagingHostManifest, NativeMessagingHostManifestAccessDecision,
-    NativeMessagingHostManifestError, NativeMessagingHostPlatform,
-};
-
-mod native_messaging_manifest_document;
-pub use native_messaging_manifest_document::{
-    MAX_NATIVE_MESSAGING_MANIFEST_DOCUMENT_BYTES, NativeMessagingManifestDocument,
-    NativeMessagingManifestDocumentError, NativeMessagingManifestParseError,
-};
-
 /// Deterministic fail-closed release benchmark acceptance aggregation.
 pub mod release_acceptance;
