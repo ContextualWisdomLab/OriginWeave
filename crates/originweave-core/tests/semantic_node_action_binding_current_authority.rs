@@ -1,13 +1,13 @@
 use std::error::Error;
 
 use originweave_core::{
-    ActionIntentDigest, ActionKind, ActionRequest, AdmittedNodeHandle,
+    ActionIntentDigest, ActionKind, ActionRequest, AdmittedNodeAuthorityError, AdmittedNodeHandle,
     BoundedWebDriverBiDiResponseDocument, BrowserAuthorityRegistry, BrowserContextDispatchTarget,
     BrowserContextOriginDispatchTarget, BrowserContextOriginEpochDispatchTarget,
     BrowserProtocolAdapterDescriptor, BrowserProtocolCapability, BrowserProtocolKind,
-    BrowserRegistryError, BrowsingContextId, InstructionSource, NodeActionKind, Origin,
-    OriginWeaveProtocolVersion, SecretDelivery, SemanticNodeActionBinding,
-    ValidatedBrowserProtocolUse, WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesCommand,
+    BrowsingContextId, InstructionSource, NodeActionKind, Origin, OriginWeaveProtocolVersion,
+    SecretDelivery, SemanticNodeActionBinding, ValidatedBrowserProtocolUse,
+    WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesCommand,
 };
 
 const ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion =
@@ -112,7 +112,7 @@ fn action_binding_rejects_stale_document_authority() -> Result<(), Box<dyn Error
 
     assert_eq!(
         binding.validate_current(&registry),
-        Err(BrowserRegistryError::UnknownNodeAuthority)
+        Err(AdmittedNodeAuthorityError::NotAdmitted)
     );
     Ok(())
 }
@@ -126,7 +126,7 @@ fn action_binding_rejects_foreign_registry_even_for_reproducible_descriptive_tup
 
     assert_eq!(
         binding.validate_current(&foreign_registry),
-        Err(BrowserRegistryError::UnknownNodeAuthority)
+        Err(AdmittedNodeAuthorityError::ForeignRegistry)
     );
     Ok(())
 }

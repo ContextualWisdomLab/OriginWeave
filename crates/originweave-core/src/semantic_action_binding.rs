@@ -1,6 +1,9 @@
 use std::fmt;
 
-use crate::{ActionRequest, AdmittedNodeHandle, NodeActionKind};
+use crate::{
+    ActionRequest, AdmittedNodeAuthorityError, AdmittedNodeHandle, BrowserAuthorityRegistry,
+    NodeActionKind,
+};
 
 /// One registry-issued browser node and local node action explicitly paired with the business
 /// action request they would serve.
@@ -52,6 +55,18 @@ impl SemanticNodeActionBinding {
     #[must_use]
     pub const fn request(&self) -> &ActionRequest {
         &self.request
+    }
+
+    /// Revalidate the exact retained admitted-node authority against the trusted current registry.
+    ///
+    /// This preserves opaque registry-instance provenance and current session/context/origin/document
+    /// state. It does not validate the final adapter-local wire identifier or execute browser I/O;
+    /// the typed adapter command constructor must still perform that immediate-use check.
+    pub fn validate_current(
+        &self,
+        registry: &BrowserAuthorityRegistry,
+    ) -> Result<(), AdmittedNodeAuthorityError> {
+        registry.validate_admitted_node_handle(&self.handle)
     }
 }
 
