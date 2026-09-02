@@ -45,6 +45,32 @@ class DddDocumentationContractTests(unittest.TestCase):
         self.assertIn("planned", context_map)
         self.assertIn("does not transfer authority", context_map)
 
+    def test_tactical_ddd_map_keeps_patterns_truthful_and_protocol_independent(self) -> None:
+        tactical_map = (ROOT / "docs/tactical-ddd-map.md").read_text(encoding="utf-8")
+        for pattern in (
+            "Value Object",
+            "Entity",
+            "Aggregate / Aggregate Root",
+            "Domain Service",
+            "Repository",
+            "Domain Event",
+            "Invariant",
+        ):
+            with self.subTest(pattern=pattern):
+                self.assertIn(pattern, tactical_map)
+
+        self.assertIn("No explicit mutable domain Entity", tactical_map)
+        self.assertIn("No explicit Aggregate Root", tactical_map)
+        self.assertIn("No domain Repository contract", tactical_map)
+        self.assertIn("No explicit OriginWeave domain-event type", tactical_map)
+        self.assertIn("originweave_policy::evaluate", tactical_map)
+        self.assertIn("browsingContext.navigationCommitted", tactical_map)
+        self.assertIn("integration events", tactical_map)
+        self.assertIn("A command ACK is likewise not a post-condition event", tactical_map)
+        self.assertIn("multi-word `snake_case`", tactical_map)
+        self.assertIn("context-graph-contracts", tactical_map)
+        self.assertIn("must not import MCP, WebDriver BiDi, CDP", tactical_map)
+
     def test_ubiquitous_language_keeps_authority_terms_distinct(self) -> None:
         glossary = (ROOT / "docs/ubiquitous-language.md").read_text(encoding="utf-8")
         for term in (
