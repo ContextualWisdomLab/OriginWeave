@@ -1,6 +1,9 @@
 use std::fmt;
 
-use originweave_core::{PolicyContext, RiskClass, SemanticNodeActionBinding};
+use originweave_core::{
+    BrowserAuthorityRegistry, BrowserRegistryError, PolicyContext, RiskClass,
+    SemanticNodeActionBinding,
+};
 
 use crate::{Decision, DenialReason, evaluate};
 
@@ -39,6 +42,19 @@ impl PolicyAuthorizedSemanticNodeAction {
     #[must_use]
     pub const fn binding(&self) -> &SemanticNodeActionBinding {
         &self.binding
+    }
+
+    /// Revalidate the registry-owned browser authority immediately before later dispatch.
+    ///
+    /// The exact node binding retained by this policy-authorized action must still be live in the
+    /// trusted adapter's current [`BrowserAuthorityRegistry`]. A caller-presented tuple cannot revive
+    /// a retired, stale, forged, or cross-registry node authority. This check does not execute the
+    /// browser action or prove its post-condition; those remain separate execution boundaries.
+    pub fn validate_current(
+        &self,
+        registry: &BrowserAuthorityRegistry,
+    ) -> Result<(), BrowserRegistryError> {
+        self.binding.validate_current(registry)
     }
 }
 
