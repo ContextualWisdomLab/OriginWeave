@@ -40,7 +40,7 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "current exact-head CI run `33659163892` is queued/non-passing",
             "#277 remains Draft at exact head `74fdedb6ee441a4055ee335bc5a5b96dee852661`",
             "Ready root #82 remains at exact head",
-            "coverage-evidence job `100098698802`",
+            "Production coverage job `99821662660`, Rust contracts job `99821662242`, and coverage-evidence job `100098698802` are terminal success",
             "Strix job `100091557792` is terminal failure",
             "Ready root #37 remains at exact head",
             "opencode-review job `100098530585` is terminal cancelled",
