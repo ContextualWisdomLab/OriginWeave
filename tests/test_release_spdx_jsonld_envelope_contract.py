@@ -139,6 +139,24 @@ class ReleaseSpdxJsonLdEnvelopeContractTests(unittest.TestCase):
             "invalid_document_count",
         )
 
+    def test_spdx_document_must_be_a_top_level_graph_element(self) -> None:
+        self._assert_error_code(
+            self._payload(
+                [
+                    {
+                        "type": "Bundle",
+                        "element": [
+                            {
+                                "type": "SpdxDocument",
+                                "spdxId": "https://example.invalid/spdx/nested-document",
+                            }
+                        ],
+                    }
+                ]
+            ),
+            "invalid_document_count",
+        )
+
     def test_nested_second_spdx_document_fails_closed(self) -> None:
         self._assert_error_code(
             self._payload(
