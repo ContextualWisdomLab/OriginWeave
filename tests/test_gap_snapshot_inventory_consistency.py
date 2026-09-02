@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 import unittest
 
 
@@ -31,22 +32,30 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "12 open non-PR issues",
             "542ca1e9c0a863595b8b6697790005d2471f5413",
             "18156473",
-            "configured central required workflows",
+            "10 central required workflows",
             "legacy branch payload's embedded protection state is not treated as the ruleset authority",
             "Live GitHub PR/base/head/check APIs are authoritative over PR bodies",
             "Issue #28 remains the P0 buyer-visible integration target",
-            "PR #261 is Draft at exact head `9769733a2dee21cd0d9be5e020be7a998a4168a3`",
-            "native CI run `33602342786` is queued/non-passing",
+            "PR #261 is Draft at exact head `127e02503e48938e29a9a07410574c7e72fc661a`",
+            "current exact-head CI run `33659163892` is queued/non-passing",
             "#277 remains Draft at exact head `74fdedb6ee441a4055ee335bc5a5b96dee852661`",
             "Ready root #82 remains at exact head",
-            "DDD ownership correction #272 is Draft at exact head",
-            "#273 is its Draft context-map/ubiquitous-language child",
+            "coverage-evidence job `100098698802` is terminal success",
+            "Strix job `100091557792` is terminal failure",
+            "Ready root #37 remains at exact head",
+            "opencode-review job `100098530585` is terminal cancelled",
+            "DDD ownership correction #272 is Draft at exact head `bbe6b219a33f78e3b8b1c0166a00e5c34a2ede22`",
+            "#273 is its stale-parent Draft context-map/ubiquitous-language child at exact head `f34212f9dff07deb70dd5265ecbb00f36b0f69b0`",
             "Issue #276",
             "contextual-orchestrator#1016",
             "active-PR evidence only",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, current)
+        self.assertRegex(
+            current,
+            re.compile(r"Observed at \(UTC\): `\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z`"),
+        )
         for non_passing in (
             "queued reviewer evidence is non-passing",
             "discard queued, skipped, cancelled, absent, predecessor, synthetic, status-only, and model-only evidence",
@@ -59,6 +68,9 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "11 open non-PR issues",
             "PR #271 is Draft at exact head `426f9dcfa7c341cd436cedc69f47c805d808466a`",
             "seven required workflow entries",
+            "PR #261 is Draft at exact head `9769733a2dee21cd0d9be5e020be7a998a4168a3`",
+            "DDD ownership correction #272 is Draft at exact head `b3595ef5656ebdb5aa301d4d2f3e487f6a1f21c8`",
+            "#273 is its Draft context-map/ubiquitous-language child at exact head `d75462b91fb3b3d2dbbaf01a153e3e0ca6b7a539`",
         ):
             with self.subTest(stale=stale):
                 self.assertNotIn(stale, current)
