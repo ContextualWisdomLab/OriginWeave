@@ -21,7 +21,9 @@ The final MCP `2026-07-28` request envelope requires `io.modelcontextprotocol/pr
 
 `io.modelcontextprotocol/clientInfo` is different: the final revision demoted it to **SHOULD**, not MUST. Requests without `clientInfo` remain valid; when present it is self-reported metadata intended for display, logging, and debugging rather than authorization or security decisions. OriginWeave therefore must not reject an otherwise valid `tools/call` solely because client identity is absent, and must never turn `clientInfo` into browser or policy authority.
 
-This distinction repairs an earlier active-PR test description that incorrectly grouped client identity with required client capabilities. PR #272 keeps a test-first RED because the current `ValidatedMcpToolCall::new` API still cannot receive the required request `_meta` protocol version or per-request client-capabilities presence, and therefore cannot prove the modern `tools/call` envelope or detect a transport/header-to-request-version mismatch. The production repair remains adapter-local; it must not add MCP concepts to core or policy.
+PR #272 now implements the adapter-local repair for this distinction. The exported `ValidatedMcpToolCall` requires both the HTTP protocol-version surface and structured request protocol version, bounds both before comparison, rejects disagreement or unsupported versions, and requires an attestation that the per-request client-capabilities object was present. It retains neither capabilities contents nor optional client identity. The pre-modern constructor shape remains as a fail-closed compatibility surface: malformed legacy routes still receive deterministic routing diagnostics, while a syntactically valid legacy route cannot become a validated modern tool call because that signature cannot prove required per-request metadata.
+
+The lower routing validator and reviewed tool-to-`ActionKind` catalog remain internal implementation details of `originweave-mcp`; core and policy receive no MCP request-envelope types. Policy evaluation still consumes only the typed action contract after the adapter has established protocol integrity.
 
 ## Product-status reconciliation
 
@@ -50,7 +52,7 @@ Protected-main production/test surfaces currently include:
 - `crates/originweave-core/tests/mcp_tools_list_cache.rs` — required protocol/client-capabilities metadata, conservative cache/result semantics, method correlation, and cursor rejection; and
 - the protocol-independent policy evaluator and route/action preservation tests.
 
-Active PR #272 relocates the external-protocol implementation to `crates/originweave-mcp/` and adds `crates/originweave-mcp/tests/mcp_modern_request_metadata.rs` as a RED for the missing required modern `tools/call` request metadata. Exact-current CI/security/review evidence must be regenerated after every branch mutation. Predecessor, protected-main, skipped, status-only, or model evidence is not current-head proof for PR #272.
+Active PR #272 relocates the external-protocol implementation to `crates/originweave-mcp/`. Its adapter tests now cover the required modern `tools/call` request metadata, fail-closed legacy constructor, header↔request-version mismatch, missing per-request capabilities, bounded method/tool routing, explicit catalog mapping, and preservation of ordinary policy denials. Exact-current CI/security/review evidence must be regenerated after every branch mutation. Predecessor, protected-main, skipped, status-only, or model evidence is not current-head proof for PR #272.
 
 ## Primary sources
 
