@@ -1,18 +1,23 @@
-use std::cell::Cell;
-use std::collections::BTreeSet;
-use std::error::Error;
+use std::{cell::Cell, collections::BTreeSet, error::Error};
 
 use originweave_core::{
-    ActionIntentDigest, ActionKind, ActionRequest, ApprovalEvidence, BrowserAuthorityRegistry,
-    BrowserRegistryError, BrowsingContextId, ExecutionPurpose, InstructionSource, NodeActionKind,
-    ObservationChannel, ObservedNodeHandle, Origin, PolicyContext, RobotsDecision, SecretDelivery,
-    SemanticNodeActionBinding, SemanticNodeActionTarget, SemanticNodeActionTargetError,
-    SemanticNodeObservation, SemanticNodeObservationInput, SessionMode,
+    ActionIntentDigest, ActionKind, ActionRequest, ApprovalEvidence, BoundedWebDriverBiDiResponseDocument,
+    BrowserAuthorityRegistry, BrowserContextDispatchTarget, BrowserContextOriginDispatchTarget,
+    BrowserContextOriginEpochDispatchTarget, BrowserProtocolAdapterDescriptor, BrowserProtocolCapability,
+    BrowserProtocolKind, BrowserRegistryError, BrowsingContextId, ExecutionPurpose, InstructionSource,
+    NodeActionKind, ObservationChannel, ObservedNodeHandle, Origin, OriginWeaveProtocolVersion,
+    PolicyContext, RobotsDecision, SecretDelivery, SemanticNodeActionBinding,
+    SemanticNodeActionTargetError, SemanticNodeObservation, SemanticNodeObservationInput, SessionMode,
+    ValidatedBrowserProtocolUse, WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesCommand,
 };
 use originweave_policy::{
     PolicyAuthorizedSemanticNodeAction, SemanticNodeDispatchValidationError,
 };
 
+const ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion = OriginWeaveProtocolVersion::new(0, 1);
+const ADAPTER_VERSION: &str = "originweave-bidi-v1";
+const PROTOCOL_REVISION: &str = "webdriver-bidi-wd-2026-06-01";
+const BROWSER_REVISION: &str = "chromium-r1639810";
 const VALID_INTENT: &str =
     "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
@@ -24,8 +29,23 @@ struct AuthorizedFixture {
     authorized: PolicyAuthorizedSemanticNodeAction,
 }
 
-fn origin(value: &str) -> Result<Origin, String> {
-    Origin::parse(value).map_err(|error| format!("{error:?}"))
+fn semantic_observation_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn Error>> {
+    let descriptor = BrowserProtocolAdapterDescriptor::new(
+        BrowserProtocolKind::WebDriverBiDi,
+        ORIGINWEAVE_PROTOCOL_VERSION,
+        ADAPTER_VERSION,
+        PROTOCOL_REVISION,
+        BROWSER_REVISION,
+        &[BrowserProtocolCapability::SemanticObservation],
+    )?;
+    Ok(descriptor.validate_use(
+        ORIGINWEAVE_PROTOCOL_VERSION,
+        BrowserProtocolKind::WebDriverBiDi,
+        ADAPTER_VERSION,
+        PROTOCOL_REVISION,
+        BROWSER_REVISION,
+        BrowserProtocolCapability::SemanticObservation,
+    )?)
 }
 
 fn observation(
@@ -33,8 +53,8 @@ fn observation(
     handle: ObservedNodeHandle,
     enabled: bool,
     supported_actions: BTreeSet<NodeActionKind>,
-) -> Result<SemanticNodeObservation, String> {
-    SemanticNodeObservation::new(
+) -> Result<SemanticNodeObservation, Box<dyn Error>> {
+    Ok(SemanticNodeObservation::new(
         SemanticNodeObservationInput {
             handle,
             parent: None,
@@ -49,45 +69,60 @@ fn observation(
             evidence_channels: BTreeSet::from([ObservationChannel::Accessibility]),
         },
         registry,
-    )
-    .map_err(|error| error.to_string())
+    )?)
 }
 
-fn authorized_action() -> Result<AuthorizedFixture, String> {
+fn authorized_action() -> Result<AuthorizedFixture, Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
-    let session = registry
-        .register_session("semantic-dispatch-current-observation-session")
-        .map_err(|error| error.to_string())?;
-    let context = registry
-        .register_context(session, "semantic-dispatch-current-observation-context")
-        .map_err(|error| error.to_string())?;
-    let site = origin("https://app.example")?;
-    let handle = registry
-        .bind_node(session, context, &site, "semantic-dispatch-current-observation-node")
-        .map_err(|error| error.to_string())?;
-    let other_handle = registry
-        .bind_node(session, context, &site, "semantic-dispatch-current-observation-other-node")
-        .map_err(|error| error.to_string())?;
-    let initial_observation = observation(
-        &registry,
-        handle.clone(),
-        true,
-        BTreeSet::from([NodeActionKind::Click]),
+    let session = registry.register_session("semantic-dispatch-current-observation-session")?;
+    let context = registry.register_context(session, "semantic-dispatch-current-observation-context")?;
+    let site = Origin::parse("https://app.example")
+        .map_err(|error| std::io::Error::other(format!("fixture origin rejected: {error:?}")))?;
+    let epoch = registry.bind_context_origin(session, context, &site)?;
+    let target = BrowserContextOriginEpochDispatchTarget::new(
+        BrowserContextOriginDispatchTarget::new(
+            BrowserContextDispatchTarget::new(session, context),
+            &site,
+        ),
+        epoch,
+    );
+    let query = WebDriverBiDiAccessibilityQuery::new(Some("button"), Some("Continue"), 2)?;
+    let command = WebDriverBiDiLocateNodesCommand::new(
+        91,
+        "semantic-dispatch-current-observation-context",
+        &query,
     )?;
-    let target =
-        SemanticNodeActionTarget::from_observation(&initial_observation, NodeActionKind::Click)
-            .map_err(|error| error.to_string())?;
+    let document = BoundedWebDriverBiDiResponseDocument::new(
+        r#"{"type":"success","id":91,"result":{"nodes":[{"type":"node","sharedId":"semantic-dispatch-current-observation-node"},{"type":"node","sharedId":"semantic-dispatch-current-observation-other-node"}]}}"#,
+    )?;
+    let mut handles = command
+        .bind_response_document_nodes(
+            document,
+            semantic_observation_proof()?,
+            &mut registry,
+            target,
+        )?
+        .into_iter();
+    let admitted = handles
+        .next()
+        .ok_or("locateNodes fixture did not bind its primary node")?;
+    let other_admitted = handles
+        .next()
+        .ok_or("locateNodes fixture did not bind its comparison node")?;
+    let handle = (*admitted).clone();
+    let other_handle = (*other_admitted).clone();
+
     let request = ActionRequest::new(
         ActionKind::Navigate,
         site.clone(),
         site.clone(),
         InstructionSource::User,
         SecretDelivery::None,
-        ActionIntentDigest::parse(VALID_INTENT).map_err(|error| format!("{error:?}"))?,
+        ActionIntentDigest::parse(VALID_INTENT)
+            .map_err(|error| std::io::Error::other(format!("intent rejected: {error:?}")))?,
     );
-    let binding =
-        SemanticNodeActionBinding::new(target, request).map_err(|error| error.to_string())?;
-    let context_policy = PolicyContext::new(
+    let binding = SemanticNodeActionBinding::new(admitted, NodeActionKind::Click, request)?;
+    let policy_context = PolicyContext::new(
         SessionMode::AgentTask,
         ExecutionPurpose::UserDelegatedTask,
         BTreeSet::from([ActionKind::Navigate.required_capability()]),
@@ -96,8 +131,7 @@ fn authorized_action() -> Result<AuthorizedFixture, String> {
         RobotsDecision::Allowed,
         ApprovalEvidence::None,
     );
-    let authorized = PolicyAuthorizedSemanticNodeAction::authorize(binding, &context_policy)
-        .map_err(|error| error.to_string())?;
+    let authorized = PolicyAuthorizedSemanticNodeAction::authorize(binding, &policy_context)?;
 
     Ok(AuthorizedFixture {
         registry,
@@ -120,13 +154,13 @@ fn dispatch_action(
         if adapter_should_fail {
             Err("adapter failed")
         } else {
-            Ok((binding.target().action(), binding.request().action()))
+            Ok((binding.node_action(), binding.request().action()))
         }
     })
 }
 
 #[test]
-fn exact_current_browser_and_semantic_authority_reaches_dispatch() -> Result<(), String> {
+fn exact_current_browser_and_semantic_authority_reaches_dispatch() -> Result<(), Box<dyn Error>> {
     let fixture = authorized_action()?;
     let current = observation(
         &fixture.registry,
@@ -142,19 +176,15 @@ fn exact_current_browser_and_semantic_authority_reaches_dispatch() -> Result<(),
         &current,
         &called,
         false,
-    )
-    .map_err(|error| error.to_string())?;
+    )?;
 
-    assert_eq!(
-        adapter_result,
-        Ok((NodeActionKind::Click, ActionKind::Navigate))
-    );
+    assert_eq!(adapter_result, Ok((NodeActionKind::Click, ActionKind::Navigate)));
     assert!(called.get());
     Ok(())
 }
 
 #[test]
-fn stale_registry_authority_never_reaches_semantic_dispatch() -> Result<(), String> {
+fn stale_registry_authority_never_reaches_semantic_dispatch() -> Result<(), Box<dyn Error>> {
     let mut fixture = authorized_action()?;
     let current = observation(
         &fixture.registry,
@@ -162,10 +192,7 @@ fn stale_registry_authority_never_reaches_semantic_dispatch() -> Result<(), Stri
         true,
         BTreeSet::from([NodeActionKind::Click]),
     )?;
-    fixture
-        .registry
-        .advance_document(fixture.context)
-        .map_err(|error| error.to_string())?;
+    fixture.registry.advance_document(fixture.context)?;
     let called = Cell::new(false);
 
     let error = dispatch_action(
@@ -176,7 +203,7 @@ fn stale_registry_authority_never_reaches_semantic_dispatch() -> Result<(), Stri
         false,
     )
     .err()
-    .ok_or_else(|| "stale browser authority unexpectedly dispatched".to_owned())?;
+    .ok_or("stale browser authority unexpectedly dispatched")?;
 
     assert!(matches!(
         error,
@@ -189,7 +216,7 @@ fn stale_registry_authority_never_reaches_semantic_dispatch() -> Result<(), Stri
 }
 
 #[test]
-fn newly_disabled_node_never_reaches_dispatch() -> Result<(), String> {
+fn newly_disabled_node_never_reaches_dispatch() -> Result<(), Box<dyn Error>> {
     let fixture = authorized_action()?;
     let current = observation(
         &fixture.registry,
@@ -207,7 +234,7 @@ fn newly_disabled_node_never_reaches_dispatch() -> Result<(), String> {
         false,
     )
     .err()
-    .ok_or_else(|| "disabled current observation unexpectedly dispatched".to_owned())?;
+    .ok_or("disabled current observation unexpectedly dispatched")?;
 
     assert!(matches!(
         error,
@@ -220,7 +247,7 @@ fn newly_disabled_node_never_reaches_dispatch() -> Result<(), String> {
 }
 
 #[test]
-fn removed_action_never_reaches_dispatch() -> Result<(), String> {
+fn removed_action_never_reaches_dispatch() -> Result<(), Box<dyn Error>> {
     let fixture = authorized_action()?;
     let current = observation(
         &fixture.registry,
@@ -238,7 +265,7 @@ fn removed_action_never_reaches_dispatch() -> Result<(), String> {
         false,
     )
     .err()
-    .ok_or_else(|| "removed semantic action unexpectedly dispatched".to_owned())?;
+    .ok_or("removed semantic action unexpectedly dispatched")?;
 
     assert!(matches!(
         error,
@@ -251,7 +278,7 @@ fn removed_action_never_reaches_dispatch() -> Result<(), String> {
 }
 
 #[test]
-fn different_same_document_node_never_reaches_dispatch() -> Result<(), String> {
+fn different_same_document_node_never_reaches_dispatch() -> Result<(), Box<dyn Error>> {
     let fixture = authorized_action()?;
     let current = observation(
         &fixture.registry,
@@ -269,7 +296,7 @@ fn different_same_document_node_never_reaches_dispatch() -> Result<(), String> {
         false,
     )
     .err()
-    .ok_or_else(|| "different semantic node unexpectedly dispatched".to_owned())?;
+    .ok_or("different semantic node unexpectedly dispatched")?;
 
     assert!(matches!(
         error,
@@ -282,7 +309,7 @@ fn different_same_document_node_never_reaches_dispatch() -> Result<(), String> {
 }
 
 #[test]
-fn adapter_failure_remains_separate_after_both_revalidations() -> Result<(), String> {
+fn adapter_failure_remains_separate_after_both_revalidations() -> Result<(), Box<dyn Error>> {
     let fixture = authorized_action()?;
     let current = observation(
         &fixture.registry,
@@ -298,8 +325,7 @@ fn adapter_failure_remains_separate_after_both_revalidations() -> Result<(), Str
         &current,
         &called,
         true,
-    )
-    .map_err(|error| error.to_string())?;
+    )?;
 
     assert_eq!(adapter_result, Err("adapter failed"));
     assert!(called.get());

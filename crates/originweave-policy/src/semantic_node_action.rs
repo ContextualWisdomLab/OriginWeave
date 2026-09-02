@@ -2,7 +2,8 @@ use std::{error::Error, fmt};
 
 use originweave_core::{
     BrowserAuthorityRegistry, BrowserRegistryError, PolicyContext, RiskClass,
-    SemanticNodeActionBinding, SemanticNodeActionTargetError, SemanticNodeObservation,
+    SemanticNodeActionBinding, SemanticNodeActionTarget, SemanticNodeActionTargetError,
+    SemanticNodeObservation,
 };
 
 use crate::{Decision, DenialReason, evaluate};
@@ -10,10 +11,12 @@ use crate::{Decision, DenialReason, evaluate};
 /// A semantic-node action that the deterministic action policy explicitly allowed.
 ///
 /// Construction evaluates the exact [`SemanticNodeActionBinding`] request through the ordinary
-/// OriginWeave action policy. This value does not grant browser authority, approval, destination
-/// authority, secret access, or execution success. Callers must still revalidate the bound browser
-/// authority immediately before dispatch and satisfy every later execution boundary.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// OriginWeave action policy. The retained binding keeps the registry-issued node handle, exact
+/// node-local action, and business request together, but this value does not grant current browser
+/// authority, approval, destination authority, secret access, or execution success. The trusted
+/// browser adapter must still revalidate its current registry-owned node authority immediately
+/// before any side effect.
+#[derive(Debug)]
 pub struct PolicyAuthorizedSemanticNodeAction {
     binding: SemanticNodeActionBinding,
 }
@@ -33,17 +36,21 @@ impl PolicyAuthorizedSemanticNodeAction {
         }
     }
 
-    /// Return the exact semantic-node target and business request that policy allowed together.
+    /// Return the exact registry-issued node, node-local action, and business request policy allowed.
+    ///
+    /// Possessing this binding proves only the deterministic policy decision made at construction
+    /// time. Callers must not infer that the browser document or node authority is still current.
     #[must_use]
     pub const fn binding(&self) -> &SemanticNodeActionBinding {
         &self.binding
     }
 
-    /// Revalidate registry-owned browser authority immediately before dispatch.
+    /// Revalidate the registry-owned browser authority immediately before later dispatch.
     ///
-    /// The exact node binding retained by the policy-authorized action must still be live in the
-    /// supplied registry. Caller-presented session/context/origin/epoch tuples cannot revive a
-    /// retired, stale, forged, or cross-registry node target.
+    /// The exact node binding retained by this policy-authorized action must still be live in the
+    /// trusted adapter's current [`BrowserAuthorityRegistry`]. A caller-presented tuple cannot revive
+    /// a retired, stale, forged, or cross-registry node authority. This check does not execute the
+    /// browser action or prove its post-condition; those remain separate execution boundaries.
     pub fn validate_current(
         &self,
         registry: &BrowserAuthorityRegistry,
@@ -51,13 +58,12 @@ impl PolicyAuthorizedSemanticNodeAction {
         self.binding.validate_current(registry)
     }
 
-    /// Revalidate registry-owned browser authority and invoke one dispatch callback in the same call.
+    /// Revalidate browser authority and invoke one adapter callback in the same call boundary.
     ///
-    /// The registry must be the trusted adapter's current authority registry for the action that is
-    /// about to be dispatched. The callback is never invoked if the retained node binding is stale,
-    /// retired, forged, or belongs to another registry. A successful callback invocation does not
-    /// authenticate the adapter, grant destination, secret, or approval authority, or prove the
-    /// action's post-condition; those remain separate execution boundaries.
+    /// The callback is never invoked when the retained registry-issued node authority is stale,
+    /// retired, forged, or belongs to another registry. Callback completion remains only adapter
+    /// execution evidence: it does not grant destination, secret, or approval authority and does not
+    /// prove the browser action's post-condition.
     pub fn dispatch_if_current<R, F>(
         &self,
         registry: &BrowserAuthorityRegistry,
@@ -70,13 +76,13 @@ impl PolicyAuthorizedSemanticNodeAction {
             .map(|()| dispatch(&self.binding))
     }
 
-    /// Revalidate browser authority and one fresh semantic observation before dispatch.
+    /// Revalidate browser authority and one fresh semantic observation before adapter dispatch.
     ///
-    /// The caller must supply the trusted adapter's current authority registry and obtain
-    /// `current_observation` from that same current browser boundary immediately before the side
-    /// effect. Registry authority is checked first, followed by exact semantic node identity,
-    /// advertised action, and enabled-state evidence. The callback is invoked only after both
-    /// independent validations succeed. Adapter success remains distinct from post-condition proof.
+    /// The caller must obtain `current_observation` from the same trusted browser boundary as
+    /// `registry` immediately before the side effect. Registry provenance is checked first. The
+    /// current observation must then describe the exact admitted node, still advertise the bound
+    /// node-local action, and satisfy that action's current enabled-state contract. The callback runs
+    /// only after both independent checks succeed. Adapter completion is not post-condition proof.
     pub fn dispatch_if_current_observation<R, F>(
         &self,
         registry: &BrowserAuthorityRegistry,
@@ -88,10 +94,18 @@ impl PolicyAuthorizedSemanticNodeAction {
     {
         self.validate_current(registry)
             .map_err(SemanticNodeDispatchValidationError::BrowserAuthority)?;
-        self.binding
-            .target()
-            .validate_current_observation(current_observation)
-            .map_err(SemanticNodeDispatchValidationError::SemanticState)?;
+
+        let current_target = SemanticNodeActionTarget::from_observation(
+            current_observation,
+            self.binding.node_action(),
+        )
+        .map_err(SemanticNodeDispatchValidationError::SemanticState)?;
+        if current_target.handle() != &**self.binding.handle() {
+            return Err(SemanticNodeDispatchValidationError::SemanticState(
+                SemanticNodeActionTargetError::ObservationAuthorityMismatch,
+            ));
+        }
+
         Ok(dispatch(&self.binding))
     }
 }
@@ -101,7 +115,7 @@ impl PolicyAuthorizedSemanticNodeAction {
 pub enum SemanticNodeDispatchValidationError {
     /// The registry no longer recognizes the exact browser-owned node binding.
     BrowserAuthority(BrowserRegistryError),
-    /// The fresh semantic observation no longer matches the authorized target state.
+    /// The fresh semantic observation no longer matches the authorized node-local state.
     SemanticState(SemanticNodeActionTargetError),
 }
 
