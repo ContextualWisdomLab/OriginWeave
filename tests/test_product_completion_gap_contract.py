@@ -41,7 +41,7 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "#201",
             "#202",
             "#203",
-            "Shrink the 109-PR queue",
+            "Shrink the open-PR queue",
             "durable WARC/PROV replay",
             "stable BAP/MCP runtime API",
             "signed cross-platform Chromium distribution",
@@ -51,6 +51,7 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, text)
 
+        self.assertNotIn("Shrink the 109-PR queue", text)
         self.assertNotIn(
             "current-head hosted CI, security, Noema, scheduler, and OpenCode workflows were still regenerating at the recheck",
             text,
