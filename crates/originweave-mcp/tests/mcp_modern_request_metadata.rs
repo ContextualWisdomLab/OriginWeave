@@ -1,26 +1,87 @@
 use originweave_mcp::{
-    MCP_PROTOCOL_VERSION, MCP_TOOLS_CALL_METHOD, ValidatedMcpToolCall,
+    MCP_PROTOCOL_VERSION, MCP_TOOLS_CALL_METHOD, McpToolBoundaryError, ValidatedMcpToolCall,
 };
 
-/// MCP 2026-07-28 makes the protocol version and client capabilities
-/// self-describing on every request. The final protocol keeps `clientInfo`
-/// optional and non-authoritative, so absence of client identity must not be an
-/// admission failure. The current `tools/call` constructor still has no input
-/// for the required request `_meta` protocol version or per-request client
-/// capabilities, so a call built only from the transport/routing fields must
-/// not be admitted as a fully validated modern request.
+fn modern_call(
+    protocol_version_header: Option<&str>,
+    protocol_version_metadata: Option<&str>,
+    client_capabilities_present: bool,
+) -> Result<ValidatedMcpToolCall, McpToolBoundaryError> {
+    ValidatedMcpToolCall::new_with_request_metadata(
+        protocol_version_header,
+        protocol_version_metadata,
+        client_capabilities_present,
+        MCP_TOOLS_CALL_METHOD,
+        "originweave.observe",
+        MCP_TOOLS_CALL_METHOD,
+        "originweave.observe",
+    )
+}
+
 #[test]
-fn tools_call_without_required_per_request_metadata_fails_closed() {
-    let result = ValidatedMcpToolCall::new(
-        MCP_PROTOCOL_VERSION,
-        MCP_TOOLS_CALL_METHOD,
-        "originweave.observe",
-        MCP_TOOLS_CALL_METHOD,
-        "originweave.observe",
+fn legacy_tools_call_shape_fails_closed_without_request_metadata() {
+    assert_eq!(
+        ValidatedMcpToolCall::new(
+            MCP_PROTOCOL_VERSION,
+            MCP_TOOLS_CALL_METHOD,
+            "originweave.observe",
+            MCP_TOOLS_CALL_METHOD,
+            "originweave.observe",
+        ),
+        Err(McpToolBoundaryError::MissingProtocolVersionMetadata)
+    );
+}
+
+#[test]
+fn modern_tools_call_requires_both_protocol_version_surfaces() {
+    assert_eq!(
+        modern_call(None, Some(MCP_PROTOCOL_VERSION), true),
+        Err(McpToolBoundaryError::MissingProtocolVersionHeader)
+    );
+    assert_eq!(
+        modern_call(Some(MCP_PROTOCOL_VERSION), None, true),
+        Err(McpToolBoundaryError::MissingProtocolVersionMetadata)
+    );
+}
+
+#[test]
+fn modern_tools_call_bounds_and_cross_checks_protocol_versions() {
+    let oversized = format!("{MCP_PROTOCOL_VERSION}x");
+
+    assert_eq!(
+        modern_call(Some(&oversized), Some(MCP_PROTOCOL_VERSION), true),
+        Err(McpToolBoundaryError::UnsupportedProtocolVersion)
+    );
+    assert_eq!(
+        modern_call(Some(MCP_PROTOCOL_VERSION), Some(&oversized), true),
+        Err(McpToolBoundaryError::UnsupportedProtocolVersion)
+    );
+    assert_eq!(
+        modern_call(Some(MCP_PROTOCOL_VERSION), Some("2025-11-25"), true),
+        Err(McpToolBoundaryError::ProtocolVersionHeaderBodyMismatch)
+    );
+    assert_eq!(
+        modern_call(Some("2025-11-25"), Some("2025-11-25"), true),
+        Err(McpToolBoundaryError::UnsupportedProtocolVersion)
+    );
+}
+
+#[test]
+fn modern_tools_call_requires_per_request_client_capabilities() {
+    assert_eq!(
+        modern_call(
+            Some(MCP_PROTOCOL_VERSION),
+            Some(MCP_PROTOCOL_VERSION),
+            false,
+        ),
+        Err(McpToolBoundaryError::MissingClientCapabilities)
     );
 
-    assert!(
-        result.is_err(),
-        "MCP 2026-07-28 tools/call must not validate without request protocol-version metadata and per-request client capabilities"
-    );
+    let call = modern_call(
+        Some(MCP_PROTOCOL_VERSION),
+        Some(MCP_PROTOCOL_VERSION),
+        true,
+    )
+    .expect("required modern request metadata should admit a reviewed tool route");
+    assert_eq!(call.tool_name(), "originweave.observe");
 }
