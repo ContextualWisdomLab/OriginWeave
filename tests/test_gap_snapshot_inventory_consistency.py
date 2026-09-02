@@ -1,4 +1,4 @@
-"""Regression contracts for the current dated product-gap inventory snapshot."""
+"""Regression contracts for current and historical product-gap inventory evidence."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ CHANGELOG = ROOT / "CHANGELOG.md"
 
 
 class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
-    """Prevent one dated snapshot from carrying contradictory live PR totals."""
+    """Keep volatile live truth separate from immutable dated snapshots."""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -20,27 +20,28 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
         cls.changelog = CHANGELOG.read_text(encoding="utf-8")
 
     def test_current_live_state_is_distinct_from_dated_snapshot(self) -> None:
-        """The live section must bind evidence structurally without freezing transient stack heads."""
+        """The live section must bind fresh evidence without promoting queued work."""
         current = self.baseline.split("## Current live delivery state", 1)[1].split(
             "## Observed snapshot: 2026-08-29", 1
         )[0]
         for marker in (
-            "141 open pull requests",
+            "142 open pull requests",
             "26 Ready/non-draft",
-            "115 Draft",
-            "11 open non-PR issues",
+            "116 Draft",
+            "12 open non-PR issues",
             "542ca1e9c0a863595b8b6697790005d2471f5413",
             "18156473",
             "Live GitHub PR/base/head/check APIs are authoritative over PR bodies",
             "Issue #28 remains the P0 buyer-visible integration target",
-            "PR #271 is Draft at exact head",
-            "on exact #270 head",
-            "Exact native CI run",
-            "queued/non-passing",
+            "PR #261 is Draft at exact head `9769733a2dee21cd0d9be5e020be7a998a4168a3`",
+            "native CI run `33602342786` is queued/non-passing",
+            "#277 remains Draft at exact head `74fdedb6ee441a4055ee335bc5a5b96dee852661`",
             "Ready root #82 remains at exact head",
             "DDD ownership correction #272 is Draft at exact head",
             "#273 is its Draft context-map/ubiquitous-language child",
-            "active-PR ancestry observations only",
+            "Issue #276",
+            "contextual-orchestrator#1016",
+            "active-PR evidence only",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, current)
@@ -50,6 +51,14 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
         ):
             with self.subTest(non_passing=non_passing):
                 self.assertIn(non_passing.casefold(), current.casefold())
+        for stale in (
+            "141 open pull requests",
+            "115 Draft",
+            "11 open non-PR issues",
+            "PR #271 is Draft at exact head `426f9dcfa7c341cd436cedc69f47c805d808466a`",
+        ):
+            with self.subTest(stale=stale):
+                self.assertNotIn(stale, current)
 
     def test_current_baseline_inventory_matches_the_verified_snapshot(self) -> None:
         """The dated 2026-08-29 snapshot must keep its exact historical inventory."""
