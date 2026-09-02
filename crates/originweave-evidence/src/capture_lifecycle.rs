@@ -13,7 +13,7 @@ pub enum CaptureLifecycleState {
     Verified,
     /// The verified capture is retained until its explicit deadline.
     Retained,
-    /// A verified, retained, or deletion-pending capture is protected by an explicit legal hold.
+    /// A verified or retained capture is protected by an explicit legal hold.
     LegalHold,
     /// Deletion was requested after the applicable retention and hold gates allowed it.
     DeletionRequested,
@@ -255,12 +255,15 @@ impl CaptureLifecycle {
         Ok(())
     }
 
-    /// Place a verified, retained, or deletion-pending capture under an explicit legal hold.
+    /// Place a verified or retained capture under an explicit legal hold.
     ///
-    /// A hold that races with a pending deletion request invalidates that request
-    /// before entering `LegalHold`; any receipt bound to the old request is stale.
-    /// Releasing the hold still requires a new future retention period before a
-    /// later deletion can be requested.
+    /// Once deletion has been requested, this in-memory lifecycle no longer has
+    /// enough authority to prove that an external deletion side effect is still
+    /// cancellable. A late legal hold therefore fails closed instead of clearing
+    /// the accepted deletion request or making a later deletion receipt appear stale.
+    /// A durable persistence/controller boundary must first cancel or reconcile the
+    /// pending deletion with authenticated evidence before constructing a hold-safe
+    /// lifecycle state.
     pub fn place_legal_hold(
         &mut self,
         trusted_time_epoch_seconds: u64,
@@ -268,13 +271,6 @@ impl CaptureLifecycle {
         self.require_trusted_time_not_rollback(trusted_time_epoch_seconds)?;
         match self.state {
             CaptureLifecycleState::Verified | CaptureLifecycleState::Retained => {
-                self.state = CaptureLifecycleState::LegalHold;
-                self.accept_trusted_time(trusted_time_epoch_seconds);
-                Ok(())
-            }
-            CaptureLifecycleState::DeletionRequested => {
-                self.deletion_request_digest = None;
-                self.deletion_receipt = None;
                 self.state = CaptureLifecycleState::LegalHold;
                 self.accept_trusted_time(trusted_time_epoch_seconds);
                 Ok(())
