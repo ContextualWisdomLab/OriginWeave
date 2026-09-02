@@ -24,8 +24,10 @@ fn intent() -> ActionIntentDigest {
 }
 
 fn validated_call(tool_name: &str) -> ValidatedMcpToolCall {
-    ValidatedMcpToolCall::new(
-        MCP_PROTOCOL_VERSION,
+    ValidatedMcpToolCall::new_with_request_metadata(
+        Some(MCP_PROTOCOL_VERSION),
+        Some(MCP_PROTOCOL_VERSION),
+        true,
         MCP_TOOLS_CALL_METHOD,
         tool_name,
         MCP_TOOLS_CALL_METHOD,
