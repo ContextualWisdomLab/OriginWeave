@@ -10,13 +10,12 @@ use originweave_core::{BrowserAuthorityRegistry, WebDriverBiDiWebSocketEndpoint}
 
 use crate::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind, WebDriverBiDiJsonEnvelope,
-    WebDriverBiDiJsonEnvelopeError,
-    WebDriverBiDiJsonEnvelopeKind, WebDriverBiDiNavigationCommittedObservation,
-    WebDriverBiDiNavigationCommittedObservationError, WebDriverBiDiSessionStatusResponseError,
-    WebDriverBiDiSessionStatusResult, WebDriverBiDiTcpConnectionPlan,
-    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
-    WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiJsonEnvelopeError, WebDriverBiDiJsonEnvelopeKind,
+    WebDriverBiDiNavigationCommittedObservation, WebDriverBiDiNavigationCommittedObservationError,
+    WebDriverBiDiSessionStatusResponseError, WebDriverBiDiSessionStatusResult,
+    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
+    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMessageAssembler,
+    WebDriverBiDiWebSocketMessageAssembly, WebDriverBiDiWebSocketTextMessage,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
