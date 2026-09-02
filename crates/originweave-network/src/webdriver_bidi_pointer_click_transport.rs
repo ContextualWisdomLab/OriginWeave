@@ -4,8 +4,8 @@ use originweave_core::WebDriverBiDiPointerClickCommand;
 
 use crate::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
-    WebDriverBiDiCommandKind, WebDriverBiDiWebSocketEstablished,
-    WebDriverBiDiWebSocketFrameError, WebDriverBiDiWebSocketMaskKey,
+    WebDriverBiDiCommandKind, WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrameError,
+    WebDriverBiDiWebSocketMaskKey,
 };
 
 /// Fail-closed errors while transporting one already validated pointer-click command.

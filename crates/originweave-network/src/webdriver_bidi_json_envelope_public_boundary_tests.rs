@@ -9,7 +9,8 @@ use std::{
 use originweave_core::{BrowserAuthorityRegistry, WebDriverBiDiWebSocketEndpoint};
 
 use crate::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeError,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind, WebDriverBiDiJsonEnvelope,
+    WebDriverBiDiJsonEnvelopeError,
     WebDriverBiDiJsonEnvelopeKind, WebDriverBiDiNavigationCommittedObservation,
     WebDriverBiDiNavigationCommittedObservationError, WebDriverBiDiSessionStatusResponseError,
     WebDriverBiDiSessionStatusResult, WebDriverBiDiTcpConnectionPlan,
@@ -139,7 +140,7 @@ fn public_json_envelope_unit_build_covers_fail_closed_json_edges() -> Result<(),
         br#"{"type":"success","id":1,"result":[1 2]}"#,
         br##"{"type":"success","id":1,"result":{"bad":"\"##,
         br#"{"type":"success","id":1,"result":{"bad":"\ud800\0041"}}"#,
-        br##"{"type":"success","id":1,"result":{"bad":"\ud800\u"##,
+        br##"{"type":"success","id":1,"result":{"bad":"\ud800\u"#",
     ];
 
     for document in malformed_documents {
@@ -155,7 +156,7 @@ fn public_json_envelope_unit_build_covers_fail_closed_json_edges() -> Result<(),
 fn public_session_status_empty_result_fails_closed_from_unit_build() -> Result<(), Box<dyn Error>> {
     let text = read_text_over_loopback(EMPTY_STATUS_RESULT)?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command(7)?;
+    correlation.register_command_for(7, WebDriverBiDiCommandKind::SessionStatus)?;
 
     let parsed = WebDriverBiDiSessionStatusResult::parse_and_correlate(&text, &mut correlation);
     assert!(matches!(

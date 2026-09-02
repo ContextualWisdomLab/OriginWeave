@@ -2,9 +2,8 @@ use std::{error::Error, fmt};
 
 use crate::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
-    WebDriverBiDiCommandKind, WebDriverBiDiCorrelatedResponseOutcome,
-    WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeError,
-    WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiCommandKind, WebDriverBiDiCorrelatedResponseOutcome, WebDriverBiDiJsonEnvelope,
+    WebDriverBiDiJsonEnvelopeError, WebDriverBiDiWebSocketTextMessage,
 };
 
 /// Typed protocol acknowledgment for one correlated WebDriver BiDi `input.performActions`
