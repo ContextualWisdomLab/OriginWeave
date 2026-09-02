@@ -73,6 +73,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Security
 
+- The SPDX 3.0.1 release-envelope gate now requires exactly one top-level `SpdxDocument` under `@graph` and rejects both a nested-only document and any additional nested `SpdxDocument`, preventing recursive string/type discovery from substituting for the required serialization placement.
 - The SPDX 3.0.1 release-envelope gate requires the exact versioned global-context string and rejects context arrays, `@import`, `@base`, `@vocab`, and alias/term-rebinding attempts until reviewed schema-aware validation can prove extension semantics without ambient or reinterpretation authority.
 - SPDX JSON-LD release-file admission now requires a direct regular-file leaf reached through a no-follow descriptor-relative path walk and revalidates the final leaf's device/inode identity after the bounded read, so symlinks, FIFOs, swapped ancestors, and post-open pathname replacement fail closed instead of silently changing the artifact path identity.
 - Explicit proxy server identifiers require ASCII decimal port tokens before numeric range parsing, preventing Rust-specific leading-plus spellings from widening proxy authority.
