@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pathlib
+import tomllib
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -23,6 +24,31 @@ class DddDocumentationContractTests(unittest.TestCase):
         self.assertNotIn("Policy decision → MCP adapter", context_map)
         self.assertIn("policy depends only on `originweave-core`", context_map)
         self.assertIn("route/action mismatch remains adapter-owned", context_map)
+
+    def test_cargo_dependency_direction_enforces_mcp_anti_corruption_layer(self) -> None:
+        manifests: dict[str, dict[str, object]] = {}
+        for crate in ("originweave-core", "originweave-policy", "originweave-mcp"):
+            manifest_path = ROOT / "crates" / crate / "Cargo.toml"
+            manifests[crate] = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
+
+        core_dependencies = manifests["originweave-core"].get("dependencies", {})
+        policy_dependencies = manifests["originweave-policy"].get("dependencies", {})
+        mcp_dependencies = manifests["originweave-mcp"].get("dependencies", {})
+
+        self.assertNotIn("originweave-mcp", core_dependencies)
+        self.assertNotIn("originweave-mcp", policy_dependencies)
+        self.assertEqual(
+            policy_dependencies.get("originweave-core"),
+            {"path": "../originweave-core"},
+        )
+        self.assertEqual(
+            mcp_dependencies.get("originweave-core"),
+            {"path": "../originweave-core"},
+        )
+        self.assertEqual(
+            mcp_dependencies.get("originweave-policy"),
+            {"path": "../originweave-policy"},
+        )
 
     def test_context_map_names_product_bounded_contexts_explicitly(self) -> None:
         context_map = (ROOT / "docs/context-map.md").read_text(encoding="utf-8")
