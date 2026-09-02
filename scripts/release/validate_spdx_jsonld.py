@@ -4,9 +4,9 @@
 This verifier deliberately checks only the serialization envelope needed before deeper
 schema/ontology validation: the exact versioned global context identity required by the
 official SPDX 3.0.1 JSON Schema, a bounded top-level JSON object, a bounded object-only
-``@graph``, and exactly one ``SpdxDocument`` element. A release-facing helper additionally
-binds candidate bytes to the canonical SHA-256 identity already declared by the release
-manifest. It does not claim full SPDX structural or semantic conformance, artifact
+``@graph``, and exactly one top-level ``SpdxDocument`` element. A release-facing helper
+additionally binds candidate bytes to the canonical SHA-256 identity already declared by the
+release manifest. It does not claim full SPDX structural or semantic conformance, artifact
 authenticity, SBOM completeness, provenance, signing, publication, installation, update, or
 rollback authority.
 """
@@ -94,13 +94,12 @@ def _has_required_spdx_context(context: Any) -> bool:
 
 
 def _count_spdx_documents(value: Any) -> int:
-    """Count SPDX document elements at any depth without recursive interpreter use.
+    """Count SPDX document objects at any depth without recursive interpreter use.
 
-    SPDX element collections may inline other elements below the top-level graph. The
-    serialization contract admits at most one ``SpdxDocument`` element, so a nested second
-    document must not evade the preliminary envelope gate merely because it is not a direct
-    ``@graph`` member. The walk is iterative and remains bounded by the already size-bounded
-    parsed input.
+    SPDX 3.0.1 requires Element nodes to live at the top-level ``@graph``. The recursive
+    count is therefore a defense against a nested ``SpdxDocument`` being accepted in addition
+    to the one required top-level document. The walk is iterative and remains bounded by the
+    already size-bounded parsed input.
     """
 
     count = 0
@@ -180,8 +179,11 @@ def validate_spdx_3_0_1_jsonld_bytes(payload: bytes) -> dict[str, int | str]:
         if not isinstance(element, dict) or not isinstance(element.get("type"), str):
             raise SpdxJsonLdEnvelopeError("invalid_graph_object")
 
+    top_level_document_count = sum(
+        1 for element in graph if element.get("type") == "SpdxDocument"
+    )
     document_count = _count_spdx_documents(graph)
-    if document_count != 1:
+    if top_level_document_count != 1 or document_count != 1:
         raise SpdxJsonLdEnvelopeError("invalid_document_count")
 
     return {
