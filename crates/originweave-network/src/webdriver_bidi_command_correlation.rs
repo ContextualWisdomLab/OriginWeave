@@ -200,9 +200,9 @@ impl WebDriverBiDiCommandCorrelation {
                 )
             }
             WebDriverBiDiJsonEnvelopeKind::Success => {
-                let Some(command_id) = envelope.command_id() else {
-                    return Err(WebDriverBiDiCommandCorrelationError::CommandNotOutstanding);
-                };
+                let command_id = envelope
+                    .command_id()
+                    .expect("validated WebDriver BiDi success envelopes always carry a command id");
                 self.complete(
                     command_id,
                     expected_kind,
