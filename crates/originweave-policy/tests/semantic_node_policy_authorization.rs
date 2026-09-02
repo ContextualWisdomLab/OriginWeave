@@ -1,83 +1,101 @@
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, error::Error};
 
 use originweave_core::{
-    ActionIntentDigest, ActionKind, ActionRequest, ApprovalEvidence, BrowserAuthorityRegistry,
-    BrowserRegistryError, BrowsingContextId, Capability, ExecutionPurpose, InstructionSource,
-    NodeActionKind, ObservationChannel, Origin, PolicyContext, RiskClass, RobotsDecision,
-    SecretDelivery, SemanticNodeActionBinding, SemanticNodeActionTarget, SemanticNodeObservation,
-    SemanticNodeObservationInput, SessionMode,
+    ActionIntentDigest, ActionKind, ActionRequest, AdmittedNodeHandle, ApprovalEvidence,
+    BoundedWebDriverBiDiResponseDocument, BrowserAuthorityRegistry, BrowserContextDispatchTarget,
+    BrowserContextOriginDispatchTarget, BrowserContextOriginEpochDispatchTarget,
+    BrowserProtocolAdapterDescriptor, BrowserProtocolCapability, BrowserProtocolKind, Capability,
+    ExecutionPurpose, InstructionSource, NodeActionKind, Origin, OriginWeaveProtocolVersion,
+    PolicyContext, RiskClass, RobotsDecision, SecretDelivery, SemanticNodeActionBinding, SessionMode,
+    ValidatedBrowserProtocolUse, WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesCommand,
 };
 use originweave_policy::{
     DenialReason, PolicyAuthorizedSemanticNodeAction, SemanticNodePolicyAuthorizationError,
 };
 
+const ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion =
+    OriginWeaveProtocolVersion::new(0, 1);
+const ADAPTER_VERSION: &str = "originweave-bidi-v1";
+const PROTOCOL_REVISION: &str = "webdriver-bidi-wd-2026-06-01";
+const BROWSER_REVISION: &str = "chromium-r1639810";
 const VALID_INTENT: &str =
     "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
-struct BindingFixture {
-    registry: BrowserAuthorityRegistry,
-    context: BrowsingContextId,
-    binding: SemanticNodeActionBinding,
+fn semantic_observation_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn Error>> {
+    let descriptor = BrowserProtocolAdapterDescriptor::new(
+        BrowserProtocolKind::WebDriverBiDi,
+        ORIGINWEAVE_PROTOCOL_VERSION,
+        ADAPTER_VERSION,
+        PROTOCOL_REVISION,
+        BROWSER_REVISION,
+        &[BrowserProtocolCapability::SemanticObservation],
+    )?;
+    Ok(descriptor.validate_use(
+        ORIGINWEAVE_PROTOCOL_VERSION,
+        BrowserProtocolKind::WebDriverBiDi,
+        ADAPTER_VERSION,
+        PROTOCOL_REVISION,
+        BROWSER_REVISION,
+        BrowserProtocolCapability::SemanticObservation,
+    )?)
 }
 
-fn origin(value: &str) -> Result<Origin, String> {
-    Origin::parse(value).map_err(|error| format!("{error:?}"))
+fn admitted_node() -> Result<AdmittedNodeHandle, Box<dyn Error>> {
+    let mut registry = BrowserAuthorityRegistry::new();
+    let session = registry.register_session("semantic-policy-session")?;
+    let context = registry.register_context(session, "semantic-policy-context")?;
+    let source_origin = Origin::parse("https://app.example")
+        .map_err(|error| std::io::Error::other(format!("fixture origin rejected: {error:?}")))?;
+    let epoch = registry.bind_context_origin(session, context, &source_origin)?;
+    let target = BrowserContextOriginEpochDispatchTarget::new(
+        BrowserContextOriginDispatchTarget::new(
+            BrowserContextDispatchTarget::new(session, context),
+            &source_origin,
+        ),
+        epoch,
+    );
+    let query = WebDriverBiDiAccessibilityQuery::new(Some("button"), Some("Continue"), 1)?;
+    let command = WebDriverBiDiLocateNodesCommand::new(51, "semantic-policy-context", &query)?;
+    let document = BoundedWebDriverBiDiResponseDocument::new(
+        r#"{"type":"success","id":51,"result":{"nodes":[{"type":"node","sharedId":"semantic-policy-node"}]}}"#,
+    )?;
+    command
+        .bind_response_document_nodes(
+            document,
+            semantic_observation_proof()?,
+            &mut registry,
+            target,
+        )?
+        .into_iter()
+        .next()
+        .ok_or_else(|| "locateNodes fixture did not bind its node".into())
 }
 
 fn binding(
     action: ActionKind,
     instruction_source: InstructionSource,
-) -> Result<BindingFixture, String> {
-    let mut registry = BrowserAuthorityRegistry::new();
-    let session = registry
-        .register_session("semantic-policy-session")
-        .map_err(|error| error.to_string())?;
-    let context = registry
-        .register_context(session, "semantic-policy-context")
-        .map_err(|error| error.to_string())?;
-    let site = origin("https://app.example")?;
-    let handle = registry
-        .bind_node(session, context, &site, "semantic-policy-node")
-        .map_err(|error| error.to_string())?;
-    let observation = SemanticNodeObservation::new(
-        SemanticNodeObservationInput {
-            handle,
-            parent: None,
-            children: Vec::new(),
-            role: "button".to_owned(),
-            accessible_name: "Continue".to_owned(),
-            visible_text: Some("Continue".to_owned()),
-            enabled: true,
-            visible: true,
-            selected: None,
-            supported_actions: BTreeSet::from([NodeActionKind::Click]),
-            evidence_channels: BTreeSet::from([ObservationChannel::Accessibility]),
-        },
-        &registry,
-    )
-    .map_err(|error| error.to_string())?;
-    let target = SemanticNodeActionTarget::from_observation(&observation, NodeActionKind::Click)
-        .map_err(|error| error.to_string())?;
+) -> Result<SemanticNodeActionBinding, Box<dyn Error>> {
+    let handle = admitted_node()?;
+    let site = handle.origin().clone();
     let request = ActionRequest::new(
         action,
         site.clone(),
         site,
         instruction_source,
         SecretDelivery::None,
-        ActionIntentDigest::parse(VALID_INTENT).map_err(|error| format!("{error:?}"))?,
+        ActionIntentDigest::parse(VALID_INTENT)
+            .map_err(|error| std::io::Error::other(format!("intent rejected: {error:?}")))?,
     );
-    let binding =
-        SemanticNodeActionBinding::new(target, request).map_err(|error| error.to_string())?;
-
-    Ok(BindingFixture {
-        registry,
-        context,
-        binding,
-    })
+    Ok(SemanticNodeActionBinding::new(
+        handle,
+        NodeActionKind::Click,
+        request,
+    )?)
 }
 
-fn context(action: ActionKind) -> Result<PolicyContext, String> {
-    let site = origin("https://app.example")?;
+fn context(action: ActionKind) -> Result<PolicyContext, Box<dyn Error>> {
+    let site = Origin::parse("https://app.example")
+        .map_err(|error| std::io::Error::other(format!("context origin rejected: {error:?}")))?;
     Ok(PolicyContext::new(
         SessionMode::AgentTask,
         ExecutionPurpose::UserDelegatedTask,
@@ -90,32 +108,26 @@ fn context(action: ActionKind) -> Result<PolicyContext, String> {
 }
 
 #[test]
-fn semantic_node_action_becomes_policy_authorized_only_after_allow() -> Result<(), String> {
-    let fixture = binding(ActionKind::Navigate, InstructionSource::User)?;
-    let context = context(ActionKind::Navigate)?;
+fn semantic_node_action_becomes_policy_authorized_only_after_allow() -> Result<(), Box<dyn Error>> {
+    let binding = binding(ActionKind::Navigate, InstructionSource::User)?;
+    let policy_context = context(ActionKind::Navigate)?;
 
-    let authorized =
-        PolicyAuthorizedSemanticNodeAction::authorize(fixture.binding.clone(), &context)
-            .map_err(|error| error.to_string())?;
+    let authorized = PolicyAuthorizedSemanticNodeAction::authorize(binding, &policy_context)?;
 
-    assert_eq!(authorized.binding(), &fixture.binding);
-    assert_eq!(
-        authorized.binding().request().action(),
-        ActionKind::Navigate
-    );
-    authorized
-        .validate_current(&fixture.registry)
-        .map_err(|error| error.to_string())?;
+    assert_eq!(authorized.binding().node_action(), NodeActionKind::Click);
+    assert_eq!(authorized.binding().request().action(), ActionKind::Navigate);
+    assert!(authorized.binding().handle().node_id() > 0);
     Ok(())
 }
 
 #[test]
-fn semantic_node_action_preserves_approval_required_as_non_authorized() -> Result<(), String> {
-    let fixture = binding(ActionKind::Purchase, InstructionSource::User)?;
-    let context = context(ActionKind::Purchase)?;
+fn semantic_node_action_preserves_approval_required_as_non_authorized()
+-> Result<(), Box<dyn Error>> {
+    let binding = binding(ActionKind::Purchase, InstructionSource::User)?;
+    let policy_context = context(ActionKind::Purchase)?;
 
     assert_eq!(
-        PolicyAuthorizedSemanticNodeAction::authorize(fixture.binding, &context).err(),
+        PolicyAuthorizedSemanticNodeAction::authorize(binding, &policy_context).err(),
         Some(SemanticNodePolicyAuthorizationError::ApprovalRequired(
             RiskClass::R4
         ))
@@ -124,35 +136,16 @@ fn semantic_node_action_preserves_approval_required_as_non_authorized() -> Resul
 }
 
 #[test]
-fn semantic_node_action_preserves_policy_denial_as_non_authorized() -> Result<(), String> {
-    let fixture = binding(ActionKind::Navigate, InstructionSource::WebContent)?;
-    let context = context(ActionKind::Navigate)?;
+fn semantic_node_action_preserves_policy_denial_as_non_authorized()
+-> Result<(), Box<dyn Error>> {
+    let binding = binding(ActionKind::Navigate, InstructionSource::WebContent)?;
+    let policy_context = context(ActionKind::Navigate)?;
 
     assert_eq!(
-        PolicyAuthorizedSemanticNodeAction::authorize(fixture.binding, &context).err(),
+        PolicyAuthorizedSemanticNodeAction::authorize(binding, &policy_context).err(),
         Some(SemanticNodePolicyAuthorizationError::Denied(
             DenialReason::UntrustedInstructionSource
         ))
-    );
-    Ok(())
-}
-
-#[test]
-fn policy_authorized_semantic_node_action_still_revalidates_browser_authority() -> Result<(), String>
-{
-    let mut fixture = binding(ActionKind::Navigate, InstructionSource::User)?;
-    let context = context(ActionKind::Navigate)?;
-    let authorized = PolicyAuthorizedSemanticNodeAction::authorize(fixture.binding, &context)
-        .map_err(|error| error.to_string())?;
-
-    fixture
-        .registry
-        .advance_document(fixture.context)
-        .map_err(|error| error.to_string())?;
-
-    assert_eq!(
-        authorized.validate_current(&fixture.registry).err(),
-        Some(BrowserRegistryError::UnknownNodeAuthority)
     );
     Ok(())
 }

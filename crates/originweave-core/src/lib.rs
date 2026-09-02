@@ -46,6 +46,7 @@ mod browser_registry_coverage;
 mod browser_registry_external_context;
 mod contracts;
 mod semantic_action_binding;
+mod semantic_action_target;
 mod webdriver_bidi_command;
 mod webdriver_bidi_error_code;
 mod webdriver_bidi_pointer_click_authority;
@@ -88,6 +89,7 @@ pub use browser_registry::{
 };
 pub use contracts::*;
 pub use semantic_action_binding::{SemanticNodeActionBinding, SemanticNodeActionBindingError};
+pub use semantic_action_target::{SemanticNodeActionTarget, SemanticNodeActionTargetError};
 pub use webdriver_bidi_command::{
     CorrelatedWebDriverBiDiLocateNodesResponse, MAX_WEBDRIVER_BIDI_COMMAND_ID,
     ValidatedWebDriverBiDiLocateNodesResponse, WEBDRIVER_BIDI_PERFORM_ACTIONS_METHOD,
