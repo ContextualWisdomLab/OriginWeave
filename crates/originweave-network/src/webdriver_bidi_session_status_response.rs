@@ -71,9 +71,11 @@ impl WebDriverBiDiSessionStatusResult {
                 retain_validated_error_code(envelope.error_code()).and_then(|error_code| {
                     let completed = correlation
                         .correlate_response_for(&envelope, WebDriverBiDiCommandKind::SessionStatus)
-                        .map_err(|source| {
-                            WebDriverBiDiSessionStatusResponseError::Correlation { source }
-                        })?;
+                        .map_err(
+                            |source| WebDriverBiDiSessionStatusResponseError::Correlation {
+                                source,
+                            },
+                        )?;
                     Err(
                         WebDriverBiDiSessionStatusResponseError::RemoteProtocolError {
                             command_id: completed.command_id(),
