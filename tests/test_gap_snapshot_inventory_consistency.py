@@ -20,7 +20,7 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
         cls.changelog = CHANGELOG.read_text(encoding="utf-8")
 
     def test_current_live_state_is_distinct_from_dated_snapshot(self) -> None:
-        """A volatile live section must not rely on the historical dated inventory."""
+        """The live section must bind evidence structurally without freezing transient stack heads."""
         current = self.baseline.split("## Current live delivery state", 1)[1].split(
             "## Observed snapshot: 2026-08-29", 1
         )[0]
@@ -31,21 +31,25 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "11 open non-PR issues",
             "542ca1e9c0a863595b8b6697790005d2471f5413",
             "18156473",
-            "61bd2e00d2c60f9d846d5a5d59c7329695d5a3ed",
-            "9ba972838e44c15a0a88148533bec787ffd87a47",
-            "f0dcf215f3f2477a18798ef302560fc43c74fac3",
-            "cf5fd422a329acbfa04ac0685d32a405942a7146",
-            "b3595ef5656ebdb5aa301d4d2f3e487f6a1f21c8",
+            "Live GitHub PR/base/head/check APIs are authoritative over PR bodies",
+            "Issue #28 remains the P0 buyer-visible integration target",
+            "PR #271 is Draft at exact head",
+            "on exact #270 head",
+            "Exact native CI run",
+            "queued/non-passing",
+            "Ready root #82 remains at exact head",
+            "DDD ownership correction #272 is Draft at exact head",
+            "#273 is its Draft context-map/ubiquitous-language child",
+            "active-PR ancestry observations only",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, current)
-        self.assertIn("CI run `33548339062` is **success**", current)
-        self.assertIn("CI run `33553936912` is queued", current)
-        self.assertIn("CI run `33554087393` is queued", current)
-        self.assertIn("CI run `33554207683` is queued", current)
-        self.assertIn("Strix run `33473689091` is cancelled before job creation", current)
-        self.assertIn("OpenCode run `33473689030` remains queued", current)
-        self.assertIn("active-PR evidence only", current)
+        for non_passing in (
+            "queued reviewer evidence is non-passing",
+            "discard queued, skipped, cancelled, absent, predecessor, synthetic, status-only, and model-only evidence",
+        ):
+            with self.subTest(non_passing=non_passing):
+                self.assertIn(non_passing.casefold(), current.casefold())
 
     def test_current_baseline_inventory_matches_the_verified_snapshot(self) -> None:
         """The dated 2026-08-29 snapshot must keep its exact historical inventory."""
@@ -72,7 +76,7 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "111 open pull requests",
             "27 non-draft",
             "153 open pull requests",
-            "114 draft",
+            "114 draft PRs",
         ):
             with self.subTest(stale=stale):
                 self.assertNotIn(stale, current)
