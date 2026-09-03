@@ -42,6 +42,18 @@ class ReleaseSbomOwnerMigrationContractTests(unittest.TestCase):
         for token in required:
             self.assertIn(token, text)
 
+    def test_migration_preserves_explicit_json_nesting_budget(self):
+        """The Rust-owner plan must retain the product-owned pre-materialization depth limit."""
+        text = MIGRATION.read_text(encoding="utf-8")
+        required = (
+            "MAX_SPDX_JSON_NESTING_DEPTH",
+            "256",
+            "too_deep_json_structure",
+            "current nesting depth",
+        )
+        for token in required:
+            self.assertIn(token, text)
+
 
 if __name__ == "__main__":
     unittest.main()
