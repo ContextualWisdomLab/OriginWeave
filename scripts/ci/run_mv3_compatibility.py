@@ -198,6 +198,7 @@ return {
     }
     deadline = time.monotonic() + FIXTURE_TIMEOUT_SECONDS
     latest: dict[str, str] = {}
+    latest_worker_start_count = 0
     while time.monotonic() < deadline:
         value = _execute(driver_port, session_id, script)
         if isinstance(value, dict):
@@ -206,13 +207,20 @@ return {
                 worker_start_count = int(latest.get("workerStartCount", "0"))
             except ValueError:
                 worker_start_count = 0
+            latest_worker_start_count = worker_start_count
             if worker_start_count > 0 and all(
                 latest.get(key) == item for key, item in expected.items()
             ):
                 return latest
         time.sleep(0.1)
+    mismatched_surfaces = [
+        key for key, item in expected.items() if latest.get(key) != item
+    ]
+    if latest_worker_start_count <= 0:
+        mismatched_surfaces.append("workerStartCount")
     raise RuntimeError(
-        f"MV3 fixture did not converge: expected={expected!r}, observed={latest!r}"
+        "MV3 fixture did not converge; mismatched surfaces="
+        + ",".join(mismatched_surfaces)
     )
 
 
@@ -252,7 +260,7 @@ def _exercise_real_click(driver_port: int, session_id: str) -> str:
         _webdriver_path(session_id, f"/element/{safe_output}/text"),
     ).get("value")
     if text != "clicked":
-        raise RuntimeError(f"real click post-condition failed: {text!r}")
+        raise RuntimeError("real click post-condition failed")
     return str(text)
 
 
