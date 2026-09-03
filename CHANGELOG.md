@@ -70,6 +70,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Security
 
+- Redacted raw WebDriver HTTP response bodies and protocol diagnostics from the pinned-Chromium MV3 evidence runner while retaining bounded HTTP-status and fixed protocol-error classification, preventing browser-controlled diagnostic text from entering CI/audit exceptions.
 - Explicit proxy server identifiers require ASCII decimal port tokens before numeric range parsing, preventing Rust-specific leading-plus spellings from widening proxy authority.
 - Raw page content cannot become a trusted instruction.
 - Raw secrets are rejected and secret-capable actions require an opaque broker handle.
