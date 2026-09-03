@@ -23,6 +23,18 @@ pub enum WebDriverBiDiJsonEnvelopeKind {
     Event,
 }
 
+/// Structurally valid command/event routing retained after common-envelope validation.
+///
+/// Keeping success ids inside the success variant prevents an impossible `success` + missing-id
+/// state from leaking into downstream command correlation. Error ids remain optional because the
+/// WebDriver BiDi protocol explicitly permits `null` there, while events carry no command id.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum WebDriverBiDiJsonEnvelopeRouting {
+    CommandSuccess { command_id: u64 },
+    CommandError { command_id: Option<u64> },
+    Event,
+}
+
 /// Credential-minimal classification of one complete WebDriver BiDi local-end JSON envelope.
 ///
 /// Result and parameter bodies are deliberately validated and discarded at this boundary. They
@@ -30,8 +42,7 @@ pub enum WebDriverBiDiJsonEnvelopeKind {
 /// as generic JSON values that could become ambient browser or Agent authority.
 #[derive(Eq, PartialEq)]
 pub struct WebDriverBiDiJsonEnvelope {
-    kind: WebDriverBiDiJsonEnvelopeKind,
-    command_id: Option<u64>,
+    routing: WebDriverBiDiJsonEnvelopeRouting,
     method: Option<String>,
     error_code: Option<String>,
 }
@@ -40,8 +51,8 @@ impl fmt::Debug for WebDriverBiDiJsonEnvelope {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("WebDriverBiDiJsonEnvelope")
-            .field("kind", &self.kind)
-            .field("command_id", &self.command_id)
+            .field("kind", &self.kind())
+            .field("command_id", &self.command_id())
             .field("has_method", &self.method.is_some())
             .field("has_error_code", &self.error_code.is_some())
             .finish()
@@ -73,7 +84,15 @@ impl WebDriverBiDiJsonEnvelope {
     /// Return the classified local-end envelope kind.
     #[must_use]
     pub const fn kind(&self) -> WebDriverBiDiJsonEnvelopeKind {
-        self.kind
+        match self.routing {
+            WebDriverBiDiJsonEnvelopeRouting::CommandSuccess { .. } => {
+                WebDriverBiDiJsonEnvelopeKind::Success
+            }
+            WebDriverBiDiJsonEnvelopeRouting::CommandError { .. } => {
+                WebDriverBiDiJsonEnvelopeKind::Error
+            }
+            WebDriverBiDiJsonEnvelopeRouting::Event => WebDriverBiDiJsonEnvelopeKind::Event,
+        }
     }
 
     /// Return the command identifier for success and correlatable error responses.
@@ -81,7 +100,15 @@ impl WebDriverBiDiJsonEnvelope {
     /// Events and error responses whose protocol `id` is `null` return `None`.
     #[must_use]
     pub const fn command_id(&self) -> Option<u64> {
-        self.command_id
+        match self.routing {
+            WebDriverBiDiJsonEnvelopeRouting::CommandSuccess { command_id } => Some(command_id),
+            WebDriverBiDiJsonEnvelopeRouting::CommandError { command_id } => command_id,
+            WebDriverBiDiJsonEnvelopeRouting::Event => None,
+        }
+    }
+
+    pub(crate) const fn routing(&self) -> WebDriverBiDiJsonEnvelopeRouting {
+        self.routing
     }
 
     /// Borrow the event method when this is an event envelope.
@@ -208,8 +235,7 @@ impl TopLevelFields {
         let command_id = required_js_uint(self.id, "id")?;
         require_object(self.result, "result")?;
         Ok(WebDriverBiDiJsonEnvelope {
-            kind: WebDriverBiDiJsonEnvelopeKind::Success,
-            command_id: Some(command_id),
+            routing: WebDriverBiDiJsonEnvelopeRouting::CommandSuccess { command_id },
             method: None,
             error_code: None,
         })
@@ -223,8 +249,7 @@ impl TopLevelFields {
             require_text_value(stacktrace, "stacktrace")?;
         }
         Ok(WebDriverBiDiJsonEnvelope {
-            kind: WebDriverBiDiJsonEnvelopeKind::Error,
-            command_id,
+            routing: WebDriverBiDiJsonEnvelopeRouting::CommandError { command_id },
             method: None,
             error_code: Some(error_code),
         })
@@ -234,8 +259,7 @@ impl TopLevelFields {
         let method = required_text(self.method, "method")?;
         require_object(self.params, "params")?;
         Ok(WebDriverBiDiJsonEnvelope {
-            kind: WebDriverBiDiJsonEnvelopeKind::Event,
-            command_id: None,
+            routing: WebDriverBiDiJsonEnvelopeRouting::Event,
             method: Some(method),
             error_code: None,
         })
