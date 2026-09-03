@@ -87,6 +87,12 @@ class CiChangeScopeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "parent traversal"):
             parse_nul_paths(b"docs/../Cargo.toml\0")
 
+    def test_nul_path_parser_rejects_unterminated_stream(self) -> None:
+        """A truncated path stream must not be accepted as complete change evidence."""
+
+        with self.assertRaisesRegex(ValueError, "NUL-terminated"):
+            parse_nul_paths(b"docs/PRD.md")
+
     def test_name_status_parser_preserves_docs_only_changes(self) -> None:
         """Status framing must not force Rust when every affected path is prose-only."""
 
@@ -116,6 +122,12 @@ class CiChangeScopeTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "rename/copy"):
             parse_nul_name_status(b"R100\0docs/old.md\0")
+
+    def test_name_status_parser_rejects_unterminated_stream(self) -> None:
+        """Missing terminal NUL must fail closed before docs-only classification."""
+
+        with self.assertRaisesRegex(ValueError, "NUL-terminated"):
+            parse_nul_name_status(b"M\0docs/PRD.md")
 
     def test_name_status_parser_rejects_unknown_status(self) -> None:
         """Unknown Git status records fail closed instead of guessing path cardinality."""
@@ -183,6 +195,21 @@ class CiChangeScopeTests(unittest.TestCase):
         self.assertEqual(completed.stdout, b"")
         self.assertIn(b"CI scope classification failed", completed.stderr)
         self.assertIn(b"valid UTF-8", completed.stderr)
+
+    def test_cli_fails_closed_on_unterminated_status_stream(self) -> None:
+        """A truncated Git stream must not emit a lightweight CI decision."""
+
+        completed = subprocess.run(
+            [sys.executable, str(CLASSIFIER)],
+            input=b"M\0docs/PRD.md",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        self.assertEqual(completed.returncode, 2)
+        self.assertEqual(completed.stdout, b"")
+        self.assertIn(b"CI scope classification failed", completed.stderr)
+        self.assertIn(b"NUL-terminated", completed.stderr)
 
     def test_workflow_keeps_docs_contracts_separate_from_rust(self) -> None:
         """The CI workflow must always run docs contracts and gate Rust jobs by scope."""
