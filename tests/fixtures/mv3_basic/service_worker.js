@@ -1,5 +1,9 @@
 "use strict";
 
+const DOWNLOAD_PAYLOAD = "OriginWeave deterministic MV3 download fixture.\n";
+const DOWNLOAD_POLL_ATTEMPTS = 100;
+const DOWNLOAD_POLL_INTERVAL_MS = 50;
+
 const workerStartPromise = (async () => {
   const values = await chrome.storage.local.get("originweave_worker_start_count");
   const previous = Number(values.originweave_worker_start_count ?? 0);
@@ -14,6 +18,80 @@ async function ensureWorkerState() {
     await chrome.storage.local.set({ originweave_worker: "installed" });
   }
   return "installed";
+}
+
+async function waitForDownload(downloadId, expectedUrl) {
+  const expectedBytes = new TextEncoder().encode(DOWNLOAD_PAYLOAD).byteLength;
+  for (let attempt = 0; attempt < DOWNLOAD_POLL_ATTEMPTS; attempt += 1) {
+    let items;
+    try {
+      items = await chrome.downloads.search({ id: downloadId, limit: 1 });
+    } catch (_error) {
+      return { ready: false, diagnostic: "download-not-evaluated" };
+    }
+    if (!Array.isArray(items) || items.length !== 1) {
+      await new Promise((resolve) => setTimeout(resolve, DOWNLOAD_POLL_INTERVAL_MS));
+      continue;
+    }
+    const item = items[0];
+    if (item.state === "interrupted") {
+      return { ready: false, diagnostic: "download-interrupted" };
+    }
+    if (item.state === "complete") {
+      if (item.url !== expectedUrl) {
+        return { ready: false, diagnostic: "download-url-mismatch" };
+      }
+      if (item.bytesReceived !== expectedBytes || item.totalBytes !== expectedBytes) {
+        return { ready: false, diagnostic: "download-byte-count-mismatch" };
+      }
+      if (item.exists === false) {
+        return { ready: false, diagnostic: "download-exists-false" };
+      }
+      return { ready: true, diagnostic: "download-complete-ready" };
+    }
+    await new Promise((resolve) => setTimeout(resolve, DOWNLOAD_POLL_INTERVAL_MS));
+  }
+  return { ready: false, diagnostic: "download-timeout" };
+}
+
+async function exerciseDownload(sender) {
+  const sourceUrl = sender?.tab?.url;
+  if (typeof sourceUrl !== "string") {
+    return { ready: false, diagnostic: "download-source-rejected" };
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(sourceUrl);
+  } catch (_error) {
+    return { ready: false, diagnostic: "download-source-rejected" };
+  }
+  if (
+    parsed.protocol !== "http:" ||
+    parsed.hostname !== "127.0.0.1" ||
+    parsed.pathname !== "/page.html" ||
+    parsed.username !== "" ||
+    parsed.password !== ""
+  ) {
+    return { ready: false, diagnostic: "download-source-rejected" };
+  }
+
+  const url = new URL("download.txt", sourceUrl).href;
+  let downloadId;
+  try {
+    downloadId = await chrome.downloads.download({
+      url,
+      filename: "originweave-mv3/download.txt",
+      conflictAction: "uniquify",
+      saveAs: false,
+    });
+  } catch (_error) {
+    return { ready: false, diagnostic: "download-start-rejected" };
+  }
+  if (!Number.isInteger(downloadId)) {
+    return { ready: false, diagnostic: "download-start-rejected" };
+  }
+  return waitForDownload(downloadId, url);
 }
 
 async function exerciseCoreApis(sender) {
@@ -56,6 +134,9 @@ async function exerciseCoreApis(sender) {
   });
   const historyReady = Array.isArray(historyItems);
 
+  const downloadResult = await exerciseDownload(sender);
+  const downloadsReady = downloadResult.ready;
+
   return {
     tabs: tabReady ? "ready" : "missing",
     windows: windowReady ? "ready" : "missing",
@@ -64,6 +145,8 @@ async function exerciseCoreApis(sender) {
     sidePanel: sidePanelReady ? "ready" : "missing",
     bookmarks: bookmarksReady ? "ready" : "missing",
     history: historyReady ? "ready" : "missing",
+    downloads: downloadsReady ? "ready" : "missing",
+    downloadsDiagnostic: downloadResult.diagnostic,
   };
 }
 
@@ -91,6 +174,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sidePanel: "missing",
         bookmarks: "missing",
         history: "missing",
+        downloads: "missing",
+        downloadsDiagnostic: "download-not-evaluated",
       });
     }
   );

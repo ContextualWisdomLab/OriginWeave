@@ -1,12 +1,14 @@
 # Manifest V3 compatibility evidence baseline
 
 - **Status:** Active implementation evidence for issue #27
-- **Reviewed:** 2026-09-04
+- **Reviewed:** 2026-08-21
 - **Pinned browser:** Chrome for Testing `150.0.7871.129`, Chromium revision `r1639810`
 
 OriginWeave uses Chromium as its compatibility kernel, so browser-extension compatibility must be demonstrated with executable Chromium evidence rather than inferred from architecture alone. The protected-main lane exercises a controlled unpacked Manifest V3 extension against one exact Chrome for Testing build and proves service-worker, content-script, storage, declarative-network-request, tabs, windows, scripting, commands, side-panel, bookmarks/history read compatibility, restart persistence, repeatability, and one real WebDriver click/post-condition. Active stacked compatibility work adds downloads, bounded bookmark/history mutation, profile isolation, explicit extension update/version-migration evidence, and an exact content-script isolated-world check. OriginWeave does **not claim 100% Chrome extension compatibility**.
 
 The checked-in fixture is intentionally local-only. Its host permission is limited to loopback HTTP used by the deterministic test server. It contains no remote code, user credential, model call, external content, native-messaging host, or production PII. Chrome permissions remain distinct from the explicit OriginWeave extension-to-Agent grant implemented in `originweave-core`. Compatibility mutation tests create only controlled synthetic state inside the ephemeral test profile and must clean it up; successful API compatibility never grants the OriginWeave Agent ambient bookmarks/history/downloads authority.
+
+The compatibility runner preserves Chromium's renderer sandbox and does not pass `--no-sandbox`. Because the Chrome for Testing archive does not carry setuid ownership through extraction, the workflow installs its pinned `chrome_sandbox` helper as root-owned mode `4755` and sets `CHROME_DEVEL_SANDBOX` to that exact helper before execution. A runner environment that cannot start the pinned browser with sandboxing enabled is an infrastructure failure to repair or report, not a reason to weaken the browser security boundary.
 
 ## Supported-capability evidence matrix
 
@@ -38,6 +40,24 @@ The release-quality capability matrix must remain coupled to executable evidence
 
 For history compatibility specifically, the current official Chrome Extensions API documents the `history` manifest permission and Promise-returning `chrome.history.addUrl`, `chrome.history.search`, and `chrome.history.deleteUrl` methods. This living vendor reference establishes API semantics only. OriginWeave release evidence continues to depend on the exact pinned Chromium fixture and exact-head CI result rather than inferring compatibility from documentation.
 
+## Downloads API primary evidence
+
+For downloads compatibility specifically, the current official Chrome Extensions API documents the `downloads` manifest permission and the `chrome.downloads` methods that initiate, monitor, search, and inspect downloads. This living vendor reference establishes API semantics only. Active PR #43 exercises one controlled loopback payload through pinned Chromium and retains only allow-listed stage diagnostics. That proof is not Agent filesystem authority, general download persistence, unsafe-filename handling, or a release claim that every `chrome.downloads` method works.
+
+## WebDriver transport-protocol diagnostic boundary
+
+RFC 9112 requires a well-formed HTTP/1.1 status-line and a message body that matches the announced framing. W3C WebDriver sends commands over that HTTP transport. When ChromeDriver returns a malformed status-line or an incomplete body, the compatibility runner raises only `WebDriver transport protocol failure`; when a WebDriver response supplies a recognized protocol error, it retains only an allow-listed error code. Raw status-line text, partial body bytes, paths, URLs, browser messages, or tokens must not enter exception text or trial evidence. This classification lets `main` record the failure in `trial_results` instead of aborting the compatibility run with an unclassified parser exception.
+
+## ChromeDriver startup-record robustness boundary
+
+ChromeDriver startup stdout is diagnostic input, not authority. The compatibility runner retains at most `MAX_CHROMEDRIVER_STARTUP_LINE_BYTES + 1` bytes from one record and drains the remainder through bounded reads. A prefixed record that is oversized, lacks the required terminal period, carries a non-decimal port, or names a port outside `1..65535` is treated as non-authoritative and ignored while the existing bounded startup wait continues. A later well-formed candidate can therefore recover from malformed-but-expected startup diagnostics without turning the malformed record into success.
+
+A syntactically valid reported port is still insufficient authority. Before a WebDriver session is created, the loopback `/status` endpoint must identify the exact pinned ChromeDriver build. If no valid candidate appears before EOF or the startup deadline, or if the status endpoint identifies a foreign build, startup still fails closed and the process is reaped through the reviewed bounded teardown path.
+
+## Click post-condition diagnostic boundary
+
+W3C WebDriver Get Element Text returns rendered element text. That value is page-controlled data. The compatibility runner compares the fixture output against the exact expected `clicked` token and, on mismatch, retains only the classified message `real click post-condition mismatch`. Raw element text must not enter exception text or trial evidence.
+
 ## Update-migration evidence boundary
 
 Restart persistence and extension update migration are separate compatibility claims. A successful restart proves only that state survives a new browser process. The active update-migration lane additionally uses a trial-local copy of the checked-in fixture, preserves the same extension path and ephemeral profile across passes, changes only the controlled manifest version from `1.0.0` to `1.0.1`, observes `chrome.runtime.getManifest().version`, and requires the fixture schema marker to migrate from version 1 to version 2. The checked-in fixture is not rewritten by the test. This establishes one deterministic unpacked-extension version transition; it does not establish Chrome Web Store update behavior, enterprise rollout semantics, downgrade behavior, or arbitrary third-party extension migration safety.
@@ -46,13 +66,11 @@ Restart persistence and extension update migration are separate compatibility cl
 
 Content-script injection and content-script JavaScript isolation are separate compatibility claims. Active PR #61 writes `window.originweaveWorldSentinel = "page"` in the fixture page's main world and repeatedly publishes that value through one controlled DOM attribute. The content script assigns the same global name to `"extension"` in its own execution world, waits a bounded interval, and only reports the existing compatibility surface ready when it simultaneously observes the page's published `page` value and its own `extension` value. If both scripts share one JavaScript global namespace, the page publisher changes to `extension` and real-browser compatibility fails. DOM sharing here is deliberate test evidence, not permission for arbitrary page content to become trusted instruction or Agent authority.
 
-## WebDriver diagnostic trust boundary
-
-The compatibility runner treats remote-end WebDriver diagnostics and returned capability values as untrusted evidence input. The W3C WebDriver 2 July 2026 Working Draft defines remote errors with a standardized error code plus implementation-defined human-readable `message` and `stacktrace` fields and optional implementation-defined `data`; the specification's user-prompt example demonstrates that page-originated prompt text can appear in error data. OriginWeave therefore retains only bounded locally owned classifications needed to diagnose the harness. HTTP failures retain only the numeric status; protocol failures use a fixed category; startup retry exceptions are not interpolated into the terminal timeout; and a browser-version mismatch records only the expected pinned version rather than the WebDriver-reported value. DOM fixture mismatches retain only fixed surface names, and click post-condition failures retain no returned page text. Raw remote response bodies, messages, stack traces, data, capability values, DOM values, and other browser-derived exception text do not enter CI/audit exceptions. This is an evidence-provenance and diagnostic-redaction boundary, not browser policy authority and not a claim that WebDriver errors or capabilities authenticate the browser or page.
-
 ## Supply-chain and repeatability evidence
 
 The CI lane downloads the exact Chrome/ChromeDriver version from the official Chrome for Testing public bucket, records SHA-256 receipts for the downloaded archives, verifies the runtime-reported browser version, and emits bounded JSON compatibility evidence. A future release-quality matrix should additionally pin published artifact digests or equivalent immutable supply-chain identity when the upstream distribution exposes that identity in an authoritative machine-readable form.
+
+A bounded process-teardown timeout is recorded as one failed trial and does not suppress the remaining trial records or the aggregate evidence line. The repeatability gate still fails unless all required trials pass; cleanup failure is not converted into browser success.
 
 ## Primary references — APA 7th
 
@@ -64,6 +82,8 @@ Chrome for Developers. (2023, May 2). *The extension service worker lifecycle*. 
 
 Chrome for Developers. (n.d.). *chrome.declarativeNetRequest*. Google. Retrieved August 9, 2026, from https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequest
 
+Chrome for Developers. (n.d.). *chrome.downloads*. Google. Retrieved August 16, 2026, from https://developer.chrome.com/docs/extensions/reference/api/downloads
+
 Chrome for Developers. (n.d.). *chrome.history*. Google. Retrieved August 11, 2026, from https://developer.chrome.com/docs/extensions/reference/api/history
 
 Chrome for Developers. (n.d.). *Manifest file format*. Google. Retrieved August 9, 2026, from https://developer.chrome.com/docs/extensions/reference/manifest
@@ -72,4 +92,6 @@ Bynens, M. (2023, June 12). *Chrome for Testing*. Chrome for Developers. https:/
 
 Google Chrome Labs. (2026, July 21). *Chrome for Testing availability*. https://googlechromelabs.github.io/chrome-for-testing/
 
-World Wide Web Consortium. (2026, July 2). *WebDriver* (Working Draft). https://www.w3.org/TR/2026/WD-webdriver2-20260702/
+Fielding, R., Nottingham, M., & Reschke, J. (Eds.). (2022). *HTTP/1.1* (RFC 9112). Internet Engineering Task Force. https://doi.org/10.17487/RFC9112
+
+World Wide Web Consortium. (2018, June 5). *WebDriver* (W3C Recommendation). https://www.w3.org/TR/2018/REC-webdriver1-20180605/

@@ -48,6 +48,18 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Kept the real MV3 compatibility lane sandboxed by installing the pinned Chrome for Testing archive's root-owned `chrome_sandbox` helper instead of passing `--no-sandbox`.
+- Pointed the pinned Chrome for Testing process at its installed `CHROME_DEVEL_SANDBOX` helper so the raw archive uses the configured setuid sandbox.
+- Recorded bounded ChromeDriver teardown timeouts as failed MV3 trials so cleanup faults preserve repeatability evidence instead of aborting the evidence line.
+- Retained only an allow-listed WebDriver protocol error code in bounded MV3 trial evidence, keeping browser-controlled error messages and transport text out of diagnostics.
+- Discarded raw HTTP parser exception context when classifying recoverable WebDriver transport-protocol failures, so malformed status-line or incomplete-body data cannot survive on the sanitized `RuntimeError` object through Python exception chaining.
+- Preserved Chromium's renderer sandbox in the real Manifest V3 compatibility runner by removing the `--no-sandbox` launch override; environments that cannot run the pinned browser with sandboxing enabled must fail the compatibility lane rather than weaken the security boundary.
+- Made malformed or oversized ChromeDriver startup-port candidate records non-authoritative within the existing bounded startup wait, so later valid startup output may recover while exact pinned-build `/status` identity remains mandatory before session creation.
+- Treated a failed graceful ChromeDriver termination as recoverable when the bounded hard-kill fallback successfully reaps the process, while preserving unrecovered fallback failures as teardown errors.
+- Classified a mismatched Chrome `browserVersion` capability as an expected-only diagnostic so browser-reported capability text cannot enter Manifest V3 runner exception output.
+- Classified Manifest V3 WebDriver HTTP/1.1 parser failures as a fixed transport-protocol token so a malformed status-line or incomplete message body cannot enter runner exception text.
+- Classified Manifest V3 real-click post-condition failures as a fixed mismatch token so page-controlled WebDriver text cannot enter runner exception text.
+- Recorded the current Chrome Extensions `chrome.downloads` primary reference in APA 7th form and stated that the active downloads lane proves one controlled loopback payload in pinned Chromium, not Agent filesystem authority.
 - Aligned the hourly product-development branch-coverage toolchain and its one-shot materializer with the reviewed `nightly-2026-08-18` pin, and corrected the official Dependabot Rust-toolchain reference.
 - Separated logical origin authority from resolved network destination authority; an origin grant no longer implies permission to connect to every resolver result.
 - Separated resolved-address authorization from direct transport evidence; an approved IP now becomes a usable stream only after the operating system reports the exact requested IP and port.
@@ -70,7 +82,6 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Security
 
-- Redacted raw WebDriver HTTP response bodies and protocol diagnostics from the pinned-Chromium MV3 evidence runner while retaining bounded HTTP-status and fixed protocol-error classification, preventing browser-controlled diagnostic text from entering CI/audit exceptions.
 - Explicit proxy server identifiers require ASCII decimal port tokens before numeric range parsing, preventing Rust-specific leading-plus spellings from widening proxy authority.
 - Raw page content cannot become a trusted instruction.
 - Raw secrets are rejected and secret-capable actions require an opaque broker handle.
