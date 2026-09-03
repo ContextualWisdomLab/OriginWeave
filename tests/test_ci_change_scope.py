@@ -10,6 +10,7 @@ import unittest
 from scripts.ci.classify_ci_change_scope import (
     classify_paths,
     is_documentation_path,
+    parse_nul_name_status,
     parse_nul_paths,
     render_outputs,
 )
@@ -86,6 +87,42 @@ class CiChangeScopeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "parent traversal"):
             parse_nul_paths(b"docs/../Cargo.toml\0")
 
+    def test_name_status_parser_preserves_docs_only_changes(self) -> None:
+        """Status framing must not force Rust when every affected path is prose-only."""
+
+        data = b"M\0docs/PRD.md\0A\0README.md\0D\0docs/old.md\0"
+        paths = parse_nul_name_status(data)
+        self.assertEqual(paths, ("docs/PRD.md", "README.md", "docs/old.md"))
+        self.assertEqual(classify_paths(paths), (True, False))
+
+    def test_code_to_docs_rename_requires_rust(self) -> None:
+        """A post-image docs path must not hide a code-bearing rename preimage."""
+
+        data = b"R100\0crates/demo/src/lib.rs\0docs/lib.md\0"
+        paths = parse_nul_name_status(data)
+        self.assertEqual(paths, ("crates/demo/src/lib.rs", "docs/lib.md"))
+        self.assertEqual(classify_paths(paths), (False, True))
+
+    def test_docs_to_docs_rename_remains_lightweight(self) -> None:
+        """A rename whose preimage and postimage are both docs stays in the lightweight lane."""
+
+        data = b"R095\0docs/old.md\0docs/new.md\0"
+        paths = parse_nul_name_status(data)
+        self.assertEqual(paths, ("docs/old.md", "docs/new.md"))
+        self.assertEqual(classify_paths(paths), (True, False))
+
+    def test_name_status_parser_rejects_truncated_rename(self) -> None:
+        """Rename/copy records must include both source and destination paths."""
+
+        with self.assertRaisesRegex(ValueError, "rename/copy"):
+            parse_nul_name_status(b"R100\0docs/old.md\0")
+
+    def test_name_status_parser_rejects_unknown_status(self) -> None:
+        """Unknown Git status records fail closed instead of guessing path cardinality."""
+
+        with self.assertRaisesRegex(ValueError, "status"):
+            parse_nul_name_status(b"Q\0docs/PRD.md\0")
+
     def test_outputs_are_exact_booleans(self) -> None:
         """Workflow outputs stay deterministic for job-level conditions."""
 
@@ -98,12 +135,12 @@ class CiChangeScopeTests(unittest.TestCase):
             "documentation_only=false\nrust_required=true\n",
         )
 
-    def test_cli_emits_lightweight_scope_for_nul_delimited_docs(self) -> None:
-        """The executable boundary must preserve Git's NUL-framed documentation input."""
+    def test_cli_emits_lightweight_scope_for_nul_delimited_docs_status(self) -> None:
+        """The executable boundary must preserve Git's status-aware NUL framing."""
 
         completed = subprocess.run(
             [sys.executable, str(CLASSIFIER)],
-            input="docs/PRD.md\0README.md\0".encode(),
+            input=b"M\0docs/PRD.md\0A\0README.md\0",
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             check=False,
@@ -115,12 +152,29 @@ class CiChangeScopeTests(unittest.TestCase):
         )
         self.assertEqual(completed.stderr, b"")
 
+    def test_cli_requires_rust_for_code_to_docs_rename(self) -> None:
+        """The executable boundary must classify both sides of a rename."""
+
+        completed = subprocess.run(
+            [sys.executable, str(CLASSIFIER)],
+            input=b"R100\0crates/demo/src/lib.rs\0docs/lib.md\0",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr.decode())
+        self.assertEqual(
+            completed.stdout.decode(),
+            "documentation_only=false\nrust_required=true\n",
+        )
+        self.assertEqual(completed.stderr, b"")
+
     def test_cli_fails_closed_on_invalid_path_bytes(self) -> None:
         """Malformed Git path evidence must return non-zero without emitting scope outputs."""
 
         completed = subprocess.run(
             [sys.executable, str(CLASSIFIER)],
-            input=b"docs/PRD.md\0\xff\0",
+            input=b"M\0docs/PRD.md\0M\0\xff\0",
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             check=False,
@@ -141,7 +195,7 @@ class CiChangeScopeTests(unittest.TestCase):
             workflow.count("needs.scope.outputs.rust_required == 'true'"),
             2,
         )
-        self.assertIn("git diff --name-only -z", workflow)
+        self.assertIn("git diff --name-status -z", workflow)
         self.assertIn("classify_ci_change_scope.py", workflow)
 
 
