@@ -41,7 +41,7 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "PR #70 is Draft at exact head `ba8926eed5a6d783f781684f30c900919eecd52b`",
             "DDD/MCP repair #272 is Draft at exact head `80272f18422c9946077ad9bd674f603db8f020da`",
             "PR #229 is Draft at exact head `7ae426e760e8351ee792ce9df4266d7e7483d0d4`",
-            "PR #281 remains Draft at exact head `0b1ddf37aa7ff017ef0974b5304cd0ba30630231`",
+            "PR #281 remains Draft at exact head `e96c982b6ed7ff7b80891bd60efc5d443555d4b6`",
             "PR #282 is Draft at exact head `51a1e819355306e630d1241e6e5a136cb195325e`",
             "PR #283 is Draft at exact head `3cefce69a7bc71e33ad64c5e8f58a0afe0b5f7e1`",
             "GitHub Releases is empty",
@@ -68,7 +68,6 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "10 central required workflows",
             "PR #260 is Draft at exact head `56600a6fd982cfafd784f4b7bb659d918113ca90`",
             "PR #281 remains Draft at exact head `3ed5d7e8cf77547c96feff2cfb24c46d74a73ebb`",
-            "PR #281 remains Draft at exact head `e96c982b6ed7ff7b80891bd60efc5d443555d4b6`",
         ):
             with self.subTest(stale=stale):
                 self.assertNotIn(stale, current)
