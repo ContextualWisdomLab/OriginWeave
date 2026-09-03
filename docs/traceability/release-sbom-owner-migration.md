@@ -9,11 +9,12 @@ This record is migration evidence for active pre-GA work. Active PR metadata is 
 
 ## Problem
 
-PR #221 currently carries release-specific SBOM identity and completeness semantics in `originweave-core` and implements release-facing digest, hostile JSON-LD envelope, and local file admission canonically in `scripts/release/validate_spdx_jsonld.py`. Three independently valid constraints now make that placement provisional:
+PR #221 currently carries release-specific SBOM identity and completeness semantics in `originweave-core` and implements release-facing digest, hostile JSON-LD envelope, and local file admission canonically in `scripts/release/validate_spdx_jsonld.py`. Four independently valid constraints now make that placement provisional:
 
 1. OriginWeave's first-party security/runtime boundary is Rust-first. Digest correspondence, bounded hostile JSON parsing, and descriptor-relative/no-follow file admission have practical Rust implementations, so Python cannot remain the canonical security boundary without an explicit no-practical-Rust rationale and removal condition.
 2. Active PR #240 establishes `originweave-release` as the dedicated Release bounded context and moves release policy/evidence ownership out of `originweave-core`. Shipping #221 unchanged would therefore create competing canonical ownership.
 3. The current Python secure-open path deliberately fails closed when POSIX-style `O_NOFOLLOW` plus descriptor-relative `os.open(..., dir_fd=...)` are unavailable. That is safe for the provisional verifier, but #201 is a cross-platform distribution/release track. The final Rust owner must preserve the same anti-symlink/reparse and identity-stability guarantees on each supported release platform instead of making a Unix-only primitive the commercial release contract.
+4. A 16 MiB input-byte ceiling and 65,536 top-level `@graph` objects did not bound parser heap amplification. A roughly 1.5 MiB valid JSON document with one top-level `SpdxDocument` and more than 524,288 nested empty arrays was accepted by the preceding verifier and forced the standard JSON parser to materialize every nested container before any graph-cardinality check. The provisional boundary now performs a string-aware lexical container-count preflight before `json.loads`; the Rust migration must preserve an equivalent pre-materialization resource invariant rather than deserialize hostile input into an unbounded generic tree first.
 
 ## Target ownership
 
@@ -37,6 +38,7 @@ There is **no compatibility shim** that makes core depend on Release, and there 
 The Rust-owned replacement must preserve or strengthen the currently reviewed fail-closed behavior:
 
 - maximum 16 MiB candidate input before unbounded parsing/allocation;
+- a pre-materialization JSON-container budget equivalent to or stricter than the provisional 524,288-container ceiling, with container-shaped text inside strings excluded from the structural count;
 - strict UTF-8 and JSON admission;
 - duplicate object-key and non-finite numeric rejection;
 - exact SPDX 3.0.1 global context identity for this preliminary gate;
@@ -55,8 +57,8 @@ Digest/envelope success remains correspondence evidence only. It is not full SPD
 
 1. Preserve #221's validated manifest-join, digest, envelope, hostile-input, file-admission tests and exact historical evidence as reconstruction input. Do not close the PR or discard its unique delta.
 2. Resolve the dedicated Release owner lineage through #240 without treating its active branch as protected-main truth. Read intervening changes and reconstruct non-destructively rather than force-rebasing or copying the whole branch.
-3. On the resulting `originweave-release` lineage, add the smallest realistic failing Rust test for each migrated canonical invariant and observe the failure before production implementation. Include Linux/macOS symlink-swap and parent-replacement cases plus Windows reparse-point/junction and handle-identity cases for every platform claimed by #201.
-4. Implement the smallest Rust-owned admission boundary that depends inward on the core `ReleaseManifest` identity contract. Keep platform-specific secure-open mechanics behind Release-owned adapters; do not introduce a core-to-release dependency, source copy, cross-context SQL, generic JSON authority, path-only portability fallback, or permissive fallback.
+3. On the resulting `originweave-release` lineage, add the smallest realistic failing Rust test for each migrated canonical invariant and observe the failure before production implementation. Include a compact JSON container-amplification case that remains well below the byte ceiling but exceeds the admitted container budget, Linux/macOS symlink-swap and parent-replacement cases, plus Windows reparse-point/junction and handle-identity cases for every platform claimed by #201.
+4. Implement the smallest Rust-owned admission boundary that depends inward on the core `ReleaseManifest` identity contract. Parse hostile JSON through a bounded or streaming path that enforces byte, container, graph, numeric, and diagnostic limits before an unbounded generic tree can be materialized. Keep platform-specific secure-open mechanics behind Release-owned adapters; do not introduce a core-to-release dependency, source copy, cross-context SQL, generic JSON authority, path-only portability fallback, or permissive fallback.
 5. Reduce `scripts/release/validate_spdx_jsonld.py` to a thin conformance/fixture harness only after Rust owns the release decision boundary and parity regressions prove the behavior.
 6. Update ADR 0018, `ARCHITECTURE.md`, `CHANGELOG.md`, doctoring/TRACEABILITY, and the product/technical gap baseline to name the final owner and distinguish protected-main truth from active-PR evidence.
 7. Require unchanged exact-head Rust 1.97.1 formatting/check/tests/strict Clippy/rustdoc, 100% owned-production function/line/region/branch coverage, applicable security/review gates, current live-base verification, and supported-platform parity before any readiness transition.
@@ -65,9 +67,13 @@ Digest/envelope success remains correspondence evidence only. It is not full SPD
 
 The migration contract was introduced test-first on #221 after reviews `5095297316` (Rust-first boundary) and `5095598850` (DDD owner conflict). The predecessor #221 head was `f341ab946beb509f53a9cc8cc52fc20d650faa87`; the test-only owner-migration contract is commit `f3a519e986dc6bda46fb03ac3768ea2bef7a131d`. Review `5096271206` adds the cross-platform secure-open finding after confirming that the provisional Python implementation explicitly rejects platforms without POSIX-style no-follow and descriptor-relative open support. Active #240 was last independently read at `47ab81b721aca246948607754be1807b9d4c8dda` and was not exact-head GREEN.
 
-This document is the causal documentation fix for the missing durable owner-migration and portability contract. It does not claim that the Rust migration itself has occurred, that Windows/macOS parity has been implemented, that #240 has shipped, or that #221 is exact-head GREEN.
+The parser-amplification repair was also performed test-first on #221. Test-only commit `e9c43d9940c03df4ead17f1e2b0b80efa5fcfd0f` adds a roughly 1.5 MiB payload containing more than 524,288 nested empty arrays under one `SpdxDocument`; the preceding verifier accepted the same shape in the focused reproduction instead of failing closed. Production commit `3e2b4a39b0bb22309f70cf88aaa88a536ec25d1d` adds a string-aware lexical preflight that returns `too_many_json_containers` before `json.loads` materialization, and `0317263f6e412c2040b4bdfe578781c6fa24a11c` adds escaped-string coverage so `[` and `{` inside JSON string values do not consume the structural budget. This is provisional Python hardening while the Rust owner migration remains blocked on dependency order; it is not evidence that the canonical Rust release boundary exists.
+
+This document is the causal documentation fix for the missing durable owner-migration, parser-resource, and portability contracts. It does not claim that the Rust migration itself has occurred, that Windows/macOS parity has been implemented, that #240 has shipped, or that #221 is exact-head GREEN.
 
 ## Standards traceability
+
+Bray, T. (2017). *The JavaScript Object Notation (JSON) Data Interchange Format* (RFC 8259; STD 90). Internet Engineering Task Force. https://www.rfc-editor.org/rfc/rfc8259
 
 SPDX Workgroup. (2026). *SPDX specification 3.0.1*. The Linux Foundation. https://spdx.github.io/spdx-spec/v3.0.1/
 
