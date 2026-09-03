@@ -1,7 +1,7 @@
 # Manifest V3 compatibility evidence baseline
 
 - **Status:** Active implementation evidence for issue #27
-- **Reviewed:** 2026-08-21
+- **Reviewed:** 2026-09-04
 - **Pinned browser:** Chrome for Testing `150.0.7871.129`, Chromium revision `r1639810`
 
 OriginWeave uses Chromium as its compatibility kernel, so browser-extension compatibility must be demonstrated with executable Chromium evidence rather than inferred from architecture alone. The protected-main lane exercises a controlled unpacked Manifest V3 extension against one exact Chrome for Testing build and proves service-worker, content-script, storage, declarative-network-request, tabs, windows, scripting, commands, side-panel, bookmarks/history read compatibility, restart persistence, repeatability, and one real WebDriver click/post-condition. Active stacked compatibility work adds downloads, bounded bookmark/history mutation, profile isolation, explicit extension update/version-migration evidence, and an exact content-script isolated-world check. OriginWeave does **not claim 100% Chrome extension compatibility**.
@@ -47,6 +47,8 @@ For downloads compatibility specifically, the current official Chrome Extensions
 ## WebDriver transport-protocol diagnostic boundary
 
 RFC 9112 requires a well-formed HTTP/1.1 status-line and a message body that matches the announced framing. W3C WebDriver sends commands over that HTTP transport. When ChromeDriver returns a malformed status-line or an incomplete body, the compatibility runner raises only `WebDriver transport protocol failure`; when a WebDriver response supplies a recognized protocol error, it retains only an allow-listed error code. Raw status-line text, partial body bytes, paths, URLs, browser messages, or tokens must not enter exception text or trial evidence. This classification lets `main` record the failure in `trial_results` instead of aborting the compatibility run with an unclassified parser exception.
+
+The 2 July 2026 WebDriver Working Draft defines remote error responses with a standardized error code plus implementation-defined `message` and `stacktrace` strings and optional `data`; its user-prompt example shows page-originated prompt text in `data.text`. OriginWeave therefore treats remote-end diagnostic text and returned capability values as untrusted evidence input. The compatibility runner retains only locally owned or explicit allow-list classifications: HTTP status, a reviewed WebDriver error code, `failure_kind`, sanitized fixture-surface tokens, and the expected pinned browser version. Raw response bodies, `message`, `stacktrace`, `data`, capability values, startup exception text, DOM values, and returned page text are not copied into CI/audit exceptions. This is an evidence-provenance boundary, not browser-policy authority and not an authentication claim about WebDriver, Chromium, or page content.
 
 ## ChromeDriver startup-record robustness boundary
 
@@ -95,3 +97,5 @@ Google Chrome Labs. (2026, July 21). *Chrome for Testing availability*. https://
 Fielding, R., Nottingham, M., & Reschke, J. (Eds.). (2022). *HTTP/1.1* (RFC 9112). Internet Engineering Task Force. https://doi.org/10.17487/RFC9112
 
 World Wide Web Consortium. (2018, June 5). *WebDriver* (W3C Recommendation). https://www.w3.org/TR/2018/REC-webdriver1-20180605/
+
+World Wide Web Consortium. (2026, July 2). *WebDriver* (Working Draft). https://www.w3.org/TR/2026/WD-webdriver2-20260702/
