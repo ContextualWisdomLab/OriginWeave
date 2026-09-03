@@ -73,6 +73,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Security
 
+- The provisional SPDX 3.0.1 release-envelope parser now rejects more than 524,288 JSON containers in a string-aware lexical preflight before `json.loads`, preventing a compact nested-container payload from amplifying into an unbounded in-memory object graph while preserving `[` and `{` that occur inside JSON string values. The eventual Rust-owned Release boundary must retain an equivalent pre-materialization resource invariant.
 - The SPDX 3.0.1 release-envelope gate now requires exactly one top-level `SpdxDocument` under `@graph` and rejects both a nested-only document and any additional nested `SpdxDocument`, preventing recursive string/type discovery from substituting for the required serialization placement.
 - The SPDX 3.0.1 release-envelope gate requires the exact versioned global-context string and rejects context arrays, `@import`, `@base`, `@vocab`, and alias/term-rebinding attempts until reviewed schema-aware validation can prove extension semantics without ambient or reinterpretation authority.
 - SPDX JSON-LD release-file admission now requires a direct regular-file leaf reached through a no-follow descriptor-relative path walk and revalidates the final leaf's device/inode identity after the bounded read, so symlinks, FIFOs, swapped ancestors, and post-open pathname replacement fail closed instead of silently changing the artifact path identity.
@@ -87,7 +88,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Shortened, integer, hexadecimal, and legacy octal-looking IPv4 host spellings are rejected so the policy origin cannot diverge from Chromium host interpretation.
 - IPv4-mapped IPv6 is canonicalized before destination classification and pin comparison so mapped private or loopback addresses cannot bypass IPv4 policy.
 - The default destination policy permits only public addresses and denies unspecified, loopback, private, shared, link-local, metadata, documentation, benchmarking, multicast, broadcast, transition, unallocated, and protocol-reserved destinations.
-- Azure platform IP `168.63.129.16` and Amazon EKS Pod Identity endpoints `169.254.170.23` and `fd00:ec2::23` are classified as metadata or platform services before broader public, link-local, or unique-local rules.
+- Azure platform IP `168.63.129.16` and Amazon EKS Pod Identity endpoints `169.254.170.23` and `fd00:ec2::23` are classified as metadata or platform services before broader address-range rules.
 - Resolver answers are rejected when empty or larger than 256 addresses, preventing an unbounded resolver response from entering policy state.
 - `localhost` may approve only loopback addresses, while literal IPv4 and IPv6 origins may approve only the exact canonical address encoded in the origin.
 - Resolver answers must remain a non-empty subset of the origin-bound approved address set; any newly introduced address fails closed as a possible DNS-rebinding event.
