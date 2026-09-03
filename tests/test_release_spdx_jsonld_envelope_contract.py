@@ -261,7 +261,7 @@ class ReleaseSpdxJsonLdEnvelopeContractTests(unittest.TestCase):
             + "}]}"
         ).encode("utf-8")
 
-        error = self._assert_error_code(payload, "invalid_json")
+        error = self._assert_error_code(payload, "too_deep_json_structure")
         self.assertNotIn(marker, str(error))
 
     def test_empty_and_oversized_payloads_fail_before_semantic_use(self) -> None:

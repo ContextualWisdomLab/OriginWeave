@@ -32,6 +32,7 @@ MAX_SPDX_JSONLD_BYTES = 16 * 1024 * 1024
 MAX_SPDX_GRAPH_OBJECTS = 65_536
 MAX_SPDX_JSON_CONTAINERS = 524_288
 MAX_SPDX_JSON_STRUCTURE_TOKENS = 1_048_576
+MAX_SPDX_JSON_NESTING_DEPTH = 256
 MAX_SPDX_JSON_NUMBER_TOKEN_BYTES = 4096
 _EXPECTED_PARENT_IDENTITIES: contextvars.ContextVar[tuple[tuple[int, int], ...]] = (
     contextvars.ContextVar("spdx_expected_parent_identities", default=())
@@ -83,17 +84,20 @@ def _finite_json_float(value: str) -> float:
 
 
 def _reject_excessive_json_structure(text: str) -> None:
-    """Reject hostile JSON fan-out before the standard parser materializes the tree.
+    """Reject hostile JSON fan-out and depth before the standard parser materializes the tree.
 
     The byte-size limit alone does not bound heap amplification: a compact JSON string can
-    encode hundreds of thousands of containers or more than a million scalar/object members.
+    encode hundreds of thousands of containers, more than a million scalar/object members, or
+    enough nested containers to make interpreter recursion the effective resource boundary.
     This lexical preflight counts structure only outside JSON strings. Opening containers have
-    a tighter dedicated budget, while all brackets, braces, commas, and colons share a broader
-    structure-token budget that also constrains scalar fan-out. Grammar validation still
-    belongs to ``json.loads`` immediately after this resource check.
+    a tighter dedicated aggregate budget, current nesting has an independent depth budget, and
+    all brackets, braces, commas, and colons share a broader structure-token budget that also
+    constrains scalar fan-out. Grammar validation still belongs to ``json.loads`` immediately
+    after this resource check.
     """
 
     container_count = 0
+    current_depth = 0
     structure_token_count = 0
     in_string = False
     escaped = False
@@ -112,8 +116,13 @@ def _reject_excessive_json_structure(text: str) -> None:
             continue
         if character in "[{":
             container_count += 1
+            current_depth += 1
+            if current_depth > MAX_SPDX_JSON_NESTING_DEPTH:
+                raise SpdxJsonLdEnvelopeError("too_deep_json_structure")
             if container_count > MAX_SPDX_JSON_CONTAINERS:
                 raise SpdxJsonLdEnvelopeError("too_many_json_containers")
+        elif character in "]}":
+            current_depth -= 1
         if character in "[]{}:,":
             structure_token_count += 1
             if structure_token_count > MAX_SPDX_JSON_STRUCTURE_TOKENS:
@@ -163,8 +172,8 @@ def validate_spdx_3_0_1_jsonld_bytes(payload: bytes) -> dict[str, int | str]:
     External document bytes are never included in raised errors or retained by their
     exception chain. Successful validation proves only the narrow envelope contract
     documented by this module; callers must still perform the official SPDX JSON Schema and
-    OWL/SHACL validation before claiming SPDX conformance. Excessive JSON nesting is treated
-    as invalid external input instead of escaping the typed, value-redacted validation
+    OWL/SHACL validation before claiming SPDX conformance. Excessive JSON nesting is rejected
+    by the product-owned lexical preflight before the generic parser becomes the resource
     boundary.
     """
 
