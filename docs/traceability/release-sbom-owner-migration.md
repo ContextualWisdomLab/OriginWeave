@@ -46,7 +46,7 @@ The Rust-owned replacement must preserve or strengthen the currently reviewed fa
 - value-redacted diagnostics that do not echo hostile document bytes, expected digest values, or candidate paths;
 - regular-file admission through an already-opened, identity-stable handle rather than path-only trust;
 - on POSIX-capable targets, descriptor-relative `openat`-class traversal with no-follow semantics and identity revalidation before/during/after the bounded read;
-- on Windows targets, reviewed handle-based no-reparse traversal/admission semantics that prevent ordinary reparse-point following and revalidate file/directory identity around the bounded read; and
+- on Windows targets, use reviewed handle-based traversal/admission that prevents ordinary reparse-point following. The concrete leaf/reparse admission primitive must include `CreateFileW` with `FILE_FLAG_OPEN_REPARSE_POINT`; identity checks must use `GetFileInformationByHandleEx(FileIdInfo)` / `FILE_ID_INFO`, comparing the `VolumeSerialNumber` plus `FileId` for the opened handle before and after the bounded read. `CreateFileW` alone is not treated as proof that parent-directory swaps are impossible; the final implementation must use an equivalent handle-relative parent traversal or another reviewed mechanism and prove it with junction/reparse and parent-swap regressions; and
 - fail-closed behavior on a platform where equivalent anti-redirection and identity-stability guarantees cannot be established. Portability must not silently degrade to lexical/path-only checks.
 
 Digest/envelope success remains correspondence evidence only. It is not full SPDX JSON Schema/OWL/SHACL conformance, SLSA provenance, reproducibility, signature verification, or release approval.
@@ -78,3 +78,7 @@ SPDX Workgroup. (2026). *SpdxDocument*. The Linux Foundation. https://spdx.githu
 The Open Group. (2024). *open, openat — open file* (POSIX.1-2024). https://pubs.opengroup.org/onlinepubs/9799919799/functions/open.html
 
 Microsoft. (n.d.). *CreateFileW function (fileapi.h)*. Microsoft Learn. Retrieved September 3, 2026, from https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew
+
+Microsoft. (2024). *GetFileInformationByHandleEx function (winbase.h)*. Microsoft Learn. https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-getfileinformationbyhandleex
+
+Microsoft. (2024). *FILE_ID_INFO structure (winbase.h)*. Microsoft Learn. https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-file_id_info
