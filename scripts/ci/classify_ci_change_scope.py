@@ -1,10 +1,27 @@
-"""Classify exact-head pull-request paths for lightweight versus Rust-heavy CI."""
+"""Classify exact-head pull-request changes for lightweight versus Rust-heavy CI."""
 
 from __future__ import annotations
 
 import sys
 from pathlib import PurePosixPath
 from typing import Iterable
+
+
+def _decode_repository_path(raw_path: bytes) -> str:
+    """Decode one Git pathname and enforce the repository-relative path boundary."""
+
+    try:
+        path = raw_path.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise ValueError("changed path is not valid UTF-8") from error
+
+    if not path or path.startswith("/"):
+        raise ValueError("changed path must be a non-empty repository-relative path")
+
+    parts = PurePosixPath(path).parts
+    if ".." in parts:
+        raise ValueError("changed path must not contain parent traversal")
+    return path
 
 
 def parse_nul_paths(data: bytes) -> tuple[str, ...]:
@@ -17,20 +34,58 @@ def parse_nul_paths(data: bytes) -> tuple[str, ...]:
     if raw_paths[-1] == b"":
         raw_paths.pop()
 
+    return tuple(_decode_repository_path(raw_path) for raw_path in raw_paths)
+
+
+def _similarity_status_is_valid(status: str, kind: str) -> bool:
+    """Return whether a scored Git status has a canonical 0..100 similarity value."""
+
+    if not status.startswith(kind) or len(status) == 1:
+        return False
+    score = status[1:]
+    return score.isascii() and score.isdigit() and 0 <= int(score) <= 100
+
+
+def parse_nul_name_status(data: bytes) -> tuple[str, ...]:
+    """Decode ``git diff --name-status -z`` while preserving rename/copy preimages."""
+
+    if not data:
+        return ()
+
+    fields = data.split(b"\0")
+    if fields[-1] == b"":
+        fields.pop()
+
     paths: list[str] = []
-    for raw_path in raw_paths:
+    index = 0
+    while index < len(fields):
+        raw_status = fields[index]
+        index += 1
         try:
-            path = raw_path.decode("utf-8")
+            status = raw_status.decode("ascii")
         except UnicodeDecodeError as error:
-            raise ValueError("changed path is not valid UTF-8") from error
+            raise ValueError("changed record has an invalid Git status") from error
 
-        if not path or path.startswith("/"):
-            raise ValueError("changed path must be a non-empty repository-relative path")
+        if status in {"A", "D", "M", "T", "U"} or _similarity_status_is_valid(
+            status, "M"
+        ):
+            if index >= len(fields):
+                raise ValueError("changed status record is missing its path")
+            paths.append(_decode_repository_path(fields[index]))
+            index += 1
+            continue
 
-        parts = PurePosixPath(path).parts
-        if ".." in parts:
-            raise ValueError("changed path must not contain parent traversal")
-        paths.append(path)
+        if _similarity_status_is_valid(status, "R") or _similarity_status_is_valid(
+            status, "C"
+        ):
+            if index + 1 >= len(fields):
+                raise ValueError("rename/copy status record must include both paths")
+            paths.append(_decode_repository_path(fields[index]))
+            paths.append(_decode_repository_path(fields[index + 1]))
+            index += 2
+            continue
+
+        raise ValueError(f"changed record has unsupported Git status {status!r}")
 
     return tuple(paths)
 
@@ -62,10 +117,10 @@ def render_outputs(documentation_only: bool, rust_required: bool) -> str:
 
 
 def main() -> int:
-    """Read NUL-delimited paths from stdin and emit fail-closed CI scope outputs."""
+    """Read status-aware NUL-delimited changes and emit fail-closed CI scope outputs."""
 
     try:
-        paths = parse_nul_paths(sys.stdin.buffer.read())
+        paths = parse_nul_name_status(sys.stdin.buffer.read())
     except ValueError as error:
         print(f"CI scope classification failed: {error}", file=sys.stderr)
         return 2
