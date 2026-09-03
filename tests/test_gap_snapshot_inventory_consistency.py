@@ -26,29 +26,23 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "## Observed snapshot: 2026-08-29", 1
         )[0]
         for marker in (
-            "142 open pull requests",
-            "26 Ready/non-draft",
-            "116 Draft",
-            "12 open non-PR issues",
-            "542ca1e9c0a863595b8b6697790005d2471f5413",
+            "143 open pull requests",
+            "5 Ready/non-draft",
+            "138 Draft",
+            "13 open non-PR issues",
+            "c789b802fc98a8d7fd8c09d9327f36828054d2a1",
             "18156473",
-            "10 central required workflows",
-            "legacy branch payload's embedded protection state is not treated as the ruleset authority",
+            "9 central required workflows",
             "Live GitHub PR/base/head/check APIs are authoritative over PR bodies",
-            "Issue #28 remains the P0 buyer-visible integration target",
-            "PR #261 is Draft at exact head `127e02503e48938e29a9a07410574c7e72fc661a`",
-            "current exact-head CI run `33659163892` is queued/non-passing",
-            "#277 remains Draft at exact head `74fdedb6ee441a4055ee335bc5a5b96dee852661`",
-            "Ready root #82 remains at exact head",
-            "Production coverage job `99821662660`, Rust contracts job `99821662242`, and coverage-evidence job `100098698802` are terminal success",
-            "Strix job `100091557792` is terminal failure",
-            "Ready root #37 remains at exact head",
-            "opencode-review job `100098530585` is terminal cancelled",
-            "DDD ownership correction #272 is Draft at exact head `bbe6b219a33f78e3b8b1c0166a00e5c34a2ede22`",
-            "#273 is its stale-parent Draft context-map/ubiquitous-language child at exact head `f34212f9dff07deb70dd5265ecbb00f36b0f69b0`",
-            "Issue #276",
-            "contextual-orchestrator#1016",
-            "active-PR evidence only",
+            "Issue #279",
+            "Issue #28 remains the P0 governed-browser integration target",
+            "PR #260 is Draft at exact head `a3741389fdc491c7ecccc20f77609c55bc56d20f`",
+            "PR #261 remains stale-parent Draft at exact head `127e02503e48938e29a9a07410574c7e72fc661a`",
+            "PR #70 is Draft at exact head `ba8926eed5a6d783f781684f30c900919eecd52b`",
+            "DDD/MCP repair #272 is Draft at exact head `80272f18422c9946077ad9bd674f603db8f020da`",
+            "PR #229 is Draft at exact head `7ae426e760e8351ee792ce9df4266d7e7483d0d4`",
+            "PR #281 remains Draft at exact head `3ed5d7e8cf77547c96feff2cfb24c46d74a73ebb`",
+            "GitHub Releases is empty",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, current)
@@ -63,14 +57,12 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             with self.subTest(non_passing=non_passing):
                 self.assertIn(non_passing.casefold(), current.casefold())
         for stale in (
-            "141 open pull requests",
-            "115 Draft",
-            "11 open non-PR issues",
-            "PR #271 is Draft at exact head `426f9dcfa7c341cd436cedc69f47c805d808466a`",
-            "seven required workflow entries",
-            "PR #261 is Draft at exact head `9769733a2dee21cd0d9be5e020be7a998a4168a3`",
-            "DDD ownership correction #272 is Draft at exact head `b3595ef5656ebdb5aa301d4d2f3e487f6a1f21c8`",
-            "#273 is its Draft context-map/ubiquitous-language child at exact head `d75462b91fb3b3d2dbbaf01a153e3e0ca6b7a539`",
+            "142 open pull requests",
+            "24 Ready/non-draft",
+            "118 Draft",
+            "12 open non-PR issues",
+            "10 central required workflows",
+            "PR #260 is Draft at exact head `56600a6fd982cfafd784f4b7bb659d918113ca90`",
         ):
             with self.subTest(stale=stale):
                 self.assertNotIn(stale, current)
@@ -106,20 +98,18 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
                 self.assertNotIn(stale, current)
 
     def test_unreleased_changelog_uses_one_current_inventory(self) -> None:
-        """The historical Unreleased entry remains internally self-consistent."""
+        """The current Unreleased entry must match the verified volatile inventory."""
         unreleased = self.changelog.split("## [Unreleased]", 1)[1]
         preamble, remainder = unreleased.split("### Added", 1)
         added = remainder.split("### Changed", 1)[0]
 
-        expected = "108 open pull requests (24 ready, 84 draft)"
+        expected = "143 open pull requests (5 ready, 138 draft)"
         self.assertIn(expected, preamble)
-        self.assertIn("on 2026-08-29", preamble)
-        self.assertNotIn("on 2026-08-28", preamble)
+        self.assertIn("13 open non-PR issues", preamble)
         self.assertIn(expected, added)
-        self.assertNotIn("126 open pull requests (54 ready, 72 draft)", preamble)
-        self.assertNotIn("115 open pull requests (31 ready, 84 draft)", preamble)
-        self.assertNotIn("126 open pull requests (54 ready, 72 draft)", added)
-        self.assertNotIn("110 open pull requests (26 ready, 84 draft)", preamble)
+        self.assertIn("13 open non-PR issues", added)
+        self.assertNotIn("142 open pull requests", preamble)
+        self.assertNotIn("108 open pull requests (24 ready, 84 draft)", preamble)
 
     def test_current_snapshot_records_recent_stack_merges_and_revalidation(self) -> None:
         """A stacked merge must update the dated queue and parent exact-head evidence."""
