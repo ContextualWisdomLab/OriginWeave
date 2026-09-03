@@ -4,10 +4,10 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
-- Refreshed the product-gap queue to 108 open pull requests (24 ready, 84 draft) on 2026-08-29 after #53, #67, #71, #154, #217, #233, #234, and #235 merged into unprotected feature parents; these are queue evidence, not protected-main shipment.
+- Refreshed the product-gap queue to 143 open pull requests (5 ready, 138 draft) and 13 open non-PR issues on 2026-09-03; queue movement is active-PR evidence, not protected-main shipment.
 
 ### Added
-- Revalidated the product-gap queue at 108 open pull requests (24 ready, 84 draft) and 11 open issues on 2026-08-29; refreshed protected-main `542ca1e9`, PR #46 exact-head evidence at `373113119446d99f578febd39efc19366e7736b1`, PR #64's post-stack-merge head at `5021d142583cb5a8e393248048bb824762a98056`, and PR #210's current post-stack-merge head at `7946dce9a3dd074047d93fca299d48c7aef40e47`. Current hosted checks and independent approval remain required; no protected-main shipment is claimed.
+- Revalidated the product-gap queue at 143 open pull requests (5 ready, 138 draft) and 13 open non-PR issues on 2026-09-03; protected `main` remains `c789b802fc98a8d7fd8c09d9327f36828054d2a1`, presentation-identity PR #229 is Draft at `7ae426e760e8351ee792ce9df4266d7e7483d0d4`, WebDriver BiDi document-advance PR #260 is Draft at `a3741389fdc491c7ecccc20f77609c55bc56d20f`, and sandbox-enabled Agent Task evidence PR #70 is Draft at `ba8926eed5a6d783f781684f30c900919eecd52b`. Current-head checks remain independently required; no protected-main shipment is claimed.
 - Recorded PR #67's exact-head squash merge into unprotected parent #64 at `5021d142583cb5a8e393248048bb824762a98056`; #64's hosted checks restarted on its new exact head, so neither child nor parent evidence is promoted to protected-main delivery.
 - Recorded PR #217's squash merge into the unprotected #210 feature parent at `66f360ccac5cec60c72222cc79d58e39f6f00088`; #210's current exact-head checks are regenerating, so the merged child evidence was not promoted to protected-main delivery.
 - Recorded PR #210's superseded exact-head failures at `bea65643109449d63d367a35b8d9bf327ee7cb2c`: OpenCode had no current-head verdict and Strix exhausted three provider HTTP 500 attempts without a vulnerability report; its direct attempt-2 rerun (`33172708455` / `98915847518`) reached the same fail-closed result, so no failure was promoted to passing evidence for the new head.
