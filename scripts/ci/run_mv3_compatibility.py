@@ -125,16 +125,15 @@ def _wait_for_driver(driver_port: int) -> None:
     """Wait for the exact local ChromeDriver process to become ready."""
 
     deadline = time.monotonic() + STARTUP_TIMEOUT_SECONDS
-    last_error: Exception | None = None
     while time.monotonic() < deadline:
         try:
             status = _json_request(driver_port, "GET", "/status", timeout=1.0)
             if status.get("value", {}).get("ready") is True:
                 return
-        except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
-            last_error = exc
+        except (OSError, ValueError, RuntimeError, json.JSONDecodeError):
+            pass
         time.sleep(0.1)
-    raise RuntimeError(f"ChromeDriver did not become ready: {last_error}")
+    raise RuntimeError("ChromeDriver did not become ready")
 
 
 def _execute(driver_port: int, session_id: str, script: str) -> Any:
@@ -322,8 +321,7 @@ def _run_browser_pass(
         )
         if browser_version != PINNED_CHROME_VERSION:
             raise RuntimeError(
-                f"unexpected Chrome version: expected {PINNED_CHROME_VERSION}, "
-                f"got {browser_version!r}"
+                f"ChromeDriver browser version did not match pinned {PINNED_CHROME_VERSION}"
             )
 
         _json_request(
