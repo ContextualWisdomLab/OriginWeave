@@ -140,6 +140,13 @@ class ReleaseSpdxJsonLdEnvelopeContractTests(unittest.TestCase):
         self.assertLess(len(payload), self.max_bytes)
         self._assert_error_code(payload, "too_many_json_containers")
 
+    def test_container_preflight_ignores_structural_tokens_inside_strings(self) -> None:
+        marker = '[{"nested":[]}]\\buyer"quote'
+        summary = self.validate(self._payload([{"type": "SpdxDocument", "note": marker}]))
+
+        self.assertEqual(summary["graph_object_count"], 1)
+        self.assertEqual(summary["spdx_document_count"], 1)
+
     def test_exactly_one_spdx_document_is_required(self) -> None:
         self._assert_error_code(self._payload([{"type": "Package"}]), "invalid_document_count")
         self._assert_error_code(
