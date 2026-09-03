@@ -17,9 +17,9 @@ class ProductCompletionGapContractTests(unittest.TestCase):
         text = BASELINE.read_text(encoding="utf-8")
 
         for phrase in (
-            "109 open pull requests",
-            "36 non-draft",
-            "73 draft",
+            "126 open pull requests",
+            "54 non-draft",
+            "72 draft",
             "2026-08-24 158-PR snapshot",
             "#198",
             "#199",
@@ -32,7 +32,6 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "signed cross-platform Chromium distribution",
             "enterprise control and experience plane",
             "commercial acceptance gate",
-            "central `.github` PR #1353 merged as `874f47b3…`",
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, text)

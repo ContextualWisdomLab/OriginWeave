@@ -2,11 +2,11 @@
 
 This is a dated delivery baseline, not a substitute for the PRD, TRD, roadmap, architecture decisions, or live GitHub state. It keeps buyer-visible gaps, current issues, active pull-request evidence, and commercial completion tracks in one discoverable place. Protected `main` is the implementation boundary: code in an open pull request is not shipped behavior.
 
-## Observed snapshot: 2026-08-27 KST (UTC+09:00)
+## Observed snapshot: 2026-08-26
 
 ### Protected-main truth
 
-- Protected `main` was `542ca1e9c0a863595b8b6697790005d2471f5413` when this snapshot was refreshed. Older exact-head tables below remain dated regression evidence and must be re-fetched before any review or integration claim.
+- Protected `main` is at `b05d5acca82b9d916ada2c8e82f59f92a89817e1` for this snapshot. Since the 2026-08-24 observation (`0841d2ab`), protected `main` absorbed #196 (dated gap baseline publication), #216 (RFC 3986 evidence-path syntax enforcement), #194 (branch-coverage nightly and toolchain tracking refresh), #168 (typed MCP stateless tool-routing foundations), and #151 (exact crash-root termination before crash credit).
 - Phase 0 remains complete as a reusable safety-kernel foundation: typed policy contracts, destination classification, direct TCP peer verification, TLS service identity, evidence bounds, resource mitigation, document-node authority, and protected-main tests.
 - Phase 1 is **in progress**, not shipped. The first real Chromium vertical slice still needs the active WebDriver BiDi transport stack to reach protected `main`, then compose isolated Chromium launch, session/context identity, semantic observation, typed action authorization, native browser input, post-condition proof, evidence, cancellation, crash recovery, and profile/process teardown.
 - HTTP/1.1 bounds, downloads/MIME, proxy/PAC consumption, full browser-network integration, the sensitive-data broker runtime, durable WARC/PROV capture, persistent task/API surfaces, signed cross-platform distribution, enterprise administration, and release-grade buyer acceptance remain open.
@@ -14,7 +14,7 @@ This is a dated delivery baseline, not a substitute for the PRD, TRD, roadmap, a
 
 ### Open pull requests
 
-The live repository contained **109 open pull requests: 36 non-draft and 73 draft** when this snapshot re-paginated the complete open inventory. Compared with the prior **2026-08-24 158-PR snapshot**, the queue is 49 PRs smaller. Those transitions are queue consolidation, not proof that every predecessor reached protected `main`; exact ancestry and checks remain PR-specific. The same live query found 9 open issues; zero releases and zero tags. The volume and stack depth remain a product-delivery risk because review, exact-head checks, dependency order, and integration truth can drift faster than a buyer-visible vertical slice reaches protected `main`.
+The live repository contained **126 open pull requests: 54 non-draft and 72 draft** when this snapshot re-paginated the complete open inventory. Compared with the prior **2026-08-24 158-PR snapshot**, the current inventory is 32 PRs smaller. Intervening queue consolidation includes #190, #188, #185, #192, #182, #184, #115, #181, #116, #117, #118, #183, #114, #127, #112, #109, #186, #110, #108, #111, #174, and #113 being merged into their immediate stacked prerequisites, while PRs #147, #146, #145, #144, #143, #142, #141, #139, #136, #132, #129, and #128 moved to ready after exact-head checks and thread review. Those transitions are queue consolidation, not protected-main delivery; protected `main` remains `b05d5acca82b9d916ada2c8e82f59f92a89817e1`, with 13 open issues and no releases or tags. The volume and stack depth remain themselves a product-delivery risk: review, exact-head checks, dependency order, and integration truth can drift faster than a buyer-visible vertical slice reaches protected `main`.
 
 #### 2026-08-26 maintenance-loop record
 
@@ -28,13 +28,10 @@ The interactive maintenance loop performed the following verified state changes 
 | Security finding fix (#124) | Strix vuln-0001 (Unicode homoglyph path confusion, MEDIUM) remediated in `30cc458b`: audited workflow paths now restricted to a canonical ASCII alphabet with homoglyph/fraction-slash/fullwidth regression contract tests; CHANGELOG updated |
 | Fail-closed provider re-dispatch | ~21 failed Strix required-check runs re-dispatched on unchanged exact heads; completed reruns returned success on #46, #48, #156, #157, #159, #218, and #219 heads at snapshot time; cancellations only where newer heads superseded the run |
 | Current-head review re-dispatch | Central merge-scheduler dispatches sent for #47, #62, #63, #65, #74, #166, #173, #175, and #220 because their stale `CHANGES_REQUESTED` verdicts cited coverage-evidence results that are green on the same heads today |
-| Shared Strix adapter repair | The central `.github` PR #1353 merged as `874f47b3…`; OriginWeave retains exact-head rerun evidence rather than duplicating that adapter fix locally |
 
 #### Organization review-pipeline congestion record
 
 Between 2026-08-26T02:44Z and 2026-08-26T03:35Z the organization-wide Actions queue exhibited a systemic backlog: scheduler, OpenCode-review-dispatch, Noema, and Strix runs across `.github`, `naruon`, `pg-erd-cloud`, and OriginWeave sat `queued`/`pending` while only single-digit runs were `in_progress`. This delays every current-head AI review and therefore every ruleset-gated merge. It is an infrastructure-capacity signal, not a code defect, and it does not authorize merging without current-head review evidence.
-
-The older maintenance record below is retained as dated evidence rather than current queue truth.
 
 Representative active workstreams at this snapshot were:
 
@@ -42,8 +39,6 @@ Representative active workstreams at this snapshot were:
 |---|---|---|
 | Product baseline | (merged: #196 on 2026-08-24) | Baseline publication reached protected `main`; this document is its successor snapshot |
 | Presentation identity | #229 at `585a7d5545b13f18d76f79100ff4d47ac423e861` onto `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | Ready/non-draft local privacy kernel; all observed exact-head checks except Strix passed, but the PR remains blocked and review-required, and no Chromium adapter or protected-main shipment is claimed |
-| Stealth surface normalization | stacked `feat/stealth-normalize-surfaces` on #229 | Proposed ADR 0111 adds bounded canvas-noise classes, canonicalized WebGL renderer tokens, standard-rate Web Audio normalization, bounded WebRTC interface policy, and fail-closed Canvas/WebGL/WebAudio/WebRtc surface admission; control-plane contract only, no real-browser or anti-evasion claim |
-| UA Client Hints surface | stacked `feat/ua-client-hints-surface` on #233 | Proposed ADR 0112 bounds the `navigator.userAgentData` / `Sec-CH-UA*` surface: ASCII brand grammar with 32-char name bound, enumerated architecture/bitness/platform tokens, non-empty brand list, and the draft rule that non-mobile user agents report an empty model; control-plane contract only, no browser claim |
 | Enterprise approval authority | #220 | Ready/non-draft bounded maker-checker approval lifecycle on the exact `ApprovalScope`; all current-head checks green at snapshot, awaiting current-head review evidence |
 | Release artifact identity | #218 and #219 | Ready/non-draft fail-closed benchmark release decision and canonical release manifest binding; Strix provider-failure reruns completed green on both heads |
 | Schema-bound extraction and BAP lifecycle | #209 and #208 | Ready/non-draft schema-bound extraction contract and resumable task-lifecycle kernel; #209 Strix rerun green, #208 rerun re-dispatched after a further provider failure |
@@ -145,7 +140,6 @@ The hourly product-development loop is operational infrastructure, not proof tha
 | Priority | Buyer-visible outcome | Protected-main status | Completion issue and acceptance evidence |
 |---|---|---|---|
 | P0 | A bounded task observes a real Chromium page, performs one typed action, verifies the post-condition, and emits provenance | **Open / Phase 1** | #28; repeated real Chromium E2E with isolated context, exact session/node authority, typed dispatch, post-condition, crash cleanup, and protected-main checks |
-| P1 | A governed browser session minimizes ambient host fingerprint leakage without impersonating a target or bypassing site controls | **Local kernel and surface-admission evidence only; browser integration open** | Proposed ADR 0110 and active stacked `originweave-fingerprint` evidence now fail closed when an adapter omits a required profile surface; acceptance still requires a pinned real-Chromium test across UA/client hints/platform/locale/named timezone/screen/DPR/hardware/graphics/fonts/media, pre-script application, lifecycle stability, digest binding, no host fallback, and explicit challenge non-circumvention |
 | P0 | Navigation consumes approved origin, resolution, route, TCP peer, TLS identity, bounded HTTP, redirect, MIME, and download policy | **Partial foundation** | #9 plus #28; real browser-network adapter proves the governed path is consumed end to end |
 | P1 | Existing Chromium extensions remain compatible while Agent authority stays separate | **Partial active-PR evidence** | #27; exact supported-build/platform compatibility matrix, managed allow-list, native-host isolation, repeatability, and release binding |
 | P1 | Authorized work can use necessary PII without ambient exposure | **Policy foundation; runtime open** | #10; opaque broker, exact field/purpose/destination/model policy, atomic use/revocation, retention/deletion, and value-free telemetry |
@@ -154,7 +148,7 @@ The hourly product-development loop is operational infrastructure, not proof tha
 | P1 | Buyers can install, update, verify, and roll back a supported product | **Not shipped** | #201; signed Windows/macOS/Linux/headless artifacts, Chromium revision manifest, updater security, patch SLA, SBOM, SLSA provenance, and recovery |
 | P1 | Enterprise teams can provision, approve, audit, operate, and recover the service | **Not shipped** | #202; Keyverse-compatible OIDC/SCIM, tenant isolation, policy/approval/evidence UI, SLO/incident controls, data residency, CSAP/SOC 2 evidence mapping, WCAG 2.2, Figma File ID, and Storybook |
 | P0 | A release has reproducible proof of usefulness, safety, evidence completeness, and recovery | **No product-wide release gate** | #203; deterministic, compatibility, adversarial, recovery, and enterprise suites with statistical reporting and an exact-artifact commercial acceptance gate |
-| P0 | Valid changes reach protected `main` without authority improvisation or unbounded stack growth | **Blocked / high integration debt** | Shrink the 109-PR queue in dependency order, provision legitimate review authority, require exact-current evidence, and close duplicates/superseded branches |
+| P0 | Valid changes reach protected `main` without authority improvisation or unbounded stack growth | **Blocked / high integration debt** | Shrink the 126-PR queue in dependency order, provision legitimate review authority, require exact-current evidence, and close duplicates/superseded branches |
 
 ## Commercial completion definition
 
