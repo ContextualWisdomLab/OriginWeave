@@ -4,19 +4,13 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
-- Refreshed the 2026-08-27 delivery snapshot against protected `main` `542ca1e9…`: 109 open pull requests (36 non-draft, 73 draft), 9 open issues, zero releases, and zero tags; older exact-head tables remain explicitly dated evidence.
 - Refreshed the product-gap queue to 126 open pull requests (54 ready, 72 draft) after #190, #188, #185, #192, #182, #184, #115, #181, #116, #117, #118, #183, #114, #127, #112, #109, #186, #110, #108, #111, #174, and #113 were merged into their immediate stacked prerequisites. PRs #147, #146, #145, #144, #143, #142, #141, #139, #136, #132, #129, and #128 moved to ready after exact-head checks and thread review; these are queue-consolidation results, not protected-main shipment.
 
 ### Added
-- Added bounded User-Agent Client Hints surfaces to the fingerprint kernel: ASCII brand/version validation with a 32-character name bound, enumerated architecture/bitness/platform tokens, a non-empty brand-list requirement, and the spec rule that a non-mobile user agent reports an empty model. Control-plane contract only, grounded in the User-Agent Client Hints draft (WICG, 2026); see ADR 0112.
-- Added bounded stealth-normalization surfaces to the fingerprint kernel: enumerated canvas-noise classes, canonicalized WebGL renderer tokens with a 256-byte pre-normalization input ceiling, standard-rate Web Audio normalization, bounded WebRTC interface policy, and a fail-closed Canvas/WebGL/WebAudio/WebRtc surface-admission contract. This is a privacy-preserving control-plane contract with no real-browser or anti-evasion claim (see ADR 0111).
 - Corrected the 2026-08-26 product-gap snapshot with current #229 presentation-identity evidence, stacked-only #205 integration evidence, current base/head pairs, the 126-PR queue count, explicit root-versus-child merge ordering, and the active GitHub counted-approval gate.
 - Refreshed the product and technical gap baseline onto the 2026-08-26 live inventory: 126 open pull requests (54 ready, 72 draft), protected-main promotion of #168/#194/#196/#216/#151, a verified maintenance-loop record (supersession closure of #153, conflict reconciliations on #37/#149/#152/#173/#175, issue #212 option-(b) authorization on #43, Strix vuln-0001 homoglyph remediation on #124), provider-rerun outcome evidence, an organization review-pipeline congestion record, and refreshed merge-order queue guidance. Documentation evidence contracts were aligned to the same snapshot so the baseline, its dated markers, and the pinned exact-head rows cannot silently diverge.
 
 - Added `originweave_core::release_acceptance`, a deterministic fail-closed benchmark release-decision contract that requires one authoritative result for every mandatory suite, bounds explicit buyer-visible limitations, rejects duplicate limitation claim identities, and rejects non-canonical surrounding whitespace rather than normalizing it into an alternate claim spelling.
-- Added fail-closed presentation-surface admission so an adapter cannot claim a
-  privacy profile while any required page-observable field remains ambient.
-- Added a proposed privacy-preserving presentation-identity kernel with bounded screen, viewport, pixel ratio, processor, platform, language, reduced-motion, standardized named-UTC time-zone, and credential-free digest contracts; real Chromium application and anti-evasion claims remain explicitly unshipped.
 - Refreshed the product and technical gap baseline with the 2026-08-24 live inventory: 158 open pull requests (44 ready, 114 draft), refreshed exact base/head evidence for the #208–#222 release, enterprise-approval, BAP, and WARC/PROV chains, the governance issue additions #212 and #215, and a required-check provider-failure record for the fail-closed Strix re-dispatches on #208/#218/#220.
 - Added a dated product and technical gap baseline that separates protected-main implementation truth, active pull-request evidence, live review/check blockers, and the next buyer-visible Phase 1 acceptance work.
 - Refreshed the product and technical gap baseline with the current open-PR inventory and exact base/head evidence for the newest Chromium, BAP, extraction, WARC, and idempotency slices.
@@ -54,33 +48,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
-- Removed unsupported uniform seed-based presentation selection; the privacy
-  kernel now validates explicit coherent profiles and leaves default selection
-  unavailable until cited cohort evidence defines a defensible anonymity set.
-
-- Recorded the merged central Strix adapter repair while retaining exact-head
-  acceptance reruns as required evidence before closing the provider blocker.
-
-- Refreshed the product-gap baseline with exact current presentation and
-  WebDriver BiDi heads, non-draft stack state, and the zero-release/tag truth.
-
-- Classified proposed ADR 0110 consistently as branch-only documentation
-  evidence until the presentation-identity line integrates into protected main.
-
-- Coupled macOS presentation derivation and manual validation to integer device
-  scale classes so the privacy kernel cannot emit that contradictory identity.
-
-- Labeled the dated product-gap observation explicitly as KST so UTC-hosted
-  review does not misread a same-instant snapshot as future evidence.
-
-- Replaced an invalid uppercase-digest test fixture that resembled a Telegram
-  credential while preserving the lowercase SHA-256 rejection contract.
-
-- Clarified that presentation identity has active-PR kernel evidence while its
-  Chromium adapter remains planned, without mixing proposal and implementation
-  labels in the same technical-design section.
 - Aligned the hourly product-development branch-coverage toolchain and its one-shot materializer with the reviewed `nightly-2026-08-18` pin, and corrected the official Dependabot Rust-toolchain reference.
-- Refreshed the product gap baseline to the 2026-08-27 protected-main and complete open-PR inventory, recorded the shared Strix provider incompatibility, and added the presentation-identity integration gap without promoting local or active-PR evidence to shipped behavior.
 - Separated logical origin authority from resolved network destination authority; an origin grant no longer implies permission to connect to every resolver result.
 - Separated resolved-address authorization from direct transport evidence; an approved IP now becomes a usable stream only after the operating system reports the exact requested IP and port.
 - Separated exact TCP peer proof from authenticated TLS service identity; an observed peer becomes an authenticated HTTPS stream only after explicit-root, fixed-time, SAN-bound WebPKI verification over that same stream.
@@ -135,5 +103,3 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - The unprivileged OpenCode user is restricted to loopback egress during model execution, preventing runner-wide allow-listed endpoints from becoming direct source-exfiltration channels.
 
 [Unreleased]: https://github.com/ContextualWisdomLab/OriginWeave/compare/main...HEAD
-
-<!-- dispatch-refresh 2026-08-27T03:05Z -->
