@@ -568,7 +568,6 @@ def _run_agent_task_browser_pass(
                                 "--disable-component-update",
                                 "--disable-sync",
                                 "--disable-dev-shm-usage",
-                                "--no-sandbox",
                                 "--disable-extensions",
                                 f"--user-data-dir={profile_dir}",
                             ],
