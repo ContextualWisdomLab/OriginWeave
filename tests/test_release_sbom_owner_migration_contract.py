@@ -29,6 +29,19 @@ class ReleaseSbomOwnerMigrationContractTests(unittest.TestCase):
         self.assertIn("Proposed", text)
         self.assertIn("not shipped truth", text)
 
+    def test_windows_secure_open_contract_names_non_reparse_and_identity_primitives(self):
+        """Windows parity must name the concrete non-reparse and handle-identity primitives."""
+        text = MIGRATION.read_text(encoding="utf-8")
+        required = (
+            "FILE_FLAG_OPEN_REPARSE_POINT",
+            "GetFileInformationByHandleEx",
+            "FILE_ID_INFO",
+            "VolumeSerialNumber",
+            "FileId",
+        )
+        for token in required:
+            self.assertIn(token, text)
+
 
 if __name__ == "__main__":
     unittest.main()
