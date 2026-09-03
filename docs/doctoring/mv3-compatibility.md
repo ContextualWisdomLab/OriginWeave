@@ -1,7 +1,7 @@
 # Manifest V3 compatibility evidence baseline
 
 - **Status:** Active implementation evidence for issue #27
-- **Reviewed:** 2026-08-11
+- **Reviewed:** 2026-09-04
 - **Pinned browser:** Chrome for Testing `150.0.7871.129`, Chromium revision `r1639810`
 
 OriginWeave uses Chromium as its compatibility kernel, so browser-extension compatibility must be demonstrated with executable Chromium evidence rather than inferred from architecture alone. The protected-main lane exercises a controlled unpacked Manifest V3 extension against one exact Chrome for Testing build and proves service-worker, content-script, storage, declarative-network-request, tabs, windows, scripting, commands, side-panel, bookmarks/history read compatibility, restart persistence, repeatability, and one real WebDriver click/post-condition. Active stacked compatibility work adds downloads, bounded bookmark/history mutation, profile isolation, explicit extension update/version-migration evidence, and an exact content-script isolated-world check. OriginWeave does **not claim 100% Chrome extension compatibility**.
