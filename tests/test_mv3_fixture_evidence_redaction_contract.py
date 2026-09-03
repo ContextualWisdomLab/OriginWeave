@@ -89,6 +89,88 @@ class ManifestV3FixtureEvidenceRedactionTests(unittest.TestCase):
 
         self.assert_redacted(str(raised.exception))
 
+    def test_driver_startup_timeout_does_not_echo_remote_error_details(self) -> None:
+        """Startup timeout evidence must classify failure without retaining exception text."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="mv3_driver_startup_redaction_contract")
+        wait_for_driver = namespace["_wait_for_driver"]
+        sensitive = "secret-token /home/runner/private https://example.invalid"
+
+        with unittest.mock.patch.dict(
+            wait_for_driver.__globals__,
+            {
+                "_json_request": unittest.mock.Mock(side_effect=RuntimeError(sensitive)),
+                "STARTUP_TIMEOUT_SECONDS": 1.0,
+            },
+        ), unittest.mock.patch.object(
+            namespace["time"],
+            "monotonic",
+            side_effect=(0.0, 0.0, 2.0),
+        ), unittest.mock.patch.object(namespace["time"], "sleep", return_value=None):
+            with self.assertRaises(RuntimeError) as raised:
+                wait_for_driver(9515)
+
+        self.assert_redacted(str(raised.exception))
+
+    def test_browser_version_mismatch_does_not_echo_remote_capability_value(self) -> None:
+        """A pin mismatch must not copy the WebDriver capability value into evidence."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="mv3_browser_version_redaction_contract")
+        run_browser_pass = namespace["_run_browser_pass"]
+        sensitive = "secret-token /home/runner/private https://example.invalid"
+
+        class FakeDriver:
+            def terminate(self) -> None:
+                return None
+
+            def wait(self, timeout: float) -> int:
+                _ = timeout
+                return 0
+
+            def kill(self) -> None:
+                return None
+
+        def fake_json_request(
+            _driver_port: int,
+            method: str,
+            path: str,
+            _payload: object = None,
+            **_kwargs: object,
+        ) -> dict[str, object]:
+            if method == "POST" and path == "/session":
+                return {
+                    "value": {
+                        "sessionId": "session.one",
+                        "capabilities": {"browserVersion": sensitive},
+                    }
+                }
+            if method == "DELETE":
+                return {"value": None}
+            raise AssertionError(f"unexpected request: {method} {path}")
+
+        with unittest.mock.patch.dict(
+            run_browser_pass.__globals__,
+            {
+                "_free_loopback_port": unittest.mock.Mock(return_value=9515),
+                "_wait_for_driver": unittest.mock.Mock(return_value=None),
+                "_json_request": fake_json_request,
+            },
+        ), unittest.mock.patch.object(
+            namespace["subprocess"],
+            "Popen",
+            return_value=FakeDriver(),
+        ):
+            with self.assertRaises(RuntimeError) as raised:
+                run_browser_pass(
+                    pathlib.Path("/controlled/chrome"),
+                    pathlib.Path("/controlled/chromedriver"),
+                    "http://127.0.0.1:9516/page.html",
+                    "/controlled/profile",
+                    "initialized",
+                )
+
+        self.assert_redacted(str(raised.exception))
+
 
 if __name__ == "__main__":
     unittest.main()
