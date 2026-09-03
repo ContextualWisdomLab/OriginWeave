@@ -29,10 +29,11 @@ def parse_nul_paths(data: bytes) -> tuple[str, ...]:
 
     if not data:
         return ()
+    if not data.endswith(b"\0"):
+        raise ValueError("changed path stream must be NUL-terminated")
 
     raw_paths = data.split(b"\0")
-    if raw_paths[-1] == b"":
-        raw_paths.pop()
+    raw_paths.pop()
 
     return tuple(_decode_repository_path(raw_path) for raw_path in raw_paths)
 
@@ -51,10 +52,11 @@ def parse_nul_name_status(data: bytes) -> tuple[str, ...]:
 
     if not data:
         return ()
+    if not data.endswith(b"\0"):
+        raise ValueError("changed status stream must be NUL-terminated")
 
     fields = data.split(b"\0")
-    if fields[-1] == b"":
-        fields.pop()
+    fields.pop()
 
     paths: list[str] = []
     index = 0
