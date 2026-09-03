@@ -46,6 +46,10 @@ Restart persistence and extension update migration are separate compatibility cl
 
 Content-script injection and content-script JavaScript isolation are separate compatibility claims. Active PR #61 writes `window.originweaveWorldSentinel = "page"` in the fixture page's main world and repeatedly publishes that value through one controlled DOM attribute. The content script assigns the same global name to `"extension"` in its own execution world, waits a bounded interval, and only reports the existing compatibility surface ready when it simultaneously observes the page's published `page` value and its own `extension` value. If both scripts share one JavaScript global namespace, the page publisher changes to `extension` and real-browser compatibility fails. DOM sharing here is deliberate test evidence, not permission for arbitrary page content to become trusted instruction or Agent authority.
 
+## WebDriver diagnostic trust boundary
+
+The compatibility runner treats remote-end WebDriver diagnostics as untrusted evidence input. The W3C WebDriver 2 July 2026 Working Draft defines remote errors with a standardized error code plus implementation-defined human-readable `message` and `stacktrace` fields and optional implementation-defined `data`; the specification's user-prompt example demonstrates that page-originated prompt text can appear in error data. OriginWeave therefore retains only bounded local classifications needed to diagnose the harness, such as the HTTP status or a fixed protocol-error category, and does not copy raw remote response bodies, messages, stack traces, or data into CI/audit exceptions. This is an evidence-provenance and diagnostic-redaction boundary, not browser policy authority and not a claim that WebDriver errors authenticate the browser or page.
+
 ## Supply-chain and repeatability evidence
 
 The CI lane downloads the exact Chrome/ChromeDriver version from the official Chrome for Testing public bucket, records SHA-256 receipts for the downloaded archives, verifies the runtime-reported browser version, and emits bounded JSON compatibility evidence. A future release-quality matrix should additionally pin published artifact digests or equivalent immutable supply-chain identity when the upstream distribution exposes that identity in an authoritative machine-readable form.
@@ -67,3 +71,5 @@ Chrome for Developers. (n.d.). *Manifest file format*. Google. Retrieved August 
 Bynens, M. (2023, June 12). *Chrome for Testing*. Chrome for Developers. https://developer.chrome.com/docs/automation-and-testing/chrome-for-testing
 
 Google Chrome Labs. (2026, July 21). *Chrome for Testing availability*. https://googlechromelabs.github.io/chrome-for-testing/
+
+World Wide Web Consortium. (2026, July 2). *WebDriver* (Working Draft). https://www.w3.org/TR/2026/WD-webdriver2-20260702/
