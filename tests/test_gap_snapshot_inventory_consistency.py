@@ -26,9 +26,9 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "## Observed snapshot: 2026-08-29", 1
         )[0]
         for marker in (
-            "143 open pull requests",
+            "145 open pull requests",
             "5 Ready/non-draft",
-            "138 Draft",
+            "140 Draft",
             "13 open non-PR issues",
             "c789b802fc98a8d7fd8c09d9327f36828054d2a1",
             "18156473",
@@ -41,7 +41,9 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "PR #70 is Draft at exact head `ba8926eed5a6d783f781684f30c900919eecd52b`",
             "DDD/MCP repair #272 is Draft at exact head `80272f18422c9946077ad9bd674f603db8f020da`",
             "PR #229 is Draft at exact head `7ae426e760e8351ee792ce9df4266d7e7483d0d4`",
-            "PR #281 remains Draft at exact head `3ed5d7e8cf77547c96feff2cfb24c46d74a73ebb`",
+            "PR #281 remains Draft at exact head `e96c982b6ed7ff7b80891bd60efc5d443555d4b6`",
+            "PR #282 is Draft at exact head `51a1e819355306e630d1241e6e5a136cb195325e`",
+            "PR #283 is Draft at exact head `3cefce69a7bc71e33ad64c5e8f58a0afe0b5f7e1`",
             "GitHub Releases is empty",
         ):
             with self.subTest(marker=marker):
@@ -57,12 +59,15 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             with self.subTest(non_passing=non_passing):
                 self.assertIn(non_passing.casefold(), current.casefold())
         for stale in (
+            "143 open pull requests",
             "142 open pull requests",
             "24 Ready/non-draft",
+            "138 Draft",
             "118 Draft",
             "12 open non-PR issues",
             "10 central required workflows",
             "PR #260 is Draft at exact head `56600a6fd982cfafd784f4b7bb659d918113ca90`",
+            "PR #281 remains Draft at exact head `3ed5d7e8cf77547c96feff2cfb24c46d74a73ebb`",
         ):
             with self.subTest(stale=stale):
                 self.assertNotIn(stale, current)
@@ -103,12 +108,12 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
         preamble, remainder = unreleased.split("### Added", 1)
         added = remainder.split("### Changed", 1)[0]
 
-        expected = "143 open pull requests (5 ready, 138 draft)"
+        expected = "145 open pull requests (5 ready, 140 draft)"
         self.assertIn(expected, preamble)
         self.assertIn("13 open non-PR issues", preamble)
         self.assertIn(expected, added)
         self.assertIn("13 open non-PR issues", added)
-        self.assertNotIn("142 open pull requests", preamble)
+        self.assertNotIn("143 open pull requests", preamble)
         self.assertNotIn("108 open pull requests (24 ready, 84 draft)", preamble)
 
     def test_current_snapshot_records_recent_stack_merges_and_revalidation(self) -> None:
