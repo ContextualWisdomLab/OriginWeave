@@ -11,6 +11,9 @@ mod contracts;
 
 pub use contracts::*;
 
+mod attached_tab_assurance;
+pub use attached_tab_assurance::*;
+
 /// Stateless MCP routing validation that maps only explicit tools to typed actions.
 pub mod mcp;
 /// Deterministic fail-closed release benchmark acceptance aggregation.
