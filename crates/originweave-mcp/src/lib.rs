@@ -20,8 +20,8 @@ pub use request::{McpToolBoundaryError, ValidatedMcpToolCall};
 pub use routing::{
     MAX_MCP_METHOD_NAME_BYTES, MAX_MCP_TOOL_NAME_BYTES, MCP_PROTOCOL_VERSION,
     MCP_TOOLS_CALL_METHOD, MCP_TOOLS_LIST_METHOD, McpCacheScope, McpResultType,
-    McpToolCatalogEntry, McpToolsListBoundaryError, McpToolsListPage,
-    ValidatedMcpToolsListRequest, mcp_tools_list_page, supported_mcp_tools,
+    McpToolCatalogEntry, McpToolsListBoundaryError, McpToolsListPage, ValidatedMcpToolsListRequest,
+    mcp_tools_list_page, supported_mcp_tools,
 };
 
 /// A fail-closed rejection owned by the MCP routing boundary rather than policy.

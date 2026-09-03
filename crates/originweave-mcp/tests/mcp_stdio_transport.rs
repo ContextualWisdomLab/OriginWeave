@@ -54,12 +54,7 @@ fn modern_stdio_tools_list_admits_body_metadata_without_http_headers() {
 #[test]
 fn modern_stdio_tools_list_still_requires_body_protocol_metadata_and_capabilities() {
     assert_eq!(
-        ValidatedMcpToolsListRequest::new_for_stdio(
-            None,
-            true,
-            MCP_TOOLS_LIST_METHOD,
-            None,
-        ),
+        ValidatedMcpToolsListRequest::new_for_stdio(None, true, MCP_TOOLS_LIST_METHOD, None,),
         Err(McpToolsListBoundaryError::MissingProtocolVersionMetadata)
     );
     assert_eq!(

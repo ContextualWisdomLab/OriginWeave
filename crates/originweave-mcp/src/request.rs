@@ -140,8 +140,8 @@ impl ValidatedMcpToolCall {
         body_method: &str,
         body_tool_name: &str,
     ) -> Result<Self, McpToolBoundaryError> {
-        let protocol_version_header = protocol_version_header
-            .ok_or(McpToolBoundaryError::MissingProtocolVersionHeader)?;
+        let protocol_version_header =
+            protocol_version_header.ok_or(McpToolBoundaryError::MissingProtocolVersionHeader)?;
         let protocol_version_metadata = protocol_version_metadata
             .ok_or(McpToolBoundaryError::MissingProtocolVersionMetadata)?;
 
@@ -172,6 +172,32 @@ impl ValidatedMcpToolCall {
         Ok(Self { routed })
     }
 
+    /// Validate one MCP 2026-07-28 stdio `tools/call` request envelope.
+    ///
+    /// Stdio has no HTTP routing headers, so callers provide only request-body protocol metadata,
+    /// capability presence, method, and tool name. The body values are correlated with themselves
+    /// inside the existing pure envelope validator only to reuse its bounds and catalog checks; no
+    /// HTTP header value is accepted, retained, or surfaced as evidence by this constructor.
+    pub fn new_for_stdio(
+        protocol_version_metadata: Option<&str>,
+        client_capabilities_present: bool,
+        body_method: &str,
+        body_tool_name: &str,
+    ) -> Result<Self, McpToolBoundaryError> {
+        let protocol_version_metadata = protocol_version_metadata
+            .ok_or(McpToolBoundaryError::MissingProtocolVersionMetadata)?;
+
+        Self::new_with_request_metadata(
+            Some(protocol_version_metadata),
+            Some(protocol_version_metadata),
+            client_capabilities_present,
+            body_method,
+            body_tool_name,
+            body_method,
+            body_tool_name,
+        )
+    }
+
     /// Return the canonical static tool name selected by the explicit mapping.
     #[must_use]
     pub const fn tool_name(&self) -> &'static str {
@@ -182,5 +208,32 @@ impl ValidatedMcpToolCall {
     #[must_use]
     pub const fn action_kind(&self) -> ActionKind {
         self.routed.action_kind()
+    }
+}
+
+impl routing::ValidatedMcpToolsListRequest {
+    /// Validate one MCP 2026-07-28 stdio `tools/list` request envelope.
+    ///
+    /// Stdio carries the protocol metadata and method in the JSON-RPC request body and has no HTTP
+    /// routing headers. The body method/version are correlated with themselves inside the existing
+    /// pure list validator only to reuse its bounded syntax, cache, and cursor checks; callers cannot
+    /// supply or obtain fabricated HTTP header evidence through this constructor.
+    pub fn new_for_stdio(
+        protocol_version_metadata: Option<&str>,
+        client_capabilities_present: bool,
+        body_method: &str,
+        cursor: Option<&str>,
+    ) -> Result<Self, routing::McpToolsListBoundaryError> {
+        let protocol_version_metadata = protocol_version_metadata
+            .ok_or(routing::McpToolsListBoundaryError::MissingProtocolVersionMetadata)?;
+
+        Self::new(
+            Some(protocol_version_metadata),
+            Some(protocol_version_metadata),
+            client_capabilities_present,
+            body_method,
+            body_method,
+            cursor,
+        )
     }
 }

@@ -110,14 +110,18 @@ fn supported_mcp_tools_map_to_exact_originweave_actions() -> Result<(), Box<dyn 
         let call = validate(tool_name)?;
         assert_eq!(call.tool_name(), tool_name);
         assert_eq!(call.action_kind(), expected_action);
-        assert_eq!(call.action_kind().required_capability(), expected_capability);
+        assert_eq!(
+            call.action_kind().required_capability(),
+            expected_capability
+        );
         assert_eq!(call.action_kind().risk_class(), expected_risk);
     }
     Ok(())
 }
 
 #[test]
-fn mcp_tool_catalog_is_deterministic_complete_and_action_unambiguous() -> Result<(), Box<dyn Error>> {
+fn mcp_tool_catalog_is_deterministic_complete_and_action_unambiguous() -> Result<(), Box<dyn Error>>
+{
     let expected = [
         ("originweave.observe", ActionKind::Observe),
         ("originweave.extract", ActionKind::Extract),
@@ -129,7 +133,10 @@ fn mcp_tool_catalog_is_deterministic_complete_and_action_unambiguous() -> Result
         ("originweave.fill_secret", ActionKind::FillSecret),
         ("originweave.purchase", ActionKind::Purchase),
         ("originweave.delete", ActionKind::Delete),
-        ("originweave.manage_permission", ActionKind::ManagePermission),
+        (
+            "originweave.manage_permission",
+            ActionKind::ManagePermission,
+        ),
     ];
     let catalog = supported_mcp_tools();
 
@@ -137,9 +144,15 @@ fn mcp_tool_catalog_is_deterministic_complete_and_action_unambiguous() -> Result
     for (entry, (expected_name, expected_action)) in catalog.iter().zip(expected) {
         assert_eq!(entry.tool_name(), expected_name);
         assert_eq!(entry.action_kind(), expected_action);
-        assert_eq!(entry.required_capability(), expected_action.required_capability());
+        assert_eq!(
+            entry.required_capability(),
+            expected_action.required_capability()
+        );
         assert_eq!(entry.risk_class(), expected_action.risk_class());
-        assert_eq!(validate(entry.tool_name())?.action_kind(), entry.action_kind());
+        assert_eq!(
+            validate(entry.tool_name())?.action_kind(),
+            entry.action_kind()
+        );
     }
 
     for (index, entry) in catalog.iter().enumerate() {
@@ -148,7 +161,11 @@ fn mcp_tool_catalog_is_deterministic_complete_and_action_unambiguous() -> Result
             assert_ne!(entry.action_kind(), other.action_kind());
         }
     }
-    assert!(catalog.iter().all(|entry| entry.action_kind() != ActionKind::LegalConsent));
+    assert!(
+        catalog
+            .iter()
+            .all(|entry| entry.action_kind() != ActionKind::LegalConsent)
+    );
     Ok(())
 }
 
@@ -230,7 +247,10 @@ fn modern_route_rejects_unbounded_malformed_and_unmapped_tool_names() {
         "originweave.관찰",
         &oversized,
     ] {
-        assert_eq!(validate(tool_name), Err(McpToolBoundaryError::InvalidToolName));
+        assert_eq!(
+            validate(tool_name),
+            Err(McpToolBoundaryError::InvalidToolName)
+        );
     }
 
     assert_eq!(validate(&at_limit), Err(McpToolBoundaryError::UnknownTool));
