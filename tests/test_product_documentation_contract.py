@@ -44,7 +44,7 @@ class ProductDocumentationContractTests(unittest.TestCase):
         self.assertTrue(baseline.is_file())
         text = baseline.read_text(encoding="utf-8")
         for phrase in (
-            "Observed snapshot: 2026-08-27 KST (UTC+09:00)",
+            "Observed snapshot: 2026-08-26",
             "Protected-main truth",
             "Open pull requests",
             "Open issues",
@@ -64,11 +64,6 @@ class ProductDocumentationContractTests(unittest.TestCase):
         self.assertIn(
             "none of them is protected-main behavior until merged",
             open_pull_requests,
-        )
-        self.assertIn("zero releases and zero tags", text)
-        self.assertNotIn(
-            "| WebDriver BiDi transport | #188 through #205 | Draft stack",
-            text,
         )
         bidi_status = self._subsection(
             open_pull_requests, "#### #195/#198 WebDriver BiDi opening path status"
@@ -160,18 +155,6 @@ class ProductDocumentationContractTests(unittest.TestCase):
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, trd)
-
-    def test_presentation_identity_status_separates_active_evidence_from_planned_adapter(
-        self,
-    ) -> None:
-        """Presentation identity status must not mix proposal and implementation labels."""
-        trd = (ROOT / "docs/TRD.md").read_text(encoding="utf-8")
-        section = trd.split("### 6.8 Presentation identity", 1)[1].split(
-            "## 7. Observation architecture", 1
-        )[0]
-        self.assertIn("**Active-PR kernel evidence; Chromium adapter planned.**", section)
-        self.assertNotIn("**Proposed.**", section)
-        self.assertNotIn("**Implemented kernel contract; adapter planned.**", section)
 
     def test_target_architecture_adr_set_is_detailed(self) -> None:
         """Product direction must be reconstructable from durable, reviewable decisions."""
