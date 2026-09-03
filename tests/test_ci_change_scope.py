@@ -8,10 +8,12 @@ import sys
 import unittest
 
 from scripts.ci.classify_ci_change_scope import (
+    classify_changes,
     classify_paths,
     is_documentation_path,
     parse_nul_name_status,
     parse_nul_paths,
+    parse_nul_raw_changes,
     render_outputs,
 )
 
@@ -19,15 +21,29 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 CLASSIFIER = ROOT / "scripts/ci/classify_ci_change_scope.py"
 
 
-class CiChangeScopeTests(unittest.TestCase):
-    """Keep documentation verification fail-closed without forcing Rust on prose-only heads."""
+def _raw_record(
+    source_mode: str,
+    destination_mode: str,
+    status: str,
+    *paths: str,
+) -> bytes:
+    """Build one deterministic NUL-framed raw-diff record for focused tests."""
 
-    def test_documentation_paths_are_lightweight(self) -> None:
-        """Docs and root Markdown files should retain the lightweight contract lane."""
+    metadata = (
+        f":{source_mode} {destination_mode} 1111111 2222222 {status}\0"
+    ).encode()
+    return metadata + b"\0".join(path.encode() for path in paths) + b"\0"
+
+
+class CiChangeScopeTests(unittest.TestCase):
+    """Keep documentation verification fail-closed without forcing Rust on proven prose heads."""
+
+    def test_documentation_paths_need_mode_evidence_before_lightweight_classification(self) -> None:
+        """Paths alone cannot prove that a docs entry is an ordinary prose blob."""
 
         paths = ("docs/adr/0103-example.md", "README.md", "CHANGELOG.md")
         self.assertTrue(all(is_documentation_path(path) for path in paths))
-        self.assertEqual(classify_paths(paths), (True, False))
+        self.assertEqual(classify_paths(paths), (False, True))
 
     def test_nested_markdown_outside_docs_requires_rust(self) -> None:
         """A Markdown suffix alone must not widen the reviewed prose-only surface."""
@@ -50,18 +66,105 @@ class CiChangeScopeTests(unittest.TestCase):
                 self.assertFalse(is_documentation_path(path))
                 self.assertEqual(classify_paths((path,)), (False, True))
 
-    def test_mixed_change_requires_rust(self) -> None:
-        """A prose edit cannot hide a code-bearing delta from the Rust lanes."""
-
-        self.assertEqual(
-            classify_paths(("docs/PRD.md", "crates/originweave-policy/src/lib.rs")),
-            (False, True),
-        )
-
     def test_empty_change_fails_closed_to_rust(self) -> None:
-        """Missing changed-path evidence must not be treated as documentation-only."""
+        """Missing changed-file evidence must not be treated as documentation-only."""
 
         self.assertEqual(classify_paths(()), (False, True))
+        self.assertEqual(classify_changes(()), (False, True))
+
+    def test_raw_regular_docs_changes_are_lightweight(self) -> None:
+        """Ordinary non-executable blobs on both materialized sides prove the docs lane."""
+
+        data = (
+            _raw_record("100644", "100644", "M", "docs/PRD.md")
+            + _raw_record("000000", "100644", "A", "README.md")
+            + _raw_record("100644", "000000", "D", "docs/old.md")
+        )
+        changes = parse_nul_raw_changes(data)
+        self.assertEqual(classify_changes(changes), (True, False))
+
+    def test_raw_code_change_requires_rust(self) -> None:
+        """Mode-aware evidence does not weaken the existing path boundary."""
+
+        data = _raw_record(
+            "100644",
+            "100644",
+            "M",
+            "crates/originweave-core/src/lib.rs",
+        )
+        self.assertEqual(classify_changes(parse_nul_raw_changes(data)), (False, True))
+
+    def test_raw_code_to_docs_rename_requires_rust(self) -> None:
+        """Raw rename records must preserve both the code preimage and docs postimage."""
+
+        data = _raw_record(
+            "100644",
+            "100644",
+            "R100",
+            "crates/demo/src/lib.rs",
+            "docs/lib.md",
+        )
+        self.assertEqual(classify_changes(parse_nul_raw_changes(data)), (False, True))
+
+    def test_raw_docs_to_docs_rename_remains_lightweight(self) -> None:
+        """A regular-blob rename wholly inside docs stays in the lightweight lane."""
+
+        data = _raw_record(
+            "100644",
+            "100644",
+            "R095",
+            "docs/old.md",
+            "docs/new.md",
+        )
+        self.assertEqual(classify_changes(parse_nul_raw_changes(data)), (True, False))
+
+    def test_raw_symlink_edit_requires_rust(self) -> None:
+        """A modified symlink under docs is not proven prose despite status M and a docs path."""
+
+        data = _raw_record("120000", "120000", "M", "docs/guide.md")
+        self.assertEqual(classify_changes(parse_nul_raw_changes(data)), (False, True))
+
+    def test_raw_gitlink_edit_requires_rust(self) -> None:
+        """A gitlink under docs must not be treated as lightweight documentation."""
+
+        data = _raw_record("160000", "160000", "M", "docs/vendor")
+        self.assertEqual(classify_changes(parse_nul_raw_changes(data)), (False, True))
+
+    def test_raw_executable_blob_requires_rust(self) -> None:
+        """Executable entries do not belong to the prose-only contract surface."""
+
+        data = _raw_record("100755", "100755", "M", "docs/generate.md")
+        self.assertEqual(classify_changes(parse_nul_raw_changes(data)), (False, True))
+
+    def test_raw_type_change_requires_rust(self) -> None:
+        """A regular docs blob converted to a symlink must fail closed to Rust."""
+
+        data = _raw_record("100644", "120000", "T", "docs/guide.md")
+        self.assertEqual(classify_changes(parse_nul_raw_changes(data)), (False, True))
+
+    def test_raw_parser_rejects_unterminated_stream(self) -> None:
+        """Truncated raw evidence must fail before a scope decision is emitted."""
+
+        with self.assertRaisesRegex(ValueError, "NUL-terminated"):
+            parse_nul_raw_changes(
+                b":100644 100644 1111111 2222222 M\0docs/PRD.md"
+            )
+
+    def test_raw_parser_rejects_invalid_mode(self) -> None:
+        """Malformed raw mode metadata cannot be accepted as ordinary prose evidence."""
+
+        with self.assertRaisesRegex(ValueError, "mode"):
+            parse_nul_raw_changes(
+                _raw_record("10064x", "100644", "M", "docs/PRD.md")
+            )
+
+    def test_raw_parser_rejects_invalid_utf8_path(self) -> None:
+        """Ambiguous raw pathname bytes fail before classification."""
+
+        with self.assertRaisesRegex(ValueError, "valid UTF-8"):
+            parse_nul_raw_changes(
+                b":100644 100644 1111111 2222222 M\0docs/ok.md\xff\0"
+            )
 
     def test_nul_path_parser_preserves_spaces_and_unicode(self) -> None:
         """Git's NUL framing must preserve valid repository names without shell splitting."""
@@ -93,29 +196,21 @@ class CiChangeScopeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "NUL-terminated"):
             parse_nul_paths(b"docs/PRD.md")
 
-    def test_name_status_parser_preserves_docs_only_changes(self) -> None:
-        """Status framing must not force Rust when every affected path is prose-only."""
+    def test_name_status_parser_preserves_paths_but_is_not_scope_authority(self) -> None:
+        """Legacy status evidence remains decodable but never proves ordinary blob modes."""
 
         data = b"M\0docs/PRD.md\0A\0README.md\0D\0docs/old.md\0"
         paths = parse_nul_name_status(data)
         self.assertEqual(paths, ("docs/PRD.md", "README.md", "docs/old.md"))
-        self.assertEqual(classify_paths(paths), (True, False))
+        self.assertEqual(classify_paths(paths), (False, True))
 
-    def test_code_to_docs_rename_requires_rust(self) -> None:
-        """A post-image docs path must not hide a code-bearing rename preimage."""
+    def test_name_status_parser_preserves_rename_preimage(self) -> None:
+        """Path preservation remains useful for diagnostics even though modes are absent."""
 
         data = b"R100\0crates/demo/src/lib.rs\0docs/lib.md\0"
         paths = parse_nul_name_status(data)
         self.assertEqual(paths, ("crates/demo/src/lib.rs", "docs/lib.md"))
         self.assertEqual(classify_paths(paths), (False, True))
-
-    def test_docs_to_docs_rename_remains_lightweight(self) -> None:
-        """A rename whose preimage and postimage are both docs stays in the lightweight lane."""
-
-        data = b"R095\0docs/old.md\0docs/new.md\0"
-        paths = parse_nul_name_status(data)
-        self.assertEqual(paths, ("docs/old.md", "docs/new.md"))
-        self.assertEqual(classify_paths(paths), (True, False))
 
     def test_name_status_parser_rejects_truncated_rename(self) -> None:
         """Rename/copy records must include both source and destination paths."""
@@ -124,7 +219,7 @@ class CiChangeScopeTests(unittest.TestCase):
             parse_nul_name_status(b"R100\0docs/old.md\0")
 
     def test_name_status_parser_rejects_unterminated_stream(self) -> None:
-        """Missing terminal NUL must fail closed before docs-only classification."""
+        """Missing terminal NUL must fail closed before classification."""
 
         with self.assertRaisesRegex(ValueError, "NUL-terminated"):
             parse_nul_name_status(b"M\0docs/PRD.md")
@@ -147,12 +242,15 @@ class CiChangeScopeTests(unittest.TestCase):
             "documentation_only=false\nrust_required=true\n",
         )
 
-    def test_cli_emits_lightweight_scope_for_nul_delimited_docs_status(self) -> None:
-        """The executable boundary must preserve Git's status-aware NUL framing."""
+    def test_cli_emits_lightweight_scope_for_mode_aware_docs_raw_diff(self) -> None:
+        """The executable boundary must require raw modes before skipping Rust."""
 
         completed = subprocess.run(
             [sys.executable, str(CLASSIFIER)],
-            input=b"M\0docs/PRD.md\0A\0README.md\0",
+            input=(
+                _raw_record("100644", "100644", "M", "docs/PRD.md")
+                + _raw_record("000000", "100644", "A", "README.md")
+            ),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             check=False,
@@ -164,12 +262,12 @@ class CiChangeScopeTests(unittest.TestCase):
         )
         self.assertEqual(completed.stderr, b"")
 
-    def test_cli_requires_rust_for_code_to_docs_rename(self) -> None:
-        """The executable boundary must classify both sides of a rename."""
+    def test_cli_fails_closed_to_rust_for_mode_blind_name_status(self) -> None:
+        """Status/path-only input cannot prove that a docs entry is an ordinary blob."""
 
         completed = subprocess.run(
             [sys.executable, str(CLASSIFIER)],
-            input=b"R100\0crates/demo/src/lib.rs\0docs/lib.md\0",
+            input=b"M\0docs/PRD.md\0",
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             check=False,
@@ -212,7 +310,7 @@ class CiChangeScopeTests(unittest.TestCase):
         self.assertIn(b"NUL-terminated", completed.stderr)
 
     def test_workflow_keeps_docs_contracts_separate_from_rust(self) -> None:
-        """The CI workflow must always run docs contracts and gate Rust jobs by scope."""
+        """The CI workflow must always run docs contracts and gate Rust jobs by raw scope."""
 
         workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
         self.assertIn("name: Repository and documentation contracts", workflow)
@@ -222,7 +320,7 @@ class CiChangeScopeTests(unittest.TestCase):
             workflow.count("needs.scope.outputs.rust_required == 'true'"),
             2,
         )
-        self.assertIn("git diff --name-status -z", workflow)
+        self.assertIn("git diff --raw -z", workflow)
         self.assertIn("classify_ci_change_scope.py", workflow)
 
 
