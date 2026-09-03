@@ -31,6 +31,7 @@ SPDX_3_0_1_CONTEXT = "https://spdx.org/rdf/3.0.1/spdx-context.jsonld"
 MAX_SPDX_JSONLD_BYTES = 16 * 1024 * 1024
 MAX_SPDX_GRAPH_OBJECTS = 65_536
 MAX_SPDX_JSON_CONTAINERS = 524_288
+MAX_SPDX_JSON_STRUCTURE_TOKENS = 1_048_576
 MAX_SPDX_JSON_NUMBER_TOKEN_BYTES = 4096
 _EXPECTED_PARENT_IDENTITIES: contextvars.ContextVar[tuple[tuple[int, int], ...]] = (
     contextvars.ContextVar("spdx_expected_parent_identities", default=())
@@ -81,17 +82,19 @@ def _finite_json_float(value: str) -> float:
     return parsed
 
 
-def _reject_excessive_json_container_count(text: str) -> None:
-    """Reject container fan-out before the standard JSON parser materializes the tree.
+def _reject_excessive_json_structure(text: str) -> None:
+    """Reject hostile JSON fan-out before the standard parser materializes the tree.
 
     The byte-size limit alone does not bound heap amplification: a compact JSON string can
-    encode hundreds of thousands of empty arrays or objects. This lexical preflight counts
-    only structural ``[`` and ``{`` tokens outside JSON strings, so container-shaped text
-    inside values does not consume the budget. Grammar validation still belongs to
-    ``json.loads`` immediately after this resource check.
+    encode hundreds of thousands of containers or more than a million scalar/object members.
+    This lexical preflight counts structure only outside JSON strings. Opening containers have
+    a tighter dedicated budget, while all brackets, braces, commas, and colons share a broader
+    structure-token budget that also constrains scalar fan-out. Grammar validation still
+    belongs to ``json.loads`` immediately after this resource check.
     """
 
     container_count = 0
+    structure_token_count = 0
     in_string = False
     escaped = False
     for character in text:
@@ -106,10 +109,15 @@ def _reject_excessive_json_container_count(text: str) -> None:
 
         if character == '"':
             in_string = True
-        elif character in "[{":
+            continue
+        if character in "[{":
             container_count += 1
             if container_count > MAX_SPDX_JSON_CONTAINERS:
                 raise SpdxJsonLdEnvelopeError("too_many_json_containers")
+        if character in "[]{}:,":
+            structure_token_count += 1
+            if structure_token_count > MAX_SPDX_JSON_STRUCTURE_TOKENS:
+                raise SpdxJsonLdEnvelopeError("too_many_json_structure_tokens")
 
 
 def _has_required_spdx_context(context: Any) -> bool:
@@ -175,7 +183,7 @@ def validate_spdx_3_0_1_jsonld_bytes(payload: bytes) -> dict[str, int | str]:
         # ``__cause__`` or ``__context__`` reference.
         raise SpdxJsonLdEnvelopeError("invalid_utf8")
 
-    _reject_excessive_json_container_count(text)
+    _reject_excessive_json_structure(text)
 
     parse_error_code: str | None = None
     try:
