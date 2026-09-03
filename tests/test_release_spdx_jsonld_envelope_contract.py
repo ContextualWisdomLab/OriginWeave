@@ -140,6 +140,19 @@ class ReleaseSpdxJsonLdEnvelopeContractTests(unittest.TestCase):
         self.assertLess(len(payload), self.max_bytes)
         self._assert_error_code(payload, "too_many_json_containers")
 
+    def test_scalar_fan_out_fails_before_json_materialization(self) -> None:
+        scalar_count = 1_048_577
+        payload = (
+            '{"@context":"'
+            + CONTEXT
+            + '","@graph":[{"type":"SpdxDocument","nested":['
+            + "0," * scalar_count
+            + "0]}]}"
+        ).encode("utf-8")
+
+        self.assertLess(len(payload), self.max_bytes)
+        self._assert_error_code(payload, "too_many_json_structure_tokens")
+
     def test_container_preflight_ignores_structural_tokens_inside_strings(self) -> None:
         marker = '[{"nested":[]}]\\buyer"quote'
         summary = self.validate(self._payload([{"type": "SpdxDocument", "note": marker}]))
