@@ -198,9 +198,12 @@ impl WebDriverBiDiCommandCorrelation {
                 )
             }
             WebDriverBiDiJsonEnvelopeKind::Success => {
-                let Some(command_id) = envelope.command_id() else {
-                    return Err(WebDriverBiDiCommandCorrelationError::CommandNotOutstanding);
-                };
+                // Success envelopes are privately constructed only after the JSON boundary admits
+                // a required js-uint id. Keep an internal invariant violation fail-closed without an
+                // unreachable branch: this sentinel can never be registered as an outstanding id.
+                let command_id = envelope
+                    .command_id()
+                    .unwrap_or(MAX_WEBDRIVER_BIDI_JS_UINT + 1);
                 self.complete(
                     command_id,
                     expected_kind,
