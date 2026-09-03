@@ -22,6 +22,8 @@ class ReleaseSpdxJsonLdEnvelopeContractTests(unittest.TestCase):
         cls.error_type = cls.namespace["SpdxJsonLdEnvelopeError"]
         cls.max_bytes = cls.namespace["MAX_SPDX_JSONLD_BYTES"]
         cls.max_graph_objects = cls.namespace["MAX_SPDX_GRAPH_OBJECTS"]
+        cls.max_containers = cls.namespace["MAX_SPDX_JSON_CONTAINERS"]
+        cls.max_structure_tokens = cls.namespace["MAX_SPDX_JSON_STRUCTURE_TOKENS"]
 
     @staticmethod
     def _payload(graph: list[object], *, context: object = CONTEXT) -> bytes:
@@ -128,20 +130,22 @@ class ReleaseSpdxJsonLdEnvelopeContractTests(unittest.TestCase):
         self._assert_error_code(self._payload(oversized_graph), "too_many_graph_objects")
 
     def test_nested_container_explosion_fails_before_json_materialization(self) -> None:
-        nested_container_count = 524_289
+        nested_container_count = self.max_containers + 1
         payload = (
             '{"@context":"'
             + CONTEXT
-            + '","@graph":[{"type":"SpdxDocument","nested":['
-            + "[]," * nested_container_count
-            + "[]]}]}"
+            + '","@graph":[{"type":"SpdxDocument","nested":'
+            + "[" * nested_container_count
+            + "0"
+            + "]" * nested_container_count
+            + "}]}"
         ).encode("utf-8")
 
         self.assertLess(len(payload), self.max_bytes)
         self._assert_error_code(payload, "too_many_json_containers")
 
     def test_scalar_fan_out_fails_before_json_materialization(self) -> None:
-        scalar_count = 1_048_577
+        scalar_count = self.max_structure_tokens + 1
         payload = (
             '{"@context":"'
             + CONTEXT
@@ -153,7 +157,7 @@ class ReleaseSpdxJsonLdEnvelopeContractTests(unittest.TestCase):
         self.assertLess(len(payload), self.max_bytes)
         self._assert_error_code(payload, "too_many_json_structure_tokens")
 
-    def test_container_preflight_ignores_structural_tokens_inside_strings(self) -> None:
+    def test_structure_preflight_ignores_structural_tokens_inside_strings(self) -> None:
         marker = '[{"nested":[]}]\\buyer"quote'
         summary = self.validate(self._payload([{"type": "SpdxDocument", "note": marker}]))
 
