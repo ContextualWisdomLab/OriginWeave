@@ -171,6 +171,8 @@ pub enum HandleUseDecision {
     AudienceMismatch,
     /// The handle is no longer valid at the supplied trusted time.
     Expired,
+    /// The supplied trusted time predates time already observed by the reservation state.
+    TrustedTimeRollback,
     /// The bounded use count has already been consumed or reserved.
     UseLimitReached,
 }
@@ -280,15 +282,17 @@ impl PartialEq for SensitiveHandleUseReservation {
 
 impl Eq for SensitiveHandleUseReservation {}
 
-/// In-process authoritative use-count, reservation-settlement, and revocation state
-/// for one opaque sensitive-value handle scope.
+/// In-process authoritative use-count, reservation-settlement, trusted-time, and
+/// revocation state for one opaque sensitive-value handle scope.
 ///
 /// The state supports two reservation modes. [`Self::reserve_use`] retains the
 /// earlier conservative behavior and immediately consumes a use without offering
 /// compensation. [`Self::reserve_tracked_use`] creates an identity-bound unsettled
 /// reservation that a trusted broker must later commit after disclosure or
 /// compensate only when it has authoritative proof that no disclosure occurred.
-/// Denied reservations never consume capacity.
+/// Reservation and pre-disclosure recheck paths retain the maximum trusted time
+/// observed by this state and reject rollback, so stale clock values cannot restore
+/// expired handle authority. Denied reservations never consume capacity.
 ///
 /// This is a policy-state primitive, not the trusted broker itself. It contains
 /// neither the opaque handle token nor protected data and provides no authenticated
@@ -296,7 +300,8 @@ impl Eq for SensitiveHandleUseReservation {}
 /// persistence, or proof that compensation is truthful. A shared or durable broker
 /// must derive audience from authenticated caller identity, place reserve/recheck/
 /// disclose/settle behind its own transactional or locking boundary, persist
-/// lifecycle state, and recheck authority immediately before disclosure.
+/// lifecycle state and an equivalent trusted-time floor, and recheck authority
+/// immediately before disclosure.
 #[derive(Debug, PartialEq, Eq)]
 pub struct SensitiveHandleUseState {
     scope: SensitiveValueHandleScope,
@@ -304,6 +309,7 @@ pub struct SensitiveHandleUseState {
     completed_uses: u32,
     outstanding_reservations: Vec<SensitiveHandleUseReservation>,
     revocation_reason: Option<HandleRevocationReason>,
+    latest_trusted_time_epoch_seconds: Option<u64>,
 }
 
 impl SensitiveHandleUseState {
@@ -316,6 +322,7 @@ impl SensitiveHandleUseState {
             completed_uses: 0,
             outstanding_reservations: Vec::new(),
             revocation_reason: None,
+            latest_trusted_time_epoch_seconds: None,
         }
     }
 
@@ -362,9 +369,11 @@ impl SensitiveHandleUseState {
     ///
     /// This compatibility path is deliberately non-compensatable. Callers that
     /// need pre-disclosure rollback must use [`Self::reserve_tracked_use`] and
-    /// settle the returned identity explicitly. Revocation is checked before
-    /// later request details, and every denial leaves the authoritative count
-    /// unchanged.
+    /// settle the returned identity explicitly. Exact scope and audience mismatch
+    /// are decided before lifecycle state is read; revocation then remains
+    /// authoritative over otherwise matching requests; trusted time cannot move
+    /// backward; and every denial leaves the authoritative count unchanged.
+    #[must_use]
     pub fn reserve_use(
         &mut self,
         authority: SensitiveDataAuthority,
@@ -409,26 +418,30 @@ impl SensitiveHandleUseState {
 
     /// Recheck the exact outstanding tracked reservation immediately before disclosure.
     ///
-    /// This does not reserve another use and does not mutate settlement state. The
-    /// trusted broker must supply authenticated audience, trusted time, and the exact
-    /// authority that applies at disclosure time, and must call this inside the same
-    /// transaction or locking boundary that guards value disclosure. Revocation is
-    /// checked before reservation membership and request detail so a revoked state
-    /// does not disclose whether a foreign or stale reservation would otherwise match.
-    /// An outstanding reservation also proves that this immutable state scope passed
-    /// authority and audience validation when it was admitted; recheck therefore
-    /// validates the caller-supplied authority and audience without duplicating
-    /// unreachable scope-validation branches. A use-limit check is intentionally
-    /// omitted because the outstanding reservation already consumed its bounded use
-    /// capacity.
+    /// This does not reserve another use or settle the reservation. The trusted broker
+    /// must supply authenticated audience, trusted time, and the exact authority that
+    /// applies at disclosure time, and must call this inside the same transaction or
+    /// locking boundary that guards value disclosure. Scope and audience mismatch are
+    /// rejected before lifecycle state is exposed, matching reservation admission;
+    /// revocation is then authoritative over a matching request. A foreign or stale
+    /// reservation is rejected before trusted-time state is consulted. Successful and
+    /// expired matching rechecks advance the trusted-time floor, while rollback is
+    /// fail-closed. A use-limit check is intentionally omitted because an outstanding
+    /// reservation already consumed its bounded use capacity.
     #[must_use]
     pub fn recheck_reservation(
-        &self,
+        &mut self,
         reservation: &SensitiveHandleUseReservation,
         authority: SensitiveDataAuthority,
         audience_id: &str,
         now_epoch_seconds: u64,
     ) -> HandleUseDecision {
+        if !authority.is_complete() || authority != self.scope.authority {
+            return HandleUseDecision::ScopeMismatch;
+        }
+        if !authority_identifier_is_valid(audience_id) || audience_id != self.scope.audience_id {
+            return HandleUseDecision::AudienceMismatch;
+        }
         if self.revocation_reason.is_some() {
             return HandleUseDecision::Revoked;
         }
@@ -439,13 +452,15 @@ impl SensitiveHandleUseState {
         {
             return HandleUseDecision::ReservationNotOutstanding;
         }
-        if !authority.is_complete() || authority != self.scope.authority {
-            HandleUseDecision::ScopeMismatch
-        } else if !authority_identifier_is_valid(audience_id)
-            || audience_id != self.scope.audience_id
+        if self
+            .latest_trusted_time_epoch_seconds
+            .is_some_and(|latest| now_epoch_seconds < latest)
         {
-            HandleUseDecision::AudienceMismatch
-        } else if now_epoch_seconds >= self.scope.expires_at_epoch_seconds {
+            return HandleUseDecision::TrustedTimeRollback;
+        }
+        self.latest_trusted_time_epoch_seconds = Some(now_epoch_seconds);
+
+        if now_epoch_seconds >= self.scope.expires_at_epoch_seconds {
             HandleUseDecision::Expired
         } else {
             HandleUseDecision::Authorized
@@ -495,21 +510,37 @@ impl SensitiveHandleUseState {
     }
 
     fn evaluate_reservation(
-        &self,
+        &mut self,
         authority: SensitiveDataAuthority,
         audience_id: &str,
         now_epoch_seconds: u64,
     ) -> HandleUseDecision {
-        if self.revocation_reason.is_some() {
-            return HandleUseDecision::Revoked;
-        }
         let request = HandleUseRequest::new(
             authority,
             audience_id,
             now_epoch_seconds,
             self.reserved_uses,
         );
-        evaluate_handle_use(&request, &self.scope)
+        let policy_decision = evaluate_handle_use(&request, &self.scope);
+        if matches!(
+            policy_decision,
+            HandleUseDecision::ScopeMismatch | HandleUseDecision::AudienceMismatch
+        ) {
+            return policy_decision;
+        }
+
+        if self.revocation_reason.is_some() {
+            return HandleUseDecision::Revoked;
+        }
+        if self
+            .latest_trusted_time_epoch_seconds
+            .is_some_and(|latest| now_epoch_seconds < latest)
+        {
+            return HandleUseDecision::TrustedTimeRollback;
+        }
+        self.latest_trusted_time_epoch_seconds = Some(now_epoch_seconds);
+
+        policy_decision
     }
 }
 
@@ -517,12 +548,14 @@ impl SensitiveHandleUseState {
 ///
 /// This pure function does not consume a use, mutate broker state, resolve a
 /// handle, or release a protected value. It is therefore not standalone
-/// enforcement. A trusted broker must obtain authenticated caller audience,
-/// trusted time, and caller-unforgeable handle state, atomically reserve or
-/// increment the use count before value resolution, and recheck the reserved
-/// authority immediately before disclosure. Missing or malformed authority or
-/// audience identifiers fail closed. The authority destination must already have
-/// crossed the canonical [`Origin`] boundary.
+/// enforcement and cannot detect trusted-time rollback across calls. A trusted
+/// broker must obtain authenticated caller audience, trusted time, and
+/// caller-unforgeable handle state, reject rollback through state such as
+/// [`SensitiveHandleUseState`], atomically reserve or increment the use count
+/// before value resolution, and recheck the reserved authority immediately before
+/// disclosure. Missing or malformed authority or audience identifiers fail closed.
+/// The authority destination must already have crossed the canonical [`Origin`]
+/// boundary.
 #[must_use]
 pub fn evaluate_handle_use(
     request: &HandleUseRequest,

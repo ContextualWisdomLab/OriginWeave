@@ -129,6 +129,90 @@ fn denied_reservations_do_not_consume_the_authoritative_count() {
 }
 
 #[test]
+fn trusted_time_rollback_cannot_restore_expired_handle_authority() {
+    let mut state = SensitiveHandleUseState::new(scope(1));
+
+    assert_eq!(
+        state.reserve_use(authority(DESTINATION), AUDIENCE, 2_000),
+        HandleUseDecision::Expired
+    );
+    assert_eq!(state.reserved_uses(), 0);
+    assert_eq!(
+        state.reserve_use(authority(DESTINATION), AUDIENCE, 1_999),
+        HandleUseDecision::TrustedTimeRollback
+    );
+    assert_eq!(state.reserved_uses(), 0);
+}
+
+#[test]
+fn scope_mismatch_does_not_expose_trusted_time_rollback_state() {
+    let mut state = SensitiveHandleUseState::new(scope(2));
+
+    assert_eq!(
+        state.reserve_use(authority(DESTINATION), AUDIENCE, 1_999),
+        HandleUseDecision::Authorized
+    );
+    assert_eq!(
+        state.reserve_use(authority("https://other.example"), AUDIENCE, 1_998),
+        HandleUseDecision::ScopeMismatch
+    );
+    assert_eq!(state.reserved_uses(), 1);
+}
+
+#[test]
+fn scope_mismatch_cannot_poison_the_trusted_time_floor() {
+    let mut state = SensitiveHandleUseState::new(scope(2));
+
+    assert_eq!(
+        state.reserve_use(authority(DESTINATION), AUDIENCE, 1_990),
+        HandleUseDecision::Authorized
+    );
+    assert_eq!(
+        state.reserve_use(authority("https://other.example"), AUDIENCE, 9_999),
+        HandleUseDecision::ScopeMismatch
+    );
+    assert_eq!(
+        state.reserve_use(authority(DESTINATION), AUDIENCE, 1_991),
+        HandleUseDecision::Authorized
+    );
+    assert_eq!(state.reserved_uses(), 2);
+}
+
+#[test]
+fn audience_mismatch_does_not_expose_trusted_time_rollback_state() {
+    let mut state = SensitiveHandleUseState::new(scope(2));
+
+    assert_eq!(
+        state.reserve_use(authority(DESTINATION), AUDIENCE, 1_999),
+        HandleUseDecision::Authorized
+    );
+    assert_eq!(
+        state.reserve_use(authority(DESTINATION), "other_service", 1_998),
+        HandleUseDecision::AudienceMismatch
+    );
+    assert_eq!(state.reserved_uses(), 1);
+}
+
+#[test]
+fn audience_mismatch_cannot_poison_the_trusted_time_floor() {
+    let mut state = SensitiveHandleUseState::new(scope(2));
+
+    assert_eq!(
+        state.reserve_use(authority(DESTINATION), AUDIENCE, 1_990),
+        HandleUseDecision::Authorized
+    );
+    assert_eq!(
+        state.reserve_use(authority(DESTINATION), "other_service", 9_999),
+        HandleUseDecision::AudienceMismatch
+    );
+    assert_eq!(
+        state.reserve_use(authority(DESTINATION), AUDIENCE, 1_991),
+        HandleUseDecision::Authorized
+    );
+    assert_eq!(state.reserved_uses(), 2);
+}
+
+#[test]
 fn invalid_or_empty_audience_never_receives_handle_authority() {
     let mut state = SensitiveHandleUseState::new(scope(1));
 
@@ -182,25 +266,27 @@ fn revocation_is_authoritative_idempotent_and_blocks_future_use() {
 }
 
 #[test]
-fn revocation_precedes_request_mismatch_without_leaking_later_policy_state() {
+fn binding_mismatch_does_not_expose_revocation_state() {
     let mut state = SensitiveHandleUseState::new(scope(3));
     assert!(state.revoke(HandleRevocationReason::SuspiciousUse));
 
-    for (request_authority, audience, now) in [
-        (authority("https://other.example"), AUDIENCE, 1_999),
-        (authority(DESTINATION), "other_service", 1_999),
-        (authority(DESTINATION), AUDIENCE, 2_000),
-    ] {
-        assert_eq!(
-            state.reserve_use(request_authority, audience, now),
-            HandleUseDecision::Revoked
-        );
-        assert_eq!(state.reserved_uses(), 0);
-        assert_eq!(
-            state.revocation_reason(),
-            Some(HandleRevocationReason::SuspiciousUse)
-        );
-    }
+    assert_eq!(
+        state.reserve_use(authority("https://other.example"), AUDIENCE, 1_999),
+        HandleUseDecision::ScopeMismatch
+    );
+    assert_eq!(
+        state.reserve_use(authority(DESTINATION), "other_service", 1_999),
+        HandleUseDecision::AudienceMismatch
+    );
+    assert_eq!(
+        state.reserve_use(authority(DESTINATION), AUDIENCE, 2_000),
+        HandleUseDecision::Revoked
+    );
+    assert_eq!(state.reserved_uses(), 0);
+    assert_eq!(
+        state.revocation_reason(),
+        Some(HandleRevocationReason::SuspiciousUse)
+    );
 }
 
 #[test]

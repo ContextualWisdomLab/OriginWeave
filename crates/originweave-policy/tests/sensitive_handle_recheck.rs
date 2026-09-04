@@ -150,7 +150,7 @@ fn foreign_or_settled_reservation_cannot_be_rechecked() {
 }
 
 #[test]
-fn recheck_revalidates_scope_audience_and_expiry() {
+fn recheck_revalidates_scope_audience_and_expiry_without_poisoning_time() {
     let mut state = SensitiveHandleUseState::new(scope(1));
     let reservation = state
         .reserve_tracked_use(authority(DESTINATION), AUDIENCE, 1_900)
@@ -161,12 +161,12 @@ fn recheck_revalidates_scope_audience_and_expiry() {
             &reservation,
             authority("https://other.example"),
             AUDIENCE,
-            1_999,
+            9_999,
         ),
         HandleUseDecision::ScopeMismatch
     );
     assert_eq!(
-        state.recheck_reservation(&reservation, authority_with_tenant(""), AUDIENCE, 1_999),
+        state.recheck_reservation(&reservation, authority_with_tenant(""), AUDIENCE, 9_999),
         HandleUseDecision::ScopeMismatch
     );
     assert_eq!(
@@ -174,13 +174,17 @@ fn recheck_revalidates_scope_audience_and_expiry() {
             &reservation,
             authority(DESTINATION),
             "other_browser_adapter",
-            1_999,
+            9_999,
         ),
         HandleUseDecision::AudienceMismatch
     );
     assert_eq!(
-        state.recheck_reservation(&reservation, authority(DESTINATION), "", 1_999),
+        state.recheck_reservation(&reservation, authority(DESTINATION), "", 9_999),
         HandleUseDecision::AudienceMismatch
+    );
+    assert_eq!(
+        state.recheck_reservation(&reservation, authority(DESTINATION), AUDIENCE, 1_999),
+        HandleUseDecision::Authorized
     );
     assert_eq!(
         state.recheck_reservation(&reservation, authority(DESTINATION), AUDIENCE, 2_000),
@@ -191,7 +195,7 @@ fn recheck_revalidates_scope_audience_and_expiry() {
 }
 
 #[test]
-fn revocation_precedes_reservation_and_request_details_on_recheck() {
+fn binding_mismatch_does_not_expose_revocation_state_on_recheck() {
     let mut active_state = SensitiveHandleUseState::new(scope(1));
     let foreign = active_state
         .reserve_tracked_use(authority(DESTINATION), AUDIENCE, 1_900)
@@ -203,9 +207,55 @@ fn revocation_precedes_reservation_and_request_details_on_recheck() {
         revoked_state.recheck_reservation(
             &foreign,
             authority("https://other.example"),
+            AUDIENCE,
+            2_001,
+        ),
+        HandleUseDecision::ScopeMismatch
+    );
+    assert_eq!(
+        revoked_state.recheck_reservation(
+            &foreign,
+            authority(DESTINATION),
             "other_browser_adapter",
             2_001,
         ),
+        HandleUseDecision::AudienceMismatch
+    );
+    assert_eq!(
+        revoked_state.recheck_reservation(&foreign, authority(DESTINATION), AUDIENCE, 2_001,),
         HandleUseDecision::Revoked
     );
+}
+
+#[test]
+fn recheck_rejects_trusted_time_rollback_and_denied_dispatch_stays_closed() {
+    let mut state = SensitiveHandleUseState::new(scope(1));
+    let reservation = state
+        .reserve_tracked_use(authority(DESTINATION), AUDIENCE, 1_900)
+        .expect("reservation must be authorized");
+
+    assert_eq!(
+        state.recheck_reservation(&reservation, authority(DESTINATION), AUDIENCE, 1_950),
+        HandleUseDecision::Authorized
+    );
+    assert_eq!(
+        state.recheck_reservation(&reservation, authority(DESTINATION), AUDIENCE, 1_949),
+        HandleUseDecision::TrustedTimeRollback
+    );
+
+    reset_dispatch_count();
+    assert_eq!(
+        state.dispatch_if_reservation_current(
+            &reservation,
+            authority(DESTINATION),
+            AUDIENCE,
+            1_949,
+            record_disclosure as fn() -> &'static str,
+        ),
+        Err(HandleUseDecision::TrustedTimeRollback)
+    );
+    assert_eq!(dispatch_count(), 0);
+    assert_eq!(state.reserved_uses(), 1);
+    assert_eq!(state.completed_uses(), 0);
+    assert_eq!(state.outstanding_reservations(), 1);
 }
