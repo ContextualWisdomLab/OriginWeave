@@ -153,7 +153,7 @@ fn direct_connection(origin: &Origin, socket_address: SocketAddr) -> DirectTcpCo
         1,
     )
     .expect("fresh direct connection plan")
-    .connect(RESOLUTION_AUTHORIZED_AT)
+    .connect_at(RESOLUTION_AUTHORIZED_AT)
     .expect("loopback TCP connection")
 }
 

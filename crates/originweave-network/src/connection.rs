@@ -273,6 +273,13 @@ impl SocketConnectionEvidence {
 pub enum NetworkError {
     /// The requested destination port was zero.
     InvalidPort,
+    /// The requested socket port did not match the canonical origin's effective port.
+    OriginPortMismatch {
+        /// The nonzero socket port requested by the caller.
+        requested_port: u16,
+        /// The HTTP or HTTPS port authorized by the canonical origin.
+        expected_port: u16,
+    },
     /// The timeout was zero or exceeded [`MAX_CONNECT_TIMEOUT`].
     InvalidConnectTimeout {
         /// The rejected timeout.
@@ -351,6 +358,7 @@ impl NetworkError {
             Self::PeerInspectionFailed { attempt_number, .. }
             | Self::PeerMismatch { attempt_number, .. } => Some(*attempt_number),
             Self::InvalidPort
+            | Self::OriginPortMismatch { .. }
             | Self::InvalidConnectTimeout { .. }
             | Self::InvalidAttemptCount { .. }
             | Self::DestinationNotApproved { .. }
@@ -363,6 +371,13 @@ impl fmt::Display for NetworkError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidPort => formatter.write_str("connection port must be within 1..=65535"),
+            Self::OriginPortMismatch {
+                requested_port,
+                expected_port,
+            } => write!(
+                formatter,
+                "socket port {requested_port} does not match canonical origin port {expected_port}",
+            ),
             Self::InvalidConnectTimeout {
                 connect_timeout,
                 maximum_timeout,
@@ -436,6 +451,7 @@ impl std::error::Error for NetworkError {
             | Self::ConnectionFailed { source, .. }
             | Self::PeerInspectionFailed { source, .. } => Some(source),
             Self::InvalidPort
+            | Self::OriginPortMismatch { .. }
             | Self::InvalidConnectTimeout { .. }
             | Self::InvalidAttemptCount { .. }
             | Self::NonCanonicalSocketAddress { .. }
