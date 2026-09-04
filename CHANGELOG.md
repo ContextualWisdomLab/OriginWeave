@@ -6,7 +6,10 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 - Refreshed the product-gap queue to 126 open pull requests (54 ready, 72 draft) after #190, #188, #185, #192, #182, #184, #115, #181, #116, #117, #118, #183, #114, #127, #112, #109, #186, #110, #108, #111, #174, and #113 were merged into their immediate stacked prerequisites. PRs #147, #146, #145, #144, #143, #142, #141, #139, #136, #132, #129, and #128 moved to ready after exact-head checks and thread review; these are queue-consolidation results, not protected-main shipment.
 
+- Added a bounded enterprise maker-checker approval lifecycle with opaque principal references, exact immutable-scope approval, distinct maker/checker enforcement, bounded expiry and use counts, monotonic trusted-time transitions, fail-closed terminal states, and non-cloneable one-shot policy-evaluation uses so consumed enterprise authority cannot be replayed as reusable approval evidence.
+
 ### Added
+
 - Corrected the 2026-08-26 product-gap snapshot with current #229 presentation-identity evidence, stacked-only #205 integration evidence, current base/head pairs, the 126-PR queue count, explicit root-versus-child merge ordering, and the active GitHub counted-approval gate.
 - Refreshed the product and technical gap baseline onto the 2026-08-26 live inventory: 126 open pull requests (54 ready, 72 draft), protected-main promotion of #168/#194/#196/#216/#151, a verified maintenance-loop record (supersession closure of #153, conflict reconciliations on #37/#149/#152/#173/#175, issue #212 option-(b) authorization on #43, Strix vuln-0001 homoglyph remediation on #124), provider-rerun outcome evidence, an organization review-pipeline congestion record, and refreshed merge-order queue guidance. Documentation evidence contracts were aligned to the same snapshot so the baseline, its dated markers, and the pinned exact-head rows cannot silently diverge.
 
@@ -76,6 +79,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Crawler mode is read-only, must pair with the public-crawl purpose, and fails closed without an applicable robots-policy decision.
 - State-changing actions are same-origin by default.
 - R3 and R4 approvals are bound to the exact action, target origin, and immutable digest of the complete canonical action intent; R5 legal consent is non-delegable.
+- Consumed enterprise maker-checker approvals expose only a non-cloneable one-shot policy-evaluation use; denial still burns the consumed use and the reusable caller policy context is not upgraded with enterprise approval evidence.
+- Enterprise approval principal references reject Unicode `Bidi_Control` characters plus soft hyphen, zero-width separators/joiners, word-joining controls, deprecated invisible formatting controls, and byte-order marks so exact `(issuer, subject)` authority tuples cannot differ only by operator-confusable presentation state.
 - Shortened, integer, hexadecimal, and legacy octal-looking IPv4 host spellings are rejected so the policy origin cannot diverge from Chromium host interpretation.
 - IPv4-mapped IPv6 is canonicalized before destination classification and pin comparison so mapped private or loopback addresses cannot bypass IPv4 policy.
 - The default destination policy permits only public addresses and denies unspecified, loopback, private, shared, link-local, metadata, documentation, benchmarking, multicast, broadcast, transition, and protocol-reserved destinations.

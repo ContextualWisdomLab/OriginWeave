@@ -95,4 +95,10 @@ ADR 0016 is owned by this active BAP lifecycle feature branch and remains Propos
 
 After protected-main integration, retain this subsection only when it is intentionally serving as historical provenance; otherwise protected-main reconciliation must remove it. In either case, integration alone does not change ADR 0016 from Proposed or assert implementation maturity.
 
+### Proposed decision introduced by enterprise approval development
+
+- [ADR 0017: Enterprise maker-checker approval lifecycle](adr/0017-enterprise-maker-checker-approval.md)
+
+ADR 0017 is branch-local reviewable architecture until its owning enterprise approval change integrates. It remains Proposed and does not override Accepted ADR 0002 or protected-main implementation truth.
+
 See the [ADR index](adr/README.md) for status rules, required decision structure, supersession rules, and active feature ADRs. The index and each ADR's own status metadata must agree; a PR body, chat transcript, automation prompt, or stale issue reference cannot change ADR status.

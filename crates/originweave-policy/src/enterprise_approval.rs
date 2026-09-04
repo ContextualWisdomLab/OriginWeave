@@ -1,0 +1,597 @@
+//! Deterministic enterprise maker-checker approval lifecycle.
+//!
+//! This module deliberately stores only opaque identity references and exact
+//! [`ApprovalScope`] values. Authentication, wall-clock acquisition, durable
+//! persistence, signatures, and external identity resolution belong to trusted
+//! control-plane boundaries outside this crate.
+
+use std::{
+    fmt,
+    sync::{Arc, OnceLock},
+};
+
+use originweave_core::{ActionKind, ActionRequest, ApprovalEvidence, ApprovalScope, PolicyContext};
+
+const MAX_PRINCIPAL_REFERENCE_BYTES: usize = 256;
+
+/// An opaque, already-authenticated enterprise principal reference.
+///
+/// Identity is the exact `(issuer, subject)` tuple. In particular, callers must
+/// not merge principals by email address or another mutable display attribute.
+/// Standard [`Debug`](fmt::Debug) output is deliberately identity-redacted and
+/// must not be treated as audit evidence.
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ApprovalPrincipalRef {
+    issuer: String,
+    subject: String,
+}
+
+impl fmt::Debug for ApprovalPrincipalRef {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ApprovalPrincipalRef")
+            .finish_non_exhaustive()
+    }
+}
+
+impl ApprovalPrincipalRef {
+    /// Construct an opaque principal reference from trusted identity metadata.
+    ///
+    /// This validates only a bounded canonical representation. It does not
+    /// authenticate the issuer or subject.
+    pub fn new(issuer: &str, subject: &str) -> Result<Self, ApprovalPrincipalRefError> {
+        if !principal_component_is_valid(issuer) {
+            return Err(ApprovalPrincipalRefError::InvalidIssuer);
+        }
+        if !principal_component_is_valid(subject) {
+            return Err(ApprovalPrincipalRefError::InvalidSubject);
+        }
+        Ok(Self {
+            issuer: issuer.to_owned(),
+            subject: subject.to_owned(),
+        })
+    }
+
+    /// Return the exact trusted issuer reference.
+    #[must_use]
+    pub fn issuer(&self) -> &str {
+        &self.issuer
+    }
+
+    /// Return the exact issuer-scoped subject reference.
+    #[must_use]
+    pub fn subject(&self) -> &str {
+        &self.subject
+    }
+}
+
+fn principal_component_is_valid(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= MAX_PRINCIPAL_REFERENCE_BYTES
+        && value.trim() == value
+        && !value.chars().any(|character| {
+            character.is_control()
+                || is_bidi_control(character)
+                || is_invisible_format_control(character)
+        })
+}
+
+fn is_bidi_control(character: char) -> bool {
+    matches!(
+        character,
+        '\u{061c}'
+            | '\u{200e}'..='\u{200f}'
+            | '\u{202a}'..='\u{202e}'
+            | '\u{2066}'..='\u{2069}'
+    )
+}
+
+fn is_invisible_format_control(character: char) -> bool {
+    matches!(
+        character,
+        '\u{00ad}'
+            | '\u{200b}'..='\u{200d}'
+            | '\u{2060}'..='\u{2065}'
+            | '\u{206a}'..='\u{206f}'
+            | '\u{feff}'
+    )
+}
+
+/// A validation error for an enterprise principal reference.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ApprovalPrincipalRefError {
+    /// The issuer reference was empty, non-canonical, contained controls, or was oversized.
+    InvalidIssuer,
+    /// The subject reference was empty, non-canonical, contained controls, or was oversized.
+    InvalidSubject,
+}
+
+impl fmt::Display for ApprovalPrincipalRefError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidIssuer => formatter.write_str("approval principal issuer is invalid"),
+            Self::InvalidSubject => formatter.write_str("approval principal subject is invalid"),
+        }
+    }
+}
+
+impl std::error::Error for ApprovalPrincipalRefError {}
+
+/// The fail-closed state of one bounded enterprise approval request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ApprovalLifecycleState {
+    /// A maker requested approval and no checker decision exists yet.
+    ApprovalRequested,
+    /// A distinct checker approved the exact immutable scope.
+    Approved,
+    /// A distinct checker denied the request.
+    Denied,
+    /// The trusted validity deadline was reached before a permitted transition.
+    Expired,
+    /// The requesting maker withdrew the pending request.
+    Withdrawn,
+    /// Every configured bounded use of the approval has been consumed.
+    Consumed,
+    /// The approving checker revoked a request after approval, including after all uses were issued.
+    Revoked,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ApprovalUseInvalidation {
+    Expired,
+    Revoked,
+}
+
+/// One consumed, non-replayable enterprise approval use.
+///
+/// This value is intentionally not [`Clone`]. It is created only by
+/// [`EnterpriseApprovalRequest::consume`] after exact-scope, trusted-time, and
+/// use-count checks succeed. [`Self::evaluate_at`] consumes the value and first
+/// rejects any request whose action/origin/intent differs from the retained
+/// exact scope, before reading lifecycle or trusted-time state. It then
+/// revalidates trusted time against both the consumption time and retained
+/// exclusive expiry deadline and rejects any shared terminal lifecycle
+/// invalidation observed by the issuing request after this use was issued. Only
+/// a still-valid use injects the approved scope into a private copy of the
+/// supplied policy context and delegates to the normal fail-closed policy
+/// evaluator. The use is burned even when evaluation is denied for scope,
+/// expiry, time rollback, revocation, policy, or a different approval need.
+/// Standard [`Debug`](fmt::Debug) output deliberately omits the retained scope
+/// and must not be treated as audit evidence.
+///
+/// ```compile_fail
+/// # use originweave_core::{ActionRequest, PolicyContext};
+/// # use originweave_policy::EnterpriseApprovalUse;
+/// # fn replay_is_rejected(
+/// #     approval_use: EnterpriseApprovalUse,
+/// #     request: &ActionRequest,
+/// #     context: &PolicyContext,
+/// #     trusted_now: u64,
+/// # ) {
+/// let _ = approval_use.evaluate_at(request, context, trusted_now);
+/// let _ = approval_use.evaluate_at(request, context, trusted_now);
+/// # }
+/// ```
+#[derive(PartialEq, Eq)]
+pub struct EnterpriseApprovalUse {
+    scope: ApprovalScope,
+    consumed_at_epoch_seconds: u64,
+    expires_at_epoch_seconds: u64,
+    invalidation_signal: Arc<OnceLock<ApprovalUseInvalidation>>,
+}
+
+impl fmt::Debug for EnterpriseApprovalUse {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("EnterpriseApprovalUse")
+            .field("consumed_at_epoch_seconds", &self.consumed_at_epoch_seconds)
+            .field("expires_at_epoch_seconds", &self.expires_at_epoch_seconds)
+            .field(
+                "has_terminal_invalidation",
+                &self.invalidation_signal.get().is_some(),
+            )
+            .finish_non_exhaustive()
+    }
+}
+
+impl EnterpriseApprovalUse {
+    /// Evaluate exactly one action using this already-consumed approval use.
+    ///
+    /// The incoming request must resolve to the retained exact approval scope;
+    /// scope is checked before lifecycle or trusted-time state is exposed.
+    /// `now_epoch_seconds` must come from the same trusted control-plane clock
+    /// used by the approval lifecycle. Evaluation fails closed if trusted time
+    /// moves backward before the consumption time, reaches the retained
+    /// exclusive expiry deadline, or the issuing request already observed a
+    /// terminal expiry or checker revocation after this use was issued. The
+    /// caller-provided context is cloned so the reusable caller context is never
+    /// upgraded with replayable approval evidence. This value itself is consumed
+    /// regardless of the result.
+    pub fn evaluate_at(
+        self,
+        request: &ActionRequest,
+        context: &PolicyContext,
+        now_epoch_seconds: u64,
+    ) -> Result<crate::Decision, ApprovalLifecycleError> {
+        let required_scope = ApprovalScope::new(
+            request.action(),
+            request.target_origin().clone(),
+            request.intent_digest().clone(),
+        );
+        if required_scope != self.scope {
+            return Err(ApprovalLifecycleError::ScopeMismatch);
+        }
+        if now_epoch_seconds < self.consumed_at_epoch_seconds {
+            return Err(ApprovalLifecycleError::NonMonotonicTime);
+        }
+        if now_epoch_seconds >= self.expires_at_epoch_seconds {
+            return Err(ApprovalLifecycleError::Expired);
+        }
+        if let Some(invalidation) = self.invalidation_signal.get() {
+            return Err(match invalidation {
+                ApprovalUseInvalidation::Expired => ApprovalLifecycleError::Expired,
+                ApprovalUseInvalidation::Revoked => {
+                    ApprovalLifecycleError::InvalidState(ApprovalLifecycleState::Revoked)
+                }
+            });
+        }
+        let mut one_shot_context = context.clone();
+        one_shot_context.set_approval(ApprovalEvidence::UserConfirmed(self.scope));
+        Ok(crate::evaluate(request, &one_shot_context))
+    }
+}
+
+/// A deterministic enterprise approval request bound to one immutable action intent.
+///
+/// The caller supplies trusted control-plane epoch seconds to transition methods.
+/// Model output, page content, or another untrusted source must never supply that
+/// time value. This type performs no I/O and does not persist or authenticate data.
+/// Standard [`Debug`](fmt::Debug) output deliberately omits principal and scope
+/// identity and must not be treated as audit evidence.
+#[derive(PartialEq, Eq)]
+pub struct EnterpriseApprovalRequest {
+    scope: ApprovalScope,
+    requester: ApprovalPrincipalRef,
+    decision_actor: Option<ApprovalPrincipalRef>,
+    requested_at_epoch_seconds: u64,
+    expires_at_epoch_seconds: u64,
+    last_transition_at_epoch_seconds: u64,
+    max_uses: u32,
+    uses_consumed: u32,
+    state: ApprovalLifecycleState,
+    invalidation_signal: Arc<OnceLock<ApprovalUseInvalidation>>,
+}
+
+impl fmt::Debug for EnterpriseApprovalRequest {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("EnterpriseApprovalRequest")
+            .field(
+                "requested_at_epoch_seconds",
+                &self.requested_at_epoch_seconds,
+            )
+            .field("expires_at_epoch_seconds", &self.expires_at_epoch_seconds)
+            .field(
+                "last_transition_at_epoch_seconds",
+                &self.last_transition_at_epoch_seconds,
+            )
+            .field("max_uses", &self.max_uses)
+            .field("uses_consumed", &self.uses_consumed)
+            .field("state", &self.state)
+            .field("has_decision_actor", &self.decision_actor.is_some())
+            .finish_non_exhaustive()
+    }
+}
+
+impl EnterpriseApprovalRequest {
+    /// Create one pending request for an exact scope and bounded validity/use window.
+    ///
+    /// `requested_at_epoch_seconds` and `expires_at_epoch_seconds` must come from
+    /// the same trusted control-plane clock. Legal consent is intentionally
+    /// non-delegable and cannot enter this approval lifecycle.
+    pub fn new(
+        scope: ApprovalScope,
+        requester: ApprovalPrincipalRef,
+        requested_at_epoch_seconds: u64,
+        expires_at_epoch_seconds: u64,
+        max_uses: u32,
+    ) -> Result<Self, ApprovalLifecycleError> {
+        if expires_at_epoch_seconds <= requested_at_epoch_seconds {
+            return Err(ApprovalLifecycleError::InvalidValidityWindow);
+        }
+        if max_uses == 0 {
+            return Err(ApprovalLifecycleError::InvalidUseLimit);
+        }
+        if scope.action() == ActionKind::LegalConsent {
+            return Err(ApprovalLifecycleError::NonDelegableAction);
+        }
+        Ok(Self {
+            scope,
+            requester,
+            decision_actor: None,
+            requested_at_epoch_seconds,
+            expires_at_epoch_seconds,
+            last_transition_at_epoch_seconds: requested_at_epoch_seconds,
+            max_uses,
+            uses_consumed: 0,
+            state: ApprovalLifecycleState::ApprovalRequested,
+            invalidation_signal: Arc::new(OnceLock::new()),
+        })
+    }
+
+    /// Return the exact action/origin/intent scope covered by the request.
+    #[must_use]
+    pub const fn scope(&self) -> &ApprovalScope {
+        &self.scope
+    }
+
+    /// Return the maker that created the request.
+    #[must_use]
+    pub const fn requester(&self) -> &ApprovalPrincipalRef {
+        &self.requester
+    }
+
+    /// Return the checker that approved or denied the request, when present.
+    #[must_use]
+    pub const fn decision_actor(&self) -> Option<&ApprovalPrincipalRef> {
+        self.decision_actor.as_ref()
+    }
+
+    /// Return the trusted request creation time in Unix epoch seconds.
+    #[must_use]
+    pub const fn requested_at_epoch_seconds(&self) -> u64 {
+        self.requested_at_epoch_seconds
+    }
+
+    /// Return the exclusive trusted expiry deadline in Unix epoch seconds.
+    #[must_use]
+    pub const fn expires_at_epoch_seconds(&self) -> u64 {
+        self.expires_at_epoch_seconds
+    }
+
+    /// Return the maximum number of exact-scope consumptions permitted.
+    #[must_use]
+    pub const fn max_uses(&self) -> u32 {
+        self.max_uses
+    }
+
+    /// Return how many exact-scope consumptions have already occurred.
+    #[must_use]
+    pub const fn uses_consumed(&self) -> u32 {
+        self.uses_consumed
+    }
+
+    /// Return the current lifecycle state.
+    #[must_use]
+    pub const fn state(&self) -> ApprovalLifecycleState {
+        self.state
+    }
+
+    fn ensure_monotonic_transition_time(
+        &self,
+        now_epoch_seconds: u64,
+    ) -> Result<(), ApprovalLifecycleError> {
+        if now_epoch_seconds < self.last_transition_at_epoch_seconds {
+            return Err(ApprovalLifecycleError::NonMonotonicTime);
+        }
+        Ok(())
+    }
+
+    /// Approve a pending request as a distinct checker.
+    ///
+    /// The local maker/checker identity relationship is validated before
+    /// lifecycle or trusted-time state so a self-approval attempt cannot reveal
+    /// or mutate those states. `now_epoch_seconds` must be trusted control-plane
+    /// time. Expiry is exclusive: a transition at the deadline fails closed.
+    pub fn approve(
+        &mut self,
+        approver: ApprovalPrincipalRef,
+        now_epoch_seconds: u64,
+    ) -> Result<(), ApprovalLifecycleError> {
+        if approver == self.requester {
+            return Err(ApprovalLifecycleError::SelfApproval);
+        }
+        if self.state != ApprovalLifecycleState::ApprovalRequested {
+            return Err(ApprovalLifecycleError::InvalidState(self.state));
+        }
+        self.ensure_monotonic_transition_time(now_epoch_seconds)?;
+        if now_epoch_seconds >= self.expires_at_epoch_seconds {
+            self.last_transition_at_epoch_seconds = now_epoch_seconds;
+            self.state = ApprovalLifecycleState::Expired;
+            return Err(ApprovalLifecycleError::Expired);
+        }
+        self.decision_actor = Some(approver);
+        self.last_transition_at_epoch_seconds = now_epoch_seconds;
+        self.state = ApprovalLifecycleState::Approved;
+        Ok(())
+    }
+
+    /// Deny a pending request as a distinct checker.
+    ///
+    /// The local maker/checker identity relationship is validated before
+    /// lifecycle or trusted-time state so a self-denial attempt cannot reveal or
+    /// mutate those states. `now_epoch_seconds` must be trusted control-plane time.
+    pub fn deny(
+        &mut self,
+        actor: ApprovalPrincipalRef,
+        now_epoch_seconds: u64,
+    ) -> Result<(), ApprovalLifecycleError> {
+        if actor == self.requester {
+            return Err(ApprovalLifecycleError::SelfApproval);
+        }
+        if self.state != ApprovalLifecycleState::ApprovalRequested {
+            return Err(ApprovalLifecycleError::InvalidState(self.state));
+        }
+        self.ensure_monotonic_transition_time(now_epoch_seconds)?;
+        if now_epoch_seconds >= self.expires_at_epoch_seconds {
+            self.last_transition_at_epoch_seconds = now_epoch_seconds;
+            self.state = ApprovalLifecycleState::Expired;
+            return Err(ApprovalLifecycleError::Expired);
+        }
+        self.decision_actor = Some(actor);
+        self.last_transition_at_epoch_seconds = now_epoch_seconds;
+        self.state = ApprovalLifecycleState::Denied;
+        Ok(())
+    }
+
+    /// Withdraw a pending request as the exact requesting maker.
+    ///
+    /// Requester identity is validated before lifecycle or trusted-time state so
+    /// a foreign actor cannot reveal or mutate those states. `now_epoch_seconds`
+    /// must be trusted control-plane time.
+    pub fn withdraw(
+        &mut self,
+        actor: &ApprovalPrincipalRef,
+        now_epoch_seconds: u64,
+    ) -> Result<(), ApprovalLifecycleError> {
+        if actor != &self.requester {
+            return Err(ApprovalLifecycleError::RequesterMismatch);
+        }
+        if self.state != ApprovalLifecycleState::ApprovalRequested {
+            return Err(ApprovalLifecycleError::InvalidState(self.state));
+        }
+        self.ensure_monotonic_transition_time(now_epoch_seconds)?;
+        if now_epoch_seconds >= self.expires_at_epoch_seconds {
+            self.last_transition_at_epoch_seconds = now_epoch_seconds;
+            self.state = ApprovalLifecycleState::Expired;
+            return Err(ApprovalLifecycleError::Expired);
+        }
+        self.last_transition_at_epoch_seconds = now_epoch_seconds;
+        self.state = ApprovalLifecycleState::Withdrawn;
+        Ok(())
+    }
+
+    /// Consume one use of an approved request for the exact immutable scope.
+    ///
+    /// `now_epoch_seconds` must be trusted control-plane time. Exact scope is
+    /// validated before lifecycle or trusted-time state, so a mismatched scope
+    /// neither reveals nor mutates those states. Successful consumption returns
+    /// a non-cloneable [`EnterpriseApprovalUse`] that retains the consumption
+    /// time, expiry deadline, and a shared terminal lifecycle invalidation signal
+    /// for a second validity check immediately before policy evaluation rather
+    /// than replayable approval evidence.
+    pub fn consume(
+        &mut self,
+        required_scope: &ApprovalScope,
+        now_epoch_seconds: u64,
+    ) -> Result<EnterpriseApprovalUse, ApprovalLifecycleError> {
+        if required_scope != &self.scope {
+            return Err(ApprovalLifecycleError::ScopeMismatch);
+        }
+        if self.state != ApprovalLifecycleState::Approved {
+            return Err(ApprovalLifecycleError::InvalidState(self.state));
+        }
+        self.ensure_monotonic_transition_time(now_epoch_seconds)?;
+        if now_epoch_seconds >= self.expires_at_epoch_seconds {
+            self.invalidation_signal
+                .get_or_init(|| ApprovalUseInvalidation::Expired);
+            self.last_transition_at_epoch_seconds = now_epoch_seconds;
+            self.state = ApprovalLifecycleState::Expired;
+            return Err(ApprovalLifecycleError::Expired);
+        }
+        self.uses_consumed += 1;
+        self.last_transition_at_epoch_seconds = now_epoch_seconds;
+        if self.uses_consumed == self.max_uses {
+            self.state = ApprovalLifecycleState::Consumed;
+        }
+        Ok(EnterpriseApprovalUse {
+            scope: self.scope.clone(),
+            consumed_at_epoch_seconds: now_epoch_seconds,
+            expires_at_epoch_seconds: self.expires_at_epoch_seconds,
+            invalidation_signal: Arc::clone(&self.invalidation_signal),
+        })
+    }
+
+    /// Revoke an approved or fully-issued request as the exact checker that approved it.
+    ///
+    /// Checker identity is validated before lifecycle or trusted-time state so a
+    /// foreign actor cannot reveal or mutate those states. `now_epoch_seconds`
+    /// must be trusted control-plane time. Revocation also invalidates
+    /// already-consumed one-shot uses that have not yet begun their evaluation-time
+    /// validity check, including an outstanding final use after the request entered
+    /// [`ApprovalLifecycleState::Consumed`]. Reaching expiry through this transition
+    /// likewise invalidates outstanding uses even if a later evaluator presents an
+    /// earlier timestamp. Revocation does not undo policy evaluations that completed
+    /// before the terminal invalidation signal.
+    pub fn revoke(
+        &mut self,
+        actor: &ApprovalPrincipalRef,
+        now_epoch_seconds: u64,
+    ) -> Result<(), ApprovalLifecycleError> {
+        if self.decision_actor.as_ref() != Some(actor) {
+            return Err(ApprovalLifecycleError::DecisionActorMismatch);
+        }
+        if !matches!(
+            self.state,
+            ApprovalLifecycleState::Approved | ApprovalLifecycleState::Consumed
+        ) {
+            return Err(ApprovalLifecycleError::InvalidState(self.state));
+        }
+        self.ensure_monotonic_transition_time(now_epoch_seconds)?;
+        if now_epoch_seconds >= self.expires_at_epoch_seconds {
+            self.invalidation_signal
+                .get_or_init(|| ApprovalUseInvalidation::Expired);
+            self.last_transition_at_epoch_seconds = now_epoch_seconds;
+            self.state = ApprovalLifecycleState::Expired;
+            return Err(ApprovalLifecycleError::Expired);
+        }
+        self.invalidation_signal
+            .get_or_init(|| ApprovalUseInvalidation::Revoked);
+        self.last_transition_at_epoch_seconds = now_epoch_seconds;
+        self.state = ApprovalLifecycleState::Revoked;
+        Ok(())
+    }
+}
+
+/// A fail-closed error produced by an enterprise approval lifecycle transition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ApprovalLifecycleError {
+    /// The expiry deadline was not strictly later than the request time.
+    InvalidValidityWindow,
+    /// The configured maximum number of uses was zero.
+    InvalidUseLimit,
+    /// The requested action is intentionally non-delegable.
+    NonDelegableAction,
+    /// The requested transition is not valid from the current terminal or pending state.
+    InvalidState(ApprovalLifecycleState),
+    /// Trusted transition time moved backward relative to the last accepted lifecycle event.
+    NonMonotonicTime,
+    /// The requester attempted to act as their own checker.
+    SelfApproval,
+    /// A withdrawal actor did not match the original requester.
+    RequesterMismatch,
+    /// A revocation actor did not match the checker that approved the request.
+    DecisionActorMismatch,
+    /// The requested action/origin/intent scope did not exactly match the approval.
+    ScopeMismatch,
+    /// The trusted exclusive expiry deadline was reached.
+    Expired,
+}
+
+impl fmt::Display for ApprovalLifecycleError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidValidityWindow => {
+                formatter.write_str("approval validity window is invalid")
+            }
+            Self::InvalidUseLimit => formatter.write_str("approval use limit must be nonzero"),
+            Self::NonDelegableAction => formatter.write_str("action is not delegable by approval"),
+            Self::InvalidState(state) => write!(
+                formatter,
+                "approval transition is invalid from state {state:?}"
+            ),
+            Self::NonMonotonicTime => {
+                formatter.write_str("approval transition time moved backward")
+            }
+            Self::SelfApproval => formatter.write_str("maker and checker must be distinct"),
+            Self::RequesterMismatch => formatter.write_str("approval requester does not match"),
+            Self::DecisionActorMismatch => {
+                formatter.write_str("approval decision actor does not match")
+            }
+            Self::ScopeMismatch => formatter.write_str("approval scope does not match"),
+            Self::Expired => formatter.write_str("approval request has expired"),
+        }
+    }
+}
+
+impl std::error::Error for ApprovalLifecycleError {}
