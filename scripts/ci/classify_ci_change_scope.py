@@ -57,12 +57,17 @@ def parse_nul_paths(data: bytes) -> tuple[str, ...]:
 
 
 def _similarity_status_is_valid(status: str, kind: str) -> bool:
-    """Return whether a scored Git status has a canonical 0..100 similarity value."""
+    """Return whether a scored Git status has canonical three-digit percent spelling."""
 
-    if not status.startswith(kind) or len(status) == 1:
+    if not status.startswith(kind):
         return False
     score = status[1:]
-    return score.isascii() and score.isdigit() and 0 <= int(score) <= 100
+    return (
+        len(score) == 3
+        and score.isascii()
+        and score.isdigit()
+        and 0 <= int(score) <= 100
+    )
 
 
 def _status_path_count(status: str) -> int:
