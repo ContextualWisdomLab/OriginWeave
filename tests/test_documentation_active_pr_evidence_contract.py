@@ -80,9 +80,11 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         refresh_lines = [line for line in added.splitlines() if line.startswith(refresh_prefix)]
         self.assertEqual(1, len(refresh_lines))
         refresh_line = refresh_lines[0]
-        self.assertIn("on 2026-09-03", refresh_line)
+        self.assertIn("on 2026-09-04", refresh_line)
         self.assertIn("145 open pull requests (5 ready, 140 draft)", refresh_line)
         self.assertIn("13 open non-PR issues", refresh_line)
+        self.assertIn("35c4a00d24bb1429df7a306d95f49853d058baa7", refresh_line)
+        self.assertIn("d1f3a4f0f44f15b6dcdba8b8ce555af0bed89d0a", refresh_line)
         self.assertIn(
             "Revalidated the active ruleset inventory at 7 required workflows",
             changed,
