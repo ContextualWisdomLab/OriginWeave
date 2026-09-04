@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
 from scripts.ci.classify_ci_change_scope import classify_changes, parse_nul_raw_changes
 
@@ -91,6 +92,12 @@ class CiChangeScopeSimilarityScoreTests(unittest.TestCase):
             with self.subTest(status=status):
                 changes = parse_nul_raw_changes(_raw_record(status))
                 self.assertEqual(classify_changes(changes), (True, False))
+
+    def test_changelog_records_similarity_object_identity_contract(self) -> None:
+        """The release record must name the security invariant added by this slice."""
+
+        changelog = (Path(__file__).resolve().parents[1] / "CHANGELOG.md").read_text()
+        self.assertIn("Bind Git rename/copy similarity to blob identity", changelog)
 
 
 if __name__ == "__main__":
