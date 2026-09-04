@@ -30,7 +30,13 @@ def _raw_record(
     """Build one deterministic NUL-framed raw-diff record for focused tests."""
 
     source_oid = "0" * 40 if source_mode == "000000" else "1" * 40
-    destination_oid = "0" * 40 if destination_mode == "000000" else "2" * 40
+    destination_oid = (
+        "0" * 40
+        if destination_mode == "000000"
+        else source_oid
+        if status in {"R100", "C100"}
+        else "2" * 40
+    )
     metadata = (
         f":{source_mode} {destination_mode} {source_oid} {destination_oid} {status}\0"
     ).encode()
