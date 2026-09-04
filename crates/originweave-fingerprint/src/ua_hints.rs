@@ -47,6 +47,8 @@ pub enum ClientHintsError {
     ModelWithoutMobile,
     /// A mobile model exceeded the OriginWeave resource budget.
     ModelTooLong,
+    /// A mobile model contained a control character unsafe for later serialization.
+    InvalidModel,
     /// A client-hints set carried no brand.
     MissingBrand,
     /// A client-hints set exceeded the bounded retained brand-list size.
@@ -72,6 +74,9 @@ impl fmt::Display for ClientHintsError {
                 formatter.write_str("a non-mobile user agent must report an empty model")
             }
             Self::ModelTooLong => formatter.write_str("mobile model must be at most 64 bytes"),
+            Self::InvalidModel => {
+                formatter.write_str("mobile model must not contain control characters")
+            }
             Self::MissingBrand => {
                 formatter.write_str("a client-hints value must contain at least one brand")
             }
@@ -260,6 +265,9 @@ impl UaClientHints {
         }
         if model.len() > MAX_MOBILE_MODEL_LENGTH {
             return Err(ClientHintsError::ModelTooLong);
+        }
+        if model.chars().any(char::is_control) {
+            return Err(ClientHintsError::InvalidModel);
         }
         if brands.is_empty() {
             return Err(ClientHintsError::MissingBrand);

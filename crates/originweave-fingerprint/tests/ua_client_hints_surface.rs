@@ -169,6 +169,24 @@ fn mobile_models_over_resource_limit_fail_closed() {
 }
 
 #[test]
+fn mobile_models_reject_control_characters() {
+    let brand = UaBrand::new("Chromium", "131.0.0.0").expect("brand");
+    for model in ["Pixel\rInjected", "Pixel\nInjected", "Pixel\0Injected"] {
+        assert_eq!(
+            UaClientHints::new(
+                HintsPlatform::Linux,
+                HintsArchitecture::Arm,
+                HintsBitness::Bit64,
+                true,
+                model,
+                vec![brand.clone()],
+            ),
+            Err(ClientHintsError::InvalidModel)
+        );
+    }
+}
+
+#[test]
 fn non_mobile_model_semantics_precede_model_length_budget() {
     let long_model = "M".repeat(65);
     assert_eq!(
@@ -250,6 +268,10 @@ fn client_hints_error_has_deterministic_display() {
     assert_eq!(
         ClientHintsError::ModelTooLong.to_string(),
         "mobile model must be at most 64 bytes"
+    );
+    assert_eq!(
+        ClientHintsError::InvalidModel.to_string(),
+        "mobile model must not contain control characters"
     );
     assert_eq!(
         ClientHintsError::InvalidBrandName.to_string(),
