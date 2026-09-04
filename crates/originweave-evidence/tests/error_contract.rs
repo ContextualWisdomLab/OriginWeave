@@ -18,6 +18,10 @@ fn evidence_error_has_stable_credential_safe_standard_error_contract() {
             "evidence source locator must not be empty",
         ),
         (
+            EvidenceError::InvalidLocator,
+            "evidence source locator contains a disallowed control or formatting character",
+        ),
+        (
             EvidenceError::InvalidHash,
             "evidence source hash must be canonical lowercase SHA-256",
         ),
