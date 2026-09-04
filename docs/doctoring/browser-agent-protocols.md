@@ -1,6 +1,6 @@
 # Browser and Agent Protocol Standards Evidence
 
-- **Reviewed:** 2026-08-18
+- **Reviewed:** 2026-09-04
 - **Purpose:** primary-source evidence for OriginWeave browser compatibility and adapter boundaries
 - **Canonical research index:** [`../doctoring.md`](../doctoring.md)
 
@@ -8,15 +8,15 @@ This addendum complements the main doctoring record. The main record already car
 
 ## WebDriver BiDi
 
-The latest published W3C technical-report baseline reviewed here remains the 1 June 2026 **Working Draft**, not a Recommendation. The current Editor’s Draft reviewed on 18 August 2026 identifies itself as the 20 July 2026 draft. OriginWeave therefore treats BiDi as a versioned browser-automation adapter rather than product-internal authority. Raw BiDi session/context/node identifiers do not become durable OriginWeave identities.
+The latest published W3C technical-report baseline reviewed here is the 18 August 2026 **Working Draft**, not a Recommendation. The live Editor’s Draft retrieved on 4 September 2026 identifies itself as the 3 September 2026 draft and explicitly remains work in progress. OriginWeave therefore treats BiDi as a versioned browser-automation adapter rather than product-internal authority. Raw BiDi session/context/node identifiers do not become durable OriginWeave identities.
 
-For the bounded `browsingContext.locateNodes` command-serialization boundary, the reviewed Editor’s Draft defines a command envelope with `id: js-uint`, defines `js-uint` as `0..9007199254740991`, and defines `browsingContext.locateNodes` parameters containing a browsing context, locator, optional positive `maxNodeCount`, optional `serializationOptions`, and optional `startNodes`. OriginWeave serializes only its separately reviewed accessibility-locator subset and fixed minimal serialization options; this deterministic JSON value is not transport authentication or browser/Agent authority.
+For the bounded `browsingContext.locateNodes` command-serialization boundary, the reviewed specification defines a command envelope with `id: js-uint`, defines `js-uint` as `0..9007199254740991`, and defines `browsingContext.locateNodes` parameters containing a browsing context, locator, optional positive `maxNodeCount`, optional `serializationOptions`, and optional `startNodes`. OriginWeave serializes only its separately reviewed accessibility-locator subset and fixed minimal serialization options; this deterministic JSON value is not transport authentication or browser/Agent authority.
 
-WebDriver BiDi commands may execute concurrently and finish out of order. The Editor’s Draft defines the command id as the local end’s correlation identifier and sets a successful `CommandResponse.id` to that exact command id; an `ErrorResponse.id` may be `null` when no valid command id can be recovered. OriginWeave therefore fails closed unless a non-null protocol-range response id exactly matches the consumed command before later payload admission. Parsing success/error envelopes, handling nullable malformed-command errors, and authenticating the browser transport remain separate adapter boundaries.
+WebDriver BiDi commands may execute concurrently and finish out of order. The 18 August 2026 Working Draft defines the command id as the local end’s correlation identifier; its local-end `CommandResponse` production requires `id: js-uint`, while `ErrorResponse.id` is `js-uint / null`. OriginWeave therefore represents a validated success response with a structurally present command id, retains nullable ids only for protocol errors, and fails closed unless a non-null protocol-range response id exactly matches the consumed command before later payload admission. Parsing success/error envelopes, handling nullable malformed-command errors, and authenticating the browser transport remain separate adapter boundaries.
 
-The same reviewed Editor’s Draft defines a closed `ErrorCode` vocabulary that currently includes `no such client window`. OriginWeave admits only the reviewed vocabulary at its bounded response-envelope parser and rejects unknown error-code text fail closed; adding a newly reviewed protocol code changes compatibility only and grants no browser, transport, node, policy, or Agent authority.
+The same reviewed Editor’s Draft defines `ErrorResponse.error` as `ErrorCode` and its local-end CDDL enumerates a finite 30-value vocabulary from `invalid argument` through `unsupported operation`. The CDDL does **not** include `no such client window`; the specification may define additional error concepts elsewhere, but their presence outside the `ErrorCode` production is not authority to admit them in a local-end error response. OriginWeave therefore admits only the reviewed CDDL vocabulary at its bounded response-envelope parser and rejects unknown error-code text fail closed. Adding a newly reviewed protocol code changes compatibility only and grants no browser, transport, node, policy, or Agent authority.
 
-Primary sources: World Wide Web Consortium, *WebDriver BiDi* (published Working Draft and current Editor’s Draft).
+Primary sources: World Wide Web Consortium, *WebDriver BiDi* (18 August 2026 Working Draft and current Editor’s Draft).
 
 ## Chrome Manifest V3
 
@@ -55,7 +55,7 @@ The main [`docs/doctoring.md`](../doctoring.md) records the stable W3C PROV-O Re
 1. Version adapter contracts independently from OriginWeave session/context/action/evidence types. Admit a BiDi `script.NodeRemoteValue` only as an untrusted transport handle when its type is exactly `node` and a usable control-free `sharedId` is present; do not treat a realm-local `handle`, a missing shared identifier, or control/whitespace-bearing protocol text as OriginWeave node authority. Treat an accessibility-query role as one exact WAI-ARIA token, not a whitespace-separated fallback list.
 2. Serialize reviewed BiDi commands from already validated bounded values only, then correlate each non-null response id to the exact consumed command before payload admission; a protocol-shaped JSON envelope or matching id never substitutes for authenticated browser transport, current session/context/origin/document authority, policy authorization, or post-condition evidence.
 3. Pin exact Chromium/CDP compatibility evidence at release time.
-4. Keep WebDriver BiDi's Working Draft status visible in compatibility claims.
+4. Keep WebDriver BiDi's Working Draft/Editor’s Draft status visible in compatibility claims and re-review finite protocol vocabularies when the pinned adapter revision moves.
 5. Keep WebMCP experimental/optional and propagate untrusted-content semantics.
 6. Keep MCP browser state application-level rather than equating protocol transport/session metadata with browser authority.
 7. Test Manifest V3 compatibility and extension-to-Agent authority isolation as separate evidence classes.
@@ -83,9 +83,9 @@ World Wide Web Consortium. (2013). *PROV-O: The PROV ontology*. https://www.w3.o
 
 World Wide Web Consortium. (2023, June 6). *Accessible Rich Internet Applications (WAI-ARIA) 1.2*. https://www.w3.org/TR/2023/REC-wai-aria-1.2-20230606/
 
-World Wide Web Consortium. (2026, June 1). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260601/
+World Wide Web Consortium. (2026, August 18). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260818/
 
-World Wide Web Consortium. (2026, July 20). *WebDriver BiDi* (Editor’s Draft). https://w3c.github.io/webdriver-bidi/
+World Wide Web Consortium. (2026, September 3). *WebDriver BiDi* (Editor’s Draft). Retrieved September 4, 2026, from https://w3c.github.io/webdriver-bidi/
 
 World Wide Web Consortium. (2026, August 5). *Accessible name and description computation 1.2* (W3C Working Draft). https://www.w3.org/TR/2026/WD-accname-1.2-20260805/
 
