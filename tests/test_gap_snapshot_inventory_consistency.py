@@ -32,7 +32,8 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "13 open non-PR issues",
             "c789b802fc98a8d7fd8c09d9327f36828054d2a1",
             "18156473",
-            "6 central required workflows",
+            "7 central required workflows",
+            "codeql-pr",
             "Live GitHub PR/base/head/check APIs are authoritative over PR bodies",
             "Issue #279",
             "Issue #28 remains the P0 governed-browser integration target",
@@ -66,6 +67,7 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "118 Draft",
             "12 open non-PR issues",
             "10 central required workflows",
+            "6 central required workflows",
             "PR #260 is Draft at exact head `56600a6fd982cfafd784f4b7bb659d918113ca90`",
             "PR #281 remains Draft at exact head `3ed5d7e8cf77547c96feff2cfb24c46d74a73ebb`",
         ):
