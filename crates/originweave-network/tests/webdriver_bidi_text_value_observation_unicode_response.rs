@@ -8,7 +8,7 @@ use std::{
 
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiTextValueObservationResponseError, WebDriverBiDiTextValueObservationResult,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
     WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
@@ -93,7 +93,7 @@ fn escaped_unicode_is_compared_after_bounded_response_projection() -> Result<(),
         br#"{"type":"success","id":81,"result":{"type":"success","realm":"r","result":{"type":"string","value":"\u20ac"}}}"#,
     )?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command(81)?;
+    correlation.register_command_for(81, WebDriverBiDiCommandKind::TextValueObservation)?;
 
     let result = WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
         &response,
@@ -115,7 +115,7 @@ fn projection_error_diagnostic_remains_structural_and_non_sensitive() -> Result<
         br#"{"type":"success","id":82,"result":{"type":"success","result":{"type":"string","value":"x"}}}"#,
     )?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command(82)?;
+    correlation.register_command_for(82, WebDriverBiDiCommandKind::TextValueObservation)?;
 
     let Err(WebDriverBiDiTextValueObservationResponseError::Projection { source }) =
         WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
