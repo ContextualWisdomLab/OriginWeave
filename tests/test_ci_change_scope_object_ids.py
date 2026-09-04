@@ -34,6 +34,14 @@ class CiChangeScopeObjectIdTests(unittest.TestCase):
                 b":100644 100644 0000000 2222222 M\0docs/PRD.md\0"
             )
 
+    def test_same_mode_modification_rejects_identical_object_ids(self) -> None:
+        """A same-mode two-tree modification must identify two different blobs."""
+
+        with self.assertRaisesRegex(ValueError, "object id"):
+            parse_nul_raw_changes(
+                b":100644 100644 1111111 1111111 M\0docs/PRD.md\0"
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
