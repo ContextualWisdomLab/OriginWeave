@@ -5,19 +5,18 @@ This is a release/CI evidence runner, not a product browser adapter. It uses the
 W3C WebDriver HTTP protocol only to prove that a real Chrome for Testing build
 can load the controlled MV3 fixture and repeatedly exercise service-worker,
 content-script, storage, declarative-net-request, tabs, windows, scripting,
-commands, side-panel, bookmarks, history, real browser-click, and
+commands, side-panel, bookmarks, history, downloads, real browser-click, and
 restart-persistence behavior.
 """
 
 from __future__ import annotations
 
-import contextlib
 import http.client
 import http.server
 import json
 import os
 import pathlib
-import socket
+import queue
 import string
 import subprocess
 import tempfile
@@ -29,13 +28,91 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 FIXTURE = ROOT / "tests" / "fixtures" / "mv3_basic"
 PINNED_CHROME_VERSION = "150.0.7871.129"
 PINNED_CHROME_REVISION = "r1639810"
+PINNED_CHROME_RELATIVE_PATH = pathlib.PurePosixPath(
+    ".mv3-browser/chrome-linux64/chrome"
+)
+PINNED_CHROMEDRIVER_RELATIVE_PATH = pathlib.PurePosixPath(
+    ".mv3-browser/chromedriver-linux64/chromedriver"
+)
 REPEATABILITY_TRIALS = 3
 REQUEST_TIMEOUT_SECONDS = 5.0
 STARTUP_TIMEOUT_SECONDS = 20.0
 FIXTURE_TIMEOUT_SECONDS = 20.0
 MAX_WEBDRIVER_RESPONSE_BYTES = 1_048_576
+MAX_CHROMEDRIVER_STARTUP_LINE_BYTES = 512
+CHROMEDRIVER_BOUND_PORT_PREFIX = "ChromeDriver was started successfully on port "
 W3C_ELEMENT_KEY = "element-6066-11e4-a52e-4f735466cecf"
 PATH_TOKEN_CHARACTERS = frozenset(string.ascii_letters + string.digits + "-_.")
+SURFACE_EVIDENCE_KEYS = (
+    "content",
+    "storage",
+    "storagePersistence",
+    "workerReply",
+    "workerState",
+    "workerStartCount",
+    "dnr",
+    "tabs",
+    "windows",
+    "scripting",
+    "scriptingExecuted",
+    "commands",
+    "sidePanel",
+    "bookmarks",
+    "history",
+    "downloads",
+    "downloadsDiagnostic",
+)
+SURFACE_EVIDENCE_VALUES = frozenset(
+    {"ready", "missing", "initialized", "persisted", "pong", "installed", "blocked"}
+)
+DOWNLOAD_DIAGNOSTIC_VALUES = frozenset(
+    {
+        "download-source-rejected",
+        "download-start-rejected",
+        "download-search-missing",
+        "download-interrupted",
+        "download-url-mismatch",
+        "download-byte-count-mismatch",
+        "download-exists-false",
+        "download-timeout",
+        "download-complete-ready",
+        "download-not-evaluated",
+    }
+)
+WEBDRIVER_ERROR_CODES = frozenset(
+    {
+        "invalid argument",
+        "no such element",
+        "session not created",
+        "stale element reference",
+        "timeout",
+        "unknown error",
+    }
+)
+
+
+class CompatibilitySurfaceError(RuntimeError):
+    """Report only bounded fixture-surface state when real-browser evidence does not converge."""
+
+    def __init__(self, observed: dict[str, str]) -> None:
+        self.observed = {
+            key: _safe_surface_value(key, observed[key])
+            for key in SURFACE_EVIDENCE_KEYS
+            if key in observed
+        }
+        super().__init__("Manifest V3 fixture surfaces did not converge")
+
+
+class WebDriverProtocolError(RuntimeError):
+    """Report one allow-listed WebDriver error code without browser-controlled text."""
+
+    def __init__(self, code: object, _message: object) -> None:
+        self.code = code if isinstance(code, str) and code in WEBDRIVER_ERROR_CODES else "unknown"
+        super().__init__(f"WebDriver protocol error: {self.code}")
+
+
+class WebDriverSessionCleanupError(RuntimeError):
+    """Report a reviewed WebDriver session-delete failure after process teardown."""
 
 
 class QuietFixtureHandler(http.server.SimpleHTTPRequestHandler):
@@ -45,12 +122,43 @@ class QuietFixtureHandler(http.server.SimpleHTTPRequestHandler):
         """Suppress request logs because the fixture contains no diagnostic value."""
 
 
-def _free_loopback_port() -> int:
-    """Reserve and release one loopback TCP port for a short-lived local service."""
+def _safe_surface_value(key: str, value: str) -> str:
+    """Reduce one controlled DOM evidence value to a non-sensitive diagnostic token."""
 
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.bind(("127.0.0.1", 0))
-        return int(sock.getsockname()[1])
+    if key == "workerStartCount":
+        return value if value.isdecimal() and len(value) <= 20 else "invalid"
+    if key == "downloadsDiagnostic":
+        return value if value in DOWNLOAD_DIAGNOSTIC_VALUES else "unexpected"
+    return value if value in SURFACE_EVIDENCE_VALUES else "unexpected"
+
+
+def _failure_evidence(error: BaseException) -> dict[str, Any]:
+    """Classify one browser-trial failure without retaining raw exception text."""
+
+    if isinstance(error, CompatibilitySurfaceError):
+        return {"failure_kind": "surface_mismatch", "observed": error.observed}
+    if isinstance(error, WebDriverProtocolError):
+        return {"failure_kind": "webdriver_protocol_error", "error_code": error.code}
+    if isinstance(error, json.JSONDecodeError):
+        return {"failure_kind": "json_decode_error"}
+    if isinstance(error, OSError):
+        return {"failure_kind": "io_error"}
+    if isinstance(error, ValueError):
+        return {"failure_kind": "value_error"}
+    return {"failure_kind": "runtime_error"}
+
+
+def _record_secondary_diagnostic(error: BaseException, diagnostic: str) -> None:
+    """Retain bounded secondary context without requiring Python 3.11 ``add_note``."""
+
+    diagnostics = getattr(error, "_originweave_secondary_diagnostics", None)
+    if not isinstance(diagnostics, list):
+        diagnostics = []
+        setattr(error, "_originweave_secondary_diagnostics", diagnostics)
+    diagnostics.append(diagnostic)
+    add_note = getattr(error, "add_note", None)
+    if callable(add_note):
+        add_note(diagnostic)
 
 
 def _path_token(value: str, label: str) -> str:
@@ -85,7 +193,13 @@ def _json_request(
     *,
     timeout: float = REQUEST_TIMEOUT_SECONDS,
 ) -> dict[str, Any]:
-    """Issue one bounded JSON request to the fixed loopback ChromeDriver authority."""
+    """Issue one bounded JSON request to the fixed loopback ChromeDriver authority.
+
+    Recoverable HTTP/1.1 parser or response-encoding failures, including a malformed
+    status-line, incomplete message body, or invalid UTF-8 payload, become
+    `RuntimeError("WebDriver transport protocol failure")` so trial evidence can
+    record a classified outcome without retaining raw transport text.
+    """
 
     if not 1 <= driver_port <= 65_535:
         raise ValueError("invalid ChromeDriver port")
@@ -96,46 +210,84 @@ def _json_request(
 
     body = None if payload is None else json.dumps(payload).encode("utf-8")
     connection = http.client.HTTPConnection("127.0.0.1", driver_port, timeout=timeout)
+    transport_protocol_failed = False
     try:
-        connection.request(
-            method,
-            path,
-            body=body,
-            headers={"Content-Type": "application/json"},
-        )
-        response = connection.getresponse()
-        raw = response.read(MAX_WEBDRIVER_RESPONSE_BYTES + 1)
+        try:
+            connection.request(
+                method,
+                path,
+                body=body,
+                headers={"Content-Type": "application/json"},
+            )
+            response = connection.getresponse()
+            raw = response.read(MAX_WEBDRIVER_RESPONSE_BYTES + 1)
+        except http.client.HTTPException:
+            transport_protocol_failed = True
+        if transport_protocol_failed:
+            raise RuntimeError("WebDriver transport protocol failure")
         if len(raw) > MAX_WEBDRIVER_RESPONSE_BYTES:
             raise RuntimeError("WebDriver response exceeded the bounded JSON limit")
-        if response.status >= 400:
-            detail = raw.decode("utf-8", errors="replace")
-            raise RuntimeError(f"WebDriver HTTP {response.status}: {detail}")
     finally:
         connection.close()
 
-    decoded = json.loads(raw.decode("utf-8"))
+    decoded_text = raw.decode("utf-8", errors="surrogateescape")
+    if any(0xDC80 <= ord(character) <= 0xDCFF for character in decoded_text):
+        raise RuntimeError("WebDriver transport protocol failure")
+    try:
+        decoded = json.loads(decoded_text)
+    except json.JSONDecodeError:
+        if response.status >= 400:
+            raise RuntimeError(f"WebDriver HTTP {response.status} error") from None
+        raise
     if not isinstance(decoded, dict):
         raise RuntimeError("WebDriver returned a non-object JSON payload")
+    if response.status >= 400:
+        value = decoded.get("value")
+        if isinstance(value, dict) and value.get("error"):
+            raise WebDriverProtocolError(value.get("error"), value.get("message"))
+        raise RuntimeError(f"WebDriver HTTP {response.status} error")
     value = decoded.get("value")
     if isinstance(value, dict) and value.get("error"):
-        raise RuntimeError(f"WebDriver error: {value.get('error')}: {value.get('message')}")
+        raise WebDriverProtocolError(value.get("error"), value.get("message"))
     return decoded
 
 
 def _wait_for_driver(driver_port: int) -> None:
-    """Wait for the exact local ChromeDriver process to become ready."""
+    """Wait for the exact pinned local ChromeDriver and reject foreign ready endpoints."""
 
     deadline = time.monotonic() + STARTUP_TIMEOUT_SECONDS
-    last_error: Exception | None = None
+    last_failure_kind = "not_observed"
     while time.monotonic() < deadline:
         try:
             status = _json_request(driver_port, "GET", "/status", timeout=1.0)
-            if status.get("value", {}).get("ready") is True:
-                return
         except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
-            last_error = exc
+            last_failure_kind = str(_failure_evidence(exc)["failure_kind"])
+            time.sleep(0.1)
+            continue
+
+        status_value = status.get("value")
+        if not isinstance(status_value, dict):
+            last_failure_kind = "status_protocol_error"
+            time.sleep(0.1)
+            continue
+
+        ready = status_value.get("ready")
+        if ready is True:
+            build = status_value.get("build")
+            build_version = build.get("version") if isinstance(build, dict) else None
+            expected_prefix = f"{PINNED_CHROME_VERSION} ("
+            if not isinstance(build_version, str) or not (
+                build_version == PINNED_CHROME_VERSION
+                or build_version.startswith(expected_prefix)
+            ):
+                raise RuntimeError("ChromeDriver status identity mismatch")
+            return
+        if ready is not False:
+            last_failure_kind = "status_protocol_error"
         time.sleep(0.1)
-    raise RuntimeError(f"ChromeDriver did not become ready: {last_error}")
+    raise RuntimeError(
+        f"ChromeDriver did not become ready ({last_failure_kind})"
+    )
 
 
 def _execute(driver_port: int, session_id: str, script: str) -> Any:
@@ -178,7 +330,10 @@ return {
   commands: document.documentElement.dataset.originweaveCommands || "missing",
   sidePanel: document.documentElement.dataset.originweaveSidePanel || "missing",
   bookmarks: document.documentElement.dataset.originweaveBookmarks || "missing",
-  history: document.documentElement.dataset.originweaveHistory || "missing"
+  history: document.documentElement.dataset.originweaveHistory || "missing",
+  downloads: document.documentElement.dataset.originweaveDownloads || "missing",
+  downloadsDiagnostic:
+    document.documentElement.dataset.originweaveDownloadsDiagnostic || "download-not-evaluated"
 };
 """
     expected = {
@@ -196,6 +351,8 @@ return {
         "sidePanel": "ready",
         "bookmarks": "ready",
         "history": "ready",
+        "downloads": "ready",
+        "downloadsDiagnostic": "download-complete-ready",
     }
     deadline = time.monotonic() + FIXTURE_TIMEOUT_SECONDS
     latest: dict[str, str] = {}
@@ -212,13 +369,11 @@ return {
             ):
                 return latest
         time.sleep(0.1)
-    raise RuntimeError(
-        f"MV3 fixture did not converge: expected={expected!r}, observed={latest!r}"
-    )
+    raise CompatibilitySurfaceError(latest)
 
 
 def _exercise_real_click(driver_port: int, session_id: str) -> str:
-    """Use the WebDriver element-click command and verify the DOM post-condition."""
+    """Use the WebDriver element-click command and classify DOM post-condition mismatches."""
 
     found = _json_request(
         driver_port,
@@ -253,8 +408,143 @@ def _exercise_real_click(driver_port: int, session_id: str) -> str:
         _webdriver_path(session_id, f"/element/{safe_output}/text"),
     ).get("value")
     if text != "clicked":
-        raise RuntimeError(f"real click post-condition failed: {text!r}")
+        raise RuntimeError("real click post-condition mismatch")
     return str(text)
+
+
+def _teardown_driver_process(driver: subprocess.Popen[bytes]) -> Exception | None:
+    """Best-effort reap ChromeDriver while preserving unrecovered process failures."""
+
+    try:
+        driver.terminate()
+    except OSError as terminate_error:
+        try:
+            driver.kill()
+            driver.wait(timeout=5)
+        except (OSError, subprocess.TimeoutExpired) as fallback_error:
+            _record_secondary_diagnostic(
+                terminate_error,
+                "bounded ChromeDriver kill fallback also failed: "
+                f"{type(fallback_error).__name__}",
+            )
+            return terminate_error
+        return None
+
+    try:
+        driver.wait(timeout=5)
+        return None
+    except subprocess.TimeoutExpired:
+        try:
+            driver.kill()
+            driver.wait(timeout=5)
+        except (OSError, subprocess.TimeoutExpired) as fallback_error:
+            return fallback_error
+        return None
+
+
+def _read_chromedriver_startup_line(stream: Any) -> tuple[bytes, bool]:
+    """Read and drain one ChromeDriver startup record using only bounded reads."""
+
+    raw_line_bytes = stream.readline(MAX_CHROMEDRIVER_STARTUP_LINE_BYTES + 1)
+    if not raw_line_bytes:
+        return b"", False
+
+    oversized = len(raw_line_bytes) > MAX_CHROMEDRIVER_STARTUP_LINE_BYTES
+    if oversized and not raw_line_bytes.endswith(b"\n"):
+        while True:
+            remainder = stream.readline(MAX_CHROMEDRIVER_STARTUP_LINE_BYTES + 1)
+            if not remainder or remainder.endswith(b"\n"):
+                break
+    return raw_line_bytes, oversized
+
+
+def _parse_chromedriver_bound_port(raw_line_bytes: bytes, oversized: bool) -> int | None:
+    """Return one bounded authoritative startup port or ignore a malformed candidate."""
+
+    if oversized or not raw_line_bytes.startswith(
+        CHROMEDRIVER_BOUND_PORT_PREFIX.encode("ascii")
+    ):
+        return None
+
+    raw_line = raw_line_bytes.decode("utf-8", errors="replace")
+    line = raw_line.rstrip("\r\n")
+    if not line.endswith("."):
+        return None
+    port_text = line[len(CHROMEDRIVER_BOUND_PORT_PREFIX) : -1]
+    if not port_text.isdecimal():
+        return None
+    port = int(port_text)
+    return port if 1 <= port <= 65_535 else None
+
+
+def _start_chromedriver(
+    chromedriver_bin: pathlib.Path,
+) -> tuple[subprocess.Popen[bytes], int]:
+    """Let ChromeDriver atomically bind an ephemeral port and report the bound authority.
+
+    The process owns port allocation by binding port zero itself. Its combined output is
+    continuously drained so the pipe cannot become a back-pressure failure, but only the
+    reviewed startup-port record is retained. Raw ChromeDriver output never enters evidence.
+    """
+
+    driver = subprocess.Popen(
+        [str(chromedriver_bin), "--port=0", "--allowed-ips=127.0.0.1"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    if driver.stdout is None:
+        teardown_error = _teardown_driver_process(driver)
+        startup_error = RuntimeError("ChromeDriver startup output pipe was unavailable")
+        if teardown_error is not None:
+            _record_secondary_diagnostic(
+                startup_error,
+                "ChromeDriver process teardown also failed: "
+                f"{type(teardown_error).__name__}",
+            )
+        raise startup_error
+
+    startup_events: queue.Queue[tuple[str, int | None]] = queue.Queue(maxsize=1)
+
+    def publish(event: tuple[str, int | None]) -> None:
+        try:
+            startup_events.put_nowait(event)
+        except queue.Full:
+            return
+
+    def drain_output() -> None:
+        while True:
+            raw_line_bytes, oversized = _read_chromedriver_startup_line(driver.stdout)
+            if not raw_line_bytes:
+                break
+            port = _parse_chromedriver_bound_port(raw_line_bytes, oversized)
+            if port is None:
+                continue
+            publish(("ready", port))
+        publish(("eof", None))
+
+    threading.Thread(
+        target=drain_output,
+        name="originweave-chromedriver-output-drain",
+        daemon=True,
+    ).start()
+
+    try:
+        event_kind, bound_port = startup_events.get(timeout=STARTUP_TIMEOUT_SECONDS)
+    except queue.Empty:
+        event_kind, bound_port = "timeout", None
+
+    if event_kind == "ready" and bound_port is not None:
+        return driver, bound_port
+
+    teardown_error = _teardown_driver_process(driver)
+    startup_error = RuntimeError("ChromeDriver did not publish a valid bound port")
+    if teardown_error is not None:
+        _record_secondary_diagnostic(
+            startup_error,
+            "ChromeDriver process teardown also failed: "
+            f"{type(teardown_error).__name__}",
+        )
+    raise startup_error
 
 
 def _run_browser_pass(
@@ -266,14 +556,11 @@ def _run_browser_pass(
 ) -> dict[str, Any]:
     """Run one fresh browser process against a shared bounded compatibility profile."""
 
-    driver_port = _free_loopback_port()
     session_id: str | None = None
-    driver = subprocess.Popen(
-        [str(chromedriver_bin), f"--port={driver_port}", "--allowed-ips=127.0.0.1"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
+    download_dir = pathlib.Path(profile_dir) / "downloads"
+    download_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    driver, driver_port = _start_chromedriver(chromedriver_bin)
+    primary_error: BaseException | None = None
     try:
         _wait_for_driver(driver_port)
         session = _json_request(
@@ -293,11 +580,15 @@ def _run_browser_pass(
                                 "--disable-component-update",
                                 "--disable-sync",
                                 "--disable-dev-shm-usage",
-                                "--no-sandbox",
                                 f"--user-data-dir={profile_dir}",
                                 f"--disable-extensions-except={FIXTURE}",
                                 f"--load-extension={FIXTURE}",
                             ],
+                            "prefs": {
+                                "download.default_directory": str(download_dir),
+                                "download.prompt_for_download": False,
+                                "download.directory_upgrade": True,
+                            },
                         },
                     }
                 }
@@ -315,8 +606,7 @@ def _run_browser_pass(
         )
         if browser_version != PINNED_CHROME_VERSION:
             raise RuntimeError(
-                f"unexpected Chrome version: expected {PINNED_CHROME_VERSION}, "
-                f"got {browser_version!r}"
+                f"unexpected Chrome version; expected {PINNED_CHROME_VERSION}"
             )
 
         _json_request(
@@ -349,24 +639,72 @@ def _run_browser_pass(
                 "side-panel": surfaces["sidePanel"] == "ready",
                 "bookmarks": surfaces["bookmarks"] == "ready",
                 "history": surfaces["history"] == "ready",
+                "downloads": surfaces["downloads"] == "ready",
                 "real-browser-click": click_result == "clicked",
             },
         }
+    except BaseException as error:  # noqa: BLE001 - re-raised unchanged after cleanup.
+        primary_error = error
+        raise
     finally:
-        if session_id is not None:
-            with contextlib.suppress(Exception):
-                _json_request(
-                    driver_port,
-                    "DELETE",
-                    _webdriver_path(session_id, ""),
-                    {},
-                )
-        driver.terminate()
+        cleanup_error: Exception | None = None
+        unreviewed_cleanup_error: Exception | None = None
         try:
-            driver.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            driver.kill()
-            driver.wait(timeout=5)
+            if session_id is not None:
+                try:
+                    _json_request(
+                        driver_port,
+                        "DELETE",
+                        _webdriver_path(session_id, ""),
+                        {},
+                    )
+                except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as error:
+                    cleanup_error = error
+                except Exception as error:  # noqa: BLE001 - retained or re-raised after teardown.
+                    unreviewed_cleanup_error = error
+        finally:
+            teardown_error = _teardown_driver_process(driver)
+        if primary_error is not None:
+            if cleanup_error is not None:
+                _record_secondary_diagnostic(
+                    primary_error,
+                    "WebDriver session cleanup also failed after the primary browser-pass "
+                    f"failure: {type(cleanup_error).__name__}",
+                )
+            if unreviewed_cleanup_error is not None:
+                _record_secondary_diagnostic(
+                    primary_error,
+                    "Unreviewed WebDriver session cleanup also failed after the primary "
+                    "browser-pass failure: "
+                    f"{type(unreviewed_cleanup_error).__name__}",
+                )
+            if teardown_error is not None:
+                _record_secondary_diagnostic(
+                    primary_error,
+                    "ChromeDriver process teardown also failed after the primary browser-pass "
+                    f"failure: {type(teardown_error).__name__}",
+                )
+        elif cleanup_error is not None:
+            cleanup_failure = WebDriverSessionCleanupError(
+                "WebDriver session cleanup failed after bounded process teardown"
+            )
+            if teardown_error is not None:
+                _record_secondary_diagnostic(
+                    cleanup_failure,
+                    "ChromeDriver process teardown also failed: "
+                    f"{type(teardown_error).__name__}",
+                )
+            raise cleanup_failure from cleanup_error
+        elif unreviewed_cleanup_error is not None:
+            if teardown_error is not None:
+                _record_secondary_diagnostic(
+                    unreviewed_cleanup_error,
+                    "ChromeDriver process teardown also failed: "
+                    f"{type(teardown_error).__name__}",
+                )
+            raise unreviewed_cleanup_error
+        elif teardown_error is not None:
+            raise teardown_error
 
 
 def _run_restart_trial(
@@ -433,15 +771,65 @@ def _run_restart_trial(
     }
 
 
+def _pinned_workspace_binary(
+    env_name: str,
+    relative_path: pathlib.PurePosixPath,
+    label: str,
+    *,
+    root: pathlib.Path = ROOT,
+) -> pathlib.Path:
+    """Authorize only the exact non-symlink executable provisioned under the workspace.
+
+    Environment variables remain compatibility inputs for the workflow, but they
+    cannot redirect execution. The release lane has one reviewed path for each
+    pinned Chrome-for-Testing artifact, and any other executable fails closed.
+    """
+
+    if relative_path.is_absolute() or ".." in relative_path.parts:
+        raise SystemExit(f"{label} pinned workspace path is invalid")
+    trusted_root = pathlib.Path(os.path.abspath(root))
+    expected = pathlib.Path(os.path.abspath(trusted_root.joinpath(*relative_path.parts)))
+    configured = os.environ.get(env_name)
+    if configured:
+        configured_path = pathlib.Path(configured)
+        if not configured_path.is_absolute():
+            raise SystemExit(f"{env_name} must name the pinned workspace executable")
+        if pathlib.Path(os.path.abspath(configured_path)) != expected:
+            raise SystemExit(f"{env_name} must name the pinned workspace executable")
+
+    current = expected
+    while current != trusted_root:
+        if current.is_symlink():
+            raise SystemExit(f"{label} pinned workspace executable path contains a symlink")
+        parent = current.parent
+        if parent == current:
+            raise SystemExit(f"{label} pinned workspace executable escaped the workspace")
+        current = parent
+
+    try:
+        expected.relative_to(trusted_root)
+    except ValueError as exc:
+        raise SystemExit(f"{label} pinned workspace executable escaped the workspace") from exc
+    if not expected.is_file():
+        raise SystemExit(f"{label} pinned workspace executable is missing")
+    if not os.access(expected, os.X_OK):
+        raise SystemExit(f"{label} pinned workspace executable is not executable")
+    return expected
+
+
 def main() -> int:
     """Run three independent restart trials and emit bounded repeatability evidence."""
 
-    chrome_bin = pathlib.Path(os.environ.get("CHROME_BIN", ""))
-    chromedriver_bin = pathlib.Path(os.environ.get("CHROMEDRIVER_BIN", ""))
-    if not chrome_bin.is_file():
-        raise SystemExit("CHROME_BIN must point to the pinned Chrome for Testing executable")
-    if not chromedriver_bin.is_file():
-        raise SystemExit("CHROMEDRIVER_BIN must point to the matching pinned ChromeDriver")
+    chrome_bin = _pinned_workspace_binary(
+        "CHROME_BIN",
+        PINNED_CHROME_RELATIVE_PATH,
+        "Chrome for Testing",
+    )
+    chromedriver_bin = _pinned_workspace_binary(
+        "CHROMEDRIVER_BIN",
+        PINNED_CHROMEDRIVER_RELATIVE_PATH,
+        "ChromeDriver",
+    )
     if not (FIXTURE / "manifest.json").is_file():
         raise SystemExit("MV3 fixture manifest is missing")
 
@@ -468,13 +856,19 @@ def main() -> int:
                         trial_number,
                     )
                 )
-            except (OSError, ValueError, RuntimeError, json.JSONDecodeError):
-                trial_results.append(
-                    {
-                        "trial_number": trial_number,
-                        "passed": False,
-                    }
-                )
+            except (
+                OSError,
+                ValueError,
+                RuntimeError,
+                json.JSONDecodeError,
+                subprocess.TimeoutExpired,
+            ) as exc:
+                failed_trial: dict[str, Any] = {
+                    "trial_number": trial_number,
+                    "passed": False,
+                }
+                failed_trial.update(_failure_evidence(exc))
+                trial_results.append(failed_trial)
 
         successful_trials = sum(
             1 for trial in trial_results if trial.get("passed") is True

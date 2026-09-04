@@ -8,6 +8,17 @@ This document records external evidence that changes OriginWeave architecture, t
 
 The 1 June 2026 WebDriver BiDi Working Draft defines a bidirectional remote-control protocol, events, commands, and user contexts. Because it remains a W3C Working Draft, OriginWeave places BiDi behind a versioned adapter and Web Platform Tests-derived contract tests rather than make it the internal authority model.
 
+### Manifest V3 downloads compatibility
+
+The current Chrome Extensions Downloads API documents the `downloads` manifest permission and `chrome.downloads` methods that initiate, monitor, search, and inspect downloads. That living vendor reference is API semantics only. OriginWeave treats a successful controlled loopback download in pinned Chromium as compatibility evidence for one declared surface, not as Agent filesystem authority, general download persistence, or a claim that every Downloads method is supported.
+
+### Manifest V3 WebDriver transport-protocol diagnostics
+
+RFC 9112 defines the HTTP/1.1 status-line and the requirement that a message body match the announced framing. A malformed status-line or an incomplete body is a recoverable parser failure, not a trusted diagnostic payload. W3C WebDriver carries commands over that HTTP transport. The Manifest V3 compatibility runner therefore converts `http.client.HTTPException` subclasses such as `BadStatusLine` and `IncompleteRead` into the classified message `WebDriver transport protocol failure`. Raw status-line text, partial body bytes, paths, URLs, or tokens must not enter exception text, trial evidence, or logs.
+
+### Manifest V3 click post-condition diagnostics
+
+W3C WebDriver Get Element Text returns the rendered text content of a located element. That value is page-controlled data, not a trusted diagnostic token. The Manifest V3 compatibility runner therefore compares the fixture output against the exact expected `clicked` token and, on mismatch, raises only the classified message `real click post-condition mismatch`. Raw element text must not enter exception text, trial evidence, or logs.
 The final Model Context Protocol `2026-07-28` specification defines the currently reviewed MCP generation. Its stateless request model carries protocol metadata per request and standard Streamable HTTP routing metadata for MCP operations; its Tools surface defines bounded, case-sensitive tool names and requires clients to treat tool annotations as untrusted unless supplied by a trusted server. OriginWeave therefore keeps MCP outside the product authority model. Active PR #168 implements only a bounded Rust `tools/call` routing/action-policy foundation for that exact generation; the complete transport, request-metadata, discovery, OAuth, browser, secret, and persistence adapter remains planned and cannot be inferred from the core routing primitive.
 
 ### Browser origin equivalence
@@ -122,6 +133,8 @@ Berners-Lee, T., Fielding, R., & Masinter, L. (2005). *Uniform resource identifi
 
 Bonica, R., Cotton, M., Haberman, B., & Vegoda, L. (2017). *Updates to the special-purpose IP address registries* (RFC 8190). Internet Engineering Task Force. https://doi.org/10.17487/RFC8190
 
+Chrome for Developers. (n.d.). *chrome.downloads*. Google. Retrieved August 16, 2026, from https://developer.chrome.com/docs/extensions/reference/api/downloads
+
 Chromium Authors. (n.d.). *Proxy support in Chrome* [Source documentation]. Chromium. https://chromium.googlesource.com/chromium/src/+/a3e71ebfa307d8760eb68b777e2998a869940092/net/docs/proxy.md
 
 Chromium Authors. (2026). *URL canonicalizer unit tests* [Source code]. Chromium. https://chromium.googlesource.com/chromium/src/+/446d05d21720f0b3505ec21057b3e9f909784262/url/url_canon_unittest.cc
@@ -137,6 +150,8 @@ Eddy, W. M. (Ed.). (2022). *Transmission Control Protocol (TCP)* (RFC 9293). Int
 Evtimov, I., Zharmagambetov, A., Grattafiori, A., Guo, C., & Chaudhuri, K. (2025). *WASP: Benchmarking web agent security against prompt injection attacks*. arXiv. https://doi.org/10.48550/arXiv.2504.18575
 
 Fielding, R., Nottingham, M., & Reschke, J. (2022). *HTTP semantics* (RFC 9110). Internet Engineering Task Force. https://doi.org/10.17487/RFC9110
+
+Fielding, R., Nottingham, M., & Reschke, J. (Eds.). (2022). *HTTP/1.1* (RFC 9112). Internet Engineering Task Force. https://doi.org/10.17487/RFC9112
 
 Fugu Team, Sakana AI. (2026). *Sakana Fugu technical report* [Technical report]. arXiv. https://doi.org/10.48550/arXiv.2606.21228
 
@@ -191,6 +206,8 @@ Unicode-RS Project Developers. (2025). *unicode-normalization 0.1.25* [Computer 
 Web Hypertext Application Technology Working Group. (2026). *URL standard*. https://url.spec.whatwg.org/
 
 World Wide Web Consortium. (2013). *PROV-O: The PROV ontology*. https://www.w3.org/TR/prov-o/
+
+World Wide Web Consortium. (2018, June 5). *WebDriver* (W3C Recommendation). https://www.w3.org/TR/2018/REC-webdriver1-20180605/
 
 World Wide Web Consortium. (2026, June 1). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260601/
 
