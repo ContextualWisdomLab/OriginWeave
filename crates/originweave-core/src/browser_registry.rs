@@ -422,25 +422,15 @@ impl BrowserAuthorityRegistry {
         &self,
         handle: &ObservedNodeHandle,
     ) -> Result<(), BrowserRegistryError> {
-        if !self.known_sessions.contains(&handle.browser_session()) {
-            return Err(BrowserRegistryError::UnknownBrowserSession);
-        }
         let context = handle.browsing_context();
-        let expected_session = self
-            .context_session
-            .get(&context)
-            .copied()
-            .ok_or(BrowserRegistryError::UnknownBrowsingContext)?;
-        if expected_session != handle.browser_session() {
-            return Err(BrowserRegistryError::UnknownNodeAuthority);
-        }
-        let epoch = self.current_epoch(context)?;
+        let session = handle.browser_session();
+        let epoch = self.current_context_epoch(session, context)?;
         let origin = self
             .context_origin
             .get(&context)
             .ok_or(BrowserRegistryError::UnknownNodeAuthority)?;
         handle
-            .validate_current(expected_session, context, origin, epoch)
+            .validate_current(session, context, origin, epoch)
             .map_err(|_error| BrowserRegistryError::UnknownNodeAuthority)?;
         let is_bound = self.node_by_external.iter().any(
             |((bound_context, bound_epoch, _external_identifier), node_id)| {
