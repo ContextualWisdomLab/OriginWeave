@@ -36,6 +36,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Real loopback TCP integration proof plus deterministic timeout, refusal, retry, peer-inspection, peer-mismatch, canonicalization, IPv6 metadata, and single-use replay tests.
 - Real loopback rustls integration covering trusted DNS SAN, Common-Name fallback rejection, wrong-name and untrusted-root rejection, fixed-time expiry and not-yet-valid failures, exact IPv4 and IPv6 SANs, TLS 1.2/TLS 1.3, required and optional ALPN, and transport-origin binding.
 - Cumulative interactive-first RAM, VRAM, batch, local-model, admission, pause, and compositor-pressure mitigation plans, including active-consumer reduction at exact hard limits.
+- Bounded browser-task runtime telemetry that validates platform-supplied RSS, semantic-observation bytes, governed-action latency, and total task duration; can conservatively feed RSS into the resource governor; and can sample one explicitly supplied Linux process ID from `/proc/<pid>/status` with strict `VmRSS` syntax, unit, duplicate, overflow, and read-failure handling (Linux Kernel Documentation, n.d.). The sampler performs no Chromium process discovery, child-process aggregation, cgroup accounting, GPU/heap measurement, or cross-platform sampling.
 - Universally value-redacted network evidence with explicit path, metadata, and provenance bounds; ambiguous path rejection; validated source URLs; lowercase SHA-256 identifiers; and verification state.
 - Versioned schema-bound extraction contracts with bounded identifiers and field counts, typed value/cardinality metadata, explicit duplicate-free reviewed source channels, fail-closed schema validation, and deterministic `Display`/`std::error::Error` contracts for public schema failures.
 - Rust 1.97.1 build contract, strict Clippy and rustdoc gates, and exact production function, line, region, and branch coverage enforcement.
@@ -78,7 +79,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - R3 and R4 approvals are bound to the exact action, target origin, and immutable digest of the complete canonical action intent; R5 legal consent is non-delegable.
 - Shortened, integer, hexadecimal, and legacy octal-looking IPv4 host spellings are rejected so the policy origin cannot diverge from Chromium host interpretation.
 - IPv4-mapped IPv6 is canonicalized before destination classification and pin comparison so mapped private or loopback addresses cannot bypass IPv4 policy.
-- The default destination policy permits only public addresses and denies unspecified, loopback, private, shared, link-local, metadata, documentation, benchmarking, multicast, broadcast, transition, and protocol-reserved destinations.
+- The default destination policy permits only public addresses and denies unspecified, loopback, private, shared, link-local, metadata, documentation, benchmarking, multicast, broadcast, transition, unallocated, and protocol-reserved destinations.
 - Azure platform IP `168.63.129.16` and Amazon EKS Pod Identity endpoints `169.254.170.23` and `fd00:ec2::23` are classified as metadata or platform services before broader public, link-local, or unique-local rules.
 - Resolver answers are rejected when empty or larger than 256 addresses, preventing an unbounded resolver response from entering policy state.
 - `localhost` may approve only loopback addresses, while literal IPv4 and IPv6 origins may approve only the exact canonical address encoded in the origin.
@@ -101,5 +102,9 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Hard RAM and VRAM pressure pauses the active agent and rejects new admission; hard VRAM pressure also offloads a resident local model.
 - The hourly product agent has no Git metadata or repository authority. A separate post-verification publisher opens one PR and cannot approve or merge it.
 - The unprivileged OpenCode user is restricted to loopback egress during model execution, preventing runner-wide allow-listed endpoints from becoming direct source-exfiltration channels.
+
+### References
+
+Linux Kernel Documentation. (n.d.). *The /proc filesystem*. Retrieved August 15, 2026, from https://www.kernel.org/doc/html/latest/filesystems/proc.html
 
 [Unreleased]: https://github.com/ContextualWisdomLab/OriginWeave/compare/main...HEAD
