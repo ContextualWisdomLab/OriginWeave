@@ -7,17 +7,24 @@ import unittest
 from scripts.ci.classify_ci_change_scope import classify_changes, parse_nul_raw_changes
 
 
-def _raw_record(status: str) -> bytes:
-    """Build a docs-to-doc rename record with a caller-controlled score suffix."""
+def _raw_record(
+    status: str,
+    *,
+    source_oid: str | None = None,
+    destination_oid: str | None = None,
+) -> bytes:
+    """Build a docs-to-doc rename/copy record with caller-controlled identity evidence."""
 
+    source_identity = source_oid or "1" * 40
+    destination_identity = destination_oid or "2" * 40
     return (
-        f":100644 100644 {'1' * 40} {'2' * 40} {status}\0"
+        f":100644 100644 {source_identity} {destination_identity} {status}\0"
         "docs/old.md\0docs/new.md\0"
     ).encode()
 
 
 class CiChangeScopeSimilarityScoreTests(unittest.TestCase):
-    """Only score spellings emitted by Git may influence lightweight CI authority."""
+    """Only score spellings and identities emitted by Git may authorize lightweight CI."""
 
     def test_canonical_three_digit_similarity_score_is_accepted(self) -> None:
         """Git raw output zero-pads scored statuses to three decimal digits."""
@@ -38,6 +45,29 @@ class CiChangeScopeSimilarityScoreTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "status"):
             parse_nul_raw_changes(_raw_record("R101"))
+
+    def test_perfect_similarity_requires_identical_blob_identity(self) -> None:
+        """R100/C100 cannot describe different blob contents in exact two-tree evidence."""
+
+        for status in ("R100", "C100"):
+            with self.subTest(status=status):
+                with self.assertRaisesRegex(ValueError, "similarity"):
+                    parse_nul_raw_changes(_raw_record(status))
+
+    def test_nonperfect_similarity_rejects_identical_blob_identity(self) -> None:
+        """Identical blobs are 100% similar and cannot carry a lower R/C score."""
+
+        identity = "1" * 40
+        for status in ("R074", "C074"):
+            with self.subTest(status=status):
+                with self.assertRaisesRegex(ValueError, "similarity"):
+                    parse_nul_raw_changes(
+                        _raw_record(
+                            status,
+                            source_oid=identity,
+                            destination_oid=identity,
+                        )
+                    )
 
 
 if __name__ == "__main__":
