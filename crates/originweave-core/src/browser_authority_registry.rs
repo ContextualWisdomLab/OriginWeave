@@ -213,6 +213,14 @@ impl BrowserAuthorityRegistry {
             .require_context_origin(browser_session, browsing_context, origin)
     }
 
+    /// Revalidate one descriptive node handle against the current browser authority registry.
+    pub fn validate_node_handle(
+        &self,
+        handle: &ObservedNodeHandle,
+    ) -> Result<(), BrowserRegistryError> {
+        self.inner.validate_node_handle(handle)
+    }
+
     /// Revalidate one exact registry-issued admitted node before later typed dispatch.
     ///
     /// This check preserves opaque registry-instance provenance and verifies that this registry still
