@@ -29,12 +29,25 @@ pub struct SensitiveAuditChainLinkInput {
     pub chain_digest: String,
 }
 
+/// Unvalidated metadata for one separately trusted sensitive-audit checkpoint.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SensitiveAuditChainCheckpointInput {
+    /// Tenant whose audit history the checkpoint is intended to bind.
+    pub tenant_id: String,
+    /// Logical audit stream whose history the checkpoint is intended to bind.
+    pub audit_stream_id: String,
+    /// One-based sequence number of the checkpointed chain link.
+    pub sequence_number: u64,
+    /// Lowercase SHA-256 digest recorded for the checkpointed chain link.
+    pub chain_digest: String,
+}
+
 /// Validation failure while constructing, verifying, or extending a sensitive-audit chain.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SensitiveAuditChainLinkError {
     /// A tenant or audit-stream identifier was empty, oversized, or ambiguous.
     InvalidIdentifier,
-    /// A payload, previous-link, or current-link digest was not canonical lowercase SHA-256.
+    /// A payload, previous-link, current-link, or checkpoint digest was not canonical SHA-256.
     InvalidDigest,
     /// The recorded current-link digest did not equal SHA-256 of its exact canonical preimage.
     ChainDigestMismatch,
@@ -56,6 +69,12 @@ pub enum SensitiveAuditChainLinkError {
     PreviousDigestMismatch,
     /// The predecessor sequence cannot be incremented without overflowing `u64`.
     SequenceOverflow,
+    /// A trusted checkpoint named a different tenant or logical audit stream.
+    CheckpointContextMismatch,
+    /// The checkpointed sequence is absent from the supplied verified history.
+    CheckpointSequenceMissing,
+    /// The supplied verified history disagrees with the trusted checkpoint digest.
+    CheckpointDigestMismatch,
 }
 
 impl fmt::Display for SensitiveAuditChainLinkError {
@@ -81,6 +100,11 @@ impl fmt::Display for SensitiveAuditChainLinkError {
             Self::SequenceDiscontinuity => "sensitive audit chain sequence is not contiguous",
             Self::PreviousDigestMismatch => "sensitive audit chain previous digest mismatch",
             Self::SequenceOverflow => "sensitive audit chain sequence overflow",
+            Self::CheckpointContextMismatch => "sensitive audit chain checkpoint context mismatch",
+            Self::CheckpointSequenceMissing => {
+                "sensitive audit chain checkpoint sequence is absent from history"
+            }
+            Self::CheckpointDigestMismatch => "sensitive audit chain checkpoint digest mismatch",
         })
     }
 }
@@ -239,6 +263,63 @@ impl SensitiveAuditChainLink {
     }
 }
 
+/// Immutable credential-free metadata for a separately trusted chain checkpoint.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SensitiveAuditChainCheckpoint {
+    tenant_id: String,
+    audit_stream_id: String,
+    sequence_number: u64,
+    chain_digest: String,
+}
+
+impl TryFrom<SensitiveAuditChainCheckpointInput> for SensitiveAuditChainCheckpoint {
+    type Error = SensitiveAuditChainLinkError;
+
+    fn try_from(input: SensitiveAuditChainCheckpointInput) -> Result<Self, Self::Error> {
+        if !valid_identifier(&input.tenant_id) || !valid_identifier(&input.audit_stream_id) {
+            return Err(SensitiveAuditChainLinkError::InvalidIdentifier);
+        }
+        if input.sequence_number == 0 {
+            return Err(SensitiveAuditChainLinkError::InvalidSequence);
+        }
+        if !valid_sha256(&input.chain_digest) {
+            return Err(SensitiveAuditChainLinkError::InvalidDigest);
+        }
+        Ok(Self {
+            tenant_id: input.tenant_id,
+            audit_stream_id: input.audit_stream_id,
+            sequence_number: input.sequence_number,
+            chain_digest: input.chain_digest,
+        })
+    }
+}
+
+impl SensitiveAuditChainCheckpoint {
+    /// Return the tenant identifier named by this checkpoint.
+    #[must_use]
+    pub fn tenant_id(&self) -> &str {
+        &self.tenant_id
+    }
+
+    /// Return the logical audit-stream identifier named by this checkpoint.
+    #[must_use]
+    pub fn audit_stream_id(&self) -> &str {
+        &self.audit_stream_id
+    }
+
+    /// Return the one-based sequence number named by this checkpoint.
+    #[must_use]
+    pub const fn sequence_number(&self) -> u64 {
+        self.sequence_number
+    }
+
+    /// Return the lowercase SHA-256 chain digest named by this checkpoint.
+    #[must_use]
+    pub fn chain_digest(&self) -> &str {
+        &self.chain_digest
+    }
+}
+
 /// Verify one loaded sensitive-audit history from genesis through its final link.
 ///
 /// Every recorded link digest is checked against its canonical preimage, and every successor is
@@ -271,6 +352,36 @@ pub fn verify_sensitive_audit_chain_history(
         })?;
     }
 
+    Ok(())
+}
+
+/// Verify a complete loaded history against one separately trusted prior checkpoint.
+///
+/// The supplied history is fully verified first. The checkpoint must then name the exact tenant,
+/// logical audit stream, one-based sequence, and recorded digest of a link present in that history.
+/// A checkpoint may refer to an earlier link while the verified history contains later appended
+/// links. Success does not authenticate, sign, timestamp, publish, persist, or otherwise make the
+/// checkpoint trustworthy; callers must obtain it from an independently trusted authority.
+pub fn verify_sensitive_audit_chain_checkpoint(
+    history: &[SensitiveAuditChainLink],
+    checkpoint: &SensitiveAuditChainCheckpoint,
+) -> Result<(), SensitiveAuditChainLinkError> {
+    verify_sensitive_audit_chain_history(history)?;
+    let first = &history[0];
+    if first.tenant_id() != checkpoint.tenant_id()
+        || first.audit_stream_id() != checkpoint.audit_stream_id()
+    {
+        return Err(SensitiveAuditChainLinkError::CheckpointContextMismatch);
+    }
+    let Some(anchored) = history
+        .iter()
+        .find(|link| link.sequence_number() == checkpoint.sequence_number())
+    else {
+        return Err(SensitiveAuditChainLinkError::CheckpointSequenceMissing);
+    };
+    if anchored.chain_digest() != checkpoint.chain_digest() {
+        return Err(SensitiveAuditChainLinkError::CheckpointDigestMismatch);
+    }
     Ok(())
 }
 
