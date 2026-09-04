@@ -193,6 +193,17 @@ class DocumentationFitnessContractTests(unittest.TestCase):
             (REPOSITORY_ROOT / "crates/originweave-core/tests/mcp_tools_list_cache.rs").is_file()
         )
 
+    def test_readme_separates_mcp_policy_from_discovery(self) -> None:
+        """The architecture summary must not claim policy evaluation for discovery."""
+        readme = (REPOSITORY_ROOT / "README.md").read_text(encoding="utf-8")
+
+        self.assertIn(
+            "`originweave-policy` binding for the MCP `2026-07-28` `tools/call` boundary",
+            readme,
+        )
+        self.assertIn("`originweave-core` `tools/list` discovery contract", readme)
+        self.assertNotIn("policy` binding for the MCP `2026-07-28` `tools/call` and `tools/list`", readme)
+
     def test_semantic_observation_lane_stays_non_shipped_and_provenance_bound(self) -> None:
         """The semantic observation value object must stay active-only and distinct from browser I/O."""
         appendix = (DOCS_ROOT / "evidence" / "2026-08-10-active-pr-maturity.md").read_text(

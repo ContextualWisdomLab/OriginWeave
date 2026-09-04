@@ -131,6 +131,16 @@ class ProductCompletionGapContractTests(unittest.TestCase):
         )[0]
         self.assertIn("115 open pull requests (31 ready, 84 draft)", record)
 
+    def test_historical_pr_219_head_is_a_full_exact_sha(self) -> None:
+        """The retained PR #219 regression anchor must identify its real commit."""
+        text = BASELINE.read_text(encoding="utf-8")
+
+        self.assertIn(
+            "| #219 | Ready | `0841d2ab3d8b5e60a03c0a8e818cf438e2716829` | "
+            "`8145d40f1b028a8f4dc7e7da47ac89bb9e5bb2c7` |",
+            text,
+        )
+
     def test_issue_table_distinguishes_open_issues_from_governance_signals(self) -> None:
         """The table total must distinguish product issues from governance signals."""
         text = BASELINE.read_text(encoding="utf-8")

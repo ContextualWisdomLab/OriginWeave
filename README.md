@@ -40,7 +40,7 @@ The repository is organized as independently consumable Rust crates:
 - `originweave-resource`: task-level RAM, VRAM, thread, and frame-time budgets with cumulative mitigation plans.
 - `originweave-evidence`: universally value-redacted network evidence and source-bound provenance records.
 
-Protected main additionally contains an `originweave-core` MCP routing registry and `originweave-policy` binding for the MCP `2026-07-28` `tools/call` and `tools/list` boundaries, merged through PRs #168 and #170. Those shipped foundations validate explicit routing and conservative discovery metadata while preserving normal OriginWeave policy. Neither boundary implements transport parsing, OAuth, browser control, secret materialization, persistence, or ambient authority.
+Protected main additionally contains an `originweave-core` MCP routing registry and `originweave-policy` binding for the MCP `2026-07-28` `tools/call` boundary, plus the `originweave-core` `tools/list` discovery contract merged through PR #170. Those shipped foundations validate explicit call routing and conservative discovery metadata without granting discovery any policy authority. Neither boundary implements transport parsing, OAuth, browser control, secret materialization, persistence, or ambient authority.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) and the [architecture decision records](docs/adr/) for binding design decisions.
 
