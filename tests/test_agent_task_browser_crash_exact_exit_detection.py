@@ -42,6 +42,7 @@ class AgentTaskBrowserCrashExactExitDetectionContractTests(unittest.TestCase):
             browser_pass[termination_call:crash_credit],
         )
 
+    @unittest.skipUnless(sys.platform.startswith("linux"), "requires Linux pidfd")
     def test_pidfd_termination_observes_killed_unreaped_child(self) -> None:
         """Kernel termination evidence must not require the parent to reap the child."""
 
@@ -77,6 +78,7 @@ class AgentTaskBrowserCrashExactExitDetectionContractTests(unittest.TestCase):
                 child.kill()
             child.wait(timeout=5)
 
+    @unittest.skipUnless(sys.platform.startswith("linux"), "requires Linux pidfd")
     def test_pidfd_termination_does_not_credit_signal_delivery_as_exit(self) -> None:
         """A successfully delivered non-terminating signal is not termination evidence."""
 
@@ -111,6 +113,7 @@ class AgentTaskBrowserCrashExactExitDetectionContractTests(unittest.TestCase):
                 child.kill()
             child.wait(timeout=5)
 
+    @unittest.skipUnless(sys.platform.startswith("linux"), "requires Linux pidfd")
     def test_pidfd_termination_refuses_stale_identity_without_signalling(self) -> None:
         """A stale PID/start-time identity must never signal the current process owner."""
 
