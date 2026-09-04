@@ -19,7 +19,8 @@ mod extension_authority;
 pub use browser_protocol::{
     BrowserProtocolAdapterDescriptor, BrowserProtocolCapability,
     BrowserProtocolCapabilityRequirementError, BrowserProtocolDescriptorError, BrowserProtocolKind,
-    MAX_BROWSER_PROTOCOL_METADATA_BYTES,
+    BrowserProtocolKindRequirementError, BrowserProtocolVersionRequirementError,
+    MAX_BROWSER_PROTOCOL_METADATA_BYTES, OriginWeaveProtocolVersion,
 };
 pub use browser_registry::{
     BrowserAuthorityRegistry, BrowserRegistryError, MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES,
