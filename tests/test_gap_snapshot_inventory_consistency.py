@@ -32,7 +32,7 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "13 open non-PR issues",
             "c789b802fc98a8d7fd8c09d9327f36828054d2a1",
             "18156473",
-            "9 central required workflows",
+            "7 central required workflows",
             "Live GitHub PR/base/head/check APIs are authoritative over PR bodies",
             "Issue #279",
             "Issue #28 remains the P0 governed-browser integration target",
@@ -41,9 +41,9 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "PR #70 is Draft at exact head `ba8926eed5a6d783f781684f30c900919eecd52b`",
             "DDD/MCP repair #272 is Draft at exact head `80272f18422c9946077ad9bd674f603db8f020da`",
             "PR #229 is Draft at exact head `7ae426e760e8351ee792ce9df4266d7e7483d0d4`",
-            "PR #281 remains Draft at exact head `e96c982b6ed7ff7b80891bd60efc5d443555d4b6`",
-            "PR #282 is Draft at exact head `51a1e819355306e630d1241e6e5a136cb195325e`",
-            "PR #283 is Draft at exact head `3cefce69a7bc71e33ad64c5e8f58a0afe0b5f7e1`",
+            "PR #281 remains Draft at exact head `adaca6427d68f550b39293a69b7c733430d1c385`",
+            "PR #282 is Draft at exact head `06d04b786fc470f821cf2e91c6546cb53d488783`",
+            "PR #283 is Draft at exact head `74d3ee0e7f15da2f285bd9033360df662536fc60`",
             "GitHub Releases is empty",
         ):
             with self.subTest(marker=marker):

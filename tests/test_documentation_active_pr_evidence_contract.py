@@ -80,9 +80,9 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         refresh_lines = [line for line in added.splitlines() if line.startswith(refresh_prefix)]
         self.assertEqual(1, len(refresh_lines))
         refresh_line = refresh_lines[0]
-        self.assertIn("on 2026-08-29", refresh_line)
-        self.assertIn("108 open pull requests (24 ready, 84 draft)", refresh_line)
-        self.assertIn("11 open issues", refresh_line)
+        self.assertIn("on 2026-09-03", refresh_line)
+        self.assertIn("145 open pull requests (5 ready, 140 draft)", refresh_line)
+        self.assertIn("13 open non-PR issues", refresh_line)
         self.assertNotIn("- Corrected the 2026-08-28 product-gap snapshot", added)
         self.assertNotIn("- Revalidated the product-gap queue at", changed)
         self.assertNotIn("115 open pull requests (31 ready, 84 draft)", refresh_line)
