@@ -169,6 +169,14 @@ def _validate_raw_object_identity_semantics(
     ):
         raise ValueError("changed raw record modification has identical object ids")
 
+    if status.startswith(("R", "C")):
+        similarity = int(status[1:])
+        identities_match = source_oid == destination_oid
+        if (similarity == 100) != identities_match:
+            raise ValueError(
+                "changed raw record has inconsistent similarity/object id metadata"
+            )
+
 
 def _validate_raw_mode_semantics(source_mode: str, destination_mode: str, status: str) -> None:
     """Reject status/mode combinations that cannot describe a normal two-tree diff."""
