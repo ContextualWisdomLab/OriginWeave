@@ -7,6 +7,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 ### Added
 
 - Complete typed semantic-node action retention through the public binding and policy boundaries, including fail-closed current-authority revalidation, registry-corruption coverage, and deterministic typed error sources.
+- Typed WebDriver BiDi command-family correlation for text-value post-condition observations, so a matching numeric response id cannot consume an outstanding command from another operation family; successful envelopes reuse the parser-proven non-null id invariant without an unreachable fallback branch.
 - Bounded RFC 6455 WebDriver BiDi opening-response validation on the exact peer-verified stream: it admits only HTTP/1.1 `101`, case-insensitive `Upgrade`/`Connection` tokens, and the client-key-correlated `Sec-WebSocket-Accept` value within monotonic time and header-size ceilings; it restores blocking mode and still does not implement WebSocket frames or grant browser/Agent authority.
 - Bounded WebDriver BiDi loopback TCP transport that consumes one exact no-DNS connect target, retries only explicitly recoverable local transport failures within repository timeout and attempt ceilings, exposes the stream only after operating-system peer inspection and exact peer verification, supports a consuming handoff of the original stream with typed credential-free peer/session/TLS and bounded-attempt evidence, preserves typed causal errors, and performs no DNS, proxy/PAC, process authentication, TLS, WebSocket, BiDi message, browser-action, or Agent-authority step.
 - Exact WebDriver BiDi socket-peer verification that consumes an approved no-DNS connect target, requires the observed IP address and port to match exactly, preserves the TLS requirement and exact correlated session id, and remains inert metadata that does not authenticate an OS process, does not negotiate TLS, perform a WebSocket handshake, or grant Agent authority.
@@ -57,6 +58,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Made WebDriver BiDi opening-stream tests preserve the peer lifetime they assert and accept the operating system's two fail-closed revoked-stream outcomes: rejection before the write or rejection while clearing the operation-local timeout before handoff.
 - Separated logical origin authority from resolved network destination authority; an origin grant no longer implies permission to connect to every resolver result.
 - Separated resolved-address authorization from direct transport evidence; an approved IP now becomes a usable stream only after the operating system reports the exact requested IP and port.
 - Separated exact TCP peer proof from authenticated TLS service identity; an observed peer becomes an authenticated HTTPS stream only after explicit-root, fixed-time, SAN-bound WebPKI verification over that same stream.
