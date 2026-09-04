@@ -9,7 +9,7 @@ use std::{
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 
 use crate::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiTextValueObservationResponseError, WebDriverBiDiTextValueObservationResult,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
     WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
@@ -108,7 +108,7 @@ fn read_text_over_loopback(
 fn public_text_value_boundary_covers_error_adapters_and_credential_safe_result()
 -> Result<(), Box<dyn Error>> {
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command(70)?;
+    correlation.register_command_for(70, WebDriverBiDiCommandKind::TextValueObservation)?;
 
     let invalid = read_text_over_loopback(b"not-json")?;
     let envelope_result = WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(

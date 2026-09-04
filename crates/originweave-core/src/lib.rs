@@ -47,6 +47,7 @@ mod browser_registry_external_context;
 mod contracts;
 mod semantic_action_binding;
 mod semantic_action_target;
+mod semantic_observation;
 mod webdriver_bidi_command;
 mod webdriver_bidi_error_code;
 mod webdriver_bidi_pointer_click_authority;
@@ -59,7 +60,9 @@ mod webdriver_bidi_type_text;
 mod webdriver_bidi_websocket_connect_target;
 mod webdriver_bidi_websocket_endpoint;
 
-pub use browser_authority_registry::{AdmittedNodeHandle, BrowserAuthorityRegistry};
+pub use browser_authority_registry::{
+    AdmittedNodeAuthorityError, AdmittedNodeHandle, BrowserAuthorityRegistry,
+};
 pub use browser_protocol::{
     BrowserProtocolAdapterDescriptor, BrowserProtocolCapability,
     BrowserProtocolCapabilityRequirementError, BrowserProtocolDescriptorError, BrowserProtocolKind,
@@ -88,8 +91,15 @@ pub use browser_registry::{
     UNICODE_PROTOCOL_FORMAT_INJECTION_CHARS,
 };
 pub use contracts::*;
-pub use semantic_action_binding::{SemanticNodeActionBinding, SemanticNodeActionBindingError};
+pub use semantic_action_binding::{
+    NodeActionKind, SemanticNodeActionBinding, SemanticNodeActionBindingError,
+};
 pub use semantic_action_target::{SemanticNodeActionTarget, SemanticNodeActionTargetError};
+pub use semantic_observation::{
+    MAX_ACCESSIBLE_NAME_BYTES, MAX_SEMANTIC_CHILDREN, MAX_SEMANTIC_ROLE_BYTES,
+    MAX_VISIBLE_TEXT_BYTES, ObservationChannel, SemanticNodeObservation,
+    SemanticNodeObservationError, SemanticNodeObservationInput,
+};
 pub use webdriver_bidi_command::{
     CorrelatedWebDriverBiDiLocateNodesResponse, MAX_WEBDRIVER_BIDI_COMMAND_ID,
     ValidatedWebDriverBiDiLocateNodesResponse, WEBDRIVER_BIDI_PERFORM_ACTIONS_METHOD,

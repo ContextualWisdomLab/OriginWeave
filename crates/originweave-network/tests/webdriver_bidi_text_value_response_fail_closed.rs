@@ -8,7 +8,7 @@ use std::{
 
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiTextValueObservationResponseError, WebDriverBiDiTextValueObservationResult,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
     WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
@@ -116,7 +116,7 @@ fn production_instantiation_fails_closed_for_event_protocol_error_and_script_exc
     ));
     assert_eq!(correlation.outstanding_count(), 0);
 
-    correlation.register_command(73)?;
+    correlation.register_command_for(73, WebDriverBiDiCommandKind::TextValueObservation)?;
     let protocol_error = read_text_over_loopback(PROTOCOL_ERROR)?;
     assert!(matches!(
         WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
@@ -128,7 +128,7 @@ fn production_instantiation_fails_closed_for_event_protocol_error_and_script_exc
     ));
     assert_eq!(correlation.outstanding_count(), 0);
 
-    correlation.register_command(74)?;
+    correlation.register_command_for(74, WebDriverBiDiCommandKind::TextValueObservation)?;
     let script_exception = read_text_over_loopback(SCRIPT_EXCEPTION)?;
     assert!(matches!(
         WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(

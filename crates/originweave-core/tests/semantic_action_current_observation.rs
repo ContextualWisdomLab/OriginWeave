@@ -1,10 +1,15 @@
 use std::collections::BTreeSet;
 
 use originweave_core::{
-    BrowserAuthorityRegistry, NodeActionKind, ObservationChannel, ObservedNodeHandle, Origin,
-    SemanticNodeActionTarget, SemanticNodeActionTargetError, SemanticNodeObservation,
-    SemanticNodeObservationInput,
+    BrowserAuthorityRegistry, BrowserContextDispatchTarget, BrowserContextOriginDispatchTarget,
+    BrowserContextOriginEpochDispatchTarget, BrowserProtocolAdapterDescriptor,
+    BrowserProtocolCapability, BrowserProtocolKind, NodeActionKind, ObservationChannel,
+    ObservedNodeHandle, Origin, OriginWeaveProtocolVersion, SemanticNodeActionTarget,
+    SemanticNodeActionTargetError, SemanticNodeObservation, SemanticNodeObservationInput,
+    WebDriverBiDiAccessibilityQuery,
 };
+
+const PROTOCOL_VERSION: OriginWeaveProtocolVersion = OriginWeaveProtocolVersion::new(0, 1);
 
 struct ObservationAuthorityFixture {
     registry: BrowserAuthorityRegistry,
@@ -21,12 +26,54 @@ fn authority_fixture() -> Result<ObservationAuthorityFixture, String> {
         .register_context(session, "current-observation-context")
         .map_err(|error| error.to_string())?;
     let origin = Origin::parse("https://app.example").map_err(|error| format!("{error:?}"))?;
-    let handle = registry
-        .bind_node(session, context, &origin, "current-observation-node")
+    let epoch = registry
+        .bind_context_origin(session, context, &origin)
         .map_err(|error| error.to_string())?;
-    let other_handle = registry
-        .bind_node(session, context, &origin, "other-current-observation-node")
+    let descriptor = BrowserProtocolAdapterDescriptor::new(
+        BrowserProtocolKind::WebDriverBiDi,
+        PROTOCOL_VERSION,
+        "originweave-bidi-v1",
+        "webdriver-bidi-wd-2026-06-01",
+        "chromium-r1639810",
+        &[BrowserProtocolCapability::SemanticObservation],
+    )
+    .map_err(|error| error.to_string())?;
+    let proof = descriptor
+        .validate_use(
+            PROTOCOL_VERSION,
+            BrowserProtocolKind::WebDriverBiDi,
+            "originweave-bidi-v1",
+            "webdriver-bidi-wd-2026-06-01",
+            "chromium-r1639810",
+            BrowserProtocolCapability::SemanticObservation,
+        )
         .map_err(|error| error.to_string())?;
+    let target = BrowserContextOriginEpochDispatchTarget::new(
+        BrowserContextOriginDispatchTarget::new(
+            BrowserContextDispatchTarget::new(session, context),
+            &origin,
+        ),
+        epoch,
+    );
+    let mut handles = WebDriverBiDiAccessibilityQuery::new(Some("button"), None, 2)
+        .map_err(|error| error.to_string())?
+        .bind_current_nodes(
+            proof,
+            &mut registry,
+            target,
+            &[
+                ("node", Some("current-observation-node")),
+                ("node", Some("other-current-observation-node")),
+            ],
+        )
+        .map_err(|error| error.to_string())?
+        .into_iter();
+    let handle = handles
+        .next()
+        .ok_or_else(|| "current observation fixture returned no target node".to_owned())?;
+    let other_handle = handles
+        .next()
+        .ok_or_else(|| "current observation fixture returned no comparison node".to_owned())?;
     Ok(ObservationAuthorityFixture {
         registry,
         handle,

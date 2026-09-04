@@ -1,7 +1,7 @@
 use std::{error::Error, fmt};
 
 use originweave_core::{
-    BrowserAuthorityRegistry, BrowserRegistryError, PolicyContext, RiskClass,
+    AdmittedNodeAuthorityError, BrowserAuthorityRegistry, PolicyContext, RiskClass,
     SemanticNodeActionBinding, SemanticNodeActionTarget, SemanticNodeActionTargetError,
     SemanticNodeObservation,
 };
@@ -54,7 +54,7 @@ impl PolicyAuthorizedSemanticNodeAction {
     pub fn validate_current(
         &self,
         registry: &BrowserAuthorityRegistry,
-    ) -> Result<(), BrowserRegistryError> {
+    ) -> Result<(), AdmittedNodeAuthorityError> {
         self.binding.validate_current(registry)
     }
 
@@ -68,7 +68,7 @@ impl PolicyAuthorizedSemanticNodeAction {
         &self,
         registry: &BrowserAuthorityRegistry,
         dispatch: F,
-    ) -> Result<R, BrowserRegistryError>
+    ) -> Result<R, AdmittedNodeAuthorityError>
     where
         F: FnOnce(&SemanticNodeActionBinding) -> R,
     {
@@ -114,7 +114,7 @@ impl PolicyAuthorizedSemanticNodeAction {
 #[derive(Debug)]
 pub enum SemanticNodeDispatchValidationError {
     /// The registry no longer recognizes the exact browser-owned node binding.
-    BrowserAuthority(BrowserRegistryError),
+    BrowserAuthority(AdmittedNodeAuthorityError),
     /// The fresh semantic observation no longer matches the authorized node-local state.
     SemanticState(SemanticNodeActionTargetError),
 }

@@ -626,6 +626,7 @@ impl<'a> JsonCursor<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError};
 
     fn parse(value: &str) -> Result<WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeError> {
         WebDriverBiDiJsonEnvelope::parse_str(value)
@@ -714,6 +715,21 @@ mod tests {
             "{\n \"\\u0074ype\":\"success\", \"id\":0, \"result\":{\"escaped\":\"\\\\/\\b\\f\\n\\r\\t\\\"\",\"unicode\":\"é\"}, \"method\":123 } \r\n",
         );
         assert!(success.is_ok());
+    }
+
+    #[test]
+    fn correlation_rejects_a_success_envelope_if_its_parser_invariant_is_broken() {
+        let envelope = std::hint::black_box(WebDriverBiDiJsonEnvelope {
+            kind: WebDriverBiDiJsonEnvelopeKind::Success,
+            command_id: None,
+            method: None,
+            error_code: None,
+        });
+        let mut correlation = WebDriverBiDiCommandCorrelation::new();
+        assert_eq!(
+            correlation.correlate_response(&envelope),
+            Err(WebDriverBiDiCommandCorrelationError::CommandNotOutstanding)
+        );
     }
 
     #[test]
