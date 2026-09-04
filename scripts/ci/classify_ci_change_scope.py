@@ -247,9 +247,9 @@ def parse_nul_raw_changes(data: bytes) -> tuple[RawChange, ...]:
 
 
 def is_documentation_path(path: str) -> bool:
-    """Return whether a repository path belongs to the reviewed documentation surface."""
+    """Return whether a repository path belongs to the reviewed Markdown prose surface."""
 
-    return path.startswith("docs/") or ("/" not in path and path.endswith(".md"))
+    return path.endswith(".md") and (path.startswith("docs/") or "/" not in path)
 
 
 def classify_paths(paths: Iterable[str]) -> tuple[bool, bool]:
