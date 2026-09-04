@@ -269,6 +269,12 @@ impl TopLevelFields {
     fn into_event(self) -> Result<WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeError> {
         let method = required_text(self.method, "method")?;
         require_object(self.params, "params")?;
+        if !matches!(
+            method.split_once('.'),
+            Some((module, event)) if !module.is_empty() && !event.is_empty()
+        ) {
+            return Err(invalid("method"));
+        }
         Ok(WebDriverBiDiJsonEnvelope {
             kind: WebDriverBiDiJsonEnvelopeKind::Event,
             command_id: None,
@@ -742,9 +748,8 @@ mod tests {
     #[test]
     fn accepts_current_protocol_error_code_vocabulary() {
         for error_code in WEBDRIVER_BIDI_ERROR_CODES {
-            let document = format!(
-                r#"{{"type":"error","id":7,"error":"{error_code}","message":""}}"#
-            );
+            let document =
+                format!(r#"{{"type":"error","id":7,"error":"{error_code}","message":""}}"#);
             assert_eq!(
                 parse(&document)
                     .as_ref()
