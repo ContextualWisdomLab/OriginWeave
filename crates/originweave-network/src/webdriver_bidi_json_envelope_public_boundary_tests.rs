@@ -29,7 +29,7 @@ const NAVIGATION_COMMITTED_UTF8_EVENT: &str = r#"{"type":"event","method":"brows
 const NAVIGATION_COMMITTED_MISSING_CONTEXT: &[u8] = br#"{"type":"event","method":"browsingContext.navigationCommitted","params":{"navigation":null,"timestamp":0,"url":"x"}}"#;
 const MALFORMED_NAVIGATION_COMMITTED_EVENT: &[u8] =
     br#"{"type":"event","method":"browsingContext.navigationCommitted","params":"#;
-const OTHER_EVENT: &[u8] = br#"{"type":"event","method":"x","params":{}}"#;
+const OTHER_EVENT: &[u8] = br#"{"type":"event","method":"browsingContext.load","params":{}}"#;
 
 fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
@@ -126,6 +126,24 @@ fn public_json_envelope_boundary_is_exercised_from_unit_build() -> Result<(), Bo
         parsed.as_ref().map(WebDriverBiDiJsonEnvelope::command_id),
         Ok(Some(7))
     );
+    Ok(())
+}
+
+#[test]
+fn public_json_envelope_rejects_non_event_name_methods() -> Result<(), Box<dyn Error>> {
+    let malformed_methods: [&'static [u8]; 4] = [
+        br#"{"type":"event","method":"","params":{}}"#,
+        br#"{"type":"event","method":"load","params":{}}"#,
+        br#"{"type":"event","method":".load","params":{}}"#,
+        br#"{"type":"event","method":"browsingContext.","params":{}}"#,
+    ];
+
+    for document in malformed_methods {
+        assert_eq!(
+            parse_over_loopback(document)?,
+            Err(WebDriverBiDiJsonEnvelopeError::InvalidMember { member: "method" })
+        );
+    }
     Ok(())
 }
 
