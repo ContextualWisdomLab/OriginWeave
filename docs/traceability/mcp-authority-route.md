@@ -9,11 +9,13 @@
 
 ## Scope
 
-Protected `main@c789b802fc98a8d7fd8c09d9327f36828054d2a1` contains the bounded Rust MCP `2026-07-28` routing and discovery foundation merged through PRs #168 and #170. That protected-main implementation bounds and syntax-validates attacker-controlled routing fields, maps only the explicit reviewed `originweave.*` catalog to existing typed `ActionKind` values, derives discovery metadata from that same catalog, and rejects route/action mismatch before ordinary deterministic policy evaluation.
+Protected `main@87c4daa1830bac5a5228b6036752ad5633232085` contains the bounded Rust MCP `2026-07-28` routing and discovery foundation merged through PRs #168 and #170 plus the current repository CI lifecycle authority through #286. That protected-main implementation bounds and syntax-validates attacker-controlled routing fields, maps only the explicit reviewed `originweave.*` catalog to existing typed `ActionKind` values, derives discovery metadata from that same catalog, and rejects route/action mismatch before ordinary deterministic policy evaluation.
 
 A successful MCP routing value proves protocol integrity only. It grants no capability, origin, approval, secret, browser, tenant, persistence, network, evidence, or ambient execution authority. Browser and policy authority remain in their OriginWeave bounded contexts.
 
 PR #272 is an active DDD repair that moves the external MCP protocol surface into `originweave-mcp` while preserving inward dependency direction: the adapter may consume stable core contracts and the protocol-independent policy API, but core and policy must not depend outward on MCP transport types. The move is active-PR evidence, not protected-main shipment.
+
+The current #272 generation adopts protected #286 non-destructively. Its reconciliation keeps the protected CI/MV3 workflow and lifecycle contract byte-for-byte, retains the MCP workspace membership assertion, and moves the MCP-specific dependency-direction assertions into a focused repository contract instead of overwriting the generic governance contract. The effective PR delta therefore contains no `.github/**` mutation.
 
 ## Final 2026-07-28 per-request envelope
 
