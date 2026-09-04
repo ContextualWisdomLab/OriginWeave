@@ -54,6 +54,21 @@ class CiChangeScopeSimilarityScoreTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "similarity"):
                     parse_nul_raw_changes(_raw_record(status))
 
+    def test_perfect_similarity_accepts_identical_blob_identity(self) -> None:
+        """A content-identical rename or copy retains the same blob object identity."""
+
+        identity = "1" * 40
+        for status in ("R100", "C100"):
+            with self.subTest(status=status):
+                changes = parse_nul_raw_changes(
+                    _raw_record(
+                        status,
+                        source_oid=identity,
+                        destination_oid=identity,
+                    )
+                )
+                self.assertEqual(classify_changes(changes), (True, False))
+
     def test_nonperfect_similarity_rejects_identical_blob_identity(self) -> None:
         """Identical blobs are 100% similar and cannot carry a lower R/C score."""
 
@@ -68,6 +83,14 @@ class CiChangeScopeSimilarityScoreTests(unittest.TestCase):
                             destination_oid=identity,
                         )
                     )
+
+    def test_nonperfect_similarity_accepts_distinct_blob_identity(self) -> None:
+        """A non-perfect rename/copy similarity score requires distinct blob contents."""
+
+        for status in ("R074", "C074"):
+            with self.subTest(status=status):
+                changes = parse_nul_raw_changes(_raw_record(status))
+                self.assertEqual(classify_changes(changes), (True, False))
 
 
 if __name__ == "__main__":
