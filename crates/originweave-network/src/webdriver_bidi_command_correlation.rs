@@ -1,6 +1,8 @@
 use std::{collections::BTreeMap, error::Error, fmt};
 
-use crate::{MAX_WEBDRIVER_BIDI_JS_UINT, WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeKind};
+use crate::{
+    MAX_WEBDRIVER_BIDI_JS_UINT, WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeRouting,
+};
 
 /// Maximum number of local WebDriver BiDi commands retained as outstanding at once.
 ///
@@ -183,33 +185,25 @@ impl WebDriverBiDiCommandCorrelation {
         envelope: &WebDriverBiDiJsonEnvelope,
         expected_kind: WebDriverBiDiCommandKind,
     ) -> Result<WebDriverBiDiCorrelatedResponse, WebDriverBiDiCommandCorrelationError> {
-        match envelope.kind() {
-            WebDriverBiDiJsonEnvelopeKind::Event => {
+        match envelope.routing() {
+            WebDriverBiDiJsonEnvelopeRouting::Event => {
                 Err(WebDriverBiDiCommandCorrelationError::EventIsNotResponse)
             }
-            WebDriverBiDiJsonEnvelopeKind::Error => {
-                let Some(command_id) = envelope.command_id() else {
-                    return Err(WebDriverBiDiCommandCorrelationError::UncorrelatableErrorResponse);
-                };
-                self.complete(
-                    command_id,
-                    expected_kind,
-                    WebDriverBiDiCorrelatedResponseOutcome::Error,
-                )
+            WebDriverBiDiJsonEnvelopeRouting::CommandError { command_id: None } => {
+                Err(WebDriverBiDiCommandCorrelationError::UncorrelatableErrorResponse)
             }
-            WebDriverBiDiJsonEnvelopeKind::Success => {
-                // Success envelopes are privately constructed only after the JSON boundary admits
-                // a required js-uint id. Keep an internal invariant violation fail-closed without an
-                // unreachable branch: this sentinel can never be registered as an outstanding id.
-                let command_id = envelope
-                    .command_id()
-                    .unwrap_or(MAX_WEBDRIVER_BIDI_JS_UINT + 1);
-                self.complete(
-                    command_id,
-                    expected_kind,
-                    WebDriverBiDiCorrelatedResponseOutcome::Success,
-                )
-            }
+            WebDriverBiDiJsonEnvelopeRouting::CommandError {
+                command_id: Some(command_id),
+            } => self.complete(
+                command_id,
+                expected_kind,
+                WebDriverBiDiCorrelatedResponseOutcome::Error,
+            ),
+            WebDriverBiDiJsonEnvelopeRouting::CommandSuccess { command_id } => self.complete(
+                command_id,
+                expected_kind,
+                WebDriverBiDiCorrelatedResponseOutcome::Success,
+            ),
         }
     }
 
