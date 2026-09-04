@@ -12,6 +12,7 @@ mod sensitive_audit_chain;
 mod sensitive_break_glass;
 mod sensitive_break_glass_review;
 mod sensitive_deletion;
+mod sensitive_deletion_persistence;
 
 pub use sensitive_access::{
     MAX_SENSITIVE_FIELD_COUNT, MAX_SENSITIVE_IDENTIFIER_BYTES, SensitiveAccessClass,
@@ -33,10 +34,19 @@ pub use sensitive_break_glass_review::{
     SensitiveBreakGlassReviewTimeliness,
 };
 pub use sensitive_deletion::{
-    MAX_SENSITIVE_DELETION_RECEIPT_SET_ENTRIES, SensitiveDeletionCause, SensitiveDeletionReceipt,
+    MAX_SENSITIVE_DELETION_RECEIPT_SET_ENTRIES, SensitiveDeletionCause,
+    SensitiveDeletionInventoryCommitmentError, SensitiveDeletionReceipt,
     SensitiveDeletionReceiptInput, SensitiveDeletionReceiptSetCommitment,
-    SensitiveDeletionReceiptSetError, SensitiveDeletionRequirement, SensitiveDeletionTarget,
-    verify_sensitive_deletion_receipt_set, verify_sensitive_deletion_receipt_set_with_commitment,
+    SensitiveDeletionReceiptSetCommitmentInput, SensitiveDeletionReceiptSetError,
+    SensitiveDeletionRequirement, SensitiveDeletionTarget,
+    verify_sensitive_deletion_inventory_commitment, verify_sensitive_deletion_receipt_set,
+    verify_sensitive_deletion_receipt_set_with_commitment,
+};
+pub use sensitive_deletion_persistence::{
+    SENSITIVE_DELETION_INVENTORY_COMMITMENT_VERSION, SensitiveDeletionPersistedCommitment,
+    SensitiveDeletionPersistedCommitmentError, SensitiveDeletionPersistedCommitmentInput,
+    verify_persisted_sensitive_deletion_inventory_commitment,
+    verify_sensitive_deletion_receipt_set_with_persisted_commitment,
 };
 
 use std::collections::BTreeMap;

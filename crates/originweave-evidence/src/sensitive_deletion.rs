@@ -270,6 +270,84 @@ impl fmt::Display for SensitiveDeletionReceiptSetError {
 
 impl std::error::Error for SensitiveDeletionReceiptSetError {}
 
+/// Unvalidated credential-free metadata for a persisted deletion inventory commitment.
+///
+/// Callers may reconstruct this input from durable storage or an export boundary. Validation proves
+/// only that the metadata is structurally bounded and canonical; it does not authenticate where the
+/// metadata came from or establish that the declared inventory is exhaustive.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SensitiveDeletionReceiptSetCommitmentInput {
+    /// Deletion request identifier recorded with the persisted commitment.
+    pub request_id: String,
+    /// Tenant identifier recorded with the persisted commitment.
+    pub tenant_id: String,
+    /// Retention or lifecycle-policy identifier recorded with the persisted commitment.
+    pub retention_policy_id: String,
+    /// Number of exact caller-declared copies represented by the commitment.
+    pub declared_copy_count: usize,
+    /// Lowercase 64-character SHA-256 digest of the canonical inventory preimage.
+    pub inventory_digest: String,
+}
+
+/// Failure returned when a loaded deletion inventory commitment is malformed or inconsistent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SensitiveDeletionInventoryCommitmentError {
+    /// A loaded or expected request, tenant, or retention-policy identifier is invalid.
+    InvalidScopeIdentifier,
+    /// The loaded declared-copy count is zero or exceeds the bounded evaluation limit.
+    InvalidDeclaredCopyCount,
+    /// The loaded inventory digest is not canonical lowercase 64-character hexadecimal SHA-256.
+    InvalidInventoryDigest,
+    /// The caller supplied more declared-copy requirements than one evaluation may process.
+    TooManyRequirements,
+    /// No exact-copy requirements were declared for re-verification.
+    EmptyRequirementSet,
+    /// The same exact-copy requirement was declared more than once.
+    DuplicateRequirement,
+    /// The persisted commitment belongs to another deletion request.
+    RequestMismatch,
+    /// The persisted commitment belongs to another tenant.
+    TenantMismatch,
+    /// The persisted commitment uses another retention policy.
+    RetentionPolicyMismatch,
+    /// The persisted declared-copy count differs from the supplied exact inventory size.
+    DeclaredCopyCountMismatch,
+    /// The persisted inventory digest differs from the canonical supplied exact inventory digest.
+    InventoryDigestMismatch,
+}
+
+impl fmt::Display for SensitiveDeletionInventoryCommitmentError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::InvalidScopeIdentifier => {
+                "invalid sensitive deletion commitment scope identifier"
+            }
+            Self::InvalidDeclaredCopyCount => {
+                "invalid sensitive deletion commitment declared copy count"
+            }
+            Self::InvalidInventoryDigest => {
+                "invalid sensitive deletion commitment inventory digest"
+            }
+            Self::TooManyRequirements => "too many sensitive deletion commitment requirements",
+            Self::EmptyRequirementSet => "empty sensitive deletion commitment requirement set",
+            Self::DuplicateRequirement => "duplicate sensitive deletion commitment requirement",
+            Self::RequestMismatch => "sensitive deletion commitment request mismatch",
+            Self::TenantMismatch => "sensitive deletion commitment tenant mismatch",
+            Self::RetentionPolicyMismatch => {
+                "sensitive deletion commitment retention policy mismatch"
+            }
+            Self::DeclaredCopyCountMismatch => {
+                "sensitive deletion commitment declared copy count mismatch"
+            }
+            Self::InventoryDigestMismatch => {
+                "sensitive deletion commitment inventory digest mismatch"
+            }
+        })
+    }
+}
+
+impl std::error::Error for SensitiveDeletionInventoryCommitmentError {}
+
 /// Credential-free commitment to the exact caller-declared inventory that passed verification.
 ///
 /// The commitment retains bounded request-scope identifiers, declared-copy count, and a
@@ -283,6 +361,34 @@ pub struct SensitiveDeletionReceiptSetCommitment {
     retention_policy_id: String,
     declared_copy_count: usize,
     inventory_digest: String,
+}
+
+impl TryFrom<SensitiveDeletionReceiptSetCommitmentInput> for SensitiveDeletionReceiptSetCommitment {
+    type Error = SensitiveDeletionInventoryCommitmentError;
+
+    fn try_from(input: SensitiveDeletionReceiptSetCommitmentInput) -> Result<Self, Self::Error> {
+        if !valid_identifier(&input.request_id)
+            || !valid_identifier(&input.tenant_id)
+            || !valid_identifier(&input.retention_policy_id)
+        {
+            return Err(SensitiveDeletionInventoryCommitmentError::InvalidScopeIdentifier);
+        }
+        if input.declared_copy_count == 0
+            || input.declared_copy_count > MAX_SENSITIVE_DELETION_RECEIPT_SET_ENTRIES
+        {
+            return Err(SensitiveDeletionInventoryCommitmentError::InvalidDeclaredCopyCount);
+        }
+        if !valid_inventory_digest(&input.inventory_digest) {
+            return Err(SensitiveDeletionInventoryCommitmentError::InvalidInventoryDigest);
+        }
+        Ok(Self {
+            request_id: input.request_id,
+            tenant_id: input.tenant_id,
+            retention_policy_id: input.retention_policy_id,
+            declared_copy_count: input.declared_copy_count,
+            inventory_digest: input.inventory_digest,
+        })
+    }
 }
 
 impl SensitiveDeletionReceiptSetCommitment {
@@ -412,6 +518,90 @@ pub fn verify_sensitive_deletion_receipt_set_with_commitment(
         requirements,
     )?;
 
+    Ok(SensitiveDeletionReceiptSetCommitment {
+        request_id: request_id.to_owned(),
+        tenant_id: tenant_id.to_owned(),
+        retention_policy_id: retention_policy_id.to_owned(),
+        declared_copy_count: requirements.len(),
+        inventory_digest: sensitive_deletion_inventory_digest(
+            request_id,
+            tenant_id,
+            retention_policy_id,
+            requirements,
+        ),
+    })
+}
+
+/// Verify a reconstructed deletion inventory commitment against exact expected scope and inventory.
+///
+/// This verifier rejects oversized or duplicate caller-supplied inventories before computing the
+/// canonical digest and binds the commitment to the exact expected request, tenant, and retention
+/// policy. A successful result establishes deterministic consistency only. It does not authenticate
+/// the persistence owner, discover undeclared copies, prove inventory exhaustiveness or deletion,
+/// enforce retention or legal hold, sign or persist evidence, or prevent coordinated replacement of
+/// both the commitment and the caller-supplied inventory.
+pub fn verify_sensitive_deletion_inventory_commitment(
+    commitment: &SensitiveDeletionReceiptSetCommitment,
+    request_id: &str,
+    tenant_id: &str,
+    retention_policy_id: &str,
+    requirements: &[SensitiveDeletionRequirement],
+) -> Result<(), SensitiveDeletionInventoryCommitmentError> {
+    if requirements.len() > MAX_SENSITIVE_DELETION_RECEIPT_SET_ENTRIES {
+        return Err(SensitiveDeletionInventoryCommitmentError::TooManyRequirements);
+    }
+    if !valid_identifier(request_id)
+        || !valid_identifier(tenant_id)
+        || !valid_identifier(retention_policy_id)
+    {
+        return Err(SensitiveDeletionInventoryCommitmentError::InvalidScopeIdentifier);
+    }
+    if commitment.request_id != request_id {
+        return Err(SensitiveDeletionInventoryCommitmentError::RequestMismatch);
+    }
+    if commitment.tenant_id != tenant_id {
+        return Err(SensitiveDeletionInventoryCommitmentError::TenantMismatch);
+    }
+    if commitment.retention_policy_id != retention_policy_id {
+        return Err(SensitiveDeletionInventoryCommitmentError::RetentionPolicyMismatch);
+    }
+    if requirements.is_empty() {
+        return Err(SensitiveDeletionInventoryCommitmentError::EmptyRequirementSet);
+    }
+
+    let mut unique_requirements = BTreeSet::new();
+    for requirement in requirements {
+        let key = (
+            requirement.target,
+            requirement.target_reference.as_str(),
+            requirement.storage_scope_id.as_str(),
+        );
+        if !unique_requirements.insert(key) {
+            return Err(SensitiveDeletionInventoryCommitmentError::DuplicateRequirement);
+        }
+    }
+    if commitment.declared_copy_count != requirements.len() {
+        return Err(SensitiveDeletionInventoryCommitmentError::DeclaredCopyCountMismatch);
+    }
+
+    let expected_digest = sensitive_deletion_inventory_digest(
+        request_id,
+        tenant_id,
+        retention_policy_id,
+        requirements,
+    );
+    if commitment.inventory_digest != expected_digest {
+        return Err(SensitiveDeletionInventoryCommitmentError::InventoryDigestMismatch);
+    }
+    Ok(())
+}
+
+fn sensitive_deletion_inventory_digest(
+    request_id: &str,
+    tenant_id: &str,
+    retention_policy_id: &str,
+    requirements: &[SensitiveDeletionRequirement],
+) -> String {
     let ordered_requirements = requirements
         .iter()
         .map(|requirement| {
@@ -434,14 +624,7 @@ pub fn verify_sensitive_deletion_receipt_set_with_commitment(
         append_length_delimited(&mut preimage, storage_scope_id.as_bytes());
     }
     let digest = Sha256::digest(preimage);
-
-    Ok(SensitiveDeletionReceiptSetCommitment {
-        request_id: request_id.to_owned(),
-        tenant_id: tenant_id.to_owned(),
-        retention_policy_id: retention_policy_id.to_owned(),
-        declared_copy_count: requirements.len(),
-        inventory_digest: format!("{digest:x}"),
-    })
+    format!("{digest:x}")
 }
 
 const fn deletion_target_token(target: SensitiveDeletionTarget) -> &'static [u8] {
@@ -462,6 +645,13 @@ fn append_length_delimited(output: &mut Vec<u8>, value: &[u8]) {
     output.extend_from_slice(value.len().to_string().as_bytes());
     output.push(b':');
     output.extend_from_slice(value);
+}
+
+fn valid_inventory_digest(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
 }
 
 fn valid_identifier(value: &str) -> bool {
