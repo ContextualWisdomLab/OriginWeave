@@ -2,9 +2,9 @@
 
 use originweave_core::Origin;
 use originweave_policy::{
-    DataClassification, DisclosureDecision, DisclosureScope, HandleUseDecision, HandleUseRequest,
-    SensitiveDataAuthority, SensitiveDataRequest, SensitiveValueHandleScope, evaluate_disclosure,
-    evaluate_handle_use,
+    DataClassification, DisclosureDecision, DisclosureScope, HandleUseDecision,
+    SensitiveDataAuthority, SensitiveDataRequest, SensitiveHandleUseState,
+    SensitiveValueHandleScope, evaluate_disclosure,
 };
 
 const TENANT: &str = "tenant_alpha";
@@ -82,15 +82,6 @@ fn handle_scope(
     SensitiveValueHandleScope::new(sensitive_authority(authority, classification), 2_000, 2)
 }
 
-fn handle_use(
-    authority: AuthorityCase<'_>,
-    classification: DataClassification,
-    now: u64,
-    uses: u32,
-) -> HandleUseRequest {
-    HandleUseRequest::new(sensitive_authority(authority, classification), now, uses)
-}
-
 fn assert_disclosure_denied(authority: AuthorityCase<'_>, classification: DataClassification) {
     let permitted = disclosure_scope(
         exact_authority(),
@@ -104,9 +95,12 @@ fn assert_disclosure_denied(authority: AuthorityCase<'_>, classification: DataCl
 }
 
 fn assert_handle_scope_mismatch(authority: AuthorityCase<'_>, classification: DataClassification) {
-    let scope = handle_scope(exact_authority(), DataClassification::PersonalData);
+    let mut state = SensitiveHandleUseState::new(handle_scope(
+        exact_authority(),
+        DataClassification::PersonalData,
+    ));
     assert_eq!(
-        evaluate_handle_use(&handle_use(authority, classification, 1_999, 0), &scope),
+        state.reserve_use(sensitive_authority(authority, classification), 1_999),
         HandleUseDecision::ScopeMismatch
     );
 }
@@ -218,30 +212,47 @@ fn every_supported_disclosure_outcome_is_preserved_by_exact_scope() {
 #[test]
 fn opaque_handle_use_is_bound_to_scope_classification_expiry_and_use_count() {
     let exact = exact_authority();
-    let scope = handle_scope(exact, DataClassification::PersonalData);
+    let mut authorized_state =
+        SensitiveHandleUseState::new(handle_scope(exact, DataClassification::PersonalData));
     assert_eq!(
-        evaluate_handle_use(
-            &handle_use(exact, DataClassification::PersonalData, 1_999, 1),
-            &scope,
+        authorized_state.reserve_use(
+            sensitive_authority(exact, DataClassification::PersonalData),
+            1_999,
         ),
         HandleUseDecision::Authorized
     );
+
     assert_handle_scope_mismatch(
         authority_case(TENANT, TASK, FIELD, PURPOSE, "https://other.example"),
         DataClassification::PersonalData,
     );
     assert_handle_scope_mismatch(exact, DataClassification::SensitivePersonalData);
+
+    let mut expired_state =
+        SensitiveHandleUseState::new(handle_scope(exact, DataClassification::PersonalData));
     assert_eq!(
-        evaluate_handle_use(
-            &handle_use(exact, DataClassification::PersonalData, 2_000, 1),
-            &scope,
+        expired_state.reserve_use(
+            sensitive_authority(exact, DataClassification::PersonalData),
+            2_000,
         ),
         HandleUseDecision::Expired
     );
+
+    let mut exhausted_state =
+        SensitiveHandleUseState::new(handle_scope(exact, DataClassification::PersonalData));
+    for now in [1_998, 1_999] {
+        assert_eq!(
+            exhausted_state.reserve_use(
+                sensitive_authority(exact, DataClassification::PersonalData),
+                now,
+            ),
+            HandleUseDecision::Authorized
+        );
+    }
     assert_eq!(
-        evaluate_handle_use(
-            &handle_use(exact, DataClassification::PersonalData, 1_999, 2),
-            &scope,
+        exhausted_state.reserve_use(
+            sensitive_authority(exact, DataClassification::PersonalData),
+            1_999,
         ),
         HandleUseDecision::UseLimitReached
     );
@@ -303,14 +314,14 @@ fn incomplete_authority_never_grants_disclosure_or_handle_use() {
         DisclosureDecision::DenyAccess
     );
 
-    let incomplete_handle_scope = handle_scope(
+    let mut incomplete_handle_state = SensitiveHandleUseState::new(handle_scope(
         authority_case("", TASK, FIELD, PURPOSE, DESTINATION),
         DataClassification::PersonalData,
-    );
+    ));
     assert_eq!(
-        evaluate_handle_use(
-            &handle_use(exact, DataClassification::PersonalData, 1_999, 0),
-            &incomplete_handle_scope,
+        incomplete_handle_state.reserve_use(
+            sensitive_authority(exact, DataClassification::PersonalData),
+            1_999,
         ),
         HandleUseDecision::ScopeMismatch
     );
@@ -377,15 +388,14 @@ fn authority_identifiers_are_bounded_ascii_policy_tokens() {
 
     let invalid_handle_authority =
         authority_case("tenant alpha", TASK, FIELD, PURPOSE, DESTINATION);
+    let mut invalid_handle_state = SensitiveHandleUseState::new(handle_scope(
+        invalid_handle_authority,
+        DataClassification::PersonalData,
+    ));
     assert_eq!(
-        evaluate_handle_use(
-            &handle_use(
-                invalid_handle_authority,
-                DataClassification::PersonalData,
-                1_999,
-                0,
-            ),
-            &handle_scope(invalid_handle_authority, DataClassification::PersonalData),
+        invalid_handle_state.reserve_use(
+            sensitive_authority(invalid_handle_authority, DataClassification::PersonalData),
+            1_999,
         ),
         HandleUseDecision::ScopeMismatch
     );

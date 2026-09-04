@@ -157,14 +157,37 @@ pub fn evaluate_disclosure(
 /// Result of evaluating one attempted use of an opaque sensitive-value handle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HandleUseDecision {
-    /// The supplied exact scope, classification, expiry, and prior-use count permit broker admission.
+    /// The authoritative state reserved one use for the exact scope at a trusted pre-expiry time.
     Authorized,
+    /// The authoritative in-process handle state was revoked before this use.
+    Revoked,
     /// Tenant, task, field, purpose, destination, or classification did not match the handle scope.
     ScopeMismatch,
     /// The handle is no longer valid at the supplied trusted time.
     Expired,
+    /// The supplied trusted time predates time already observed by the reservation state.
+    TrustedTimeRollback,
     /// The bounded use count has already been consumed.
     UseLimitReached,
+}
+
+/// Reason that authoritative in-process handle state was revoked.
+///
+/// The reason is credential-free policy metadata. The first successful
+/// revocation is retained so a later duplicate transition cannot rewrite the
+/// original lifecycle cause.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HandleRevocationReason {
+    /// The delegated task completed and no further disclosure is permitted.
+    TaskCompleted,
+    /// A relevant authorization or disclosure policy changed.
+    PolicyChanged,
+    /// Key rotation invalidated the handle lifecycle controlled by the broker.
+    KeyRotated,
+    /// The task or browser session terminated.
+    SessionTerminated,
+    /// Security monitoring identified suspicious handle use.
+    SuspiciousUse,
 }
 
 /// Authority metadata attached to an opaque sensitive-value handle.
@@ -194,59 +217,114 @@ impl SensitiveValueHandleScope {
     }
 }
 
-/// One proposed use of an opaque sensitive-value handle.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct HandleUseRequest {
-    authority: SensitiveDataAuthority,
-    now_epoch_seconds: u64,
-    uses_so_far: u32,
+/// In-process authoritative use-count, trusted-time, and revocation state for one opaque sensitive-value handle scope.
+///
+/// This value removes the caller-supplied prior-use count from the authorization
+/// surface. A successful reservation compares the exact authority, trusted time,
+/// expiry, revocation state, and current count and then increments the count while
+/// the caller holds an exclusive mutable borrow of this state. The state remembers
+/// the latest trusted time observed for its exact authority and rejects time
+/// rollback so an expired handle cannot regain authority from a stale clock value.
+/// Scope-mismatched requests cannot read or mutate that floor. Denied reservations
+/// never consume a use.
+///
+/// This is a policy-state primitive, not the trusted broker itself. It contains
+/// neither the opaque handle token nor protected data and provides no durable or
+/// cross-process transaction, value resolution, compensation, or persistence. A
+/// shared or durable broker must place the state behind its own transactional or
+/// locking boundary, persist lifecycle state and an equivalent trusted-time floor,
+/// and recheck both before disclosure.
+#[derive(Debug, PartialEq, Eq)]
+pub struct SensitiveHandleUseState {
+    scope: SensitiveValueHandleScope,
+    reserved_uses: u32,
+    revocation_reason: Option<HandleRevocationReason>,
+    latest_trusted_time_epoch_seconds: Option<u64>,
 }
 
-impl HandleUseRequest {
-    /// Build a handle-use evaluation request from trusted time and authoritative broker state.
-    ///
-    /// The eventual broker must supply these state values from its own trusted,
-    /// caller-unforgeable storage; accepting this struct does not make arbitrary
-    /// caller input authoritative.
+impl SensitiveHandleUseState {
+    /// Start authoritative in-process reservation state with no uses consumed or revocation recorded.
     #[must_use]
-    pub const fn new(
-        authority: SensitiveDataAuthority,
-        now_epoch_seconds: u64,
-        uses_so_far: u32,
-    ) -> Self {
+    pub const fn new(scope: SensitiveValueHandleScope) -> Self {
         Self {
-            authority,
-            now_epoch_seconds,
-            uses_so_far,
+            scope,
+            reserved_uses: 0,
+            revocation_reason: None,
+            latest_trusted_time_epoch_seconds: None,
         }
     }
-}
 
-/// Evaluate whether authoritative broker state is admissible for one handle use.
-///
-/// This pure function does not consume a use, mutate broker state, resolve a
-/// handle, or release a protected value. It is therefore not standalone
-/// enforcement. A trusted broker must obtain trusted time and caller-unforgeable
-/// handle state, atomically reserve or increment the use count before value
-/// resolution, and recheck the reserved authority immediately before disclosure.
-/// Missing or malformed authority identifiers fail closed as a scope mismatch.
-/// The authority destination must already have crossed the canonical [`Origin`]
-/// boundary.
-#[must_use]
-pub fn evaluate_handle_use(
-    request: &HandleUseRequest,
-    scope: &SensitiveValueHandleScope,
-) -> HandleUseDecision {
-    if !request.authority.is_complete()
-        || !scope.authority.is_complete()
-        || request.authority != scope.authority
-    {
-        HandleUseDecision::ScopeMismatch
-    } else if request.now_epoch_seconds >= scope.expires_at_epoch_seconds {
-        HandleUseDecision::Expired
-    } else if request.uses_so_far >= scope.max_uses {
-        HandleUseDecision::UseLimitReached
-    } else {
+    /// Return the number of uses already reserved through this state value.
+    #[must_use]
+    pub const fn reserved_uses(&self) -> u32 {
+        self.reserved_uses
+    }
+
+    /// Return the first authoritative revocation reason, if this state was revoked.
+    #[must_use]
+    pub const fn revocation_reason(&self) -> Option<HandleRevocationReason> {
+        self.revocation_reason
+    }
+
+    /// Revoke future reservations and retain the first lifecycle reason.
+    ///
+    /// Returns `true` only for the state transition from active to revoked. A
+    /// later duplicate call is a no-op and cannot rewrite the original reason.
+    pub fn revoke(&mut self, reason: HandleRevocationReason) -> bool {
+        if self.revocation_reason.is_some() {
+            false
+        } else {
+            self.revocation_reason = Some(reason);
+            true
+        }
+    }
+
+    /// Reserve one use from the current authoritative count when policy permits it.
+    ///
+    /// This is the only public handle-use authorization operation: callers cannot
+    /// supply a prior-use count or obtain `Authorized` from a stateless predicate.
+    /// The supplied time must come from the trusted broker boundary and may not
+    /// move backward relative to an earlier exact-scope reservation attempt on
+    /// this state. Scope-mismatched requests never mutate trusted-time state and
+    /// always return [`HandleUseDecision::ScopeMismatch`], so foreign authority
+    /// cannot advance the rollback floor or learn its value. For exact-scope
+    /// requests, revocation remains terminal; expiry, use-limit, and trusted-time
+    /// rollback denial leave the authoritative use count unchanged. A non-rollback
+    /// exact-scope trusted time is recorded after the revocation check even when
+    /// expiry or the use limit denies the reservation so later stale time cannot
+    /// restore authority.
+    #[must_use]
+    pub fn reserve_use(
+        &mut self,
+        authority: SensitiveDataAuthority,
+        now_epoch_seconds: u64,
+    ) -> HandleUseDecision {
+        if !authority.is_complete()
+            || !self.scope.authority.is_complete()
+            || authority != self.scope.authority
+        {
+            return HandleUseDecision::ScopeMismatch;
+        }
+
+        if self.revocation_reason.is_some() {
+            return HandleUseDecision::Revoked;
+        }
+        if self
+            .latest_trusted_time_epoch_seconds
+            .is_some_and(|latest| now_epoch_seconds < latest)
+        {
+            return HandleUseDecision::TrustedTimeRollback;
+        }
+        self.latest_trusted_time_epoch_seconds = Some(now_epoch_seconds);
+
+        if now_epoch_seconds >= self.scope.expires_at_epoch_seconds {
+            return HandleUseDecision::Expired;
+        }
+        if self.reserved_uses >= self.scope.max_uses {
+            return HandleUseDecision::UseLimitReached;
+        }
+
+        self.reserved_uses += 1;
         HandleUseDecision::Authorized
     }
 }
