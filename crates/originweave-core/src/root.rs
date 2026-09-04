@@ -1,7 +1,8 @@
 //! Shared security and governance contracts for OriginWeave.
 //!
-//! The historical core contracts remain source-compatible while adapter-specific
-//! boundaries can live in focused modules without changing their authority model.
+//! The shared kernel owns stable cross-context security vocabulary. Independently reusable
+//! product responsibilities belong to their focused bounded contexts and must not depend back
+//! through this crate merely to preserve historical module paths.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -13,5 +14,3 @@ pub use contracts::*;
 
 /// Stateless MCP routing validation that maps only explicit tools to typed actions.
 pub mod mcp;
-/// Deterministic fail-closed release benchmark acceptance aggregation.
-pub mod release_acceptance;

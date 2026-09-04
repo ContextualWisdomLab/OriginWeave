@@ -1,4 +1,4 @@
-use originweave_core::release_acceptance::{DeclaredLimitation, ReleaseDecisionError};
+use originweave_release::release_acceptance::{DeclaredLimitation, ReleaseDecisionError};
 
 #[test]
 fn punctuation_only_limitation_claim_does_not_name_an_unsupported_claim() {

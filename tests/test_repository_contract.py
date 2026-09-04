@@ -13,7 +13,7 @@ class RepositoryContractTests(unittest.TestCase):
     """Validate the non-generated repository and governance contract."""
 
     def test_workspace_declares_all_independently_reusable_crates(self) -> None:
-        """The root workspace must expose every reusable policy kernel."""
+        """The root workspace must expose every reusable product boundary."""
 
         data = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))
         self.assertEqual(
@@ -27,8 +27,77 @@ class RepositoryContractTests(unittest.TestCase):
                 "crates/originweave-tls",
                 "crates/originweave-resource",
                 "crates/originweave-evidence",
+                "crates/originweave-release",
             },
         )
+
+    def test_release_acceptance_isolated_from_shared_domain_contracts(self) -> None:
+        """Commercial release evidence owns a dedicated bounded context, not shared core."""
+
+        release_modules = (
+            "benchmark_failure",
+            "release_acceptance",
+            "zero_event_safety_gate",
+            "zero_event_threshold",
+        )
+        for module in release_modules:
+            self.assertFalse(
+                (ROOT / "crates/originweave-core/src" / f"{module}.rs").exists(), module
+            )
+
+        release_manifest = tomllib.loads(
+            (ROOT / "crates/originweave-release/Cargo.toml").read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            set(release_manifest.get("dependencies", {})),
+            {"unicode-normalization"},
+        )
+        release_source = (ROOT / "crates/originweave-release/src/lib.rs").read_text(
+            encoding="utf-8"
+        )
+        for module in release_modules:
+            with self.subTest(module=module):
+                self.assertIn(f"pub mod {module};", release_source)
+
+        core_manifest = tomllib.loads(
+            (ROOT / "crates/originweave-core/Cargo.toml").read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            set(core_manifest.get("dependencies", {})),
+            {"unicode-normalization"},
+        )
+        core_source = (ROOT / "crates/originweave-core/src/root.rs").read_text(encoding="utf-8")
+        for module in release_modules:
+            with self.subTest(module=module):
+                self.assertNotIn(f"pub mod {module};", core_source)
+        self.assertNotIn("originweave_release", core_source)
+        self.assertNotIn("Temporary compatibility path", core_source)
+
+    def test_release_acceptance_tests_follow_release_context_ownership(self) -> None:
+        """Domain tests must live with the release bounded context they exercise."""
+
+        core_tests = ROOT / "crates/originweave-core/tests"
+        release_tests = ROOT / "crates/originweave-release/tests"
+        release_owned_prefixes = (
+            "benchmark_",
+            "commercial_release_",
+            "release_acceptance",
+            "zero_event_",
+        )
+        misplaced = sorted(
+            path.name
+            for path in core_tests.glob("*.rs")
+            if path.name.startswith(release_owned_prefixes)
+        )
+        self.assertEqual(misplaced, [])
+        self.assertTrue(release_tests.is_dir())
+        self.assertTrue(any(release_tests.glob("*.rs")))
+        for test_path in release_tests.glob("*.rs"):
+            with self.subTest(test_path=test_path.name):
+                source = test_path.read_text(encoding="utf-8")
+                self.assertNotIn("originweave_core::release_acceptance", source)
+                self.assertNotIn("originweave_core::benchmark_failure", source)
+                self.assertNotIn("originweave_core::zero_event_", source)
 
     def test_toolchain_is_pinned_to_current_project_baseline(self) -> None:
         """Reproducible builds require an explicit Rust patch version."""

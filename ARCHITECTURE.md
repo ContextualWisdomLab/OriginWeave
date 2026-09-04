@@ -78,6 +78,18 @@ Owns stable value contracts without I/O:
 - exact action, target-origin, and intent-bound `ApprovalScope` and `ApprovalEvidence`;
 - `ActionRequest` and `PolicyContext`.
 
+#### Active PR #240 — benchmark release acceptance migration
+
+PR #240 moves the pure, bounded benchmark release-evidence contract out of `originweave-core` into the dedicated `originweave-release` bounded context. This subsection is active-PR architecture, not protected-main truth, and [ADR 0015](docs/adr/0015-benchmark-release-acceptance.md) remains Proposed until policy-compliant integration. `originweave-core` retains only stable cross-context value contracts and does not depend on `originweave-release`; this pre-GA breaking migration intentionally provides no compatibility shim that duplicates release policy back into core.
+
+- `BenchmarkFailureClass` preserves first-causal-boundary failure taxonomy so deterministic/stochastic product failures become failed suite evidence while site drift, outages, unsupported capability, infrastructure failure, and benchmark defects remain `Inconclusive` rather than being promoted to success.
+- `DeclaredLimitation` makes narrowed buyer-facing claims explicit and resource-bounded; it cannot erase failed or missing mandatory evidence.
+- `ZeroEventSafetyEvidence` retains exact trial count and confidence instead of claiming that zero observed events imply zero risk.
+- `ZeroEventSafetyThreshold` evaluates fixed-point safety policy separately from retained observations, and the zero-event safety gate remains release-neutral when evidence is missing, statistically insufficient, or above threshold.
+- Caller-controlled suite, limitation, requirement, and observation collections are bounded before cloning, sorting, or map population where applicable.
+
+This value-contract layer does not execute benchmarks, authenticate artifacts, select supported browser/profile claims, inspect GitHub governance, or approve/publish releases. A satisfied safety gate or accepted report is evidence only and **does not grant release authority**; the higher-level integrated release boundary must still combine authenticated current-head evidence, provenance, required checks, review, policy, operational acceptance, and release authorization.
+
 ### `originweave-policy`
 
 Owns a pure decision function. It denies human-mode agent control, untrusted instruction promotion, missing capabilities, unauthorized origins, crawler mutation, cross-origin mutation, absent robots evidence, unsafe secret delivery, R5 actions, and mismatched action, target-origin, or intent approvals.
@@ -305,4 +317,4 @@ No deployment mode may depend on an in-process singleton. Session, policy, desti
 
 ## 15. Change control
 
-Changes to the compatibility-kernel boundary, risk taxonomy, secret model, origin model, canonical intent model, evidence semantics, destination taxonomy, DNS pinning semantics, direct socket authority, TLS reference identity, trust-root semantics, trusted-time semantics, ALPN policy, redirect policy, resource mitigation semantics, or protocol versioning require a new ADR. The current baseline decisions are recorded under `docs/adr/`.
+Changes to the compatibility-kernel boundary, risk taxonomy, secret model, origin model, canonical intent model, evidence semantics, destination taxonomy, DNS pinning semantics, direct socket authority, TLS reference identity, trust-root semantics, trusted-time semantics, ALPN policy, redirect policy, resource mitigation semantics, release-acceptance semantics, rollback/recovery requirements, or protocol versioning require a new or superseding ADR. The current baseline and Proposed decisions are recorded under `docs/adr/`.

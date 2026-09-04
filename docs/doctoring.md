@@ -30,6 +30,10 @@ Unicode 17.0 defines `Default_Ignorable_Code_Point` in the Unicode Character Dat
 
 Unicode Standard Annex #15, revision 57 for Unicode 17.0.0, defines canonical equivalence and NFC and states that normalized equivalent strings have a unique binary representation. A release limitation is an identity-bearing buyer artifact, so OriginWeave rejects canonically equivalent non-NFC spellings instead of silently rewriting them. The production boundary uses only `unicode_normalization::is_nfc`; accepted strings remain byte-for-byte caller input. Rust's standard library does not provide Unicode normalization, so `unicode-normalization` is pinned exactly to 0.1.25. The reviewed crate implements UAX #15 normalization, declares Rust 1.36+ compatibility (below OriginWeave's Rust 1.97.1 baseline), is dual MIT/Apache-2.0 licensed, and adds only `tinyvec`/`tinyvec_macros` transitively in this workspace lockfile. The dependency is narrow, deterministic, non-networked, and maintained through the existing locked-dependency/security-scan process; any future Unicode-version or crate-version movement requires renewed normalization and supply-chain review.
 
+### Zero-event safety confidence bounds
+
+Clopper and Pearson's exact binomial interval provides the statistical basis for reporting a one-sided upper confidence bound when a safety benchmark observes zero events. For zero observed events in `n` independent Bernoulli trials at confidence `c`, the upper event-rate bound is `1 - (1 - c)^(1/n)`. OriginWeave therefore retains the exact trial count and declared confidence level with each named zero-event safety observation and reports that bound instead of interpreting zero observed events as proof of zero underlying risk. The Rust implementation uses the algebraically equivalent `exp_m1` form to reduce avoidable floating-point cancellation for small bounds. These observations remain statistical evidence only: they do not grant release authority, replace mandatory suite thresholds, authenticate the benchmark runner, or justify extrapolation beyond the declared experimental condition.
+
 ### Resolved destination and redirect safety
 
 Canonical origin identity is not a network-destination authorization. The IANA IPv4 and IPv6 Special-Purpose Address Space registries enumerate blocks whose source, destination, forwardability, globally reachable, and protocol-reserved properties differ. Both registries were last updated on 9 October 2025 and explicitly warn that registry presence does not guarantee routability in a particular local or global context. RFC 6890 established the common special-purpose registry fields, and RFC 8190 replaced the ambiguous `global` field with `globally reachable`.
@@ -125,6 +129,8 @@ Bonica, R., Cotton, M., Haberman, B., & Vegoda, L. (2017). *Updates to the speci
 Chromium Authors. (n.d.). *Proxy support in Chrome* [Source documentation]. Chromium. https://chromium.googlesource.com/chromium/src/+/a3e71ebfa307d8760eb68b777e2998a869940092/net/docs/proxy.md
 
 Chromium Authors. (2026). *URL canonicalizer unit tests* [Source code]. Chromium. https://chromium.googlesource.com/chromium/src/+/446d05d21720f0b3505ec21057b3e9f909784262/url/url_canon_unittest.cc
+
+Clopper, C. J., & Pearson, E. S. (1934). The use of confidence or fiducial limits illustrated in the case of the binomial. *Biometrika, 26*(4), 404–413. https://doi.org/10.1093/biomet/26.4.404
 
 Cooper, D., Santesson, S., Farrell, S., Boeyen, S., Housley, R., & Polk, W. (2008). *Internet X.509 public key infrastructure certificate and certificate revocation list (CRL) profile* (RFC 5280). Internet Engineering Task Force. https://doi.org/10.17487/RFC5280
 
