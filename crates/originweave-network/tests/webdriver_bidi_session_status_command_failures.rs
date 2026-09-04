@@ -189,7 +189,8 @@ fn session_status_reused_mask_key_rejection_does_not_leave_correlation_outstandi
         .write_opening_request(Duration::from_millis(500))?
         .read_opening_response(Duration::from_millis(500))?;
     let repeated_key = WebDriverBiDiWebSocketMaskKey::new([9, 10, 11, 12]);
-    let established = established.write_text_frame("{}", repeated_key, Duration::from_millis(500))?;
+    let established =
+        established.write_text_frame("{}", repeated_key, Duration::from_millis(500))?;
 
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     let command = WebDriverBiDiSessionStatusCommand::new(13)?;

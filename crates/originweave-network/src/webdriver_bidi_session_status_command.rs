@@ -69,16 +69,7 @@ impl WebDriverBiDiSessionStatusCommand {
         let message = self.serialized();
         match established.write_text_frame(&message, masking_key, frame_timeout) {
             Ok(established) => Ok(established),
-            Err(source) => {
-                if frame_failure_precedes_possible_write(&source) {
-                    correlation
-                        .retire_command_for(self.command_id, WebDriverBiDiCommandKind::SessionStatus)
-                        .map_err(|source| {
-                            WebDriverBiDiSessionStatusCommandError::Correlation { source }
-                        })?;
-                }
-                Err(WebDriverBiDiSessionStatusCommandError::FrameWrite { source })
-            }
+            Err(source) => Err(map_frame_failure(correlation, self.command_id, source)),
         }
     }
 
@@ -90,8 +81,19 @@ impl WebDriverBiDiSessionStatusCommand {
     }
 }
 
-fn frame_failure_precedes_possible_write(source: &WebDriverBiDiWebSocketFrameError) -> bool {
-    matches!(source, WebDriverBiDiWebSocketFrameError::MalformedFrame { .. })
+fn map_frame_failure(
+    correlation: &mut WebDriverBiDiCommandCorrelation,
+    command_id: u64,
+    source: WebDriverBiDiWebSocketFrameError,
+) -> WebDriverBiDiSessionStatusCommandError {
+    if matches!(
+        source,
+        WebDriverBiDiWebSocketFrameError::MalformedFrame { .. }
+    ) {
+        let _retirement =
+            correlation.retire_command_for(command_id, WebDriverBiDiCommandKind::SessionStatus);
+    }
+    WebDriverBiDiSessionStatusCommandError::FrameWrite { source }
 }
 
 /// Fail-closed errors while constructing or sending one typed `session.status` command.
@@ -207,15 +209,34 @@ mod tests {
 
     #[test]
     fn only_frame_preflight_malformed_errors_retire_registered_correlation() {
+        let mut correlation = WebDriverBiDiCommandCorrelation::new();
+        assert!(
+            correlation
+                .register_command_for(1, WebDriverBiDiCommandKind::SessionStatus)
+                .is_ok()
+        );
         let preflight = WebDriverBiDiWebSocketFrameError::MalformedFrame {
             reason: "test preflight rejection",
         };
-        assert!(frame_failure_precedes_possible_write(&preflight));
+        assert!(matches!(
+            map_frame_failure(&mut correlation, 1, preflight),
+            WebDriverBiDiSessionStatusCommandError::FrameWrite { .. }
+        ));
+        assert_eq!(correlation.outstanding_count(), 0);
 
+        assert!(
+            correlation
+                .register_command_for(2, WebDriverBiDiCommandKind::SessionStatus)
+                .is_ok()
+        );
         let ambiguous = WebDriverBiDiWebSocketFrameError::FrameWriteFailed {
             bytes_written: 1,
             source: io::Error::other("test ambiguous write failure"),
         };
-        assert!(!frame_failure_precedes_possible_write(&ambiguous));
+        assert!(matches!(
+            map_frame_failure(&mut correlation, 2, ambiguous),
+            WebDriverBiDiSessionStatusCommandError::FrameWrite { .. }
+        ));
+        assert_eq!(correlation.outstanding_count(), 1);
     }
 }
