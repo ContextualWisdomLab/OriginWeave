@@ -1,7 +1,8 @@
 use std::{collections::BTreeMap, error::Error, fmt};
 
 use crate::{
-    MAX_WEBDRIVER_BIDI_JS_UINT, WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeRouting,
+    webdriver_bidi_json_envelope::WebDriverBiDiJsonEnvelopeRouting, MAX_WEBDRIVER_BIDI_JS_UINT,
+    WebDriverBiDiJsonEnvelope,
 };
 
 /// Maximum number of local WebDriver BiDi commands retained as outstanding at once.
