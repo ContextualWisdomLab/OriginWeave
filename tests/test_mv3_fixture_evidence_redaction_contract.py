@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pathlib
 import runpy
+import tempfile
 import unittest
 import unittest.mock
 
@@ -151,21 +152,19 @@ class ManifestV3FixtureEvidenceRedactionTests(unittest.TestCase):
         with unittest.mock.patch.dict(
             run_browser_pass.__globals__,
             {
-                "_free_loopback_port": unittest.mock.Mock(return_value=9515),
+                "_start_chromedriver": unittest.mock.Mock(
+                    return_value=(FakeDriver(), 9515)
+                ),
                 "_wait_for_driver": unittest.mock.Mock(return_value=None),
                 "_json_request": fake_json_request,
             },
-        ), unittest.mock.patch.object(
-            namespace["subprocess"],
-            "Popen",
-            return_value=FakeDriver(),
-        ):
+        ), tempfile.TemporaryDirectory() as profile_dir:
             with self.assertRaises(RuntimeError) as raised:
                 run_browser_pass(
                     pathlib.Path("/controlled/chrome"),
                     pathlib.Path("/controlled/chromedriver"),
                     "http://127.0.0.1:9516/page.html",
-                    "/controlled/profile",
+                    profile_dir,
                     "initialized",
                 )
 
