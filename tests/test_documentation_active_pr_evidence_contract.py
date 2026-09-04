@@ -81,9 +81,9 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         self.assertEqual(1, len(refresh_lines))
         refresh_line = refresh_lines[0]
         self.assertIn("on 2026-09-04", refresh_line)
-        self.assertIn("146 open pull requests (5 ready, 141 draft)", refresh_line)
+        self.assertIn("135 open pull requests (5 ready, 130 draft)", refresh_line)
         self.assertIn("13 open non-PR issues", refresh_line)
-        self.assertIn("7aa30c57a4af724eb4e601c52c1eaf68f27d1712", refresh_line)
+        self.assertIn("3772d6eddfd556b24397afc80780ef3cc980791e", refresh_line)
         self.assertIn("35d12949bde5e5cbc801fdfb433f4a9914bd4fb0", refresh_line)
         self.assertIn("0a7070b8fdc4a53d4b35f0b93be79a404d8d68c1", refresh_line)
         self.assertIn(
