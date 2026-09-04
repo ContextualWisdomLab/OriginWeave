@@ -9,7 +9,7 @@ from typing import Iterable
 
 _ABSENT_MODE = "000000"
 _PLAIN_DOCUMENT_MODE = "100644"
-_AGENT_INSTRUCTION_FILENAMES = frozenset({"AGENTS.md", "CLAUDE.md"})
+_AGENT_INSTRUCTION_FILENAMES = frozenset({"AGENTS.md", "CLAUDE.md", "GEMINI.md"})
 
 
 @dataclass(frozen=True, slots=True)

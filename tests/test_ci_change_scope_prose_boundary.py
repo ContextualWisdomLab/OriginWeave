@@ -46,10 +46,27 @@ class CiChangeScopeProseBoundaryTests(unittest.TestCase):
         for path in (
             "AGENTS.md",
             "CLAUDE.md",
+            "GEMINI.md",
             "docs/AGENTS.md",
             "docs/CLAUDE.md",
+            "docs/GEMINI.md",
             "docs/doctoring/AGENTS.md",
             "docs/doctoring/CLAUDE.md",
+            "docs/doctoring/GEMINI.md",
+        ):
+            with self.subTest(path=path):
+                self.assertFalse(is_documentation_path(path))
+                self.assertEqual(
+                    classify_changes(parse_nul_raw_changes(_raw_record(path))),
+                    (False, True),
+                )
+
+    def test_github_copilot_instruction_surfaces_require_rust(self) -> None:
+        """GitHub Copilot instruction paths are control-plane Markdown, not prose-only docs."""
+
+        for path in (
+            ".github/copilot-instructions.md",
+            ".github/instructions/browser.instructions.md",
         ):
             with self.subTest(path=path):
                 self.assertFalse(is_documentation_path(path))
