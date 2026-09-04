@@ -15,6 +15,7 @@ pub use sensitive_data::{
     evaluate_handle_use,
 };
 
+use originweave_core::mcp::ValidatedMcpToolCall;
 use originweave_core::{
     ActionIntentDigest, ActionKind, ActionRequest, ApprovalEvidence, ApprovalScope,
     BrowserSessionId, BrowsingContextId, Capability, ExecutionPurpose, ExtensionAccessDecision,
@@ -87,6 +88,8 @@ pub enum DenialReason {
     ModePurposeMismatch,
     /// Page or document content attempted to become a trusted instruction.
     UntrustedInstructionSource,
+    /// The validated MCP route resolved to a different action than the policy request.
+    McpActionMismatch,
     /// The session lacks the exact capability required by the action.
     MissingCapability(Capability),
     /// The target origin is outside the session's read grant.
@@ -113,48 +116,29 @@ pub enum DenialReason {
     ApprovalScopeMismatch,
 }
 
-/// Evaluate one extension-originated typed-action proposal without promoting transport authority.
+/// Evaluate a policy request only when it matches an already validated MCP route.
 ///
-/// This function checks the exact extension, browser-session, browsing-context, request source
-/// origin, trusted current time and [`ExtensionAgentCapability::ProposeTypedAction`] grant before
-/// ordinary action policy. The source origin is taken from the caller-supplied [`ActionRequest`]
-/// rather than from a second extension-controlled field, so a navigation cannot reuse an otherwise
-/// matching grant. `now_epoch_seconds` must come from the trusted caller rather than extension or
-/// page content. When extension access is allowed, the [`ActionRequest`] is evaluated unchanged,
-/// so its instruction source, capability, origin, secret-delivery and approval requirements cannot
-/// be minted or rewritten by extension transport. This function does not parse extension messages,
-/// execute browser input, resolve secrets, or claim an action post-condition.
+/// Matching routing metadata grants no authority. Once route and request action agree, the request
+/// still passes through the existing action policy unchanged.
 #[must_use]
-pub fn evaluate_extension_action_proposal(
-    extension_id: &ExtensionId,
-    browser_session: BrowserSessionId,
-    browsing_context: BrowsingContextId,
-    now_epoch_seconds: u64,
-    grant: Option<&ExtensionAgentGrant>,
+pub fn evaluate_mcp(
+    call: &ValidatedMcpToolCall,
     request: &ActionRequest,
     context: &PolicyContext,
-) -> ExtensionProposalDecision {
-    let access_request = ExtensionAccessRequest::new(
-        extension_id.clone(),
-        browser_session,
-        browsing_context,
-        request.source_origin().clone(),
-        now_epoch_seconds,
-        ExtensionAgentCapability::ProposeTypedAction,
-    );
-    let access = evaluate_extension_access(&access_request, grant);
-    if access != ExtensionAccessDecision::Allow {
-        return ExtensionProposalDecision::ExtensionAccessDenied(access);
+) -> Decision {
+    if call.action_kind() != request.action() {
+        return Decision::Deny(DenialReason::McpActionMismatch);
     }
-    ExtensionProposalDecision::ActionPolicy(evaluate(request, context))
+
+    evaluate(request, context)
 }
 
 /// Evaluate a raw extension-message proposal as untrusted web content.
 ///
-/// Exact extension/session/context/origin/time proposal authority is checked first by
-/// [`evaluate_extension_action_proposal`]. The proposal is then converted internally into an
-/// [`ActionRequest`] whose instruction source is always [`InstructionSource::WebContent`]. The
-/// extension therefore cannot select human or enterprise instruction trust from message content.
+/// Exact extension/session/context/origin/time proposal authority is checked before the proposal is
+/// converted internally into an [`ActionRequest`] whose instruction source is always
+/// [`InstructionSource::WebContent`]. The extension therefore cannot select human or enterprise
+/// instruction trust from message content.
 /// `now_epoch_seconds` must come from the trusted caller rather than extension or page content.
 /// This boundary does not authenticate an independently trusted human/policy source, parse Chrome
 /// messages, execute input, resolve secrets, or verify action success.
@@ -176,15 +160,19 @@ pub fn evaluate_extension_message_action_proposal(
         proposal.secret_delivery,
         proposal.intent_digest.clone(),
     );
-    evaluate_extension_action_proposal(
-        extension_id,
+    let access_request = ExtensionAccessRequest::new(
+        extension_id.clone(),
         browser_session,
         browsing_context,
+        request.source_origin().clone(),
         now_epoch_seconds,
-        grant,
-        &request,
-        context,
-    )
+        ExtensionAgentCapability::ProposeTypedAction,
+    );
+    let access = evaluate_extension_access(&access_request, grant);
+    if access != ExtensionAccessDecision::Allow {
+        return ExtensionProposalDecision::ExtensionAccessDenied(access);
+    }
+    ExtensionProposalDecision::ActionPolicy(evaluate(&request, context))
 }
 
 /// Evaluate a typed browser action against one explicit policy context.
