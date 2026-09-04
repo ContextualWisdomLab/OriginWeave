@@ -290,3 +290,15 @@ fn real_transport_rejects_negative_error_response_id() -> Result<(), Box<dyn Err
     );
     Ok(())
 }
+
+#[test]
+fn real_transport_rejects_non_protocol_error_code() -> Result<(), Box<dyn Error>> {
+    let error = parse_over_real_transport(
+        br#"{"type":"error","id":7,"error":"attacker-defined-code","message":"bad code"}"#,
+    )?;
+    assert_eq!(
+        error,
+        Err(WebDriverBiDiJsonEnvelopeError::InvalidMember { member: "error" })
+    );
+    Ok(())
+}
