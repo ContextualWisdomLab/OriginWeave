@@ -1,0 +1,248 @@
+//! Fail-closed MCP routing integrity for the external adapter boundary.
+//!
+//! This module validates only the stateless MCP protocol/method/tool routing
+//! envelope and derives an existing [`ActionKind`]. It is deliberately not an
+//! authorization decision: callers must independently enforce OriginWeave
+//! capability, risk, approval, origin, secret-broker, and evidence policies.
+//! No MCP arguments, outputs, credentials, or arbitrary model-visible values
+//! are retained by this boundary.
+
+use std::fmt;
+
+use crate::{ActionKind, Capability, RiskClass};
+
+/// MCP protocol generation accepted by this stateless adapter boundary.
+pub const MCP_PROTOCOL_VERSION: &str = "2026-07-28";
+
+/// The only MCP method that can enter the typed action-routing boundary.
+pub const MCP_TOOLS_CALL_METHOD: &str = "tools/call";
+
+/// Maximum accepted MCP method-name length in bytes.
+pub const MAX_MCP_METHOD_NAME_BYTES: usize = 64;
+
+/// Maximum accepted MCP tool-name length in bytes.
+pub const MAX_MCP_TOOL_NAME_BYTES: usize = 128;
+
+/// One deterministic MCP tool descriptor derived from OriginWeave's reviewed action registry.
+///
+/// The descriptor is discovery metadata only. It does not grant capabilities, origin access,
+/// approval, secret access, or any other authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct McpToolCatalogEntry {
+    tool_name: &'static str,
+    action_kind: ActionKind,
+}
+
+impl McpToolCatalogEntry {
+    /// Return the canonical MCP tool name exposed by this registry entry.
+    #[must_use]
+    pub const fn tool_name(&self) -> &'static str {
+        self.tool_name
+    }
+
+    /// Return the typed OriginWeave action represented by this registry entry.
+    #[must_use]
+    pub const fn action_kind(&self) -> ActionKind {
+        self.action_kind
+    }
+
+    /// Return the capability required by the represented action.
+    #[must_use]
+    pub const fn required_capability(&self) -> Capability {
+        self.action_kind.required_capability()
+    }
+
+    /// Return the risk class assigned to the represented action.
+    #[must_use]
+    pub const fn risk_class(&self) -> RiskClass {
+        self.action_kind.risk_class()
+    }
+}
+
+/// The complete explicit MCP tool-to-action registry accepted by this boundary.
+///
+/// Order is deterministic so adapters can derive stable discovery output from this single
+/// reviewed registry rather than maintaining a second mapping that could drift from routing.
+const MCP_TOOL_CATALOG: &[McpToolCatalogEntry] = &[
+    McpToolCatalogEntry {
+        tool_name: "originweave.observe",
+        action_kind: ActionKind::Observe,
+    },
+    McpToolCatalogEntry {
+        tool_name: "originweave.extract",
+        action_kind: ActionKind::Extract,
+    },
+    McpToolCatalogEntry {
+        tool_name: "originweave.navigate",
+        action_kind: ActionKind::Navigate,
+    },
+    McpToolCatalogEntry {
+        tool_name: "originweave.download",
+        action_kind: ActionKind::Download,
+    },
+    McpToolCatalogEntry {
+        tool_name: "originweave.draft",
+        action_kind: ActionKind::Draft,
+    },
+    McpToolCatalogEntry {
+        tool_name: "originweave.submit",
+        action_kind: ActionKind::Submit,
+    },
+    McpToolCatalogEntry {
+        tool_name: "originweave.upload",
+        action_kind: ActionKind::Upload,
+    },
+    McpToolCatalogEntry {
+        tool_name: "originweave.fill_secret",
+        action_kind: ActionKind::FillSecret,
+    },
+    McpToolCatalogEntry {
+        tool_name: "originweave.purchase",
+        action_kind: ActionKind::Purchase,
+    },
+    McpToolCatalogEntry {
+        tool_name: "originweave.delete",
+        action_kind: ActionKind::Delete,
+    },
+    McpToolCatalogEntry {
+        tool_name: "originweave.manage_permission",
+        action_kind: ActionKind::ManagePermission,
+    },
+];
+
+/// Return the deterministic reviewed MCP tool catalog.
+///
+/// Adapters may use this slice to derive discovery responses. Serialization, pagination, cache
+/// policy, transport I/O, and authorization remain outside this stateless registry boundary.
+#[must_use]
+pub const fn supported_mcp_tools() -> &'static [McpToolCatalogEntry] {
+    MCP_TOOL_CATALOG
+}
+
+/// A deterministic failure while validating untrusted MCP routing metadata.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum McpToolBoundaryError {
+    /// The request names an MCP protocol generation this boundary does not support.
+    UnsupportedProtocolVersion,
+    /// MCP routing metadata disagrees with the method or tool name in the body.
+    HeaderBodyMismatch,
+    /// The request method violates the bounded ASCII MCP routing syntax.
+    InvalidMethod,
+    /// The request method is not the supported `tools/call` operation.
+    UnsupportedMethod,
+    /// The tool name violates the bounded ASCII MCP routing syntax.
+    InvalidToolName,
+    /// The tool name has no explicit mapping to an OriginWeave typed action.
+    UnknownTool,
+}
+
+impl fmt::Display for McpToolBoundaryError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::UnsupportedProtocolVersion => {
+                formatter.write_str("unsupported MCP protocol version")
+            }
+            Self::HeaderBodyMismatch => {
+                formatter.write_str("MCP routing headers do not match the request body")
+            }
+            Self::InvalidMethod => {
+                formatter.write_str("MCP method violates the bounded ASCII routing syntax")
+            }
+            Self::UnsupportedMethod => formatter
+                .write_str("only MCP tools/call requests can enter the typed action boundary"),
+            Self::InvalidToolName => {
+                formatter.write_str("MCP tool name violates the bounded ASCII routing syntax")
+            }
+            Self::UnknownTool => {
+                formatter.write_str("MCP tool is not mapped to an OriginWeave typed action")
+            }
+        }
+    }
+}
+
+impl std::error::Error for McpToolBoundaryError {}
+
+/// An MCP tool call whose routing envelope has been validated and mapped.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ValidatedMcpToolCall {
+    tool_name: &'static str,
+    action_kind: ActionKind,
+}
+
+impl ValidatedMcpToolCall {
+    /// Validate one stateless MCP tool-call routing envelope.
+    ///
+    /// Routing integrity is intentionally narrower than authorization. A
+    /// successful value proves only that the untrusted protocol version,
+    /// routing metadata, body method, and body tool name agree with one
+    /// explicitly supported mapping. Each untrusted method and tool name is
+    /// shape-validated before cross-field comparison so malformed or oversized
+    /// metadata cannot bypass the bounded routing syntax through mismatch handling.
+    pub fn new(
+        protocol_version: &str,
+        routing_method: &str,
+        routing_tool_name: &str,
+        body_method: &str,
+        body_tool_name: &str,
+    ) -> Result<Self, McpToolBoundaryError> {
+        if protocol_version != MCP_PROTOCOL_VERSION {
+            return Err(McpToolBoundaryError::UnsupportedProtocolVersion);
+        }
+        if !valid_method(routing_method) || !valid_method(body_method) {
+            return Err(McpToolBoundaryError::InvalidMethod);
+        }
+        if !valid_tool_name(routing_tool_name) || !valid_tool_name(body_tool_name) {
+            return Err(McpToolBoundaryError::InvalidToolName);
+        }
+        if routing_method != body_method || routing_tool_name != body_tool_name {
+            return Err(McpToolBoundaryError::HeaderBodyMismatch);
+        }
+        if routing_method != MCP_TOOLS_CALL_METHOD {
+            return Err(McpToolBoundaryError::UnsupportedMethod);
+        }
+
+        let (tool_name, action_kind) = map_tool(routing_tool_name)?;
+        Ok(Self {
+            tool_name,
+            action_kind,
+        })
+    }
+
+    /// Return the canonical static tool name selected by the explicit mapping.
+    #[must_use]
+    pub const fn tool_name(&self) -> &'static str {
+        self.tool_name
+    }
+
+    /// Return the existing OriginWeave typed action selected by this tool.
+    #[must_use]
+    pub const fn action_kind(&self) -> ActionKind {
+        self.action_kind
+    }
+}
+
+fn valid_method(method: &str) -> bool {
+    if method.is_empty() || method.len() > MAX_MCP_METHOD_NAME_BYTES {
+        return false;
+    }
+    method
+        .bytes()
+        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.' | b'/'))
+}
+
+fn valid_tool_name(tool_name: &str) -> bool {
+    if tool_name.is_empty() || tool_name.len() > MAX_MCP_TOOL_NAME_BYTES {
+        return false;
+    }
+    tool_name
+        .bytes()
+        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.'))
+}
+
+fn map_tool(tool_name: &str) -> Result<(&'static str, ActionKind), McpToolBoundaryError> {
+    MCP_TOOL_CATALOG
+        .iter()
+        .find(|entry| entry.tool_name == tool_name)
+        .map(|entry| (entry.tool_name, entry.action_kind))
+        .ok_or(McpToolBoundaryError::UnknownTool)
+}
