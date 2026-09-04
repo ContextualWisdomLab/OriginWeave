@@ -1,17 +1,19 @@
 use std::{collections::BTreeSet, error::Error};
 
 use originweave_core::{
-    ActionIntentDigest, ActionKind, ActionRequest, ApprovalEvidence, BoundedWebDriverBiDiResponseDocument,
-    BrowserAuthorityRegistry, BrowserContextDispatchTarget, BrowserContextOriginDispatchTarget,
-    BrowserContextOriginEpochDispatchTarget, BrowserProtocolAdapterDescriptor, BrowserProtocolCapability,
-    BrowserProtocolKind, BrowserRegistryError, BrowsingContextId, ExecutionPurpose, InstructionSource,
-    NodeActionKind, Origin, OriginWeaveProtocolVersion, PolicyContext, RobotsDecision, SecretDelivery,
+    ActionIntentDigest, ActionKind, ActionRequest, AdmittedNodeAuthorityError, ApprovalEvidence,
+    BoundedWebDriverBiDiResponseDocument, BrowserAuthorityRegistry, BrowserContextDispatchTarget,
+    BrowserContextOriginDispatchTarget, BrowserContextOriginEpochDispatchTarget,
+    BrowserProtocolAdapterDescriptor, BrowserProtocolCapability, BrowserProtocolKind,
+    BrowserRegistryError, BrowsingContextId, ExecutionPurpose, InstructionSource, NodeActionKind,
+    Origin, OriginWeaveProtocolVersion, PolicyContext, RobotsDecision, SecretDelivery,
     SemanticNodeActionBinding, SessionMode, ValidatedBrowserProtocolUse,
     WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesCommand,
 };
 use originweave_policy::PolicyAuthorizedSemanticNodeAction;
 
-const ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion = OriginWeaveProtocolVersion::new(0, 1);
+const ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion =
+    OriginWeaveProtocolVersion::new(0, 1);
 const ADAPTER_VERSION: &str = "originweave-bidi-v1";
 const PROTOCOL_REVISION: &str = "webdriver-bidi-wd-2026-06-01";
 const BROWSER_REVISION: &str = "chromium-r1639810";
@@ -37,11 +39,18 @@ fn semantic_observation_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn E
     )?)
 }
 
-fn authorized_fixture(
-) -> Result<(BrowserAuthorityRegistry, BrowsingContextId, PolicyAuthorizedSemanticNodeAction), Box<dyn Error>> {
+fn authorized_fixture() -> Result<
+    (
+        BrowserAuthorityRegistry,
+        BrowsingContextId,
+        PolicyAuthorizedSemanticNodeAction,
+    ),
+    Box<dyn Error>,
+> {
     let mut registry = BrowserAuthorityRegistry::new();
     let session = registry.register_session("semantic-policy-current-authority-session")?;
-    let context = registry.register_context(session, "semantic-policy-current-authority-context")?;
+    let context =
+        registry.register_context(session, "semantic-policy-current-authority-context")?;
     let site = Origin::parse("https://app.example")
         .map_err(|error| std::io::Error::other(format!("fixture origin rejected: {error:?}")))?;
     let epoch = registry.bind_context_origin(session, context, &site)?;
@@ -96,7 +105,8 @@ fn authorized_fixture(
 }
 
 #[test]
-fn policy_authorized_action_revalidates_registry_owned_browser_authority() -> Result<(), Box<dyn Error>> {
+fn policy_authorized_action_revalidates_registry_owned_browser_authority()
+-> Result<(), Box<dyn Error>> {
     let (mut registry, context, authorized) = authorized_fixture()?;
 
     authorized.validate_current(&registry)?;
@@ -104,7 +114,9 @@ fn policy_authorized_action_revalidates_registry_owned_browser_authority() -> Re
 
     assert_eq!(
         authorized.validate_current(&registry).err(),
-        Some(BrowserRegistryError::UnknownNodeAuthority)
+        Some(AdmittedNodeAuthorityError::BrowserAuthority(
+            BrowserRegistryError::ContextOriginNotBound
+        ))
     );
     Ok(())
 }
