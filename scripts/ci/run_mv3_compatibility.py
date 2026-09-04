@@ -283,6 +283,52 @@ def _measure_agent_task_semantic_observation_bytes(observation: dict[str, Any]) 
     return len(encoded)
 
 
+def _require_pristine_agent_task_profile(profile_dir: str) -> None:
+    """Fail closed unless the controlled Agent Task profile directory is empty."""
+
+    profile_path = pathlib.Path(profile_dir)
+    if not profile_path.is_dir() or any(profile_path.iterdir()):
+        raise RuntimeError("Agent Task profile is not pristine before launch")
+
+
+def _probe_agent_task_ambient_state(driver_port: int, session_id: str) -> dict[str, bool]:
+    """Require no browser-visible cookies or Web Storage before the controlled action."""
+
+    cookies = _json_request(
+        driver_port,
+        "GET",
+        _webdriver_path(session_id, "/cookie"),
+    ).get("value")
+    if not isinstance(cookies, list):
+        raise RuntimeError("Agent Task cookie inspection returned malformed evidence")
+    if cookies:
+        raise RuntimeError("Agent Task profile exposed ambient cookies")
+
+    storage = _execute(
+        driver_port,
+        session_id,
+        """
+return {
+  localStorageLength: window.localStorage.length,
+  sessionStorageLength: window.sessionStorage.length
+};
+""",
+    )
+    if not isinstance(storage, dict):
+        raise RuntimeError("Agent Task Web Storage inspection returned malformed evidence")
+    local_storage_length = storage.get("localStorageLength")
+    session_storage_length = storage.get("sessionStorageLength")
+    for value in (local_storage_length, session_storage_length):
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise RuntimeError("Agent Task Web Storage inspection returned malformed evidence")
+    if local_storage_length or session_storage_length:
+        raise RuntimeError("Agent Task profile exposed ambient Web Storage")
+    return {
+        "ambient_cookies_absent": True,
+        "ambient_web_storage_absent": True,
+    }
+
+
 def _parse_linux_proc_status_rss_bytes(status_text: str) -> int:
     """Parse exactly one positive Linux ``VmRSS`` kB field into bounded bytes."""
 
@@ -743,6 +789,8 @@ def _run_agent_task_browser_pass(
 ) -> dict[str, Any]:
     """Execute one synthetic Agent Task and measure bounded real-browser evidence."""
 
+    _require_pristine_agent_task_profile(profile_dir)
+    profile_pristine_before_launch = True
     started = time.monotonic()
     driver_port = _free_loopback_port()
     session_id: str | None = None
@@ -764,6 +812,10 @@ def _run_agent_task_browser_pass(
                         "browserName": "chrome",
                         "goog:chromeOptions": {
                             "binary": str(chrome_bin),
+                            "prefs": {
+                                "credentials_enable_service": False,
+                                "profile.password_manager_enabled": False,
+                            },
                             "args": [
                                 "--headless=new",
                                 "--no-first-run",
@@ -816,6 +868,7 @@ def _run_agent_task_browser_pass(
         ).get("value")
         if initial_url != fixture_url:
             raise RuntimeError("Agent Task did not load the requested fixture URL")
+        ambient_state = _probe_agent_task_ambient_state(driver_port, session_id)
 
         input_element = _find_element_by_accessible_role_name(
             driver_port,
@@ -937,6 +990,10 @@ def _run_agent_task_browser_pass(
             "structured_value_field": "task_result",
             "structured_value_sha256": structured_value_sha256,
             "extensions_disabled": True,
+            "profile_pristine_before_launch": profile_pristine_before_launch,
+            "ambient_cookies_absent": ambient_state["ambient_cookies_absent"],
+            "ambient_web_storage_absent": ambient_state["ambient_web_storage_absent"],
+            "saved_credential_services_disabled": True,
             "browser_process_rss_bytes": browser_process_rss_bytes,
             "chromium_process_count": chromium_process_count,
             "chromium_process_set_rss_bytes": chromium_process_set_rss_bytes,
@@ -999,6 +1056,12 @@ def _run_agent_task_trial(
         "structured_value_field": result["structured_value_field"],
         "structured_value_sha256": result["structured_value_sha256"],
         "extensions_disabled": result["extensions_disabled"],
+        "profile_pristine_before_launch": result["profile_pristine_before_launch"],
+        "ambient_cookies_absent": result["ambient_cookies_absent"],
+        "ambient_web_storage_absent": result["ambient_web_storage_absent"],
+        "saved_credential_services_disabled": result[
+            "saved_credential_services_disabled"
+        ],
         "browser_process_rss_bytes": result["browser_process_rss_bytes"],
         "chromium_process_count": result["chromium_process_count"],
         "chromium_process_set_rss_bytes": result["chromium_process_set_rss_bytes"],
@@ -1380,6 +1443,16 @@ def main() -> int:
         agent_task_trial_pass_rate = (
             agent_task_successful_trials / AGENT_TASK_REPEATABILITY_TRIALS
         )
+        agent_task_isolation_complete = all(
+            trial.get("profile_pristine_before_launch") is True
+            and trial.get("ambient_cookies_absent") is True
+            and trial.get("ambient_web_storage_absent") is True
+            and trial.get("saved_credential_services_disabled") is True
+            and trial.get("extensions_disabled") is True
+            and trial.get("profile_cleaned") is True
+            for trial in agent_task_trials
+            if trial.get("passed") is True
+        )
         agent_task_surfaces_complete = all(
             trial.get("post_condition") is True
             and trial.get("input_echo_verified") is True
@@ -1438,6 +1511,7 @@ def main() -> int:
                 "repeatability_trials": AGENT_TASK_REPEATABILITY_TRIALS,
                 "successful_trials": agent_task_successful_trials,
                 "trial_pass_rate": agent_task_trial_pass_rate,
+                "isolation_complete": agent_task_isolation_complete,
                 "trial_results": agent_task_trials,
                 "forced_close": {
                     "repeatability_trials": AGENT_TASK_REPEATABILITY_TRIALS,
@@ -1461,6 +1535,8 @@ def main() -> int:
                 f"{agent_task_successful_trials}/{AGENT_TASK_REPEATABILITY_TRIALS} "
                 "trials passed"
             )
+        if not agent_task_isolation_complete:
+            raise RuntimeError("Agent Task isolation gate failed")
         if not agent_task_surfaces_complete:
             raise RuntimeError("Agent Task repeatability surfaces were incomplete")
         if (
