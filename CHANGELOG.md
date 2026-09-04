@@ -54,6 +54,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Structurally encoded validated WebDriver BiDi response routing so every success necessarily carries its protocol-range command id, nullable ids exist only on protocol errors, and events carry no command id; command correlation now consumes that representation directly instead of retaining an impossible success-without-id branch solely to satisfy defensive control flow.
 - Separated logical origin authority from resolved network destination authority; an origin grant no longer implies permission to connect to every resolver result.
 - Separated resolved-address authorization from direct transport evidence; an approved IP now becomes a usable stream only after the operating system reports the exact requested IP and port.
 - Separated exact TCP peer proof from authenticated TLS service identity; an observed peer becomes an authenticated HTTPS stream only after explicit-root, fixed-time, SAN-bound WebPKI verification over that same stream.
