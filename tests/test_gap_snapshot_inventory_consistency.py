@@ -27,27 +27,27 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
         )[0]
         for marker in (
             "124 open pull requests",
-            "10 Ready/non-draft",
-            "114 Draft",
+            "12 Ready/non-draft",
+            "112 Draft",
             "13 open non-PR issues",
             "87c4daa1830bac5a5228b6036752ad5633232085",
             "18156473",
             "7 central required workflows",
             "codeql-pr",
             "Live GitHub PR/base/head/check APIs are authoritative over PR bodies",
-            "Ready roots are #37 `8a4f2d8377a14565b259e03839e370223c92877f`, #50 `30d032b64c8eca669fa029a9d9915519cc467e99`, #166 `e84a1a2cc82b1c666218efd441da97849f47b8c2`, #219 `65e4315d80137badc0b55e1b9617015beb1db568`, #220 `e545b94e1de499b96b867694f80ac04ad247becd`, #238 `b28424647849eff829f1c9c5fd155988c7785c79`, #240 `24930a3a9ee79c0b712ee3df6589b0592eb6e18f`, #247 `6407895f4db4bee640074cb9c9d3cbe8b0e9e13a`, #274 `9440cb652d0acd7a95fff4d2bbf85152ce7c3c8f`, and #287 `ab6d5d1a04a020f37727e2f5a6950c58feae8559`",
+            "Ready roots are #37 `8a4f2d8377a14565b259e03839e370223c92877f`, #50 `30d032b64c8eca669fa029a9d9915519cc467e99`, #166 `e84a1a2cc82b1c666218efd441da97849f47b8c2`, #219 `65e4315d80137badc0b55e1b9617015beb1db568`, #220 `e545b94e1de499b96b867694f80ac04ad247becd`, #238 `8c56de3a22790f8b35111ac935dfabfef80dafc0`, #240 `24930a3a9ee79c0b712ee3df6589b0592eb6e18f`, #247 `6407895f4db4bee640074cb9c9d3cbe8b0e9e13a`, #272 `b1cae8ad1cbd8eb6992037c830aea30b9aa436b3`, #274 `9440cb652d0acd7a95fff4d2bbf85152ce7c3c8f`, #285 `f455c2cd64b3dd3f027c91d396103792a205ddd0`, and #287 `ab6d5d1a04a020f37727e2f5a6950c58feae8559`",
             "Issue #279",
             "Issue #28 remains the P0 governed-browser integration target",
             "PR #260 is Draft at exact head `35d12949bde5e5cbc801fdfb433f4a9914bd4fb0`",
             "PR #261 is Draft at exact head `95f7548bf07cbba76ab8b40577a11d1b6c99acb5`",
             "PR #277 is Draft at exact head `0a7070b8fdc4a53d4b35f0b93be79a404d8d68c1`",
             "PR #70 is Draft at exact head `77eb0f2ee71783e06171784b7173c0b4cd530e61`",
-            "DDD/MCP repair #272 is Draft at exact head `fe124e447cad3f679e22337fb6fbdfd135ab3652`",
+            "DDD/MCP repair #272 is Ready at exact head `b1cae8ad1cbd8eb6992037c830aea30b9aa436b3`",
             "PR #229 is Draft at exact head `3772d6eddfd556b24397afc80780ef3cc980791e`",
             "PR #281 remains Draft at exact head `adaca6427d68f550b39293a69b7c733430d1c385`",
             "PR #282 is Draft at exact head `b54a5856d8201911f05d69622f0d5594a371adf0`",
             "PR #283 is Draft at exact head `c904300a6a1bda83af24f84d586f1c5f6a6491aa`",
-            "PR #285 is Draft at exact head `f455c2cd64b3dd3f027c91d396103792a205ddd0`",
+            "PR #285 is Ready at exact head `f455c2cd64b3dd3f027c91d396103792a205ddd0`",
             "PR #287 is Ready at exact head `ab6d5d1a04a020f37727e2f5a6950c58feae8559`",
             "PR #273 is Draft at exact head `e5c8fcb66bf644dfa750bb1b40ba3d600cb7805a`",
             "GitHub Releases is empty",
@@ -126,7 +126,7 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
         preamble, remainder = unreleased.split("### Added", 1)
         added = remainder.split("### Changed", 1)[0]
 
-        expected = "124 open pull requests (10 ready, 114 draft)"
+        expected = "124 open pull requests (12 ready, 112 draft)"
         self.assertIn(expected, preamble)
         self.assertIn("13 open non-PR issues", preamble)
         self.assertIn(expected, added)
