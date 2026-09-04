@@ -44,9 +44,9 @@ This snapshot re-fetched the complete open-PR inventory, the protected `main` co
 
 During this recheck, #71, #154, #233, #234, and #235 were merged only into their unprotected feature-parent branches after exact current-head checks and review-thread resolution. Their successful stack checks are not protected-main delivery, and their child branches retain independent evidence requirements.
 
-The sensitive-data child slice #53 was subsequently squash-merged into the unprotected #46 feature branch at merge commit `93c713a107df05385f745db4dca20091f21c4a3` after exact PR head `6b8a3fdeae52ad94b90086bbc9b42863b90c9614`. PR #46 remains an active main-targeting parent. Its current exact base/head pair is protected `main` `542ca1e9c0a863595b8b6697790005d2471f5413` to `373113119446d99f578febd39efc19366e7736b1`; the head adds the ADR 0007 predicate-boundary clarification and regression contract, with local Python/Rust verification green. Current hosted evidence remains incomplete: automatic OpenCode run `33189822385` / job `98913006386` failed closed without a current-head verdict, and central Strix run `33190794267` / job `98915422837` failed closed after three provider HTTP 500 attempts without a vulnerability report. A direct central `opencode-review` dispatch run `33192478312` / job `98921183278` was rejected because repository_dispatch actor `seonghobae` did not match configured scheduler identity `github-actions[bot]`; no qualifying non-author approval is present.
+The sensitive-data child slice #53 was subsequently squash-merged into the unprotected #46 feature branch at merge commit `93c713a107df05385f745db4dca20091f21c4a3`; #53 was exact head `4ecc81e59ae7bc3a640e65e2442bf30c079bd94c`. PR #46 remains an active main-targeting parent. Its current exact base/head pair is protected `main` `542ca1e9c0a863595b8b6697790005d2471f5413` to `373113119446d99f578febd39efc19366e7736b1`; the head adds the ADR 0007 predicate-boundary clarification and regression contract, with local Python/Rust verification green. Current hosted evidence remains incomplete: automatic OpenCode run `33189822385` / job `98913006386` failed closed without a current-head verdict, and central Strix run `33190794267` / job `98915422837` failed closed after three provider HTTP 500 attempts without a vulnerability report. A direct central `opencode-review` dispatch run `33192478312` / job `98921183278` was rejected because repository_dispatch actor `seonghobae` did not match configured scheduler identity `github-actions[bot]`; no qualifying non-author approval is present.
 
-The WARC/PROV child slice #217 was squash-merged into the unprotected #210 feature branch at merge commit `66f360ccac5cec60c72222cc79d58e39f6f00088` from exact PR head `6b8a3fdeae52ad94b90086bbc9b42863b90c9614`. PR #210 subsequently advanced to current exact head `7946dce9a3dd074047d93fca299d48c7aef40e47` after its merged-child attribution repair, recursively encoded-control repair, and exact coverage repair; this stack remains active-PR evidence and not protected-main delivery or approval evidence.
+The WARC/PROV child slice #217 was squash-merged into the unprotected #210 feature branch at merge commit `66f360ccac5cec60c72222cc79d58e39f6f00088`; #217 was exact head `6b8a3fdeae52ad94b90086bbc9b42863b90c9614`. PR #210 subsequently advanced to current exact head `7946dce9a3dd074047d93fca299d48c7aef40e47` after its merged-child attribution repair, recursively encoded-control repair, and exact coverage repair; this stack remains active-PR evidence and not protected-main delivery or approval evidence.
 
 The browser-task interruption child slice #67 was squash-merged into the unprotected #64 feature branch at merge commit `5021d142583cb5a8e393248048bb824762a98056` from exact PR head `25ab76e8279d4a904d04afeb264bac3e89f46b45`. PR #64 consequently advanced from `debc761aa59aee1509b7a260474fa33216453511` to current exact head `5021d142583cb5a8e393248048bb824762a98056`; its exact-head hosted checks were regenerating at this snapshot, with no unresolved inline review threads. This stack remains active-PR evidence and not protected-main delivery or approval evidence.
 
@@ -251,7 +251,7 @@ OriginWeave is not complete merely because every low-level primitive exists in s
 
 ## Evidence commands
 
-The volatile counts above are reproducible by paginating the complete open-PR inventory, flattening every page, and then inspecting each PR's exact head, checks, reviews, and review threads:
+The volatile counts above are reproducible by paginating the complete open-PR and open-issue inventories, excluding pull requests from the issue count, flattening every page, and then inspecting each PR's exact head, checks, reviews, and review threads:
 
 ```bash
 set -euo pipefail
@@ -267,6 +267,12 @@ jq '{
   non_draft: (map(select(.draft == false)) | length),
   draft: (map(select(.draft == true)) | length)
 }' "$EVIDENCE_DIR/open-prs.json"
+
+gh api --paginate --slurp 'repos/ContextualWisdomLab/OriginWeave/issues?state=open&per_page=100' \
+  > "$EVIDENCE_DIR/open-issue-pages.json"
+jq '[.[][]] | map(select(has("pull_request") | not)) | {
+  open_non_pr_issues: length
+}' "$EVIDENCE_DIR/open-issue-pages.json"
 
 gh api 'repos/ContextualWisdomLab/OriginWeave/branches/main' \
   > "$EVIDENCE_DIR/main-branch.json"

@@ -127,6 +127,14 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
         self.assertIn("108 open pull requests", current)
         self.assertIn("24 non-draft", current)
         self.assertIn("#217 was squash-merged", record)
+        self.assertIn(
+            "#53 was exact head `4ecc81e59ae7bc3a640e65e2442bf30c079bd94c`",
+            record,
+        )
+        self.assertIn(
+            "#217 was exact head `6b8a3fdeae52ad94b90086bbc9b42863b90c9614`",
+            record,
+        )
         self.assertIn("66f360ccac5cec60c72222cc79d58e39f6f00088", record)
         self.assertIn("#67 was squash-merged", record)
         self.assertIn("5021d142583cb5a8e393248048bb824762a98056", record)
