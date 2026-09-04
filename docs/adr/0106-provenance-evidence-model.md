@@ -33,29 +33,47 @@ OriginWeave maintains provenance-native evidence with stable identifiers for ses
 
 WARC and PROV are interoperability/export contracts, not substitutes for OriginWeave's internal authorization or evidence schema. A WARC record can contain untrusted or sensitive payload bytes and therefore inherits capture, retention, encryption, and export policy. A PROV entity/activity/agent relation records derivation or responsibility; it cannot manufacture authentication, authorization, durable completion, or tenant ownership not established by the producing system.
 
+### Versioned extraction-schema binding
+
+A versioned `ExtractionSchema` is the binding contract for typed extraction before any capture persistence or export format is allowed to claim semantic authority. Each schema version contains an ordered, non-empty set of unique `ExtractionField` definitions. Schema-version and field identifiers are bounded to 128 encoded bytes, begin with a lowercase ASCII letter, and thereafter admit only lowercase ASCII letters, digits, `_`, or `-`. One schema admits at most 256 fields.
+
+Every extraction field binds its stable identifier to a value type, cardinality, required/optional status, deterministic normalization rule, and a non-empty duplicate-free set of reviewed source-channel classes. Cardinality and required status form one internally consistent presence contract: `One` is necessarily required, `ZeroOrOne` is necessarily optional, and `Many` may be marked required or optional because this value-object layer does not yet define a minimum collection item count. Contradictory `One`/optional or `ZeroOrOne`/required declarations fail closed during field construction. `Verbatim` is the compatibility default used by the existing constructor. `TrimTextWhitespace` is admitted only for text fields and `Rfc3339Utc` only for timestamp fields; type-incompatible normalization fails closed. A `ModelInterpretation` source channel is classification metadata only and does not grant model execution, approval, disclosure, browser, network, secret, or storage authority.
+
+At this value-object boundary, the version identifier is immutable schema identity; there is deliberately no registry that silently treats two different field contracts as compatible merely because their version strings compare or sort in a particular way. Callers changing a field identifier, value type, cardinality, required status, normalization rule, or admitted source-channel set must use a distinct reviewed schema version and perform any migration/compatibility decision at an explicit higher layer. The current schema object does not itself read browser data, materialize extracted values, persist artifacts, execute models, or change governance policy. Those capabilities require separately authorized runtime boundaries and are not implied by schema construction.
+
 ## Consequences
 
 Capture becomes a designed product surface rather than incidental logging. Storage and retention need budgets. Consumers can distinguish a model claim from source evidence and an action request from verified completion. Export adapters can target WARC, provenance graphs, audit streams, or buyer-specific schemas.
+
+A schema consumer can also determine the exact field/type/cardinality/normalization/source contract it reviewed rather than relying on free-form extraction instructions. Schema evolution is explicit instead of being inferred from mutable field definitions; runtime compatibility, migrations, durable storage, and extracted-value validation remain separate implementation work until those boundaries are delivered.
 
 ## Failure and degraded behavior
 
 If mandatory evidence cannot be recorded durably enough for a governed state-changing action, the action fails before execution or reports an explicit unverifiable failure; it is never marked proved. Read-only operations may degrade to reduced evidence only when the API contract declares that mode. Corrupt or incomplete evidence is quarantined rather than silently accepted.
 
+Invalid or oversized extraction identifiers, contradictory cardinality/required declarations, empty or duplicate field sets, missing or duplicate source channels, and type-incompatible normalization rules fail during schema construction. A caller must not reinterpret such a failure as an empty/default-success schema or silently substitute another source channel.
+
 ## Security / privacy / governance impact
 
 Evidence is tenant-scoped, selectively disclosed, encrypted as appropriate, retention-bounded, and auditable. Credential-bearing headers, cookies, secret values, and sensitive form data are excluded or transformed according to explicit schema policy. Integrity metadata and immutable artifact identities support tamper detection without claiming external certification. `docs/DATA_GOVERNANCE.md` defines the disclosure/retention boundary for protected content and derived artifacts.
+
+The extraction-schema contract does not modify governance authority. It describes admissible typed fields and reviewed evidence-channel classes only. In particular, declaring `NetworkResponse` or `ModelInterpretation` does not authorize network access, model execution, protected-data disclosure, approvals, retention, or export; those remain governed by their existing owning boundaries.
 
 ## Tests and acceptance evidence
 
 Require provenance-link tests, credential-leak tests, integrity/corruption tests, crash-recovery tests, WARC/export conformance where implemented, PROV relation/schema tests where implemented, retention/deletion tests, tenant-isolation tests, and end-to-end checks that state-changing actions link request, policy, approval, execution, and post-condition as separate records. Export tests must prove that disabled or unauthorized source bodies never appear merely because metadata provenance is exportable.
 
+The extraction-schema boundary additionally requires tests for the identifier grammar and limits, field-count bound, duplicate identifiers, source-channel presence and uniqueness, every reviewed value/cardinality/source-channel variant, consistent cardinality/required combinations and contradictory-combination rejection, deterministic normalization selection, incompatible normalization rejection, and the backward-compatible `Verbatim` constructor default.
+
 ## Migration and rollback
 
 Introduce stable evidence identifiers and schema versions before changing export formats. Migrations preserve old evidence semantics or explicitly mark unavailable fields. Rollback may revert an exporter but cannot collapse mandatory action and policy evidence into opaque logs.
 
+Extraction contract changes that alter field identity or semantics require a new reviewed schema version rather than mutating the meaning of an existing version. Rolling back a consumer may stop accepting a newer version, but it must not reinterpret that newer contract as an older one or silently discard required fields.
+
 ## Open follow-ups
 
-Finalize canonical evidence schemas, content-retention defaults, signing/attestation strategy, cross-system export identifiers, and buyer-controlled disclosure policies.
+Finalize canonical evidence schemas, content-retention defaults, signing/attestation strategy, cross-system export identifiers, and buyer-controlled disclosure policies. Add the runtime that validates concrete extracted values against an `ExtractionSchema`, plus explicit migration/compatibility policy when durable schema registration is introduced.
 
 ## Supersession / reversal conditions
 
