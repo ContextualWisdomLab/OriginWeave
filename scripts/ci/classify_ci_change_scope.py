@@ -33,7 +33,11 @@ def _decode_repository_path(raw_path: bytes) -> str:
     if not path or path.startswith("/"):
         raise ValueError("changed path must be a non-empty repository-relative path")
 
-    parts = PurePosixPath(path).parts
+    parsed_path = PurePosixPath(path)
+    if path == "." or parsed_path.as_posix() != path:
+        raise ValueError("changed path must use a canonical repository path")
+
+    parts = parsed_path.parts
     if ".." in parts:
         raise ValueError("changed path must not contain parent traversal")
     return path

@@ -68,6 +68,18 @@ class CiChangeScopeProseBoundaryTests(unittest.TestCase):
             (True, False),
         )
 
+    def test_noncanonical_docs_paths_fail_before_scope_classification(self) -> None:
+        """Tree-diff evidence must use Git's canonical repository-relative path spelling."""
+
+        for path in (
+            "docs//browser-policy.md",
+            "docs/./browser-policy.md",
+            "docs/doctoring//browser-policy.md",
+        ):
+            with self.subTest(path=path):
+                with self.assertRaisesRegex(ValueError, "canonical repository path"):
+                    parse_nul_raw_changes(_raw_record(path))
+
 
 if __name__ == "__main__":
     unittest.main()
