@@ -11,7 +11,7 @@ def _raw_record(status: str, source_path: str, destination_path: str) -> bytes:
     """Build one canonical scored rename/copy record with caller-controlled paths."""
 
     return (
-        f":100644 100644 1111111 2222222 {status}\0"
+        f":100644 100644 {'1' * 40} {'2' * 40} {status}\0"
         f"{source_path}\0{destination_path}\0"
     ).encode()
 

@@ -11,7 +11,7 @@ def _raw_record(status: str) -> bytes:
     """Build a docs-to-doc rename record with a caller-controlled score suffix."""
 
     return (
-        f":100644 100644 1111111 2222222 {status}\0"
+        f":100644 100644 {'1' * 40} {'2' * 40} {status}\0"
         "docs/old.md\0docs/new.md\0"
     ).encode()
 

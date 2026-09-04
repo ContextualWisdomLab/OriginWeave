@@ -29,8 +29,8 @@ def _raw_record(
 ) -> bytes:
     """Build one deterministic NUL-framed raw-diff record for focused tests."""
 
-    source_oid = "0000000" if source_mode == "000000" else "1111111"
-    destination_oid = "0000000" if destination_mode == "000000" else "2222222"
+    source_oid = "0" * 40 if source_mode == "000000" else "1" * 40
+    destination_oid = "0" * 40 if destination_mode == "000000" else "2" * 40
     metadata = (
         f":{source_mode} {destination_mode} {source_oid} {destination_oid} {status}\0"
     ).encode()
@@ -149,7 +149,11 @@ class CiChangeScopeTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "NUL-terminated"):
             parse_nul_raw_changes(
-                b":100644 100644 1111111 2222222 M\0docs/PRD.md"
+                b":100644 100644 "
+                + b"1" * 40
+                + b" "
+                + b"2" * 40
+                + b" M\0docs/PRD.md"
             )
 
     def test_raw_parser_rejects_invalid_mode(self) -> None:
@@ -165,7 +169,11 @@ class CiChangeScopeTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "valid UTF-8"):
             parse_nul_raw_changes(
-                b":100644 100644 1111111 2222222 M\0docs/ok.md\xff\0"
+                b":100644 100644 "
+                + b"1" * 40
+                + b" "
+                + b"2" * 40
+                + b" M\0docs/ok.md\xff\0"
             )
 
     def test_nul_path_parser_preserves_spaces_and_unicode(self) -> None:
@@ -322,7 +330,7 @@ class CiChangeScopeTests(unittest.TestCase):
             workflow.count("needs.scope.outputs.rust_required == 'true'"),
             2,
         )
-        self.assertIn("git diff --raw -z", workflow)
+        self.assertIn("git diff --raw -z --no-abbrev", workflow)
         self.assertIn("classify_ci_change_scope.py", workflow)
 
 

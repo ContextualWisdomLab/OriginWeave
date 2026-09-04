@@ -133,9 +133,9 @@ def _validate_raw_mode(mode: str) -> None:
 
 
 def _validate_raw_object_id(object_id: str) -> None:
-    """Reject malformed abbreviated object identifiers in raw-diff metadata."""
+    """Reject malformed or abbreviated object identifiers in raw-diff metadata."""
 
-    if not 4 <= len(object_id) <= 64 or any(
+    if len(object_id) not in {40, 64} or any(
         character not in "0123456789abcdef" for character in object_id
     ):
         raise ValueError("changed raw record has an invalid object id")
