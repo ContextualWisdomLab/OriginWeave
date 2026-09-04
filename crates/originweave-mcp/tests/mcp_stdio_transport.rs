@@ -50,9 +50,7 @@ fn modern_stdio_tools_list_admits_body_metadata_without_http_headers() {
     );
 
     assert_eq!(
-        request
-            .as_ref()
-            .map(ValidatedMcpToolsListRequest::method),
+        request.as_ref().map(ValidatedMcpToolsListRequest::method),
         Ok(MCP_TOOLS_LIST_METHOD)
     );
 }
