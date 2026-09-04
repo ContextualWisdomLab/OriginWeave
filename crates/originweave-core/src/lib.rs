@@ -2,7 +2,8 @@
 //!
 //! This crate keeps the long-lived value contracts in `contracts`, the
 //! browser protocol/identifier boundaries and extension authority in focused
-//! modules so browser adapters can evolve without turning raw CDP or WebDriver
+//! modules, and bounded semantic observations in a separate authority-preserving
+//! module so browser adapters can evolve without turning raw CDP or WebDriver
 //! metadata into OriginWeave authority.
 
 #![forbid(unsafe_code)]
@@ -15,6 +16,7 @@ mod browser_registry_coverage;
 mod contract_errors;
 mod contracts;
 mod extension_authority;
+mod semantic_observation;
 
 pub use browser_protocol::{
     BrowserProtocolAdapterDescriptor, BrowserProtocolCapability, BrowserProtocolDescriptorError,
@@ -37,4 +39,9 @@ pub use extension_authority::{
     ExtensionAccessRequest as AuthorityExtensionAccessRequest,
     ExtensionAgentGrant as AuthorityExtensionAgentGrant,
     evaluate_extension_access as evaluate_extension_authority_access,
+};
+pub use semantic_observation::{
+    MAX_ACCESSIBLE_NAME_BYTES, MAX_SEMANTIC_CHILDREN, MAX_SEMANTIC_ROLE_BYTES,
+    MAX_VISIBLE_TEXT_BYTES, NodeActionKind, ObservationChannel, SemanticNodeObservation,
+    SemanticNodeObservationError, SemanticNodeObservationInput,
 };

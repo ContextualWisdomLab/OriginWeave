@@ -19,10 +19,13 @@ pub use core_contracts::{
     BrowserProtocolAdapterDescriptor, BrowserProtocolCapability, BrowserProtocolDescriptorError,
     BrowserProtocolKind, BrowserRegistryError, BrowserSessionId, BrowsingContextId, Capability,
     DocumentEpoch, ExecutionPurpose, ExtensionAgentCapability, ExtensionId, ExtensionIdError,
-    InstructionSource, MAX_BROWSER_PROTOCOL_METADATA_BYTES, MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES,
-    NodeHandleError, Origin, OriginError, PolicyContext,
-    RegistryObservedNodeHandle as ObservedNodeHandle, RiskClass, RobotsDecision, SecretDelivery,
-    SessionMode, evaluate_extension_authority_access as evaluate_extension_access,
+    InstructionSource, MAX_ACCESSIBLE_NAME_BYTES, MAX_BROWSER_PROTOCOL_METADATA_BYTES,
+    MAX_EXTERNAL_BROWSER_IDENTIFIER_BYTES, MAX_SEMANTIC_CHILDREN, MAX_SEMANTIC_ROLE_BYTES,
+    MAX_VISIBLE_TEXT_BYTES, NodeActionKind, NodeHandleError, ObservationChannel, Origin,
+    OriginError, PolicyContext, RegistryObservedNodeHandle as ObservedNodeHandle, RiskClass,
+    RobotsDecision, SecretDelivery, SemanticNodeObservation, SemanticNodeObservationError,
+    SemanticNodeObservationInput, SessionMode,
+    evaluate_extension_authority_access as evaluate_extension_access,
 };
 
 /// Stateless MCP routing validation that maps only explicit tools to typed actions.
