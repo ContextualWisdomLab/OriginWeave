@@ -4,6 +4,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Execute the documentation-only CI classifier from the protected base revision; the bootstrap PR fails closed to full Rust verification when that trusted classifier is not yet present.
 - Require complete SHA-1 or SHA-256 object identities before exact-head Git raw-diff evidence may authorize lightweight documentation CI.
 - Bind Git rename/copy similarity to blob identity so perfect scores require equal objects and lower scores require distinct objects.
 
