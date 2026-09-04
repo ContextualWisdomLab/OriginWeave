@@ -8,11 +8,11 @@ use std::{
 
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
-    MAX_WEBDRIVER_BIDI_JS_UINT, WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind,
-    WebDriverBiDiSessionStatusCommand, WebDriverBiDiSessionStatusCommandError,
-    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
-    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMaskKey,
+    MAX_WEBDRIVER_BIDI_JS_UINT, MAX_WEBSOCKET_FRAME_TIMEOUT, WebDriverBiDiCommandCorrelation,
+    WebDriverBiDiCommandKind, WebDriverBiDiSessionStatusCommand,
+    WebDriverBiDiSessionStatusCommandError, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketEstablished,
+    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -103,27 +103,32 @@ fn session_status_rejects_duplicate_correlation_before_any_frame_write()
 #[test]
 fn session_status_rejects_invalid_frame_timeout_before_correlation_registration()
 -> Result<(), Box<dyn Error>> {
-    let (established, server) = establish_with_handshake_only_server()?;
-    let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    let command = WebDriverBiDiSessionStatusCommand::new(11)?;
+    for (command_id, frame_timeout) in [
+        (11, Duration::ZERO),
+        (12, MAX_WEBSOCKET_FRAME_TIMEOUT + Duration::from_millis(1)),
+    ] {
+        let (established, server) = establish_with_handshake_only_server()?;
+        let mut correlation = WebDriverBiDiCommandCorrelation::new();
+        let command = WebDriverBiDiSessionStatusCommand::new(command_id)?;
 
-    let error = command
-        .send(
-            established,
-            &mut correlation,
-            WebDriverBiDiWebSocketMaskKey::new([5, 6, 7, 8]),
-            Duration::ZERO,
-        )
-        .err()
-        .ok_or_else(|| io::Error::other("zero frame timeout unexpectedly sent a command"))?;
-    assert!(matches!(
-        error,
-        WebDriverBiDiSessionStatusCommandError::FrameWrite { .. }
-    ));
-    assert_eq!(correlation.outstanding_count(), 0);
+        let error = command
+            .send(
+                established,
+                &mut correlation,
+                WebDriverBiDiWebSocketMaskKey::new([5, 6, 7, 8]),
+                frame_timeout,
+            )
+            .err()
+            .ok_or_else(|| io::Error::other("invalid frame timeout unexpectedly sent a command"))?;
+        assert!(matches!(
+            error,
+            WebDriverBiDiSessionStatusCommandError::FrameWrite { .. }
+        ));
+        assert_eq!(correlation.outstanding_count(), 0);
 
-    server
-        .join()
-        .map_err(|_| io::Error::other("invalid-timeout test server panicked"))??;
+        server
+            .join()
+            .map_err(|_| io::Error::other("invalid-timeout test server panicked"))??;
+    }
     Ok(())
 }
