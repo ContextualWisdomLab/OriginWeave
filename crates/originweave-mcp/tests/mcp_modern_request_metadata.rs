@@ -77,7 +77,9 @@ fn modern_tools_call_requires_per_request_client_capabilities() {
         Err(McpToolBoundaryError::MissingClientCapabilities)
     );
 
-    let call = modern_call(Some(MCP_PROTOCOL_VERSION), Some(MCP_PROTOCOL_VERSION), true)
-        .expect("required modern request metadata should admit a reviewed tool route");
-    assert_eq!(call.tool_name(), "originweave.observe");
+    let call = modern_call(Some(MCP_PROTOCOL_VERSION), Some(MCP_PROTOCOL_VERSION), true);
+    assert_eq!(
+        call.as_ref().map(ValidatedMcpToolCall::tool_name),
+        Ok("originweave.observe")
+    );
 }
