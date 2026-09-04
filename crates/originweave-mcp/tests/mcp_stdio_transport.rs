@@ -10,10 +10,12 @@ fn modern_stdio_tools_call_admits_body_metadata_without_http_headers() {
         true,
         MCP_TOOLS_CALL_METHOD,
         "originweave.observe",
-    )
-    .expect("modern stdio tools/call must not require Streamable HTTP headers");
+    );
 
-    assert_eq!(call.tool_name(), "originweave.observe");
+    assert_eq!(
+        call.as_ref().map(ValidatedMcpToolCall::tool_name),
+        Ok("originweave.observe")
+    );
 }
 
 #[test]
@@ -45,10 +47,14 @@ fn modern_stdio_tools_list_admits_body_metadata_without_http_headers() {
         true,
         MCP_TOOLS_LIST_METHOD,
         None,
-    )
-    .expect("modern stdio tools/list must not require Streamable HTTP headers");
+    );
 
-    assert_eq!(request.method(), MCP_TOOLS_LIST_METHOD);
+    assert_eq!(
+        request
+            .as_ref()
+            .map(ValidatedMcpToolsListRequest::method),
+        Ok(MCP_TOOLS_LIST_METHOD)
+    );
 }
 
 #[test]
