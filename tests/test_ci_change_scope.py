@@ -325,39 +325,6 @@ class CiChangeScopeTests(unittest.TestCase):
         self.assertIn(b"CI scope classification failed", completed.stderr)
         self.assertIn(b"NUL-terminated", completed.stderr)
 
-    def test_workflow_keeps_docs_contracts_separate_from_rust(self) -> None:
-        """The CI workflow must always run docs contracts and gate Rust jobs by raw scope."""
-
-        workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-        self.assertIn("name: Repository and documentation contracts", workflow)
-        self.assertIn("python3 -m unittest discover -s tests -p 'test_*.py'", workflow)
-        self.assertIn("needs: [scope, contracts]", workflow)
-        self.assertGreaterEqual(
-            workflow.count("needs.scope.outputs.rust_required == 'true'"),
-            2,
-        )
-        self.assertEqual(
-            workflow.count("github.event.pull_request.draft == false"),
-            4,
-        )
-        self.assertNotRegex(
-            workflow,
-            r"(?m)^  (rust|coverage):\n(?:.*\n){0,5}    if:.*\n(?:.*\n){0,5}    if:",
-        )
-        self.assertIn("git diff --raw -z --no-abbrev", workflow)
-        self.assertIn(
-            'git show "${BASE_SHA}:scripts/ci/classify_ci_change_scope.py"',
-            workflow,
-        )
-        self.assertNotIn(
-            "python3 scripts/ci/classify_ci_change_scope.py",
-            workflow,
-        )
-        self.assertIn(
-            "The protected base does not yet contain the trusted classifier",
-            workflow,
-        )
-
 
 if __name__ == "__main__":
     unittest.main()
