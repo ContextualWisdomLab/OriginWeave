@@ -111,11 +111,29 @@ fn action_binding_revalidates_exact_registry_issued_node_authority() -> Result<(
 fn action_binding_rejects_stale_document_authority() -> Result<(), Box<dyn Error>> {
     let (mut registry, context, handle) = admitted_node()?;
     let binding = binding(handle)?;
+    let session = binding.handle().browser_session();
+    let origin = binding.handle().origin().clone();
     registry.advance_document(context)?;
+    registry.bind_context_origin(session, context, &origin)?;
 
     assert_eq!(
         binding.validate_current(&registry),
         Err(AdmittedNodeAuthorityError::NotAdmitted)
+    );
+    Ok(())
+}
+
+#[test]
+fn action_binding_preserves_retired_context_failure() -> Result<(), Box<dyn Error>> {
+    let (mut registry, context, handle) = admitted_node()?;
+    let binding = binding(handle)?;
+    registry.remove_context(context)?;
+
+    assert_eq!(
+        binding.validate_current(&registry),
+        Err(AdmittedNodeAuthorityError::BrowserAuthority(
+            BrowserRegistryError::UnknownBrowsingContext
+        ))
     );
     Ok(())
 }

@@ -1,4 +1,3 @@
-#![cfg_attr(coverage, feature(coverage_attribute))]
 //! Shared security and governance contracts for OriginWeave.
 //!
 //! This crate keeps the long-lived value contracts in `contracts` and the

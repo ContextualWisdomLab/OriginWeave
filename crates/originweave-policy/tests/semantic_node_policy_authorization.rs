@@ -6,8 +6,9 @@ use originweave_core::{
     BrowserContextOriginDispatchTarget, BrowserContextOriginEpochDispatchTarget,
     BrowserProtocolAdapterDescriptor, BrowserProtocolCapability, BrowserProtocolKind, Capability,
     ExecutionPurpose, InstructionSource, NodeActionKind, Origin, OriginWeaveProtocolVersion,
-    PolicyContext, RiskClass, RobotsDecision, SecretDelivery, SemanticNodeActionBinding, SessionMode,
-    ValidatedBrowserProtocolUse, WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesCommand,
+    PolicyContext, RiskClass, RobotsDecision, SecretDelivery, SemanticNodeActionBinding,
+    SessionMode, ValidatedBrowserProtocolUse, WebDriverBiDiAccessibilityQuery,
+    WebDriverBiDiLocateNodesCommand,
 };
 use originweave_policy::{
     DenialReason, PolicyAuthorizedSemanticNodeAction, SemanticNodePolicyAuthorizationError,
@@ -115,14 +116,17 @@ fn semantic_node_action_becomes_policy_authorized_only_after_allow() -> Result<(
     let authorized = PolicyAuthorizedSemanticNodeAction::authorize(binding, &policy_context)?;
 
     assert_eq!(authorized.binding().node_action(), NodeActionKind::Click);
-    assert_eq!(authorized.binding().request().action(), ActionKind::Navigate);
+    assert_eq!(
+        authorized.binding().request().action(),
+        ActionKind::Navigate
+    );
     assert!(authorized.binding().handle().node_id() > 0);
     Ok(())
 }
 
 #[test]
-fn semantic_node_action_preserves_approval_required_as_non_authorized()
--> Result<(), Box<dyn Error>> {
+fn semantic_node_action_preserves_approval_required_as_non_authorized() -> Result<(), Box<dyn Error>>
+{
     let binding = binding(ActionKind::Purchase, InstructionSource::User)?;
     let policy_context = context(ActionKind::Purchase)?;
 
@@ -136,8 +140,7 @@ fn semantic_node_action_preserves_approval_required_as_non_authorized()
 }
 
 #[test]
-fn semantic_node_action_preserves_policy_denial_as_non_authorized()
--> Result<(), Box<dyn Error>> {
+fn semantic_node_action_preserves_policy_denial_as_non_authorized() -> Result<(), Box<dyn Error>> {
     let binding = binding(ActionKind::Navigate, InstructionSource::WebContent)?;
     let policy_context = context(ActionKind::Navigate)?;
 

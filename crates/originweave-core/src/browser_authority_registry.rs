@@ -226,12 +226,6 @@ impl BrowserAuthorityRegistry {
         if !Arc::ptr_eq(&self.registry_instance, &handle.registry_instance) {
             return Err(AdmittedNodeAuthorityError::ForeignRegistry);
         }
-        if !self
-            .admitted_node_external_identifiers
-            .contains_key(&node_authority_key(&handle.observed))
-        {
-            return Err(AdmittedNodeAuthorityError::NotAdmitted);
-        }
 
         let current_epoch = self
             .require_context_origin(
@@ -240,6 +234,13 @@ impl BrowserAuthorityRegistry {
                 handle.origin(),
             )
             .map_err(AdmittedNodeAuthorityError::BrowserAuthority)?;
+        if !self
+            .admitted_node_external_identifiers
+            .contains_key(&node_authority_key(&handle.observed))
+        {
+            return Err(AdmittedNodeAuthorityError::NotAdmitted);
+        }
+
         handle
             .validate_current(
                 handle.browser_session(),
@@ -345,37 +346,4 @@ fn node_authority_key(handle: &ObservedNodeHandle) -> (u64, u64, u64, u64) {
         handle.document_epoch().value(),
         handle.node_id(),
     )
-}
-
-#[cfg(test)]
-mod tests {
-    use std::error::Error;
-
-    use super::{AdmittedNodeAuthorityError, BrowserAuthorityRegistry};
-    use crate::{BrowserRegistryError, Origin};
-
-    #[test]
-    #[cfg_attr(coverage, coverage(off))]
-    fn admitted_node_revalidation_preserves_broken_registry_authority() -> Result<(), Box<dyn Error>>
-    {
-        let mut registry = BrowserAuthorityRegistry::new();
-        let session = registry.register_session("broken-authority-session")?;
-        let context = registry.register_context(session, "broken-authority-context")?;
-        let origin = Origin::parse("https://example.com").map_err(|error| {
-            std::io::Error::other(format!("fixture origin rejected: {error:?}"))
-        })?;
-        let handle = registry
-            .bind_admitted_nodes(session, context, &origin, &["node"])?
-            .pop()
-            .ok_or("fixture did not bind its node")?;
-        registry.inner.remove_context(context)?;
-
-        assert_eq!(
-            registry.validate_admitted_node_handle(&handle),
-            Err(AdmittedNodeAuthorityError::BrowserAuthority(
-                BrowserRegistryError::UnknownBrowsingContext
-            ))
-        );
-        Ok(())
-    }
 }
