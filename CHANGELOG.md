@@ -11,6 +11,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Close the first pinned-Chrome fixture server when startup of the second server fails, and attempt both shutdowns when one cleanup fails, preventing partial compatibility runs from leaking loopback server threads.
 - The fixture-shutdown contract now exercises successful MV3 and Agent Task trial paths before asserting reverse-order server cleanup.
 - The resource-evidence shutdown fixture now supplies complete semantic and measured resource surfaces before exercising reverse-order cleanup.
+- The process-set resource fixture now supplies Chromium count and aggregate RSS surfaces before exercising reverse-order cleanup.
 - The fixture-shutdown success double now includes both browser-computed semantic verification surfaces, so cleanup failures cannot mask incomplete Agent Task evidence.
 ### Added
 - Corrected the 2026-08-26 product-gap snapshot with current #229 presentation-identity evidence, stacked-only #205 integration evidence, current base/head pairs, the 126-PR queue count, explicit root-versus-child merge ordering, and the active GitHub counted-approval gate.
@@ -45,6 +46,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Real pinned-Chrome WebDriver evidence for the controlled Agent Task fixture: the CI lane uses an isolated profile, disables extensions, types and submits synthetic text, observes the same-document post-condition, and proves profile cleanup; this does not claim a shipped OriginWeave browser adapter.
 - Active pinned-Chrome Agent Task evidence verifies browser-computed role/name for controlled input and submit targets before action; this remains test-harness semantic evidence and does not claim a product semantic observer or authority.
 - Active pinned-Chrome Agent Task evidence records browser-process RSS, semantic-observation bytes, action latency, and task duration from bounded trusted adapter inputs; this remains test evidence and does not claim process-set attribution or product resource telemetry.
+- Active pinned-Chrome Agent Task evidence derives a bounded Chromium process count and process-set RSS from one Linux proc snapshot, rejects proc/fixture symlink escapes, and retains failure-type-only diagnostics; this remains test-harness evidence and does not claim trusted production process attribution.
 - Universally value-redacted network evidence with explicit path, metadata, and provenance bounds; ambiguous path rejection; validated source URLs; lowercase SHA-256 identifiers; and verification state.
 - Versioned schema-bound extraction contracts with bounded identifiers and field counts, typed value/cardinality metadata, explicit duplicate-free reviewed source channels, fail-closed schema validation, and deterministic `Display`/`std::error::Error` contracts for public schema failures.
 - Rust 1.97.1 build contract, strict Clippy and rustdoc gates, and exact production function, line, region, and branch coverage enforcement.
