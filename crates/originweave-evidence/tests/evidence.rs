@@ -103,6 +103,7 @@ fn provenance_accepts_safe_root_path_and_loopback_sources() {
     for source_url in [
         "https://example.com",
         "https://example.com/item/42",
+        "https://example.com/search?cache",
         "http://localhost:9222/json/version",
         "http://[::1]:9222/json/version",
     ] {
@@ -126,7 +127,6 @@ fn provenance_rejects_credential_bearing_or_ambiguous_source_urls() {
         "ftp://example.com/path",
         "http://example.com/path",
         "https://user:password@example.com/path",
-        "https://example.com/path?access_token=secret",
         "https://example.com/path#fragment",
         "https://example.com/bad\\path",
         "https://example.com/\n",

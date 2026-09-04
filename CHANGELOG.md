@@ -45,6 +45,9 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Authoritative product documentation graph spanning PRD, TRD, ADR lifecycle/index, product-wide UML, conceptual ERD, requirement/decision traceability, threat modeling, product-wide test strategy, operability, API/protocol, release/rollback, and current primary-source standards doctoring, with machine-checkable repository contracts that keep conversation-derived future work distinct from protected-main implementation claims.
 - Purpose-bound data-governance and privacy baseline that rejects both blanket masking and ambient raw-value propagation, defines field-scoped just-in-time disclosure, opaque-handle/trusted-broker boundaries, model/provider/region policy, retention/deletion/residency/break-glass controls, truthful CSAP/SOC 2 readiness language, and machine-checkable documentation contracts without inventing an OriginWeave-owned production database.
 - Proposed product-wide target-architecture ADRs for the Rust control plane, isolated execution modes, typed actions, semantic observation/stale-node authority, prompt-injection and secret separation, resource-governor priority, provenance evidence, browser/protocol adapters, crawler policy, and hourly automation operational closure; these remain Proposed rather than shipped claims until protected review and merge.
+- The WARC/PROV child slice from PR #217, now integrated into the unprotected #210 feature branch, adds a bounded in-memory `WarcProvBundle` for deterministic W3C PROV-O JSON-LD projection and offline verification of exact WARC records; durable persistence, retention, and transport-specific export remain planned rather than shipped.
+- Connected the active WARC/PROV bundle evidence to the primary standards doctoring record, preserving the in-memory-only and non-shipped durable-adapter boundary.
+- Made WARC/PROV offline verification use the complete deterministic WARC digest as the authoritative block-digest binding, preserving fail-closed exact-record checks while keeping the public verifier surface minimal.
 
 ### Changed
 
@@ -70,6 +73,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Security
 
+- Provenance source URLs now reject case-insensitive and percent-encoded credential query-field names, including recursively encoded nested query-like values, and singly or recursively percent-encoded controls before query-bearing URLs can be retained or serialized into WARC target metadata.
 - Explicit proxy server identifiers require ASCII decimal port tokens before numeric range parsing, preventing Rust-specific leading-plus spellings from widening proxy authority.
 - Raw page content cannot become a trusted instruction.
 - Raw secrets are rejected and secret-capable actions require an opaque broker handle.
@@ -101,5 +105,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Hard RAM and VRAM pressure pauses the active agent and rejects new admission; hard VRAM pressure also offloads a resident local model.
 - The hourly product agent has no Git metadata or repository authority. A separate post-verification publisher opens one PR and cannot approve or merge it.
 - The unprivileged OpenCode user is restricted to loopback egress during model execution, preventing runner-wide allow-listed endpoints from becoming direct source-exfiltration channels.
+- WARC resource-record debug output now omits untrusted Content-Type parameters while retaining the full validated media type for WARC serialization.
+- Active PR #210 now bounds WARC target URIs at the shared path ceiling and reuses the shared source-URL parser, rejecting non-IP-literal bracketed authorities before provenance comparison; this remains active-PR evidence only.
 
 [Unreleased]: https://github.com/ContextualWisdomLab/OriginWeave/compare/main...HEAD

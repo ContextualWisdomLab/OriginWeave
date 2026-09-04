@@ -9,6 +9,7 @@ DOCS = ROOT / "docs"
 FITNESS = DOCS / "DOCUMENTATION_FITNESS.md"
 MATURITY = DOCS / "evidence" / "2026-08-10-active-pr-maturity.md"
 BASELINE = DOCS / "product-technical-gap-baseline.md"
+DOCTORING = DOCS / "doctoring.md"
 CHANGELOG = ROOT / "CHANGELOG.md"
 
 
@@ -31,6 +32,7 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         cls.fitness = FITNESS.read_text(encoding="utf-8")
         cls.maturity = MATURITY.read_text(encoding="utf-8")
         cls.baseline = BASELINE.read_text(encoding="utf-8")
+        cls.doctoring = DOCTORING.read_text(encoding="utf-8")
         cls.changelog = CHANGELOG.read_text(encoding="utf-8")
 
     def test_latest_live_pr_snapshot_is_recorded_in_the_product_baseline(self) -> None:
@@ -219,6 +221,17 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         self.assertIn("Conceptual ERD/domain model", self.fitness)
         self.assertIn("add no OriginWeave-owned durable store", self.fitness)
         self.assertIn("false architecture", self.fitness)
+
+    def test_warc_prov_attribution_follows_the_stacked_merge(self) -> None:
+        """Merged child evidence must not remain labelled as an active child PR."""
+        attribution = (
+            "The WARC/PROV child slice from PR #217, now integrated into the "
+            "unprotected #210 feature branch"
+        )
+        self.assertIn(attribution, self.changelog)
+        self.assertIn(attribution, self.doctoring)
+        self.assertNotIn("Active PR #217 adds a bounded in-memory `WarcProvBundle`", self.changelog)
+        self.assertNotIn("Active PR #217 adds a bounded in-memory `WarcProvBundle`", self.doctoring)
 
 
 if __name__ == "__main__":
