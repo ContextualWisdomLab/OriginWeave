@@ -6,6 +6,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Added
 
+- Failed ordinary and forced-close Agent Task browser trials now retain credential-free temporary-profile cleanup evidence after bounded browser errors, and separate aggregate compatibility gates require cleanup proof from every trial rather than filtering unsuccessful trials out; this does not attest adversarial filesystem erasure, process termination, or arbitrary browser recovery.
 - Rust workspace for independently reusable core, policy, destination, network, TLS, resource, and evidence modules.
 - Canonical HTTPS and loopback-origin boundary with case-normalized schemes and hosts, default-port normalization, IPv4/IPv6 handling, browser-special numeric-host rejection, and explicit malformed-input errors.
 - Typed browser actions, capabilities, risk classes, execution modes, robots decisions, secret-delivery contracts, immutable canonical action-intent digests, and intent-bound approval scopes.
