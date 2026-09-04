@@ -1,11 +1,13 @@
 use std::collections::BTreeMap;
+use std::error::Error;
+use std::fmt::{Display, Formatter};
 use std::ops::Deref;
 use std::sync::Arc;
 
 use crate::browser_registry::BrowserAuthorityRegistry as RawBrowserAuthorityRegistry;
 use crate::{
-    BrowserRegistryError, BrowserSessionId, BrowsingContextId, DocumentEpoch, ObservedNodeHandle,
-    Origin,
+    BrowserRegistryError, BrowserSessionId, BrowsingContextId, DocumentEpoch, NodeHandleError,
+    ObservedNodeHandle, Origin,
 };
 
 /// A registry-issued node handle that carries opaque provenance in addition to descriptive node state.
@@ -25,6 +27,52 @@ impl Deref for AdmittedNodeHandle {
 
     fn deref(&self) -> &Self::Target {
         &self.observed
+    }
+}
+
+/// A fail-closed error while revalidating opaque registry-issued node authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AdmittedNodeAuthorityError {
+    /// The supplied handle was issued by a different registry instance.
+    ForeignRegistry,
+    /// The registry no longer retains this exact admitted node binding.
+    NotAdmitted,
+    /// Current session, context, or canonical-origin authority no longer matches.
+    BrowserAuthority(BrowserRegistryError),
+    /// The handle no longer matches the registry's current document lifetime.
+    NodeHandle(NodeHandleError),
+}
+
+impl Display for AdmittedNodeAuthorityError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ForeignRegistry => formatter
+                .write_str("admitted node was issued by a different browser authority registry"),
+            Self::NotAdmitted => formatter
+                .write_str("admitted node authority is no longer retained by this registry"),
+            Self::BrowserAuthority(error) => {
+                write!(
+                    formatter,
+                    "admitted node browser authority rejected input: {error}"
+                )
+            }
+            Self::NodeHandle(error) => {
+                write!(
+                    formatter,
+                    "admitted node document authority rejected input: {error}"
+                )
+            }
+        }
+    }
+}
+
+impl Error for AdmittedNodeAuthorityError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::BrowserAuthority(error) => Some(error),
+            Self::NodeHandle(error) => Some(error),
+            Self::ForeignRegistry | Self::NotAdmitted => None,
+        }
     }
 }
 
@@ -165,6 +213,43 @@ impl BrowserAuthorityRegistry {
             .require_context_origin(browser_session, browsing_context, origin)
     }
 
+    /// Revalidate one exact registry-issued admitted node before later typed dispatch.
+    ///
+    /// This check preserves opaque registry-instance provenance and verifies that this registry still
+    /// retains the exact admitted node key under the current session, context, origin, and document
+    /// epoch. It deliberately does not validate the adapter-local wire identifier; the final typed
+    /// adapter constructor must still bind the exact `sharedId` immediately before browser I/O.
+    pub fn validate_admitted_node_handle(
+        &self,
+        handle: &AdmittedNodeHandle,
+    ) -> Result<(), AdmittedNodeAuthorityError> {
+        if !Arc::ptr_eq(&self.registry_instance, &handle.registry_instance) {
+            return Err(AdmittedNodeAuthorityError::ForeignRegistry);
+        }
+        if !self
+            .admitted_node_external_identifiers
+            .contains_key(&node_authority_key(&handle.observed))
+        {
+            return Err(AdmittedNodeAuthorityError::NotAdmitted);
+        }
+
+        let current_epoch = self
+            .require_context_origin(
+                handle.browser_session(),
+                handle.browsing_context(),
+                handle.origin(),
+            )
+            .map_err(AdmittedNodeAuthorityError::BrowserAuthority)?;
+        handle
+            .validate_current(
+                handle.browser_session(),
+                handle.browsing_context(),
+                handle.origin(),
+                current_epoch,
+            )
+            .map_err(AdmittedNodeAuthorityError::NodeHandle)
+    }
+
     /// Advance a browsing context to the next document epoch and invalidate old node bindings.
     pub fn advance_document(
         &mut self,
@@ -260,4 +345,37 @@ fn node_authority_key(handle: &ObservedNodeHandle) -> (u64, u64, u64, u64) {
         handle.document_epoch().value(),
         handle.node_id(),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use std::error::Error;
+
+    use super::{AdmittedNodeAuthorityError, BrowserAuthorityRegistry};
+    use crate::{BrowserRegistryError, Origin};
+
+    #[test]
+    #[cfg_attr(coverage, coverage(off))]
+    fn admitted_node_revalidation_preserves_broken_registry_authority() -> Result<(), Box<dyn Error>>
+    {
+        let mut registry = BrowserAuthorityRegistry::new();
+        let session = registry.register_session("broken-authority-session")?;
+        let context = registry.register_context(session, "broken-authority-context")?;
+        let origin = Origin::parse("https://example.com").map_err(|error| {
+            std::io::Error::other(format!("fixture origin rejected: {error:?}"))
+        })?;
+        let handle = registry
+            .bind_admitted_nodes(session, context, &origin, &["node"])?
+            .pop()
+            .ok_or("fixture did not bind its node")?;
+        registry.inner.remove_context(context)?;
+
+        assert_eq!(
+            registry.validate_admitted_node_handle(&handle),
+            Err(AdmittedNodeAuthorityError::BrowserAuthority(
+                BrowserRegistryError::UnknownBrowsingContext
+            ))
+        );
+        Ok(())
+    }
 }

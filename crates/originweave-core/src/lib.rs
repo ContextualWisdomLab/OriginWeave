@@ -1,3 +1,4 @@
+#![cfg_attr(coverage, feature(coverage_attribute))]
 //! Shared security and governance contracts for OriginWeave.
 //!
 //! This crate keeps the long-lived value contracts in `contracts` and the
@@ -58,7 +59,9 @@ mod webdriver_bidi_type_text;
 mod webdriver_bidi_websocket_connect_target;
 mod webdriver_bidi_websocket_endpoint;
 
-pub use browser_authority_registry::{AdmittedNodeHandle, BrowserAuthorityRegistry};
+pub use browser_authority_registry::{
+    AdmittedNodeAuthorityError, AdmittedNodeHandle, BrowserAuthorityRegistry,
+};
 pub use browser_protocol::{
     BrowserProtocolAdapterDescriptor, BrowserProtocolCapability,
     BrowserProtocolCapabilityRequirementError, BrowserProtocolDescriptorError, BrowserProtocolKind,
@@ -87,7 +90,9 @@ pub use browser_registry::{
     UNICODE_PROTOCOL_FORMAT_INJECTION_CHARS,
 };
 pub use contracts::*;
-pub use semantic_action_binding::{SemanticNodeActionBinding, SemanticNodeActionBindingError};
+pub use semantic_action_binding::{
+    NodeActionKind, SemanticNodeActionBinding, SemanticNodeActionBindingError,
+};
 pub use webdriver_bidi_command::{
     CorrelatedWebDriverBiDiLocateNodesResponse, MAX_WEBDRIVER_BIDI_COMMAND_ID,
     ValidatedWebDriverBiDiLocateNodesResponse, WEBDRIVER_BIDI_PERFORM_ACTIONS_METHOD,
