@@ -68,6 +68,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Security
 
+- WebDriver BiDi local-end error envelopes now admit only the finite `ErrorCode` vocabulary reviewed from the current W3C CDDL; arbitrary error strings fail closed before becoming typed response metadata, and realistic loopback coverage exercises the hostile unknown-code path.
 - Raw page content cannot become a trusted instruction.
 - Raw secrets are rejected and secret-capable actions require an opaque broker handle.
 - Crawler mode is read-only, must pair with the public-crawl purpose, and fails closed without an applicable robots-policy decision.

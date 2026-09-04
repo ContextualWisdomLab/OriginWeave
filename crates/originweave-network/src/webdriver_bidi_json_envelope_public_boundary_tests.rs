@@ -100,6 +100,24 @@ fn public_json_envelope_boundary_is_exercised_from_unit_build() -> Result<(), Bo
 }
 
 #[test]
+fn public_json_envelope_rejects_non_event_name_methods() -> Result<(), Box<dyn Error>> {
+    let malformed_methods: [&'static [u8]; 4] = [
+        br#"{"type":"event","method":"","params":{}}"#,
+        br#"{"type":"event","method":"load","params":{}}"#,
+        br#"{"type":"event","method":".load","params":{}}"#,
+        br#"{"type":"event","method":"browsingContext.","params":{}}"#,
+    ];
+
+    for document in malformed_methods {
+        assert_eq!(
+            parse_over_loopback(document)?,
+            Err(WebDriverBiDiJsonEnvelopeError::InvalidMember { member: "method" })
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn public_json_envelope_unit_build_covers_fail_closed_json_edges() -> Result<(), Box<dyn Error>> {
     let malformed_documents: [&'static [u8]; 8] = [
         br#"{"unterminated"#,
