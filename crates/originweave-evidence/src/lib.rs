@@ -9,6 +9,7 @@
 
 mod sensitive_access;
 mod sensitive_break_glass;
+mod sensitive_break_glass_review;
 
 pub use sensitive_access::{
     MAX_SENSITIVE_FIELD_COUNT, MAX_SENSITIVE_IDENTIFIER_BYTES, SensitiveAccessClass,
@@ -18,6 +19,11 @@ pub use sensitive_access::{
 pub use sensitive_break_glass::{
     SensitiveBreakGlassApprovalMode, SensitiveBreakGlassEvidence, SensitiveBreakGlassEvidenceError,
     SensitiveBreakGlassEvidenceInput,
+};
+pub use sensitive_break_glass_review::{
+    SensitiveBreakGlassReviewEvidence, SensitiveBreakGlassReviewEvidenceError,
+    SensitiveBreakGlassReviewEvidenceInput, SensitiveBreakGlassReviewOutcome,
+    SensitiveBreakGlassReviewTimeliness,
 };
 
 use std::collections::BTreeMap;
