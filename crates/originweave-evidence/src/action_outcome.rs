@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 
-use originweave_core::{ActionIntentDigest, ActionKind, Origin};
+use originweave_core::{ActionIntentDigest, ActionKind, ObservedNodeHandle, Origin};
 
 use crate::{ProvenanceRecord, VerificationResult};
 
@@ -39,6 +39,12 @@ pub enum VerifiedActionOutcomeError {
         /// Maximum dispatch-to-observation delay accepted by the caller's policy.
         maximum_observation_delay_milliseconds: u64,
     },
+    /// Node-state success used the generic constructor without exact node authority.
+    NodeStateTargetRequired,
+    /// Node-state provenance belongs to an origin other than the governed action target.
+    PostConditionOriginMismatch,
+    /// The observed node differs from the exact governed action target node.
+    PostConditionNodeMismatch,
 }
 
 impl Display for VerifiedActionOutcomeError {
@@ -61,6 +67,15 @@ impl Display for VerifiedActionOutcomeError {
             } => write!(
                 formatter,
                 "post-condition observation delay {elapsed_milliseconds} ms exceeds the configured maximum of {maximum_observation_delay_milliseconds} ms"
+            ),
+            Self::NodeStateTargetRequired => formatter.write_str(
+                "node-state post-condition requires the exact governed action target node",
+            ),
+            Self::PostConditionOriginMismatch => formatter.write_str(
+                "node-state post-condition provenance must match the governed action target origin",
+            ),
+            Self::PostConditionNodeMismatch => formatter.write_str(
+                "node-state post-condition must observe the exact governed action target node",
             ),
         }
     }
@@ -135,12 +150,14 @@ impl PostConditionObservation {
 /// Credential-safe evidence that a typed action completed its verified post-condition.
 ///
 /// Construction is intentionally fail-closed: a command acknowledgement,
-/// unverified or rejected provenance, or an invalid temporal observation cannot
-/// be represented by this type as successful action completion.
+/// unverified or rejected provenance, an invalid temporal observation, or a
+/// node-state observation not bound to the exact governed [`ObservedNodeHandle`]
+/// cannot be represented by this type as successful action completion.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedActionOutcomeEvidence {
     action: ActionKind,
     target_origin: Origin,
+    target_node: Option<ObservedNodeHandle>,
     intent_digest: ActionIntentDigest,
     post_condition: PostConditionKind,
     observation: PostConditionObservation,
@@ -148,12 +165,14 @@ pub struct VerifiedActionOutcomeEvidence {
 }
 
 impl VerifiedActionOutcomeEvidence {
-    /// Create successful action evidence from verified, temporally bounded provenance.
+    /// Create successful non-node action evidence from verified, temporally bounded provenance.
     ///
     /// The observation has already established caller-selected freshness and
-    /// monotonic ordering. This constructor does not independently prove clock
-    /// provenance, browser dispatch, or causal attribution between the action
-    /// and the observed post-condition.
+    /// monotonic ordering. `NodeStateChanged` is deliberately rejected here
+    /// because origin-only provenance cannot identify the exact governed node;
+    /// callers must use [`Self::new_node_state`] for that post-condition. This
+    /// constructor does not independently prove clock provenance, browser
+    /// dispatch, or causal attribution between the action and the observation.
     pub fn new(
         action: ActionKind,
         target_origin: Origin,
@@ -162,14 +181,51 @@ impl VerifiedActionOutcomeEvidence {
         observation: PostConditionObservation,
         provenance: ProvenanceRecord,
     ) -> Result<Self, VerifiedActionOutcomeError> {
-        if provenance.verification_result() != VerificationResult::Verified {
-            return Err(VerifiedActionOutcomeError::PostConditionNotVerified);
+        validate_verified_provenance(&provenance)?;
+        if post_condition == PostConditionKind::NodeStateChanged {
+            return Err(VerifiedActionOutcomeError::NodeStateTargetRequired);
         }
         Ok(Self {
             action,
             target_origin,
+            target_node: None,
             intent_digest,
             post_condition,
+            observation,
+            provenance,
+        })
+    }
+
+    /// Create node-state success evidence bound to one exact governed node.
+    ///
+    /// `target_node` is the node authority used by the governed action and
+    /// `observed_node` is the independently observed node whose post-condition
+    /// was verified. They must be exactly equal across browser session, browsing
+    /// context, canonical origin, document epoch, and node identifier. Provenance
+    /// must also originate from that canonical target origin. The validated
+    /// observation supplies the same caller-selected freshness boundary used by
+    /// non-node evidence.
+    pub fn new_node_state(
+        action: ActionKind,
+        target_node: ObservedNodeHandle,
+        intent_digest: ActionIntentDigest,
+        observation: PostConditionObservation,
+        observed_node: ObservedNodeHandle,
+        provenance: ProvenanceRecord,
+    ) -> Result<Self, VerifiedActionOutcomeError> {
+        validate_verified_provenance(&provenance)?;
+        if provenance.source_origin() != target_node.origin() {
+            return Err(VerifiedActionOutcomeError::PostConditionOriginMismatch);
+        }
+        if observed_node != target_node {
+            return Err(VerifiedActionOutcomeError::PostConditionNodeMismatch);
+        }
+        Ok(Self {
+            action,
+            target_origin: target_node.origin().clone(),
+            target_node: Some(target_node),
+            intent_digest,
+            post_condition: PostConditionKind::NodeStateChanged,
             observation,
             provenance,
         })
@@ -185,6 +241,12 @@ impl VerifiedActionOutcomeEvidence {
     #[must_use]
     pub const fn target_origin(&self) -> &Origin {
         &self.target_origin
+    }
+
+    /// Return the exact governed node for node-state evidence, when applicable.
+    #[must_use]
+    pub const fn target_node(&self) -> Option<&ObservedNodeHandle> {
+        self.target_node.as_ref()
     }
 
     /// Return the digest of the complete canonical action intent.
@@ -228,4 +290,13 @@ impl VerifiedActionOutcomeEvidence {
     pub const fn provenance(&self) -> &ProvenanceRecord {
         &self.provenance
     }
+}
+
+fn validate_verified_provenance(
+    provenance: &ProvenanceRecord,
+) -> Result<(), VerifiedActionOutcomeError> {
+    if provenance.verification_result() != VerificationResult::Verified {
+        return Err(VerifiedActionOutcomeError::PostConditionNotVerified);
+    }
+    Ok(())
 }
