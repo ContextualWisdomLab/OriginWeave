@@ -1,20 +1,20 @@
 use std::{cell::Cell, collections::BTreeSet, error::Error};
 
 use originweave_core::{
-    ActionIntentDigest, ActionKind, ActionRequest, ApprovalEvidence, BoundedWebDriverBiDiResponseDocument,
-    BrowserAuthorityRegistry, BrowserContextDispatchTarget, BrowserContextOriginDispatchTarget,
-    BrowserContextOriginEpochDispatchTarget, BrowserProtocolAdapterDescriptor, BrowserProtocolCapability,
-    BrowserProtocolKind, BrowserRegistryError, BrowsingContextId, ExecutionPurpose, InstructionSource,
-    NodeActionKind, ObservationChannel, ObservedNodeHandle, Origin, OriginWeaveProtocolVersion,
-    PolicyContext, RobotsDecision, SecretDelivery, SemanticNodeActionBinding,
-    SemanticNodeActionTargetError, SemanticNodeObservation, SemanticNodeObservationInput, SessionMode,
+    ActionIntentDigest, ActionKind, ActionRequest, AdmittedNodeAuthorityError, ApprovalEvidence,
+    BoundedWebDriverBiDiResponseDocument, BrowserAuthorityRegistry, BrowserContextDispatchTarget,
+    BrowserContextOriginDispatchTarget, BrowserContextOriginEpochDispatchTarget,
+    BrowserProtocolAdapterDescriptor, BrowserProtocolCapability, BrowserProtocolKind,
+    BrowserRegistryError, BrowsingContextId, ExecutionPurpose, InstructionSource, NodeActionKind,
+    ObservationChannel, ObservedNodeHandle, Origin, OriginWeaveProtocolVersion, PolicyContext,
+    RobotsDecision, SecretDelivery, SemanticNodeActionBinding, SemanticNodeActionTargetError,
+    SemanticNodeObservation, SemanticNodeObservationInput, SessionMode,
     ValidatedBrowserProtocolUse, WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesCommand,
 };
-use originweave_policy::{
-    PolicyAuthorizedSemanticNodeAction, SemanticNodeDispatchValidationError,
-};
+use originweave_policy::{PolicyAuthorizedSemanticNodeAction, SemanticNodeDispatchValidationError};
 
-const ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion = OriginWeaveProtocolVersion::new(0, 1);
+const ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion =
+    OriginWeaveProtocolVersion::new(0, 1);
 const ADAPTER_VERSION: &str = "originweave-bidi-v1";
 const PROTOCOL_REVISION: &str = "webdriver-bidi-wd-2026-06-01";
 const BROWSER_REVISION: &str = "chromium-r1639810";
@@ -75,7 +75,8 @@ fn observation(
 fn authorized_action() -> Result<AuthorizedFixture, Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
     let session = registry.register_session("semantic-dispatch-current-observation-session")?;
-    let context = registry.register_context(session, "semantic-dispatch-current-observation-context")?;
+    let context =
+        registry.register_context(session, "semantic-dispatch-current-observation-context")?;
     let site = Origin::parse("https://app.example")
         .map_err(|error| std::io::Error::other(format!("fixture origin rejected: {error:?}")))?;
     let epoch = registry.bind_context_origin(session, context, &site)?;
@@ -148,7 +149,8 @@ fn dispatch_action(
     current: &SemanticNodeObservation,
     called: &Cell<bool>,
     adapter_should_fail: bool,
-) -> Result<Result<(NodeActionKind, ActionKind), &'static str>, SemanticNodeDispatchValidationError> {
+) -> Result<Result<(NodeActionKind, ActionKind), &'static str>, SemanticNodeDispatchValidationError>
+{
     authorized.dispatch_if_current_observation(registry, current, |binding| {
         called.set(true);
         if adapter_should_fail {
@@ -178,7 +180,10 @@ fn exact_current_browser_and_semantic_authority_reaches_dispatch() -> Result<(),
         false,
     )?;
 
-    assert_eq!(adapter_result, Ok((NodeActionKind::Click, ActionKind::Navigate)));
+    assert_eq!(
+        adapter_result,
+        Ok((NodeActionKind::Click, ActionKind::Navigate))
+    );
     assert!(called.get());
     Ok(())
 }
@@ -208,7 +213,9 @@ fn stale_registry_authority_never_reaches_semantic_dispatch() -> Result<(), Box<
     assert!(matches!(
         error,
         SemanticNodeDispatchValidationError::BrowserAuthority(
-            BrowserRegistryError::UnknownNodeAuthority
+            AdmittedNodeAuthorityError::BrowserAuthority(
+                BrowserRegistryError::ContextOriginNotBound
+            )
         )
     ));
     assert!(!called.get());
@@ -335,7 +342,7 @@ fn adapter_failure_remains_separate_after_both_revalidations() -> Result<(), Box
 #[test]
 fn dispatch_validation_errors_preserve_typed_sources() {
     let browser = SemanticNodeDispatchValidationError::BrowserAuthority(
-        BrowserRegistryError::UnknownNodeAuthority,
+        AdmittedNodeAuthorityError::BrowserAuthority(BrowserRegistryError::ContextOriginNotBound),
     );
     assert_eq!(
         browser.to_string(),
