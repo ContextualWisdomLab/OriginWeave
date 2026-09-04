@@ -12,6 +12,39 @@ pub const MAX_WEBDRIVER_BIDI_JSON_DEPTH: usize = 64;
 /// Largest integer admitted by WebDriver BiDi's `js-uint` production.
 pub const MAX_WEBDRIVER_BIDI_JS_UINT: u64 = 9_007_199_254_740_991;
 
+const WEBDRIVER_BIDI_ERROR_CODES: [&str; 30] = [
+    "invalid argument",
+    "invalid selector",
+    "invalid session id",
+    "invalid web extension",
+    "move target out of bounds",
+    "no such alert",
+    "no such network collector",
+    "no such element",
+    "no such frame",
+    "no such handle",
+    "no such history entry",
+    "no such intercept",
+    "no such network data",
+    "no such node",
+    "no such request",
+    "no such screencast",
+    "no such script",
+    "no such storage partition",
+    "no such user context",
+    "no such web extension",
+    "session not created",
+    "unable to capture screen",
+    "unable to close browser",
+    "unable to set cookie",
+    "unable to set file input",
+    "unavailable network data",
+    "underspecified storage partition",
+    "unknown command",
+    "unknown error",
+    "unsupported operation",
+];
+
 /// Local-end WebDriver BiDi envelope kind after complete JSON syntax validation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WebDriverBiDiJsonEnvelopeKind {
@@ -222,6 +255,9 @@ impl TopLevelFields {
         if let Some(stacktrace) = self.stacktrace {
             require_text_value(stacktrace, "stacktrace")?;
         }
+        if !is_webdriver_bidi_error_code(&error_code) {
+            return Err(invalid("error"));
+        }
         Ok(WebDriverBiDiJsonEnvelope {
             kind: WebDriverBiDiJsonEnvelopeKind::Error,
             command_id,
@@ -248,6 +284,10 @@ fn missing(member: &'static str) -> WebDriverBiDiJsonEnvelopeError {
 
 fn invalid(member: &'static str) -> WebDriverBiDiJsonEnvelopeError {
     WebDriverBiDiJsonEnvelopeError::InvalidMember { member }
+}
+
+fn is_webdriver_bidi_error_code(value: &str) -> bool {
+    WEBDRIVER_BIDI_ERROR_CODES.contains(&value)
 }
 
 fn required_text(
@@ -696,6 +736,28 @@ mod tests {
         assert_eq!(
             event.as_ref().map(WebDriverBiDiJsonEnvelope::error_code),
             Ok(None)
+        );
+    }
+
+    #[test]
+    fn accepts_current_protocol_error_code_vocabulary() {
+        for error_code in WEBDRIVER_BIDI_ERROR_CODES {
+            let document = format!(
+                r#"{{"type":"error","id":7,"error":"{error_code}","message":""}}"#
+            );
+            assert_eq!(
+                parse(&document)
+                    .as_ref()
+                    .ok()
+                    .and_then(WebDriverBiDiJsonEnvelope::error_code),
+                Some(error_code)
+            );
+        }
+        assert_eq!(
+            parse(
+                r#"{"type":"error","id":7,"error":"attacker-defined-code","message":"bad code"}"#
+            ),
+            Err(WebDriverBiDiJsonEnvelopeError::InvalidMember { member: "error" })
         );
     }
 
