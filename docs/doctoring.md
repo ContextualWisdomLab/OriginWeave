@@ -2,6 +2,10 @@
 
 This document records external evidence that changes OriginWeave architecture, test design, or release criteria. References use APA 7th style. Draft specifications and preprints are explicitly identified as work in progress.
 
+## Feature doctoring notes
+
+- [VPN profile support: primary-source doctoring](doctoring/vpn-profile-support.md)
+
 ## Decision trace
 
 ### Browser automation and interoperability

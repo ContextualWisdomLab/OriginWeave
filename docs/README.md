@@ -25,6 +25,7 @@
 - [Product and technical gap baseline](product-technical-gap-baseline.md)
 - [Research and standards](doctoring.md)
   - [Browser and Agent protocol standards evidence](doctoring/browser-agent-protocols.md)
+  - [VPN profile support standards evidence](doctoring/vpn-profile-support.md)
 - [Current product-baseline standards addendum](doctoring/product-documentation-baseline.md)
 - [Quality gates](quality-gates.md)
 - [Security policy](../SECURITY.md)
@@ -85,14 +86,13 @@ Proposed ADRs are reviewable architecture memory, not shipped behavior and not a
 - [ADR 0013: Manifest V3 compatibility and extension-to-Agent authority](adr/0013-manifest-v3-extension-authority.md)
 - [ADR 0014: Architecture decision acceptance governance](adr/0014-architecture-decision-governance.md)
 
-The second group exists only on this documentation branch until the branch integrates. After integration, the heading remains useful historical provenance; it does not promote either ADR from Proposed to Accepted and it does not claim that the described runtime capability is implemented.
+### Proposed feature decisions introduced by active implementation lanes
 
-### Proposed decisions introduced by active feature work
-
+- [ADR 0015: Keep VPN profile parsing secret-safe and non-privileged](adr/0015-vpn-profile-authority.md)
 - [ADR 0016: BAP task lifecycle and state authority](adr/0016-bap-task-lifecycle-authority.md)
 
-ADR 0016 is owned by this active BAP lifecycle feature branch and remains Proposed. Its presence here makes the branch documentation graph complete without presenting the decision or implementation as protected-main truth before integration.
+The second group exists only on this documentation branch until that branch integrates. After integration, its heading remains useful historical provenance; it does not promote either ADR from Proposed to Accepted and it does not claim that the described runtime capability is implemented. The active-feature group likewise records branch-local Proposed architecture only; ADR 0015 does not become protected-main or shipped truth until normal integration and acceptance evidence exist. ADR 0016 is owned by the active BAP lifecycle feature branch; indexing it here makes that documentation graph complete without presenting it as protected-main truth before integration.
 
-After protected-main integration, retain this subsection only when it is intentionally serving as historical provenance; otherwise protected-main reconciliation must remove it. In either case, integration alone does not change ADR 0016 from Proposed or assert implementation maturity.
+After protected-main integration, retain this subsection only when it is intentionally serving as historical provenance; otherwise protected-main reconciliation must remove it. In either case, integration alone does not change ADR 0015 or ADR 0016 from Proposed or assert implementation maturity.
 
 See the [ADR index](adr/README.md) for status rules, required decision structure, supersession rules, and active feature ADRs. The index and each ADR's own status metadata must agree; a PR body, chat transcript, automation prompt, or stale issue reference cannot change ADR status.

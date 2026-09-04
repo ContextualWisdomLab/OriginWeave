@@ -45,6 +45,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Authoritative product documentation graph spanning PRD, TRD, ADR lifecycle/index, product-wide UML, conceptual ERD, requirement/decision traceability, threat modeling, product-wide test strategy, operability, API/protocol, release/rollback, and current primary-source standards doctoring, with machine-checkable repository contracts that keep conversation-derived future work distinct from protected-main implementation claims.
 - Purpose-bound data-governance and privacy baseline that rejects both blanket masking and ambient raw-value propagation, defines field-scoped just-in-time disclosure, opaque-handle/trusted-broker boundaries, model/provider/region policy, retention/deletion/residency/break-glass controls, truthful CSAP/SOC 2 readiness language, and machine-checkable documentation contracts without inventing an OriginWeave-owned production database.
 - Proposed product-wide target-architecture ADRs for the Rust control plane, isolated execution modes, typed actions, semantic observation/stale-node authority, prompt-injection and secret separation, resource-governor priority, provenance evidence, browser/protocol adapters, crawler policy, and hourly automation operational closure; these remain Proposed rather than shipped claims until protected review and merge.
+- Reusable `originweave-vpn-profile` normalization authority for bounded WireGuard and provider-neutral IKEv2 intent, canonical network/key/numeric validation, explicit rejection of hook and route-management directives, opaque secret references that reject whitespace/control-format injection, fail-closed optional-extension defaults, and typed non-secret errors.
 
 ### Changed
 
@@ -62,6 +63,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Hardened the baseline evidence procedure with exact-head legacy status and workflow-run capture, counted approval binding, required-workflow recording, merge verdict artifacts, and bounded moving-head retries.
 - Moved autonomous-agent Cargo targets and Python bytecode caches outside the proposed source tree and prefetched locked Cargo dependencies for offline verification.
 - Updated research doctoring to pin Chromium canonicalizer evidence to an immutable revision, add RFC 9293, RFC 5280, RFC 8446, RFC 9525, rustls 0.23.42, and Rust `TcpStream` evidence, distinguish the April 2026 Fugu beta from the June 2026 release, and treat vendor benchmark claims as first-party evidence rather than independent validation.
+- Added canonical and rejected WireGuard key cases for the standard alphabet and every legal final padding sextet, plus the empty hexadecimal-prefix DNS label, so the exact production branch-coverage gate proves accepted input boundaries.
 - Tightened the product-baseline contract so the BiDi opening path and VPN/profile evidence retain their explicit not-shipped status within their own documentation sections.
 - Refreshed the product and technical gap baseline against the 2026-08-21 live inventory: 150 open pull requests, 110 drafts, and the new hardened-runner/MV3 evidence gap issue #206.
 - Tightened the baseline completion-gap contract so superseded inventory counts (including the 2026-08-21 150/40/110 snapshot) can no longer pass as current evidence.
@@ -101,5 +103,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Hard RAM and VRAM pressure pauses the active agent and rejects new admission; hard VRAM pressure also offloads a resident local model.
 - The hourly product agent has no Git metadata or repository authority. A separate post-verification publisher opens one PR and cannot approve or merge it.
 - The unprivileged OpenCode user is restricted to loopback egress during model execution, preventing runner-wide allow-listed endpoints from becoming direct source-exfiltration channels.
+- VPN profile entry points complete side-effect-free validation before caller-visible import, journal opaque references, invoke `VpnSecretImporter::discard_secret` in reverse order after a later failure, return `SecretCleanupFailed` whenever compensating cleanup cannot be proven complete, and reject whitespace/control-format characters in opaque secret references before they can enter diagnostics or normalized profiles.
+- IKEv2 `RemoteId`, `LocalId`, and EAP `Username` reject invisible and bidirectional Unicode presentation controls before any caller-visible secret import.
 
 [Unreleased]: https://github.com/ContextualWisdomLab/OriginWeave/compare/main...HEAD
