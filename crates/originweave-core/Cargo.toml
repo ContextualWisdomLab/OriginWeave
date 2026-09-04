@@ -10,7 +10,11 @@ repository.workspace = true
 homepage.workspace = true
 publish = false
 
+[lib]
+path = "src/root.rs"
+
 [dependencies]
+unicode-normalization = "=0.1.25"
 
 [lints]
 workspace = true
