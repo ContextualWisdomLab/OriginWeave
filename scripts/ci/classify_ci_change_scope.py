@@ -137,6 +137,7 @@ def _validate_raw_object_identity_semantics(
     destination_mode: str,
     source_oid: str,
     destination_oid: str,
+    status: str,
 ) -> None:
     """Require raw object identities to agree with two-tree presence metadata."""
 
@@ -151,6 +152,13 @@ def _validate_raw_object_identity_semantics(
         identity_absent = not object_id.strip("0")
         if side_absent != identity_absent:
             raise ValueError("changed raw record has inconsistent mode/object id metadata")
+
+    if (
+        status.startswith("M")
+        and source_mode == destination_mode
+        and source_oid == destination_oid
+    ):
+        raise ValueError("changed raw record modification has identical object ids")
 
 
 def _validate_raw_mode_semantics(source_mode: str, destination_mode: str, status: str) -> None:
@@ -204,6 +212,7 @@ def _parse_raw_metadata(raw_metadata: bytes) -> tuple[str, str, str]:
         destination_mode,
         source_oid,
         destination_oid,
+        status,
     )
     return source_mode, destination_mode, status
 
