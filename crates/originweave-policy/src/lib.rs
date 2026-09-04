@@ -7,11 +7,16 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+mod model_fallback;
 mod model_output;
 mod model_route;
 mod sensitive_data;
 mod sensitive_handle_dispatch;
 
+pub use model_fallback::{
+    ModelFallbackDecision, ModelFallbackRequest, ModelFallbackScope, ModelRouteAvailability,
+    evaluate_model_fallback,
+};
 pub use model_output::{
     ModelOutputDecision, ModelOutputRequest, ModelOutputScope, ModelOutputValidation,
     evaluate_model_output,
