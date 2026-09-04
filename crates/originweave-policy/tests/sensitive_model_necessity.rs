@@ -1,13 +1,13 @@
 #![allow(clippy::expect_used)]
 
-//! Fail-first contract requiring a lower-disclosure-path check before raw model input.
+//! Fail-first contract requiring a fresh lower-disclosure-path check before raw model input.
 
 use originweave_core::Origin;
 use originweave_policy::{
     DataClassification, DisclosureDecision, DisclosureScope, ModelDisclosureAlternative,
-    ModelDisclosureDecision, ModelDisclosureNecessity, ModelInvocationRequest,
-    ModelInvocationScope, ModelRouteRequest, ModelRouteScope, SensitiveDataAuthority,
-    SensitiveDataRequest, evaluate_full_field_model_disclosure,
+    ModelDisclosureDecision, ModelDisclosureNecessity, ModelDisclosureNecessityEvidence,
+    ModelInvocationRequest, ModelInvocationScope, ModelRouteRequest, ModelRouteScope,
+    SensitiveDataAuthority, SensitiveDataRequest, evaluate_full_field_model_disclosure,
 };
 
 fn authority() -> SensitiveDataAuthority {
@@ -55,8 +55,15 @@ fn invocation_scope(authority: SensitiveDataAuthority) -> ModelInvocationScope {
         "customer-email-summary-v1",
         8_192,
         2_048,
-        1_000,
+        1_001,
     )
+}
+
+fn necessity_evidence(
+    disclosure_request: SensitiveDataRequest,
+    necessity: ModelDisclosureNecessity,
+) -> ModelDisclosureNecessityEvidence {
+    ModelDisclosureNecessityEvidence::new(disclosure_request, necessity, 1_000)
 }
 
 #[test]
@@ -69,12 +76,22 @@ fn exact_full_field_model_disclosure_requires_no_lower_disclosure_path() {
     );
     let invocation_request = invocation_request(exact_authority.clone());
     let invocation_scope = invocation_scope(exact_authority);
+    let necessity = necessity_evidence(
+        disclosure_request.clone(),
+        ModelDisclosureNecessity::NoLowerDisclosurePath,
+    );
 
+    assert_eq!(
+        necessity.necessity(),
+        ModelDisclosureNecessity::NoLowerDisclosurePath
+    );
+    assert_eq!(necessity.disclosure_request(), &disclosure_request);
+    assert_eq!(necessity.valid_until(), 1_000);
     assert_eq!(
         evaluate_full_field_model_disclosure(
             &disclosure_request,
             &disclosure_scope,
-            ModelDisclosureNecessity::NoLowerDisclosurePath,
+            &necessity,
             &invocation_request,
             &invocation_scope,
             999,
@@ -105,7 +122,10 @@ fn any_available_lower_disclosure_path_blocks_raw_model_input() {
             evaluate_full_field_model_disclosure(
                 &disclosure_request,
                 &disclosure_scope,
-                ModelDisclosureNecessity::LowerDisclosurePathAvailable(alternative),
+                &necessity_evidence(
+                    disclosure_request.clone(),
+                    ModelDisclosureNecessity::LowerDisclosurePathAvailable(alternative),
+                ),
                 &invocation_request,
                 &invocation_scope,
                 999,
@@ -113,6 +133,42 @@ fn any_available_lower_disclosure_path_blocks_raw_model_input() {
             ModelDisclosureDecision::FullFieldNotNecessary(alternative)
         );
     }
+}
+
+#[test]
+fn necessity_evidence_cannot_be_replayed_for_another_sensitive_request() {
+    let exact_authority = authority();
+    let disclosure_request = SensitiveDataRequest::new(exact_authority.clone());
+    let disclosure_scope = DisclosureScope::new(
+        exact_authority.clone(),
+        DisclosureDecision::FullFieldDisclosure,
+    );
+    let invocation_request = invocation_request(exact_authority.clone());
+    let invocation_scope = invocation_scope(exact_authority);
+    let other_request = SensitiveDataRequest::new(SensitiveDataAuthority::new(
+        "tenant-alpha",
+        "task-99",
+        "customer-email",
+        "case-resolution",
+        Origin::parse("https://model-gateway.example").expect("valid destination origin"),
+        DataClassification::PersonalData,
+    ));
+    let replayed_necessity = necessity_evidence(
+        other_request,
+        ModelDisclosureNecessity::NoLowerDisclosurePath,
+    );
+
+    assert_eq!(
+        evaluate_full_field_model_disclosure(
+            &disclosure_request,
+            &disclosure_scope,
+            &replayed_necessity,
+            &invocation_request,
+            &invocation_scope,
+            999,
+        ),
+        ModelDisclosureDecision::NecessityAuthorityMismatch
+    );
 }
 
 #[test]
@@ -130,11 +186,71 @@ fn necessity_never_upgrades_a_weaker_disclosure_decision() {
         evaluate_full_field_model_disclosure(
             &disclosure_request,
             &disclosure_scope,
-            ModelDisclosureNecessity::NoLowerDisclosurePath,
+            &ModelDisclosureNecessityEvidence::new(
+                disclosure_request.clone(),
+                ModelDisclosureNecessity::NoLowerDisclosurePath,
+                0,
+            ),
             &invocation_request,
             &invocation_scope,
             999,
         ),
         ModelDisclosureDecision::DisclosureNotAuthorized(DisclosureDecision::OpaqueHandleOnly)
+    );
+}
+
+#[test]
+fn zero_necessity_horizon_fails_closed_after_existing_authority_passes() {
+    let exact_authority = authority();
+    let disclosure_request = SensitiveDataRequest::new(exact_authority.clone());
+    let disclosure_scope = DisclosureScope::new(
+        exact_authority.clone(),
+        DisclosureDecision::FullFieldDisclosure,
+    );
+    let invocation_request = invocation_request(exact_authority.clone());
+    let invocation_scope = invocation_scope(exact_authority);
+
+    assert_eq!(
+        evaluate_full_field_model_disclosure(
+            &disclosure_request,
+            &disclosure_scope,
+            &ModelDisclosureNecessityEvidence::new(
+                disclosure_request.clone(),
+                ModelDisclosureNecessity::NoLowerDisclosurePath,
+                0,
+            ),
+            &invocation_request,
+            &invocation_scope,
+            999,
+        ),
+        ModelDisclosureDecision::NecessityEvidenceInvalid
+    );
+}
+
+#[test]
+fn necessity_horizon_is_exclusive_and_cannot_be_replayed_at_expiry() {
+    let exact_authority = authority();
+    let disclosure_request = SensitiveDataRequest::new(exact_authority.clone());
+    let disclosure_scope = DisclosureScope::new(
+        exact_authority.clone(),
+        DisclosureDecision::FullFieldDisclosure,
+    );
+    let invocation_request = invocation_request(exact_authority.clone());
+    let invocation_scope = invocation_scope(exact_authority);
+
+    assert_eq!(
+        evaluate_full_field_model_disclosure(
+            &disclosure_request,
+            &disclosure_scope,
+            &ModelDisclosureNecessityEvidence::new(
+                disclosure_request.clone(),
+                ModelDisclosureNecessity::NoLowerDisclosurePath,
+                1_000,
+            ),
+            &invocation_request,
+            &invocation_scope,
+            1_000,
+        ),
+        ModelDisclosureDecision::NecessityEvidenceExpired
     );
 }
