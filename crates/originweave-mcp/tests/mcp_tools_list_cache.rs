@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use originweave_core::mcp::{
+use originweave_mcp::{
     MAX_MCP_METHOD_NAME_BYTES, MCP_PROTOCOL_VERSION, MCP_TOOLS_LIST_METHOD, McpCacheScope,
     McpResultType, McpToolsListBoundaryError, ValidatedMcpToolsListRequest, mcp_tools_list_page,
     supported_mcp_tools,

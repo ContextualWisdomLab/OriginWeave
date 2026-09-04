@@ -2,12 +2,15 @@
 
 use std::collections::BTreeSet;
 
-use originweave_core::mcp::{MCP_PROTOCOL_VERSION, MCP_TOOLS_CALL_METHOD, ValidatedMcpToolCall};
 use originweave_core::{
     ActionIntentDigest, ActionKind, ActionRequest, ApprovalEvidence, Capability, ExecutionPurpose,
     InstructionSource, Origin, PolicyContext, RobotsDecision, SecretDelivery, SessionMode,
 };
-use originweave_policy::{Decision, DenialReason, evaluate_mcp};
+use originweave_mcp::{
+    MCP_PROTOCOL_VERSION, MCP_TOOLS_CALL_METHOD, McpRouteRejection, ValidatedMcpToolCall,
+    evaluate_mcp,
+};
+use originweave_policy::{Decision, DenialReason};
 
 const VALID_INTENT: &str =
     "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
@@ -21,8 +24,10 @@ fn intent() -> ActionIntentDigest {
 }
 
 fn validated_call(tool_name: &str) -> ValidatedMcpToolCall {
-    ValidatedMcpToolCall::new(
-        MCP_PROTOCOL_VERSION,
+    ValidatedMcpToolCall::new_with_request_metadata(
+        Some(MCP_PROTOCOL_VERSION),
+        Some(MCP_PROTOCOL_VERSION),
+        true,
         MCP_TOOLS_CALL_METHOD,
         tool_name,
         MCP_TOOLS_CALL_METHOD,
@@ -65,7 +70,7 @@ fn matching_mcp_route_enters_the_existing_policy_boundary() {
         &context(BTreeSet::from([Capability::Observe])),
     );
 
-    assert_eq!(decision, Decision::Allow);
+    assert_eq!(decision, Ok(Decision::Allow));
 }
 
 #[test]
@@ -77,7 +82,7 @@ fn mismatched_mcp_route_cannot_be_reinterpreted_as_another_action() {
         &context(BTreeSet::from([Capability::Navigate])),
     );
 
-    assert_eq!(decision, Decision::Deny(DenialReason::McpActionMismatch));
+    assert_eq!(decision, Err(McpRouteRejection::ActionMismatch));
 }
 
 #[test]
@@ -91,6 +96,8 @@ fn matching_mcp_route_does_not_bypass_existing_policy_denials() {
 
     assert_eq!(
         decision,
-        Decision::Deny(DenialReason::MissingCapability(Capability::Navigate))
+        Ok(Decision::Deny(DenialReason::MissingCapability(
+            Capability::Navigate
+        )))
     );
 }

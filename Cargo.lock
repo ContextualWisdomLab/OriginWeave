@@ -289,6 +289,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "originweave-mcp"
+version = "0.1.0"
+dependencies = [
+ "originweave-core",
+ "originweave-policy",
+]
+
+[[package]]
 name = "originweave-network"
 version = "0.1.0"
 dependencies = [
