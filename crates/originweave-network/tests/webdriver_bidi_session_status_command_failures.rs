@@ -101,7 +101,7 @@ fn session_status_rejects_duplicate_correlation_before_any_frame_write()
 }
 
 #[test]
-fn session_status_preserves_registration_when_frame_timeout_is_invalid()
+fn session_status_rejects_invalid_frame_timeout_before_correlation_registration()
 -> Result<(), Box<dyn Error>> {
     let (established, server) = establish_with_handshake_only_server()?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
@@ -120,7 +120,7 @@ fn session_status_preserves_registration_when_frame_timeout_is_invalid()
         error,
         WebDriverBiDiSessionStatusCommandError::FrameWrite { .. }
     ));
-    assert_eq!(correlation.outstanding_count(), 1);
+    assert_eq!(correlation.outstanding_count(), 0);
 
     server
         .join()
