@@ -16,7 +16,7 @@ use originweave_core::{
     WebDriverBiDiWebSocketEndpoint,
 };
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiTextValueObservationResponseError, WebDriverBiDiTextValueObservationResult,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
     WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageAssembler,
@@ -301,7 +301,7 @@ fn response_admission_failures_preserve_or_consume_exact_correlation_state()
 -> Result<(), Box<dyn Error>> {
     let invalid = receive_server_text(b"not-json")?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command(70)?;
+    correlation.register_command_for(70, WebDriverBiDiCommandKind::TextValueObservation)?;
     let Err(envelope_error) = WebDriverBiDiTextValueObservationResult::parse_correlate_and_compare(
         &invalid,
         "expected",
@@ -331,7 +331,7 @@ fn response_admission_failures_preserve_or_consume_exact_correlation_state()
     ));
     assert_eq!(correlation.outstanding_count(), 1);
 
-    correlation.register_command(71)?;
+    correlation.register_command_for(71, WebDriverBiDiCommandKind::TextValueObservation)?;
     let protocol_error = receive_server_text(
         br#"{"type":"error","id":71,"error":"unknown error","message":"remote failure"}"#,
     )?;
@@ -368,7 +368,7 @@ fn response_admission_failures_preserve_or_consume_exact_correlation_state()
     assert!(correlation_error.source().is_some());
     assert_eq!(correlation.outstanding_count(), 1);
 
-    correlation.register_command(73)?;
+    correlation.register_command_for(73, WebDriverBiDiCommandKind::TextValueObservation)?;
     let malformed_projection = receive_server_text(
         br#"{"type":"success","id":73,"result":{"type":"success","result":{"type":"string","value":"expected"}}}"#,
     )?;

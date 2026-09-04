@@ -239,16 +239,16 @@ impl WebDriverBiDiCommandCorrelation {
                     WebDriverBiDiCorrelatedResponseOutcome::Error,
                 )
             }
-            WebDriverBiDiJsonEnvelopeKind::Success => {
-                let Some(command_id) = envelope.command_id() else {
-                    return Err(WebDriverBiDiCommandCorrelationError::CommandNotOutstanding);
-                };
-                self.complete(
-                    command_id,
-                    expected_kind,
-                    WebDriverBiDiCorrelatedResponseOutcome::Success,
-                )
-            }
+            WebDriverBiDiJsonEnvelopeKind::Success => envelope.command_id().map_or_else(
+                || Err(WebDriverBiDiCommandCorrelationError::CommandNotOutstanding),
+                |command_id| {
+                    self.complete(
+                        command_id,
+                        expected_kind,
+                        WebDriverBiDiCorrelatedResponseOutcome::Success,
+                    )
+                },
+            ),
         }
     }
 

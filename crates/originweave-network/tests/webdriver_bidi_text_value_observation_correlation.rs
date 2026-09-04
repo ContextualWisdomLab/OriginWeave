@@ -8,7 +8,7 @@ use std::{
 
 use originweave_core::{MAX_WEBDRIVER_BIDI_TYPE_TEXT_BYTES, WebDriverBiDiWebSocketEndpoint};
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiTextValueObservationResponseError, WebDriverBiDiTextValueObservationResult,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
     WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
@@ -131,7 +131,7 @@ fn require_expected_text_error(
 fn protocol_error_correlation_and_diagnostics_fail_closed_without_consuming_other_state()
 -> Result<(), Box<dyn Error>> {
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command(70)?;
+    correlation.register_command_for(70, WebDriverBiDiCommandKind::TextValueObservation)?;
 
     let unknown_protocol_error = receive_server_text(
         br#"{"type":"error","id":71,"error":"unknown error","message":"remote failure"}"#,
@@ -181,7 +181,7 @@ fn invalid_expected_text_fails_before_response_or_correlation_state_is_touched()
 -> Result<(), Box<dyn Error>> {
     let invalid_envelope = receive_server_text(b"not-json")?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command(70)?;
+    correlation.register_command_for(70, WebDriverBiDiCommandKind::TextValueObservation)?;
 
     let empty_error = require_expected_text_error(&invalid_envelope, "", &mut correlation)?;
     assert!(matches!(

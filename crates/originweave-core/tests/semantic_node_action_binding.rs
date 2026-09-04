@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::hash::{DefaultHasher, Hash, Hasher};
 
 use originweave_core::{
     ActionIntentDigest, ActionKind, ActionRequest, AdmittedNodeHandle,
@@ -120,4 +121,38 @@ fn action_binding_rejects_business_request_from_another_document_origin()
     );
     assert!(error.source().is_none());
     Ok(())
+}
+
+#[test]
+fn node_action_kinds_preserve_the_complete_typed_set() {
+    let mut actions = [
+        NodeActionKind::ScrollIntoView,
+        NodeActionKind::SetChecked,
+        NodeActionKind::SelectOption,
+        NodeActionKind::TypeText,
+        NodeActionKind::Click,
+    ];
+    actions.sort();
+
+    assert_eq!(
+        actions,
+        [
+            NodeActionKind::Click,
+            NodeActionKind::TypeText,
+            NodeActionKind::SelectOption,
+            NodeActionKind::SetChecked,
+            NodeActionKind::ScrollIntoView,
+        ]
+    );
+    assert_eq!(
+        NodeActionKind::SelectOption.partial_cmp(&NodeActionKind::SetChecked),
+        Some(std::cmp::Ordering::Less)
+    );
+    assert_eq!(
+        format!("{:?}", NodeActionKind::ScrollIntoView),
+        "ScrollIntoView"
+    );
+    let mut hasher = DefaultHasher::new();
+    NodeActionKind::SetChecked.hash(&mut hasher);
+    assert_ne!(hasher.finish(), 0);
 }

@@ -6,8 +6,8 @@ use originweave_core::{
 
 use crate::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
-    WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeError, WebDriverBiDiJsonEnvelopeKind,
-    WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiCommandKind, WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeError,
+    WebDriverBiDiJsonEnvelopeKind, WebDriverBiDiWebSocketTextMessage,
 };
 
 const MAX_SCRIPT_RESULT_OBJECT_MEMBERS: usize = 64;
@@ -70,7 +70,10 @@ impl WebDriverBiDiTextValueObservationResult {
             }
             WebDriverBiDiJsonEnvelopeKind::Error => {
                 let completed = correlation
-                    .correlate_response(&envelope)
+                    .correlate_response_for(
+                        &envelope,
+                        WebDriverBiDiCommandKind::TextValueObservation,
+                    )
                     .map_err(|source| {
                         WebDriverBiDiTextValueObservationResponseError::Correlation { source }
                     })?;
@@ -85,7 +88,10 @@ impl WebDriverBiDiTextValueObservationResult {
                     WebDriverBiDiTextValueObservationResponseError::Projection { source }
                 })?;
                 let completed = correlation
-                    .correlate_response(&envelope)
+                    .correlate_response_for(
+                        &envelope,
+                        WebDriverBiDiCommandKind::TextValueObservation,
+                    )
                     .map_err(|source| {
                         WebDriverBiDiTextValueObservationResponseError::Correlation { source }
                     })?;
