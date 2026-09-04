@@ -10,6 +10,10 @@ The 1 June 2026 WebDriver BiDi Working Draft defines a bidirectional remote-cont
 
 The final Model Context Protocol `2026-07-28` specification defines the currently reviewed MCP generation. Its stateless request model carries protocol metadata per request and standard Streamable HTTP routing metadata for MCP operations; its Tools surface defines bounded, case-sensitive tool names and requires clients to treat tool annotations as untrusted unless supplied by a trusted server. OriginWeave therefore keeps MCP outside the product authority model. Active PR #168 implements only a bounded Rust `tools/call` routing/action-policy foundation for that exact generation; the complete transport, request-metadata, discovery, OAuth, browser, secret, and persistence adapter remains planned and cannot be inferred from the core routing primitive.
 
+### Same-document mutation authority
+
+The WHATWG DOM Standard defines the mutation, removal, and replacement semantics of DOM nodes, while WAI-ARIA 1.2 defines accessibility roles, states, properties, and accessible-name semantics that can change the meaning of an otherwise same-origin actionable target. OriginWeave therefore treats target removal or replacement, role or accessible-name change, accessibility-tree invalidation, nested-frame document replacement, and actionable-subtree replacement as authority-invalidating same-document mutations. Those classes rotate the `DocumentEpoch`; a reviewed non-semantic mutation may preserve the current epoch only when the adapter has deterministic evidence that no emitted handle can change meaning. The Rust decision function does not observe the DOM or accessibility tree by itself: a trusted browser adapter must classify current mutation evidence and revalidate the complete session/context/origin/epoch authority immediately before action.
+
 ### Browser origin equivalence
 
 The WHATWG URL host parser and Chromium canonicalizer classify shortened decimal, integer, hexadecimal, legacy octal-looking, and mixed-component numeric hosts as IPv4 or broken IPv4 candidates rather than ordinary DNS names. Chromium's regression suite includes values such as `192`, `0xC0a80001`, `030052000001`, and mixed hexadecimal components. A non-final empty `0x` component can participate in Chromium's multi-part IPv4 truncation behavior, but a final `0x` label does not produce an IPv4 number because stripping its prefix leaves no digits; it remains a domain label. Chromium also warns that broken IP-like hosts must not be connected because another resolver could accept them. OriginWeave therefore admits only canonical dotted-decimal IPv4 into its policy origin type, rejects browser-special numeric spellings before DNS validation, and preserves final non-numeric DNS labels such as `0x`.
@@ -188,9 +192,13 @@ The Unicode Consortium. (2025, July 30). *Unicode Standard Annex #15: Unicode no
 
 Unicode-RS Project Developers. (2025). *unicode-normalization 0.1.25* [Computer software]. https://docs.rs/unicode-normalization/0.1.25/unicode_normalization/
 
+Web Hypertext Application Technology Working Group. (2026). *DOM standard*. https://dom.spec.whatwg.org/
+
 Web Hypertext Application Technology Working Group. (2026). *URL standard*. https://url.spec.whatwg.org/
 
 World Wide Web Consortium. (2013). *PROV-O: The PROV ontology*. https://www.w3.org/TR/prov-o/
+
+World Wide Web Consortium. (2023, June 6). *Accessible Rich Internet Applications (WAI-ARIA) 1.2* (W3C Recommendation). https://www.w3.org/TR/wai-aria-1.2/
 
 World Wide Web Consortium. (2026, June 1). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260601/
 
