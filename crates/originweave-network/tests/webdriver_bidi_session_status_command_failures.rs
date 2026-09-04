@@ -160,7 +160,7 @@ fn session_status_rejects_invalid_frame_timeout_before_correlation_registration(
 }
 
 #[test]
-fn session_status_rejects_reused_mask_key_before_correlation_registration()
+fn session_status_reused_mask_key_rejection_does_not_leave_correlation_outstanding()
 -> Result<(), Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
