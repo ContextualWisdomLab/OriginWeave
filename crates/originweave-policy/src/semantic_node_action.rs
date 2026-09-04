@@ -67,7 +67,7 @@ impl PolicyAuthorizedSemanticNodeAction {
         &self,
         registry: &BrowserAuthorityRegistry,
         dispatch: F,
-    ) -> Result<R, BrowserRegistryError>
+    ) -> Result<R, AdmittedNodeAuthorityError>
     where
         F: FnOnce(&SemanticNodeActionBinding) -> R,
     {

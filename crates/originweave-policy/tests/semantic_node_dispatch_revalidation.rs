@@ -1,17 +1,19 @@
 use std::{cell::Cell, collections::BTreeSet, error::Error};
 
 use originweave_core::{
-    ActionIntentDigest, ActionKind, ActionRequest, ApprovalEvidence, BoundedWebDriverBiDiResponseDocument,
-    BrowserAuthorityRegistry, BrowserContextDispatchTarget, BrowserContextOriginDispatchTarget,
-    BrowserContextOriginEpochDispatchTarget, BrowserProtocolAdapterDescriptor, BrowserProtocolCapability,
-    BrowserProtocolKind, BrowserRegistryError, BrowsingContextId, ExecutionPurpose, InstructionSource,
-    NodeActionKind, Origin, OriginWeaveProtocolVersion, PolicyContext, RobotsDecision, SecretDelivery,
+    ActionIntentDigest, ActionKind, ActionRequest, AdmittedNodeAuthorityError, ApprovalEvidence,
+    BoundedWebDriverBiDiResponseDocument, BrowserAuthorityRegistry, BrowserContextDispatchTarget,
+    BrowserContextOriginDispatchTarget, BrowserContextOriginEpochDispatchTarget,
+    BrowserProtocolAdapterDescriptor, BrowserProtocolCapability, BrowserProtocolKind,
+    BrowserRegistryError, BrowsingContextId, ExecutionPurpose, InstructionSource, NodeActionKind,
+    Origin, OriginWeaveProtocolVersion, PolicyContext, RobotsDecision, SecretDelivery,
     SemanticNodeActionBinding, SessionMode, ValidatedBrowserProtocolUse,
     WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesCommand,
 };
 use originweave_policy::PolicyAuthorizedSemanticNodeAction;
 
-const ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion = OriginWeaveProtocolVersion::new(0, 1);
+const ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion =
+    OriginWeaveProtocolVersion::new(0, 1);
 const ADAPTER_VERSION: &str = "originweave-bidi-v1";
 const PROTOCOL_REVISION: &str = "webdriver-bidi-wd-2026-06-01";
 const BROWSER_REVISION: &str = "chromium-r1639810";
@@ -104,19 +106,22 @@ fn dispatch_unit_callback(
     authorized: &PolicyAuthorizedSemanticNodeAction,
     registry: &BrowserAuthorityRegistry,
     called: &Cell<bool>,
-) -> Result<(), BrowserRegistryError> {
+) -> Result<(), AdmittedNodeAuthorityError> {
     authorized.dispatch_if_current(registry, |_binding| called.set(true))
 }
 
 #[test]
-fn dispatch_callback_runs_only_after_registry_owned_browser_revalidation() -> Result<(), Box<dyn Error>> {
+fn dispatch_callback_runs_only_after_registry_owned_browser_revalidation()
+-> Result<(), Box<dyn Error>> {
     let fixture = authorized_action()?;
     let called = Cell::new(false);
 
-    let result = fixture.authorized.dispatch_if_current(&fixture.registry, |binding| {
-        called.set(true);
-        (binding.node_action(), binding.request().action())
-    })?;
+    let result = fixture
+        .authorized
+        .dispatch_if_current(&fixture.registry, |binding| {
+            called.set(true);
+            (binding.node_action(), binding.request().action())
+        })?;
 
     assert!(called.get());
     assert_eq!(result, (NodeActionKind::Click, ActionKind::Navigate));
@@ -138,7 +143,9 @@ fn stale_registry_authority_never_reaches_dispatch_callback() -> Result<(), Box<
             .authorized
             .dispatch_if_current(&fixture.registry, |_binding| called.set(true))
             .err(),
-        Some(BrowserRegistryError::UnknownNodeAuthority)
+        Some(AdmittedNodeAuthorityError::BrowserAuthority(
+            BrowserRegistryError::ContextOriginNotBound
+        ))
     );
     assert!(!called.get());
     Ok(())
@@ -148,10 +155,11 @@ fn stale_registry_authority_never_reaches_dispatch_callback() -> Result<(), Box<
 fn adapter_failure_remains_separate_after_successful_revalidation() -> Result<(), Box<dyn Error>> {
     let fixture = authorized_action()?;
 
-    let adapter_result = fixture.authorized.dispatch_if_current(
-        &fixture.registry,
-        |_binding| -> Result<(), &'static str> { Err("adapter failed") },
-    )?;
+    let adapter_result = fixture
+        .authorized
+        .dispatch_if_current(&fixture.registry, |_binding| -> Result<(), &'static str> {
+            Err("adapter failed")
+        })?;
 
     assert_eq!(adapter_result, Err("adapter failed"));
     Ok(())
