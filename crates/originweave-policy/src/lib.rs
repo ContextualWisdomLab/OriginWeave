@@ -15,6 +15,8 @@ pub use sensitive_data::{
     evaluate_handle_use,
 };
 
+use std::fmt;
+
 use originweave_core::mcp::ValidatedMcpToolCall;
 use originweave_core::{
     ActionRequest, ApprovalEvidence, ApprovalScope, Capability, ExecutionPurpose,
@@ -69,6 +71,42 @@ pub enum DenialReason {
     ApprovalScopeMismatch,
 }
 
+impl fmt::Display for DenialReason {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let message = match self {
+            Self::HumanModeNotAgentControlled => {
+                "human mode does not grant autonomous agent control"
+            }
+            Self::ModePurposeMismatch => "session mode and execution purpose are incompatible",
+            Self::UntrustedInstructionSource => {
+                "untrusted web content cannot authorize this action"
+            }
+            Self::McpActionMismatch => {
+                "validated MCP route does not match the requested policy action"
+            }
+            Self::MissingCapability(_) => "required action capability is missing",
+            Self::OriginNotReadable => "target origin is not readable under the current policy",
+            Self::CrawlerMutation => "crawler mode forbids state-mutating actions",
+            Self::CrossOriginMutation => {
+                "cross-origin mutation requires separately authorized source and target origins"
+            }
+            Self::OriginNotWritable => "target origin is not writable under the current policy",
+            Self::RobotsDisallowed => "robots policy denies this public crawl",
+            Self::RobotsUnknown => "robots policy is unknown for this public crawl",
+            Self::RobotsNotApplicable => {
+                "public crawl requires an applicable robots policy decision"
+            }
+            Self::SecretBrokerRequired => "secret-bearing actions require opaque broker delivery",
+            Self::UnexpectedSecretMaterial => "non-secret action cannot carry secret material",
+            Self::ForbiddenRisk => "action risk class is not delegable",
+            Self::ApprovalScopeMismatch => "approval evidence does not authorize this action scope",
+        };
+        formatter.write_str(message)
+    }
+}
+
+impl std::error::Error for DenialReason {}
+
 /// Evaluate a policy request only when it matches an already validated MCP route.
 ///
 /// Matching routing metadata grants no authority. Once route and request action agree, the request
@@ -85,7 +123,6 @@ pub fn evaluate_mcp(
 
     evaluate(request, context)
 }
-
 /// Evaluate a typed browser action against one explicit policy context.
 #[must_use]
 pub fn evaluate(request: &ActionRequest, context: &PolicyContext) -> Decision {
