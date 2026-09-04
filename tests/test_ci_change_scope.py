@@ -336,6 +336,14 @@ class CiChangeScopeTests(unittest.TestCase):
             workflow.count("needs.scope.outputs.rust_required == 'true'"),
             2,
         )
+        self.assertEqual(
+            workflow.count("github.event.pull_request.draft == false"),
+            4,
+        )
+        self.assertNotRegex(
+            workflow,
+            r"(?m)^  (rust|coverage):\n(?:.*\n){0,5}    if:.*\n(?:.*\n){0,5}    if:",
+        )
         self.assertIn("git diff --raw -z --no-abbrev", workflow)
         self.assertIn(
             'git show "${BASE_SHA}:scripts/ci/classify_ci_change_scope.py"',
