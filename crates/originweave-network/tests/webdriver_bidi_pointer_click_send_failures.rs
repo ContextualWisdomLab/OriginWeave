@@ -136,7 +136,10 @@ fn pointer_click_preserves_typed_registration_when_frame_timeout_is_invalid()
 
     let kind_error = correlation
         .retire_command_for(11, WebDriverBiDiCommandKind::SessionEnd)
-        .expect_err("pointer-click correlation must not retire as session.end");
+        .err()
+        .ok_or_else(|| {
+            io::Error::other("pointer-click correlation unexpectedly retired as session.end")
+        })?;
     assert_eq!(
         kind_error,
         WebDriverBiDiCommandCorrelationError::CommandKindMismatch {
