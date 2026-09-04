@@ -40,6 +40,17 @@ class CiChangeScopeProseBoundaryTests(unittest.TestCase):
                     (False, True),
                 )
 
+    def test_agent_instruction_control_plane_requires_rust(self) -> None:
+        """Contributor authority documents must never enter the lightweight prose lane."""
+
+        for path in ("AGENTS.md", "CLAUDE.md"):
+            with self.subTest(path=path):
+                self.assertFalse(is_documentation_path(path))
+                self.assertEqual(
+                    classify_changes(parse_nul_raw_changes(_raw_record(path))),
+                    (False, True),
+                )
+
     def test_markdown_under_docs_remains_lightweight(self) -> None:
         """The existing reviewed Markdown documentation surface remains eligible."""
 

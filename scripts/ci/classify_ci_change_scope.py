@@ -9,6 +9,7 @@ from typing import Iterable
 
 _ABSENT_MODE = "000000"
 _PLAIN_DOCUMENT_MODE = "100644"
+_AGENT_INSTRUCTION_AUTHORITY = frozenset({"AGENTS.md", "CLAUDE.md"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -247,8 +248,10 @@ def parse_nul_raw_changes(data: bytes) -> tuple[RawChange, ...]:
 
 
 def is_documentation_path(path: str) -> bool:
-    """Return whether a repository path belongs to the reviewed Markdown prose surface."""
+    """Return whether a path belongs to prose that may use lightweight CI."""
 
+    if path in _AGENT_INSTRUCTION_AUTHORITY:
+        return False
     return path.endswith(".md") and (path.startswith("docs/") or "/" not in path)
 
 
