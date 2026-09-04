@@ -30,7 +30,7 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "5 Ready/non-draft",
             "140 Draft",
             "13 open non-PR issues",
-            "c789b802fc98a8d7fd8c09d9327f36828054d2a1",
+            "4ed08bfa7c063fc7f2ef9278ee8d281887b8296b",
             "18156473",
             "7 central required workflows",
             "codeql-pr",
@@ -62,6 +62,7 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
         self.assertIn("binds Git rename/copy similarity to blob identity", current)
         self.assertNotIn("remaining rename/copy similarity-binding RED", self.changelog)
         for stale in (
+            "Protected `main` is `c789b802fc98a8d7fd8c09d9327f36828054d2a1` through #280",
             "143 open pull requests",
             "142 open pull requests",
             "24 Ready/non-draft",

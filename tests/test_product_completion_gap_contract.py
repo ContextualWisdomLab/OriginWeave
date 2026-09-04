@@ -83,6 +83,27 @@ class ProductCompletionGapContractTests(unittest.TestCase):
         self.assertIn("reviewer-provisioning gap", text)
         self.assertNotIn("owner-directed administrative merge", text)
 
+    def test_current_snapshot_records_the_pr_284_admin_bypass_incident(self) -> None:
+        """A bypassed main update must not be presented as a policy-compliant merge."""
+        text = BASELINE.read_text(encoding="utf-8")
+        current = text.split("## Current live delivery state", 1)[1].split(
+            "## Observed snapshot: ", 1
+        )[0]
+
+        for marker in (
+            "4ed08bfa7c063fc7f2ef9278ee8d281887b8296b",
+            "#284",
+            "61bcf88c960c6c437ccd29b3fbb73cd4325f9e5a",
+            "rule-suite `3948421709`",
+            "`result: bypass`",
+            "#215",
+            "post-merge checks remain non-terminal",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, current)
+
+        self.assertNotIn("through #280", current)
+
     def test_changelog_marks_superseded_warc_head_as_historical(self) -> None:
         """A predecessor WARC head must not look like the current exact evidence."""
         text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
