@@ -3,7 +3,7 @@
 - **`tools/call` capability maturity:** `IMPLEMENTED_ON_PROTECTED_MAIN`
 - **`tools/list` capability maturity:** `IMPLEMENTED_ON_PROTECTED_MAIN`
 - **Protected-main owning work:** merged PR #168 (`tools/call`) and PR #170 (`tools/list`)
-- **Active architecture repair:** PR #272 (`originweave-mcp` adapter boundary)
+- **Active architecture repair:** active PR #272 (`originweave-mcp` adapter boundary)
 - **Complete MCP adapter status:** `PLANNED`
 - **Governing decision:** ADR 0107
 
@@ -13,7 +13,11 @@ Protected `main@c789b802fc98a8d7fd8c09d9327f36828054d2a1` contains the bounded R
 
 A successful MCP routing value proves protocol integrity only. It grants no capability, origin, approval, secret, browser, tenant, persistence, network, evidence, or ambient execution authority. Browser and policy authority remain in their OriginWeave bounded contexts.
 
-PR #272 is an active DDD repair that moves the external MCP protocol surface into `originweave-mcp` while preserving inward dependency direction: the adapter may consume stable core contracts and the protocol-independent policy API, but core and policy must not depend outward on MCP transport types. The move is active-PR evidence, not protected-main shipment.
+PR #272 is an active DDD repair that moves the external MCP protocol surface into `originweave-mcp` while preserving inward dependency direction: the adapter may consume stable core contracts and the protocol-independent policy API, but core and policy must not depend outward on MCP transport types. The move is active-PR evidence, not protected-main behavior.
+
+## Bounded-context correction
+
+Protected main still owns the integrated foundation at `crates/originweave-core/src/mcp.rs`. Active PR #272 moves the protocol implementation to `crates/originweave-mcp/src/routing.rs`; `originweave_mcp::evaluate_mcp` retains route/action mismatch as adapter-owned `McpRouteRejection` and calls `originweave_policy::evaluate` only after protocol integrity is established. Core remains the stable action and authority vocabulary, while policy remains protocol-independent.
 
 ## Final 2026-07-28 per-request envelope
 
