@@ -1,7 +1,7 @@
 use std::fmt;
 
 use originweave_core::{
-    BrowserAuthorityRegistry, BrowserRegistryError, PolicyContext, RiskClass,
+    AdmittedNodeAuthorityError, BrowserAuthorityRegistry, PolicyContext, RiskClass,
     SemanticNodeActionBinding,
 };
 
@@ -53,7 +53,7 @@ impl PolicyAuthorizedSemanticNodeAction {
     pub fn validate_current(
         &self,
         registry: &BrowserAuthorityRegistry,
-    ) -> Result<(), BrowserRegistryError> {
+    ) -> Result<(), AdmittedNodeAuthorityError> {
         self.binding.validate_current(registry)
     }
 
@@ -67,7 +67,7 @@ impl PolicyAuthorizedSemanticNodeAction {
         &self,
         registry: &BrowserAuthorityRegistry,
         dispatch: F,
-    ) -> Result<R, BrowserRegistryError>
+    ) -> Result<R, AdmittedNodeAuthorityError>
     where
         F: FnOnce(&SemanticNodeActionBinding) -> R,
     {
