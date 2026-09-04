@@ -15,5 +15,6 @@ pub use contracts::*;
 pub mod mcp;
 mod native_messaging;
 pub use native_messaging::*;
+
 /// Deterministic fail-closed release benchmark acceptance aggregation.
 pub mod release_acceptance;
