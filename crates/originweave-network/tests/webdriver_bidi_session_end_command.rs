@@ -110,3 +110,55 @@ fn session_end_command_writes_the_exact_typed_frame_without_claiming_completion(
         .map_err(|_| io::Error::other("session.end command test server panicked"))??;
     Ok(())
 }
+
+#[test]
+fn session_end_reused_mask_key_rejection_retires_exact_correlation() -> Result<(), Box<dyn Error>> {
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let local_addr = listener.local_addr()?;
+    let server = thread::spawn(move || -> io::Result<()> {
+        let (mut stream, _) = listener.accept()?;
+        read_opening_request(&mut stream)?;
+        stream.write_all(OPENING_RESPONSE)?;
+        let seed = read_masked_text_frame(&mut stream)?;
+        if seed != b"{}" {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "unexpected seed frame before reused-key regression",
+            ));
+        }
+        Ok(())
+    });
+
+    let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+    let target = WebDriverBiDiWebSocketEndpoint::new(&endpoint)?
+        .correlate_session_id(SESSION_ID)?
+        .into_explicit_connect_target()?;
+    let connection =
+        WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)?.connect()?;
+    let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?;
+    let established = WebDriverBiDiWebSocketHandshakePlan::new(connection, key)?
+        .write_opening_request(Duration::from_millis(500))?
+        .read_opening_response(Duration::from_millis(500))?;
+    let repeated_key = WebDriverBiDiWebSocketMaskKey::new([9, 10, 11, 12]);
+    let established =
+        established.write_text_frame("{}", repeated_key, Duration::from_millis(500))?;
+
+    let mut correlation = WebDriverBiDiCommandCorrelation::new();
+    let command = WebDriverBiDiSessionEndCommand::new(13)?;
+    assert!(
+        command
+            .send(
+                established,
+                &mut correlation,
+                repeated_key,
+                Duration::from_millis(500),
+            )
+            .is_err()
+    );
+    assert_eq!(correlation.outstanding_count(), 0);
+
+    server
+        .join()
+        .map_err(|_| io::Error::other("reused-mask-key session.end server panicked"))??;
+    Ok(())
+}

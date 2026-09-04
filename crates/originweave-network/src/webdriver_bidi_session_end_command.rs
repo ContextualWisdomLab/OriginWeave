@@ -1,7 +1,7 @@
 use std::{error::Error, fmt, time::Duration};
 
 use crate::{
-    MAX_WEBDRIVER_BIDI_JS_UINT, WebDriverBiDiCommandCorrelation,
+    MAX_WEBDRIVER_BIDI_JS_UINT, MAX_WEBSOCKET_FRAME_TIMEOUT, WebDriverBiDiCommandCorrelation,
     WebDriverBiDiCommandCorrelationError, WebDriverBiDiCommandKind,
     WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrameError,
     WebDriverBiDiWebSocketMaskKey,
@@ -40,11 +40,12 @@ impl WebDriverBiDiSessionEndCommand {
 
     /// Register and write this exact command on an already established verified BiDi stream.
     ///
-    /// Registration occurs before the first possible remote side effect. A correlation failure
-    /// therefore writes nothing. Once registration succeeds, any frame-write failure consumes the
-    /// transport and intentionally leaves the identifier outstanding: a partial or fully emitted
-    /// frame is ambiguous, so silently retiring the id could allow unsafe reuse. A successful write
-    /// also leaves the identifier outstanding until a later correlated response proves completion.
+    /// Locally invalid frame deadlines fail before correlation registration and before any remote
+    /// side effect. Correlation then registers the command before the first possible frame write.
+    /// A frame-owner preflight rejection that proves no write began retires this exact command
+    /// again. Once frame emission can have begun, a later failure leaves the identifier outstanding
+    /// because partial or full emission is ambiguous. A successful write also leaves the identifier
+    /// outstanding until a later correlated response proves completion.
     pub fn send(
         self,
         established: WebDriverBiDiWebSocketEstablished,
@@ -52,13 +53,22 @@ impl WebDriverBiDiSessionEndCommand {
         masking_key: WebDriverBiDiWebSocketMaskKey,
         frame_timeout: Duration,
     ) -> Result<WebDriverBiDiWebSocketEstablished, WebDriverBiDiSessionEndCommandError> {
+        if frame_timeout.is_zero() || frame_timeout > MAX_WEBSOCKET_FRAME_TIMEOUT {
+            return Err(WebDriverBiDiSessionEndCommandError::FrameWrite {
+                source: WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout {
+                    frame_timeout,
+                    maximum_timeout: MAX_WEBSOCKET_FRAME_TIMEOUT,
+                },
+            });
+        }
         correlation
             .register_command_for(self.command_id, WebDriverBiDiCommandKind::SessionEnd)
             .map_err(|source| WebDriverBiDiSessionEndCommandError::Correlation { source })?;
         let message = self.serialized();
-        established
-            .write_text_frame(&message, masking_key, frame_timeout)
-            .map_err(|source| WebDriverBiDiSessionEndCommandError::FrameWrite { source })
+        match established.write_text_frame(&message, masking_key, frame_timeout) {
+            Ok(established) => Ok(established),
+            Err(source) => Err(map_frame_failure(correlation, self.command_id, source)),
+        }
     }
 
     fn serialized(self) -> String {
@@ -67,6 +77,21 @@ impl WebDriverBiDiSessionEndCommand {
             self.command_id
         )
     }
+}
+
+fn map_frame_failure(
+    correlation: &mut WebDriverBiDiCommandCorrelation,
+    command_id: u64,
+    source: WebDriverBiDiWebSocketFrameError,
+) -> WebDriverBiDiSessionEndCommandError {
+    if matches!(
+        source,
+        WebDriverBiDiWebSocketFrameError::MalformedFrame { .. }
+    ) {
+        let _retirement =
+            correlation.retire_command_for(command_id, WebDriverBiDiCommandKind::SessionEnd);
+    }
+    WebDriverBiDiSessionEndCommandError::FrameWrite { source }
 }
 
 /// Fail-closed errors while constructing or sending one typed `session.end` command.
@@ -84,9 +109,9 @@ pub enum WebDriverBiDiSessionEndCommandError {
         /// Exact typed correlation failure.
         source: WebDriverBiDiCommandCorrelationError,
     },
-    /// Writing the already-registered command frame failed and the transport is not reusable.
+    /// Frame preflight validation or a later write operation failed.
     FrameWrite {
-        /// Exact typed bounded WebSocket frame-write failure.
+        /// Exact typed bounded WebSocket frame validation/write failure.
         source: WebDriverBiDiWebSocketFrameError,
     },
 }
@@ -179,5 +204,38 @@ mod tests {
             "WebDriver BiDi session.end command frame write failed"
         );
         assert!(frame.source().is_some());
+    }
+
+    #[test]
+    fn only_frame_preflight_malformed_errors_retire_registered_correlation() {
+        let mut correlation = WebDriverBiDiCommandCorrelation::new();
+        assert!(
+            correlation
+                .register_command_for(1, WebDriverBiDiCommandKind::SessionEnd)
+                .is_ok()
+        );
+        let preflight = WebDriverBiDiWebSocketFrameError::MalformedFrame {
+            reason: "test preflight rejection",
+        };
+        assert_eq!(
+            map_frame_failure(&mut correlation, 1, preflight).to_string(),
+            "WebDriver BiDi session.end command frame write failed"
+        );
+        assert_eq!(correlation.outstanding_count(), 0);
+
+        assert!(
+            correlation
+                .register_command_for(2, WebDriverBiDiCommandKind::SessionEnd)
+                .is_ok()
+        );
+        let ambiguous = WebDriverBiDiWebSocketFrameError::FrameWriteFailed {
+            bytes_written: 1,
+            source: io::Error::other("test ambiguous write failure"),
+        };
+        assert_eq!(
+            map_frame_failure(&mut correlation, 2, ambiguous).to_string(),
+            "WebDriver BiDi session.end command frame write failed"
+        );
+        assert_eq!(correlation.outstanding_count(), 1);
     }
 }
