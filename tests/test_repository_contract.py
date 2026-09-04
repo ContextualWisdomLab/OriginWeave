@@ -120,10 +120,18 @@ class RepositoryContractTests(unittest.TestCase):
         self.assertIn(f"exact-coverage-{exact_head}", workflow)
         self.assertIn("permissions:\n  contents: read", workflow)
         self.assertNotIn("contents: write", workflow)
-        self.assertIn("${{ github.workflow }}-${{ github.repository }}", workflow)
-        self.assertIn("${{ github.event.pull_request.number || github.run_id }}", workflow)
-        self.assertIn("cancel-in-progress: ${{ github.event_name == 'pull_request' }}", workflow)
+        self.assertIn(
+            "concurrency:\n"
+            "  group: ${{ github.workflow }}-${{ github.repository }}-"
+            "${{ github.event.pull_request.number || github.run_id }}\n"
+            "  cancel-in-progress: ${{ github.event_name == 'pull_request' }}",
+            workflow,
+        )
         self.assertNotIn("cargo check --locked --workspace --all-targets", workflow)
+        quality_gates = (ROOT / "docs/quality-gates.md").read_text(encoding="utf-8")
+        self.assertIn("Clippy is the workspace compile/check gate", quality_gates)
+        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.assertIn("Scoped pull-request workflow cancellation", changelog)
 
     def test_hourly_loop_uses_nvidia_nim_and_dedicated_publication_authority(self) -> None:
         """The product loop must use OpenCode/NIM without review or merge credentials."""
