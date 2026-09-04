@@ -1,8 +1,9 @@
 //! Fail-closed identity binding for release artifacts.
 //!
 //! The types in this module are deliberately inert metadata contracts. They bind an exact
-//! source commit, Chromium revision, release channel, build identity, and artifact digests
-//! without granting signing, publication, installation, update, rollback, or release authority.
+//! source commit, Chromium revision, release channel, build identity, artifact digests, and
+//! release-SBOM identity without granting signing, publication, installation, update, rollback,
+//! or release authority.
 
 use std::collections::BTreeSet;
 use std::error::Error;
@@ -156,6 +157,205 @@ impl fmt::Display for ReleaseArtifactError {
 }
 
 impl Error for ReleaseArtifactError {}
+
+/// SPDX serialization identity admitted for release-SBOM evidence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReleaseSbomFormat {
+    /// SPDX 3.0.1 serialized as JSON-LD.
+    Spdx30JsonLd,
+}
+
+impl ReleaseSbomFormat {
+    /// Return the exact SPDX specification version represented by this format.
+    #[must_use]
+    pub const fn spdx_specification_version(self) -> &'static str {
+        match self {
+            Self::Spdx30JsonLd => "3.0.1",
+        }
+    }
+
+    /// Return the exact global JSON-LD context URI required by this SPDX format.
+    ///
+    /// This versioned identifier is inert serialization metadata for downstream validation and
+    /// serialization. It does not validate SBOM bytes, authenticate artifacts, or grant release
+    /// authority.
+    #[must_use]
+    pub const fn json_ld_context_uri(self) -> &'static str {
+        match self {
+            Self::Spdx30JsonLd => "https://spdx.org/rdf/3.0.1/spdx-context.jsonld",
+        }
+    }
+}
+
+/// Inert binding between one release manifest and its declared SPDX SBOM artifact identity.
+///
+/// This value proves only that the named SBOM and exact described artifact identities are already
+/// admitted by the same immutable [`ReleaseManifest`]. It retains the complete bounded release
+/// manifest identity and each described artifact digest, so any source, Chromium, channel, build,
+/// artifact-inventory, or described-artifact change produces a different binding. It does not
+/// parse or validate SPDX content, prove that the SBOM actually describes those artifacts,
+/// authenticate any digest, or grant release authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReleaseSbomBinding {
+    release_manifest: ReleaseManifest,
+    format: ReleaseSbomFormat,
+    sbom_artifact: ReleaseArtifact,
+    described_artifact_names: Vec<String>,
+    described_artifacts: Vec<ReleaseArtifact>,
+}
+
+impl ReleaseSbomBinding {
+    /// Bind a declared SPDX SBOM artifact to every other artifact in one release manifest.
+    ///
+    /// The complete bounded release-manifest identity is retained in the binding. The SBOM
+    /// artifact name and every described artifact name must match that manifest exactly. The SBOM
+    /// artifact itself cannot be admitted as one of its described artifacts. Every other manifest
+    /// artifact must be described exactly once; missing, foreign, self-described, and duplicate
+    /// entries fail closed. Exact described artifact identities plus their public names are sorted
+    /// deterministically. The release manifest's own admission bound therefore also bounds this
+    /// inventory.
+    pub fn new<'a, I>(
+        manifest: &ReleaseManifest,
+        sbom_artifact_name: &str,
+        format: ReleaseSbomFormat,
+        described_artifact_names: I,
+    ) -> Result<Self, ReleaseSbomBindingError>
+    where
+        I: IntoIterator<Item = &'a str>,
+    {
+        let Some(sbom_artifact) = manifest
+            .artifacts()
+            .iter()
+            .find(|artifact| artifact.name() == sbom_artifact_name)
+        else {
+            return Err(ReleaseSbomBindingError::UnknownSbomArtifact);
+        };
+
+        let mut described_artifacts = Vec::new();
+        let mut seen = BTreeSet::new();
+        for artifact_name in described_artifact_names {
+            if artifact_name == sbom_artifact.name() {
+                return Err(ReleaseSbomBindingError::SelfDescribedSbomArtifact);
+            }
+            let Some(artifact) = manifest
+                .artifacts()
+                .iter()
+                .find(|artifact| artifact.name() == artifact_name)
+            else {
+                return Err(ReleaseSbomBindingError::UnknownDescribedArtifact);
+            };
+            if !seen.insert(artifact_name.to_owned()) {
+                return Err(ReleaseSbomBindingError::DuplicateDescribedArtifact);
+            }
+            described_artifacts.push(artifact.clone());
+        }
+        if described_artifacts.is_empty() {
+            return Err(ReleaseSbomBindingError::MissingDescribedArtifacts);
+        }
+        if described_artifacts.len() + 1 != manifest.artifacts().len() {
+            return Err(ReleaseSbomBindingError::IncompleteDescribedArtifacts);
+        }
+        described_artifacts.sort_by(|left, right| left.name.cmp(&right.name));
+        let described_artifact_names = described_artifacts
+            .iter()
+            .map(|artifact| artifact.name().to_owned())
+            .collect();
+
+        Ok(Self {
+            release_manifest: manifest.clone(),
+            format,
+            sbom_artifact: sbom_artifact.clone(),
+            described_artifact_names,
+            described_artifacts,
+        })
+    }
+
+    /// Return the complete exact release manifest retained by this SBOM binding.
+    ///
+    /// This is inert identity evidence for downstream verification and provenance composition. It
+    /// does not authenticate the manifest, validate SBOM content, or grant release authority.
+    #[must_use]
+    pub const fn release_manifest(&self) -> &ReleaseManifest {
+        &self.release_manifest
+    }
+
+    /// Return the declared SPDX serialization format.
+    #[must_use]
+    pub const fn format(&self) -> ReleaseSbomFormat {
+        self.format
+    }
+
+    /// Return the exact SPDX specification version represented by the declared format.
+    #[must_use]
+    pub const fn spdx_specification_version(&self) -> &'static str {
+        self.format.spdx_specification_version()
+    }
+
+    /// Return the exact manifest-backed SBOM artifact identity.
+    #[must_use]
+    pub const fn sbom_artifact(&self) -> &ReleaseArtifact {
+        &self.sbom_artifact
+    }
+
+    /// Return described manifest artifact names in deterministic lexical order.
+    #[must_use]
+    pub fn described_artifact_names(&self) -> &[String] {
+        &self.described_artifact_names
+    }
+
+    /// Return exact described artifact identities in deterministic lexical order.
+    ///
+    /// These name-and-digest identities are retained from the same admitted release manifest and
+    /// are suitable for later verification joins. Their presence alone does not authenticate
+    /// artifact bytes or prove that the SBOM content describes them.
+    #[must_use]
+    pub fn described_artifacts(&self) -> &[ReleaseArtifact] {
+        &self.described_artifacts
+    }
+}
+
+/// Validation error for release-SBOM identity binding.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReleaseSbomBindingError {
+    /// The named SBOM artifact is absent from the release manifest.
+    UnknownSbomArtifact,
+    /// No release artifacts were declared as described by the SBOM.
+    MissingDescribedArtifacts,
+    /// The SBOM omitted at least one non-SBOM artifact from the same release manifest.
+    IncompleteDescribedArtifacts,
+    /// The SBOM artifact was also declared as an artifact that the SBOM describes.
+    SelfDescribedSbomArtifact,
+    /// A described artifact name is absent from the release manifest.
+    UnknownDescribedArtifact,
+    /// A described artifact name was repeated.
+    DuplicateDescribedArtifact,
+}
+
+impl fmt::Display for ReleaseSbomBindingError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::UnknownSbomArtifact => formatter
+                .write_str("release SBOM artifact is not present in the bound release manifest"),
+            Self::MissingDescribedArtifacts => {
+                formatter.write_str("release SBOM must describe at least one release artifact")
+            }
+            Self::IncompleteDescribedArtifacts => {
+                formatter.write_str("release SBOM must describe every non-SBOM release artifact")
+            }
+            Self::SelfDescribedSbomArtifact => {
+                formatter.write_str("release SBOM must not describe its own artifact")
+            }
+            Self::UnknownDescribedArtifact => formatter.write_str(
+                "release SBOM describes an artifact that is not present in the bound release manifest",
+            ),
+            Self::DuplicateDescribedArtifact => {
+                formatter.write_str("release SBOM repeats a described release artifact")
+            }
+        }
+    }
+}
+
+impl Error for ReleaseSbomBindingError {}
 
 /// Deterministic, bounded identity manifest for one OriginWeave release candidate.
 #[derive(Debug, Clone, PartialEq, Eq)]

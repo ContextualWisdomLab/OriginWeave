@@ -4,6 +4,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Tightened the provisional SPDX JSON-LD container budget to a reachable pre-materialization bound and changed its regression input to shallow fan-out, so container exhaustion is distinguished from nesting-depth and structure-token failures.
+
 - Refreshed the product-gap queue to 126 open pull requests (54 ready, 72 draft) after #190, #188, #185, #192, #182, #184, #115, #181, #116, #117, #118, #183, #114, #127, #112, #109, #186, #110, #108, #111, #174, and #113 were merged into their immediate stacked prerequisites. PRs #147, #146, #145, #144, #143, #142, #141, #139, #136, #132, #129, and #128 moved to ready after exact-head checks and thread review; these are queue-consolidation results, not protected-main shipment.
 
 ### Added
@@ -11,6 +13,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Refreshed the product and technical gap baseline onto the 2026-08-26 live inventory: 126 open pull requests (54 ready, 72 draft), protected-main promotion of #168/#194/#196/#216/#151, a verified maintenance-loop record (supersession closure of #153, conflict reconciliations on #37/#149/#152/#173/#175, issue #212 option-(b) authorization on #43, Strix vuln-0001 homoglyph remediation on #124), provider-rerun outcome evidence, an organization review-pipeline congestion record, and refreshed merge-order queue guidance. Documentation evidence contracts were aligned to the same snapshot so the baseline, its dated markers, and the pinned exact-head rows cannot silently diverge.
 
 - Added `originweave_core::release_acceptance`, a deterministic fail-closed benchmark release-decision contract that requires one authoritative result for every mandatory suite, bounds explicit buyer-visible limitations, rejects duplicate limitation claim identities, and rejects non-canonical surrounding whitespace rather than normalizing it into an alternate claim spelling.
+- Added an inert SPDX 3.0.1 JSON-LD SBOM identity binding that requires the SBOM artifact and every non-SBOM release artifact to be exact members of the same release manifest, rejects empty, incomplete, foreign, duplicate, self-described, and case-drifted artifact identities, preserves a non-circular release-inventory-complete exact-digest join, exposes the complete retained manifest and exact described artifact identities for downstream verification/provenance composition, and does not claim SPDX content conformance, package/component completeness inside the SBOM, artifact authentication, provenance, signing, publication, installation, update, rollback, or release authority.
 - Refreshed the product and technical gap baseline with the 2026-08-24 live inventory: 158 open pull requests (44 ready, 114 draft), refreshed exact base/head evidence for the #208–#222 release, enterprise-approval, BAP, and WARC/PROV chains, the governance issue additions #212 and #215, and a required-check provider-failure record for the fail-closed Strix re-dispatches on #208/#218/#220.
 - Added a dated product and technical gap baseline that separates protected-main implementation truth, active pull-request evidence, live review/check blockers, and the next buyer-visible Phase 1 acceptance work.
 - Refreshed the product and technical gap baseline with the current open-PR inventory and exact base/head evidence for the newest Chromium, BAP, extraction, WARC, and idempotency slices.
@@ -72,6 +75,11 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Security
 
+- The provisional SPDX 3.0.1 release-envelope parser now rejects both excessive opening-container depth/fan-out and broader scalar/member fan-out before `json.loads`: opening containers are capped at 524,288 and total structural `[]{}:,` tokens at 1,048,576, counting only punctuation outside JSON strings. This prevents compact hostile documents below the 16 MiB byte ceiling from amplifying into an unbounded generic object tree while preserving structural-looking text inside string values. The eventual Rust-owned Release boundary must retain an equivalent or stricter pre-materialization resource invariant.
+- The SPDX 3.0.1 release-envelope gate now requires exactly one top-level `SpdxDocument` under `@graph` and rejects both a nested-only document and any additional nested `SpdxDocument`, preventing recursive string/type discovery from substituting for the required serialization placement.
+- The SPDX 3.0.1 release-envelope gate requires the exact versioned global-context string and rejects context arrays, `@import`, `@base`, `@vocab`, and alias/term-rebinding attempts until reviewed schema-aware validation can prove extension semantics without ambient or reinterpretation authority.
+- SPDX JSON-LD release-file admission now requires a direct regular-file leaf reached through a no-follow descriptor-relative path walk and revalidates the final leaf's device/inode identity after the bounded read, so symlinks, FIFOs, swapped ancestors, and post-open pathname replacement fail closed instead of silently changing the artifact path identity.
+- Explicit proxy server identifiers require ASCII decimal port tokens before numeric range parsing, preventing Rust-specific leading-plus spellings from widening proxy authority.
 - Explicit proxy server identifiers require ASCII decimal port tokens before numeric range parsing, preventing Rust-specific leading-plus spellings from widening proxy authority.
 - Release artifact admission rejects `COM0` through `COM9` and `LPT0` through `LPT9` case-insensitively, including extensions, as bounded filename identity hygiene. OneDrive and SharePoint impose additional restrictions, including `desktop.ini`, that this validator does not model; this is not a complete OneDrive or SharePoint synchronization-compatibility guarantee.
 - Raw page content cannot become a trusted instruction.
@@ -81,8 +89,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - R3 and R4 approvals are bound to the exact action, target origin, and immutable digest of the complete canonical action intent; R5 legal consent is non-delegable.
 - Shortened, integer, hexadecimal, and legacy octal-looking IPv4 host spellings are rejected so the policy origin cannot diverge from Chromium host interpretation.
 - IPv4-mapped IPv6 is canonicalized before destination classification and pin comparison so mapped private or loopback addresses cannot bypass IPv4 policy.
-- The default destination policy permits only public addresses and denies unspecified, loopback, private, shared, link-local, metadata, documentation, benchmarking, multicast, broadcast, transition, and protocol-reserved destinations.
-- Azure platform IP `168.63.129.16` and Amazon EKS Pod Identity endpoints `169.254.170.23` and `fd00:ec2::23` are classified as metadata or platform services before broader public, link-local, or unique-local rules.
+- The default destination policy permits only public addresses and denies unspecified, loopback, private, shared, link-local, metadata, documentation, benchmarking, multicast, broadcast, transition, unallocated, and protocol-reserved destinations.
+- Azure platform IP `168.63.129.16` and Amazon EKS Pod Identity endpoints `169.254.170.23` and `fd00:ec2::23` are classified as metadata or platform services before broader address-range rules.
 - Resolver answers are rejected when empty or larger than 256 addresses, preventing an unbounded resolver response from entering policy state.
 - `localhost` may approve only loopback addresses, while literal IPv4 and IPv6 origins may approve only the exact canonical address encoded in the origin.
 - Resolver answers must remain a non-empty subset of the origin-bound approved address set; any newly introduced address fails closed as a possible DNS-rebinding event.

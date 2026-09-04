@@ -57,14 +57,16 @@ Proposed ADR files are reviewable target architecture without becoming Accepted 
 
 ADR 0013 and ADR 0014 exist only on this documentation branch until it integrates. After integration, this subsection remains historical provenance rather than an active-PR claim; both decisions remain Proposed until a later policy-compliant change explicitly changes their lifecycle.
 
-### Proposed decisions introduced by active feature work
+### Active feature proposed decisions
 
 | ADR | Decision | Status | Governs |
 |---|---|---|---|
 | [0015](0015-release-manifest-identity.md) | Release manifest identity boundary | Proposed | bounded release-candidate metadata identity, deterministic artifact ordering, cross-platform filename collision guards, and explicit exclusion of signing/publication/install/update authority |
 | [0016](0016-bap-task-lifecycle-authority.md) | BAP task lifecycle and state authority | Proposed | BAP task states, transitions, recovery validation, transition sequencing, and authority separation |
+| [0018](0018-release-sbom-identity.md) | Release SBOM identity binding | Proposed | exact manifest-backed SPDX 3.0.1 SBOM artifact identity and described-artifact membership without content-conformance or release authority claims |
 
-ADR 0015 is active-PR architecture evidence for the release-manifest identity slice. ADR 0016 belongs to the active BAP lifecycle feature branch. Both remain Proposed. Indexing them makes the branch documentation graph complete without promoting either decision or its implementation to protected-main truth.
+
+ADR 0015 is active-PR architecture evidence for the release-manifest identity slice. ADR 0016 belongs to the active BAP lifecycle feature branch. ADR 0018 is stacked active-PR architecture evidence for the release-SBOM identity slice. All remain Proposed. Indexing them makes the branch documentation graph complete without promoting either decision or implementation to protected-main truth.
 
 After protected-main integration, retain this subsection only when it is intentionally serving as historical provenance; otherwise protected-main reconciliation must remove it. In either case, integration alone does not change these ADRs from Proposed or assert implementation maturity.
 

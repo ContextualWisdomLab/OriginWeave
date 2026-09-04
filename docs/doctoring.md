@@ -86,6 +86,12 @@ The test-only rcgen 0.14.8 dependency creates a local CA and deterministic certi
 
 Microsoft's Win32 filename guidance requires applications not to assume case sensitivity and reserves device basenames including `CON`, `PRN`, `AUX`, `NUL`, `COM1` through `COM9`, and `LPT1` through `LPT9`, including those names followed by extensions. The same documentation identifies non-ASCII superscript-digit device aliases and also documents `COM0` as a possible `Global??` Win32 namespace symlink. Separately, Microsoft's current OneDrive and SharePoint restrictions reject `COM0` through `COM9` and `LPT0` through `LPT9` and additional names including `desktop.ini`. OriginWeave therefore adopts a bounded release-artifact identity deny set: ASCII-case-folded duplicate names and `CON`, `PRN`, `AUX`, `NUL`, `COM0` through `COM9`, and `LPT0` through `LPT9`, including extensions, are rejected. The ASCII-only grammar separately excludes the superscript aliases. This bounded filename rule is not a complete OneDrive or SharePoint synchronization-compatibility guarantee; packaging or synchronization validation for a target service must separately enforce that service's full current restrictions. These checks preserve the original artifact spelling and remain identity hygiene only; they do not grant signing, publication, installation, update, rollback, or release authority.
 
+### Release SBOM identity
+
+SPDX 3.0.1 defines JSON-LD as an RDF serialization for SPDX data and requires conformant JSON-LD to pass both the versioned JSON Schema and the SPDX ontology/SHACL constraints. Its serialization prose requires the global context `https://spdx.org/rdf/3.0.1/spdx-context.jsonld`, defines `spdxId` and `type` as aliases for JSON-LD `@id` and `@type`, and requires Element nodes—including `SpdxDocument`—to be represented as top-level objects under `@graph`. It also says additional namespace mappings may be defined in a separate context object. The official SPDX 3.0.1 JSON Schema simultaneously constrains top-level `@context` to the exact global-context string. Because an arbitrary inline JSON-LD context object can contain semantic controls such as `@import`, `@base`, or `@vocab`, or redefine SPDX aliases, OriginWeave does not approximate “namespace mapping” by accepting every object. The preliminary envelope gate therefore requires exactly one top-level `SpdxDocument`, rejects a nested-only document as well as any additional nested document, follows the official schema's exact-string context identity, and rejects context composition until a reviewed schema-aware validator can reconcile the prose/schema tension without granting ambient or redefinition authority. This gate deliberately does not claim full content-level conformance: it binds a declared SPDX 3.0.1 JSON-LD SBOM artifact identity and exact release-artifact names to one immutable `ReleaseManifest`, while generation, full structural/semantic validation, package/component completeness, signatures, provenance, publication, installation, update, rollback, and release authority remain separate reviewed boundaries.
+
+RFC 8259 §9 permits implementations to set limits on accepted JSON size and nesting depth. OriginWeave applies that implementation latitude narrowly to hostile release evidence. A 16 MiB byte ceiling and 65,536 top-level graph-object ceiling did not prevent compact valid documents from forcing a large generic JSON tree: one reproduction exceeded 262,144 shallow containers, and another exceeded 1,048,576 scalar array members while using only a few containers. The provisional Python envelope gate now scans structural punctuation outside JSON strings before `json.loads`, caps opening containers at 262,144 and total `[]{}:,` structure tokens at 1,048,576, and leaves grammar validation to the JSON parser. These are OriginWeave resource-policy ceilings rather than SPDX semantic limits. The final Rust-owned Release boundary must reproduce both amplification cases and enforce equivalent or stricter pre-materialization byte/container/member/graph/numeric bounds through a bounded or streaming parse path; Python remains migration evidence rather than canonical release/security authority.
+
 ### Git source identity admission
 
 Git's protocol grammar distinguishes an ordinary 40-hex object identifier from `zero-id = 40*"0"`. The pack protocol uses that all-zero sentinel to represent absent refs and create/delete reference state rather than a concrete source object. OriginWeave therefore requires release-manifest `source_commit` and WARC PROV `software_commit_sha` values to be canonical lowercase 40-hex identifiers with at least one nonzero digit. This is an identity-admission rule only: it prevents a null Git sentinel from being represented as a concrete software revision, but does not prove repository reachability, GitHub authenticity, commit trust, provenance, or release authority.
@@ -129,6 +135,8 @@ Barth, A. (2011). *The web origin concept* (RFC 6454). Internet Engineering Task
 Berners-Lee, T., Fielding, R., & Masinter, L. (2005). *Uniform resource identifier (URI): Generic syntax* (RFC 3986; STD 66). Internet Engineering Task Force. https://doi.org/10.17487/RFC3986
 
 Bonica, R., Cotton, M., Haberman, B., & Vegoda, L. (2017). *Updates to the special-purpose IP address registries* (RFC 8190). Internet Engineering Task Force. https://doi.org/10.17487/RFC8190
+
+Bray, T. (2017). *The JavaScript Object Notation (JSON) Data Interchange Format* (RFC 8259; STD 90). Internet Engineering Task Force. https://doi.org/10.17487/RFC8259
 
 Chromium Authors. (n.d.). *Proxy support in Chrome* [Source documentation]. Chromium. https://chromium.googlesource.com/chromium/src/+/a3e71ebfa307d8760eb68b777e2998a869940092/net/docs/proxy.md
 
@@ -191,6 +199,12 @@ Sakana AI. (2026, April 24). *Sakana Fugu: A multi-agent orchestration system as
 Sakana AI. (2026, June 22). *Sakana Fugu: One model to command them all*. https://sakana.ai/fugu-release/
 
 Sheffer, Y., Saint-Andre, P., & Fossati, T. (2022). *Recommendations for secure use of Transport Layer Security (TLS) and Datagram Transport Layer Security (DTLS)* (RFC 9325). Internet Engineering Task Force. https://doi.org/10.17487/RFC9325
+
+SPDX Workgroup. (2026). *SPDX specification 3.0.1*. The Linux Foundation. https://spdx.github.io/spdx-spec/v3.0.1/
+
+SPDX Workgroup. (2026). *SPDX specification 3.0.1: Model and serializations*. The Linux Foundation. https://spdx.github.io/spdx-spec/v3.0.1/serializations/
+
+SPDX Workgroup. (2026). *SPDX 3.0.1 JSON Schema*. The Linux Foundation. https://spdx.org/schema/3.0.1/spdx-json-schema.json
 
 The Rust Project Developers. (2026). *Ipv4Addr in std::net* (Rust 1.97.1) [Software documentation]. https://doc.rust-lang.org/stable/std/net/struct.Ipv4Addr.html
 
