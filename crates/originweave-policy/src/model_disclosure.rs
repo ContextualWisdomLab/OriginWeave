@@ -3,9 +3,11 @@
 //! This module narrows the existing sensitive-data and reviewed-model policy composition with one
 //! additional fail-closed precondition: raw protected field bytes may be considered for model input
 //! only after a trusted broker or orchestrator has determined that no lower-disclosure execution path
-//! can satisfy the approved task. The types here carry policy metadata only; they never carry a
-//! protected value, inspect task state, authenticate a provider, invoke a model, or prove that a
-//! caller-supplied necessity claim is truthful.
+//! can satisfy the approved task. Necessity evidence is bound to the exact sensitive-data request and
+//! carries an exclusive validity horizon so a `NoLowerDisclosurePath` observation cannot be replayed
+//! across another tenant/task/field/purpose/destination/classification tuple or indefinitely. The
+//! types here carry policy metadata only; they never carry a protected value, inspect task state,
+//! authenticate a provider, invoke a model, or prove that a caller-supplied necessity claim is truthful.
 
 use crate::model_route::{
     ModelDisclosureDecision as InvocationDisclosureDecision, ModelInvocationDecision,
@@ -33,7 +35,7 @@ pub enum ModelDisclosureAlternative {
     ApprovedDerivedValue,
 }
 
-/// Necessity evidence supplied to the full-field model-disclosure composition boundary.
+/// Necessity classification supplied to the full-field model-disclosure composition boundary.
 ///
 /// This pure policy type is not self-authenticating. A trusted broker or orchestrator must derive it
 /// from the actual current task, available tools, handle capabilities, deterministic transforms, and
@@ -47,42 +49,101 @@ pub enum ModelDisclosureNecessity {
     LowerDisclosurePathAvailable(ModelDisclosureAlternative),
 }
 
-/// Result of composing sensitive disclosure, necessity, and one reviewed model invocation.
+/// Request-bound, freshness-bounded necessity evidence for one full-field model-disclosure decision.
+///
+/// `disclosure_request` binds the necessity classification to the exact tenant, task, field, purpose,
+/// destination, and classification tuple that was evaluated for lower-disclosure alternatives.
+/// `valid_until` is an exclusive horizon in the same trusted time domain supplied to
+/// [`evaluate_full_field_model_disclosure`]. A zero horizon is intentionally invalid and an evidence
+/// value is expired when evaluation time is greater than or equal to the horizon. Construction does
+/// not attest the clock or prove that the necessity classification was truthfully derived.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ModelDisclosureNecessityEvidence {
+    disclosure_request: SensitiveDataRequest,
+    necessity: ModelDisclosureNecessity,
+    valid_until: u64,
+}
+
+impl ModelDisclosureNecessityEvidence {
+    /// Build caller-supplied necessity evidence bound to one exact sensitive-data request.
+    #[must_use]
+    pub fn new(
+        disclosure_request: SensitiveDataRequest,
+        necessity: ModelDisclosureNecessity,
+        valid_until: u64,
+    ) -> Self {
+        Self {
+            disclosure_request,
+            necessity,
+            valid_until,
+        }
+    }
+
+    /// Return the exact sensitive-data request to which this necessity evidence is bound.
+    #[must_use]
+    pub const fn disclosure_request(&self) -> &SensitiveDataRequest {
+        &self.disclosure_request
+    }
+
+    /// Return the lower-disclosure-path classification carried by this evidence.
+    #[must_use]
+    pub const fn necessity(&self) -> ModelDisclosureNecessity {
+        self.necessity
+    }
+
+    /// Return the exclusive trusted-time horizon for this evidence.
+    #[must_use]
+    pub const fn valid_until(&self) -> u64 {
+        self.valid_until
+    }
+}
+
+/// Result of composing sensitive disclosure, fresh necessity, and one reviewed model invocation.
 ///
 /// Authorization is metadata-only. Even [`Self::Authorized`] does not resolve a protected value,
 /// authenticate or contact a provider, validate output, attest runtime region/time, enforce retention,
 /// or prove necessity independently of the trusted caller that derived [`ModelDisclosureNecessity`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ModelDisclosureDecision {
-    /// Full-field disclosure, necessity, exact authority, and reviewed invocation policy all authorize.
+    /// Full-field disclosure, request-bound fresh necessity, exact authority, and reviewed invocation authorize.
     Authorized,
     /// Sensitive-data policy did not explicitly authorize complete-field disclosure.
     DisclosureNotAuthorized(DisclosureDecision),
     /// Disclosure and invocation metadata belong to different exact sensitive-data authority tuples.
     AuthorityMismatch,
+    /// Necessity evidence belongs to a different exact sensitive-data request.
+    NecessityAuthorityMismatch,
+    /// The otherwise-authorized necessity evidence has no usable validity horizon.
+    NecessityEvidenceInvalid,
+    /// The otherwise-authorized necessity evidence is no longer fresh at trusted evaluation time.
+    NecessityEvidenceExpired,
     /// A lower-disclosure path remains available, so raw protected model input is not necessary.
     FullFieldNotNecessary(ModelDisclosureAlternative),
     /// Model-route or invocation policy denied the otherwise full-field-authorized request.
     InvocationDenied(ModelInvocationDecision),
 }
 
-/// Compose an exceptional full-field disclosure with necessity and one reviewed model invocation.
+/// Compose an exceptional full-field disclosure with request-bound fresh necessity and one reviewed invocation.
 ///
 /// The existing disclosure/invocation composition runs first so malformed, weaker, mismatched, expired,
 /// or otherwise denied policy cannot be upgraded by a necessity claim. Only an otherwise authorized
-/// composition reaches the necessity gate. When a lower-disclosure alternative remains available, this
-/// function returns [`ModelDisclosureDecision::FullFieldNotNecessary`] instead of authorization.
+/// composition reaches the necessity-evidence gate. Evidence for another exact sensitive-data request
+/// fails as [`ModelDisclosureDecision::NecessityAuthorityMismatch`]. A zero horizon fails as
+/// [`ModelDisclosureDecision::NecessityEvidenceInvalid`]; an exclusive horizon at or before
+/// `trusted_time` fails as [`ModelDisclosureDecision::NecessityEvidenceExpired`]. Only request-bound,
+/// fresh evidence is then evaluated for a known lower-disclosure alternative.
 ///
-/// `necessity` must be derived by a trusted broker/orchestrator from current executable alternatives;
-/// `ModelDisclosureNecessity::NoLowerDisclosurePath` is not proof merely because a caller supplied it.
-/// The trusted value-resolution boundary must still revalidate policy and lifecycle state immediately
-/// before releasing protected bytes, execute only the exact authorized route, and enforce output,
-/// retention, export, audit, and revocation controls.
+/// `necessity_evidence` must be derived by a trusted broker/orchestrator from current executable
+/// alternatives for the same `disclosure_request` and use the same trusted time domain as
+/// `trusted_time`. A fresh `ModelDisclosureNecessity::NoLowerDisclosurePath` is still not proof merely
+/// because a caller supplied it. The trusted value-resolution boundary must revalidate policy and
+/// lifecycle state immediately before releasing protected bytes, execute only the exact authorized
+/// route, and enforce output, retention, export, audit, and revocation controls.
 #[must_use]
 pub fn evaluate_full_field_model_disclosure(
     disclosure_request: &SensitiveDataRequest,
     disclosure_scope: &DisclosureScope,
-    necessity: ModelDisclosureNecessity,
+    necessity_evidence: &ModelDisclosureNecessityEvidence,
     invocation_request: &ModelInvocationRequest,
     invocation_scope: &ModelInvocationScope,
     trusted_time: u64,
@@ -103,11 +164,24 @@ pub fn evaluate_full_field_model_disclosure(
         InvocationDisclosureDecision::InvocationDenied(decision) => {
             ModelDisclosureDecision::InvocationDenied(decision)
         }
-        InvocationDisclosureDecision::Authorized => match necessity {
-            ModelDisclosureNecessity::NoLowerDisclosurePath => ModelDisclosureDecision::Authorized,
-            ModelDisclosureNecessity::LowerDisclosurePathAvailable(alternative) => {
-                ModelDisclosureDecision::FullFieldNotNecessary(alternative)
+        InvocationDisclosureDecision::Authorized => {
+            if necessity_evidence.disclosure_request != *disclosure_request {
+                return ModelDisclosureDecision::NecessityAuthorityMismatch;
             }
-        },
+            if necessity_evidence.valid_until == 0 {
+                return ModelDisclosureDecision::NecessityEvidenceInvalid;
+            }
+            if trusted_time >= necessity_evidence.valid_until {
+                return ModelDisclosureDecision::NecessityEvidenceExpired;
+            }
+            match necessity_evidence.necessity {
+                ModelDisclosureNecessity::NoLowerDisclosurePath => {
+                    ModelDisclosureDecision::Authorized
+                }
+                ModelDisclosureNecessity::LowerDisclosurePathAvailable(alternative) => {
+                    ModelDisclosureDecision::FullFieldNotNecessary(alternative)
+                }
+            }
+        }
     }
 }
