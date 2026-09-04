@@ -7,6 +7,7 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+mod break_glass;
 mod model_disclosure;
 mod model_fallback;
 mod model_output;
@@ -14,6 +15,11 @@ mod model_route;
 mod sensitive_data;
 mod sensitive_handle_dispatch;
 
+pub use break_glass::{
+    BreakGlassActorBinding, BreakGlassApprovalEvidence, BreakGlassValidityPolicy,
+    SensitiveBreakGlassDecision, SensitiveBreakGlassRequest, SensitiveBreakGlassScope,
+    evaluate_sensitive_break_glass,
+};
 pub use model_disclosure::{
     ModelDisclosureAlternative, ModelDisclosureDecision, ModelDisclosureNecessity,
     ModelDisclosureNecessityEvidence, evaluate_full_field_model_disclosure,
