@@ -207,6 +207,10 @@ fn node_action_target_rejects_stale_document_authority() -> Result<(), String> {
         .registry
         .advance_document(fixture.context)
         .map_err(|error| error.to_string())?;
+    assert_eq!(
+        target.validate_current(&fixture.registry).err(),
+        Some(BrowserRegistryError::UnknownNodeAuthority)
+    );
     let origin = Origin::parse("https://example.com").map_err(|error| format!("{error:?}"))?;
     fixture
         .registry
