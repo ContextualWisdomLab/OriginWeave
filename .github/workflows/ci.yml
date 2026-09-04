@@ -9,8 +9,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.repository }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   rust:
@@ -52,8 +52,6 @@ jobs:
           path: rustfmt-output
           if-no-files-found: error
           retention-days: 3
-      - name: Check workspace
-        run: cargo check --locked --workspace --all-targets
       - name: Run tests
         run: cargo test --locked --workspace --all-targets
       - name: Run Clippy
