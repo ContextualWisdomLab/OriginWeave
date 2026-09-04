@@ -7,7 +7,7 @@ use originweave_core::{
 use crate::{
     MAX_WEBDRIVER_BIDI_JS_UINT, WEBDRIVER_BIDI_NAVIGATION_COMMITTED_METHOD,
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
-    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrameError,
+    WebDriverBiDiCommandKind, WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrameError,
     WebDriverBiDiWebSocketMaskKey,
 };
 
@@ -113,7 +113,10 @@ impl WebDriverBiDiNavigationCommittedSubscriptionCommand {
             &self.external_context,
         )?;
         correlation
-            .register_command(self.command_id)
+            .register_command_for(
+                self.command_id,
+                WebDriverBiDiCommandKind::NavigationCommittedSubscription,
+            )
             .map_err(|source| {
                 WebDriverBiDiNavigationCommittedSubscriptionCommandError::Correlation { source }
             })?;

@@ -8,10 +8,10 @@ use std::{
 
 use originweave_core::{BrowserAuthorityRegistry, WebDriverBiDiWebSocketEndpoint};
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiNavigationCommittedSubscriptionCommand,
-    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
-    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMaskKey,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind,
+    WebDriverBiDiNavigationCommittedSubscriptionCommand, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketEstablished,
+    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -145,7 +145,7 @@ fn duplicate_command_id_is_rejected_before_command_write() -> Result<(), Box<dyn
     let established = establish_websocket(local_addr)?;
 
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command(7)?;
+    correlation.register_command_for(7, WebDriverBiDiCommandKind::SessionStatus)?;
     let result = command.send(
         &registry,
         established,

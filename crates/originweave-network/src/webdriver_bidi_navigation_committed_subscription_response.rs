@@ -2,8 +2,8 @@ use std::{error::Error, fmt};
 
 use crate::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
-    WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeError, WebDriverBiDiJsonEnvelopeKind,
-    WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiCommandKind, WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeError,
+    WebDriverBiDiJsonEnvelopeKind, WebDriverBiDiWebSocketTextMessage,
 };
 
 /// Maximum decoded UTF-8 bytes retained from a WebDriver BiDi `session.Subscription` identifier.
@@ -55,7 +55,10 @@ impl WebDriverBiDiNavigationCommittedSubscriptionResult {
             WebDriverBiDiJsonEnvelopeKind::Success => {
                 let projected = SubscriptionProjection::parse(message.as_str())?;
                 let completed = correlation
-                    .correlate_response(&envelope)
+                    .correlate_response_for(
+                        &envelope,
+                        WebDriverBiDiCommandKind::NavigationCommittedSubscription,
+                    )
                     .map_err(|source| {
                         WebDriverBiDiNavigationCommittedSubscriptionResponseError::Correlation {
                             source,
@@ -68,11 +71,16 @@ impl WebDriverBiDiNavigationCommittedSubscriptionResult {
             }
             WebDriverBiDiJsonEnvelopeKind::Error => {
                 retain_validated_error_code(envelope.error_code()).and_then(|error_code| {
-                    let completed = correlation.correlate_response(&envelope).map_err(|source| {
-                        WebDriverBiDiNavigationCommittedSubscriptionResponseError::Correlation {
-                            source,
-                        }
-                    })?;
+                    let completed = correlation
+                        .correlate_response_for(
+                            &envelope,
+                            WebDriverBiDiCommandKind::NavigationCommittedSubscription,
+                        )
+                        .map_err(|source| {
+                            WebDriverBiDiNavigationCommittedSubscriptionResponseError::Correlation {
+                                source,
+                            }
+                        })?;
                     Err(
                         WebDriverBiDiNavigationCommittedSubscriptionResponseError::RemoteProtocolError {
                             command_id: completed.command_id(),
