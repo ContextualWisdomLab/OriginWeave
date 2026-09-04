@@ -3,7 +3,7 @@
 use std::collections::BTreeSet;
 
 use originweave_core::{
-    ActionIntentDigest, ActionKind, ActionRequest, ApprovalEvidence, BrowserSessionId,
+    ActionIntentDigest, ActionKind, ActionRequest, AgentTaskId, ApprovalEvidence, BrowserSessionId,
     BrowsingContextId, Capability, ExecutionPurpose, ExtensionAccessDecision,
     ExtensionAccessRequest, ExtensionAgentCapability, ExtensionAgentGrant, ExtensionId,
     InstructionSource, Origin, PolicyContext, RobotsDecision, SecretDelivery, SessionMode,
@@ -19,6 +19,10 @@ const UNEXPIRED_EXPIRES_AT_EPOCH_SECONDS: u64 = 1_700_000_600;
 
 fn extension_id() -> ExtensionId {
     ExtensionId::parse("abcdefghijklmnopabcdefghijklmnop").expect("valid extension id")
+}
+
+fn agent_task() -> AgentTaskId {
+    AgentTaskId::new(5).expect("nonzero agent task")
 }
 
 fn browser_session() -> BrowserSessionId {
@@ -40,6 +44,7 @@ fn intent() -> ActionIntentDigest {
 fn action_proposal_grant() -> ExtensionAgentGrant {
     ExtensionAgentGrant::new(
         extension_id(),
+        agent_task(),
         browser_session(),
         browsing_context(),
         origin(EXTENSION_ORIGIN),
@@ -51,6 +56,7 @@ fn action_proposal_grant() -> ExtensionAgentGrant {
 fn assert_extension_can_only_propose(grant: &ExtensionAgentGrant) {
     let request = ExtensionAccessRequest::new(
         extension_id(),
+        agent_task(),
         browser_session(),
         browsing_context(),
         origin(EXTENSION_ORIGIN),

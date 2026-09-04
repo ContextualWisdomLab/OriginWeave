@@ -1,12 +1,17 @@
 #![allow(clippy::expect_used)]
 
 use originweave_core::{
-    BrowserSessionId, BrowsingContextId, ExtensionAccessDecision, ExtensionAccessRequest,
-    ExtensionAgentCapability, ExtensionAgentGrant, ExtensionId, Origin, evaluate_extension_access,
+    AgentTaskId, BrowserSessionId, BrowsingContextId, ExtensionAccessDecision,
+    ExtensionAccessRequest, ExtensionAgentCapability, ExtensionAgentGrant, ExtensionId, Origin,
+    evaluate_extension_access,
 };
 
 fn extension_id(value: &str) -> ExtensionId {
     ExtensionId::parse(value).expect("valid extension id")
+}
+
+fn task(value: u64) -> AgentTaskId {
+    AgentTaskId::new(value).expect("nonzero Agent Task identity")
 }
 
 fn session(value: u64) -> BrowserSessionId {
@@ -23,6 +28,7 @@ fn origin(value: &str) -> Origin {
 
 const UNEXPIRED_NOW_EPOCH_SECONDS: u64 = 1_700_000_000;
 const UNEXPIRED_EXPIRES_AT_EPOCH_SECONDS: u64 = 1_700_000_600;
+const AGENT_TASK_ID: u64 = 29;
 
 #[test]
 fn extension_id_accepts_only_canonical_chromium_extension_ids() {
@@ -53,6 +59,7 @@ fn extension_agent_access_requires_an_explicit_exact_grant() {
     let granted_origin = origin("https://app.example");
     let grant = ExtensionAgentGrant::new(
         allowed_extension.clone(),
+        task(AGENT_TASK_ID),
         session(7),
         context(11),
         granted_origin.clone(),
@@ -62,6 +69,7 @@ fn extension_agent_access_requires_an_explicit_exact_grant() {
 
     let exact = ExtensionAccessRequest::new(
         allowed_extension.clone(),
+        task(AGENT_TASK_ID),
         session(7),
         context(11),
         granted_origin.clone(),
@@ -78,6 +86,7 @@ fn extension_agent_access_requires_an_explicit_exact_grant() {
 
     let wrong_extension = ExtensionAccessRequest::new(
         other_extension,
+        task(AGENT_TASK_ID),
         session(7),
         context(11),
         granted_origin.clone(),
@@ -91,6 +100,7 @@ fn extension_agent_access_requires_an_explicit_exact_grant() {
 
     let wrong_session = ExtensionAccessRequest::new(
         allowed_extension.clone(),
+        task(AGENT_TASK_ID),
         session(8),
         context(11),
         granted_origin.clone(),
@@ -104,6 +114,7 @@ fn extension_agent_access_requires_an_explicit_exact_grant() {
 
     let wrong_context = ExtensionAccessRequest::new(
         allowed_extension.clone(),
+        task(AGENT_TASK_ID),
         session(7),
         context(12),
         granted_origin.clone(),
@@ -117,6 +128,7 @@ fn extension_agent_access_requires_an_explicit_exact_grant() {
 
     let wrong_origin = ExtensionAccessRequest::new(
         allowed_extension.clone(),
+        task(AGENT_TASK_ID),
         session(7),
         context(11),
         origin("https://other.example"),
@@ -130,6 +142,7 @@ fn extension_agent_access_requires_an_explicit_exact_grant() {
 
     let wrong_port = ExtensionAccessRequest::new(
         allowed_extension,
+        task(AGENT_TASK_ID),
         session(7),
         context(11),
         origin("https://app.example:8443"),
@@ -148,6 +161,7 @@ fn chrome_permissions_never_imply_originweave_agent_capabilities() {
     let granted_origin = origin("https://mail.example");
     let grant = ExtensionAgentGrant::new(
         id.clone(),
+        task(AGENT_TASK_ID),
         session(3),
         context(5),
         granted_origin.clone(),
@@ -157,6 +171,7 @@ fn chrome_permissions_never_imply_originweave_agent_capabilities() {
 
     let propose_action = ExtensionAccessRequest::new(
         id,
+        task(AGENT_TASK_ID),
         session(3),
         context(5),
         granted_origin,
@@ -175,6 +190,7 @@ fn explicit_grant_can_authorize_multiple_bounded_agent_capabilities() {
     let granted_origin = origin("http://127.0.0.1:8080");
     let grant = ExtensionAgentGrant::new(
         id.clone(),
+        task(AGENT_TASK_ID),
         session(13),
         context(17),
         granted_origin.clone(),
@@ -191,6 +207,7 @@ fn explicit_grant_can_authorize_multiple_bounded_agent_capabilities() {
     ] {
         let request = ExtensionAccessRequest::new(
             id.clone(),
+            task(AGENT_TASK_ID),
             session(13),
             context(17),
             granted_origin.clone(),
@@ -211,6 +228,7 @@ fn expired_origin_bound_grant_cannot_be_reused_after_exclusive_deadline() {
     let expires_at_epoch_seconds = 1_700_000_100;
     let grant = ExtensionAgentGrant::new(
         id.clone(),
+        task(AGENT_TASK_ID),
         session(19),
         context(23),
         granted_origin.clone(),
@@ -220,6 +238,7 @@ fn expired_origin_bound_grant_cannot_be_reused_after_exclusive_deadline() {
 
     let before_deadline = ExtensionAccessRequest::new(
         id.clone(),
+        task(AGENT_TASK_ID),
         session(19),
         context(23),
         granted_origin.clone(),
@@ -233,6 +252,7 @@ fn expired_origin_bound_grant_cannot_be_reused_after_exclusive_deadline() {
 
     let at_deadline = ExtensionAccessRequest::new(
         id.clone(),
+        task(AGENT_TASK_ID),
         session(19),
         context(23),
         granted_origin.clone(),
@@ -246,6 +266,7 @@ fn expired_origin_bound_grant_cannot_be_reused_after_exclusive_deadline() {
 
     let after_deadline = ExtensionAccessRequest::new(
         id,
+        task(AGENT_TASK_ID),
         session(19),
         context(23),
         granted_origin,

@@ -4,14 +4,14 @@
 //!
 //! OriginWeave does not yet implement an adapter that converts an extension proposal into an
 //! [`ActionRequest`]. These regressions therefore prove two independent fail-closed boundaries:
-//! the exact extension/session/context/origin/unexpired grant permits only `ProposeTypedAction`,
-//! while an ordinary user-sourced action request remains subject to the core policy decision
-//! shown in each test.
+//! the exact extension/task/session/context/origin/unexpired grant permits only
+//! `ProposeTypedAction`, while an ordinary user-sourced action request remains subject to the
+//! core policy decision shown in each test.
 
 use std::collections::BTreeSet;
 
 use originweave_core::{
-    ActionIntentDigest, ActionKind, ActionRequest, ApprovalEvidence, BrowserSessionId,
+    ActionIntentDigest, ActionKind, ActionRequest, AgentTaskId, ApprovalEvidence, BrowserSessionId,
     BrowsingContextId, Capability, ExecutionPurpose, ExtensionAccessDecision,
     ExtensionAccessRequest, ExtensionAgentCapability, ExtensionAgentGrant, ExtensionId,
     InstructionSource, Origin, PolicyContext, RobotsDecision, SecretDelivery, SessionMode,
@@ -27,6 +27,10 @@ const UNEXPIRED_EXPIRES_AT_EPOCH_SECONDS: u64 = 1_700_000_600;
 
 fn extension_id() -> ExtensionId {
     ExtensionId::parse("abcdefghijklmnopabcdefghijklmnop").expect("valid extension id")
+}
+
+fn agent_task() -> AgentTaskId {
+    AgentTaskId::new(13).expect("nonzero agent task")
 }
 
 fn browser_session() -> BrowserSessionId {
@@ -48,6 +52,7 @@ fn intent() -> ActionIntentDigest {
 fn action_proposal_grant() -> ExtensionAgentGrant {
     ExtensionAgentGrant::new(
         extension_id(),
+        agent_task(),
         browser_session(),
         browsing_context(),
         origin(EXTENSION_ORIGIN),
@@ -59,6 +64,7 @@ fn action_proposal_grant() -> ExtensionAgentGrant {
 fn assert_proposal_grant_is_independently_allowed(grant: &ExtensionAgentGrant) {
     let request = ExtensionAccessRequest::new(
         extension_id(),
+        agent_task(),
         browser_session(),
         browsing_context(),
         origin(EXTENSION_ORIGIN),
