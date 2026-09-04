@@ -1,7 +1,7 @@
 use std::{error::Error, fmt, time::Duration};
 
 use crate::{
-    MAX_WEBDRIVER_BIDI_JS_UINT, WebDriverBiDiCommandCorrelation,
+    MAX_WEBDRIVER_BIDI_JS_UINT, MAX_WEBSOCKET_FRAME_TIMEOUT, WebDriverBiDiCommandCorrelation,
     WebDriverBiDiCommandCorrelationError, WebDriverBiDiCommandKind,
     WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrameError,
     WebDriverBiDiWebSocketMaskKey,
@@ -41,11 +41,12 @@ impl WebDriverBiDiSessionStatusCommand {
 
     /// Register and write this exact command on an already established verified BiDi stream.
     ///
-    /// Registration occurs before the first possible remote side effect. A correlation failure
-    /// therefore writes nothing. Once registration succeeds, any frame-write failure consumes the
-    /// transport and intentionally leaves the identifier outstanding: a partial or fully emitted
-    /// frame is ambiguous, so silently retiring the id could allow unsafe reuse. Callers must treat
-    /// the failed stream/correlation pairing as unusable or explicitly tear down its session state.
+    /// Locally invalid frame deadlines fail before correlation registration and before any remote
+    /// side effect. Correlation then registers the command before the first possible frame write.
+    /// Once registration succeeds, a later frame-write failure leaves the identifier outstanding:
+    /// partial or full emission is ambiguous, so silently retiring the id could allow unsafe reuse.
+    /// Callers must treat the failed stream/correlation pairing as unusable or explicitly tear down
+    /// its session state.
     pub fn send(
         self,
         established: WebDriverBiDiWebSocketEstablished,
@@ -53,6 +54,14 @@ impl WebDriverBiDiSessionStatusCommand {
         masking_key: WebDriverBiDiWebSocketMaskKey,
         frame_timeout: Duration,
     ) -> Result<WebDriverBiDiWebSocketEstablished, WebDriverBiDiSessionStatusCommandError> {
+        if frame_timeout.is_zero() || frame_timeout > MAX_WEBSOCKET_FRAME_TIMEOUT {
+            return Err(WebDriverBiDiSessionStatusCommandError::FrameWrite {
+                source: WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout {
+                    frame_timeout,
+                    maximum_timeout: MAX_WEBSOCKET_FRAME_TIMEOUT,
+                },
+            });
+        }
         correlation
             .register_command_for(self.command_id, WebDriverBiDiCommandKind::SessionStatus)
             .map_err(|source| WebDriverBiDiSessionStatusCommandError::Correlation { source })?;
