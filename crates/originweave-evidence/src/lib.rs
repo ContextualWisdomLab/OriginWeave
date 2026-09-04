@@ -11,6 +11,7 @@ mod sensitive_access;
 mod sensitive_audit_chain;
 mod sensitive_break_glass;
 mod sensitive_break_glass_review;
+mod sensitive_deletion;
 
 pub use sensitive_access::{
     MAX_SENSITIVE_FIELD_COUNT, MAX_SENSITIVE_IDENTIFIER_BYTES, SensitiveAccessClass,
@@ -30,6 +31,10 @@ pub use sensitive_break_glass_review::{
     SensitiveBreakGlassReviewEvidence, SensitiveBreakGlassReviewEvidenceError,
     SensitiveBreakGlassReviewEvidenceInput, SensitiveBreakGlassReviewOutcome,
     SensitiveBreakGlassReviewTimeliness,
+};
+pub use sensitive_deletion::{
+    SensitiveDeletionCause, SensitiveDeletionReceipt, SensitiveDeletionReceiptInput,
+    SensitiveDeletionTarget,
 };
 
 use std::collections::BTreeMap;
