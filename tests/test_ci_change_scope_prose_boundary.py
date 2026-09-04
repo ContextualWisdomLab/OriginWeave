@@ -15,7 +15,7 @@ def _raw_record(path: str) -> bytes:
     """Build one regular-blob modification for an exact repository path."""
 
     return (
-        b":100644 100644 1111111 2222222 M\0"
+        b":100644 100644 " + b"1" * 40 + b" " + b"2" * 40 + b" M\0"
         + path.encode("utf-8")
         + b"\0"
     )
