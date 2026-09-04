@@ -8,7 +8,8 @@
 #![deny(missing_docs)]
 
 pub use originweave_core::{
-    ExtensionId, NativeMessagingAccessRequest, NativeMessagingHostName, NativeMessagingHostNameError,
+    ExtensionId, NativeMessagingAccessRequest, NativeMessagingHostName,
+    NativeMessagingHostNameError,
 };
 
 mod native_messaging_manifest;

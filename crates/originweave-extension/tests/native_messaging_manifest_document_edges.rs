@@ -19,16 +19,31 @@ fn parse_error(raw: &str) -> NativeMessagingManifestParseError {
 #[test]
 fn complete_parser_rejects_every_duplicate_reviewed_field() {
     let cases = [
-        format!(r#"{{"name":"com.contextualwisdom.originweave","name":"com.contextualwisdom.other","description":"host","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":["{EXTENSION_ORIGIN}"]}}"#),
-        format!(r#"{{"name":"com.contextualwisdom.originweave","description":"host","description":"other","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":["{EXTENSION_ORIGIN}"]}}"#),
-        format!(r#"{{"name":"com.contextualwisdom.originweave","description":"host","path":"/opt/originweave/native-host","path":"/tmp/other","type":"stdio","allowed_origins":["{EXTENSION_ORIGIN}"]}}"#),
-        format!(r#"{{"name":"com.contextualwisdom.originweave","description":"host","path":"/opt/originweave/native-host","type":"stdio","type":"stdio","allowed_origins":["{EXTENSION_ORIGIN}"]}}"#),
-        format!(r#"{{"name":"com.contextualwisdom.originweave","description":"host","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":["{EXTENSION_ORIGIN}"],"allowed_origins":["{EXTENSION_ORIGIN}"]}}"#),
-        format!(r#"{{"name":"com.contextualwisdom.originweave","description":"host","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":["{EXTENSION_ORIGIN}"],"supports_native_initiated_connections":true,"supports_native_initiated_connections":false}}"#),
+        format!(
+            r#"{{"name":"com.contextualwisdom.originweave","name":"com.contextualwisdom.other","description":"host","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":["{EXTENSION_ORIGIN}"]}}"#
+        ),
+        format!(
+            r#"{{"name":"com.contextualwisdom.originweave","description":"host","description":"other","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":["{EXTENSION_ORIGIN}"]}}"#
+        ),
+        format!(
+            r#"{{"name":"com.contextualwisdom.originweave","description":"host","path":"/opt/originweave/native-host","path":"/tmp/other","type":"stdio","allowed_origins":["{EXTENSION_ORIGIN}"]}}"#
+        ),
+        format!(
+            r#"{{"name":"com.contextualwisdom.originweave","description":"host","path":"/opt/originweave/native-host","type":"stdio","type":"stdio","allowed_origins":["{EXTENSION_ORIGIN}"]}}"#
+        ),
+        format!(
+            r#"{{"name":"com.contextualwisdom.originweave","description":"host","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":["{EXTENSION_ORIGIN}"],"allowed_origins":["{EXTENSION_ORIGIN}"]}}"#
+        ),
+        format!(
+            r#"{{"name":"com.contextualwisdom.originweave","description":"host","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":["{EXTENSION_ORIGIN}"],"supports_native_initiated_connections":true,"supports_native_initiated_connections":false}}"#
+        ),
     ];
 
     for raw in cases {
-        assert_eq!(parse_error(&raw), NativeMessagingManifestParseError::DuplicateField);
+        assert_eq!(
+            parse_error(&raw),
+            NativeMessagingManifestParseError::DuplicateField
+        );
     }
 }
 
@@ -42,9 +57,14 @@ fn complete_parser_covers_empty_and_malformed_array_and_boolean_shapes() {
     );
 
     let empty_origins = r#"{"name":"com.contextualwisdom.originweave","description":"host","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":[]}"#.to_owned();
-    assert!(matches!(parse_error(&empty_origins), NativeMessagingManifestParseError::Manifest(_)));
+    assert!(matches!(
+        parse_error(&empty_origins),
+        NativeMessagingManifestParseError::Manifest(_)
+    ));
 
-    let multiple_origins = format!(r#"{{"name":"com.contextualwisdom.originweave","description":"host","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":["{EXTENSION_ORIGIN}","{SECOND_EXTENSION_ORIGIN}"]}}"#);
+    let multiple_origins = format!(
+        r#"{{"name":"com.contextualwisdom.originweave","description":"host","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":["{EXTENSION_ORIGIN}","{SECOND_EXTENSION_ORIGIN}"]}}"#
+    );
     let multiple_manifest = NativeMessagingManifestDocument::parse(multiple_origins.as_bytes())
         .expect("valid multi-origin fixture passes pre-parser")
         .parse_host_manifest(NativeMessagingHostPlatform::Linux)
@@ -59,17 +79,31 @@ fn complete_parser_covers_empty_and_malformed_array_and_boolean_shapes() {
     }
 
     for raw in [
-        format!(r#"{{"name":"com.contextualwisdom.originweave","description":"host","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":["{EXTENSION_ORIGIN}",]}}"#),
-        format!(r#"{{"name":"com.contextualwisdom.originweave","description":"host","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":["{EXTENSION_ORIGIN}" "{EXTENSION_ORIGIN}"]}}"#),
+        format!(
+            r#"{{"name":"com.contextualwisdom.originweave","description":"host","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":["{EXTENSION_ORIGIN}",]}}"#
+        ),
+        format!(
+            r#"{{"name":"com.contextualwisdom.originweave","description":"host","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":["{EXTENSION_ORIGIN}" "{EXTENSION_ORIGIN}"]}}"#
+        ),
         "{} {}".to_owned(),
     ] {
-        assert_eq!(parse_error(&raw), NativeMessagingManifestParseError::InvalidJson);
+        assert_eq!(
+            parse_error(&raw),
+            NativeMessagingManifestParseError::InvalidJson
+        );
     }
 
-    let invalid_boolean = format!(r#"{{"name":"com.contextualwisdom.originweave","description":"host","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":["{EXTENSION_ORIGIN}"],"supports_native_initiated_connections":1}}"#);
-    assert_eq!(parse_error(&invalid_boolean), NativeMessagingManifestParseError::InvalidFieldType);
+    let invalid_boolean = format!(
+        r#"{{"name":"com.contextualwisdom.originweave","description":"host","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":["{EXTENSION_ORIGIN}"],"supports_native_initiated_connections":1}}"#
+    );
+    assert_eq!(
+        parse_error(&invalid_boolean),
+        NativeMessagingManifestParseError::InvalidFieldType
+    );
 
-    let false_boolean = format!(r#"{{"name":"com.contextualwisdom.originweave","description":"host","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":["{EXTENSION_ORIGIN}"],"supports_native_initiated_connections":false}}"#);
+    let false_boolean = format!(
+        r#"{{"name":"com.contextualwisdom.originweave","description":"host","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":["{EXTENSION_ORIGIN}"],"supports_native_initiated_connections":false}}"#
+    );
     let manifest = NativeMessagingManifestDocument::parse(false_boolean.as_bytes())
         .expect("valid false-boolean fixture passes pre-parser")
         .parse_host_manifest(NativeMessagingHostPlatform::Linux)
@@ -79,23 +113,46 @@ fn complete_parser_covers_empty_and_malformed_array_and_boolean_shapes() {
 
 #[test]
 fn complete_parser_covers_json_escape_and_unicode_failure_edges() {
-    let escaped_description = format!(r#"{{"name":"com.contextualwisdom.originweave","description":"a\b\f\n\r\t-\u0041-\u00E9-\u263A-\uD83D\uDE00-\u00AF","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":["{EXTENSION_ORIGIN}"]}}"#);
+    let escaped_description = format!(
+        r#"{{"name":"com.contextualwisdom.originweave","description":"a\b\f\n\r\t-\u0041-\u00E9-\u263A-\uD83D\uDE00-\u00AF","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":["{EXTENSION_ORIGIN}"]}}"#
+    );
     let manifest = NativeMessagingManifestDocument::parse(escaped_description.as_bytes())
         .expect("valid escaped-string fixture passes pre-parser")
         .parse_host_manifest(NativeMessagingHostPlatform::Linux)
         .expect("valid escaped-string fixture passes complete parsing");
     assert_eq!(manifest.allowed_extension_count(), 1);
 
-    for description in [r#"bad\q"#, r#"bad\uD83D"#, r#"bad\uD83D\x0000"#, r#"bad\uD83D\u0041"#, r#"bad\uDE00"#, r#"bad\u12"#, r#"bad\u00G0"#] {
-        let raw = format!(r#"{{"name":"com.contextualwisdom.originweave","description":"{description}","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":["{EXTENSION_ORIGIN}"]}}"#);
-        assert_eq!(parse_error(&raw), NativeMessagingManifestParseError::InvalidJson);
+    for description in [
+        r#"bad\q"#,
+        r#"bad\uD83D"#,
+        r#"bad\uD83D\x0000"#,
+        r#"bad\uD83D\u0041"#,
+        r#"bad\uDE00"#,
+        r#"bad\u12"#,
+        r#"bad\u00G0"#,
+    ] {
+        let raw = format!(
+            r#"{{"name":"com.contextualwisdom.originweave","description":"{description}","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":["{EXTENSION_ORIGIN}"]}}"#
+        );
+        assert_eq!(
+            parse_error(&raw),
+            NativeMessagingManifestParseError::InvalidJson
+        );
     }
 
-    let raw_control = format!("{{\"name\":\"com.contextualwisdom.originweave\",\"description\":\"bad\u{0001}text\",\"path\":\"/opt/originweave/native-host\",\"type\":\"stdio\",\"allowed_origins\":[\"{EXTENSION_ORIGIN}\"]}}");
-    assert_eq!(parse_error(&raw_control), NativeMessagingManifestParseError::InvalidJson);
+    let raw_control = format!(
+        "{{\"name\":\"com.contextualwisdom.originweave\",\"description\":\"bad\u{0001}text\",\"path\":\"/opt/originweave/native-host\",\"type\":\"stdio\",\"allowed_origins\":[\"{EXTENSION_ORIGIN}\"]}}"
+    );
+    assert_eq!(
+        parse_error(&raw_control),
+        NativeMessagingManifestParseError::InvalidJson
+    );
 
     let unterminated = r#"{"name":"unterminated}"#;
-    assert_eq!(parse_error(unterminated), NativeMessagingManifestParseError::InvalidJson);
+    assert_eq!(
+        parse_error(unterminated),
+        NativeMessagingManifestParseError::InvalidJson
+    );
 }
 
 #[test]
@@ -111,15 +168,25 @@ fn parse_errors_expose_deterministic_display_and_only_causal_sources() {
         assert!(error.source().is_none());
     }
 
-    let invalid_host = format!(r#"{{"name":"INVALID HOST","description":"host","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":["{EXTENSION_ORIGIN}"]}}"#);
+    let invalid_host = format!(
+        r#"{{"name":"INVALID HOST","description":"host","path":"/opt/originweave/native-host","type":"stdio","allowed_origins":["{EXTENSION_ORIGIN}"]}}"#
+    );
     let host_error = parse_error(&invalid_host);
-    assert!(matches!(host_error, NativeMessagingManifestParseError::HostName(_)));
+    assert!(matches!(
+        host_error,
+        NativeMessagingManifestParseError::HostName(_)
+    ));
     assert!(!host_error.to_string().is_empty());
     assert!(host_error.source().is_some());
 
-    let invalid_manifest = format!(r#"{{"name":"com.contextualwisdom.originweave","description":"host","path":"/opt/originweave/native-host","type":"pipe","allowed_origins":["{EXTENSION_ORIGIN}"]}}"#);
+    let invalid_manifest = format!(
+        r#"{{"name":"com.contextualwisdom.originweave","description":"host","path":"/opt/originweave/native-host","type":"pipe","allowed_origins":["{EXTENSION_ORIGIN}"]}}"#
+    );
     let manifest_error = parse_error(&invalid_manifest);
-    assert!(matches!(manifest_error, NativeMessagingManifestParseError::Manifest(_)));
+    assert!(matches!(
+        manifest_error,
+        NativeMessagingManifestParseError::Manifest(_)
+    ));
     assert!(!manifest_error.to_string().is_empty());
     assert!(manifest_error.source().is_some());
 }
