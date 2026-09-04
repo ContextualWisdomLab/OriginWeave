@@ -7,12 +7,31 @@ use originweave_mcp::{
 };
 
 fn validate(tool_name: &str) -> Result<ValidatedMcpToolCall, McpToolBoundaryError> {
-    ValidatedMcpToolCall::new(
-        MCP_PROTOCOL_VERSION,
+    ValidatedMcpToolCall::new_with_request_metadata(
+        Some(MCP_PROTOCOL_VERSION),
+        Some(MCP_PROTOCOL_VERSION),
+        true,
         MCP_TOOLS_CALL_METHOD,
         tool_name,
         MCP_TOOLS_CALL_METHOD,
         tool_name,
+    )
+}
+
+fn modern_route(
+    routing_method: &str,
+    routing_tool_name: &str,
+    body_method: &str,
+    body_tool_name: &str,
+) -> Result<ValidatedMcpToolCall, McpToolBoundaryError> {
+    ValidatedMcpToolCall::new_with_request_metadata(
+        Some(MCP_PROTOCOL_VERSION),
+        Some(MCP_PROTOCOL_VERSION),
+        true,
+        routing_method,
+        routing_tool_name,
+        body_method,
+        body_tool_name,
     )
 }
 
@@ -130,9 +149,10 @@ fn mcp_tool_catalog_is_deterministic_complete_and_action_unambiguous() -> Result
             expected_action.required_capability()
         );
         assert_eq!(entry.risk_class(), expected_action.risk_class());
-
-        let call = validate(entry.tool_name())?;
-        assert_eq!(call.action_kind(), entry.action_kind());
+        assert_eq!(
+            validate(entry.tool_name())?.action_kind(),
+            entry.action_kind()
+        );
     }
 
     for (index, entry) in catalog.iter().enumerate() {
@@ -150,20 +170,9 @@ fn mcp_tool_catalog_is_deterministic_complete_and_action_unambiguous() -> Result
 }
 
 #[test]
-fn mcp_route_rejects_protocol_header_body_and_method_drift() {
+fn modern_route_rejects_header_body_and_method_drift() {
     assert_eq!(
-        ValidatedMcpToolCall::new(
-            "2025-11-25",
-            MCP_TOOLS_CALL_METHOD,
-            "originweave.observe",
-            MCP_TOOLS_CALL_METHOD,
-            "originweave.observe",
-        ),
-        Err(McpToolBoundaryError::UnsupportedProtocolVersion)
-    );
-    assert_eq!(
-        ValidatedMcpToolCall::new(
-            MCP_PROTOCOL_VERSION,
+        modern_route(
             MCP_TOOLS_CALL_METHOD,
             "originweave.observe",
             "tools/list",
@@ -172,8 +181,7 @@ fn mcp_route_rejects_protocol_header_body_and_method_drift() {
         Err(McpToolBoundaryError::HeaderBodyMismatch)
     );
     assert_eq!(
-        ValidatedMcpToolCall::new(
-            MCP_PROTOCOL_VERSION,
+        modern_route(
             MCP_TOOLS_CALL_METHOD,
             "originweave.observe",
             MCP_TOOLS_CALL_METHOD,
@@ -182,8 +190,7 @@ fn mcp_route_rejects_protocol_header_body_and_method_drift() {
         Err(McpToolBoundaryError::HeaderBodyMismatch)
     );
     assert_eq!(
-        ValidatedMcpToolCall::new(
-            MCP_PROTOCOL_VERSION,
+        modern_route(
             "resources/read",
             "originweave.observe",
             "resources/read",
@@ -194,64 +201,31 @@ fn mcp_route_rejects_protocol_header_body_and_method_drift() {
 }
 
 #[test]
-fn mcp_route_bounds_each_untrusted_method_before_cross_field_comparison() {
+fn modern_route_bounds_each_untrusted_method_before_cross_field_comparison() {
     let at_limit = "x".repeat(MAX_MCP_METHOD_NAME_BYTES);
     let oversized_routing = "r".repeat(MAX_MCP_METHOD_NAME_BYTES + 1);
     let oversized_body = "b".repeat(MAX_MCP_METHOD_NAME_BYTES + 1);
 
+    for (routing_method, body_method) in [
+        ("", MCP_TOOLS_CALL_METHOD),
+        (MCP_TOOLS_CALL_METHOD, ""),
+        (&oversized_routing, MCP_TOOLS_CALL_METHOD),
+        (MCP_TOOLS_CALL_METHOD, &oversized_body),
+        ("tools call", "tools call"),
+    ] {
+        assert_eq!(
+            modern_route(
+                routing_method,
+                "originweave.observe",
+                body_method,
+                "originweave.observe",
+            ),
+            Err(McpToolBoundaryError::InvalidMethod)
+        );
+    }
+
     assert_eq!(
-        ValidatedMcpToolCall::new(
-            MCP_PROTOCOL_VERSION,
-            "",
-            "originweave.observe",
-            MCP_TOOLS_CALL_METHOD,
-            "originweave.observe",
-        ),
-        Err(McpToolBoundaryError::InvalidMethod)
-    );
-    assert_eq!(
-        ValidatedMcpToolCall::new(
-            MCP_PROTOCOL_VERSION,
-            MCP_TOOLS_CALL_METHOD,
-            "originweave.observe",
-            "",
-            "originweave.observe",
-        ),
-        Err(McpToolBoundaryError::InvalidMethod)
-    );
-    assert_eq!(
-        ValidatedMcpToolCall::new(
-            MCP_PROTOCOL_VERSION,
-            &oversized_routing,
-            "originweave.observe",
-            MCP_TOOLS_CALL_METHOD,
-            "originweave.observe",
-        ),
-        Err(McpToolBoundaryError::InvalidMethod)
-    );
-    assert_eq!(
-        ValidatedMcpToolCall::new(
-            MCP_PROTOCOL_VERSION,
-            MCP_TOOLS_CALL_METHOD,
-            "originweave.observe",
-            &oversized_body,
-            "originweave.observe",
-        ),
-        Err(McpToolBoundaryError::InvalidMethod)
-    );
-    assert_eq!(
-        ValidatedMcpToolCall::new(
-            MCP_PROTOCOL_VERSION,
-            "tools call",
-            "originweave.observe",
-            "tools call",
-            "originweave.observe",
-        ),
-        Err(McpToolBoundaryError::InvalidMethod)
-    );
-    assert_eq!(
-        ValidatedMcpToolCall::new(
-            MCP_PROTOCOL_VERSION,
+        modern_route(
             &at_limit,
             "originweave.observe",
             &at_limit,
@@ -262,9 +236,10 @@ fn mcp_route_bounds_each_untrusted_method_before_cross_field_comparison() {
 }
 
 #[test]
-fn mcp_route_rejects_unbounded_malformed_and_unmapped_tool_names() {
+fn modern_route_rejects_unbounded_malformed_and_unmapped_tool_names() {
     let at_limit = "x".repeat(MAX_MCP_TOOL_NAME_BYTES);
     let oversized = "x".repeat(MAX_MCP_TOOL_NAME_BYTES + 1);
+
     for tool_name in [
         "",
         "originweave legal",
@@ -287,16 +262,11 @@ fn mcp_route_rejects_unbounded_malformed_and_unmapped_tool_names() {
         validate("third_party.arbitrary_javascript"),
         Err(McpToolBoundaryError::UnknownTool)
     );
-}
 
-#[test]
-fn mcp_route_validates_each_untrusted_tool_name_before_cross_field_comparison() {
     let oversized_routing = "r".repeat(MAX_MCP_TOOL_NAME_BYTES + 1);
     let oversized_body = "b".repeat(MAX_MCP_TOOL_NAME_BYTES + 1);
-
     assert_eq!(
-        ValidatedMcpToolCall::new(
-            MCP_PROTOCOL_VERSION,
+        modern_route(
             MCP_TOOLS_CALL_METHOD,
             &oversized_routing,
             MCP_TOOLS_CALL_METHOD,
@@ -305,8 +275,7 @@ fn mcp_route_validates_each_untrusted_tool_name_before_cross_field_comparison() 
         Err(McpToolBoundaryError::InvalidToolName)
     );
     assert_eq!(
-        ValidatedMcpToolCall::new(
-            MCP_PROTOCOL_VERSION,
+        modern_route(
             MCP_TOOLS_CALL_METHOD,
             "originweave.observe",
             MCP_TOOLS_CALL_METHOD,
@@ -315,8 +284,7 @@ fn mcp_route_validates_each_untrusted_tool_name_before_cross_field_comparison() 
         Err(McpToolBoundaryError::InvalidToolName)
     );
     assert_eq!(
-        ValidatedMcpToolCall::new(
-            MCP_PROTOCOL_VERSION,
+        modern_route(
             MCP_TOOLS_CALL_METHOD,
             "originweave/observe",
             MCP_TOOLS_CALL_METHOD,
@@ -327,11 +295,101 @@ fn mcp_route_validates_each_untrusted_tool_name_before_cross_field_comparison() 
 }
 
 #[test]
+fn legacy_constructor_preserves_routing_diagnostics_but_never_admits_valid_calls() {
+    assert_eq!(
+        ValidatedMcpToolCall::new(
+            MCP_PROTOCOL_VERSION,
+            MCP_TOOLS_CALL_METHOD,
+            "originweave.observe",
+            MCP_TOOLS_CALL_METHOD,
+            "originweave.observe",
+        ),
+        Err(McpToolBoundaryError::MissingProtocolVersionMetadata)
+    );
+    assert_eq!(
+        ValidatedMcpToolCall::new(
+            "2025-11-25",
+            MCP_TOOLS_CALL_METHOD,
+            "originweave.observe",
+            MCP_TOOLS_CALL_METHOD,
+            "originweave.observe",
+        ),
+        Err(McpToolBoundaryError::UnsupportedProtocolVersion)
+    );
+    assert_eq!(
+        ValidatedMcpToolCall::new(
+            MCP_PROTOCOL_VERSION,
+            MCP_TOOLS_CALL_METHOD,
+            "originweave.observe",
+            MCP_TOOLS_CALL_METHOD,
+            "originweave.extract",
+        ),
+        Err(McpToolBoundaryError::HeaderBodyMismatch)
+    );
+    assert_eq!(
+        ValidatedMcpToolCall::new(
+            MCP_PROTOCOL_VERSION,
+            "tools call",
+            "originweave.observe",
+            "tools call",
+            "originweave.observe",
+        ),
+        Err(McpToolBoundaryError::InvalidMethod)
+    );
+    assert_eq!(
+        ValidatedMcpToolCall::new(
+            MCP_PROTOCOL_VERSION,
+            "resources/read",
+            "originweave.observe",
+            "resources/read",
+            "originweave.observe",
+        ),
+        Err(McpToolBoundaryError::UnsupportedMethod)
+    );
+    assert_eq!(
+        ValidatedMcpToolCall::new(
+            MCP_PROTOCOL_VERSION,
+            MCP_TOOLS_CALL_METHOD,
+            "originweave/observe",
+            MCP_TOOLS_CALL_METHOD,
+            "originweave/observe",
+        ),
+        Err(McpToolBoundaryError::InvalidToolName)
+    );
+    assert_eq!(
+        ValidatedMcpToolCall::new(
+            MCP_PROTOCOL_VERSION,
+            MCP_TOOLS_CALL_METHOD,
+            "originweave.unknown",
+            MCP_TOOLS_CALL_METHOD,
+            "originweave.unknown",
+        ),
+        Err(McpToolBoundaryError::UnknownTool)
+    );
+}
+
+#[test]
 fn mcp_boundary_errors_are_deterministic_and_do_not_echo_untrusted_values() {
     let cases = [
         (
+            McpToolBoundaryError::MissingProtocolVersionHeader,
+            "MCP protocol version header is required",
+        ),
+        (
+            McpToolBoundaryError::MissingProtocolVersionMetadata,
+            "MCP request metadata protocol version is required",
+        ),
+        (
+            McpToolBoundaryError::ProtocolVersionHeaderBodyMismatch,
+            "MCP protocol version header does not match request metadata",
+        ),
+        (
             McpToolBoundaryError::UnsupportedProtocolVersion,
             "unsupported MCP protocol version",
+        ),
+        (
+            McpToolBoundaryError::MissingClientCapabilities,
+            "MCP request metadata client capabilities are required",
         ),
         (
             McpToolBoundaryError::HeaderBodyMismatch,

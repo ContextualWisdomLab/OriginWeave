@@ -48,6 +48,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Active PR #272 hardens the MCP `2026-07-28` `tools/call` adapter so a validated call requires matching transport/request protocol versions and per-request client-capabilities presence; optional self-reported `clientInfo` is neither required nor retained as authority, and the former constructor shape now fails closed for otherwise valid legacy calls. This is active-PR evidence, not protected-main shipment.
 - Aligned the hourly product-development branch-coverage toolchain and its one-shot materializer with the reviewed `nightly-2026-08-18` pin, and corrected the official Dependabot Rust-toolchain reference.
 - Separated logical origin authority from resolved network destination authority; an origin grant no longer implies permission to connect to every resolver result.
 - Separated resolved-address authorization from direct transport evidence; an approved IP now becomes a usable stream only after the operating system reports the exact requested IP and port.
