@@ -22,7 +22,7 @@ pub use break_glass::{
 };
 pub use model_disclosure::{
     ModelDisclosureAlternative, ModelDisclosureDecision, ModelDisclosureNecessity,
-    evaluate_full_field_model_disclosure,
+    ModelDisclosureNecessityEvidence, evaluate_full_field_model_disclosure,
 };
 pub use model_fallback::{
     ModelFallbackDecision, ModelFallbackRequest, ModelFallbackScope, ModelRouteAvailability,
