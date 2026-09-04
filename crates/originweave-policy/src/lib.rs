@@ -15,7 +15,7 @@ mod sensitive_handle_dispatch;
 
 pub use model_fallback::{
     ModelFallbackDecision, ModelFallbackRequest, ModelFallbackScope, ModelRouteAvailability,
-    evaluate_model_fallback,
+    ModelRouteAvailabilityEvidence, evaluate_model_fallback,
 };
 pub use model_output::{
     ModelOutputDecision, ModelOutputRequest, ModelOutputScope, ModelOutputValidation,
