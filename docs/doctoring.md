@@ -6,7 +6,7 @@ This document records external evidence that changes OriginWeave architecture, t
 
 ### Browser automation and interoperability
 
-The live WebDriver BiDi Editor's Draft dated 1 September 2026 defines the current bidirectional remote-control protocol, events, commands, and user contexts. The 1 June 2026 W3C Working Draft remains the most recent dated published Working Draft referenced by this repository, but it is not treated as the current editor text. Because WebDriver BiDi remains a draft protocol, OriginWeave keeps it behind a versioned adapter and Web Platform Tests-derived contract tests rather than make it the internal authority model.
+The live WebDriver BiDi Editor's Draft dated 3 September 2026 defines the current bidirectional remote-control protocol, events, commands, and user contexts. The 1 June 2026 W3C Working Draft remains the most recent dated published Working Draft referenced by this repository, but it is not treated as the current editor text. Because WebDriver BiDi remains a draft protocol, OriginWeave keeps it behind a versioned adapter and Web Platform Tests-derived contract tests rather than make it the internal authority model.
 
 The same Editor's Draft defines `script.NodeRemoteValue` with a required `type` of `node` and an optional `sharedId`, and `browsingContext.locateNodes` returns a list of those remote values. A `script.SharedReference` is the protocol's node identity across realms; when both `handle` and `sharedId` are present, the protocol respects only `sharedId`. OriginWeave therefore admits a `locateNodes` result item only when the remote type is exactly `node` and a non-empty `sharedId` fits the same UTF-8 identifier budget used by browser session and context identifiers and contains no control, whitespace, or reviewed Unicode format characters. Requiring `sharedId` and rejecting control, whitespace, and format characters is a local fail-closed policy, not a claim that the Editor's Draft makes those fields mandatory or forbids whitespace. The admitted value is an untrusted transport handle, not an OriginWeave session, context, origin, or document-epoch node identity. The same-call QueryNodes admission boundary first obtains a non-cloneable SemanticObservation protocol-use proof and transfers that proof by ownership into `bind_current_nodes`, which refuses Navigation and TypedInput proofs before translating each admitted `sharedId` through the session-scoped registry into an `ObservedNodeHandle` only after the exact current session, browsing context, canonical origin, and document epoch are revalidated and the returned item count still fits the reviewed query budget. That composition still performs no browser I/O and does not authorize typed input.
 
@@ -112,7 +112,7 @@ Chromium Authors. (n.d.). *Proxy support in Chrome* [Source documentation]. Chro
 
 Chromium Authors. (2026). *URL canonicalizer unit tests* [Source code]. Chromium. https://chromium.googlesource.com/chromium/src/+/446d05d21720f0b3505ec21057b3e9f909784262/url/url_canon_unittest.cc
 
-Cooper, D., Santesson, S., Farrell, S., Boeyen, S., Housley, R., & Polk, W. (2008). *Internet X.509 public key infrastructure certificate and certificate revocation list (CRL) profile* (RFC 5280). Internet Engineering Task Force. https://doi.org/10.17487/RFC5280
+Cooper, D., Santesson, S., Farrell, S., Boeyen, R., Housley, R., & Polk, W. (2008). *Internet X.509 public key infrastructure certificate and certificate revocation list (CRL) profile* (RFC 5280). Internet Engineering Task Force. https://doi.org/10.17487/RFC5280
 
 Cotton, M., Vegoda, L., Bonica, R., & Haberman, B. (2013). *Special-purpose IP address registries* (RFC 6890). Internet Engineering Task Force. https://doi.org/10.17487/RFC6890
 
@@ -176,7 +176,7 @@ World Wide Web Consortium. (2023, June 6). *Accessible Rich Internet Application
 
 World Wide Web Consortium. (2026, June 1). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260601/
 
-World Wide Web Consortium. (2026, September 1). *WebDriver BiDi* [Editor's Draft]. https://w3c.github.io/webdriver-bidi/
+World Wide Web Consortium. (2026, September 3). *WebDriver BiDi* [Editor's Draft]. https://w3c.github.io/webdriver-bidi/
 
 World Wide Web Consortium. (2026, August 5). *Accessible name and description computation 1.2* (W3C Working Draft). https://www.w3.org/TR/2026/WD-accname-1.2-20260805/
 
