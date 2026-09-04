@@ -51,10 +51,16 @@ impl Display for AdmittedNodeAuthorityError {
             Self::NotAdmitted => formatter
                 .write_str("admitted node authority is no longer retained by this registry"),
             Self::BrowserAuthority(error) => {
-                write!(formatter, "admitted node browser authority rejected input: {error}")
+                write!(
+                    formatter,
+                    "admitted node browser authority rejected input: {error}"
+                )
             }
             Self::NodeHandle(error) => {
-                write!(formatter, "admitted node document authority rejected input: {error}")
+                write!(
+                    formatter,
+                    "admitted node document authority rejected input: {error}"
+                )
             }
         }
     }
@@ -339,4 +345,37 @@ fn node_authority_key(handle: &ObservedNodeHandle) -> (u64, u64, u64, u64) {
         handle.document_epoch().value(),
         handle.node_id(),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use std::error::Error;
+
+    use super::{AdmittedNodeAuthorityError, BrowserAuthorityRegistry};
+    use crate::{BrowserRegistryError, Origin};
+
+    #[test]
+    #[cfg_attr(coverage, coverage(off))]
+    fn admitted_node_revalidation_preserves_broken_registry_authority() -> Result<(), Box<dyn Error>>
+    {
+        let mut registry = BrowserAuthorityRegistry::new();
+        let session = registry.register_session("broken-authority-session")?;
+        let context = registry.register_context(session, "broken-authority-context")?;
+        let origin = Origin::parse("https://example.com").map_err(|error| {
+            std::io::Error::other(format!("fixture origin rejected: {error:?}"))
+        })?;
+        let handle = registry
+            .bind_admitted_nodes(session, context, &origin, &["node"])?
+            .pop()
+            .ok_or("fixture did not bind its node")?;
+        registry.inner.remove_context(context)?;
+
+        assert_eq!(
+            registry.validate_admitted_node_handle(&handle),
+            Err(AdmittedNodeAuthorityError::BrowserAuthority(
+                BrowserRegistryError::UnknownBrowsingContext
+            ))
+        );
+        Ok(())
+    }
 }

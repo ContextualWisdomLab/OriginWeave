@@ -5,9 +5,9 @@ use originweave_core::{
     BoundedWebDriverBiDiResponseDocument, BrowserAuthorityRegistry, BrowserContextDispatchTarget,
     BrowserContextOriginDispatchTarget, BrowserContextOriginEpochDispatchTarget,
     BrowserProtocolAdapterDescriptor, BrowserProtocolCapability, BrowserProtocolKind,
-    BrowsingContextId, InstructionSource, NodeActionKind, Origin, OriginWeaveProtocolVersion,
-    SecretDelivery, SemanticNodeActionBinding, ValidatedBrowserProtocolUse,
-    WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesCommand,
+    BrowserRegistryError, BrowsingContextId, InstructionSource, NodeActionKind, NodeHandleError,
+    Origin, OriginWeaveProtocolVersion, SecretDelivery, SemanticNodeActionBinding,
+    ValidatedBrowserProtocolUse, WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesCommand,
 };
 
 const ORIGINWEAVE_PROTOCOL_VERSION: OriginWeaveProtocolVersion =
@@ -37,8 +37,14 @@ fn semantic_observation_proof() -> Result<ValidatedBrowserProtocolUse, Box<dyn E
     )?)
 }
 
-fn admitted_node(
-) -> Result<(BrowserAuthorityRegistry, BrowsingContextId, AdmittedNodeHandle), Box<dyn Error>> {
+fn admitted_node() -> Result<
+    (
+        BrowserAuthorityRegistry,
+        BrowsingContextId,
+        AdmittedNodeHandle,
+    ),
+    Box<dyn Error>,
+> {
     let mut registry = BrowserAuthorityRegistry::new();
     let session = registry.register_session("binding-current-authority-session")?;
     let context = registry.register_context(session, "binding-current-authority-context")?;
@@ -53,11 +59,8 @@ fn admitted_node(
         epoch,
     );
     let query = WebDriverBiDiAccessibilityQuery::new(Some("button"), Some("Continue"), 1)?;
-    let command = WebDriverBiDiLocateNodesCommand::new(
-        51,
-        "binding-current-authority-context",
-        &query,
-    )?;
+    let command =
+        WebDriverBiDiLocateNodesCommand::new(51, "binding-current-authority-context", &query)?;
     let document = BoundedWebDriverBiDiResponseDocument::new(
         r#"{"type":"success","id":51,"result":{"nodes":[{"type":"node","sharedId":"binding-current-authority-node"}]}}"#,
     )?;
@@ -118,8 +121,8 @@ fn action_binding_rejects_stale_document_authority() -> Result<(), Box<dyn Error
 }
 
 #[test]
-fn action_binding_rejects_foreign_registry_even_for_reproducible_descriptive_tuple(
-) -> Result<(), Box<dyn Error>> {
+fn action_binding_rejects_foreign_registry_even_for_reproducible_descriptive_tuple()
+-> Result<(), Box<dyn Error>> {
     let (_registry, _context, handle) = admitted_node()?;
     let binding = binding(handle)?;
     let foreign_registry = BrowserAuthorityRegistry::new();
@@ -129,4 +132,28 @@ fn action_binding_rejects_foreign_registry_even_for_reproducible_descriptive_tup
         Err(AdmittedNodeAuthorityError::ForeignRegistry)
     );
     Ok(())
+}
+
+#[test]
+fn admitted_node_authority_errors_preserve_typed_sources() {
+    let errors = [
+        AdmittedNodeAuthorityError::ForeignRegistry,
+        AdmittedNodeAuthorityError::NotAdmitted,
+        AdmittedNodeAuthorityError::BrowserAuthority(BrowserRegistryError::UnknownBrowserSession),
+        AdmittedNodeAuthorityError::NodeHandle(NodeHandleError::InvalidNodeId),
+    ];
+
+    assert_eq!(
+        errors.map(|error| error.to_string()),
+        [
+            "admitted node was issued by a different browser authority registry",
+            "admitted node authority is no longer retained by this registry",
+            "admitted node browser authority rejected input: browser session is not registered in this authority registry",
+            "admitted node document authority rejected input: observed node identifier must be nonzero",
+        ]
+    );
+    assert_eq!(
+        errors.map(|error| error.source().is_some()),
+        [false, false, true, true]
+    );
 }
