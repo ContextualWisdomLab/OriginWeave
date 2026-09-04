@@ -44,6 +44,10 @@ pub enum SensitiveAuditChainLinkError {
     UnexpectedPreviousDigest,
     /// A non-genesis link omitted its previous-chain digest.
     MissingPreviousDigest,
+    /// A complete-history verification request did not contain any links.
+    EmptyHistory,
+    /// A complete-history verification request did not begin with the genesis link.
+    HistoryDoesNotStartAtGenesis,
     /// A next link changed tenant or logical audit stream.
     ChainContextMismatch,
     /// A next link did not use the exact contiguous sequence number.
@@ -68,6 +72,10 @@ impl fmt::Display for SensitiveAuditChainLinkError {
             }
             Self::MissingPreviousDigest => {
                 "non-genesis sensitive audit chain link is missing its previous digest"
+            }
+            Self::EmptyHistory => "sensitive audit chain history is empty",
+            Self::HistoryDoesNotStartAtGenesis => {
+                "sensitive audit chain history does not start at genesis"
             }
             Self::ChainContextMismatch => "sensitive audit chain context mismatch",
             Self::SequenceDiscontinuity => "sensitive audit chain sequence is not contiguous",
@@ -229,6 +237,41 @@ impl SensitiveAuditChainLink {
         }
         Ok(next)
     }
+}
+
+/// Verify one loaded sensitive-audit history from genesis through its final link.
+///
+/// Every recorded link digest is checked against its canonical preimage, and every successor is
+/// revalidated against the exact predecessor tenant, stream, sequence, and digest. The history
+/// must contain at least one link and begin at sequence one. Success does not authenticate a
+/// signer, persist or atomically append records, or prevent an authorized storage owner from
+/// replacing and rehashing an entire history.
+pub fn verify_sensitive_audit_chain_history(
+    history: &[SensitiveAuditChainLink],
+) -> Result<(), SensitiveAuditChainLinkError> {
+    let Some(first) = history.first() else {
+        return Err(SensitiveAuditChainLinkError::EmptyHistory);
+    };
+    if first.sequence_number() != 1 {
+        return Err(SensitiveAuditChainLinkError::HistoryDoesNotStartAtGenesis);
+    }
+    first.verify_chain_digest()?;
+
+    for pair in history.windows(2) {
+        let previous = &pair[0];
+        let next = &pair[1];
+        next.verify_chain_digest()?;
+        previous.try_next(SensitiveAuditChainLinkInput {
+            tenant_id: next.tenant_id().to_owned(),
+            audit_stream_id: next.audit_stream_id().to_owned(),
+            sequence_number: next.sequence_number(),
+            previous_chain_digest: next.previous_chain_digest().map(str::to_owned),
+            payload_digest: next.payload_digest().to_owned(),
+            chain_digest: next.chain_digest().to_owned(),
+        })?;
+    }
+
+    Ok(())
 }
 
 fn valid_identifier(value: &str) -> bool {

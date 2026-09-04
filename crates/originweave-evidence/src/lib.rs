@@ -19,6 +19,7 @@ pub use sensitive_access::{
 };
 pub use sensitive_audit_chain::{
     SensitiveAuditChainLink, SensitiveAuditChainLinkError, SensitiveAuditChainLinkInput,
+    verify_sensitive_audit_chain_history,
 };
 pub use sensitive_break_glass::{
     SensitiveBreakGlassApprovalMode, SensitiveBreakGlassEvidence, SensitiveBreakGlassEvidenceError,
