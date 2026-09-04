@@ -10,8 +10,9 @@ from scripts.ci.classify_ci_change_scope import classify_changes, parse_nul_raw_
 def _raw_record(status: str, source_path: str, destination_path: str) -> bytes:
     """Build one canonical scored rename/copy record with caller-controlled paths."""
 
+    destination_oid = "1" * 40 if status.endswith("100") else "2" * 40
     return (
-        f":100644 100644 {'1' * 40} {'2' * 40} {status}\0"
+        f":100644 100644 {'1' * 40} {destination_oid} {status}\0"
         f"{source_path}\0{destination_path}\0"
     ).encode()
 
