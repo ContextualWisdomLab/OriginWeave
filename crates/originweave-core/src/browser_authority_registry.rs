@@ -233,21 +233,22 @@ impl BrowserAuthorityRegistry {
             return Err(AdmittedNodeAuthorityError::NotAdmitted);
         }
 
-        let current_epoch = self
-            .require_context_origin(
-                handle.browser_session(),
-                handle.browsing_context(),
-                handle.origin(),
-            )
-            .map_err(AdmittedNodeAuthorityError::BrowserAuthority)?;
-        handle
-            .validate_current(
-                handle.browser_session(),
-                handle.browsing_context(),
-                handle.origin(),
-                current_epoch,
-            )
-            .map_err(AdmittedNodeAuthorityError::NodeHandle)
+        self.require_context_origin(
+            handle.browser_session(),
+            handle.browsing_context(),
+            handle.origin(),
+        )
+        .map_err(AdmittedNodeAuthorityError::BrowserAuthority)
+        .and_then(|current_epoch| {
+            handle
+                .validate_current(
+                    handle.browser_session(),
+                    handle.browsing_context(),
+                    handle.origin(),
+                    current_epoch,
+                )
+                .map_err(AdmittedNodeAuthorityError::NodeHandle)
+        })
     }
 
     /// Advance a browsing context to the next document epoch and invalidate old node bindings.
@@ -368,6 +369,7 @@ mod tests {
             .bind_admitted_nodes(session, context, &origin, &["node"])?
             .pop()
             .ok_or("fixture did not bind its node")?;
+        registry.validate_admitted_node_handle(&handle)?;
         registry.inner.remove_context(context)?;
 
         assert_eq!(
