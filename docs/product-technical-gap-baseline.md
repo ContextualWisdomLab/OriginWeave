@@ -6,7 +6,7 @@ This is a dated delivery baseline, not a substitute for the PRD, TRD, roadmap, a
 
 This volatile section is refreshed from live GitHub state and is authoritative only for the exact observations recorded here. The dated snapshot below remains historical evidence and is not promoted to current acceptance evidence. Live GitHub PR/base/head/check APIs are authoritative over PR bodies and prior maintenance prose; a body that still names an older head is stale evidence, not merge evidence.
 
-Observed at (UTC): `2026-09-04T11:39:56Z`.
+Observed at (UTC): `2026-09-04T11:44:26Z`.
 
 - Protected `main` is `c789b802fc98a8d7fd8c09d9327f36828054d2a1` through #280. #280 restored repository-native CI for documentation changes after #278's `paths-ignore` created a documentation-contract verification gap.
 - Full live search returns **145 open pull requests: 5 Ready/non-draft and 140 Draft; 13 open non-PR issues**. Queue movement is not protected-main delivery.
