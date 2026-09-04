@@ -3,8 +3,9 @@ use std::{error::Error, fmt, time::Duration};
 use originweave_core::WebDriverBiDiPointerClickCommand;
 
 use crate::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
-    WebDriverBiDiCommandKind, WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrameError,
+    MAX_WEBSOCKET_FRAME_TIMEOUT, WebDriverBiDiCommandCorrelation,
+    WebDriverBiDiCommandCorrelationError, WebDriverBiDiCommandKind,
+    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrameError,
     WebDriverBiDiWebSocketMaskKey,
 };
 
@@ -45,10 +46,9 @@ impl Error for WebDriverBiDiPointerClickSendError {
 
 /// Register and write one already validated `input.performActions` pointer-click command.
 ///
-/// Registration occurs before the first possible remote side effect. A correlation failure therefore
-/// writes nothing. Once registration succeeds, a frame-write failure leaves the identifier
-/// outstanding because a partial or complete remote side effect is ambiguous and the identifier
-/// must not be silently reused.
+/// Invalid local frame deadlines fail before registration. Correlation then occurs before the first
+/// possible remote side effect. A frame preflight rejection that proves no write began retires the
+/// exact id; a partial or complete remote side effect remains ambiguous and leaves it outstanding.
 ///
 /// This boundary accepts only [`WebDriverBiDiPointerClickCommand`], not arbitrary JSON or method
 /// names. It does not authenticate the browser, grant session/context/origin/document-epoch
@@ -63,10 +63,48 @@ pub fn send_webdriver_bidi_pointer_click(
     masking_key: WebDriverBiDiWebSocketMaskKey,
     frame_timeout: Duration,
 ) -> Result<WebDriverBiDiWebSocketEstablished, WebDriverBiDiPointerClickSendError> {
-    correlation
+    if frame_timeout.is_zero() {
+        return Err(invalid_frame_timeout(frame_timeout));
+    }
+    if frame_timeout > MAX_WEBSOCKET_FRAME_TIMEOUT {
+        return Err(invalid_frame_timeout(frame_timeout));
+    }
+    match correlation
         .register_command_for(command.command_id(), WebDriverBiDiCommandKind::PointerClick)
-        .map_err(|source| WebDriverBiDiPointerClickSendError::Correlation { source })?;
-    established
-        .write_text_frame(command.as_json(), masking_key, frame_timeout)
-        .map_err(|source| WebDriverBiDiPointerClickSendError::FrameWrite { source })
+    {
+        Ok(()) => {}
+        Err(source) => {
+            return Err(WebDriverBiDiPointerClickSendError::Correlation { source });
+        }
+    }
+    match established.write_text_frame(command.as_json(), masking_key, frame_timeout) {
+        Ok(established) => Ok(established),
+        Err(source) => Err(map_frame_failure(correlation, command.command_id(), source)),
+    }
+}
+
+fn invalid_frame_timeout(frame_timeout: Duration) -> WebDriverBiDiPointerClickSendError {
+    WebDriverBiDiPointerClickSendError::FrameWrite {
+        source: WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout {
+            frame_timeout,
+            maximum_timeout: MAX_WEBSOCKET_FRAME_TIMEOUT,
+        },
+    }
+}
+
+fn map_frame_failure(
+    correlation: &mut WebDriverBiDiCommandCorrelation,
+    command_id: u64,
+    source: WebDriverBiDiWebSocketFrameError,
+) -> WebDriverBiDiPointerClickSendError {
+    match source {
+        WebDriverBiDiWebSocketFrameError::MalformedFrame { reason } => {
+            let _retirement =
+                correlation.retire_command_for(command_id, WebDriverBiDiCommandKind::PointerClick);
+            WebDriverBiDiPointerClickSendError::FrameWrite {
+                source: WebDriverBiDiWebSocketFrameError::MalformedFrame { reason },
+            }
+        }
+        source => WebDriverBiDiPointerClickSendError::FrameWrite { source },
+    }
 }
