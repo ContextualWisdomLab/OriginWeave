@@ -11,7 +11,7 @@ homepage.workspace = true
 publish = false
 
 [lib]
-path = "src/root.rs"
+path = "src/crate_root.rs"
 
 [dependencies]
 unicode-normalization = "=0.1.25"
