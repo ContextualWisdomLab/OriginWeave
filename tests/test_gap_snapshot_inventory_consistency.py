@@ -26,9 +26,9 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "## Observed snapshot: 2026-08-29", 1
         )[0]
         for marker in (
-            "129 open pull requests",
+            "126 open pull requests",
             "5 Ready/non-draft",
-            "124 Draft",
+            "121 Draft",
             "13 open non-PR issues",
             "4ed08bfa7c063fc7f2ef9278ee8d281887b8296b",
             "18156473",
@@ -124,7 +124,7 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
         preamble, remainder = unreleased.split("### Added", 1)
         added = remainder.split("### Changed", 1)[0]
 
-        expected = "129 open pull requests (5 ready, 124 draft)"
+        expected = "126 open pull requests (5 ready, 121 draft)"
         self.assertIn(expected, preamble)
         self.assertIn("13 open non-PR issues", preamble)
         self.assertIn(expected, added)
