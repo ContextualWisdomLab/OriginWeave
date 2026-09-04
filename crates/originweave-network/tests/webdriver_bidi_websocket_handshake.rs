@@ -1,5 +1,6 @@
 use std::{
     net::{Shutdown, TcpListener},
+    sync::mpsc,
     thread,
     time::Duration,
 };
@@ -150,7 +151,12 @@ fn opening_write_fails_closed_after_verified_stream_is_locally_revoked() {
     let Ok(local_addr) = local_addr else {
         return;
     };
-    let server = thread::spawn(move || listener.accept().map(|_| ()));
+    let (release_server, await_release) = mpsc::sync_channel::<()>(0);
+    let server = thread::spawn(move || {
+        let (_stream, _peer) = listener.accept()?;
+        let _release = await_release.recv();
+        Ok::<(), std::io::Error>(())
+    });
 
     let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
     let connection = connect(&endpoint);
@@ -167,9 +173,10 @@ fn opening_write_fails_closed_after_verified_stream_is_locally_revoked() {
     let Ok(plan) = plan else {
         return;
     };
+    let request_byte_count = plan.request_bytes().len();
 
     let write = plan.write_opening_request(Duration::from_secs(1));
-    let failed_closed_without_writing = match write {
+    let failed_closed_after_revoke = match write {
         Err(WebDriverBiDiWebSocketOpeningWriteError::WriteFailed {
             bytes_written: 0, ..
         }) => true,
@@ -177,9 +184,20 @@ fn opening_write_fails_closed_after_verified_stream_is_locally_revoked() {
             bytes_written: 0,
             source,
         }) => source.kind() == std::io::ErrorKind::InvalidInput,
+        Err(WebDriverBiDiWebSocketOpeningWriteError::WriteTimeoutCleanupFailed {
+            bytes_written,
+            source,
+        }) => {
+            bytes_written == request_byte_count
+                && matches!(
+                    source.kind(),
+                    std::io::ErrorKind::NotConnected | std::io::ErrorKind::InvalidInput
+                )
+        }
         _ => false,
     };
-    assert!(failed_closed_without_writing);
+    assert!(failed_closed_after_revoke);
+    assert!(release_server.send(()).is_ok());
 
     let server_result = server.join();
     assert!(server_result.is_ok(), "{server_result:?}");
