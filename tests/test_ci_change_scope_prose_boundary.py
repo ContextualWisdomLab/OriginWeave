@@ -43,7 +43,14 @@ class CiChangeScopeProseBoundaryTests(unittest.TestCase):
     def test_agent_instruction_control_plane_requires_rust(self) -> None:
         """Contributor authority documents must never enter the lightweight prose lane."""
 
-        for path in ("AGENTS.md", "CLAUDE.md"):
+        for path in (
+            "AGENTS.md",
+            "CLAUDE.md",
+            "docs/AGENTS.md",
+            "docs/CLAUDE.md",
+            "docs/doctoring/AGENTS.md",
+            "docs/doctoring/CLAUDE.md",
+        ):
             with self.subTest(path=path):
                 self.assertFalse(is_documentation_path(path))
                 self.assertEqual(
