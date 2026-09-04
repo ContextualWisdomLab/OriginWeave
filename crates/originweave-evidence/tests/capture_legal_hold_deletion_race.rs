@@ -30,10 +30,7 @@ fn legal_hold_cannot_revoke_pending_deletion_without_cancellation_evidence()
         lifecycle.place_legal_hold(201),
         Err(CaptureLifecycleError::InvalidTransition)
     );
-    assert_eq!(
-        lifecycle.state(),
-        CaptureLifecycleState::DeletionRequested
-    );
+    assert_eq!(lifecycle.state(), CaptureLifecycleState::DeletionRequested);
     assert_eq!(lifecycle.latest_trusted_time_epoch_seconds(), 200);
     assert_eq!(
         lifecycle.deletion_request_digest(),
