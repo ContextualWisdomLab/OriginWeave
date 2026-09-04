@@ -59,6 +59,8 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
         ):
             with self.subTest(non_passing=non_passing):
                 self.assertIn(non_passing.casefold(), current.casefold())
+        self.assertIn("binds Git rename/copy similarity to blob identity", current)
+        self.assertNotIn("remaining rename/copy similarity-binding RED", self.changelog)
         for stale in (
             "143 open pull requests",
             "142 open pull requests",

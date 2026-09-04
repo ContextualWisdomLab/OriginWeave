@@ -6,7 +6,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 - Refreshed the product-gap queue to 145 open pull requests (5 ready, 140 draft) and 13 open non-PR issues on 2026-09-03; queue movement is active-PR evidence, not protected-main shipment.
 - Corrected the retained PR #219 exact-head regression anchor and separated the shipped `tools/call` policy binding from the core-only `tools/list` discovery contract.
-- Refreshed the #279 evidence to the current #282/#283 heads, including complete raw-diff object identities and the remaining rename/copy similarity-binding RED.
+- Refreshed the #279 evidence to the current #282/#283 heads, including complete raw-diff object identities and rename/copy similarity binding to blob identity.
 
 ### Added
 - Revalidated the product-gap queue at 145 open pull requests (5 ready, 140 draft) and 13 open non-PR issues on 2026-09-04; protected `main` remains `c789b802fc98a8d7fd8c09d9327f36828054d2a1`, presentation-identity PR #229 is Draft at `35c4a00d24bb1429df7a306d95f49853d058baa7`, WebDriver BiDi document-advance PR #260 is Draft at `d1f3a4f0f44f15b6dcdba8b8ce555af0bed89d0a`, and sandbox-enabled Agent Task evidence PR #70 is Draft at `ba8926eed5a6d783f781684f30c900919eecd52b`. Current-head checks remain independently required; no protected-main shipment is claimed.
