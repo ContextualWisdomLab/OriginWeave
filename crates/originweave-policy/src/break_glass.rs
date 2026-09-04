@@ -2,10 +2,10 @@
 //!
 //! Break-glass is not a reusable role or an alternative disclosure authority. This module permits
 //! only an existing human-approval or dual-control sensitive-data decision to proceed after exact
-//! authority, actor, and reason binding, a locally bounded half-open validity window, sufficient
-//! approval evidence, heightened monitoring, and mandatory post-event review are all explicit. The
-//! types carry policy metadata only; they never carry protected values, authenticate identities,
-//! read a clock, execute monitoring, persist evidence, or perform a review.
+//! authority, actor, approver, and reason binding, a locally bounded half-open validity window,
+//! sufficient approval evidence, heightened monitoring, and mandatory post-event review are all
+//! explicit. The types carry policy metadata only; they never carry protected values, authenticate
+//! identities, read a clock, execute monitoring, persist evidence, or perform a review.
 
 use crate::sensitive_data::{
     DisclosureDecision, DisclosureScope, SensitiveDataAuthority, SensitiveDataRequest,
@@ -135,6 +135,154 @@ impl BreakGlassActorBinding {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum BreakGlassApproverKind {
+    Human {
+        approval_id: String,
+        approver_id: String,
+    },
+    DualControl {
+        first_approval_id: String,
+        first_approver_id: String,
+        second_approval_id: String,
+        second_approver_id: String,
+    },
+}
+
+/// Caller-supplied approval-reference to approver-identity bindings.
+///
+/// These identifiers are credential-free policy metadata. They must be derived by a trusted approval
+/// service from the same authoritative approval records represented by [`BreakGlassApprovalEvidence`].
+/// Exact reference matching prevents an approver identity from being detached from the approval
+/// reference it is asserted to own. Exact identity inequality prevents the approved beneficiary from
+/// approving their own break-glass access and prevents one identity from satisfying both sides of
+/// dual control. This value does not authenticate an approver, verify a signature, or prove
+/// organizational-role separation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BreakGlassApproverBinding {
+    kind: BreakGlassApproverKind,
+}
+
+impl BreakGlassApproverBinding {
+    /// Bind one human approver identity to one exact human-approval reference.
+    #[must_use]
+    pub fn human(approval_id: &str, approver_id: &str) -> Self {
+        Self {
+            kind: BreakGlassApproverKind::Human {
+                approval_id: approval_id.to_owned(),
+                approver_id: approver_id.to_owned(),
+            },
+        }
+    }
+
+    /// Bind two distinct approver identities to two distinct dual-control approval references.
+    ///
+    /// The two reference/identity pairs are set-like: presenting the same two pairs in the opposite
+    /// order does not change authorization. Each identity nevertheless remains attached to its exact
+    /// reference.
+    #[must_use]
+    pub fn dual_control(
+        first_approval_id: &str,
+        first_approver_id: &str,
+        second_approval_id: &str,
+        second_approver_id: &str,
+    ) -> Self {
+        Self {
+            kind: BreakGlassApproverKind::DualControl {
+                first_approval_id: first_approval_id.to_owned(),
+                first_approver_id: first_approver_id.to_owned(),
+                second_approval_id: second_approval_id.to_owned(),
+                second_approver_id: second_approver_id.to_owned(),
+            },
+        }
+    }
+
+    fn is_valid(&self) -> bool {
+        match &self.kind {
+            BreakGlassApproverKind::Human {
+                approval_id,
+                approver_id,
+            } => {
+                break_glass_identifier_is_valid(approval_id)
+                    && break_glass_identifier_is_valid(approver_id)
+            }
+            BreakGlassApproverKind::DualControl {
+                first_approval_id,
+                first_approver_id,
+                second_approval_id,
+                second_approver_id,
+            } => {
+                break_glass_identifier_is_valid(first_approval_id)
+                    && break_glass_identifier_is_valid(first_approver_id)
+                    && break_glass_identifier_is_valid(second_approval_id)
+                    && break_glass_identifier_is_valid(second_approver_id)
+                    && first_approval_id != second_approval_id
+                    && first_approver_id != second_approver_id
+            }
+        }
+    }
+
+    fn matches_approval(&self, approval: &BreakGlassApprovalEvidence) -> bool {
+        match (&self.kind, &approval.kind) {
+            (
+                BreakGlassApproverKind::Human { approval_id, .. },
+                BreakGlassApprovalKind::Human(expected_approval_id),
+            ) => approval_id == expected_approval_id,
+            (
+                BreakGlassApproverKind::DualControl {
+                    first_approval_id,
+                    second_approval_id,
+                    ..
+                },
+                BreakGlassApprovalKind::DualControl {
+                    first_approval_id: expected_first,
+                    second_approval_id: expected_second,
+                },
+            ) => {
+                (first_approval_id == expected_first && second_approval_id == expected_second)
+                    || (first_approval_id == expected_second
+                        && second_approval_id == expected_first)
+            }
+            _ => false,
+        }
+    }
+
+    fn is_independent_from(&self, actor_binding: &BreakGlassActorBinding) -> bool {
+        match &self.kind {
+            BreakGlassApproverKind::Human { approver_id, .. } => {
+                approver_id != &actor_binding.current_actor_id
+            }
+            BreakGlassApproverKind::DualControl {
+                first_approver_id,
+                second_approver_id,
+                ..
+            } => {
+                first_approver_id != &actor_binding.current_actor_id
+                    && second_approver_id != &actor_binding.current_actor_id
+            }
+        }
+    }
+}
+
+/// One coherent caller-supplied identity snapshot for a break-glass evaluation.
+///
+/// The actor and approver bindings must be derived from the same authoritative decision context.
+/// Grouping them prevents callers from accidentally evaluating actor and approver metadata as
+/// unrelated parameters, but does not authenticate either identity or verify approval records.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BreakGlassIdentityBindings {
+    actor: BreakGlassActorBinding,
+    approvers: BreakGlassApproverBinding,
+}
+
+impl BreakGlassIdentityBindings {
+    /// Bind the beneficiary actor and approver identities into one evaluation input.
+    #[must_use]
+    pub const fn new(actor: BreakGlassActorBinding, approvers: BreakGlassApproverBinding) -> Self {
+        Self { actor, approvers }
+    }
+}
+
 /// Local policy ceiling for one break-glass validity interval.
 ///
 /// The maximum uses the same trusted time units as the scope and evaluation time. A zero maximum is
@@ -248,6 +396,12 @@ pub enum SensitiveBreakGlassDecision {
     InvalidActorBinding,
     /// The currently authenticated actor differed from the actor covered by the approval.
     ActorMismatch,
+    /// Approver or bound approval-reference metadata was malformed, duplicated, or out of bounds.
+    InvalidApproverBinding,
+    /// Approver binding shape or exact approval references differed from supplied approval evidence.
+    ApproverBindingMismatch,
+    /// An approver identity matched the beneficiary actor receiving exceptional access.
+    ApproverIndependenceRequired,
     /// Requested and approved break-glass reason identifiers differed.
     ReasonMismatch,
     /// Request reason metadata was malformed or outside the bounded grammar.
@@ -279,18 +433,21 @@ pub enum SensitiveBreakGlassDecision {
 /// [`DisclosureDecision::HumanApprovalRequired`] or [`DisclosureDecision::DualControlRequired`]
 /// result reaches the exceptional controls.
 ///
-/// `actor_binding` and `trusted_time` must be supplied by a trusted runtime. The time must use the
-/// same domain and units as the scope and [`BreakGlassValidityPolicy`]. Even an
+/// `identity_bindings` and `trusted_time` must be supplied by a trusted runtime. The approver binding
+/// must be derived from the same authoritative approval records represented by the scope approval
+/// evidence and binds each supplied approver identity to an exact approval reference. Time must use
+/// the same domain and units as the scope and [`BreakGlassValidityPolicy`]. Even an
 /// [`SensitiveBreakGlassDecision::Authorized`] result is metadata-only: a trusted broker must
-/// authenticate the current caller and approvers, revalidate policy/lifecycle immediately before
-/// disclosure, execute monitoring, emit durable audit evidence, and ensure post-event review occurs.
+/// authenticate the current caller and approvers, verify the approval records, revalidate
+/// policy/lifecycle immediately before disclosure, execute monitoring, emit durable audit evidence,
+/// and ensure post-event review occurs.
 #[must_use]
 pub fn evaluate_sensitive_break_glass(
     disclosure_request: &SensitiveDataRequest,
     disclosure_scope: &DisclosureScope,
     break_glass_request: &SensitiveBreakGlassRequest,
     break_glass_scope: &SensitiveBreakGlassScope,
-    actor_binding: &BreakGlassActorBinding,
+    identity_bindings: &BreakGlassIdentityBindings,
     validity_policy: &BreakGlassValidityPolicy,
     trusted_time: u64,
 ) -> SensitiveBreakGlassDecision {
@@ -307,8 +464,11 @@ pub fn evaluate_sensitive_break_glass(
     if !break_glass_scope.is_valid() {
         return SensitiveBreakGlassDecision::InvalidScope;
     }
-    if !actor_binding.is_valid() {
+    if !identity_bindings.actor.is_valid() {
         return SensitiveBreakGlassDecision::InvalidActorBinding;
+    }
+    if !identity_bindings.approvers.is_valid() {
+        return SensitiveBreakGlassDecision::InvalidApproverBinding;
     }
     if !validity_policy.is_valid() {
         return SensitiveBreakGlassDecision::InvalidValidityPolicy;
@@ -318,7 +478,7 @@ pub fn evaluate_sensitive_break_glass(
     {
         return SensitiveBreakGlassDecision::AuthorityMismatch;
     }
-    if !actor_binding.matches() {
+    if !identity_bindings.actor.matches() {
         return SensitiveBreakGlassDecision::ActorMismatch;
     }
     if break_glass_request.reason_id != break_glass_scope.reason_id {
@@ -339,6 +499,18 @@ pub fn evaluate_sensitive_break_glass(
     }
     if !break_glass_scope.approval.satisfies(approval_requirement) {
         return SensitiveBreakGlassDecision::ApprovalInsufficient;
+    }
+    if !identity_bindings
+        .approvers
+        .matches_approval(&break_glass_scope.approval)
+    {
+        return SensitiveBreakGlassDecision::ApproverBindingMismatch;
+    }
+    if !identity_bindings
+        .approvers
+        .is_independent_from(&identity_bindings.actor)
+    {
+        return SensitiveBreakGlassDecision::ApproverIndependenceRequired;
     }
     if !break_glass_scope.heightened_monitoring {
         return SensitiveBreakGlassDecision::HeightenedMonitoringRequired;

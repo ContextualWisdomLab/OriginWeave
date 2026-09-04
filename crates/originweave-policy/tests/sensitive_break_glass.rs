@@ -3,17 +3,18 @@
 //! Fail-closed policy contract for exceptional sensitive-data break-glass access.
 //!
 //! Break-glass does not turn a denied or ordinarily authorized disclosure into a new authority.
-//! It may authorize only an existing human-approval or dual-control disclosure decision after
+//! It may authorize only an existing human-approval or dual-control sensitive-data decision after
 //! exact authority/reason binding, bounded freshness, explicit approval, heightened monitoring,
 //! and mandatory post-event review all succeed. The values below carry policy metadata only and
 //! never contain protected field bytes.
 
 use originweave_core::Origin;
 use originweave_policy::{
-    BreakGlassActorBinding, BreakGlassApprovalEvidence, BreakGlassValidityPolicy,
-    DataClassification, DisclosureDecision, DisclosureScope, SensitiveBreakGlassDecision,
-    SensitiveBreakGlassRequest, SensitiveBreakGlassScope, SensitiveDataAuthority,
-    SensitiveDataRequest, evaluate_sensitive_break_glass,
+    BreakGlassActorBinding, BreakGlassApprovalEvidence, BreakGlassApproverBinding,
+    BreakGlassIdentityBindings, BreakGlassValidityPolicy, DataClassification, DisclosureDecision,
+    DisclosureScope, SensitiveBreakGlassDecision, SensitiveBreakGlassRequest,
+    SensitiveBreakGlassScope, SensitiveDataAuthority, SensitiveDataRequest,
+    evaluate_sensitive_break_glass,
 };
 
 const VALID_FROM: u64 = 100;
@@ -33,16 +34,33 @@ fn authority(task_id: &str) -> SensitiveDataAuthority {
     )
 }
 
-fn evaluate(
+fn default_approvers(disclosure_decision: DisclosureDecision) -> BreakGlassApproverBinding {
+    if disclosure_decision == DisclosureDecision::DualControlRequired {
+        BreakGlassApproverBinding::dual_control(
+            "approval-human-1",
+            "support-approver-7",
+            "approval-human-2",
+            "security-approver-9",
+        )
+    } else {
+        BreakGlassApproverBinding::human("approval-human-1", "support-approver-7")
+    }
+}
+
+fn evaluate_with_approvers(
     disclosure_decision: DisclosureDecision,
     break_glass_request: SensitiveBreakGlassRequest,
     break_glass_scope: SensitiveBreakGlassScope,
+    approver_binding: BreakGlassApproverBinding,
     trusted_time: u64,
 ) -> SensitiveBreakGlassDecision {
     let exact_authority = authority("task-42");
     let disclosure_request = SensitiveDataRequest::new(exact_authority.clone());
     let disclosure_scope = DisclosureScope::new(exact_authority, disclosure_decision);
-    let actor_binding = BreakGlassActorBinding::new(ACTOR_ID, ACTOR_ID);
+    let identity_bindings = BreakGlassIdentityBindings::new(
+        BreakGlassActorBinding::new(ACTOR_ID, ACTOR_ID),
+        approver_binding,
+    );
     let validity_policy = BreakGlassValidityPolicy::new(MAXIMUM_WINDOW);
 
     evaluate_sensitive_break_glass(
@@ -50,8 +68,24 @@ fn evaluate(
         &disclosure_scope,
         &break_glass_request,
         &break_glass_scope,
-        &actor_binding,
+        &identity_bindings,
         &validity_policy,
+        trusted_time,
+    )
+}
+
+fn evaluate(
+    disclosure_decision: DisclosureDecision,
+    break_glass_request: SensitiveBreakGlassRequest,
+    break_glass_scope: SensitiveBreakGlassScope,
+    trusted_time: u64,
+) -> SensitiveBreakGlassDecision {
+    let approver_binding = default_approvers(disclosure_decision);
+    evaluate_with_approvers(
+        disclosure_decision,
+        break_glass_request,
+        break_glass_scope,
+        approver_binding,
         trusted_time,
     )
 }
@@ -142,10 +176,16 @@ fn dual_control_break_glass_requires_two_distinct_approvals() {
 #[test]
 fn dual_control_evidence_satisfies_the_single_human_approval_gate() {
     assert_eq!(
-        evaluate(
+        evaluate_with_approvers(
             DisclosureDecision::HumanApprovalRequired,
             request(),
             dual_scope(),
+            BreakGlassApproverBinding::dual_control(
+                "approval-human-1",
+                "support-approver-7",
+                "approval-human-2",
+                "security-approver-9",
+            ),
             TRUSTED_TIME,
         ),
         SensitiveBreakGlassDecision::Authorized
