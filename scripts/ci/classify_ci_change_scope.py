@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import string
 import sys
 from dataclasses import dataclass
 from pathlib import PurePosixPath
@@ -127,9 +126,30 @@ def _validate_raw_object_id(object_id: str) -> None:
     """Reject malformed abbreviated object identifiers in raw-diff metadata."""
 
     if not 4 <= len(object_id) <= 64 or any(
-        character not in string.hexdigits for character in object_id
+        character not in "0123456789abcdef" for character in object_id
     ):
         raise ValueError("changed raw record has an invalid object id")
+
+
+def _validate_raw_object_identity_semantics(
+    source_mode: str,
+    destination_mode: str,
+    source_oid: str,
+    destination_oid: str,
+) -> None:
+    """Require raw object identities to agree with two-tree presence metadata."""
+
+    if len(source_oid) != len(destination_oid):
+        raise ValueError("changed raw record object ids have inconsistent widths")
+
+    for mode, object_id in (
+        (source_mode, source_oid),
+        (destination_mode, destination_oid),
+    ):
+        side_absent = mode == _ABSENT_MODE
+        identity_absent = not object_id.strip("0")
+        if side_absent != identity_absent:
+            raise ValueError("changed raw record has inconsistent mode/object id metadata")
 
 
 def _validate_raw_mode_semantics(source_mode: str, destination_mode: str, status: str) -> None:
@@ -178,6 +198,12 @@ def _parse_raw_metadata(raw_metadata: bytes) -> tuple[str, str, str]:
     _validate_raw_object_id(destination_oid)
     _status_path_count(status)
     _validate_raw_mode_semantics(source_mode, destination_mode, status)
+    _validate_raw_object_identity_semantics(
+        source_mode,
+        destination_mode,
+        source_oid,
+        destination_oid,
+    )
     return source_mode, destination_mode, status
 
 
