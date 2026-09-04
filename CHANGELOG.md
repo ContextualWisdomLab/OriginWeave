@@ -50,6 +50,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 ### Changed
 
 - Receipt replay now additionally requires the lifecycle's actual most recently accepted transition to equal the retained receipt transition; same-state/same-sequence divergent histories and state-only restored snapshots fail closed instead of replaying ambiguous command evidence.
+- Crash-recovery redispatch classification now binds the exact accepted BAP command receipt and a canonical lowercase SHA-256 recovery-evidence identity, validates the receipt against the lifecycle's exact most recently accepted transition, and keeps the digest as identity rather than authentication or retry authority; malformed evidence identities and stale or divergent receipt state fail closed.
 - Aligned the hourly product-development branch-coverage toolchain and its one-shot materializer with the reviewed `nightly-2026-08-18` pin, and corrected the official Dependabot Rust-toolchain reference.
 - Separated logical origin authority from resolved network destination authority; an origin grant no longer implies permission to connect to every resolver result.
 - Separated resolved-address authorization from direct transport evidence; an approved IP now becomes a usable stream only after the operating system reports the exact requested IP and port.
