@@ -82,6 +82,14 @@ Credential-free TLS evidence records the canonical origin, TCP peers, reference 
 
 The test-only rcgen 0.14.8 dependency creates a local CA and deterministic certificate-policy scenarios. It is not part of production arithmetic or trust. Tests cover trusted DNS identity, Common Name non-fallback, wrong name, untrusted root, expired and not-yet-valid validity, exact IPv4 and IPv6 SAN identity, TLS 1.2 and TLS 1.3, required and optional ALPN, and equality between TLS origin and TCP authority.
 
+### Release artifact filename portability
+
+Microsoft's Win32 filename guidance requires applications not to assume case sensitivity and reserves device basenames including `CON`, `PRN`, `AUX`, `NUL`, `COM1` through `COM9`, and `LPT1` through `LPT9`, including those names followed by extensions. The same documentation identifies non-ASCII superscript-digit device aliases and also documents `COM0` as a possible `Global??` Win32 namespace symlink. Separately, Microsoft's current OneDrive and SharePoint restrictions reject `COM0` through `COM9` and `LPT0` through `LPT9` and additional names including `desktop.ini`. OriginWeave therefore adopts a bounded release-artifact identity deny set: ASCII-case-folded duplicate names and `CON`, `PRN`, `AUX`, `NUL`, `COM0` through `COM9`, and `LPT0` through `LPT9`, including extensions, are rejected. The ASCII-only grammar separately excludes the superscript aliases. This bounded filename rule is not a complete OneDrive or SharePoint synchronization-compatibility guarantee; packaging or synchronization validation for a target service must separately enforce that service's full current restrictions. These checks preserve the original artifact spelling and remain identity hygiene only; they do not grant signing, publication, installation, update, rollback, or release authority.
+
+### Git source identity admission
+
+Git's protocol grammar distinguishes an ordinary 40-hex object identifier from `zero-id = 40*"0"`. The pack protocol uses that all-zero sentinel to represent absent refs and create/delete reference state rather than a concrete source object. OriginWeave therefore requires release-manifest `source_commit` and WARC PROV `software_commit_sha` values to be canonical lowercase 40-hex identifiers with at least one nonzero digit. This is an identity-admission rule only: it prevents a null Git sentinel from being represented as a concrete software revision, but does not prove repository reachability, GitHub authenticity, commit trust, provenance, or release authority.
+
 ### Crawling policy
 
 RFC 9309 standardizes robots parsing, matching, error handling, and caching. It also states that robots rules are not access authorization. OriginWeave therefore requires robots evidence for public crawler mode while maintaining authentication, terms, rate, privacy, and retention policy as separate controls.
@@ -140,6 +148,10 @@ Fielding, R., Nottingham, M., & Reschke, J. (2022). *HTTP semantics* (RFC 9110).
 
 Fugu Team, Sakana AI. (2026). *Sakana Fugu technical report* [Technical report]. arXiv. https://doi.org/10.48550/arXiv.2606.21228
 
+Git. (2025). *gitprotocol-common documentation (Git 2.50.0)*. https://git-scm.com/docs/gitprotocol-common/2.50.0
+
+Git. (2026). *gitprotocol-pack documentation (Git 2.54.0)*. https://git-scm.com/docs/gitprotocol-pack/2.54.0
+
 Huston, G., & Buraglio, N. (2024). *Expanding the IPv6 documentation space* (RFC 9637). Internet Engineering Task Force. https://doi.org/10.17487/RFC9637
 
 Internet Assigned Numbers Authority. (2025, October 9). *IPv4 special-purpose address space*. https://www.iana.org/assignments/iana-ipv4-special-registry/iana-ipv4-special-registry.xhtml
@@ -155,6 +167,10 @@ Koster, M., Illyes, G., Zeller, H., & Sassman, L. (2022). *Robots Exclusion Prot
 Lodderstedt, T., Bradley, J., Labunets, A., & Fett, D. (2025). *OAuth 2.0 security best current practice* (RFC 9700). Internet Engineering Task Force. https://doi.org/10.17487/RFC9700
 
 Microsoft. (2025, July 25). *Azure IP address 168.63.129.16 overview*. Microsoft Learn. https://learn.microsoft.com/azure/virtual-network/what-is-ip-address-168-63-129-16
+
+Microsoft. (n.d.). *Naming files, paths, and namespaces*. Microsoft Learn. Retrieved August 23, 2026, from https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file
+
+Microsoft. (n.d.). *Restrictions and limitations in OneDrive and SharePoint*. Microsoft Support. Retrieved August 23, 2026, from https://support.microsoft.com/en-US/onedrive/restrictions-and-limitations-in-onedrive-and-sharepoint
 
 Model Context Protocol. (2026, July 28). *Specification: 2026-07-28*. https://modelcontextprotocol.io/specification/2026-07-28
 

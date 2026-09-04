@@ -14,6 +14,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Refreshed the product and technical gap baseline with the 2026-08-24 live inventory: 158 open pull requests (44 ready, 114 draft), refreshed exact base/head evidence for the #208–#222 release, enterprise-approval, BAP, and WARC/PROV chains, the governance issue additions #212 and #215, and a required-check provider-failure record for the fail-closed Strix re-dispatches on #208/#218/#220.
 - Added a dated product and technical gap baseline that separates protected-main implementation truth, active pull-request evidence, live review/check blockers, and the next buyer-visible Phase 1 acceptance work.
 - Refreshed the product and technical gap baseline with the current open-PR inventory and exact base/head evidence for the newest Chromium, BAP, extraction, WARC, and idempotency slices.
+
+- Added a fail-closed release-manifest identity primitive that binds an exact lowercase source commit, bounded canonical Chromium revision, explicit release channel, the exact repository-pinned Rust 1.97.1 toolchain, exact lowercase dependency-lock SHA-256 evidence, and deterministic bounded artifact leaf names with lowercase SHA-256 digests; build identity remains metadata rather than reproducibility proof, moving toolchain aliases and alternate versions fail closed, and artifact identity is unique under ASCII case folding so case-only names cannot collide on case-insensitive target filesystems, without granting signing, publication, installation, update, rollback, or release authority.
 - Bound explicit extension-to-Agent grants to exclusive trusted-time expiry in addition to extension identity, session, browsing context, and canonical origin, so a same-origin grant cannot be reused at or after the deadline.
 - Bound explicit extension-to-Agent grants to the exact canonical origin in addition to extension identity, session, and browsing context, so a same-session navigation or port change cannot reuse the grant.
 - Rust workspace for independently reusable core, policy, destination, network, TLS, resource, and evidence modules.
@@ -71,6 +73,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 ### Security
 
 - Explicit proxy server identifiers require ASCII decimal port tokens before numeric range parsing, preventing Rust-specific leading-plus spellings from widening proxy authority.
+- Release artifact admission rejects `COM0` through `COM9` and `LPT0` through `LPT9` case-insensitively, including extensions, as bounded filename identity hygiene. OneDrive and SharePoint impose additional restrictions, including `desktop.ini`, that this validator does not model; this is not a complete OneDrive or SharePoint synchronization-compatibility guarantee.
 - Raw page content cannot become a trusted instruction.
 - Raw secrets are rejected and secret-capable actions require an opaque broker handle.
 - Crawler mode is read-only, must pair with the public-crawl purpose, and fails closed without an applicable robots-policy decision.

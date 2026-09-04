@@ -61,11 +61,12 @@ ADR 0013 and ADR 0014 exist only on this documentation branch until it integrate
 
 | ADR | Decision | Status | Governs |
 |---|---|---|---|
+| [0015](0015-release-manifest-identity.md) | Release manifest identity boundary | Proposed | bounded release-candidate metadata identity, deterministic artifact ordering, cross-platform filename collision guards, and explicit exclusion of signing/publication/install/update authority |
 | [0016](0016-bap-task-lifecycle-authority.md) | BAP task lifecycle and state authority | Proposed | BAP task states, transitions, recovery validation, transition sequencing, and authority separation |
 
-ADR 0016 belongs to the active BAP lifecycle feature branch. Indexing it makes the branch documentation graph complete while preserving its Proposed lifecycle and active-PR, non-protected-main maturity.
+ADR 0015 is active-PR architecture evidence for the release-manifest identity slice. ADR 0016 belongs to the active BAP lifecycle feature branch. Both remain Proposed. Indexing them makes the branch documentation graph complete without promoting either decision or its implementation to protected-main truth.
 
-After protected-main integration, retain this subsection only when it is intentionally serving as historical provenance; otherwise protected-main reconciliation must remove it. In either case, integration alone does not change ADR 0016 from Proposed or assert implementation maturity.
+After protected-main integration, retain this subsection only when it is intentionally serving as historical provenance; otherwise protected-main reconciliation must remove it. In either case, integration alone does not change these ADRs from Proposed or assert implementation maturity.
 
 Other active feature PRs may contain additional Proposed ADRs. Those files are not part of this canonical documentation line until integrated or deliberately reconciled here. Historical PR checks, stale branch state, or chat decisions never transfer ADR acceptance across a changed head.
 
