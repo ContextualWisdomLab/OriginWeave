@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import http.client
 import json
 import pathlib
 import runpy
+import tempfile
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -119,6 +121,32 @@ class ManifestV3CompatibilityContractTests(unittest.TestCase):
         self.assertIn('"127.0.0.1"', runner)
         self.assertNotIn("urllib.request", runner)
         self.assertNotIn("urllib.error", runner)
+
+    def test_fixture_handler_cannot_follow_symlinks_outside_its_root(self) -> None:
+        """The loopback fixture server must not expose files outside its configured root."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="mv3_contract")
+        start_server = namespace["_start_fixture_server"]
+        stop_server = namespace["_stop_fixture_server"]
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary_root = pathlib.Path(temporary_directory)
+            fixture_root = temporary_root / "fixture"
+            outside_root = temporary_root / "outside"
+            fixture_root.mkdir()
+            outside_root.mkdir()
+            (outside_root / "secret.txt").write_text("outside", encoding="utf-8")
+            (fixture_root / "escape").symlink_to(outside_root, target_is_directory=True)
+
+            server, thread = start_server(fixture_root)
+            connection = http.client.HTTPConnection(*server.server_address, timeout=1)
+            try:
+                connection.request("GET", "/escape/secret.txt")
+                response = connection.getresponse()
+                self.assertEqual(response.status, 404)
+                self.assertNotIn(b"outside", response.read())
+            finally:
+                connection.close()
+                stop_server(server, thread)
 
     def test_runner_accepts_real_chromedriver_element_ids_without_path_injection(self) -> None:
         """ChromeDriver dotted element IDs must work while path syntax stays fail-closed."""
