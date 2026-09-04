@@ -93,6 +93,16 @@ BOOKMARK_DIAGNOSTIC_VALUES = frozenset(
         "bookmark-not-evaluated",
     }
 )
+WEBDRIVER_ERROR_CODES = frozenset(
+    {
+        "invalid argument",
+        "no such element",
+        "session not created",
+        "stale element reference",
+        "timeout",
+        "unknown error",
+    }
+)
 
 
 class CompatibilitySurfaceError(RuntimeError):
@@ -105,6 +115,14 @@ class CompatibilitySurfaceError(RuntimeError):
             if key in observed
         }
         super().__init__("Manifest V3 fixture surfaces did not converge")
+
+
+class WebDriverProtocolError(RuntimeError):
+    """Report one allow-listed WebDriver error code without browser-controlled text."""
+
+    def __init__(self, code: object, _message: object) -> None:
+        self.code = code if isinstance(code, str) and code in WEBDRIVER_ERROR_CODES else "unknown"
+        super().__init__(f"WebDriver protocol error: {self.code}")
 
 
 class WebDriverSessionCleanupError(RuntimeError):
@@ -135,6 +153,8 @@ def _failure_evidence(error: BaseException) -> dict[str, Any]:
 
     if isinstance(error, CompatibilitySurfaceError):
         return {"failure_kind": "surface_mismatch", "observed": error.observed}
+    if isinstance(error, WebDriverProtocolError):
+        return {"failure_kind": "webdriver_protocol_error", "error_code": error.code}
     if isinstance(error, json.JSONDecodeError):
         return {"failure_kind": "json_decode_error"}
     if isinstance(error, OSError):
@@ -142,6 +162,19 @@ def _failure_evidence(error: BaseException) -> dict[str, Any]:
     if isinstance(error, ValueError):
         return {"failure_kind": "value_error"}
     return {"failure_kind": "runtime_error"}
+
+
+def _record_secondary_diagnostic(error: BaseException, diagnostic: str) -> None:
+    """Retain bounded secondary context without requiring Python 3.11 ``add_note``."""
+
+    diagnostics = getattr(error, "_originweave_secondary_diagnostics", None)
+    if not isinstance(diagnostics, list):
+        diagnostics = []
+        setattr(error, "_originweave_secondary_diagnostics", diagnostics)
+    diagnostics.append(diagnostic)
+    add_note = getattr(error, "add_note", None)
+    if callable(add_note):
+        add_note(diagnostic)
 
 
 def _path_token(value: str, label: str) -> str:
@@ -178,10 +211,10 @@ def _json_request(
 ) -> dict[str, Any]:
     """Issue one bounded JSON request to the fixed loopback ChromeDriver authority.
 
-    Recoverable HTTP/1.1 parser failures, including a malformed status-line or an
-    incomplete message body, become `RuntimeError("WebDriver transport protocol
-    failure")` so trial evidence can record a classified outcome without retaining
-    raw transport text.
+    Recoverable HTTP/1.1 parser or response-encoding failures, including a malformed
+    status-line, incomplete message body, or invalid UTF-8 payload, become
+    `RuntimeError("WebDriver transport protocol failure")` so trial evidence can
+    record a classified outcome without retaining raw transport text.
     """
 
     if not 1 <= driver_port <= 65_535:
@@ -193,6 +226,7 @@ def _json_request(
 
     body = None if payload is None else json.dumps(payload).encode("utf-8")
     connection = http.client.HTTPConnection("127.0.0.1", driver_port, timeout=timeout)
+    transport_protocol_failed = False
     try:
         try:
             connection.request(
@@ -204,20 +238,33 @@ def _json_request(
             response = connection.getresponse()
             raw = response.read(MAX_WEBDRIVER_RESPONSE_BYTES + 1)
         except http.client.HTTPException:
-            raise RuntimeError("WebDriver transport protocol failure") from None
+            transport_protocol_failed = True
+        if transport_protocol_failed:
+            raise RuntimeError("WebDriver transport protocol failure")
         if len(raw) > MAX_WEBDRIVER_RESPONSE_BYTES:
             raise RuntimeError("WebDriver response exceeded the bounded JSON limit")
-        if response.status >= 400:
-            raise RuntimeError(f"WebDriver HTTP {response.status} error")
     finally:
         connection.close()
 
-    decoded = json.loads(raw.decode("utf-8"))
+    decoded_text = raw.decode("utf-8", errors="surrogateescape")
+    if any(0xDC80 <= ord(character) <= 0xDCFF for character in decoded_text):
+        raise RuntimeError("WebDriver transport protocol failure")
+    try:
+        decoded = json.loads(decoded_text)
+    except json.JSONDecodeError:
+        if response.status >= 400:
+            raise RuntimeError(f"WebDriver HTTP {response.status} error") from None
+        raise
     if not isinstance(decoded, dict):
         raise RuntimeError("WebDriver returned a non-object JSON payload")
+    if response.status >= 400:
+        value = decoded.get("value")
+        if isinstance(value, dict) and value.get("error"):
+            raise WebDriverProtocolError(value.get("error"), value.get("message"))
+        raise RuntimeError(f"WebDriver HTTP {response.status} error")
     value = decoded.get("value")
     if isinstance(value, dict) and value.get("error"):
-        raise RuntimeError("WebDriver returned a protocol error")
+        raise WebDriverProtocolError(value.get("error"), value.get("message"))
     return decoded
 
 
@@ -394,9 +441,10 @@ def _teardown_driver_process(driver: subprocess.Popen[bytes]) -> Exception | Non
             driver.kill()
             driver.wait(timeout=5)
         except (OSError, subprocess.TimeoutExpired) as fallback_error:
-            terminate_error.add_note(
+            _record_secondary_diagnostic(
+                terminate_error,
                 "bounded ChromeDriver kill fallback also failed: "
-                f"{type(fallback_error).__name__}"
+                f"{type(fallback_error).__name__}",
             )
             return terminate_error
         return None
@@ -467,9 +515,10 @@ def _start_chromedriver(
         teardown_error = _teardown_driver_process(driver)
         startup_error = RuntimeError("ChromeDriver startup output pipe was unavailable")
         if teardown_error is not None:
-            startup_error.add_note(
+            _record_secondary_diagnostic(
+                startup_error,
                 "ChromeDriver process teardown also failed: "
-                f"{type(teardown_error).__name__}"
+                f"{type(teardown_error).__name__}",
             )
         raise startup_error
 
@@ -509,9 +558,10 @@ def _start_chromedriver(
     teardown_error = _teardown_driver_process(driver)
     startup_error = RuntimeError("ChromeDriver did not publish a valid bound port")
     if teardown_error is not None:
-        startup_error.add_note(
+        _record_secondary_diagnostic(
+            startup_error,
             "ChromeDriver process teardown also failed: "
-            f"{type(teardown_error).__name__}"
+            f"{type(teardown_error).__name__}",
         )
     raise startup_error
 
@@ -549,7 +599,6 @@ def _run_browser_pass(
                                 "--disable-component-update",
                                 "--disable-sync",
                                 "--disable-dev-shm-usage",
-                                "--no-sandbox",
                                 f"--user-data-dir={profile_dir}",
                                 f"--disable-extensions-except={FIXTURE}",
                                 f"--load-extension={FIXTURE}",
@@ -618,6 +667,7 @@ def _run_browser_pass(
         raise
     finally:
         cleanup_error: Exception | None = None
+        unreviewed_cleanup_error: Exception | None = None
         try:
             if session_id is not None:
                 try:
@@ -629,29 +679,49 @@ def _run_browser_pass(
                     )
                 except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as error:
                     cleanup_error = error
+                except Exception as error:  # noqa: BLE001 - retained or re-raised after teardown.
+                    unreviewed_cleanup_error = error
         finally:
             teardown_error = _teardown_driver_process(driver)
         if primary_error is not None:
             if cleanup_error is not None:
-                primary_error.add_note(
+                _record_secondary_diagnostic(
+                    primary_error,
                     "WebDriver session cleanup also failed after the primary browser-pass "
-                    f"failure: {type(cleanup_error).__name__}"
+                    f"failure: {type(cleanup_error).__name__}",
+                )
+            if unreviewed_cleanup_error is not None:
+                _record_secondary_diagnostic(
+                    primary_error,
+                    "Unreviewed WebDriver session cleanup also failed after the primary "
+                    "browser-pass failure: "
+                    f"{type(unreviewed_cleanup_error).__name__}",
                 )
             if teardown_error is not None:
-                primary_error.add_note(
+                _record_secondary_diagnostic(
+                    primary_error,
                     "ChromeDriver process teardown also failed after the primary browser-pass "
-                    f"failure: {type(teardown_error).__name__}"
+                    f"failure: {type(teardown_error).__name__}",
                 )
         elif cleanup_error is not None:
             cleanup_failure = WebDriverSessionCleanupError(
                 "WebDriver session cleanup failed after bounded process teardown"
             )
             if teardown_error is not None:
-                cleanup_failure.add_note(
+                _record_secondary_diagnostic(
+                    cleanup_failure,
                     "ChromeDriver process teardown also failed: "
-                    f"{type(teardown_error).__name__}"
+                    f"{type(teardown_error).__name__}",
                 )
             raise cleanup_failure from cleanup_error
+        elif unreviewed_cleanup_error is not None:
+            if teardown_error is not None:
+                _record_secondary_diagnostic(
+                    unreviewed_cleanup_error,
+                    "ChromeDriver process teardown also failed: "
+                    f"{type(teardown_error).__name__}",
+                )
+            raise unreviewed_cleanup_error
         elif teardown_error is not None:
             raise teardown_error
 
@@ -736,7 +806,6 @@ def _pinned_workspace_binary(
 
     if relative_path.is_absolute() or ".." in relative_path.parts:
         raise SystemExit(f"{label} pinned workspace path is invalid")
-
     trusted_root = pathlib.Path(os.path.abspath(root))
     expected = pathlib.Path(os.path.abspath(trusted_root.joinpath(*relative_path.parts)))
     configured = os.environ.get(env_name)
@@ -806,7 +875,13 @@ def main() -> int:
                         trial_number,
                     )
                 )
-            except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+            except (
+                OSError,
+                ValueError,
+                RuntimeError,
+                json.JSONDecodeError,
+                subprocess.TimeoutExpired,
+            ) as exc:
                 failed_trial: dict[str, Any] = {
                     "trial_number": trial_number,
                     "passed": False,

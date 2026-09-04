@@ -171,6 +171,5 @@ class ManifestV3BookmarkMutationContractTests(unittest.TestCase):
         )
         self.assertIn("chrome.bookmarks", changelog)
 
-
 if __name__ == "__main__":
     unittest.main()
