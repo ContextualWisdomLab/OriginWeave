@@ -94,9 +94,9 @@ pub enum WebDriverBiDiSessionStatusCommandError {
         /// Exact typed correlation failure.
         source: WebDriverBiDiCommandCorrelationError,
     },
-    /// Writing the already-registered command frame failed and the transport is not reusable.
+    /// Frame preflight validation or a later write operation failed.
     FrameWrite {
-        /// Exact typed bounded WebSocket frame-write failure.
+        /// Exact typed bounded WebSocket frame validation/write failure.
         source: WebDriverBiDiWebSocketFrameError,
     },
 }
