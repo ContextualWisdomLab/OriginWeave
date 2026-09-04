@@ -10,6 +10,8 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests" / "fixtures" / "mv3_basic"
 RUNNER = ROOT / "scripts" / "ci" / "run_mv3_compatibility.py"
+DOCTORING = ROOT / "docs" / "doctoring" / "mv3-compatibility.md"
+ROOT_DOCTORING = ROOT / "docs" / "doctoring.md"
 
 
 def _load_runner_module():
@@ -64,9 +66,10 @@ class ManifestV3BookmarkMutationContractTests(unittest.TestCase):
         self.assertNotIn("String(_error)", worker)
 
     def test_bookmark_failures_emit_only_bounded_stage_diagnostics(self) -> None:
-        """Every bookmark stage must return a reviewed token without raw browser values."""
+        """Fixture diagnostics must name a reviewed stage without retaining raw browser errors."""
 
         worker = (FIXTURE / "service_worker.js").read_text(encoding="utf-8")
+        content = (FIXTURE / "content_script.js").read_text(encoding="utf-8")
         for expected in (
             "bookmark-source-rejected",
             "bookmark-create-rejected",
@@ -80,11 +83,24 @@ class ManifestV3BookmarkMutationContractTests(unittest.TestCase):
         ):
             with self.subTest(expected=expected):
                 self.assertIn(expected, worker)
+        self.assertIn("originweaveBookmarksDiagnostic", content)
+        self.assertNotIn("created.id", worker)
+        self.assertNotIn("nodes[0].url", worker)
         self.assertNotIn("_error.message", worker)
         self.assertNotIn("String(_error)", worker)
 
+    def test_content_script_and_runner_require_bookmark_diagnostics_on_every_pass(self) -> None:
+        """The compatibility report must retain a classified bookmark stage on every trial."""
+
+        content = (FIXTURE / "content_script.js").read_text(encoding="utf-8")
+        runner = RUNNER.read_text(encoding="utf-8")
+        self.assertIn("originweaveBookmarks", content)
+        self.assertIn("originweaveBookmarksDiagnostic", content)
+        self.assertIn('"bookmarks": surfaces["bookmarks"] == "ready"', runner)
+        self.assertIn('"bookmarksDiagnostic": "bookmark-complete-ready"', runner)
+
     def test_runner_preserves_only_reviewed_bookmark_diagnostic_tokens(self) -> None:
-        """Trial evidence must reduce arbitrary bookmark diagnostics to `unexpected`."""
+        """Runner failure evidence must retain stage tokens while rejecting raw diagnostics."""
 
         runner = _load_runner_module()
         approved = {
@@ -106,13 +122,27 @@ class ManifestV3BookmarkMutationContractTests(unittest.TestCase):
                     runner._safe_surface_value("bookmarksDiagnostic", token), token
                 )
 
-        for raw in (
-            "OriginWeave MV3 compatibility bookmark",
-            "Error: secret bookmark failure",
-        ):
+        approved_error = runner.CompatibilitySurfaceError(
+            {
+                "bookmarks": "missing",
+                "bookmarksDiagnostic": "bookmark-source-rejected",
+            }
+        )
+        approved_evidence = runner._failure_evidence(approved_error)
+        self.assertEqual(
+            approved_evidence["observed"]["bookmarksDiagnostic"],
+            "bookmark-source-rejected",
+        )
+
+        raw_bookmark_title = "OriginWeave MV3 compatibility bookmark"
+        raw_browser_error = "Error: secret bookmark failure"
+        for raw in (raw_bookmark_title, raw_browser_error):
             with self.subTest(raw=raw):
                 error = runner.CompatibilitySurfaceError(
-                    {"bookmarks": "missing", "bookmarksDiagnostic": raw}
+                    {
+                        "bookmarks": "missing",
+                        "bookmarksDiagnostic": raw,
+                    }
                 )
                 evidence = runner._failure_evidence(error)
                 self.assertEqual(
@@ -120,6 +150,26 @@ class ManifestV3BookmarkMutationContractTests(unittest.TestCase):
                 )
                 self.assertNotIn(raw, repr(evidence))
 
+    def test_doctoring_records_bookmarks_api_primary_citation(self) -> None:
+        """The living Chrome Bookmarks API reference must stay distinct from Agent authority."""
+
+        doctoring = DOCTORING.read_text(encoding="utf-8")
+        root_doctoring = ROOT_DOCTORING.read_text(encoding="utf-8")
+        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        for expected in (
+            "chrome.bookmarks",
+            "https://developer.chrome.com/docs/extensions/reference/api/bookmarks",
+            "allow-listed stage diagnostics",
+            "no Agent bookmark capability",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, doctoring)
+        self.assertIn("*chrome.bookmarks*", root_doctoring)
+        self.assertIn(
+            "https://developer.chrome.com/docs/extensions/reference/api/bookmarks",
+            root_doctoring,
+        )
+        self.assertIn("chrome.bookmarks", changelog)
 
 if __name__ == "__main__":
     unittest.main()
