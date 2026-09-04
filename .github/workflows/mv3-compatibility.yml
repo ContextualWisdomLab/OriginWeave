@@ -7,7 +7,10 @@ on:
       - ".github/workflows/mv3-compatibility.yml"
       - "crates/originweave-core/**"
       - "scripts/ci/run_mv3_compatibility.py"
+      - "tests/fixtures/agent_task_basic/**"
       - "tests/fixtures/mv3_basic/**"
+      - "tests/test_agent_task_chromium_sandbox_contract.py"
+      - "tests/test_agent_task_pinned_chrome_contract.py"
       - "tests/test_mv3_compatibility_contract.py"
       - "docs/doctoring/mv3-compatibility.md"
 
@@ -63,6 +66,8 @@ jobs:
           chmod 0755 \
             .mv3-browser/chrome-linux64/chrome \
             .mv3-browser/chromedriver-linux64/chromedriver
+          sudo chown root:root .mv3-browser/chrome-linux64/chrome_sandbox
+          sudo chmod 4755 .mv3-browser/chrome-linux64/chrome_sandbox
 
       - name: Execute real MV3 compatibility fixture
         shell: bash
