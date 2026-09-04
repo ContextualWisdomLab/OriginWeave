@@ -179,6 +179,22 @@ No HTTP adapter may reconnect by hostname behind the authority stack without a n
 
 **Planned and release-critical.** Safe navigation is not a supported claim until the real Chromium/browser adapter demonstrates that its real network path consumes the governed resolution, route, transport, TLS and HTTP authorities without an alternate ambient connection path.
 
+### 6.8 Presentation identity
+
+**Active-PR kernel evidence; Chromium adapter planned.**
+`originweave-fingerprint` owns pure, explicitly constructed presentation
+profiles and evidence digests. It does not select a default profile without an
+evidence-backed cohort. The first named time-zone identity is standardized to
+`UTC`, avoiding disagreement between IANA name and DST-sensitive offsets. A
+versioned Chromium adapter remains required to apply every claimed
+surface before page script, preserve the actual engine/platform family, and
+prove no ambient host fallback. This privacy boundary grants no CAPTCHA,
+bot-management, or access-control bypass authority. The kernel admits an adapter
+only when it declares every required observable surface and returns the first
+missing surface deterministically. Admission is a capability gate, not proof
+that BiDi/CDP applied the values; pinned pre-navigation Chromium evidence
+remains release-critical.
+
 ## 7. Observation architecture
 
 Observation order is an **Accepted architecture** requirement:

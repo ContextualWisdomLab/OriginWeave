@@ -137,6 +137,14 @@ Owns validated task budgets and deterministic cumulative mitigation plans. Platf
 
 Owns universally value-redacted network evidence and source-bound provenance records. Generic network records retain only bounded method, canonical origin, unambiguous bounded path, and bounded field names. Body capture, typed metadata values, WARC serialization, object storage, retention, encryption, and legal policy remain future bounded modules.
 
+### `originweave-fingerprint`
+
+Owns pure, bounded browser presentation identities and credential-free profile
+digests. It does not inspect the host, patch Chromium, bypass a challenge, or
+claim that the browser presents the profile. A versioned Chromium adapter must
+apply every released surface before page script and prove that unsupported
+surfaces do not silently fall back to ambient host values.
+
 ## 6. Planned modules
 
 ```text

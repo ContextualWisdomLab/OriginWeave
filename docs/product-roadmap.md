@@ -157,7 +157,7 @@ Each phase expands a stable benchmark suite:
 
 - rewriting Blink or V8 in Rust;
 - supporting NPAPI, Flash, or obsolete plugin models;
-- CAPTCHA bypass or fingerprint-evasion features;
+- CAPTCHA bypass or fingerprint impersonation/evasion intended to defeat bot-management or access controls;
 - arbitrary script execution as a default agent action;
 - sharing the user's unrestricted default profile with autonomous tasks;
 - describing a pure policy, proxy-route, direct TCP, or TLS identity kernel as a supported production browser.
