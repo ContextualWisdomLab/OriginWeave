@@ -32,7 +32,7 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "13 open non-PR issues",
             "c789b802fc98a8d7fd8c09d9327f36828054d2a1",
             "18156473",
-            "7 central required workflows",
+            "6 central required workflows",
             "Live GitHub PR/base/head/check APIs are authoritative over PR bodies",
             "Issue #279",
             "Issue #28 remains the P0 governed-browser integration target",
