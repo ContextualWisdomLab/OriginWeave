@@ -68,6 +68,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Security
 
+- WebDriver BiDi local-end error envelopes now admit only the finite `ErrorCode` vocabulary reviewed from the current W3C CDDL; arbitrary error strings fail closed before becoming typed response metadata, and realistic loopback coverage exercises the hostile unknown-code path.
 - Raw page content cannot become a trusted instruction.
 - Raw secrets are rejected and secret-capable actions require an opaque broker handle.
 - Crawler mode is read-only, must pair with the public-crawl purpose, and fails closed without an applicable robots-policy decision.
@@ -80,7 +81,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Resolver answers are rejected when empty or larger than 256 addresses, preventing an unbounded resolver response from entering policy state.
 - `localhost` may approve only loopback addresses, while literal IPv4 and IPv6 origins may approve only the exact canonical address encoded in the origin.
 - Resolver answers must remain a non-empty subset of the origin-bound approved address set; any newly introduced address fails closed as a possible DNS-rebinding event.
-- Every redirect rechecks target-origin authority, target-bound resolution, HTTPS downgrade, complete-target cycle state, and hop capacity before policy state changes.
+- Every redirect rechecks target-origin authority, target-bound resolution, HTTPS downgrade, complete-target digest, and hop capacity before policy state changes.
 - Direct TCP plans reject port zero, zero or excessive timeouts, excessive attempts, unapproved IPs, non-canonical IPv4-mapped IPv6 sockets, and IPv6 flow or scope metadata not represented in destination authority before connection I/O.
 - Direct connection code accepts only an explicit `SocketAddr`, never a hostname, and does not read proxy environment variables.
 - Established streams are discarded when peer inspection fails or the observed remote IP or port differs from the approved socket.
