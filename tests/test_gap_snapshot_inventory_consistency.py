@@ -43,8 +43,8 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "DDD/MCP repair #272 is Draft at exact head `cae3e02cd2edc08db06111fb309a5b437c5a6598`",
             "PR #229 is Draft at exact head `35c4a00d24bb1429df7a306d95f49853d058baa7`",
             "PR #281 remains Draft at exact head `adaca6427d68f550b39293a69b7c733430d1c385`",
-            "PR #282 is Draft at exact head `e3a40a4f78a3fbfc751ab9efad321b8207fb43e5`",
-            "PR #283 is Draft at exact head `85d31596c8b7251135f773b1d54d0f656fa10bbf`",
+            "PR #282 is Draft at exact head `afe7738de3024803b0ae313ef9a233e8ff6fd2d7`",
+            "PR #283 is Draft at exact head `2d434aefb9eff652e766a7239605b5f923705168`",
             "GitHub Releases is empty",
         ):
             with self.subTest(marker=marker):
@@ -76,6 +76,8 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "PR #229 is Draft at exact head `7ae426e760e8351ee792ce9df4266d7e7483d0d4`",
             "PR #282 is Draft at exact head `b2a120f892973e76c0ea0f06e7105bdf7a268009`",
             "PR #283 is Draft at exact head `a9603170e848a7c029531fe75727f02992ade2de`",
+            "PR #282 is Draft at exact head `e3a40a4f78a3fbfc751ab9efad321b8207fb43e5`",
+            "PR #283 is Draft at exact head `85d31596c8b7251135f773b1d54d0f656fa10bbf`",
             "PR #260 is Draft at exact head `56600a6fd982cfafd784f4b7bb659d918113ca90`",
             "PR #281 remains Draft at exact head `3ed5d7e8cf77547c96feff2cfb24c46d74a73ebb`",
         ):
