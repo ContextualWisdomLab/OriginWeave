@@ -12,6 +12,39 @@ pub const MAX_WEBDRIVER_BIDI_JSON_DEPTH: usize = 64;
 /// Largest integer admitted by WebDriver BiDi's `js-uint` production.
 pub const MAX_WEBDRIVER_BIDI_JS_UINT: u64 = 9_007_199_254_740_991;
 
+const WEBDRIVER_BIDI_ERROR_CODES: [&str; 30] = [
+    "invalid argument",
+    "invalid selector",
+    "invalid session id",
+    "invalid web extension",
+    "move target out of bounds",
+    "no such alert",
+    "no such network collector",
+    "no such element",
+    "no such frame",
+    "no such handle",
+    "no such history entry",
+    "no such intercept",
+    "no such network data",
+    "no such node",
+    "no such request",
+    "no such screencast",
+    "no such script",
+    "no such storage partition",
+    "no such user context",
+    "no such web extension",
+    "session not created",
+    "unable to capture screen",
+    "unable to close browser",
+    "unable to set cookie",
+    "unable to set file input",
+    "unavailable network data",
+    "underspecified storage partition",
+    "unknown command",
+    "unknown error",
+    "unsupported operation",
+];
+
 /// Local-end WebDriver BiDi envelope kind after complete JSON syntax validation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WebDriverBiDiJsonEnvelopeKind {
@@ -23,6 +56,18 @@ pub enum WebDriverBiDiJsonEnvelopeKind {
     Event,
 }
 
+/// Structurally valid command/event routing retained after common-envelope validation.
+///
+/// Keeping success ids inside the success variant prevents an impossible `success` + missing-id
+/// state from leaking into downstream command correlation. Error ids remain optional because the
+/// WebDriver BiDi protocol explicitly permits `null` there, while events carry no command id.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum WebDriverBiDiJsonEnvelopeRouting {
+    CommandSuccess { command_id: u64 },
+    CommandError { command_id: Option<u64> },
+    Event,
+}
+
 /// Credential-minimal classification of one complete WebDriver BiDi local-end JSON envelope.
 ///
 /// Result and parameter bodies are deliberately validated and discarded at this boundary. They
@@ -30,8 +75,7 @@ pub enum WebDriverBiDiJsonEnvelopeKind {
 /// as generic JSON values that could become ambient browser or Agent authority.
 #[derive(Eq, PartialEq)]
 pub struct WebDriverBiDiJsonEnvelope {
-    kind: WebDriverBiDiJsonEnvelopeKind,
-    command_id: Option<u64>,
+    routing: WebDriverBiDiJsonEnvelopeRouting,
     method: Option<String>,
     error_code: Option<String>,
 }
@@ -40,8 +84,8 @@ impl fmt::Debug for WebDriverBiDiJsonEnvelope {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("WebDriverBiDiJsonEnvelope")
-            .field("kind", &self.kind)
-            .field("command_id", &self.command_id)
+            .field("kind", &self.kind())
+            .field("command_id", &self.command_id())
             .field("has_method", &self.method.is_some())
             .field("has_error_code", &self.error_code.is_some())
             .finish()
@@ -73,7 +117,15 @@ impl WebDriverBiDiJsonEnvelope {
     /// Return the classified local-end envelope kind.
     #[must_use]
     pub const fn kind(&self) -> WebDriverBiDiJsonEnvelopeKind {
-        self.kind
+        match self.routing {
+            WebDriverBiDiJsonEnvelopeRouting::CommandSuccess { .. } => {
+                WebDriverBiDiJsonEnvelopeKind::Success
+            }
+            WebDriverBiDiJsonEnvelopeRouting::CommandError { .. } => {
+                WebDriverBiDiJsonEnvelopeKind::Error
+            }
+            WebDriverBiDiJsonEnvelopeRouting::Event => WebDriverBiDiJsonEnvelopeKind::Event,
+        }
     }
 
     /// Return the command identifier for success and correlatable error responses.
@@ -81,7 +133,15 @@ impl WebDriverBiDiJsonEnvelope {
     /// Events and error responses whose protocol `id` is `null` return `None`.
     #[must_use]
     pub const fn command_id(&self) -> Option<u64> {
-        self.command_id
+        match self.routing {
+            WebDriverBiDiJsonEnvelopeRouting::CommandSuccess { command_id } => Some(command_id),
+            WebDriverBiDiJsonEnvelopeRouting::CommandError { command_id } => command_id,
+            WebDriverBiDiJsonEnvelopeRouting::Event => None,
+        }
+    }
+
+    pub(crate) const fn routing(&self) -> WebDriverBiDiJsonEnvelopeRouting {
+        self.routing
     }
 
     /// Borrow the event method when this is an event envelope.
@@ -208,8 +268,7 @@ impl TopLevelFields {
         let command_id = required_js_uint(self.id, "id")?;
         require_object(self.result, "result")?;
         Ok(WebDriverBiDiJsonEnvelope {
-            kind: WebDriverBiDiJsonEnvelopeKind::Success,
-            command_id: Some(command_id),
+            routing: WebDriverBiDiJsonEnvelopeRouting::CommandSuccess { command_id },
             method: None,
             error_code: None,
         })
@@ -222,9 +281,11 @@ impl TopLevelFields {
         if let Some(stacktrace) = self.stacktrace {
             require_text_value(stacktrace, "stacktrace")?;
         }
+        if !is_webdriver_bidi_error_code(&error_code) {
+            return Err(invalid("error"));
+        }
         Ok(WebDriverBiDiJsonEnvelope {
-            kind: WebDriverBiDiJsonEnvelopeKind::Error,
-            command_id,
+            routing: WebDriverBiDiJsonEnvelopeRouting::CommandError { command_id },
             method: None,
             error_code: Some(error_code),
         })
@@ -233,9 +294,14 @@ impl TopLevelFields {
     fn into_event(self) -> Result<WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeError> {
         let method = required_text(self.method, "method")?;
         require_object(self.params, "params")?;
+        if !matches!(
+            method.split_once('.'),
+            Some((module, event)) if !module.is_empty() && !event.is_empty()
+        ) {
+            return Err(invalid("method"));
+        }
         Ok(WebDriverBiDiJsonEnvelope {
-            kind: WebDriverBiDiJsonEnvelopeKind::Event,
-            command_id: None,
+            routing: WebDriverBiDiJsonEnvelopeRouting::Event,
             method: Some(method),
             error_code: None,
         })
@@ -248,6 +314,10 @@ fn missing(member: &'static str) -> WebDriverBiDiJsonEnvelopeError {
 
 fn invalid(member: &'static str) -> WebDriverBiDiJsonEnvelopeError {
     WebDriverBiDiJsonEnvelopeError::InvalidMember { member }
+}
+
+fn is_webdriver_bidi_error_code(value: &str) -> bool {
+    WEBDRIVER_BIDI_ERROR_CODES.contains(&value)
 }
 
 fn required_text(
@@ -696,6 +766,27 @@ mod tests {
         assert_eq!(
             event.as_ref().map(WebDriverBiDiJsonEnvelope::error_code),
             Ok(None)
+        );
+    }
+
+    #[test]
+    fn accepts_current_protocol_error_code_vocabulary() {
+        for error_code in WEBDRIVER_BIDI_ERROR_CODES {
+            let document =
+                format!(r#"{{"type":"error","id":7,"error":"{error_code}","message":""}}"#);
+            assert_eq!(
+                parse(&document)
+                    .as_ref()
+                    .ok()
+                    .and_then(WebDriverBiDiJsonEnvelope::error_code),
+                Some(error_code)
+            );
+        }
+        assert_eq!(
+            parse(
+                r#"{"type":"error","id":7,"error":"attacker-defined-code","message":"bad code"}"#
+            ),
+            Err(WebDriverBiDiJsonEnvelopeError::InvalidMember { member: "error" })
         );
     }
 

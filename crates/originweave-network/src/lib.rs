@@ -46,6 +46,7 @@ pub use webdriver_bidi_connection::{
     WebDriverBiDiTcpConnection, WebDriverBiDiTcpConnectionError,
     WebDriverBiDiTcpConnectionEvidence, WebDriverBiDiTcpConnectionPlan,
 };
+pub(crate) use webdriver_bidi_json_envelope::WebDriverBiDiJsonEnvelopeRouting;
 pub use webdriver_bidi_json_envelope::{
     MAX_WEBDRIVER_BIDI_JS_UINT, MAX_WEBDRIVER_BIDI_JSON_DEPTH, WebDriverBiDiJsonEnvelope,
     WebDriverBiDiJsonEnvelopeError, WebDriverBiDiJsonEnvelopeKind,
