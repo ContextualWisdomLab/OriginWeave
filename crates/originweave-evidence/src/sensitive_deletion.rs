@@ -5,7 +5,13 @@
 //! perform deletion, authenticate the storage owner, retain the deleted value, or make an opaque
 //! verification reference independently trustworthy.
 
+use std::collections::BTreeSet;
+use std::fmt;
+
 use super::{MAX_SENSITIVE_IDENTIFIER_BYTES, SensitiveEvidenceError};
+
+/// Maximum number of declared copies or receipts verified in one deletion-set evaluation.
+pub const MAX_SENSITIVE_DELETION_RECEIPT_SET_ENTRIES: usize = 256;
 
 /// Declared storage-copy class whose deletion or cryptographic unavailability was verified.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -28,6 +34,32 @@ pub enum SensitiveDeletionTarget {
     TemporaryFile,
     /// A backup-resident copy governed by a separate backup lifecycle.
     BackupCopy,
+}
+
+/// Exact credential-free copy declaration that must be represented by one deletion receipt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SensitiveDeletionRequirement {
+    target: SensitiveDeletionTarget,
+    target_reference: String,
+    storage_scope_id: String,
+}
+
+impl SensitiveDeletionRequirement {
+    /// Validate one exact declared copy without retaining any protected value.
+    pub fn new(
+        target: SensitiveDeletionTarget,
+        target_reference: &str,
+        storage_scope_id: &str,
+    ) -> Result<Self, SensitiveEvidenceError> {
+        if !valid_identifier(target_reference) || !valid_identifier(storage_scope_id) {
+            return Err(SensitiveEvidenceError::InvalidIdentifier);
+        }
+        Ok(Self {
+            target,
+            target_reference: target_reference.to_owned(),
+            storage_scope_id: storage_scope_id.to_owned(),
+        })
+    }
 }
 
 /// Declared lifecycle cause for deleting or making a sensitive-data copy unavailable.
@@ -184,6 +216,125 @@ impl SensitiveDeletionReceipt {
     pub const fn verification_epoch_seconds(&self) -> u64 {
         self.verification_epoch_seconds
     }
+}
+
+/// Failure returned when declared deletion requirements and supplied receipts are not complete.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SensitiveDeletionReceiptSetError {
+    /// The caller supplied more declared-copy requirements than one evaluation may process.
+    TooManyRequirements,
+    /// The caller supplied more deletion receipts than one evaluation may process.
+    TooManyReceipts,
+    /// A caller-supplied request, tenant, or retention-policy identifier is invalid or oversized.
+    InvalidScopeIdentifier,
+    /// At least one receipt belongs to another deletion request.
+    RequestMismatch,
+    /// At least one receipt belongs to another tenant.
+    TenantMismatch,
+    /// At least one receipt uses another retention policy.
+    RetentionPolicyMismatch,
+    /// No exact-copy requirements were declared.
+    EmptyRequirementSet,
+    /// The same exact-copy requirement was declared more than once.
+    DuplicateRequirement,
+    /// At least one declared exact copy has no receipt.
+    MissingReceipt,
+    /// At least one receipt names an exact copy that was not declared.
+    UnexpectedReceipt,
+    /// More than one receipt names the same exact declared copy.
+    DuplicateReceipt,
+}
+
+impl fmt::Display for SensitiveDeletionReceiptSetError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::TooManyRequirements => "too many sensitive deletion requirements",
+            Self::TooManyReceipts => "too many sensitive deletion receipts",
+            Self::InvalidScopeIdentifier => "invalid sensitive deletion scope identifier",
+            Self::RequestMismatch => "sensitive deletion request mismatch",
+            Self::TenantMismatch => "sensitive deletion tenant mismatch",
+            Self::RetentionPolicyMismatch => "sensitive deletion retention policy mismatch",
+            Self::EmptyRequirementSet => "empty sensitive deletion requirement set",
+            Self::DuplicateRequirement => "duplicate sensitive deletion requirement",
+            Self::MissingReceipt => "missing sensitive deletion receipt",
+            Self::UnexpectedReceipt => "unexpected sensitive deletion receipt",
+            Self::DuplicateReceipt => "duplicate sensitive deletion receipt",
+        })
+    }
+}
+
+impl std::error::Error for SensitiveDeletionReceiptSetError {}
+
+/// Verify that every exact declared sensitive-data copy has exactly one matching deletion receipt.
+///
+/// This comparison is credential-free and deliberately does not discover copies, authenticate
+/// storage owners, perform deletion, or prove that the caller's requirement set is exhaustive.
+/// Caller-supplied set sizes and scope identifiers are bounded before internal index allocation or
+/// entry-level validation.
+pub fn verify_sensitive_deletion_receipt_set(
+    receipts: &[SensitiveDeletionReceipt],
+    request_id: &str,
+    tenant_id: &str,
+    retention_policy_id: &str,
+    requirements: &[SensitiveDeletionRequirement],
+) -> Result<(), SensitiveDeletionReceiptSetError> {
+    if requirements.len() > MAX_SENSITIVE_DELETION_RECEIPT_SET_ENTRIES {
+        return Err(SensitiveDeletionReceiptSetError::TooManyRequirements);
+    }
+    if receipts.len() > MAX_SENSITIVE_DELETION_RECEIPT_SET_ENTRIES {
+        return Err(SensitiveDeletionReceiptSetError::TooManyReceipts);
+    }
+    if !valid_identifier(request_id)
+        || !valid_identifier(tenant_id)
+        || !valid_identifier(retention_policy_id)
+    {
+        return Err(SensitiveDeletionReceiptSetError::InvalidScopeIdentifier);
+    }
+    if requirements.is_empty() {
+        return Err(SensitiveDeletionReceiptSetError::EmptyRequirementSet);
+    }
+
+    let mut required_copies = BTreeSet::new();
+    for requirement in requirements {
+        let key = (
+            requirement.target,
+            requirement.target_reference.as_str(),
+            requirement.storage_scope_id.as_str(),
+        );
+        if !required_copies.insert(key) {
+            return Err(SensitiveDeletionReceiptSetError::DuplicateRequirement);
+        }
+    }
+
+    let mut received_copies = BTreeSet::new();
+    for receipt in receipts {
+        if receipt.request_id() != request_id {
+            return Err(SensitiveDeletionReceiptSetError::RequestMismatch);
+        }
+        if receipt.tenant_id() != tenant_id {
+            return Err(SensitiveDeletionReceiptSetError::TenantMismatch);
+        }
+        if receipt.retention_policy_id() != retention_policy_id {
+            return Err(SensitiveDeletionReceiptSetError::RetentionPolicyMismatch);
+        }
+
+        let key = (
+            receipt.target(),
+            receipt.target_reference(),
+            receipt.storage_scope_id(),
+        );
+        if !required_copies.contains(&key) {
+            return Err(SensitiveDeletionReceiptSetError::UnexpectedReceipt);
+        }
+        if !received_copies.insert(key) {
+            return Err(SensitiveDeletionReceiptSetError::DuplicateReceipt);
+        }
+    }
+
+    if received_copies.len() != required_copies.len() {
+        return Err(SensitiveDeletionReceiptSetError::MissingReceipt);
+    }
+    Ok(())
 }
 
 fn valid_identifier(value: &str) -> bool {
