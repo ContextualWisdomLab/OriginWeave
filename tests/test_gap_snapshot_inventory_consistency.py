@@ -35,7 +35,7 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "7 central required workflows",
             "codeql-pr",
             "Live GitHub PR/base/head/check APIs are authoritative over PR bodies",
-            "Ready roots are #37 `3d5c752cbe14e69e6b72214dd8cc4dc5978d3c10`, #50 `ae2116357194de9705db6fdcfb8fef78ad44fba8`, #219 `a0b520c4aef625f6a10b7bd2f8df6f6f82479ebc`, #240 `76f30fe867ec77ff604de64497889b1026380082`, and #274 `c758e61192805a172a602c798b1d81541380e32a`",
+            "Ready roots are #37 `8a4f2d8377a14565b259e03839e370223c92877f`, #50 `30d032b64c8eca669fa029a9d9915519cc467e99`, #219 `65e4315d80137badc0b55e1b9617015beb1db568`, #240 `24930a3a9ee79c0b712ee3df6589b0592eb6e18f`, and #274 `9440cb652d0acd7a95fff4d2bbf85152ce7c3c8f`",
             "Issue #279",
             "Issue #28 remains the P0 governed-browser integration target",
             "PR #260 is Draft at exact head `35d12949bde5e5cbc801fdfb433f4a9914bd4fb0`",
