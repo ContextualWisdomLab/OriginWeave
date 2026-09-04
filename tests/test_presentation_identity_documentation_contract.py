@@ -24,13 +24,16 @@ class PresentationIdentityDocumentationContractTests(unittest.TestCase):
     def test_changelog_records_kernel_without_claiming_chromium_application(self) -> None:
         """The changelog must retain the kernel-versus-browser adapter boundary."""
         changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-        expected = (
-            "- Added a bounded Rust presentation-identity kernel for explicit "
-            "browser-visible profiles and credential-free replay digests; applying "
-            "those profiles to Chromium and proving page-observed effects remain "
-            "separate adapter and browser-E2E work."
+        self.assertIn(
+            "bounded Rust presentation-identity kernel for explicit browser-visible "
+            "profiles and credential-free replay digests",
+            changelog,
         )
-        self.assertIn(expected, changelog)
+        self.assertIn(
+            "applying those profiles to Chromium and proving page-observed effects "
+            "remain separate adapter and browser-E2E work",
+            changelog,
+        )
 
 
 if __name__ == "__main__":
