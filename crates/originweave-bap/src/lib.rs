@@ -8,6 +8,13 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+/// Maximum UTF-8 byte length of a mutating command's idempotency key.
+pub const MAX_BAP_IDEMPOTENCY_KEY_BYTES: usize = 128;
+/// Maximum UTF-8 byte length of a BAP tenant namespace identifier.
+pub const MAX_BAP_TENANT_ID_BYTES: usize = 128;
+/// Maximum UTF-8 byte length of a BAP task identifier.
+pub const MAX_BAP_TASK_ID_BYTES: usize = 128;
+
 /// Durable logical state of one governed BAP task.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BapTaskState {
@@ -136,6 +143,20 @@ pub enum BapTaskRestoreError {
         /// Last accepted transition sequence supplied by the durable recovery boundary.
         transition_sequence: u64,
     },
+    /// A non-created snapshot omitted the exact last accepted transition evidence.
+    MissingTransitionEvidence {
+        /// Logical state supplied by the durable recovery boundary.
+        state: BapTaskState,
+        /// Last accepted transition sequence supplied by the durable recovery boundary.
+        transition_sequence: u64,
+    },
+    /// Supplied last-transition evidence is inconsistent with the lifecycle state machine or snapshot.
+    InvalidTransitionEvidence {
+        /// Logical state the evidence attempted to restore.
+        state: BapTaskState,
+        /// Transition sequence the evidence attempted to restore.
+        transition_sequence: u64,
+    },
 }
 
 impl std::fmt::Display for BapTaskRestoreError {
@@ -147,6 +168,20 @@ impl std::fmt::Display for BapTaskRestoreError {
             } => write!(
                 formatter,
                 "BAP task snapshot state {state:?} with transition sequence {transition_sequence} is unreachable"
+            ),
+            Self::MissingTransitionEvidence {
+                state,
+                transition_sequence,
+            } => write!(
+                formatter,
+                "BAP task snapshot state {state:?} with transition sequence {transition_sequence} is missing last-transition evidence"
+            ),
+            Self::InvalidTransitionEvidence {
+                state,
+                transition_sequence,
+            } => write!(
+                formatter,
+                "BAP task transition evidence for state {state:?} with transition sequence {transition_sequence} is invalid"
             ),
         }
     }
@@ -160,6 +195,7 @@ pub struct BapTaskTransition {
     previous_state: BapTaskState,
     current_state: BapTaskState,
     sequence: u64,
+    event: BapTaskEvent,
 }
 
 impl BapTaskTransition {
@@ -180,6 +216,211 @@ impl BapTaskTransition {
     pub const fn sequence(self) -> u64 {
         self.sequence
     }
+
+    /// Return the accepted lifecycle event represented by this receipt.
+    #[must_use]
+    pub const fn event(self) -> BapTaskEvent {
+        self.event
+    }
+
+    /// Reconstruct and validate one accepted transition from durable primitive evidence.
+    ///
+    /// This validates lifecycle consistency only. It does not authenticate the persistence
+    /// boundary, authorize the task, or grant browser, network, model, secret, or approval authority.
+    pub fn restore(
+        previous_state: BapTaskState,
+        current_state: BapTaskState,
+        sequence: u64,
+        event: BapTaskEvent,
+    ) -> Result<Self, BapTaskRestoreError> {
+        let invalid = || BapTaskRestoreError::InvalidTransitionEvidence {
+            state: current_state,
+            transition_sequence: sequence,
+        };
+        let Some(previous_sequence) = sequence.checked_sub(1) else {
+            return Err(invalid());
+        };
+        let mut lifecycle =
+            BapTaskLifecycle::restore(previous_state, previous_sequence).map_err(|_| invalid())?;
+        let transition = lifecycle.apply(event).map_err(|_| invalid())?;
+        if transition.current_state() != current_state {
+            return Err(invalid());
+        }
+        Ok(transition)
+    }
+}
+
+/// A validation or lifecycle failure while issuing a BAP command receipt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BapCommandReceiptError {
+    /// The idempotency key was empty or contained unsupported input.
+    InvalidIdempotencyKey,
+    /// The idempotency key exceeded its byte bound.
+    IdempotencyKeyLimitExceeded,
+    /// The tenant namespace identifier was empty or contained unsupported input.
+    InvalidTenantId,
+    /// The tenant namespace identifier exceeded its byte bound.
+    TenantIdLimitExceeded,
+    /// The task identifier was empty or contained unsupported input.
+    InvalidTaskId,
+    /// The task identifier exceeded its byte bound.
+    TaskIdLimitExceeded,
+    /// A retained receipt did not bind the exact retry command that attempted to reuse it.
+    IdempotencyConflict,
+    /// The retained receipt's accepted transition does not match this lifecycle's current state.
+    ReplayStateMismatch,
+    /// The lifecycle event could not be accepted for the current task state.
+    TransitionRejected {
+        /// The lifecycle failure preserved by the receipt boundary.
+        error: BapTaskTransitionError,
+    },
+}
+
+impl std::fmt::Display for BapCommandReceiptError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidIdempotencyKey => write!(formatter, "BAP idempotency key is invalid"),
+            Self::IdempotencyKeyLimitExceeded => {
+                write!(formatter, "BAP idempotency key exceeds its byte limit")
+            }
+            Self::InvalidTenantId => write!(formatter, "BAP tenant ID is invalid"),
+            Self::TenantIdLimitExceeded => {
+                write!(formatter, "BAP tenant ID exceeds its byte limit")
+            }
+            Self::InvalidTaskId => write!(formatter, "BAP task ID is invalid"),
+            Self::TaskIdLimitExceeded => write!(formatter, "BAP task ID exceeds its byte limit"),
+            Self::IdempotencyConflict => write!(
+                formatter,
+                "BAP idempotency key conflicts with the retained command receipt"
+            ),
+            Self::ReplayStateMismatch => write!(
+                formatter,
+                "BAP retained command receipt does not match the current lifecycle state"
+            ),
+            Self::TransitionRejected { error } => error.fmt(formatter),
+        }
+    }
+}
+
+impl std::error::Error for BapCommandReceiptError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::TransitionRejected { error } => Some(error),
+            Self::InvalidIdempotencyKey
+            | Self::IdempotencyKeyLimitExceeded
+            | Self::InvalidTenantId
+            | Self::TenantIdLimitExceeded
+            | Self::InvalidTaskId
+            | Self::TaskIdLimitExceeded
+            | Self::IdempotencyConflict
+            | Self::ReplayStateMismatch => None,
+        }
+    }
+}
+
+/// An immutable receipt binding one accepted lifecycle command to its retry namespace and key.
+#[derive(Clone, PartialEq, Eq)]
+pub struct BapCommandReceipt {
+    idempotency_key: String,
+    tenant_id: String,
+    task_id: String,
+    transition: BapTaskTransition,
+}
+
+impl std::fmt::Debug for BapCommandReceipt {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("BapCommandReceipt")
+            .field("idempotency_key_byte_count", &self.idempotency_key.len())
+            .field("task_id_byte_count", &self.task_id.len())
+            .field("transition", &self.transition)
+            .finish()
+    }
+}
+
+impl BapCommandReceipt {
+    fn from_validated(
+        idempotency_key: &str,
+        tenant_id: &str,
+        task_id: &str,
+        transition: BapTaskTransition,
+    ) -> Self {
+        Self {
+            idempotency_key: idempotency_key.to_owned(),
+            tenant_id: tenant_id.to_owned(),
+            task_id: task_id.to_owned(),
+            transition,
+        }
+    }
+
+    /// Reconstruct one command receipt from persisted retry metadata and validated transition evidence.
+    ///
+    /// This revalidates the bounded retry identifiers before reconstructing the immutable receipt.
+    /// It does not authenticate the persistence boundary, authorize the tenant or task, or prove that
+    /// the supplied transition was durably committed with any external browser or network side effect.
+    pub fn restore(
+        idempotency_key: &str,
+        tenant_id: &str,
+        task_id: &str,
+        transition: BapTaskTransition,
+    ) -> Result<Self, BapCommandReceiptError> {
+        validate_idempotency_key(idempotency_key)?;
+        validate_tenant_id(tenant_id)?;
+        validate_task_id(task_id)?;
+        Ok(Self::from_validated(
+            idempotency_key,
+            tenant_id,
+            task_id,
+            transition,
+        ))
+    }
+
+    /// Return the opaque retry key supplied by the caller.
+    #[must_use]
+    pub fn idempotency_key(&self) -> &str {
+        &self.idempotency_key
+    }
+
+    /// Return the caller-supplied tenant namespace bound to this receipt.
+    ///
+    /// This value scopes retry identity only. It is not authentication or authorization evidence.
+    #[must_use]
+    pub fn tenant_id(&self) -> &str {
+        &self.tenant_id
+    }
+
+    /// Return the task identity bound to this receipt.
+    #[must_use]
+    pub fn task_id(&self) -> &str {
+        &self.task_id
+    }
+
+    /// Return the accepted lifecycle event.
+    #[must_use]
+    pub const fn event(&self) -> BapTaskEvent {
+        self.transition.event()
+    }
+
+    /// Return the immutable transition evidence carried by this receipt.
+    #[must_use]
+    pub const fn transition(&self) -> BapTaskTransition {
+        self.transition
+    }
+
+    /// Return whether a retry has the exact same tenant, task, key, and lifecycle event.
+    #[must_use]
+    pub fn matches(
+        &self,
+        idempotency_key: &str,
+        tenant_id: &str,
+        task_id: &str,
+        event: BapTaskEvent,
+    ) -> bool {
+        self.idempotency_key == idempotency_key
+            && self.tenant_id == tenant_id
+            && self.task_id == task_id
+            && self.event() == event
+    }
 }
 
 /// Deterministic fail-closed BAP task-lifecycle kernel.
@@ -192,6 +433,7 @@ impl BapTaskTransition {
 pub struct BapTaskLifecycle {
     state: BapTaskState,
     transition_sequence: u64,
+    last_transition: Option<BapTaskTransition>,
 }
 
 impl Default for BapTaskLifecycle {
@@ -207,6 +449,7 @@ impl BapTaskLifecycle {
         Self {
             state: BapTaskState::Created,
             transition_sequence: 0,
+            last_transition: None,
         }
     }
 
@@ -214,7 +457,10 @@ impl BapTaskLifecycle {
     ///
     /// Recovery accepts only state/sequence pairs that are reachable through
     /// this exact state machine. This prevents corrupt or stale durable metadata
-    /// from manufacturing an impossible execution state.
+    /// from manufacturing an impossible execution state. The snapshot does not
+    /// authenticate the identity of the last accepted transition, so a retained
+    /// command receipt cannot be replayed against a restored snapshot until a
+    /// later durable boundary explicitly restores that transition evidence.
     pub const fn restore(
         state: BapTaskState,
         transition_sequence: u64,
@@ -228,7 +474,45 @@ impl BapTaskLifecycle {
         Ok(Self {
             state,
             transition_sequence,
+            last_transition: None,
         })
+    }
+
+    /// Restore a lifecycle with exact validated last-transition evidence.
+    ///
+    /// Every non-created snapshot requires the exact most recently accepted transition so a
+    /// retained command receipt cannot replay against state and sequence alone. This validates
+    /// lifecycle consistency only; the caller remains responsible for the integrity and
+    /// authenticity of the persistence boundary supplying the evidence.
+    pub fn restore_with_transition(
+        state: BapTaskState,
+        transition_sequence: u64,
+        last_transition: Option<BapTaskTransition>,
+    ) -> Result<Self, BapTaskRestoreError> {
+        let mut lifecycle = Self::restore(state, transition_sequence)?;
+        if transition_sequence == 0 {
+            if last_transition.is_some() {
+                return Err(BapTaskRestoreError::InvalidTransitionEvidence {
+                    state,
+                    transition_sequence,
+                });
+            }
+            return Ok(lifecycle);
+        }
+        let Some(transition) = last_transition else {
+            return Err(BapTaskRestoreError::MissingTransitionEvidence {
+                state,
+                transition_sequence,
+            });
+        };
+        if transition.current_state() != state || transition.sequence() != transition_sequence {
+            return Err(BapTaskRestoreError::InvalidTransitionEvidence {
+                state,
+                transition_sequence,
+            });
+        }
+        lifecycle.last_transition = Some(transition);
+        Ok(lifecycle)
     }
 
     /// Return the current logical task state.
@@ -297,14 +581,135 @@ impl BapTaskLifecycle {
             return Err(BapTaskTransitionError::SequenceExhausted);
         };
         let previous_state = self.state;
-        self.state = next_state;
-        self.transition_sequence = sequence;
-        Ok(BapTaskTransition {
+        let transition = BapTaskTransition {
             previous_state,
             current_state: next_state,
             sequence,
-        })
+            event,
+        };
+        self.state = next_state;
+        self.transition_sequence = sequence;
+        self.last_transition = Some(transition);
+        Ok(transition)
     }
+
+    /// Apply one lifecycle event and bind the accepted transition to a retry receipt.
+    ///
+    /// This remains an in-memory contract: it identifies an exact retry within the caller-supplied
+    /// tenant namespace but does not authenticate that namespace, authorize the operation, provide
+    /// durable deduplication, or suppress side effects. Receipts can only be minted at this
+    /// accepted-command boundary; callers cannot rebind an accepted transition to different retry,
+    /// tenant, or task metadata afterward.
+    pub fn apply_with_receipt(
+        &mut self,
+        idempotency_key: &str,
+        tenant_id: &str,
+        task_id: &str,
+        event: BapTaskEvent,
+    ) -> Result<BapCommandReceipt, BapCommandReceiptError> {
+        validate_idempotency_key(idempotency_key)?;
+        validate_tenant_id(tenant_id)?;
+        validate_task_id(task_id)?;
+        let transition = self
+            .apply(event)
+            .map_err(|error| BapCommandReceiptError::TransitionRejected { error })?;
+        Ok(BapCommandReceipt::from_validated(
+            idempotency_key,
+            tenant_id,
+            task_id,
+            transition,
+        ))
+    }
+
+    /// Validate one exact retained command receipt against the current lifecycle without mutation.
+    ///
+    /// Exact tenant, idempotency-key, task, and event equality must match the retained receipt, and
+    /// that receipt's accepted transition must equal this lifecycle's most recently accepted
+    /// transition. Stale, foreign, divergent-history, or state-only restored lifecycles fail closed.
+    /// This validates retry identity and lifecycle position only; it does not authenticate persisted
+    /// evidence, authorize redispatch, or suppress browser/network side effects.
+    pub fn validate_replay(
+        &self,
+        receipt: &BapCommandReceipt,
+        idempotency_key: &str,
+        tenant_id: &str,
+        task_id: &str,
+        event: BapTaskEvent,
+    ) -> Result<(), BapCommandReceiptError> {
+        validate_idempotency_key(idempotency_key)?;
+        validate_tenant_id(tenant_id)?;
+        validate_task_id(task_id)?;
+        if !receipt.matches(idempotency_key, tenant_id, task_id, event) {
+            return Err(BapCommandReceiptError::IdempotencyConflict);
+        }
+        let transition = receipt.transition();
+        if self.state != transition.current_state()
+            || self.transition_sequence != transition.sequence()
+            || self.last_transition != Some(transition)
+        {
+            return Err(BapCommandReceiptError::ReplayStateMismatch);
+        }
+        Ok(())
+    }
+
+    /// Apply a new command or replay an exact retained command receipt without a second transition.
+    ///
+    /// A caller that has already looked up a retained receipt may supply it here. Exact tenant,
+    /// idempotency-key, task, and event equality plus an exact match between the receipt's accepted
+    /// transition and this lifecycle's most recently accepted transition returns that immutable receipt
+    /// without mutating the lifecycle again. Command mismatch or stale/foreign/divergent lifecycle
+    /// history fails closed. `None` follows the normal validation and transition path in
+    /// [`Self::apply_with_receipt`]. This helper does not provide receipt storage, concurrent exclusion,
+    /// authentication, authorization, or suppression of browser/network side effects; those remain
+    /// responsibilities of their owning runtime boundaries.
+    pub fn apply_or_replay(
+        &mut self,
+        existing_receipt: Option<&BapCommandReceipt>,
+        idempotency_key: &str,
+        tenant_id: &str,
+        task_id: &str,
+        event: BapTaskEvent,
+    ) -> Result<BapCommandReceipt, BapCommandReceiptError> {
+        if let Some(receipt) = existing_receipt {
+            self.validate_replay(receipt, idempotency_key, tenant_id, task_id, event)?;
+            return Ok(receipt.clone());
+        }
+        self.apply_with_receipt(idempotency_key, tenant_id, task_id, event)
+    }
+}
+
+fn validate_idempotency_key(value: &str) -> Result<(), BapCommandReceiptError> {
+    if value.len() > MAX_BAP_IDEMPOTENCY_KEY_BYTES {
+        return Err(BapCommandReceiptError::IdempotencyKeyLimitExceeded);
+    }
+    if value.is_empty() || !value.bytes().all(valid_identifier_byte) {
+        return Err(BapCommandReceiptError::InvalidIdempotencyKey);
+    }
+    Ok(())
+}
+
+fn validate_tenant_id(value: &str) -> Result<(), BapCommandReceiptError> {
+    if value.len() > MAX_BAP_TENANT_ID_BYTES {
+        return Err(BapCommandReceiptError::TenantIdLimitExceeded);
+    }
+    if value.is_empty() || !value.bytes().all(valid_identifier_byte) {
+        return Err(BapCommandReceiptError::InvalidTenantId);
+    }
+    Ok(())
+}
+
+fn validate_task_id(value: &str) -> Result<(), BapCommandReceiptError> {
+    if value.len() > MAX_BAP_TASK_ID_BYTES {
+        return Err(BapCommandReceiptError::TaskIdLimitExceeded);
+    }
+    if value.is_empty() || !value.bytes().all(valid_identifier_byte) {
+        return Err(BapCommandReceiptError::InvalidTaskId);
+    }
+    Ok(())
+}
+
+const fn valid_identifier_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~')
 }
 
 const fn reachable_snapshot(state: BapTaskState, transition_sequence: u64) -> bool {

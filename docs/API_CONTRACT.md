@@ -36,7 +36,7 @@ The protocol does not:
 - accept raw page text as policy;
 - collapse origin/destination/route/TCP/TLS/HTTP authority into one URL field;
 - treat protocol authentication alone as task authorization;
-- guarantee every future Chromium/CDP/WebMCP feature.
+- guarantee every future Chromium/CDP/WebMCP/MCP feature.
 
 ## 4. Versioning
 
@@ -108,6 +108,14 @@ Rules:
 - retries after ambiguous external side effects may return `quarantined`/reconciliation-required rather than re-execute;
 - idempotency retention is bounded and declared;
 - secret-handle max-use semantics remain independent of request idempotency.
+
+The rules above define the product-wide target contract. The active BAP lifecycle
+implements a narrower in-memory retry identity: `BapCommandReceipt` compares only
+caller-supplied `tenant_id`, `idempotency_key`, `task_id`, `BapTaskEvent`, and exact
+accepted transition evidence. It does not define a `task_id` session scope, operation
+kind, or semantic request-contract validation, and the tenant identifier is not
+authentication or authorization evidence. The receipt is not persisted and does not
+claim durable deduplication or suppression of an ambiguous external side effect.
 
 ## 8. Deadline and cancellation
 
