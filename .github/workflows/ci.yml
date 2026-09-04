@@ -40,8 +40,15 @@ jobs:
           test -n "${BASE_SHA}"
           test -n "${HEAD_SHA}"
           git fetch --no-tags --depth=1 origin "${BASE_SHA}"
+          if ! git cat-file -e "${BASE_SHA}:scripts/ci/classify_ci_change_scope.py"; then
+            # The protected base does not yet contain the trusted classifier.
+            printf 'documentation_only=false\nrust_required=true\n' >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          trusted_classifier="${RUNNER_TEMP}/classify_ci_change_scope.py"
+          git show "${BASE_SHA}:scripts/ci/classify_ci_change_scope.py" > "${trusted_classifier}"
           git diff --raw -z --no-abbrev "${BASE_SHA}" "${HEAD_SHA}" |
-            python3 scripts/ci/classify_ci_change_scope.py >> "${GITHUB_OUTPUT}"
+            python3 "${trusted_classifier}" >> "${GITHUB_OUTPUT}"
 
   contracts:
     name: Repository and documentation contracts

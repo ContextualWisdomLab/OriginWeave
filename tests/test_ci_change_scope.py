@@ -337,7 +337,18 @@ class CiChangeScopeTests(unittest.TestCase):
             2,
         )
         self.assertIn("git diff --raw -z --no-abbrev", workflow)
-        self.assertIn("classify_ci_change_scope.py", workflow)
+        self.assertIn(
+            'git show "${BASE_SHA}:scripts/ci/classify_ci_change_scope.py"',
+            workflow,
+        )
+        self.assertNotIn(
+            "python3 scripts/ci/classify_ci_change_scope.py",
+            workflow,
+        )
+        self.assertIn(
+            "The protected base does not yet contain the trusted classifier",
+            workflow,
+        )
 
 
 if __name__ == "__main__":
