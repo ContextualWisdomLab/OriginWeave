@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import http.client
 import inspect
+import json
 import os
 import pathlib
 import runpy
@@ -151,16 +152,29 @@ class AgentTaskPinnedChromeContractTests(unittest.TestCase):
                 "AGENT_TASK_REPEATABILITY_TRIALS": 1,
             }
         )
+        output = io.StringIO()
+        session_start_error = namespace["AgentTaskSessionStartError"]
+
+        def failed_session_start(
+            *_args: object, **_kwargs: object
+        ) -> dict[str, object]:
+            raise session_start_error(RuntimeError("host-controlled browser detail"))
+
+        main_globals["_run_agent_task_trial"] = failed_session_start
         with patch.dict(
             os.environ,
             {"CHROME_BIN": "/bin/sh", "CHROMEDRIVER_BIN": "/bin/sh"},
-        ), redirect_stdout(io.StringIO()), self.assertRaisesRegex(
+        ), redirect_stdout(output), self.assertRaisesRegex(
             RuntimeError,
             r"^Agent Task repeatability gate failed: 0/1 trials passed$",
         ):
             namespace["main"]()
 
         self.assertEqual(servers_started, 2)
+        evidence = json.loads(output.getvalue())
+        failed_trial = evidence["agent_task"]["trial_results"][0]
+        self.assertEqual(failed_trial["failure_type"], "AgentTaskSessionStartError")
+        self.assertNotIn("host-controlled browser detail", output.getvalue())
 
     def test_unexpected_cleanup_programming_failure_is_not_normalized(self) -> None:
         """Programming failures in cleanup must propagate rather than enter fallback handling."""

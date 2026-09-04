@@ -72,6 +72,14 @@ class BrowserProfileCleanupError(RuntimeError):
         )
 
 
+class AgentTaskSessionStartError(RuntimeError):
+    """Classify a failed Agent Task browser session without exposing driver text."""
+
+    def __init__(self, session_error: BaseException) -> None:
+        self.session_error_type = type(session_error).__name__
+        super().__init__("Agent Task browser session failed to start")
+
+
 def _free_loopback_port() -> int:
     """Reserve and release one loopback TCP port for a short-lived local service."""
 
@@ -551,31 +559,40 @@ def _run_agent_task_browser_pass(
     )
     try:
         _wait_for_driver(driver_port)
-        session = _json_request(
-            driver_port,
-            "POST",
-            "/session",
-            {
-                "capabilities": {
-                    "alwaysMatch": {
-                        "browserName": "chrome",
-                        "goog:chromeOptions": {
-                            "binary": str(chrome_bin),
-                            "args": [
-                                "--headless=new",
-                                "--no-first-run",
-                                "--disable-default-apps",
-                                "--disable-component-update",
-                                "--disable-sync",
-                                "--disable-dev-shm-usage",
-                                "--disable-extensions",
-                                f"--user-data-dir={profile_dir}",
-                            ],
-                        },
+        try:
+            session = _json_request(
+                driver_port,
+                "POST",
+                "/session",
+                {
+                    "capabilities": {
+                        "alwaysMatch": {
+                            "browserName": "chrome",
+                            "goog:chromeOptions": {
+                                "binary": str(chrome_bin),
+                                "args": [
+                                    "--headless=new",
+                                    "--no-first-run",
+                                    "--disable-default-apps",
+                                    "--disable-component-update",
+                                    "--disable-sync",
+                                    "--disable-dev-shm-usage",
+                                    "--disable-extensions",
+                                    f"--user-data-dir={profile_dir}",
+                                ],
+                            },
+                        }
                     }
-                }
-            },
-        ).get("value", {})
+                },
+            ).get("value", {})
+        except (
+            OSError,
+            ValueError,
+            RuntimeError,
+            http.client.HTTPException,
+            json.JSONDecodeError,
+        ) as session_error:
+            raise AgentTaskSessionStartError(session_error) from session_error
         if not isinstance(session, dict):
             raise RuntimeError("ChromeDriver Agent Task session response is malformed")
         raw_session_id = session.get("sessionId")
@@ -885,11 +902,12 @@ def main() -> int:
                 RuntimeError,
                 http.client.HTTPException,
                 json.JSONDecodeError,
-            ):
+            ) as error:
                 agent_task_trials.append(
                     {
                         "trial_number": trial_number,
                         "passed": False,
+                        "failure_type": type(error).__name__,
                     }
                 )
 
