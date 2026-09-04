@@ -13,7 +13,7 @@ class RepositoryContractTests(unittest.TestCase):
     """Validate the non-generated repository and governance contract."""
 
     def test_workspace_declares_all_independently_reusable_crates(self) -> None:
-        """The root workspace must expose every reusable product boundary."""
+        """The root workspace must expose every reusable policy kernel."""
 
         data = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))
         self.assertEqual(
@@ -21,7 +21,6 @@ class RepositoryContractTests(unittest.TestCase):
             {
                 "crates/originweave-core",
                 "crates/originweave-bap",
-                "crates/originweave-mcp",
                 "crates/originweave-policy",
                 "crates/originweave-destination",
                 "crates/originweave-network",
@@ -30,35 +29,6 @@ class RepositoryContractTests(unittest.TestCase):
                 "crates/originweave-evidence",
             },
         )
-
-    def test_mcp_adapter_isolated_from_shared_domain_contracts(self) -> None:
-        """Protocol adapters may depend inward on policy; policy must not depend outward on MCP."""
-
-        self.assertFalse((ROOT / "crates/originweave-core/src/mcp.rs").exists())
-        mcp_manifest = tomllib.loads(
-            (ROOT / "crates/originweave-mcp/Cargo.toml").read_text(encoding="utf-8")
-        )
-        self.assertEqual(
-            set(mcp_manifest.get("dependencies", {})),
-            {"originweave-core", "originweave-policy"},
-        )
-
-        policy_manifest = tomllib.loads(
-            (ROOT / "crates/originweave-policy/Cargo.toml").read_text(encoding="utf-8")
-        )
-        self.assertEqual(set(policy_manifest.get("dependencies", {})), {"originweave-core"})
-        policy_source = (ROOT / "crates/originweave-policy/src/lib.rs").read_text(
-            encoding="utf-8"
-        )
-        self.assertNotIn("originweave_mcp", policy_source)
-        self.assertNotIn("ValidatedMcpToolCall", policy_source)
-        self.assertNotIn("Mcp", policy_source)
-
-        mcp_source = (ROOT / "crates/originweave-mcp/src/lib.rs").read_text(
-            encoding="utf-8"
-        )
-        self.assertIn("originweave_policy", mcp_source)
-        self.assertIn("evaluate_mcp", mcp_source)
 
     def test_toolchain_is_pinned_to_current_project_baseline(self) -> None:
         """Reproducible builds require an explicit Rust patch version."""
@@ -153,6 +123,11 @@ class RepositoryContractTests(unittest.TestCase):
         self.assertIn("${{ github.workflow }}-${{ github.repository }}", workflow)
         self.assertIn("${{ github.event.pull_request.number || github.run_id }}", workflow)
         self.assertIn("cancel-in-progress: ${{ github.event_name == 'pull_request' }}", workflow)
+        self.assertIn(
+            "types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, closed]",
+            workflow,
+        )
+        self.assertEqual(workflow.count("github.event.pull_request.draft == false"), 2)
         self.assertNotIn("cargo check --locked --workspace --all-targets", workflow)
 
     def test_hourly_loop_uses_nvidia_nim_and_dedicated_publication_authority(self) -> None:
