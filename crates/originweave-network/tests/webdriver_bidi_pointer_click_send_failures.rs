@@ -11,8 +11,8 @@ use originweave_core::{
     WebDriverBiDiWebSocketEndpoint,
 };
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
-    WebDriverBiDiCommandKind, WebDriverBiDiPointerClickSendError, WebDriverBiDiTcpConnectionPlan,
+    MAX_WEBSOCKET_FRAME_TIMEOUT, WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind,
+    WebDriverBiDiPointerClickSendError, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketEstablished,
     WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
     send_webdriver_bidi_pointer_click,
@@ -108,49 +108,36 @@ fn pointer_click_rejects_duplicate_correlation_before_frame_write() -> Result<()
 }
 
 #[test]
-fn pointer_click_preserves_typed_registration_when_frame_timeout_is_invalid()
+fn pointer_click_rejects_invalid_frame_timeout_before_correlation_registration()
 -> Result<(), Box<dyn Error>> {
-    let (established, server) = establish_with_handshake_only_server()?;
-    let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    let command = pointer_click(11)?;
+    for (command_id, frame_timeout) in [
+        (11, Duration::ZERO),
+        (12, MAX_WEBSOCKET_FRAME_TIMEOUT + Duration::from_millis(1)),
+    ] {
+        let (established, server) = establish_with_handshake_only_server()?;
+        let mut correlation = WebDriverBiDiCommandCorrelation::new();
+        let command = pointer_click(command_id)?;
 
-    let error = send_webdriver_bidi_pointer_click(
-        &command,
-        established,
-        &mut correlation,
-        WebDriverBiDiWebSocketMaskKey::new([5, 6, 7, 8]),
-        Duration::ZERO,
-    )
-    .err()
-    .ok_or_else(|| io::Error::other("zero frame timeout unexpectedly sent a pointer click"))?;
-    assert!(matches!(
-        error,
-        WebDriverBiDiPointerClickSendError::FrameWrite { .. }
-    ));
-    assert_eq!(
-        error.to_string(),
-        "WebDriver BiDi pointer-click command frame write failed"
-    );
-    assert!(error.source().is_some());
-    assert_eq!(correlation.outstanding_count(), 1);
-
-    let kind_error = correlation
-        .retire_command_for(11, WebDriverBiDiCommandKind::SessionEnd)
+        let error = send_webdriver_bidi_pointer_click(
+            &command,
+            established,
+            &mut correlation,
+            WebDriverBiDiWebSocketMaskKey::new([5, 6, 7, 8]),
+            frame_timeout,
+        )
         .err()
         .ok_or_else(|| {
-            io::Error::other("pointer-click correlation unexpectedly retired as session.end")
+            io::Error::other("invalid frame timeout unexpectedly sent a pointer click")
         })?;
-    assert_eq!(
-        kind_error,
-        WebDriverBiDiCommandCorrelationError::CommandKindMismatch {
-            expected: WebDriverBiDiCommandKind::SessionEnd,
-            actual: WebDriverBiDiCommandKind::PointerClick,
-        }
-    );
-    assert_eq!(correlation.outstanding_count(), 1);
+        assert!(matches!(
+            error,
+            WebDriverBiDiPointerClickSendError::FrameWrite { .. }
+        ));
+        assert_eq!(correlation.outstanding_count(), 0);
 
-    server
-        .join()
-        .map_err(|_| io::Error::other("invalid-timeout pointer server panicked"))??;
+        server
+            .join()
+            .map_err(|_| io::Error::other("invalid-timeout pointer server panicked"))??;
+    }
     Ok(())
 }
