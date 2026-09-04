@@ -123,6 +123,11 @@ class RepositoryContractTests(unittest.TestCase):
         self.assertIn("${{ github.workflow }}-${{ github.repository }}", workflow)
         self.assertIn("${{ github.event.pull_request.number || github.run_id }}", workflow)
         self.assertIn("cancel-in-progress: ${{ github.event_name == 'pull_request' }}", workflow)
+        self.assertIn(
+            "types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, closed]",
+            workflow,
+        )
+        self.assertEqual(workflow.count("github.event.pull_request.draft == false"), 2)
         self.assertNotIn("cargo check --locked --workspace --all-targets", workflow)
 
     def test_hourly_loop_uses_nvidia_nim_and_dedicated_publication_authority(self) -> None:

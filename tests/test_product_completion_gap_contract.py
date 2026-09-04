@@ -91,7 +91,7 @@ class ProductCompletionGapContractTests(unittest.TestCase):
         )[0]
 
         for marker in (
-            "4ed08bfa7c063fc7f2ef9278ee8d281887b8296b",
+            "87c4daa1830bac5a5228b6036752ad5633232085",
             "#284",
             "61bcf88c960c6c437ccd29b3fbb73cd4325f9e5a",
             "rule-suite `3948421709`",

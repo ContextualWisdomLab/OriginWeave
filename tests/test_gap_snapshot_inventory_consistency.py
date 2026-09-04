@@ -26,11 +26,11 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "## Observed snapshot: 2026-08-29", 1
         )[0]
         for marker in (
-            "123 open pull requests",
+            "124 open pull requests",
             "5 Ready/non-draft",
-            "118 Draft",
+            "119 Draft",
             "13 open non-PR issues",
-            "4ed08bfa7c063fc7f2ef9278ee8d281887b8296b",
+            "87c4daa1830bac5a5228b6036752ad5633232085",
             "18156473",
             "7 central required workflows",
             "codeql-pr",
@@ -45,9 +45,11 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "DDD/MCP repair #272 is Draft at exact head `fe124e447cad3f679e22337fb6fbdfd135ab3652`",
             "PR #229 is Draft at exact head `3772d6eddfd556b24397afc80780ef3cc980791e`",
             "PR #281 remains Draft at exact head `adaca6427d68f550b39293a69b7c733430d1c385`",
-            "PR #282 is Draft at exact head `5fd4b3d3831a86d5f862dea3bb2eb59963b47727`",
-            "PR #283 is Draft at exact head `9ab10a75873e8cd6da885053b74a8f78d5e65f60`",
-            "PR #285 is Draft at exact head `7d44caa8d4c09660fb3b5d2d9919d8141c6d5294`",
+            "PR #282 is Draft at exact head `b54a5856d8201911f05d69622f0d5594a371adf0`",
+            "PR #283 is Draft at exact head `c904300a6a1bda83af24f84d586f1c5f6a6491aa`",
+            "PR #285 is Draft at exact head `f455c2cd64b3dd3f027c91d396103792a205ddd0`",
+            "PR #287 is Draft at exact head `bb052af8a9c27d88561bd5b2f98b6a7a74808af9`",
+            "PR #273 is Draft at exact head `e5c8fcb66bf644dfa750bb1b40ba3d600cb7805a`",
             "GitHub Releases is empty",
         ):
             with self.subTest(marker=marker):
@@ -124,7 +126,7 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
         preamble, remainder = unreleased.split("### Added", 1)
         added = remainder.split("### Changed", 1)[0]
 
-        expected = "123 open pull requests (5 ready, 118 draft)"
+        expected = "124 open pull requests (5 ready, 119 draft)"
         self.assertIn(expected, preamble)
         self.assertIn("13 open non-PR issues", preamble)
         self.assertIn(expected, added)
