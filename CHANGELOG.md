@@ -61,6 +61,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Corrected the active ruleset inventory to 6 required workflows from the live branch-rules API; `close-empty-pr` remains useful repository automation but is not a current protected-main requirement.
+
 - Aligned the hourly product-development branch-coverage toolchain and its one-shot materializer with the reviewed `nightly-2026-08-18` pin, and corrected the official Dependabot Rust-toolchain reference.
 - Separated logical origin authority from resolved network destination authority; an origin grant no longer implies permission to connect to every resolver result.
 - Separated resolved-address authorization from direct transport evidence; an approved IP now becomes a usable stream only after the operating system reports the exact requested IP and port.

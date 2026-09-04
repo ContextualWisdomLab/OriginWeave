@@ -83,6 +83,10 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         self.assertIn("on 2026-09-03", refresh_line)
         self.assertIn("145 open pull requests (5 ready, 140 draft)", refresh_line)
         self.assertIn("13 open non-PR issues", refresh_line)
+        self.assertIn(
+            "Corrected the active ruleset inventory to 6 required workflows",
+            changed,
+        )
         self.assertNotIn("- Corrected the 2026-08-28 product-gap snapshot", added)
         self.assertNotIn("- Revalidated the product-gap queue at", changed)
         self.assertNotIn("115 open pull requests (31 ready, 84 draft)", refresh_line)
