@@ -8,7 +8,7 @@ use std::{
 
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiTextValuePostconditionError, WebDriverBiDiWebSocketClientKey,
     WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMessageAssembler,
     WebDriverBiDiWebSocketMessageAssembly, WebDriverBiDiWebSocketTextMessage,
@@ -102,7 +102,7 @@ fn exact_match_is_the_only_successful_text_postcondition() -> Result<(), Box<dyn
         br#"{"type":"success","id":70,"result":{"type":"success","realm":"realm-1","result":{"type":"string","value":"expected"}}}"#,
     )?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command(70)?;
+    correlation.register_command_for(70, WebDriverBiDiCommandKind::TextValueObservation)?;
 
     let verified =
         verify_webdriver_bidi_text_value_postcondition(&response, "expected", &mut correlation)?;
@@ -120,7 +120,7 @@ fn mismatch_is_typed_failure_after_consuming_its_exact_response() -> Result<(), 
         br#"{"type":"success","id":71,"result":{"type":"success","realm":"realm-1","result":{"type":"string","value":"unexpected"}}}"#,
     )?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command(71)?;
+    correlation.register_command_for(71, WebDriverBiDiCommandKind::TextValueObservation)?;
 
     let Err(error) =
         verify_webdriver_bidi_text_value_postcondition(&response, "expected", &mut correlation)
@@ -155,7 +155,7 @@ fn malformed_observation_stays_a_typed_source_error_without_consuming_state()
 -> Result<(), Box<dyn Error>> {
     let response = receive_server_text(b"not-json")?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command(72)?;
+    correlation.register_command_for(72, WebDriverBiDiCommandKind::TextValueObservation)?;
 
     let Err(error) =
         verify_webdriver_bidi_text_value_postcondition(&response, "expected", &mut correlation)

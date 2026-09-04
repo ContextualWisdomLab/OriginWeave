@@ -89,10 +89,8 @@ fn typed_response_provenance_cannot_cross_the_legacy_correlation_boundary()
     );
     assert_eq!(correlation.outstanding_count(), 1);
 
-    let completed = correlation.correlate_response_for(
-        &response,
-        WebDriverBiDiCommandKind::TextValueObservation,
-    )?;
+    let completed = correlation
+        .correlate_response_for(&response, WebDriverBiDiCommandKind::TextValueObservation)?;
     assert_eq!(completed.command_id(), 42);
     assert_eq!(
         completed.outcome(),
