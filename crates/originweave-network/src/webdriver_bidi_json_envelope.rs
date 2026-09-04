@@ -269,9 +269,6 @@ impl TopLevelFields {
     fn into_event(self) -> Result<WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeError> {
         let method = required_text(self.method, "method")?;
         require_object(self.params, "params")?;
-        if !is_webdriver_bidi_event_name(&method) {
-            return Err(invalid("method"));
-        }
         Ok(WebDriverBiDiJsonEnvelope {
             kind: WebDriverBiDiJsonEnvelopeKind::Event,
             command_id: None,
@@ -291,13 +288,6 @@ fn invalid(member: &'static str) -> WebDriverBiDiJsonEnvelopeError {
 
 fn is_webdriver_bidi_error_code(value: &str) -> bool {
     WEBDRIVER_BIDI_ERROR_CODES.contains(&value)
-}
-
-fn is_webdriver_bidi_event_name(value: &str) -> bool {
-    match value.split_once('.') {
-        Some((module_name, event_name)) => !module_name.is_empty() && !event_name.is_empty(),
-        None => false,
-    }
 }
 
 fn required_text(
@@ -684,7 +674,7 @@ mod tests {
     #[test]
     fn classifies_all_local_end_envelope_kinds_and_redacts_debug() {
         let success = parse(
-            r#"{\"type\":\"success\",\"id\":9007199254740991,\"result\":{\"ready\":true},\"ext\":[null,false,1.5,-2e3,\"\\u20ac\",\"\\ud83d\\ude00\"]}"#,
+            r#"{"type":"success","id":9007199254740991,"result":{"ready":true},"ext":[null,false,1.5,-2e3,"\u20ac","\ud83d\ude00"]}"#,
         );
         assert_eq!(
             success.as_ref().map(WebDriverBiDiJsonEnvelope::kind),
@@ -707,7 +697,7 @@ mod tests {
         assert!(!debug.contains("ready"));
 
         let error = parse(
-            r#"{\"type\":\"error\",\"id\":null,\"error\":\"invalid argument\",\"message\":\"secret detail\",\"stacktrace\":\"hidden\",\"vendor\":{\"x\":[]}}"#,
+            r#"{"type":"error","id":null,"error":"invalid argument","message":"secret detail","stacktrace":"hidden","vendor":{"x":[]}}"#,
         );
         assert_eq!(
             error.as_ref().map(WebDriverBiDiJsonEnvelope::kind),
@@ -730,7 +720,7 @@ mod tests {
         assert!(!debug.contains("secret detail"));
 
         let event =
-            parse(r#"{\"type\":\"event\",\"method\":\"browsingContext.load\",\"params\":{},\"vendor\":true}"#);
+            parse(r#"{"type":"event","method":"browsingContext.load","params":{},"vendor":true}"#);
         assert_eq!(
             event.as_ref().map(WebDriverBiDiJsonEnvelope::kind),
             Ok(WebDriverBiDiJsonEnvelopeKind::Event)
@@ -752,8 +742,9 @@ mod tests {
     #[test]
     fn accepts_current_protocol_error_code_vocabulary() {
         for error_code in WEBDRIVER_BIDI_ERROR_CODES {
-            let document =
-                format!(r#"{{\"type\":\"error\",\"id\":7,\"error\":\"{error_code}\",\"message\":\"\"}}"#);
+            let document = format!(
+                r#"{{"type":"error","id":7,"error":"{error_code}","message":""}}"#
+            );
             assert_eq!(
                 parse(&document)
                     .as_ref()
@@ -764,7 +755,7 @@ mod tests {
         }
         assert_eq!(
             parse(
-                r#"{\"type\":\"error\",\"id\":7,\"error\":\"attacker-defined-code\",\"message\":\"bad code\"}"#
+                r#"{"type":"error","id":7,"error":"attacker-defined-code","message":"bad code"}"#
             ),
             Err(WebDriverBiDiJsonEnvelopeError::InvalidMember { member: "error" })
         );
@@ -772,7 +763,7 @@ mod tests {
 
     #[test]
     fn accepts_correlatable_error_and_extensible_success_members() {
-        let error = parse(r#"{\"type\":\"error\",\"id\":7,\"error\":\"unknown error\",\"message\":\"\",\"x\":0}"#);
+        let error = parse(r#"{"type":"error","id":7,"error":"unknown error","message":"","x":0}"#);
         assert_eq!(
             error
                 .as_ref()
@@ -795,77 +786,77 @@ mod tests {
                 WebDriverBiDiJsonEnvelopeError::MissingRequiredMember { member: "type" },
             ),
             (
-                r#"{\"type\":1}"#,
+                r#"{"type":1}"#,
                 WebDriverBiDiJsonEnvelopeError::InvalidMember { member: "type" },
             ),
             (
-                r#"{\"type\":\"other\"}"#,
+                r#"{"type":"other"}"#,
                 WebDriverBiDiJsonEnvelopeError::UnsupportedEnvelopeType,
             ),
             (
-                r#"{\"type\":\"success\",\"result\":{}}"#,
+                r#"{"type":"success","result":{}}"#,
                 WebDriverBiDiJsonEnvelopeError::MissingRequiredMember { member: "id" },
             ),
             (
-                r#"{\"type\":\"success\",\"id\":null,\"result\":{}}"#,
+                r#"{"type":"success","id":null,"result":{}}"#,
                 WebDriverBiDiJsonEnvelopeError::InvalidMember { member: "id" },
             ),
             (
-                r#"{\"type\":\"success\",\"id\":9007199254740992,\"result\":{}}"#,
+                r#"{"type":"success","id":9007199254740992,"result":{}}"#,
                 WebDriverBiDiJsonEnvelopeError::InvalidMember { member: "id" },
             ),
             (
-                r#"{\"type\":\"success\",\"id\":1}"#,
+                r#"{"type":"success","id":1}"#,
                 WebDriverBiDiJsonEnvelopeError::MissingRequiredMember { member: "result" },
             ),
             (
-                r#"{\"type\":\"success\",\"id\":1,\"result\":[]}"#,
+                r#"{"type":"success","id":1,"result":[]}"#,
                 WebDriverBiDiJsonEnvelopeError::InvalidMember { member: "result" },
             ),
             (
-                r#"{\"type\":\"error\",\"error\":\"x\",\"message\":\"m\"}"#,
+                r#"{"type":"error","error":"x","message":"m"}"#,
                 WebDriverBiDiJsonEnvelopeError::MissingRequiredMember { member: "id" },
             ),
             (
-                r#"{\"type\":\"error\",\"id\":-1,\"error\":\"x\",\"message\":\"m\"}"#,
+                r#"{"type":"error","id":-1,"error":"x","message":"m"}"#,
                 WebDriverBiDiJsonEnvelopeError::InvalidMember { member: "id" },
             ),
             (
-                r#"{\"type\":\"error\",\"id\":null,\"message\":\"m\"}"#,
+                r#"{"type":"error","id":null,"message":"m"}"#,
                 WebDriverBiDiJsonEnvelopeError::MissingRequiredMember { member: "error" },
             ),
             (
-                r#"{\"type\":\"error\",\"id\":null,\"error\":false,\"message\":\"m\"}"#,
+                r#"{"type":"error","id":null,"error":false,"message":"m"}"#,
                 WebDriverBiDiJsonEnvelopeError::InvalidMember { member: "error" },
             ),
             (
-                r#"{\"type\":\"error\",\"id\":null,\"error\":\"x\"}"#,
+                r#"{"type":"error","id":null,"error":"x"}"#,
                 WebDriverBiDiJsonEnvelopeError::MissingRequiredMember { member: "message" },
             ),
             (
-                r#"{\"type\":\"error\",\"id\":null,\"error\":\"x\",\"message\":{}}"#,
+                r#"{"type":"error","id":null,"error":"x","message":{}}"#,
                 WebDriverBiDiJsonEnvelopeError::InvalidMember { member: "message" },
             ),
             (
-                r#"{\"type\":\"error\",\"id\":null,\"error\":\"x\",\"message\":\"m\",\"stacktrace\":0}"#,
+                r#"{"type":"error","id":null,"error":"x","message":"m","stacktrace":0}"#,
                 WebDriverBiDiJsonEnvelopeError::InvalidMember {
                     member: "stacktrace",
                 },
             ),
             (
-                r#"{\"type\":\"event\",\"params\":{}}"#,
+                r#"{"type":"event","params":{}}"#,
                 WebDriverBiDiJsonEnvelopeError::MissingRequiredMember { member: "method" },
             ),
             (
-                r#"{\"type\":\"event\",\"method\":false,\"params\":{}}"#,
+                r#"{"type":"event","method":false,"params":{}}"#,
                 WebDriverBiDiJsonEnvelopeError::InvalidMember { member: "method" },
             ),
             (
-                r#"{\"type\":\"event\",\"method\":\"x\"}"#,
+                r#"{"type":"event","method":"x"}"#,
                 WebDriverBiDiJsonEnvelopeError::MissingRequiredMember { member: "params" },
             ),
             (
-                r#"{\"type\":\"event\",\"method\":\"x\",\"params\":null}"#,
+                r#"{"type":"event","method":"x","params":null}"#,
                 WebDriverBiDiJsonEnvelopeError::InvalidMember { member: "params" },
             ),
         ];
@@ -879,27 +870,27 @@ mod tests {
         let cases = [
             "[]",
             "null",
-            r#"{\"type\":\"success\",\"type\":\"event\",\"id\":1,\"result\":{}}"#,
-            r#"{\"type\":\"success\",\"id\":1,\"result\":{}} trailing"#,
-            r#"{\"type\":\"success\",\"id\":01,\"result\":{}}"#,
-            r#"{\"type\":\"success\",\"id\":1.,\"result\":{}}"#,
-            r#"{\"type\":\"success\",\"id\":1e,\"result\":{}}"#,
-            r#"{\"type\":\"success\",\"id\":1e+,\"result\":{}}"#,
-            r#"{\"type\":\"success\",\"id\":-,\"result\":{}}"#,
-            r#"{\"type\":\"success\",\"id\":18446744073709551616,\"result\":{}}"#,
+            r#"{"type":"success","type":"event","id":1,"result":{}}"#,
+            r#"{"type":"success","id":1,"result":{}} trailing"#,
+            r#"{"type":"success","id":01,"result":{}}"#,
+            r#"{"type":"success","id":1.,"result":{}}"#,
+            r#"{"type":"success","id":1e,"result":{}}"#,
+            r#"{"type":"success","id":1e+,"result":{}}"#,
+            r#"{"type":"success","id":-,"result":{}}"#,
+            r#"{"type":"success","id":18446744073709551616,"result":{}}"#,
             "{\"type\":\"success\",\"id\":1,\"result\":{\"bad\":\"line\nbreak\"}}",
-            r#"{\"type\":\"success\",\"id\":1,\"result\":{\"bad\":\"\\x\"}}"#,
-            r#"{\"type\":\"success\",\"id\":1,\"result\":{\"bad\":\"\\u12xz\"}}"#,
-            r#"{\"type\":\"success\",\"id\":1,\"result\":{\"bad\":\"\\ud800x\"}}"#,
-            r#"{\"type\":\"success\",\"id\":1,\"result\":{\"bad\":\"\\ud800\\u0041\"}}"#,
-            r#"{\"type\":\"success\",\"id\":1,\"result\":{\"bad\":\"\\udc00\"}}"#,
-            r#"{\"type\":\"success\",\"id\":1,\"result\":{\"a\":true \"b\":false}}"#,
-            r#"{\"type\":\"success\",\"id\":1,\"result\":[1,]}"#,
-            r#"{\"type\":\"success\",\"id\":1,\"result\":{\"a\":tru}}"#,
-            r#"{\"type\":\"success\",\"id\":1,\"result\":{\"a\":fal}}"#,
-            r#"{\"type\":\"success\",\"id\":1,\"result\":{\"a\":nul}}"#,
-            r#"{\"type\":\"success\",\"id\":1,\"result\":{\"a\":}}"#,
-            r#"{\"type\":\"success\",\"id\":1,\"result\":{"#,
+            r#"{"type":"success","id":1,"result":{"bad":"\x"}}"#,
+            r#"{"type":"success","id":1,"result":{"bad":"\u12xz"}}"#,
+            r#"{"type":"success","id":1,"result":{"bad":"\ud800x"}}"#,
+            r#"{"type":"success","id":1,"result":{"bad":"\ud800\u0041"}}"#,
+            r#"{"type":"success","id":1,"result":{"bad":"\udc00"}}"#,
+            r#"{"type":"success","id":1,"result":{"a":true "b":false}}"#,
+            r#"{"type":"success","id":1,"result":[1,]}"#,
+            r#"{"type":"success","id":1,"result":{"a":tru}}"#,
+            r#"{"type":"success","id":1,"result":{"a":fal}}"#,
+            r#"{"type":"success","id":1,"result":{"a":nul}}"#,
+            r#"{"type":"success","id":1,"result":{"a":}}"#,
+            r#"{"type":"success","id":1,"result":{"#,
         ];
         for document in cases {
             assert!(parse(document).is_err(), "unexpectedly admitted {document}");
@@ -909,14 +900,14 @@ mod tests {
             Err(WebDriverBiDiJsonEnvelopeError::RootMustBeObject)
         );
         assert_eq!(
-            parse(r#"{\"type\":\"success\",\"type\":\"event\",\"id\":1,\"result\":{}}"#),
+            parse(r#"{"type":"success","type":"event","id":1,"result":{}}"#),
             Err(WebDriverBiDiJsonEnvelopeError::DuplicateTopLevelMember)
         );
     }
 
     #[test]
     fn rejects_excessive_json_nesting_and_formats_errors_without_payloads() {
-        let mut document = String::from(r#"{\"type\":\"success\",\"id\":1,\"result\":"#);
+        let mut document = String::from(r#"{"type":"success","id":1,"result":"#);
         for _ in 0..=MAX_WEBDRIVER_BIDI_JSON_DEPTH {
             document.push('[');
         }
