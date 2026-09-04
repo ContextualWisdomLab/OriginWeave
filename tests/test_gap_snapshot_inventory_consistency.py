@@ -43,8 +43,8 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "DDD/MCP repair #272 is Draft at exact head `cae3e02cd2edc08db06111fb309a5b437c5a6598`",
             "PR #229 is Draft at exact head `35c4a00d24bb1429df7a306d95f49853d058baa7`",
             "PR #281 remains Draft at exact head `adaca6427d68f550b39293a69b7c733430d1c385`",
-            "PR #282 is Draft at exact head `afe7738de3024803b0ae313ef9a233e8ff6fd2d7`",
-            "PR #283 is Draft at exact head `2d434aefb9eff652e766a7239605b5f923705168`",
+            "PR #282 is Draft at exact head `ba0c1c998c7750d6c0bc36c1ccf47f06c0ad04a3`",
+            "PR #283 is Draft at exact head `67228652d096244c6433fa4e78b0cb5949c51850`",
             "GitHub Releases is empty",
         ):
             with self.subTest(marker=marker):
