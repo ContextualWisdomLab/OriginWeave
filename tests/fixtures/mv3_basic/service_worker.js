@@ -94,6 +94,71 @@ async function exerciseDownload(sender) {
   return waitForDownload(downloadId, url);
 }
 
+async function exerciseBookmarkMutation(sender) {
+  const sourceUrl = sender?.tab?.url;
+  if (typeof sourceUrl !== "string") {
+    return { ready: false, diagnostic: "bookmark-source-rejected" };
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(sourceUrl);
+  } catch (_error) {
+    return { ready: false, diagnostic: "bookmark-source-rejected" };
+  }
+  if (
+    parsed.protocol !== "http:" ||
+    parsed.hostname !== "127.0.0.1" ||
+    parsed.pathname !== "/page.html" ||
+    parsed.username !== "" ||
+    parsed.password !== ""
+  ) {
+    return { ready: false, diagnostic: "bookmark-source-rejected" };
+  }
+
+  const title = "OriginWeave MV3 compatibility bookmark";
+  let bookmarkId;
+  try {
+    const created = await chrome.bookmarks.create({ title, url: sourceUrl });
+    const createdId = created?.id;
+    if (typeof createdId !== "string" || createdId.length === 0) {
+      return { ready: false, diagnostic: "bookmark-create-rejected" };
+    }
+    bookmarkId = createdId;
+  } catch (_error) {
+    return { ready: false, diagnostic: "bookmark-create-rejected" };
+  }
+
+  let diagnostic = "bookmark-get-missing";
+  let bookmarkMutationReady = false;
+  try {
+    const nodes = await chrome.bookmarks.get(bookmarkId);
+    if (!Array.isArray(nodes) || nodes.length !== 1) {
+      diagnostic = "bookmark-get-missing";
+    } else if (nodes[0]?.id !== bookmarkId) {
+      diagnostic = "bookmark-id-mismatch";
+    } else if (nodes[0]?.title !== title) {
+      diagnostic = "bookmark-title-mismatch";
+    } else if (nodes[0]?.url !== sourceUrl) {
+      diagnostic = "bookmark-url-mismatch";
+    } else {
+      diagnostic = "bookmark-complete-ready";
+      bookmarkMutationReady = true;
+    }
+  } catch (_error) {
+    diagnostic = "bookmark-get-missing";
+    bookmarkMutationReady = false;
+  } finally {
+    try {
+      await chrome.bookmarks.remove(bookmarkId);
+    } catch (_error) {
+      diagnostic = "bookmark-remove-rejected";
+      bookmarkMutationReady = false;
+    }
+  }
+  return { ready: bookmarkMutationReady, diagnostic };
+}
+
 async function exerciseCoreApis(sender) {
   const tabId = sender?.tab?.id;
   if (!Number.isInteger(tabId)) {
@@ -124,8 +189,8 @@ async function exerciseCoreApis(sender) {
   const sidePanelOptions = await chrome.sidePanel.getOptions({ tabId });
   const sidePanelReady = sidePanelOptions?.path === "side_panel.html";
 
-  const bookmarkTree = await chrome.bookmarks.getTree();
-  const bookmarksReady = Array.isArray(bookmarkTree) && bookmarkTree.length > 0;
+  const bookmarkResult = await exerciseBookmarkMutation(sender);
+  const bookmarksReady = bookmarkResult.ready;
 
   const historyItems = await chrome.history.search({
     text: "",
@@ -144,6 +209,7 @@ async function exerciseCoreApis(sender) {
     commands: commandsReady ? "ready" : "missing",
     sidePanel: sidePanelReady ? "ready" : "missing",
     bookmarks: bookmarksReady ? "ready" : "missing",
+    bookmarksDiagnostic: bookmarkResult.diagnostic,
     history: historyReady ? "ready" : "missing",
     downloads: downloadsReady ? "ready" : "missing",
     downloadsDiagnostic: downloadResult.diagnostic,
@@ -173,6 +239,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         commands: "missing",
         sidePanel: "missing",
         bookmarks: "missing",
+        bookmarksDiagnostic: "bookmark-not-evaluated",
         history: "missing",
         downloads: "missing",
         downloadsDiagnostic: "download-not-evaluated",
