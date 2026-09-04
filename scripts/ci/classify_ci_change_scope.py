@@ -253,6 +253,8 @@ def parse_nul_raw_changes(data: bytes) -> tuple[RawChange, ...]:
             for raw_path in fields[index : index + path_count]
         )
         index += path_count
+        if path_count == 2 and paths[0] == paths[1]:
+            raise ValueError("raw rename/copy record must include distinct paths")
         changes.append(
             RawChange(
                 source_mode=source_mode,
