@@ -1,6 +1,6 @@
 # Browser and Agent Protocol Standards Evidence
 
-- **Reviewed:** 2026-09-04
+- **Reviewed:** 2026-09-05
 - **Purpose:** primary-source evidence for OriginWeave browser compatibility and adapter boundaries
 - **Canonical research index:** [`../doctoring.md`](../doctoring.md)
 
@@ -8,7 +8,7 @@ This addendum complements the main doctoring record. The main record already car
 
 ## WebDriver BiDi
 
-The latest published W3C technical-report baseline reviewed here is the 29 June 2026 **Working Draft**, not a Recommendation. The live Editor’s Draft retrieved on 4 September 2026 identifies itself as the 5 August 2026 draft and explicitly remains work in progress. OriginWeave therefore treats BiDi as a versioned browser-automation adapter rather than product-internal authority. Raw BiDi session/context/node identifiers do not become durable OriginWeave identities.
+The latest published W3C technical-report baseline reviewed here is the 3 September 2026 **Working Draft**, not a Recommendation. The live Editor’s Draft retrieved on 5 September 2026 also identifies itself as the 3 September 2026 draft and explicitly remains work in progress. OriginWeave therefore treats BiDi as a versioned browser-automation adapter rather than product-internal authority. Raw BiDi session/context/node identifiers do not become durable OriginWeave identities.
 
 For the bounded `browsingContext.locateNodes` command-serialization boundary, the reviewed Editor’s Draft defines a command envelope with `id: js-uint`, defines `js-uint` as `0..9007199254740991`, and defines `browsingContext.locateNodes` parameters containing a browsing context, locator, optional positive `maxNodeCount`, optional `serializationOptions`, and optional `startNodes`. OriginWeave serializes only its separately reviewed accessibility-locator subset and fixed minimal serialization options; this deterministic JSON value is not transport authentication or browser/Agent authority.
 
@@ -83,9 +83,9 @@ World Wide Web Consortium. (2013). *PROV-O: The PROV ontology*. https://www.w3.o
 
 World Wide Web Consortium. (2023, June 6). *Accessible Rich Internet Applications (WAI-ARIA) 1.2*. https://www.w3.org/TR/2023/REC-wai-aria-1.2-20230606/
 
-World Wide Web Consortium. (2026, June 29). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260629/
+World Wide Web Consortium. (2026, September 3). *WebDriver BiDi* (W3C Working Draft). https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/
 
-World Wide Web Consortium. (2026, August 5). *WebDriver BiDi* (Editor’s Draft). Retrieved September 4, 2026, from https://w3c.github.io/webdriver-bidi/
+World Wide Web Consortium. (2026, September 3). *WebDriver BiDi* (Editor’s Draft). Retrieved September 5, 2026, from https://w3c.github.io/webdriver-bidi/
 
 World Wide Web Consortium. (2026, August 5). *Accessible name and description computation 1.2* (W3C Working Draft). https://www.w3.org/TR/2026/WD-accname-1.2-20260805/
 
