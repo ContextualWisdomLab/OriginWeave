@@ -27,15 +27,15 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
         )[0]
         for marker in (
             "124 open pull requests",
-            "9 Ready/non-draft",
-            "115 Draft",
+            "10 Ready/non-draft",
+            "114 Draft",
             "13 open non-PR issues",
             "87c4daa1830bac5a5228b6036752ad5633232085",
             "18156473",
             "7 central required workflows",
             "codeql-pr",
             "Live GitHub PR/base/head/check APIs are authoritative over PR bodies",
-            "Ready roots are #37 `8a4f2d8377a14565b259e03839e370223c92877f`, #50 `30d032b64c8eca669fa029a9d9915519cc467e99`, #219 `65e4315d80137badc0b55e1b9617015beb1db568`, #220 `e545b94e1de499b96b867694f80ac04ad247becd`, #238 `69079755450a4e3e316e75c7c32cadb17231d1f0`, #240 `24930a3a9ee79c0b712ee3df6589b0592eb6e18f`, #247 `6407895f4db4bee640074cb9c9d3cbe8b0e9e13a`, #274 `9440cb652d0acd7a95fff4d2bbf85152ce7c3c8f`, and #287 `ab6d5d1a04a020f37727e2f5a6950c58feae8559`",
+            "Ready roots are #37 `8a4f2d8377a14565b259e03839e370223c92877f`, #50 `30d032b64c8eca669fa029a9d9915519cc467e99`, #166 `e84a1a2cc82b1c666218efd441da97849f47b8c2`, #219 `65e4315d80137badc0b55e1b9617015beb1db568`, #220 `e545b94e1de499b96b867694f80ac04ad247becd`, #238 `b28424647849eff829f1c9c5fd155988c7785c79`, #240 `24930a3a9ee79c0b712ee3df6589b0592eb6e18f`, #247 `6407895f4db4bee640074cb9c9d3cbe8b0e9e13a`, #274 `9440cb652d0acd7a95fff4d2bbf85152ce7c3c8f`, and #287 `ab6d5d1a04a020f37727e2f5a6950c58feae8559`",
             "Issue #279",
             "Issue #28 remains the P0 governed-browser integration target",
             "PR #260 is Draft at exact head `35d12949bde5e5cbc801fdfb433f4a9914bd4fb0`",
@@ -126,7 +126,7 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
         preamble, remainder = unreleased.split("### Added", 1)
         added = remainder.split("### Changed", 1)[0]
 
-        expected = "124 open pull requests (9 ready, 115 draft)"
+        expected = "124 open pull requests (10 ready, 114 draft)"
         self.assertIn(expected, preamble)
         self.assertIn("13 open non-PR issues", preamble)
         self.assertIn(expected, added)
