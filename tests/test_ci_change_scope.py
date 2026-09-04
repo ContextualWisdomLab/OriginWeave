@@ -29,8 +29,10 @@ def _raw_record(
 ) -> bytes:
     """Build one deterministic NUL-framed raw-diff record for focused tests."""
 
+    source_oid = "0000000" if source_mode == "000000" else "1111111"
+    destination_oid = "0000000" if destination_mode == "000000" else "2222222"
     metadata = (
-        f":{source_mode} {destination_mode} 1111111 2222222 {status}\0"
+        f":{source_mode} {destination_mode} {source_oid} {destination_oid} {status}\0"
     ).encode()
     return metadata + b"\0".join(path.encode() for path in paths) + b"\0"
 
