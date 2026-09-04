@@ -122,10 +122,12 @@ pub enum SemanticNodeDispatchValidationError {
 impl fmt::Display for SemanticNodeDispatchValidationError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::BrowserAuthority(_) => formatter
-                .write_str("semantic node dispatch browser authority revalidation failed"),
-            Self::SemanticState(_) => formatter
-                .write_str("semantic node dispatch semantic-state revalidation failed"),
+            Self::BrowserAuthority(_) => {
+                formatter.write_str("semantic node dispatch browser authority revalidation failed")
+            }
+            Self::SemanticState(_) => {
+                formatter.write_str("semantic node dispatch semantic-state revalidation failed")
+            }
         }
     }
 }
