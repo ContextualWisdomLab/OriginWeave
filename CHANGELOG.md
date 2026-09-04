@@ -4,6 +4,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Tightened the provisional SPDX JSON-LD container budget to a reachable pre-materialization bound and changed its regression input to shallow fan-out, so container exhaustion is distinguished from nesting-depth and structure-token failures.
+
 - Refreshed the product-gap queue to 126 open pull requests (54 ready, 72 draft) after #190, #188, #185, #192, #182, #184, #115, #181, #116, #117, #118, #183, #114, #127, #112, #109, #186, #110, #108, #111, #174, and #113 were merged into their immediate stacked prerequisites. PRs #147, #146, #145, #144, #143, #142, #141, #139, #136, #132, #129, and #128 moved to ready after exact-head checks and thread review; these are queue-consolidation results, not protected-main shipment.
 
 ### Added

@@ -38,7 +38,7 @@ There is **no compatibility shim** that makes core depend on Release, and there 
 The Rust-owned replacement must preserve or strengthen the currently reviewed fail-closed behavior:
 
 - maximum 16 MiB candidate input before unbounded parsing/allocation;
-- a pre-materialization opening-container budget equivalent to or stricter than the provisional 524,288-container ceiling;
+- a pre-materialization opening-container budget equivalent to or stricter than the provisional 262,144-container ceiling;
 - a broader pre-materialization JSON structure-token budget equivalent to or stricter than the provisional 1,048,576-token ceiling so scalar/member fan-out is bounded as well as container count;
 - bracket/brace/comma/colon text inside JSON strings must not consume structural budgets, while malformed JSON still fails in the grammar parser;
 - strict UTF-8 and JSON admission;

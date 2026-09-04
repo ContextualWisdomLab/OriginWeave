@@ -129,15 +129,15 @@ class ReleaseSpdxJsonLdEnvelopeContractTests(unittest.TestCase):
         oversized_graph = [{"type": "Package"}] * (self.max_graph_objects + 1)
         self._assert_error_code(self._payload(oversized_graph), "too_many_graph_objects")
 
-    def test_nested_container_explosion_fails_before_json_materialization(self) -> None:
-        nested_container_count = self.max_containers + 1
+    def test_shallow_container_explosion_fails_before_json_materialization(self) -> None:
+        shallow_container_count = self.max_containers + 1
         payload = (
             '{"@context":"'
             + CONTEXT
             + '","@graph":[{"type":"SpdxDocument","nested":'
-            + "[" * nested_container_count
-            + "0"
-            + "]" * nested_container_count
+            + "["
+            + "[]," * shallow_container_count
+            + "[]]"
             + "}]}"
         ).encode("utf-8")
 
