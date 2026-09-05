@@ -19,6 +19,8 @@ pub enum WebDriverBiDiTcpConnectionError {
         /// The largest accepted attempt count.
         maximum_attempts: u8,
     },
+    /// The process-local connection-generation space was exhausted before a distinct identity could be minted.
+    ConnectionGenerationExhausted,
     /// The final bounded connection attempt timed out.
     ConnectionTimedOut {
         /// Exact approved socket address submitted to the operating system.
@@ -66,7 +68,9 @@ impl WebDriverBiDiTcpConnectionError {
             | Self::ConnectionFailed { attempt_count, .. } => Some(*attempt_count),
             Self::PeerInspectionFailed { attempt_number, .. }
             | Self::PeerMismatch { attempt_number, .. } => Some(*attempt_number),
-            Self::InvalidConnectTimeout { .. } | Self::InvalidAttemptCount { .. } => None,
+            Self::InvalidConnectTimeout { .. }
+            | Self::InvalidAttemptCount { .. }
+            | Self::ConnectionGenerationExhausted => None,
         }
     }
 }
@@ -88,6 +92,9 @@ impl fmt::Display for WebDriverBiDiTcpConnectionError {
                 formatter,
                 "WebDriver BiDi connection attempt count {attempt_count} is outside 1..={maximum_attempts}",
             ),
+            Self::ConnectionGenerationExhausted => {
+                formatter.write_str("WebDriver BiDi connection generation space is exhausted")
+            }
             Self::ConnectionTimedOut {
                 socket_address,
                 attempt_count,
@@ -128,7 +135,9 @@ impl std::error::Error for WebDriverBiDiTcpConnectionError {
             | Self::ConnectionFailed { source, .. }
             | Self::PeerInspectionFailed { source, .. } => Some(source),
             Self::PeerMismatch { source, .. } => Some(source),
-            Self::InvalidConnectTimeout { .. } | Self::InvalidAttemptCount { .. } => None,
+            Self::InvalidConnectTimeout { .. }
+            | Self::InvalidAttemptCount { .. }
+            | Self::ConnectionGenerationExhausted => None,
         }
     }
 }
