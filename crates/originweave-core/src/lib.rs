@@ -30,6 +30,7 @@ mod browser_protocol_operation;
 mod browser_registry;
 #[cfg(test)]
 mod browser_registry_coverage;
+mod browser_registry_external_context;
 mod contracts;
 mod webdriver_bidi_command;
 mod webdriver_bidi_error_code;
