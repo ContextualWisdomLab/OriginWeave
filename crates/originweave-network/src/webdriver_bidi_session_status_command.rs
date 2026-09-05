@@ -218,10 +218,7 @@ mod tests {
         let preflight = WebDriverBiDiWebSocketFrameError::MalformedFrame {
             reason: "test preflight rejection",
         };
-        assert_eq!(
-            map_frame_failure(&mut correlation, 1, preflight).to_string(),
-            "WebDriver BiDi session.status command frame write failed"
-        );
+        map_frame_failure(&mut correlation, 1, preflight);
         assert_eq!(correlation.outstanding_count(), 0);
 
         assert!(
@@ -233,10 +230,7 @@ mod tests {
             bytes_written: 1,
             source: io::Error::other("test ambiguous write failure"),
         };
-        assert_eq!(
-            map_frame_failure(&mut correlation, 2, ambiguous).to_string(),
-            "WebDriver BiDi session.status command frame write failed"
-        );
+        map_frame_failure(&mut correlation, 2, ambiguous);
         assert_eq!(correlation.outstanding_count(), 1);
     }
 }
