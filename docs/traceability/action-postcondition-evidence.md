@@ -81,6 +81,14 @@ PR #271 admits only a `script.callFunction` response correlated to the exact out
 
 The page-controlled text is discarded at the comparison boundary. The public result retains only the command identifier and UTF-8 byte count, while errors expose neither observed nor expected text. This evidence does not prove the preceding action was authorized, transported, or executed through the intended browser process, and it remains active-stack evidence until the full vertical slice is integrated and accepted on protected main.
 
+### PR #95 — deterministic semantic-node policy authorization
+
+**Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
+
+PR #95 consumes the exact semantic-node/business-action binding from #93, and only `Decision::Allow` produces a policy-authorized value. `Decision::Deny` and `ApprovalRequired` remain typed non-authorizing outcomes; neither can be converted into a browser action token.
+
+The retained action must still revalidate registry-owned current authority immediately before dispatch. Policy authorization does not grant destination, secret, approval, or adapter authority, and does not execute browser I/O or prove a post-condition. The branch remains non-shipped evidence until its dependency stack is integrated and accepted on protected main.
+
 ## 4. Non-transitive success semantics
 
 The intended first-slice chain remains:

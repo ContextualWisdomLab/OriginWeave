@@ -6,7 +6,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Added
 
-- Complete typed semantic-node action retention at the public binding boundary, including fail-closed coverage of registry-authority corruption and deterministic typed error sources.
+- Complete typed semantic-node action retention through the public binding and policy boundaries, including fail-closed current-authority revalidation, registry-corruption coverage, and deterministic typed error sources.
 - Typed WebDriver BiDi command-family correlation for text-value post-condition observations, so a matching numeric response id cannot consume an outstanding command from another operation family; successful envelopes reuse the parser-proven non-null id invariant without an unreachable fallback branch.
 - Bounded RFC 6455 WebDriver BiDi opening-response validation on the exact peer-verified stream: it admits only HTTP/1.1 `101`, case-insensitive `Upgrade`/`Connection` tokens, and the client-key-correlated `Sec-WebSocket-Accept` value within monotonic time and header-size ceilings; it restores blocking mode and still does not implement WebSocket frames or grant browser/Agent authority.
 - Bounded WebDriver BiDi loopback TCP transport that consumes one exact no-DNS connect target, retries only explicitly recoverable local transport failures within repository timeout and attempt ceilings, exposes the stream only after operating-system peer inspection and exact peer verification, supports a consuming handoff of the original stream with typed credential-free peer/session/TLS and bounded-attempt evidence, preserves typed causal errors, and performs no DNS, proxy/PAC, process authentication, TLS, WebSocket, BiDi message, browser-action, or Agent-authority step.
