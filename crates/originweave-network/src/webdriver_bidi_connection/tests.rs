@@ -6,14 +6,16 @@ use std::{
     error::Error,
     io,
     net::{SocketAddr, TcpListener, TcpStream},
+    sync::atomic::AtomicU64,
     time::Duration,
 };
 
 use originweave_core::{WebDriverBiDiWebSocketConnectTarget, WebDriverBiDiWebSocketEndpoint};
 
 use super::{
-    WebDriverBiDiSocketConnector, WebDriverBiDiTcpConnectionError, WebDriverBiDiTcpConnectionPlan,
-    is_retryable_connect_error,
+    WebDriverBiDiConnectionGeneration, WebDriverBiDiSocketConnector,
+    WebDriverBiDiTcpConnectionError, WebDriverBiDiTcpConnectionPlan,
+    allocate_connection_generation, is_retryable_connect_error,
 };
 use crate::connection::{MAX_CONNECT_TIMEOUT, MAX_CONNECTION_ATTEMPTS};
 
@@ -113,6 +115,25 @@ fn plan(maximum_attempts: u8) -> WebDriverBiDiTcpConnectionPlan {
         maximum_attempts,
     )
     .expect("valid test plan")
+}
+
+#[test]
+fn connection_generation_allocator_is_monotonic_and_fails_before_reuse() {
+    let counter = AtomicU64::new(41);
+    assert_eq!(
+        allocate_connection_generation(&counter).ok(),
+        Some(WebDriverBiDiConnectionGeneration(41))
+    );
+    assert_eq!(
+        allocate_connection_generation(&counter).ok(),
+        Some(WebDriverBiDiConnectionGeneration(42))
+    );
+
+    let exhausted = AtomicU64::new(u64::MAX);
+    assert!(matches!(
+        allocate_connection_generation(&exhausted),
+        Err(WebDriverBiDiTcpConnectionError::ConnectionGenerationExhausted)
+    ));
 }
 
 #[test]
@@ -316,6 +337,7 @@ fn error_display_source_and_attempt_contracts_cover_every_variant() {
             attempt_count: 0,
             maximum_attempts: MAX_CONNECTION_ATTEMPTS,
         },
+        WebDriverBiDiTcpConnectionError::ConnectionGenerationExhausted,
         WebDriverBiDiTcpConnectionError::ConnectionTimedOut {
             socket_address: socket_address(),
             attempt_count: 2,
@@ -341,21 +363,24 @@ fn error_display_source_and_attempt_contracts_cover_every_variant() {
     let messages: Vec<String> = errors.iter().map(ToString::to_string).collect();
     assert!(messages[0].contains("outside 1ns"));
     assert!(messages[1].contains("attempt count 0"));
-    assert!(messages[2].contains("timed out after 2 attempts"));
-    assert!(messages[3].contains("failed after 3 attempts"));
-    assert!(messages[4].contains("peer inspection failed"));
-    assert!(messages[5].contains("did not match the approved target"));
+    assert!(messages[2].contains("generation space is exhausted"));
+    assert!(messages[3].contains("timed out after 2 attempts"));
+    assert!(messages[4].contains("failed after 3 attempts"));
+    assert!(messages[5].contains("peer inspection failed"));
+    assert!(messages[6].contains("did not match the approved target"));
 
     assert_eq!(errors[0].attempt_count(), None);
     assert_eq!(errors[1].attempt_count(), None);
-    assert_eq!(errors[2].attempt_count(), Some(2));
-    assert_eq!(errors[3].attempt_count(), Some(3));
-    assert_eq!(errors[4].attempt_count(), Some(1));
+    assert_eq!(errors[2].attempt_count(), None);
+    assert_eq!(errors[3].attempt_count(), Some(2));
+    assert_eq!(errors[4].attempt_count(), Some(3));
     assert_eq!(errors[5].attempt_count(), Some(1));
+    assert_eq!(errors[6].attempt_count(), Some(1));
     assert!(errors[0].source().is_none());
     assert!(errors[1].source().is_none());
-    assert!(errors[2].source().is_some());
+    assert!(errors[2].source().is_none());
     assert!(errors[3].source().is_some());
     assert!(errors[4].source().is_some());
     assert!(errors[5].source().is_some());
+    assert!(errors[6].source().is_some());
 }

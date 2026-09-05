@@ -4,6 +4,19 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+### Changed
+
+- Integrated current origin-binding prerequisites into context-scoped navigation subscriptions, preserving typed command isolation, response bounds, and the original subscription tests while restoring the inherited executable release contract.
+- Integrated current document-advance prerequisites into committed-navigation origin binding, preserving URL validation before mutation and stale-epoch rejection while restoring the inherited executable release contract.
+- Integrated current navigation-observation prerequisites into document-epoch advancement, preserving stale-epoch and retired-context rejection and the Proposed architecture decision without granting a new origin or action authority.
+- Integrated current click-response prerequisites into bounded navigation observation, preserving exact registered-context and URL admission and keeping event evidence separate from causal action or document advancement.
+- Integrated the current click-transport prerequisites into typed click-response handling, preserving the response contracts and bounded socket-observation test adjustment without claiming a browser post-condition.
+- Integrated the current connection-provenance and pointer-click prerequisites into bounded click transport, retaining both public adapters and keeping frame-write evidence separate from browser-action completion.
+- Integrated the current connection-provenance prerequisite into bounded pointer-click serialization, preserving its command validation and inert authority boundary while restoring the inherited executable release contract.
+- Removed an unused private correlated-response accessor while retaining connection-generation validation at the receiving-message boundary, and corrected the Rust `AtomicU64` standard-library reference to its canonical type-alias page.
+- Integrated the current teardown prerequisites into transport-closure observation, including the previously uncollected release-record check, while retaining the unresolved connection-provenance finding and its downstream repair ownership.
+- Integrated the verified opening-exchange and closure prerequisites into the connection-bound response repair, preserving its sender, receiver and closure provenance checks while restoring the inherited executable release contract; process and profile cleanup remain unproven.
+
 ### Added
 
 - Deterministic WebDriver BiDi primary-button click serialization for an already admitted remote node: it emits one fixed `input.performActions` mouse sequence from bounded command/context/node identifiers and remains inert until a trusted adapter binds it to current session, origin, document, policy, and approval authority.
@@ -17,6 +30,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Typed `session.end` response admission that consumes only the exact outstanding command-kind correlation after complete envelope validation, preserves remote protocol errors as failures, and does not claim browser-process exit or resource cleanup from a protocol acknowledgment.
 - Fail-closed `session.end` teardown assessment that binds only the typed observation produced by consuming the exact transport, keeps browser-process-exit and task-profile-removal evidence unavailable until their runtime owners exist, and therefore cannot report operational completion from caller-supplied booleans.
 - Bounded WebDriver BiDi transport-closure observation that consumes the established stream, accepts only a validated peer Close frame or clean pre-frame EOF, permits at most one unsolicited Pong, and keeps transport closure separate from process-exit and profile-cleanup claims.
+- The typed browser-status response stack now includes its verified command and opening-exchange prerequisites, including the release-record check that previously did not execute; parsing remains bounded and does not grant browser authority or prove operational readiness.
 - Bounded RFC 6455 WebDriver BiDi opening-response validation on the exact peer-verified stream: it admits only HTTP/1.1 `101`, case-insensitive `Upgrade`/`Connection` tokens, and the client-key-correlated `Sec-WebSocket-Accept` value within monotonic time and header-size ceilings; it restores blocking mode and still does not implement WebSocket frames or grant browser/Agent authority.
 - Typed outbound WebDriver BiDi `session.status` over the bounded client WebSocket stream: it serializes only the standards-defined method with empty params, preserves exact typed command-id correlation, rejects invalid frame deadlines before registration, retires only the just-registered id when a local masking-key preflight proves no command bytes were emitted, and keeps correlation outstanding after partial or ambiguous writes; frame-write success is not treated as command completion or browser/Agent authority.
 - Bounded WebDriver BiDi loopback TCP transport that consumes one exact no-DNS connect target, retries only explicitly recoverable local transport failures within repository timeout and attempt ceilings, exposes the stream only after operating-system peer inspection and exact peer verification, supports a consuming handoff of the original stream with typed credential-free peer/session/TLS and bounded-attempt evidence, preserves typed causal errors, and performs no DNS, proxy/PAC, process authentication, TLS, WebSocket, BiDi message, browser-action, or Agent-authority step.
@@ -68,7 +82,12 @@ All notable changes to OriginWeave are documented in this file. The format follo
 ### Changed
 
 - Bound the committed-navigation `session.subscribe` command and both success and protocol-error responses to a distinct correlation command family, so a response for another outstanding BiDi command cannot retire the subscription identifier.
+- Carried current response prerequisites and the executable release-record check into the teardown-assessment stack; caller-supplied cleanup claims remain unverified and cannot establish operational acceptance.
+- Carried verified command prerequisites and the executable release-record check into session-end response validation without changing response admission or treating an acknowledgment as proof of resource cleanup.
+- Carried the verified status-response prerequisites into the session-end sender, preserving its command behavior and making the inherited release-record check execute in the existing test suite.
 - Kept the `session.status` frame-failure coverage contract focused on observable correlation state, avoiding assertion-internal uncovered branches without weakening preflight retirement or ambiguous-write retention checks.
+- Made the command-correlation release-record check run in the existing CI test suite, preserving its exact bounds and authority exclusions; carried the verified message-parent fixture repairs into the correlation stack.
+- Carried the verified parent fixture and release-check repairs into the session-status sender without changing command or correlation behavior.
 - Aligned the bounded WebDriver BiDi error-envelope vocabulary with the current specification by admitting the defined `no such client window` response while retaining fail-closed rejection of unknown error codes.
 - Separated logical origin authority from resolved network destination authority; an origin grant no longer implies permission to connect to every resolver result.
 - Separated resolved-address authorization from direct transport evidence; an approved IP now becomes a usable stream only after the operating system reports the exact requested IP and port.
@@ -80,6 +99,12 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Made the agent-development contract work-conserving: completing one bounded slice, RCA, review request, check, merge, or documentation change is an intermediate state; maintenance must return to the live queue, treat waits as item-local, and perform a mandatory exit sweep before terminating while executable OriginWeave work remains.
 - Moved autonomous-agent Cargo targets and Python bytecode caches outside the proposed source tree and prefetched locked Cargo dependencies for offline verification.
 - Kept the real loopback WebDriver BiDi opening-write regression test fail-fast with test-only diagnostics, while explicitly covering successful and panicked server-thread handoffs so strict all-target Clippy and exact coverage remain clean.
+- Kept the loopback peer alive until opening-write timeout cleanup completes, removing a macOS close race that could report `EINVAL` after a successful request write without weakening production cleanup failures.
+- Kept the invalid opening-response deadline fixture's accepted peer alive through opening-write cleanup, removing the same macOS `EINVAL` race from the integration coverage path.
+- Kept the revoked-stream fixture peer alive until local shutdown and fail-closed write classification complete, removing a macOS `ENOTCONN` race from the coverage path.
+- Carried the existing connection-lifetime test repairs into the frame-transport stack so inherited tests no longer close the peer before the behavior under test completes; production cleanup errors remain fail-closed.
+- Made opening-exchange tests wait for the complete client request and retain the peer until each client assertion finishes, avoiding premature connection closure in both successful and rejected handshakes without changing production error handling.
+- Carried the verified connection-lifetime fixture repairs into the message-assembly stack while preserving its message and JSON validation behavior.
 - Updated research doctoring to pin Chromium canonicalizer evidence to an immutable revision, add RFC 9293, RFC 5280, RFC 8446, RFC 9525, rustls 0.23.42, and Rust `TcpStream` evidence, distinguish the April 2026 Fugu beta from the June 2026 release, and treat vendor benchmark claims as first-party evidence rather than independent validation.
 
 ### Security

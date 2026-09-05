@@ -1,6 +1,9 @@
 use std::{error::Error, fmt, time::Duration};
 
-use crate::{WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrameError};
+use crate::{
+    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrameError,
+    webdriver_bidi_connection::WebDriverBiDiConnectionGeneration,
+};
 
 /// Bounded transport-closure condition observed on one consumed WebDriver BiDi WebSocket.
 ///
@@ -18,14 +21,17 @@ pub enum WebDriverBiDiWebSocketTransportClosureKind {
 /// Credential-free observation that one established WebDriver BiDi transport ceased carrying data.
 ///
 /// Construction consumes the established WebSocket, so this value cannot be used to regain the
-/// underlying connection. It records only a validated peer Close status when one was actually
-/// present, or clean TCP EOF before a new frame began. It grants no browser, process, profile,
-/// policy, secret, retry, reconnect, or Agent authority and does not perform a reciprocal Close
-/// handshake.
+/// underlying connection. It retains the private process-local generation of that exact connection
+/// so a later teardown consumer can reject closure observed on another socket even when session and
+/// command identifiers are reused. It records only a validated peer Close status when one was
+/// actually present, or clean TCP EOF before a new frame began. It grants no browser, process,
+/// profile, policy, secret, retry, reconnect, or Agent authority and does not perform a reciprocal
+/// Close handshake.
 #[derive(Debug, Eq, PartialEq)]
 pub struct WebDriverBiDiWebSocketTransportClosureObservation {
     kind: WebDriverBiDiWebSocketTransportClosureKind,
     peer_close_status_code: Option<u16>,
+    connection_generation: WebDriverBiDiConnectionGeneration,
 }
 
 impl WebDriverBiDiWebSocketTransportClosureObservation {
@@ -41,17 +47,19 @@ impl WebDriverBiDiWebSocketTransportClosureObservation {
         established: WebDriverBiDiWebSocketEstablished,
         frame_timeout: Duration,
     ) -> Result<Self, WebDriverBiDiWebSocketTransportClosureError> {
-        Self::observe_frame(established, frame_timeout, true)
+        let connection_generation = established.transport_evidence().connection_generation();
+        Self::observe_frame(established, frame_timeout, true, connection_generation)
     }
 
     fn observe_frame(
         established: WebDriverBiDiWebSocketEstablished,
         frame_timeout: Duration,
         allow_pong: bool,
+        connection_generation: WebDriverBiDiConnectionGeneration,
     ) -> Result<Self, WebDriverBiDiWebSocketTransportClosureError> {
         match established.read_frame(frame_timeout) {
             Ok((established, frame)) if frame.opcode() == 0xa && allow_pong => {
-                Self::observe_frame(established, frame_timeout, false)
+                Self::observe_frame(established, frame_timeout, false, connection_generation)
             }
             Ok((established, frame)) => {
                 if frame.opcode() != 0x8 {
@@ -69,11 +77,13 @@ impl WebDriverBiDiWebSocketTransportClosureObservation {
                 Ok(Self {
                     kind: WebDriverBiDiWebSocketTransportClosureKind::PeerCloseFrame,
                     peer_close_status_code,
+                    connection_generation,
                 })
             }
             Err(WebDriverBiDiWebSocketFrameError::FrameEnded { bytes_read: 0 }) => Ok(Self {
                 kind: WebDriverBiDiWebSocketTransportClosureKind::PeerEof,
                 peer_close_status_code: None,
+                connection_generation,
             }),
             Err(source) => Err(WebDriverBiDiWebSocketTransportClosureError::Frame { source }),
         }
@@ -89,6 +99,10 @@ impl WebDriverBiDiWebSocketTransportClosureObservation {
     #[must_use]
     pub const fn peer_close_status_code(&self) -> Option<u16> {
         self.peer_close_status_code
+    }
+
+    pub(crate) const fn connection_generation(&self) -> WebDriverBiDiConnectionGeneration {
+        self.connection_generation
     }
 }
 
