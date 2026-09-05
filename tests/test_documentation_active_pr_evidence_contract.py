@@ -1,6 +1,7 @@
 """Regression contracts for volatile active-PR evidence in canonical documentation."""
 
 from pathlib import Path
+import re
 import unittest
 
 
@@ -23,6 +24,16 @@ def active_pr_row(text: str, pr_number: int) -> str:
     return rows[0]
 
 
+def bounded_section(text: str, start: str, end: str) -> str:
+    """Return one explicitly bounded documentation section, failing closed on drift."""
+    if start not in text:
+        raise AssertionError(f"missing section start marker: {start}")
+    remainder = text.split(start, 1)[1]
+    if end not in remainder:
+        raise AssertionError(f"missing section end marker after {start}: {end}")
+    return remainder.split(end, 1)[0]
+
+
 class ActivePullRequestDocumentationContractTests(unittest.TestCase):
     """Keep volatile implementation evidence separate from protected-main truth."""
 
@@ -34,29 +45,101 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         cls.changelog = CHANGELOG.read_text(encoding="utf-8")
 
     def test_latest_live_pr_snapshot_is_recorded_in_the_product_baseline(self) -> None:
-        """The baseline must preserve exact heads for the newest active product slices."""
+        """The current section must preserve exact heads for the newest active slices."""
+        current = bounded_section(
+            self.baseline,
+            "#### Current exact-head active PR evidence",
+            "#### Historical 2026-08-26 maintenance-loop record",
+        )
         for marker in (
-            "Current exact-head active PR evidence",
-            "| #220 | Ready | `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | `e0740a6f3a41067a4460249378e0266815018a74` |",
-            "| #219 | Ready | `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | `3e34a54ae279686a28309d59b8b3b9bfbd283a80` |",
-            "| #218 | Ready | `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | `911ea33d8a5aca7673307bb6fdcad4b450f5c111` |",
-            "| #209 | Ready | `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | `b35d739017aa5d361b605be48045be50b5a35f6f` |",
-            "| #208 | Ready | `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | `e41d3be4c290c4e434aac33d777e511dfb94e03d` |",
-            "| #124 | Ready | `b05d5acca82b9d916ada2c8e82f59f92a89817e1` | `296ad25bb541023dbc869ae07ae1d853820f83a4` |",
+            "| #73 | Draft | `600d3975c02b68da1974a4c73069b966b39dce7b` | `ce1b138509ab4f52cb0f80290f104358473c6ed3` |",
+            "| #72 | Draft | `f86ce504138e79d6e95141a441f60b40920e1fa6` | `600d3975c02b68da1974a4c73069b966b39dce7b` |",
+            "| #46 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `373113119446d99f578febd39efc19366e7736b1` |",
+            "| #70 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `441a8ce1d09c329c5c1168f4906d9a38fd0abc01` |",
+            "| #82 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `f5776f5f233ac0a7c05e3f4a2846436c23438043` |",
+            "| #152 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `81407a0e5189a413d1be0963fea90a0c2f254ce1` |",
+            "| #210 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `7946dce9a3dd074047d93fca299d48c7aef40e47` |",
+            "| #237 | Draft | `542ca1e9c0a863595b8b6697790005d2471f5413` | `2459af602e72fbfe1ce816919473a1075ec0c41f` |",
+            "| #239 | Draft | `e45cd6cdcdee73b5c16dc942e6c98cb7e745fae0` | `e840ca299d29a15223c8b9bb1397002c4f41b4a3` |",
+            "| #229 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `0145ccba5901e301b41d4be674ca1ed23483ad37` |",
+            "| #220 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `b11db2be68f9b6d71aa4c4290b97a8b22097b353` |",
+            "| #211 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `52a918577958a5701e1146c7eb8b62fe8f8ccd44` |",
+            "| #195 | Draft | `6922dd98779e8f8aad132a3b1f563d7ba6e6d070` | `48eb2d23009c1c804520dd5efcd0d4d072aacef1` |",
+            "| #242 | Draft | `48eb2d23009c1c804520dd5efcd0d4d072aacef1` | `55fef0c3fae1724eddada53e52c4a0311f509aa3` |",
+            "| #93 | Draft | `802ec806cdd4560eab48c484f435766ecabda353` | `0664f0452cb329cd692cce7f61f9001652abfda2` |",
+            "| #95 | Draft | `0664f0452cb329cd692cce7f61f9001652abfda2` | `97aa0f2e340ee6fd920d0418f97af276b190554f` |",
+            "| #96 | Draft | `97aa0f2e340ee6fd920d0418f97af276b190554f` | `b7ba8dd1433410cee43084a73e31816da841b2a2` |",
+            "| #101 | Draft | `b7ba8dd1433410cee43084a73e31816da841b2a2` | `bc810b121bb0303f55afa8777a23cc0f9748c1db` |",
+            "| #102 | Draft | `bc810b121bb0303f55afa8777a23cc0f9748c1db` | `a123c55d4839dae1db7e6671f7d4d158c7cfd9db` |",
+            "| #103 | Draft | `a123c55d4839dae1db7e6671f7d4d158c7cfd9db` | `8b3416169346fa04b53c915b813d55ccf47d1876` |",
+            "| #124 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `fdb88698ca20626a6643bc2ad7944fb968835700` |",
+            "| #37 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `5e3dfcbd7a4daea297782cb99635990368589232` |",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, current)
+        self.assertNotIn("| #238 |", current)
+        self.assertIn("PR #238 itself", current)
+
+    def test_baseline_refresh_changelog_matches_the_live_snapshot(self) -> None:
+        """The current changelog refresh item must carry its own live queue evidence."""
+        added = self.changelog.split("### Added", 1)[1].split("### Changed", 1)[0]
+        changed = self.changelog.split("### Changed", 1)[1].split("### Security", 1)[0]
+        refresh_prefix = "- Revalidated the product-gap queue at"
+        refresh_lines = [line for line in added.splitlines() if line.startswith(refresh_prefix)]
+        self.assertEqual(1, len(refresh_lines))
+        refresh_line = refresh_lines[0]
+        self.assertIn("on 2026-09-05", refresh_line)
+        current = bounded_section(
+            self.baseline,
+            "## Current live delivery state",
+            "## Observed snapshot: 2026-08-29",
+        )
+        queue_counts = re.findall(
+            r"\*\*(\d+) open pull requests: (\d+) Ready/non-draft and (\d+) Draft; "
+            r"(\d+) open non-PR issues\*\*",
+            current,
+        )
+        self.assertEqual(1, len(queue_counts))
+        total, ready, draft, issues = queue_counts[0]
+        self.assertIn(f"{total} open pull requests ({ready} ready, {draft} draft)", refresh_line)
+        self.assertIn(f"{issues} open non-PR issues", refresh_line)
+        self.assertIn("024f63690cf05cfe6f0d4a430f0e18ea8fd2c4d6", refresh_line)
+        self.assertIn("3a651967c421f77088fe25e86a63faae295390b3", refresh_line)
+        self.assertIn("01038ba71fb276426cc67f90a91a3c431e194db5", refresh_line)
+        self.assertIn(
+            "Revalidated the active ruleset inventory at 7 required workflows",
+            changed,
+        )
+        self.assertIn("`codeql-pr`", changed)
+        self.assertIn("Made the open non-PR issue count reproducible", changed)
+        self.assertNotIn("- Corrected the 2026-08-28 product-gap snapshot", added)
+        self.assertNotIn("- Revalidated the product-gap queue at", changed)
+        self.assertNotIn("115 open pull requests (31 ready, 84 draft)", refresh_line)
+        self.assertNotIn("126 open pull requests (54 ready, 72 draft)", refresh_line)
+        self.assertNotIn("128 open pull requests (54 ready, 74 draft)", refresh_line)
+        self.assertNotIn("153 open pull requests (39 ready, 114 draft)", refresh_line)
+
+    def test_current_warc_provider_failures_are_bound_to_current_head(self) -> None:
+        """WARC evidence must describe the current parent head after stack merge."""
+        for marker in (
+            "PR #210 current exact head is `7946dce9a3dd074047d93fca299d48c7aef40e47`",
+            "`Rust contracts` job `98942518975` and `Production coverage` job `98942518680` succeeded",
+            "`noema-review` job `98942513421` and `strix` job `98942803402` remain in progress",
+            "Its predecessor head `5f59947f5e4b0d3bc0aa5b2d4c6722d3b7c43047`, prior stack merge head `66f360ccac5cec60c72222cc79d58e39f6f00088`, earlier exact head `bea65643109449d63d367a35b8d9bf327ee7cb2c`, and their OpenCode/Strix provider failures remain historical evidence only",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, self.baseline)
 
-    def test_baseline_refresh_changelog_matches_the_live_snapshot(self) -> None:
-        """The changelog must classify and state the same baseline refresh."""
-        refresh = "Refreshed the product and technical gap baseline with the current open-PR inventory"
-        added = self.changelog.split("### Added", 1)[1].split("### Changed", 1)[0]
-        changed = self.changelog.split("### Changed", 1)[1].split("### Security", 1)[0]
-        self.assertIn(refresh, added)
-        self.assertNotIn(refresh, changed)
-        self.assertIn("126 open pull requests (54 ready, 72 draft)", self.changelog)
-        self.assertNotIn("128 open pull requests (54 ready, 74 draft)", added)
-        self.assertNotIn("153 open pull requests (39 ready, 114 draft)", added)
+    def test_current_opencode_dispatch_failures_are_bound_to_current_heads(self) -> None:
+        """OpenCode dispatch authorization failures must remain explicit blockers."""
+        for marker in (
+            "A direct central `opencode-review` dispatch run `33192478312` / job `98921183278` was rejected",
+            "The immediately preceding PR #238 head `d0b0d1ed92f891f14646fc673b8e1c0d912586fd` remains historical",
+            "automatic OpenCode run `33193822920` / job `98926243116` failed closed without a current-head verdict",
+            "central dispatch run `33194506918` / job `98928580387` also failed closed at OpenCode",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, self.baseline)
 
     def test_dependency_stacks_are_explicit_and_non_shipped(self) -> None:
         """Current browser, network, sensitive and compatibility stacks stay active-only."""
