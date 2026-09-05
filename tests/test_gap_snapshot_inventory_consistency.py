@@ -27,8 +27,8 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
         )[0]
         for marker in (
             "125 open pull requests",
-            "14 Ready/non-draft",
-            "111 Draft",
+            "13 Ready/non-draft",
+            "112 Draft",
             "13 open non-PR issues",
             "87c4daa1830bac5a5228b6036752ad5633232085",
             "18156473",
@@ -36,7 +36,7 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "codeql-pr",
             "Live GitHub PR/base/head/check APIs are authoritative over PR bodies",
             "Ready roots are #37 `1e2f41072854edcdbaf0f9ecf14697a3bfd62195`, #50 `ddbefc91fbcbc1bfd1e1af63846620f7ccb7a9b4`, #166 `e84a1a2cc82b1c666218efd441da97849f47b8c2`, #219 `65e4315d80137badc0b55e1b9617015beb1db568`, #220 `e545b94e1de499b96b867694f80ac04ad247becd`, #229 `024f63690cf05cfe6f0d4a430f0e18ea8fd2c4d6`, #240 `24930a3a9ee79c0b712ee3df6589b0592eb6e18f`, #248 `7d6db16b2ead201fcec320854923f90d3ad0d8bc`, #272 `b1cae8ad1cbd8eb6992037c830aea30b9aa436b3`, #274 `802d0bdff7536d9ac253305d3e0237b4e4a1789e`, #285 `f455c2cd64b3dd3f027c91d396103792a205ddd0`, and #287 `af83c40dd2990a03064a92ca75430a9cc400f098`",
-            "Ready PR #290 is a dependent child of #245, not a root, and remains #245-first",
+            "PR #290 is Draft at exact head `ebeefcd534db4324498fdb18046ebc6255ddcdf2`",
             "PR #238's moving exact head is intentionally omitted",
             "PR #166 exact head `e84a1a2cc82b1c666218efd441da97849f47b8c2`",
             "PR #220 exact head `e545b94e1de499b96b867694f80ac04ad247becd`",
@@ -163,7 +163,7 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
         preamble, remainder = unreleased.split("### Added", 1)
         added = remainder.split("### Changed", 1)[0]
 
-        expected = "125 open pull requests (14 ready, 111 draft)"
+        expected = "125 open pull requests (13 ready, 112 draft)"
         self.assertIn(expected, preamble)
         self.assertIn("13 open non-PR issues", preamble)
         self.assertIn(expected, added)
