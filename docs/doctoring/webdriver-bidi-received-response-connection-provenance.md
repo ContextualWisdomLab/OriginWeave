@@ -42,6 +42,12 @@ Fresh integration verification executes 13 focused received-message, response an
 
 ## Evidence and remaining risk
 
+### Pointer-click child integration
+
+PR #256 predecessor `9f2e6f29be46371762e3031a97c1cac04720694f` lacked the current connection-provenance implementation and collected zero command-correlation release tests under native discovery. The expected-one assertion failed before ordinary integration of parent `3e7057443d7c9532ff526acb5eefe8cd4778c767`; the inherited contract then collected and passed. Its core command implementation, exports and four pointer-click tests are byte-identical to the predecessor. The sole child delta in the parent's correlation module remains the documented `PointerClick` command kind. Serialization does not prove a browser click, authorize input, or establish an observed page post-condition.
+
+Fresh child verification passed all four pointer-click command tests, 13 received-message/response/teardown tests, 142 Python contracts, compileall, and the complete Rust 1.97.1 format/check/workspace-test/strict-Clippy/rustdoc gates. Pinned coverage measured 1088 functions, 11077 lines, 14146 regions and 1210 branches at 100%, with the unstable branch-option warning retained. These are local integrated-tree results; hosted checks, independent approval where required and protected-main delivery remain unproven.
+
 The repair includes a realistic two-connection regression for a foreign `session.end` success response and focused reader coverage for fragmented text, an interleaved control frame, malformed server framing, binary-message rejection, event/null-id correlation, and connection-generation exhaustion after verified peer admission. The original inline response-substitution and closure-substitution findings are resolved by the current source boundary, but exact-head CI and security workflows remain authoritative before any integration claim.
 
 The current scope deliberately does not infer browser-process ownership from the WebSocket connection and does not make protocol success an operational teardown post-condition. Process-exit and profile-removal evidence remain unavailable until their canonical runtime owners provide non-forgeable contracts.

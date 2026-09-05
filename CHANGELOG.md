@@ -6,12 +6,14 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Integrated the current connection-provenance prerequisite into bounded pointer-click serialization, preserving its command validation and inert authority boundary while restoring the inherited executable release contract.
 - Removed an unused private correlated-response accessor while retaining connection-generation validation at the receiving-message boundary, and corrected the Rust `AtomicU64` standard-library reference to its canonical type-alias page.
 - Integrated the current teardown prerequisites into transport-closure observation, including the previously uncollected release-record check, while retaining the unresolved connection-provenance finding and its downstream repair ownership.
 - Integrated the verified opening-exchange and closure prerequisites into the connection-bound response repair, preserving its sender, receiver and closure provenance checks while restoring the inherited executable release contract; process and profile cleanup remain unproven.
 
 ### Added
 
+- Deterministic WebDriver BiDi primary-button click serialization for an already admitted remote node: it emits one fixed `input.performActions` mouse sequence from bounded command/context/node identifiers and remains inert until a trusted adapter binds it to current session, origin, document, policy, and approval authority.
 - Typed outbound WebDriver BiDi `session.end` over the bounded client WebSocket stream: it serializes only the standards-defined method with empty params, rejects invalid frame deadlines before correlation registration, retires only the just-registered id when frame preflight proves no command bytes were emitted, preserves exact command-kind correlation across ambiguous writes, and does not treat frame-write success as proof that the browser session ended.
 - Typed `session.end` response admission that consumes only the exact outstanding command-kind correlation after complete envelope validation, preserves remote protocol errors as failures, and does not claim browser-process exit or resource cleanup from a protocol acknowledgment.
 - Fail-closed `session.end` teardown assessment that binds only the typed observation produced by consuming the exact transport, keeps browser-process-exit and task-profile-removal evidence unavailable until their runtime owners exist, and therefore cannot report operational completion from caller-supplied booleans.
