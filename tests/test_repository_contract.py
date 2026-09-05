@@ -71,6 +71,22 @@ class RepositoryContractTests(unittest.TestCase):
         missing = sorted(path for path in required_paths if not (ROOT / path).is_file())
         self.assertEqual(missing, [])
 
+    def test_public_documentation_landing_stays_bounded_and_discoverable(self) -> None:
+        """The public landing must retain its badge, status, and publication boundary."""
+
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        landing = (ROOT / "docs/index.md").read_text(encoding="utf-8")
+
+        self.assertEqual(readme.count("[![Ask DeepWiki]"), 1)
+        self.assertIn(
+            "[![Ask DeepWiki](https://deepwiki.com/badge.svg)]"
+            "(https://deepwiki.com/ContextualWisdomLab/OriginWeave)",
+            readme,
+        )
+        self.assertIn("Status: pre-alpha", landing)
+        self.assertIn("## Publication boundary", landing)
+        self.assertIn("does not promote active pull requests", landing)
+
     def test_origin_identity_and_destination_safety_remain_distinct(self) -> None:
         """Documentation must never present origin parsing as an SSRF decision."""
 

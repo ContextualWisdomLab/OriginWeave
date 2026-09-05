@@ -1,5 +1,7 @@
 # OriginWeave
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/ContextualWisdomLab/OriginWeave)
+
 **Browse. Act. Prove.**
 
 OriginWeave is a Chromium-compatible, Rust-first control plane for governed AI agents on the web. It is designed to let an agent observe, extract, and act without turning untrusted page content into authority, exposing secrets to a model, connecting to an unapproved network destination, accepting an unauthenticated web service, or losing the evidence required to explain what happened.
