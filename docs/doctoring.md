@@ -90,6 +90,14 @@ TRINITY uses a compact learned coordinator to select models and assign Thinker, 
 
 These results motivate explicit OriginWeave configuration for model routing, workflow stage, decomposition, recursion depth, permitted access, role assignment, and role-specific reasoning effort. They do not justify always using multiple agents. OriginWeave must compare bounded single-model, routed-model, and deeper multi-agent configurations through task-success, safety, variance, token, and compute ablations. No learned coordinator may expand browser capabilities, origins, destinations, approvals, secrets, or deterministic policy.
 
+### Failed Agent Task cleanup evidence
+
+PR #143's implementation at `c1dd380be91c0604b797b6914f8cfef2e96f99b7` retains a bounded browser-failure type after the controlled browser's PID/start-time identity has been captured, shuts down the session and driver, then observes whether that exact root identity ended. The isolated trial separately removes its temporary profile before returning failed-trial evidence. A true or false process-termination result remains distinct from profile cleanup; neither changes a failed task into a successful one, and success-only surface checks cannot override the aggregate pass-count gate.
+
+Process-observation errors leave termination unproven: a read failure escapes the browser-pass observer and the outer trial records that bounded error type with profile cleanup, without a process-termination flag. The current runner reports one failure type, so the original browser failure type is not retained in that fallback record. This limit is explicit; no catch-all, invented successful cleanup, timeout increase or causal-error-chain claim is added. Observing one controlled root does not attest every Chromium descendant, adversarial filesystem erasure or ownership of unrelated host processes.
+
+The release-record regression first failed because this changed failure path had no corresponding Unreleased entry. A controlled behavioral regression now exercises the real browser-pass and trial functions with no browser launch: observed exit, surviving identity and observation error all remain failed trials, driver shutdown is required, and private exception text is absent from returned evidence. These controlled tests are not Linux process or pinned-Chromium runtime evidence; exact-head hosted compatibility remains required.
+
 ## References
 
 Amazon Web Services. (n.d.). *Set up the Amazon EKS Pod Identity Agent*. Retrieved August 6, 2026, from https://docs.aws.amazon.com/eks/latest/userguide/pod-id-agent-setup.html
