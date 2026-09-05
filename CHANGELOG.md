@@ -62,6 +62,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Fresh semantic-observation comparison for retained action targets, rejecting node mismatch, removed action support, and newly disabled interactive state without claiming trusted observation or browser dispatch.
 - Separated logical origin authority from resolved network destination authority; an origin grant no longer implies permission to connect to every resolver result.
 - Separated resolved-address authorization from direct transport evidence; an approved IP now becomes a usable stream only after the operating system reports the exact requested IP and port.
 - Separated exact TCP peer proof from authenticated TLS service identity; an observed peer becomes an authenticated HTTPS stream only after explicit-root, fixed-time, SAN-bound WebPKI verification over that same stream.

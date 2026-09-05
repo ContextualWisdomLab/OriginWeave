@@ -105,6 +105,14 @@ PR #101 rejects an advertised interactive action when the retained semantic obse
 
 This is a descriptive target filter. It does not observe current Chromium state or authenticate the observation source, and it does not grant dispatch authority. The trusted adapter must still obtain fresh state and the later dispatch boundary must revalidate registry-owned browser authority before input.
 
+### PR #102 — compare a target with fresh semantic state
+
+**Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
+
+PR #102 compares a retained action target with one supplied current semantic observation. It returns `ObservationAuthorityMismatch` for another exact node, rejects removed action support, and returns `NodeNotEnabled` for newly disabled interactive state while preserving disabled `ScrollIntoView`.
+
+The method does not obtain the fresh observation or authenticate its timing and provenance. It does not dispatch browser input, replace registry-issued typed-input authority, or prove a post-condition. Those responsibilities remain with the trusted adapter and later authority, transport, and verification boundaries.
+
 ## 4. Non-transitive success semantics
 
 The intended first-slice chain remains:
