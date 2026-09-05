@@ -85,7 +85,7 @@ class AgentTaskForcedCloseProcessTerminationContractTests(unittest.TestCase):
             "browser_failure_type",
             "driver_cleanup_failure_type",
             "driver_kill_fallback_used",
-            "except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:",
+            "except (OSError, ValueError, RuntimeError, json.JSONDecodeError, http.client.HTTPException) as exc:",
             'browser_failure_type = type(exc).__name__',
             "failure_evidence",
             '"driver_process_terminated": driver_process_terminated',
