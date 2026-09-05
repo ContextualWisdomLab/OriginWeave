@@ -312,6 +312,40 @@ class ProductDocumentationContractTests(unittest.TestCase):
                 self.assertIn(phrase, release)
         self.assertNotIn("residual unrun evidence", release)
 
+    def test_typed_text_postcondition_observation_is_durably_scoped(self) -> None:
+        """The active observation primitive must not become a shipped-runtime claim."""
+
+        traceability = (
+            ROOT / "docs/traceability/action-postcondition-evidence.md"
+        ).read_text(encoding="utf-8")
+        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        for phrase in (
+            "PR #269",
+            "script.callFunction",
+            "node => node.value",
+            "does not prove browser execution or post-condition success",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, traceability)
+        self.assertIn("Fixed sandboxed text-value observation", changelog)
+
+    def test_typed_text_postcondition_result_is_durably_scoped(self) -> None:
+        """A correlated response must not become success before exact value comparison."""
+
+        traceability = (
+            ROOT / "docs/traceability/action-postcondition-evidence.md"
+        ).read_text(encoding="utf-8")
+        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        for phrase in (
+            "PR #271",
+            "PostconditionMismatch",
+            "page-controlled text is discarded",
+            "does not prove the preceding action was authorized",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, traceability)
+        self.assertIn("Typed text-value post-condition verification", changelog)
+
     def test_traceability_labels_conversation_derived_future_work(self) -> None:
         """Conversation decisions must preserve canonical maturity instead of becoming shipped claims."""
         traceability = (ROOT / "docs/traceability/README.md").read_text(encoding="utf-8")
