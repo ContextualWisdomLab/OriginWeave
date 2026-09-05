@@ -8,14 +8,14 @@ use std::{
 
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiSessionEndCommand, WebDriverBiDiSessionEndResult,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiConnectionMessageRead,
+    WebDriverBiDiSessionEndCommand, WebDriverBiDiSessionEndResult,
     WebDriverBiDiSessionTeardownAssessment, WebDriverBiDiSessionTeardownAssessmentError,
     WebDriverBiDiSessionTeardownDisposition, WebDriverBiDiSessionTeardownObservations,
     WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
     WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageAssembler,
-    WebDriverBiDiWebSocketMessageAssembly, WebDriverBiDiWebSocketTransportClosureKind,
-    WebDriverBiDiWebSocketTransportClosureObservation,
+    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageReader,
+    WebDriverBiDiWebSocketTransportClosureKind, WebDriverBiDiWebSocketTransportClosureObservation,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -114,15 +114,20 @@ fn correlated_session_end_ack_and_transport_on(
         WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
         Duration::from_millis(500),
     )?;
-    let (established, frame) = established.read_frame(Duration::from_millis(500))?;
-    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-    let text = match assembler.push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(text) => text,
-        other => {
-            return Err(io::Error::other(format!(
-                "session.end response produced unexpected assembly state: {other:?}"
-            ))
-            .into());
+    let mut reader = WebDriverBiDiWebSocketMessageReader::new(established);
+    let (established, text) = loop {
+        match reader.read_next(Duration::from_millis(500))? {
+            WebDriverBiDiConnectionMessageRead::Pending(next) => reader = next,
+            WebDriverBiDiConnectionMessageRead::Text {
+                established,
+                message,
+            } => break (established, message),
+            WebDriverBiDiConnectionMessageRead::Control { message, .. } => {
+                return Err(io::Error::other(format!(
+                    "session.end response produced unexpected control message: {message:?}"
+                ))
+                .into());
+            }
         }
     };
     let acknowledged = WebDriverBiDiSessionEndResult::parse_and_correlate(&text, &mut correlation)?;
