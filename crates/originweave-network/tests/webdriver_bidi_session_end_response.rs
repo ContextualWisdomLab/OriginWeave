@@ -8,7 +8,7 @@ use std::{
 
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiSessionEndCommand,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind, WebDriverBiDiSessionEndCommand,
     WebDriverBiDiSessionEndResponseError, WebDriverBiDiSessionEndResult,
     WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
     WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
@@ -142,6 +142,29 @@ fn session_end_success_accepts_extensible_empty_result_and_consumes_exact_correl
     let result = WebDriverBiDiSessionEndResult::parse_and_correlate(&text, &mut correlation)?;
     assert_eq!(result.command_id(), 7);
     assert_eq!(correlation.outstanding_count(), 0);
+    Ok(())
+}
+
+#[test]
+fn session_end_success_rejects_correlation_without_connection_provenance()
+-> Result<(), Box<dyn Error>> {
+    let (text, _connection_bound_correlation) = send_end_and_read_response(END_SUCCESS_RESPONSE)?;
+    let mut unbound = WebDriverBiDiCommandCorrelation::new();
+    unbound.register_command_for(7, WebDriverBiDiCommandKind::SessionEnd)?;
+
+    let parsed = WebDriverBiDiSessionEndResult::parse_and_correlate(&text, &mut unbound);
+    let error = parsed
+        .err()
+        .ok_or_else(|| io::Error::other("unbound session.end correlation was accepted"))?;
+    assert!(matches!(
+        error,
+        WebDriverBiDiSessionEndResponseError::MissingConnectionProvenance { command_id: 7 }
+    ));
+    assert_eq!(
+        error.to_string(),
+        "WebDriver BiDi session.end response lacks connection provenance"
+    );
+    assert_eq!(unbound.outstanding_count(), 0);
     Ok(())
 }
 
