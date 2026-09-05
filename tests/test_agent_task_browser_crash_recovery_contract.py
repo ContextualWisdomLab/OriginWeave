@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import http.client
+import json
 import os
 import pathlib
 import runpy
@@ -236,6 +237,22 @@ class AgentTaskBrowserCrashRecoveryContractTests(unittest.TestCase):
         self.assertFalse(result["passed"])
         self.assertEqual(result["failure_type"], "TimeoutExpired")
         self.assertTrue(result["profile_cleaned"])
+
+    def test_crash_reason_codes_are_closed_and_type_stable(self) -> None:
+        """Diagnostic reason codes must distinguish reviewed exception classes without messages."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_browser_crash_reasons")
+        classify = namespace["_classify_agent_task_browser_crash_reason"]
+        cases = (
+            (subprocess.TimeoutExpired(cmd="chromedriver", timeout=5), "timeout"),
+            (json.JSONDecodeError("redacted", "{}", 0), "invalid_json"),
+            (ValueError("redacted"), "invalid_value"),
+            (OSError("redacted"), "os_error"),
+            (RuntimeError("redacted"), "runtime_error"),
+        )
+        for error, expected in cases:
+            with self.subTest(error_type=type(error).__name__):
+                self.assertEqual(classify(error), expected)
 
     def test_crash_startup_keeps_sandbox_and_fails_without_fallback(self) -> None:
         """A rejected sandboxed session must fail once, reap its driver and remove its profile."""
