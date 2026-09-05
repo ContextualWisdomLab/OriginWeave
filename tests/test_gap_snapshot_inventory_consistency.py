@@ -26,9 +26,9 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "## Observed snapshot: 2026-08-29", 1
         )[0]
         for marker in (
-            "124 open pull requests",
+            "125 open pull requests",
             "13 Ready/non-draft",
-            "111 Draft",
+            "112 Draft",
             "13 open non-PR issues",
             "87c4daa1830bac5a5228b6036752ad5633232085",
             "18156473",
@@ -47,6 +47,7 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "PR #281 remains Draft at exact head `adaca6427d68f550b39293a69b7c733430d1c385`",
             "PR #282 is Draft at exact head `b54a5856d8201911f05d69622f0d5594a371adf0`",
             "PR #283 is Draft at exact head `c904300a6a1bda83af24f84d586f1c5f6a6491aa`",
+            "PR #288 is Draft at exact head `e051a3d06a613233781272ffdc0e564023ba52b0`",
             "PR #285 is Ready at exact head `f455c2cd64b3dd3f027c91d396103792a205ddd0`",
             "PR #287 is Ready at exact head `af83c40dd2990a03064a92ca75430a9cc400f098`",
             "PR #273 is Draft at exact head `e5c8fcb66bf644dfa750bb1b40ba3d600cb7805a`",
@@ -126,7 +127,7 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
         preamble, remainder = unreleased.split("### Added", 1)
         added = remainder.split("### Changed", 1)[0]
 
-        expected = "124 open pull requests (13 ready, 111 draft)"
+        expected = "125 open pull requests (13 ready, 112 draft)"
         self.assertIn(expected, preamble)
         self.assertIn("13 open non-PR issues", preamble)
         self.assertIn(expected, added)
