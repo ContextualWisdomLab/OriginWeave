@@ -9,10 +9,12 @@
 //! unmasked server-frame reads, assembles bounded WebDriver BiDi text messages,
 //! classifies complete local-end JSON envelopes, tracks bounded command-response
 //! correlation, sends narrowly typed `session.status` and `session.end` commands,
-//! admits typed correlated status and end responses, observes bounded peer Close
-//! or clean-EOF transport cessation, and keeps protocol/transport evidence separate
-//! from explicit operational teardown observations without exposing generic JSON
-//! bodies or granting browser, TLS, policy, secret, process, profile, or Agent authority.
+//! admits typed correlated status and end responses, binds `session.end` ACK and
+//! closure evidence to one private process-local connection generation, observes
+//! bounded peer Close or clean-EOF transport cessation, and keeps protocol/transport
+//! evidence separate from explicit operational teardown observations without exposing
+//! generic JSON bodies or granting browser, TLS, policy, secret, process, profile,
+//! or Agent authority.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -67,8 +69,8 @@ pub use webdriver_bidi_session_status_response::{
     WebDriverBiDiSessionStatusResult,
 };
 pub use webdriver_bidi_session_teardown::{
-    WebDriverBiDiSessionTeardownAssessment, WebDriverBiDiSessionTeardownDisposition,
-    WebDriverBiDiSessionTeardownObservations,
+    WebDriverBiDiSessionTeardownAssessment, WebDriverBiDiSessionTeardownAssessmentError,
+    WebDriverBiDiSessionTeardownDisposition, WebDriverBiDiSessionTeardownObservations,
 };
 pub use webdriver_bidi_websocket_frame::{
     MAX_WEBSOCKET_FRAME_PAYLOAD_SIZE, MAX_WEBSOCKET_FRAME_TIMEOUT,
