@@ -118,6 +118,12 @@ The repair restores the existing non-boolean integer range check, forwards only 
 
 The regressions execute the production success predicate, actual ordinary/forced-close browser-pass and outer-trial paths, and aggregate evidence generation with controlled faults. They check invalid counts, observed root survival, driver cleanup, early failure without invented identity evidence, private-message exclusion, and final rejection with the original trial denominator intact. Unknown fields are not forwarded and malformed known cleanup values are rejected. A sixth regression covers all three final aggregate exception boundaries and server teardown. Controlled tests do not establish live Linux/Chromium termination, cgroup ownership, OS-wide orphan absence or release acceptance; exact-head hosted compatibility remains mandatory.
 
+### Shared-deadline inherited-test reconciliation
+
+At #147 `af1b98ba377c73b88baa9633e2232e7f76e76f36`, all six parent review-evidence methods were restored, but the forced-close `BadStatusLine` and `IncompleteRead` subcases still injected the old individual root waiter. Native discovery executed all 228 tests and failed those two subcases; a fresh focused run reproduced both failures in 10.417 seconds because the real combined observer consumed its deadline. This was test injection drift after parent integration, not evidence of a production teardown regression.
+
+The existing test now specifies each lane's actual observer, return value and exact arguments. Ordinary trials keep the individual `False` result. Forced-close trials inject `(False, False)` from the shared observer and require `(321, 654, ((321, 654),))`, preserving root-only capture rather than inventing a complete descendant set. Every existing failed-trial, profile-cleanup, live-root, driver-termination, error-type and redaction assertion remains. No production code, deadline, retry, failed denominator or coverage gate changes. This repair does not address the separate ordinary-pass two-deadline finding or prove real Linux/pinned-Chromium acceptance.
+
 ## References
 
 Amazon Web Services. (n.d.). *Set up the Amazon EKS Pod Identity Agent*. Retrieved August 6, 2026, from https://docs.aws.amazon.com/eks/latest/userguide/pod-id-agent-setup.html
