@@ -4,6 +4,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Recorded #50's current documentation-repair head and resolved review, preserving predecessor-only full-coverage evidence and the new head's independent hosted-check requirement.
 - Recorded a reproduced cross-connection teardown-evidence gap in #254/#255 and its prerequisite repair order; another connection's closure must not be reported as closure of the acknowledged connection.
 - Made the changelog queue-consistency check compare the current baseline counts directly, preventing a duplicated older count from rejecting a verified Ready-to-Draft transition.
 - Converted PR #290 back to Draft after exact review showed its #245-relative MV3 workflow would drop protected #286 `converted_to_draft`/`closed` lifecycle coverage and the closed-event fail-closed guard; the valid concurrency/manual-dispatch intent remains assigned to canonical workflow owner #212.

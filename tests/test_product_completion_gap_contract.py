@@ -182,7 +182,7 @@ class ProductCompletionGapContractTests(unittest.TestCase):
         )[0]
 
         for marker in (
-            "PR #50 is Ready at exact head `ddbefc91fbcbc1bfd1e1af63846620f7ccb7a9b4`",
+            "PR #50 is Ready at exact head `2bd85188a3b3d798824ac04cf3638df84ac2a8bb`",
             "origin-approved IP could be paired with a different service port",
             "binds the socket port to the effective scheme-host-port origin",
             "function/line/region/branch coverage pass locally at 100%",
