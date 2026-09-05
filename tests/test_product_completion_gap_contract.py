@@ -183,8 +183,8 @@ class ProductCompletionGapContractTests(unittest.TestCase):
         )[0]
 
         for marker in (
-            "PR #50 is Ready at exact head `e981ac45d0bfcd3906fc64dae5f4490edf39f9e5`",
-            "those results do not transfer to the new head",
+            "PR #50 is Ready at exact head `ad87cfea59db711cb29ef90559790ba77e22029f`",
+            "Fresh independent verification passed all seven fresh-resolution tests and 152 Python contracts",
             "origin-approved IP could be paired with a different service port",
             "binds the socket port to the effective scheme-host-port origin",
             "function/line/region/branch coverage pass locally at 100%",
