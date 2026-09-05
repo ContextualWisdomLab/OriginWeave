@@ -62,17 +62,10 @@ impl WebDriverBiDiSessionEndResult {
             })?;
 
         match completed.outcome() {
-            WebDriverBiDiCorrelatedResponseOutcome::Success => {
-                let connection_generation = completed.connection_generation().ok_or(
-                    WebDriverBiDiSessionEndResponseError::MissingConnectionProvenance {
-                        command_id: completed.command_id(),
-                    },
-                )?;
-                Ok(Self {
-                    command_id: completed.command_id(),
-                    connection_generation,
-                })
-            }
+            WebDriverBiDiCorrelatedResponseOutcome::Success => Ok(Self {
+                command_id: completed.command_id(),
+                connection_generation: message.connection_generation(),
+            }),
             WebDriverBiDiCorrelatedResponseOutcome::Error => {
                 Err(WebDriverBiDiSessionEndResponseError::RemoteProtocolError {
                     command_id: completed.command_id(),
