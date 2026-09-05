@@ -1,7 +1,8 @@
 use std::{collections::BTreeMap, error::Error, fmt};
 
 use crate::{
-    MAX_WEBDRIVER_BIDI_JS_UINT, WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeRouting,
+    webdriver_bidi_connection::WebDriverBiDiConnectionGeneration, MAX_WEBDRIVER_BIDI_JS_UINT,
+    WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeRouting,
 };
 
 /// Maximum number of local WebDriver BiDi commands retained as outstanding at once.
@@ -28,7 +29,7 @@ pub enum WebDriverBiDiCommandKind {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct OutstandingCommand {
     kind: WebDriverBiDiCommandKind,
-    connection_generation: Option<u64>,
+    connection_generation: Option<WebDriverBiDiConnectionGeneration>,
 }
 
 /// Outcome of a response after it has consumed the matching outstanding command identifier.
@@ -50,7 +51,7 @@ pub enum WebDriverBiDiCorrelatedResponseOutcome {
 pub struct WebDriverBiDiCorrelatedResponse {
     command_id: u64,
     outcome: WebDriverBiDiCorrelatedResponseOutcome,
-    connection_generation: Option<u64>,
+    connection_generation: Option<WebDriverBiDiConnectionGeneration>,
 }
 
 impl WebDriverBiDiCorrelatedResponse {
@@ -66,7 +67,9 @@ impl WebDriverBiDiCorrelatedResponse {
         self.outcome
     }
 
-    pub(crate) const fn connection_generation(&self) -> Option<u64> {
+    pub(crate) const fn connection_generation(
+        &self,
+    ) -> Option<WebDriverBiDiConnectionGeneration> {
         self.connection_generation
     }
 }
@@ -170,7 +173,7 @@ impl WebDriverBiDiCommandCorrelation {
         &mut self,
         command_id: u64,
         command_kind: WebDriverBiDiCommandKind,
-        connection_generation: u64,
+        connection_generation: WebDriverBiDiConnectionGeneration,
     ) -> Result<(), WebDriverBiDiCommandCorrelationError> {
         self.register(
             command_id,
@@ -183,7 +186,7 @@ impl WebDriverBiDiCommandCorrelation {
         &mut self,
         command_id: u64,
         command_kind: WebDriverBiDiCommandKind,
-        connection_generation: Option<u64>,
+        connection_generation: Option<WebDriverBiDiConnectionGeneration>,
     ) -> Result<(), WebDriverBiDiCommandCorrelationError> {
         if command_id > MAX_WEBDRIVER_BIDI_JS_UINT {
             return Err(WebDriverBiDiCommandCorrelationError::CommandIdOutOfRange);
