@@ -4,6 +4,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Recorded the #253 teardown-evidence gap: a correlated protocol acknowledgement plus raw caller booleans cannot constitute authenticated transport, process-exit, or profile-removal completion evidence.
 - Refreshed the active WebDriver BiDi and semantic-action stack evidence through exact heads #195, #242, #93, #95, #96, #101, #102, and #103, including macOS fixture-race repairs and fail-closed policy, dispatch, disabled-state, and current-observation boundaries.
 - Recorded PR #285's Ready-event materialization gap: repository-native exact-head CI restarted, while the earlier central Security, Semgrep, and CodeQL runs remained cancelled and no fresh required-workflow replacements appeared.
 - Refreshed the live product-gap baseline with PR #37's RFC 9110 `205 Reset Content` repair head and exact local verification evidence.

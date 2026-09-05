@@ -48,6 +48,8 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "#251 `86e8ad76838f2a64aa7e0cd56ba1f931c8d0c3dc`",
             "#252 `2015259529ada99af836989079cc85a15779a2d8`",
             "#253 `0d72082e595c0e1fcc03d609ba337896ed14e2fc`",
+            "three unauthenticated caller booleans mint `OperationallyComplete`",
+            "raw teardown claims must remain explicitly unverified",
             "#254 `cbaf50dcc97753cc73135497ea8225e8b18de190`",
             "#255 `a13de5f9321e72c1867974eb7a43230f031e58df`",
             "#256 `9f2e6f29be46371762e3031a97c1cac04720694f`",
