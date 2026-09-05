@@ -104,6 +104,8 @@ class AgentTaskBrowserCrashCleanupRuntimeContractTests(unittest.TestCase):
         run_pass = namespace["_run_agent_task_browser_crash_browser_pass"]
         pinned_version = namespace["PINNED_CHROME_VERSION"]
         driver = mock.Mock()
+        driver.poll.return_value = 0
+        driver.wait.side_effect = RuntimeError("secondary driver teardown failure")
 
         def request(
             _driver_port: int,
@@ -127,9 +129,6 @@ class AgentTaskBrowserCrashCleanupRuntimeContractTests(unittest.TestCase):
                 return {"value": None}
             raise AssertionError(f"unexpected WebDriver request: {method} {path}")
 
-        def fail_driver_teardown(_driver: object) -> None:
-            raise RuntimeError("secondary driver teardown failure")
-
         with (
             mock.patch.dict(
                 run_pass.__globals__,
@@ -138,7 +137,6 @@ class AgentTaskBrowserCrashCleanupRuntimeContractTests(unittest.TestCase):
                     "_wait_for_driver": lambda _port: None,
                     "_json_request": request,
                     "_read_linux_proc_stat_process_identity": lambda _pid: (777, 42),
-                    "_stop_crashed_driver": fail_driver_teardown,
                 },
             ),
             mock.patch.object(
@@ -162,6 +160,7 @@ class AgentTaskBrowserCrashCleanupRuntimeContractTests(unittest.TestCase):
         self.assertNotIn("primary fixture navigation failure", repr(result))
         self.assertNotIn("secondary driver teardown failure", repr(result))
         self.assertTrue(result["profile_cleaned"])
+        driver.wait.assert_called_once_with(timeout=5)
 
     def test_cleanup_only_failure_remains_primary(self) -> None:
         """Do not demote cleanup failure when no earlier browser failure exists."""
