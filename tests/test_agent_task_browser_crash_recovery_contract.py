@@ -265,6 +265,10 @@ class AgentTaskBrowserCrashRecoveryContractTests(unittest.TestCase):
 
         self.assertFalse(result["passed"])
         self.assertEqual(result["failure_type"], "RuntimeError")
+        self.assertEqual(result["failure_stage"], "session_create")
+        self.assertEqual(result["reason_code"], "runtime_error")
+        self.assertNotIn("failure_message", result)
+        self.assertNotIn("sandbox unavailable", repr(result))
         self.assertTrue(result["profile_cleaned"])
         launch.assert_called_once()
         driver.wait.assert_called_once_with(timeout=5)
