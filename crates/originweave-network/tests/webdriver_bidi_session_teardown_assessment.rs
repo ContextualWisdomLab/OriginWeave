@@ -212,8 +212,7 @@ fn missing_typed_transport_observation_keeps_teardown_pending() -> Result<(), Bo
 }
 
 #[test]
-fn typed_transport_closure_cannot_complete_teardown_without_process_and_profile_evidence()
--> Result<(), Box<dyn Error>> {
+fn typed_closure_still_requires_process_and_profile_evidence() -> Result<(), Box<dyn Error>> {
     let (acknowledged, established) = correlated_session_end_ack_and_transport()?;
     let transport_closure = observed_transport_closure(established)?;
     let assessment = WebDriverBiDiSessionTeardownAssessment::from_protocol_ack(
@@ -263,8 +262,7 @@ fn assert_cross_connection_closure_rejected(
 }
 
 #[test]
-fn reconnected_same_session_and_endpoint_cannot_supply_closure_for_prior_transport()
--> Result<(), Box<dyn Error>> {
+fn same_session_reconnect_cannot_supply_prior_closure() -> Result<(), Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let (acknowledged_a, established_a) =
         correlated_session_end_ack_and_transport_on(&listener, SESSION_ID)?;
@@ -275,8 +273,7 @@ fn reconnected_same_session_and_endpoint_cannot_supply_closure_for_prior_transpo
 }
 
 #[test]
-fn another_session_cannot_supply_closure_for_the_acknowledged_transport()
--> Result<(), Box<dyn Error>> {
+fn another_session_cannot_supply_acknowledged_transport_closure() -> Result<(), Box<dyn Error>> {
     let (acknowledged_a, established_a) = correlated_session_end_ack_and_transport_for(SESSION_ID)?;
     drop(established_a);
     let (_acknowledged_b, established_b) =
