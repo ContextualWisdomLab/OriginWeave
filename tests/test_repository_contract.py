@@ -124,9 +124,11 @@ class RepositoryContractTests(unittest.TestCase):
         self.assertIn("${{ github.event.pull_request.number || github.run_id }}", workflow)
         self.assertIn("cancel-in-progress: ${{ github.event_name == 'pull_request' }}", workflow)
         self.assertIn(
-            "types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, closed]",
+            "types: [opened, synchronize, reopened, ready_for_review]",
             workflow,
         )
+        self.assertNotIn("converted_to_draft", workflow)
+        self.assertNotIn("github.event.action != 'closed'", workflow)
         self.assertEqual(workflow.count("github.event.pull_request.draft == false"), 4)
         self.assertNotIn("cargo check --locked --workspace --all-targets", workflow)
 
