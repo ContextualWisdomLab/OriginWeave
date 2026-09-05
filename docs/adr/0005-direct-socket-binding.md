@@ -18,12 +18,13 @@ Create an independently reusable `originweave-network` Rust crate with a **direc
 
 A caller supplies:
 
-- an existing `ResolutionSnapshot`;
+- an existing `FreshResolutionSnapshot`;
+- caller-supplied trusted monotonic time from the snapshot's clock domain;
 - one explicit canonical `SocketAddr`;
 - a timeout in `1ns..=30s`;
 - an attempt count in `1..=4`.
 
-`ConnectionPlan::new` rejects port zero, invalid bounds, addresses absent from the snapshot, and IPv4-mapped IPv6 or any other form that differs from the snapshot's canonical address. The plan is non-cloneable and is consumed by `connect`, preventing accidental replay of the same authority.
+`FreshConnectionPlan::new` is the public construction boundary. It validates resolution freshness at the supplied trusted monotonic time and delegates exact-socket validation to the private `ConnectionPlan::new` implementation. That implementation rejects port zero, a port different from the effective port of the snapshot's logical origin, invalid bounds, addresses absent from the snapshot, and IPv4-mapped IPv6 or any other form that differs from the snapshot's canonical address. The plan is non-cloneable. `connect(current_time)` consumes it, rejects time regression, and revalidates the resolution's half-open validity window immediately before starting socket I/O, so a plan created while fresh cannot first be used after expiry. Both calls require trusted monotonic time from the same caller-owned clock domain; the adapter does not read a wall clock or authenticate caller-supplied time.
 
 The production path calls `TcpStream::connect_timeout` with that exact `SocketAddr`; it never accepts a hostname and never resolves again. After the operating system establishes the stream, the crate calls `peer_addr`. The stream is exposed only when the observed peer matches the requested IP and port exactly.
 
@@ -32,14 +33,17 @@ Connection retries use an explicit conservative allow-list. Only `TimedOut`, `Co
 ```mermaid
 sequenceDiagram
     participant Adapter as Trusted browser-network adapter
-    participant Snapshot as ResolutionSnapshot
-    participant Plan as ConnectionPlan
+    participant Snapshot as FreshResolutionSnapshot
+    participant Plan as FreshConnectionPlan
     participant OS as Operating-system TCP stack
     participant Evidence as SocketConnectionEvidence
 
-    Adapter->>Snapshot: authorize_connection(requested_ip)
-    Snapshot-->>Adapter: canonical address and class
-    Adapter->>Plan: new(snapshot, exact SocketAddr, bounds)
+    Adapter->>Plan: new(snapshot, trusted time, exact SocketAddr, bounds)
+    Plan->>Snapshot: authorize_connection(requested_ip, trusted time)
+    Snapshot-->>Plan: fresh canonical address and class
+    Adapter->>Plan: connect(current_time)
+    Plan->>Plan: reject time regression
+    Plan->>Snapshot: revalidate freshness before socket I/O
     Plan->>OS: TcpStream::connect_timeout(exact SocketAddr)
     OS-->>Plan: established stream or typed I/O failure
     alt explicit transient failure and attempt remains
@@ -124,6 +128,7 @@ The merge gate requires:
 
 - a real loopback `TcpListener`/`TcpStream` integration test;
 - canonical-address, port, timeout, attempt, and destination-policy boundary tests;
+- fresh-plan tests for expiry at first use, exclusive expiry, and trusted-time regression;
 - behavioral tests proving every allow-listed transient error may retry within the bound;
 - behavioral tests proving representative deterministic errors stop after one attempt and retain their exact source;
 - deterministic connector tests for timeout, connection failure, peer-inspection failure, and peer mismatch;

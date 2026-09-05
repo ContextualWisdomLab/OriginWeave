@@ -4,6 +4,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Restored pinned Rust formatting for the default HTTP/HTTPS port regression while preserving all accepted-port and mismatched-port assertions and the existing freshness policy.
+- Corrected the direct-connection ADR and research notes to describe the public freshness-checked API, its trusted monotonic clock contract, and revalidation before socket I/O.
 - Refreshed the product-gap queue to 126 open pull requests (54 ready, 72 draft) after #190, #188, #185, #192, #182, #184, #115, #181, #116, #117, #118, #183, #114, #127, #112, #109, #186, #110, #108, #111, #174, and #113 were merged into their immediate stacked prerequisites. PRs #147, #146, #145, #144, #143, #142, #141, #139, #136, #132, #129, and #128 moved to ready after exact-head checks and thread review; these are queue-consolidation results, not protected-main shipment.
 
 ### Added
@@ -25,6 +27,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Fail-closed resolved-destination policy with IPv4/IPv6 special-purpose and reviewed cloud-platform endpoint classification, IPv4-mapped canonicalization, explicit class grants, non-empty origin-bound DNS snapshots capped at 256 resolver addresses, concrete connection pinning, DNS-set expansion detection, and per-hop redirect reauthorization.
 - Bounded resolution-freshness authority with trusted monotonic approval time, capped non-zero validity, half-open use windows, non-expanding revalidation, and credential-free authorization timestamps.
 - Direct-only `originweave-network` TCP boundary with explicit canonical `SocketAddr` authority, zero IPv6 flow and scope metadata unless separately modeled, a non-cloneable single-use plan, a 30-second per-attempt timeout ceiling, at most four attempts, exact `peer_addr` verification before stream exposure, and no hostname re-resolution or ambient proxy inheritance.
+- Fresh-resolution network adapter that consumes a validated `FreshResolutionSnapshot` plus caller-supplied trusted monotonic time before constructing the existing exact-socket `ConnectionPlan`, retains credential-free approval/validity/authorization timestamps, and preserves the original direct-connect validation and single-use stream boundary.
 - Authenticated `originweave-tls` service-identity boundary that consumes an existing verified TCP stream, requires exact TLS-origin and transport-origin equality, derives RFC 9525 DNS or literal-IP reference identity only from the canonical HTTPS origin, validates WebPKI with explicit roots and fixed time, permits only TLS 1.2 and TLS 1.3, and never reconnects or resolves.
 - Bounded TLS policy for total handshake time, ALPN identifiers, trust-root count and bytes, and server-presented certificate count and bytes, with explicit optional-versus-required ALPN behavior and `NotConfigured` revocation evidence.
 - Deterministic TLS revocation-material freshness authority with a strict signed `thisUpdate`→`nextUpdate` half-open window and typed invalid-window, not-yet-valid, and stale failures, without claiming OCSP/CRL acquisition, cryptographic validation, or certificate revocation status.
@@ -70,6 +73,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Security
 
+- Bound every direct TCP socket port to the effective port of its approved logical origin, preventing an origin-approved IP address from becoming authority for another service on the same host.
 - Explicit proxy server identifiers require ASCII decimal port tokens before numeric range parsing, preventing Rust-specific leading-plus spellings from widening proxy authority.
 - Raw page content cannot become a trusted instruction.
 - Raw secrets are rejected and secret-capable actions require an opaque broker handle.
