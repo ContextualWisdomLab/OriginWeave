@@ -6,7 +6,7 @@ This is a dated delivery baseline, not a substitute for the PRD, TRD, roadmap, a
 
 This volatile section is refreshed from live GitHub state and is authoritative only for the exact observations recorded here. The dated snapshot below remains historical evidence and is not promoted to current acceptance evidence. Live GitHub PR/base/head/check APIs are authoritative over PR bodies and prior maintenance prose; a body that still names an older head is stale evidence, not merge evidence.
 
-Observed at (UTC): `2026-09-05T05:08:00Z`.
+Observed at (UTC): `2026-09-05T04:56:34Z`.
 
 - Protected `main` is `87c4daa1830bac5a5228b6036752ad5633232085` through #286. PR #286 skips repository-native CI jobs for draft pull requests; a skipped job is not passing evidence.
 - Full live search returns **125 open pull requests: 14 Ready/non-draft and 111 Draft; 13 open non-PR issues**. PR #290 is the newly opened Ready workflow-admission child of #245; queue movement is not protected-main delivery.
