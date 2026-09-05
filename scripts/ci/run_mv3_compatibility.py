@@ -2319,6 +2319,70 @@ def _run_agent_task_browser_crash_browser_pass(
     }
 
 
+def _classify_agent_task_browser_crash_reason(error: BaseException) -> str:
+    """Map crash failures onto a closed reason vocabulary without retaining messages."""
+
+    if isinstance(error, subprocess.TimeoutExpired):
+        return "timeout"
+    if isinstance(error, json.JSONDecodeError):
+        return "invalid_json"
+    if isinstance(error, ValueError):
+        return "invalid_value"
+    if isinstance(error, OSError):
+        return "os_error"
+    return "runtime_error"
+
+
+def _classify_agent_task_browser_crash_stage(error: BaseException) -> str:
+    """Classify one crash failure from bounded traceback structure and pass state."""
+
+    traceback_cursor = error.__traceback__
+    pass_locals: dict[str, Any] | None = None
+    function_names: set[str] = set()
+    while traceback_cursor is not None:
+        frame = traceback_cursor.tb_frame
+        function_name = frame.f_code.co_name
+        function_names.add(function_name)
+        if function_name == "_run_agent_task_browser_crash_browser_pass":
+            pass_locals = dict(frame.f_locals)
+        traceback_cursor = traceback_cursor.tb_next
+
+    if "_wait_for_driver" in function_names:
+        return "driver_ready"
+    if "_cleanup_crashed_browser_session" in function_names:
+        return "session_cleanup"
+    if "_stop_crashed_driver" in function_names:
+        return "driver_teardown"
+    if "_signal_and_wait_for_linux_process_identity_termination" in function_names:
+        return "crash_signal"
+    if "_wait_for_linux_process_teardown" in function_names:
+        return "post_crash_teardown"
+    if function_names.intersection(
+        {
+            "_snapshot_linux_process_evidence",
+            "_discover_linux_process_tree_ids",
+            "_read_linux_process_identity_set",
+        }
+    ):
+        return "process_tree_capture"
+
+    if pass_locals is None:
+        return "browser_pass"
+    if "driver" not in pass_locals:
+        return "driver_start"
+    if pass_locals.get("session_id") is None:
+        return "session_create"
+    if pass_locals.get("browser_process_id") is None:
+        return "session_identity"
+    if pass_locals.get("browser_process_start_time_ticks") is None:
+        return "browser_identity"
+    if pass_locals.get("chromium_process_identities") is None:
+        return "fixture_navigation"
+    if pass_locals.get("browser_process_crash_detected") is not True:
+        return "crash_signal"
+    return "post_crash_teardown"
+
+
 def _run_agent_task_browser_crash_trial(
     chrome_bin: pathlib.Path,
     chromedriver_bin: pathlib.Path,
@@ -2331,6 +2395,8 @@ def _run_agent_task_browser_crash_trial(
     profile_path: pathlib.Path
     result: dict[str, Any] | None = None
     failure_type: str | None = None
+    failure_stage: str | None = None
+    reason_code: str | None = None
     with tempfile.TemporaryDirectory(
         prefix=f"originweave-agent-task-browser-crash-{trial_number}-"
     ) as profile_dir:
@@ -2350,6 +2416,8 @@ def _run_agent_task_browser_crash_trial(
             subprocess.TimeoutExpired,
         ) as exc:
             failure_type = type(exc).__name__
+            failure_stage = _classify_agent_task_browser_crash_stage(exc)
+            reason_code = _classify_agent_task_browser_crash_reason(exc)
     profile_cleaned = not profile_path.exists()
     if not profile_cleaned:
         raise RuntimeError(
@@ -2358,10 +2426,14 @@ def _run_agent_task_browser_crash_trial(
 
     duration_ms = round((time.monotonic() - trial_started) * 1000)
     if failure_type is not None:
+        if failure_stage is None or reason_code is None:
+            raise RuntimeError("Agent Task browser-crash failure classification was incomplete")
         return {
             "trial_number": trial_number,
             "passed": False,
             "failure_type": failure_type,
+            "failure_stage": failure_stage,
+            "reason_code": reason_code,
             "profile_cleaned": True,
             "duration_ms": duration_ms,
         }
