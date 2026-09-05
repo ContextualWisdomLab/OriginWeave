@@ -132,6 +132,22 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             text,
         )
 
+    def test_current_snapshot_records_content_length_persistence_repair(self) -> None:
+        """A declared body boundary must not be confused with transport closure."""
+        text = BASELINE.read_text(encoding="utf-8")
+        current = text.split("## Current live delivery state", 1)[1].split(
+            "## Observed snapshot: ", 1
+        )[0]
+
+        for marker in (
+            "PR #37 is Ready at exact head `fa34a696e4ed9b2529a65a7d6a45ac8b72ecefb3`",
+            "returns after the exact declared bytes",
+            "already-buffered surplus remains fail-closed",
+            "does not require TLS EOF",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, current)
+
     def test_changelog_marks_superseded_warc_head_as_historical(self) -> None:
         """A predecessor WARC head must not look like the current exact evidence."""
         text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
