@@ -1,6 +1,7 @@
 use std::{
     io::{self, Read, Write},
     net::TcpListener,
+    sync::mpsc,
     thread,
     time::Duration,
 };
@@ -44,7 +45,7 @@ fn connect(endpoint: &str) -> originweave_network::WebDriverBiDiTcpConnection {
     connection
 }
 
-fn read_opening_request(mut stream: std::net::TcpStream) -> io::Result<Vec<u8>> {
+fn read_opening_request(stream: &mut std::net::TcpStream) -> io::Result<Vec<u8>> {
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
     let mut request = Vec::new();
     let mut buffer = [0_u8; 512];
@@ -56,6 +57,24 @@ fn read_opening_request(mut stream: std::net::TcpStream) -> io::Result<Vec<u8>> 
         request.extend_from_slice(&buffer[..count]);
     }
     Ok(request)
+}
+
+fn serve_opening_exchange(
+    listener: TcpListener,
+    response: &'static [u8],
+) -> (
+    mpsc::SyncSender<()>,
+    thread::JoinHandle<io::Result<Vec<u8>>>,
+) {
+    let (release_server, await_release) = mpsc::sync_channel(0);
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept()?;
+        let request = read_opening_request(&mut stream)?;
+        stream.write_all(response)?;
+        await_release.recv().map_err(io::Error::other)?;
+        Ok(request)
+    });
+    (release_server, server)
 }
 
 #[test]
@@ -70,10 +89,7 @@ fn bounded_opening_write_sends_exact_request_and_preserves_transport_evidence() 
     let Ok(local_addr) = local_addr else {
         return;
     };
-    let server = thread::spawn(move || {
-        let accepted = listener.accept()?;
-        read_opening_request(accepted.0)
-    });
+    let (release_server, server) = serve_opening_exchange(listener, b"");
 
     let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
     let connection = connect(&endpoint);
@@ -114,6 +130,7 @@ fn bounded_opening_write_sends_exact_request_and_preserves_transport_evidence() 
     assert!(debug.contains("WebDriverBiDiWebSocketOpeningRequestSent"));
     assert!(!debug.contains(RFC6455_SAMPLE_KEY));
 
+    assert!(release_server.send(()).is_ok());
     let server_result = server.join();
     assert!(server_result.is_ok(), "{server_result:?}");
     if let Ok(received) = server_result {
@@ -184,15 +201,10 @@ fn opening_response_requires_rfc6455_switching_protocols_and_matching_accept() {
     let Ok(local_addr) = local_addr else {
         return;
     };
-    let server = thread::spawn(move || -> io::Result<()> {
-        let (mut stream, _) = listener.accept()?;
-        stream.write_all(
-            b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n",
-        )?;
-        let mut close_probe = [0_u8; 1];
-        let _ = stream.read(&mut close_probe);
-        Ok(())
-    });
+    let (release_server, server) = serve_opening_exchange(
+        listener,
+        b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n",
+    );
 
     let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
     let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY);
@@ -233,6 +245,7 @@ fn opening_response_requires_rfc6455_switching_protocols_and_matching_accept() {
     assert!(debug.contains("WebDriverBiDiWebSocketEstablished"));
     assert!(!debug.contains(RFC6455_SAMPLE_KEY));
     drop(established);
+    assert!(release_server.send(()).is_ok());
     assert!(server.join().is_ok());
 }
 
@@ -248,12 +261,10 @@ fn opening_response_rejects_a_mismatched_accept_value() {
     let Ok(local_addr) = local_addr else {
         return;
     };
-    let server = thread::spawn(move || -> io::Result<()> {
-        let (mut stream, _) = listener.accept()?;
-        stream.write_all(
-            b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: invalid\r\n\r\n",
-        )
-    });
+    let (release_server, server) = serve_opening_exchange(
+        listener,
+        b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: invalid\r\n\r\n",
+    );
 
     let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
     let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY);
@@ -276,6 +287,7 @@ fn opening_response_rejects_a_mismatched_accept_value() {
         written.read_opening_response(Duration::from_millis(500)),
         Err(WebDriverBiDiWebSocketHandshakeResponseError::AcceptMismatch)
     ));
+    assert!(release_server.send(()).is_ok());
     assert!(server.join().is_ok());
 }
 
@@ -295,7 +307,13 @@ fn opening_response_rejects_zero_and_excessive_deadlines_before_socket_mode_chan
         let Ok(local_addr) = local_addr else {
             continue;
         };
-        let server = thread::spawn(move || listener.accept().map(|_| ()));
+        let (release_server, await_release) = mpsc::sync_channel(0);
+        let server = thread::spawn(move || {
+            let accepted = listener.accept()?;
+            await_release.recv().map_err(io::Error::other)?;
+            drop(accepted);
+            Ok::<(), io::Error>(())
+        });
 
         let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
         let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY);
@@ -323,6 +341,7 @@ fn opening_response_rejects_zero_and_excessive_deadlines_before_socket_mode_chan
                 && maximum_timeout
                     == originweave_network::MAX_WEBSOCKET_OPENING_RESPONSE_TIMEOUT
         ));
+        assert!(release_server.send(()).is_ok());
         assert!(server.join().is_ok());
     }
 }
