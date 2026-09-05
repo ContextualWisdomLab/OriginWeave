@@ -11,7 +11,8 @@ mod semantic_node_action;
 mod sensitive_data;
 
 pub use semantic_node_action::{
-    PolicyAuthorizedSemanticNodeAction, SemanticNodePolicyAuthorizationError,
+    PolicyAuthorizedSemanticNodeAction, SemanticNodeDispatchValidationError,
+    SemanticNodePolicyAuthorizationError,
 };
 pub use sensitive_data::{
     DataClassification, DisclosureDecision, DisclosureScope, HandleUseDecision, HandleUseRequest,

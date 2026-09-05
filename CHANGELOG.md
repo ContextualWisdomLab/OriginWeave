@@ -6,6 +6,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Added
 
+- Same-call browser-authority and semantic-state dispatch gate that invokes the adapter callback only after both checks succeed, without treating callback completion as browser outcome proof.
 - Known-disabled semantic-node action rejection that keeps non-interactive `ScrollIntoView` available without turning retained observation state into current browser or dispatch authority.
 - Dispatch-time semantic-node authority revalidation that invokes an adapter callback only while the retained registry-issued node remains current, without treating callback completion as post-condition proof.
 - Complete typed semantic-node action retention through the public binding and policy boundaries, including fail-closed current-authority revalidation, registry-corruption coverage, and deterministic typed error sources.
