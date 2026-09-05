@@ -177,16 +177,19 @@ class AgentTaskBrowserCrashCleanupRuntimeContractTests(unittest.TestCase):
             raise RuntimeError("cleanup-only failure")
 
         cleanup_session.__globals__["_json_request"] = unexpected_runtime_failure
+        captured_error: RuntimeError | None = None
         try:
             cleanup_session(9222, "session-1")
         except RuntimeError as error:
+            captured_error = error
             primary_error, session_failure_type, driver_failure_type = partition_failure(
                 error
             )
         else:
             self.fail("cleanup-only RuntimeError was unexpectedly suppressed")
 
-        self.assertIs(primary_error, error)
+        self.assertIsNotNone(captured_error)
+        self.assertIs(primary_error, captured_error)
         self.assertEqual(classify_stage(primary_error), "session_cleanup")
         self.assertIsNone(session_failure_type)
         self.assertIsNone(driver_failure_type)
