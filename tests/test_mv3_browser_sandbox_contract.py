@@ -9,6 +9,7 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 RUNNER = ROOT / "scripts" / "ci" / "run_mv3_compatibility.py"
+DOCTORING = ROOT / "docs" / "doctoring" / "chromium-sandbox-evidence-boundary.md"
 
 
 class BrowserSandboxContractTests(unittest.TestCase):
@@ -22,6 +23,19 @@ class BrowserSandboxContractTests(unittest.TestCase):
             with self.subTest(function_name=function_name):
                 source = inspect.getsource(namespace[function_name])
                 self.assertNotIn('"--no-sandbox"', source)
+
+    def test_doctoring_describes_the_repaired_sandbox_boundary(self) -> None:
+        """Doctoring must not describe the repaired ordinary launch as still unsandboxed."""
+
+        text = DOCTORING.read_text(encoding="utf-8")
+        self.assertNotIn(
+            "ordinary Manifest V3 compatibility path still passes `--no-sandbox`",
+            text,
+        )
+        self.assertIn(
+            "both ordinary Manifest V3 and Agent Task real-browser paths omit `--no-sandbox`",
+            text,
+        )
 
 
 if __name__ == "__main__":
