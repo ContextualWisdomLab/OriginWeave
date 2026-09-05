@@ -41,9 +41,6 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "PR #220 exact head `e545b94e1de499b96b867694f80ac04ad247becd`",
             "retain formal `CHANGES_REQUESTED` decisions",
             "every current review thread is resolved",
-            "PR #238 exact head `23e7aa15c09837ce567ecb1da6537aed15ed407d`",
-            "native CI run `33945915264`",
-            "both `ubuntu-24.04` jobs are queued without an assigned runner",
             "22 are queued and none is in progress",
             "rerunning would only add duplicate queue load",
             "PR #249 is Draft at exact head `017d6e816f5a86544a63821b3ceaba94d5f17f44`",
@@ -84,6 +81,11 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, current)
+        self.assertNotRegex(
+            current,
+            re.compile(r"PR #238 exact head `[0-9a-f]{40}`"),
+            "The self-referential baseline cannot pin the SHA produced by its own commit; read #238 live metadata instead.",
+        )
         self.assertRegex(
             current,
             re.compile(r"Observed at \(UTC\): `\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z`"),
