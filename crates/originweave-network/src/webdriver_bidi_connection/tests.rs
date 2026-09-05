@@ -13,7 +13,8 @@ use std::{
 use originweave_core::{WebDriverBiDiWebSocketConnectTarget, WebDriverBiDiWebSocketEndpoint};
 
 use super::{
-    WebDriverBiDiSocketConnector, WebDriverBiDiTcpConnectionError, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiConnectionGeneration, WebDriverBiDiSocketConnector,
+    WebDriverBiDiTcpConnectionError, WebDriverBiDiTcpConnectionPlan,
     allocate_connection_generation, is_retryable_connect_error,
 };
 use crate::connection::{MAX_CONNECT_TIMEOUT, MAX_CONNECTION_ATTEMPTS};
@@ -119,8 +120,14 @@ fn plan(maximum_attempts: u8) -> WebDriverBiDiTcpConnectionPlan {
 #[test]
 fn connection_generation_allocator_is_monotonic_and_fails_before_reuse() {
     let counter = AtomicU64::new(41);
-    assert_eq!(allocate_connection_generation(&counter).ok(), Some(41));
-    assert_eq!(allocate_connection_generation(&counter).ok(), Some(42));
+    assert_eq!(
+        allocate_connection_generation(&counter).ok(),
+        Some(WebDriverBiDiConnectionGeneration(41))
+    );
+    assert_eq!(
+        allocate_connection_generation(&counter).ok(),
+        Some(WebDriverBiDiConnectionGeneration(42))
+    );
 
     let exhausted = AtomicU64::new(u64::MAX);
     assert!(matches!(
