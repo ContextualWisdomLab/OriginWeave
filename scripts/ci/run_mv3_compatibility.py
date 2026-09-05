@@ -127,7 +127,7 @@ def _json_request(
     if method not in {"GET", "POST", "DELETE"}:
         raise ValueError("unsupported ChromeDriver method")
     if not path.startswith("/") or "://" in path or any(char in path for char in "\r\n"):
-        raise ValueError("invalid ChromeDriver path")
+        raise ValueError("invalid WebDriver path")
 
     body = None if payload is None else json.dumps(payload).encode("utf-8")
     connection = http.client.HTTPConnection("127.0.0.1", driver_port, timeout=timeout)
@@ -386,7 +386,6 @@ def _run_browser_pass(
                                 "--disable-component-update",
                                 "--disable-sync",
                                 "--disable-dev-shm-usage",
-                                "--no-sandbox",
                                 f"--user-data-dir={profile_dir}",
                                 f"--disable-extensions-except={FIXTURE}",
                                 f"--load-extension={FIXTURE}",
