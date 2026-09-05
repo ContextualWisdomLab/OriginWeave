@@ -54,6 +54,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Aligned the bounded WebDriver BiDi error-envelope vocabulary with the current specification by admitting the defined `no such client window` response while retaining fail-closed rejection of unknown error codes.
 - Separated logical origin authority from resolved network destination authority; an origin grant no longer implies permission to connect to every resolver result.
 - Separated resolved-address authorization from direct transport evidence; an approved IP now becomes a usable stream only after the operating system reports the exact requested IP and port.
 - Separated exact TCP peer proof from authenticated TLS service identity; an observed peer becomes an authenticated HTTPS stream only after explicit-root, fixed-time, SAN-bound WebPKI verification over that same stream.
@@ -69,10 +70,12 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Kept the revoked-stream fixture peer alive until local shutdown and fail-closed write classification complete, removing a macOS `ENOTCONN` race from the coverage path.
 - Carried the existing connection-lifetime test repairs into the frame-transport stack so inherited tests no longer close the peer before the behavior under test completes; production cleanup errors remain fail-closed.
 - Made opening-exchange tests wait for the complete client request and retain the peer until each client assertion finishes, avoiding premature connection closure in both successful and rejected handshakes without changing production error handling.
+- Carried the verified connection-lifetime fixture repairs into the message-assembly stack while preserving its message and JSON validation behavior.
 - Updated research doctoring to pin Chromium canonicalizer evidence to an immutable revision, add RFC 9293, RFC 5280, RFC 8446, RFC 9525, rustls 0.23.42, and Rust `TcpStream` evidence, distinguish the April 2026 Fugu beta from the June 2026 release, and treat vendor benchmark claims as first-party evidence rather than independent validation.
 
 ### Security
 
+- WebDriver BiDi local-end error envelopes now admit the 30-value rendered W3C `ErrorCode` CDDL plus the separately defined normative `no such client window` error; arbitrary strings still fail closed, and realistic loopback coverage exercises both that compatibility exception and the hostile unknown-code path.
 - Raw page content cannot become a trusted instruction.
 - Raw secrets are rejected and secret-capable actions require an opaque broker handle.
 - Crawler mode is read-only, must pair with the public-crawl purpose, and fails closed without an applicable robots-policy decision.
