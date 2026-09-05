@@ -8,7 +8,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Refreshed the live product-gap baseline with PR #37's RFC 9110 `205 Reset Content` repair head and exact local verification evidence.
 - Recorded PR #284's rule-suite `3948421709` administrative bypass into protected `main` at `4ed08bfa7c063fc7f2ef9278ee8d281887b8296b`; post-merge checks remain independently required and cannot retroactively turn the bypass into policy-compliant integration.
 - Refreshed the product-gap queue to 125 open pull requests (13 ready, 112 draft) and 13 open non-PR issues on 2026-09-05; queue movement is active-PR evidence, not protected-main shipment.
-- Recorded the current Ready-root heads for #37, #50, #166, #219, #220, #229, #238, #240, #247, #272, #274, #285, and #287; hosted exact-head checks remain non-terminal and counted approval remains absent.
+- Recorded the current Ready-root heads for #37, #50, #166, #219, #220, #229, #240, #247, #272, #274, #285, and #287; #238's moving self-reference is intentionally delegated to live PR metadata, hosted exact-head checks remain non-terminal, and counted approval remains absent.
 - Corrected the retained PR #219 exact-head regression anchor and separated the shipped `tools/call` policy binding from the core-only `tools/list` discovery contract.
 - Refreshed the #279 evidence to the current #282/#283 heads, including complete raw-diff object identities and rename/copy similarity binding to blob identity.
 
