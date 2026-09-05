@@ -1,6 +1,7 @@
 use std::{
     io::{self, Read, Write},
     net::TcpListener,
+    sync::mpsc,
     thread,
     time::Duration,
 };
@@ -295,7 +296,13 @@ fn opening_response_rejects_zero_and_excessive_deadlines_before_socket_mode_chan
         let Ok(local_addr) = local_addr else {
             continue;
         };
-        let server = thread::spawn(move || listener.accept().map(|_| ()));
+        let (release_server, await_release) = mpsc::sync_channel(0);
+        let server = thread::spawn(move || {
+            let accepted = listener.accept()?;
+            await_release.recv().map_err(io::Error::other)?;
+            drop(accepted);
+            Ok::<(), io::Error>(())
+        });
 
         let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
         let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY);
@@ -323,6 +330,7 @@ fn opening_response_rejects_zero_and_excessive_deadlines_before_socket_mode_chan
                 && maximum_timeout
                     == originweave_network::MAX_WEBSOCKET_OPENING_RESPONSE_TIMEOUT
         ));
+        assert!(release_server.send(()).is_ok());
         assert!(server.join().is_ok());
     }
 }
