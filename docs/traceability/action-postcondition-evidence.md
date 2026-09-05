@@ -3,7 +3,7 @@
 - **Documentation status:** Active-stack evidence dossier; protected-main truth is called out separately
 - **Canonical owner:** issue #28 (`Complete the first real Chromium agent vertical slice`)
 - **Protected-main baseline:** `542ca1e9c0a863595b8b6697790005d2471f5413`
-- **Active stack tip at this revision:** PR #266 (`feat/core: add node-bound WebDriver BiDi text input`)
+- **Active stack tip at this revision:** PR #271 (`feat/network: admit and compare typed-text postconditions`)
 - **Capability maturity:** **PARTIAL**
 - **Governing decisions:** Accepted ADR 0003 plus Proposed ADR 0106 preserve provenance-native evidence and separation of action execution from verification.
 
@@ -65,6 +65,46 @@ A current-source privacy defect was found and repaired test-first on this same c
 
 The pre-documentation exact repaired head `1958720a2f0f7e33e40bcea0073c486f37ad278d` passed CI run `33451284736` and Manifest V3 Compatibility run `33451284820`; Rust contracts included formatting, workspace checks, full tests, strict Clippy, and public API documentation, while Production coverage passed exact owned-production function/line/region/branch enforcement. A later documentation-only head must obtain its own fresh exact-head evidence before these results can be treated as current for the PR.
 
+### PR #269 — fixed text-value observation for an admitted current node
+
+**Capability maturity:** `IMPLEMENTED_ON_ACTIVE_STACK`
+
+PR #269 adds a fixed sandboxed text-value observation command on top of the node-bound text-input stack. Construction revalidates the exact registered session, external browsing context, canonical origin, current document epoch, registry-issued node provenance, and admitted `sharedId`. The caller cannot replace the `script.callFunction` method, `node => node.value` function declaration, isolated sandbox, argument shape, or result-ownership policy.
+
+The command only serializes an observation request. It performs no browser I/O, accepts no page/model-supplied script, grants no policy or action authority, and does not prove browser execution or post-condition success. Descendant transport and response slices must correlate the exact response and compare the returned non-secret text with the intended value before any action outcome can become verified.
+
+### PR #271 — correlated typed-text post-condition comparison
+
+**Capability maturity:** `IMPLEMENTED_ON_ACTIVE_STACK`
+
+PR #271 admits only a `script.callFunction` response correlated to the exact outstanding text-value observation command family. A successful string result becomes positive evidence only when it exactly equals the already-authorized expected text; a different value returns `PostconditionMismatch`, so protocol acknowledgement and parser success cannot certify browser state.
+
+The page-controlled text is discarded at the comparison boundary. The public result retains only the command identifier and UTF-8 byte count, while errors expose neither observed nor expected text. This evidence does not prove the preceding action was authorized, transported, or executed through the intended browser process, and it remains active-stack evidence until the full vertical slice is integrated and accepted on protected main.
+
+### PR #95 — deterministic semantic-node policy authorization
+
+**Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
+
+PR #95 consumes the exact semantic-node/business-action binding from #93, and only `Decision::Allow` produces a policy-authorized value. `Decision::Deny` and `ApprovalRequired` remain typed non-authorizing outcomes; neither can be converted into a browser action token.
+
+The retained action must still revalidate registry-owned current authority immediately before dispatch. Policy authorization does not grant destination, secret, approval, or adapter authority, and does not execute browser I/O or prove a post-condition. The branch remains non-shipped evidence until its dependency stack is integrated and accepted on protected main.
+
+### PR #96 — dispatch-time semantic-node authority revalidation
+
+**Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
+
+PR #96 revalidates the retained registry-issued node authority before invoking one adapter callback. The callback is never invoked when the node is stale, retired, forged, or owned by another registry; after document advance removes the admission, dispatch fails closed as `NotAdmitted`.
+
+The callback result remains adapter-local. Adapter failure stays distinct from authority failure, and adapter completion is not post-condition proof. This boundary grants no destination, secret, approval, or network authority and remains non-shipped until its dependency stack is integrated and accepted on protected main.
+
+### PR #101 — reject known-disabled semantic-node actions
+
+**Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
+
+PR #101 rejects an advertised interactive action when the retained semantic observation already marks the node disabled, returning typed `NodeNotEnabled`. `ScrollIntoView` remains selectable because scrolling does not require enabled state.
+
+This is a descriptive target filter. It does not observe current Chromium state or authenticate the observation source, and it does not grant dispatch authority. The trusted adapter must still obtain fresh state and the later dispatch boundary must revalidate registry-owned browser authority before input.
+
 ## 4. Non-transitive success semantics
 
 The intended first-slice chain remains:
@@ -103,7 +143,10 @@ The first real Chromium vertical slice remains distributed rather than shipped a
 - PR #64 verified post-condition and interruption evidence;
 - PRs #261–#264 committed-navigation origin/subscription/admission lifecycle;
 - PR #265 send-time pointer input revalidation against admitted node authority; and
-- PR #266 node-bound non-secret text input with privacy-safe diagnostics.
+- PR #266 node-bound non-secret text input with privacy-safe diagnostics; and
+- PR #269 fixed text-value observation construction, still without browser I/O or outcome verification;
+- PR #270 exact transport of that fixed observation, still without response success; and
+- PR #271 correlated response admission and exact text-value comparison with value-free evidence.
 
 These pieces do not transfer evidence across heads. A descendant must be revalidated after any parent movement, and protected-main shipment requires fresh integrated acceptance after dependency-ordered merge by an authorized integrator.
 
