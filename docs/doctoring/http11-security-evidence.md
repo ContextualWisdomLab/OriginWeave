@@ -44,6 +44,10 @@ TLS closure is handled narrowly. If the exact declared body has already been aut
 
 Regression evidence uses a real loopback TLS server that flushes a one-byte declared body, delays, then sends one additional byte in a later segment. The exchange must reject that delayed byte rather than returning the already-complete declared body as successful evidence.
 
+## Reset Content response semantics
+
+RFC 9110 Section 15.3.6 forbids content in a `205 Reset Content` response. OriginWeave therefore treats 205 as a no-content response regardless of framing metadata and never exposes declared response bytes as authenticated content. This is distinct from RFC 9112's wire-length precedence: the status semantics first determine that no content is allowed, while any bytes already received after the header remain an `UnexpectedResponseBytes` failure.
+
 ## Verification contract
 
 The exact pull-request head must demonstrate:
@@ -58,6 +62,7 @@ The exact pull-request head must demonstrate:
 - request-target and exchange-evidence debug output that cannot expose raw path/query bytes or credential-shaped values;
 - rejection of `Content-Length` surplus bytes regardless of whether they are coalesced with the head or arrive in a later TLS/TCP segment;
 - preservation of fail-closed truncation semantics before the declared body length while allowing only the reviewed post-body TLS `UnexpectedEof` termination case;
+- suppression of response content for `205 Reset Content` status semantics;
 - Rust formatting, workspace checks, tests, Clippy, and rustdoc;
 - exact 100% production function, line, region, statement, and branch coverage;
 - Security Scan, SAST, all operationally required current review gates, and branch-protection gates.
@@ -67,6 +72,8 @@ The exact pull-request head must demonstrate:
 Berners-Lee, T., Fielding, R., & Masinter, L. (2005). *Uniform resource identifier (URI): Generic syntax* (RFC 3986). Internet Engineering Task Force. https://doi.org/10.17487/RFC3986
 
 Fielding, R., Nottingham, M., & Reschke, J. (2022). *HTTP/1.1* (RFC 9112). Internet Engineering Task Force. https://doi.org/10.17487/RFC9112
+
+Fielding, R., Nottingham, M., & Reschke, J. (2022). *HTTP semantics* (RFC 9110). Internet Engineering Task Force. https://doi.org/10.17487/RFC9110
 
 Microsoft. (n.d.). *Naming files, paths, and namespaces*. Microsoft Learn. Retrieved August 7, 2026, from https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file
 

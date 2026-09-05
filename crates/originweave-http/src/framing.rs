@@ -31,7 +31,7 @@ pub(crate) fn determine_body_framing(
     let transfer_coding = parse_transfer_encoding(&transfer_encoding_values)?;
     let suppresses_content = method.suppresses_response_content()
         || (100..200).contains(&status_code)
-        || matches!(status_code, 204 | 304);
+        || matches!(status_code, 204 | 205 | 304);
     let content_length = parse_content_length(
         &content_length_values,
         if suppresses_content {
@@ -152,6 +152,7 @@ mod tests {
             (HttpMethod::Get, 100),
             (HttpMethod::Get, 199),
             (HttpMethod::Get, 204),
+            (HttpMethod::Get, 205),
             (HttpMethod::Get, 304),
         ] {
             assert_eq!(
