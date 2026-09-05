@@ -114,7 +114,8 @@ class ProductCompletionGapContractTests(unittest.TestCase):
         for marker in (
             "#195 is Draft at exact head `48eb2d23009c1c804520dd5efcd0d4d072aacef1`",
             "50 consecutive focused regression passes",
-            "#242 is Draft at exact head `55fef0c3fae1724eddada53e52c4a0311f509aa3`",
+            "#242 is Draft at exact head `2d0e9f69df9ade21d8e8e3d807c3ff644d83b310`",
+            "PR #243 adopts that corrected parent by ordinary merge at `97fab641ed9d76e6c515eadcef0629edfc8064a3`",
             "#93 is Draft at exact head `0664f0452cb329cd692cce7f61f9001652abfda2`",
             "SemanticNodeActionBinding",
             "does not authorize policy or execute input",
