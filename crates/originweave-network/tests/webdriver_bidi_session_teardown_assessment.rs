@@ -9,12 +9,13 @@ use std::{
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiSessionEndCommand, WebDriverBiDiSessionEndResult,
-    WebDriverBiDiSessionTeardownAssessment, WebDriverBiDiSessionTeardownDisposition,
-    WebDriverBiDiSessionTeardownObservations, WebDriverBiDiTcpConnectionPlan,
-    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketEstablished,
-    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
-    WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
-    WebDriverBiDiWebSocketTransportClosureKind, WebDriverBiDiWebSocketTransportClosureObservation,
+    WebDriverBiDiSessionTeardownAssessment, WebDriverBiDiSessionTeardownAssessmentError,
+    WebDriverBiDiSessionTeardownDisposition, WebDriverBiDiSessionTeardownObservations,
+    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
+    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketHandshakePlan,
+    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageAssembler,
+    WebDriverBiDiWebSocketMessageAssembly, WebDriverBiDiWebSocketTransportClosureKind,
+    WebDriverBiDiWebSocketTransportClosureObservation,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -155,7 +156,7 @@ fn missing_typed_transport_observation_keeps_teardown_pending() -> Result<(), Bo
         let assessment = WebDriverBiDiSessionTeardownAssessment::from_protocol_ack(
             acknowledged,
             WebDriverBiDiSessionTeardownObservations::new(transport_closure),
-        );
+        )?;
 
         assert_eq!(assessment.command_id(), 7);
         assert_eq!(
@@ -186,7 +187,7 @@ fn typed_transport_closure_cannot_complete_teardown_without_process_and_profile_
     let assessment = WebDriverBiDiSessionTeardownAssessment::from_protocol_ack(
         acknowledged,
         WebDriverBiDiSessionTeardownObservations::new(Some(transport_closure)),
-    );
+    )?;
 
     assert!(!assessment.is_operationally_complete());
     assert_eq!(
@@ -205,21 +206,29 @@ fn typed_transport_closure_cannot_complete_teardown_without_process_and_profile_
 }
 
 #[test]
-fn closure_from_another_connection_is_not_accepted_for_the_acknowledged_transport()
+fn closure_from_another_connection_is_rejected_for_the_acknowledged_transport()
 -> Result<(), Box<dyn Error>> {
     let (acknowledged_a, established_a) = correlated_session_end_ack_and_transport()?;
     let (_acknowledged_b, established_b) = correlated_session_end_ack_and_transport()?;
     drop(established_a);
 
     let closure_b = observed_transport_closure(established_b)?;
-    let assessment = WebDriverBiDiSessionTeardownAssessment::from_protocol_ack(
+    let result = WebDriverBiDiSessionTeardownAssessment::from_protocol_ack(
         acknowledged_a,
         WebDriverBiDiSessionTeardownObservations::new(Some(closure_b)),
     );
 
-    assert!(
-        !assessment.observations().transport_closed_observed(),
-        "closure from a distinct WebSocket generation must not be attributed to the acknowledged session.end transport"
+    let error = result
+        .err()
+        .ok_or_else(|| io::Error::other("closure from another connection was accepted"))?;
+    assert_eq!(
+        error,
+        WebDriverBiDiSessionTeardownAssessmentError::TransportConnectionMismatch
     );
+    assert_eq!(
+        error.to_string(),
+        "WebDriver BiDi transport closure does not match the acknowledged connection"
+    );
+    assert!(error.source().is_none());
     Ok(())
 }
