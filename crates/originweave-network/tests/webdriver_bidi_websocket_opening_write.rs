@@ -298,8 +298,9 @@ fn opening_response_rejects_zero_and_excessive_deadlines_before_socket_mode_chan
         };
         let (release_server, await_release) = mpsc::sync_channel(0);
         let server = thread::spawn(move || {
-            let (_stream, _peer) = listener.accept()?;
-            let _release = await_release.recv();
+            let accepted = listener.accept()?;
+            await_release.recv().map_err(io::Error::other)?;
+            drop(accepted);
             Ok::<(), io::Error>(())
         });
 
