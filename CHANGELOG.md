@@ -4,6 +4,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Recorded #144/#145 parent adoption, #146's reproduced cleanup-evidence fixes and preserved concurrent integration, with complete local verification separated from queued hosted compatibility; refreshed #287's executed Strix scan and failed Noema gateway retry evidence without claiming recovery or approval.
 - Repaired #248's uncollected release-record test and obsolete merged-parent dependency; recorded 142 passing Python contracts, full local Rust gates and exact coverage while preserving Draft and hosted-check boundaries.
 - Recorded #246's verified parent integration and exact local coverage, plus #141's unchanged-head cleanup review and two resolved informational findings; hosted and protected-main acceptance remain separate.
 - Recorded the shared opening-exchange fixture repair in #242 and its non-force adoption by #243, with full local gates, exact coverage and queued hosted checks kept distinct.
