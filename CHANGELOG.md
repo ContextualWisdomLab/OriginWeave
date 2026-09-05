@@ -6,6 +6,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Added
 
+- Dispatch-time semantic-node authority revalidation that invokes an adapter callback only while the retained registry-issued node remains current, without treating callback completion as post-condition proof.
 - Complete typed semantic-node action retention through the public binding and policy boundaries, including fail-closed current-authority revalidation, registry-corruption coverage, and deterministic typed error sources.
 - Typed WebDriver BiDi command-family correlation for text-value post-condition observations, so a matching numeric response id cannot consume an outstanding command from another operation family; successful envelopes reuse the parser-proven non-null id invariant without an unreachable fallback branch.
 - Bounded RFC 6455 WebDriver BiDi opening-response validation on the exact peer-verified stream: it admits only HTTP/1.1 `101`, case-insensitive `Upgrade`/`Connection` tokens, and the client-key-correlated `Sec-WebSocket-Accept` value within monotonic time and header-size ceilings; it restores blocking mode and still does not implement WebSocket frames or grant browser/Agent authority.

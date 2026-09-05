@@ -56,6 +56,24 @@ impl PolicyAuthorizedSemanticNodeAction {
     ) -> Result<(), AdmittedNodeAuthorityError> {
         self.binding.validate_current(registry)
     }
+
+    /// Revalidate browser authority and invoke one adapter callback in the same call boundary.
+    ///
+    /// The callback is never invoked when the retained registry-issued node authority is stale,
+    /// retired, forged, or belongs to another registry. Callback completion remains only adapter
+    /// execution evidence: it does not grant destination, secret, or approval authority and does not
+    /// prove the browser action's post-condition.
+    pub fn dispatch_if_current<R, F>(
+        &self,
+        registry: &BrowserAuthorityRegistry,
+        dispatch: F,
+    ) -> Result<R, AdmittedNodeAuthorityError>
+    where
+        F: FnOnce(&SemanticNodeActionBinding) -> R,
+    {
+        self.validate_current(registry)
+            .map(|()| dispatch(&self.binding))
+    }
 }
 
 /// A fail-closed outcome that did not produce a policy-authorized semantic-node action.

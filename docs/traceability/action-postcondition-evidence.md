@@ -89,6 +89,14 @@ PR #95 consumes the exact semantic-node/business-action binding from #93, and on
 
 The retained action must still revalidate registry-owned current authority immediately before dispatch. Policy authorization does not grant destination, secret, approval, or adapter authority, and does not execute browser I/O or prove a post-condition. The branch remains non-shipped evidence until its dependency stack is integrated and accepted on protected main.
 
+### PR #96 — dispatch-time semantic-node authority revalidation
+
+**Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
+
+PR #96 revalidates the retained registry-issued node authority before invoking one adapter callback. The callback is never invoked when the node is stale, retired, forged, or owned by another registry; after document advance removes the admission, dispatch fails closed as `NotAdmitted`.
+
+The callback result remains adapter-local. Adapter failure stays distinct from authority failure, and adapter completion is not post-condition proof. This boundary grants no destination, secret, approval, or network authority and remains non-shipped until its dependency stack is integrated and accepted on protected main.
+
 ## 4. Non-transitive success semantics
 
 The intended first-slice chain remains:
