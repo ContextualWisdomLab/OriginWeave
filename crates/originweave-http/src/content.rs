@@ -1,0 +1,468 @@
+//! Encoded-body collection and bounded HTTP content-coding decoding.
+
+use std::io::{self, Read};
+
+use flate2::bufread::{DeflateDecoder, GzDecoder, ZlibDecoder};
+
+use crate::field::{FieldBlock, trim_optional_whitespace};
+use crate::{HttpClientPolicy, HttpError};
+
+/// One content-decoding decision recorded in HTTP exchange evidence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ContentCoding {
+    /// No content coding changes the message content bytes.
+    Identity,
+    /// The content uses the gzip wrapper and DEFLATE coding.
+    Gzip,
+    /// The `deflate` content coding used the standards-defined zlib wrapper.
+    Deflate,
+    /// A non-conforming peer used raw DEFLATE for `Content-Encoding: deflate` and the bounded
+    /// compatibility fallback decoded it after the zlib decoder rejected the stream.
+    DeflateRawCompatibility,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SelectedContentCoding {
+    Identity,
+    Gzip,
+    Deflate,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct DecodedContent {
+    pub(crate) bytes: Vec<u8>,
+    pub(crate) coding: ContentCoding,
+}
+
+pub(crate) fn decode_content(
+    encoded: &[u8],
+    fields: &FieldBlock,
+    policy: &HttpClientPolicy,
+) -> Result<DecodedContent, HttpError> {
+    if encoded.len() > policy.max_encoded_content_bytes() {
+        return Err(HttpError::EncodedContentTooLarge {
+            // OriginWeave supports Rust targets whose pointer width is at most 64 bits, so this
+            // widening conversion cannot truncate a valid slice length.
+            byte_count: encoded.len() as u64,
+            maximum_bytes: policy.max_encoded_content_bytes(),
+        });
+    }
+    match select_content_coding(&fields.values("content-encoding"))? {
+        SelectedContentCoding::Identity => {
+            enforce_decoded_limits(encoded.len(), encoded.len(), policy)?;
+            Ok(DecodedContent {
+                bytes: encoded.to_vec(),
+                coding: ContentCoding::Identity,
+            })
+        }
+        SelectedContentCoding::Gzip => Ok(DecodedContent {
+            bytes: decode_gzip(encoded, policy)?,
+            coding: ContentCoding::Gzip,
+        }),
+        SelectedContentCoding::Deflate => decode_deflate(encoded, policy),
+    }
+}
+
+fn decode_gzip(encoded: &[u8], policy: &HttpClientPolicy) -> Result<Vec<u8>, HttpError> {
+    let mut decoder = GzDecoder::new(encoded);
+    let decoded = decode_reader(&mut decoder, encoded.len(), policy)?;
+    if !decoder.into_inner().is_empty() {
+        return Err(content_decoding_error(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "unexpected bytes after the first gzip member",
+        )));
+    }
+    Ok(decoded)
+}
+
+fn decode_deflate(encoded: &[u8], policy: &HttpClientPolicy) -> Result<DecodedContent, HttpError> {
+    let zlib_error = match decode_zlib_deflate(encoded, policy) {
+        Ok(bytes) => {
+            return Ok(DecodedContent {
+                bytes,
+                coding: ContentCoding::Deflate,
+            });
+        }
+        Err(HttpError::ContentDecodingFailed { source }) => source,
+        Err(error) => return Err(error),
+    };
+
+    match decode_raw_deflate(encoded, policy) {
+        Ok(bytes) => Ok(DecodedContent {
+            bytes,
+            coding: ContentCoding::DeflateRawCompatibility,
+        }),
+        Err(HttpError::ContentDecodingFailed { .. }) => {
+            Err(HttpError::ContentDecodingFailed { source: zlib_error })
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn decode_zlib_deflate(encoded: &[u8], policy: &HttpClientPolicy) -> Result<Vec<u8>, HttpError> {
+    let mut decoder = ZlibDecoder::new(encoded);
+    let decoded = decode_reader(&mut decoder, encoded.len(), policy)?;
+    if !decoder.into_inner().is_empty() {
+        return Err(content_decoding_error(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "unexpected bytes after the zlib stream",
+        )));
+    }
+    Ok(decoded)
+}
+
+fn decode_raw_deflate(encoded: &[u8], policy: &HttpClientPolicy) -> Result<Vec<u8>, HttpError> {
+    let mut decoder = DeflateDecoder::new(encoded);
+    let decoded = decode_reader(&mut decoder, encoded.len(), policy)?;
+    if !decoder.into_inner().is_empty() {
+        return Err(content_decoding_error(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "unexpected bytes after the raw DEFLATE stream",
+        )));
+    }
+    Ok(decoded)
+}
+
+fn select_content_coding(values: &[&[u8]]) -> Result<SelectedContentCoding, HttpError> {
+    if values.is_empty() {
+        return Ok(SelectedContentCoding::Identity);
+    }
+    let mut selected = SelectedContentCoding::Identity;
+    let mut selected_one = false;
+    for value in values {
+        for member in value.split(|byte| *byte == b',') {
+            let member = trim_optional_whitespace(member);
+            let coding = if member.eq_ignore_ascii_case(b"identity") {
+                SelectedContentCoding::Identity
+            } else if member.eq_ignore_ascii_case(b"gzip") {
+                SelectedContentCoding::Gzip
+            } else if member.eq_ignore_ascii_case(b"deflate") {
+                SelectedContentCoding::Deflate
+            } else {
+                return Err(HttpError::UnsupportedContentCoding);
+            };
+            if selected_one {
+                return Err(HttpError::UnsupportedContentCoding);
+            }
+            selected = coding;
+            selected_one = true;
+        }
+    }
+    // A non-empty value slice always contributes at least one split member. Empty members are
+    // rejected above, so successful parsing has assigned exactly one coding without a nullable
+    // end state.
+    Ok(selected)
+}
+
+fn decode_reader<R: Read>(
+    mut reader: R,
+    encoded_bytes: usize,
+    policy: &HttpClientPolicy,
+) -> Result<Vec<u8>, HttpError> {
+    let mut decoded = Vec::new();
+    let mut buffer = [0_u8; 8_192];
+    loop {
+        let byte_count = reader.read(&mut buffer).map_err(content_decoding_error)?;
+        if byte_count == 0 {
+            break;
+        }
+        // The decoder scratch buffer is fixed at 8 KiB and the configured decoded-content
+        // budget is bounded far below `usize::MAX`, so saturation preserves the fail-closed
+        // result without carrying an unreachable arithmetic-error branch.
+        let next_length = decoded.len().saturating_add(byte_count);
+        enforce_decoded_limits(next_length, encoded_bytes, policy)?;
+        decoded.extend_from_slice(&buffer[..byte_count]);
+    }
+    Ok(decoded)
+}
+
+fn enforce_decoded_limits(
+    decoded_bytes: usize,
+    encoded_bytes: usize,
+    policy: &HttpClientPolicy,
+) -> Result<(), HttpError> {
+    if decoded_bytes > policy.max_decoded_content_bytes() {
+        return Err(HttpError::DecodedContentTooLarge {
+            byte_count: decoded_bytes,
+            maximum_bytes: policy.max_decoded_content_bytes(),
+        });
+    }
+    let ratio_limit = encoded_bytes
+        .max(1)
+        .saturating_mul(policy.max_content_expansion_ratio());
+    if decoded_bytes > ratio_limit {
+        return Err(HttpError::ContentExpansionRatioExceeded {
+            decoded_bytes,
+            encoded_bytes,
+            maximum_ratio: policy.max_content_expansion_ratio(),
+        });
+    }
+    Ok(())
+}
+
+fn content_decoding_error(source: io::Error) -> HttpError {
+    HttpError::ContentDecodingFailed { source }
+}
+
+#[cfg(test)]
+#[cfg_attr(coverage_nightly, coverage(off))]
+mod tests {
+    #![allow(clippy::expect_used)]
+
+    use std::io::Write;
+    use std::time::Duration;
+
+    use flate2::Compression;
+    use flate2::write::{DeflateEncoder, GzEncoder, ZlibEncoder};
+
+    use crate::field::FieldLine;
+    use crate::{AlpnHttp11Policy, IntegrityRequirement};
+
+    use super::*;
+
+    fn fields(entries: &[(&str, &[u8])]) -> FieldBlock {
+        FieldBlock::new(
+            entries
+                .iter()
+                .map(|(name, value)| {
+                    FieldLine::new(name.as_bytes(), value, 256, 8_192).expect("field")
+                })
+                .collect(),
+        )
+    }
+
+    fn policy(
+        maximum_encoded_bytes: usize,
+        maximum_decoded_bytes: usize,
+        maximum_ratio: usize,
+    ) -> HttpClientPolicy {
+        HttpClientPolicy::new(
+            Duration::from_secs(1),
+            1_024,
+            1_024,
+            16,
+            64,
+            256,
+            1_024,
+            4,
+            16,
+            4,
+            1_024,
+            maximum_encoded_bytes,
+            maximum_decoded_bytes,
+            maximum_ratio,
+            AlpnHttp11Policy::RequireHttp11,
+            IntegrityRequirement::Optional,
+        )
+        .expect("content policy")
+    }
+
+    fn gzip(input: &[u8]) -> Vec<u8> {
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(input).expect("gzip input");
+        encoder.finish().expect("gzip finish")
+    }
+
+    fn deflate(input: &[u8]) -> Vec<u8> {
+        let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(input).expect("deflate input");
+        encoder.finish().expect("deflate finish")
+    }
+
+    fn raw_deflate(input: &[u8]) -> Vec<u8> {
+        let mut encoder = DeflateEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(input).expect("raw deflate input");
+        encoder.finish().expect("raw deflate finish")
+    }
+
+    #[test]
+    fn absent_and_identity_content_coding_preserve_bytes() {
+        let input = b"plain content";
+        for field_block in [
+            FieldBlock::default(),
+            fields(&[("content-encoding", b" identity \t")]),
+        ] {
+            let decoded =
+                decode_content(input, &field_block, &policy(64, 64, 2)).expect("identity content");
+            assert_eq!(decoded.bytes, input);
+            assert_eq!(decoded.coding, ContentCoding::Identity);
+        }
+    }
+
+    #[test]
+    fn gzip_and_zlib_deflate_decode_known_content() {
+        let input = b"deterministic compressed content";
+        for (encoded, name, expected_coding) in [
+            (gzip(input), b"gzip".as_slice(), ContentCoding::Gzip),
+            (
+                deflate(input),
+                b"DEFLATE".as_slice(),
+                ContentCoding::Deflate,
+            ),
+        ] {
+            let decoded = decode_content(
+                &encoded,
+                &fields(&[("content-encoding", name)]),
+                &policy(1_024, 1_024, 32),
+            )
+            .expect("decoded content");
+            assert_eq!(decoded.bytes, input);
+            assert_eq!(decoded.coding, expected_coding);
+        }
+    }
+
+    #[test]
+    fn raw_deflate_compatibility_preserves_bounded_decoding() {
+        let input = b"legacy raw deflate compatibility";
+        let encoded = raw_deflate(input);
+        let decoded = decode_content(
+            &encoded,
+            &fields(&[("content-encoding", b"deflate")]),
+            &policy(1_024, 1_024, 32),
+        )
+        .expect("raw deflate compatibility");
+        assert_eq!(decoded.bytes, input);
+        assert_eq!(decoded.coding, ContentCoding::DeflateRawCompatibility);
+    }
+
+    #[test]
+    fn deflate_fallback_never_bypasses_decoded_budgets() {
+        let expanded = vec![b'a'; 4_096];
+        for encoded in [deflate(&expanded), raw_deflate(&expanded)] {
+            assert!(matches!(
+                decode_content(
+                    &encoded,
+                    &fields(&[("content-encoding", b"deflate")]),
+                    &policy(8_192, 8_192, 2),
+                ),
+                Err(HttpError::ContentExpansionRatioExceeded { .. })
+            ));
+        }
+    }
+
+    #[test]
+    fn deflate_streams_reject_trailing_bytes() {
+        for mut encoded in [deflate(b"zlib"), raw_deflate(b"raw")] {
+            encoded.extend_from_slice(b"trailing");
+            assert!(matches!(
+                decode_content(
+                    &encoded,
+                    &fields(&[("content-encoding", b"deflate")]),
+                    &policy(1_024, 1_024, 32),
+                ),
+                Err(HttpError::ContentDecodingFailed { .. })
+            ));
+        }
+    }
+
+    #[test]
+    fn gzip_rejects_concatenated_members_and_trailing_bytes() {
+        let first = gzip(b"first member");
+        let second = gzip(b"second member");
+        for suffix in [second, b"trailing bytes".to_vec()] {
+            let mut encoded = first.clone();
+            encoded.extend_from_slice(&suffix);
+            assert!(matches!(
+                decode_content(
+                    &encoded,
+                    &fields(&[("content-encoding", b"gzip")]),
+                    &policy(1_024, 1_024, 32),
+                ),
+                Err(HttpError::ContentDecodingFailed { .. })
+            ));
+        }
+    }
+
+    #[test]
+    fn multiple_empty_and_unknown_codings_are_rejected() {
+        for entries in [
+            vec![("content-encoding", b"".as_slice())],
+            vec![("content-encoding", b"br".as_slice())],
+            vec![("content-encoding", b"gzip, deflate".as_slice())],
+            vec![
+                ("content-encoding", b"gzip".as_slice()),
+                ("content-encoding", b"identity".as_slice()),
+            ],
+        ] {
+            assert!(matches!(
+                decode_content(b"bytes", &fields(&entries), &policy(64, 64, 4)),
+                Err(HttpError::UnsupportedContentCoding)
+            ));
+        }
+    }
+
+    #[test]
+    fn corrupt_compressed_streams_preserve_decoder_failure_as_source() {
+        for coding in [b"gzip".as_slice(), b"deflate".as_slice()] {
+            let error = decode_content(
+                b"not-a-compressed-stream",
+                &fields(&[("content-encoding", coding)]),
+                &policy(64, 64, 4),
+            )
+            .expect_err("invalid compressed stream");
+            assert!(matches!(error, HttpError::ContentDecodingFailed { .. }));
+            assert!(std::error::Error::source(&error).is_some());
+        }
+    }
+
+    #[test]
+    fn encoded_decoded_and_expansion_budgets_fail_closed() {
+        assert!(matches!(
+            decode_content(b"12345", &FieldBlock::default(), &policy(4, 8, 2),),
+            Err(HttpError::EncodedContentTooLarge {
+                byte_count: 5,
+                maximum_bytes: 4,
+            })
+        ));
+        assert!(matches!(
+            decode_content(b"12345", &FieldBlock::default(), &policy(8, 4, 2),),
+            Err(HttpError::DecodedContentTooLarge {
+                byte_count: 5,
+                maximum_bytes: 4,
+            })
+        ));
+
+        let expanded = vec![b'a'; 4_096];
+        let encoded = gzip(&expanded);
+        assert!(encoded.len() < expanded.len());
+        assert!(matches!(
+            decode_content(
+                &encoded,
+                &fields(&[("content-encoding", b"gzip")]),
+                &policy(8_192, 8_192, 2),
+            ),
+            Err(HttpError::ContentExpansionRatioExceeded { .. })
+        ));
+    }
+
+    #[test]
+    fn zero_encoded_length_uses_one_byte_ratio_floor() {
+        let content_policy = policy(8, 8, 2);
+        enforce_decoded_limits(2, 0, &content_policy).expect("one-byte ratio floor");
+        assert!(matches!(
+            enforce_decoded_limits(3, 0, &content_policy),
+            Err(HttpError::ContentExpansionRatioExceeded {
+                decoded_bytes: 3,
+                encoded_bytes: 0,
+                maximum_ratio: 2,
+            })
+        ));
+    }
+
+    #[test]
+    fn exact_decoded_and_ratio_boundaries_are_accepted() {
+        let input = b"1234";
+        let decoded = decode_content(input, &FieldBlock::default(), &policy(4, 4, 1))
+            .expect("exact identity boundary");
+        assert_eq!(decoded.bytes, input);
+
+        let compressed = gzip(b"abcdefgh");
+        let decoded = decode_content(
+            &compressed,
+            &fields(&[("content-encoding", b"gzip")]),
+            &policy(compressed.len(), 8, 1),
+        )
+        .expect("encoded input larger than decoded output");
+        assert_eq!(decoded.bytes, b"abcdefgh");
+    }
+}
