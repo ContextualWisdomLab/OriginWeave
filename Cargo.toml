@@ -21,6 +21,7 @@ homepage = "https://github.com/ContextualWisdomLab/OriginWeave"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }
 
 [workspace.lints.clippy]
 dbg_macro = "deny"
