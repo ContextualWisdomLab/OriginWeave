@@ -11,22 +11,27 @@ use crate::{
 /// WebDriver BiDi defines `session.EndResult` as the extensible `EmptyResult` object. The common
 /// local-end envelope parser already validates the complete JSON document and requires a success
 /// `result` object, so this command-specific boundary intentionally retains no generic result body
-/// and accepts extension members. This value proves only that the remote end returned a correlated
-/// protocol success; it does not prove Chromium process exit, profile deletion, resource release,
-/// or any other OriginWeave operational teardown postcondition.
+/// and accepts extension members. The result retains the private process-local generation of the
+/// exact connection on which the command was registered before I/O so later teardown evidence can
+/// reject another connection even when both reuse the same WebDriver session and command id. This
+/// value proves only that the remote end returned a correlated protocol success; it does not prove
+/// Chromium process exit, profile deletion, resource release, or any other OriginWeave operational
+/// teardown postcondition.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct WebDriverBiDiSessionEndResult {
     command_id: u64,
+    connection_generation: u64,
 }
 
 impl WebDriverBiDiSessionEndResult {
     /// Parse one bounded local-end message and consume its exact outstanding command on response.
     ///
     /// Complete JSON and common WebDriver BiDi envelope validation occur before correlation state
-    /// can be consumed. Successful responses retain only the matched command id. A correlatable
-    /// protocol-error response consumes its matching id and returns a typed remote failure, while
-    /// events, null-id errors, malformed envelopes, unknown ids, and command-kind mismatches fail
-    /// closed without consuming unrelated outstanding state.
+    /// can be consumed. Successful responses require the connection generation registered by the
+    /// typed `session.end` sender and retain only that private provenance plus the matched command
+    /// id. A correlatable protocol-error response consumes its matching id and returns a typed remote
+    /// failure, while events, null-id errors, malformed envelopes, unknown ids, and command-kind
+    /// mismatches fail closed without consuming unrelated outstanding state.
     pub fn parse_and_correlate(
         message: &WebDriverBiDiWebSocketTextMessage,
         correlation: &mut WebDriverBiDiCommandCorrelation,
@@ -38,9 +43,17 @@ impl WebDriverBiDiSessionEndResult {
             .map_err(|source| WebDriverBiDiSessionEndResponseError::Correlation { source })?;
 
         match completed.outcome() {
-            WebDriverBiDiCorrelatedResponseOutcome::Success => Ok(Self {
-                command_id: completed.command_id(),
-            }),
+            WebDriverBiDiCorrelatedResponseOutcome::Success => {
+                let connection_generation = completed.connection_generation().ok_or(
+                    WebDriverBiDiSessionEndResponseError::MissingConnectionProvenance {
+                        command_id: completed.command_id(),
+                    },
+                )?;
+                Ok(Self {
+                    command_id: completed.command_id(),
+                    connection_generation,
+                })
+            }
             WebDriverBiDiCorrelatedResponseOutcome::Error => {
                 Err(WebDriverBiDiSessionEndResponseError::RemoteProtocolError {
                     command_id: completed.command_id(),
@@ -53,6 +66,10 @@ impl WebDriverBiDiSessionEndResult {
     #[must_use]
     pub const fn command_id(&self) -> u64 {
         self.command_id
+    }
+
+    pub(crate) const fn connection_generation(&self) -> u64 {
+        self.connection_generation
     }
 }
 
@@ -68,6 +85,11 @@ pub enum WebDriverBiDiSessionEndResponseError {
     Correlation {
         /// Exact typed correlation failure.
         source: WebDriverBiDiCommandCorrelationError,
+    },
+    /// A successful response consumed a `session.end` correlation that lacked transport provenance.
+    MissingConnectionProvenance {
+        /// Exact local command identifier whose registration omitted the connection generation.
+        command_id: u64,
     },
     /// The remote end returned a correlatable WebDriver BiDi protocol error for this command.
     RemoteProtocolError {
@@ -85,6 +107,8 @@ impl fmt::Display for WebDriverBiDiSessionEndResponseError {
             Self::Correlation { .. } => {
                 formatter.write_str("WebDriver BiDi session.end response correlation failed")
             }
+            Self::MissingConnectionProvenance { .. } => formatter
+                .write_str("WebDriver BiDi session.end response lacks connection provenance"),
             Self::RemoteProtocolError { .. } => {
                 formatter.write_str("WebDriver BiDi session.end returned a protocol error")
             }
@@ -97,7 +121,7 @@ impl Error for WebDriverBiDiSessionEndResponseError {
         match self {
             Self::Envelope { source } => Some(source),
             Self::Correlation { source } => Some(source),
-            Self::RemoteProtocolError { .. } => None,
+            Self::MissingConnectionProvenance { .. } | Self::RemoteProtocolError { .. } => None,
         }
     }
 }
@@ -125,6 +149,15 @@ mod tests {
             "WebDriver BiDi session.end response correlation failed"
         );
         assert!(correlation.source().is_some());
+
+        let missing = WebDriverBiDiSessionEndResponseError::MissingConnectionProvenance {
+            command_id: 7,
+        };
+        assert_eq!(
+            missing.to_string(),
+            "WebDriver BiDi session.end response lacks connection provenance"
+        );
+        assert!(missing.source().is_none());
 
         let remote = WebDriverBiDiSessionEndResponseError::RemoteProtocolError { command_id: 7 };
         assert_eq!(
