@@ -4,6 +4,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Refreshed the active WebDriver BiDi and semantic-action stack evidence for exact heads #195, #242, #93, and #95, including the macOS fixture-race repairs and fail-closed policy-authorization boundary.
 - Recorded PR #285's Ready-event materialization gap: repository-native exact-head CI restarted, while the earlier central Security, Semgrep, and CodeQL runs remained cancelled and no fresh required-workflow replacements appeared.
 - Refreshed the live product-gap baseline with PR #37's RFC 9110 `205 Reset Content` repair head and exact local verification evidence.
 - Recorded PR #284's rule-suite `3948421709` administrative bypass into protected `main` at `4ed08bfa7c063fc7f2ef9278ee8d281887b8296b`; post-merge checks remain independently required and cannot retroactively turn the bypass into policy-compliant integration.

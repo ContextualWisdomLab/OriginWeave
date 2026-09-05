@@ -63,8 +63,10 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
             "| #229 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `0145ccba5901e301b41d4be674ca1ed23483ad37` |",
             "| #220 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `b11db2be68f9b6d71aa4c4290b97a8b22097b353` |",
             "| #211 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `52a918577958a5701e1146c7eb8b62fe8f8ccd44` |",
-            "| #195 | Draft | `6922dd98779e8f8aad132a3b1f563d7ba6e6d070` | `b852245aa8da9ddc14ac5dbff5ebf1bcc665e65c` |",
-            "| #93 | Draft | `802ec806cdd4560eab48c484f435766ecabda353` | `82b0ebb6c541ce35bd49ca58f6b5d89861f64fd0` |",
+            "| #195 | Draft | `6922dd98779e8f8aad132a3b1f563d7ba6e6d070` | `48eb2d23009c1c804520dd5efcd0d4d072aacef1` |",
+            "| #242 | Draft | `48eb2d23009c1c804520dd5efcd0d4d072aacef1` | `55fef0c3fae1724eddada53e52c4a0311f509aa3` |",
+            "| #93 | Draft | `802ec806cdd4560eab48c484f435766ecabda353` | `0664f0452cb329cd692cce7f61f9001652abfda2` |",
+            "| #95 | Draft | `0664f0452cb329cd692cce7f61f9001652abfda2` | `97aa0f2e340ee6fd920d0418f97af276b190554f` |",
             "| #124 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `fdb88698ca20626a6643bc2ad7944fb968835700` |",
             "| #37 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `5e3dfcbd7a4daea297782cb99635990368589232` |",
         ):

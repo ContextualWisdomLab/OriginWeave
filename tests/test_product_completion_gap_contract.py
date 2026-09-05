@@ -112,23 +112,37 @@ class ProductCompletionGapContractTests(unittest.TestCase):
         )[0]
 
         for marker in (
-            "#195 is Draft at exact head `b852245aa8da9ddc14ac5dbff5ebf1bcc665e65c`",
+            "#195 is Draft at exact head `48eb2d23009c1c804520dd5efcd0d4d072aacef1`",
             "50 consecutive focused regression passes",
-            "#93 is Draft at exact head `82b0ebb6c541ce35bd49ca58f6b5d89861f64fd0`",
+            "#242 is Draft at exact head `55fef0c3fae1724eddada53e52c4a0311f509aa3`",
+            "#93 is Draft at exact head `0664f0452cb329cd692cce7f61f9001652abfda2`",
             "SemanticNodeActionBinding",
             "does not authorize policy or execute input",
+            "#95 is Draft at exact head `97aa0f2e340ee6fd920d0418f97af276b190554f`",
+            "Only `Decision::Allow`",
+            "`NotAdmitted`",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, current)
 
         self.assertIn(
             "| #195 | Draft | `6922dd98779e8f8aad132a3b1f563d7ba6e6d070` | "
-            "`b852245aa8da9ddc14ac5dbff5ebf1bcc665e65c` |",
+            "`48eb2d23009c1c804520dd5efcd0d4d072aacef1` |",
             text,
         )
         self.assertIn(
             "| #93 | Draft | `802ec806cdd4560eab48c484f435766ecabda353` | "
-            "`82b0ebb6c541ce35bd49ca58f6b5d89861f64fd0` |",
+            "`0664f0452cb329cd692cce7f61f9001652abfda2` |",
+            text,
+        )
+        self.assertIn(
+            "| #242 | Draft | `48eb2d23009c1c804520dd5efcd0d4d072aacef1` | "
+            "`55fef0c3fae1724eddada53e52c4a0311f509aa3` |",
+            text,
+        )
+        self.assertIn(
+            "| #95 | Draft | `0664f0452cb329cd692cce7f61f9001652abfda2` | "
+            "`97aa0f2e340ee6fd920d0418f97af276b190554f` |",
             text,
         )
 
