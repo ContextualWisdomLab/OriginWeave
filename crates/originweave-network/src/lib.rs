@@ -10,21 +10,22 @@
 //! classifies complete local-end JSON envelopes, tracks bounded command-response
 //! correlation, transports narrowly typed pointer-click and node-bound non-secret
 //! text-input actions plus fixed sandboxed text-value observations, admits typed
-//! correlated protocol acknowledgments, sends a context-bound subscription for
-//! committed-navigation events, retains its typed bounded correlated subscription
-//! identifier, binds navigation-event admission to that exact active command/receipt
-//! lifecycle with bounded fail-closed navigation replay prevention, explicitly tears
-//! down that exact subscription by identifier, admits its typed correlated
-//! unsubscribe acknowledgment, admits a bounded navigation-committed post-condition
-//! observation for one exact registered context and URL, rotates the matched
-//! context's document epoch only from an exact caller-captured pre-action epoch,
-//! derives and binds the committed HTTP(S) URL's canonical origin to that newly
-//! advanced document, sends narrowly typed `session.status` and `session.end`
-//! commands, admits typed correlated status and end responses, observes bounded peer
-//! Close or clean-EOF transport cessation, and keeps protocol/transport evidence
-//! separate from explicit operational teardown observations without exposing generic
-//! JSON bodies or granting browser, TLS, policy, secret, process, profile, or Agent
-//! authority.
+//! correlated protocol acknowledgments and text-value post-condition comparisons,
+//! requires an explicit positive text-value post-condition gate before success,
+//! sends a context-bound subscription for committed-navigation events, retains its
+//! typed bounded correlated subscription identifier, binds navigation-event
+//! admission to that exact active command/receipt lifecycle with bounded fail-closed
+//! navigation replay prevention, explicitly tears down that exact subscription by
+//! identifier, admits its typed correlated unsubscribe acknowledgment, admits a
+//! bounded navigation-committed post-condition observation for one exact registered
+//! context and URL, rotates the matched context's document epoch only from an exact
+//! caller-captured pre-action epoch, derives and binds the committed HTTP(S) URL's
+//! canonical origin to that newly advanced document, sends narrowly typed
+//! `session.status` and `session.end` commands, admits typed correlated status and
+//! end responses, observes bounded peer Close or clean-EOF transport cessation, and
+//! keeps protocol/transport evidence separate from explicit operational teardown
+//! observations without exposing generic JSON bodies or granting browser, TLS,
+//! policy, secret, process, profile, or Agent authority.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -48,7 +49,9 @@ mod webdriver_bidi_session_end_response;
 mod webdriver_bidi_session_status_command;
 mod webdriver_bidi_session_status_response;
 mod webdriver_bidi_session_teardown;
+mod webdriver_bidi_text_value_observation_response;
 mod webdriver_bidi_text_value_observation_transport;
+mod webdriver_bidi_text_value_postcondition;
 mod webdriver_bidi_type_text_response;
 mod webdriver_bidi_type_text_transport;
 mod webdriver_bidi_websocket_frame;
@@ -59,6 +62,8 @@ mod webdriver_bidi_websocket_transport_closure;
 
 #[cfg(test)]
 mod webdriver_bidi_json_envelope_public_boundary_tests;
+#[cfg(test)]
+mod webdriver_bidi_text_value_observation_public_boundary_tests;
 
 pub use connection::{
     ConnectionPlan, DirectTcpConnection, MAX_CONNECT_TIMEOUT, MAX_CONNECTION_ATTEMPTS,
@@ -141,8 +146,16 @@ pub use webdriver_bidi_session_teardown::{
     WebDriverBiDiSessionTeardownAssessment, WebDriverBiDiSessionTeardownDisposition,
     WebDriverBiDiSessionTeardownObservations,
 };
+pub use webdriver_bidi_text_value_observation_response::{
+    WebDriverBiDiTextValueObservationProjectionError,
+    WebDriverBiDiTextValueObservationResponseError, WebDriverBiDiTextValueObservationResult,
+};
 pub use webdriver_bidi_text_value_observation_transport::{
     WebDriverBiDiTextValueObservationSendError, send_webdriver_bidi_text_value_observation,
+};
+pub use webdriver_bidi_text_value_postcondition::{
+    WebDriverBiDiTextValuePostcondition, WebDriverBiDiTextValuePostconditionError,
+    verify_webdriver_bidi_text_value_postcondition,
 };
 pub use webdriver_bidi_type_text_response::{
     WebDriverBiDiTypeTextResponseError, WebDriverBiDiTypeTextResult,

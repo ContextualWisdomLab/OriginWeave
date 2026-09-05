@@ -3,7 +3,7 @@
 - **Documentation status:** Active-stack evidence dossier; protected-main truth is called out separately
 - **Canonical owner:** issue #28 (`Complete the first real Chromium agent vertical slice`)
 - **Protected-main baseline:** `542ca1e9c0a863595b8b6697790005d2471f5413`
-- **Active stack tip at this revision:** PR #269 (`feat/core: observe typed-text postconditions without ambient script authority`)
+- **Active stack tip at this revision:** PR #271 (`feat/network: admit and compare typed-text postconditions`)
 - **Capability maturity:** **PARTIAL**
 - **Governing decisions:** Accepted ADR 0003 plus Proposed ADR 0106 preserve provenance-native evidence and separation of action execution from verification.
 
@@ -73,6 +73,14 @@ PR #269 adds a fixed sandboxed text-value observation command on top of the node
 
 The command only serializes an observation request. It performs no browser I/O, accepts no page/model-supplied script, grants no policy or action authority, and does not prove browser execution or post-condition success. Descendant transport and response slices must correlate the exact response and compare the returned non-secret text with the intended value before any action outcome can become verified.
 
+### PR #271 — correlated typed-text post-condition comparison
+
+**Capability maturity:** `IMPLEMENTED_ON_ACTIVE_STACK`
+
+PR #271 admits only a `script.callFunction` response correlated to the exact outstanding text-value observation command family. A successful string result becomes positive evidence only when it exactly equals the already-authorized expected text; a different value returns `PostconditionMismatch`, so protocol acknowledgement and parser success cannot certify browser state.
+
+The page-controlled text is discarded at the comparison boundary. The public result retains only the command identifier and UTF-8 byte count, while errors expose neither observed nor expected text. This evidence does not prove the preceding action was authorized, transported, or executed through the intended browser process, and it remains active-stack evidence until the full vertical slice is integrated and accepted on protected main.
+
 ## 4. Non-transitive success semantics
 
 The intended first-slice chain remains:
@@ -112,7 +120,9 @@ The first real Chromium vertical slice remains distributed rather than shipped a
 - PRs #261–#264 committed-navigation origin/subscription/admission lifecycle;
 - PR #265 send-time pointer input revalidation against admitted node authority; and
 - PR #266 node-bound non-secret text input with privacy-safe diagnostics; and
-- PR #269 fixed text-value observation construction, still without browser I/O or outcome verification.
+- PR #269 fixed text-value observation construction, still without browser I/O or outcome verification;
+- PR #270 exact transport of that fixed observation, still without response success; and
+- PR #271 correlated response admission and exact text-value comparison with value-free evidence.
 
 These pieces do not transfer evidence across heads. A descendant must be revalidated after any parent movement, and protected-main shipment requires fresh integrated acceptance after dependency-ordered merge by an authorized integrator.
 
