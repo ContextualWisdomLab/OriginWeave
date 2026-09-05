@@ -203,3 +203,23 @@ fn typed_transport_closure_cannot_complete_teardown_without_process_and_profile_
     );
     Ok(())
 }
+
+#[test]
+fn closure_from_another_connection_is_not_accepted_for_the_acknowledged_transport()
+-> Result<(), Box<dyn Error>> {
+    let (acknowledged_a, established_a) = correlated_session_end_ack_and_transport()?;
+    let (_acknowledged_b, established_b) = correlated_session_end_ack_and_transport()?;
+    drop(established_a);
+
+    let closure_b = observed_transport_closure(established_b)?;
+    let assessment = WebDriverBiDiSessionTeardownAssessment::from_protocol_ack(
+        acknowledged_a,
+        WebDriverBiDiSessionTeardownObservations::new(Some(closure_b)),
+    );
+
+    assert!(
+        !assessment.observations().transport_closed_observed(),
+        "closure from a distinct WebSocket generation must not be attributed to the acknowledged session.end transport"
+    );
+    Ok(())
+}
