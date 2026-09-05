@@ -8,11 +8,12 @@ use std::{
 
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiSessionEndCommand,
-    WebDriverBiDiSessionEndResult, WebDriverBiDiTcpConnectionPlan,
-    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageAssembler,
-    WebDriverBiDiWebSocketMessageAssembly, WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiConnectionMessageRead,
+    WebDriverBiDiReceivedTextMessage, WebDriverBiDiSessionEndCommand,
+    WebDriverBiDiSessionEndResponseError, WebDriverBiDiSessionEndResult,
+    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
+    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
+    WebDriverBiDiWebSocketMessageReader,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -78,17 +79,21 @@ fn establish(
         .read_opening_response(Duration::from_millis(500))?)
 }
 
-fn assemble_one_text(
+fn read_one_connection_bound_text(
     established: originweave_network::WebDriverBiDiWebSocketEstablished,
-) -> Result<WebDriverBiDiWebSocketTextMessage, Box<dyn Error>> {
-    let (_established, frame) = established.read_frame(Duration::from_millis(500))?;
-    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-    match assembler.push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(text) => Ok(text),
-        other => Err(io::Error::other(format!(
-            "foreign response produced unexpected assembly state: {other:?}"
-        ))
-        .into()),
+) -> Result<WebDriverBiDiReceivedTextMessage, Box<dyn Error>> {
+    let mut reader = WebDriverBiDiWebSocketMessageReader::new(established);
+    loop {
+        match reader.read_next(Duration::from_millis(500))? {
+            WebDriverBiDiConnectionMessageRead::Pending(next) => reader = next,
+            WebDriverBiDiConnectionMessageRead::Text { message, .. } => return Ok(message),
+            WebDriverBiDiConnectionMessageRead::Control { message, .. } => {
+                return Err(io::Error::other(format!(
+                    "foreign response produced unexpected control message: {message:?}"
+                ))
+                .into());
+            }
+        }
     }
 }
 
@@ -128,15 +133,22 @@ fn response_received_on_reconnected_transport_cannot_consume_prior_connection_co
     assert_eq!(correlation.outstanding_count(), 1);
 
     let second = establish(local_addr)?;
-    let foreign_response = assemble_one_text(second)?;
+    let foreign_response = read_one_connection_bound_text(second)?;
     let parsed = WebDriverBiDiSessionEndResult::parse_and_correlate(
         &foreign_response,
         &mut correlation,
     );
+    let error = parsed
+        .err()
+        .ok_or_else(|| io::Error::other("foreign response acknowledged prior connection"))?;
 
-    assert!(
-        parsed.is_err(),
-        "response received on connection B must not acknowledge connection A"
+    assert!(matches!(
+        error,
+        WebDriverBiDiSessionEndResponseError::TransportConnectionMismatch { command_id: 7 }
+    ));
+    assert_eq!(
+        error.to_string(),
+        "WebDriver BiDi session.end response arrived on a different connection"
     );
     assert_eq!(
         correlation.outstanding_count(),
