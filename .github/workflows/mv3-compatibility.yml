@@ -3,6 +3,7 @@ name: Manifest V3 Compatibility
 on:
   workflow_dispatch:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - ".github/workflows/mv3-compatibility.yml"
       - "crates/originweave-core/**"
@@ -22,11 +23,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: mv3-compatibility-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.repository }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   chrome-for-testing:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     name: Pinned Chrome for Testing MV3 fixture
     runs-on: ubuntu-24.04
     timeout-minutes: 20
