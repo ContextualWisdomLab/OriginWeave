@@ -6,6 +6,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Reject invalid navigation-subscription deadlines before reserving a pending request, preserving existing requests and leaving the rejected identifier reusable without sending subscription bytes.
 - Integrated current origin-binding prerequisites into context-scoped navigation subscriptions, preserving typed command isolation, response bounds, and the original subscription tests while restoring the inherited executable release contract.
 - Integrated current document-advance prerequisites into committed-navigation origin binding, preserving URL validation before mutation and stale-epoch rejection while restoring the inherited executable release contract.
 - Integrated current navigation-observation prerequisites into document-epoch advancement, preserving stale-epoch and retired-context rejection and the Proposed architecture decision without granting a new origin or action authority.

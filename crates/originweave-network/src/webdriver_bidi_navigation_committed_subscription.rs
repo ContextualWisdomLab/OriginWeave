@@ -4,6 +4,7 @@ use originweave_core::{
     BrowserAuthorityRegistry, BrowserRegistryError, BrowserSessionId, BrowsingContextId,
 };
 
+use crate::webdriver_bidi_websocket_frame::validate_frame_timeout;
 use crate::{
     MAX_WEBDRIVER_BIDI_JS_UINT, WEBDRIVER_BIDI_NAVIGATION_COMMITTED_METHOD,
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
@@ -91,10 +92,11 @@ impl WebDriverBiDiNavigationCommittedSubscriptionCommand {
     ///
     /// Context binding is revalidated immediately before command correlation and network I/O so a
     /// command retained across registry retirement cannot subscribe a stale or replacement context.
-    /// Correlation registration then occurs before the first possible remote side effect. A binding
-    /// or correlation failure therefore writes nothing. After successful registration, a frame-write
-    /// failure consumes the transport and intentionally leaves the identifier outstanding because a
-    /// partial or fully emitted frame has ambiguous remote effect.
+    /// Invalid frame deadlines fail before correlation registration. Registration then occurs before
+    /// the first possible remote side effect. A binding, deadline, or correlation failure therefore
+    /// writes nothing. After successful registration, frame failures consume the transport and
+    /// conservatively leave the identifier outstanding, including ambiguous partial or full emission
+    /// and frame-owner preflight failures.
     pub fn send(
         self,
         registry: &BrowserAuthorityRegistry,
@@ -112,6 +114,9 @@ impl WebDriverBiDiNavigationCommittedSubscriptionCommand {
             self.browsing_context,
             &self.external_context,
         )?;
+        validate_frame_timeout(frame_timeout).map_err(|source| {
+            WebDriverBiDiNavigationCommittedSubscriptionCommandError::FrameWrite { source }
+        })?;
         correlation
             .register_command_for(
                 self.command_id,
@@ -188,7 +193,7 @@ pub enum WebDriverBiDiNavigationCommittedSubscriptionCommandError {
         /// Exact typed correlation failure.
         source: WebDriverBiDiCommandCorrelationError,
     },
-    /// Writing the already-registered command frame failed and the transport is not reusable.
+    /// Preparing or writing the command frame failed and the transport is not reusable.
     FrameWrite {
         /// Exact typed bounded WebSocket frame-write failure.
         source: WebDriverBiDiWebSocketFrameError,
