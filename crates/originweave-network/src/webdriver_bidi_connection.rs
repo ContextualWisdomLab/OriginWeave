@@ -14,6 +14,8 @@ mod error;
 pub use error::WebDriverBiDiTcpConnectionError;
 
 #[cfg(test)]
+mod generation_exhaustion_tests;
+#[cfg(test)]
 mod tests;
 
 static NEXT_CONNECTION_GENERATION: AtomicU64 = AtomicU64::new(1);
