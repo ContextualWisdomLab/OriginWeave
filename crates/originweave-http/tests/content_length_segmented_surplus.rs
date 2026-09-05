@@ -8,7 +8,9 @@ use std::time::Duration;
 
 use originweave_core::Origin;
 use originweave_destination::{AddressClass, DestinationPolicy, ResolutionSnapshot};
-use originweave_http::{BodyFraming, HttpClientPolicy, HttpExchangePlan, HttpMethod, HttpRequestTarget};
+use originweave_http::{
+    BodyFraming, HttpClientPolicy, HttpExchangePlan, HttpMethod, HttpRequestTarget,
+};
 use originweave_network::ConnectionPlan;
 use originweave_tls::{
     AlpnRequirement, TlsClientPolicy, TlsHandshakePlan, TrustBundleIdentifier, TrustRootBundle,
@@ -178,6 +180,9 @@ fn content_length_completes_at_declared_boundary_before_delayed_extra_bytes() {
     .expect("declared Content-Length completes the single-use response");
 
     assert_eq!(response.content(), b"x");
-    assert_eq!(response.evidence().body_framing(), BodyFraming::ContentLength(1));
+    assert_eq!(
+        response.evidence().body_framing(),
+        BodyFraming::ContentLength(1)
+    );
     server.join().expect("server thread");
 }
