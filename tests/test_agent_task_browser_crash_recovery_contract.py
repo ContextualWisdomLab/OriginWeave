@@ -237,6 +237,46 @@ class AgentTaskBrowserCrashRecoveryContractTests(unittest.TestCase):
         self.assertEqual(result["failure_type"], "TimeoutExpired")
         self.assertTrue(result["profile_cleaned"])
 
+    def test_crash_startup_keeps_sandbox_and_fails_without_fallback(self) -> None:
+        """A rejected sandboxed session must fail once, reap its driver and remove its profile."""
+
+        namespace = runpy.run_path(str(RUNNER), run_name="agent_task_browser_crash_sandbox")
+        run_pass = namespace["_run_agent_task_browser_crash_browser_pass"]
+        request = mock.Mock(side_effect=RuntimeError("sandbox unavailable"))
+        driver = mock.Mock()
+        driver.poll.return_value = 0
+        with (
+            mock.patch.dict(
+                run_pass.__globals__,
+                {
+                    "_free_loopback_port": lambda: 9222,
+                    "_wait_for_driver": lambda _port: None,
+                    "_json_request": request,
+                },
+            ),
+            mock.patch.object(subprocess, "Popen", return_value=driver) as launch,
+        ):
+            result = namespace["_run_agent_task_browser_crash_trial"](
+                pathlib.Path("/controlled/chrome"),
+                pathlib.Path("/controlled/chromedriver"),
+                "http://127.0.0.1/agent-task",
+                1,
+            )
+
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["failure_type"], "RuntimeError")
+        self.assertTrue(result["profile_cleaned"])
+        launch.assert_called_once()
+        driver.wait.assert_called_once_with(timeout=5)
+        request.assert_called_once()
+        self.assertEqual(request.call_args.args[:3], (9222, "POST", "/session"))
+        options = request.call_args.args[3]["capabilities"]["alwaysMatch"]["goog:chromeOptions"]
+        self.assertEqual(options["binary"], "/controlled/chrome")
+        profile_args = [arg for arg in options["args"] if arg.startswith("--user-data-dir=")]
+        self.assertEqual(len(profile_args), 1)
+        self.assertFalse(pathlib.Path(profile_args[0].split("=", 1)[1]).exists())
+        self.assertNotIn("--no-sandbox", options["args"])
+
     def test_crash_session_cleanup_ignores_only_reviewed_transport_failures(self) -> None:
         """Expected post-crash transport loss is bounded, while programming failures propagate."""
 

@@ -4,8 +4,12 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Browser-crash trials no longer disable Chromium's sandbox. Rejected session startup remains one failed attempt with driver and temporary-profile cleanup, without an unsandboxed retry; live pinned-browser acceptance is still required.
+
 ### Added
 
+- Kept the inherited protocol-failure cleanup checks executable after shared-deadline integration by observing the correct cleanup path for ordinary and forced-close trials; all failure, cleanup and diagnostic-redaction assertions remain intact.
+- Controlled browser trials reject malformed pre-shutdown exit counts, retain validated driver and cleanup outcomes after ordinary task failure, and report mid-request protocol failures without remote diagnostic text; failed trials remain failures, startup retries keep their existing narrow scope, and obsolete HTTP-body close signals are no longer accepted.
 - Failed controlled Agent Task runs now report whether their original browser process ended after shutdown, alongside temporary-profile cleanup; a failed task never becomes a pass merely because cleanup succeeded. If process observation itself fails, termination remains unproven. This covers the original browser process only, not all descendants or arbitrary browser recovery.
 - Controlled pinned-Chromium Agent Task success now binds the ChromeDriver browser root to its exact Linux `/proc/<pid>/stat` start-time identity, binds every still-live PID from the already sampled bounded Chromium root-plus-descendant set before shutdown, explicitly records descendants that already exited between the `/proc` lineage snapshot and identity capture, and fails closed unless every retained exact identity terminates after session/driver shutdown; root disappearance or identity change remains an error, PID reuse counts only as termination of the original identity, and this does not attest cgroup/task ownership, processes appearing only after the sample, or OS-wide orphan absence.
 - Failed ordinary and forced-close Agent Task browser trials now retain credential-free temporary-profile cleanup evidence after bounded browser errors, and separate aggregate compatibility gates require cleanup proof from every trial rather than filtering unsuccessful trials out; this does not attest adversarial filesystem erasure, process termination, or arbitrary browser recovery.
