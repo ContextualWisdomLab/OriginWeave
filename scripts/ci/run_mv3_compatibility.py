@@ -1127,6 +1127,7 @@ def _run_restart_trial(
             ValueError,
             RuntimeError,
             json.JSONDecodeError,
+            http.client.HTTPException,
             subprocess.TimeoutExpired,
         ) as exc:
             failure_type = type(exc).__name__
@@ -1438,7 +1439,7 @@ def _run_agent_task_browser_pass(
             "task_duration_ms": task_duration_ms,
             "duration_ms": round(task_duration_ms),
         }
-    except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError, RuntimeError, json.JSONDecodeError, http.client.HTTPException) as exc:
         browser_failure_type = type(exc).__name__
         if browser_process_id is None or browser_process_start_time_ticks is None:
             raise
@@ -1545,6 +1546,7 @@ def _run_agent_task_trial(
             ValueError,
             RuntimeError,
             json.JSONDecodeError,
+            http.client.HTTPException,
             subprocess.TimeoutExpired,
         ) as exc:
             failure_type = type(exc).__name__
@@ -1578,6 +1580,16 @@ def _run_agent_task_trial(
             "profile_cleaned": True,
             "duration_ms": duration_ms,
         }
+        for field in ("driver_process_terminated", "driver_kill_fallback_used"):
+            if field in result:
+                if not isinstance(result[field], bool):
+                    raise RuntimeError("Agent Task browser pass returned invalid driver cleanup evidence")
+                failure_evidence[field] = result[field]
+        for field in ("session_cleanup_failure_type", "cleanup_failure_type"):
+            if field in result:
+                if not isinstance(result[field], str) or not result[field]:
+                    raise RuntimeError("Agent Task browser pass returned invalid cleanup failure evidence")
+                failure_evidence[field] = result[field]
         if "chromium_process_set_terminated" in result:
             chromium_process_set_terminated = result["chromium_process_set_terminated"]
             if not isinstance(chromium_process_set_terminated, bool):
@@ -1633,17 +1645,7 @@ def _is_no_such_window_runtime_error(error: RuntimeError) -> bool:
         code, separator, _detail = message[len(direct_prefix) :].partition(":")
         return bool(separator) and code.strip().casefold() == "no such window"
 
-    http_prefix = "WebDriver HTTP 404: "
-    if not message.startswith(http_prefix):
-        return False
-    try:
-        payload = json.loads(message[len(http_prefix) :])
-    except json.JSONDecodeError:
-        return False
-    if not isinstance(payload, dict):
-        return False
-    value = payload.get("value")
-    return isinstance(value, dict) and value.get("error") == "no such window"
+    return False
 
 
 def _force_close_agent_task_context(driver_port: int, session_id: str) -> bool:
@@ -1837,7 +1839,7 @@ def _run_agent_task_forced_close_browser_pass(
             "forced_close_detected": forced_close_detected,
             "session_survived": True,
         }
-    except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError, RuntimeError, json.JSONDecodeError, http.client.HTTPException) as exc:
         browser_failure_type = type(exc).__name__
         if browser_process_id is None or browser_process_start_time_ticks is None:
             raise
@@ -1946,6 +1948,7 @@ def _run_agent_task_forced_close_trial(
             ValueError,
             RuntimeError,
             json.JSONDecodeError,
+            http.client.HTTPException,
             subprocess.TimeoutExpired,
         ) as exc:
             failure_type = type(exc).__name__
@@ -2092,7 +2095,7 @@ def main() -> int:
                         trial_number,
                     )
                 )
-            except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+            except (OSError, ValueError, RuntimeError, json.JSONDecodeError, http.client.HTTPException) as exc:
                 trial_results.append(
                     {
                         "trial_number": trial_number,
@@ -2138,7 +2141,7 @@ def main() -> int:
                         trial_number,
                     )
                 )
-            except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+            except (OSError, ValueError, RuntimeError, json.JSONDecodeError, http.client.HTTPException) as exc:
                 agent_task_trials.append(
                     {
                         "trial_number": trial_number,
@@ -2158,7 +2161,7 @@ def main() -> int:
                         trial_number,
                     )
                 )
-            except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+            except (OSError, ValueError, RuntimeError, json.JSONDecodeError, http.client.HTTPException) as exc:
                 forced_close_trials.append(
                     {
                         "trial_number": trial_number,
@@ -2205,6 +2208,9 @@ def main() -> int:
             and trial["browser_process_rss_bytes"] > 0
             and isinstance(trial.get("chromium_process_count"), int)
             and 0 < trial["chromium_process_count"] <= MAX_BROWSER_PROCESS_TREE_SIZE
+            and isinstance(trial.get("chromium_process_pre_shutdown_exit_count"), int)
+            and not isinstance(trial.get("chromium_process_pre_shutdown_exit_count"), bool)
+            and 0 <= trial["chromium_process_pre_shutdown_exit_count"] < trial["chromium_process_count"]
             and isinstance(trial.get("chromium_process_set_rss_bytes"), int)
             and trial["chromium_process_set_rss_bytes"] > 0
             and isinstance(trial.get("semantic_observation_bytes"), int)
