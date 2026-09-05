@@ -255,24 +255,28 @@ mod tests {
     #[test]
     fn only_provably_local_frame_failures_retire_subscription_correlation() {
         let mut correlation = WebDriverBiDiCommandCorrelation::new();
-        correlation
-            .register_command_for(
-                1,
-                WebDriverBiDiCommandKind::NavigationCommittedSubscription,
-            )
-            .unwrap();
+        assert!(
+            correlation
+                .register_command_for(
+                    1,
+                    WebDriverBiDiCommandKind::NavigationCommittedSubscription,
+                )
+                .is_ok()
+        );
         let preflight = WebDriverBiDiWebSocketFrameError::MalformedFrame {
             reason: "test preflight rejection",
         };
         map_frame_failure(&mut correlation, 1, preflight);
         assert_eq!(correlation.outstanding_count(), 0);
 
-        correlation
-            .register_command_for(
-                2,
-                WebDriverBiDiCommandKind::NavigationCommittedSubscription,
-            )
-            .unwrap();
+        assert!(
+            correlation
+                .register_command_for(
+                    2,
+                    WebDriverBiDiCommandKind::NavigationCommittedSubscription,
+                )
+                .is_ok()
+        );
         let ambiguous = WebDriverBiDiWebSocketFrameError::FrameWriteFailed {
             bytes_written: 1,
             source: io::Error::other("test ambiguous write failure"),
