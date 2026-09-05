@@ -98,6 +98,12 @@ Process-observation errors leave termination unproven: a read failure escapes th
 
 The release-record regression first failed because this changed failure path had no corresponding Unreleased entry. A controlled behavioral regression now exercises the real browser-pass and trial functions with no browser launch: observed exit, surviving identity and observation error all remain failed trials, driver shutdown is required, and private exception text is absent from returned evidence. These controlled tests are not Linux process or pinned-Chromium runtime evidence; exact-head hosted compatibility remains required.
 
+### Process-set stack integration evidence
+
+The #144 ordinary parent integration preserves the production runner and process-set tests from `09f2e087d0c20fe81386c18099e739a9e611a8ad` while adopting #143 `44fd9a450f864feff5cf2ba2883425a71ba10b9b`. The old child had only three failure-path contracts instead of the parent's five; the missing release-record and real browser-pass/trial regressions now run with the child process-set contracts. The CHANGELOG-only conflict keeps the parent's failed-task root-cleanup record and the child's expanded success-path process-set record; the latter already includes the earlier root-only success contract. No runtime behavior or deadline is changed.
+
+The prior informational review limits remain explicit: descendants are bound to start times read after lineage sampling, so a reused PID in that gap may conservatively fail a trial; root and process-set waits have separate bounded budgets, with one shared deadline only inside the set waiter; and the pre-shutdown exit-count bound is a defensive evidence invariant. None of these controlled local contracts attests cgroup ownership, later processes, OS-wide orphan absence or exact-head pinned-Chromium acceptance. The inherited failure-path regression keeps observer errors unproven and task failures unsuccessful even when temporary-profile cleanup succeeds.
+
 ## References
 
 Amazon Web Services. (n.d.). *Set up the Amazon EKS Pod Identity Agent*. Retrieved August 6, 2026, from https://docs.aws.amazon.com/eks/latest/userguide/pod-id-agent-setup.html
