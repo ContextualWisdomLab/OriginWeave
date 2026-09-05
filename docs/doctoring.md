@@ -64,6 +64,12 @@ OriginWeave therefore creates a separate direct-only network kernel. Its public 
 
 This proof is deliberately narrower than safe browser navigation. It does not validate TLS server names, certificates, certificate chains, or ALPN; it does not authorize a proxy or PAC route; it does not parse HTTP or bound response resources; and it does not prove that Chromium's Network Service consumed the verified stream. Those remain separate merge-gated adapters. TCP peer equality is transport evidence, not application identity.
 
+### Default-port regression quality follow-up
+
+PR #50 predecessor `e981ac45d0bfcd3906fc64dae5f4490edf39f9e5` added default-origin cases that accept HTTP port 80 and HTTPS port 443 and reject ports 81 and 444 with exact mismatch evidence. All seven focused fresh-resolution tests passed, but Rust 1.97.1 formatting failed on the two socket declarations and the new assertion layout. Applying the pinned formatter preserves those assertions, the explicit non-default-port regression, and every production source file. These cases construct plans without connecting to privileged ports; they prove deterministic port admission, not a completed HTTP/TLS exchange or browser navigation.
+
+The formatted tree passed Rust 1.97.1 formatting, locked workspace checking and tests, all-target/all-feature Clippy with warnings denied, and rustdoc with warnings denied. All 152 Python contracts and Python compilation passed. The pinned coverage run measured 530 functions, 4,509 lines, 5,441 regions, and 660 branches at 100%; cargo-llvm-cov still emits its unstable branch-option warning, so numeric coverage is not warning-free measurement or release acceptance. Hosted checks must run again on the resulting commit.
+
 ### TLS service identity
 
 RFC 9846 is the current Standards Track TLS 1.3 specification and obsoletes RFC 8446. It defines a secure channel over a reliable, ordered byte stream and explicitly leaves application service-identity interpretation to the integrating protocol. It points application protocols to RFC 9525. RFC 9846 also reiterates that 0-RTT has weaker forward-secrecy and replay properties than ordinary 1-RTT application data. OriginWeave therefore cites RFC 9846 as the current TLS 1.3 authority, permits TLS 1.2 only for application interoperability, prefers TLS 1.3 through rustls ordering, and disables 0-RTT in the first slice.

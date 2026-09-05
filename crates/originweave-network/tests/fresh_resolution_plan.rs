@@ -199,19 +199,19 @@ fn default_origin_ports_are_enforced_for_http_and_https() -> Result<(), String> 
             Duration::from_secs(5),
         )
         .map_err(|error| format!("fresh default-port snapshot is invalid: {error}"))?;
-        let matching_socket =
-            SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), expected_port);
-        let mismatched_socket =
-            SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), mismatched_port);
+        let matching_socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), expected_port);
+        let mismatched_socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), mismatched_port);
 
-        assert!(FreshConnectionPlan::new(
-            &snapshot,
-            Duration::from_secs(12),
-            matching_socket,
-            Duration::from_secs(1),
-            1,
-        )
-        .is_ok());
+        assert!(
+            FreshConnectionPlan::new(
+                &snapshot,
+                Duration::from_secs(12),
+                matching_socket,
+                Duration::from_secs(1),
+                1,
+            )
+            .is_ok()
+        );
         assert!(matches!(
             FreshConnectionPlan::new(
                 &snapshot,
