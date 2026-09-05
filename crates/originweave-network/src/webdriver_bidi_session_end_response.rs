@@ -1,8 +1,9 @@
 use std::{error::Error, fmt};
 
 use crate::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
-    WebDriverBiDiCommandKind, WebDriverBiDiCorrelatedResponseOutcome, WebDriverBiDiJsonEnvelope,
+    webdriver_bidi_connection::WebDriverBiDiConnectionGeneration, WebDriverBiDiCommandCorrelation,
+    WebDriverBiDiCommandCorrelationError, WebDriverBiDiCommandKind,
+    WebDriverBiDiCorrelatedResponseOutcome, WebDriverBiDiJsonEnvelope,
     WebDriverBiDiJsonEnvelopeError, WebDriverBiDiWebSocketTextMessage,
 };
 
@@ -20,7 +21,7 @@ use crate::{
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct WebDriverBiDiSessionEndResult {
     command_id: u64,
-    connection_generation: u64,
+    connection_generation: WebDriverBiDiConnectionGeneration,
 }
 
 impl WebDriverBiDiSessionEndResult {
@@ -68,7 +69,7 @@ impl WebDriverBiDiSessionEndResult {
         self.command_id
     }
 
-    pub(crate) const fn connection_generation(&self) -> u64 {
+    pub(crate) const fn connection_generation(&self) -> WebDriverBiDiConnectionGeneration {
         self.connection_generation
     }
 }
