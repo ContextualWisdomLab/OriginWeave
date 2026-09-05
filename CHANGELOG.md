@@ -63,6 +63,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Made the agent-development contract work-conserving: completing one bounded slice, RCA, review request, check, merge, or documentation change is an intermediate state; maintenance must return to the live queue, treat waits as item-local, and perform a mandatory exit sweep before terminating while executable OriginWeave work remains.
 - Moved autonomous-agent Cargo targets and Python bytecode caches outside the proposed source tree and prefetched locked Cargo dependencies for offline verification.
 - Kept the real loopback WebDriver BiDi opening-write regression test fail-fast with test-only diagnostics, while explicitly covering successful and panicked server-thread handoffs so strict all-target Clippy and exact coverage remain clean.
+- Kept the loopback peer alive until opening-write timeout cleanup completes, removing a macOS close race that could report `EINVAL` after a successful request write without weakening production cleanup failures.
 - Updated research doctoring to pin Chromium canonicalizer evidence to an immutable revision, add RFC 9293, RFC 5280, RFC 8446, RFC 9525, rustls 0.23.42, and Rust `TcpStream` evidence, distinguish the April 2026 Fugu beta from the June 2026 release, and treat vendor benchmark claims as first-party evidence rather than independent validation.
 
 ### Security
