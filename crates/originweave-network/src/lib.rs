@@ -7,17 +7,18 @@
 //! `originweave-core` into one bounded exact TCP connection, binds and validates
 //! the RFC 6455 opening exchange, provides bounded masked client writes and
 //! unmasked server-frame reads, assembles bounded WebDriver BiDi text messages,
-//! classifies complete local-end JSON envelopes, tracks bounded command-response
-//! correlation, transports a narrowly typed pointer click, admits its typed
-//! correlated protocol response, admits a bounded navigation-committed
-//! post-condition observation for one exact registered context and URL, rotates
-//! the matched context's document epoch only from an exact caller-captured
-//! pre-action epoch, sends narrowly typed `session.status` and `session.end`
-//! commands, admits typed correlated status and end responses, observes bounded
-//! peer Close or clean-EOF transport cessation, and keeps protocol/transport
-//! evidence separate from explicit operational teardown observations without
-//! exposing generic JSON bodies or granting browser, TLS, policy, secret,
-//! process, profile, or Agent authority.
+//! binds received fragmented text to one exact verified connection, classifies
+//! complete local-end JSON envelopes, tracks bounded command-response correlation,
+//! transports a narrowly typed pointer click, admits its typed correlated protocol
+//! response, admits a bounded navigation-committed post-condition observation for
+//! one exact registered context and URL, rotates that context's document epoch
+//! only from an exact caller-captured pre-action epoch, sends narrowly typed
+//! `session.status` and `session.end` commands, admits typed
+//! correlated status and end responses, binds `session.end` ACK and closure evidence
+//! to one private process-local connection generation, observes bounded peer Close
+//! or clean-EOF transport cessation, and keeps protocol/transport evidence separate
+//! from explicit operational teardown observations without exposing generic JSON
+//! bodies or granting browser, TLS, policy, secret, process, profile, or Agent authority.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -30,6 +31,7 @@ mod webdriver_bidi_navigation_committed_postcondition;
 mod webdriver_bidi_navigation_document_advance;
 mod webdriver_bidi_pointer_click_response;
 mod webdriver_bidi_pointer_click_transport;
+mod webdriver_bidi_received_message;
 mod webdriver_bidi_session_end_command;
 mod webdriver_bidi_session_end_response;
 mod webdriver_bidi_session_status_command;
@@ -79,6 +81,10 @@ pub use webdriver_bidi_pointer_click_response::{
 pub use webdriver_bidi_pointer_click_transport::{
     WebDriverBiDiPointerClickSendError, send_webdriver_bidi_pointer_click,
 };
+pub use webdriver_bidi_received_message::{
+    WebDriverBiDiConnectionMessageRead, WebDriverBiDiConnectionMessageReadError,
+    WebDriverBiDiReceivedTextMessage, WebDriverBiDiWebSocketMessageReader,
+};
 pub use webdriver_bidi_session_end_command::{
     WebDriverBiDiSessionEndCommand, WebDriverBiDiSessionEndCommandError,
 };
@@ -93,8 +99,8 @@ pub use webdriver_bidi_session_status_response::{
     WebDriverBiDiSessionStatusResult,
 };
 pub use webdriver_bidi_session_teardown::{
-    WebDriverBiDiSessionTeardownAssessment, WebDriverBiDiSessionTeardownDisposition,
-    WebDriverBiDiSessionTeardownObservations,
+    WebDriverBiDiSessionTeardownAssessment, WebDriverBiDiSessionTeardownAssessmentError,
+    WebDriverBiDiSessionTeardownDisposition, WebDriverBiDiSessionTeardownObservations,
 };
 pub use webdriver_bidi_websocket_frame::{
     MAX_WEBSOCKET_FRAME_PAYLOAD_SIZE, MAX_WEBSOCKET_FRAME_TIMEOUT,
