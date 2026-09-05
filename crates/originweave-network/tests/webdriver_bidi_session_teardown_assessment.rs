@@ -19,6 +19,7 @@ use originweave_network::{
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
+const SECOND_SESSION_ID: &str = "fedcba98-7654-3210-fedc-ba9876543210";
 const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
 const OPENING_RESPONSE: &[u8] = b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n";
 const END_SUCCESS_RESPONSE: &[u8] = br#"{"type":"success","id":7,"result":{}}"#;
@@ -67,7 +68,9 @@ fn read_masked_text_frame(stream: &mut TcpStream) -> io::Result<Vec<u8>> {
     Ok(payload)
 }
 
-fn correlated_session_end_ack_and_transport() -> Result<
+fn correlated_session_end_ack_and_transport_for(
+    session_id: &str,
+) -> Result<
     (
         WebDriverBiDiSessionEndResult,
         WebDriverBiDiWebSocketEstablished,
@@ -92,9 +95,9 @@ fn correlated_session_end_ack_and_transport() -> Result<
         stream.write_all(NORMAL_CLOSE_FRAME)
     });
 
-    let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+    let endpoint = format!("ws://{local_addr}/session/{session_id}");
     let target = WebDriverBiDiWebSocketEndpoint::new(&endpoint)?
-        .correlate_session_id(SESSION_ID)?
+        .correlate_session_id(session_id)?
         .into_explicit_connect_target()?;
     let connection =
         WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)?.connect()?;
@@ -126,6 +129,16 @@ fn correlated_session_end_ack_and_transport() -> Result<
         .join()
         .map_err(|_| io::Error::other("session.end teardown test server panicked"))??;
     Ok((acknowledged, established))
+}
+
+fn correlated_session_end_ack_and_transport() -> Result<
+    (
+        WebDriverBiDiSessionEndResult,
+        WebDriverBiDiWebSocketEstablished,
+    ),
+    Box<dyn Error>,
+> {
+    correlated_session_end_ack_and_transport_for(SESSION_ID)
 }
 
 fn observed_transport_closure(
@@ -205,17 +218,16 @@ fn typed_transport_closure_cannot_complete_teardown_without_process_and_profile_
     Ok(())
 }
 
-#[test]
-fn closure_from_another_connection_is_rejected_for_the_acknowledged_transport()
--> Result<(), Box<dyn Error>> {
-    let (acknowledged_a, established_a) = correlated_session_end_ack_and_transport()?;
-    let (_acknowledged_b, established_b) = correlated_session_end_ack_and_transport()?;
-    drop(established_a);
-
-    let closure_b = observed_transport_closure(established_b)?;
+fn assert_cross_connection_closure_rejected(
+    acknowledged: WebDriverBiDiSessionEndResult,
+    established_to_drop: WebDriverBiDiWebSocketEstablished,
+    foreign_established: WebDriverBiDiWebSocketEstablished,
+) -> Result<(), Box<dyn Error>> {
+    drop(established_to_drop);
+    let foreign_closure = observed_transport_closure(foreign_established)?;
     let result = WebDriverBiDiSessionTeardownAssessment::from_protocol_ack(
-        acknowledged_a,
-        WebDriverBiDiSessionTeardownObservations::new(Some(closure_b)),
+        acknowledged,
+        WebDriverBiDiSessionTeardownObservations::new(Some(foreign_closure)),
     );
 
     let error = result
@@ -231,4 +243,21 @@ fn closure_from_another_connection_is_rejected_for_the_acknowledged_transport()
     );
     assert!(error.source().is_none());
     Ok(())
+}
+
+#[test]
+fn reconnected_same_session_cannot_supply_closure_for_the_acknowledged_transport()
+-> Result<(), Box<dyn Error>> {
+    let (acknowledged_a, established_a) = correlated_session_end_ack_and_transport_for(SESSION_ID)?;
+    let (_acknowledged_b, established_b) = correlated_session_end_ack_and_transport_for(SESSION_ID)?;
+    assert_cross_connection_closure_rejected(acknowledged_a, established_a, established_b)
+}
+
+#[test]
+fn another_session_cannot_supply_closure_for_the_acknowledged_transport()
+-> Result<(), Box<dyn Error>> {
+    let (acknowledged_a, established_a) = correlated_session_end_ack_and_transport_for(SESSION_ID)?;
+    let (_acknowledged_b, established_b) =
+        correlated_session_end_ack_and_transport_for(SECOND_SESSION_ID)?;
+    assert_cross_connection_closure_rejected(acknowledged_a, established_a, established_b)
 }
