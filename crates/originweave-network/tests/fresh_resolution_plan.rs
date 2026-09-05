@@ -7,8 +7,8 @@ use originweave_destination::{
 };
 use originweave_network::{FreshConnectionPlan, NetworkError};
 
-fn fresh_loopback_snapshot() -> Result<FreshResolutionSnapshot, String> {
-    let origin = Origin::parse("http://localhost")
+fn fresh_loopback_snapshot(port: u16) -> Result<FreshResolutionSnapshot, String> {
+    let origin = Origin::parse(&format!("http://localhost:{port}"))
         .map_err(|error| format!("loopback origin fixture is invalid: {error:?}"))?;
     FreshResolutionSnapshot::approve(
         origin,
@@ -22,12 +22,12 @@ fn fresh_loopback_snapshot() -> Result<FreshResolutionSnapshot, String> {
 
 #[test]
 fn connection_plan_requires_a_current_fresh_resolution_authority() -> Result<(), String> {
-    let snapshot = fresh_loopback_snapshot()?;
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
         .map_err(|error| format!("bind loopback listener: {error}"))?;
     let socket = listener
         .local_addr()
         .map_err(|error| format!("read loopback listener address: {error}"))?;
+    let snapshot = fresh_loopback_snapshot(socket.port())?;
 
     let plan = FreshConnectionPlan::new(
         &snapshot,
@@ -52,8 +52,8 @@ fn connection_plan_requires_a_current_fresh_resolution_authority() -> Result<(),
 
 #[test]
 fn expired_resolution_cannot_create_a_connection_plan() -> Result<(), String> {
-    let snapshot = fresh_loopback_snapshot()?;
     let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8080);
+    let snapshot = fresh_loopback_snapshot(socket.port())?;
 
     let result = FreshConnectionPlan::new(
         &snapshot,
@@ -79,8 +79,8 @@ fn expired_resolution_cannot_create_a_connection_plan() -> Result<(), String> {
 
 #[test]
 fn plan_must_still_be_fresh_at_actual_socket_use() -> Result<(), String> {
-    let snapshot = fresh_loopback_snapshot()?;
     let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9);
+    let snapshot = fresh_loopback_snapshot(socket.port())?;
     let plan = FreshConnectionPlan::new(
         &snapshot,
         Duration::from_secs(12),
@@ -107,8 +107,8 @@ fn plan_must_still_be_fresh_at_actual_socket_use() -> Result<(), String> {
 
 #[test]
 fn socket_use_time_cannot_regress_before_plan_authorization() -> Result<(), String> {
-    let snapshot = fresh_loopback_snapshot()?;
     let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9);
+    let snapshot = fresh_loopback_snapshot(socket.port())?;
     let plan = FreshConnectionPlan::new(
         &snapshot,
         Duration::from_secs(12),
@@ -135,8 +135,8 @@ fn socket_use_time_cannot_regress_before_plan_authorization() -> Result<(), Stri
 
 #[test]
 fn fresh_resolution_still_requires_valid_connection_parameters() -> Result<(), String> {
-    let snapshot = fresh_loopback_snapshot()?;
     let invalid_socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
+    let snapshot = fresh_loopback_snapshot(80)?;
 
     let result = FreshConnectionPlan::new(
         &snapshot,
@@ -147,5 +147,35 @@ fn fresh_resolution_still_requires_valid_connection_parameters() -> Result<(), S
     );
 
     assert!(matches!(result, Err(NetworkError::InvalidPort)));
+    Ok(())
+}
+
+#[test]
+fn connection_port_must_match_the_approved_logical_origin() -> Result<(), String> {
+    let origin = Origin::parse("http://localhost:8080")
+        .map_err(|error| format!("loopback origin fixture is invalid: {error:?}"))?;
+    let snapshot = FreshResolutionSnapshot::approve(
+        origin,
+        [IpAddr::V4(Ipv4Addr::LOCALHOST)],
+        &DestinationPolicy::from_allowed_classes([AddressClass::Loopback]),
+        Duration::from_secs(10),
+        Duration::from_secs(5),
+    )
+    .map_err(|error| format!("fresh loopback snapshot is invalid: {error}"))?;
+    let mismatched_socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8081);
+
+    assert!(matches!(
+        FreshConnectionPlan::new(
+            &snapshot,
+            Duration::from_secs(12),
+            mismatched_socket,
+            Duration::from_secs(1),
+            1,
+        ),
+        Err(NetworkError::OriginPortMismatch {
+            socket_port: 8081,
+            origin_port: 8080,
+        })
+    ));
     Ok(())
 }

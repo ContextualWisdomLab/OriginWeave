@@ -34,8 +34,12 @@ fn origin_accepts_secure_and_loopback_origins() {
     assert_eq!(secure_ipv6.as_str(), "https://[2001:db8::1]");
     assert_eq!(secure.scheme(), "https");
     assert_eq!(secure.host(), "example.com");
+    assert_eq!(secure.port(), 443);
+    assert_eq!(secure_custom.port(), 8443);
     assert_eq!(localhost.scheme(), "http");
     assert_eq!(localhost.host(), "localhost");
+    assert_eq!(localhost.port(), 80);
+    assert_eq!(localhost_custom.port(), 8080);
     assert_eq!(ipv4.host(), "127.0.0.1");
     assert_eq!(ipv6.host(), "::1");
     assert_eq!(secure_ipv6.host(), "2001:db8::1");

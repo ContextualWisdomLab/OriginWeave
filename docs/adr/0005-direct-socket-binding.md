@@ -23,7 +23,7 @@ A caller supplies:
 - a timeout in `1ns..=30s`;
 - an attempt count in `1..=4`.
 
-`ConnectionPlan::new` rejects port zero, invalid bounds, addresses absent from the snapshot, and IPv4-mapped IPv6 or any other form that differs from the snapshot's canonical address. The plan is non-cloneable and is consumed by `connect`, preventing accidental replay of the same authority.
+`ConnectionPlan::new` rejects port zero, a port different from the effective port of the snapshot's logical origin, invalid bounds, addresses absent from the snapshot, and IPv4-mapped IPv6 or any other form that differs from the snapshot's canonical address. The plan is non-cloneable and is consumed by `connect`, preventing accidental replay of the same authority.
 
 The production path calls `TcpStream::connect_timeout` with that exact `SocketAddr`; it never accepts a hostname and never resolves again. After the operating system establishes the stream, the crate calls `peer_addr`. The stream is exposed only when the observed peer matches the requested IP and port exactly.
 
