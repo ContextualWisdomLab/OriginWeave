@@ -9,9 +9,10 @@
 //! unmasked server-frame reads, assembles bounded WebDriver BiDi text messages,
 //! classifies complete local-end JSON envelopes, tracks bounded command-response
 //! correlation, sends narrowly typed `session.status` and `session.end` commands,
-//! admits typed correlated status and end responses, and keeps protocol teardown
-//! acknowledgment separate from explicit operational teardown observations without
-//! exposing generic JSON bodies or granting browser, TLS, policy, secret, or Agent authority.
+//! admits typed correlated status and end responses, observes bounded peer Close
+//! or clean-EOF transport cessation, and keeps protocol/transport evidence separate
+//! from explicit operational teardown observations without exposing generic JSON
+//! bodies or granting browser, TLS, policy, secret, process, profile, or Agent authority.
 
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -29,6 +30,7 @@ mod webdriver_bidi_websocket_frame;
 mod webdriver_bidi_websocket_handshake;
 mod webdriver_bidi_websocket_message;
 mod webdriver_bidi_websocket_opening_recovery;
+mod webdriver_bidi_websocket_transport_closure;
 
 #[cfg(test)]
 mod webdriver_bidi_json_envelope_public_boundary_tests;
@@ -87,3 +89,7 @@ pub use webdriver_bidi_websocket_message::{
     WebDriverBiDiWebSocketTextMessage,
 };
 pub use webdriver_bidi_websocket_opening_recovery::WebDriverBiDiWebSocketOpeningWriteRecoveryDisposition;
+pub use webdriver_bidi_websocket_transport_closure::{
+    WebDriverBiDiWebSocketTransportClosureError, WebDriverBiDiWebSocketTransportClosureKind,
+    WebDriverBiDiWebSocketTransportClosureObservation,
+};

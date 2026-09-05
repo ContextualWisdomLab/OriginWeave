@@ -4,11 +4,14 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Integrated the current teardown prerequisites into transport-closure observation, including the previously uncollected release-record check, while retaining the unresolved connection-provenance finding and its downstream repair ownership.
+
 ### Added
 
 - Typed outbound WebDriver BiDi `session.end` over the bounded client WebSocket stream: it serializes only the standards-defined method with empty params, rejects invalid frame deadlines before correlation registration, retires only the just-registered id when frame preflight proves no command bytes were emitted, preserves exact command-kind correlation across ambiguous writes, and does not treat frame-write success as proof that the browser session ended.
 - Typed `session.end` response admission that consumes only the exact outstanding command-kind correlation after complete envelope validation, preserves remote protocol errors as failures, and does not claim browser-process exit or resource cleanup from a protocol acknowledgment.
 - Fail-closed `session.end` teardown assessment that keeps the correlated protocol acknowledgment separate from explicit transport-closure, browser-process-exit, and task-profile-removal observations, reporting completion only when all three are present and without treating caller-supplied observations as authenticated evidence.
+- Bounded WebDriver BiDi transport-closure observation that consumes the established stream, accepts only a validated peer Close frame or clean pre-frame EOF, permits at most one unsolicited Pong, and keeps transport closure separate from process-exit and profile-cleanup claims.
 - The typed browser-status response stack now includes its verified command and opening-exchange prerequisites, including the release-record check that previously did not execute; parsing remains bounded and does not grant browser authority or prove operational readiness.
 - Bounded RFC 6455 WebDriver BiDi opening-response validation on the exact peer-verified stream: it admits only HTTP/1.1 `101`, case-insensitive `Upgrade`/`Connection` tokens, and the client-key-correlated `Sec-WebSocket-Accept` value within monotonic time and header-size ceilings; it restores blocking mode and still does not implement WebSocket frames or grant browser/Agent authority.
 - Typed outbound WebDriver BiDi `session.status` over the bounded client WebSocket stream: it serializes only the standards-defined method with empty params, preserves exact typed command-id correlation, rejects invalid frame deadlines before registration, retires only the just-registered id when a local masking-key preflight proves no command bytes were emitted, and keeps correlation outstanding after partial or ambiguous writes; frame-write success is not treated as command completion or browser/Agent authority.

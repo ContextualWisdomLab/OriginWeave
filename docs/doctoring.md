@@ -136,6 +136,12 @@ PR #253 ordinarily adopts response parent `6569bf40b6595ac74c2f0a997d202137f07ba
 
 The retained assessment still accepts three caller-supplied booleans and can label them `OperationallyComplete`; that calculation authenticates none of the observations and is not trusted operational-completion evidence. This known product gap remains open despite passing local structural tests or numerical coverage. The later #255 owner removes raw process/profile completion claims and binds received-response and closure provenance. That owner repair must remain intact when this dependency chain is integrated and independently reverified. No release or protected-main acceptance of caller claims is justified by this intermediate parent adoption.
 
+### Transport-closure parent integration and provenance limit
+
+PR #254 ordinarily adopts teardown parent `afb623e4449b7cbf926fdcef7225ceaca822cfcf` while retaining the closure implementation, exports and six loopback tests from `cbaf50dcc97753cc73135497ea8225e8b18de190`. The native correlation release-record contract first collected zero checks; the existing parent TestCase makes it execute. Both conflicting release records remain, and the synchronized opening fixtures are inherited without duplicating their repair.
+
+Review `5120077272` remains actionable: this intermediate closure value retains kind/status but no connection-generation identity, so it cannot prove that a particular acknowledged connection closed. The existing #255 owner carries and compares received-response and closure provenance and removes raw process/profile completion claims. Preserve that repair during subsequent integration; no local test or coverage result for this parent adoption establishes that the known provenance gap is fixed. The two-read closure envelope, rejection behavior and lack of reciprocal-handshake, process-exit or profile-removal proof are unchanged.
+
 ## References
 
 Amazon Web Services. (n.d.). *Set up the Amazon EKS Pod Identity Agent*. Retrieved August 6, 2026, from https://docs.aws.amazon.com/eks/latest/userguide/pod-id-agent-setup.html
