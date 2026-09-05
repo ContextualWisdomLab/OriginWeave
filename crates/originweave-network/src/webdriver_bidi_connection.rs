@@ -29,7 +29,7 @@ fn allocate_connection_generation(
     counter: &AtomicU64,
 ) -> Result<WebDriverBiDiConnectionGeneration, WebDriverBiDiTcpConnectionError> {
     counter
-        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+        .try_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
             current.checked_add(1)
         })
         .map(WebDriverBiDiConnectionGeneration)
@@ -107,6 +107,14 @@ impl WebDriverBiDiTcpConnectionPlan {
         self,
         connector: &dyn WebDriverBiDiSocketConnector,
     ) -> Result<WebDriverBiDiTcpConnection, WebDriverBiDiTcpConnectionError> {
+        self.connect_with_generation_counter(connector, &NEXT_CONNECTION_GENERATION)
+    }
+
+    fn connect_with_generation_counter(
+        self,
+        connector: &dyn WebDriverBiDiSocketConnector,
+        generation_counter: &AtomicU64,
+    ) -> Result<WebDriverBiDiTcpConnection, WebDriverBiDiTcpConnectionError> {
         let socket_address = self.target.socket_addr();
         let connect_timeout = self.connect_timeout;
         let maximum_attempts = self.maximum_attempts;
@@ -130,8 +138,7 @@ impl WebDriverBiDiTcpConnectionPlan {
                                 attempt_number,
                                 source,
                             })?;
-                    let connection_generation =
-                        allocate_connection_generation(&NEXT_CONNECTION_GENERATION)?;
+                    let connection_generation = allocate_connection_generation(generation_counter)?;
                     return Ok(WebDriverBiDiTcpConnection {
                         stream,
                         verified_peer,
