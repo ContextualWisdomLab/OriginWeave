@@ -26,16 +26,16 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "## Observed snapshot: 2026-08-29", 1
         )[0]
         for marker in (
-            "125 open pull requests",
+            "124 open pull requests",
             "13 Ready/non-draft",
-            "112 Draft",
+            "111 Draft",
             "13 open non-PR issues",
             "87c4daa1830bac5a5228b6036752ad5633232085",
             "18156473",
             "7 central required workflows",
             "codeql-pr",
             "Live GitHub PR/base/head/check APIs are authoritative over PR bodies",
-            "Ready roots are #37 `fa34a696e4ed9b2529a65a7d6a45ac8b72ecefb3`, #50 `30d032b64c8eca669fa029a9d9915519cc467e99`, #166 `e84a1a2cc82b1c666218efd441da97849f47b8c2`, #219 `65e4315d80137badc0b55e1b9617015beb1db568`, #220 `e545b94e1de499b96b867694f80ac04ad247becd`, #229 `024f63690cf05cfe6f0d4a430f0e18ea8fd2c4d6`, #240 `24930a3a9ee79c0b712ee3df6589b0592eb6e18f`, #247 `6407895f4db4bee640074cb9c9d3cbe8b0e9e13a`, #272 `b1cae8ad1cbd8eb6992037c830aea30b9aa436b3`, #274 `802d0bdff7536d9ac253305d3e0237b4e4a1789e`, #285 `f455c2cd64b3dd3f027c91d396103792a205ddd0`, and #287 `af83c40dd2990a03064a92ca75430a9cc400f098`",
+            "Ready roots are #37 `fa34a696e4ed9b2529a65a7d6a45ac8b72ecefb3`, #50 `30d032b64c8eca669fa029a9d9915519cc467e99`, #166 `e84a1a2cc82b1c666218efd441da97849f47b8c2`, #219 `65e4315d80137badc0b55e1b9617015beb1db568`, #220 `e545b94e1de499b96b867694f80ac04ad247becd`, #229 `024f63690cf05cfe6f0d4a430f0e18ea8fd2c4d6`, #240 `24930a3a9ee79c0b712ee3df6589b0592eb6e18f`, #248 `de7754aaeb97ccb0fd47bcbe1c4d99c10eaf84eb`, #272 `b1cae8ad1cbd8eb6992037c830aea30b9aa436b3`, #274 `802d0bdff7536d9ac253305d3e0237b4e4a1789e`, #285 `f455c2cd64b3dd3f027c91d396103792a205ddd0`, and #287 `af83c40dd2990a03064a92ca75430a9cc400f098`",
             "PR #238's moving exact head is intentionally omitted",
             "Issue #279",
             "Issue #28 remains the P0 governed-browser integration target",
