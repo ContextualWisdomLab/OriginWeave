@@ -70,6 +70,7 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
             "| #96 | Draft | `97aa0f2e340ee6fd920d0418f97af276b190554f` | `b7ba8dd1433410cee43084a73e31816da841b2a2` |",
             "| #101 | Draft | `b7ba8dd1433410cee43084a73e31816da841b2a2` | `bc810b121bb0303f55afa8777a23cc0f9748c1db` |",
             "| #102 | Draft | `bc810b121bb0303f55afa8777a23cc0f9748c1db` | `a123c55d4839dae1db7e6671f7d4d158c7cfd9db` |",
+            "| #103 | Draft | `a123c55d4839dae1db7e6671f7d4d158c7cfd9db` | `8b3416169346fa04b53c915b813d55ccf47d1876` |",
             "| #124 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `fdb88698ca20626a6643bc2ad7944fb968835700` |",
             "| #37 | Ready | `542ca1e9c0a863595b8b6697790005d2471f5413` | `5e3dfcbd7a4daea297782cb99635990368589232` |",
         ):

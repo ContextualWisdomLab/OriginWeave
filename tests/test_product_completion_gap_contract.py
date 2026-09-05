@@ -127,6 +127,8 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "known-disabled interactive action",
             "#102 is Draft at exact head `a123c55d4839dae1db7e6671f7d4d158c7cfd9db`",
             "ObservationAuthorityMismatch",
+            "#103 is Draft at exact head `8b3416169346fa04b53c915b813d55ccf47d1876`",
+            "browser authority first",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, current)
@@ -164,6 +166,11 @@ class ProductCompletionGapContractTests(unittest.TestCase):
         self.assertIn(
             "| #102 | Draft | `bc810b121bb0303f55afa8777a23cc0f9748c1db` | "
             "`a123c55d4839dae1db7e6671f7d4d158c7cfd9db` |",
+            text,
+        )
+        self.assertIn(
+            "| #103 | Draft | `a123c55d4839dae1db7e6671f7d4d158c7cfd9db` | "
+            "`8b3416169346fa04b53c915b813d55ccf47d1876` |",
             text,
         )
 
