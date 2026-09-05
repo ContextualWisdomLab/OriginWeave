@@ -113,6 +113,14 @@ PR #102 compares a retained action target with one supplied current semantic obs
 
 The method does not obtain the fresh observation or authenticate its timing and provenance. It does not dispatch browser input, replace registry-issued typed-input authority, or prove a post-condition. Those responsibilities remain with the trusted adapter and later authority, transport, and verification boundaries.
 
+### PR #103 — same-call current semantic dispatch gate
+
+**Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
+
+PR #103 combines the two immediate-use checks before one adapter callback: registry-owned browser authority is checked first, then fresh semantic state is checked second for exact node identity, retained action support, and required enabled state. The callback is never invoked when either check fails.
+
+This boundary does not obtain or authenticate the observation, execute Chromium by itself, or add destination, network, secret, or approval authority. Callback completion remains adapter-local and is not post-condition proof.
+
 ## 4. Non-transitive success semantics
 
 The intended first-slice chain remains:

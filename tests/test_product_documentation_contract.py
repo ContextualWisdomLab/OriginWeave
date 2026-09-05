@@ -416,6 +416,25 @@ class ProductDocumentationContractTests(unittest.TestCase):
                 self.assertIn(phrase, traceability)
         self.assertIn("Fresh semantic-observation comparison", changelog)
 
+    def test_current_semantic_dispatch_is_durably_scoped(self) -> None:
+        """Same-call checks must precede dispatch without becoming observation or outcome proof."""
+
+        traceability = (
+            ROOT / "docs/traceability/action-postcondition-evidence.md"
+        ).read_text(encoding="utf-8")
+        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        for phrase in (
+            "PR #103",
+            "browser authority is checked first",
+            "fresh semantic state is checked second",
+            "callback is never invoked",
+            "does not obtain or authenticate the observation",
+            "not post-condition proof",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, traceability)
+        self.assertIn("Same-call browser-authority and semantic-state dispatch gate", changelog)
+
     def test_traceability_labels_conversation_derived_future_work(self) -> None:
         """Conversation decisions must preserve canonical maturity instead of becoming shipped claims."""
         traceability = (ROOT / "docs/traceability/README.md").read_text(encoding="utf-8")

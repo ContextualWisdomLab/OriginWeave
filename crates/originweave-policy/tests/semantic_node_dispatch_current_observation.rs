@@ -213,9 +213,7 @@ fn stale_registry_authority_never_reaches_semantic_dispatch() -> Result<(), Box<
     assert!(matches!(
         error,
         SemanticNodeDispatchValidationError::BrowserAuthority(
-            AdmittedNodeAuthorityError::BrowserAuthority(
-                BrowserRegistryError::ContextOriginNotBound
-            )
+            AdmittedNodeAuthorityError::NotAdmitted
         )
     ));
     assert!(!called.get());
