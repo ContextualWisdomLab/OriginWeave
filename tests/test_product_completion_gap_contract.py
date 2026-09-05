@@ -121,6 +121,12 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "#95 is Draft at exact head `97aa0f2e340ee6fd920d0418f97af276b190554f`",
             "Only `Decision::Allow`",
             "`NotAdmitted`",
+            "#96 is Draft at exact head `b7ba8dd1433410cee43084a73e31816da841b2a2`",
+            "callback is never invoked",
+            "#101 is Draft at exact head `bc810b121bb0303f55afa8777a23cc0f9748c1db`",
+            "known-disabled interactive action",
+            "#102 is Draft at exact head `a123c55d4839dae1db7e6671f7d4d158c7cfd9db`",
+            "ObservationAuthorityMismatch",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, current)
@@ -143,6 +149,21 @@ class ProductCompletionGapContractTests(unittest.TestCase):
         self.assertIn(
             "| #95 | Draft | `0664f0452cb329cd692cce7f61f9001652abfda2` | "
             "`97aa0f2e340ee6fd920d0418f97af276b190554f` |",
+            text,
+        )
+        self.assertIn(
+            "| #96 | Draft | `97aa0f2e340ee6fd920d0418f97af276b190554f` | "
+            "`b7ba8dd1433410cee43084a73e31816da841b2a2` |",
+            text,
+        )
+        self.assertIn(
+            "| #101 | Draft | `b7ba8dd1433410cee43084a73e31816da841b2a2` | "
+            "`bc810b121bb0303f55afa8777a23cc0f9748c1db` |",
+            text,
+        )
+        self.assertIn(
+            "| #102 | Draft | `bc810b121bb0303f55afa8777a23cc0f9748c1db` | "
+            "`a123c55d4839dae1db7e6671f7d4d158c7cfd9db` |",
             text,
         )
 
