@@ -4,8 +4,9 @@
 //! without hostname resolution or proxy inheritance, verifies operating-system
 //! peers before exposing transport I/O, and emits credential-free evidence.
 //! It also bridges a session-correlated WebDriver BiDi loopback target from
-//! `originweave-core` into one bounded exact TCP connection and can bind an inert
-//! RFC 6455 opening request to an already-verified plain BiDi stream without
+//! `originweave-core` into one bounded exact TCP connection, binds an RFC 6455
+//! opening request to that verified plain stream, and can write that exact request
+//! under one bounded deadline without claiming a completed WebSocket handshake or
 //! granting browser, WebSocket, TLS, policy, or Agent authority.
 
 #![forbid(unsafe_code)]
@@ -14,6 +15,7 @@
 mod connection;
 mod webdriver_bidi_connection;
 mod webdriver_bidi_websocket_handshake;
+mod webdriver_bidi_websocket_opening_recovery;
 
 pub use connection::{
     ConnectionPlan, DirectTcpConnection, MAX_CONNECT_TIMEOUT, MAX_CONNECTION_ATTEMPTS,
@@ -24,6 +26,8 @@ pub use webdriver_bidi_connection::{
     WebDriverBiDiTcpConnectionEvidence, WebDriverBiDiTcpConnectionPlan,
 };
 pub use webdriver_bidi_websocket_handshake::{
-    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakeError,
-    WebDriverBiDiWebSocketHandshakePlan,
+    MAX_WEBSOCKET_OPENING_WRITE_TIMEOUT, WebDriverBiDiWebSocketClientKey,
+    WebDriverBiDiWebSocketHandshakeError, WebDriverBiDiWebSocketHandshakePlan,
+    WebDriverBiDiWebSocketOpeningRequestSent, WebDriverBiDiWebSocketOpeningWriteError,
 };
+pub use webdriver_bidi_websocket_opening_recovery::WebDriverBiDiWebSocketOpeningWriteRecoveryDisposition;
