@@ -25,6 +25,12 @@ pub enum WebDriverBiDiCommandKind {
     SessionEnd,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct OutstandingCommand {
+    kind: WebDriverBiDiCommandKind,
+    connection_generation: Option<u64>,
+}
+
 /// Outcome of a response after it has consumed the matching outstanding command identifier.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WebDriverBiDiCorrelatedResponseOutcome {
@@ -36,12 +42,15 @@ pub enum WebDriverBiDiCorrelatedResponseOutcome {
 
 /// Credential-free evidence that one parsed response consumed one outstanding local command.
 ///
-/// This value carries only the matched command identifier and success/error classification. It
-/// does not retain result bodies, error text, browser authority, transport authority, or secrets.
+/// This value carries only the matched command identifier and success/error classification. A
+/// private process-local connection generation is retained when the command owner bound one before
+/// I/O so later transport evidence can be compared without accepting caller-supplied provenance.
+/// It does not retain result bodies, error text, browser authority, transport authority, or secrets.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct WebDriverBiDiCorrelatedResponse {
     command_id: u64,
     outcome: WebDriverBiDiCorrelatedResponseOutcome,
+    connection_generation: Option<u64>,
 }
 
 impl WebDriverBiDiCorrelatedResponse {
@@ -55,6 +64,10 @@ impl WebDriverBiDiCorrelatedResponse {
     #[must_use]
     pub const fn outcome(&self) -> WebDriverBiDiCorrelatedResponseOutcome {
         self.outcome
+    }
+
+    pub(crate) const fn connection_generation(&self) -> Option<u64> {
+        self.connection_generation
     }
 }
 
@@ -106,14 +119,16 @@ impl Error for WebDriverBiDiCommandCorrelationError {}
 /// Bounded local WebDriver BiDi command-response correlation state.
 ///
 /// Register an id together with its exact typed command family only after the caller has committed
-/// to that outbound command. A success or correlatable error response consumes the id exactly once
-/// only through a matching typed consumer. Events, null-id errors, and command-kind mismatches leave
-/// outstanding state untouched. This type performs no I/O, retry, command serialization, browser
-/// authentication, or authority grant. Debug output reports only the outstanding-count summary;
-/// command identifiers and command families remain private correlation state.
+/// to that outbound command. Connection-owning command adapters may additionally bind the private
+/// generation of the exact established transport before I/O. A success or correlatable error
+/// response consumes the id exactly once only through a matching typed consumer. Events, null-id
+/// errors, and command-kind mismatches leave outstanding state untouched. This type performs no I/O,
+/// retry, command serialization, browser authentication, or authority grant. Debug output reports
+/// only the outstanding-count summary; command identifiers, families, and generations remain
+/// private correlation state.
 #[derive(Default)]
 pub struct WebDriverBiDiCommandCorrelation {
-    outstanding: BTreeMap<u64, WebDriverBiDiCommandKind>,
+    outstanding: BTreeMap<u64, OutstandingCommand>,
 }
 
 impl fmt::Debug for WebDriverBiDiCommandCorrelation {
@@ -148,6 +163,28 @@ impl WebDriverBiDiCommandCorrelation {
         command_id: u64,
         command_kind: WebDriverBiDiCommandKind,
     ) -> Result<(), WebDriverBiDiCommandCorrelationError> {
+        self.register(command_id, command_kind, None)
+    }
+
+    pub(crate) fn register_command_for_connection(
+        &mut self,
+        command_id: u64,
+        command_kind: WebDriverBiDiCommandKind,
+        connection_generation: u64,
+    ) -> Result<(), WebDriverBiDiCommandCorrelationError> {
+        self.register(
+            command_id,
+            command_kind,
+            Some(connection_generation),
+        )
+    }
+
+    fn register(
+        &mut self,
+        command_id: u64,
+        command_kind: WebDriverBiDiCommandKind,
+        connection_generation: Option<u64>,
+    ) -> Result<(), WebDriverBiDiCommandCorrelationError> {
         if command_id > MAX_WEBDRIVER_BIDI_JS_UINT {
             return Err(WebDriverBiDiCommandCorrelationError::CommandIdOutOfRange);
         }
@@ -157,7 +194,13 @@ impl WebDriverBiDiCommandCorrelation {
         if self.outstanding.len() >= MAX_WEBDRIVER_BIDI_OUTSTANDING_COMMANDS {
             return Err(WebDriverBiDiCommandCorrelationError::OutstandingCommandLimit);
         }
-        let _previous = self.outstanding.insert(command_id, command_kind);
+        let _previous = self.outstanding.insert(
+            command_id,
+            OutstandingCommand {
+                kind: command_kind,
+                connection_generation,
+            },
+        );
         Ok(())
     }
 
@@ -211,19 +254,19 @@ impl WebDriverBiDiCommandCorrelation {
         &self,
         command_id: u64,
         expected_kind: WebDriverBiDiCommandKind,
-    ) -> Result<(), WebDriverBiDiCommandCorrelationError> {
+    ) -> Result<OutstandingCommand, WebDriverBiDiCommandCorrelationError> {
         let actual = self
             .outstanding
             .get(&command_id)
             .copied()
             .ok_or(WebDriverBiDiCommandCorrelationError::CommandNotOutstanding)?;
-        if actual != expected_kind {
+        if actual.kind != expected_kind {
             return Err(WebDriverBiDiCommandCorrelationError::CommandKindMismatch {
                 expected: expected_kind,
-                actual,
+                actual: actual.kind,
             });
         }
-        Ok(())
+        Ok(actual)
     }
 
     fn complete(
@@ -232,11 +275,12 @@ impl WebDriverBiDiCommandCorrelation {
         expected_kind: WebDriverBiDiCommandKind,
         outcome: WebDriverBiDiCorrelatedResponseOutcome,
     ) -> Result<WebDriverBiDiCorrelatedResponse, WebDriverBiDiCommandCorrelationError> {
-        self.require_command_kind(command_id, expected_kind)?;
+        let outstanding = self.require_command_kind(command_id, expected_kind)?;
         let _removed = self.outstanding.remove(&command_id);
         Ok(WebDriverBiDiCorrelatedResponse {
             command_id,
             outcome,
+            connection_generation: outstanding.connection_generation,
         })
     }
 }
