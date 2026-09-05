@@ -98,6 +98,12 @@ TRINITY uses a compact learned coordinator to select models and assign Thinker, 
 
 These results motivate explicit OriginWeave configuration for model routing, workflow stage, decomposition, recursion depth, permitted access, role assignment, and role-specific reasoning effort. They do not justify always using multiple agents. OriginWeave must compare bounded single-model, routed-model, and deeper multi-agent configurations through task-success, safety, variance, token, and compute ablations. No learned coordinator may expand browser capabilities, origins, destinations, approvals, secrets, or deterministic policy.
 
+### Loopback fixture lifetime and dependency propagation
+
+On 5 September 2026, the complete Rust run at PR #255 head `e7bfec4488b7cb4776df7b546cacb46c8c9eb13e` failed before its invalid response-deadline assertion: the fixture accepted and immediately dropped the peer socket, and opening-write timeout cleanup returned macOS `EINVAL` after 198 bytes. The focused retry and complete unchanged-tree retry passed, so those retries demonstrate intermittency rather than repair. PR #243 head `673d99affaed4d16402f23202bc846348b5a7e74` contains the identical fixture blob `9d688cd2f89ca40d28c8333725809ae80f7713e3`.
+
+The owning opening-response PR #242 already repaired that fixture at `17754d717bbd7ae2e2a824e900d9fa9493b4189c`; its current head `55fef0c3fae1724eddada53e52c4a0311f509aa3` also retains the related opening-write and revoked-stream fixture repairs. PR #243 adopts this exact parent by ordinary merge instead of duplicating the synchronization or tolerating production cleanup errors. Each repaired server retains its accepted stream until the client signals that the assertion or timeout cleanup has completed. This preserves the tested fail-closed behavior without a timing sleep. Descendants must integrate the corrected parent in dependency order and rerun their own complete gates; parent tests and retry success are not descendant acceptance or protected-main delivery.
+
 ## References
 
 Amazon Web Services. (n.d.). *Set up the Amazon EKS Pod Identity Agent*. Retrieved August 6, 2026, from https://docs.aws.amazon.com/eks/latest/userguide/pod-id-agent-setup.html
