@@ -4,6 +4,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Corrected #285's stale native-CI pending claim to exact-head Rust and coverage success, and recorded supported replay admission for its three cancelled security workflows without claiming scan results or lifecycle-trigger repair.
 - Recorded #255's remaining cross-connection response substitution after the sender/closure repair, with a failing real-socket regression and the prerequisite incoming-message binding.
 - Separated #219/#240 terminal Noema gateway failures from queued central CodeQL scans; one failed-job retry per unchanged head is admitted, but no provider recovery or passing review is claimed.
 - Recorded #50's current documentation-repair head and resolved review, preserving predecessor-only full-coverage evidence and the new head's independent hosted-check requirement.

@@ -80,6 +80,8 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "PR #271 is Draft at exact head `802ec806cdd4560eab48c484f435766ecabda353`",
             "PR #285 is Ready at exact head `f455c2cd64b3dd3f027c91d396103792a205ddd0`",
             "CI `33930234387`",
+            "Rust contracts `101207153048` and Production coverage `101207153244` succeeded",
+            "native CI success does not replace the seven required central workflows",
             "Security Scan `33924016851`",
             "SAST Semgrep `33924016903`",
             "CodeQL PR `33924016883`",
