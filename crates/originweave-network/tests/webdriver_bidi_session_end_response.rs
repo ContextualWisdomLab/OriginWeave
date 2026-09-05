@@ -140,8 +140,7 @@ fn send_end_and_read_response(
 }
 
 #[test]
-fn session_end_success_accepts_extensible_empty_result_and_consumes_exact_correlation()
--> Result<(), Box<dyn Error>> {
+fn session_end_success_consumes_exact_connection_correlation() -> Result<(), Box<dyn Error>> {
     let (text, mut correlation) = send_end_and_read_response(END_SUCCESS_RESPONSE)?;
     assert_eq!(correlation.outstanding_count(), 1);
 
@@ -152,8 +151,7 @@ fn session_end_success_accepts_extensible_empty_result_and_consumes_exact_correl
 }
 
 #[test]
-fn session_end_success_rejects_correlation_without_connection_provenance()
--> Result<(), Box<dyn Error>> {
+fn session_end_rejects_unbound_connection_provenance() -> Result<(), Box<dyn Error>> {
     let (text, _connection_bound_correlation) = send_end_and_read_response(END_SUCCESS_RESPONSE)?;
     let mut unbound = WebDriverBiDiCommandCorrelation::new();
     unbound.register_command_for(7, WebDriverBiDiCommandKind::SessionEnd)?;
@@ -205,8 +203,7 @@ fn session_end_remote_error_consumes_only_the_correlated_command() -> Result<(),
 }
 
 #[test]
-fn null_id_error_and_event_do_not_consume_connection_bound_correlation()
--> Result<(), Box<dyn Error>> {
+fn null_id_and_event_preserve_bound_correlation() -> Result<(), Box<dyn Error>> {
     for (response, expected) in [
         (
             END_NULL_ID_ERROR_RESPONSE,
@@ -242,8 +239,7 @@ fn null_id_error_and_event_do_not_consume_connection_bound_correlation()
 }
 
 #[test]
-fn malformed_session_end_envelope_fails_before_consuming_correlation() -> Result<(), Box<dyn Error>>
-{
+fn malformed_envelope_preserves_correlation() -> Result<(), Box<dyn Error>> {
     let (text, mut correlation) = send_end_and_read_response(END_MALFORMED_RESPONSE)?;
     let parsed = WebDriverBiDiSessionEndResult::parse_and_correlate(&text, &mut correlation);
     let error = match parsed {
@@ -267,8 +263,7 @@ fn malformed_session_end_envelope_fails_before_consuming_correlation() -> Result
 }
 
 #[test]
-fn unknown_session_end_response_id_does_not_consume_the_outstanding_command()
--> Result<(), Box<dyn Error>> {
+fn unknown_response_id_preserves_outstanding_command() -> Result<(), Box<dyn Error>> {
     let (text, mut correlation) = send_end_and_read_response(END_UNKNOWN_ID_RESPONSE)?;
     let parsed = WebDriverBiDiSessionEndResult::parse_and_correlate(&text, &mut correlation);
     let error = match parsed {
