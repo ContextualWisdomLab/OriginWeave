@@ -179,3 +179,52 @@ fn connection_port_must_match_the_approved_logical_origin() -> Result<(), String
     ));
     Ok(())
 }
+
+#[test]
+fn default_origin_ports_are_enforced_for_http_and_https() -> Result<(), String> {
+    let policy = DestinationPolicy::from_allowed_classes([AddressClass::Loopback]);
+    let cases = [
+        ("http://localhost", 80_u16, 81_u16),
+        ("https://localhost", 443_u16, 444_u16),
+    ];
+
+    for (origin_text, expected_port, mismatched_port) in cases {
+        let origin = Origin::parse(origin_text)
+            .map_err(|error| format!("default-port origin fixture is invalid: {error:?}"))?;
+        let snapshot = FreshResolutionSnapshot::approve(
+            origin,
+            [IpAddr::V4(Ipv4Addr::LOCALHOST)],
+            &policy,
+            Duration::from_secs(10),
+            Duration::from_secs(5),
+        )
+        .map_err(|error| format!("fresh default-port snapshot is invalid: {error}"))?;
+        let matching_socket =
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), expected_port);
+        let mismatched_socket =
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), mismatched_port);
+
+        assert!(FreshConnectionPlan::new(
+            &snapshot,
+            Duration::from_secs(12),
+            matching_socket,
+            Duration::from_secs(1),
+            1,
+        )
+        .is_ok());
+        assert!(matches!(
+            FreshConnectionPlan::new(
+                &snapshot,
+                Duration::from_secs(12),
+                mismatched_socket,
+                Duration::from_secs(1),
+                1,
+            ),
+            Err(NetworkError::OriginPortMismatch {
+                socket_port,
+                origin_port,
+            }) if socket_port == mismatched_port && origin_port == expected_port
+        ));
+    }
+    Ok(())
+}
