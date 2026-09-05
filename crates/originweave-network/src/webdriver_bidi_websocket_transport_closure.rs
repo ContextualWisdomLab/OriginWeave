@@ -1,6 +1,9 @@
 use std::{error::Error, fmt, time::Duration};
 
-use crate::{WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrameError};
+use crate::{
+    webdriver_bidi_connection::WebDriverBiDiConnectionGeneration,
+    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrameError,
+};
 
 /// Bounded transport-closure condition observed on one consumed WebDriver BiDi WebSocket.
 ///
@@ -28,7 +31,7 @@ pub enum WebDriverBiDiWebSocketTransportClosureKind {
 pub struct WebDriverBiDiWebSocketTransportClosureObservation {
     kind: WebDriverBiDiWebSocketTransportClosureKind,
     peer_close_status_code: Option<u16>,
-    connection_generation: u64,
+    connection_generation: WebDriverBiDiConnectionGeneration,
 }
 
 impl WebDriverBiDiWebSocketTransportClosureObservation {
@@ -54,7 +57,7 @@ impl WebDriverBiDiWebSocketTransportClosureObservation {
         established: WebDriverBiDiWebSocketEstablished,
         frame_timeout: Duration,
         allow_pong: bool,
-        connection_generation: u64,
+        connection_generation: WebDriverBiDiConnectionGeneration,
     ) -> Result<Self, WebDriverBiDiWebSocketTransportClosureError> {
         match established.read_frame(frame_timeout) {
             Ok((established, frame)) if frame.opcode() == 0xa && allow_pong => Self::observe_frame(
@@ -103,7 +106,7 @@ impl WebDriverBiDiWebSocketTransportClosureObservation {
         self.peer_close_status_code
     }
 
-    pub(crate) const fn connection_generation(&self) -> u64 {
+    pub(crate) const fn connection_generation(&self) -> WebDriverBiDiConnectionGeneration {
         self.connection_generation
     }
 }
