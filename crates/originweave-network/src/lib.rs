@@ -10,7 +10,8 @@
 //! binds received fragmented text to one exact verified connection, classifies
 //! complete local-end JSON envelopes, tracks bounded command-response correlation,
 //! transports a narrowly typed pointer click, admits its typed correlated protocol
-//! response, admits a bounded navigation-committed post-condition observation for
+//! response, sends a context-bound committed-navigation subscription and retains
+//! its typed bounded correlated identifier, admits a bounded navigation observation for
 //! one exact registered context and URL, rotates that context's document epoch
 //! only from an exact caller-captured pre-action epoch, derives and binds the
 //! committed HTTP(S) URL's canonical origin to the new document, sends narrowly typed
@@ -29,6 +30,8 @@ mod webdriver_bidi_command_correlation;
 mod webdriver_bidi_connection;
 mod webdriver_bidi_json_envelope;
 mod webdriver_bidi_navigation_committed_postcondition;
+mod webdriver_bidi_navigation_committed_subscription;
+mod webdriver_bidi_navigation_committed_subscription_response;
 mod webdriver_bidi_navigation_document_advance;
 mod webdriver_bidi_navigation_document_origin;
 mod webdriver_bidi_pointer_click_response;
@@ -71,6 +74,15 @@ pub use webdriver_bidi_navigation_committed_postcondition::{
     WEBDRIVER_BIDI_NAVIGATION_COMMITTED_METHOD, WebDriverBiDiNavigationCommittedObservation,
     WebDriverBiDiNavigationCommittedObservationError,
     WebDriverBiDiNavigationCommittedProjectionError,
+};
+pub use webdriver_bidi_navigation_committed_subscription::{
+    WebDriverBiDiNavigationCommittedSubscriptionCommand,
+    WebDriverBiDiNavigationCommittedSubscriptionCommandError,
+};
+pub use webdriver_bidi_navigation_committed_subscription_response::{
+    MAX_WEBDRIVER_BIDI_SUBSCRIPTION_IDENTIFIER_BYTES,
+    WebDriverBiDiNavigationCommittedSubscriptionResponseError,
+    WebDriverBiDiNavigationCommittedSubscriptionResult,
 };
 pub use webdriver_bidi_navigation_document_advance::{
     WebDriverBiDiNavigationCommittedDocumentAdvance,

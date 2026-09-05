@@ -26,6 +26,8 @@ pub enum WebDriverBiDiCommandKind {
     SessionEnd,
     /// WebDriver BiDi `input.performActions` pointer click.
     PointerClick,
+    /// Context-scoped WebDriver BiDi `session.subscribe` for committed navigation.
+    NavigationCommittedSubscription,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
