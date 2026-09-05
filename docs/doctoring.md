@@ -104,6 +104,12 @@ The #144 ordinary parent integration preserves the production runner and process
 
 The prior informational review limits remain explicit: descendants are bound to start times read after lineage sampling, so a reused PID in that gap may conservatively fail a trial; root and process-set waits have separate bounded budgets, with one shared deadline only inside the set waiter; and the pre-shutdown exit-count bound is a defensive evidence invariant. None of these controlled local contracts attests cgroup ownership, later processes, OS-wide orphan absence or exact-head pinned-Chromium acceptance. The inherited failure-path regression keeps observer errors unproven and task failures unsuccessful even when temporary-profile cleanup succeeds.
 
+### Late-failure and forced-close evidence limits
+
+The #145 ordinary integration adopts #144 `3c0c5c363c2da0b4e8a621226e2f7766c735b743` without changing the production runner or either child-owned process-set/forced-close regression. Its predecessor `a1341e9c8595c38446d64aaaadeab999062eab57` collected three inherited failure-path contracts rather than the parent's five. The inherited regression now runs alongside the child's separate late-failure contract; no new runtime abstraction or timeout is needed.
+
+Ten controlled probes of the actual browser-pass and outer-trial flows cover observed root/set exit, a surviving root, a surviving sampled set, a process-observation error, and interruption before a complete result in each lane. Session deletion and driver shutdown precede the applicable exit observations. Late ordinary failure retains observed true/false root and captured-set outcomes without becoming a pass; incomplete capture omits set evidence. Forced-close success requires both observations to be true. Successful cleanup commands do not establish that sampled processes are already dead: a surviving identity fails the trial. Forced-close interruption skips post-finally observers and leaves termination unproven, while observation errors produce only the bounded fallback error type. Private exception messages remain absent. These injected probes establish control-flow contracts, not live Linux/Chromium termination, and exact-head hosted compatibility is still required.
+
 ## References
 
 Amazon Web Services. (n.d.). *Set up the Amazon EKS Pod Identity Agent*. Retrieved August 6, 2026, from https://docs.aws.amazon.com/eks/latest/userguide/pod-id-agent-setup.html
