@@ -97,6 +97,14 @@ PR #96 revalidates the retained registry-issued node authority before invoking o
 
 The callback result remains adapter-local. Adapter failure stays distinct from authority failure, and adapter completion is not post-condition proof. This boundary grants no destination, secret, approval, or network authority and remains non-shipped until its dependency stack is integrated and accepted on protected main.
 
+### PR #101 — reject known-disabled semantic-node actions
+
+**Capability maturity:** `IMPLEMENTED_ON_ACTIVE_PR`
+
+PR #101 rejects an advertised interactive action when the retained semantic observation already marks the node disabled, returning typed `NodeNotEnabled`. `ScrollIntoView` remains selectable because scrolling does not require enabled state.
+
+This is a descriptive target filter. It does not observe current Chromium state or authenticate the observation source, and it does not grant dispatch authority. The trusted adapter must still obtain fresh state and the later dispatch boundary must revalidate registry-owned browser authority before input.
+
 ## 4. Non-transitive success semantics
 
 The intended first-slice chain remains:

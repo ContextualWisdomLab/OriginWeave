@@ -416,6 +416,32 @@ impl BrowserAuthorityRegistry {
         }
         Ok(handles)
     }
+
+    /// Verify that an observed node handle is still live authority in this registry.
+    pub fn validate_node_handle(
+        &self,
+        handle: &ObservedNodeHandle,
+    ) -> Result<(), BrowserRegistryError> {
+        let context = handle.browsing_context();
+        let session = handle.browser_session();
+        let epoch = self.current_context_epoch(session, context)?;
+        let origin = self
+            .context_origin
+            .get(&context)
+            .ok_or(BrowserRegistryError::UnknownNodeAuthority)?;
+        handle
+            .validate_current(session, context, origin, epoch)
+            .map_err(|_error| BrowserRegistryError::UnknownNodeAuthority)?;
+        let is_bound = self.node_by_external.iter().any(
+            |((bound_context, bound_epoch, _external_identifier), node_id)| {
+                (*bound_context, *bound_epoch, *node_id) == (context, epoch, handle.node_id())
+            },
+        );
+        if !is_bound {
+            return Err(BrowserRegistryError::UnknownNodeAuthority);
+        }
+        Ok(())
+    }
 }
 
 impl Default for BrowserAuthorityRegistry {
@@ -444,6 +470,8 @@ pub enum BrowserRegistryError {
     ContextExternalIdentifierMismatch,
     /// The current document has no canonical origin bound to the browsing context.
     ContextOriginNotBound,
+    /// The supplied node handle is not current authority issued by this registry.
+    UnknownNodeAuthority,
     /// The context origin changed without first rotating the document epoch.
     OriginChangedWithoutDocumentAdvance,
     /// The registry exhausted one of its monotonic internal identifier spaces.
@@ -478,6 +506,9 @@ impl fmt::Display for BrowserRegistryError {
             Self::ContextOriginNotBound => formatter.write_str(
                 "browsing context has no canonical origin bound for the current document",
             ),
+            Self::UnknownNodeAuthority => {
+                formatter.write_str("node handle is not current authority in this registry")
+            }
             Self::OriginChangedWithoutDocumentAdvance => formatter
                 .write_str("browsing context origin changed without advancing the document epoch"),
             Self::IdentifierSpaceExhausted => {
