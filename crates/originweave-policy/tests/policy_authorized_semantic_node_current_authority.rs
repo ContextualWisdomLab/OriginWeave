@@ -5,8 +5,8 @@ use originweave_core::{
     BoundedWebDriverBiDiResponseDocument, BrowserAuthorityRegistry, BrowserContextDispatchTarget,
     BrowserContextOriginDispatchTarget, BrowserContextOriginEpochDispatchTarget,
     BrowserProtocolAdapterDescriptor, BrowserProtocolCapability, BrowserProtocolKind,
-    BrowserRegistryError, BrowsingContextId, ExecutionPurpose, InstructionSource, NodeActionKind,
-    Origin, OriginWeaveProtocolVersion, PolicyContext, RobotsDecision, SecretDelivery,
+    BrowsingContextId, ExecutionPurpose, InstructionSource, NodeActionKind, Origin,
+    OriginWeaveProtocolVersion, PolicyContext, RobotsDecision, SecretDelivery,
     SemanticNodeActionBinding, SessionMode, ValidatedBrowserProtocolUse,
     WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesCommand,
 };
@@ -114,9 +114,7 @@ fn policy_authorized_action_revalidates_registry_owned_browser_authority()
 
     assert_eq!(
         authorized.validate_current(&registry).err(),
-        Some(AdmittedNodeAuthorityError::BrowserAuthority(
-            BrowserRegistryError::ContextOriginNotBound
-        ))
+        Some(AdmittedNodeAuthorityError::NotAdmitted)
     );
     Ok(())
 }

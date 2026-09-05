@@ -346,6 +346,22 @@ class ProductDocumentationContractTests(unittest.TestCase):
                 self.assertIn(phrase, traceability)
         self.assertIn("Typed text-value post-condition verification", changelog)
 
+    def test_semantic_node_policy_authorization_is_durably_scoped(self) -> None:
+        """Policy allow must not become browser authority or execution proof."""
+
+        traceability = (
+            ROOT / "docs/traceability/action-postcondition-evidence.md"
+        ).read_text(encoding="utf-8")
+        for phrase in (
+            "PR #95",
+            "only `Decision::Allow`",
+            "ApprovalRequired",
+            "registry-owned current authority",
+            "does not execute browser I/O or prove a post-condition",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, traceability)
+
     def test_traceability_labels_conversation_derived_future_work(self) -> None:
         """Conversation decisions must preserve canonical maturity instead of becoming shipped claims."""
         traceability = (ROOT / "docs/traceability/README.md").read_text(encoding="utf-8")
