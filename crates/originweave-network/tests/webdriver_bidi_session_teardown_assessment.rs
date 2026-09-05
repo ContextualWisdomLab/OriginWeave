@@ -68,7 +68,8 @@ fn read_masked_text_frame(stream: &mut TcpStream) -> io::Result<Vec<u8>> {
     Ok(payload)
 }
 
-fn correlated_session_end_ack_and_transport_for(
+fn correlated_session_end_ack_and_transport_on(
+    listener: &TcpListener,
     session_id: &str,
 ) -> Result<
     (
@@ -77,10 +78,10 @@ fn correlated_session_end_ack_and_transport_for(
     ),
     Box<dyn Error>,
 > {
-    let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
+    let server_listener = listener.try_clone()?;
     let server = thread::spawn(move || -> io::Result<()> {
-        let (mut stream, _) = listener.accept()?;
+        let (mut stream, _) = server_listener.accept()?;
         read_opening_request(&mut stream)?;
         stream.write_all(OPENING_RESPONSE)?;
         let command = read_masked_text_frame(&mut stream)?;
@@ -129,6 +130,19 @@ fn correlated_session_end_ack_and_transport_for(
         .join()
         .map_err(|_| io::Error::other("session.end teardown test server panicked"))??;
     Ok((acknowledged, established))
+}
+
+fn correlated_session_end_ack_and_transport_for(
+    session_id: &str,
+) -> Result<
+    (
+        WebDriverBiDiSessionEndResult,
+        WebDriverBiDiWebSocketEstablished,
+    ),
+    Box<dyn Error>,
+> {
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    correlated_session_end_ack_and_transport_on(&listener, session_id)
 }
 
 fn correlated_session_end_ack_and_transport() -> Result<
@@ -220,10 +234,8 @@ fn typed_transport_closure_cannot_complete_teardown_without_process_and_profile_
 
 fn assert_cross_connection_closure_rejected(
     acknowledged: WebDriverBiDiSessionEndResult,
-    established_to_drop: WebDriverBiDiWebSocketEstablished,
     foreign_established: WebDriverBiDiWebSocketEstablished,
 ) -> Result<(), Box<dyn Error>> {
-    drop(established_to_drop);
     let foreign_closure = observed_transport_closure(foreign_established)?;
     let result = WebDriverBiDiSessionTeardownAssessment::from_protocol_ack(
         acknowledged,
@@ -246,18 +258,23 @@ fn assert_cross_connection_closure_rejected(
 }
 
 #[test]
-fn reconnected_same_session_cannot_supply_closure_for_the_acknowledged_transport()
+fn reconnected_same_session_and_endpoint_cannot_supply_closure_for_prior_transport()
 -> Result<(), Box<dyn Error>> {
-    let (acknowledged_a, established_a) = correlated_session_end_ack_and_transport_for(SESSION_ID)?;
-    let (_acknowledged_b, established_b) = correlated_session_end_ack_and_transport_for(SESSION_ID)?;
-    assert_cross_connection_closure_rejected(acknowledged_a, established_a, established_b)
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let (acknowledged_a, established_a) =
+        correlated_session_end_ack_and_transport_on(&listener, SESSION_ID)?;
+    drop(established_a);
+    let (_acknowledged_b, established_b) =
+        correlated_session_end_ack_and_transport_on(&listener, SESSION_ID)?;
+    assert_cross_connection_closure_rejected(acknowledged_a, established_b)
 }
 
 #[test]
 fn another_session_cannot_supply_closure_for_the_acknowledged_transport()
 -> Result<(), Box<dyn Error>> {
     let (acknowledged_a, established_a) = correlated_session_end_ack_and_transport_for(SESSION_ID)?;
+    drop(established_a);
     let (_acknowledged_b, established_b) =
         correlated_session_end_ack_and_transport_for(SECOND_SESSION_ID)?;
-    assert_cross_connection_closure_rejected(acknowledged_a, established_a, established_b)
+    assert_cross_connection_closure_rejected(acknowledged_a, established_b)
 }
