@@ -104,6 +104,34 @@ class ProductCompletionGapContractTests(unittest.TestCase):
 
         self.assertNotIn("through #280", current)
 
+    def test_current_snapshot_records_repaired_webdriver_bidi_lineage(self) -> None:
+        """The active stack must retain exact heads and the macOS race boundary."""
+        text = BASELINE.read_text(encoding="utf-8")
+        current = text.split("## Current live delivery state", 1)[1].split(
+            "## Observed snapshot: ", 1
+        )[0]
+
+        for marker in (
+            "#195 is Draft at exact head `b852245aa8da9ddc14ac5dbff5ebf1bcc665e65c`",
+            "50 consecutive focused regression passes",
+            "#93 is Draft at exact head `82b0ebb6c541ce35bd49ca58f6b5d89861f64fd0`",
+            "SemanticNodeActionBinding",
+            "does not authorize policy or execute input",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, current)
+
+        self.assertIn(
+            "| #195 | Draft | `6922dd98779e8f8aad132a3b1f563d7ba6e6d070` | "
+            "`b852245aa8da9ddc14ac5dbff5ebf1bcc665e65c` |",
+            text,
+        )
+        self.assertIn(
+            "| #93 | Draft | `802ec806cdd4560eab48c484f435766ecabda353` | "
+            "`82b0ebb6c541ce35bd49ca58f6b5d89861f64fd0` |",
+            text,
+        )
+
     def test_changelog_marks_superseded_warc_head_as_historical(self) -> None:
         """A predecessor WARC head must not look like the current exact evidence."""
         text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
