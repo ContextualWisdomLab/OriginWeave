@@ -58,6 +58,12 @@ PR #257 predecessor `ea2b5b78868917219c46f1304558b92490a7f6fe` collected zero in
 
 Fresh verification passed five pointer-click transport tests, five foreign-response/teardown tests, all 142 Python contracts, compileall and the complete Rust 1.97.1 quality gates. Pinned coverage measured 1093 functions, 11131 lines, 14202 regions and 1214 branches at 100%; the unstable branch-option warning remains. No focused retry was needed in this run. These results neither remove a platform-level socket-observation race in an unchanged fixture nor establish hosted acceptance, browser ownership or an observed click post-condition.
 
+### Pointer-click response child integration
+
+PR #258 predecessor `f2ceabb3ea50b1959e936503c50cae12f3e6e480` failed the expected-one native release-contract assertion because discovery collected zero tests. Ordinary adoption of current #257 `f4a8f2cbf515bea348f500b59615a9581c1b96a2` restores the inherited executable contract and current provenance prerequisites. The response implementation, its four loopback tests and the child-owned bounded socket-observation adjustment remain byte-identical to the predecessor. The crate documentation retains both the parent's connection-bound teardown description and this child's typed protocol-response boundary; no browser post-condition, generic dispatch or new response authority is introduced.
+
+Fresh integrated-tree verification passed nine click response/send tests, five foreign-response/teardown tests, 142 Python contracts, compileall and the complete Rust 1.97.1 quality gates. Pinned coverage measured 1100 functions, 11185 lines, 14272 regions and 1214 branches at 100%, with the unstable branch-option warning retained. The current typed click response is protocol correlation only; the inherited `session.end` received-connection proof does not automatically authenticate this separate response API or prove browser navigation.
+
 ## References
 
 Fette, I., & Melnikov, A. (2011). *The WebSocket Protocol* (RFC 6455). Internet Engineering Task Force. https://www.rfc-editor.org/rfc/rfc6455

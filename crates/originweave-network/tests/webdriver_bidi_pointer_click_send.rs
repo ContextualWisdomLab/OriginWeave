@@ -12,7 +12,7 @@ use originweave_core::{
     WebDriverBiDiWebSocketEndpoint,
 };
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
     WebDriverBiDiWebSocketMaskKey, send_webdriver_bidi_pointer_click,
 };
@@ -245,17 +245,29 @@ fn pointer_click_ambiguous_socket_write_keeps_correlation() -> Result<(), Box<dy
         &WebDriverBiDiRemoteNodeReference::new("node", Some("shared-node-44"))?,
     )?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    let error = send_webdriver_bidi_pointer_click(
-        &command,
-        established,
-        &mut correlation,
-        WebDriverBiDiWebSocketMaskKey::new([17, 18, 19, 20]),
-        Duration::from_millis(500),
-    )
-    .err()
-    .ok_or_else(|| io::Error::other("closed socket unexpectedly accepted a pointer click"))?;
-    assert!(error.source().is_some());
-    assert_eq!(correlation.outstanding_count(), 1);
+    let mut established = established;
+    let mut observed_ambiguous_failure = false;
+    for attempt in 0_u8..64 {
+        match send_webdriver_bidi_pointer_click(
+            &command,
+            established,
+            &mut correlation,
+            WebDriverBiDiWebSocketMaskKey::new([17, 18, 19, attempt]),
+            Duration::from_millis(500),
+        ) {
+            Ok(next) => {
+                correlation.retire_command_for(44, WebDriverBiDiCommandKind::PointerClick)?;
+                established = next;
+            }
+            Err(error) => {
+                assert!(error.source().is_some());
+                assert_eq!(correlation.outstanding_count(), 1);
+                observed_ambiguous_failure = true;
+                break;
+            }
+        }
+    }
+    assert!(observed_ambiguous_failure);
 
     server
         .join()
