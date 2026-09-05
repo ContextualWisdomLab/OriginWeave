@@ -78,6 +78,11 @@ class RepositoryContractTests(unittest.TestCase):
         landing = (ROOT / "docs/index.md").read_text(encoding="utf-8")
 
         self.assertEqual(readme.count("[![Ask DeepWiki]"), 1)
+        self.assertIn(
+            "[![Ask DeepWiki](https://deepwiki.com/badge.svg)]"
+            "(https://deepwiki.com/ContextualWisdomLab/OriginWeave)",
+            readme,
+        )
         self.assertIn("Status: pre-alpha", landing)
         self.assertIn("## Publication boundary", landing)
         self.assertIn("does not promote active pull requests", landing)
