@@ -4,6 +4,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Recorded #254 parent adoption, #148's crash-launch sandbox repair and #150's shared-observer test reconciliation, including complete local verification and matched-source Linux runs; separated the reproduced central scan-classifier defect from a gateway failure and hosted execution-limit cancellation.
 - Recorded #253's verified current-parent integration while retaining its unresolved teardown-evidence finding, downstream repair ownership and instrumentation warning; local passing checks do not establish operational completion.
 - Recorded #252's verified current-parent integration and #147's test-only repair from two reproduced failures to all 228 passing tests, preserving the earlier RED history, ordinary-pass deadline finding and instrumentation warning.
 - Recorded #251's verified parent integration and #147's restored parent evidence with two remaining test-reconciliation failures; distinguished the externally closed temporary synthesis from product acceptance and refreshed the live inventory.
