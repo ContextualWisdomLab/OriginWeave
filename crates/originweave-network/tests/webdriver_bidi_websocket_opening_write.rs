@@ -1,6 +1,7 @@
 use std::{
-    io::{self, Read},
+    io::{self, Read, Write},
     net::TcpListener,
+    sync::mpsc,
     thread,
     time::Duration,
 };
@@ -9,7 +10,7 @@ use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
     MAX_WEBSOCKET_OPENING_WRITE_TIMEOUT, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketOpeningWriteError,
+    WebDriverBiDiWebSocketHandshakeResponseError, WebDriverBiDiWebSocketOpeningWriteError,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -44,7 +45,7 @@ fn connect(endpoint: &str) -> originweave_network::WebDriverBiDiTcpConnection {
     connection
 }
 
-fn read_opening_request(mut stream: std::net::TcpStream) -> io::Result<Vec<u8>> {
+fn read_opening_request(stream: &mut std::net::TcpStream) -> io::Result<Vec<u8>> {
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
     let mut request = Vec::new();
     let mut buffer = [0_u8; 512];
@@ -56,6 +57,24 @@ fn read_opening_request(mut stream: std::net::TcpStream) -> io::Result<Vec<u8>> 
         request.extend_from_slice(&buffer[..count]);
     }
     Ok(request)
+}
+
+fn serve_opening_exchange(
+    listener: TcpListener,
+    response: &'static [u8],
+) -> (
+    mpsc::SyncSender<()>,
+    thread::JoinHandle<io::Result<Vec<u8>>>,
+) {
+    let (release_server, await_release) = mpsc::sync_channel(0);
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept()?;
+        let request = read_opening_request(&mut stream)?;
+        stream.write_all(response)?;
+        await_release.recv().map_err(io::Error::other)?;
+        Ok(request)
+    });
+    (release_server, server)
 }
 
 #[test]
@@ -70,10 +89,7 @@ fn bounded_opening_write_sends_exact_request_and_preserves_transport_evidence() 
     let Ok(local_addr) = local_addr else {
         return;
     };
-    let server = thread::spawn(move || {
-        let accepted = listener.accept()?;
-        read_opening_request(accepted.0)
-    });
+    let (release_server, server) = serve_opening_exchange(listener, b"");
 
     let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
     let connection = connect(&endpoint);
@@ -114,6 +130,7 @@ fn bounded_opening_write_sends_exact_request_and_preserves_transport_evidence() 
     assert!(debug.contains("WebDriverBiDiWebSocketOpeningRequestSent"));
     assert!(!debug.contains(RFC6455_SAMPLE_KEY));
 
+    assert!(release_server.send(()).is_ok());
     let server_result = server.join();
     assert!(server_result.is_ok(), "{server_result:?}");
     if let Ok(received) = server_result {
@@ -169,5 +186,162 @@ fn opening_write_rejects_zero_and_excessive_deadlines_before_success_evidence() 
         if let Ok(accept_result) = server_result {
             assert!(accept_result.is_ok(), "{accept_result:?}");
         }
+    }
+}
+
+#[test]
+fn opening_response_requires_rfc6455_switching_protocols_and_matching_accept() {
+    let listener = TcpListener::bind(("127.0.0.1", 0));
+    assert!(listener.is_ok(), "{listener:?}");
+    let Ok(listener) = listener else {
+        return;
+    };
+    let local_addr = listener.local_addr();
+    assert!(local_addr.is_ok(), "{local_addr:?}");
+    let Ok(local_addr) = local_addr else {
+        return;
+    };
+    let (release_server, server) = serve_opening_exchange(
+        listener,
+        b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\r\n",
+    );
+
+    let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+    let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY);
+    assert!(key.is_ok(), "{key:?}");
+    let Ok(key) = key else {
+        return;
+    };
+    let plan = WebDriverBiDiWebSocketHandshakePlan::new(connect(&endpoint), key);
+    assert!(plan.is_ok(), "{plan:?}");
+    let Ok(plan) = plan else {
+        return;
+    };
+    let written = plan.write_opening_request(Duration::from_millis(500));
+    assert!(written.is_ok(), "{written:?}");
+    let Ok(written) = written else {
+        return;
+    };
+
+    let established = written.read_opening_response(Duration::from_millis(500));
+    assert!(established.is_ok(), "{established:?}");
+    let Ok(established) = established else {
+        return;
+    };
+    assert_eq!(established.response_status(), 101);
+    assert!(established.response_byte_count() > 0);
+    assert!(established.request_byte_count() > 0);
+    assert_eq!(established.response_timeout(), Duration::from_millis(500));
+    assert_eq!(established.write_timeout(), Duration::from_millis(500));
+    assert_eq!(established.client_key().as_str(), RFC6455_SAMPLE_KEY);
+    assert_eq!(
+        established
+            .transport_evidence()
+            .verified_peer()
+            .socket_addr(),
+        local_addr
+    );
+    let debug = format!("{established:?}");
+    assert!(debug.contains("WebDriverBiDiWebSocketEstablished"));
+    assert!(!debug.contains(RFC6455_SAMPLE_KEY));
+    drop(established);
+    assert!(release_server.send(()).is_ok());
+    assert!(server.join().is_ok());
+}
+
+#[test]
+fn opening_response_rejects_a_mismatched_accept_value() {
+    let listener = TcpListener::bind(("127.0.0.1", 0));
+    assert!(listener.is_ok(), "{listener:?}");
+    let Ok(listener) = listener else {
+        return;
+    };
+    let local_addr = listener.local_addr();
+    assert!(local_addr.is_ok(), "{local_addr:?}");
+    let Ok(local_addr) = local_addr else {
+        return;
+    };
+    let (release_server, server) = serve_opening_exchange(
+        listener,
+        b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: invalid\r\n\r\n",
+    );
+
+    let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+    let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY);
+    assert!(key.is_ok(), "{key:?}");
+    let Ok(key) = key else {
+        return;
+    };
+    let plan = WebDriverBiDiWebSocketHandshakePlan::new(connect(&endpoint), key);
+    assert!(plan.is_ok(), "{plan:?}");
+    let Ok(plan) = plan else {
+        return;
+    };
+    let written = plan.write_opening_request(Duration::from_millis(500));
+    assert!(written.is_ok(), "{written:?}");
+    let Ok(written) = written else {
+        return;
+    };
+
+    assert!(matches!(
+        written.read_opening_response(Duration::from_millis(500)),
+        Err(WebDriverBiDiWebSocketHandshakeResponseError::AcceptMismatch)
+    ));
+    assert!(release_server.send(()).is_ok());
+    assert!(server.join().is_ok());
+}
+
+#[test]
+fn opening_response_rejects_zero_and_excessive_deadlines_before_socket_mode_change() {
+    for timeout in [
+        Duration::ZERO,
+        originweave_network::MAX_WEBSOCKET_OPENING_RESPONSE_TIMEOUT + Duration::from_nanos(1),
+    ] {
+        let listener = TcpListener::bind(("127.0.0.1", 0));
+        assert!(listener.is_ok(), "{listener:?}");
+        let Ok(listener) = listener else {
+            continue;
+        };
+        let local_addr = listener.local_addr();
+        assert!(local_addr.is_ok(), "{local_addr:?}");
+        let Ok(local_addr) = local_addr else {
+            continue;
+        };
+        let (release_server, await_release) = mpsc::sync_channel(0);
+        let server = thread::spawn(move || {
+            let accepted = listener.accept()?;
+            await_release.recv().map_err(io::Error::other)?;
+            drop(accepted);
+            Ok::<(), io::Error>(())
+        });
+
+        let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+        let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY);
+        assert!(key.is_ok(), "{key:?}");
+        let Ok(key) = key else {
+            continue;
+        };
+        let plan = WebDriverBiDiWebSocketHandshakePlan::new(connect(&endpoint), key);
+        assert!(plan.is_ok(), "{plan:?}");
+        let Ok(plan) = plan else {
+            continue;
+        };
+        let written = plan.write_opening_request(Duration::from_millis(500));
+        assert!(written.is_ok(), "{written:?}");
+        let Ok(written) = written else {
+            continue;
+        };
+
+        assert!(matches!(
+            written.read_opening_response(timeout),
+            Err(WebDriverBiDiWebSocketHandshakeResponseError::InvalidResponseTimeout {
+                response_timeout,
+                maximum_timeout,
+            }) if response_timeout == timeout
+                && maximum_timeout
+                    == originweave_network::MAX_WEBSOCKET_OPENING_RESPONSE_TIMEOUT
+        ));
+        assert!(release_server.send(()).is_ok());
+        assert!(server.join().is_ok());
     }
 }

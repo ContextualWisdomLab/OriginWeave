@@ -6,6 +6,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Added
 
+- Bounded RFC 6455 WebDriver BiDi opening-response validation on the exact peer-verified stream: it admits only HTTP/1.1 `101`, case-insensitive `Upgrade`/`Connection` tokens, and the client-key-correlated `Sec-WebSocket-Accept` value within monotonic time and header-size ceilings; it restores blocking mode and still does not implement WebSocket frames or grant browser/Agent authority.
 - Bounded WebDriver BiDi loopback TCP transport that consumes one exact no-DNS connect target, retries only explicitly recoverable local transport failures within repository timeout and attempt ceilings, exposes the stream only after operating-system peer inspection and exact peer verification, supports a consuming handoff of the original stream with typed credential-free peer/session/TLS and bounded-attempt evidence, preserves typed causal errors, and performs no DNS, proxy/PAC, process authentication, TLS, WebSocket, BiDi message, browser-action, or Agent-authority step.
 - Exact WebDriver BiDi socket-peer verification that consumes an approved no-DNS connect target, requires the observed IP address and port to match exactly, preserves the TLS requirement and exact correlated session id, and remains inert metadata that does not authenticate an OS process, does not negotiate TLS, perform a WebSocket handshake, or grant Agent authority.
 - Explicit no-DNS WebDriver BiDi loopback connection targets that derive exact IPv4/IPv6 loopback `SocketAddr` metadata from a session-correlated endpoint, reject `localhost` as requiring separately trusted name resolution, preserve the TLS requirement and exact session id, perform no socket I/O, and grant no Agent authority.
@@ -64,7 +65,9 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Moved autonomous-agent Cargo targets and Python bytecode caches outside the proposed source tree and prefetched locked Cargo dependencies for offline verification.
 - Kept the real loopback WebDriver BiDi opening-write regression test fail-fast with test-only diagnostics, while explicitly covering successful and panicked server-thread handoffs so strict all-target Clippy and exact coverage remain clean.
 - Kept the loopback peer alive until opening-write timeout cleanup completes, removing a macOS close race that could report `EINVAL` after a successful request write without weakening production cleanup failures.
+- Kept the invalid opening-response deadline fixture's accepted peer alive through opening-write cleanup, removing the same macOS `EINVAL` race from the integration coverage path.
 - Kept the revoked-stream fixture peer alive until local shutdown and fail-closed write classification complete, removing a macOS `ENOTCONN` race from the coverage path.
+- Made opening-exchange tests wait for the complete client request and retain the peer until each client assertion finishes, avoiding premature connection closure in both successful and rejected handshakes without changing production error handling.
 - Updated research doctoring to pin Chromium canonicalizer evidence to an immutable revision, add RFC 9293, RFC 5280, RFC 8446, RFC 9525, rustls 0.23.42, and Rust `TcpStream` evidence, distinguish the April 2026 Fugu beta from the June 2026 release, and treat vendor benchmark claims as first-party evidence rather than independent validation.
 
 ### Security
