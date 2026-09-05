@@ -18,13 +18,21 @@ mod tests;
 
 static NEXT_CONNECTION_GENERATION: AtomicU64 = AtomicU64::new(1);
 
+/// Process-local identity of one verified WebDriver BiDi transport generation.
+///
+/// The value is minted only by the connection owner, is never accepted from callers, and exists
+/// solely to prevent evidence from distinct sockets being combined across later protocol stages.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct WebDriverBiDiConnectionGeneration(u64);
+
 fn allocate_connection_generation(
     counter: &AtomicU64,
-) -> Result<u64, WebDriverBiDiTcpConnectionError> {
+) -> Result<WebDriverBiDiConnectionGeneration, WebDriverBiDiTcpConnectionError> {
     counter
         .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
             current.checked_add(1)
         })
+        .map(WebDriverBiDiConnectionGeneration)
         .map_err(|_| WebDriverBiDiTcpConnectionError::ConnectionGenerationExhausted)
 }
 
@@ -197,7 +205,7 @@ pub struct WebDriverBiDiTcpConnection {
     verified_peer: VerifiedWebDriverBiDiSocketPeer,
     attempt_number: u8,
     connect_timeout: Duration,
-    connection_generation: u64,
+    connection_generation: WebDriverBiDiConnectionGeneration,
 }
 
 impl WebDriverBiDiTcpConnection {
@@ -255,7 +263,7 @@ pub struct WebDriverBiDiTcpConnectionEvidence {
     verified_peer: VerifiedWebDriverBiDiSocketPeer,
     attempt_number: u8,
     connect_timeout: Duration,
-    connection_generation: u64,
+    connection_generation: WebDriverBiDiConnectionGeneration,
 }
 
 impl WebDriverBiDiTcpConnectionEvidence {
@@ -277,7 +285,7 @@ impl WebDriverBiDiTcpConnectionEvidence {
         self.connect_timeout
     }
 
-    pub(crate) const fn connection_generation(&self) -> u64 {
+    pub(crate) const fn connection_generation(&self) -> WebDriverBiDiConnectionGeneration {
         self.connection_generation
     }
 }
