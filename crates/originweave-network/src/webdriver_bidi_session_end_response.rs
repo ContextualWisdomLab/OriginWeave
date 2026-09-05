@@ -1,10 +1,10 @@
 use std::{error::Error, fmt};
 
 use crate::{
-    webdriver_bidi_connection::WebDriverBiDiConnectionGeneration, WebDriverBiDiCommandCorrelation,
-    WebDriverBiDiCommandCorrelationError, WebDriverBiDiCommandKind,
-    WebDriverBiDiCorrelatedResponseOutcome, WebDriverBiDiJsonEnvelope,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
+    WebDriverBiDiCommandKind, WebDriverBiDiCorrelatedResponseOutcome, WebDriverBiDiJsonEnvelope,
     WebDriverBiDiJsonEnvelopeError, WebDriverBiDiReceivedTextMessage,
+    webdriver_bidi_connection::WebDriverBiDiConnectionGeneration,
 };
 
 /// Typed protocol acknowledgment for one correlated WebDriver BiDi `session.end` command.
@@ -50,13 +50,11 @@ impl WebDriverBiDiSessionEndResult {
             .map_err(|source| match source {
                 WebDriverBiDiCommandCorrelationError::CommandConnectionProvenanceMissing {
                     command_id,
-                } => WebDriverBiDiSessionEndResponseError::MissingConnectionProvenance {
-                    command_id,
-                },
+                } => {
+                    WebDriverBiDiSessionEndResponseError::MissingConnectionProvenance { command_id }
+                }
                 WebDriverBiDiCommandCorrelationError::ResponseConnectionMismatch { command_id } => {
-                    WebDriverBiDiSessionEndResponseError::TransportConnectionMismatch {
-                        command_id,
-                    }
+                    WebDriverBiDiSessionEndResponseError::TransportConnectionMismatch { command_id }
                 }
                 source => WebDriverBiDiSessionEndResponseError::Correlation { source },
             })?;
@@ -126,9 +124,8 @@ impl fmt::Display for WebDriverBiDiSessionEndResponseError {
             }
             Self::MissingConnectionProvenance { .. } => formatter
                 .write_str("WebDriver BiDi session.end response lacks connection provenance"),
-            Self::TransportConnectionMismatch { .. } => formatter.write_str(
-                "WebDriver BiDi session.end response arrived on a different connection",
-            ),
+            Self::TransportConnectionMismatch { .. } => formatter
+                .write_str("WebDriver BiDi session.end response arrived on a different connection"),
             Self::RemoteProtocolError { .. } => {
                 formatter.write_str("WebDriver BiDi session.end returned a protocol error")
             }
@@ -172,18 +169,16 @@ mod tests {
         );
         assert!(correlation.source().is_some());
 
-        let missing = WebDriverBiDiSessionEndResponseError::MissingConnectionProvenance {
-            command_id: 7,
-        };
+        let missing =
+            WebDriverBiDiSessionEndResponseError::MissingConnectionProvenance { command_id: 7 };
         assert_eq!(
             missing.to_string(),
             "WebDriver BiDi session.end response lacks connection provenance"
         );
         assert!(missing.source().is_none());
 
-        let mismatch = WebDriverBiDiSessionEndResponseError::TransportConnectionMismatch {
-            command_id: 7,
-        };
+        let mismatch =
+            WebDriverBiDiSessionEndResponseError::TransportConnectionMismatch { command_id: 7 };
         assert_eq!(
             mismatch.to_string(),
             "WebDriver BiDi session.end response arrived on a different connection"

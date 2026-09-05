@@ -1,11 +1,11 @@
 use std::{error::Error, fmt, time::Duration};
 
 use crate::{
-    webdriver_bidi_connection::WebDriverBiDiConnectionGeneration,
     WebDriverBiDiWebSocketControlMessage, WebDriverBiDiWebSocketEstablished,
     WebDriverBiDiWebSocketFrameError, WebDriverBiDiWebSocketMessageAssembler,
     WebDriverBiDiWebSocketMessageAssembly, WebDriverBiDiWebSocketMessageError,
     WebDriverBiDiWebSocketTextMessage,
+    webdriver_bidi_connection::WebDriverBiDiConnectionGeneration,
 };
 
 /// One complete WebDriver BiDi text message bound to the exact verified connection that read it.
@@ -174,12 +174,11 @@ pub enum WebDriverBiDiConnectionMessageReadError {
 impl fmt::Display for WebDriverBiDiConnectionMessageReadError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Frame { .. } => formatter.write_str(
-                "connection-bound WebDriver BiDi WebSocket frame read failed",
-            ),
-            Self::Message { .. } => formatter.write_str(
-                "connection-bound WebDriver BiDi WebSocket message assembly failed",
-            ),
+            Self::Frame { .. } => {
+                formatter.write_str("connection-bound WebDriver BiDi WebSocket frame read failed")
+            }
+            Self::Message { .. } => formatter
+                .write_str("connection-bound WebDriver BiDi WebSocket message assembly failed"),
         }
     }
 }

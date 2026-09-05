@@ -4,6 +4,10 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+### Changed
+
+- Removed an unused private correlated-response accessor while retaining connection-generation validation at the receiving-message boundary, and corrected the Rust `AtomicU64` standard-library reference to its canonical type-alias page.
+
 ### Added
 
 - Typed outbound WebDriver BiDi `session.end` over the bounded client WebSocket stream: it serializes only the standards-defined method with empty params, rejects invalid frame deadlines before correlation registration, retires only the just-registered id when frame preflight proves no command bytes were emitted, preserves exact command-kind correlation across ambiguous writes, and does not treat frame-write success as proof that the browser session ended.

@@ -62,9 +62,7 @@ impl WebDriverBiDiSessionEndCommand {
                 },
             });
         }
-        let connection_generation = established
-            .transport_evidence()
-            .connection_generation();
+        let connection_generation = established.transport_evidence().connection_generation();
         correlation
             .register_command_for_connection(
                 self.command_id,

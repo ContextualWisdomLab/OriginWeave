@@ -30,6 +30,8 @@ The follow-up keeps the security invariant and removes the gate-specific causes 
 
 Formatting-only test-name repairs preserve the realistic transport scenarios while restoring conventional rustfmt layout. Exact hosted CI/coverage/security results still belong to the live PR head and must be read from GitHub; predecessor results do not transfer.
 
+The `63cbca0a98cf9496af981819d98029e656fc4342` follow-up removed the unused private correlated-response generation accessor, not the stored provenance or its validation. Rust 1.97.1 rustfmt, strict Clippy, workspace tests, rustdoc with `-D warnings`, and all 141 Python contracts then passed locally. The existing production coverage checker reported 1082/1082 functions, 11025/11025 lines, 14071/14071 regions, and 1202/1202 branches. However, pinned `cargo-llvm-cov 0.8.6` emitted `warning: --branch option is unstable and it may be changed in the future`. These numerical coverage results are not warning-free acceptance evidence. Keep the warning visible and the gate outstanding; do not suppress it, remove branch measurement, or change the denominator to manufacture a clean result.
+
 ## Evidence and remaining risk
 
 The repair includes a realistic two-connection regression for a foreign `session.end` success response and focused reader coverage for fragmented text, an interleaved control frame, malformed server framing, binary-message rejection, event/null-id correlation, and connection-generation exhaustion after verified peer admission. The original inline response-substitution and closure-substitution findings are resolved by the current source boundary, but exact-head CI and security workflows remain authoritative before any integration claim.
@@ -40,6 +42,6 @@ The current scope deliberately does not infer browser-process ownership from the
 
 Fette, I., & Melnikov, A. (2011). *The WebSocket Protocol* (RFC 6455). Internet Engineering Task Force. https://www.rfc-editor.org/rfc/rfc6455
 
-The Rust Project Developers. (n.d.). *AtomicU64 in std::sync::atomic*. Rust standard library documentation. Retrieved September 5, 2026, from https://doc.rust-lang.org/std/sync/atomic/struct.AtomicU64.html
+The Rust Project Developers. (n.d.). *AtomicU64 in std::sync::atomic*. Rust standard library documentation. Retrieved September 5, 2026, from https://doc.rust-lang.org/std/sync/atomic/type.AtomicU64.html
 
 W3C Browser Testing and Tools Working Group. (2026, September 3). *WebDriver BiDi* (W3C Working Draft). World Wide Web Consortium. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/

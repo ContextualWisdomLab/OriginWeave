@@ -92,8 +92,9 @@ impl fmt::Display for WebDriverBiDiTcpConnectionError {
                 formatter,
                 "WebDriver BiDi connection attempt count {attempt_count} is outside 1..={maximum_attempts}",
             ),
-            Self::ConnectionGenerationExhausted => formatter
-                .write_str("WebDriver BiDi connection generation space is exhausted"),
+            Self::ConnectionGenerationExhausted => {
+                formatter.write_str("WebDriver BiDi connection generation space is exhausted")
+            }
             Self::ConnectionTimedOut {
                 socket_address,
                 attempt_count,

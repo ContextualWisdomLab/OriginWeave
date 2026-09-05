@@ -133,10 +133,8 @@ fn reconnected_response_cannot_consume_prior_connection_command() -> Result<(), 
 
     let second = establish(local_addr)?;
     let foreign_response = read_one_connection_bound_text(second)?;
-    let parsed = WebDriverBiDiSessionEndResult::parse_and_correlate(
-        &foreign_response,
-        &mut correlation,
-    );
+    let parsed =
+        WebDriverBiDiSessionEndResult::parse_and_correlate(&foreign_response, &mut correlation);
     let error = parsed
         .err()
         .ok_or_else(|| io::Error::other("foreign response acknowledged prior connection"))?;

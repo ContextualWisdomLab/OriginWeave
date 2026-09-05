@@ -1,8 +1,8 @@
 use std::{collections::BTreeMap, error::Error, fmt};
 
 use crate::{
-    webdriver_bidi_connection::WebDriverBiDiConnectionGeneration, MAX_WEBDRIVER_BIDI_JS_UINT,
-    WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeRouting,
+    MAX_WEBDRIVER_BIDI_JS_UINT, WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeRouting,
+    webdriver_bidi_connection::WebDriverBiDiConnectionGeneration,
 };
 
 /// Maximum number of local WebDriver BiDi commands retained as outstanding at once.
@@ -65,12 +65,6 @@ impl WebDriverBiDiCorrelatedResponse {
     #[must_use]
     pub const fn outcome(&self) -> WebDriverBiDiCorrelatedResponseOutcome {
         self.outcome
-    }
-
-    pub(crate) const fn connection_generation(
-        &self,
-    ) -> Option<WebDriverBiDiConnectionGeneration> {
-        self.connection_generation
     }
 }
 
@@ -192,11 +186,7 @@ impl WebDriverBiDiCommandCorrelation {
         command_kind: WebDriverBiDiCommandKind,
         connection_generation: WebDriverBiDiConnectionGeneration,
     ) -> Result<(), WebDriverBiDiCommandCorrelationError> {
-        self.register(
-            command_id,
-            command_kind,
-            Some(connection_generation),
-        )
+        self.register(command_id, command_kind, Some(connection_generation))
     }
 
     fn register(
@@ -345,14 +335,12 @@ impl WebDriverBiDiCommandCorrelation {
     ) -> Result<WebDriverBiDiCorrelatedResponse, WebDriverBiDiCommandCorrelationError> {
         let outstanding = self.require_command_kind(command_id, expected_kind)?;
         let expected_connection_generation = outstanding.connection_generation.ok_or(
-            WebDriverBiDiCommandCorrelationError::CommandConnectionProvenanceMissing {
-                command_id,
-            },
+            WebDriverBiDiCommandCorrelationError::CommandConnectionProvenanceMissing { command_id },
         )?;
         if expected_connection_generation != received_connection_generation {
-            return Err(WebDriverBiDiCommandCorrelationError::ResponseConnectionMismatch {
-                command_id,
-            });
+            return Err(
+                WebDriverBiDiCommandCorrelationError::ResponseConnectionMismatch { command_id },
+            );
         }
         let _removed = self.outstanding.remove(&command_id);
         Ok(WebDriverBiDiCorrelatedResponse {
@@ -400,9 +388,7 @@ mod tests {
                 "WebDriver BiDi outstanding command lacks connection provenance",
             ),
             (
-                WebDriverBiDiCommandCorrelationError::ResponseConnectionMismatch {
-                    command_id: 7,
-                },
+                WebDriverBiDiCommandCorrelationError::ResponseConnectionMismatch { command_id: 7 },
                 "WebDriver BiDi response arrived on a different connection",
             ),
             (

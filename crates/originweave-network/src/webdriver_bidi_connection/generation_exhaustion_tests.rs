@@ -76,14 +76,11 @@ fn connect_target() -> WebDriverBiDiWebSocketConnectTarget {
 fn verified_connection_fails_closed_when_generation_space_is_exhausted() {
     let connector = VerifiedConnector::new(loopback_stream());
     let exhausted_counter = AtomicU64::new(u64::MAX);
-    let error = WebDriverBiDiTcpConnectionPlan::new(
-        connect_target(),
-        Duration::from_millis(250),
-        1,
-    )
-    .expect("valid plan")
-    .connect_with_generation_counter(&connector, &exhausted_counter)
-    .expect_err("generation exhaustion must fail after exact peer verification");
+    let error =
+        WebDriverBiDiTcpConnectionPlan::new(connect_target(), Duration::from_millis(250), 1)
+            .expect("valid plan")
+            .connect_with_generation_counter(&connector, &exhausted_counter)
+            .expect_err("generation exhaustion must fail after exact peer verification");
 
     assert!(matches!(
         error,
