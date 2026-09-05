@@ -52,6 +52,12 @@ The repair includes a realistic two-connection regression for a foreign `session
 
 The current scope deliberately does not infer browser-process ownership from the WebSocket connection and does not make protocol success an operational teardown post-condition. Process-exit and profile-removal evidence remain unavailable until their canonical runtime owners provide non-forgeable contracts.
 
+### Pointer-click transport child integration
+
+PR #257 predecessor `ea2b5b78868917219c46f1304558b92490a7f6fe` collected zero inherited command-correlation release tests and failed the expected-one assertion. Ordinary adoption of `ced4a851ca66c08d895a098725c7f0ad3ecf0c38` restores that executable contract and the current connection-provenance implementation. The module/export conflict is resolved by retaining both the typed click sender and connection-bound message reader. The sender and its two child test files remain byte-identical to the predecessor; no generic JSON dispatch, input authorization, response admission or click post-condition is added.
+
+Fresh verification passed five pointer-click transport tests, five foreign-response/teardown tests, all 142 Python contracts, compileall and the complete Rust 1.97.1 quality gates. Pinned coverage measured 1093 functions, 11131 lines, 14202 regions and 1214 branches at 100%; the unstable branch-option warning remains. No focused retry was needed in this run. These results neither remove a platform-level socket-observation race in an unchanged fixture nor establish hosted acceptance, browser ownership or an observed click post-condition.
+
 ## References
 
 Fette, I., & Melnikov, A. (2011). *The WebSocket Protocol* (RFC 6455). Internet Engineering Task Force. https://www.rfc-editor.org/rfc/rfc6455
