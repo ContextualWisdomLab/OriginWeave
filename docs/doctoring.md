@@ -98,6 +98,12 @@ TRINITY uses a compact learned coordinator to select models and assign Thinker, 
 
 These results motivate explicit OriginWeave configuration for model routing, workflow stage, decomposition, recursion depth, permitted access, role assignment, and role-specific reasoning effort. They do not justify always using multiple agents. OriginWeave must compare bounded single-model, routed-model, and deeper multi-agent configurations through task-success, safety, variance, token, and compute ablations. No learned coordinator may expand browser capabilities, origins, destinations, approvals, secrets, or deterministic policy.
 
+### Opening-exchange fixture lifetime
+
+On 5 September 2026, a complete Rust run after integrating PR #242 head `55fef0c3fae1724eddada53e52c4a0311f509aa3` into #243 reproduced `WriteTimeoutCleanupFailed` with macOS `EINVAL` after 198 request bytes in `opening_response_rejects_a_mismatched_accept_value`. That fixture returned its invalid response and closed immediately, before the client could finish opening-write cleanup. The successful-handshake fixture's one-byte close probe could consume the first request byte rather than observe closure, and the request-only fixture also closed immediately after reading the request. All three paths therefore shared a premature peer-lifetime assumption; the previously repaired invalid-deadline fixture did not cover them.
+
+The test-only `serve_opening_exchange` helper reuses the bounded request reader, reads the complete request before sending the configured response, and retains the accepted stream until the client explicitly releases it after its assertions. Successful, mismatched-accept, and request-only tests all use that helper. No sleep, retry-based acceptance, production timeout change, ignored cleanup error, dependency, or coverage exclusion is introduced. Existing real-socket assertions remain the regression checks, including the requirement that an invalid accept value reaches `AcceptMismatch` rather than an earlier fixture-induced transport failure. Descendant stacks must adopt the owner fix and rerun their own gates; the reproduced failure and this fixture repair do not imply protected-main or browser-runtime delivery.
+
 ## References
 
 Amazon Web Services. (n.d.). *Set up the Amazon EKS Pod Identity Agent*. Retrieved August 6, 2026, from https://docs.aws.amazon.com/eks/latest/userguide/pod-id-agent-setup.html

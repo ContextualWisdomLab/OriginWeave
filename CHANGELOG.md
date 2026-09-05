@@ -67,6 +67,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Kept the loopback peer alive until opening-write timeout cleanup completes, removing a macOS close race that could report `EINVAL` after a successful request write without weakening production cleanup failures.
 - Kept the invalid opening-response deadline fixture's accepted peer alive through opening-write cleanup, removing the same macOS `EINVAL` race from the integration coverage path.
 - Kept the revoked-stream fixture peer alive until local shutdown and fail-closed write classification complete, removing a macOS `ENOTCONN` race from the coverage path.
+- Made opening-exchange tests wait for the complete client request and retain the peer until each client assertion finishes, avoiding premature connection closure in both successful and rejected handshakes without changing production error handling.
 - Updated research doctoring to pin Chromium canonicalizer evidence to an immutable revision, add RFC 9293, RFC 5280, RFC 8446, RFC 9525, rustls 0.23.42, and Rust `TcpStream` evidence, distinguish the April 2026 Fugu beta from the June 2026 release, and treat vendor benchmark claims as first-party evidence rather than independent validation.
 
 ### Security
