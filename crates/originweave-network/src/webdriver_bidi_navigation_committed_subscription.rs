@@ -93,10 +93,10 @@ impl WebDriverBiDiNavigationCommittedSubscriptionCommand {
     /// Context binding is revalidated immediately before command correlation and network I/O so a
     /// command retained across registry retirement cannot subscribe a stale or replacement context.
     /// Invalid frame deadlines fail before correlation registration. Registration then occurs before
-    /// the first possible remote side effect. A binding, deadline, or correlation failure therefore
-    /// writes nothing. After successful registration, frame failures consume the transport and
-    /// conservatively leave the identifier outstanding, including ambiguous partial or full emission
-    /// and frame-owner preflight failures.
+    /// the first possible remote side effect. A frame-owner preflight rejection that proves no write
+    /// began retires this exact subscription again; currently that covers adjacent client masking-key
+    /// reuse. Once frame emission can have begun, later failures conservatively leave the identifier
+    /// outstanding because partial or full emission is ambiguous.
     pub fn send(
         self,
         registry: &BrowserAuthorityRegistry,
@@ -126,11 +126,10 @@ impl WebDriverBiDiNavigationCommittedSubscriptionCommand {
                 WebDriverBiDiNavigationCommittedSubscriptionCommandError::Correlation { source }
             })?;
         let message = self.serialized();
-        established
-            .write_text_frame(&message, masking_key, frame_timeout)
-            .map_err(|source| {
-                WebDriverBiDiNavigationCommittedSubscriptionCommandError::FrameWrite { source }
-            })
+        match established.write_text_frame(&message, masking_key, frame_timeout) {
+            Ok(established) => Ok(established),
+            Err(source) => Err(map_frame_failure(correlation, self.command_id, source)),
+        }
     }
 
     fn serialized(&self) -> String {
@@ -142,6 +141,23 @@ impl WebDriverBiDiNavigationCommittedSubscriptionCommand {
         message.push_str("]}}");
         message
     }
+}
+
+fn map_frame_failure(
+    correlation: &mut WebDriverBiDiCommandCorrelation,
+    command_id: u64,
+    source: WebDriverBiDiWebSocketFrameError,
+) -> WebDriverBiDiNavigationCommittedSubscriptionCommandError {
+    if matches!(
+        source,
+        WebDriverBiDiWebSocketFrameError::MalformedFrame { .. }
+    ) {
+        let _retirement = correlation.retire_command_for(
+            command_id,
+            WebDriverBiDiCommandKind::NavigationCommittedSubscription,
+        );
+    }
+    WebDriverBiDiNavigationCommittedSubscriptionCommandError::FrameWrite { source }
 }
 
 fn require_registered_context(
