@@ -379,6 +379,24 @@ class ProductDocumentationContractTests(unittest.TestCase):
                 self.assertIn(phrase, traceability)
         self.assertIn("Dispatch-time semantic-node authority revalidation", changelog)
 
+    def test_disabled_semantic_node_action_is_durably_scoped(self) -> None:
+        """Known disabled state must fail closed without becoming live browser proof."""
+
+        traceability = (
+            ROOT / "docs/traceability/action-postcondition-evidence.md"
+        ).read_text(encoding="utf-8")
+        changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        for phrase in (
+            "PR #101",
+            "`NodeNotEnabled`",
+            "`ScrollIntoView`",
+            "does not observe current Chromium state",
+            "does not grant dispatch authority",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, traceability)
+        self.assertIn("Known-disabled semantic-node action rejection", changelog)
+
     def test_traceability_labels_conversation_derived_future_work(self) -> None:
         """Conversation decisions must preserve canonical maturity instead of becoming shipped claims."""
         traceability = (ROOT / "docs/traceability/README.md").read_text(encoding="utf-8")
