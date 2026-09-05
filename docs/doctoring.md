@@ -130,6 +130,12 @@ The #251 integration adopts #250 `ec433b844a121f8554c062f92267991af9cacb6f` by o
 
 PR #252 ordinarily adopts current command parent `f02af6d0dd01708d495cc08dec785675f3d58898` while preserving the response implementation, public exports and four real-loopback response tests from `2015259529ada99af836989079cc85a15779a2d8`. The pre-integration native loader again collected zero correlation release-record checks; adopting the existing parent TestCase makes that contract executable without a new framework or copied owner fix. Both sides of the changelog-only conflict are retained. The response boundary still validates the entire bounded envelope before consuming exact typed correlation, retains remote errors as failures and leaves malformed or mismatched responses unable to consume another command. The acknowledgment remains unbound to received-connection provenance in this layer and does not prove process exit, profile removal or operational teardown. Later connection-bound evidence belongs to its own owner stack; local quality results, hosted checks and protected delivery remain separate.
 
+### Teardown-assessment parent integration and acceptance limit
+
+PR #253 ordinarily adopts response parent `6569bf40b6595ac74c2f0a997d202137f07ba1db` and preserves its assessment implementation, public exports and existing loopback tests from `0d72082e595c0e1fcc03d609ba337896ed14e2fc`. Native release-record discovery first failed with zero collected checks; the canonical parent provides the existing executable TestCase and synchronized opening fixtures. Both changelog records remain. No new assessment API or runtime-evidence producer is introduced by this integration.
+
+The retained assessment still accepts three caller-supplied booleans and can label them `OperationallyComplete`; that calculation authenticates none of the observations and is not trusted operational-completion evidence. This known product gap remains open despite passing local structural tests or numerical coverage. The later #255 owner removes raw process/profile completion claims and binds received-response and closure provenance. That owner repair must remain intact when this dependency chain is integrated and independently reverified. No release or protected-main acceptance of caller claims is justified by this intermediate parent adoption.
+
 ## References
 
 Amazon Web Services. (n.d.). *Set up the Amazon EKS Pod Identity Agent*. Retrieved August 6, 2026, from https://docs.aws.amazon.com/eks/latest/userguide/pod-id-agent-setup.html
