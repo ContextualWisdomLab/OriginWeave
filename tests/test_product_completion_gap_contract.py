@@ -174,6 +174,22 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             text,
         )
 
+    def test_current_snapshot_records_origin_bound_socket_ports(self) -> None:
+        """The live network root must retain its exact port-authority repair."""
+        text = BASELINE.read_text(encoding="utf-8")
+        current = text.split("## Current live delivery state", 1)[1].split(
+            "## Observed snapshot: ", 1
+        )[0]
+
+        for marker in (
+            "PR #50 is Ready at exact head `ddbefc91fbcbc1bfd1e1af63846620f7ccb7a9b4`",
+            "origin-approved IP could be paired with a different service port",
+            "binds the socket port to the effective scheme-host-port origin",
+            "function/line/region/branch coverage pass locally at 100%",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, current)
+
     def test_current_snapshot_records_content_length_persistence_repair(self) -> None:
         """A declared body boundary must not be confused with transport closure."""
         text = BASELINE.read_text(encoding="utf-8")
