@@ -12,13 +12,14 @@ pub const MAX_WEBDRIVER_BIDI_JSON_DEPTH: usize = 64;
 /// Largest integer admitted by WebDriver BiDi's `js-uint` production.
 pub const MAX_WEBDRIVER_BIDI_JS_UINT: u64 = 9_007_199_254_740_991;
 
-const WEBDRIVER_BIDI_ERROR_CODES: [&str; 30] = [
+const WEBDRIVER_BIDI_ERROR_CODES: [&str; 31] = [
     "invalid argument",
     "invalid selector",
     "invalid session id",
     "invalid web extension",
     "move target out of bounds",
     "no such alert",
+    "no such client window",
     "no such network collector",
     "no such element",
     "no such frame",
