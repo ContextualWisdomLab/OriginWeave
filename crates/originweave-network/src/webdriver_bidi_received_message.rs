@@ -75,7 +75,9 @@ impl WebDriverBiDiWebSocketMessageReader {
     /// Read and admit exactly one frame while preserving connection-bound fragmentation state.
     ///
     /// `Pending` and `Control` outcomes return the same reader so the next frame cannot silently
-    /// switch sockets. A completed text message carries the private generation of this exact reader.
+    /// switch sockets. A completed text message carries the private generation of this exact reader;
+    /// because a completed text leaves no partial fragments, its established transport is returned
+    /// directly for the next protocol stage rather than exposing a way to discard partial state.
     pub fn read_next(
         self,
         frame_timeout: Duration,
@@ -91,18 +93,17 @@ impl WebDriverBiDiWebSocketMessageReader {
         let assembly = assembler
             .push_frame(frame)
             .map_err(|source| WebDriverBiDiConnectionMessageReadError::Message { source })?;
-        let reader = Self {
-            established,
-            assembler,
-            connection_generation,
-        };
         Ok(match assembly {
             WebDriverBiDiWebSocketMessageAssembly::Pending => {
-                WebDriverBiDiConnectionMessageRead::Pending(reader)
+                WebDriverBiDiConnectionMessageRead::Pending(Self {
+                    established,
+                    assembler,
+                    connection_generation,
+                })
             }
             WebDriverBiDiWebSocketMessageAssembly::Text(message) => {
                 WebDriverBiDiConnectionMessageRead::Text {
-                    reader,
+                    established,
                     message: WebDriverBiDiReceivedTextMessage {
                         message,
                         connection_generation,
@@ -110,7 +111,14 @@ impl WebDriverBiDiWebSocketMessageReader {
                 }
             }
             WebDriverBiDiWebSocketMessageAssembly::Control(message) => {
-                WebDriverBiDiConnectionMessageRead::Control { reader, message }
+                WebDriverBiDiConnectionMessageRead::Control {
+                    reader: Self {
+                        established,
+                        assembler,
+                        connection_generation,
+                    },
+                    message,
+                }
             }
         })
     }
@@ -120,10 +128,10 @@ impl WebDriverBiDiWebSocketMessageReader {
 pub enum WebDriverBiDiConnectionMessageRead {
     /// A fragmented text message remains incomplete; continue with this same reader.
     Pending(WebDriverBiDiWebSocketMessageReader),
-    /// One complete text message was assembled entirely on this reader's verified connection.
+    /// One complete text message was assembled entirely on this verified connection.
     Text {
-        /// Reader retaining the same established connection for later messages.
-        reader: WebDriverBiDiWebSocketMessageReader,
+        /// Established transport returned after the complete message left no partial fragments.
+        established: WebDriverBiDiWebSocketEstablished,
         /// Complete text message carrying non-forgeable connection provenance.
         message: WebDriverBiDiReceivedTextMessage,
     },
