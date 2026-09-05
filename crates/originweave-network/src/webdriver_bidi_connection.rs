@@ -1,6 +1,7 @@
 use std::{
     io,
     net::{SocketAddr, TcpStream},
+    sync::atomic::{AtomicU64, Ordering},
     time::Duration,
 };
 
@@ -14,6 +15,18 @@ pub use error::WebDriverBiDiTcpConnectionError;
 
 #[cfg(test)]
 mod tests;
+
+static NEXT_CONNECTION_GENERATION: AtomicU64 = AtomicU64::new(1);
+
+fn allocate_connection_generation(
+    counter: &AtomicU64,
+) -> Result<u64, WebDriverBiDiTcpConnectionError> {
+    counter
+        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+            current.checked_add(1)
+        })
+        .map_err(|_| WebDriverBiDiTcpConnectionError::ConnectionGenerationExhausted)
+}
 
 fn is_retryable_connect_error(kind: io::ErrorKind) -> bool {
     matches!(
@@ -32,7 +45,9 @@ fn is_retryable_connect_error(kind: io::ErrorKind) -> bool {
 /// produced by `originweave-core`. It applies the same bounded per-attempt timeout and retry
 /// ceilings as the general direct-network connector, opens only the exact [`SocketAddr`] carried by
 /// that target, and does not expose the stream until the operating system's observed peer has been
-/// verified by the consumed target.
+/// verified by the consumed target. Each verified stream also receives one process-local monotonic
+/// connection generation that later transport stages can retain as non-forgeable correlation
+/// provenance; the generation is not public authority and is never accepted from callers.
 ///
 /// This boundary performs no DNS lookup, proxy or PAC routing, Chromium/ChromeDriver process
 /// authentication, TLS negotiation, WebSocket upgrade, BiDi framing, browser policy decision, or
@@ -107,11 +122,14 @@ impl WebDriverBiDiTcpConnectionPlan {
                                 attempt_number,
                                 source,
                             })?;
+                    let connection_generation =
+                        allocate_connection_generation(&NEXT_CONNECTION_GENERATION)?;
                     return Ok(WebDriverBiDiTcpConnection {
                         stream,
                         verified_peer,
                         attempt_number,
                         connect_timeout,
+                        connection_generation,
                     });
                 }
                 Err(source)
@@ -170,13 +188,16 @@ impl WebDriverBiDiSocketConnector for SystemWebDriverBiDiConnector {
 ///
 /// This wrapper proves only exact transport-destination equality for one bounded connection. The
 /// caller must still establish any required TLS channel, complete a WebSocket handshake, bind the
-/// transport to the expected browser process/session, and pass separate action-policy checks.
+/// transport to the expected browser process/session, and pass separate action-policy checks. A
+/// private process-local connection generation follows this exact stream so later evidence cannot
+/// be mixed with another connection that happens to use the same session or command identifier.
 #[derive(Debug)]
 pub struct WebDriverBiDiTcpConnection {
     stream: TcpStream,
     verified_peer: VerifiedWebDriverBiDiSocketPeer,
     attempt_number: u8,
     connect_timeout: Duration,
+    connection_generation: u64,
 }
 
 impl WebDriverBiDiTcpConnection {
@@ -207,15 +228,17 @@ impl WebDriverBiDiTcpConnection {
     /// Consume the wrapper into the original verified stream and credential-free transport evidence.
     ///
     /// This handoff does not clone the socket or create reusable connection authority. The returned
-    /// evidence records only the already-verified peer plus bounded connection-attempt metadata; it
-    /// does not authenticate a browser process, establish TLS, complete WebSocket framing, or grant
-    /// browser or Agent authority.
+    /// evidence records the already-verified peer, bounded connection-attempt metadata, and one
+    /// private process-local connection generation for downstream provenance matching. It does not
+    /// authenticate a browser process, establish TLS, complete WebSocket framing, or grant browser
+    /// or Agent authority.
     #[must_use]
     pub fn into_parts(self) -> (TcpStream, WebDriverBiDiTcpConnectionEvidence) {
         let evidence = WebDriverBiDiTcpConnectionEvidence {
             verified_peer: self.verified_peer,
             attempt_number: self.attempt_number,
             connect_timeout: self.connect_timeout,
+            connection_generation: self.connection_generation,
         };
         (self.stream, evidence)
     }
@@ -224,13 +247,15 @@ impl WebDriverBiDiTcpConnection {
 /// Credential-free evidence retained when a verified WebDriver BiDi TCP stream is consumed.
 ///
 /// This value records exact peer/session/TLS-requirement metadata inherited from the consumed
-/// no-DNS target together with the successful bounded attempt and per-attempt timeout. It is
-/// transport evidence only and grants no process, TLS, WebSocket, browser-action, or Agent authority.
+/// no-DNS target together with the successful bounded attempt, per-attempt timeout, and a private
+/// process-local connection generation. It is transport evidence only and grants no process, TLS,
+/// WebSocket, browser-action, or Agent authority.
 #[derive(Debug)]
 pub struct WebDriverBiDiTcpConnectionEvidence {
     verified_peer: VerifiedWebDriverBiDiSocketPeer,
     attempt_number: u8,
     connect_timeout: Duration,
+    connection_generation: u64,
 }
 
 impl WebDriverBiDiTcpConnectionEvidence {
@@ -250,5 +275,9 @@ impl WebDriverBiDiTcpConnectionEvidence {
     #[must_use]
     pub const fn connect_timeout(&self) -> Duration {
         self.connect_timeout
+    }
+
+    pub(crate) const fn connection_generation(&self) -> u64 {
+        self.connection_generation
     }
 }
