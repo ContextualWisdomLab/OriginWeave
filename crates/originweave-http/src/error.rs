@@ -95,9 +95,9 @@ pub enum HttpError {
     },
     /// Inherited TLS peer evidence or the current socket peer is inconsistent.
     InvalidTransportEvidence,
-    /// Bytes appeared beyond the complete response message boundary.
+    /// Bytes appeared beyond the message boundary or where status semantics forbid content.
     UnexpectedResponseBytes {
-        /// Number of bytes beyond the selected message boundary.
+        /// Number of rejected response bytes.
         byte_count: usize,
     },
     /// TLS ALPN evidence does not authorize HTTP/1.1 semantics.

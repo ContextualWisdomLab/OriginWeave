@@ -312,6 +312,42 @@ fn segmented_content_length_body_is_read_after_the_response_head() {
 }
 
 #[test]
+fn reset_content_reads_declared_body_before_rejecting_it() {
+    let (result, server) = execute_segmented(
+        b"HTTP/1.1 205 Reset Content\r\nContent-Length: 1\r\nConnection: close\r\n\r\n",
+        b"x",
+        HttpClientPolicy::strict_defaults(),
+    );
+    assert!(matches!(
+        result,
+        Err(HttpError::UnexpectedResponseBytes { byte_count: 1 })
+    ));
+    server
+        .join()
+        .expect("server thread")
+        .expect("server exchange");
+}
+
+#[test]
+fn reset_content_accepts_an_empty_framed_body() {
+    let (result, server) = execute(
+        HttpMethod::Get,
+        b"HTTP/1.1 205 Reset Content\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+        HttpClientPolicy::strict_defaults(),
+    );
+    let response = result.expect("empty 205 response");
+    assert!(response.content().is_empty());
+    assert_eq!(
+        response.evidence().body_framing(),
+        BodyFraming::ContentLength(0)
+    );
+    server
+        .join()
+        .expect("server thread")
+        .expect("server exchange");
+}
+
+#[test]
 fn incomplete_content_length_fails_closed() {
     let (result, server) = execute(
         HttpMethod::Get,

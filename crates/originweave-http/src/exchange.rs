@@ -341,44 +341,44 @@ fn read_network_response(
         &head.fields,
         policy.max_encoded_content_bytes(),
     )?;
-    match framing {
+    let result = match framing {
         BodyFraming::NoContent => {
             if !body_prefix.is_empty() {
                 return Err(HttpError::UnexpectedResponseBytes {
                     byte_count: body_prefix.len(),
                 });
             }
-            Ok(NetworkResult {
+            NetworkResult {
                 head,
                 encoded_content: Vec::new(),
                 trailers: FieldBlock::default(),
                 framing,
                 chunk_count: 0,
                 interim_response_count,
-            })
+            }
         }
         BodyFraming::ContentLength(expected) => {
             let encoded_content =
                 read_exact_content(connection, body_prefix, expected, deadline, timeout)?;
-            Ok(NetworkResult {
+            NetworkResult {
                 head,
                 encoded_content,
                 trailers: FieldBlock::default(),
                 framing,
                 chunk_count: 0,
                 interim_response_count,
-            })
+            }
         }
         BodyFraming::Chunked => {
             let result = read_chunked_body(connection, body_prefix, policy, deadline, timeout)?;
-            Ok(NetworkResult {
+            NetworkResult {
                 head,
                 encoded_content: result.content,
                 trailers: result.trailers,
                 framing,
                 chunk_count: result.chunk_count,
                 interim_response_count,
-            })
+            }
         }
         BodyFraming::CloseDelimited => {
             let encoded_content = read_to_clean_eof_bounded(
@@ -388,16 +388,22 @@ fn read_network_response(
                 deadline,
                 timeout,
             )?;
-            Ok(NetworkResult {
+            NetworkResult {
                 head,
                 encoded_content,
                 trailers: FieldBlock::default(),
                 framing,
                 chunk_count: 0,
                 interim_response_count,
-            })
+            }
         }
+    };
+    if result.head.status_code == 205 && !result.encoded_content.is_empty() {
+        return Err(HttpError::UnexpectedResponseBytes {
+            byte_count: result.encoded_content.len(),
+        });
     }
+    Ok(result)
 }
 
 fn read_final_head(

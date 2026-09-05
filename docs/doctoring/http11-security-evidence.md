@@ -46,7 +46,7 @@ Regression evidence uses a real loopback TLS server that flushes a one-byte decl
 
 ## Reset Content response semantics
 
-RFC 9110 Section 15.3.6 forbids content in a `205 Reset Content` response. OriginWeave therefore treats 205 as a no-content response regardless of framing metadata and never exposes declared response bytes as authenticated content. This is distinct from RFC 9112's wire-length precedence: the status semantics first determine that no content is allowed, while any bytes already received after the header remain an `UnexpectedResponseBytes` failure.
+RFC 9110 Section 15.3.6 forbids content in a `205 Reset Content` response, while RFC 9112 Section 6.3 does not place 205 among the status codes whose messages end at the header boundary. OriginWeave therefore applies the declared, chunked, or close-delimited wire framing first and rejects any non-empty 205 content as `UnexpectedResponseBytes`. This prevents a segmented prohibited body from being mistaken for a successful empty response.
 
 ## Verification contract
 
