@@ -124,6 +124,12 @@ At #147 `af1b98ba377c73b88baa9633e2232e7f76e76f36`, all six parent review-eviden
 
 The existing test now specifies each lane's actual observer, return value and exact arguments. Ordinary trials keep the individual `False` result. Forced-close trials inject `(False, False)` from the shared observer and require `(321, 654, ((321, 654),))`, preserving root-only capture rather than inventing a complete descendant set. Every existing failed-trial, profile-cleanup, live-root, driver-termination, error-type and redaction assertion remains. No production code, deadline, retry, failed denominator or coverage gate changes. This repair does not address the separate ordinary-pass two-deadline finding or prove real Linux/pinned-Chromium acceptance.
 
+### Ordinary shared-deadline parent integration
+
+PR #150 ordinarily adopts #147 `3dff28d9bf2dd27b72507e39979d51b8bf140fb4` while retaining its existing ordinary shared-deadline production delta and two child-owned tests from `c208668ce3aa079059acc1016646ed7240797ac0`. Before integration, discovery collected none of the six current-parent review-evidence methods. After their restoration, two protocol-fault subcases failed because the inherited ordinary-lane test still injected the individual root waiter; the full 229-test suite found three more cases with the same stale injection in the failure-process test.
+
+Both existing tests now target the actual shared observer, return paired root/set outcomes and require the exact root-only identity tuple when capture fails early. Every failure, cleanup, error-type and diagnostic-redaction assertion remains. An additional assertion forbids inventing complete sampled-set evidence from root-only capture. Production deadlines, polling, success predicates, retry rules and failed-trial denominators are unchanged by this reconciliation. The parent's four deterministic shared-observer tests and the child's ordinary call-order contract remain independently executable. Passing injected observations does not prove live Chromium teardown, cgroup ownership or OS-wide orphan absence; the #147 ordinary-wait finding remains unresolved on that parent until the #150 delta is actually integrated there.
+
 ## References
 
 Amazon Web Services. (n.d.). *Set up the Amazon EKS Pod Identity Agent*. Retrieved August 6, 2026, from https://docs.aws.amazon.com/eks/latest/userguide/pod-id-agent-setup.html
