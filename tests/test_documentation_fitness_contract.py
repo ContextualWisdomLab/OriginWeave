@@ -188,6 +188,8 @@ class DocumentationFitnessContractTests(unittest.TestCase):
             index,
         )
         self.assertIn("`tools/list`", route)
+        self.assertIn("`tools/list` capability maturity:** `IMPLEMENTED_ON_PROTECTED_MAIN`", route)
+        self.assertIn("**Discovery refinement:** merged PR #170", route)
         self.assertIn("crates/originweave-core/tests/mcp_tools_list_cache.rs", route)
         self.assertTrue(
             (REPOSITORY_ROOT / "crates/originweave-core/tests/mcp_tools_list_cache.rs").is_file()

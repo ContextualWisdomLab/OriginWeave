@@ -4,7 +4,7 @@
 
 OriginWeave is a Chromium-compatible, Rust-first control plane for governed AI agents on the web. It is designed to let an agent observe, extract, and act without turning untrusted page content into authority, exposing secrets to a model, connecting to an unapproved network destination, accepting an unauthenticated web service, or losing the evidence required to explain what happened.
 
-> Project status: pre-alpha. The current protected repository contains independently reusable safety, resolved-destination, direct TCP peer-binding, authenticated TLS service-identity, and bounded MCP `2026-07-28` stateless `tools/call`/`tools/list` routing and policy foundations. Chromium, WebDriver BiDi, CDP, complete MCP, HTTP, proxy, WARC, and persistent provenance adapters are planned but not yet shipped. The merged `tools/list` contract does not make the complete MCP adapter available.
+> Project status: pre-alpha. The current protected repository contains independently reusable safety, resolved-destination, direct TCP peer-binding, authenticated TLS service-identity, and bounded MCP `2026-07-28` stateless `tools/call` routing/policy and `tools/list` discovery foundations. Chromium, WebDriver BiDi, CDP, complete MCP, HTTP, proxy, WARC, and persistent provenance adapters are planned but not yet shipped. The merged `tools/list` contract does not make the complete MCP adapter available.
 
 ## Why OriginWeave
 
