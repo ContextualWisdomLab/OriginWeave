@@ -101,12 +101,13 @@ impl WebDriverBiDiSessionTeardownAssessment {
         protocol_ack: WebDriverBiDiSessionEndResult,
         observations: WebDriverBiDiSessionTeardownObservations,
     ) -> Result<Self, WebDriverBiDiSessionTeardownAssessmentError> {
-        if let Some(transport_closure) = observations.transport_closure_observation() {
-            if transport_closure.connection_generation() != protocol_ack.connection_generation() {
-                return Err(
-                    WebDriverBiDiSessionTeardownAssessmentError::TransportConnectionMismatch,
-                );
-            }
+        if observations
+            .transport_closure_observation()
+            .is_some_and(|transport_closure| {
+                transport_closure.connection_generation() != protocol_ack.connection_generation()
+            })
+        {
+            return Err(WebDriverBiDiSessionTeardownAssessmentError::TransportConnectionMismatch);
         }
         Ok(Self {
             protocol_ack,
