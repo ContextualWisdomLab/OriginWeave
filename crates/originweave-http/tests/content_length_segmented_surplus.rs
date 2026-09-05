@@ -8,9 +8,7 @@ use std::time::Duration;
 
 use originweave_core::Origin;
 use originweave_destination::{AddressClass, DestinationPolicy, ResolutionSnapshot};
-use originweave_http::{
-    HttpClientPolicy, HttpError, HttpExchangePlan, HttpMethod, HttpRequestTarget,
-};
+use originweave_http::{BodyFraming, HttpClientPolicy, HttpExchangePlan, HttpMethod, HttpRequestTarget};
 use originweave_network::ConnectionPlan;
 use originweave_tls::{
     AlpnRequirement, TlsClientPolicy, TlsHandshakePlan, TrustBundleIdentifier, TrustRootBundle,
@@ -160,7 +158,7 @@ fn authenticated_connection(
 }
 
 #[test]
-fn content_length_rejects_surplus_bytes_arriving_after_the_declared_body() {
+fn content_length_completes_at_declared_boundary_before_delayed_extra_bytes() {
     let material = certificate_material();
     let (root_der, config) = server_config(material);
     let (socket_address, server) = spawn_segmented_surplus_server(config);
@@ -168,7 +166,7 @@ fn content_length_rejects_surplus_bytes_arriving_after_the_declared_body() {
         .expect("test origin");
     let connection = authenticated_connection(&origin, socket_address, root_der);
     let target = HttpRequestTarget::parse(origin, "/segmented-surplus").expect("target");
-    let result = HttpExchangePlan::new(
+    let response = HttpExchangePlan::new(
         connection,
         HttpMethod::Get,
         target,
@@ -176,11 +174,10 @@ fn content_length_rejects_surplus_bytes_arriving_after_the_declared_body() {
         HttpClientPolicy::strict_defaults(),
     )
     .expect("HTTP exchange plan")
-    .execute();
+    .execute()
+    .expect("declared Content-Length completes the single-use response");
 
-    assert!(matches!(
-        result,
-        Err(HttpError::UnexpectedResponseBytes { byte_count: 1 })
-    ));
+    assert_eq!(response.content(), b"x");
+    assert_eq!(response.evidence().body_framing(), BodyFraming::ContentLength(1));
     server.join().expect("server thread");
 }
