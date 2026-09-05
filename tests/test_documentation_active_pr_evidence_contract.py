@@ -1,6 +1,7 @@
 """Regression contracts for volatile active-PR evidence in canonical documentation."""
 
 from pathlib import Path
+import re
 import unittest
 
 
@@ -88,8 +89,20 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         self.assertEqual(1, len(refresh_lines))
         refresh_line = refresh_lines[0]
         self.assertIn("on 2026-09-05", refresh_line)
-        self.assertIn("125 open pull requests (14 ready, 111 draft)", refresh_line)
-        self.assertIn("13 open non-PR issues", refresh_line)
+        current = bounded_section(
+            self.baseline,
+            "## Current live delivery state",
+            "## Observed snapshot: 2026-08-29",
+        )
+        queue_counts = re.findall(
+            r"\*\*(\d+) open pull requests: (\d+) Ready/non-draft and (\d+) Draft; "
+            r"(\d+) open non-PR issues\*\*",
+            current,
+        )
+        self.assertEqual(1, len(queue_counts))
+        total, ready, draft, issues = queue_counts[0]
+        self.assertIn(f"{total} open pull requests ({ready} ready, {draft} draft)", refresh_line)
+        self.assertIn(f"{issues} open non-PR issues", refresh_line)
         self.assertIn("024f63690cf05cfe6f0d4a430f0e18ea8fd2c4d6", refresh_line)
         self.assertIn("3a651967c421f77088fe25e86a63faae295390b3", refresh_line)
         self.assertIn("01038ba71fb276426cc67f90a91a3c431e194db5", refresh_line)

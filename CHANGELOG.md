@@ -4,6 +4,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Recorded a reproduced cross-connection teardown-evidence gap in #254/#255 and its prerequisite repair order; another connection's closure must not be reported as closure of the acknowledged connection.
+- Made the changelog queue-consistency check compare the current baseline counts directly, preventing a duplicated older count from rejecting a verified Ready-to-Draft transition.
 - Converted PR #290 back to Draft after exact review showed its #245-relative MV3 workflow would drop protected #286 `converted_to_draft`/`closed` lifecycle coverage and the closed-event fail-closed guard; the valid concurrency/manual-dispatch intent remains assigned to canonical workflow owner #212.
 - Recorded the #253 teardown-evidence gap and corrected #283's stale #282 predecessor-base classification; raw caller claims and stale parent compares cannot become current completion evidence.
 - Refreshed the active WebDriver BiDi and semantic-action stack evidence through exact heads #195, #242, #93, #95, #96, #101, #102, and #103, including macOS fixture-race repairs and fail-closed policy, dispatch, disabled-state, and current-observation boundaries.
