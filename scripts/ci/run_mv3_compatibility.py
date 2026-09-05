@@ -2288,8 +2288,10 @@ def _run_agent_task_browser_crash_browser_pass(
             )
         browser_process_crash_detected = True
     finally:
-        _cleanup_crashed_browser_session(driver_port, session_id)
-        _stop_crashed_driver(driver)
+        try:
+            _cleanup_crashed_browser_session(driver_port, session_id)
+        finally:
+            _stop_crashed_driver(driver)
 
     if (
         browser_process_id is None
@@ -2383,6 +2385,33 @@ def _classify_agent_task_browser_crash_stage(error: BaseException) -> str:
     return "post_crash_teardown"
 
 
+def _partition_agent_task_browser_crash_failure(
+    error: BaseException,
+) -> tuple[BaseException, str | None, str | None]:
+    """Preserve the first crash failure while retaining typed secondary cleanup evidence."""
+
+    primary_error = error
+    session_cleanup_failure_type: str | None = None
+    driver_cleanup_failure_type: str | None = None
+    visited: set[int] = set()
+    while id(primary_error) not in visited:
+        visited.add(id(primary_error))
+        stage = _classify_agent_task_browser_crash_stage(primary_error)
+        context = primary_error.__context__
+        if context is None:
+            break
+        if stage == "driver_teardown":
+            driver_cleanup_failure_type = type(primary_error).__name__
+            primary_error = context
+            continue
+        if stage == "session_cleanup":
+            session_cleanup_failure_type = type(primary_error).__name__
+            primary_error = context
+            continue
+        break
+    return primary_error, session_cleanup_failure_type, driver_cleanup_failure_type
+
+
 def _run_agent_task_browser_crash_trial(
     chrome_bin: pathlib.Path,
     chromedriver_bin: pathlib.Path,
@@ -2397,6 +2426,8 @@ def _run_agent_task_browser_crash_trial(
     failure_type: str | None = None
     failure_stage: str | None = None
     reason_code: str | None = None
+    session_cleanup_failure_type: str | None = None
+    cleanup_failure_type: str | None = None
     with tempfile.TemporaryDirectory(
         prefix=f"originweave-agent-task-browser-crash-{trial_number}-"
     ) as profile_dir:
@@ -2415,9 +2446,14 @@ def _run_agent_task_browser_crash_trial(
             json.JSONDecodeError,
             subprocess.TimeoutExpired,
         ) as exc:
-            failure_type = type(exc).__name__
-            failure_stage = _classify_agent_task_browser_crash_stage(exc)
-            reason_code = _classify_agent_task_browser_crash_reason(exc)
+            (
+                primary_error,
+                session_cleanup_failure_type,
+                cleanup_failure_type,
+            ) = _partition_agent_task_browser_crash_failure(exc)
+            failure_type = type(primary_error).__name__
+            failure_stage = _classify_agent_task_browser_crash_stage(primary_error)
+            reason_code = _classify_agent_task_browser_crash_reason(primary_error)
     profile_cleaned = not profile_path.exists()
     if not profile_cleaned:
         raise RuntimeError(
@@ -2428,7 +2464,7 @@ def _run_agent_task_browser_crash_trial(
     if failure_type is not None:
         if failure_stage is None or reason_code is None:
             raise RuntimeError("Agent Task browser-crash failure classification was incomplete")
-        return {
+        failure_evidence: dict[str, Any] = {
             "trial_number": trial_number,
             "passed": False,
             "failure_type": failure_type,
@@ -2437,6 +2473,13 @@ def _run_agent_task_browser_crash_trial(
             "profile_cleaned": True,
             "duration_ms": duration_ms,
         }
+        if session_cleanup_failure_type is not None:
+            failure_evidence["session_cleanup_failure_type"] = (
+                session_cleanup_failure_type
+            )
+        if cleanup_failure_type is not None:
+            failure_evidence["cleanup_failure_type"] = cleanup_failure_type
+        return failure_evidence
     if result is None:
         raise RuntimeError("Agent Task browser-crash browser pass returned no result")
     return {
