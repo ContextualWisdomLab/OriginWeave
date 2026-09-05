@@ -1,3 +1,5 @@
+use std::{error::Error, fmt};
+
 use crate::{WebDriverBiDiSessionEndResult, WebDriverBiDiWebSocketTransportClosureObservation};
 
 /// Fail-closed operational disposition derived from teardown observations.
@@ -39,7 +41,10 @@ impl WebDriverBiDiSessionTeardownObservations {
         }
     }
 
-    /// Return whether typed closure evidence for the exact session transport was supplied.
+    /// Return whether typed closure evidence for the exact acknowledged transport was supplied.
+    ///
+    /// A teardown assessment is constructed only after connection-generation equality has been
+    /// checked, so a retained observation belongs to the same exact connection as its protocol ack.
     #[must_use]
     pub const fn transport_closed_observed(&self) -> bool {
         self.transport_closure_observation.is_some()
@@ -54,12 +59,32 @@ impl WebDriverBiDiSessionTeardownObservations {
     }
 }
 
+/// Fail-closed failures while binding protocol acknowledgment to operational teardown evidence.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum WebDriverBiDiSessionTeardownAssessmentError {
+    /// The closure observation belongs to a different process-local connection generation.
+    TransportConnectionMismatch,
+}
+
+impl fmt::Display for WebDriverBiDiSessionTeardownAssessmentError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::TransportConnectionMismatch => formatter.write_str(
+                "WebDriver BiDi transport closure does not match the acknowledged connection",
+            ),
+        }
+    }
+}
+
+impl Error for WebDriverBiDiSessionTeardownAssessmentError {}
+
 /// One correlated `session.end` acknowledgment kept separate from operational teardown evidence.
 ///
 /// A protocol acknowledgment alone is never operational completion. Typed transport closure is
-/// retained from the consumed WebSocket, while process/profile evidence remains absent until its
-/// owning runtime boundaries can provide typed observations. Consequently this assessment remains
-/// fail closed in the current dependency-ordered slice.
+/// retained only when its private process-local connection generation matches the generation bound
+/// to the acknowledged `session.end` command before I/O. Process/profile evidence remains absent
+/// until its owning runtime boundaries can provide typed observations. Consequently this assessment
+/// remains fail closed in the current dependency-ordered slice.
 #[derive(Debug, Eq, PartialEq)]
 pub struct WebDriverBiDiSessionTeardownAssessment {
     protocol_ack: WebDriverBiDiSessionEndResult,
@@ -68,15 +93,25 @@ pub struct WebDriverBiDiSessionTeardownAssessment {
 
 impl WebDriverBiDiSessionTeardownAssessment {
     /// Bind one correlated protocol acknowledgment to separately supplied operational observations.
-    #[must_use]
-    pub const fn from_protocol_ack(
+    ///
+    /// If typed transport closure is present, its private connection generation must equal the one
+    /// retained by the protocol acknowledgment. A closure from another socket is rejected even when
+    /// both transports reuse the same WebDriver session identifier and command id.
+    pub fn from_protocol_ack(
         protocol_ack: WebDriverBiDiSessionEndResult,
         observations: WebDriverBiDiSessionTeardownObservations,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, WebDriverBiDiSessionTeardownAssessmentError> {
+        if let Some(transport_closure) = observations.transport_closure_observation() {
+            if transport_closure.connection_generation() != protocol_ack.connection_generation() {
+                return Err(
+                    WebDriverBiDiSessionTeardownAssessmentError::TransportConnectionMismatch,
+                );
+            }
+        }
+        Ok(Self {
             protocol_ack,
             observations,
-        }
+        })
     }
 
     /// Return the exact command id proven by the correlated protocol acknowledgment.
