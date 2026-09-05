@@ -27,7 +27,8 @@ class AgentTaskForcedCloseProcessTerminationContractTests(unittest.TestCase):
             "_snapshot_linux_process_evidence",
             "_read_linux_process_identity_set",
             "_terminate_owned_process_bounded",
-            "_wait_for_linux_process_teardown",
+            "_wait_for_linux_process_identity_exit",
+            "_wait_for_linux_process_identity_set_exit",
             '"driver_process_terminated"',
             '"driver_kill_fallback_used"',
             '"browser_process_terminated"',
@@ -84,7 +85,7 @@ class AgentTaskForcedCloseProcessTerminationContractTests(unittest.TestCase):
             "browser_failure_type",
             "driver_cleanup_failure_type",
             "driver_kill_fallback_used",
-            "except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:",
+            "except (OSError, ValueError, RuntimeError, json.JSONDecodeError, http.client.HTTPException) as exc:",
             'browser_failure_type = type(exc).__name__',
             "failure_evidence",
             '"driver_process_terminated": driver_process_terminated',
@@ -96,10 +97,12 @@ class AgentTaskForcedCloseProcessTerminationContractTests(unittest.TestCase):
                 self.assertIn(expected, browser_pass)
 
         shutdown = browser_pass.index("_terminate_owned_process_bounded(driver)")
-        teardown_wait = browser_pass.index("_wait_for_linux_process_teardown(")
-        failure_return = browser_pass.index("browser_failure_type is not None", teardown_wait)
-        self.assertLess(shutdown, teardown_wait)
-        self.assertLess(teardown_wait, failure_return)
+        root_wait = browser_pass.index("_wait_for_linux_process_identity_exit(")
+        set_wait = browser_pass.index("_wait_for_linux_process_identity_set_exit(")
+        failure_return = browser_pass.index("browser_failure_type is not None", set_wait)
+        self.assertLess(shutdown, root_wait)
+        self.assertLess(root_wait, failure_return)
+        self.assertLess(set_wait, failure_return)
 
     def test_forced_close_driver_shutdown_timeout_is_bounded_and_typed(self) -> None:
         """A wedged ChromeDriver after SIGKILL must become failure evidence, not escape."""
