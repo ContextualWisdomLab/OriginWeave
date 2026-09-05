@@ -98,8 +98,7 @@ fn read_one_connection_bound_text(
 }
 
 #[test]
-fn response_received_on_reconnected_transport_cannot_consume_prior_connection_command()
--> Result<(), Box<dyn Error>> {
+fn reconnected_response_cannot_consume_prior_connection_command() -> Result<(), Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let server = thread::spawn(move || -> io::Result<()> {
