@@ -32,6 +32,7 @@ pub enum WebDriverBiDiJsonEnvelopeKind {
 pub struct WebDriverBiDiJsonEnvelope {
     kind: WebDriverBiDiJsonEnvelopeKind,
     command_id: Option<u64>,
+    success_command_id: u64,
     method: Option<String>,
     error_code: Option<String>,
 }
@@ -82,6 +83,10 @@ impl WebDriverBiDiJsonEnvelope {
     #[must_use]
     pub const fn command_id(&self) -> Option<u64> {
         self.command_id
+    }
+
+    pub(crate) const fn success_command_id(&self) -> u64 {
+        self.success_command_id
     }
 
     /// Borrow the event method when this is an event envelope.
@@ -210,6 +215,7 @@ impl TopLevelFields {
         Ok(WebDriverBiDiJsonEnvelope {
             kind: WebDriverBiDiJsonEnvelopeKind::Success,
             command_id: Some(command_id),
+            success_command_id: command_id,
             method: None,
             error_code: None,
         })
@@ -225,6 +231,7 @@ impl TopLevelFields {
         Ok(WebDriverBiDiJsonEnvelope {
             kind: WebDriverBiDiJsonEnvelopeKind::Error,
             command_id,
+            success_command_id: 0,
             method: None,
             error_code: Some(error_code),
         })
@@ -236,6 +243,7 @@ impl TopLevelFields {
         Ok(WebDriverBiDiJsonEnvelope {
             kind: WebDriverBiDiJsonEnvelopeKind::Event,
             command_id: None,
+            success_command_id: 0,
             method: Some(method),
             error_code: None,
         })
