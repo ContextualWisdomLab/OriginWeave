@@ -4,6 +4,10 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Execute the documentation-only CI classifier from the protected base revision; the bootstrap PR fails closed to full Rust verification when that trusted classifier is not yet present.
+- Require complete SHA-1 or SHA-256 object identities before exact-head Git raw-diff evidence may authorize lightweight documentation CI.
+- Bind Git rename/copy similarity to blob identity so perfect scores require equal objects and lower scores require distinct objects.
+
 - Refreshed the product-gap queue to 126 open pull requests (54 ready, 72 draft) after #190, #188, #185, #192, #182, #184, #115, #181, #116, #117, #118, #183, #114, #127, #112, #109, #186, #110, #108, #111, #174, and #113 were merged into their immediate stacked prerequisites. PRs #147, #146, #145, #144, #143, #142, #141, #139, #136, #132, #129, and #128 moved to ready after exact-head checks and thread review; these are queue-consolidation results, not protected-main shipment.
 
 ### Added
