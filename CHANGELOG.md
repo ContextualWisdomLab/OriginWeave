@@ -4,6 +4,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Recorded #252's verified current-parent integration and #147's test-only repair from two reproduced failures to all 228 passing tests, preserving the earlier RED history, ordinary-pass deadline finding and instrumentation warning.
 - Recorded #251's verified parent integration and #147's restored parent evidence with two remaining test-reconciliation failures; distinguished the externally closed temporary synthesis from product acceptance and refreshed the live inventory.
 - Recorded #255's new owner-verified repair separately from its prior quality failures, retained the real branch-instrumentation warning, and identified #147's lossy parent adoption with a failing replay of six omitted regressions.
 - Recorded #144/#145 parent adoption, #146's reproduced cleanup-evidence fixes and preserved concurrent integration, with complete local verification separated from queued hosted compatibility; refreshed #287's executed Strix scan and failed Noema gateway retry evidence without claiming recovery or approval.
