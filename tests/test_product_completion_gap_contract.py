@@ -182,7 +182,7 @@ class ProductCompletionGapContractTests(unittest.TestCase):
         )[0]
 
         for marker in (
-            "PR #37 is Ready at exact head `fa34a696e4ed9b2529a65a7d6a45ac8b72ecefb3`",
+            "PR #37 externally advanced to Ready exact head `28721edcc67bb5379ffb11a259d746396ac7ae03`",
             "returns after the exact declared bytes",
             "already-buffered surplus remains fail-closed",
             "does not require TLS EOF",
