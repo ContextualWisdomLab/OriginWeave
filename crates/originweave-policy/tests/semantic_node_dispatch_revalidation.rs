@@ -5,8 +5,8 @@ use originweave_core::{
     BoundedWebDriverBiDiResponseDocument, BrowserAuthorityRegistry, BrowserContextDispatchTarget,
     BrowserContextOriginDispatchTarget, BrowserContextOriginEpochDispatchTarget,
     BrowserProtocolAdapterDescriptor, BrowserProtocolCapability, BrowserProtocolKind,
-    BrowserRegistryError, BrowsingContextId, ExecutionPurpose, InstructionSource, NodeActionKind,
-    Origin, OriginWeaveProtocolVersion, PolicyContext, RobotsDecision, SecretDelivery,
+    BrowsingContextId, ExecutionPurpose, InstructionSource, NodeActionKind, Origin,
+    OriginWeaveProtocolVersion, PolicyContext, RobotsDecision, SecretDelivery,
     SemanticNodeActionBinding, SessionMode, ValidatedBrowserProtocolUse,
     WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesCommand,
 };
@@ -143,9 +143,7 @@ fn stale_registry_authority_never_reaches_dispatch_callback() -> Result<(), Box<
             .authorized
             .dispatch_if_current(&fixture.registry, |_binding| called.set(true))
             .err(),
-        Some(AdmittedNodeAuthorityError::BrowserAuthority(
-            BrowserRegistryError::ContextOriginNotBound
-        ))
+        Some(AdmittedNodeAuthorityError::NotAdmitted)
     );
     assert!(!called.get());
     Ok(())
