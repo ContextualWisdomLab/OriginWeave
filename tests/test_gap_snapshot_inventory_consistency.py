@@ -51,6 +51,7 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "PR #288 is Draft at exact head `39e36256651f62940ec3ca6149067f0cfcb2285a`",
             "PR #269 is Draft at exact head `7854394266d3f292e779193c01413a34f6798d7c`",
             "PR #270 is Draft at exact head `191a14535219ea8033777fa4c970efb281b62418`",
+            "PR #271 is Draft at exact head `802ec806cdd4560eab48c484f435766ecabda353`",
             "PR #285 is Ready at exact head `f455c2cd64b3dd3f027c91d396103792a205ddd0`",
             "CI `33930234387`",
             "Security Scan `33924016851`",
