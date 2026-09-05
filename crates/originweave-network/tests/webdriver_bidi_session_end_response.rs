@@ -8,12 +8,12 @@ use std::{
 
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind, WebDriverBiDiConnectionMessageRead,
-    WebDriverBiDiReceivedTextMessage, WebDriverBiDiSessionEndCommand,
-    WebDriverBiDiSessionEndResponseError, WebDriverBiDiSessionEndResult,
-    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
-    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
-    WebDriverBiDiWebSocketMessageReader,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError, WebDriverBiDiCommandKind,
+    WebDriverBiDiConnectionMessageRead, WebDriverBiDiReceivedTextMessage,
+    WebDriverBiDiSessionEndCommand, WebDriverBiDiSessionEndResponseError,
+    WebDriverBiDiSessionEndResult, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
+    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageReader,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -23,6 +23,10 @@ const END_SUCCESS_RESPONSE: &[u8] =
     br#"{"type":"success","id":7,"result":{"vendorExtension":{"clean":true}}}"#;
 const END_REMOTE_ERROR_RESPONSE: &[u8] =
     br#"{"type":"error","id":7,"error":"unknown error","message":"remote refused"}"#;
+const END_NULL_ID_ERROR_RESPONSE: &[u8] =
+    br#"{"type":"error","id":null,"error":"unknown error","message":"unattributed"}"#;
+const END_EVENT_RESPONSE: &[u8] =
+    br#"{"type":"event","method":"log.entryAdded","params":{"text":"not a response"}}"#;
 const END_UNKNOWN_ID_RESPONSE: &[u8] =
     br#"{"type":"success","id":8,"result":{"vendorExtension":true}}"#;
 const END_MALFORMED_RESPONSE: &[u8] = br#"{"type":"success","id":7}"#;
@@ -197,6 +201,43 @@ fn session_end_remote_error_consumes_only_the_correlated_command() -> Result<(),
     );
     assert!(error.source().is_none());
     assert_eq!(correlation.outstanding_count(), 0);
+    Ok(())
+}
+
+#[test]
+fn null_id_error_and_event_do_not_consume_connection_bound_correlation()
+-> Result<(), Box<dyn Error>> {
+    for (response, expected) in [
+        (
+            END_NULL_ID_ERROR_RESPONSE,
+            WebDriverBiDiCommandCorrelationError::UncorrelatableErrorResponse,
+        ),
+        (
+            END_EVENT_RESPONSE,
+            WebDriverBiDiCommandCorrelationError::EventIsNotResponse,
+        ),
+    ] {
+        let (text, mut correlation) = send_end_and_read_response(response)?;
+        let error = WebDriverBiDiSessionEndResult::parse_and_correlate(&text, &mut correlation)
+            .err()
+            .ok_or_else(|| io::Error::other("uncorrelatable message was accepted"))?;
+        match error {
+            WebDriverBiDiSessionEndResponseError::Correlation { source } => {
+                assert_eq!(source, expected);
+            }
+            other => {
+                return Err(io::Error::other(format!(
+                    "uncorrelatable message produced unexpected error: {other}"
+                ))
+                .into());
+            }
+        }
+        assert_eq!(
+            correlation.outstanding_count(),
+            1,
+            "uncorrelatable message must leave session.end outstanding"
+        );
+    }
     Ok(())
 }
 
