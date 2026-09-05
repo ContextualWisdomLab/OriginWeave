@@ -232,7 +232,7 @@ fn invalid_frame_timeout_preserves_only_preexisting_correlation() -> Result<(), 
 }
 
 #[test]
-fn post_registration_frame_failure_keeps_the_outstanding_command() -> Result<(), Box<dyn Error>> {
+fn local_masking_key_rejection_retires_only_the_new_subscription() -> Result<(), Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let server = thread::spawn(move || -> io::Result<()> {
@@ -263,6 +263,7 @@ fn post_registration_frame_failure_keeps_the_outstanding_command() -> Result<(),
         Duration::from_millis(500),
     )?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
+    correlation.register_command_for(99, WebDriverBiDiCommandKind::SessionStatus)?;
     let error = command
         .send(
             &registry,
@@ -283,6 +284,8 @@ fn post_registration_frame_failure_keeps_the_outstanding_command() -> Result<(),
         .join()
         .map_err(|_| io::Error::other("frame-rejection test server panicked"))??;
     assert_eq!(correlation.outstanding_count(), 1);
-    correlation.retire_command_for(7, WebDriverBiDiCommandKind::NavigationCommittedSubscription)?;
+    correlation.retire_command_for(99, WebDriverBiDiCommandKind::SessionStatus)?;
+    correlation
+        .register_command_for(7, WebDriverBiDiCommandKind::NavigationCommittedSubscription)?;
     Ok(())
 }
