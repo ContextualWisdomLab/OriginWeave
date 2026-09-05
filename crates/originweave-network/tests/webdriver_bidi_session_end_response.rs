@@ -8,12 +8,12 @@ use std::{
 
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind, WebDriverBiDiSessionEndCommand,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind, WebDriverBiDiConnectionMessageRead,
+    WebDriverBiDiReceivedTextMessage, WebDriverBiDiSessionEndCommand,
     WebDriverBiDiSessionEndResponseError, WebDriverBiDiSessionEndResult,
     WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
     WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
-    WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
-    WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiWebSocketMessageReader,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -74,7 +74,7 @@ fn send_end_and_read_response(
     response: &'static [u8],
 ) -> Result<
     (
-        WebDriverBiDiWebSocketTextMessage,
+        WebDriverBiDiReceivedTextMessage,
         WebDriverBiDiCommandCorrelation,
     ),
     Box<dyn Error>,
@@ -115,15 +115,17 @@ fn send_end_and_read_response(
         Duration::from_millis(500),
     )?;
 
-    let (_established, frame) = established.read_frame(Duration::from_millis(500))?;
-    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-    let text = match assembler.push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(text) => text,
-        other => {
-            return Err(io::Error::other(format!(
-                "session.end response produced unexpected assembly state: {other:?}"
-            ))
-            .into());
+    let mut reader = WebDriverBiDiWebSocketMessageReader::new(established);
+    let text = loop {
+        match reader.read_next(Duration::from_millis(500))? {
+            WebDriverBiDiConnectionMessageRead::Pending(next) => reader = next,
+            WebDriverBiDiConnectionMessageRead::Text { message, .. } => break message,
+            WebDriverBiDiConnectionMessageRead::Control { message, .. } => {
+                return Err(io::Error::other(format!(
+                    "session.end response produced unexpected control message: {message:?}"
+                ))
+                .into());
+            }
         }
     };
 
@@ -164,7 +166,11 @@ fn session_end_success_rejects_correlation_without_connection_provenance()
         error.to_string(),
         "WebDriver BiDi session.end response lacks connection provenance"
     );
-    assert_eq!(unbound.outstanding_count(), 0);
+    assert_eq!(
+        unbound.outstanding_count(),
+        1,
+        "missing provenance must not consume the outstanding command"
+    );
     Ok(())
 }
 
