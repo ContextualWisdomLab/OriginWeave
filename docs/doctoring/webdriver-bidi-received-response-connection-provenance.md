@@ -66,6 +66,18 @@ Fresh integrated-tree verification passed nine click response/send tests, five f
 
 ## References
 
+### Pointer-response receipt repair evidence
+
+The later #258 repair reuses the selected received-message boundary above.
+Published regression `8193fcd5` failed locally when a replacement socket consumed
+the original click. Stronger test `d9396f05` holds listener address and session
+constant and rejects both foreign success and error with exact mismatch while
+requiring original-connection recovery and unrelated-request retention.
+Consumer-only `588fe731` failed with missing sender provenance; ordinary parent
+merge `0234b587d1bca9286eb5b597f9dab33be47ff518` includes #257 `9451fd8a` and
+passes all six focused response tests. These are local implementation findings,
+not new standards claims, browser authentication, page effects, or release proof.
+
 Fette, I., & Melnikov, A. (2011). *The WebSocket Protocol* (RFC 6455). Internet Engineering Task Force. https://www.rfc-editor.org/rfc/rfc6455
 
 The Rust Project Developers. (n.d.). *AtomicU64 in std::sync::atomic*. Rust standard library documentation. Retrieved September 5, 2026, from https://doc.rust-lang.org/std/sync/atomic/type.AtomicU64.html

@@ -26,6 +26,27 @@ The generic value primitives are **IMPLEMENTED_ON_PROTECTED_MAIN**. The complete
 
 ## 3. Active executable evidence
 
+### Pointer-click connection-bound receipt checkpoint
+
+Ordinary merge `0234b587d1bca9286eb5b597f9dab33be47ff518` integrates #257
+`9451fd8a23dec95b31749376bc78c2eaca977fe8` with #258's sealed received-message
+consumer. Test commit `d9396f05` strengthened the published `8193fcd5` regression:
+two sockets share one listener and session; foreign success and error replies
+must produce the exact connection-mismatch error, retain both pending commands,
+and permit the original reply to complete only its click. Both cases failed
+before repair. Consumer-only `588fe731` also failed original-response acceptance
+because the sender lacked connection provenance; this prevents a partial repair
+from appearing complete.
+
+All six focused response and replacement-connection tests pass on the integrated
+tree. Existing malformed-envelope, unknown-id, extensible-success and matched
+remote-error behavior is retained. No public receipt constructor, caller-supplied
+generation, generic fallback, dependency, or new authority boundary was added.
+This supersedes the receipt prerequisite below, not its dated evidence or the
+remaining outbound session-authority and real-browser postcondition gaps.
+Full exact-head verification, hosted acceptance and protected integration remain
+separate requirements; focused loopback success does not establish them.
+
 ### Pointer-click originating-connection prerequisite
 
 PR #258 test-only head `8193fcd50125d9e9a43b4755e0f7626801b74374`, on

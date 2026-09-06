@@ -6,6 +6,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Rejected pointer-click replies received on replacement connections without losing the original pending click; a later reply on the originating connection can still complete that protocol exchange, without claiming that the page changed.
 - Integrated the current click-transport prerequisites into typed click-response handling, preserving the response contracts and bounded socket-observation test adjustment without claiming a browser post-condition.
 - Retained the originating connection when sending a pointer click so later response validation can reject acknowledgments received through a replacement connection; sending still does not prove that the click completed.
 - Integrated the current connection-provenance and pointer-click prerequisites into bounded click transport, retaining both public adapters and keeping frame-write evidence separate from browser-action completion.
