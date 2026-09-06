@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, error::Error, fmt};
+use std::{collections::BTreeMap, error::Error, fmt, sync::Arc};
 
 use crate::{
     MAX_WEBDRIVER_BIDI_JS_UINT, WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeRouting,
@@ -32,10 +32,11 @@ pub enum WebDriverBiDiCommandKind {
     NavigationCommittedUnsubscribe,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 struct OutstandingCommand {
     kind: WebDriverBiDiCommandKind,
     connection_generation: Option<WebDriverBiDiConnectionGeneration>,
+    subscription_intent: Option<Arc<()>>,
 }
 
 /// Outcome of a response after it has consumed the matching outstanding command identifier.
@@ -97,6 +98,11 @@ pub enum WebDriverBiDiCommandCorrelationError {
         /// Exact outstanding local command identifier.
         command_id: u64,
     },
+    /// No subscription sender bound its private command-instance identity to this command.
+    CommandSubscriptionProvenanceMissing {
+        /// Exact outstanding local command identifier left untouched after rejection.
+        command_id: u64,
+    },
     /// The response was received on a different verified connection from the outstanding command.
     ResponseConnectionMismatch {
         /// Exact outstanding local command identifier left untouched after rejection.
@@ -121,6 +127,9 @@ impl fmt::Display for WebDriverBiDiCommandCorrelationError {
             Self::CommandConnectionProvenanceMissing { .. } => {
                 "WebDriver BiDi outstanding command lacks connection provenance"
             }
+            Self::CommandSubscriptionProvenanceMissing { .. } => {
+                "WebDriver BiDi outstanding subscription lacks sent-context provenance"
+            }
             Self::ResponseConnectionMismatch { .. } => {
                 "WebDriver BiDi response arrived on a different connection"
             }
@@ -139,13 +148,15 @@ impl Error for WebDriverBiDiCommandCorrelationError {}
 ///
 /// Register an id together with its exact typed command family only after the caller has committed
 /// to that outbound command. Connection-owning command adapters may additionally bind the private
-/// generation of the exact established transport before I/O. A success or correlatable error
-/// response consumes the id exactly once only through a matching typed consumer. Events, null-id
-/// errors, command-kind mismatches, missing connection provenance, and responses received on a
-/// different verified connection leave outstanding state untouched. This type performs no I/O,
-/// retry, command serialization, browser authentication, or authority grant. Debug output reports
-/// only the outstanding-count summary; command identifiers, families, and generations remain
-/// private correlation state.
+/// generation of the exact established transport before I/O. Subscription senders retain both a
+/// private command-instance identity and the exact verified connection generation; generic
+/// registration cannot supply either. A success or correlatable error response consumes the id
+/// exactly once only through a matching typed consumer. Events, null-id errors, command-kind
+/// mismatches, missing connection provenance, and responses received on a different verified
+/// connection leave outstanding state untouched. This type performs no I/O, retry, command
+/// serialization, browser authentication, or authority grant. Debug output reports only the
+/// outstanding-count summary; command identifiers, families, and generations remain private
+/// correlation state.
 #[derive(Default)]
 pub struct WebDriverBiDiCommandCorrelation {
     outstanding: BTreeMap<u64, OutstandingCommand>,
@@ -177,13 +188,15 @@ impl WebDriverBiDiCommandCorrelation {
     ///
     /// Identifiers are unique only while outstanding. A completed or explicitly retired id may be
     /// reused later, matching WebDriver BiDi's local-end correlation semantics. Reusing an id while
-    /// any command family is still outstanding fails before replacing its provenance.
+    /// any command family is still outstanding fails before replacing its provenance. This generic
+    /// table does not authorize dispatch: the typed connection owner independently requires strictly
+    /// increasing identifiers across all typed command families for its complete lifetime.
     pub fn register_command_for(
         &mut self,
         command_id: u64,
         command_kind: WebDriverBiDiCommandKind,
     ) -> Result<(), WebDriverBiDiCommandCorrelationError> {
-        self.register(command_id, command_kind, None)
+        self.register(command_id, command_kind, None, None)
     }
 
     pub(crate) fn register_command_for_connection(
@@ -192,7 +205,45 @@ impl WebDriverBiDiCommandCorrelation {
         command_kind: WebDriverBiDiCommandKind,
         connection_generation: WebDriverBiDiConnectionGeneration,
     ) -> Result<(), WebDriverBiDiCommandCorrelationError> {
-        self.register(command_id, command_kind, Some(connection_generation))
+        self.register(command_id, command_kind, Some(connection_generation), None)
+    }
+
+    pub(crate) fn register_subscription_command_for_connection(
+        &mut self,
+        command_id: u64,
+        connection_generation: WebDriverBiDiConnectionGeneration,
+        subscription_intent: Arc<()>,
+    ) -> Result<(), WebDriverBiDiCommandCorrelationError> {
+        self.register(
+            command_id,
+            WebDriverBiDiCommandKind::NavigationCommittedSubscription,
+            Some(connection_generation),
+            Some(subscription_intent),
+        )
+    }
+
+    pub(crate) fn complete_subscription_command_on_connection(
+        &mut self,
+        command_id: u64,
+        received_connection_generation: WebDriverBiDiConnectionGeneration,
+    ) -> Result<(Arc<()>, WebDriverBiDiConnectionGeneration), WebDriverBiDiCommandCorrelationError>
+    {
+        let outstanding = self.require_command_kind(
+            command_id,
+            WebDriverBiDiCommandKind::NavigationCommittedSubscription,
+        )?;
+        let subscription_intent = outstanding.subscription_intent.ok_or(
+            WebDriverBiDiCommandCorrelationError::CommandSubscriptionProvenanceMissing {
+                command_id,
+            },
+        )?;
+        let expected_connection_generation = require_connection_generation(
+            outstanding.connection_generation,
+            command_id,
+            received_connection_generation,
+        )?;
+        let _removed = self.outstanding.remove(&command_id);
+        Ok((subscription_intent, expected_connection_generation))
     }
 
     fn register(
@@ -200,6 +251,7 @@ impl WebDriverBiDiCommandCorrelation {
         command_id: u64,
         command_kind: WebDriverBiDiCommandKind,
         connection_generation: Option<WebDriverBiDiConnectionGeneration>,
+        subscription_intent: Option<Arc<()>>,
     ) -> Result<(), WebDriverBiDiCommandCorrelationError> {
         if command_id > MAX_WEBDRIVER_BIDI_JS_UINT {
             return Err(WebDriverBiDiCommandCorrelationError::CommandIdOutOfRange);
@@ -215,6 +267,7 @@ impl WebDriverBiDiCommandCorrelation {
             OutstandingCommand {
                 kind: command_kind,
                 connection_generation,
+                subscription_intent,
             },
         );
         Ok(())
@@ -306,7 +359,7 @@ impl WebDriverBiDiCommandCorrelation {
         let actual = self
             .outstanding
             .get(&command_id)
-            .copied()
+            .cloned()
             .ok_or(WebDriverBiDiCommandCorrelationError::CommandNotOutstanding)?;
         if actual.kind != expected_kind {
             return Err(WebDriverBiDiCommandCorrelationError::CommandKindMismatch {
@@ -340,14 +393,11 @@ impl WebDriverBiDiCommandCorrelation {
         received_connection_generation: WebDriverBiDiConnectionGeneration,
     ) -> Result<WebDriverBiDiCorrelatedResponse, WebDriverBiDiCommandCorrelationError> {
         let outstanding = self.require_command_kind(command_id, expected_kind)?;
-        let expected_connection_generation = outstanding.connection_generation.ok_or(
-            WebDriverBiDiCommandCorrelationError::CommandConnectionProvenanceMissing { command_id },
+        let expected_connection_generation = require_connection_generation(
+            outstanding.connection_generation,
+            command_id,
+            received_connection_generation,
         )?;
-        if expected_connection_generation != received_connection_generation {
-            return Err(
-                WebDriverBiDiCommandCorrelationError::ResponseConnectionMismatch { command_id },
-            );
-        }
         let _removed = self.outstanding.remove(&command_id);
         Ok(WebDriverBiDiCorrelatedResponse {
             command_id,
@@ -355,6 +405,22 @@ impl WebDriverBiDiCommandCorrelation {
             connection_generation: Some(expected_connection_generation),
         })
     }
+}
+
+fn require_connection_generation(
+    expected: Option<WebDriverBiDiConnectionGeneration>,
+    command_id: u64,
+    received: WebDriverBiDiConnectionGeneration,
+) -> Result<WebDriverBiDiConnectionGeneration, WebDriverBiDiCommandCorrelationError> {
+    let expected = expected.ok_or(
+        WebDriverBiDiCommandCorrelationError::CommandConnectionProvenanceMissing { command_id },
+    )?;
+    if expected != received {
+        return Err(
+            WebDriverBiDiCommandCorrelationError::ResponseConnectionMismatch { command_id },
+        );
+    }
+    Ok(expected)
 }
 
 #[cfg(test)]
@@ -392,6 +458,12 @@ mod tests {
                     command_id: 7,
                 },
                 "WebDriver BiDi outstanding command lacks connection provenance",
+            ),
+            (
+                WebDriverBiDiCommandCorrelationError::CommandSubscriptionProvenanceMissing {
+                    command_id: 7,
+                },
+                "WebDriver BiDi outstanding subscription lacks sent-context provenance",
             ),
             (
                 WebDriverBiDiCommandCorrelationError::ResponseConnectionMismatch { command_id: 7 },

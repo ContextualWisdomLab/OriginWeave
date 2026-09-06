@@ -40,10 +40,10 @@ fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     Ok(())
 }
 
-fn read_masked_text_frame(stream: &mut TcpStream) -> io::Result<Vec<u8>> {
+fn read_masked_client_frame(stream: &mut TcpStream, expected_header: u8) -> io::Result<Vec<u8>> {
     let mut header = [0_u8; 2];
     stream.read_exact(&mut header)?;
-    if header[0] != 0x81 || header[1] & 0x80 == 0 {
+    if header[0] != expected_header || header[1] & 0x80 == 0 {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "expected one final masked client text frame",
@@ -168,7 +168,7 @@ fn session_status_reused_mask_key_rejection_does_not_leave_correlation_outstandi
         let (mut stream, _) = listener.accept()?;
         read_opening_request(&mut stream)?;
         stream.write_all(OPENING_RESPONSE)?;
-        let seed = read_masked_text_frame(&mut stream)?;
+        let seed = read_masked_client_frame(&mut stream, 0x8a)?;
         if seed != b"{}" {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -190,7 +190,7 @@ fn session_status_reused_mask_key_rejection_does_not_leave_correlation_outstandi
         .read_opening_response(Duration::from_millis(500))?;
     let repeated_key = WebDriverBiDiWebSocketMaskKey::new([9, 10, 11, 12]);
     let established =
-        established.write_text_frame("{}", repeated_key, Duration::from_millis(500))?;
+        established.write_pong_frame(b"{}", repeated_key, Duration::from_millis(500))?;
 
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     let command = WebDriverBiDiSessionStatusCommand::new(13)?;

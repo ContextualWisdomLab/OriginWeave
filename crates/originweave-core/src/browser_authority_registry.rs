@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::browser_registry::BrowserAuthorityRegistry as RawBrowserAuthorityRegistry;
 use crate::{
     BrowserRegistryError, BrowserSessionId, BrowsingContextId, DocumentEpoch, ObservedNodeHandle,
@@ -15,7 +17,16 @@ use crate::{
 /// before atomically minting handles.
 pub struct BrowserAuthorityRegistry {
     inner: RawBrowserAuthorityRegistry,
+    registry_identity: Arc<()>,
 }
+
+/// Opaque process-local identity of one browser-authority registry allocation.
+///
+/// Cloning preserves the same registry identity without keeping its mutable state alive. This
+/// witness contains no wire identifier, address, durable identity, or grant of browser authority.
+/// It must be captured by a trusted admission boundary and revalidated with current context state.
+#[derive(Clone)]
+pub struct BrowserRegistryIdentity(Arc<()>);
 
 impl BrowserAuthorityRegistry {
     /// Create an empty registry with the reviewed default per-namespace identifier capacity.
@@ -23,6 +34,7 @@ impl BrowserAuthorityRegistry {
     pub fn new() -> Self {
         Self {
             inner: RawBrowserAuthorityRegistry::new(),
+            registry_identity: Arc::new(()),
         }
     }
 
@@ -34,7 +46,31 @@ impl BrowserAuthorityRegistry {
     pub fn with_identifier_limit(maximum_identifier: u64) -> Self {
         Self {
             inner: RawBrowserAuthorityRegistry::with_identifier_limit(maximum_identifier),
+            registry_identity: Arc::new(()),
         }
+    }
+
+    /// Capture this registry's opaque identity for later exact-owner revalidation.
+    ///
+    /// The identity survives moves of this registry but cannot match a replacement registry,
+    /// including one whose local session and context identifiers have identical numeric values.
+    #[must_use]
+    pub fn registry_identity(&self) -> BrowserRegistryIdentity {
+        BrowserRegistryIdentity(Arc::clone(&self.registry_identity))
+    }
+
+    /// Reject a witness issued by any other registry before consulting registry-local identifiers.
+    ///
+    /// Success proves only registry ownership; callers must still validate live session, context,
+    /// document epoch, origin and operation-specific authority at their actual use boundary.
+    pub fn require_identity(
+        &self,
+        expected_identity: &BrowserRegistryIdentity,
+    ) -> Result<(), BrowserRegistryError> {
+        if !Arc::ptr_eq(&self.registry_identity, &expected_identity.0) {
+            return Err(BrowserRegistryError::RegistryInstanceMismatch);
+        }
+        Ok(())
     }
 
     /// Register one opaque external browser-session identifier.
@@ -43,6 +79,20 @@ impl BrowserAuthorityRegistry {
         external_identifier: &str,
     ) -> Result<BrowserSessionId, BrowserRegistryError> {
         self.inner.register_session(external_identifier)
+    }
+
+    /// Require external protocol session text to name this exact currently registered session.
+    ///
+    /// This read-only check reuses the canonical mapping and never creates authority from transport
+    /// text. Unknown, retired and mismatched sessions fail closed. Success does not authenticate a
+    /// browser process or authorize an action; callers must also revalidate registry ownership.
+    pub fn require_registered_session_external_identifier(
+        &self,
+        browser_session: BrowserSessionId,
+        external_identifier: &str,
+    ) -> Result<(), BrowserRegistryError> {
+        self.inner
+            .require_session_external_identifier(browser_session, external_identifier)
     }
 
     /// Register one opaque external browsing-context identifier inside a known browser session.

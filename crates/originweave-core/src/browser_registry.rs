@@ -108,6 +108,19 @@ impl BrowserAuthorityRegistry {
         })
     }
 
+    /// Check the existing canonical external-session mapping without creating authority.
+    pub(crate) fn require_session_external_identifier(
+        &self,
+        browser_session: BrowserSessionId,
+        external_identifier: &str,
+    ) -> Result<(), BrowserRegistryError> {
+        validate_external_identifier(external_identifier)?;
+        if self.session_by_external.get(external_identifier).copied() != Some(browser_session) {
+            return Err(BrowserRegistryError::SessionExternalIdentifierMismatch);
+        }
+        Ok(())
+    }
+
     /// Register one opaque external browsing-context identifier inside a known browser session.
     ///
     /// A newly registered context starts at document epoch one. The same external context text in
@@ -427,10 +440,14 @@ impl Default for BrowserAuthorityRegistry {
 /// A fail-closed error produced while translating external browser identifiers into local authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BrowserRegistryError {
+    /// A retained authority witness belongs to a different registry instance.
+    RegistryInstanceMismatch,
     /// An external identifier was empty, contained control, whitespace, or Unicode format text, or exceeded the reviewed byte bound.
     InvalidExternalIdentifier,
     /// The supplied OriginWeave browser session is not registered in this registry.
     UnknownBrowserSession,
+    /// The transport-level session identifier does not name the supplied registered session.
+    SessionExternalIdentifierMismatch,
     /// The supplied OriginWeave browsing context is not registered in this registry.
     UnknownBrowsingContext,
     /// The browsing context belongs to another browser session.
@@ -457,12 +474,18 @@ pub enum BrowserRegistryError {
 impl fmt::Display for BrowserRegistryError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::RegistryInstanceMismatch => {
+                formatter.write_str("browser authority belongs to another registry instance")
+            }
             Self::InvalidExternalIdentifier => formatter.write_str(
                 "external browser identifier must contain 1 to 512 UTF-8 bytes without control, whitespace, or Unicode format characters",
             ),
             Self::UnknownBrowserSession => {
                 formatter.write_str("browser session is not registered in this authority registry")
             }
+            Self::SessionExternalIdentifierMismatch => formatter.write_str(
+                "browser session external identifier does not match the registered session",
+            ),
             Self::UnknownBrowsingContext => {
                 formatter.write_str("browsing context is not registered in this authority registry")
             }
@@ -836,13 +859,30 @@ mod tests {
 
     #[test]
     fn browser_registry_errors_have_non_sensitive_deterministic_text() {
+        let original_registry = crate::BrowserAuthorityRegistry::new();
+        let retained_identity = original_registry.registry_identity().clone();
+        assert!(
+            original_registry
+                .require_identity(&retained_identity)
+                .is_ok()
+        );
+        drop(original_registry);
+        let replacement_registry = crate::BrowserAuthorityRegistry::with_identifier_limit(8);
+        let replacement_errors: Vec<_> = replacement_registry
+            .require_identity(&retained_identity)
+            .err()
+            .into_iter()
+            .collect();
+        assert_eq!(replacement_errors.len(), 1);
         let expected_values = values(BrowserSessionId::new(1));
         let actual_values = values(BrowserSessionId::new(2));
         assert_eq!(expected_values.len(), 1);
         assert_eq!(actual_values.len(), 1);
         let errors = [
+            replacement_errors[0],
             BrowserRegistryError::InvalidExternalIdentifier,
             BrowserRegistryError::UnknownBrowserSession,
+            BrowserRegistryError::SessionExternalIdentifierMismatch,
             BrowserRegistryError::UnknownBrowsingContext,
             BrowserRegistryError::ContextSessionMismatch {
                 expected: expected_values[0],

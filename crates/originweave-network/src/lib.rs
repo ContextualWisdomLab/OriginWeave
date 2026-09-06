@@ -11,7 +11,9 @@
 //! complete local-end JSON envelopes, tracks bounded command-response correlation,
 //! transports a narrowly typed pointer click, admits its typed correlated protocol
 //! response, sends a context-bound committed-navigation subscription and retains
-//! its typed bounded correlated identifier, explicitly unsubscribes that exact
+//! its typed bounded correlated identifier, binds navigation-event admission to
+//! that active command/receipt lifecycle with bounded fail-closed navigation replay
+//! prevention, explicitly unsubscribes that exact
 //! retained identifier, admits its typed correlated unsubscribe response, admits a
 //! bounded navigation observation for one exact registered context and URL, rotates
 //! that context's document epoch only from an exact caller-captured pre-action
@@ -33,6 +35,7 @@ mod webdriver_bidi_connection;
 mod webdriver_bidi_json_envelope;
 mod webdriver_bidi_navigation_committed_postcondition;
 mod webdriver_bidi_navigation_committed_subscription;
+mod webdriver_bidi_navigation_committed_subscription_admission;
 mod webdriver_bidi_navigation_committed_subscription_response;
 mod webdriver_bidi_navigation_committed_unsubscribe;
 mod webdriver_bidi_navigation_committed_unsubscribe_response;
@@ -82,6 +85,14 @@ pub use webdriver_bidi_navigation_committed_postcondition::{
 pub use webdriver_bidi_navigation_committed_subscription::{
     WebDriverBiDiNavigationCommittedSubscriptionCommand,
     WebDriverBiDiNavigationCommittedSubscriptionCommandError,
+};
+pub use webdriver_bidi_navigation_committed_subscription_admission::{
+    MAX_WEBDRIVER_BIDI_NAVIGATION_COMMITTED_ADMISSIONS,
+    WebDriverBiDiNavigationCommittedSubscribedObservation,
+    WebDriverBiDiNavigationCommittedSubscriptionAdmission,
+    WebDriverBiDiNavigationCommittedSubscriptionAdmissionError,
+    WebDriverBiDiNavigationCommittedSubscriptionBinding,
+    WebDriverBiDiNavigationCommittedSubscriptionEventError,
 };
 pub use webdriver_bidi_navigation_committed_subscription_response::{
     MAX_WEBDRIVER_BIDI_SUBSCRIPTION_IDENTIFIER_BYTES,

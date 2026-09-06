@@ -82,6 +82,53 @@ fn establish_websocket(
 }
 
 #[test]
+fn replacement_registry_is_rejected_before_correlation_or_command_write()
+-> Result<(), Box<dyn Error>> {
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let address = listener.local_addr()?;
+    let server = spawn_no_command_server(listener);
+    let mut original = BrowserAuthorityRegistry::new();
+    let session = original.register_session(SESSION_ID)?;
+    let context = original.register_context(session, "context-a")?;
+    let command = WebDriverBiDiNavigationCommittedSubscriptionCommand::new(
+        7,
+        &original,
+        session,
+        context,
+        "context-a",
+    )?;
+    let mut replacement = BrowserAuthorityRegistry::new();
+    let replacement_session = replacement.register_session(SESSION_ID)?;
+    let replacement_context = replacement.register_context(replacement_session, "context-a")?;
+    assert_eq!(
+        (session, context),
+        (replacement_session, replacement_context)
+    );
+    let mut correlation = WebDriverBiDiCommandCorrelation::new();
+    correlation.register_command_for(8, WebDriverBiDiCommandKind::SessionStatus)?;
+    let outcome = command.send(
+        &replacement,
+        establish_websocket(address)?,
+        &mut correlation,
+        WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
+        Duration::from_millis(500),
+    );
+    let rejected = outcome.is_err();
+    drop(outcome);
+    let server_outcome = server
+        .join()
+        .map_err(|_| io::Error::other("registry fixture panicked"))?;
+    assert!(
+        rejected,
+        "a replacement registry must not send the original command"
+    );
+    server_outcome?;
+    assert_eq!(correlation.outstanding_count(), 1);
+    correlation.register_command_for(7, WebDriverBiDiCommandKind::SessionStatus)?;
+    Ok(())
+}
+
+#[test]
 fn retired_context_is_rejected_before_correlation_or_command_write() -> Result<(), Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;

@@ -19,6 +19,14 @@ OriginWeave uses only the by-id form and accepts the identifier only through its
 
 ## Decision
 
+The current #264 source refinement consumes the non-cloneable subscription receipt instead of
+borrowing it. The teardown command retains that receipt's private connection generation and cannot
+be cloned. Its sender rejects a different connection before correlation or I/O; its response parser
+accepts only the existing connection-owned received-message type and checks the registered generation
+before consuming pending state. Generic public correlation registration cannot manufacture an ACK.
+Receipt reuse for event admission is a compile-time ownership error, including after failed teardown
+construction. Already admitted observations remain unchanged; this is not retroactive revocation.
+
 1. Give committed-navigation unsubscribe its own `WebDriverBiDiCommandKind::NavigationCommittedUnsubscribe` provenance rather than reusing the subscription kind or a generic correlation path.
 2. Reject an invalid frame timeout before registering correlation or writing command bytes.
 3. Register the exact unsubscribe kind immediately before the first possible remote side effect.
@@ -36,6 +44,9 @@ OriginWeave uses only the by-id form and accepts the identifier only through its
 
 ## Executable evidence required on the exact head
 
+- consuming receipt reuse rejected as `E0382`, with the original actual-socket RED retained at `2c45cea8`;
+- foreign-connection dispatch emits no bytes or new correlation;
+- foreign success and error preserve pending state until the genuine original-connection reply;
 - loopback TCP → RFC 6455 opening exchange → typed committed-navigation subscribe → opaque subscription receipt → by-id unsubscribe → exact correlated `EmptyResult` success;
 - opaque identifier escaping across quote, backslash, control and Unicode text without logging the identifier itself;
 - command-id range and duplicate outstanding-id rejection;
@@ -48,7 +59,16 @@ OriginWeave uses only the by-id form and accepts the identifier only through its
 
 ## Authority and follow-up
 
-### Subscription receipt parent adoption
+### Historical parent-only subscription receipt adoption
+
+The following checkpoint describes #263, not the current #264 tree. This child retains
+consuming unsubscribe receipt ownership, original-connection dispatch and sealed reply
+admission, plus registry-session and monotonic command-ID guards. Its adoption of
+#263 at `92e576c8` additionally binds pointer replies to their sending connection.
+Regression `637fd97d` first reproduced both replacement pointer success and error
+consuming the original request (0/2 passing). The integration combines the parent's
+connection registration with the child's existing typed dispatch, rather than replacing
+either safeguard. Current-head verification is required for this combined tree.
 
 Ordinary merge `9e85cadc` adopts #277 `46ae62aa31e35c702cd61c16322d05c7a9c35da1`
 without changing either unsubscribe production module. Canonical regression replay

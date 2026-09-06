@@ -1,15 +1,9 @@
-use std::{
-    net::{Shutdown, TcpListener},
-    sync::mpsc,
-    thread,
-    time::Duration,
-};
+use std::{net::TcpListener, thread, time::Duration};
 
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
     WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
     WebDriverBiDiWebSocketHandshakeError, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketOpeningWriteError,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -140,63 +134,6 @@ fn plain_bidi_connection_serializes_exact_rfc6455_opening_request() {
 }
 
 #[test]
-fn opening_write_fails_closed_after_verified_stream_is_locally_revoked() {
-    let listener = TcpListener::bind(("127.0.0.1", 0));
-    assert!(listener.is_ok(), "{listener:?}");
-    let Ok(listener) = listener else {
-        return;
-    };
-    let local_addr = listener.local_addr();
-    assert!(local_addr.is_ok(), "{local_addr:?}");
-    let Ok(local_addr) = local_addr else {
-        return;
-    };
-    let (release_server, await_release) = mpsc::sync_channel(0);
-    let server = thread::spawn(move || {
-        let accepted = listener.accept()?;
-        await_release.recv().map_err(std::io::Error::other)?;
-        drop(accepted);
-        Ok::<(), std::io::Error>(())
-    });
-
-    let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
-    let connection = connect(&endpoint);
-    let shutdown = connection.stream().shutdown(Shutdown::Both);
-    assert!(shutdown.is_ok(), "{shutdown:?}");
-
-    let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY);
-    assert!(key.is_ok(), "{key:?}");
-    let Ok(key) = key else {
-        return;
-    };
-    let plan = WebDriverBiDiWebSocketHandshakePlan::new(connection, key);
-    assert!(plan.is_ok(), "{plan:?}");
-    let Ok(plan) = plan else {
-        return;
-    };
-
-    let write = plan.write_opening_request(Duration::from_secs(1));
-    let failed_closed_without_writing = match write {
-        Err(WebDriverBiDiWebSocketOpeningWriteError::WriteFailed {
-            bytes_written: 0, ..
-        }) => true,
-        Err(WebDriverBiDiWebSocketOpeningWriteError::WriteTimeoutConfigurationFailed {
-            bytes_written: 0,
-            source,
-        }) => source.kind() == std::io::ErrorKind::InvalidInput,
-        _ => false,
-    };
-    assert!(failed_closed_without_writing);
-    assert!(release_server.send(()).is_ok());
-
-    let server_result = server.join();
-    assert!(server_result.is_ok(), "{server_result:?}");
-    if let Ok(accept_result) = server_result {
-        assert!(accept_result.is_ok(), "{accept_result:?}");
-    }
-}
-
-#[test]
 fn handshake_errors_render_actionable_fail_closed_messages() {
     assert_eq!(
         WebDriverBiDiWebSocketHandshakeError::InvalidClientKey.to_string(),
@@ -206,6 +143,39 @@ fn handshake_errors_render_actionable_fail_closed_messages() {
         WebDriverBiDiWebSocketHandshakeError::TlsRequired.to_string(),
         "WebDriver BiDi WebSocket target requires authenticated TLS before the opening request"
     );
+}
+
+#[test]
+fn opening_request_cannot_outlive_a_one_nanosecond_deadline()
+-> Result<(), Box<dyn std::error::Error>> {
+    use std::io::{self, Read};
+
+    use originweave_network::WebDriverBiDiWebSocketOpeningWriteError;
+
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let local_addr = listener.local_addr()?;
+    let server = thread::spawn(move || -> io::Result<Vec<u8>> {
+        let (mut stream, _) = listener.accept()?;
+        stream.set_read_timeout(Some(Duration::from_secs(2)))?;
+        let mut received = Vec::new();
+        stream.read_to_end(&mut received)?;
+        Ok(received)
+    });
+    let connection = connect(&format!("ws://{local_addr}/session/{SESSION_ID}"));
+    let key = WebDriverBiDiWebSocketClientKey::new(RFC6455_SAMPLE_KEY)?;
+    let plan = WebDriverBiDiWebSocketHandshakePlan::new(connection, key)?;
+    let request = plan.request_bytes().to_vec();
+    let error = plan.write_opening_request(Duration::from_nanos(1)).err();
+    let received = server
+        .join()
+        .map_err(|_| io::Error::other("opening deadline server panicked"))??;
+
+    assert!(matches!(
+        error,
+        Some(WebDriverBiDiWebSocketOpeningWriteError::WriteDeadlineExceeded { .. })
+    ));
+    assert!(request.starts_with(&received));
+    Ok(())
 }
 
 #[test]

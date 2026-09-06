@@ -130,23 +130,28 @@ fn navigation_committed_subscription_round_trips_on_the_registered_context()
     )?;
     assert_eq!(correlation.outstanding_count(), 1);
 
-    let text = match WebDriverBiDiWebSocketMessageReader::new(established)
+    let received = match WebDriverBiDiWebSocketMessageReader::new(established)
         .read_next(Duration::from_millis(500))?
     {
         WebDriverBiDiConnectionMessageRead::Text { message, .. } => message,
         other => {
             return Err(io::Error::other(format!(
-                "session.subscribe response produced unexpected assembly state: {other:?}"
+                "session.subscribe response produced unexpected connection-bound state: {other:?}"
             ))
             .into());
         }
     };
     let result = WebDriverBiDiNavigationCommittedSubscriptionResult::parse_and_correlate(
-        &text,
+        &received,
         &mut correlation,
     )?;
     assert_eq!(result.command_id(), 7);
     assert_eq!(result.subscription_id(), "subscription-a");
+    let debug = format!("{result:?}");
+    assert!(debug.contains("command_id"));
+    assert!(debug.contains("subscription_id_len"));
+    assert!(debug.contains("connection_bound: true"));
+    assert!(!debug.contains("subscription-a"));
     assert_eq!(correlation.outstanding_count(), 0);
 
     server

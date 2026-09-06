@@ -4,8 +4,22 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Integrated the current navigation-subscription safeguards while preserving active-subscription admission, replay rejection and stale-document checks. A response from a replacement connection still cannot complete an earlier session shutdown; this source integration is not real-browser or release acceptance.
+
 ### Changed
 
+- Reject replacement-connection click replies while retaining increasing request numbers, original subscription ownership and same-connection shutdown checks.
+
+- Reject a navigation subscription aimed at a different browser session before sending it, without creating or replacing browser state.
+- Keep connection-failure checks focused on the requested action by completing fixture setup before the simulated peer disconnects.
+
+- Keep subscription shutdown on its original connection and reject replies from another connection without losing the pending request. Beginning shutdown ends local event admission; a failed shutdown requires a new subscription before admission resumes.
+
+- Prevent an earlier browser reply from completing a later request that reuses its number. Typed browser requests now use increasing numbers on each connection, and low-level protocol traffic uses a separate connection.
+
+- Keep navigation subscriptions and accepted navigation events attached to their original browser state, so a replacement state with matching local identifiers cannot send a request or change another document.
+- Reject navigation-subscription replies and events received on a different connection, even when their session and request details match. Rejected messages leave the original request and document unchanged, so the original connection can still complete its work.
+- Prevent an unsent navigation subscription from borrowing another request's successful response, including when separate sessions reuse the same local numbers. Re-registering a completed request number without sending a new request cannot recreate its consumed subscription.
 - Carried replacement-connection subscription-reply rejection into unsubscribe preparation, preserving opaque identifiers and existing teardown checks without claiming that pending events have drained.
 - Reject navigation-subscription replies received on replacement connections while keeping the original request available for its own reply; a successful subscription still does not prove that a navigation occurred.
 - Carried replacement-connection click-reply rejection into the navigation-subscription stack while preserving deadline rejection, unrelated pending requests and conservative handling of uncertain writes.

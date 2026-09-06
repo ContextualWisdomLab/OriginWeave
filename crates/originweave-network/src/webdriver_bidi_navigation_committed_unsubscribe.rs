@@ -1,5 +1,6 @@
 use std::{error::Error, fmt, time::Duration};
 
+use crate::webdriver_bidi_connection::WebDriverBiDiConnectionGeneration;
 use crate::webdriver_bidi_websocket_frame::validate_frame_timeout;
 use crate::{
     MAX_WEBDRIVER_BIDI_JS_UINT, WebDriverBiDiCommandCorrelation,
@@ -16,10 +17,11 @@ const SESSION_UNSUBSCRIBE_METHOD: &str = "session.unsubscribe";
 /// `session.subscribe` response boundary. It cannot introduce arbitrary event names, contexts,
 /// user contexts, or ambient subscription identifiers. Writing the frame does not prove remote
 /// teardown; callers must admit and correlate the later protocol response separately.
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Eq, PartialEq)]
 pub struct WebDriverBiDiNavigationCommittedUnsubscribeCommand {
     command_id: u64,
     subscription_id: String,
+    connection_generation: WebDriverBiDiConnectionGeneration,
 }
 
 impl fmt::Debug for WebDriverBiDiNavigationCommittedUnsubscribeCommand {
@@ -33,10 +35,28 @@ impl fmt::Debug for WebDriverBiDiNavigationCommittedUnsubscribeCommand {
 }
 
 impl WebDriverBiDiNavigationCommittedUnsubscribeCommand {
-    /// Construct one unsubscribe command from an already validated typed subscription receipt.
+    /// Consume one validated receipt, ending its availability for local event admission.
+    ///
+    /// Even an invalid command identifier consumes the receipt; failure never restores admission.
+    /// A receipt transferred to teardown cannot be used to construct another admission owner.
+    ///
+    /// ```compile_fail,E0382
+    /// use originweave_core::BrowserAuthorityRegistry;
+    /// use originweave_network::{WebDriverBiDiNavigationCommittedSubscriptionResult,
+    ///     WebDriverBiDiNavigationCommittedSubscriptionBinding,
+    ///     WebDriverBiDiNavigationCommittedSubscriptionAdmission,
+    ///     WebDriverBiDiNavigationCommittedUnsubscribeCommand};
+    /// fn retained_admission(receipt: WebDriverBiDiNavigationCommittedSubscriptionResult,
+    ///     binding: WebDriverBiDiNavigationCommittedSubscriptionBinding,
+    ///     registry: &BrowserAuthorityRegistry) {
+    ///     let _teardown = WebDriverBiDiNavigationCommittedUnsubscribeCommand::new(8, receipt);
+    ///     let _admission = WebDriverBiDiNavigationCommittedSubscriptionAdmission::new(
+    ///         receipt, binding, registry);
+    /// }
+    /// ```
     pub fn new(
         command_id: u64,
-        subscription: &WebDriverBiDiNavigationCommittedSubscriptionResult,
+        subscription: WebDriverBiDiNavigationCommittedSubscriptionResult,
     ) -> Result<Self, WebDriverBiDiNavigationCommittedUnsubscribeCommandError> {
         if command_id > MAX_WEBDRIVER_BIDI_JS_UINT {
             return Err(
@@ -49,6 +69,7 @@ impl WebDriverBiDiNavigationCommittedUnsubscribeCommand {
         Ok(Self {
             command_id,
             subscription_id: subscription.subscription_id().to_owned(),
+            connection_generation: subscription.connection_generation,
         })
     }
 
@@ -79,16 +100,21 @@ impl WebDriverBiDiNavigationCommittedUnsubscribeCommand {
         validate_frame_timeout(frame_timeout).map_err(|source| {
             WebDriverBiDiNavigationCommittedUnsubscribeCommandError::FrameWrite { source }
         })?;
+        if self.connection_generation != established.transport_evidence().connection_generation() {
+            return Err(WebDriverBiDiNavigationCommittedUnsubscribeCommandError::SubscriptionConnectionMismatch);
+        }
         correlation
-            .register_command_for(
+            .register_command_for_connection(
                 self.command_id,
                 WebDriverBiDiCommandKind::NavigationCommittedUnsubscribe,
+                self.connection_generation,
             )
             .map_err(|source| {
                 WebDriverBiDiNavigationCommittedUnsubscribeCommandError::Correlation { source }
             })?;
         let message = self.serialized();
-        match established.write_text_frame(&message, masking_key, frame_timeout) {
+        match established.write_command_frame(self.command_id, &message, masking_key, frame_timeout)
+        {
             Ok(established) => Ok(established),
             Err(source) => Err(map_frame_failure(correlation, self.command_id, source)),
         }
@@ -119,6 +145,8 @@ fn map_frame_failure(
 /// Fail-closed errors while constructing or sending one typed `session.unsubscribe` command.
 #[derive(Debug)]
 pub enum WebDriverBiDiNavigationCommittedUnsubscribeCommandError {
+    /// The supplied connection is not the one that issued the consumed subscription receipt.
+    SubscriptionConnectionMismatch,
     /// The requested command identifier is outside WebDriver BiDi's `js-uint` range.
     CommandIdOutOfRange {
         /// Rejected command identifier.
@@ -141,6 +169,9 @@ pub enum WebDriverBiDiNavigationCommittedUnsubscribeCommandError {
 impl fmt::Display for WebDriverBiDiNavigationCommittedUnsubscribeCommandError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::SubscriptionConnectionMismatch => {
+                formatter.write_str("WebDriver BiDi subscription belongs to a different connection")
+            }
             Self::CommandIdOutOfRange { .. } => formatter.write_str(
                 "WebDriver BiDi session.unsubscribe command id is outside the js-uint range",
             ),
@@ -156,7 +187,7 @@ impl fmt::Display for WebDriverBiDiNavigationCommittedUnsubscribeCommandError {
 impl Error for WebDriverBiDiNavigationCommittedUnsubscribeCommandError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            Self::CommandIdOutOfRange { .. } => None,
+            Self::CommandIdOutOfRange { .. } | Self::SubscriptionConnectionMismatch => None,
             Self::Correlation { source } => Some(source),
             Self::FrameWrite { source } => Some(source),
         }
@@ -238,6 +269,13 @@ mod tests {
 
     #[test]
     fn command_errors_have_stable_messages_and_typed_sources() {
+        let mismatch =
+            WebDriverBiDiNavigationCommittedUnsubscribeCommandError::SubscriptionConnectionMismatch;
+        assert_eq!(
+            mismatch.to_string(),
+            "WebDriver BiDi subscription belongs to a different connection"
+        );
+        assert!(mismatch.source().is_none());
         let range = WebDriverBiDiNavigationCommittedUnsubscribeCommandError::CommandIdOutOfRange {
             command_id: MAX_WEBDRIVER_BIDI_JS_UINT + 1,
             maximum_command_id: MAX_WEBDRIVER_BIDI_JS_UINT,
