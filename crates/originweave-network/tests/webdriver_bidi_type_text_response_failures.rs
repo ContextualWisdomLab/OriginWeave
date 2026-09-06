@@ -8,6 +8,7 @@ use std::{
 
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
+    WebDriverBiDiCommandCorrelationError, WebDriverBiDiCommandKind,
     WebDriverBiDiCommandCorrelation, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiTypeTextResponseError, WebDriverBiDiTypeTextResult,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
@@ -23,6 +24,38 @@ const REMOTE_ERROR_RESPONSE: &[u8] =
 const UNKNOWN_ID_RESPONSE: &[u8] =
     br#"{"type":"success","id":43,"result":{"vendorExtension":true}}"#;
 const MALFORMED_RESPONSE: &[u8] = br#"{"type":"success","id":42}"#;
+
+#[test]
+fn text_response_rejects_other_command_families_without_consuming_them()
+-> Result<(), Box<dyn Error>> {
+    for payload in [
+        br#"{"type":"success","id":42,"result":{}}"#.as_slice(),
+        REMOTE_ERROR_RESPONSE,
+    ] {
+        for kind in [
+            WebDriverBiDiCommandKind::SessionStatus,
+            WebDriverBiDiCommandKind::SessionEnd,
+            WebDriverBiDiCommandKind::PointerClick,
+            WebDriverBiDiCommandKind::NavigationCommittedSubscription,
+            WebDriverBiDiCommandKind::NavigationCommittedUnsubscribe,
+        ] {
+            let text = receive_response(payload)?;
+            let mut correlation = WebDriverBiDiCommandCorrelation::new();
+            correlation.register_command_for(42, kind)?;
+            assert!(matches!(
+                WebDriverBiDiTypeTextResult::parse_and_correlate(&text, &mut correlation),
+                Err(WebDriverBiDiTypeTextResponseError::Correlation {
+                    source: WebDriverBiDiCommandCorrelationError::CommandKindMismatch {
+                        expected: WebDriverBiDiCommandKind::TypeText,
+                        actual,
+                    },
+                }) if actual == kind
+            ));
+            assert_eq!(correlation.outstanding_count(), 1);
+        }
+    }
+    Ok(())
+}
 
 fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
