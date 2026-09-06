@@ -1,5 +1,25 @@
 # Action Post-Condition Evidence Traceability
 
+## Text receipt-provenance repair — 2026-09-06
+
+Actual socket RED `4632f2df` accepted a reply from a replacement connection sharing
+the original listener and session. Sealed consumer `d6889c80` then exposed missing
+sender provenance. Ordinary merge `e1188c86` adopts canonical #267 sender fix
+`3346d8ec`; it retains the transport's private generation before sending.
+The consumer now requires the existing sealed received-message type and compares
+the receiving connection before consuming correlation. No caller-supplied generation,
+raw-message fallback or new parser is introduced.
+
+Seven focused tests pass at `35cb1197`: foreign success/error rejection with original
+connection recovery and unrelated pending-state retention, real success and remote
+error completion, missing sender provenance, wrong command family, malformed envelope
+and unknown id. Extensible results and payload-free error chains remain intact.
+Complete current-head verification and publication are still pending. This repair
+does not prove browser-process ownership, policy approval or observed field values.
+Pointer and status receipt consumers remain separate required owner repairs.
+
+The following integration checkpoints are historical evidence, not current semantics.
+
 ## Text-response integration checkpoint — 2026-09-06
 
 #268 adopts #267 `4435ce5f561ca069c1844a1a5bd9b603505e25f7` by ordinary merge,

@@ -42,6 +42,20 @@ Fresh integration verification executes 13 focused received-message, response an
 
 ## Evidence and remaining risk
 
+### Text-input receipt integration
+
+PR #268 applies the existing selected boundary to text input. Actual RED `4632f2df`
+accepted a success reply from a replacement socket on the same listener/session.
+Consumer `d6889c80` requires the sealed received-message type; sender owner #267
+`3346d8ec` retains its private connection generation before I/O. Ordinary merge
+`e1188c86` combines them. The real socket regression rejects foreign success and
+error replies without consuming either pending entry, then accepts the original
+connection's reply and leaves unrelated work pending. Fixture migration `35cb1197`
+preserves real matched remote-error consumption, extensible success, malformed and
+unknown-envelope rejection, family isolation and missing-provenance rejection.
+These are local source/test observations, not hosted acceptance or observed field
+mutation. Pointer and status consumers have not adopted this boundary at this head.
+
 ### Pointer-click child integration
 
 PR #256 predecessor `9f2e6f29be46371762e3031a97c1cac04720694f` lacked the current connection-provenance implementation and collected zero command-correlation release tests under native discovery. The expected-one assertion failed before ordinary integration of parent `3e7057443d7c9532ff526acb5eefe8cd4778c767`; the inherited contract then collected and passed. Its core command implementation, exports and four pointer-click tests are byte-identical to the predecessor. The sole child delta in the parent's correlation module remains the documented `PointerClick` command kind. Serialization does not prove a browser click, authorize input, or establish an observed page post-condition.
