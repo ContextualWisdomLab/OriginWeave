@@ -14,8 +14,7 @@ const CONTEXT_ID: &str = "context-a";
 const EXPECTED_URL: &str = "https://example.test/after";
 
 #[test]
-fn accepted_navigation_advances_only_the_exact_pre_action_document_epoch()
--> Result<(), Box<dyn Error>> {
+fn accepted_navigation_advances_only_the_exact_pre_action_document_epoch() -> Result<(), Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
     let session = registry.register_session(SESSION_ID)?;
     let context = registry.register_context(session, CONTEXT_ID)?;
@@ -77,8 +76,7 @@ fn accepted_navigation_advances_only_the_exact_pre_action_document_epoch()
 }
 
 #[test]
-fn retired_context_between_observation_and_advance_fails_closed_with_typed_source()
--> Result<(), Box<dyn Error>> {
+fn retired_context_between_observation_and_advance_fails_closed_with_typed_source() -> Result<(), Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
     let session = registry.register_session(SESSION_ID)?;
     let context = registry.register_context(session, CONTEXT_ID)?;
