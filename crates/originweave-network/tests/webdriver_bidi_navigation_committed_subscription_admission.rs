@@ -217,6 +217,21 @@ fn establish_connection(
     .read_opening_response(Duration::from_millis(500))?)
 }
 
+#[test]
+fn teardown_construction_cannot_leave_subscription_event_admission_available()
+-> Result<(), Box<dyn Error>> {
+    let mut registry = BrowserAuthorityRegistry::new();
+    let session = registry.register_session(SESSION_ID)?;
+    let context = registry.register_context(session, CONTEXT_ID)?;
+    let (receipt, binding, event) = receive_subscription_result(&registry, session, context, 7)?;
+    let _teardown =
+        originweave_network::WebDriverBiDiNavigationCommittedUnsubscribeCommand::new(8, &receipt)?;
+    let mut admission =
+        WebDriverBiDiNavigationCommittedSubscriptionAdmission::new(receipt, binding, &registry)?;
+    assert!(admission.admit(&event, &registry, EXPECTED_URL).is_err());
+    Ok(())
+}
+
 fn reject_stale_response_after_actual_resend(lifecycle: &str) -> Result<(), Box<dyn Error>> {
     for first_payload in [
         br#"{"type":"error","id":7,"error":"invalid argument","message":"old rejection"}"#
