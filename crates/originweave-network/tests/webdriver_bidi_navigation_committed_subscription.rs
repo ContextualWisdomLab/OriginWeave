@@ -9,11 +9,10 @@ use std::{
 use originweave_core::{BrowserAuthorityRegistry, WebDriverBiDiWebSocketEndpoint};
 use originweave_network::{
     MAX_WEBDRIVER_BIDI_JS_UINT, WebDriverBiDiCommandCorrelation,
-    WebDriverBiDiNavigationCommittedSubscriptionCommand,
+    WebDriverBiDiConnectionMessageRead, WebDriverBiDiNavigationCommittedSubscriptionCommand,
     WebDriverBiDiNavigationCommittedSubscriptionResult, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageAssembler,
-    WebDriverBiDiWebSocketMessageAssembly,
+    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageReader,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -131,19 +130,19 @@ fn navigation_committed_subscription_round_trips_on_the_registered_context()
     )?;
     assert_eq!(correlation.outstanding_count(), 1);
 
-    let (_established, frame) = established.read_frame(Duration::from_millis(500))?;
-    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-    let text = match assembler.push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(text) => text,
+    let received = match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text { message, .. } => message,
         other => {
             return Err(io::Error::other(format!(
-                "session.subscribe response produced unexpected assembly state: {other:?}"
+                "session.subscribe response produced unexpected connection-bound state: {other:?}"
             ))
             .into());
         }
     };
     let result = WebDriverBiDiNavigationCommittedSubscriptionResult::parse_and_correlate(
-        &text,
+        &received,
         &mut correlation,
     )?;
     assert_eq!(result.command_id(), 7);
