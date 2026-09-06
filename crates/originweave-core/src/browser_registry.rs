@@ -427,6 +427,8 @@ impl Default for BrowserAuthorityRegistry {
 /// A fail-closed error produced while translating external browser identifiers into local authority.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BrowserRegistryError {
+    /// A retained authority witness belongs to a different registry instance.
+    RegistryInstanceMismatch,
     /// An external identifier was empty, contained control, whitespace, or Unicode format text, or exceeded the reviewed byte bound.
     InvalidExternalIdentifier,
     /// The supplied OriginWeave browser session is not registered in this registry.
@@ -457,6 +459,9 @@ pub enum BrowserRegistryError {
 impl fmt::Display for BrowserRegistryError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::RegistryInstanceMismatch => {
+                formatter.write_str("browser authority belongs to another registry instance")
+            }
             Self::InvalidExternalIdentifier => formatter.write_str(
                 "external browser identifier must contain 1 to 512 UTF-8 bytes without control, whitespace, or Unicode format characters",
             ),

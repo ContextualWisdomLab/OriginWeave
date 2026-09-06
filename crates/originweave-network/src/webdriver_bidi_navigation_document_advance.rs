@@ -116,6 +116,9 @@ pub fn advance_webdriver_bidi_navigation_document_epoch(
     WebDriverBiDiNavigationCommittedDocumentAdvance,
     WebDriverBiDiNavigationCommittedDocumentAdvanceError,
 > {
+    observation.require_registry(registry).map_err(|source| {
+        WebDriverBiDiNavigationCommittedDocumentAdvanceError::RegistryState { source }
+    })?;
     let browser_session = observation.browser_session();
     let browsing_context = observation.browsing_context();
     match advance_registered_document_if_expected(

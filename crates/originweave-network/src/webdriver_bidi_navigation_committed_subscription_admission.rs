@@ -1,7 +1,8 @@
 use std::{error::Error, fmt, sync::Arc};
 
 use originweave_core::{
-    BrowserAuthorityRegistry, BrowserRegistryError, BrowserSessionId, BrowsingContextId,
+    BrowserAuthorityRegistry, BrowserRegistryError, BrowserRegistryIdentity, BrowserSessionId,
+    BrowsingContextId,
 };
 
 use crate::{
@@ -31,6 +32,7 @@ pub struct WebDriverBiDiNavigationCommittedSubscriptionBinding {
     browsing_context: BrowsingContextId,
     external_context: String,
     subscription_intent: Arc<()>,
+    registry_identity: BrowserRegistryIdentity,
 }
 
 impl fmt::Debug for WebDriverBiDiNavigationCommittedSubscriptionBinding {
@@ -52,6 +54,7 @@ impl WebDriverBiDiNavigationCommittedSubscriptionBinding {
         browsing_context: BrowsingContextId,
         external_context: &str,
         subscription_intent: Arc<()>,
+        registry_identity: BrowserRegistryIdentity,
     ) -> Self {
         Self {
             command_id,
@@ -59,6 +62,7 @@ impl WebDriverBiDiNavigationCommittedSubscriptionBinding {
             browsing_context,
             external_context: external_context.to_owned(),
             subscription_intent,
+            registry_identity,
         }
     }
 
@@ -233,6 +237,7 @@ impl WebDriverBiDiNavigationCommittedSubscriptionAdmission {
         self.admitted_navigation_ids.push(navigation_id.to_owned());
         Ok(WebDriverBiDiNavigationCommittedSubscribedObservation(
             observation,
+            self.binding.registry_identity.clone(),
         ))
     }
 
@@ -258,6 +263,7 @@ fn require_current_binding(
     registry: &BrowserAuthorityRegistry,
     binding: &WebDriverBiDiNavigationCommittedSubscriptionBinding,
 ) -> Result<(), BrowserRegistryError> {
+    registry.require_identity(&binding.registry_identity)?;
     registry.require_registered_context_external_identifier(
         binding.browser_session,
         binding.browsing_context,
@@ -274,6 +280,7 @@ fn require_current_binding(
 /// Agent authority.
 pub struct WebDriverBiDiNavigationCommittedSubscribedObservation(
     WebDriverBiDiNavigationCommittedObservation,
+    BrowserRegistryIdentity,
 );
 
 impl fmt::Debug for WebDriverBiDiNavigationCommittedSubscribedObservation {
@@ -286,6 +293,13 @@ impl fmt::Debug for WebDriverBiDiNavigationCommittedSubscribedObservation {
 }
 
 impl WebDriverBiDiNavigationCommittedSubscribedObservation {
+    pub(crate) fn require_registry(
+        &self,
+        registry: &BrowserAuthorityRegistry,
+    ) -> Result<(), BrowserRegistryError> {
+        registry.require_identity(&self.1)
+    }
+
     /// Return the exact OriginWeave browser session whose active subscription admitted the event.
     #[must_use]
     pub const fn browser_session(&self) -> BrowserSessionId {

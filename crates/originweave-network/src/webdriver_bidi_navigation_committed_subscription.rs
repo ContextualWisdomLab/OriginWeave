@@ -1,7 +1,8 @@
 use std::{error::Error, fmt, sync::Arc, time::Duration};
 
 use originweave_core::{
-    BrowserAuthorityRegistry, BrowserRegistryError, BrowserSessionId, BrowsingContextId,
+    BrowserAuthorityRegistry, BrowserRegistryError, BrowserRegistryIdentity, BrowserSessionId,
+    BrowsingContextId,
 };
 
 use crate::webdriver_bidi_websocket_frame::validate_frame_timeout;
@@ -30,6 +31,7 @@ pub struct WebDriverBiDiNavigationCommittedSubscriptionCommand {
     browsing_context: BrowsingContextId,
     external_context: String,
     subscription_intent: Arc<()>,
+    registry_identity: BrowserRegistryIdentity,
 }
 
 impl WebDriverBiDiNavigationCommittedSubscriptionCommand {
@@ -64,6 +66,7 @@ impl WebDriverBiDiNavigationCommittedSubscriptionCommand {
             browsing_context,
             external_context: external_context.to_owned(),
             subscription_intent: Arc::new(()),
+            registry_identity: registry.identity(),
         })
     }
 
@@ -104,6 +107,7 @@ impl WebDriverBiDiNavigationCommittedSubscriptionCommand {
             self.browsing_context,
             &self.external_context,
             Arc::clone(&self.subscription_intent),
+            self.registry_identity.clone(),
         )
     }
 
@@ -128,6 +132,11 @@ impl WebDriverBiDiNavigationCommittedSubscriptionCommand {
         WebDriverBiDiWebSocketEstablished,
         WebDriverBiDiNavigationCommittedSubscriptionCommandError,
     > {
+        registry
+            .require_identity(&self.registry_identity)
+            .map_err(|source| {
+                WebDriverBiDiNavigationCommittedSubscriptionCommandError::ContextBinding { source }
+            })?;
         require_registered_context(
             registry,
             self.browser_session,
