@@ -77,7 +77,7 @@ pub fn send_webdriver_bidi_pointer_click(
             return Err(WebDriverBiDiPointerClickSendError::Correlation { source });
         }
     }
-    match established.write_text_frame(command.as_json(), masking_key, frame_timeout) {
+    match established.write_command_frame(command.command_id(), command.as_json(), masking_key, frame_timeout) {
         Ok(established) => Ok(established),
         Err(source) => Err(map_frame_failure(correlation, command.command_id(), source)),
     }

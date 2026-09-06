@@ -157,7 +157,7 @@ impl WebDriverBiDiNavigationCommittedSubscriptionCommand {
                 WebDriverBiDiNavigationCommittedSubscriptionCommandError::Correlation { source }
             })?;
         let message = self.serialized();
-        match established.write_text_frame(&message, masking_key, frame_timeout) {
+        match established.write_command_frame(self.command_id, &message, masking_key, frame_timeout) {
             Ok(established) => Ok(established),
             Err(source) => Err(map_frame_failure(correlation, self.command_id, source)),
         }

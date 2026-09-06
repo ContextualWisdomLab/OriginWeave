@@ -225,12 +225,6 @@ pub struct WebDriverBiDiTcpConnection {
 }
 
 impl WebDriverBiDiTcpConnection {
-    /// Borrow the verified TCP stream.
-    #[must_use]
-    pub const fn stream(&self) -> &TcpStream {
-        &self.stream
-    }
-
     /// Borrow the session-correlated exact peer evidence consumed by this connection.
     #[must_use]
     pub const fn verified_peer(&self) -> &VerifiedWebDriverBiDiSocketPeer {

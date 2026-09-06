@@ -188,7 +188,9 @@ impl WebDriverBiDiCommandCorrelation {
     ///
     /// Identifiers are unique only while outstanding. A completed or explicitly retired id may be
     /// reused later, matching WebDriver BiDi's local-end correlation semantics. Reusing an id while
-    /// any command family is still outstanding fails before replacing its provenance.
+    /// any command family is still outstanding fails before replacing its provenance. This generic
+    /// table does not authorize dispatch: the typed connection owner independently requires strictly
+    /// increasing identifiers across all typed command families for its complete lifetime.
     pub fn register_command_for(
         &mut self,
         command_id: u64,

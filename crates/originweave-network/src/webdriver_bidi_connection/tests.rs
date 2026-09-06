@@ -25,6 +25,42 @@ fn socket_address() -> SocketAddr {
     SocketAddr::from(([127, 0, 0, 1], 9515))
 }
 
+#[test]
+fn opening_write_fails_closed_after_verified_stream_is_locally_revoked() -> Result<(), Box<dyn Error>> {
+    use std::{net::Shutdown, sync::mpsc, thread};
+    use crate::{WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
+        WebDriverBiDiWebSocketOpeningWriteError};
+
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let local_addr = listener.local_addr()?;
+    let (release_server, await_release) = mpsc::sync_channel(0);
+    let server = thread::spawn(move || -> io::Result<()> {
+        let accepted = listener.accept()?;
+        await_release.recv_timeout(Duration::from_secs(2)).map_err(io::Error::other)?;
+        drop(accepted);
+        Ok(())
+    });
+    let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+    let target = WebDriverBiDiWebSocketEndpoint::new(&endpoint)?
+        .correlate_session_id(SESSION_ID)?.into_explicit_connect_target()?;
+    let connection = WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)?.connect()?;
+    connection.stream.shutdown(Shutdown::Both)?;
+    let key = WebDriverBiDiWebSocketClientKey::new("dGhlIHNhbXBsZSBub25jZQ==")?;
+    let write = WebDriverBiDiWebSocketHandshakePlan::new(connection, key)?
+        .write_opening_request(Duration::from_secs(1));
+    let failed_closed_without_writing = match write {
+        Err(WebDriverBiDiWebSocketOpeningWriteError::WriteFailed { bytes_written: 0, .. }) => true,
+        Err(WebDriverBiDiWebSocketOpeningWriteError::WriteTimeoutConfigurationFailed {
+            bytes_written: 0, source,
+        }) => source.kind() == io::ErrorKind::InvalidInput,
+        _ => false,
+    };
+    release_server.send(())?;
+    server.join().map_err(|_| io::Error::other("revoked stream server panicked"))??;
+    assert!(failed_closed_without_writing);
+    Ok(())
+}
+
 enum ConnectOutcome {
     Success(TcpStream),
     Error(io::ErrorKind),
@@ -185,7 +221,7 @@ fn verified_peer_is_required_before_stream_exposure() {
             .connect_with(&connector)
             .expect("verified connection");
 
-    assert!(connection.stream().peer_addr().is_ok());
+    assert!(connection.stream.peer_addr().is_ok());
     assert_eq!(connection.verified_peer().socket_addr(), socket_address());
     assert!(connection.verified_peer().requires_tls());
     assert_eq!(connection.verified_peer().session_id(), SESSION_ID);
