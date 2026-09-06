@@ -4,6 +4,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Recorded failed quality checks on the current subscription revision without transferring passing results from an unpublished repair.
 - Corrected the browser acceptance status after hosted trials failed, and separated verified unpublished subscription safeguards from another task's ongoing changes.
 - Refreshed the live delivery baseline with sandbox-parent adoption, subscription request-identity repair, current review gates and explicit limits on browser acceptance evidence.
 - Separated the September 6 verified queue from prior measurements, recording restored-foundation workflow failures, current successor CI results, completed sandbox doctoring, and unreleased runtime/central-owner prerequisites.

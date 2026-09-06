@@ -282,6 +282,12 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "unpublished checkpoint",
             "5557964460",
             "writer acknowledgement",
+            "8ebcc6131a5dd6bf0b4720c2f1ff8d40d1cc39f8",
+            "lines 13327/13330 and regions 17004/17008",
+            "functions 1274/1274 and branches 1434/1434",
+            "f352e3f04bdc3ed1912be7c452c5c426d9caaec7dd1a613b7d3ab9c6486ab69e",
+            "formatting check fails in five test/support files",
+            "Neither private nor remote results establish combined-source acceptance",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, latest)
