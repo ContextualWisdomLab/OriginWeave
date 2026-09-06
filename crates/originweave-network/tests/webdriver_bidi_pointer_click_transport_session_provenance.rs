@@ -12,12 +12,14 @@ use originweave_core::{
     BrowserContextOriginEpochDispatchTarget, BrowserProtocolAdapterDescriptor,
     BrowserProtocolCapability, BrowserProtocolKind, Origin, OriginWeaveProtocolVersion,
     ValidatedBrowserProtocolUse, WebDriverBiDiAccessibilityQuery, WebDriverBiDiLocateNodesCommand,
-    WebDriverBiDiRemoteNodeReference, WebDriverBiDiWebSocketEndpoint,
+    WebDriverBiDiPointerClickAuthorityError, WebDriverBiDiRemoteNodeReference,
+    WebDriverBiDiWebSocketEndpoint,
 };
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiTcpConnectionPlan,
-    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMaskKey, send_webdriver_bidi_pointer_click,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiPointerClickSendError,
+    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
+    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
+    send_webdriver_bidi_pointer_click,
 };
 
 const REGISTRY_SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -165,10 +167,15 @@ fn current_node_pointer_click_is_rejected_before_writing_to_a_foreign_session_tr
         .join()
         .map_err(|_| io::Error::other("foreign-session pointer server panicked"))??;
 
-    assert!(
-        send_result.is_err(),
-        "registry session A unexpectedly dispatched pointer input on transport session B"
-    );
+    let error = send_result
+        .err()
+        .ok_or_else(|| io::Error::other("registry session A unexpectedly dispatched pointer input on transport session B"))?;
+    assert!(matches!(
+        error,
+        WebDriverBiDiPointerClickSendError::Authority {
+            source: WebDriverBiDiPointerClickAuthorityError::BrowserAuthority(_)
+        }
+    ));
     assert_eq!(
         correlation.outstanding_count(),
         0,
