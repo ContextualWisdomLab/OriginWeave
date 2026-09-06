@@ -247,8 +247,8 @@ impl WebDriverBiDiNavigationCommittedSubscriptionAdmission {
     /// Consumption deliberately ends local event admission before the unsubscribe command can be
     /// emitted. If later transport or remote teardown fails, callers must explicitly establish a new
     /// typed subscription before admitting more events; ambiguous teardown never restores authority.
-    /// This handoff does not claim that the existing unsubscribe command or its receipt is bound to
-    /// the subscription connection; unsubscribe transport provenance remains a separate boundary.
+    /// Teardown retains the subscription connection identity and accepts its acknowledgment only
+    /// from that same connection. Previously admitted observations are not retroactively revoked.
     pub fn into_unsubscribe(
         self,
         command_id: u64,
@@ -256,7 +256,7 @@ impl WebDriverBiDiNavigationCommittedSubscriptionAdmission {
         WebDriverBiDiNavigationCommittedUnsubscribeCommand,
         WebDriverBiDiNavigationCommittedUnsubscribeCommandError,
     > {
-        WebDriverBiDiNavigationCommittedUnsubscribeCommand::new(command_id, &self.subscription)
+        WebDriverBiDiNavigationCommittedUnsubscribeCommand::new(command_id, self.subscription)
     }
 }
 

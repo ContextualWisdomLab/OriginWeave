@@ -4,6 +4,31 @@ This document records external evidence that changes OriginWeave architecture, t
 
 ## Decision trace
 
+### Subscription teardown ownership and connection provenance
+
+The actual-socket regression at `2c45cea8` shows that constructing teardown from a borrowed receipt
+still permits event admission. Three more failures at `ce6f6fd4` show 91 masked unsubscribe bytes
+emitted on another connection, and foreign success/error replies consuming the original pending
+command. Genuine original replies then fail as no longer outstanding. Both fixture servers are
+joined before assertions; these failures are not timeouts or setup errors.
+
+The repair consumes the existing non-cloneable subscription receipt, stores its existing connection
+identity in the teardown command, and reuses connection-aware registration and received-message
+correlation. The lifetime regression becomes an `E0382` compile-fail example proving that the moved
+receipt cannot create admission; its original failing runtime test remains in history. Existing
+admission-to-teardown and exact-wire escaping checks retain runtime coverage. Invalid construction
+also consumes local admission authority, and no failure restores it. Already admitted observations
+are not revoked. Proposed ADR 0107 records why shared revocation flags add unnecessary state.
+
+W3C's current Editor's Draft defines by-ID removal against the session's known subscriptions and an
+`EmptyResult` return type. Same-connection use and consuming local admission are stricter OriginWeave
+policy, not additional requirements attributed to W3C. A protocol acknowledgment is not event-drain
+or process-cleanup evidence. Browser authentication, navigation causality, hosted exact-head checks,
+protected integration and release acceptance remain separate. Full repair verification is pending.
+
+World Wide Web Consortium. (2026, September 3). *WebDriver BiDi: The session.unsubscribe command*
+[Editor's Draft]. Retrieved September 6, 2026, from https://w3c.github.io/webdriver-bidi/#command-session-unsubscribe
+
 ### Successive command responses and exclusive stream ownership
 
 Actual-socket regressions at `92fd0b07` send the same subscription command ID twice on one connection.

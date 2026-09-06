@@ -3,7 +3,7 @@ use std::{error::Error, fmt};
 use crate::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
     WebDriverBiDiCommandKind, WebDriverBiDiCorrelatedResponseOutcome, WebDriverBiDiJsonEnvelope,
-    WebDriverBiDiJsonEnvelopeError, WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiJsonEnvelopeError, WebDriverBiDiReceivedTextMessage,
 };
 
 /// Typed protocol acknowledgment for one correlated WebDriver BiDi `session.unsubscribe` command.
@@ -27,16 +27,17 @@ impl WebDriverBiDiNavigationCommittedUnsubscribeResult {
     /// unknown ids, and responses for another command family fail closed without consuming the
     /// outstanding command.
     pub fn parse_and_correlate(
-        message: &WebDriverBiDiWebSocketTextMessage,
+        message: &WebDriverBiDiReceivedTextMessage,
         correlation: &mut WebDriverBiDiCommandCorrelation,
     ) -> Result<Self, WebDriverBiDiNavigationCommittedUnsubscribeResponseError> {
-        let envelope = WebDriverBiDiJsonEnvelope::parse(message).map_err(|source| {
+        let envelope = WebDriverBiDiJsonEnvelope::parse(message.message()).map_err(|source| {
             WebDriverBiDiNavigationCommittedUnsubscribeResponseError::Envelope { source }
         })?;
         let completed = correlation
-            .correlate_response_for(
+            .correlate_response_for_connection(
                 &envelope,
                 WebDriverBiDiCommandKind::NavigationCommittedUnsubscribe,
+                message.connection_generation(),
             )
             .map_err(|source| {
                 WebDriverBiDiNavigationCommittedUnsubscribeResponseError::Correlation { source }

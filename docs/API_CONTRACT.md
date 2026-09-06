@@ -12,6 +12,11 @@ OriginWeave needs one stable authority model even though different deployments m
 
 This is a contract baseline, not a claim that the complete network service or SDK is implemented on protected `main`.
 
+The active #264 source proposal ends local navigation-event admission when shutdown begins and
+keeps shutdown requests and replies on the original connection. Failure requires a new subscription
+before admission resumes. This proposal is not shipped browser behavior; its scope and alternatives
+are recorded in [ADR 0107](adr/0107-browser-protocol-adapter-strategy.md).
+
 ## 2. Protocol design goals
 
 - transport-neutral;

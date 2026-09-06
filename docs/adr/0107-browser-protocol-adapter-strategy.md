@@ -36,6 +36,30 @@ MCP version negotiation is independent of the OriginWeave Protocol version. As o
 
 ## Consequences
 
+### Proposed refinement: consuming subscription teardown (2026-09-06)
+
+In the context of ending a navigation subscription, facing a borrowed receipt that permits continued
+event admission and teardown messages crossing connections, we decided for consuming the existing
+non-cloneable receipt and retaining its connection identity through dispatch and acknowledgment,
+and against shared revocation flags or matching session text alone, to close local admission before
+teardown without duplicating lifecycle state, accepting that even construction or transport failure
+requires a new subscription before local admission can resume.
+
+This source proposal reuses the existing received-message wrapper and connection-aware correlation
+owner. It adds no registry, dependency, reconnection or mutable revocation service. A different
+connection is rejected before pending-command insertion or wire emission; a foreign success or error
+cannot consume the original pending command. An unrelated outstanding command remains untouched.
+The receipt and teardown command cannot be cloned. Previously admitted observations are not revoked,
+and acknowledgment does not prove that buffered events have drained or that browser cleanup occurred.
+
+The real-socket lifetime failure is retained in commit `2c45cea8`; its successor is the constructor's
+`E0382` compile-fail example, because the repaired API makes the offending receipt reuse unrepresentable.
+Commit `ce6f6fd4` records three separate real-socket transport failures. The existing admission-to-teardown
+path and escaped-identifier round trip remain runtime checks. Shared flags would require extra checks
+at every lifetime consumer while ownership already enforces this transition. Session or identifier
+equality cannot distinguish two connections. Status remains Proposed, pending exact-head gates and
+parent-first protected integration; this is not a browser-runtime acceptance or release decision.
+
 ### Proposed refinement: sealed command dispatch history (2026-09-06)
 
 In the context of successive browser commands on one verified connection, facing retained or
