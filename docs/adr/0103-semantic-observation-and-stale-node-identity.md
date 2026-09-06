@@ -21,7 +21,9 @@ Agentic browsing needs compact, stable observations without treating one browser
 
 All page-derived observations are untrusted data. Observation sources can inform planning but cannot grant action capability or approval. A semantic node identity is meaningful only within its browser session/context and document epoch. Network or structured-data observations may corroborate semantics but do not override policy.
 
-WebDriver BiDi `browsingContext.navigationCommitted` is treated as protocol lifecycle evidence, not as action authority. The August 18, 2026 Working Draft defines the event from the navigable plus its navigation status and emits `NavigationInfo` carrying browsing-context, navigation, timestamp, and URL data. OriginWeave may use an accepted event to invalidate the previous document epoch only after the event has matched the already governed session/context and expected navigation state; the protocol event alone cannot bind a new origin, prove click causality, authorize a side effect, or revive stale node authority.
+WebDriver BiDi `browsingContext.navigationCommitted` is treated as protocol lifecycle evidence, not as action authority. The September 3, 2026 Working Draft defines the event from the navigable plus its navigation status and emits `NavigationInfo` carrying browsing-context, navigation, timestamp, and URL data. OriginWeave may use an accepted event to invalidate the previous document epoch only after the event has matched the already governed session/context and expected navigation state; the protocol event alone cannot bind a new origin, prove click causality, authorize a side effect, or revive stale node authority.
+
+The context-scoped `session.subscribe` command uses its own correlation command family. Its success or protocol-error response may consume only an outstanding committed-navigation subscription identifier; an identifier registered for another BiDi command remains outstanding and fails closed on a type mismatch.
 
 ## Options considered
 
@@ -90,7 +92,7 @@ Chrome DevTools Protocol. (2026). *DOMSnapshot domain*. Chromium. Retrieved Augu
 
 Chrome DevTools Protocol. (2026). *WebMCP domain*. Chromium. Retrieved August 9, 2026, from https://chromedevtools.github.io/devtools-protocol/tot/WebMCP/
 
-World Wide Web Consortium. (2026, August 18). *WebDriver BiDi* [Working Draft]. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260818/
+World Wide Web Consortium. (2026, September 3). *WebDriver BiDi* [Working Draft]. https://www.w3.org/TR/2026/WD-webdriver-bidi-20260903/
 
 ## Related documents
 

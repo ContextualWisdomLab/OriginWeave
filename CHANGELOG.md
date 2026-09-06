@@ -6,6 +6,11 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Reject navigation-subscription replies received on replacement connections while keeping the original request available for its own reply; a successful subscription still does not prove that a navigation occurred.
+- Carried replacement-connection click-reply rejection into the navigation-subscription stack while preserving deadline rejection, unrelated pending requests and conservative handling of uncertain writes.
+- Reject invalid navigation-subscription deadlines before reserving a pending request, preserving existing requests and leaving the rejected identifier reusable without sending subscription bytes.
+- Retire only the exact committed-navigation subscription correlation when frame preparation fails locally as `MalformedFrame` before any command bytes can be emitted, while preserving unrelated requests and retaining correlation after ambiguous frame-write failures.
+- Integrated current origin-binding prerequisites into context-scoped navigation subscriptions, preserving typed command isolation, response bounds, and the original subscription tests while restoring the inherited executable release contract.
 - Carried replacement-connection click-reply rejection into navigation origin binding, preserving invalid-URL and stale-document rejection before changes to the registered origin.
 - Integrated current document-advance prerequisites into committed-navigation origin binding, preserving URL validation before mutation and stale-epoch rejection while restoring the inherited executable release contract.
 - Carried replacement-connection click-reply rejection into document advancement while preserving rejection of stale or retired contexts; a successful reply still does not authenticate a later navigation.
@@ -29,6 +34,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 - Typed WebDriver BiDi navigation-committed observation that admits only the exact event, registered browsing context, bounded navigation metadata, and caller-declared URL while granting no document-epoch, origin, action-cause, or Agent authority.
 - Consuming WebDriver BiDi navigation document advance that revalidates the exact pre-action epoch before rotating registry authority, clears stale origin and node bindings, and cannot reuse one accepted event or bind the new origin.
 - Canonical origin binding for an accepted WebDriver BiDi navigation that validates the serialized URL before mutation, advances the exact expected document epoch, and binds only the resulting HTTP(S) origin without granting destination or action authority.
+- Context-scoped WebDriver BiDi `session.subscribe` exchange for committed-navigation events with exact registered-context revalidation, bounded transport, typed command-family correlation, and bounded opaque subscription identity retention.
 - Typed outbound WebDriver BiDi `session.end` over the bounded client WebSocket stream: it serializes only the standards-defined method with empty params, rejects invalid frame deadlines before correlation registration, retires only the just-registered id when frame preflight proves no command bytes were emitted, preserves exact command-kind correlation across ambiguous writes, and does not treat frame-write success as proof that the browser session ended.
 - Typed `session.end` response admission that consumes only the exact outstanding command-kind correlation after complete envelope validation, preserves remote protocol errors as failures, and does not claim browser-process exit or resource cleanup from a protocol acknowledgment.
 - Fail-closed `session.end` teardown assessment that binds only the typed observation produced by consuming the exact transport, keeps browser-process-exit and task-profile-removal evidence unavailable until their runtime owners exist, and therefore cannot report operational completion from caller-supplied booleans.
@@ -84,6 +90,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Bound the committed-navigation `session.subscribe` command and both success and protocol-error responses to a distinct correlation command family, so a response for another outstanding BiDi command cannot retire the subscription identifier.
 - Carried current response prerequisites and the executable release-record check into the teardown-assessment stack; caller-supplied cleanup claims remain unverified and cannot establish operational acceptance.
 - Carried verified command prerequisites and the executable release-record check into session-end response validation without changing response admission or treating an acknowledgment as proof of resource cleanup.
 - Carried the verified status-response prerequisites into the session-end sender, preserving its command behavior and making the inherited release-record check execute in the existing test suite.

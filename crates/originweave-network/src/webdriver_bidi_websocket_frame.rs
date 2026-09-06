@@ -469,7 +469,10 @@ impl Error for WebDriverBiDiWebSocketFrameError {
     }
 }
 
-fn validate_frame_timeout(frame_timeout: Duration) -> Result<(), WebDriverBiDiWebSocketFrameError> {
+/// Reject invalid frame deadlines before a caller reserves command or transport state.
+pub(crate) fn validate_frame_timeout(
+    frame_timeout: Duration,
+) -> Result<(), WebDriverBiDiWebSocketFrameError> {
     if frame_timeout.is_zero() || frame_timeout > MAX_WEBSOCKET_FRAME_TIMEOUT {
         return Err(WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout {
             frame_timeout,
