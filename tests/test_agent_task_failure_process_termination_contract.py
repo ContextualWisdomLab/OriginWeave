@@ -60,7 +60,7 @@ class AgentTaskFailureProcessTerminationContractTests(unittest.TestCase):
                         raise RuntimeError("private controlled browser failure")
                     return {}
 
-                exit_wait = mock.Mock(return_value=exit_observation)
+                exit_wait = mock.Mock(return_value=(exit_observation, exit_observation))
                 if isinstance(exit_observation, Exception):
                     exit_wait.side_effect = exit_observation
                 replacements = {
@@ -68,7 +68,7 @@ class AgentTaskFailureProcessTerminationContractTests(unittest.TestCase):
                     "_wait_for_driver": lambda _port: None,
                     "_json_request": request,
                     "_read_linux_proc_stat_process_identity": lambda _pid: (321, 654),
-                    "_wait_for_linux_process_identity_exit": exit_wait,
+                    "_wait_for_linux_process_teardown": exit_wait,
                 }
                 with mock.patch.dict(browser_pass.__globals__, replacements), mock.patch.object(
                     namespace["subprocess"], "Popen", return_value=driver
@@ -82,9 +82,10 @@ class AgentTaskFailureProcessTerminationContractTests(unittest.TestCase):
 
                 driver.terminate.assert_called_once_with()
                 driver.wait.assert_called_once_with(timeout=5)
-                exit_wait.assert_called_once_with(321, 654)
+                exit_wait.assert_called_once_with(321, 654, ((321, 654),))
                 self.assertIs(result["passed"], False)
                 self.assertIs(result["profile_cleaned"], True)
+                self.assertNotIn("chromium_process_set_terminated", result)
                 self.assertNotIn("private controlled browser failure", repr(result))
                 if isinstance(exit_observation, Exception):
                     self.assertEqual(result["failure_type"], "PermissionError")

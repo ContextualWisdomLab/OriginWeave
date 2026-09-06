@@ -75,7 +75,10 @@ class AgentTaskReviewEvidenceContractTests(unittest.TestCase):
         """Mid-pass protocol faults stay terminal and preserve observed root cleanup."""
 
         for lane, waiter_name, observed_exit, expected_args in (
-            ("agent_task", "_wait_for_linux_process_identity_exit", False, (321, 654)),
+            (
+                "agent_task", "_wait_for_linux_process_teardown",
+                (False, False), (321, 654, ((321, 654),)),
+            ),
             (
                 "agent_task_forced_close", "_wait_for_linux_process_teardown",
                 (False, False), (321, 654, ((321, 654),)),

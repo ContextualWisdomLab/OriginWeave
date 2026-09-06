@@ -24,8 +24,9 @@ class AgentTaskFailureProcessSetTerminationContractTests(unittest.TestCase):
         end = runner.index("\ndef _run_agent_task_trial(", start)
         browser_pass = runner[start:end]
         for expected in (
-            "if chromium_process_identities is not None:",
-            "chromium_process_set_terminated = _wait_for_linux_process_identity_set_exit(",
+            "full_process_set_captured = chromium_process_identities is not None",
+            "_wait_for_linux_process_teardown(",
+            "observed_process_set_terminated if full_process_set_captured else None",
             'failure_evidence["chromium_process_set_terminated"]',
         ):
             with self.subTest(expected=expected):
