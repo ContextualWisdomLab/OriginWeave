@@ -54,7 +54,7 @@ Protected review/ruleset requirements remain independent from tests. Passing aut
 | MCP/agent boundary | Typed stateless MCP/core authority contracts exist; MCP remains an adapter | Released API/adapter behavior that cannot become policy authority or bypass browser post-condition verification |
 | Persistent task/API surface | Foundations exist | Tenant-scoped persistence, recovery, idempotency, operability, and API acceptance on protected code |
 | Enterprise administration | Governance primitives exist | Buyer-visible policy/approval/audit administration with purpose-bound sensitive-data handling and accessibility verification |
-| Distribution and release | No GitHub Release exists | Signed cross-platform artifacts, SBOM/provenance, reproducibility, rollback, package/tag and immutable release verification |
+| Distribution and release | No GitHub Release exists | signed cross-platform artifacts, SBOM/provenance, reproducibility, rollback, package/tag and immutable release verification |
 | CI evidence throughput | Exact-head verification exists but central verdict/queue issues remain | Reliable exact-head required workflows without gate weakening, skipped-result promotion, or stale evidence transfer |
 
 ### Bounded-context and ownership constraints
