@@ -7,6 +7,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 ### Added
 
 - Bounded RFC 6455 WebDriver BiDi opening-response validation on the exact peer-verified stream: it admits only HTTP/1.1 `101`, case-insensitive `Upgrade`/`Connection` tokens, and the client-key-correlated `Sec-WebSocket-Accept` value within monotonic time and header-size ceilings; it restores blocking mode and still does not implement WebSocket frames or grant browser/Agent authority.
+- Typed outbound WebDriver BiDi `session.status` over the bounded client WebSocket stream: it serializes only the standards-defined method with empty params, preserves exact typed command-id correlation, rejects invalid frame deadlines before registration, retires only the just-registered id when a local masking-key preflight proves no command bytes were emitted, and keeps correlation outstanding after partial or ambiguous writes; frame-write success is not treated as command completion or browser/Agent authority.
 - Bounded WebDriver BiDi loopback TCP transport that consumes one exact no-DNS connect target, retries only explicitly recoverable local transport failures within repository timeout and attempt ceilings, exposes the stream only after operating-system peer inspection and exact peer verification, supports a consuming handoff of the original stream with typed credential-free peer/session/TLS and bounded-attempt evidence, preserves typed causal errors, and performs no DNS, proxy/PAC, process authentication, TLS, WebSocket, BiDi message, browser-action, or Agent-authority step.
 - Exact WebDriver BiDi socket-peer verification that consumes an approved no-DNS connect target, requires the observed IP address and port to match exactly, preserves the TLS requirement and exact correlated session id, and remains inert metadata that does not authenticate an OS process, does not negotiate TLS, perform a WebSocket handshake, or grant Agent authority.
 - Explicit no-DNS WebDriver BiDi loopback connection targets that derive exact IPv4/IPv6 loopback `SocketAddr` metadata from a session-correlated endpoint, reject `localhost` as requiring separately trusted name resolution, preserve the TLS requirement and exact session id, perform no socket I/O, and grant no Agent authority.
@@ -55,7 +56,9 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Kept the `session.status` frame-failure coverage contract focused on observable correlation state, avoiding assertion-internal uncovered branches without weakening preflight retirement or ambiguous-write retention checks.
 - Made the command-correlation release-record check run in the existing CI test suite, preserving its exact bounds and authority exclusions; carried the verified message-parent fixture repairs into the correlation stack.
+- Carried the verified parent fixture and release-check repairs into the session-status sender without changing command or correlation behavior.
 - Aligned the bounded WebDriver BiDi error-envelope vocabulary with the current specification by admitting the defined `no such client window` response while retaining fail-closed rejection of unknown error codes.
 - Separated logical origin authority from resolved network destination authority; an origin grant no longer implies permission to connect to every resolver result.
 - Separated resolved-address authorization from direct transport evidence; an approved IP now becomes a usable stream only after the operating system reports the exact requested IP and port.
