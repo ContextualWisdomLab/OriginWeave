@@ -9,13 +9,13 @@ use std::{
 use originweave_core::{BrowserAuthorityRegistry, WebDriverBiDiWebSocketEndpoint};
 use originweave_network::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
-    WebDriverBiDiCommandKind, WebDriverBiDiConnectionMessageRead,
-    WebDriverBiDiNavigationCommittedSubscriptionCommand,
+    WebDriverBiDiCommandKind, WebDriverBiDiNavigationCommittedSubscriptionCommand,
     WebDriverBiDiNavigationCommittedSubscriptionResponseError,
-    WebDriverBiDiNavigationCommittedSubscriptionResult, WebDriverBiDiReceivedTextMessage,
-    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
-    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageReader,
+    WebDriverBiDiNavigationCommittedSubscriptionResult, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketEstablished,
+    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
+    WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
+    WebDriverBiDiWebSocketTextMessage,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -100,11 +100,10 @@ fn establish(local_addr: SocketAddr) -> Result<WebDriverBiDiWebSocketEstablished
 
 fn read_response(
     established: WebDriverBiDiWebSocketEstablished,
-) -> Result<WebDriverBiDiReceivedTextMessage, Box<dyn Error>> {
-    let text = match WebDriverBiDiWebSocketMessageReader::new(established)
-        .read_next(Duration::from_millis(500))?
-    {
-        WebDriverBiDiConnectionMessageRead::Text { message, .. } => message,
+) -> Result<WebDriverBiDiWebSocketTextMessage, Box<dyn Error>> {
+    let (_, frame) = established.read_frame(Duration::from_millis(500))?;
+    let text = match WebDriverBiDiWebSocketMessageAssembler::new().push_frame(frame)? {
+        WebDriverBiDiWebSocketMessageAssembly::Text(message) => message,
         other => {
             return Err(io::Error::other(format!(
                 "replacement subscription connection produced unexpected assembly state: {other:?}"
@@ -163,7 +162,7 @@ fn assert_replacement_rejected(foreign_response: &'static [u8]) -> Result<(), Bo
 
     let replacement_response = read_response(establish(original_addr)?)?;
     let parsed = WebDriverBiDiNavigationCommittedSubscriptionResult::parse_and_correlate(
-        replacement_response.message(),
+        &replacement_response,
         &mut correlation,
     );
 
@@ -186,7 +185,7 @@ fn assert_replacement_rejected(foreign_response: &'static [u8]) -> Result<(), Bo
     );
     assert_eq!(correlation.outstanding_count(), 2);
     let accepted = WebDriverBiDiNavigationCommittedSubscriptionResult::parse_and_correlate(
-        original_response.message(),
+        &original_response,
         &mut correlation,
     )?;
     assert_eq!(accepted.command_id(), 42);
