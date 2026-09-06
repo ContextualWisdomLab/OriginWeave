@@ -58,7 +58,10 @@ class NavigationSubscriptionDoctoringContractTests(unittest.TestCase):
         self.assertIn("&WebDriverBiDiReceivedTextMessage", admission_source)
         self.assertIn("EventConnectionMismatch", admission_source)
         self.assertIn("received.connection_generation()", admission_source)
-        self.assertIn("unsubscribe transport provenance remains a separate boundary", admission_source)
+        self.assertIn(
+            "WebDriverBiDiNavigationCommittedUnsubscribeCommand::new(command_id, self.subscription)",
+            admission_source,
+        )
 
     def test_webdriver_bidi_reference_tracks_current_published_working_draft(self) -> None:
         """ADR and aggregate doctoring must cite the same current published WebDriver BiDi draft."""
