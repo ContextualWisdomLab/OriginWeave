@@ -8,11 +8,12 @@ use std::{
 
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiSessionStatusCommand,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
+    WebDriverBiDiConnectionMessageRead, WebDriverBiDiReceivedTextMessage,
+    WebDriverBiDiSessionStatusCommand, WebDriverBiDiSessionStatusResponseError,
     WebDriverBiDiSessionStatusResult, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageAssembler,
-    WebDriverBiDiWebSocketMessageAssembly, WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageReader,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -83,7 +84,7 @@ fn establish(
 
 fn receive_foreign_status_response(
     listener: TcpListener,
-) -> Result<WebDriverBiDiWebSocketTextMessage, Box<dyn Error>> {
+) -> Result<WebDriverBiDiReceivedTextMessage, Box<dyn Error>> {
     let local_addr = listener.local_addr()?;
     let server = thread::spawn(move || -> io::Result<()> {
         let (mut stream, _) = listener.accept()?;
@@ -94,13 +95,13 @@ fn receive_foreign_status_response(
     });
 
     let established = establish(local_addr)?;
-    let (_established, frame) = established.read_frame(Duration::from_millis(500))?;
-    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-    let text = match assembler.push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(text) => text,
+    let message = match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text { message, .. } => message,
         other => {
             return Err(io::Error::other(format!(
-                "replacement connection produced unexpected assembly state: {other:?}"
+                "replacement connection produced unexpected message state: {other:?}"
             ))
             .into());
         }
@@ -108,7 +109,7 @@ fn receive_foreign_status_response(
     server
         .join()
         .map_err(|_| io::Error::other("replacement-connection server panicked"))??;
-    Ok(text)
+    Ok(message)
 }
 
 #[test]
@@ -150,10 +151,14 @@ fn session_status_response_from_same_session_replacement_connection_cannot_consu
         &mut correlation,
     );
 
-    assert!(
-        parsed.is_err(),
-        "same-session replacement connection unexpectedly consumed the original session.status command"
-    );
+    assert!(matches!(
+        parsed,
+        Err(WebDriverBiDiSessionStatusResponseError::Correlation {
+            source: WebDriverBiDiCommandCorrelationError::ResponseConnectionMismatch {
+                command_id: 7,
+            },
+        })
+    ));
     assert_eq!(
         correlation.outstanding_count(),
         1,
