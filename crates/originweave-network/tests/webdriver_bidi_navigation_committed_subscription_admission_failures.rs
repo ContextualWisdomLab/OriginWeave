@@ -14,6 +14,7 @@ use originweave_network::{
     WebDriverBiDiNavigationCommittedSubscriptionAdmission,
     WebDriverBiDiNavigationCommittedSubscriptionBinding,
     WebDriverBiDiNavigationCommittedSubscriptionCommand,
+    WebDriverBiDiNavigationCommittedSubscriptionEventError,
     WebDriverBiDiNavigationCommittedSubscriptionResult, WebDriverBiDiReceivedTextMessage,
     WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
     WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketHandshakePlan,
@@ -201,6 +202,14 @@ fn subscription_event_failures_keep_specific_public_diagnostics() -> Result<(), 
         binding,
         &registry,
     )?;
+
+    let crossed_connection =
+        WebDriverBiDiNavigationCommittedSubscriptionEventError::EventConnectionMismatch;
+    assert_eq!(
+        crossed_connection.to_string(),
+        "WebDriver BiDi navigation event arrived on a different subscription connection"
+    );
+    assert!(crossed_connection.source().is_none());
 
     let missing_navigation = admission
         .admit(&missing_navigation_event, &registry, EXPECTED_URL)
