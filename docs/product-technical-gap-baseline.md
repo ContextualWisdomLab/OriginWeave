@@ -8,6 +8,54 @@ This volatile section is refreshed from live GitHub state and is authoritative o
 
 ### Latest verified cut: 2026-09-06
 
+#### Published subscription descendants: 23:27 UTC
+
+The complete five-page live inventory contains **125 open pull requests: 12 Ready/non-draft and
+113 Draft; 13 open non-PR issues**. It has zero unresolved review threads and no
+unfinished review/check/thread pagination. This supersedes the older sole-#147
+thread observation below. All 12 Ready candidates remain BLOCKED. The active ruleset
+still requires one counted approval and seven required workflows; only one repository
+collaborator is available, so independent reviewer provisioning remains unresolved.
+Protected main remains `87c4daa1830bac5a5228b6036752ad5633232085`; there are no tags or releases.
+
+| Owner | Publication | Exact head | Parent | Local functions/lines/regions/branches, all 100% |
+| --- | --- | --- | --- | --- |
+| #263 | Published; Draft | `4868d3e9f19133ac3382ee8532878aef27468893` | #277 `46ae62aa` | 1244/13053/16729/1422 |
+| #264 | Published; Draft | `433957117ad9e29b26715b062f5adcc9789744ba` | #263 `4868d3e9` | 1282/13461/17140/1440 |
+
+Both owners adopted their parents by ordinary merges after actual replacement-reply
+regressions failed. #263 replay `90395f81` failed 0/2, followed by merge `9e85cadc`
+and sealed-reader fixture adaptation `cb0c4261`. Its 10 focused tests and full local
+Rust 1.97.1 gates passed, alongside 144 Python contracts. #264 replay `637fd97d`
+failed 0/2 before merge `92e576c8`; its 13 focused tests, full local Rust 1.97.1 gates
+and 145 Python contracts passed. Both passed compileall, CodeGraph and diff checks.
+The unchanged pinned coverage verifier passed the counts above; experimental branch
+instrumentation remains explicit. Their coverage artifacts have SHA-256 values
+`1e51cd7d08ebacc80ecadb568e0bca94384ffc0e1d721237b018cae31daa1336` and
+`e102bda45da886bc3138b981dac73f4239e2f6e5cd893688f10ed72b1f5af771`, respectively.
+
+The child keeps its original browser-state association, increasing request identifiers,
+separate raw/typed traffic and consuming subscription-shutdown ownership. Original
+replies still complete their own request after a foreign reply is rejected; unrelated
+work remains pending. Independent read-only preservation reviews found no actionable
+findings, but are not counted GitHub approval. Writers `5562611932` and `5562770321`
+are released. CI `34065055213` for #263 and CI `34066516991` plus MV3 `34066516992`
+for #264 were queued at the recorded readbacks; predecessor success is not new-head proof.
+
+Actual visual inspection used actual in-app screenshots of both published exact-head
+traceability sections: wrapping and historical/current boundaries were readable without
+observed clipping or overlap. This is GitHub presentation evidence, not product-browser acceptance.
+Earlier locked-Mac and pending-visual observations remain historical. This new baseline
+revision needs its own checks and visual inspection; source coverage does not validate it.
+
+Central dispatch identity admission remains separately owned by .github#1929
+([verified diagnostics](https://github.com/ContextualWisdomLab/.github/issues/1929#issuecomment-5562597667));
+the documented actor/sender mismatch is not evidence of recovery. Do not change owner
+settings or repeat a disproven dispatch route under this documentation task. Next safe
+source work is content-aware descendant adoption, pointer outbound authority and status
+receipt prerequisites, alongside protected-main asset preservation. Browser authentication,
+navigation-event authenticity, causal page effects and release acceptance remain unproven.
+
 #### Connection-bound text responses: 14:54 UTC
 
 This checkpoint supersedes the source status and executable actions in the earlier
