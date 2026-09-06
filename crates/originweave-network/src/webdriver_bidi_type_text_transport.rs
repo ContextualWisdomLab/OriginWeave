@@ -8,7 +8,7 @@ use originweave_core::{
 
 use crate::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
-    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrameError,
+    WebDriverBiDiCommandKind, WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrameError,
     WebDriverBiDiWebSocketMaskKey,
 };
 
@@ -80,12 +80,14 @@ impl Error for WebDriverBiDiTypeTextSendError {
 /// changed origins, mismatched external contexts, and unadmitted wire node identifiers before any
 /// command identifier is registered or any action frame is written. A previously constructed
 /// command therefore cannot outlive its node authority and later bypass revalidation at transport
-/// time.
+/// time. The admitted registry session must also match the established transport's verified
+/// external session identifier; this read-only check cannot create or replace registry state.
 ///
-/// Registration occurs before the first possible remote side effect. A correlation failure writes
-/// nothing. Once registration succeeds, a frame-write failure leaves the identifier outstanding
-/// because a partial or complete remote side effect is ambiguous and the identifier must not be
-/// silently reused.
+/// Invalid local deadlines fail before registration. Registration occurs before the first possible
+/// remote side effect. A correlation failure writes
+/// nothing. A malformed-frame preflight rejection retires this exact typed identifier because no
+/// write began. Other frame-write failures leave the identifier outstanding because a partial or
+/// complete remote side effect is ambiguous and the identifier must not be silently reused.
 ///
 /// The text value is intentionally non-secret and is never retained by this transport's error
 /// variants. Secret material must use the separately governed broker/fill boundary. Typed-input
@@ -133,10 +135,37 @@ pub fn send_webdriver_bidi_type_text(
     )
     .map_err(|source| WebDriverBiDiTypeTextSendError::Authority { source })?;
 
+    registry
+        .require_registered_session_external_identifier(
+            handle.browser_session(),
+            established
+                .transport_evidence()
+                .verified_peer()
+                .session_id(),
+        )
+        .map_err(|source| WebDriverBiDiTypeTextSendError::Authority {
+            source: WebDriverBiDiTypeTextAuthorityError::BrowserAuthority(source),
+        })?;
+    crate::webdriver_bidi_websocket_frame::validate_frame_timeout(frame_timeout)
+        .map_err(|source| WebDriverBiDiTypeTextSendError::FrameWrite { source })?;
     correlation
-        .register_command(command.command_id())
+        .register_command_for(command.command_id(), WebDriverBiDiCommandKind::TypeText)
         .map_err(|source| WebDriverBiDiTypeTextSendError::Correlation { source })?;
     established
-        .write_text_frame(command.as_json(), masking_key, frame_timeout)
-        .map_err(|source| WebDriverBiDiTypeTextSendError::FrameWrite { source })
+        .write_command_frame(
+            command.command_id(),
+            command.as_json(),
+            masking_key,
+            frame_timeout,
+        )
+        .map_err(|source| {
+            if matches!(
+                source,
+                WebDriverBiDiWebSocketFrameError::MalformedFrame { .. }
+            ) {
+                let _retirement = correlation
+                    .retire_command_for(command.command_id(), WebDriverBiDiCommandKind::TypeText);
+            }
+            WebDriverBiDiTypeTextSendError::FrameWrite { source }
+        })
 }

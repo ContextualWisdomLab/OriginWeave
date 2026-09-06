@@ -290,3 +290,35 @@ fn real_transport_rejects_negative_error_response_id() -> Result<(), Box<dyn Err
     );
     Ok(())
 }
+
+#[test]
+fn real_transport_rejects_non_protocol_error_code() -> Result<(), Box<dyn Error>> {
+    let error = parse_over_real_transport(
+        br#"{"type":"error","id":7,"error":"attacker-defined-code","message":"bad code"}"#,
+    )?;
+    assert_eq!(
+        error,
+        Err(WebDriverBiDiJsonEnvelopeError::InvalidMember { member: "error" })
+    );
+    Ok(())
+}
+
+#[test]
+fn real_transport_accepts_spec_defined_client_window_error() -> Result<(), Box<dyn Error>> {
+    let envelope = parse_over_real_transport(
+        br#"{"type":"error","id":7,"error":"no such client window","message":"unknown client window"}"#,
+    )?;
+    assert_eq!(
+        envelope.as_ref().map(WebDriverBiDiJsonEnvelope::kind),
+        Ok(WebDriverBiDiJsonEnvelopeKind::Error)
+    );
+    assert_eq!(
+        envelope.as_ref().map(WebDriverBiDiJsonEnvelope::command_id),
+        Ok(Some(7))
+    );
+    assert_eq!(
+        envelope.as_ref().map(WebDriverBiDiJsonEnvelope::error_code),
+        Ok(Some("no such client window"))
+    );
+    Ok(())
+}

@@ -1,5 +1,44 @@
 # Action Post-Condition Evidence Traceability
 
+## Text-transport integration checkpoint — 2026-09-06
+
+#267 adopts #266 `eb6c236ff2f4a58b807a2f2c914bd1ddb6079fb3` through ordinary merge
+`d903cf6b`, preserving original transport `46a05d7f`. Text dispatch reconstructs the
+command from current node authority and now uses the parent's sealed typed-write lane
+with a distinct `TypeText` correlation family. The shared frame-deadline validator
+runs before registration. Actual RED `2b960002` exposed a zero deadline retaining an
+unsent command; RED `e2b49e68` exposed the same retention after reused-mask preflight.
+The repair retires only malformed-frame rejections that prove no write began and
+retains correlation after ambiguous socket failure. Independent review then exposed a
+pre-existing cross-session gap: RED `10131eb7` showed that a node admitted for session A
+could be sent on session B's transport. Dispatch now uses the parent's canonical
+read-only registry-to-transport session check before correlation or action bytes.
+The socket regression requires the exact typed mismatch, zero pending commands and
+wire silence; valid fixtures name the same session at both boundaries. Complete
+exact-head acceptance is still pending.
+
+The transport is not policy approval, browser authentication, a typed response consumer,
+an observed text-value post-condition, protected-main delivery, or release evidence.
+Those boundaries remain separate #28 work. The predecessor dossier below is historical;
+its counts, source heads and hosted results are not current combined-head acceptance.
+
+## Historical parent-adoption checkpoint — 2026-09-06
+
+Ordinary integration `5a722867` preserves the text-input and diagnostic-privacy delta
+from `cc9980c0` while adopting pointer parent `7147893c96ca95c9b5b275d8011c5bfe99aab065`.
+The inherited foreign-session socket regression first failed at `18a64573`; the
+parent's canonical session guard, current-node pointer revalidation, typed dispatch,
+deadline safeguards and four restored navigation-postcondition tests are retained.
+Text-command source and its existing eight regression bodies are unchanged.
+
+This text slice still constructs a bounded command; it does not implement a typed
+text transport, revalidate text authority at dispatch, authorize actions, or prove a
+browser state change. Parent pointer/subscription safeguards do not supply those
+missing text boundaries. Current protected main is `87c4daa1830bac5a5228b6036752ad5633232085`.
+The dossier below retains its earlier revision-specific observations; old exact-head
+CI and screenshots are not combined-head acceptance. Keep Draft pending fresh full
+checks, visual inspection, parent-first protected integration and runtime evidence.
+
 - **Documentation status:** Active-stack evidence dossier; protected-main truth is called out separately
 - **Canonical owner:** issue #28 (`Complete the first real Chromium agent vertical slice`)
 - **Protected-main baseline:** `542ca1e9c0a863595b8b6697790005d2471f5413`
