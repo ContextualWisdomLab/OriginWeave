@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import pathlib
+import re
 import unittest
+
+from test_documentation_active_pr_evidence_contract import bounded_section
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 BASELINE = ROOT / "docs/product-technical-gap-baseline.md"
@@ -105,6 +108,30 @@ class ProductCompletionGapContractTests(unittest.TestCase):
         self.assertNotIn("through #280", current)
 
     def test_current_snapshot_records_repaired_webdriver_bidi_lineage(self) -> None:
+        """Only the latest cut may establish current foundation and transport heads."""
+        current = bounded_section(
+            BASELINE.read_text(encoding="utf-8"),
+            "### Latest verified cut: 2026-09-06",
+            "#### Prior observation: 12:28 UTC",
+        )
+        self.assertIn("#195 `63997bcf555e2c5c8e91ba287734ffba3837a1b7`", current)
+        self.assertIn("#267 `4435ce5f561ca069c1844a1a5bd9b603505e25f7`", current)
+
+    def test_latest_executable_queue_uses_current_ready_roots(self) -> None:
+        text = BASELINE.read_text(encoding="utf-8")
+        current = bounded_section(
+            text, "### Latest verified cut: 2026-09-06", "#### Prior observation: 12:28 UTC"
+        )
+        roots = [line for line in current.splitlines() if line.startswith("Ready roots:")]
+        self.assertEqual(len(roots), 1)
+        self.assertEqual(
+            set(re.findall(r"#(\d+)", roots[0])),
+            {"37", "50", "166", "219", "220", "229", "238", "240", "272", "274", "285", "287"},
+        )
+        self.assertIn("## Historical next executable queue", text)
+        self.assertNotIn("## Next executable queue", text)
+
+    def test_historical_snapshot_preserves_webdriver_bidi_lineage(self) -> None:
         """The active stack must retain exact heads and the macOS race boundary."""
         text = BASELINE.read_text(encoding="utf-8")
         current = text.split("## Current live delivery state", 1)[1].split(
