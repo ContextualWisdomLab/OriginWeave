@@ -166,6 +166,33 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             with self.assertRaises(AssertionError):
                 self.test_pointer_checkpoint_records_published_receipt_repair()
 
+    def test_descendant_checkpoint_records_exact_receipt_adoptions(self) -> None:
+        current = bounded_section(
+            BASELINE.read_text(encoding="utf-8"),
+            "##### Receipt descendant adoption: 16:17 UTC",
+            "#### Session repair and child adoption: 13:35 UTC",
+        )
+        for marker in (
+            "180c168ecbdcd5eb7a4ad14ab4a53e8670646bf7",
+            "3807aabeb22f9622610c3c8d504d1c686d25d896",
+            "ba100fbc39e1ac4f10ee4faade38418551bb8298",
+            "121578a43adda12221a9ca9ab8ada0a4fd03efef",
+            "34043222194", "34043664230", "34044193429", "34044857929",
+            "queued", "144 Python", "subscription response provenance",
+            "protected-main asset", "not product-browser acceptance",
+        ):
+            self.assertIn(marker, current)
+
+    def test_historical_text_cannot_supply_missing_descendant_head(self) -> None:
+        text = BASELINE.read_text(encoding="utf-8")
+        marker = "121578a43adda12221a9ca9ab8ada0a4fd03efef"
+        mutated = text.replace(marker, "subscription head removed", 1)
+        self.assertNotEqual(mutated, text)
+        mutated += "\nHistorical evidence: " + marker
+        with patch.object(pathlib.Path, "read_text", return_value=mutated):
+            with self.assertRaises(AssertionError):
+                self.test_descendant_checkpoint_records_exact_receipt_adoptions()
+
     def test_historical_prose_cannot_hide_latest_root_or_lineage_removal(self) -> None:
         text = BASELINE.read_text(encoding="utf-8")
         cases = (
