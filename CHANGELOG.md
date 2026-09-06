@@ -9,6 +9,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 ### Changed
 
 - Reject a navigation subscription aimed at a different browser session before sending it, without creating or replacing browser state.
+- Keep connection-failure checks focused on the requested action by completing fixture setup before the simulated peer disconnects.
 
 - Keep subscription shutdown on its original connection and reject replies from another connection without losing the pending request. Beginning shutdown ends local event admission; a failed shutdown requires a new subscription before admission resumes.
 
