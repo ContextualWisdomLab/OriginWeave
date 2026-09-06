@@ -327,6 +327,28 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             latest,
         )
 
+    def test_pointer_integration_cut_separates_parent_and_hosted_acceptance(self) -> None:
+        """Published pointer proof must retain the newer parent and visual evidence gaps."""
+        latest = self.baseline.split("## Current live delivery state", 1)[1].split(
+            "### Prior observation cut: 2026-09-05", 1
+        )[0]
+        for marker in (
+            "35555d0f8491d4ee95c2e61d1a2aaa2c02a0635c",
+            "3f9cdc1a",
+            "1293/13567/17273/1440",
+            "b1374f65538fb6557b4e5d877aa067e183202ed1f56c75be047b3ff2dfdc92a0",
+            "34032661775",
+            "34032661781",
+            "b4702cd503fa3f721e0d1f44b355563753dac0a2",
+            "5559076006",
+            "not latest-parent acceptance",
+            "four silently deleted parent postcondition tests",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, latest)
+        self.assertIn("new-head visual inspection remains incomplete", latest)
+        self.assertIn("Mac is locked", latest)
+
     def test_current_baseline_inventory_matches_the_verified_snapshot(self) -> None:
         """The dated 2026-08-29 snapshot must keep its exact historical inventory."""
         current = self.baseline.split("### Open pull requests", 1)[1].split(
