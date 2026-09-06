@@ -9,12 +9,13 @@ use std::{
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 
 use crate::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind, WebDriverBiDiJsonEnvelope,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind,
+    WebDriverBiDiConnectionMessageRead, WebDriverBiDiJsonEnvelope,
     WebDriverBiDiJsonEnvelopeError, WebDriverBiDiJsonEnvelopeKind,
-    WebDriverBiDiSessionStatusResponseError, WebDriverBiDiSessionStatusResult,
-    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
-    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMessageAssembler,
-    WebDriverBiDiWebSocketMessageAssembly, WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiReceivedTextMessage, WebDriverBiDiSessionStatusResponseError,
+    WebDriverBiDiSessionStatusResult, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
+    WebDriverBiDiWebSocketMessageReader,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -43,7 +44,7 @@ fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
 
 fn read_text_over_loopback(
     document: &'static [u8],
-) -> Result<WebDriverBiDiWebSocketTextMessage, Box<dyn Error>> {
+) -> Result<WebDriverBiDiReceivedTextMessage, Box<dyn Error>> {
     if document.len() > 125 {
         return Err(io::Error::other("unit JSON document exceeded one-byte frame length").into());
     }
@@ -68,14 +69,14 @@ fn read_text_over_loopback(
     let established = WebDriverBiDiWebSocketHandshakePlan::new(connection, key)?
         .write_opening_request(Duration::from_millis(500))?
         .read_opening_response(Duration::from_millis(500))?;
-    let (_established, frame) = established.read_frame(Duration::from_millis(500))?;
 
-    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-    let text = match assembler.push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(text) => text,
+    let message = match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text { message, .. } => message,
         other => {
             return Err(io::Error::other(format!(
-                "validated text frame produced unexpected assembly state: {other:?}"
+                "validated text frame produced unexpected message state: {other:?}"
             ))
             .into());
         }
@@ -84,14 +85,14 @@ fn read_text_over_loopback(
     server
         .join()
         .map_err(|_| io::Error::other("JSON-envelope unit server panicked"))??;
-    Ok(text)
+    Ok(message)
 }
 
 fn parse_over_loopback(
     document: &'static [u8],
 ) -> Result<Result<WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeError>, Box<dyn Error>> {
-    let text = read_text_over_loopback(document)?;
-    Ok(WebDriverBiDiJsonEnvelope::parse(&text))
+    let message = read_text_over_loopback(document)?;
+    Ok(WebDriverBiDiJsonEnvelope::parse(message.message()))
 }
 
 #[test]
@@ -150,11 +151,11 @@ fn public_json_envelope_unit_build_covers_fail_closed_json_edges() -> Result<(),
 
 #[test]
 fn public_session_status_empty_result_fails_closed_from_unit_build() -> Result<(), Box<dyn Error>> {
-    let text = read_text_over_loopback(EMPTY_STATUS_RESULT)?;
+    let message = read_text_over_loopback(EMPTY_STATUS_RESULT)?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     correlation.register_command_for(7, WebDriverBiDiCommandKind::SessionStatus)?;
 
-    let parsed = WebDriverBiDiSessionStatusResult::parse_and_correlate(&text, &mut correlation);
+    let parsed = WebDriverBiDiSessionStatusResult::parse_and_correlate(&message, &mut correlation);
     assert!(matches!(
         parsed,
         Err(WebDriverBiDiSessionStatusResponseError::MissingReady)
