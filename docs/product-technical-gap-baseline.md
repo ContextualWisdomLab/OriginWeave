@@ -44,7 +44,7 @@ presentation evidence, not product-browser acceptance or protected-main delivery
 Writers `5559965531` and `5559948553` are released. This documentation revision
 requires its own publication, visual inspection and exact-head checks.
 
-Next source work must address pointer and status receipt provenance in their existing
+At the 14:54 checkpoint, next source work was to address pointer and status receipt provenance in their existing
 owners, plus the separate pointer outbound session-binding gap, before promoting
 their evidence. Reuse the sealed reader and canonical connection checks; status
 projection must still validate before correlation consumption. Browser ownership,
@@ -53,6 +53,47 @@ foundation #195 `63997bcf555e2c5c8e91ba287734ffba3837a1b7` remains on
 `6922dd98779e8f8aad132a3b1f563d7ba6e6d070`; #279 workflow generation and #212
 sandbox boundaries remain prerequisites. Counted approval and central workflow
 requirements must not be bypassed. Source and documentation writers stay separate.
+
+##### Pointer receipt follow-up: 15:28 UTC
+
+This later checkpoint supersedes the preceding pointer next-action claim, not the
+dated text-entry evidence. Published sender #257 `9451fd8a23dec95b31749376bc78c2eaca977fe8`
+remains based on #256 `881c7f09ee9161ce8664dd75226938ecf60b85e5`; published
+response owner #258 `5417ce32ed957aa166807f1023647caccc2920cb` adopts that sender
+by ordinary merge `0234b587`, preserving the existing hourly writer's test history.
+
+Executed RED `8193fcd5` accepted a replacement connection's reply. Stronger RED
+`d9396f05` held the listener address and session constant and reproduced both foreign
+success and error consumption. Consumer-only `588fe731` failed original-response
+acceptance with missing sender provenance. The integrated sender registers its
+private connection generation before I/O; the consumer validates the existing sealed
+receipt before consuming pending work. Six focused tests pass, including exact
+foreign-connection mismatch, unchanged pending work and original-reply recovery
+with counts **2 → 2 → 1**, extensible success, real remote error, malformed input
+and unknown-id retention. No public receipt constructor or raw fallback was added.
+
+Both source heads passed full local Rust 1.97.1 gates, 142 Python contracts,
+compileall, CodeGraph and diff checks. Exact function/line/region/branch coverage is
+1093/11134/14204/1214 for #257 and 1100/11191/14276/1214 for #258, each 100%.
+Their artifact SHA-256 values are
+`a976c273d86d43eef366044cca5b73566064844612a35ba02ac4b7fe59a0969f` and
+`ed46b5881d952723eec724a74e6ebb8856a0801e4db0570c9f8a6e6cf04eadb5`.
+CI `34041977863` and `34042223733` remain queued; successful advisory statuses
+are not counted approval. Actual Edge screenshots verified both published PR
+heads, parent boundaries and readable evidence without observed clipping/overlap.
+This is GitHub presentation evidence, not product-browser acceptance. Writers
+`5560144371` and `5560167022` are released. This baseline update requires its own
+publication, rendered inspection and hosted checks; source coverage is not its proof.
+
+The next source queue is content-aware descendant adoption, separate pointer
+outbound session authority, and status receipt provenance. Existing status owners
+#249 `84b9407978ae0f6c115f01170b6069c601b21104` and
+#250 `7e85a7e5f0147f4b712129cd19aaa3d0a0a54634` precede the shared sealed-receipt
+and connection-registration helpers: establish the canonical prerequisites in
+dependency order rather than copying a later descendant or creating a cyclic stack.
+Status projection must remain validated before state consumption. Browser ownership,
+policy approval, same-connection freshness and observed page effects remain unproven;
+protected-main approval, central workflows and release gates still apply.
 
 #### Session repair and child adoption: 13:35 UTC
 

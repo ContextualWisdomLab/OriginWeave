@@ -143,7 +143,7 @@ class ProductCompletionGapContractTests(unittest.TestCase):
     def test_pointer_checkpoint_records_published_receipt_repair(self) -> None:
         current = bounded_section(
             BASELINE.read_text(encoding="utf-8"),
-            "##### Pointer receipt follow-up: 15:31 UTC",
+            "##### Pointer receipt follow-up: 15:28 UTC",
             "#### Session repair and child adoption: 13:35 UTC",
         )
         for marker in (
