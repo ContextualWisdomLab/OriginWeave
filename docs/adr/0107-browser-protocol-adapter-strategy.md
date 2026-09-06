@@ -57,6 +57,21 @@ The integration also restores four parent navigation-postcondition regressions a
 mask-reuse rejection and ambiguous-write socket tests. Status remains Proposed; hosted checks,
 protected-main delivery and fresh visual inspection are separate gates.
 
+### Proposed refinement: registry-to-transport session provenance (2026-09-06)
+
+In the context of dispatching a registry-bound subscription on an established transport, facing
+a valid context from session A being sent over session B, we decided for a read-only comparison
+against the existing canonical external-session mapping and against a duplicate reverse registry
+or registration from transport text, to reject mismatches before correlation and command bytes,
+accepting one bounded lookup per subscription and rejection of adapters using unrelated session aliases.
+
+This supplements original-registry and current-context checks rather than replacing them. The
+existing connection-generation binding continues to govern replies and teardown. Unknown or retired
+session mappings fail closed without creating state. Matching protocol text is not browser-process
+authentication or navigation causality. The actual loopback RED at `b4702cd5` and its successor
+check the no-correlation/no-wire boundary; status remains Proposed pending exact-head gates and
+protected parent-first integration, not a release or architecture approval.
+
 ### Proposed refinement: consuming subscription teardown (2026-09-06)
 
 In the context of ending a navigation subscription, facing a borrowed receipt that permits continued

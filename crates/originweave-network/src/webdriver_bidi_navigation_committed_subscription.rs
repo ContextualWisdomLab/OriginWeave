@@ -115,6 +115,8 @@ impl WebDriverBiDiNavigationCommittedSubscriptionCommand {
     ///
     /// The original registry identity and context binding are revalidated before correlation and I/O so a
     /// command retained across registry retirement cannot subscribe a stale or replacement context.
+    /// The verified transport's protocol session must also match the registry's canonical external
+    /// session mapping; this comparison does not authenticate the browser process.
     /// Invalid frame deadlines fail before correlation registration. Registration then binds both the
     /// private command-instance identity and this established connection's process-local generation
     /// before the first possible remote side effect. A frame-owner preflight rejection that proves no
@@ -146,6 +148,17 @@ impl WebDriverBiDiNavigationCommittedSubscriptionCommand {
         validate_frame_timeout(frame_timeout).map_err(|source| {
             WebDriverBiDiNavigationCommittedSubscriptionCommandError::FrameWrite { source }
         })?;
+        registry
+            .require_registered_session_external_identifier(
+                self.browser_session,
+                established
+                    .transport_evidence()
+                    .verified_peer()
+                    .session_id(),
+            )
+            .map_err(|source| {
+                WebDriverBiDiNavigationCommittedSubscriptionCommandError::ContextBinding { source }
+            })?;
         let connection_generation = established.transport_evidence().connection_generation();
         correlation
             .register_subscription_command_for_connection(
@@ -231,7 +244,7 @@ pub enum WebDriverBiDiNavigationCommittedSubscriptionCommandError {
         /// Largest JavaScript-safe identifier admitted by this boundary.
         maximum_command_id: u64,
     },
-    /// The external protocol context does not name the exact registered OriginWeave context.
+    /// The protocol session or context does not match the exact registered OriginWeave authority.
     ContextBinding {
         /// Exact typed browser-registry authority failure.
         source: BrowserRegistryError,

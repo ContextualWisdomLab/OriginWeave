@@ -305,12 +305,16 @@ fn pointer_click_ambiguous_socket_write_keeps_correlation() -> Result<(), Box<dy
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let (closed_sender, closed_receiver) = mpsc::channel();
+    let (seed_ready_sender, seed_ready_receiver) = mpsc::channel();
     let server = thread::spawn(move || -> io::Result<()> {
         let (mut stream, _) = listener.accept()?;
         read_opening_request(&mut stream)?;
         stream.write_all(OPENING_RESPONSE)?;
         let mut first_frame_byte = [0_u8; 1];
         stream.read_exact(&mut first_frame_byte)?;
+        seed_ready_receiver
+            .recv_timeout(Duration::from_secs(1))
+            .map_err(|_| io::Error::other("seed Pong did not finish before peer closure"))?;
         drop(stream);
         closed_sender
             .send(())
@@ -332,6 +336,7 @@ fn pointer_click_ambiguous_socket_write_keeps_correlation() -> Result<(), Box<dy
             WebDriverBiDiWebSocketMaskKey::new([13, 14, 15, 16]),
             Duration::from_millis(500),
         )?;
+    seed_ready_sender.send(())?;
     closed_receiver.recv_timeout(Duration::from_secs(1))?;
 
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
