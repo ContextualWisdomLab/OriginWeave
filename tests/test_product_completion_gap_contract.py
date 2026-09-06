@@ -7,7 +7,7 @@ import re
 import unittest
 from unittest.mock import patch
 
-from test_documentation_active_pr_evidence_contract import bounded_section
+from test_documentation_active_pr_evidence_contract import active_pr_row, bounded_section
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 BASELINE = ROOT / "docs/product-technical-gap-baseline.md"
@@ -206,6 +206,45 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "outbound session binding", "protected-main asset", "not product-browser acceptance",
         ):
             self.assertIn(marker, current)
+
+    def test_published_descendants_bind_evidence_to_current_owner_rows(self) -> None:
+        current = bounded_section(
+            BASELINE.read_text(encoding="utf-8"),
+            "#### Published subscription descendants: 23:27 UTC",
+            "#### Connection-bound text responses: 14:54 UTC",
+        )
+        for owner, head, parent, coverage in (
+            (263, "4868d3e9f19133ac3382ee8532878aef27468893", "46ae62aa", "1244/13053/16729/1422"),
+            (264, "433957117ad9e29b26715b062f5adcc9789744ba", "4868d3e9", "1282/13461/17140/1440"),
+        ):
+            row = active_pr_row(current, owner)
+            for marker in ("Published; Draft", head, parent, coverage):
+                self.assertIn(marker, row)
+        for marker in (
+            "zero unresolved review threads", "supersedes the older sole-#147",
+            "12 Ready candidates remain BLOCKED", "one counted approval", "seven required workflows",
+            "13 focused", "145 Python", "actual in-app screenshots", "not product-browser acceptance",
+            "34065055213", "34066516991", "34066516992", "queued",
+            ".github#1929", "protected-main asset preservation", "own checks and visual inspection",
+        ):
+            self.assertIn(marker, current)
+
+    def test_historical_rows_cannot_hide_current_descendant_evidence_changes(self) -> None:
+        text = BASELINE.read_text(encoding="utf-8")
+        current = bounded_section(
+            text,
+            "#### Published subscription descendants: 23:27 UTC",
+            "#### Connection-bound text responses: 14:54 UTC",
+        )
+        for owner in (263, 264):
+            row = active_pr_row(current, owner)
+            for replacement in ("", row.replace("Published; Draft", "Local only; Draft")):
+                with self.subTest(owner=owner, replacement=replacement):
+                    mutated = text.replace(row, replacement, 1) + "\nHistorical evidence:\n" + row
+                    self.assertNotEqual(text, mutated)
+                    with patch.object(pathlib.Path, "read_text", return_value=mutated):
+                        with self.assertRaises(AssertionError):
+                            self.test_published_descendants_bind_evidence_to_current_owner_rows()
 
     def test_historical_text_cannot_supply_missing_subscription_repair_head(self) -> None:
         text = BASELINE.read_text(encoding="utf-8")
