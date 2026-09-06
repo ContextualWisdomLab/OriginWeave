@@ -9,13 +9,13 @@ use std::{
 use originweave_core::{BrowserAuthorityRegistry, WebDriverBiDiWebSocketEndpoint};
 use originweave_network::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
-    WebDriverBiDiCommandKind, WebDriverBiDiNavigationCommittedSubscriptionCommand,
+    WebDriverBiDiCommandKind, WebDriverBiDiConnectionMessageRead,
+    WebDriverBiDiNavigationCommittedSubscriptionCommand,
     WebDriverBiDiNavigationCommittedSubscriptionResponseError,
-    WebDriverBiDiNavigationCommittedSubscriptionResult, WebDriverBiDiTcpConnectionPlan,
-    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketEstablished,
-    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
-    WebDriverBiDiWebSocketMessageAssembler, WebDriverBiDiWebSocketMessageAssembly,
-    WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiNavigationCommittedSubscriptionResult, WebDriverBiDiReceivedTextMessage,
+    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
+    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketHandshakePlan,
+    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageReader,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -100,10 +100,11 @@ fn establish(local_addr: SocketAddr) -> Result<WebDriverBiDiWebSocketEstablished
 
 fn read_response(
     established: WebDriverBiDiWebSocketEstablished,
-) -> Result<WebDriverBiDiWebSocketTextMessage, Box<dyn Error>> {
-    let (_, frame) = established.read_frame(Duration::from_millis(500))?;
-    let text = match WebDriverBiDiWebSocketMessageAssembler::new().push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(message) => message,
+) -> Result<WebDriverBiDiReceivedTextMessage, Box<dyn Error>> {
+    let text = match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text { message, .. } => message,
         other => {
             return Err(io::Error::other(format!(
                 "replacement subscription connection produced unexpected assembly state: {other:?}"
