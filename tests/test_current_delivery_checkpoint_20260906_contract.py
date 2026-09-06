@@ -1,4 +1,4 @@
-"""Contracts for the 2026-09-06 volatile delivery checkpoint."""
+"""Contracts preserving the dated 2026-09-06 historical delivery checkpoint."""
 
 from pathlib import Path
 import unittest
@@ -15,7 +15,7 @@ class CurrentDeliveryCheckpointContractTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.checkpoint = CHECKPOINT.read_text(encoding="utf-8")
 
-    def test_current_source_heads_and_parent_boundary_are_exact(self) -> None:
+    def test_historical_source_heads_and_parent_boundary_are_exact(self) -> None:
         self.assertIn("Historical checkpoint: 2026-09-06 12:28 UTC", self.checkpoint)
         self.assertIn("## Historical source and dependency state", self.checkpoint)
         self.assertIn("## Historical hosted and browser boundaries", self.checkpoint)

@@ -91,18 +91,23 @@ class ActivePullRequestDocumentationContractTests(unittest.TestCase):
         self.assertIn("on 2026-09-05", refresh_line)
         current = bounded_section(
             self.baseline,
-            "## Current live delivery state",
-            "## Observed snapshot: 2026-08-29",
+            "### Latest verified cut: 2026-09-06",
+            "#### Prior observation: 12:28 UTC",
         )
         queue_counts = re.findall(
             r"\*\*(\d+) open pull requests: (\d+) Ready/non-draft and (\d+) Draft; "
             r"(\d+) open non-PR issues\*\*",
-            current,
+            " ".join(current.split()),
         )
         self.assertEqual(1, len(queue_counts))
         total, ready, draft, issues = queue_counts[0]
-        self.assertIn(f"{total} open pull requests ({ready} ready, {draft} draft)", refresh_line)
-        self.assertIn(f"{issues} open non-PR issues", refresh_line)
+        inventory_lines = [
+            line for line in self.changelog.splitlines()
+            if line.startswith("- Current delivery inventory:")
+        ]
+        self.assertEqual(1, len(inventory_lines))
+        self.assertIn(f"{total} open pull requests ({ready} ready, {draft} draft)", inventory_lines[0])
+        self.assertIn(f"{issues} open non-PR issues", inventory_lines[0])
         self.assertIn("024f63690cf05cfe6f0d4a430f0e18ea8fd2c4d6", refresh_line)
         self.assertIn("3a651967c421f77088fe25e86a63faae295390b3", refresh_line)
         self.assertIn("01038ba71fb276426cc67f90a91a3c431e194db5", refresh_line)

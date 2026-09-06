@@ -1,8 +1,8 @@
 # OriginWeave delivery checkpoint — 2026-09-06
 
-This note is a volatile evidence supplement for the current delivery queue. It does not replace protected-main truth, a counted review, hosted exact-head execution, browser acceptance, or release evidence.
+**Historical checkpoint: 2026-09-06 12:28 UTC.** Source heads, queued checks and dependency claims below describe that predecessor observation, not the current queue. The subsequent visual-recovery note describes the integrating writer's later observation at the same source heads. Consult the [latest verified baseline](../product-technical-gap-baseline.md#latest-verified-cut-2026-09-06) for the repaired parent and adopted children. This note does not replace protected-main truth, a counted review, hosted exact-head execution, browser acceptance, or release evidence.
 
-## Source and dependency state
+## Historical source and dependency state
 
 PR #264 is Draft on #263. Its current published head is `b4702cd503fa3f721e0d1f44b355563753dac0a2`, a test-first registry-to-BiDi-session transport-provenance **RED-only checkpoint**. The real loopback regression requires a subscription bound to registry session A to be rejected before correlation registration and before any command-frame byte when the established transport is correlated to session B. The bounded writer released in comment 5559140277 because the organization runner-admission incident prevented executable observation; **no production repair or GREEN is claimed for #264** at this head.
 
@@ -10,13 +10,13 @@ PR #265 is Draft at exact head `35555d0f8491d4ee95c2e61d1a2aaa2c02a0635c`. Its o
 
 #265 exact-head local verification passes Rust 1.97.1 formatting/check/tests/strict Clippy/rustdoc, all 145 Python contracts, compileall, CodeGraph and diff checks. Pinned production coverage is exactly **1293/1293 functions**, **13567/13567 lines**, **17273/17273 regions**, and **1440/1440 branches**. This evidence validates only `35555d0f` against the preserved `7fb93e77` parent state.
 
-## Hosted and browser boundaries
+## Historical hosted and browser boundaries
 
 #265 exact-head CI `34032661775` and MV3 `34032661781` remain **queued**; no predecessor result transfers. The #264 RED-only CI `34031977586` is also queued after the runner-admission incident. No rerun/no-op churn or gate weakening is used to manufacture progress.
 
 The contributing writer's earlier observation was "Mac remains locked". Browser access recovered for the integrating writer: fresh actual Edge inspection of #265's published body and Checks page showed readable wrapping, no observed clipping or overlap, exact head `35555d0f` and three queued checks. The new documentation head still requires its own visual inspection. There is **no stale screenshot substitution** for #264, #265, or this documentation checkpoint. GitHub presentation evidence does not establish OriginWeave product-browser acceptance.
 
-## Review and queue boundary
+## Historical review and queue boundary
 
 The sole known unresolved review thread remains #147 `PRRT_kwDOTulPlM6coZwc`. The contributing writer reported a **valid unresolved finding**: the ordinary Agent Task pass on #147 still has two sequential `PROCESS_EXIT_TIMEOUT_SECONDS` budgets, while #147 intentionally repaired only the forced-close path. #150 already contains a combined ordinary teardown waiter; fresh source comparison and verified integration must precede any additional repair. Do not duplicate that implementation or resolve the thread administratively without acceptance evidence.
 

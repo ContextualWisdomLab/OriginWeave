@@ -4,6 +4,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Current delivery inventory: 125 open pull requests (12 ready, 113 draft); 13 open non-PR issues. Observed 2026-09-06; source acceptance remains revision-specific.
+- Corrected historical checkpoint labels and made the current inventory check reject stale counts; recorded verified text-input parent adoption without claiming browser execution.
 - Recorded the executed session-isolation repair and its verified adoption, separating complete local checks and PR visual inspection from pending hosted checks and unreleased browser acceptance.
 - Recorded the current click safeguards, restored regression coverage and completed PR visual inspection, keeping the separately owned parent repair and queued hosted checks distinct from delivery.
 - Recorded subscription-shutdown safeguards and their complete local verification, keeping queued hosted checks and the locked-screen visual-inspection gap explicit.

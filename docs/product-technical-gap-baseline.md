@@ -11,8 +11,8 @@ This volatile section is refreshed from live GitHub state and is authoritative o
 #### Session repair and child adoption: 13:35 UTC
 
 This update supersedes the 12:28 source/adoption and visual-boundary claims below.
-The complete five-page live inventory read at 13:29 UTC still found 125 open PRs
-(12 Ready/non-draft, all BLOCKED; 113 Draft), with only #147's unresolved thread
+The complete five-page live inventory read at 13:29 UTC still found **125 open pull requests: 12 Ready/non-draft and 113 Draft; 13 open non-PR issues**.
+All 12 Ready PRs were BLOCKED, with only #147's unresolved thread
 `PRRT_kwDOTulPlM6coZwc`. Subsequent REST reads confirmed 13 non-PR issues, no releases
 or tags, and unchanged protected main `87c4daa1830bac5a5228b6036752ad5633232085`.
 
@@ -51,6 +51,33 @@ rule, browser authentication, action authorization, pointer-reply connection bin
 navigation causality and release gates remain separate. Earlier revision measurements
 and screenshots are historical. This new documentation revision still requires its
 own post-publication visual inspection; prior #238 `112ba13a` inspection is not transferred.
+
+#### Text-input adoption and review correction: 13:52 UTC
+
+Published #266 `eb6c236ff2f4a58b807a2f2c914bd1ddb6079fb3` adopts #265 `7147893c`
+through ordinary merge `5a722867`, preserving original child `cc9980c0` and its unchanged
+text-input source/eight tests. Actual inherited socket RED `18a64573` failed before
+adoption. All 24 focused regressions, complete Rust 1.97.1 gates, 145 Python contracts,
+compileall, CodeGraph and diff checks pass. Exact pinned-nightly production coverage is
+1309/13749/17512/1452, each 100%; SHA-256
+`596097f5545490f6a4bd29a7b718a61aeb43f0ef738e02a61f372232ecd64543`.
+CI `34037184023` and MV3 `34037183844` remain queued. Actual Edge inspection of the
+published body and Checks page confirms the exact head, Draft state and queued jobs,
+with readable wrapping and no observed clipping or overlap. Writer `5559594727` is
+released. This is not product-browser acceptance or protected delivery. #267 already
+owns typed text transport and needs separate current-parent adoption and dispatch review;
+#266 itself still provides construction, not text dispatch or observed action success.
+
+The later complete queue read still found 125 PRs and 12 Ready roots all BLOCKED, but
+found two new #238 review threads in addition to #147: `PRRT_kwDOTulPlM6fsIep` and
+`PRRT_kwDOTulPlM6fsIet`. Both findings were verified against `ca8f8475`: the supplement
+presented predecessor source claims as current, and the inventory assertion selected
+historical counts by formatting. Regression `6fe2af69` observed both failures. The
+repair explicitly labels the supplement historical and bounds current inventory checks
+to this latest cut, paired with the dedicated current CHANGELOG entry. A mutation test
+proves that a changed latest count cannot be hidden by unchanged historical counts.
+Thread resolution requires published repair evidence; this documentation revision still
+needs its own post-publication visual inspection and exact-head hosted checks.
 
 #### Prior observation: 12:28 UTC
 
