@@ -111,11 +111,12 @@ impl WebDriverBiDiNavigationCommittedSubscriptionCommand {
     ///
     /// Context binding is revalidated immediately before command correlation and network I/O so a
     /// command retained across registry retirement cannot subscribe a stale or replacement context.
-    /// Invalid frame deadlines fail before correlation registration. Registration then occurs before
-    /// the first possible remote side effect. A frame-owner preflight rejection that proves no write
-    /// began retires this exact subscription again; currently that covers adjacent client masking-key
-    /// reuse. Once frame emission can have begun, later failures conservatively leave the identifier
-    /// outstanding because partial or full emission is ambiguous.
+    /// Invalid frame deadlines fail before correlation registration. Registration then binds both the
+    /// private command-instance identity and this established connection's process-local generation
+    /// before the first possible remote side effect. A frame-owner preflight rejection that proves no
+    /// write began retires this exact subscription again; currently that covers adjacent client
+    /// masking-key reuse. Once frame emission can have begun, later failures conservatively leave the
+    /// identifier outstanding because partial or full emission is ambiguous.
     pub fn send(
         self,
         registry: &BrowserAuthorityRegistry,
@@ -136,8 +137,13 @@ impl WebDriverBiDiNavigationCommittedSubscriptionCommand {
         validate_frame_timeout(frame_timeout).map_err(|source| {
             WebDriverBiDiNavigationCommittedSubscriptionCommandError::FrameWrite { source }
         })?;
+        let connection_generation = established.transport_evidence().connection_generation();
         correlation
-            .register_subscription_command(self.command_id, Arc::clone(&self.subscription_intent))
+            .register_subscription_command_for_connection(
+                self.command_id,
+                connection_generation,
+                Arc::clone(&self.subscription_intent),
+            )
             .map_err(|source| {
                 WebDriverBiDiNavigationCommittedSubscriptionCommandError::Correlation { source }
             })?;
