@@ -97,7 +97,7 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "rule-suite `3948421709`",
             "`result: bypass`",
             "#215",
-            "post-merge checks remain non-terminal",
+            "fresh native Rust and production-coverage checks now succeed",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, current)

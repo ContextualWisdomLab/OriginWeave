@@ -4,6 +4,8 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Separated the September 6 verified queue from prior measurements, recording restored-foundation workflow failures, current successor CI results, completed sandbox doctoring, and unreleased runtime/central-owner prerequisites.
+- Recorded verified #261/#277 parent adoption, the reproduced subscription-deadline slot repair, current #288 sandbox-source verification, and the central report-classification source repair; retained hosted, review, runtime, and independent-verification limits and the REST refresh boundary.
 - Recorded #50's reproduced formatting repair and verified current-parent integrations through #255–#260, preserving their exact local test/coverage evidence, child-source ownership, warning and runtime limits, and remaining hosted/approval gates.
 - Corrected #50's live head after the exit sweep found its newer default-port regression, keeping earlier passing results attached to their tested predecessors.
 - Recorded #254 parent adoption, #148's crash-launch sandbox repair and #150's shared-observer test reconciliation, including complete local verification and matched-source Linux runs; separated the reproduced central scan-classifier defect from a gateway failure and hosted execution-limit cancellation.

@@ -41,7 +41,7 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "PR #166 exact head `e84a1a2cc82b1c666218efd441da97849f47b8c2`",
             "PR #220 exact head `e545b94e1de499b96b867694f80ac04ad247becd`",
             "retain formal `CHANGES_REQUESTED` decisions",
-            "every current review thread is resolved",
+            "thread-resolution state could not be refreshed",
             "115 queued workflow runs",
             "rerunning unchanged heads would only add duplicate queue load",
             "PR #249 is Draft at exact head `84b9407978ae0f6c115f01170b6069c601b21104`",
@@ -116,8 +116,20 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "1100 functions, 11185 lines, 14272 regions, 1214 branches",
             "1140 functions, 11841 lines, 15129 regions, 1332 branches",
             "1154 functions, 11969 lines, 15314 regions, 1334 branches",
-            "Central Strix #1563 remains at `1221b1604e1a6cfde8ca5ab7fd3e93e0fe9faf69`",
-            "For #261, the recorded #260 parent is stale",
+            "Central Strix #1563 advanced to `13fbb48e0b3eeca4ce7d9678add934f9bd87ad3f`",
+            "independently inspected four-file source diff",
+            "2890 passed, 1 skipped, and 21 subtests are owner-reported",
+            "521 functions, 4420 lines, 5349 regions, 654 branches",
+            "#37 Strix run `33946242342`",
+            "Strix run timed out after 900s",
+            "#148 hosted compatibility run `33962062608`",
+            "browser-crash recovery fails 0/3 trials",
+            "#261 now includes actual #260",
+            "1173 functions, 12104 lines, 15511 regions, 1334 branches",
+            "1221 functions, 12781 lines, 16404 regions, 1418 branches",
+            "no subscription bytes but two outstanding commands",
+            "GraphQL rejected both the inventory query and a minimal probe",
+            "REST reviews, check runs, and combined statuses were read for all 125 open PRs",
             "warning: --branch option is unstable",
             "numerical coverage enforcement is distinct from warning-free instrumentation",
             "PR #139 at `b7ea5bfe336456fb263dd479a60b1cd0193d8a47`",
@@ -140,8 +152,8 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "PR #260 is Draft at exact head `2c5049aff97a90958e8262b1d403bdcbd64a1e8b`",
             "PR #258 is Draft at exact head `5f830324f6d5a47ac213a57528ef95649bdfd0df`",
             "PR #259 is Draft at exact head `66731982ed51ad62a04fcfbc759b0a33721a0254`",
-            "PR #261 is Draft at exact head `323ac9e147691e9f6572711f5a748e13f1036624`",
-            "Repair PR #277 is Draft at exact head `01038ba71fb276426cc67f90a91a3c431e194db5`",
+            "PR #261 is Draft at exact head `934eb7d37568b439c442ffe1d1f6a9c8f8ed58a0`",
+            "Repair PR #277 is Draft at exact head `117f6414e8a6db46eb2b32f4ebae85cf2a208371`",
             "PR #70 is Draft at exact head `77eb0f2ee71783e06171784b7173c0b4cd530e61`",
             "DDD/MCP repair #272 is Ready at exact head `b1cae8ad1cbd8eb6992037c830aea30b9aa436b3`",
             "PR #229 is Ready at exact head `024f63690cf05cfe6f0d4a430f0e18ea8fd2c4d6`",
@@ -150,7 +162,8 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "PR #283 is Draft at exact head `c904300a6a1bda83af24f84d586f1c5f6a6491aa`",
             "stacked on predecessor #282 head `b54a5856d8201911f05d69622f0d5594a371adf0` rather than current #282 exact `b64e0708584beff3fb54acf226cb3e667773e473`",
             "must adopt the corrected current parent before its compare can become current evidence",
-            "PR #288 is Draft at exact head `39e36256651f62940ec3ca6149067f0cfcb2285a`",
+            "PR #288 is Draft at exact head `0f434bc29d468127412366b6864b733b40b83c4d`",
+            "all 173 Python contracts pass on that unchanged head",
             "PR #269 is Draft at exact head `7854394266d3f292e779193c01413a34f6798d7c`",
             "PR #270 is Draft at exact head `191a14535219ea8033777fa4c970efb281b62418`",
             "PR #271 is Draft at exact head `802ec806cdd4560eab48c484f435766ecabda353`",
@@ -212,6 +225,30 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
         ):
             with self.subTest(stale=stale):
                 self.assertNotIn(stale, current)
+
+    def test_latest_cut_does_not_promote_prior_observations(self) -> None:
+        """Fresh queue evidence must precede the explicitly historical cut."""
+        latest = self.baseline.split("## Current live delivery state", 1)[1].split(
+            "### Prior observation cut: 2026-09-05", 1
+        )[0]
+        for marker in (
+            "Latest verified cut: 2026-09-06",
+            "63997bcf555e2c5c8e91ba287734ffba3837a1b7",
+            "fd589cd693946ef1ce2c9270c2dfb6a1087bdfb9",
+            "0135984f1bc1f68d89d7777f49c4999474105a12",
+            "973e34bc24ae9bdd96a50764f2be6c8603eff66c",
+            "3f22de94b63da83eaa8b5b1270912b21a3ecd006",
+            "GraphQL thread resolution was refreshed for all 125 open PRs",
+            "#147 retains the sole unresolved thread",
+            "34013251657",
+            "33990522248",
+            "34009256997",
+            "#279 owns current-workflow reconstruction",
+            "#212 owns sandbox-helper adoption",
+            "earlier local coverage counts do not validate these newer heads",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, latest)
 
     def test_current_baseline_inventory_matches_the_verified_snapshot(self) -> None:
         """The dated 2026-08-29 snapshot must keep its exact historical inventory."""
