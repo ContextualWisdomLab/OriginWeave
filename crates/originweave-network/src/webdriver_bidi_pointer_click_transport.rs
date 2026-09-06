@@ -85,7 +85,8 @@ impl Error for WebDriverBiDiPointerClickSendError {
 /// correlation or I/O; this comparison does not authenticate the browser process.
 ///
 /// Invalid local frame deadlines fail before registration. Correlation then occurs before the first
-/// possible remote side effect. A frame preflight rejection that proves no write began retires the
+/// possible remote side effect and retains the exact connection's private generation for later
+/// connection-bound response admission. A frame preflight rejection that proves no write began retires the
 /// exact id; a partial or complete remote side effect remains ambiguous and leaves it outstanding.
 ///
 /// Typed-input and node authority validation are still not policy authorization. A trusted caller
@@ -147,9 +148,11 @@ pub fn send_webdriver_bidi_pointer_click(
         .map_err(|source| WebDriverBiDiPointerClickSendError::Authority {
             source: WebDriverBiDiPointerClickAuthorityError::BrowserAuthority(source),
         })?;
-    match correlation
-        .register_command_for(command.command_id(), WebDriverBiDiCommandKind::PointerClick)
-    {
+    match correlation.register_command_for_connection(
+        command.command_id(),
+        WebDriverBiDiCommandKind::PointerClick,
+        established.transport_evidence().connection_generation(),
+    ) {
         Ok(()) => {}
         Err(source) => {
             return Err(WebDriverBiDiPointerClickSendError::Correlation { source });
