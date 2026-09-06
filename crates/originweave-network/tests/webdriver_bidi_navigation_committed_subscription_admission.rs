@@ -357,6 +357,44 @@ fn committed_navigation_requires_the_exact_active_subscription_before_document_m
     server
         .join()
         .map_err(|_| io::Error::other("subscription admission test server panicked"))??;
+    correlation.register_command_for(
+        7,
+        originweave_network::WebDriverBiDiCommandKind::NavigationCommittedSubscription,
+    )?;
+    assert!(
+        WebDriverBiDiNavigationCommittedSubscriptionResult::parse_and_correlate(
+            &response,
+            &mut correlation,
+        )
+        .is_err(),
+        "re-registering an id without another send must not reconstruct a consumed receipt"
+    );
+    assert_eq!(correlation.outstanding_count(), 1);
+    Ok(())
+}
+
+#[test]
+fn sent_subscription_cannot_be_rebound_to_an_unsent_same_id_context()
+-> Result<(), Box<dyn Error>> {
+    let mut registry = BrowserAuthorityRegistry::new();
+    let session = registry.register_session(SESSION_ID)?;
+    let context = registry.register_context(session, CONTEXT_ID)?;
+    let other_context = registry.register_context(session, "context-b")?;
+    let (subscription, _) = receive_subscription_result(&registry, session, context, 7)?;
+    let unsent_binding = WebDriverBiDiNavigationCommittedSubscriptionCommand::new(
+        7, &registry, session, other_context, "context-b",
+    )?
+    .admission_binding();
+    let rejected = WebDriverBiDiNavigationCommittedSubscriptionAdmission::new(
+        subscription, unsent_binding, &registry,
+    )
+    .err()
+    .ok_or_else(|| io::Error::other("sent context-a receipt admitted an unsent context-b binding"))?;
+    assert!(rejected.source().is_none());
+    assert_eq!(
+        rejected.to_string(),
+        "WebDriver BiDi navigation subscription binding differs from its sent context"
+    );
     Ok(())
 }
 
