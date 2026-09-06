@@ -80,7 +80,7 @@ class AgentTaskReviewEvidenceContractTests(unittest.TestCase):
                     namespace = runpy.run_path(str(RUNNER))
                     trial = namespace[f"_run_{lane}_trial"]
                     driver = mock.Mock()
-                    exit_wait = mock.Mock(return_value=False)
+                    teardown_wait = mock.Mock(return_value=(False, False))
 
                     def request(_port, method, target, *_args):
                         if target == "/session":
@@ -95,7 +95,7 @@ class AgentTaskReviewEvidenceContractTests(unittest.TestCase):
                         "_free_loopback_port": lambda: 12345, "_wait_for_driver": lambda *_: None,
                         "_json_request": request,
                         "_read_linux_proc_stat_process_identity": lambda *_: (321, 654),
-                        "_wait_for_linux_process_identity_exit": exit_wait,
+                        "_wait_for_linux_process_teardown": teardown_wait,
                     }
                     with mock.patch.dict(trial.__globals__, replacements), mock.patch.object(namespace["subprocess"], "Popen", return_value=driver):
                         result = trial(pathlib.Path("unused-chrome"), pathlib.Path("unused-driver"), "http://127.0.0.1/fixture", 3)
@@ -105,7 +105,7 @@ class AgentTaskReviewEvidenceContractTests(unittest.TestCase):
                     self.assertIs(result["driver_process_terminated"], True)
                     self.assertEqual(result["failure_type"], type(error).__name__)
                     self.assertNotIn("private marker", repr(result))
-                    exit_wait.assert_called_once_with(321, 654)
+                    teardown_wait.assert_called_once_with(321, 654, ((321, 654),))
                     driver.terminate.assert_called_once_with()
 
     def test_all_trial_boundaries_redact_protocol_failures_before_identity_capture(self) -> None:
