@@ -146,6 +146,17 @@ impl WebDriverBiDiNavigationCommittedSubscriptionCommand {
         validate_frame_timeout(frame_timeout).map_err(|source| {
             WebDriverBiDiNavigationCommittedSubscriptionCommandError::FrameWrite { source }
         })?;
+        registry
+            .require_registered_session_external_identifier(
+                self.browser_session,
+                established
+                    .transport_evidence()
+                    .verified_peer()
+                    .session_id(),
+            )
+            .map_err(|source| {
+                WebDriverBiDiNavigationCommittedSubscriptionCommandError::ContextBinding { source }
+            })?;
         let connection_generation = established.transport_evidence().connection_generation();
         correlation
             .register_subscription_command_for_connection(

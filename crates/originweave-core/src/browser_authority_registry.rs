@@ -81,6 +81,20 @@ impl BrowserAuthorityRegistry {
         self.inner.register_session(external_identifier)
     }
 
+    /// Require external protocol session text to name this exact currently registered session.
+    ///
+    /// This read-only check reuses the canonical mapping and never creates authority from transport
+    /// text. Unknown, retired and mismatched sessions fail closed. Success does not authenticate a
+    /// browser process or authorize an action; callers must also revalidate registry ownership.
+    pub fn require_registered_session_external_identifier(
+        &self,
+        browser_session: BrowserSessionId,
+        external_identifier: &str,
+    ) -> Result<(), BrowserRegistryError> {
+        self.inner
+            .require_session_external_identifier(browser_session, external_identifier)
+    }
+
     /// Register one opaque external browsing-context identifier inside a known browser session.
     pub fn register_context(
         &mut self,

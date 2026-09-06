@@ -108,6 +108,18 @@ impl BrowserAuthorityRegistry {
         })
     }
 
+    pub(crate) fn require_session_external_identifier(
+        &self,
+        browser_session: BrowserSessionId,
+        external_identifier: &str,
+    ) -> Result<(), BrowserRegistryError> {
+        validate_external_identifier(external_identifier)?;
+        if self.session_by_external.get(external_identifier).copied() != Some(browser_session) {
+            return Err(BrowserRegistryError::SessionExternalIdentifierMismatch);
+        }
+        Ok(())
+    }
+
     /// Register one opaque external browsing-context identifier inside a known browser session.
     ///
     /// A newly registered context starts at document epoch one. The same external context text in
@@ -433,6 +445,8 @@ pub enum BrowserRegistryError {
     InvalidExternalIdentifier,
     /// The supplied OriginWeave browser session is not registered in this registry.
     UnknownBrowserSession,
+    /// The transport-level session identifier does not name the supplied registered session.
+    SessionExternalIdentifierMismatch,
     /// The supplied OriginWeave browsing context is not registered in this registry.
     UnknownBrowsingContext,
     /// The browsing context belongs to another browser session.
@@ -468,6 +482,9 @@ impl fmt::Display for BrowserRegistryError {
             Self::UnknownBrowserSession => {
                 formatter.write_str("browser session is not registered in this authority registry")
             }
+            Self::SessionExternalIdentifierMismatch => formatter.write_str(
+                "browser session external identifier does not match the registered session",
+            ),
             Self::UnknownBrowsingContext => {
                 formatter.write_str("browsing context is not registered in this authority registry")
             }
