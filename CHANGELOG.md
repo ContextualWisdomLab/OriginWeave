@@ -4,6 +4,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Recorded subscription-shutdown safeguards and their complete local verification, keeping queued hosted checks and the locked-screen visual-inspection gap explicit.
 - Recorded the repeated-response safeguard, its complete local verification and visual review, separating successful predecessor checks from the new revision's pending checks.
 - Recorded the original-browser-state subscription repair and its final verification, keeping pending hosted checks and unfinished browser acceptance separate.
 - Recorded the published subscription integration and its complete local verification, preserving earlier failures and the separate hosted-check and release requirements.

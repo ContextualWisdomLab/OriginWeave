@@ -8,9 +8,9 @@ This volatile section is refreshed from live GitHub state and is authoritative o
 
 ### Latest verified cut: 2026-09-06
 
-Observed through (UTC): `2026-09-06T11:20:05Z`. This cut supersedes volatile claims in the prior observation section below; those earlier exact-head measurements remain historical rather than transferable acceptance evidence.
+Observed through (UTC): `2026-09-06T11:49:46Z`. This cut supersedes volatile claims in the prior observation section below; those earlier exact-head measurements remain historical rather than transferable acceptance evidence. The complete queue read finished at `11:47:46 UTC`; #264 publication and writer release were verified afterward at the stated head.
 
-The inventory remains **125 open pull requests: 12 Ready/non-draft and 113 Draft; 13 open non-PR issues**. Protected main remains `87c4daa1830bac5a5228b6036752ad5633232085`; release and tag inventories are both empty. Ready-root source heads other than this document's moving branch are unchanged. GraphQL access recovered after the earlier rate-limit failure. GraphQL thread resolution was refreshed for all 125 open PRs alongside exact heads, bases, check rollups and formal reviews in five pages, finishing at `11:19:04 UTC`; all nested histories fit their 100-item pages, with no remaining pagination flags. #147 retains the sole unresolved thread `PRRT_kwDOTulPlM6coZwc`. #166/#220 retain `CHANGES_REQUESTED`, and the other Ready roots retain `REVIEW_REQUIRED`; all twelve are `BLOCKED`. The earlier successful GraphQL cut at `10:00:47 UTC`, subsequent failed inventory/minimal probe and complete 375-read REST fallback at `10:12:37 UTC` remain historical diagnostics, not the current freshness boundary. Active ruleset `18156473` still requires a counted approval and seven central workflows, while the collaborator inventory still contains only the author. #219 has a same-head formal bot approval, but its freshly verified GitHub decision remains `REVIEW_REQUIRED`; an uncounted review does not satisfy the gate. None of this authorizes a bypass or substitutes for an eligible counted approval.
+The inventory remains **125 open pull requests: 12 Ready/non-draft and 113 Draft; 13 open non-PR issues**. Protected main remains `87c4daa1830bac5a5228b6036752ad5633232085`; release and tag inventories are both empty. Ready-root source heads other than this document's moving branch are unchanged. GraphQL access recovered after the earlier rate-limit failure. GraphQL thread resolution was refreshed for all 125 open PRs alongside exact heads, bases, check rollups and formal reviews in five pages, finishing at `11:47:46 UTC`; all nested histories fit their 100-item pages, with no remaining pagination flags. #147 retains the sole unresolved thread `PRRT_kwDOTulPlM6coZwc`. #166/#220 retain `CHANGES_REQUESTED`, and the other Ready roots retain `REVIEW_REQUIRED`; all twelve are `BLOCKED`. The earlier successful GraphQL cut at `10:00:47 UTC`, subsequent failed inventory/minimal probe and complete 375-read REST fallback at `10:12:37 UTC` remain historical diagnostics, not the current freshness boundary. Active ruleset `18156473` still requires a counted approval and seven central workflows, while the collaborator inventory still contains only the author. #219 has a same-head formal bot approval, but its freshly verified GitHub decision remains `REVIEW_REQUIRED`; an uncounted review does not satisfy the gate. None of this authorizes a bypass or substitutes for an eligible counted approval.
 
 The restored foundation changes the next executable queue. #195 is Draft at `63997bcf555e2c5c8e91ba287734ffba3837a1b7`, on `6922dd98779e8f8aad132a3b1f563d7ba6e6d070`. Its owner restored product/evidence assets lost by historical whole-tree repair `5c111d0db6c363f9d1786c21cc01c5c7398007bd`; this is a content-recovery boundary, not permission to copy an old tree over later work. Fresh hosted CI `34013251657` fails in repository contracts while exact production coverage and MV3 `34013251651` succeed. The exercised failures compare inherited workflow concurrency and `nightly-2026-08-01` against the protected repository-scoped identity and `nightly-2026-08-18`. #279 owns current-workflow reconstruction; weakening the restored tests does not repair the generation mismatch. #242 remains at `2d0e9f69df9ade21d8e8e3d807c3ff644d83b310`, with a stale pre-recovery #195 base `48eb2d23009c1c804520dd5efcd0d4d072aacef1`. Its old CI success is not recovered-foundation acceptance. After the owner prerequisite, adopt the verified foundation content-aware and non-destructively before regenerating descendant checks.
 
@@ -58,15 +58,55 @@ The final exact head passes all four new socket regressions, all 145 Python cont
 
 Native CI `34026519860`, Rust `101468348712` and coverage `101468348775`, and real MV3 `34026519878` / job `101468347302` now all completed successfully on `10f138f8`. These are terminal-success predecessor evidence, correcting the earlier queued observation without validating a later head. The repair pins the original registry but does not authenticate the registry-to-transport association. Actual-resend freshness was still unfinished on this predecessor; the next section records its separate repair. Unsubscribe lifetime/transport provenance, action causality and end-to-end Chromium product acceptance remain unfinished. ADR 0107 stays Proposed, #195/#279 remain prerequisites, and the unstable branch-instrumentation warning remains. No workflow, gate, merge, tag or release mutation occurred.
 
-#### Current command-response freshness
+#### Command-response freshness predecessor
 
-Published #264 is now `805051527cf95e14ba126c9dd3159db86d190224`, Draft on unchanged #263 `3f22de94b63da83eaa8b5b1270912b21a3ecd006`. Actual success-first RED `92fd0b07` and error-first RED `15aea15e` each exposed four repeated-send lifecycles: completed, retired, replacement correlation and unread buffered response. Three additional actual-wire REDs exposed raw/typed mixing and repeated identifiers; a compile-fail contract exposed the pre-upgrade socket alias. The shared established owner now enforces strictly increasing typed identifiers and exclusive raw-text/typed mode across all five typed senders. Zero is valid first, out-of-order replies for distinct outstanding commands remain valid, and reader reconstruction/Pong cannot reset history. The consuming socket handoff remains; its nonconsuming alias is removed. This is a stricter local dispatch policy, not a W3C requirement or authenticated browser-session association.
+The preceding published #264 head `805051527cf95e14ba126c9dd3159db86d190224` was Draft on unchanged #263 `3f22de94b63da83eaa8b5b1270912b21a3ecd006`. Actual success-first RED `92fd0b07` and error-first RED `15aea15e` each exposed four repeated-send lifecycles: completed, retired, replacement correlation and unread buffered response. Three additional actual-wire REDs exposed raw/typed mixing and repeated identifiers; a compile-fail contract exposed the pre-upgrade socket alias. The shared established owner enforces strictly increasing typed identifiers and exclusive raw-text/typed mode across all five typed senders. Zero is valid first, out-of-order replies for distinct outstanding commands remain valid, and reader reconstruction/Pong cannot reset history. The consuming socket handoff remains; its nonconsuming alias is removed. This is a stricter local dispatch policy, not a W3C requirement or authenticated browser-session association. The next section records its later teardown refinement; this predecessor's unfinished boundaries and screenshots are not current-head acceptance.
 
 All 22 focused admission/frame tests and the added real public opening-deadline test pass within the complete Rust 1.97.1 workspace verification. Formatting, locked all-target/all-feature check, strict Clippy, warning-denying rustdoc, all workspace tests, all 145 Python contracts, compileall, CodeGraph and diff checks pass. Unchanged pinned-nightly coverage is exactly **1279/13409/17087/1436** functions/lines/regions/branches, artifact SHA-256 `64a62b1e03ee3ed3d62654a3227495e82b7ff93357038ae146d8584c581ac060`. Earlier buffered-fixture BrokenPipe/reset failures and `e6c02cf`'s 17086/17087 region result remain recorded. The latter combined complementary ordinary-library/unit-test gaps rather than unioning source regions; the real public deadline case covers the ordinary copy, retaining the private real revoked-socket test without production or verifier changes. That one-nanosecond case has local passing evidence; portability beyond executed targets remains unproven. Independent read-only review found no actionable finding and does not count as GitHub approval.
 
 Fresh exact-head CI `34029687813`, Rust `101476824185` and coverage `101476824305`, and MV3 `34029687816` / `101476824298` are queued. Post-publication actual Edge visual inspection covered the new PR body and Checks page: exact head/base, Draft state and three queued checks matched the API; desktop screenshots showed readable wrapping with no observed clipping or overlap. GitHub presentation evidence is not OriginWeave product-browser acceptance. Both contributor histories remain ancestors, ordinary publication was verified, and the #264 writer was explicitly released before this documentation-only slice. Registry-to-transport authentication, unsubscribe lifetime/transport provenance, action causality, real browser acceptance, #195/#279 integration, protected delivery and release gates remain open.
 
+#### Current subscription teardown ownership and provenance
+
+Published #264 is now `7fb93e77b800f27187a5c02333298cc31a025bd6`, Draft on unchanged #263
+`3f22de94b63da83eaa8b5b1270912b21a3ecd006`. Lifetime RED `2c45cea8` reproduced event admission
+after borrowed teardown construction. Transport RED `ce6f6fd4` reproduced 91 actual masked bytes
+on a foreign connection and foreign success/error consuming the original pending command. Genuine
+original replies then failed as no longer outstanding; real servers were joined before assertions.
+
+The repair consumes the existing non-cloneable subscription receipt and retains its original
+connection identity through teardown dispatch and acknowledgment. It reuses connection-aware
+correlation and the existing connection-bound reader; no revocation registry, dependency, workflow
+or quality-gate change is added. Receipt reuse is now rejected by the compiler with `E0382`, not
+merely by a fixture setup error. Construction failure also ends local admission availability.
+Previously admitted observations are not retroactively revoked, and acknowledgment does not prove
+event drainage or browser cleanup. Proposed ADR 0107 records these costs and rejected alternatives.
+
+All three transport regressions, eight preserved failure cases, fourteen admission tests and the
+escaped-identifier round trip pass. Full Rust 1.97.1 workspace/all-feature formatting, locked check,
+strict Clippy, warning-denying rustdoc and tests pass, including three network doctests. All 145
+Python contracts, compileall, CodeGraph and diff checks pass. Unchanged pinned coverage is exactly
+**1279/13421/17106/1438** functions/lines/regions/branches; artifact SHA-256
+`277c5bc0a17f16966a8eb388d54e4e172be36356d7dead5bbead9ed53ad8cff6`. The unstable branch warning
+remains. Independent read-only source review found no actionable issue, not counted GitHub approval.
+
+New exact-head CI `34031281825`, Rust `101481131938` and coverage `101481131907`, and MV3
+`34031281812` / `101481131930` are queued, not GREEN. Both contributor histories are preserved,
+normal publication was verified, and source writer `5557964460` was explicitly released before
+this documentation writer began. The required new-head visual inspection remains incomplete:
+actual browser control reports that the Mac is locked and automatic unlock is unavailable. Manual
+unlock was requested; neither the previous #264 screenshots nor the previous #238 Preview validates
+these new heads. Registry-to-browser authentication, action causality, real Chromium acceptance,
+#195/#279 integration, protected delivery and release gates remain open.
+
+At this read, #238 predecessor `81e334aff063290bde3298671cfd20e77c7c1fff` still has queued native
+CI `34030165220` plus central review/security work. This documentation commit needs its own checks;
+neither its earlier 172 local Python passes nor #264's source coverage transfers to the new head.
+
 #### Scheduling and central-owner follow-up
+
+This section retains owner-reported scheduling and central-repository evidence. Those reports are
+not refreshed owner-source or released-consumer acceptance in this bounded documentation slice.
 
 The existing hourly-task owner attempted a prompt-only coordination/evidence improvement, but the scheduler rejected the update with `too_many_active_automations` at the ten-active-task limit. The owner reports that a subsequent read confirmed the old prompt and update timestamp, cadence, enabled state and notification preferences were unchanged. This is a failed update, not an applied scheduling improvement; no duplicate schedule or unrelated-task pause was created.
 
