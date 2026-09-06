@@ -68,8 +68,8 @@ released. This is not product-browser acceptance or protected delivery. #267 alr
 owns typed text transport and needs separate current-parent adoption and dispatch review;
 #266 itself still provides construction, not text dispatch or observed action success.
 
-The later complete queue read still found 125 PRs and 12 Ready roots all BLOCKED, but
-found two new #238 review threads in addition to #147: `PRRT_kwDOTulPlM6fsIep` and
+The later complete queue read confirmed the canonical inventory above and all Ready
+roots remained BLOCKED, but found two new #238 review threads in addition to #147: `PRRT_kwDOTulPlM6fsIep` and
 `PRRT_kwDOTulPlM6fsIet`. Both findings were verified against `ca8f8475`: the supplement
 presented predecessor source claims as current, and the inventory assertion selected
 historical counts by formatting. Regression `6fe2af69` observed both failures. The
