@@ -8,6 +8,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Reject navigation-subscription replies and events received on a different connection, even when their session and request details match. Rejected messages leave the original request and document unchanged, so the original connection can still complete its work.
 - Prevent an unsent navigation subscription from borrowing another request's successful response, including when separate sessions reuse the same local numbers. Re-registering a completed request number without sending a new request cannot recreate its consumed subscription.
 - Reject invalid navigation-subscription deadlines before reserving a pending request, preserving existing requests and leaving the rejected identifier reusable without sending subscription bytes.
 - Retire only the exact committed-navigation subscription correlation when frame preparation fails locally as `MalformedFrame` before any command bytes can be emitted, while preserving unrelated requests and retaining correlation after ambiguous frame-write failures.
@@ -86,6 +87,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Reject navigation-subscription replies and events received on a different connection, even when their session and request details match. Rejected messages leave the original request and document unchanged, so the original connection can still complete its work.
 - Bound the committed-navigation `session.subscribe` command and both success and protocol-error responses to a distinct correlation command family, so a response for another outstanding BiDi command cannot retire the subscription identifier.
 - Carried current response prerequisites and the executable release-record check into the teardown-assessment stack; caller-supplied cleanup claims remain unverified and cannot establish operational acceptance.
 - Carried verified command prerequisites and the executable release-record check into session-end response validation without changing response admission or treating an acknowledgment as proof of resource cleanup.

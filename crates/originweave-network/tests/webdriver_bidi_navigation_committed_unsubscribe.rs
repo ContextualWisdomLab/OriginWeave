@@ -153,17 +153,21 @@ fn validated_subscription_can_be_unsubscribed_without_losing_opaque_text()
         Duration::from_millis(500),
     )?;
 
-    let (established, frame) = established.read_frame(Duration::from_millis(500))?;
-    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-    let text = match assembler.push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(text) => text,
-        other => {
-            return Err(io::Error::other(format!(
-                "session.subscribe response produced unexpected assembly state: {other:?}"
-            ))
-            .into());
-        }
-    };
+    let (established, text) =
+        match originweave_network::WebDriverBiDiWebSocketMessageReader::new(established)
+            .read_next(Duration::from_millis(500))?
+        {
+            originweave_network::WebDriverBiDiConnectionMessageRead::Text {
+                established,
+                message,
+            } => (established, message),
+            other => {
+                return Err(io::Error::other(format!(
+                    "session.subscribe response produced unexpected assembly state: {other:?}"
+                ))
+                .into());
+            }
+        };
     let subscription = WebDriverBiDiNavigationCommittedSubscriptionResult::parse_and_correlate(
         &text,
         &mut correlation,
@@ -181,6 +185,7 @@ fn validated_subscription_can_be_unsubscribed_without_losing_opaque_text()
     assert_eq!(correlation.outstanding_count(), 1);
 
     let (_established, frame) = established.read_frame(Duration::from_millis(500))?;
+    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
     let text = match assembler.push_frame(frame)? {
         WebDriverBiDiWebSocketMessageAssembly::Text(text) => text,
         other => {

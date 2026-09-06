@@ -10,13 +10,13 @@ use originweave_core::{
     BrowserAuthorityRegistry, BrowserSessionId, BrowsingContextId, WebDriverBiDiWebSocketEndpoint,
 };
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiNavigationCommittedSubscriptionAdmission,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiConnectionMessageRead,
+    WebDriverBiDiNavigationCommittedSubscriptionAdmission,
     WebDriverBiDiNavigationCommittedSubscriptionBinding,
     WebDriverBiDiNavigationCommittedSubscriptionCommand,
     WebDriverBiDiNavigationCommittedSubscriptionResult, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageAssembler,
-    WebDriverBiDiWebSocketMessageAssembly,
+    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageReader,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -96,11 +96,20 @@ fn write_text_frame(stream: &mut TcpStream, payload: &[u8]) -> io::Result<()> {
 
 fn next_text(
     established: originweave_network::WebDriverBiDiWebSocketEstablished,
-) -> Result<originweave_network::WebDriverBiDiWebSocketTextMessage, Box<dyn Error>> {
-    let (_established, frame) = established.read_frame(Duration::from_millis(500))?;
-    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-    match assembler.push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(text) => Ok(text),
+) -> Result<
+    (
+        originweave_network::WebDriverBiDiWebSocketEstablished,
+        originweave_network::WebDriverBiDiReceivedTextMessage,
+    ),
+    Box<dyn Error>,
+> {
+    match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text {
+            established,
+            message,
+        } => Ok((established, message)),
         other => Err(io::Error::other(format!(
             "expected a complete WebDriver BiDi text message, got {other:?}"
         ))
@@ -133,6 +142,7 @@ fn receive_subscription_result(
     (
         WebDriverBiDiNavigationCommittedSubscriptionResult,
         WebDriverBiDiNavigationCommittedSubscriptionBinding,
+        originweave_network::WebDriverBiDiReceivedTextMessage,
     ),
     Box<dyn Error>,
 > {
@@ -151,7 +161,8 @@ fn receive_subscription_result(
         write_text_frame(
             &mut stream,
             br#"{"type":"success","id":7,"result":{"subscription":"subscription-a"}}"#,
-        )
+        )?;
+        write_text_frame(&mut stream, MISSING_NAVIGATION_EVENT)
     });
 
     let established = establish(local_addr)?;
@@ -171,35 +182,17 @@ fn receive_subscription_result(
         WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
         Duration::from_millis(500),
     )?;
-    let response = next_text(established)?;
+    let (established, response) = next_text(established)?;
     let result = WebDriverBiDiNavigationCommittedSubscriptionResult::parse_and_correlate(
         &response,
         &mut correlation,
     )?;
 
+    let (_established, event) = next_text(established)?;
     server
         .join()
         .map_err(|_| io::Error::other("subscription failure-contract server panicked"))??;
-    Ok((result, binding))
-}
-
-fn receive_event(
-    payload: &'static [u8],
-) -> Result<originweave_network::WebDriverBiDiWebSocketTextMessage, Box<dyn Error>> {
-    let listener = TcpListener::bind(("127.0.0.1", 0))?;
-    let local_addr = listener.local_addr()?;
-    let server = thread::spawn(move || -> io::Result<()> {
-        let (mut stream, _) = listener.accept()?;
-        read_opening_request(&mut stream)?;
-        stream.write_all(OPENING_RESPONSE)?;
-        write_text_frame(&mut stream, payload)
-    });
-
-    let event = next_text(establish(local_addr)?)?;
-    server
-        .join()
-        .map_err(|_| io::Error::other("event failure-contract server panicked"))??;
-    Ok(event)
+    Ok((result, binding, event))
 }
 
 #[test]
@@ -207,13 +200,13 @@ fn subscription_event_failures_keep_specific_public_diagnostics() -> Result<(), 
     let mut registry = BrowserAuthorityRegistry::new();
     let session = registry.register_session(SESSION_ID)?;
     let context = registry.register_context(session, CONTEXT_ID)?;
-    let (subscription, binding) = receive_subscription_result(&registry, session, context)?;
+    let (subscription, binding, missing_navigation_event) =
+        receive_subscription_result(&registry, session, context)?;
     let mut admission = WebDriverBiDiNavigationCommittedSubscriptionAdmission::new(
         subscription,
         binding,
         &registry,
     )?;
-    let missing_navigation_event = receive_event(MISSING_NAVIGATION_EVENT)?;
 
     let missing_navigation = admission
         .admit(&missing_navigation_event, &registry, EXPECTED_URL)

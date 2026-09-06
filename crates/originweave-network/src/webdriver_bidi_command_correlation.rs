@@ -209,11 +209,12 @@ impl WebDriverBiDiCommandCorrelation {
         &mut self,
         command_id: u64,
         subscription_intent: Arc<()>,
+        connection_generation: WebDriverBiDiConnectionGeneration,
     ) -> Result<(), WebDriverBiDiCommandCorrelationError> {
         self.register(
             command_id,
             WebDriverBiDiCommandKind::NavigationCommittedSubscription,
-            None,
+            Some(connection_generation),
             Some(subscription_intent),
         )
     }
@@ -221,18 +222,22 @@ impl WebDriverBiDiCommandCorrelation {
     pub(crate) fn complete_subscription_command(
         &mut self,
         command_id: u64,
+        received_connection_generation: WebDriverBiDiConnectionGeneration,
     ) -> Result<Arc<()>, WebDriverBiDiCommandCorrelationError> {
-        let subscription_intent = self
-            .require_command_kind(
+        let outstanding = self.require_command_kind(
+            command_id,
+            WebDriverBiDiCommandKind::NavigationCommittedSubscription,
+        )?;
+        let subscription_intent = outstanding.subscription_intent.ok_or(
+            WebDriverBiDiCommandCorrelationError::CommandSubscriptionProvenanceMissing {
                 command_id,
-                WebDriverBiDiCommandKind::NavigationCommittedSubscription,
-            )?
-            .subscription_intent
-            .ok_or(
-                WebDriverBiDiCommandCorrelationError::CommandSubscriptionProvenanceMissing {
-                    command_id,
-                },
-            )?;
+            },
+        )?;
+        require_connection_generation(
+            outstanding.connection_generation,
+            command_id,
+            received_connection_generation,
+        )?;
         let _removed = self.outstanding.remove(&command_id);
         Ok(subscription_intent)
     }
@@ -384,14 +389,11 @@ impl WebDriverBiDiCommandCorrelation {
         received_connection_generation: WebDriverBiDiConnectionGeneration,
     ) -> Result<WebDriverBiDiCorrelatedResponse, WebDriverBiDiCommandCorrelationError> {
         let outstanding = self.require_command_kind(command_id, expected_kind)?;
-        let expected_connection_generation = outstanding.connection_generation.ok_or(
-            WebDriverBiDiCommandCorrelationError::CommandConnectionProvenanceMissing { command_id },
+        let expected_connection_generation = require_connection_generation(
+            outstanding.connection_generation,
+            command_id,
+            received_connection_generation,
         )?;
-        if expected_connection_generation != received_connection_generation {
-            return Err(
-                WebDriverBiDiCommandCorrelationError::ResponseConnectionMismatch { command_id },
-            );
-        }
         let _removed = self.outstanding.remove(&command_id);
         Ok(WebDriverBiDiCorrelatedResponse {
             command_id,
@@ -399,6 +401,22 @@ impl WebDriverBiDiCommandCorrelation {
             connection_generation: Some(expected_connection_generation),
         })
     }
+}
+
+fn require_connection_generation(
+    expected: Option<WebDriverBiDiConnectionGeneration>,
+    command_id: u64,
+    received: WebDriverBiDiConnectionGeneration,
+) -> Result<WebDriverBiDiConnectionGeneration, WebDriverBiDiCommandCorrelationError> {
+    let expected = expected.ok_or(
+        WebDriverBiDiCommandCorrelationError::CommandConnectionProvenanceMissing { command_id },
+    )?;
+    if expected != received {
+        return Err(
+            WebDriverBiDiCommandCorrelationError::ResponseConnectionMismatch { command_id },
+        );
+    }
+    Ok(expected)
 }
 
 #[cfg(test)]

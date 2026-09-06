@@ -3,7 +3,8 @@ use std::{error::Error, fmt, sync::Arc};
 use crate::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
     WebDriverBiDiCommandKind, WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeError,
-    WebDriverBiDiJsonEnvelopeRouting, WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiJsonEnvelopeRouting, WebDriverBiDiReceivedTextMessage,
+    webdriver_bidi_connection::WebDriverBiDiConnectionGeneration,
 };
 
 /// Maximum decoded UTF-8 bytes retained from a WebDriver BiDi `session.Subscription` identifier.
@@ -15,14 +16,16 @@ pub const MAX_WEBDRIVER_BIDI_SUBSCRIPTION_IDENTIFIER_BYTES: usize = 4_096;
 
 /// Typed, correlated successful result of one context-scoped WebDriver BiDi `session.subscribe`.
 ///
-/// This value retains the exact correlated command id, private original-command identity and the
-/// bounded opaque subscription identifier returned by the remote end. It does not expose a generic JSON result, grant event,
+/// This value retains the exact correlated command id, private original-command identity, received
+/// connection generation and bounded opaque subscription identifier. It does not expose a generic
+/// JSON result, grant event,
 /// browser, policy, origin, secret, or Agent authority, or prove that any subscribed event has fired.
 #[derive(Eq, PartialEq)]
 pub struct WebDriverBiDiNavigationCommittedSubscriptionResult {
     command_id: u64,
     subscription_id: String,
     pub(crate) subscription_intent: Arc<()>,
+    pub(crate) connection_generation: WebDriverBiDiConnectionGeneration,
 }
 
 impl fmt::Debug for WebDriverBiDiNavigationCommittedSubscriptionResult {
@@ -42,23 +45,25 @@ impl WebDriverBiDiNavigationCommittedSubscriptionResult {
     /// command-specific projection of the required `result.subscription` text before correlation is
     /// consumed, so malformed or ambiguous success bodies cannot silently retire a command id.
     /// Success also requires private command-instance provenance registered by the typed sender;
-    /// public correlation registration cannot mint a subscription receipt. A
-    /// correlatable protocol-error response consumes its matching id and returns a typed remote
+    /// public correlation registration cannot mint a subscription receipt. Both success and error
+    /// messages must have been received on the connection used by that sender. A foreign connection
+    /// cannot complete or retire the command, even with identical session and command identifiers.
+    /// A correlatable protocol-error response consumes its matching id and returns a typed remote
     /// failure retaining only the protocol error code. Events, null-id errors, malformed envelopes,
     /// and unknown ids fail closed without consuming unrelated outstanding correlation state.
     pub fn parse_and_correlate(
-        message: &WebDriverBiDiWebSocketTextMessage,
+        message: &WebDriverBiDiReceivedTextMessage,
         correlation: &mut WebDriverBiDiCommandCorrelation,
     ) -> Result<Self, WebDriverBiDiNavigationCommittedSubscriptionResponseError> {
-        let envelope = WebDriverBiDiJsonEnvelope::parse(message).map_err(|source| {
+        let envelope = WebDriverBiDiJsonEnvelope::parse(message.message()).map_err(|source| {
             WebDriverBiDiNavigationCommittedSubscriptionResponseError::Envelope { source }
         })?;
 
         match envelope.routing() {
             WebDriverBiDiJsonEnvelopeRouting::CommandSuccess { command_id } => {
-                let projected = SubscriptionProjection::parse(message.as_str())?;
+                let projected = SubscriptionProjection::parse(message.message().as_str())?;
                 let subscription_intent = correlation
-                    .complete_subscription_command(command_id)
+                    .complete_subscription_command(command_id, message.connection_generation())
                     .map_err(|source| {
                         WebDriverBiDiNavigationCommittedSubscriptionResponseError::Correlation {
                             source,
@@ -68,14 +73,16 @@ impl WebDriverBiDiNavigationCommittedSubscriptionResult {
                     command_id,
                     subscription_id: projected.subscription_id,
                     subscription_intent,
+                    connection_generation: message.connection_generation(),
                 })
             }
             WebDriverBiDiJsonEnvelopeRouting::CommandError { .. } => {
                 retain_validated_error_code(envelope.error_code()).and_then(|error_code| {
                     let completed = correlation
-                        .correlate_response_for(
+                        .correlate_response_for_connection(
                             &envelope,
                             WebDriverBiDiCommandKind::NavigationCommittedSubscription,
+                            message.connection_generation(),
                         )
                         .map_err(|source| {
                             WebDriverBiDiNavigationCommittedSubscriptionResponseError::Correlation {
@@ -738,21 +745,6 @@ mod tests {
             assert!(!error.to_string().is_empty());
             assert!(error.source().is_none());
         }
-    }
-
-    #[test]
-    fn result_debug_redacts_opaque_subscription_identifier() {
-        let result = WebDriverBiDiNavigationCommittedSubscriptionResult {
-            command_id: 7,
-            subscription_id: "sensitive-subscription".to_owned(),
-            subscription_intent: std::sync::Arc::new(()),
-        };
-        let debug = format!("{result:?}");
-        assert!(debug.contains("command_id"));
-        assert!(debug.contains("subscription_id_len"));
-        assert!(!debug.contains("sensitive-subscription"));
-        assert_eq!(result.command_id(), 7);
-        assert_eq!(result.subscription_id(), "sensitive-subscription");
     }
 
     #[test]

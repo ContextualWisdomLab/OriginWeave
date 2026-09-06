@@ -10,13 +10,13 @@ use originweave_core::{
     BrowserAuthorityRegistry, BrowserSessionId, BrowsingContextId, WebDriverBiDiWebSocketEndpoint,
 };
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiNavigationCommittedSubscribedObservation,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiConnectionMessageRead,
+    WebDriverBiDiNavigationCommittedSubscribedObservation,
     WebDriverBiDiNavigationCommittedSubscriptionAdmission,
     WebDriverBiDiNavigationCommittedSubscriptionCommand,
     WebDriverBiDiNavigationCommittedSubscriptionResult, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageAssembler,
-    WebDriverBiDiWebSocketMessageAssembly,
+    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageReader,
 };
 
 const RFC6455_SAMPLE_KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
@@ -94,17 +94,20 @@ fn write_text_frame(stream: &mut TcpStream, payload: &[u8]) -> io::Result<()> {
 
 fn next_text(
     established: originweave_network::WebDriverBiDiWebSocketEstablished,
-    assembler: &mut WebDriverBiDiWebSocketMessageAssembler,
 ) -> Result<
     (
         originweave_network::WebDriverBiDiWebSocketEstablished,
-        originweave_network::WebDriverBiDiWebSocketTextMessage,
+        originweave_network::WebDriverBiDiReceivedTextMessage,
     ),
     Box<dyn Error>,
 > {
-    let (established, frame) = established.read_frame(Duration::from_millis(500))?;
-    match assembler.push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(text) => Ok((established, text)),
+    match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text {
+            established,
+            message,
+        } => Ok((established, message)),
         other => Err(io::Error::other(format!(
             "expected a complete WebDriver BiDi text message, got {other:?}"
         ))
@@ -174,15 +177,14 @@ pub fn receive_subscribed_navigation_event(
         Duration::from_millis(500),
     )?;
 
-    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-    let (established, response) = next_text(established, &mut assembler)?;
+    let (established, response) = next_text(established)?;
     let result = WebDriverBiDiNavigationCommittedSubscriptionResult::parse_and_correlate(
         &response,
         &mut correlation,
     )?;
     let mut admission =
         WebDriverBiDiNavigationCommittedSubscriptionAdmission::new(result, binding, registry)?;
-    let (_established, event) = next_text(established, &mut assembler)?;
+    let (_established, event) = next_text(established)?;
     let observation = admission.admit(&event, registry, expected_url)?;
 
     server

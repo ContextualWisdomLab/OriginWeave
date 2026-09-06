@@ -8,7 +8,7 @@ use crate::{
     WebDriverBiDiNavigationCommittedObservation, WebDriverBiDiNavigationCommittedObservationError,
     WebDriverBiDiNavigationCommittedSubscriptionResult,
     WebDriverBiDiNavigationCommittedUnsubscribeCommand,
-    WebDriverBiDiNavigationCommittedUnsubscribeCommandError, WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiNavigationCommittedUnsubscribeCommandError, WebDriverBiDiReceivedTextMessage,
 };
 
 /// Maximum distinct committed-navigation identifiers retained by one active subscription admission.
@@ -88,7 +88,8 @@ impl WebDriverBiDiNavigationCommittedSubscriptionBinding {
 /// original external context mapping must still resolve to the exact OriginWeave session/context.
 /// Holding this value is therefore narrower than holding an opaque protocol subscription string.
 /// It grants only admission of the matching committed-navigation event through the existing bounded
-/// parser; it grants no navigation, destination, origin, policy, secret, node, or Agent authority.
+/// parser on the subscription's original connection; it grants no navigation, destination, origin,
+/// policy, secret, node, or Agent authority.
 /// Each admitted non-null WebDriver BiDi navigation identifier is retained until unsubscribe so a
 /// replayed remote event cannot mint a second state-changing observation from the same navigation.
 pub struct WebDriverBiDiNavigationCommittedSubscriptionAdmission {
@@ -168,6 +169,8 @@ impl WebDriverBiDiNavigationCommittedSubscriptionAdmission {
 
     /// Admit one exact committed-navigation event while this subscription capability remains active.
     ///
+    /// The message must retain receive provenance from the subscription's original connection;
+    /// a replacement connection with matching protocol text is rejected before history mutation.
     /// The original command-side external-context mapping is revalidated immediately before parsing
     /// the event. The event must then independently carry that same registered context and the exact
     /// declared URL. State-changing admission additionally requires the WebDriver BiDi navigation
@@ -179,18 +182,23 @@ impl WebDriverBiDiNavigationCommittedSubscriptionAdmission {
     /// state-changing document-advance boundary.
     pub fn admit(
         &mut self,
-        message: &WebDriverBiDiWebSocketTextMessage,
+        message: &WebDriverBiDiReceivedTextMessage,
         registry: &BrowserAuthorityRegistry,
         expected_url: &str,
     ) -> Result<
         WebDriverBiDiNavigationCommittedSubscribedObservation,
         WebDriverBiDiNavigationCommittedSubscriptionEventError,
     > {
+        if message.connection_generation() != self.subscription.connection_generation {
+            return Err(
+                WebDriverBiDiNavigationCommittedSubscriptionEventError::TransportConnectionMismatch,
+            );
+        }
         require_current_binding(registry, &self.binding).map_err(|source| {
             WebDriverBiDiNavigationCommittedSubscriptionEventError::ContextBinding { source }
         })?;
         let observation = WebDriverBiDiNavigationCommittedObservation::parse_and_match(
-            message,
+            message.message(),
             registry,
             self.binding.browser_session,
             self.binding.browsing_context,
@@ -348,6 +356,8 @@ impl Error for WebDriverBiDiNavigationCommittedSubscriptionAdmissionError {
 /// Fail-closed failures while admitting an event through one active subscription capability.
 #[derive(Debug)]
 pub enum WebDriverBiDiNavigationCommittedSubscriptionEventError {
+    /// The event arrived on a different connection from the successful subscription command.
+    TransportConnectionMismatch,
     /// The original external context no longer maps to the exact registered session/context pair.
     ContextBinding {
         /// Exact browser-registry authority failure.
@@ -372,6 +382,9 @@ pub enum WebDriverBiDiNavigationCommittedSubscriptionEventError {
 impl fmt::Display for WebDriverBiDiNavigationCommittedSubscriptionEventError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::TransportConnectionMismatch => formatter.write_str(
+                "WebDriver BiDi navigation-committed event arrived on a different connection",
+            ),
             Self::ContextBinding { .. } => formatter.write_str(
                 "WebDriver BiDi navigation subscription context is no longer registered authority",
             ),
@@ -397,7 +410,8 @@ impl Error for WebDriverBiDiNavigationCommittedSubscriptionEventError {
         match self {
             Self::ContextBinding { source } => Some(source),
             Self::Observation { source } => Some(source),
-            Self::MissingNavigationIdentity
+            Self::TransportConnectionMismatch
+            | Self::MissingNavigationIdentity
             | Self::ReplayedNavigation
             | Self::ReplayHistoryExhausted { .. } => None,
         }

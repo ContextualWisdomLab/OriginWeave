@@ -137,7 +137,11 @@ impl WebDriverBiDiNavigationCommittedSubscriptionCommand {
             WebDriverBiDiNavigationCommittedSubscriptionCommandError::FrameWrite { source }
         })?;
         correlation
-            .register_subscription_command(self.command_id, Arc::clone(&self.subscription_intent))
+            .register_subscription_command(
+                self.command_id,
+                Arc::clone(&self.subscription_intent),
+                established.transport_evidence().connection_generation(),
+            )
             .map_err(|source| {
                 WebDriverBiDiNavigationCommittedSubscriptionCommandError::Correlation { source }
             })?;
