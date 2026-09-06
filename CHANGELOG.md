@@ -6,6 +6,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Carried replacement-connection click-reply rejection into the navigation-subscription stack while preserving deadline rejection, unrelated pending requests and conservative handling of uncertain writes.
 - Reject invalid navigation-subscription deadlines before reserving a pending request, preserving existing requests and leaving the rejected identifier reusable without sending subscription bytes.
 - Retire only the exact committed-navigation subscription correlation when frame preparation fails locally as `MalformedFrame` before any command bytes can be emitted, while preserving unrelated requests and retaining correlation after ambiguous frame-write failures.
 - Integrated current origin-binding prerequisites into context-scoped navigation subscriptions, preserving typed command isolation, response bounds, and the original subscription tests while restoring the inherited executable release contract.

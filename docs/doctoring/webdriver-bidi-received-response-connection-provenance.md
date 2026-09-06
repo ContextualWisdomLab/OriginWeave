@@ -140,6 +140,23 @@ measurements. The resulting origin is registry-local evidence derived from the
 accepted observation; it does not authenticate the observation, authorize a
 destination, prove click causality or establish released browser behavior.
 
+### Subscription owner adopts the pointer receipt repair
+
+On #277 `973e34bc24ae9bdd96a50764f2be6c8603eff66c`, canonical replay
+`3734a874` reproduced a replacement connection consuming the original pending
+pointer command (zero passed, one failed). Ordinary merge `408d6257` adopts #261
+`ba100fbc39e1ac4f10ee4faade38418551bb8298`, preserving the repaired pointer
+receipt and navigation fixture. The two subscription production modules, three
+integration suites, doctoring publication-status correction and Proposed ADR 0103
+remain byte-identical to the child predecessor. Both release histories survive.
+
+All twenty-three focused subscription, pointer-response and navigation tests pass
+locally. Full exact-head checks and coverage remain separate measurements. This
+adoption does not retrofit received-connection provenance into the distinct
+subscription response API or establish event provenance, browser ownership, action
+causality or a released browser workflow. The existing deadline-before-registration,
+proven-no-byte retirement and ambiguous-write retention contracts remain intact.
+
 ## References
 
 Fette, I., & Melnikov, A. (2011). *The WebSocket Protocol* (RFC 6455). Internet Engineering Task Force. https://www.rfc-editor.org/rfc/rfc6455
