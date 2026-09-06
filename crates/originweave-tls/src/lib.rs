@@ -14,6 +14,7 @@ mod evidence;
 mod handshake;
 mod identity;
 mod policy;
+mod revocation;
 mod trust;
 mod validity;
 
@@ -29,6 +30,7 @@ pub use policy::{
     MAX_MINIMUM_LEAF_VALIDITY, MAX_SERVER_CERTIFICATE_BYTES, MAX_SERVER_CERTIFICATE_COUNT,
     MAX_TLS_HANDSHAKE_TIMEOUT, TlsClientPolicy,
 };
+pub use revocation::{RevocationMaterialFreshness, RevocationMaterialFreshnessError};
 pub use trust::{
     MAX_TRUST_ROOT_BYTES, MAX_TRUST_ROOT_COUNT, TrustBundleIdentifier, TrustRootBundle,
 };
