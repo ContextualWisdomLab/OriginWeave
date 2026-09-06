@@ -154,8 +154,7 @@ class ProductCompletionGapContractTests(unittest.TestCase):
             "not product-browser acceptance", "outbound session authority",
             "#249", "#250", "descendant adoption",
         ):
-            with self.subTest(marker=marker):
-                self.assertIn(marker, current)
+            self.assertIn(marker, current)
 
     def test_historical_text_cannot_supply_missing_pointer_receipt_head(self) -> None:
         text = BASELINE.read_text(encoding="utf-8")
