@@ -6,12 +6,14 @@ use std::{
     time::Duration,
 };
 
-use originweave_core::{BrowserAuthorityRegistry, WebDriverBiDiWebSocketEndpoint};
+use originweave_core::{
+    BrowserAuthorityRegistry, BrowserRegistryError, WebDriverBiDiWebSocketEndpoint,
+};
 use originweave_network::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiNavigationCommittedSubscriptionCommand,
-    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
-    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMaskKey,
+    WebDriverBiDiNavigationCommittedSubscriptionCommandError, WebDriverBiDiTcpConnectionPlan,
+    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketEstablished,
+    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMaskKey,
 };
 
 const REGISTRY_SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -110,6 +112,14 @@ fn registry_bound_subscription_is_rejected_before_writing_to_a_foreign_session_t
         send_result.is_err(),
         "registry session A unexpectedly dispatched on transport session B"
     );
+    assert!(matches!(
+        send_result,
+        Err(
+            WebDriverBiDiNavigationCommittedSubscriptionCommandError::ContextBinding {
+                source: BrowserRegistryError::SessionExternalIdentifierMismatch
+            }
+        )
+    ));
     assert_eq!(
         correlation.outstanding_count(),
         0,

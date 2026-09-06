@@ -6,14 +6,16 @@ use std::{
     error::Error,
     io,
     net::{SocketAddr, TcpListener, TcpStream},
+    sync::atomic::AtomicU64,
     time::Duration,
 };
 
 use originweave_core::{WebDriverBiDiWebSocketConnectTarget, WebDriverBiDiWebSocketEndpoint};
 
 use super::{
-    WebDriverBiDiSocketConnector, WebDriverBiDiTcpConnectionError, WebDriverBiDiTcpConnectionPlan,
-    is_retryable_connect_error,
+    WebDriverBiDiConnectionGeneration, WebDriverBiDiSocketConnector,
+    WebDriverBiDiTcpConnectionError, WebDriverBiDiTcpConnectionPlan,
+    allocate_connection_generation, is_retryable_connect_error,
 };
 use crate::connection::{MAX_CONNECT_TIMEOUT, MAX_CONNECTION_ATTEMPTS};
 
@@ -21,6 +23,54 @@ const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
 
 fn socket_address() -> SocketAddr {
     SocketAddr::from(([127, 0, 0, 1], 9515))
+}
+
+#[test]
+fn opening_write_fails_closed_after_verified_stream_is_locally_revoked()
+-> Result<(), Box<dyn Error>> {
+    use crate::{
+        WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
+        WebDriverBiDiWebSocketOpeningWriteError,
+    };
+    use std::{net::Shutdown, sync::mpsc, thread};
+
+    let listener = TcpListener::bind(("127.0.0.1", 0))?;
+    let local_addr = listener.local_addr()?;
+    let (release_server, await_release) = mpsc::sync_channel(0);
+    let server = thread::spawn(move || -> io::Result<()> {
+        let accepted = listener.accept()?;
+        await_release
+            .recv_timeout(Duration::from_secs(2))
+            .map_err(io::Error::other)?;
+        drop(accepted);
+        Ok(())
+    });
+    let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
+    let target = WebDriverBiDiWebSocketEndpoint::new(&endpoint)?
+        .correlate_session_id(SESSION_ID)?
+        .into_explicit_connect_target()?;
+    let connection =
+        WebDriverBiDiTcpConnectionPlan::new(target, Duration::from_secs(1), 1)?.connect()?;
+    connection.stream.shutdown(Shutdown::Both)?;
+    let key = WebDriverBiDiWebSocketClientKey::new("dGhlIHNhbXBsZSBub25jZQ==")?;
+    let write = WebDriverBiDiWebSocketHandshakePlan::new(connection, key)?
+        .write_opening_request(Duration::from_secs(1));
+    let failed_closed_without_writing = match write {
+        Err(WebDriverBiDiWebSocketOpeningWriteError::WriteFailed {
+            bytes_written: 0, ..
+        }) => true,
+        Err(WebDriverBiDiWebSocketOpeningWriteError::WriteTimeoutConfigurationFailed {
+            bytes_written: 0,
+            source,
+        }) => source.kind() == io::ErrorKind::InvalidInput,
+        _ => false,
+    };
+    release_server.send(())?;
+    server
+        .join()
+        .map_err(|_| io::Error::other("revoked stream server panicked"))??;
+    assert!(failed_closed_without_writing);
+    Ok(())
 }
 
 enum ConnectOutcome {
@@ -116,6 +166,25 @@ fn plan(maximum_attempts: u8) -> WebDriverBiDiTcpConnectionPlan {
 }
 
 #[test]
+fn connection_generation_allocator_is_monotonic_and_fails_before_reuse() {
+    let counter = AtomicU64::new(41);
+    assert_eq!(
+        allocate_connection_generation(&counter).ok(),
+        Some(WebDriverBiDiConnectionGeneration(41))
+    );
+    assert_eq!(
+        allocate_connection_generation(&counter).ok(),
+        Some(WebDriverBiDiConnectionGeneration(42))
+    );
+
+    let exhausted = AtomicU64::new(u64::MAX);
+    assert!(matches!(
+        allocate_connection_generation(&exhausted),
+        Err(WebDriverBiDiTcpConnectionError::ConnectionGenerationExhausted)
+    ));
+}
+
+#[test]
 fn validates_timeout_and_attempt_bounds_before_io() {
     let zero_timeout =
         WebDriverBiDiTcpConnectionPlan::new(connect_target(false), Duration::ZERO, 1);
@@ -164,7 +233,7 @@ fn verified_peer_is_required_before_stream_exposure() {
             .connect_with(&connector)
             .expect("verified connection");
 
-    assert!(connection.stream().peer_addr().is_ok());
+    assert!(connection.stream.peer_addr().is_ok());
     assert_eq!(connection.verified_peer().socket_addr(), socket_address());
     assert!(connection.verified_peer().requires_tls());
     assert_eq!(connection.verified_peer().session_id(), SESSION_ID);
@@ -316,6 +385,7 @@ fn error_display_source_and_attempt_contracts_cover_every_variant() {
             attempt_count: 0,
             maximum_attempts: MAX_CONNECTION_ATTEMPTS,
         },
+        WebDriverBiDiTcpConnectionError::ConnectionGenerationExhausted,
         WebDriverBiDiTcpConnectionError::ConnectionTimedOut {
             socket_address: socket_address(),
             attempt_count: 2,
@@ -341,21 +411,24 @@ fn error_display_source_and_attempt_contracts_cover_every_variant() {
     let messages: Vec<String> = errors.iter().map(ToString::to_string).collect();
     assert!(messages[0].contains("outside 1ns"));
     assert!(messages[1].contains("attempt count 0"));
-    assert!(messages[2].contains("timed out after 2 attempts"));
-    assert!(messages[3].contains("failed after 3 attempts"));
-    assert!(messages[4].contains("peer inspection failed"));
-    assert!(messages[5].contains("did not match the approved target"));
+    assert!(messages[2].contains("generation space is exhausted"));
+    assert!(messages[3].contains("timed out after 2 attempts"));
+    assert!(messages[4].contains("failed after 3 attempts"));
+    assert!(messages[5].contains("peer inspection failed"));
+    assert!(messages[6].contains("did not match the approved target"));
 
     assert_eq!(errors[0].attempt_count(), None);
     assert_eq!(errors[1].attempt_count(), None);
-    assert_eq!(errors[2].attempt_count(), Some(2));
-    assert_eq!(errors[3].attempt_count(), Some(3));
-    assert_eq!(errors[4].attempt_count(), Some(1));
+    assert_eq!(errors[2].attempt_count(), None);
+    assert_eq!(errors[3].attempt_count(), Some(2));
+    assert_eq!(errors[4].attempt_count(), Some(3));
     assert_eq!(errors[5].attempt_count(), Some(1));
+    assert_eq!(errors[6].attempt_count(), Some(1));
     assert!(errors[0].source().is_none());
     assert!(errors[1].source().is_none());
-    assert!(errors[2].source().is_some());
+    assert!(errors[2].source().is_none());
     assert!(errors[3].source().is_some());
     assert!(errors[4].source().is_some());
     assert!(errors[5].source().is_some());
+    assert!(errors[6].source().is_some());
 }

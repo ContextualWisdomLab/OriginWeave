@@ -58,6 +58,16 @@ struct ClientMaskKeyHistory {
     previous_key: Option<[u8; 4]>,
 }
 
+#[derive(Default)]
+enum CommandWriteState {
+    #[default]
+    NoCommands,
+    RawText,
+    TypedCommand {
+        command_id: u64,
+    },
+}
+
 impl ClientMaskKeyHistory {
     fn reserve(
         &mut self,
@@ -172,6 +182,7 @@ impl WebDriverBiDiWebSocketOpeningRequestSent {
             WebDriverBiDiWebSocketEstablished {
                 raw,
                 client_mask_keys: ClientMaskKeyHistory::default(),
+                command_write_state: CommandWriteState::default(),
             }
         })
     }
@@ -186,6 +197,7 @@ impl WebDriverBiDiWebSocketOpeningRequestSent {
 pub struct WebDriverBiDiWebSocketEstablished {
     raw: handshake::WebDriverBiDiWebSocketEstablished,
     client_mask_keys: ClientMaskKeyHistory,
+    command_write_state: CommandWriteState,
 }
 
 impl fmt::Debug for WebDriverBiDiWebSocketEstablished {
@@ -237,12 +249,59 @@ impl WebDriverBiDiWebSocketEstablished {
         self.raw.write_timeout()
     }
 
-    /// Write one final masked UTF-8 text frame on this verified stream.
+    /// Write one final masked UTF-8 text frame on a raw-text-only verified stream.
     ///
     /// The state is consumed. Invalid bounds, adjacent masking-key reuse, partial writes, deadline
     /// expiry, I/O failure, and timeout-cleanup failure return no reusable stream. No retry changes
     /// destination or connection authority.
+    /// Raw text and typed commands cannot share one connection in either order: arbitrary text
+    /// cannot establish or preserve the typed command identifier history. Use a separate connection
+    /// for raw protocol work. Pong frames do not select or change this connection's text lane.
     pub fn write_text_frame(
+        mut self,
+        text: &str,
+        masking_key: WebDriverBiDiWebSocketMaskKey,
+        frame_timeout: Duration,
+    ) -> Result<Self, WebDriverBiDiWebSocketFrameError> {
+        if matches!(
+            self.command_write_state,
+            CommandWriteState::TypedCommand { .. }
+        ) {
+            return Err(WebDriverBiDiWebSocketFrameError::MalformedFrame {
+                reason: "raw text and typed commands cannot share an established WebSocket",
+            });
+        }
+        self.command_write_state = CommandWriteState::RawText;
+        self.write_text_payload(text, masking_key, frame_timeout)
+    }
+
+    pub(crate) fn write_command_frame(
+        mut self,
+        command_id: u64,
+        text: &str,
+        masking_key: WebDriverBiDiWebSocketMaskKey,
+        frame_timeout: Duration,
+    ) -> Result<Self, WebDriverBiDiWebSocketFrameError> {
+        match self.command_write_state {
+            CommandWriteState::RawText => {
+                return Err(WebDriverBiDiWebSocketFrameError::MalformedFrame {
+                    reason: "raw text and typed commands cannot share an established WebSocket",
+                });
+            }
+            CommandWriteState::TypedCommand {
+                command_id: previous_id,
+            } if command_id <= previous_id => {
+                return Err(WebDriverBiDiWebSocketFrameError::MalformedFrame {
+                    reason: "typed command identifiers must increase on an established WebSocket",
+                });
+            }
+            _ => {}
+        }
+        self.command_write_state = CommandWriteState::TypedCommand { command_id };
+        self.write_text_payload(text, masking_key, frame_timeout)
+    }
+
+    fn write_text_payload(
         mut self,
         text: &str,
         masking_key: WebDriverBiDiWebSocketMaskKey,
@@ -469,7 +528,10 @@ impl Error for WebDriverBiDiWebSocketFrameError {
     }
 }
 
-fn validate_frame_timeout(frame_timeout: Duration) -> Result<(), WebDriverBiDiWebSocketFrameError> {
+/// Reject invalid frame deadlines before a caller reserves command or transport state.
+pub(crate) fn validate_frame_timeout(
+    frame_timeout: Duration,
+) -> Result<(), WebDriverBiDiWebSocketFrameError> {
     if frame_timeout.is_zero() || frame_timeout > MAX_WEBSOCKET_FRAME_TIMEOUT {
         return Err(WebDriverBiDiWebSocketFrameError::InvalidFrameTimeout {
             frame_timeout,

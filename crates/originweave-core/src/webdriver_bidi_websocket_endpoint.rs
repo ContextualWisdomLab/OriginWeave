@@ -51,6 +51,8 @@ impl WebDriverBiDiWebSocketEndpoint {
             return Err(WebDriverBiDiWebSocketEndpointAdmissionError::QueryOrFragmentForbidden);
         }
 
+        // Plaintext BiDi is admitted only after exact loopback authority validation below.
+        // nosemgrep: javascript.lang.security.detect-insecure-websocket.detect-insecure-websocket
         let (secure, remainder) = if let Some(remainder) = value.strip_prefix("ws://") {
             (false, remainder)
         } else if let Some(remainder) = value.strip_prefix("wss://") {
