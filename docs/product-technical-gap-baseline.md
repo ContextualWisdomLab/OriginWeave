@@ -137,6 +137,36 @@ main integration. Browser ownership, event provenance, causality and release gat
 remain unfulfilled. This documentation update requires its own checks and visual
 inspection; source coverage does not validate the documentation revision.
 
+##### Subscription response repair: 16:37 UTC
+
+This checkpoint supersedes the subscription response provenance next action above.
+#277 is published at `46ae62aa31e35c702cd61c16322d05c7a9c35da1`, with unchanged
+#261 parent `ba100fbc39e1ac4f10ee4faade38418551bb8298`. On baseline `122ca139`,
+both success and error replies from a second connection to the same listener/session
+consumed the original subscription (0/2 regressions passed). Repair `8b1508c8`
+reuses private sender registration and the sealed receiving-message consumer;
+replacement replies now leave both requests outstanding and the original reply
+completes only its own request. Required result projection still precedes state
+consumption; deadline and proven no-write safeguards remain unchanged.
+
+All 14 focused subscription tests, full Rust 1.97.1 gates, 144 Python contracts,
+compileall, CodeGraph and diff checks pass locally. Numerical production coverage
+is 1222/12824/16453/1418 functions/lines/regions/branches, each 100%; artifact SHA-256
+is `68183d40d92663f604db48342c0eee0428e18836ed008fee1268e6cf14b5d60a`.
+The unstable branch-measurement warning remains. Exact-head CI `34045953423` is
+queued. Independent source and documentation reviews found no actionable findings;
+they are not counted approval. Source writer `5560556181` is released.
+
+Current-head visual inspection remains pending: the actual browser tool reports
+the Mac is locked and automatic unlock failed. Earlier screenshots do not validate
+this repair or the present baseline update, and are not product-browser acceptance.
+The next safe source queue is canonical outbound session binding, same-connection
+freshness, status receipt prerequisites and protected-main asset preservation,
+with owner-first dependency integration rather than a cyclic descendant merge.
+Navigation-event authenticity and causal page effects remain unproven. No workflow,
+approval, protected merge, tag or release changed. This baseline revision requires
+its own documentation tests, hosted checks and visual inspection.
+
 #### Session repair and child adoption: 13:35 UTC
 
 This update supersedes the 12:28 source/adoption and visual-boundary claims below.
