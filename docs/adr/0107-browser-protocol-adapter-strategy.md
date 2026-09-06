@@ -36,6 +36,27 @@ MCP version negotiation is independent of the OriginWeave Protocol version. As o
 
 ## Consequences
 
+### Proposed refinement: immediate pointer authority with shared dispatch (2026-09-06)
+
+In the context of integrating admitted-node clicks with the navigation-subscription prerequisite,
+facing stale node authority and an invalid deadline leaving an unsent command pending, we decided
+for immediate node revalidation followed by the existing typed dispatch boundary, and against
+reusable prevalidated commands or a second registry-identity allocation, to preserve both node
+provenance and exact pending-command behavior, accepting that callers must supply live registry
+state and a fresh typed-input proof for every attempt.
+
+The node handle shares the core registry's existing identity allocation; its exact external-node
+mapping and lifecycle invalidation remain private. Zero and excessive deadlines fail before
+registration, proven no-write frame failures retire only the new PointerClick entry, and ambiguous
+writes retain it. This does not authenticate the browser, authorize the action, bind pointer replies
+to a connection, or prove that the click caused navigation.
+
+The socket regression at `3f9cdc1a` observed one outstanding command after a zero deadline. Its
+successor at integration commit `7535d8af` observes none and requires no command bytes on the peer.
+The integration also restores four parent navigation-postcondition regressions and retains both
+mask-reuse rejection and ambiguous-write socket tests. Status remains Proposed; hosted checks,
+protected-main delivery and fresh visual inspection are separate gates.
+
 ### Proposed refinement: consuming subscription teardown (2026-09-06)
 
 In the context of ending a navigation subscription, facing a borrowed receipt that permits continued
