@@ -51,8 +51,14 @@ fn protocol_proof(
     )?)
 }
 
-fn current_node_fixture(
-) -> Result<(BrowserAuthorityRegistry, AdmittedNodeHandle, WebDriverBiDiRemoteNodeReference), Box<dyn Error>> {
+fn current_node_fixture() -> Result<
+    (
+        BrowserAuthorityRegistry,
+        AdmittedNodeHandle,
+        WebDriverBiDiRemoteNodeReference,
+    ),
+    Box<dyn Error>,
+> {
     let mut registry = BrowserAuthorityRegistry::new();
     let browser_session = registry.register_session(REGISTRY_SESSION_ID)?;
     let browsing_context = registry.register_context(browser_session, "context-a")?;
@@ -103,8 +109,8 @@ fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
 }
 
 #[test]
-fn current_node_pointer_click_is_rejected_before_writing_to_a_foreign_session_transport(
-) -> Result<(), Box<dyn Error>> {
+fn current_node_pointer_click_is_rejected_before_writing_to_a_foreign_session_transport()
+-> Result<(), Box<dyn Error>> {
     let (registry, handle, remote) = current_node_fixture()?;
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
@@ -121,7 +127,10 @@ fn current_node_pointer_click_is_rejected_before_writing_to_a_foreign_session_tr
                 if matches!(
                     source.kind(),
                     io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
-                ) => Ok(false),
+                ) =>
+            {
+                Ok(false)
+            }
             Err(source) => Err(source),
         }
     });
