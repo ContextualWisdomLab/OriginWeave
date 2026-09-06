@@ -37,9 +37,7 @@ fn read_opening_request(stream: &mut TcpStream) -> io::Result<()> {
     Ok(())
 }
 
-fn spawn_foreign_transport_server(
-    listener: TcpListener,
-) -> thread::JoinHandle<io::Result<bool>> {
+fn spawn_foreign_transport_server(listener: TcpListener) -> thread::JoinHandle<io::Result<bool>> {
     thread::spawn(move || {
         let (mut stream, _) = listener.accept()?;
         read_opening_request(&mut stream)?;
@@ -82,17 +80,13 @@ fn establish(
 }
 
 #[test]
-fn registry_bound_subscription_is_rejected_before_writing_to_a_foreign_session_transport(
-) -> Result<(), Box<dyn Error>> {
+fn registry_bound_subscription_is_rejected_before_writing_to_a_foreign_session_transport()
+-> Result<(), Box<dyn Error>> {
     let mut registry = BrowserAuthorityRegistry::new();
     let session = registry.register_session(REGISTRY_SESSION_ID)?;
     let context = registry.register_context(session, CONTEXT_ID)?;
     let command = WebDriverBiDiNavigationCommittedSubscriptionCommand::new(
-        7,
-        &registry,
-        session,
-        context,
-        CONTEXT_ID,
+        7, &registry, session, context, CONTEXT_ID,
     )?;
 
     let listener = TcpListener::bind(("127.0.0.1", 0))?;

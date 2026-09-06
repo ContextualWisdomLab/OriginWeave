@@ -108,6 +108,7 @@ impl BrowserAuthorityRegistry {
         })
     }
 
+    /// Check the existing canonical external-session mapping without creating authority.
     pub(crate) fn require_session_external_identifier(
         &self,
         browser_session: BrowserSessionId,
