@@ -9,8 +9,13 @@ with a distinct `TypeText` correlation family. The shared frame-deadline validat
 runs before registration. Actual RED `2b960002` exposed a zero deadline retaining an
 unsent command; RED `e2b49e68` exposed the same retention after reused-mask preflight.
 The repair retires only malformed-frame rejections that prove no write began and
-retains correlation after ambiguous socket failure. Nine focused transport tests pass
-at source `3056b892`; complete exact-head acceptance is still pending.
+retains correlation after ambiguous socket failure. Independent review then exposed a
+pre-existing cross-session gap: RED `10131eb7` showed that a node admitted for session A
+could be sent on session B's transport. Dispatch now uses the parent's canonical
+read-only registry-to-transport session check before correlation or action bytes.
+The socket regression requires the exact typed mismatch, zero pending commands and
+wire silence; valid fixtures name the same session at both boundaries. Complete
+exact-head acceptance is still pending.
 
 The transport is not policy approval, browser authentication, a typed response consumer,
 an observed text-value post-condition, protected-main delivery, or release evidence.

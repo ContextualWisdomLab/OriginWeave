@@ -80,7 +80,8 @@ impl Error for WebDriverBiDiTypeTextSendError {
 /// changed origins, mismatched external contexts, and unadmitted wire node identifiers before any
 /// command identifier is registered or any action frame is written. A previously constructed
 /// command therefore cannot outlive its node authority and later bypass revalidation at transport
-/// time.
+/// time. The admitted registry session must also match the established transport's verified
+/// external session identifier; this read-only check cannot create or replace registry state.
 ///
 /// Invalid local deadlines fail before registration. Registration occurs before the first possible
 /// remote side effect. A correlation failure writes
