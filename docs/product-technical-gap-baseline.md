@@ -8,6 +8,54 @@ This volatile section is refreshed from live GitHub state and is authoritative o
 
 ### Latest verified cut: 2026-09-06
 
+#### Session repair and child adoption: 13:35 UTC
+
+This update supersedes the 12:28 source/adoption and visual-boundary claims below.
+The complete five-page live inventory read at 13:29 UTC still found 125 open PRs
+(12 Ready/non-draft, all BLOCKED; 113 Draft), with only #147's unresolved thread
+`PRRT_kwDOTulPlM6coZwc`. Subsequent REST reads confirmed 13 non-PR issues, no releases
+or tags, and unchanged protected main `87c4daa1830bac5a5228b6036752ad5633232085`.
+
+Parent #264 is now `6f331a5b220349a1aaa1b1841d5e8ec027b9ad49`, Draft on #263
+`3f22de94b63da83eaa8b5b1270912b21a3ecd006`. Its original actual-socket regression
+was executed and reproduced foreign-session dispatch before the canonical session
+mapping guard repaired it. Unknown, retired and mismatched mappings reject without
+creating state, registering correlation or emitting command bytes. The fixture now
+waits for seed-Pong setup before simulating disconnection; the diagnostic unit-copy
+coverage case is retained. Full Rust 1.97.1 gates, 145 Python contracts and exact
+1282/13455/17136/1440 production functions/lines/regions/branches each pass at 100%.
+Artifact SHA-256 is `b85acd79c3e3a3a49561b9148b6aafadc26cd292a542ec74ef2b523e88c42eaa`.
+Current CI `34035628391` and MV3 `34035628337` remain queued, not hosted GREEN.
+The source writer released in comment `5559331330`; actual Edge visual inspection
+of its published body and Checks page was completed on this head.
+
+Child #265 now publishes `7147893c96ca95c9b5b275d8011c5bfe99aab065` and actually
+adopts that parent. Original parent regression replay `98621adf` first reproduced
+the same socket failure on the child (0 passed, 1 failed). An ordinary merge then
+preserved both histories, admitted-node/current-document authority, typed dispatch,
+deadline and ambiguous-write safeguards, all four previously restored postcondition
+tests, and both Proposed ADR refinements. All 16 focused regressions, full Rust
+1.97.1 gates, 145 Python contracts, compileall, CodeGraph and diff checks pass.
+Exact pinned-nightly coverage is 1296/13601/17303/1442, each 100%; artifact SHA-256
+is `480d6d3ca492565e8a04bfce4b0c135dffbff276532d129c410674838e8fec2f`.
+CI `34036335342` and MV3 `34036335505` remain queued. Fresh actual Edge visual inspection
+verified the published body and Checks page at this head: readable wrapping, no
+observed clipping or overlap, and exact job IDs matching the API. This is GitHub
+presentation evidence, not product-browser acceptance. Writer `5559497861` released
+after normal publication and readback. Independent preservation review found no
+actionable finding; it is not counted approval.
+
+These are local parent/child acceptance results, not protected-main delivery.
+The branch-instrumentation warning, #195/#279 foundation prerequisite, counted-review
+rule, browser authentication, action authorization, pointer-reply connection binding,
+navigation causality and release gates remain separate. Earlier revision measurements
+and screenshots are historical. This new documentation revision still requires its
+own post-publication visual inspection; prior #238 `112ba13a` inspection is not transferred.
+
+#### Prior observation: 12:28 UTC
+
+All current-state wording in this prior observation is scoped to its recorded time.
+
 Observed through (UTC): `2026-09-06T12:28:16Z`. This cut supersedes volatile claims in the prior observation section below; those earlier exact-head measurements remain historical rather than transferable acceptance evidence. The complete queue read finished at `12:28:16 UTC`, after #265 publication and writer release. The new parent #264 regression is independently owned and is not yet adopted by #265.
 
 The inventory remains **125 open pull requests: 12 Ready/non-draft and 113 Draft; 13 open non-PR issues**. Protected main remains `87c4daa1830bac5a5228b6036752ad5633232085`; release and tag inventories are both empty. Ready-root source heads other than this document's moving branch are unchanged. GraphQL access recovered after the earlier rate-limit failure. GraphQL thread resolution was refreshed for all 125 open PRs alongside exact heads, bases, check rollups and formal reviews in five pages, finishing at `12:28:16 UTC`; all nested histories fit their 100-item pages, with no remaining pagination flags. #147 retains the sole unresolved thread `PRRT_kwDOTulPlM6coZwc`. #166/#220 retain `CHANGES_REQUESTED`, and the other Ready roots retain `REVIEW_REQUIRED`; all twelve are `BLOCKED`. The earlier successful GraphQL cut at `10:00:47 UTC`, subsequent failed inventory/minimal probe and complete 375-read REST fallback at `10:12:37 UTC` remain historical diagnostics, not the current freshness boundary. Active ruleset `18156473` still requires a counted approval and seven central workflows, while the collaborator inventory still contains only the author. #219 has a same-head formal bot approval, but its freshly verified GitHub decision remains `REVIEW_REQUIRED`; an uncounted review does not satisfy the gate. None of this authorizes a bypass or substitutes for an eligible counted approval.

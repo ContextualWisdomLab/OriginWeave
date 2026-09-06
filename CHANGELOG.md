@@ -4,6 +4,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Recorded the executed session-isolation repair and its verified adoption, separating complete local checks and PR visual inspection from pending hosted checks and unreleased browser acceptance.
 - Recorded the current click safeguards, restored regression coverage and completed PR visual inspection, keeping the separately owned parent repair and queued hosted checks distinct from delivery.
 - Recorded subscription-shutdown safeguards and their complete local verification, keeping queued hosted checks and the locked-screen visual-inspection gap explicit.
 - Recorded the repeated-response safeguard, its complete local verification and visual review, separating successful predecessor checks from the new revision's pending checks.
