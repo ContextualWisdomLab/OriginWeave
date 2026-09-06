@@ -64,9 +64,9 @@ impl WebDriverBiDiSessionStatusResult {
                         WebDriverBiDiCommandKind::SessionStatus,
                         message.connection_generation(),
                     )
-                    .map_err(
-                        |source| WebDriverBiDiSessionStatusResponseError::Correlation { source },
-                    )?;
+                    .map_err(|source| WebDriverBiDiSessionStatusResponseError::Correlation {
+                        source,
+                    })?;
                 Ok(Self {
                     command_id: completed.command_id(),
                     ready: projected.ready,
@@ -81,11 +81,9 @@ impl WebDriverBiDiSessionStatusResult {
                             WebDriverBiDiCommandKind::SessionStatus,
                             message.connection_generation(),
                         )
-                        .map_err(
-                            |source| WebDriverBiDiSessionStatusResponseError::Correlation {
-                                source,
-                            },
-                        )?;
+                        .map_err(|source| {
+                            WebDriverBiDiSessionStatusResponseError::Correlation { source }
+                        })?;
                     Err(
                         WebDriverBiDiSessionStatusResponseError::RemoteProtocolError {
                             command_id: completed.command_id(),

@@ -9,9 +9,8 @@ use std::{
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 
 use crate::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind,
-    WebDriverBiDiConnectionMessageRead, WebDriverBiDiJsonEnvelope,
-    WebDriverBiDiJsonEnvelopeError, WebDriverBiDiJsonEnvelopeKind,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandKind, WebDriverBiDiConnectionMessageRead,
+    WebDriverBiDiJsonEnvelope, WebDriverBiDiJsonEnvelopeError, WebDriverBiDiJsonEnvelopeKind,
     WebDriverBiDiReceivedTextMessage, WebDriverBiDiSessionStatusResponseError,
     WebDriverBiDiSessionStatusResult, WebDriverBiDiTcpConnectionPlan,
     WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
