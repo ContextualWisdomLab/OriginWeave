@@ -9,10 +9,10 @@ use std::{
 use originweave_core::WebDriverBiDiWebSocketEndpoint;
 use originweave_network::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
-    WebDriverBiDiCommandKind, WebDriverBiDiTcpConnectionPlan, WebDriverBiDiTypeTextResponseError,
+    WebDriverBiDiCommandKind, WebDriverBiDiConnectionMessageRead, WebDriverBiDiReceivedTextMessage,
+    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiTypeTextResponseError,
     WebDriverBiDiTypeTextResult, WebDriverBiDiWebSocketClientKey,
-    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMessageAssembler,
-    WebDriverBiDiWebSocketMessageAssembly, WebDriverBiDiWebSocketTextMessage,
+    WebDriverBiDiWebSocketHandshakePlan, WebDriverBiDiWebSocketMessageReader,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -93,7 +93,7 @@ fn write_text_frame(stream: &mut TcpStream, payload: &[u8]) -> io::Result<()> {
 
 fn receive_response(
     payload: &'static [u8],
-) -> Result<WebDriverBiDiWebSocketTextMessage, Box<dyn Error>> {
+) -> Result<WebDriverBiDiReceivedTextMessage, Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let server = thread::spawn(move || -> io::Result<()> {
@@ -115,10 +115,10 @@ fn receive_response(
     )?
     .write_opening_request(Duration::from_millis(500))?
     .read_opening_response(Duration::from_millis(500))?;
-    let (_established, frame) = established.read_frame(Duration::from_millis(500))?;
-    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-    let text = match assembler.push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(text) => text,
+    let text = match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text { message, .. } => message,
         other => {
             return Err(io::Error::other(format!(
                 "text-input response produced unexpected assembly state: {other:?}"
@@ -134,8 +134,8 @@ fn receive_response(
 }
 
 #[test]
-fn remote_protocol_error_consumes_only_the_exact_text_input_command() -> Result<(), Box<dyn Error>>
-{
+fn remote_protocol_error_cannot_consume_a_command_without_sender_provenance()
+-> Result<(), Box<dyn Error>> {
     let text = receive_response(REMOTE_ERROR_RESPONSE)?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
     correlation.register_command_for(42, WebDriverBiDiCommandKind::TypeText)?;
@@ -147,14 +147,18 @@ fn remote_protocol_error_consumes_only_the_exact_text_input_command() -> Result<
         })?;
     assert!(matches!(
         error,
-        WebDriverBiDiTypeTextResponseError::RemoteProtocolError { command_id: 42 }
+        WebDriverBiDiTypeTextResponseError::Correlation {
+            source: WebDriverBiDiCommandCorrelationError::CommandConnectionProvenanceMissing {
+                command_id: 42,
+            },
+        }
     ));
     assert_eq!(
         error.to_string(),
-        "WebDriver BiDi text-input returned a protocol error"
+        "WebDriver BiDi text-input response correlation failed"
     );
-    assert!(error.source().is_none());
-    assert_eq!(correlation.outstanding_count(), 0);
+    assert!(error.source().is_some());
+    assert_eq!(correlation.outstanding_count(), 1);
     Ok(())
 }
 

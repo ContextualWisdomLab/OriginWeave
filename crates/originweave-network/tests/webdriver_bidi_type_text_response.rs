@@ -268,6 +268,16 @@ fn write_text_frame(stream: &mut TcpStream, payload: &[u8]) -> io::Result<()> {
 
 #[test]
 fn type_text_protocol_success_consumes_exact_outstanding_command() -> Result<(), Box<dyn Error>> {
+    assert_sent_response(TYPE_TEXT_SUCCESS_RESPONSE)
+}
+
+#[test]
+fn remote_protocol_error_consumes_only_the_exact_text_input_command() -> Result<(), Box<dyn Error>>
+{
+    assert_sent_response(TYPE_TEXT_ERROR_RESPONSE)
+}
+
+fn assert_sent_response(payload: &'static [u8]) -> Result<(), Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let (registry, handle, remote) = admitted_type_text_fixture()?;
@@ -294,7 +304,7 @@ fn type_text_protocol_success_consumes_exact_outstanding_command() -> Result<(),
                 "unexpected input.performActions text-input command",
             ));
         }
-        write_text_frame(&mut stream, TYPE_TEXT_SUCCESS_RESPONSE)
+        write_text_frame(&mut stream, payload)
     });
 
     let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
@@ -327,8 +337,23 @@ fn type_text_protocol_success_consumes_exact_outstanding_command() -> Result<(),
     assert_eq!(correlation.outstanding_count(), 1);
 
     let text = read_response_text(established)?;
-    let result = WebDriverBiDiTypeTextResult::parse_and_correlate(&text, &mut correlation)?;
-    assert_eq!(result.command_id(), 42);
+    let result = WebDriverBiDiTypeTextResult::parse_and_correlate(&text, &mut correlation);
+    if payload == TYPE_TEXT_SUCCESS_RESPONSE {
+        assert_eq!(result?.command_id(), 42);
+    } else {
+        let error = result
+            .err()
+            .ok_or_else(|| io::Error::other("remote error accepted as success"))?;
+        assert!(matches!(
+            error,
+            WebDriverBiDiTypeTextResponseError::RemoteProtocolError { command_id: 42 }
+        ));
+        assert_eq!(
+            error.to_string(),
+            "WebDriver BiDi text-input returned a protocol error"
+        );
+        assert!(error.source().is_none());
+    }
     assert_eq!(correlation.outstanding_count(), 0);
 
     server
