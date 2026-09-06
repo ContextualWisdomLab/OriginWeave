@@ -283,7 +283,7 @@ fn type_text_rejects_invalid_text_before_correlation_or_frame_write() -> Result<
 fn type_text_rejects_duplicate_correlation_before_frame_write() -> Result<(), Box<dyn Error>> {
     let (established, server) = establish_with_handshake_only_server()?;
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command(8)?;
+    correlation.register_command_for(8, originweave_network::WebDriverBiDiCommandKind::TypeText)?;
     let (registry, handle, remote) = type_text_fixture()?;
 
     let error = send_webdriver_bidi_type_text(

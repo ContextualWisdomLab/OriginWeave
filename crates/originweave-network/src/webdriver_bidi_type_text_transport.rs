@@ -8,7 +8,7 @@ use originweave_core::{
 
 use crate::{
     WebDriverBiDiCommandCorrelation, WebDriverBiDiCommandCorrelationError,
-    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrameError,
+    WebDriverBiDiCommandKind, WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketFrameError,
     WebDriverBiDiWebSocketMaskKey,
 };
 
@@ -137,9 +137,14 @@ pub fn send_webdriver_bidi_type_text(
     crate::webdriver_bidi_websocket_frame::validate_frame_timeout(frame_timeout)
         .map_err(|source| WebDriverBiDiTypeTextSendError::FrameWrite { source })?;
     correlation
-        .register_command(command.command_id())
+        .register_command_for(command.command_id(), WebDriverBiDiCommandKind::TypeText)
         .map_err(|source| WebDriverBiDiTypeTextSendError::Correlation { source })?;
     established
-        .write_text_frame(command.as_json(), masking_key, frame_timeout)
+        .write_command_frame(
+            command.command_id(),
+            command.as_json(),
+            masking_key,
+            frame_timeout,
+        )
         .map_err(|source| WebDriverBiDiTypeTextSendError::FrameWrite { source })
 }

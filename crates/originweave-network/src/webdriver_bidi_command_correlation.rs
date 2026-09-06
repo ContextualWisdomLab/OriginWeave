@@ -26,6 +26,8 @@ pub enum WebDriverBiDiCommandKind {
     SessionEnd,
     /// WebDriver BiDi `input.performActions` pointer click.
     PointerClick,
+    /// WebDriver BiDi `input.performActions` node-bound non-secret text input.
+    TypeText,
     /// Context-scoped WebDriver BiDi `session.subscribe` for committed navigation.
     NavigationCommittedSubscription,
     /// WebDriver BiDi `session.unsubscribe` for one retained committed-navigation subscription.
