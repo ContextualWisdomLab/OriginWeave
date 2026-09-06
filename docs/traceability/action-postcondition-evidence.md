@@ -1,5 +1,22 @@
 # Action Post-Condition Evidence Traceability
 
+## Parent-adoption checkpoint — 2026-09-06
+
+Ordinary integration `5a722867` preserves the text-input and diagnostic-privacy delta
+from `cc9980c0` while adopting pointer parent `7147893c96ca95c9b5b275d8011c5bfe99aab065`.
+The inherited foreign-session socket regression first failed at `18a64573`; the
+parent's canonical session guard, current-node pointer revalidation, typed dispatch,
+deadline safeguards and four restored navigation-postcondition tests are retained.
+Text-command source and its existing eight regression bodies are unchanged.
+
+This text slice still constructs a bounded command; it does not implement a typed
+text transport, revalidate text authority at dispatch, authorize actions, or prove a
+browser state change. Parent pointer/subscription safeguards do not supply those
+missing text boundaries. Current protected main is `87c4daa1830bac5a5228b6036752ad5633232085`.
+The dossier below retains its earlier revision-specific observations; old exact-head
+CI and screenshots are not combined-head acceptance. Keep Draft pending fresh full
+checks, visual inspection, parent-first protected integration and runtime evidence.
+
 - **Documentation status:** Active-stack evidence dossier; protected-main truth is called out separately
 - **Canonical owner:** issue #28 (`Complete the first real Chromium agent vertical slice`)
 - **Protected-main baseline:** `542ca1e9c0a863595b8b6697790005d2471f5413`
