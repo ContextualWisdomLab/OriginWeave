@@ -296,6 +296,14 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             "5558261278",
             "both complete lineages are now ancestors",
             "too_many_active_automations",
+            "10f138f8787d596e8b556fe50c9e4e52bc1295b7",
+            "b3ffeac9",
+            "1278/13371/17056/1434",
+            "9f5b4942d6a040a83f09593a2b81406c44bc9d2b402fa995a95294ce8e9cbb7e",
+            "34026519860",
+            "34026519878",
+            "owner destruction",
+            "registry-to-transport association",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, latest)
