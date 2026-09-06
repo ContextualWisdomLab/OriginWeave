@@ -34,11 +34,17 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
         self.assertIn("87c4daa1830bac5a5228b6036752ad5633232085", current)
         self.assertNotIn("b05d5acca82b9d916ada2c8e82f59f92a89817e1", current)
 
-    def test_evidence_procedure_requires_fresh_head_recheck(self) -> None:
-        """A stored snapshot must never authorize stale-head promotion."""
-        self.assertIn("Re-fetch the head and base immediately before any merge/readiness decision", self.baseline)
+    def test_evidence_procedure_re_resolves_mutable_pr_head(self) -> None:
+        """Evidence commands must resolve the live PR head instead of freezing a self-stale SHA."""
+        self.assertIn(
+            "Re-fetch the head and base immediately before any merge/readiness decision",
+            self.baseline,
+        )
         self.assertIn("--paginate", self.baseline)
-        self.assertIn("head_sha=89708cf5e474f7701513b84a1356a8ce1699bef5", self.baseline)
+        self.assertIn('foundation_head="$(gh api "repos/$repo/pulls/195" --jq ".head.sha")"', self.baseline)
+        self.assertIn('commits/$foundation_head/check-runs', self.baseline)
+        self.assertIn('head_sha=$foundation_head', self.baseline)
+        self.assertNotIn("head_sha=89708cf5e474f7701513b84a1356a8ce1699bef5", self.baseline)
 
 
 if __name__ == "__main__":
