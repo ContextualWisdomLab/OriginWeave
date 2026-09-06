@@ -10,13 +10,14 @@ use originweave_core::{
     BrowserAuthorityRegistry, BrowserSessionId, BrowsingContextId, WebDriverBiDiWebSocketEndpoint,
 };
 use originweave_network::{
-    WebDriverBiDiCommandCorrelation, WebDriverBiDiNavigationCommittedSubscriptionAdmission,
+    WebDriverBiDiCommandCorrelation, WebDriverBiDiConnectionMessageRead,
+    WebDriverBiDiNavigationCommittedSubscriptionAdmission,
     WebDriverBiDiNavigationCommittedSubscriptionBinding,
     WebDriverBiDiNavigationCommittedSubscriptionCommand,
-    WebDriverBiDiNavigationCommittedSubscriptionResult, WebDriverBiDiTcpConnectionPlan,
-    WebDriverBiDiWebSocketClientKey, WebDriverBiDiWebSocketHandshakePlan,
-    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageAssembler,
-    WebDriverBiDiWebSocketMessageAssembly,
+    WebDriverBiDiNavigationCommittedSubscriptionResult, WebDriverBiDiReceivedTextMessage,
+    WebDriverBiDiTcpConnectionPlan, WebDriverBiDiWebSocketClientKey,
+    WebDriverBiDiWebSocketEstablished, WebDriverBiDiWebSocketHandshakePlan,
+    WebDriverBiDiWebSocketMaskKey, WebDriverBiDiWebSocketMessageReader,
 };
 
 const SESSION_ID: &str = "01234567-89ab-cdef-0123-456789abcdef";
@@ -95,14 +96,17 @@ fn write_text_frame(stream: &mut TcpStream, payload: &[u8]) -> io::Result<()> {
 }
 
 fn next_text(
-    established: originweave_network::WebDriverBiDiWebSocketEstablished,
-) -> Result<originweave_network::WebDriverBiDiWebSocketTextMessage, Box<dyn Error>> {
-    let (_established, frame) = established.read_frame(Duration::from_millis(500))?;
-    let mut assembler = WebDriverBiDiWebSocketMessageAssembler::new();
-    match assembler.push_frame(frame)? {
-        WebDriverBiDiWebSocketMessageAssembly::Text(text) => Ok(text),
+    established: WebDriverBiDiWebSocketEstablished,
+) -> Result<(WebDriverBiDiWebSocketEstablished, WebDriverBiDiReceivedTextMessage), Box<dyn Error>> {
+    match WebDriverBiDiWebSocketMessageReader::new(established)
+        .read_next(Duration::from_millis(500))?
+    {
+        WebDriverBiDiConnectionMessageRead::Text {
+            established,
+            message,
+        } => Ok((established, message)),
         other => Err(io::Error::other(format!(
-            "expected a complete WebDriver BiDi text message, got {other:?}"
+            "expected a complete connection-bound WebDriver BiDi text message, got {other:?}"
         ))
         .into()),
     }
@@ -110,7 +114,7 @@ fn next_text(
 
 fn establish(
     local_addr: std::net::SocketAddr,
-) -> Result<originweave_network::WebDriverBiDiWebSocketEstablished, Box<dyn Error>> {
+) -> Result<WebDriverBiDiWebSocketEstablished, Box<dyn Error>> {
     let endpoint = format!("ws://{local_addr}/session/{SESSION_ID}");
     let target = WebDriverBiDiWebSocketEndpoint::new(&endpoint)?
         .correlate_session_id(SESSION_ID)?
@@ -171,7 +175,7 @@ fn receive_subscription_result(
         WebDriverBiDiWebSocketMaskKey::new([1, 2, 3, 4]),
         Duration::from_millis(500),
     )?;
-    let response = next_text(established)?;
+    let (_established, response) = next_text(established)?;
     let result = WebDriverBiDiNavigationCommittedSubscriptionResult::parse_and_correlate(
         &response,
         &mut correlation,
@@ -183,9 +187,7 @@ fn receive_subscription_result(
     Ok((result, binding))
 }
 
-fn receive_event(
-    payload: &'static [u8],
-) -> Result<originweave_network::WebDriverBiDiWebSocketTextMessage, Box<dyn Error>> {
+fn receive_event(payload: &'static [u8]) -> Result<WebDriverBiDiReceivedTextMessage, Box<dyn Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let local_addr = listener.local_addr()?;
     let server = thread::spawn(move || -> io::Result<()> {
@@ -195,7 +197,7 @@ fn receive_event(
         write_text_frame(&mut stream, payload)
     });
 
-    let event = next_text(establish(local_addr)?)?;
+    let (_established, event) = next_text(establish(local_addr)?)?;
     server
         .join()
         .map_err(|_| io::Error::other("event failure-contract server panicked"))??;
@@ -215,15 +217,15 @@ fn subscription_event_failures_keep_specific_public_diagnostics() -> Result<(), 
     )?;
     let missing_navigation_event = receive_event(MISSING_NAVIGATION_EVENT)?;
 
-    let missing_navigation = admission
+    let crossed_connection = admission
         .admit(&missing_navigation_event, &registry, EXPECTED_URL)
         .err()
-        .ok_or_else(|| io::Error::other("null navigation identity unexpectedly admitted"))?;
+        .ok_or_else(|| io::Error::other("foreign connection unexpectedly admitted an event"))?;
     assert_eq!(
-        missing_navigation.to_string(),
-        "WebDriver BiDi navigation-committed event has no reusable-safe navigation identity"
+        crossed_connection.to_string(),
+        "WebDriver BiDi navigation event arrived on a different subscription connection"
     );
-    assert!(missing_navigation.source().is_none());
+    assert!(crossed_connection.source().is_none());
 
     registry.remove_context(context)?;
     let stale_context = admission
@@ -232,9 +234,9 @@ fn subscription_event_failures_keep_specific_public_diagnostics() -> Result<(), 
         .ok_or_else(|| io::Error::other("retired context unexpectedly admitted an event"))?;
     assert_eq!(
         stale_context.to_string(),
-        "WebDriver BiDi navigation subscription context is no longer registered authority"
+        "WebDriver BiDi navigation event arrived on a different subscription connection"
     );
-    assert!(stale_context.source().is_some());
+    assert!(stale_context.source().is_none());
 
     Ok(())
 }
