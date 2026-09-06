@@ -850,15 +850,18 @@ mod tests {
         );
         drop(original_registry);
         let replacement_registry = crate::BrowserAuthorityRegistry::with_identifier_limit(8);
-        let replacement_error = replacement_registry
+        let replacement_errors: Vec<_> = replacement_registry
             .require_identity(&retained_identity)
-            .expect_err("retained identity must not authorize a replacement registry");
+            .err()
+            .into_iter()
+            .collect();
+        assert_eq!(replacement_errors.len(), 1);
         let expected_values = values(BrowserSessionId::new(1));
         let actual_values = values(BrowserSessionId::new(2));
         assert_eq!(expected_values.len(), 1);
         assert_eq!(actual_values.len(), 1);
         let errors = [
-            replacement_error,
+            replacement_errors[0],
             BrowserRegistryError::InvalidExternalIdentifier,
             BrowserRegistryError::UnknownBrowserSession,
             BrowserRegistryError::UnknownBrowsingContext,
