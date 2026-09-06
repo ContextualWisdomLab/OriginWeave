@@ -230,13 +230,12 @@ impl WebDriverBiDiCommandCorrelation {
             command_id,
             WebDriverBiDiCommandKind::NavigationCommittedSubscription,
         )?;
+        let expected_connection_generation =
+            Self::require_connection_generation(&outstanding, command_id)?;
         let subscription_intent = outstanding.subscription_intent.ok_or(
             WebDriverBiDiCommandCorrelationError::CommandSubscriptionProvenanceMissing {
                 command_id,
             },
-        )?;
-        let expected_connection_generation = outstanding.connection_generation.ok_or(
-            WebDriverBiDiCommandCorrelationError::CommandConnectionProvenanceMissing { command_id },
         )?;
         if expected_connection_generation != received_connection_generation {
             return Err(
@@ -371,6 +370,15 @@ impl WebDriverBiDiCommandCorrelation {
         Ok(actual)
     }
 
+    fn require_connection_generation(
+        outstanding: &OutstandingCommand,
+        command_id: u64,
+    ) -> Result<WebDriverBiDiConnectionGeneration, WebDriverBiDiCommandCorrelationError> {
+        outstanding.connection_generation.ok_or(
+            WebDriverBiDiCommandCorrelationError::CommandConnectionProvenanceMissing { command_id },
+        )
+    }
+
     fn complete(
         &mut self,
         command_id: u64,
@@ -394,9 +402,8 @@ impl WebDriverBiDiCommandCorrelation {
         received_connection_generation: WebDriverBiDiConnectionGeneration,
     ) -> Result<WebDriverBiDiCorrelatedResponse, WebDriverBiDiCommandCorrelationError> {
         let outstanding = self.require_command_kind(command_id, expected_kind)?;
-        let expected_connection_generation = outstanding.connection_generation.ok_or(
-            WebDriverBiDiCommandCorrelationError::CommandConnectionProvenanceMissing { command_id },
-        )?;
+        let expected_connection_generation =
+            Self::require_connection_generation(&outstanding, command_id)?;
         if expected_connection_generation != received_connection_generation {
             return Err(
                 WebDriverBiDiCommandCorrelationError::ResponseConnectionMismatch { command_id },
