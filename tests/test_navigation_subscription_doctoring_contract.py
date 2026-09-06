@@ -7,6 +7,8 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "crates/originweave-network/src/webdriver_bidi_navigation_committed_subscription.rs"
+RESPONSE_SOURCE = ROOT / "crates/originweave-network/src/webdriver_bidi_navigation_committed_subscription_response.rs"
+ADMISSION_SOURCE = ROOT / "crates/originweave-network/src/webdriver_bidi_navigation_committed_subscription_admission.rs"
 DOCTORING = ROOT / "docs/doctoring.md"
 ADR = ROOT / "docs/adr/0103-semantic-observation-and-stale-node-identity.md"
 
@@ -21,7 +23,7 @@ class NavigationSubscriptionDoctoringContractTests(unittest.TestCase):
 
         self.assertLess(
             source.index("validate_frame_timeout(frame_timeout)"),
-            source.index(".register_subscription_command("),
+            source.index(".register_subscription_command_for_connection("),
         )
         self.assertIn("WebDriverBiDiWebSocketFrameError::MalformedFrame", source)
         self.assertIn("correlation.retire_command_for(", source)
@@ -42,6 +44,21 @@ class NavigationSubscriptionDoctoringContractTests(unittest.TestCase):
             "ambiguous frame-write failures retain correlation",
             doctoring,
         )
+
+    def test_subscription_receipt_and_event_use_connection_bound_messages(self) -> None:
+        """The typed subscription boundary must retain and compare receive-connection provenance."""
+        source = SOURCE.read_text(encoding="utf-8")
+        response_source = RESPONSE_SOURCE.read_text(encoding="utf-8")
+        admission_source = ADMISSION_SOURCE.read_text(encoding="utf-8")
+
+        self.assertIn("established.transport_evidence().connection_generation()", source)
+        self.assertIn("register_subscription_command_for_connection", source)
+        self.assertIn("&WebDriverBiDiReceivedTextMessage", response_source)
+        self.assertIn("received.connection_generation()", response_source)
+        self.assertIn("&WebDriverBiDiReceivedTextMessage", admission_source)
+        self.assertIn("EventConnectionMismatch", admission_source)
+        self.assertIn("received.connection_generation()", admission_source)
+        self.assertIn("unsubscribe transport provenance remains a separate boundary", admission_source)
 
     def test_webdriver_bidi_reference_tracks_current_published_working_draft(self) -> None:
         """ADR and aggregate doctoring must cite the same current published WebDriver BiDi draft."""
