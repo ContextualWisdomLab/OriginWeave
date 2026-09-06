@@ -70,6 +70,12 @@ PR #259 predecessor `e1105ddf86f6c79443af8b4d306b9d34cb703c17` collected zero in
 
 Fresh verification passed ten navigation tests, five received-connection/teardown tests, all 142 Python contracts, compileall and complete Rust 1.97.1 quality gates. Pinned coverage measured 1140 functions, 11841 lines, 15129 regions and 1332 branches at 100%, with its unstable branch-option warning retained. Local event projection, context binding and URL admission remain distinct from hosted security acceptance, origin rebinding, document advancement and a released Chromium workflow.
 
+### Document-epoch child integration
+
+PR #260 predecessor `3a651967c421f77088fe25e86a63faae295390b3` failed the expected-one inherited release-contract assertion with zero native-discovered tests before ordinary adoption of #259 `66731982ed51ad62a04fcfbc759b0a33721a0254`. The document-advance implementation, its two loopback tests and Proposed ADR 0103 remain byte-identical to the predecessor. Crate documentation retains both the current received-connection/teardown description and the exact pre-action epoch requirement. Local registry advancement clears stale origin/node bindings but does not authenticate an observation, bind the new origin or prove action causation.
+
+Fresh verification passed 17 document-epoch/navigation/received-connection/teardown tests, 142 Python contracts, compileall and complete Rust 1.97.1 format/check/workspace-test/strict-Clippy/rustdoc gates. Pinned coverage measured 1154 functions, 11969 lines, 15314 regions and 1334 branches at 100%; the unstable branch-option warning remains. Hosted exact-head checks, counted approval when required, source promotion and released browser behavior remain separate acceptance gates.
+
 ### Navigation owner adopts the pointer receipt repair
 
 On #259 `91d95423cf31947f691db5ebbd3072c481d86542`, canonical regression replay
@@ -99,6 +105,23 @@ Consumer-only `588fe731` failed with missing sender provenance; ordinary parent
 merge `0234b587d1bca9286eb5b597f9dab33be47ff518` includes #257 `9451fd8a` and
 passes all six focused response tests. These are local implementation findings,
 not new standards claims, browser authentication, page effects, or release proof.
+
+### Document-epoch owner adopts the pointer receipt repair
+
+On #260 `e5228396be8d9faade44a30aed704cacbeb91b46`, canonical regression
+replay `8f6b5a0c` failed locally: a replacement connection consumed the original
+pending pointer command (zero passed, one failed). Ordinary merge `962ecbe4`
+adopts #259 `180c168ecbdcd5eb7a4ad14ab4a53e8670646bf7`, retaining its sealed
+click receipt, stronger two-connection regressions and navigation fixture repair.
+Both documentation histories are preserved. The document-advance production
+module, its two integration tests and Proposed ADR 0103 are byte-identical to
+the child predecessor; no new epoch or observation authority is introduced.
+
+All eighteen focused document-advance, navigation and pointer-response tests pass
+locally on the integrated tree. Full exact-head gates and coverage remain separate
+measurements. A connection-bound click acknowledgment does not authenticate the
+later navigation event, prove causation, bind a new origin or establish a released
+browser workflow. Those acceptance gaps are not closed by this parent adoption.
 
 ## References
 
