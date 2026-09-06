@@ -4,6 +4,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Retained text-input privacy and validation while adopting the latest click and subscription safeguards; text dispatch and browser outcome verification remain unfinished.
 - Integrated the current navigation-subscription safeguards while preserving active-subscription admission, replay rejection and stale-document checks. A response from a replacement connection still cannot complete an earlier session shutdown; this source integration is not real-browser or release acceptance.
 
 ### Changed
