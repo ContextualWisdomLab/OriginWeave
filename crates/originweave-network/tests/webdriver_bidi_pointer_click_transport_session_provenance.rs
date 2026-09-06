@@ -167,9 +167,11 @@ fn current_node_pointer_click_is_rejected_before_writing_to_a_foreign_session_tr
         .join()
         .map_err(|_| io::Error::other("foreign-session pointer server panicked"))??;
 
-    let error = send_result
-        .err()
-        .ok_or_else(|| io::Error::other("registry session A unexpectedly dispatched pointer input on transport session B"))?;
+    let error = send_result.err().ok_or_else(|| {
+        io::Error::other(
+            "registry session A unexpectedly dispatched pointer input on transport session B",
+        )
+    })?;
     assert!(matches!(
         error,
         WebDriverBiDiPointerClickSendError::Authority {

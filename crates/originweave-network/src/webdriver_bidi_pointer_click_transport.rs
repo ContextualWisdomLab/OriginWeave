@@ -139,7 +139,10 @@ pub fn send_webdriver_bidi_pointer_click(
     registry
         .require_registered_session_external_identifier(
             handle.browser_session(),
-            established.transport_evidence().verified_peer().session_id(),
+            established
+                .transport_evidence()
+                .verified_peer()
+                .session_id(),
         )
         .map_err(|source| WebDriverBiDiPointerClickSendError::Authority {
             source: WebDriverBiDiPointerClickAuthorityError::BrowserAuthority(source),
