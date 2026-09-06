@@ -250,6 +250,24 @@ class GapSnapshotInventoryConsistencyTests(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.assertIn(marker, latest)
 
+    def test_current_cut_records_parent_adoption_and_sent_command_repair(self) -> None:
+        """New source evidence must not inherit earlier native or browser acceptance."""
+        latest = self.baseline.split("## Current live delivery state", 1)[1].split(
+            "### Prior observation cut: 2026-09-05", 1
+        )[0]
+        for marker in (
+            "6ab7fc9166f397f49442243492ae88d6ccad56cf",
+            "43d3b5a3a2b5ce4f51a93d1152a0ee82620f4f3e",
+            "73f11de2232060ac7680e188db88ef7609123296",
+            "253 Python contracts",
+            "1273/13294/16963/1430",
+            "34020055803",
+            "actual-resend freshness",
+            "current caller-supplied registry",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, latest)
+
     def test_current_baseline_inventory_matches_the_verified_snapshot(self) -> None:
         """The dated 2026-08-29 snapshot must keep its exact historical inventory."""
         current = self.baseline.split("### Open pull requests", 1)[1].split(

@@ -4,6 +4,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ## [Unreleased]
 
+- Refreshed the live delivery baseline with sandbox-parent adoption, subscription request-identity repair, current review gates and explicit limits on browser acceptance evidence.
 - Separated the September 6 verified queue from prior measurements, recording restored-foundation workflow failures, current successor CI results, completed sandbox doctoring, and unreleased runtime/central-owner prerequisites.
 - Recorded verified #261/#277 parent adoption, the reproduced subscription-deadline slot repair, current #288 sandbox-source verification, and the central report-classification source repair; retained hosted, review, runtime, and independent-verification limits and the REST refresh boundary.
 - Recorded #50's reproduced formatting repair and verified current-parent integrations through #255–#260, preserving their exact local test/coverage evidence, child-source ownership, warning and runtime limits, and remaining hosted/approval gates.
