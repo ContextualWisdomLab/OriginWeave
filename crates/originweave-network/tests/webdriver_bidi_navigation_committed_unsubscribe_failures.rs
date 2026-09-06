@@ -9,6 +9,7 @@ use std::{
 use originweave_core::{BrowserAuthorityRegistry, WebDriverBiDiWebSocketEndpoint};
 use originweave_network::{
     MAX_WEBDRIVER_BIDI_JS_UINT, WebDriverBiDiCommandCorrelation,
+    WebDriverBiDiCommandCorrelationError, WebDriverBiDiCommandKind,
     WebDriverBiDiNavigationCommittedSubscriptionCommand,
     WebDriverBiDiNavigationCommittedSubscriptionResult,
     WebDriverBiDiNavigationCommittedUnsubscribeCommand,
@@ -29,6 +30,7 @@ const SUBSCRIBE_RESPONSE: &str =
     r#"{"type":"success","id":7,"result":{"subscription":"sub-\"\\\n\u0001-구독"}}"#;
 const MALFORMED_UNSUBSCRIBE_RESPONSE: &[u8] = br#"{"type":"success","id":8,"result":"#;
 const UNKNOWN_UNSUBSCRIBE_RESPONSE: &[u8] = br#"{"type":"success","id":9,"result":{}}"#;
+const MATCHED_UNSUBSCRIBE_SUCCESS: &[u8] = br#"{"type":"success","id":8,"result":{}}"#;
 const MATCHED_UNSUBSCRIBE_ERROR: &[u8] =
     br#"{"type":"error","id":8,"error":"invalid argument","message":"denied"}"#;
 
@@ -287,7 +289,7 @@ fn duplicate_command_id_is_rejected_before_unsubscribe_write() -> Result<(), Box
     let command = WebDriverBiDiNavigationCommittedUnsubscribeCommand::new(8, &subscription)?;
 
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command(8)?;
+    correlation.register_command_for(8, WebDriverBiDiCommandKind::NavigationCommittedUnsubscribe)?;
     let result = command.send(
         established,
         &mut correlation,
@@ -318,7 +320,7 @@ fn duplicate_command_id_is_rejected_before_unsubscribe_write() -> Result<(), Box
 }
 
 #[test]
-fn invalid_frame_timeout_consumes_transport_and_retains_unsubscribe_correlation()
+fn invalid_frame_timeout_fails_before_unsubscribe_correlation_or_write()
 -> Result<(), Box<dyn Error>> {
     let subscription = obtain_subscription_receipt()?;
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
@@ -349,11 +351,11 @@ fn invalid_frame_timeout_consumes_transport_and_retains_unsubscribe_correlation(
         &error,
         WebDriverBiDiNavigationCommittedUnsubscribeCommandError::FrameWrite { .. }
     ));
-    assert_eq!(correlation.outstanding_count(), 1);
+    assert_eq!(correlation.outstanding_count(), 0);
 
     server
         .join()
-        .map_err(|_| io::Error::other("frame-write test server panicked"))??;
+        .map_err(|_| io::Error::other("frame-timeout test server panicked"))??;
     Ok(())
 }
 
@@ -361,7 +363,7 @@ fn invalid_frame_timeout_consumes_transport_and_retains_unsubscribe_correlation(
 fn malformed_and_unknown_unsubscribe_responses_preserve_outstanding_correlation()
 -> Result<(), Box<dyn Error>> {
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command(8)?;
+    correlation.register_command_for(8, WebDriverBiDiCommandKind::NavigationCommittedUnsubscribe)?;
 
     let malformed = read_text_over_loopback(MALFORMED_UNSUBSCRIBE_RESPONSE)?;
     let error = match WebDriverBiDiNavigationCommittedUnsubscribeResult::parse_and_correlate(
@@ -408,9 +410,35 @@ fn malformed_and_unknown_unsubscribe_responses_preserve_outstanding_correlation(
 }
 
 #[test]
+fn unsubscribe_response_cannot_consume_subscription_command_kind() -> Result<(), Box<dyn Error>> {
+    let mut correlation = WebDriverBiDiCommandCorrelation::new();
+    correlation.register_command_for(8, WebDriverBiDiCommandKind::NavigationCommittedSubscription)?;
+    let matched = read_text_over_loopback(MATCHED_UNSUBSCRIBE_SUCCESS)?;
+
+    let error = match WebDriverBiDiNavigationCommittedUnsubscribeResult::parse_and_correlate(
+        &matched,
+        &mut correlation,
+    ) {
+        Ok(_) => return Err(io::Error::other("unsubscribe consumed subscription correlation").into()),
+        Err(error) => error,
+    };
+    assert!(matches!(
+        error,
+        WebDriverBiDiNavigationCommittedUnsubscribeResponseError::Correlation {
+            source: WebDriverBiDiCommandCorrelationError::CommandKindMismatch {
+                expected: WebDriverBiDiCommandKind::NavigationCommittedUnsubscribe,
+                actual: WebDriverBiDiCommandKind::NavigationCommittedSubscription,
+            },
+        }
+    ));
+    assert_eq!(correlation.outstanding_count(), 1);
+    Ok(())
+}
+
+#[test]
 fn matched_unsubscribe_protocol_error_consumes_only_its_command() -> Result<(), Box<dyn Error>> {
     let mut correlation = WebDriverBiDiCommandCorrelation::new();
-    correlation.register_command(8)?;
+    correlation.register_command_for(8, WebDriverBiDiCommandKind::NavigationCommittedUnsubscribe)?;
     let matched = read_text_over_loopback(MATCHED_UNSUBSCRIBE_ERROR)?;
 
     let error = match WebDriverBiDiNavigationCommittedUnsubscribeResult::parse_and_correlate(

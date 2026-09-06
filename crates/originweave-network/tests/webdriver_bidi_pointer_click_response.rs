@@ -25,7 +25,7 @@ const OPENING_RESPONSE: &[u8] = b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: w
 const CLICK_SUCCESS_RESPONSE: &[u8] =
     br#"{"type":"success","id":42,"result":{"vendorExtension":{"observed":false}}}"#;
 const CLICK_REMOTE_ERROR_RESPONSE: &[u8] =
-    br#"{"type":"error","id":42,"error":"element click intercepted","message":"blocked"}"#;
+    br#"{"type":"error","id":42,"error":"invalid argument","message":"blocked","stacktrace":"remote"}"#;
 const CLICK_UNKNOWN_ID_RESPONSE: &[u8] =
     br#"{"type":"success","id":43,"result":{"vendorExtension":true}}"#;
 const CLICK_MALFORMED_RESPONSE: &[u8] = br#"{"type":"success","id":42}"#;
