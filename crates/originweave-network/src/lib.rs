@@ -12,7 +12,8 @@
 //! transports a narrowly typed pointer click, admits its typed correlated protocol
 //! response, admits a bounded navigation-committed post-condition observation for
 //! one exact registered context and URL, rotates that context's document epoch
-//! only from an exact caller-captured pre-action epoch, sends narrowly typed
+//! only from an exact caller-captured pre-action epoch, derives and binds the
+//! committed HTTP(S) URL's canonical origin to the new document, sends narrowly typed
 //! `session.status` and `session.end` commands, admits typed
 //! correlated status and end responses, binds `session.end` ACK and closure evidence
 //! to one private process-local connection generation, observes bounded peer Close
@@ -29,6 +30,7 @@ mod webdriver_bidi_connection;
 mod webdriver_bidi_json_envelope;
 mod webdriver_bidi_navigation_committed_postcondition;
 mod webdriver_bidi_navigation_document_advance;
+mod webdriver_bidi_navigation_document_origin;
 mod webdriver_bidi_pointer_click_response;
 mod webdriver_bidi_pointer_click_transport;
 mod webdriver_bidi_received_message;
@@ -74,6 +76,11 @@ pub use webdriver_bidi_navigation_document_advance::{
     WebDriverBiDiNavigationCommittedDocumentAdvance,
     WebDriverBiDiNavigationCommittedDocumentAdvanceError,
     advance_webdriver_bidi_navigation_document_epoch,
+};
+pub use webdriver_bidi_navigation_document_origin::{
+    WebDriverBiDiNavigationCommittedDocumentOrigin,
+    WebDriverBiDiNavigationCommittedDocumentOriginError,
+    advance_and_bind_webdriver_bidi_navigation_document_origin,
 };
 pub use webdriver_bidi_pointer_click_response::{
     WebDriverBiDiPointerClickResponseError, WebDriverBiDiPointerClickResult,

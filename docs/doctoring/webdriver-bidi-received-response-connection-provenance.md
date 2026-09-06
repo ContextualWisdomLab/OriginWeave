@@ -123,6 +123,23 @@ measurements. A connection-bound click acknowledgment does not authenticate the
 later navigation event, prove causation, bind a new origin or establish a released
 browser workflow. Those acceptance gaps are not closed by this parent adoption.
 
+### Origin-binding owner adopts the pointer receipt repair
+
+On #261 `572fc4224ddc09c010bd9ccf100764076899495a`, canonical replay
+`c03e0dcc` reproduced the replacement-connection defect (zero passed, one failed).
+Ordinary merge `80cfa186` adopts #260
+`3807aabeb22f9622610c3c8d504d1c686d25d896`, preserving the receipt safeguards,
+stronger regressions and repaired navigation fixture from its parent chain.
+The origin-binding production module and its three integration tests remain
+byte-identical to the child predecessor. URL validation still precedes registry
+mutation, and stale-epoch rejection preserves the intervening origin binding.
+
+All twenty-one focused origin-binding, document-advance, navigation and pointer
+response tests pass locally. Full exact-head checks and coverage are separate
+measurements. The resulting origin is registry-local evidence derived from the
+accepted observation; it does not authenticate the observation, authorize a
+destination, prove click causality or establish released browser behavior.
+
 ## References
 
 Fette, I., & Melnikov, A. (2011). *The WebSocket Protocol* (RFC 6455). Internet Engineering Task Force. https://www.rfc-editor.org/rfc/rfc6455
