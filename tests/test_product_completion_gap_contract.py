@@ -140,6 +140,33 @@ class ProductCompletionGapContractTests(unittest.TestCase):
         self.assertIn("## Historical next executable queue", text)
         self.assertNotIn("## Next executable queue", text)
 
+    def test_pointer_checkpoint_records_published_receipt_repair(self) -> None:
+        current = bounded_section(
+            BASELINE.read_text(encoding="utf-8"),
+            "##### Pointer receipt follow-up: 15:31 UTC",
+            "#### Session repair and child adoption: 13:35 UTC",
+        )
+        for marker in (
+            "#257 `9451fd8a23dec95b31749376bc78c2eaca977fe8`",
+            "#258 `5417ce32ed957aa166807f1023647caccc2920cb`",
+            "8193fcd5", "d9396f05", "588fe731", "0234b587",
+            "2 → 2 → 1", "34041977863", "34042223733", "queued",
+            "not product-browser acceptance", "outbound session authority",
+            "#249", "#250", "descendant adoption",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, current)
+
+    def test_historical_text_cannot_supply_missing_pointer_receipt_head(self) -> None:
+        text = BASELINE.read_text(encoding="utf-8")
+        marker = "#258 `5417ce32ed957aa166807f1023647caccc2920cb`"
+        mutated = text.replace(marker, "response head removed", 1)
+        self.assertNotEqual(mutated, text)
+        mutated += "\nHistorical evidence: " + marker
+        with patch.object(pathlib.Path, "read_text", return_value=mutated):
+            with self.assertRaises(AssertionError):
+                self.test_pointer_checkpoint_records_published_receipt_repair()
+
     def test_historical_prose_cannot_hide_latest_root_or_lineage_removal(self) -> None:
         text = BASELINE.read_text(encoding="utf-8")
         cases = (
