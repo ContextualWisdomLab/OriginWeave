@@ -106,6 +106,23 @@ merge `0234b587d1bca9286eb5b597f9dab33be47ff518` includes #257 `9451fd8a` and
 passes all six focused response tests. These are local implementation findings,
 not new standards claims, browser authentication, page effects, or release proof.
 
+### Document-epoch owner adopts the pointer receipt repair
+
+On #260 `e5228396be8d9faade44a30aed704cacbeb91b46`, canonical regression
+replay `8f6b5a0c` failed locally: a replacement connection consumed the original
+pending pointer command (zero passed, one failed). Ordinary merge `962ecbe4`
+adopts #259 `180c168ecbdcd5eb7a4ad14ab4a53e8670646bf7`, retaining its sealed
+click receipt, stronger two-connection regressions and navigation fixture repair.
+Both documentation histories are preserved. The document-advance production
+module, its two integration tests and Proposed ADR 0103 are byte-identical to
+the child predecessor; no new epoch or observation authority is introduced.
+
+All eighteen focused document-advance, navigation and pointer-response tests pass
+locally on the integrated tree. Full exact-head gates and coverage remain separate
+measurements. A connection-bound click acknowledgment does not authenticate the
+later navigation event, prove causation, bind a new origin or establish a released
+browser workflow. Those acceptance gaps are not closed by this parent adoption.
+
 ## References
 
 Fette, I., & Melnikov, A. (2011). *The WebSocket Protocol* (RFC 6455). Internet Engineering Task Force. https://www.rfc-editor.org/rfc/rfc6455

@@ -6,6 +6,7 @@ All notable changes to OriginWeave are documented in this file. The format follo
 
 ### Changed
 
+- Carried replacement-connection click-reply rejection into document advancement while preserving rejection of stale or retired contexts; a successful reply still does not authenticate a later navigation.
 - Integrated current navigation-observation prerequisites into document-epoch advancement, preserving stale-epoch and retired-context rejection and the Proposed architecture decision without granting a new origin or action authority.
 - Carried replacement-connection click-reply rejection into the navigation-observation stack while preserving its context and URL checks; observing a navigation still does not prove that a click caused it.
 - Integrated current click-response prerequisites into bounded navigation observation, preserving exact registered-context and URL admission and keeping event evidence separate from causal action or document advancement.
