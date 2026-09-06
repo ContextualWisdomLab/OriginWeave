@@ -84,7 +84,8 @@ impl Error for WebDriverBiDiTypeTextSendError {
 /// external session identifier; this read-only check cannot create or replace registry state.
 ///
 /// Invalid local deadlines fail before registration. Registration occurs before the first possible
-/// remote side effect. A correlation failure writes
+/// remote side effect and binds the exact established connection generation for received-response
+/// verification. A correlation failure writes
 /// nothing. A malformed-frame preflight rejection retires this exact typed identifier because no
 /// write began. Other frame-write failures leave the identifier outstanding because a partial or
 /// complete remote side effect is ambiguous and the identifier must not be silently reused.
@@ -149,7 +150,11 @@ pub fn send_webdriver_bidi_type_text(
     crate::webdriver_bidi_websocket_frame::validate_frame_timeout(frame_timeout)
         .map_err(|source| WebDriverBiDiTypeTextSendError::FrameWrite { source })?;
     correlation
-        .register_command_for(command.command_id(), WebDriverBiDiCommandKind::TypeText)
+        .register_command_for_connection(
+            command.command_id(),
+            WebDriverBiDiCommandKind::TypeText,
+            established.transport_evidence().connection_generation(),
+        )
         .map_err(|source| WebDriverBiDiTypeTextSendError::Correlation { source })?;
     established
         .write_command_frame(
