@@ -5,6 +5,7 @@ from __future__ import annotations
 import pathlib
 import re
 import unittest
+from unittest.mock import patch
 
 from test_documentation_active_pr_evidence_contract import bounded_section
 
@@ -130,6 +131,28 @@ class ProductCompletionGapContractTests(unittest.TestCase):
         )
         self.assertIn("## Historical next executable queue", text)
         self.assertNotIn("## Next executable queue", text)
+
+    def test_historical_prose_cannot_hide_latest_root_or_lineage_removal(self) -> None:
+        text = BASELINE.read_text(encoding="utf-8")
+        cases = (
+            (
+                "#195 `63997bcf555e2c5c8e91ba287734ffba3837a1b7`",
+                "foundation evidence removed",
+                self.test_current_snapshot_records_repaired_webdriver_bidi_lineage,
+            ),
+            (
+                "Ready roots: #37, #50,",
+                "Ready roots: #37,",
+                self.test_latest_executable_queue_uses_current_ready_roots,
+            ),
+        )
+        for original, replacement, check in cases:
+            with self.subTest(original=original):
+                mutated = text.replace(original, replacement, 1)
+                self.assertNotEqual(mutated, text)
+                with patch.object(pathlib.Path, "read_text", return_value=mutated):
+                    with self.assertRaises(AssertionError):
+                        check()
 
     def test_historical_snapshot_preserves_webdriver_bidi_lineage(self) -> None:
         """The active stack must retain exact heads and the macOS race boundary."""
